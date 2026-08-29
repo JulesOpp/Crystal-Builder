@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=68", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "crystal-builder"
+description = "Build, manipulate, analyse and export crystal structures"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+dynamic = ["version"]
+authors = [{name = "Jules Oppenheim"}]
+keywords = ["crystallography", "cif", "symmetry", "spacegroup", "uff"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+
+# The CORE (xtal/) needs only these.  Nothing here pulls in Qt or VTK,
+# so `pip install crystal-builder` stays usable on a headless box, in
+# CI, and inside a notebook.
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "gemmi>=0.6",
+    "spglib>=2.1",
+]
+
+[project.optional-dependencies]
+gui = ["PySide6>=6.6", "vtk>=9.3", "pyqtgraph>=0.13"]
+ase = ["ase>=3.22"]
+test = ["pytest>=8"]
+dev = ["crystal-builder[gui,ase,test]", "ruff", "pyinstaller>=6"]
+
+[project.scripts]
+xtal = "xtal.cli:main"                    # headless CLI (phase 1)
+crystal-builder = "xtalapp.main:main"     # the GUI (phase 2)
+
+[project.urls]
+Repository = "https://github.com/JulesOpp/Crystal-Builder"
+
+[tool.setuptools]
+packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
+            "xtal.analysis"]
+
+[tool.setuptools_scm]        # version from git tags; no version file to bump
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["error::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 79
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
