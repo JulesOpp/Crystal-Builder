@@ -5,10 +5,11 @@ exporting crystal structures.  The visual and interaction model follows
 **VESTA**; the symmetry and force-field capability follows **Materials
 Studio**.  Python throughout, shipped to macOS and Windows.
 
-Status: **phase 2 complete** — the crystallography core, the headless
-CLI, and a PySide6 + VTK application that opens a CIF and draws it.
-Next up is picking and inspection.  See [docs/PLAN.md](docs/PLAN.md)
-for the full architecture and roadmap.
+Status: **phase 3 complete** — the core, the headless CLI, and an
+application that opens a CIF, draws it, and lets you click atoms and
+bonds to inspect and edit them.  Next up is the command stack, undo/redo
+and structure building.  See [docs/PLAN.md](docs/PLAN.md) for the full
+architecture and roadmap.
 
 ---
 
@@ -56,6 +57,21 @@ Open a CIF from the file tree on the left or by dropping it on the
 window.  Left-drag orbits, the wheel zooms, middle-drag pans.  The
 *View* menu switches between ball-and-stick, stick, wireframe and
 space-filling; the toolbar spinboxes set how many unit cells are drawn.
+
+Click an atom or a bond to select it, shift-click to add to the
+selection, double-click for the whole molecule or framework.  The
+*Select* menu grows a selection by element, by bonded neighbours, by
+fragment or by symmetry orbit.  The Inspector edits the selected site
+(element, label, coordinates, occupancy, Uiso, charge) and the Sites
+tab is the same data as a table.
+
+Because the document holds an asymmetric unit and a space group, an
+edit to one atom is an edit to its whole symmetry orbit -- the
+Inspector says so before you make it, and *Reduce to P1* is the way to
+edit atoms one at a time.
+
+`resources/samples/MFU4l.cif` (CCDC 776578) is a worked example: a
+648-atom metal-organic framework in Fm-3m.
 
 ## What works today
 

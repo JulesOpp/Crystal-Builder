@@ -22,7 +22,9 @@ from pathlib import Path
 from PySide6.QtCore import QObject, Signal
 
 from xtal import Structure
-from xtal.core import properties
+from xtal.core import bonding, p1, properties
+from xtal.core import selection as sel
+from xtal.core.selection import Selection
 from xtal.core.structure import Change
 from xtal.io import FORMATS
 from xtalapp.viewport.view_settings import ViewSettings
@@ -32,6 +34,7 @@ class Document(QObject):
     """One open structure and its view state."""
 
     structureChanged = Signal(int)      # a Change flag
+    selectionChanged = Signal()
     viewChanged = Signal()
     modifiedChanged = Signal(bool)
     titleChanged = Signal(str)
@@ -43,6 +46,7 @@ class Document(QObject):
         self._path = Path(path) if path else None
         self._modified = False
         self.view = ViewSettings()
+        self.selection = Selection()
         self.warnings: list[str] = list(
             self._structure.meta.get("warnings", []))
 
@@ -84,9 +88,11 @@ class Document(QObject):
         """Replace the structure wholesale (open, supercell, P1, ...)."""
         self._structure = structure
         self.warnings = list(structure.meta.get("warnings", []))
+        self.selection.clear()
         if modified:
             self.set_modified(True)
         self.structureChanged.emit(int(change))
+        self.selectionChanged.emit()
         self.titleChanged.emit(self.title)
 
     def apply(self, mutate, change: Change = Change.ALL) -> None:
@@ -97,7 +103,151 @@ class Document(QObject):
         """
         mutate(self._structure)
         self.set_modified(True)
+        if change & (Change.TOPOLOGY | Change.SYMMETRY | Change.CELL):
+            self.selection.prune(self.cell.n_atoms)
+            self.selectionChanged.emit()
         self.structureChanged.emit(int(change))
+
+    # -- derived data --------------------------------------------------
+
+    @property
+    def cell(self):
+        """The P1 expansion -- what is drawn, and what a click hits."""
+        return p1.expand(self._structure)
+
+    @property
+    def graph(self):
+        return bonding.graph(self._structure)
+
+    # -- selection -----------------------------------------------------
+
+    def select(self, atoms, mode: str = "set") -> None:
+        """Select atoms of the P1 cell.  ``mode`` is set, add, toggle
+        or remove."""
+        atoms = [int(a) for a in atoms]
+        if mode == "set":
+            self.selection.set_atoms(atoms)
+        elif mode == "add":
+            self.selection.add_atoms(atoms)
+        elif mode == "remove":
+            self.selection.remove_atoms(atoms)
+        elif mode == "toggle":
+            for atom in atoms:
+                self.selection.toggle_atom(atom)
+        else:
+            raise ValueError(f"unknown selection mode {mode!r}")
+        self.selectionChanged.emit()
+
+    def select_bond(self, key, mode: str = "set") -> None:
+        if mode == "set":
+            self.selection.bonds = {key}
+        else:
+            self.selection.toggle_bond(key)
+        self.selectionChanged.emit()
+
+    def select_none(self) -> None:
+        self.selection.clear()
+        self.selectionChanged.emit()
+
+    def select_all(self) -> None:
+        self.selection.set_atoms(range(self.cell.n_atoms))
+        self.selectionChanged.emit()
+
+    def invert_selection(self) -> None:
+        self.selection.invert(self.cell.n_atoms)
+        self.selectionChanged.emit()
+
+    def select_element(self, symbol: str, mode: str = "set") -> None:
+        self.select(sel.by_element(self.cell, symbol), mode)
+
+    def select_site(self, site_index: int, mode: str = "set") -> None:
+        """Select every image of one asymmetric-unit site."""
+        self.select(sel.by_site(self.cell, site_index), mode)
+
+    def expand_selection(self, how: str, value=1) -> None:
+        """Grow the selection: 'shell', 'fragment', 'orbit' or
+        'radius'."""
+        atoms = set(self.selection.atoms)
+        if not atoms:
+            return
+        if how == "shell":
+            atoms = sel.expand_shell(self.graph, atoms, int(value))
+        elif how == "fragment":
+            atoms = sel.expand_fragment(self.graph, atoms)
+        elif how == "orbit":
+            atoms = sel.symmetry_orbit(self.cell, atoms)
+        elif how == "radius":
+            atoms = sel.within_radius(self.cell, self._structure.lattice,
+                                      atoms, float(value))
+        else:
+            raise ValueError(f"unknown expansion {how!r}")
+        self.select(atoms, "set")
+
+    def selected_sites(self) -> set:
+        return sel.sites_for(self.cell, self.selection.atoms)
+
+    def selection_is_orbit_complete(self) -> bool:
+        return sel.covers_whole_orbits(self.cell, self.selection.atoms)
+
+    def selection_summary(self) -> str:
+        return sel.describe(self._structure, self.cell, self.selection)
+
+    def selection_orbit_report(self) -> str:
+        return sel.orbit_report(self.cell, self.selection.atoms)
+
+    # -- editing the selection -----------------------------------------
+
+    def delete_selection(self) -> str:
+        """Delete the sites behind the selected atoms.
+
+        Symmetry ties images together, so this removes whole orbits:
+        the caller is expected to have shown
+        :meth:`selection_orbit_report` first.
+        """
+        sites = sorted(self.selected_sites())
+        if not sites:
+            return "nothing to delete"
+        atoms = sum(self.cell.multiplicity(s) for s in sites)
+        self.apply(lambda structure: structure.remove_sites(sites),
+                   Change.TOPOLOGY)
+        return f"deleted {len(sites)} site(s) ({atoms} atoms)"
+
+    def set_selection_element(self, symbol: str) -> str:
+        """Change the element of every selected atom's site."""
+        sites = sorted(self.selected_sites())
+        if not sites:
+            return "nothing selected"
+
+        def mutate(structure):
+            for index in sites:
+                structure.sites[index].element = symbol
+            structure.touch(Change.TOPOLOGY)
+
+        self.apply(mutate, Change.TOPOLOGY)
+        return f"changed {len(sites)} site(s) to {symbol}"
+
+    def set_site_property(self, site_index: int, **values) -> None:
+        """Edit one site's label, occupancy, Uiso, charge or
+        coordinates."""
+        change = (Change.POSITIONS if set(values) <= {"frac"}
+                  else Change.TOPOLOGY)
+
+        def mutate(structure):
+            site = structure.sites[site_index]
+            for key, value in values.items():
+                setattr(site, key, value)
+            structure.touch(change)
+
+        self.apply(mutate, change)
+
+    def reduce_to_p1(self) -> str:
+        """Expand every orbit into explicit sites, so single atoms can
+        be edited independently."""
+        from xtal.core.symmetry import reduce_to_p1
+        before = self._structure.space_group.short_name
+        self.set_structure(reduce_to_p1(self._structure),
+                           Change.SYMMETRY)
+        return f"expanded {before} to P1"
 
     # -- view ----------------------------------------------------------
 

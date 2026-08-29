@@ -242,6 +242,30 @@ def parse_symbol(text: str) -> str:
     raise ValueError(f"unknown element symbol: {text!r}")
 
 
+def canonical_symbol(text: str) -> str | None:
+    """Strict reading of an element symbol: the whole string must be
+    one, case aside.  ``"fe"`` and ``"FE"`` give ``"Fe"``; ``"Fe2+"``,
+    ``"C1"`` and ``"Kryptonite"`` give ``None``.
+
+    This is what UI input uses.  :func:`parse_symbol` is the forgiving
+    reading for file contents, where "Ow" really does mean oxygen and
+    refusing it would fail to open the file -- but where a person types
+    into a box, a prefix match silently turning "Kryptonite" into
+    krypton is a bug, not a convenience.
+    """
+    if not text:
+        return None
+    cleaned = text.strip()
+    if len(cleaned) > 2:
+        return None
+    candidate = cleaned[0].upper() + cleaned[1:].lower()
+    return candidate if candidate in _COLOR_HEX else None
+
+
+def is_symbol(text: str) -> bool:
+    return canonical_symbol(text) is not None
+
+
 def symbol_from_z(z: int) -> str:
     """Element symbol for an atomic number (1-118)."""
     if not 1 <= z <= 118:

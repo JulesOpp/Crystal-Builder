@@ -53,6 +53,14 @@ SPHERE_RESOLUTION = 24
 TUBE_SIDES = 12
 MAX_LABELS = 400            # beyond this, labels are noise anyway
 
+# Selection is drawn as a translucent halo around the real geometry
+# rather than by recolouring it: the element colours are how a
+# crystallographer reads the picture, and a selection must not take
+# them away.
+HIGHLIGHT_COLOR = (255, 205, 40)
+HIGHLIGHT_OPACITY = 0.45
+HIGHLIGHT_GROWTH = 1.30     # halo radius, relative to the atom
+
 
 def _to_uchar(colors: np.ndarray, name: str) -> vtkUnsignedCharArray:
     arr = vtkUnsignedCharArray()
@@ -114,6 +122,7 @@ class VtkScene:
         self._build_atom_actor()
         self._build_bond_actor()
         self._build_cell_actor()
+        self._build_highlight_actors()
 
     # -- actor construction --------------------------------------------
 
@@ -164,6 +173,48 @@ class VtkScene:
         self.cell_actor.GetProperty().SetLighting(False)
         self.renderer.AddActor(self.cell_actor)
 
+    def _build_highlight_actors(self):
+        self._halo_poly = vtkPolyData()
+        sphere = vtkSphereSource()
+        sphere.SetRadius(1.0)
+        sphere.SetThetaResolution(SPHERE_RESOLUTION)
+        sphere.SetPhiResolution(SPHERE_RESOLUTION)
+        mapper = vtkGlyph3DMapper()
+        mapper.SetSourceConnection(sphere.GetOutputPort())
+        mapper.SetInputData(self._halo_poly)
+        mapper.SetScalarModeToUsePointFieldData()
+        mapper.SetScaleArray("radii")
+        mapper.SetScaleModeToScaleByMagnitude()
+        mapper.ScalarVisibilityOff()
+        self.halo_mapper = mapper
+        self.halo_actor = vtkActor()
+        self.halo_actor.SetMapper(mapper)
+        self._style_highlight(self.halo_actor)
+        self.renderer.AddActor(self.halo_actor)
+
+        self._halo_bond_poly = vtkPolyData()
+        self._halo_tube = vtkTubeFilter()
+        self._halo_tube.SetInputData(self._halo_bond_poly)
+        self._halo_tube.SetNumberOfSides(TUBE_SIDES)
+        self._halo_tube.CappingOn()
+        bond_mapper = vtkPolyDataMapper()
+        bond_mapper.SetInputConnection(self._halo_tube.GetOutputPort())
+        bond_mapper.ScalarVisibilityOff()
+        self.halo_bond_actor = vtkActor()
+        self.halo_bond_actor.SetMapper(bond_mapper)
+        self._style_highlight(self.halo_bond_actor)
+        self.renderer.AddActor(self.halo_bond_actor)
+
+    @staticmethod
+    def _style_highlight(actor):
+        prop = actor.GetProperty()
+        prop.SetColor(*[c / 255 for c in HIGHLIGHT_COLOR])
+        prop.SetOpacity(HIGHLIGHT_OPACITY)
+        prop.SetAmbient(0.5)
+        prop.SetDiffuse(0.5)
+        prop.SetSpecular(0.0)
+        actor.SetVisibility(False)
+
     # -- updating ------------------------------------------------------
 
     def set_model(self, model) -> None:
@@ -176,6 +227,7 @@ class VtkScene:
         self._set_bonds(model)
         self._set_cell(model)
         self._set_labels(model)
+        self._set_highlight(model)
 
     def _set_atoms(self, model):
         poly = vtkPolyData()
@@ -215,6 +267,31 @@ class VtkScene:
                                          model.cell_colors)
         self.cell_mapper.SetInputData(self._cell_poly)
         self.cell_actor.SetVisibility(True)
+
+    def _set_highlight(self, model):
+        picked = (model.selected if len(model.selected)
+                  else np.zeros(model.n_atoms, bool))
+        indices = np.flatnonzero(picked)
+        poly = vtkPolyData()
+        if len(indices):
+            poly.SetPoints(_points(model.positions[indices]))
+            poly.GetPointData().AddArray(_to_float(
+                model.radii[indices] * HIGHLIGHT_GROWTH, "radii"))
+        self._halo_poly = poly
+        self.halo_mapper.SetInputData(poly)
+        self.halo_actor.SetVisibility(len(indices) > 0)
+
+        bonds = (model.selected_bonds if len(model.selected_bonds)
+                 else np.zeros(model.n_bond_halves, bool))
+        chosen = np.flatnonzero(bonds)
+        if len(chosen):
+            self._halo_bond_poly = _line_polydata(
+                model.bond_starts[chosen], model.bond_ends[chosen],
+                np.tile(HIGHLIGHT_COLOR, (len(chosen), 1)))
+            self._halo_tube.SetInputData(self._halo_bond_poly)
+            self._halo_tube.SetRadius(model.bond_radius
+                                      * HIGHLIGHT_GROWTH * 1.4)
+        self.halo_bond_actor.SetVisibility(len(chosen) > 0)
 
     def _set_labels(self, model):
         for actor in self._label_actors:

@@ -40,6 +40,8 @@ class SceneModel:
         default_factory=lambda: np.zeros(0, int))   # into the P1 cell
     atom_cell: np.ndarray = field(
         default_factory=lambda: _empty(3, int))     # lattice shift
+    selected: np.ndarray = field(
+        default_factory=lambda: np.zeros(0, bool))  # (M,) highlight
 
     # bonds, already split in half so each end takes its atom's colour
     bond_starts: np.ndarray = field(default_factory=_empty)    # (K,3)
@@ -48,6 +50,8 @@ class SceneModel:
         default_factory=lambda: _empty(3, np.uint8))           # (K,3)
     bond_radius: float = 0.15
     bond_render: str = "tube"                                  # tube|line
+    selected_bonds: np.ndarray = field(
+        default_factory=lambda: np.zeros(0, bool))             # (K,)
 
     # unit cell wireframe
     cell_starts: np.ndarray = field(default_factory=_empty)    # (L,3)
@@ -89,6 +93,10 @@ class SceneModel:
     def center(self) -> np.ndarray:
         lo, hi = self.bounds()
         return (lo + hi) / 2.0
+
+    @property
+    def n_selected(self) -> int:
+        return int(self.selected.sum()) if len(self.selected) else 0
 
     def instance(self, i: int) -> tuple[int, tuple[int, int, int]]:
         """Provenance of drawn atom ``i``: (P1 atom index, cell)."""

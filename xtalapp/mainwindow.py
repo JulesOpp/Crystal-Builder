@@ -22,6 +22,7 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QColorDialog,
     QFileDialog,
+    QInputDialog,
     QLabel,
     QMainWindow,
     QMessageBox,
@@ -34,6 +35,8 @@ from xtal.io import FORMATS
 from xtalapp.actions import ActionRegistry
 from xtalapp.docks.filetree import FileTreeDock
 from xtalapp.docks.info import InfoDock
+from xtalapp.docks.inspector import InspectorDock
+from xtalapp.docks.sites import SitesDock
 from xtalapp.document import Document
 from xtalapp.settings import AppSettings
 from xtalapp.viewport import styles
@@ -78,6 +81,8 @@ class MainWindow(QMainWindow):
 
         self.status_label = QLabel("")
         self.statusBar().addWidget(self.status_label, 1)
+        self.selection_label = QLabel("")
+        self.statusBar().addPermanentWidget(self.selection_label)
 
         self.settings.restore_window(self)
         self._update_ui()
@@ -129,6 +134,26 @@ class MainWindow(QMainWindow):
                 boundary="bonded" if v else "in_range"),
             checkable=True)
 
+        add("select_all", "Select &All", self.select_all, "Ctrl+A")
+        add("select_none", "Select &None", self.select_none, "Esc")
+        add("invert_selection", "&Invert selection",
+            self.invert_selection, "Ctrl+I")
+        add("select_same", "Select same &element",
+            self.select_same_element)
+        add("expand_bonded", "Grow to &bonded neighbours",
+            lambda: self.expand_selection("shell"), "Ctrl+G")
+        add("expand_fragment", "Grow to whole &fragment",
+            lambda: self.expand_selection("fragment"),
+            "Ctrl+Shift+G")
+        add("expand_orbit", "Grow to symmetry &orbit",
+            lambda: self.expand_selection("orbit"))
+        add("delete_selection", "&Delete", self.delete_selection,
+            "Del", tip="Delete the selected sites")
+        add("change_element", "Change &element...",
+            self.change_element)
+        add("reduce_p1", "Reduce to &P1", self.reduce_to_p1,
+            tip="Expand every symmetry orbit into independent sites")
+
         add("reset_view", "&Reset view", self.reset_view, "Ctrl+0")
         add("view_a", "Along &a", lambda: self.look_along(0), "1")
         add("view_b", "Along &b", lambda: self.look_along(1), "2")
@@ -146,6 +171,23 @@ class MainWindow(QMainWindow):
         self._rebuild_recent_menu()
         file_menu.addSeparator()
         file_menu.addAction(self.actions_["quit"])
+
+        edit_menu = bar.addMenu("&Edit")
+        self.actions_.fill_menu(edit_menu,
+                                ["delete_selection", "change_element"])
+
+        select_menu = bar.addMenu("&Select")
+        self.actions_.fill_menu(select_menu, [
+            "select_all", "select_none", "invert_selection", None,
+            "select_same"])
+        self.element_menu = select_menu.addMenu("By &element")
+        grow_menu = select_menu.addMenu("&Grow")
+        self.actions_.fill_menu(grow_menu, ["expand_bonded",
+                                            "expand_fragment",
+                                            "expand_orbit"])
+
+        structure_menu = bar.addMenu("S&tructure")
+        self.actions_.fill_menu(structure_menu, ["reduce_p1"])
 
         view_menu = bar.addMenu("&View")
         style_menu = view_menu.addMenu("&Style")
@@ -199,12 +241,29 @@ class MainWindow(QMainWindow):
         self.file_dock.fileActivated.connect(self.open_path)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.file_dock)
 
+        self.inspector_dock = InspectorDock(self)
+        self.inspector_dock.deleteRequested.connect(
+            self.delete_selection)
+        self.inspector_dock.reduceToP1Requested.connect(
+            self.reduce_to_p1)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.inspector_dock)
+
         self.info_dock = InfoDock(self)
         self.addDockWidget(Qt.RightDockWidgetArea, self.info_dock)
 
-        view_menu = self.menuBar().addMenu("&Window")
-        view_menu.addAction(self.file_dock.toggleViewAction())
-        view_menu.addAction(self.info_dock.toggleViewAction())
+        self.sites_dock = SitesDock(self)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.sites_dock)
+
+        # Three panels compete for the right-hand side; tabbing them
+        # keeps the viewport wide by default.
+        self.tabifyDockWidget(self.inspector_dock, self.info_dock)
+        self.tabifyDockWidget(self.info_dock, self.sites_dock)
+        self.inspector_dock.raise_()
+
+        window_menu = self.menuBar().addMenu("&Window")
+        for dock in (self.file_dock, self.inspector_dock,
+                     self.info_dock, self.sites_dock):
+            window_menu.addAction(dock.toggleViewAction())
 
     # ==================================================================
     #  DOCUMENTS
@@ -228,6 +287,10 @@ class MainWindow(QMainWindow):
             lambda title, d=document: self._on_title_changed(d, title))
         document.structureChanged.connect(self._update_ui)
         document.viewChanged.connect(self._update_ui)
+        document.selectionChanged.connect(self._on_selection_changed)
+        if hasattr(viewport, "statusMessage"):
+            viewport.statusMessage.connect(
+                lambda text: self.statusBar().showMessage(text, 4000))
         self.tabs.setCurrentIndex(index)
         self._update_ui()
         return index
@@ -377,6 +440,111 @@ class MainWindow(QMainWindow):
         if viewport is not None and hasattr(viewport, "look_along_axis"):
             viewport.look_along_axis(axis)
 
+    # ==================================================================
+    #  SELECTION AND EDITING
+    # ==================================================================
+
+    def select_all(self) -> None:
+        document = self.current_document()
+        if document is not None:
+            document.select_all()
+
+    def select_none(self) -> None:
+        document = self.current_document()
+        if document is not None:
+            document.select_none()
+
+    def invert_selection(self) -> None:
+        document = self.current_document()
+        if document is not None:
+            document.invert_selection()
+
+    def select_element(self, symbol: str) -> None:
+        document = self.current_document()
+        if document is not None:
+            document.select_element(symbol)
+
+    def select_same_element(self) -> None:
+        """Grow a one-atom selection to every atom of that element."""
+        document = self.current_document()
+        if document is None or not document.selection.atoms:
+            return
+        from xtal.core import selection as sel
+        elements = {document.cell.elements[a]
+                    for a in document.selection.atoms}
+        atoms = set()
+        for symbol in elements:
+            atoms |= sel.by_element(document.cell, symbol)
+        document.select(atoms, "set")
+
+    def expand_selection(self, how: str) -> None:
+        document = self.current_document()
+        if document is not None:
+            document.expand_selection(how)
+
+    def delete_selection(self) -> None:
+        """Delete the selected sites, asking first when symmetry means
+        more atoms go than were selected."""
+        document = self.current_document()
+        if document is None or not document.selection.atoms:
+            return
+        if not document.selection_is_orbit_complete():
+            answer = QMessageBox.question(
+                self, "Symmetry",
+                f"{document.selection_orbit_report()}.\n\n"
+                f"Delete the whole orbit?",
+                QMessageBox.Yes | QMessageBox.No)
+            if answer != QMessageBox.Yes:
+                return
+        self.statusBar().showMessage(document.delete_selection(), 5000)
+
+    def change_element(self) -> None:
+        document = self.current_document()
+        if document is None or not document.selection.atoms:
+            return
+        current = sorted({document.cell.elements[a]
+                          for a in document.selection.atoms})[0]
+        symbol, ok = QInputDialog.getText(
+            self, "Change element", "New element:", text=current)
+        if not ok or not symbol.strip():
+            return
+        from xtal.core import elements as el
+        canonical = el.canonical_symbol(symbol)
+        if canonical is None:
+            QMessageBox.warning(
+                self, "Unknown element",
+                f"{symbol.strip()!r} is not an element symbol.")
+            return
+        symbol = canonical
+        self.statusBar().showMessage(
+            document.set_selection_element(symbol), 5000)
+
+    def reduce_to_p1(self) -> None:
+        document = self.current_document()
+        if document is not None:
+            self.statusBar().showMessage(document.reduce_to_p1(), 5000)
+
+    def _on_selection_changed(self) -> None:
+        document = self.current_document()
+        if document is None:
+            return
+        self.inspector_dock.refresh()
+        self.sites_dock.sync_selection()
+        self.selection_label.setText(document.selection_summary())
+        self.actions_.set_enabled(
+            ["delete_selection", "change_element", "select_same",
+             "expand_bonded", "expand_fragment", "expand_orbit"],
+            bool(document.selection.atoms))
+
+    def _rebuild_element_menu(self, document) -> None:
+        self.element_menu.clear()
+        if document is None:
+            return
+        for symbol in sorted(document.structure.elements):
+            self.element_menu.addAction(
+                symbol,
+                lambda checked=False, s=symbol: self.select_element(s))
+
     def _on_cells_changed(self, _value=None) -> None:
         document = self.current_document()
         if document is None:
@@ -402,10 +570,22 @@ class MainWindow(QMainWindow):
              "close_tab", "reset_view", "view_a", "view_b", "view_c"],
             has_document)
         self.info_dock.show_document(document)
+        self.inspector_dock.set_document(document)
+        self.sites_dock.set_document(document)
+        self._rebuild_element_menu(document)
+        self.actions_.set_enabled(
+            ["select_all", "select_none", "invert_selection",
+             "reduce_p1"], has_document)
         if document is None:
             self.status_label.setText("No structure open")
+            self.selection_label.setText("")
             self.setWindowTitle(APP_NAME)
             return
+        self.selection_label.setText(document.selection_summary())
+        self.actions_.set_enabled(
+            ["delete_selection", "change_element", "select_same",
+             "expand_bonded", "expand_fragment", "expand_orbit"],
+            bool(document.selection.atoms))
         self.status_label.setText(document.status_text())
         self.setWindowTitle(f"{document.title} — {APP_NAME}")
         name = f"style_{document.view.style}"

@@ -42,8 +42,15 @@ AXIS_COLORS = ((220, 60, 60), (60, 170, 60), (60, 100, 220))
 CELL_COLOR = (120, 120, 130)
 
 
-def build_scene(structure, settings, bond_rules=None) -> SceneModel:
-    """Build the render model for one structure."""
+def build_scene(structure, settings, selection=None,
+                bond_rules=None) -> SceneModel:
+    """Build the render model for one structure.
+
+    ``selection`` is a :class:`xtal.core.selection.Selection` over P1
+    atom indices; the atoms and bonds it names come back flagged so the
+    viewport can highlight them without a second pass over the
+    structure.
+    """
     style = styles.get(settings.style)
     cell = p1.expand(structure)
     lattice = structure.lattice
@@ -53,14 +60,18 @@ def build_scene(structure, settings, bond_rules=None) -> SceneModel:
     if settings.show_bonds and style.draw_bonds and cell.n_atoms:
         graph = bonding.graph(structure, bond_rules)
         bond_halves = _emit_bonds(graph, cell, instances, index_of,
-                                  settings, style)
+                                  settings, style, selection)
 
     positions = np.array([i["frac"] for i in instances],
                          dtype=float).reshape(-1, 3)
     cart = (lattice.to_cart(positions).astype(np.float32)
             if len(positions) else np.zeros((0, 3), np.float32))
 
-    starts, ends, bond_colors = _bond_arrays(bond_halves, lattice)
+    starts, ends, bond_colors, bond_flags = _bond_arrays(bond_halves,
+                                                         lattice)
+    picked = set() if selection is None else set(selection.atoms)
+    flags = np.array([i["atom"] in picked for i in instances],
+                     dtype=bool)
     cell_starts, cell_ends, cell_colors = (
         _cell_lines(structure, settings) if settings.show_cell
         else (np.zeros((0, 3), np.float32),) * 2
@@ -80,9 +91,11 @@ def build_scene(structure, settings, bond_rules=None) -> SceneModel:
         atom_cell=(np.array([i["cell"] for i in instances],
                             dtype=int).reshape(-1, 3) if show_atoms
                    else np.zeros((0, 3), int)),
+        selected=flags if show_atoms else np.zeros(0, bool),
         bond_starts=starts,
         bond_ends=ends,
         bond_colors=bond_colors,
+        selected_bonds=bond_flags,
         bond_radius=settings.bond_radius,
         bond_render=style.bond_render,
         cell_starts=cell_starts,
@@ -156,8 +169,10 @@ def _add_ghost(instances, index_of, cell, key, settings, style):
 #  BONDS
 # ======================================================================
 
-def _emit_bonds(graph, cell, instances, index_of, settings, style):
-    """Half-bonds as (start_frac, end_frac, colour) triples."""
+def _emit_bonds(graph, cell, instances, index_of, settings, style,
+                selection=None):
+    """Half-bonds as (start_frac, end_frac, colour, selected) tuples."""
+    chosen = set() if selection is None else set(selection.bonds)
     halves = []
     for bond in graph.bonds:
         image = np.array(bond.image, dtype=int)
@@ -178,8 +193,9 @@ def _emit_bonds(graph, cell, instances, index_of, settings, style):
                 continue                # drawn from the other side
             a, b = instances[start_index], instances[end_index]
             middle = (a["frac"] + b["frac"]) / 2.0
-            halves.append((a["frac"], middle, a["color"]))
-            halves.append((b["frac"], middle, b["color"]))
+            flag = bond.key() in chosen
+            halves.append((a["frac"], middle, a["color"], flag))
+            halves.append((b["frac"], middle, b["color"], flag))
     return halves
 
 
@@ -187,12 +203,14 @@ def _bond_arrays(halves, lattice):
     if not halves:
         return (np.zeros((0, 3), np.float32),
                 np.zeros((0, 3), np.float32),
-                np.zeros((0, 3), np.uint8))
+                np.zeros((0, 3), np.uint8),
+                np.zeros(0, bool))
     starts = lattice.to_cart(np.array([h[0] for h in halves]))
     ends = lattice.to_cart(np.array([h[1] for h in halves]))
     colors = np.array([h[2] for h in halves], dtype=np.uint8)
+    flags = np.array([h[3] for h in halves], dtype=bool)
     return (starts.astype(np.float32), ends.astype(np.float32),
-            colors.reshape(-1, 3))
+            colors.reshape(-1, 3), flags)
 
 
 # ======================================================================

@@ -144,3 +144,54 @@ def test_empty_structure_makes_an_empty_scene():
 def test_background_travels_with_the_scene(rutile):
     scene = build_scene(rutile, ViewSettings(background=(10, 20, 30)))
     assert scene.background == (10, 20, 30)
+
+
+# ---------------------------------------------------------- selection
+
+def test_selected_atoms_are_flagged(rutile):
+    from xtal.core import p1
+    from xtal.core.selection import Selection
+
+    selection = Selection()
+    selection.set_atoms([0])                # one Ti of the P1 cell
+    scene = build_scene(rutile, ViewSettings(), selection=selection)
+
+    assert scene.n_selected > 0
+    cell = p1.expand(rutile)
+    for i in range(scene.n_atoms):
+        expected = int(scene.atom_index[i]) == 0
+        assert bool(scene.selected[i]) is expected
+    assert all(cell.elements[scene.atom_index[i]] == "Ti"
+               for i in np.flatnonzero(scene.selected))
+
+
+def test_no_selection_flags_nothing(rutile):
+    scene = build_scene(rutile, ViewSettings())
+    assert scene.n_selected == 0
+    assert not scene.selected_bonds.any()
+
+
+def test_selected_bonds_are_flagged(rutile):
+    from xtal.core import bonding
+    from xtal.core.selection import Selection
+
+    graph = bonding.graph(rutile)
+    selection = Selection()
+    selection.bonds = {graph.bonds[0].key()}
+    scene = build_scene(rutile, ViewSettings(), selection=selection)
+    assert scene.selected_bonds.any()
+    assert scene.selected_bonds.sum() < scene.n_bond_halves
+
+
+def test_selection_flags_follow_the_display_range(rutile):
+    """Selecting one atom of the P1 cell lights up every image of it
+    that is drawn, which is what makes a 2x2x2 view legible."""
+    from xtal.core.selection import Selection
+
+    selection = Selection()
+    selection.set_atoms([0])
+    settings = ViewSettings()
+    one = build_scene(rutile, settings, selection=selection).n_selected
+    settings.set_cells(2, 2, 2)
+    many = build_scene(rutile, settings, selection=selection).n_selected
+    assert many > one

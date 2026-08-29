@@ -22,6 +22,7 @@ can show it rather than the user finding out later.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import gemmi
@@ -110,10 +111,27 @@ def _resolve_space_group(small, block, warnings) -> SpaceGroup:
     hall = block.find_value("_space_group_name_Hall") or \
         block.find_value("_symmetry_space_group_name_Hall")
     if hall:
+        text = gemmi.cif.as_string(hall)
         try:
-            return SpaceGroup.from_hall(gemmi.cif.as_string(hall))
+            return SpaceGroup.from_hall(text)
         except ValueError:
-            warnings.append(f"unreadable Hall symbol {hall!r}, ignored")
+            # Some depositing software writes the spaces of a Hall
+            # symbol as semicolons or commas ("-F 4;2;3").  Repairing
+            # that is safe: if the cleaned symbol does not parse
+            # either, we fall through to the H-M symbol as before.
+            repaired = re.sub(r"\s+", " ",
+                              re.sub(r"[;,]+", " ", text)).strip()
+            if repaired != text:
+                try:
+                    group = SpaceGroup.from_hall(repaired)
+                except ValueError:
+                    pass
+                else:
+                    warnings.append(
+                        f"the Hall symbol {text!r} is malformed; read "
+                        f"as {repaired!r}")
+                    return group
+            warnings.append(f"unreadable Hall symbol {text!r}, ignored")
 
     from_name = None
     if small.spacegroup_hm:
