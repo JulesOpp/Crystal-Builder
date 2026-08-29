@@ -42,7 +42,8 @@ Repository = "https://github.com/JulesOpp/Crystal-Builder"
 
 [tool.setuptools]
 packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
-            "xtal.analysis"]
+            "xtal.analysis", "xtalapp", "xtalapp.viewport",
+            "xtalapp.docks", "xtalapp.dialogs"]
 
 [tool.setuptools_scm]        # version from git tags; no version file to bump
 

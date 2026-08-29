@@ -5,9 +5,10 @@ exporting crystal structures.  The visual and interaction model follows
 **VESTA**; the symmetry and force-field capability follows **Materials
 Studio**.  Python throughout, shipped to macOS and Windows.
 
-Status: **phase 1 complete** — the crystallography core and the
-headless CLI work end to end.  Next up is the PySide6 + VTK shell.  See
-[docs/PLAN.md](docs/PLAN.md) for the full architecture and roadmap.
+Status: **phase 2 complete** — the crystallography core, the headless
+CLI, and a PySide6 + VTK application that opens a CIF and draws it.
+Next up is picking and inspection.  See [docs/PLAN.md](docs/PLAN.md)
+for the full architecture and roadmap.
 
 ---
 
@@ -22,7 +23,10 @@ headless CLI work end to end.  Next up is the PySide6 + VTK shell.  See
       commands/ undoable mutations               (phase 4)
       ff/       UFF force field                  (phase 7)
       analysis/ RDF, coordination, later PXRD    (phase 6+)
-    xtalapp/    the PySide6 + VTK application    (phase 2+)
+    xtalapp/    the PySide6 + VTK application
+      viewport/ scene model, builder, draw styles, VTK, the widget
+      docks/    file tree, structure information
+      document.py, mainwindow.py, actions.py, settings.py
     tests/      headless test suite
 
 The wall between `xtal/` and `xtalapp/` is enforced by a test
@@ -40,6 +44,18 @@ pytest -q
 
 `pip install -e .` alone installs only the headless core (numpy, scipy,
 gemmi, spglib).  The `[gui]` extra adds PySide6, VTK and pyqtgraph.
+
+## Running the application
+
+```bash
+crystal-builder                 # or: python -m xtalapp.main
+crystal-builder quartz.cif
+```
+
+Open a CIF from the file tree on the left or by dropping it on the
+window.  Left-drag orbits, the wheel zooms, middle-drag pans.  The
+*View* menu switches between ball-and-stick, stick, wireframe and
+space-filling; the toolbar spinboxes set how many unit cells are drawn.
 
 ## What works today
 
