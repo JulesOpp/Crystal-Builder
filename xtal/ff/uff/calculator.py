@@ -70,6 +70,11 @@ class Topology:
     torsions: terms.TorsionTerm
     inversions: terms.InversionTerm
     excluded: set = field(default_factory=set)
+    # The same pairs as ``excluded``, packed one int64 each, so the
+    # pair list can test half a million candidates against them in one
+    # ``np.isin`` instead of building half a million tuples.
+    excluded_codes: np.ndarray = field(
+        default_factory=lambda: np.zeros(0, dtype=np.int64))
 
     def counts(self) -> dict:
         return {"bonds": len(self.bonds), "angles": len(self.angles),
@@ -101,6 +106,7 @@ class UFFCalculator(Calculator):
         self.warnings: list[str] = []
 
         self._adjacency = _adjacency(self.graph)
+        self._type_ids, self._vdw_x, self._vdw_d = self._vdw_tables()
         self.topology = self._build_topology()
         self.charges = self._charges()
         self._pairs_built_at: np.ndarray | None = None
@@ -129,6 +135,29 @@ class UFFCalculator(Calculator):
     #  TOPOLOGY
     # ==================================================================
 
+    def _vdw_tables(self):
+        """``(type id per atom, x table, D table)``.
+
+        A real structure has of the order of ten distinct atom types
+        and hundreds of thousands of pairs, so the combining rules are
+        worked out once per *pair of types* and then indexed.  Doing it
+        once per pair of atoms -- two parameter lookups and two square
+        roots, in Python -- was a fifth of the cost of a rebuild.
+        """
+        names = self.typing.names
+        distinct = sorted(set(names))
+        index = {name: k for k, name in enumerate(distinct)}
+        ids = np.array([index[name] for name in names], dtype=int)
+        n = len(distinct)
+        x = np.zeros((n, n))
+        d = np.zeros((n, n))
+        for a in range(n):
+            for b in range(a, n):
+                x[a, b], d[a, b] = terms.vdw_pair(distinct[a],
+                                                  distinct[b])
+                x[b, a], d[b, a] = x[a, b], d[a, b]
+        return ids, x, d
+
     def _build_topology(self) -> Topology:
         names = self.typing.names
         orders = self.typing.bond_orders
@@ -140,7 +169,8 @@ class UFFCalculator(Calculator):
         excluded = {_pair_key(b.i, b.j, b.image)
                     for b in self.graph.bonds}
         excluded |= geminal
-        return Topology(bonds, angles, torsions, inversions, excluded)
+        return Topology(bonds, angles, torsions, inversions, excluded,
+                        _codes_of(excluded, self.n_atoms))
 
     def _bond_terms(self, names, orders) -> terms.BondTerm:
         i, j, shift, r0, k = [], [], [], [], []
@@ -406,19 +436,17 @@ class UFFCalculator(Calculator):
         frac = positions @ np.linalg.inv(matrix)
         radius = self.options.vdw_cutoff + self.options.skin
         pairs = neighbors.neighbor_pairs(frac, lattice, radius)
-        keep = np.array(
-            [_pair_key(int(pairs.i[n]), int(pairs.j[n]),
-                       pairs.image[n]) not in self.topology.excluded
-             for n in range(len(pairs))], dtype=bool)
-        if not len(keep):
+        if len(pairs):
+            codes = pair_codes(pairs.i, pairs.j, pairs.image,
+                               self.n_atoms)
+            keep = ~np.isin(codes, self.topology.excluded_codes)
+        else:
             keep = np.zeros(0, dtype=bool)
         i, j, image = pairs.i[keep], pairs.j[keep], pairs.image[keep]
 
-        names = self.typing.names
-        x = np.zeros(len(i))
-        d = np.zeros(len(i))
-        for n in range(len(i)):
-            x[n], d[n] = terms.vdw_pair(names[i[n]], names[j[n]])
+        ids = self._type_ids
+        x = self._vdw_x[ids[i], ids[j]]
+        d = self._vdw_d[ids[i], ids[j]]
         cutoff = self.options.vdw_cutoff
         ratio6 = (x / cutoff) ** 6
         self._vdw = terms.VanDerWaalsTerm(
@@ -457,6 +485,76 @@ def _adjacency(graph) -> list[list[tuple]]:
         out[bond.i].append((bond.j, shift, index))
         out[bond.j].append((bond.i, -shift, index))
     return out
+
+
+# Lattice translations are packed into eight bits per axis, which is a
+# cutoff reaching 127 cells in one direction: further than any real
+# calculation and far enough that the check below has never fired.
+SHIFT_LIMIT = 127
+_SHIFT_BASE = 2 * SHIFT_LIMIT + 1
+
+
+def canonical_pairs(i, j, shift):
+    """``(i, j, shift)`` named the same way from either end.
+
+    The array form of :func:`_pair_key`'s convention, and it has to
+    stay exactly that: lower index first, and for an atom paired with
+    its own periodic image, the lexicographically positive
+    translation.
+    """
+    i = np.asarray(i, dtype=np.int64).ravel()
+    j = np.asarray(j, dtype=np.int64).ravel()
+    shift = np.asarray(shift, dtype=np.int64).reshape(-1, 3)
+
+    swapped = i > j
+    low = np.where(swapped, j, i)
+    high = np.where(swapped, i, j)
+    shift = np.where(swapped[:, None], -shift, shift)
+
+    # Self-pairs: +t and -t describe the same contact, so take one.
+    same = low == high
+    if same.any():
+        flip = same & ~neighbors.lexicographically_positive(shift)
+        shift = np.where(flip[:, None], -shift, shift)
+    return low, high, shift
+
+
+def pair_codes(i, j, shift, n_atoms: int) -> np.ndarray:
+    """One int64 per pair, equal exactly when :func:`_pair_key` is.
+
+    Built for the same reason the neighbour search was rewritten: the
+    exclusion test runs once per pair, there are half a million pairs
+    in a five-thousand-atom cell, and constructing a tuple for each of
+    them cost a third of the time in a rebuild.
+    """
+    low, high, shift = canonical_pairs(i, j, shift)
+    if len(shift) and np.abs(shift).max() > SHIFT_LIMIT:
+        raise ValueError(
+            f"a lattice translation of more than {SHIFT_LIMIT} cells "
+            f"cannot be packed into a pair code")
+    limit = np.int64(2) ** 62 // (_SHIFT_BASE ** 3)
+    if n_atoms and n_atoms ** 2 > limit:
+        raise ValueError(
+            f"{n_atoms} atoms is too many to pack a pair code for")
+
+    code = low * np.int64(n_atoms) + high
+    for axis in range(3):
+        code = code * _SHIFT_BASE + (shift[:, axis] + SHIFT_LIMIT)
+    return code
+
+
+def _codes_of(keys, n_atoms: int) -> np.ndarray:
+    """Pair codes for a set of :func:`_pair_key` tuples, sorted so
+    ``np.isin`` can binary-search them."""
+    if not keys:
+        return np.zeros(0, dtype=np.int64)
+    listed = list(keys)
+    i = np.fromiter((k[0] for k in listed), dtype=np.int64,
+                    count=len(listed))
+    j = np.fromiter((k[1] for k in listed), dtype=np.int64,
+                    count=len(listed))
+    shift = np.array([k[2] for k in listed], dtype=np.int64)
+    return np.unique(pair_codes(i, j, shift, n_atoms))
 
 
 def _pair_key(i: int, j: int, shift) -> tuple:

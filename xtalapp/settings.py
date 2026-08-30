@@ -12,11 +12,81 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QRect, QSettings
+from PySide6.QtGui import QGuiApplication
 
 ORGANISATION = "CrystalBuilder"
 APPLICATION = "CrystalBuilder"
 MAX_RECENT = 10
+
+# How much of the screen a fresh window takes, and the size beyond
+# which taking more of it stops helping.  A fixed pixel size is a guess
+# about somebody else's monitor: 1280x820 is taller than a 1280x800
+# laptop screen before a single dock has asked for room.
+DEFAULT_FRACTION = 0.85
+MAX_DEFAULT_SIZE = (1600, 1000)
+
+
+def screen_area(window=None) -> QRect | None:
+    """The usable rectangle of the screen ``window`` is on.
+
+    Falls back to the primary screen, and to ``None`` where there is no
+    screen at all -- an offscreen test platform, or a headless CI box.
+    """
+    screen = None
+    if window is not None:
+        handle = window.windowHandle()
+        if handle is not None:
+            screen = handle.screen()
+        if screen is None:
+            screen = QGuiApplication.screenAt(window.pos())
+    if screen is None:
+        screen = QGuiApplication.primaryScreen()
+    return None if screen is None else screen.availableGeometry()
+
+
+def default_size(window=None) -> tuple[int, int]:
+    """A starting size that fits the screen it will open on."""
+    area = screen_area(window)
+    if area is None or area.isEmpty():
+        return MAX_DEFAULT_SIZE
+    return (min(MAX_DEFAULT_SIZE[0], int(area.width() * DEFAULT_FRACTION)),
+            min(MAX_DEFAULT_SIZE[1], int(area.height() * DEFAULT_FRACTION)))
+
+
+def fit_to_screen(window) -> None:
+    """Bring a window back onto the display, shrinking it if it must.
+
+    This matters most for a *restored* geometry.  A layout saved on an
+    external monitor comes back off-screen on the laptop, and because
+    it is saved again on quit there is no way out of it short of
+    deleting the preferences by hand.  Clamping on the way in is the
+    only place that can be fixed.
+    """
+    area = screen_area(window)
+    if area is None or area.isEmpty():
+        return
+    frame = window.frameGeometry()
+    inner = window.geometry()
+    # The frame includes the title bar; setGeometry does not.  Keep the
+    # difference so clamping the frame does not walk the window down
+    # the screen by one title bar every time it runs.
+    margins = (inner.left() - frame.left(), inner.top() - frame.top(),
+               frame.right() - inner.right(),
+               frame.bottom() - inner.bottom())
+    if area.contains(frame):
+        return
+    frame.setSize(frame.size().boundedTo(area.size()))
+    if frame.right() > area.right():
+        frame.moveRight(area.right())
+    if frame.bottom() > area.bottom():
+        frame.moveBottom(area.bottom())
+    if frame.left() < area.left():
+        frame.moveLeft(area.left())
+    if frame.top() < area.top():
+        frame.moveTop(area.top())
+    window.setGeometry(frame.adjusted(margins[0], margins[1],
+                                      -margins[2], -margins[3]))
 
 
 class AppSettings:
@@ -60,12 +130,37 @@ class AppSettings:
         self._q.setValue("window_state", window.saveState())
 
     def restore_window(self, window) -> None:
+        """Put back the saved layout, then make sure it is on screen."""
         geometry = self._q.value("geometry")
         state = self._q.value("window_state")
         if geometry:
             window.restoreGeometry(geometry)
         if state:
             window.restoreState(state)
+        fit_to_screen(window)
+
+    def clear_window(self) -> None:
+        """Forget the saved layout, for ``Window > Reset layout``.
+
+        Without this a layout that went wrong once is permanent: the
+        bad state is what gets saved on quit, and restored on start.
+        """
+        self._q.remove("geometry")
+        self._q.remove("window_state")
+
+    # -- how often a running calculation redraws ------------------------
+
+    @property
+    def preview_interval(self) -> int:
+        """Milliseconds between redraws while a calculation runs.
+
+        0 draws every step, -1 draws none of them.
+        """
+        return int(self._q.value("preview_interval", 50))
+
+    @preview_interval.setter
+    def preview_interval(self, value) -> None:
+        self._q.setValue("preview_interval", int(value))
 
     # -- view defaults -------------------------------------------------
 

@@ -181,19 +181,27 @@ def test_an_optimisation_lands_as_a_single_undo_step(qtbot, window,
 
 def test_the_run_draws_itself_as_it_goes(qtbot, window):
     """Each step previews into the document so the viewport can draw
-    it, and none of those previews reaches the undo stack."""
+    it, and none of those previews reaches the undo stack.
+
+    The previews travel on ``previewChanged`` and not on
+    ``structureChanged``, which is what keeps them off every panel in
+    the window that has nothing new to show.  Only the command at the
+    end is a change to the structure.
+    """
     document = Document(water(oh=1.15, angle=95.0))
     window.add_document(document)
     dock = window.ff_dock
     dock.tolerance.setValue(0.001)
 
-    seen = []
-    document.structureChanged.connect(lambda _c: seen.append(1))
+    previews, changes = [], []
+    document.previewChanged.connect(lambda: previews.append(1))
+    document.structureChanged.connect(lambda _c: changes.append(1))
     dock.start()
     wait_for_the_run(qtbot, dock)
 
-    assert len(seen) > 3                    # one per step, at least
-    assert document.stack.depth == 1        # and one command at the end
+    assert len(previews) > 3                # one per step, at least
+    assert len(changes) == 1                # the command at the end
+    assert document.stack.depth == 1
     assert len(dock.plot.history) > 1
 
 

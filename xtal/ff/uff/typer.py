@@ -44,6 +44,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from xtal.core import bonding, p1
+from xtal.core.structure import CHEMISTRY, Change
 from xtal.ff.uff import params
 
 # Elements that can sit in an aromatic ring.  Restricting the ring
@@ -151,7 +152,11 @@ def assign(structure, rules: bonding.BondRules | None = None) -> Typing:
     the calculator that consumes it do the work once between edits.
     """
     key = f"uff-typing:{rules.signature() if rules else ''}"
-    return structure.cached(key, lambda: _assign(structure, rules))
+    # Chemistry, plus METADATA: a hand-set type is stored in
+    # ``Site.props`` and setting one is a metadata change, so the memo
+    # has to notice it.  Atoms moving is what it deliberately ignores.
+    return structure.cached(key, lambda: _assign(structure, rules),
+                            invalidated_by=CHEMISTRY | Change.METADATA)
 
 
 def _assign(structure, rules) -> Typing:

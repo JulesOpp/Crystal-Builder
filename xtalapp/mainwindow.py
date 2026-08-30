@@ -40,6 +40,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.commands.clipboard import Fragment
+from xtal.core.structure import Change
 from xtal.io import FORMATS
 from xtalapp.actions import ActionRegistry
 from xtalapp.dialogs.add_atom import AddAtomDialog
@@ -57,7 +58,7 @@ from xtalapp.docks.move import MoveDock
 from xtalapp.docks.sites import SitesDock
 from xtalapp.docks.style_panel import StylePanelDock
 from xtalapp.document import Document
-from xtalapp.settings import AppSettings
+from xtalapp.settings import AppSettings, default_size, fit_to_screen
 from xtalapp.viewport import modes, styles
 from xtalapp.viewport.view_settings import BACKGROUNDS
 
@@ -77,7 +78,10 @@ class MainWindow(QMainWindow):
                  settings=None):
         super().__init__()
         self.setWindowTitle(APP_NAME)
-        self.resize(1280, 820)
+        # Sized against the screen rather than to a fixed number of
+        # pixels: 1280x820 is taller than a 1280x800 laptop display
+        # before a single dock has asked for room.
+        self.resize(*default_size(self))
         self.setAcceptDrops(True)
 
         self.settings = settings or AppSettings()
@@ -168,6 +172,11 @@ class MainWindow(QMainWindow):
         add("duplicate", "Du&plicate", self.duplicate, "Ctrl+D")
         add("add_atom_dialog", "&Add atom...", self.add_atom_dialog,
             "Ctrl+Shift+A")
+        add("recompute_bonds", "&Recalculate bonds",
+            self.recompute_bonds, "Ctrl+B",
+            tip="Perceive the bonds again from the geometry as it is "
+                "now.  Bonds do not change on their own when atoms "
+                "move; this is what changes them.")
 
         for mode_name in modes.names():
             mode = modes.get(mode_name)
@@ -190,7 +199,12 @@ class MainWindow(QMainWindow):
         add("expand_orbit", "Grow to symmetry &orbit",
             lambda: self.expand_selection("orbit"))
         add("delete_selection", "&Delete", self.delete_selection,
-            "Del", tip="Delete the selected sites")
+            ["Del", "Backspace"],
+            tip="Delete whichever is selected: the bonds if bonds "
+                "are, otherwise the sites")
+        add("delete_bond", "Delete &bond", self.delete_bonds,
+            tip="Suppress the selected bonds, and their whole "
+                "symmetry orbit")
         add("change_element", "Change &element...",
             self.change_element)
         add("reduce_p1", "Reduce to &P1", self.reduce_to_p1,
@@ -239,6 +253,8 @@ class MainWindow(QMainWindow):
         add("show_ff", "&Force Field panel", self.show_force_field,
             tip="Atom types, electrostatics, and how the run is going")
 
+        add("reset_layout", "Reset &layout", self.reset_layout,
+            tip="Put the panels back where they started")
         add("reset_view", "&Reset view", self.reset_view, "Ctrl+0")
         add("view_a", "Along &a", lambda: self.look_along(0), "1")
         add("view_b", "Along &b", lambda: self.look_along(1), "2")
@@ -260,7 +276,8 @@ class MainWindow(QMainWindow):
         edit_menu = bar.addMenu("&Edit")
         self.actions_.fill_menu(edit_menu, [
             "undo", "redo", None, "cut", "copy", "paste", "duplicate",
-            None, "delete_selection", "change_element"])
+            None, "delete_selection", "delete_bond",
+            "change_element"])
 
         select_menu = bar.addMenu("&Select")
         self.actions_.fill_menu(select_menu, [
@@ -274,7 +291,7 @@ class MainWindow(QMainWindow):
 
         structure_menu = bar.addMenu("S&tructure")
         self.actions_.fill_menu(structure_menu, [
-            "add_atom_dialog", None,
+            "add_atom_dialog", "recompute_bonds", None,
             *[f"mode_{n}" for n in modes.names()]])
 
         symmetry_menu = bar.addMenu("S&ymmetry")
@@ -325,6 +342,8 @@ class MainWindow(QMainWindow):
         bar.addSeparator()
         self.actions_.fill_menu(
             bar, [f"mode_{n}" for n in modes.names()])
+        bar.addSeparator()
+        bar.addAction(self.actions_["recompute_bonds"])
         self.element_combo = QComboBox()
         self.element_combo.setEditable(True)
         self.element_combo.addItems(
@@ -355,53 +374,83 @@ class MainWindow(QMainWindow):
         self.file_dock = FileTreeDock(self.settings.last_directory,
                                       self)
         self.file_dock.fileActivated.connect(self.open_path)
-        self.addDockWidget(Qt.LeftDockWidgetArea, self.file_dock)
 
         self.inspector_dock = InspectorDock(self)
         self.inspector_dock.deleteRequested.connect(
             self.delete_selection)
         self.inspector_dock.reduceToP1Requested.connect(
             self.reduce_to_p1)
-        self.addDockWidget(Qt.RightDockWidgetArea, self.inspector_dock)
 
         self.info_dock = InfoDock(self)
-        self.addDockWidget(Qt.RightDockWidgetArea, self.info_dock)
-
         self.sites_dock = SitesDock(self)
-        self.addDockWidget(Qt.RightDockWidgetArea, self.sites_dock)
-
         self.move_dock = MoveDock(self)
-        self.addDockWidget(Qt.RightDockWidgetArea, self.move_dock)
-
         self.style_dock = StylePanelDock(self)
-        self.addDockWidget(Qt.RightDockWidgetArea, self.style_dock)
 
         self.measure_dock = MeasureDock(self)
         self.measure_dock.targetChanged.connect(self._on_measure_target)
-        self.addDockWidget(Qt.RightDockWidgetArea, self.measure_dock)
 
         self.ff_dock = ForceFieldDock(self)
         # Connected to a method, not to the label: the docks are built
         # before the status bar exists.
         self.ff_dock.statusMessage.connect(self.show_status)
-        self.addDockWidget(Qt.RightDockWidgetArea, self.ff_dock)
+        self.ff_dock.previewIntervalChanged.connect(
+            self.set_preview_interval)
+        self.ff_dock.set_preview_interval(
+            self.settings.preview_interval)
 
-        # Three panels compete for the right-hand side; tabbing them
-        # keeps the viewport wide by default.
-        self.tabifyDockWidget(self.inspector_dock, self.info_dock)
-        self.tabifyDockWidget(self.info_dock, self.sites_dock)
-        self.tabifyDockWidget(self.sites_dock, self.move_dock)
-        self.tabifyDockWidget(self.move_dock, self.style_dock)
-        self.tabifyDockWidget(self.style_dock, self.measure_dock)
-        self.tabifyDockWidget(self.measure_dock, self.ff_dock)
-        self.inspector_dock.raise_()
+        # The file tree on the left; everything else tabbed on the
+        # right, in the order they are listed here.
+        self.left_docks = (self.file_dock,)
+        self.right_docks = (self.inspector_dock, self.info_dock,
+                            self.sites_dock, self.move_dock,
+                            self.style_dock, self.measure_dock,
+                            self.ff_dock)
+        self.docks = self.left_docks + self.right_docks
+        self.apply_default_layout()
 
         window_menu = self.menuBar().addMenu("&Window")
-        for dock in (self.file_dock, self.inspector_dock,
-                     self.info_dock, self.sites_dock, self.move_dock,
-                     self.style_dock, self.measure_dock,
-                     self.ff_dock):
+        for dock in self.docks:
             window_menu.addAction(dock.toggleViewAction())
+        window_menu.addSeparator()
+        window_menu.addAction(self.actions_["reset_layout"])
+
+    #: What a first run shows.  Every other panel is one item away in
+    #: the Window menu; seven of them tabbed on the right hand side
+    #: take, between them, the width the viewport is there to use.
+    DEFAULT_VISIBLE = ("file_dock", "inspector_dock")
+
+    def apply_default_layout(self) -> None:
+        """Put every dock back where it starts: the tree on the left,
+        the rest tabbed on the right, and only two of them shown.
+
+        Called once on construction -- ``restore_window`` overrides it
+        when there is a saved layout -- and again by Reset layout.
+        """
+        for dock in self.left_docks:
+            self.addDockWidget(Qt.LeftDockWidgetArea, dock)
+        for dock in self.right_docks:
+            self.addDockWidget(Qt.RightDockWidgetArea, dock)
+        for previous, dock in zip(self.right_docks,
+                                  self.right_docks[1:], strict=False):
+            self.tabifyDockWidget(previous, dock)
+
+        shown = {getattr(self, name) for name in self.DEFAULT_VISIBLE}
+        for dock in self.docks:
+            dock.setFloating(False)
+            dock.setVisible(dock in shown)
+        self.right_docks[0].raise_()
+
+    def reset_layout(self) -> None:
+        """Forget the saved layout and start again.
+
+        Without this a window that once went wrong stays wrong: the bad
+        geometry is what gets saved on quit and restored on start.
+        """
+        self.settings.clear_window()
+        self.apply_default_layout()
+        self.resize(*default_size(self))
+        fit_to_screen(self)
+        self.show_status("layout reset")
 
     # ==================================================================
     #  DOCUMENTS
@@ -419,6 +468,8 @@ class MainWindow(QMainWindow):
 
     def add_document(self, document: Document) -> int:
         viewport = self._viewport_factory(document, self.tabs)
+        if hasattr(viewport, "preview_interval_ms"):
+            viewport.preview_interval_ms = self.settings.preview_interval
         self.documents.append(document)
         index = self.tabs.addTab(viewport, document.title)
         document.titleChanged.connect(
@@ -432,6 +483,8 @@ class MainWindow(QMainWindow):
         if hasattr(viewport, "statusMessage"):
             viewport.statusMessage.connect(
                 lambda text: self.statusBar().showMessage(text, 4000))
+        if hasattr(viewport, "contextRequested"):
+            viewport.contextRequested.connect(self.show_context_menu)
         self.tabs.setCurrentIndex(index)
         self._update_ui()
         return index
@@ -685,6 +738,104 @@ class MainWindow(QMainWindow):
             return
         self.statusBar().showMessage(document.add_atom(**values), 4000)
 
+    def set_preview_interval(self, milliseconds: int) -> None:
+        """How often a running calculation redraws the viewport.
+
+        A setting rather than a constant because the right answer
+        depends on the structure: every step is smooth on a molecule
+        and is the slowest thing in the run on a framework.
+        """
+        self.settings.preview_interval = int(milliseconds)
+        for index in range(self.tabs.count()):
+            viewport = self.tabs.widget(index)
+            if hasattr(viewport, "preview_interval_ms"):
+                viewport.preview_interval_ms = int(milliseconds)
+
+    def recompute_bonds(self) -> None:
+        document = self.current_document()
+        if document is not None:
+            self.show_status(document.recompute_bonds())
+
+    #: What a right click offers, by what was under it.  Every entry
+    #: is a name in the action registry, so each one is already
+    #: undoable, already has a keyboard shortcut and already appears in
+    #: the menu bar -- and adding one costs a name in a list.
+    CONTEXT_MENUS = {
+        "atom": ["change_element", "delete_selection", None,
+                 "expand_bonded", "expand_fragment", "expand_orbit",
+                 "select_same", None, "copy", "cut", "duplicate", None,
+                 "recompute_bonds"],
+        "bond": ["delete_bond", None, "select_none", None,
+                 "recompute_bonds"],
+        "view": ["select_all", "select_none", None, "display_range",
+                 "boundary_bonded", None, "orthographic",
+                 "reset_view"],
+    }
+
+    #: The entries whose wording should say how much they will take.
+    #: "Delete" and "Delete 14 atoms" are different promises, and a
+    #: menu that makes the first while meaning the second is the one
+    #: that loses somebody's work.
+    COUNTED_ACTIONS = {"delete_selection": "Delete {n} {noun}",
+                       "delete_bond": "Delete {n} {noun}"}
+
+    def build_context_menu(self, kind: str):
+        """The menu for whatever was right-clicked, or ``None``.
+
+        Built here rather than in the viewport because the actions live
+        in this window's registry -- which is what keeps a context-menu
+        entry and a menu-bar entry the same object, enabled and
+        disabled by the same rule.
+        """
+        from PySide6.QtWidgets import QMenu
+
+        names = self.CONTEXT_MENUS.get(kind)
+        if not names:
+            return None
+        count = self._selection_count(kind)
+        noun = {"atom": "atoms", "bond": "bonds"}.get(kind, "")
+
+        menu = QMenu(self)
+        for name in names:
+            if name is None:
+                menu.addSeparator()
+            elif name in self.COUNTED_ACTIONS and count > 1:
+                self._add_counted(menu, name, count, noun)
+            else:
+                menu.addAction(self.actions_[name])
+        if kind == "view":
+            style = menu.addMenu("&Style")
+            self.actions_.fill_menu(
+                style, [f"style_{n}" for n in styles.names()])
+        return menu
+
+    def show_context_menu(self, kind: str, position) -> None:
+        menu = self.build_context_menu(kind)
+        if menu is not None:
+            menu.exec(position)
+
+    def _add_counted(self, menu, name: str, count: int, noun: str):
+        """A menu entry that says what it will act on.
+
+        A fresh action rather than the registry's own, because the
+        registry's is the same object the menu bar shows: renaming it
+        for one click would rename it for good.  This one carries the
+        count and triggers the real thing.
+        """
+        action = self.actions_[name]
+        entry = menu.addAction(
+            self.COUNTED_ACTIONS[name].format(n=count, noun=noun))
+        entry.setEnabled(action.isEnabled())
+        entry.triggered.connect(action.trigger)
+        return entry
+
+    def _selection_count(self, kind: str) -> int:
+        document = self.current_document()
+        if document is None:
+            return 0
+        return {"atom": len(document.selection.atoms),
+                "bond": len(document.selection.bonds)}.get(kind, 0)
+
     def set_mode(self, name: str) -> None:
         modes.get(name)                     # validate before switching
         viewport = self.current_viewport()
@@ -758,11 +909,27 @@ class MainWindow(QMainWindow):
         if document is not None:
             document.expand_selection(how)
 
-    def delete_selection(self) -> None:
-        """Delete the selected sites, asking first when symmetry means
-        more atoms go than were selected."""
+    def delete_bonds(self) -> None:
         document = self.current_document()
-        if document is None or not document.selection.atoms:
+        if document is not None and document.selection.bonds:
+            self.show_status(document.delete_selected_bonds())
+
+    def delete_selection(self) -> None:
+        """Delete whatever is in hand.
+
+        One key for both: bonds when bonds are what is selected, sites
+        otherwise.  Clicking a bond and pressing delete should delete
+        the bond, and the alternative -- a second key, or a mode -- is
+        how the application ended up with deletion living inside a tool
+        called Add Bond.
+        """
+        document = self.current_document()
+        if document is None:
+            return
+        if document.selection.bonds and not document.selection.atoms:
+            self.delete_bonds()
+            return
+        if not document.selection.atoms:
             return
         if not document.selection_is_orbit_complete():
             answer = QMessageBox.question(
@@ -907,6 +1074,12 @@ class MainWindow(QMainWindow):
         self.move_dock.refresh()
         self.selection_label.setText(document.selection_summary())
         self.actions_.set_enabled(
+            ["delete_bond"], bool(document.selection.bonds))
+        self.actions_.set_enabled(
+            ["delete_selection", "change_element", "copy", "cut",
+             "duplicate", "select_same"],
+            bool(document.selection.atoms or document.selection.bonds))
+        self.actions_.set_enabled(
             ["delete_selection", "change_element", "select_same",
              "expand_bonded", "expand_fragment", "expand_orbit",
              "copy", "cut", "duplicate"],
@@ -938,22 +1111,40 @@ class MainWindow(QMainWindow):
         if document in self.documents:
             self.tabs.setTabText(self.documents.index(document), title)
 
-    def _on_structure_changed(self, _change: int = 0) -> None:
-        """The crystal changed: the panels that show it must catch
-        up.  The view panels must not -- rebuilding a site table
-        because a spinbox moved is where a large structure loses its
-        responsiveness."""
+    def _on_structure_changed(self, change: int = 0) -> None:
+        """The crystal changed: the panels that show it must catch up.
+
+        Only the ones the change actually reached.  The formula, the
+        density, the space group, the elements present and the force
+        field's typing are all decided by *what* the atoms are, not by
+        where they are -- so a geometry change refreshes the panels
+        that show coordinates and leaves the rest alone.  Refreshing
+        all of them on every drag of one atom is where a large
+        structure loses its responsiveness.
+
+        Previews do not arrive here at all; they travel on the
+        document's ``previewChanged`` and reach the viewport only.
+        """
         document = self.current_document()
         if document is None:
             return
-        self.info_dock.show_document(document)
+        positions_only = bool(change) and not (
+            change & ~int(Change.POSITIONS))
+
+        # These show coordinates, so a move is news to them.
         self.inspector_dock.refresh()
         self.sites_dock.refresh()
         self.move_dock.refresh()
-        self.style_dock.refresh()
-        self.ff_dock.refresh()
-        self._rebuild_element_menu(document)
-        self._update_ui()
+
+        if not positions_only:
+            self.info_dock.show_document(document)
+            self.style_dock.refresh()
+            self.ff_dock.refresh()
+            self._rebuild_element_menu(document)
+        # The shell, not _update_ui: that one *rebinds* every panel to
+        # the document, which is for when the current document changes
+        # and which would undo every skip above.
+        self._refresh_shell()
 
     def _on_view_changed(self) -> None:
         """How it is drawn changed: the shell's own widgets and the

@@ -71,10 +71,21 @@ METHOD_LABELS = {"lbfgs": "L-BFGS (fast near a minimum)",
                  "fire": "FIRE (robust far from one)"}
 
 
+#: Label -> preview redraw interval in milliseconds.  0 draws every
+#: step, -1 draws none of them.
+REDRAW_RATES = (
+    ("Every step", 0),
+    ("20 times a second", 50),
+    ("5 times a second", 200),
+    ("Not while it runs", -1),
+)
+
+
 class ForceFieldDock(QDockWidget):
     """Atom types, a single point, and a geometry optimisation."""
 
     statusMessage = Signal(str)
+    previewIntervalChanged = Signal(int)    # ms; 0 every step, -1 never
 
     def __init__(self, parent=None):
         super().__init__("Force Field", parent)
@@ -115,6 +126,23 @@ class ForceFieldDock(QDockWidget):
         self.freeze = QCheckBox("Freeze the selected atoms")
         self.freeze.setToolTip(
             "Hold the selected sites still and relax everything else")
+
+        # How often the viewport redraws while a run is going.  Every
+        # step is announced whatever this says -- the plot and the
+        # status line show all of them; this is only how often the
+        # picture is repainted, which on a large cell is the most
+        # expensive thing happening.
+        self.redraw = QComboBox()
+        for label, value in REDRAW_RATES:
+            self.redraw.addItem(label, value)
+        self.redraw.setCurrentIndex(1)
+        self.redraw.setToolTip(
+            "How often to redraw the structure while it relaxes. "
+            "Every step is the smoothest and the slowest; a long run "
+            "on a large cell is often best watched as the plot alone.")
+        self.redraw.currentIndexChanged.connect(
+            lambda _i: self.previewIntervalChanged.emit(
+                int(self.redraw.currentData())))
 
         self.table = QTableWidget(0, len(COLUMNS))
         self.table.setHorizontalHeaderLabels(COLUMNS)
@@ -160,6 +188,7 @@ class ForceFieldDock(QDockWidget):
         run.addRow("Max steps", self.max_steps)
         run.addRow("Converge below", self.tolerance)
         run.addRow(self.freeze)
+        run.addRow("Redraw", self.redraw)
         run_box = QGroupBox("Optimisation")
         run_box.setLayout(run)
 
@@ -271,6 +300,14 @@ class ForceFieldDock(QDockWidget):
 
     def _on_coulomb(self, on: bool) -> None:
         self.charges.setEnabled(on)
+
+    def set_preview_interval(self, milliseconds: int) -> None:
+        """Show a stored redraw rate without announcing it back."""
+        index = self.redraw.findData(int(milliseconds))
+        if index >= 0:
+            self.redraw.blockSignals(True)
+            self.redraw.setCurrentIndex(index)
+            self.redraw.blockSignals(False)
 
     def options(self) -> dict:
         return {"coulomb": self.coulomb.isChecked(),
@@ -417,6 +454,9 @@ class ForceFieldDock(QDockWidget):
                        self.charges, self.method, self.max_steps,
                        self.tolerance, self.freeze, self.table):
             widget.setEnabled(not running)
+        # Not the redraw rate: turning the picture off is something
+        # you want to do *because* a run is going slowly.
+        self.redraw.setEnabled(True)
         if not running:
             self.charges.setEnabled(self.coulomb.isChecked())
 

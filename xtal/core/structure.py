@@ -49,6 +49,20 @@ class Change(IntFlag):
     ALL = POSITIONS | TOPOLOGY | CELL | SYMMETRY | METADATA
 
 
+#: The individual flags, in order.  ``Change.ALL`` is a combination and
+#: iterating an IntFlag's members would include it.
+CHANGE_FLAGS = (Change.POSITIONS, Change.TOPOLOGY, Change.CELL,
+                Change.SYMMETRY, Change.METADATA)
+
+#: What invalidates chemistry: the bond graph, the atom typing, and
+#: everything derived from them.  **Not** ``POSITIONS`` -- perception
+#: is re-run when the user asks for it (``Recalculate bonds``, which
+#: is a ``TOPOLOGY`` touch) and not because an atom moved.  Bonds
+#: appearing and disappearing under an optimisation, or under a hand
+#: that is dragging one atom, is the behaviour this excludes.
+CHEMISTRY = Change.TOPOLOGY | Change.CELL | Change.SYMMETRY
+
+
 # ======================================================================
 #  BOND
 # ======================================================================
@@ -179,6 +193,9 @@ class Structure:
     revision: int = field(default=0, repr=False)
     last_change: Change = field(default=Change.NONE, repr=False)
     _cache: dict = field(default_factory=dict, repr=False, compare=False)
+    # flag -> the revision at which that kind of change last happened
+    _changed_at: dict = field(default_factory=dict, repr=False,
+                              compare=False)
 
     def __post_init__(self):
         if not isinstance(self.lattice, Lattice):
@@ -269,10 +286,21 @@ class Structure:
     # call these; widgets call Commands.
 
     def touch(self, change: Change = Change.ALL) -> None:
-        """Record a mutation: bump the revision, drop derived data."""
+        """Record a mutation: bump the revision, drop what it invalidated.
+
+        Only what it invalidated.  A structure whose atoms moved has a
+        stale P1 expansion and a perfectly good bond graph, atom typing
+        and formula, and clearing the lot was costing an optimisation
+        more time per step than the optimisation itself.
+        """
         self.revision += 1
         self.last_change = change
-        self._cache.clear()
+        for flag in CHANGE_FLAGS:
+            if change & flag:
+                self._changed_at[flag] = self.revision
+        self._cache = {
+            key: entry for key, entry in self._cache.items()
+            if entry[0] == self._stamp(entry[2])}
 
     def add_site(self, site: Site) -> int:
         """Append a site; returns its index."""
@@ -399,17 +427,42 @@ class Structure:
 
     # -- derived-data cache --------------------------------------------
 
-    def cached(self, key: str, factory):
-        """Memoise ``factory()`` under ``key`` until the next mutation.
+    def _stamp(self, mask: Change) -> int:
+        """The revision at which anything in ``mask`` last happened."""
+        return max((self._changed_at.get(flag, 0)
+                    for flag in CHANGE_FLAGS if mask & flag),
+                   default=0)
 
-        Used by neighbour lists, the P1 expansion and the scene builder
-        so they are computed once per edit, not once per frame."""
+    def cached(self, key: str, factory,
+               invalidated_by: Change = Change.ALL):
+        """Memoise ``factory()`` under ``key``.
+
+        ``invalidated_by`` says which kinds of change make the answer
+        wrong; the default is every kind, which is always safe and
+        never wrong.  Narrowing it is what lets a positions-only edit
+        keep the bond graph and the atom typing it did not affect --
+        see :data:`CHEMISTRY`.
+
+        Used by the P1 expansion, bond perception, the atom typing and
+        the scene builder, so each is computed once per edit that
+        matters to it rather than once per frame.
+        """
+        stamp = self._stamp(invalidated_by)
         entry = self._cache.get(key)
-        if entry is not None and entry[0] == self.revision:
+        if entry is not None and entry[0] == stamp:
             return entry[1]
         value = factory()
-        self._cache[key] = (self.revision, value)
+        self._cache[key] = (stamp, value, invalidated_by)
         return value
+
+    def drop_cache(self, prefix: str = "") -> None:
+        """Forget memoised data whose key starts with ``prefix``.
+
+        The escape hatch for the case where the inputs to a memo have
+        not changed but the answer is wanted again anyway.
+        """
+        for key in [k for k in self._cache if k.startswith(prefix)]:
+            del self._cache[key]
 
     # -- copying / serialisation ---------------------------------------
 

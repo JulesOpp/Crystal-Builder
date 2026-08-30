@@ -14,6 +14,23 @@ from __future__ import annotations
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence
 
 
+def key_sequences(shortcut) -> list[QKeySequence]:
+    """One shortcut, or several, as ``QKeySequence`` objects.
+
+    A key a user reaches for often has more than one spelling.  The key
+    labelled *delete* on a laptop keyboard sends Backspace, while
+    ``QKeySequence("Del")`` matches forward-delete alone -- so an action
+    bound only to "Del" has no key at all on the machine most people
+    are sitting at.  Passing a list binds all of them.
+    """
+    if isinstance(shortcut, list | tuple):
+        candidates = shortcut
+    else:
+        candidates = [shortcut]
+    return [s if isinstance(s, QKeySequence) else QKeySequence(s)
+            for s in candidates]
+
+
 class ActionRegistry:
     """Named QActions, owned by the main window."""
 
@@ -24,9 +41,11 @@ class ActionRegistry:
 
     def add(self, name, text, slot=None, shortcut=None, checkable=False,
             checked=False, tip=None, group=None) -> QAction:
+        """Register an action.  ``shortcut`` takes one key or a list of
+        equivalent ones."""
         action = QAction(text, self.parent)
         if shortcut:
-            action.setShortcut(QKeySequence(shortcut))
+            action.setShortcuts(key_sequences(shortcut))
         action.setCheckable(checkable)
         if checkable:
             action.setChecked(checked)

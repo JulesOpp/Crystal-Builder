@@ -27,7 +27,7 @@ import numpy as np
 
 from xtal.core import elements as el
 from xtal.core import neighbors, p1
-from xtal.core.structure import Bond
+from xtal.core.structure import CHEMISTRY, Bond
 
 # Two atoms bond when d <= (r_i + r_j) * SCALE + DELTA, with covalent
 # radii.  1.15 / 0.0 reproduces what VESTA and Mercury draw for common
@@ -154,7 +154,8 @@ def perceive(structure, rules: BondRules | None = None,
     key = f"bonds:{include_explicit}:{rules.signature()}"
     return structure.cached(
         key, lambda: _perceive_uncached(structure, rules,
-                                        include_explicit))
+                                        include_explicit),
+        invalidated_by=CHEMISTRY)
 
 
 def _perceive_uncached(structure, rules, include_explicit):
@@ -396,4 +397,5 @@ def graph(structure, rules: BondRules | None = None) -> BondGraph:
     cell = p1.expand(structure)
     bonds = perceive(structure, rules)
     return structure.cached(
-        "bondgraph", lambda: BondGraph(cell.n_atoms, bonds))
+        "bondgraph", lambda: BondGraph(cell.n_atoms, bonds),
+        invalidated_by=CHEMISTRY)

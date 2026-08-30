@@ -613,7 +613,9 @@ land before phase 5, or symmetry operations get retrofitted into
 undo/redo later, which is painful.
 
 Work that came out of using the application, and has not been scheduled
-into a phase yet, lives in [TODO.md](TODO.md).
+into a phase yet, lives in [TODO.md](TODO.md); the plan for delivering
+it -- phases A to I, and where phase 8 above falls among them -- is
+[ROADMAP.md](ROADMAP.md).
 
 ---
 

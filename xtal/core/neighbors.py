@@ -103,34 +103,50 @@ def neighbor_pairs(frac, lattice: Lattice, cutoff: float,
 
     tree = cKDTree(cart)
     ghost_tree = cKDTree(ghost)
-    hits = tree.query_ball_tree(ghost_tree, r=cutoff)
-
-    ii, jj, tt = [], [], []
-    for i, matches in enumerate(hits):
-        for g in matches:
-            j = int(ghost_atom[g])
-            t = ghost_shift[g]
-            # Keep each physical pair once: i<j, or the same atom
-            # through a lexicographically positive translation.
-            if j < i:
-                continue
-            if j == i and tuple(t) <= (0, 0, 0):
-                continue
-            ii.append(i)
-            jj.append(j)
-            tt.append(t)
-
-    if not ii:
+    # ``sparse_distance_matrix`` hands the hits back as arrays.  The
+    # obvious alternative, ``query_ball_tree``, returns a list of lists
+    # and the loop that unpacks it costs a second for a five-thousand
+    # atom cell -- more than everything the force field does with the
+    # answer.
+    hits = tree.sparse_distance_matrix(ghost_tree, cutoff,
+                                       output_type="ndarray")
+    if not len(hits):
         return _empty_pairs()
 
-    i_arr = np.array(ii, dtype=int)
-    j_arr = np.array(jj, dtype=int)
-    t_arr = np.array(tt, dtype=int).reshape(-1, 3)
+    i_arr = hits["i"].astype(int)
+    ghosts = hits["j"].astype(int)
+    j_arr = ghost_atom[ghosts]
+    t_arr = ghost_shift[ghosts].reshape(-1, 3)
+
+    # Keep each physical pair once: i<j, or the same atom through a
+    # lexicographically positive translation.
+    keep_once = (j_arr > i_arr) | ((j_arr == i_arr)
+                                   & lexicographically_positive(t_arr))
+    i_arr, j_arr, t_arr = (i_arr[keep_once], j_arr[keep_once],
+                           t_arr[keep_once])
+    if not len(i_arr):
+        return _empty_pairs()
+
     vec = (cart[j_arr] + lattice.to_cart(t_arr)) - cart[i_arr]
     dist = np.linalg.norm(vec, axis=1)
     keep = dist >= min_distance
     return PairList(i_arr[keep], j_arr[keep], t_arr[keep], dist[keep],
                     vec[keep])
+
+
+def lexicographically_positive(shifts) -> np.ndarray:
+    """Is each ``(a, b, c)`` greater than ``(0, 0, 0)``, read left to
+    right?
+
+    The tie-break that names a self-pair once.  An atom and its own
+    image in the next cell are one contact described two ways -- by
+    ``+t`` from one end and ``-t`` from the other -- so exactly one of
+    the pair is kept, and this is the rule that picks it.
+    """
+    s = np.asarray(shifts, dtype=int).reshape(-1, 3)
+    return ((s[:, 0] > 0)
+            | ((s[:, 0] == 0) & (s[:, 1] > 0))
+            | ((s[:, 0] == 0) & (s[:, 1] == 0) & (s[:, 2] > 0)))
 
 
 def _empty_pairs() -> PairList:

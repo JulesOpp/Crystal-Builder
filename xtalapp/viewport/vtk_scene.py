@@ -109,6 +109,16 @@ def _points(positions: np.ndarray) -> vtkPoints:
     return pts
 
 
+def _interleave(starts, ends) -> np.ndarray:
+    """``[start0, end0, start1, end1, ...]`` -- the point order a line
+    polydata is built in, and the order it has to be refilled in."""
+    n = len(starts)
+    out = np.empty((2 * n, 3), dtype=np.float64)
+    out[0::2] = starts
+    out[1::2] = ends
+    return out
+
+
 def _line_polydata(starts, ends, colors) -> vtkPolyData:
     """One line cell per segment, coloured by cell data.
 
@@ -118,12 +128,8 @@ def _line_polydata(starts, ends, colors) -> vtkPolyData:
     costs more than drawing it.
     """
     n = len(starts)
-    interleaved = np.empty((2 * n, 3), dtype=np.float64)
-    interleaved[0::2] = starts
-    interleaved[1::2] = ends
-
     poly = vtkPolyData()
-    poly.SetPoints(_points(interleaved))
+    poly.SetPoints(_points(_interleave(starts, ends)))
     lines = vtkCellArray()
     lines.SetData(
         numpy_to_vtkIdTypeArray(
@@ -303,6 +309,51 @@ class VtkScene:
         self._set_labels(model)
         self._set_legend(model)
         self._set_highlight(model)
+
+    def set_positions(self, model) -> None:
+        """Move what is already drawn instead of rebuilding it.
+
+        A geometry change leaves the topology alone: the same atoms,
+        the same colours and radii, joined by the same bonds.  So the
+        actors, the mappers and the glyph sources all stand, and only
+        the coordinates underneath them are replaced -- which is what
+        makes watching a relaxation on a large cell affordable.
+
+        Falls back to a full rebuild when the arrays no longer have the
+        same shape, because then the caller was wrong about what
+        changed and the honest answer is to rebuild.
+        """
+        if self.model is None or not self._same_shape(model):
+            self.set_model(model)
+            return
+        self.model = model
+        if model.n_atoms:
+            self._atom_poly.SetPoints(_points(model.positions))
+            self._atom_poly.Modified()
+        if model.n_bond_halves:
+            self._bond_poly.SetPoints(
+                _points(_interleave(model.bond_starts, model.bond_ends)))
+            self._bond_poly.Modified()
+        if model.n_polyhedron_faces:
+            self._polyhedron_poly.SetPoints(
+                _points(model.polyhedron_points))
+            self._polyhedron_poly.Modified()
+        # These two are placed *at* atoms, so they move with them.
+        self._set_highlight(model)
+        self._set_labels(model)
+
+    def _same_shape(self, model) -> bool:
+        """Does this model draw the same things as the current one?"""
+        current = self.model
+        return (model.n_atoms == current.n_atoms
+                and model.n_bond_halves == current.n_bond_halves
+                and model.bond_render == current.bond_render
+                and model.n_polyhedron_faces
+                == current.n_polyhedron_faces
+                and len(model.polyhedron_points)
+                == len(current.polyhedron_points)
+                and model.n_cell_lines == current.n_cell_lines
+                and model.background == current.background)
 
     def _set_atoms(self, model):
         poly = vtkPolyData()

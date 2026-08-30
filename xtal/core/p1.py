@@ -150,33 +150,70 @@ def expand(structure, tol: float = SPECIAL_POSITION_TOL) -> P1Cell:
 
 
 def _expand_uncached(structure, tol: float) -> P1Cell:
+    """Every site through every operation, in one pass.
+
+    Written as array work rather than as a loop over sites because it
+    is on the path of every geometry change: the atoms move, the
+    expansion is stale, and it is recomputed before anything can be
+    drawn.  A loop costs about eight microseconds a site, which is
+    nothing for the two sites of rutile and is forty milliseconds --
+    per frame -- for a five-thousand-site cell in P1.
+
+    The coincidence test is the part that cannot be done for every site
+    at once: it compares every image of a site with every other, and
+    holding that for all sites and all operations at the same time is
+    a site count times an operation count *squared*.  It is also the
+    part that has nothing to do in P1, where one operation cannot
+    produce a coincidence -- which is exactly the case with the site
+    counts large enough to matter.
+    """
     ops = structure.space_group.operations
     lattice = structure.lattice
-    fracs, site_idx, op_idx, taus = [], [], [], []
-    elements, occ, labels = [], [], []
+    n_sites, n_ops = len(structure.sites), len(ops)
+    if not n_sites:
+        return _empty_cell(lattice)
 
-    for i, site in enumerate(structure.sites):
-        raw = np.array([op.apply(site.frac) for op in ops])
-        wrapped = _wrap(raw)
-        for k in _distinct(wrapped, lattice, tol):
-            fracs.append(wrapped[k])
-            site_idx.append(i)
-            op_idx.append(k)
-            taus.append(np.round(wrapped[k] - raw[k]).astype(int))
-            elements.append(site.element)
-            occ.append(site.occupancy)
-            labels.append(site.label)
+    frac = np.array([s.frac for s in structure.sites], dtype=float)
+    rot = np.array([op.rot for op in ops], dtype=float)
+    trans = np.array([op.trans for op in ops], dtype=float)
 
-    n = len(fracs)
+    # (n_sites, n_ops, 3): site s through operation o.  SymOp.apply is
+    # `frac @ rot.T + trans`, and this is that, batched both ways.
+    raw = np.einsum("sj,oij->soi", frac, rot) + trans
+    wrapped = _wrap(raw)
+    tau = np.round(wrapped - raw).astype(int)
+
+    if n_ops == 1:
+        keep = np.ones((n_sites, 1), dtype=bool)
+    else:
+        keep = np.zeros((n_sites, n_ops), dtype=bool)
+        for i in range(n_sites):
+            keep[i, _distinct(wrapped[i], lattice, tol)] = True
+
+    site_idx, op_idx = np.nonzero(keep)     # site-major, as before
     return P1Cell(
         lattice=lattice,
-        frac=np.array(fracs, dtype=float).reshape(n, 3),
-        site_idx=np.array(site_idx, dtype=int),
-        op_idx=np.array(op_idx, dtype=int),
-        tau=np.array(taus, dtype=int).reshape(n, 3),
-        elements=tuple(elements),
-        occupancy=np.array(occ, dtype=float),
-        labels=tuple(labels),
+        frac=wrapped[site_idx, op_idx],
+        site_idx=site_idx.astype(int),
+        op_idx=op_idx.astype(int),
+        tau=tau[site_idx, op_idx],
+        elements=tuple(structure.sites[i].element for i in site_idx),
+        occupancy=np.array([structure.sites[i].occupancy
+                            for i in site_idx], dtype=float),
+        labels=tuple(structure.sites[i].label for i in site_idx),
+    )
+
+
+def _empty_cell(lattice) -> P1Cell:
+    return P1Cell(
+        lattice=lattice,
+        frac=np.zeros((0, 3)),
+        site_idx=np.zeros(0, dtype=int),
+        op_idx=np.zeros(0, dtype=int),
+        tau=np.zeros((0, 3), dtype=int),
+        elements=(),
+        occupancy=np.zeros(0),
+        labels=(),
     )
 
 

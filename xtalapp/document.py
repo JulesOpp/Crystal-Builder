@@ -45,6 +45,7 @@ class Document(QObject):
     """One open structure, its view state, and its history."""
 
     structureChanged = Signal(int)      # a Change flag
+    previewChanged = Signal()           # a geometry shown, not committed
     selectionChanged = Signal()
     measurementsChanged = Signal()
     viewChanged = Signal()
@@ -412,6 +413,35 @@ class Document(QObject):
                                                      centre))
         return f"mirrored {len(sites)} site(s)"
 
+    def recompute_bonds(self) -> str:
+        """Perceive the bonds again, over the geometry as it now is.
+
+        Perception is memoised against atoms *moving* -- see
+        :data:`xtal.core.structure.CHEMISTRY` -- so a bond does not
+        appear because two atoms drifted together, or vanish because
+        one was dragged away.  It changes when it is asked to, which is
+        here.
+
+        Nothing is stored and no command is pushed, because nothing in
+        the structure changed: what this drops is a memo, and what it
+        reports is how the answer differs now.  There is correspondingly
+        nothing to undo.
+        """
+        before = {b.key() for b in bonding.perceive(self._structure)}
+        for prefix in ("bonds:", "bondgraph", "uff-typing"):
+            self._structure.drop_cache(prefix)
+        after = {b.key() for b in bonding.perceive(self._structure)}
+        self._after_change(Change.TOPOLOGY)
+
+        added, removed = len(after - before), len(before - after)
+        if not added and not removed:
+            return f"bonds recalculated, unchanged: {len(after)} bonds"
+        # The difference, not the total: a recalculation that swapped
+        # one bond for another has the same count as one that did
+        # nothing, and they are not the same event.
+        return (f"bonds recalculated: {added} added, {removed} removed "
+                f"-- {len(after)} bonds")
+
     def add_bond_between(self, atom_a: int, atom_b: int,
                          image_a=(0, 0, 0), image_b=(0, 0, 0)) -> str:
         """Bond two atoms of the P1 cell, as picked in the viewport.
@@ -434,6 +464,32 @@ class Document(QObject):
             image_a, image_b)
         self.run(command)
         return "bond removed"
+
+    def delete_selected_bonds(self) -> str:
+        """Suppress every selected bond, as one undo step.
+
+        Reported in orbit terms, because that is what happens: a bond
+        is stored against the asymmetric unit, so suppressing one
+        suppresses every bond the symmetry says is the same bond.
+        "removed 4 Ti-O bonds" is the honest message where "bond
+        removed" is not.
+        """
+        keys = sorted(self.selection.bonds)
+        if not keys:
+            return "no bonds are selected"
+        before = len(self.graph.bonds)
+        with self.transaction(f"Delete {len(keys)} bond(s)"):
+            for i, j, image in keys:
+                self.run(bond_commands.SuppressBond.between_atoms(
+                    self._structure, self.cell, int(i), int(j),
+                    (0, 0, 0), tuple(int(v) for v in image)))
+        gone = before - len(self.graph.bonds)
+        self.selection.bonds.clear()
+        self.selectionChanged.emit()
+        if gone == len(keys):
+            return f"removed {gone} bond(s)"
+        return (f"removed {gone} bonds -- {len(keys)} were selected, "
+                f"and symmetry carried it to the rest of the orbit")
 
     def replace_structure(self, structure: Structure, label: str,
                           change: Change = Change.ALL) -> str:
@@ -592,13 +648,22 @@ class Document(QObject):
         modified at step one would be a lie about a run that can still
         be cancelled.  So this moves the atoms and tells the viewport,
         and touches neither the history nor the modified flag.
+
+        **It announces itself on its own signal**, and that is the
+        point of it.  ``structureChanged`` reaches every panel in the
+        window -- the site table, the formula, the force field's type
+        table -- and none of them are showing anything a preview
+        changed.  Two hundred previews down that signal cost more time
+        than the optimisation they were previewing.  ``previewChanged``
+        reaches the viewport, which is the only thing that has
+        something new to draw.
         """
         for site, coordinates in zip(self._structure.sites, frac,
                                      strict=True):
             site.frac = np.array(coordinates, dtype=float)
         self._structure.touch(Change.POSITIONS)
         self._remeasure()
-        self.structureChanged.emit(int(Change.POSITIONS))
+        self.previewChanged.emit()
 
     def apply_optimization(self, result, before=None) -> str:
         """Commit an optimisation as one undoable step.

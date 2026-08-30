@@ -25,7 +25,7 @@ from __future__ import annotations
 import os
 
 import numpy as np
-from PySide6.QtCore import QEvent, QPoint, Qt, Signal
+from PySide6.QtCore import QEvent, QPoint, Qt, QTimer, Signal
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
 os.environ.setdefault("QT_API", "pyside6")
@@ -39,6 +39,7 @@ from vtkmodules.vtkInteractionStyle import (
 from vtkmodules.vtkIOImage import vtkPNGWriter  # noqa: E402
 from vtkmodules.vtkRenderingCore import vtkWindowToImageFilter  # noqa: E402
 
+from xtal.core.structure import Change  # noqa: E402
 from xtalapp.viewport import modes, picking  # noqa: E402
 from xtalapp.viewport.builder import (  # noqa: E402
     build_scene,
@@ -53,11 +54,48 @@ from xtalapp.viewport.vtk_scene import (  # noqa: E402
 # anything further is the camera being turned and must not select.
 CLICK_SLOP = 4
 
+# VTK's interactor style binds these single letters to behaviour of its
+# own, and none of it is behaviour this application wants: `e` and `q`
+# ask the render window to close, `w` and `s` switch every actor to
+# wireframe and back behind the style menu, `f` flies the camera at
+# whatever is under the cursor, `p` runs VTK's own picker, `r` resets
+# the camera behind Reset View, `u` opens a user event, and `3` toggles
+# red/cyan stereo.  They are swallowed before VTK sees them, so the
+# viewport only does what the application asked it to.
+#
+# Modified presses are never swallowed, and neither are the keys this
+# application binds (`1`, `2`, `3` look down an axis): Qt matches a
+# shortcut before the key event is delivered, so those never arrive
+# here at all.
+VTK_RESERVED_KEYS = frozenset("eqwsfpur3")
+
+# How often a preview is allowed to redraw, in milliseconds.  The
+# optimiser emits a step whenever it has one -- the plot and the log
+# want every one of them -- and the viewport draws whatever the latest
+# geometry is when the timer next fires.  Welding those two rates
+# together is what made a long run on a large cell fall a step further
+# behind on every step.  0 means draw every step; a negative interval
+# means do not draw at all, which is the right way to watch a long run
+# on a very large cell.
+DEFAULT_PREVIEW_INTERVAL_MS = 50            # 20 frames a second
+
+
+def is_vtk_reserved_key(event) -> bool:
+    """Is this one of VTK's own hotkeys, pressed on its own?"""
+    held = (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)
+    if event.modifiers() & held:
+        return False                        # Ctrl+S is Save, not surface
+    return event.text().lower() in VTK_RESERVED_KEYS
+
 
 class ViewportWidget(QWidget):
     """A 3-D view of one document."""
 
     statusMessage = Signal(str)
+    #: what was under the cursor ("atom" | "bond" | "view"), and where
+    #: on screen to put the menu.  The window builds the menu, because
+    #: the actions in it live in its registry.
+    contextRequested = Signal(str, QPoint)
 
     def __init__(self, document=None, parent=None):
         super().__init__(parent)
@@ -67,6 +105,12 @@ class ViewportWidget(QWidget):
         self.mode = modes.get("select")
         self._press_position = None
         self._press_button = None
+
+        self.preview_interval_ms = DEFAULT_PREVIEW_INTERVAL_MS
+        self._preview_pending = False
+        self._preview_timer = QTimer(self)
+        self._preview_timer.setSingleShot(True)
+        self._preview_timer.timeout.connect(self._draw_preview)
 
         self._interactor = QVTKRenderWindowInteractor(self)
         layout = QVBoxLayout(self)
@@ -112,10 +156,12 @@ class ViewportWidget(QWidget):
     def set_document(self, document) -> None:
         if self.document is not None:
             self.document.structureChanged.disconnect(self._on_structure)
+            self.document.previewChanged.disconnect(self._on_preview)
             self.document.viewChanged.disconnect(self._on_view)
             self.document.selectionChanged.disconnect(self._on_selection)
         self.document = document
         document.structureChanged.connect(self._on_structure)
+        document.previewChanged.connect(self._on_preview)
         document.viewChanged.connect(self._on_view)
         document.selectionChanged.connect(self._on_selection)
         self.rebuild(reset_camera=True)
@@ -126,8 +172,54 @@ class ViewportWidget(QWidget):
         self.mode = modes.get(name)
         self.statusMessage.emit(self.mode.hint)
 
-    def _on_structure(self, _change: int) -> None:
-        self.rebuild(reset_camera=False)
+    def _on_structure(self, change: int) -> None:
+        """Redraw as much as the change actually calls for.
+
+        A geometry change leaves every actor in place and only moves
+        the points underneath them; anything else rebuilds the scene.
+        Ignoring the hint -- which is what this used to do -- makes
+        dragging one atom cost the same as loading a new crystal.
+        """
+        if change and not (change & ~int(Change.POSITIONS)):
+            self.update_positions()
+        else:
+            self.rebuild(reset_camera=False)
+
+    def _on_preview(self) -> None:
+        """A geometry is being shown, not committed.
+
+        Coalesced onto a timer so the redraw rate stops being a
+        function of how fast the solver is: every step is announced,
+        and whatever the geometry is when the timer fires is what gets
+        drawn.
+        """
+        if self.preview_interval_ms < 0:
+            return                          # asked not to draw at all
+        if self.preview_interval_ms == 0:
+            self.update_positions()
+            return
+        self._preview_pending = True
+        if not self._preview_timer.isActive():
+            self._preview_timer.start(self.preview_interval_ms)
+
+    def _draw_preview(self) -> None:
+        if self._preview_pending:
+            self._preview_pending = False
+            self.update_positions()
+
+    def update_positions(self) -> None:
+        """Move the atoms without rebuilding the scene."""
+        if self.document is None:
+            return
+        if self.model is None:
+            self.rebuild(reset_camera=False)
+            return
+        model = build_scene(self.document.structure,
+                            self.document.view,
+                            selection=self.document.selection)
+        self.model = model
+        self.scene.set_positions(model)
+        self._safe_render()
 
     def _on_view(self) -> None:
         self.rebuild(reset_camera=False)
@@ -165,17 +257,22 @@ class ViewportWidget(QWidget):
     # -- picking -------------------------------------------------------
 
     def eventFilter(self, watched, event):
-        """Turn a non-dragging click into a pick."""
+        """Turn a non-dragging click into a pick, and keep VTK's own
+        key bindings out of the application."""
         if watched is self._interactor:
             if event.type() == QEvent.MouseButtonPress:
                 self._press_position = event.position().toPoint()
                 self._press_button = event.button()
             elif event.type() == QEvent.MouseButtonRelease:
                 self._maybe_pick(event, double=False)
+                self._maybe_context_menu(event)
             elif event.type() == QEvent.MouseButtonDblClick:
                 self._press_position = event.position().toPoint()
                 self._press_button = event.button()
                 self._maybe_pick(event, double=True)
+            elif event.type() in (QEvent.KeyPress, QEvent.KeyRelease):
+                if is_vtk_reserved_key(event):
+                    return True             # consumed: VTK never sees it
         return super().eventFilter(watched, event)
 
     def _maybe_pick(self, event, double: bool) -> None:
@@ -193,6 +290,52 @@ class ViewportWidget(QWidget):
                          Qt.ShiftModifier | Qt.ControlModifier
                          | Qt.MetaModifier)),
                      double=double)
+
+    def _maybe_context_menu(self, event) -> None:
+        """A right click that did not drag asks for a context menu.
+
+        The same press-and-release-within-the-slop test the left button
+        uses, because right-drag is the camera dolly and has to keep
+        working.
+        """
+        if (self._press_position is None
+                or self._press_button != Qt.RightButton
+                or event.button() != Qt.RightButton):
+            return
+        point = event.position().toPoint()
+        moved = (point - self._press_position).manhattanLength()
+        self._press_position = None
+        if moved > CLICK_SLOP:
+            return                          # the camera was being moved
+        kind = self.select_under(point)
+        self.contextRequested.emit(
+            kind, self._interactor.mapToGlobal(point))
+
+    def select_under(self, point: QPoint) -> str:
+        """Select what is under the cursor, and say what it was.
+
+        A menu that acts on a selection the user cannot see is how a
+        context menu deletes the wrong thing -- so right-clicking
+        something outside the selection selects it first.  Clicking
+        *inside* the selection leaves it alone, which is what makes
+        "delete these fourteen atoms" reachable.
+        """
+        if self.document is None or self.model is None:
+            return "view"
+        origin, direction = self._ray_at(point)
+        kind, index = picking.pick(self.model, origin, direction)
+        selection = self.document.selection
+        if kind == "atom":
+            atom, _cell = self.model.instance(index)
+            if atom not in selection.atoms:
+                self.document.select([atom], "set")
+            return "atom"
+        if kind == "bond":
+            key = self.model.bond_key(index)
+            if key not in selection.bonds:
+                self.document.select_bond(key, "set")
+            return "bond"
+        return "view"
 
     def pick_at(self, point: QPoint, additive: bool = False,
                 double: bool = False) -> None:
