@@ -28,9 +28,16 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-gui = ["PySide6>=6.6", "vtk>=9.3", "pyqtgraph>=0.13"]
+# No plotting library: the one plot the application draws (the live
+# optimisation trace) is a hundred lines of QPainter in xtalapp/plot.py,
+# which is less to pin and package than a second large dependency and
+# follows the user's theme without being asked.
+gui = ["PySide6>=6.6", "vtk>=9.3"]
 ase = ["ase>=3.22"]
-test = ["pytest>=8"]
+# pytest-qt belongs here and not in [dev]: without it every widget
+# test skips itself, and CI installs [gui,test] -- so the GUI half of
+# the suite was passing by not running.
+test = ["pytest>=8", "pytest-qt>=4"]
 dev = ["crystal-builder[gui,ase,test]", "ruff", "pyinstaller>=6"]
 
 [project.scripts]
@@ -42,8 +49,8 @@ Repository = "https://github.com/JulesOpp/Crystal-Builder"
 
 [tool.setuptools]
 packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
-            "xtal.analysis", "xtalapp", "xtalapp.viewport",
-            "xtalapp.docks", "xtalapp.dialogs"]
+            "xtal.ff.uff", "xtal.analysis", "xtalapp",
+            "xtalapp.viewport", "xtalapp.docks", "xtalapp.dialogs"]
 
 [tool.setuptools_scm]        # version from git tags; no version file to bump
 
@@ -56,3 +63,15 @@ line-length = 79
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# The UFF parameter table is a transcription of a published table.
+# Wrapping its rows to 79 columns would break the alignment that makes
+# a 127-row table readable, and reformatting transcribed data is how
+# transcription errors get introduced.
+"xtal/ff/uff/params.py" = ["E501"]
+# i-j-k-l for the four atoms of a dihedral, and i-j-k for an angle, is
+# the notation of every force-field paper and every implementation of
+# one.  Renaming l here to satisfy the ambiguous-name rule would make
+# the code harder to check against the equations it implements.
+"xtal/ff/uff/terms.py" = ["E741"]

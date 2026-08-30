@@ -520,6 +520,115 @@ class Document(QObject):
                 f"{al:.3f} {be:.3f} {ga:.3f} ({keep} kept)")
 
     # ==================================================================
+    #  FORCE FIELD
+    # ==================================================================
+    #
+    # The document owns none of the physics -- it builds calculators
+    # over its structure and turns their answers into commands, and
+    # every one of these is callable with no window, which is what
+    # keeps the Force Field panel a set of widgets and nothing more.
+
+    def atom_types(self):
+        """The force field's reading of every atom, with reasons.
+
+        Memoised on the structure, so the panel may call it whenever it
+        redraws.
+        """
+        from xtal.ff.uff import typer
+        return typer.assign(self._structure)
+
+    def site_types(self) -> list:
+        """One ``(site index, AtomType, multiplicity)`` per site.
+
+        The table shows sites rather than cell atoms because an
+        override is stored on a site and applies to its whole orbit --
+        a per-atom table would offer edits it could not honour.
+        """
+        typing = self.atom_types()
+        cell = self.cell
+        out = []
+        for index in range(self._structure.n_sites):
+            atoms = cell.indices_of_site(index)
+            if not len(atoms):
+                continue
+            out.append((index, typing.types[int(atoms[0])],
+                        len(atoms)))
+        return out
+
+    def force_field(self, engine: str = "uff", **options):
+        """Build a calculator over this structure."""
+        from xtal.ff import ENGINES
+        return ENGINES.build(engine, self._structure, **options)
+
+    def single_point(self, engine: str = "uff", **options):
+        """``(result, calculator)`` at the current geometry."""
+        calculator = self.force_field(engine, **options)
+        result = calculator.compute(self.cell.cart,
+                                    self._structure.lattice.matrix)
+        return result, calculator
+
+    def set_atom_type(self, site_indices, type_name) -> str:
+        """Override -- or, with ``None``, stop overriding -- the type
+        of some sites."""
+        from xtal.commands import ff as ff_commands
+        indices = sorted({int(i) for i in site_indices})
+        if not indices:
+            return "no sites"
+        self.run(ff_commands.SetAtomTypes(indices, type_name))
+        return (f"set {len(indices)} site(s) to {type_name}"
+                if type_name else
+                f"cleared the type of {len(indices)} site(s)")
+
+    def frozen_sites(self) -> set:
+        """The sites the selection says to hold still."""
+        return self.selected_sites()
+
+    def preview_positions(self, frac) -> None:
+        """Show a geometry without committing to it.
+
+        The optimiser produces two hundred of these and only the last
+        one is a change the user made; putting each on the undo stack
+        would bury everything before it, and marking the document
+        modified at step one would be a lie about a run that can still
+        be cancelled.  So this moves the atoms and tells the viewport,
+        and touches neither the history nor the modified flag.
+        """
+        for site, coordinates in zip(self._structure.sites, frac,
+                                     strict=True):
+            site.frac = np.array(coordinates, dtype=float)
+        self._structure.touch(Change.POSITIONS)
+        self._remeasure()
+        self.structureChanged.emit(int(Change.POSITIONS))
+
+    def apply_optimization(self, result, before=None) -> str:
+        """Commit an optimisation as one undoable step.
+
+        ``before`` is where the atoms were when the run started, which
+        the caller has to supply if it has been previewing: by then the
+        structure holds the last previewed geometry, and a command that
+        read its undo data from the structure would undo to that
+        instead of to where the user began.
+        """
+        from xtal.commands import ff as ff_commands
+        command = ff_commands.ApplyOptimizedGeometry(
+            result.frac, before=before)
+        moved = command.displacement(self._structure)
+        if moved < 1e-9:
+            # A run cancelled before it took a step, or one that
+            # started at the minimum.  Pushing this would put an entry
+            # on the stack that undoes to itself, and Ctrl+Z would
+            # appear to do nothing.
+            return f"{result.summary()}; nothing moved"
+        self.run(command)
+        return (f"{result.summary()}; the furthest atom moved "
+                f"{moved:.3f} A")
+
+    def apply_charges(self, charges) -> str:
+        from xtal.commands import ff as ff_commands
+        self.run(ff_commands.SetCharges(charges))
+        return f"set charges on {len(charges)} site(s)"
+
+    # ==================================================================
     #  MEASUREMENTS
     # ==================================================================
     #

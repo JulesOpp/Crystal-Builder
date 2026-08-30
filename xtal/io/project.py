@@ -16,6 +16,8 @@ The file is a zip of small, readable parts:
     cell.json        the bare cell, written only when there are no
                      atoms yet -- a CIF with no sites is not a CIF
     bonds.json       the hand-drawn and suppressed bonds
+    sites.json       the per-site ``props`` a CIF has nowhere to put,
+                     such as a hand-set UFF atom type
     view.json        the ViewSettings record
     session.json     selection, measurements, and provenance
 
@@ -44,6 +46,7 @@ FORMAT_VERSION = 1
 STRUCTURE_PART = "structure.cif"
 CELL_PART = "cell.json"
 BONDS_PART = "bonds.json"
+SITES_PART = "sites.json"
 VIEW_PART = "view.json"
 SESSION_PART = "session.json"
 
@@ -79,6 +82,11 @@ def write_project(structure, path, view=None,
                 "space_group": structure.space_group.to_dict(),
             }))
         archive.writestr(BONDS_PART, _dump(bonds))
+        props = {str(i): dict(site.props)
+                 for i, site in enumerate(structure.sites)
+                 if site.props}
+        if props:
+            archive.writestr(SITES_PART, _dump({"props": props}))
         archive.writestr(VIEW_PART, _dump(view or {}))
         archive.writestr(SESSION_PART,
                          _dump({**header, **(session or {})}))
@@ -109,6 +117,7 @@ def read_project(path) -> tuple:
         view = _load(archive, VIEW_PART, names)
         session = _load(archive, SESSION_PART, names)
         _restore_bonds(structure, _load(archive, BONDS_PART, names))
+        _restore_props(structure, _load(archive, SITES_PART, names))
 
     structure.meta.setdefault("source", str(path))
     structure.meta["title"] = structure.meta.get("title") or path.stem
@@ -171,6 +180,24 @@ def _restore_bonds(structure, data: dict) -> None:
         except (ValueError, IndexError, KeyError, TypeError):
             structure.meta.setdefault("warnings", []).append(
                 f"dropped an unreadable bond: {record}")
+
+
+def _restore_props(structure, data: dict) -> None:
+    """Put back the per-site extras the CIF could not carry.
+
+    ``props`` is the extension point every later module hangs data off
+    -- a hand-set UFF atom type today, a refinement flag tomorrow -- so
+    this restores whatever is there rather than knowing any of the
+    keys.  An index that no longer names a site is dropped: the CIF
+    part is the authority on what the sites are.
+    """
+    for key, values in (data.get("props") or {}).items():
+        try:
+            index = int(key)
+        except (TypeError, ValueError):
+            continue
+        if 0 <= index < structure.n_sites and isinstance(values, dict):
+            structure.sites[index].props.update(values)
 
 
 def _dump(data: dict) -> str:

@@ -48,6 +48,7 @@ from xtalapp.dialogs.display_range import DisplayRangeDialog
 from xtalapp.dialogs.find_symmetry import FindSymmetryDialog
 from xtalapp.dialogs.spacegroup import SpaceGroupDialog
 from xtalapp.dialogs.supercell import SupercellDialog
+from xtalapp.docks.ff_panel import ForceFieldDock
 from xtalapp.docks.filetree import FileTreeDock
 from xtalapp.docks.info import InfoDock
 from xtalapp.docks.inspector import InspectorDock
@@ -229,6 +230,15 @@ class MainWindow(QMainWindow):
             self.display_range_dialog, "Ctrl+R",
             tip="How much of the crystal to draw")
 
+        add("single_point", "&Single point energy",
+            self.single_point_energy, "Ctrl+E",
+            tip="Energy and per-term breakdown at this geometry")
+        add("optimize", "&Optimise geometry", self.optimize_geometry,
+            "Ctrl+Shift+E",
+            tip="Relax the structure within its space group")
+        add("show_ff", "&Force Field panel", self.show_force_field,
+            tip="Atom types, electrostatics, and how the run is going")
+
         add("reset_view", "&Reset view", self.reset_view, "Ctrl+0")
         add("view_a", "Along &a", lambda: self.look_along(0), "1")
         add("view_b", "Along &b", lambda: self.look_along(1), "2")
@@ -277,6 +287,10 @@ class MainWindow(QMainWindow):
         self.actions_.fill_menu(cell_menu, [
             "edit_cell", "supercell", None,
             "niggli", "delaunay", None, "wrap_cell"])
+
+        calculate_menu = bar.addMenu("Ca&lculate")
+        self.actions_.fill_menu(calculate_menu, [
+            "single_point", "optimize", None, "show_ff"])
 
         view_menu = bar.addMenu("&View")
         style_menu = view_menu.addMenu("&Style")
@@ -366,6 +380,12 @@ class MainWindow(QMainWindow):
         self.measure_dock.targetChanged.connect(self._on_measure_target)
         self.addDockWidget(Qt.RightDockWidgetArea, self.measure_dock)
 
+        self.ff_dock = ForceFieldDock(self)
+        # Connected to a method, not to the label: the docks are built
+        # before the status bar exists.
+        self.ff_dock.statusMessage.connect(self.show_status)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.ff_dock)
+
         # Three panels compete for the right-hand side; tabbing them
         # keeps the viewport wide by default.
         self.tabifyDockWidget(self.inspector_dock, self.info_dock)
@@ -373,12 +393,14 @@ class MainWindow(QMainWindow):
         self.tabifyDockWidget(self.sites_dock, self.move_dock)
         self.tabifyDockWidget(self.move_dock, self.style_dock)
         self.tabifyDockWidget(self.style_dock, self.measure_dock)
+        self.tabifyDockWidget(self.measure_dock, self.ff_dock)
         self.inspector_dock.raise_()
 
         window_menu = self.menuBar().addMenu("&Window")
         for dock in (self.file_dock, self.inspector_dock,
                      self.info_dock, self.sites_dock, self.move_dock,
-                     self.style_dock, self.measure_dock):
+                     self.style_dock, self.measure_dock,
+                     self.ff_dock):
             window_menu.addAction(dock.toggleViewAction())
 
     # ==================================================================
@@ -824,6 +846,30 @@ class MainWindow(QMainWindow):
     def wrap_into_cell(self) -> None:
         self._run(lambda d: d.wrap_into_cell())
 
+    # ==================================================================
+    #  FORCE FIELD
+    # ==================================================================
+    #
+    # Both menu entries drive the panel rather than duplicating it: a
+    # single point run from the menu has to show the same breakdown,
+    # and an optimisation has to be cancellable, so the panel is the
+    # thing that runs them and the menu raises it first.
+
+    def show_status(self, text: str) -> None:
+        self.status_label.setText(text)
+
+    def show_force_field(self) -> None:
+        self.ff_dock.show()
+        self.ff_dock.raise_()
+
+    def single_point_energy(self) -> None:
+        self.show_force_field()
+        self.ff_dock.single_point()
+
+    def optimize_geometry(self) -> None:
+        self.show_force_field()
+        self.ff_dock.start()
+
     def display_range_dialog(self) -> None:
         document = self.current_document()
         if document is not None:
@@ -905,6 +951,7 @@ class MainWindow(QMainWindow):
         self.sites_dock.refresh()
         self.move_dock.refresh()
         self.style_dock.refresh()
+        self.ff_dock.refresh()
         self._rebuild_element_menu(document)
         self._update_ui()
 
@@ -925,6 +972,7 @@ class MainWindow(QMainWindow):
         self.move_dock.set_document(document)
         self.style_dock.set_document(document)
         self.measure_dock.set_document(document)
+        self.ff_dock.set_document(document)
         self._rebuild_element_menu(document)
         self._refresh_shell()
 
@@ -944,7 +992,8 @@ class MainWindow(QMainWindow):
              "find_symmetry", "set_space_group", "standardize",
              "primitive", "wyckoff", "merge_duplicates", "supercell",
              "edit_cell", "niggli", "delaunay", "wrap_cell",
-             "display_range"], has_document)
+             "display_range", "single_point", "optimize"],
+            has_document)
         if document is None:
             self.status_label.setText("No structure open")
             self.selection_label.setText("")

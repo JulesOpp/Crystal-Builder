@@ -12,6 +12,9 @@ here (and in the Python console) rather than to automate the widgets.
     xtal symmetry quartz.cif --symprec 1e-3
     xtal convert quartz.cif quartz.xyz --supercell 2 2 2
     xtal bonds quartz.cif
+    xtal types quartz.cif
+    xtal energy quartz.cif
+    xtal optimize quartz.cif -o relaxed.cif
 """
 
 from __future__ import annotations
@@ -130,6 +133,101 @@ def cmd_bonds(args) -> int:
     return 0
 
 
+# ----------------------------------------------------------------------
+#  FORCE FIELD
+# ----------------------------------------------------------------------
+
+def _calculator(structure, args):
+    """Build the engine the arguments ask for, and say what it made of
+    the structure before it is used for anything."""
+    from xtal.ff import ENGINES
+
+    calculator = ENGINES.build(
+        args.engine, structure,
+        coulomb=getattr(args, "coulomb", False),
+        charges=getattr(args, "charges", "site"))
+    for warning in calculator.warnings:
+        print(f"warning: {warning}", file=sys.stderr)
+    return calculator
+
+
+def cmd_types(args) -> int:
+    """The atom types, and why each one was chosen.
+
+    Its own command because the typing is the part of a force field
+    that decides whether the energy means anything, and it is worth
+    being able to look at without running a calculation.
+    """
+    from xtal.core import p1
+    from xtal.ff.uff import typer
+
+    structure = _load(args.file)
+    cell = p1.expand(structure)
+    typing = typer.assign(structure)
+
+    print("atom       type    confidence  why")
+    for index, atom in enumerate(typing.types):
+        name = f"{cell.elements[index]}{index}"
+        print(f"{name:<10s} {atom.name:<7s} "
+              f"{atom.confidence:<11s} {atom.reason}")
+    print()
+    print(typing.summary())
+    return 0
+
+
+def cmd_energy(args) -> int:
+    from xtal.core import p1
+
+    structure = _load(args.file)
+    calculator = _calculator(structure, args)
+    cell = p1.expand(structure)
+    result = calculator.compute(cell.cart, structure.lattice.matrix)
+
+    print(calculator.summary())
+    print()
+    print(result.breakdown())
+    print()
+    print(f"max force      {result.max_force:.5f} kcal/mol/A")
+    print(f"rms force      {result.rms_force:.5f} kcal/mol/A")
+    return 0
+
+
+def cmd_optimize(args) -> int:
+    from xtal.ff import optimize
+
+    structure = _load(args.file)
+    calculator = _calculator(structure, args)
+    print(calculator.summary())
+    print()
+    print("step          energy            max force")
+
+    def trace(step):
+        if args.quiet:
+            return True
+        print(step.line())
+        return True
+
+    result = optimize.run(
+        calculator, structure, method=args.method,
+        max_steps=args.max_steps, force_tolerance=args.tolerance,
+        callback=trace)
+
+    print()
+    print(result.summary())
+    if not result.converged:
+        print("note: the geometry is where the optimiser stopped, not "
+              "a minimum", file=sys.stderr)
+
+    if args.output:
+        for site, frac in zip(structure.sites, result.frac,
+                              strict=True):
+            site.frac = frac
+        structure.touch()
+        FORMATS.write(structure, args.output)
+        print(f"wrote {args.output}")
+    return 0 if result.converged else 2
+
+
 def cmd_formats(args) -> int:
     print("name   read  write  extensions")
     for fmt in FORMATS:
@@ -190,9 +288,55 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("file")
     p.set_defaults(func=cmd_bonds)
 
+    p = sub.add_parser("types",
+                       help="UFF atom types and why each was chosen")
+    p.add_argument("file")
+    p.set_defaults(func=cmd_types)
+
+    for name, help_text in (("energy", "single-point energy"),
+                            ("optimize", "relax the geometry")):
+        p = sub.add_parser(name, help=help_text)
+        p.add_argument("file")
+        p.add_argument("--engine", default="uff",
+                       choices=_engine_names(),
+                       help="which force field (default: %(default)s)")
+        p.add_argument("--coulomb", action="store_true",
+                       help="include electrostatics (off by default, "
+                            "as in UFF itself)")
+        p.add_argument("--charges", default="site",
+                       choices=["site", "qeq", "zero"],
+                       help="where charges come from when "
+                            "electrostatics are on")
+        if name == "optimize":
+            p.add_argument("-o", "--output",
+                           help="write the relaxed structure here")
+            p.add_argument("--method", default="lbfgs",
+                           choices=["lbfgs", "fire"])
+            p.add_argument("--max-steps", type=int, default=200,
+                           dest="max_steps")
+            p.add_argument("--tolerance", type=float,
+                           default=optimize_default_tolerance(),
+                           help="stop when the largest force per atom "
+                                "is below this, in kcal/mol/A "
+                                "(default: %(default)g)")
+            p.add_argument("-q", "--quiet", action="store_true",
+                           help="do not print a line per step")
+        p.set_defaults(func=cmd_energy if name == "energy"
+                       else cmd_optimize)
+
     p = sub.add_parser("formats", help="list supported file formats")
     p.set_defaults(func=cmd_formats)
     return parser
+
+
+def _engine_names() -> list[str]:
+    from xtal.ff import ENGINES
+    return ENGINES.names()
+
+
+def optimize_default_tolerance() -> float:
+    from xtal.ff.optimize import DEFAULT_FORCE_TOLERANCE
+    return DEFAULT_FORCE_TOLERANCE
 
 
 def main(argv=None) -> int:

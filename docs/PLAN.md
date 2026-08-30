@@ -60,9 +60,14 @@ overlays — see §12).
 | `scipy` | `cKDTree` neighbour search, L-BFGS, sparse ops | |
 
 **Optional extras** — `ase` (bridge to external calculators/optimisers),
-`matplotlib` (plots: convergence, future PXRD patterns),
-`pyqtgraph` (fast interactive plots — preferred for live convergence and
-PXRD overlays).
+`matplotlib` (plots: future PXRD patterns).
+
+The plan originally listed `pyqtgraph` for the live convergence plot.
+Phase 7 did not use it: the trace is two polylines and a pair of axes,
+which is a hundred lines of `QPainter` in `xtalapp/plot.py` — less to
+pin and package than a second large GUI dependency, and it follows the
+user's theme without being asked. A richer plot (PXRD overlays with
+pan, zoom and picking) is a real reason to reconsider.
 
 **Dev** — `pytest`, `pytest-qt`, `ruff`, `pyinstaller`.
 
@@ -598,7 +603,7 @@ Each phase ends with something runnable and a green test suite.
 | **4. Editing & undo** ✅ | build a structure by hand | `CommandStack`, Add-Atom / Add-Bond modes + dialogs, Move dock + gizmo, copy/paste, full undo/redo wiring |
 | **5. Symmetry & cell** ✅ | full symmetry workflow | Find Symmetry dialog with tolerance, space-group picker, reduce-to-P1, supercell, cell edit, cell transform, display range, boundary options |
 | **6. Appearance & analysis** ✅ | looks like VESTA | all draw styles incl. polyhedra, colour/radius editors, background, labels, legend, projection modes, measurements, image export, project save/load |
-| **7. UFF** | single-point + optimisation from the GUI | params, typer (+ override table), terms, calculator, FIRE/L-BFGS, worker + live plot, constraints, validation suite |
+| **7. UFF** ✅ | single-point + optimisation from the GUI | params, typer (+ override table), terms, calculator, FIRE/L-BFGS, worker + live plot, constraints, validation suite |
 | **8. Ship** | signed-ish DMG + Windows installer | PyInstaller specs, icons, file associations, CI release job, user docs |
 | **9. Prove extensibility** | a plugin added without touching core | PXRD simulation module as the first registry-based `Analysis`, plus `docs/extending.md` |
 

@@ -5,15 +5,16 @@ exporting crystal structures.  The visual and interaction model follows
 **VESTA**; the symmetry and force-field capability follows **Materials
 Studio**.  Python throughout, shipped to macOS and Windows.
 
-Status: **phase 6 complete** — the core, the headless CLI, and an
+Status: **phase 7 complete** — the core, the headless CLI, and an
 application you can build structures in: click to place atoms and draw
 bonds, move and rotate the selection, copy and paste, find the symmetry
 at a tolerance you choose, change the space group, build supercells and
 edit the cell, draw coordination polyhedra, measure distances, angles
-and torsions, and save the whole session as a project.  Next up is the
-UFF force field.  See [docs/PLAN.md](docs/PLAN.md) for the full
-architecture and roadmap, and [docs/TODO.md](docs/TODO.md) for what is
-wanted but not yet scheduled.
+and torsions, save the whole session as a project, and now put a
+**UFF** energy on a structure and relax it without leaving its space
+group.  Next up is packaging.  See [docs/PLAN.md](docs/PLAN.md) for the
+full architecture and roadmap, and [docs/TODO.md](docs/TODO.md) for
+what is wanted but not yet scheduled.
 
 ---
 
@@ -28,12 +29,17 @@ wanted but not yet scheduled.
       cli.py    the `xtal` command line
       commands/ undoable mutations: the stack, atom/bond/cell/
                 symmetry commands, the clipboard fragment
-      ff/       UFF force field                  (phase 7)
-      analysis/ RDF, coordination, later PXRD    (phase 6+)
+      ff/       the Calculator API and engine registry, Ewald
+                sums, FIRE and L-BFGS optimisers
+        uff/    UFF: parameter table, atom typer, energy terms,
+                calculator, QEq charges
+      analysis/ RDF, coordination, later PXRD    (phase 9)
     xtalapp/    the PySide6 + VTK application
       viewport/ scene model, builder, draw styles, VTK, the widget
-      docks/    file tree, structure information
+      docks/    file tree, inspector, sites, style, measure,
+                force field
       document.py, mainwindow.py, actions.py, settings.py
+      workers.py, plot.py   long jobs off the GUI thread
     tests/      headless test suite
 
 The wall between `xtal/` and `xtalapp/` is enforced by a test
@@ -50,7 +56,8 @@ pytest -q
 ```
 
 `pip install -e .` alone installs only the headless core (numpy, scipy,
-gemmi, spglib).  The `[gui]` extra adds PySide6, VTK and pyqtgraph.
+gemmi, spglib) — the force field included.  The `[gui]` extra adds
+PySide6 and VTK.
 
 ## Running the application
 
@@ -124,8 +131,32 @@ diffable, and it is the only format that keeps hand-drawn bonds -- a
 bond here is (site, site, symmetry operation, lattice translation), and
 no CIF tag expresses that.
 
+The *Calculate* menu and the **Force Field** panel put an energy on the
+structure.  The panel leads with the thing that decides whether that
+energy means anything: a table of every site's UFF atom type, how sure
+the typer was, and the sentence explaining why it chose that one --
+"in a flat aromatic ring", "bridges Si and Si at 144 degrees, a
+framework oxygen", "6 neighbours, which no Zn type in UFF was fitted
+for".  Any of them can be overridden from a drop-down of that
+element's types, and the override travels with the structure.
+
+*Single point* gives the energy broken down by term, which is what
+tells a strained crystal from a mistyped atom.  *Optimise* relaxes the
+geometry on a worker thread: the structure moves in the viewport as it
+goes, the energy and maximum force are plotted live, and Pause and Stop
+work at every step.  Nothing reaches the undo stack until the run
+finishes, and then one command does -- so `Ctrl+Z` gives back the
+structure you started with, not the second-to-last iteration.
+
+The relaxation keeps the space group. The variables are the sites of
+the asymmetric unit rather than the atoms of the cell, so an atom on a
+special position stays on it: rutile's titanium does not move at all,
+and its oxygen relaxes along the [110] direction it is free in and
+nowhere else. To relax every atom independently, *Reduce to P1* first.
+
 `resources/samples/MFU4l.cif` (CCDC 776578) is a worked example: a
-648-atom metal-organic framework in Fm-3m.
+648-atom metal-organic framework in Fm-3m.  Its eight octahedral zincs
+come out flagged, because UFF has only a tetrahedral zinc.
 
 ## What works today
 
@@ -136,6 +167,9 @@ xtal info quartz.cif
 xtal symmetry quartz.cif --symprec 1e-3 --wyckoff
 xtal bonds quartz.cif
 xtal convert quartz.cif big.xyz --supercell 2 2 2 --p1
+xtal types quartz.cif                       # atom types, and why
+xtal energy quartz.cif                      # per-term breakdown
+xtal optimize quartz.cif -o relaxed.cif     # a line per step
 ```
 
 From Python:
@@ -180,6 +214,32 @@ stack.undo(host); stack.undo(host)                 # exactly as it was
 
 Every symmetry and cell operation is a command that can say what it
 would do before it does it, which is what the dialogs above them show.
+
+The force field is the same shape:
+
+```python
+from xtal.ff import ENGINES, optimize
+from xtal.core import p1
+
+calculator = ENGINES.build("uff", quartz)   # types, bonds, terms: once
+print(calculator.summary())                 # 9 atoms, 12 bonds, 24 angles...
+
+result = calculator.compute(p1.expand(quartz).cart, quartz.lattice.matrix)
+print(result.breakdown())                   # bond / angle / torsion / vdW
+print(result.max_force)                     # kcal/mol/A
+
+run = optimize.run(calculator, quartz, method="lbfgs")
+print(run.summary())                        # converged after 8 steps: ...
+print(run.frac)                             # the asymmetric unit, relaxed
+```
+
+`ENGINES` is a registry, so LAMMPS, GULP, xTB or a machine-learned
+potential drop in as another `Calculator` and one registration line,
+with no change to the optimiser, the worker thread or the panel.
+Electrostatics are off by default, as in UFF itself; turned on, charges
+come from the sites or from charge equilibration, and the lattice sum
+is Ewald's (it reproduces the rock-salt Madelung constant to seven
+figures, which is the test).
 
 Reading a CIF gives you the asymmetric unit and its space group, held
 as a Hall symbol so non-standard settings (origin choice 2,
