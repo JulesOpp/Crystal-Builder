@@ -132,3 +132,84 @@ def test_rejects_impossible_cells():
         Lattice(np.zeros((3, 3)))
     with pytest.raises(ValueError):
         Lattice(np.eye(2))
+
+
+# ------------------------------------------- symmetry-allowed shapes
+
+def test_cell_constraints_come_out_of_the_operations():
+    """Derived from the group's own operations, not looked up by
+    crystal-system name -- which is what makes the settings right."""
+    from xtal.core.spacegroup import SpaceGroup
+
+    expected = {
+        "P1":        ("a", "b", "c", "alpha", "beta", "gamma"),
+        "P-1":       ("a", "b", "c", "alpha", "beta", "gamma"),
+        "P21/c":     ("a", "b", "c", "beta"),
+        "Pnma":      ("a", "b", "c"),
+        "P4_2/mnm":  ("a", "c"),
+        "P3221":     ("a", "c"),
+        "P6/mmm":    ("a", "c"),
+        "Fm-3m":     ("a",),
+        "Fd-3m:2":   ("a",),
+    }
+    for name, free in expected.items():
+        constraint = SpaceGroup.from_any(name).cell_constraint
+        assert constraint.free_names == free, name
+
+
+def test_the_monoclinic_unique_axis_follows_the_setting():
+    """Same group number, different setting: the free angle moves with
+    the axis the two-fold is along.  Reading it off the number alone is
+    the classic way to get a structure silently wrong."""
+    from xtal.core.spacegroup import SpaceGroup
+
+    for name, free_angle in (("P21/c", "beta"),
+                             ("P1121/a", "gamma"),
+                             ("B2/b11", "alpha")):
+        group = SpaceGroup.from_any(name)
+        assert group.number == 14 or group.number == 15
+        assert group.cell_constraint.free_names == (
+            "a", "b", "c", free_angle), name
+
+
+def test_the_trigonal_axis_choice_changes_the_constraint():
+    from xtal.core.spacegroup import SpaceGroup
+
+    hexagonal = SpaceGroup.from_any("R-3c:H").cell_constraint
+    rhombohedral = SpaceGroup.from_any("R-3c:R").cell_constraint
+    assert hexagonal.free_names == ("a", "c")
+    assert hexagonal.fixed_at(5) == 120.0            # gamma
+    assert rhombohedral.free_names == ("a", "alpha")
+    assert rhombohedral.follows(2) == 1              # c = b = a
+    assert rhombohedral.follows(5) == 3              # gamma = alpha
+
+
+def test_a_constraint_conforms_a_cell_and_recognises_one():
+    from xtal.core.spacegroup import SpaceGroup
+
+    constraint = SpaceGroup.from_any("P6/mmm").cell_constraint
+    conformed = constraint.apply((4.0, 9.9, 7.0, 61.0, 12.0, 45.0))
+    assert conformed == pytest.approx((4.0, 4.0, 7.0, 90.0, 90.0,
+                                       120.0))
+    assert constraint.allows(conformed)
+    assert not constraint.allows((4.0, 5.0, 7.0, 90.0, 90.0, 120.0))
+    assert constraint.describe().startswith("b = a")
+
+
+def test_every_group_allows_its_own_conventional_cell():
+    """The strongest check there is: conform a generic cell to each
+    group's constraint, then verify the operations really do preserve
+    the metric it produces."""
+    import numpy as np
+
+    from xtal.core import spacegroup as sg
+
+    for group in sg.table()[::17]:                   # a spread of 34
+        constraint = group.cell_constraint
+        parameters = constraint.apply((5.0, 7.0, 11.0, 83.0, 97.0,
+                                       104.0))
+        lattice = Lattice.from_parameters(*parameters)
+        metric = lattice.matrix @ lattice.matrix.T
+        for op in group.operations:
+            assert np.allclose(op.rot.T @ metric @ op.rot, metric,
+                               atol=1e-8), f"{group.hm} / {op.triplet}"

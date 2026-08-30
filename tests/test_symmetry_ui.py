@@ -229,14 +229,17 @@ def test_a_singular_matrix_disables_ok(qtbot, document):
 
 # ------------------------------------------------------------ cell edit
 
-def test_cell_edit_dialog_offers_both_meanings(qtbot, document):
-    dialog = CellEditDialog(document.structure)
+def test_cell_edit_dialog_offers_both_meanings(qtbot):
+    triclinic = Structure.from_arrays(
+        Lattice.from_parameters(5.0, 6.0, 7.0, 88, 92, 97), ["C"],
+        [[0.0, 0.0, 0.0]], space_group="P1")
+    dialog = CellEditDialog(triclinic)
     qtbot.addWidget(dialog)
-    a, b, c, alpha, beta, gamma = document.structure.lattice.parameters
     assert dialog.parameters() == pytest.approx(
-        (a, b, c, alpha, beta, gamma))
+        (5.0, 6.0, 7.0, 88, 92, 97))
+    assert all(spin.isEnabled() for spin in dialog.spins)
 
-    dialog.lengths[0].setValue(a * 2)
+    dialog.spins[0].setValue(10.0)
     assert "2" in dialog.preview.text()              # twice the volume
     assert dialog.keep() == "fractional"
     dialog.keeps[1].setChecked(True)
@@ -245,17 +248,86 @@ def test_cell_edit_dialog_offers_both_meanings(qtbot, document):
 
     dialog.reset()
     assert dialog.parameters() == pytest.approx(
-        (a, b, c, alpha, beta, gamma))
+        (5.0, 6.0, 7.0, 88, 92, 97))
 
 
-def test_cell_edit_refuses_angles_that_do_not_close(qtbot, document):
-    dialog = CellEditDialog(document.structure)
+def test_cell_edit_refuses_angles_that_do_not_close(qtbot):
+    triclinic = Structure.from_arrays(
+        Lattice.from_parameters(5.0, 6.0, 7.0, 88, 92, 97), ["C"],
+        [[0.0, 0.0, 0.0]], space_group="P1")
+    dialog = CellEditDialog(triclinic)
     qtbot.addWidget(dialog)
-    for spin in dialog.angles:
+    for spin in dialog.spins[3:]:
         spin.setValue(170.0)
     assert dialog.lattice() is None or dialog.lattice().volume <= 0
     assert not dialog.buttons.button(
         QDialogButtonBox.Ok).isEnabled()
+
+
+# --------------------------------------------- the symmetry constraint
+
+def test_cell_edit_locks_what_the_group_decides(qtbot, quartz):
+    """Quartz is trigonal: only a and c are real numbers.  The others
+    must not be editable, because a hexagonal cell with b != a is not a
+    cell its own operations map onto itself."""
+    dialog = CellEditDialog(quartz)
+    qtbot.addWidget(dialog)
+    free = [i for i, spin in enumerate(dialog.spins)
+            if spin.isEnabled()]
+    assert free == [0, 2]                            # a and c
+    assert "only a, c" in dialog.symmetry_note.text()
+    assert "reduce to P1" in dialog.symmetry_note.text()
+
+
+def test_editing_a_free_parameter_drags_the_tied_ones(qtbot, quartz):
+    dialog = CellEditDialog(quartz)
+    qtbot.addWidget(dialog)
+    dialog.spins[0].setValue(7.5)                    # a
+    a, b, c, alpha, beta, gamma = dialog.parameters()
+    assert a == pytest.approx(7.5)
+    assert b == pytest.approx(7.5)                   # b follows a
+    assert (alpha, beta, gamma) == pytest.approx((90, 90, 120))
+    assert dialog.lattice() is not None
+
+
+def test_a_cubic_cell_has_one_number(qtbot, halite):
+    dialog = CellEditDialog(halite)
+    qtbot.addWidget(dialog)
+    assert [i for i, s in enumerate(dialog.spins) if s.isEnabled()] \
+        == [0]
+    dialog.spins[0].setValue(6.0)
+    assert dialog.parameters() == pytest.approx(
+        (6.0, 6.0, 6.0, 90, 90, 90))
+
+
+def test_reducing_to_p1_frees_the_cell(qtbot, quartz):
+    """The documented way out of a symmetry constraint has to actually
+    work."""
+    from xtal.core import symmetry
+
+    locked = CellEditDialog(quartz)
+    qtbot.addWidget(locked)
+    assert sum(s.isEnabled() for s in locked.spins) == 2
+
+    freed = CellEditDialog(symmetry.reduce_to_p1(quartz))
+    qtbot.addWidget(freed)
+    assert all(s.isEnabled() for s in freed.spins)
+    assert "every parameter is free" in freed.symmetry_note.text()
+
+
+def test_the_constraint_survives_a_round_trip_through_the_document(
+        quartz):
+    """Whatever the dialog offers, the cell that lands on the document
+    must be one the group allows."""
+    document = Document(quartz)
+    constraint = quartz.space_group.cell_constraint
+    document.set_lattice(
+        Lattice.from_parameters(*constraint.apply(
+            (6.0, 3.0, 4.0, 70.0, 80.0, 100.0))))
+    assert constraint.allows(document.structure.lattice.parameters,
+                             tol=1e-4)
+    assert document.structure.lattice.parameters == pytest.approx(
+        (6.0, 6.0, 4.0, 90.0, 90.0, 120.0))
 
 
 def test_setting_the_cell_keeps_what_it_says(document):

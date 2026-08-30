@@ -183,6 +183,23 @@ class SpaceGroup:
         return self._sg.laue_str()
 
     @property
+    def cell_constraint(self):
+        """Which of the six cell parameters this group leaves free.
+
+        Derived from the operations rather than looked up by crystal
+        system, so every setting is right: P21/c constrains beta and
+        P1121/a constrains gamma, and both are the same group number.
+        """
+        constraint = self._cache.get("cell_constraint")
+        if constraint is None:
+            from xtal.core.lattice import constraint_from_rotations
+            constraint = constraint_from_rotations(
+                [op.rot for op in self.operations],
+                self.crystal_system)
+            self._cache["cell_constraint"] = constraint
+        return constraint
+
+    @property
     def centring(self) -> str:
         """Lattice centring letter: P, A, B, C, I, F, R."""
         return str(self._sg.centring_type())

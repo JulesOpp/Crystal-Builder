@@ -5,14 +5,15 @@ exporting crystal structures.  The visual and interaction model follows
 **VESTA**; the symmetry and force-field capability follows **Materials
 Studio**.  Python throughout, shipped to macOS and Windows.
 
-Status: **phase 5 complete** — the core, the headless CLI, and an
+Status: **phase 6 complete** — the core, the headless CLI, and an
 application you can build structures in: click to place atoms and draw
 bonds, move and rotate the selection, copy and paste, find the symmetry
 at a tolerance you choose, change the space group, build supercells and
-edit the cell, and undo all of it.  Next up is appearance and analysis.
-See [docs/PLAN.md](docs/PLAN.md) for the full architecture and roadmap,
-and [docs/TODO.md](docs/TODO.md) for what is wanted but not yet
-scheduled.
+edit the cell, draw coordination polyhedra, measure distances, angles
+and torsions, and save the whole session as a project.  Next up is the
+UFF force field.  See [docs/PLAN.md](docs/PLAN.md) for the full
+architecture and roadmap, and [docs/TODO.md](docs/TODO.md) for what is
+wanted but not yet scheduled.
 
 ---
 
@@ -21,8 +22,9 @@ scheduled.
     xtal/       core library — no Qt, no VTK, importable anywhere
       core/     lattice, sites, space groups, structure,
                 symmetry, P1 expansion, neighbours, bonding,
-                supercells, properties
-      io/       CIF and extended XYZ, format registry
+                supercells, measurement, properties
+      io/       CIF, extended XYZ and .xtalproj projects,
+                format registry
       cli.py    the `xtal` command line
       commands/ undoable mutations: the stack, atom/bond/cell/
                 symmetry commands, the clipboard fragment
@@ -94,12 +96,33 @@ says by how much.  *Set space group* picks any setting of any of the
 atoms generating or imposing it would leave you with before you
 commit.
 
-The *Cell* menu edits the cell itself: parameters (keeping either the
-fractional or the cartesian coordinates -- it asks, because the two
-mean opposite things), supercells as multiples or as a general integer
-matrix, and Niggli and Delaunay reduction.  *View → Display range*
-controls how much of the crystal is drawn, and whether bonds at the
-edge are completed with the atoms just outside.
+The *Cell* menu edits the cell itself: parameters, supercells as
+multiples or as a general integer matrix, and Niggli and Delaunay
+reduction.  The cell editor only lets you change the numbers the space
+group leaves free -- a hexagonal cell has *a* and *c* and nothing else,
+and the rest follow -- because a cell its own symmetry operations no
+longer map onto itself is not a cell.  It also asks whether to hold the
+fractional or the cartesian coordinates fixed, because the two mean
+opposite things.  *View → Display range* controls how much of the
+crystal is drawn, and whether bonds at the edge are completed with the
+atoms just outside.
+
+The *Style* panel is where the picture is tuned: draw style, atom size,
+bond thickness, labels, background, an element legend, and the colour
+and radius of every element, each overridable and each resettable.
+**Polyhedra** is the VESTA signature style -- coordination spheres as
+translucent convex hulls, coloured by the atom at the centre.  The
+*Measure* tool takes distances, angles and torsions; how many atoms you
+click is the whole of the choice between them, and every measurement is
+minimum-image aware, so one taken across the cell boundary follows the
+bond rather than the long way round the box.
+
+*File → Save Project* writes a `.xtalproj`: the structure, how you were
+looking at it, what was selected and what you had measured.  It is a
+zip of a CIF and three small JSON files, so it stays readable and
+diffable, and it is the only format that keeps hand-drawn bonds -- a
+bond here is (site, site, symmetry operation, lattice translation), and
+no CIF tag expresses that.
 
 `resources/samples/MFU4l.cif` (CCDC 776578) is a worked example: a
 648-atom metal-organic framework in Fm-3m.
@@ -123,7 +146,7 @@ from xtal.commands import CommandStack, Host
 from xtal.commands import cell as cell_commands
 from xtal.commands import symmetry as symmetry_commands
 from xtal.commands import atoms as atom_commands
-from xtal.core import bonding, properties, symmetry
+from xtal.core import bonding, measure, p1, properties, symmetry
 from xtal.io import FORMATS, write_cif
 
 quartz = FORMATS.read("quartz.cif")
@@ -140,6 +163,9 @@ print(graph.coordination())
 print([f.kind for f in graph.fragments()]) # 'framework'
 
 write_cif(back, "quartz_out.cif")
+
+cell = p1.expand(quartz)                   # minimum-image measurement
+print(measure.measure(cell, quartz.lattice, [0, 3]).text())
 
 host, stack = Host(quartz.copy()), CommandStack()   # undoable edits
 stack.push(atom_commands.SetElement([0], "Ge"), host)

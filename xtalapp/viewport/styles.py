@@ -6,8 +6,10 @@ Draw styles, as a registry.
 A style is a small record, not a class hierarchy: it says where an
 atom's radius comes from, how big it is, and whether bonds are drawn as
 tubes, as lines, or not at all.  The scene builder reads those fields;
-it never asks "which style is this?".  Adding polyhedra later is one
-more entry plus the geometry that fills the polyhedron arrays.
+it never asks "which style is this?".  Polyhedra were the test of that:
+adding VESTA's signature style was one more entry here plus the
+geometry that fills the polyhedron arrays -- no existing style, and no
+branch in the builder keyed on a style name.
 """
 
 from __future__ import annotations
@@ -25,6 +27,7 @@ class DrawStyle:
     radius_factor: float
     draw_bonds: bool = True
     bond_render: str = "tube"       # tube | line
+    draw_polyhedra: bool = False
     description: str = ""
 
     def atom_radius(self, element: str, settings) -> float:
@@ -70,4 +73,11 @@ register(DrawStyle(
     name="spacefill", label="Space filling",
     radius_source="vdw", radius_factor=1.0, draw_bonds=False,
     description="Atoms at their van der Waals radius",
+))
+register(DrawStyle(
+    name="polyhedra", label="Polyhedra",
+    radius_source="covalent", radius_factor=0.25,
+    draw_bonds=False, draw_polyhedra=True,
+    description="Coordination polyhedra as translucent hulls, "
+                "coloured by the atom at the centre",
 ))

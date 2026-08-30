@@ -12,6 +12,12 @@ in-tree; third-party formats register themselves through the
 
 from xtal.io.cif_reader import read_cif, read_cif_all, read_cif_string
 from xtal.io.cif_writer import cif_string, write_cif
+from xtal.io.project import (
+    is_project,
+    read_project,
+    read_project_structure,
+    write_project,
+)
 from xtal.io.registry import FORMATS, Format, FormatRegistry
 from xtal.io.xyz import read_xyz, read_xyz_string, write_xyz, xyz_string
 
@@ -26,6 +32,17 @@ FORMATS.register(Format(
 ))
 
 FORMATS.register(Format(
+    name="xtalproj",
+    description="Crystal Builder project",
+    extensions=(".xtalproj",),
+    read=read_project_structure,
+    write=write_project,
+    # A project keeps everything, which is the whole reason it exists.
+    keeps=frozenset({"symmetry", "occupancy", "adp", "charges",
+                     "bonds", "view"}),
+))
+
+FORMATS.register(Format(
     name="xyz",
     description="Extended XYZ",
     extensions=(".xyz", ".extxyz"),
@@ -36,4 +53,5 @@ FORMATS.register(Format(
 
 __all__ = ["FORMATS", "Format", "FormatRegistry", "read_cif",
            "read_cif_all", "read_cif_string", "write_cif", "cif_string",
-           "read_xyz", "read_xyz_string", "write_xyz", "xyz_string"]
+           "read_xyz", "read_xyz_string", "write_xyz", "xyz_string",
+           "read_project", "write_project", "is_project"]

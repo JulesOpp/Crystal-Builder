@@ -1,18 +1,26 @@
 """
 xtalapp.dialogs.cell_edit
 =========================
-Editing the cell parameters -- and answering the question that makes
-the edit meaningful.
+Editing the cell parameters -- and answering the two questions that
+make the edit meaningful.
 
-Stretching *a* from 5 to 6 Angstrom can mean two opposite things.
-Keeping the **fractional** coordinates drags every atom along with the
-cell: the crystal is scaled, bonds stretch, this is a strain.  Keeping
-the **cartesian** coordinates leaves the atoms exactly where they are
-in space and rescales the fractions: the crystal is unchanged, the box
-around it is not, this is how vacuum gets added.
+**What is free.**  A space group does not merely describe a cell, it
+constrains one.  In a hexagonal group only *a* and *c* are real
+numbers: *b* is *a*, the angles are 90, 90 and 120, and typing
+something else does not give a hexagonal crystal with an odd cell, it
+gives a structure its own symmetry operations no longer map onto
+itself.  So the parameters the group ties down are shown, greyed, and
+follow the ones that are free.  The way out is the way out of every
+symmetry constraint: change the group, or reduce to P1.
 
-There is no sensible default, so the dialog asks, and says what each
-choice will do to the density before the choice is made.
+**What is held fixed.**  Stretching *a* from 5 to 6 Angstrom can mean
+two opposite things.  Keeping the **fractional** coordinates drags
+every atom along with the cell: the crystal is scaled, bonds stretch,
+this is a strain.  Keeping the **cartesian** coordinates leaves the
+atoms exactly where they are in space and rescales the fractions: the
+crystal is unchanged, the box around it is not, this is how vacuum gets
+added.  There is no sensible default, so the dialog asks, and says what
+each choice does to the density before the choice is made.
 """
 
 from __future__ import annotations
@@ -27,10 +35,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from xtal.core.lattice import Lattice
-
-LENGTHS = ["a", "b", "c"]
-ANGLES = ["alpha", "beta", "gamma"]
+from xtal.core.lattice import PARAMETER_NAMES, Lattice
 
 KEEPS = [
     ("fractional", "Keep fractional coordinates",
@@ -41,41 +46,40 @@ KEEPS = [
 
 
 class CellEditDialog(QDialog):
-    """The six cell parameters, and what to hold fixed."""
+    """The six cell parameters, with the ones the group fixes locked
+    to the ones it does not."""
 
     def __init__(self, structure, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Edit unit cell")
         self.structure = structure
+        self.constraint = structure.space_group.cell_constraint
+        self._syncing = False
 
-        a, b, c, alpha, beta, gamma = structure.lattice.parameters
-        self.lengths = []
-        self.angles = []
+        self.spins = []
         grid = QGridLayout()
-        for column, (name, value) in enumerate(
-                zip(LENGTHS, (a, b, c), strict=True)):
+        for index, name in enumerate(PARAMETER_NAMES):
+            row, column = divmod(index, 3)
             spin = QDoubleSpinBox()
-            spin.setRange(0.1, 1000.0)
-            spin.setDecimals(5)
-            spin.setSingleStep(0.1)
-            spin.setValue(float(value))
-            spin.setSuffix(" A")
-            spin.valueChanged.connect(self._preview)
-            grid.addWidget(QLabel(name), 0, column)
-            grid.addWidget(spin, 1, column)
-            self.lengths.append(spin)
-        for column, (name, value) in enumerate(
-                zip(ANGLES, (alpha, beta, gamma), strict=True)):
-            spin = QDoubleSpinBox()
-            spin.setRange(1.0, 179.0)
-            spin.setDecimals(4)
-            spin.setSingleStep(1.0)
-            spin.setValue(float(value))
-            spin.setSuffix(" deg")
-            spin.valueChanged.connect(self._preview)
-            grid.addWidget(QLabel(name), 2, column)
-            grid.addWidget(spin, 3, column)
-            self.angles.append(spin)
+            if index < 3:
+                spin.setRange(0.1, 1000.0)
+                spin.setDecimals(5)
+                spin.setSingleStep(0.1)
+                spin.setSuffix(" A")
+            else:
+                spin.setRange(1.0, 179.0)
+                spin.setDecimals(4)
+                spin.setSingleStep(1.0)
+                spin.setSuffix(" deg")
+            spin.valueChanged.connect(self._on_edited)
+            grid.addWidget(QLabel(name), 2 * row, column)
+            grid.addWidget(spin, 2 * row + 1, column)
+            self.spins.append(spin)
+
+        self.symmetry_note = QLabel()
+        self.symmetry_note.setWordWrap(True)
+        self.symmetry_note.setStyleSheet(
+            "color: #8a5a00; background: #fdf3e0; padding: 5px;")
 
         self.keeps = []
         keep_box = QVBoxLayout()
@@ -99,16 +103,54 @@ class CellEditDialog(QDialog):
 
         layout = QVBoxLayout(self)
         layout.addLayout(grid)
+        layout.addWidget(self.symmetry_note)
         layout.addLayout(keep_box)
         layout.addWidget(self.preview)
         layout.addWidget(self.buttons)
-        self._preview()
+
+        self._apply_constraint()
+        self.reset()
+
+    # -- the symmetry constraint ---------------------------------------
+
+    def _apply_constraint(self) -> None:
+        """Lock the parameters the group decides, and say which."""
+        for index, spin in enumerate(self.spins):
+            follows = self.constraint.follows(index)
+            fixed = self.constraint.fixed_at(index)
+            spin.setEnabled(self.constraint.is_free(index))
+            if follows is not None:
+                spin.setToolTip(
+                    f"{PARAMETER_NAMES[index]} follows "
+                    f"{PARAMETER_NAMES[follows]} in "
+                    f"{self.structure.space_group.short_name}")
+            elif fixed is not None:
+                spin.setToolTip(
+                    f"{PARAMETER_NAMES[index]} is {fixed:g} in "
+                    f"{self.structure.space_group.short_name}")
+            else:
+                spin.setToolTip("free to edit")
+
+        group = self.structure.space_group
+        if len(self.constraint.free_names) == 6:
+            self.symmetry_note.setText(
+                f"{group.short_name} is triclinic: every parameter is "
+                f"free.")
+            self.symmetry_note.setStyleSheet("padding: 5px;")
+            return
+        self.symmetry_note.setStyleSheet(
+            "color: #8a5a00; background: #fdf3e0; padding: 5px;")
+        self.symmetry_note.setText(
+            f"{group.short_name} is {group.crystal_system}: only "
+            f"{', '.join(self.constraint.free_names)} "
+            f"{'is' if len(self.constraint.free_names) == 1 else 'are'} "
+            f"free ({self.constraint.describe()}). To edit the rest, "
+            f"change the space group or reduce to P1.")
 
     # -- values --------------------------------------------------------
 
     def parameters(self) -> tuple[float, ...]:
-        return tuple([s.value() for s in self.lengths]
-                     + [s.value() for s in self.angles])
+        return tuple(spin.value() for spin in self.spins)
 
     def lattice(self) -> Lattice | None:
         try:
@@ -124,13 +166,23 @@ class CellEditDialog(QDialog):
         return "fractional"
 
     def reset(self) -> None:
-        original = self.structure.lattice.parameters
-        for spin, value in zip(self.lengths + self.angles, original,
-                               strict=True):
+        self._set(self.structure.lattice.parameters)
+
+    def _set(self, parameters) -> None:
+        self._syncing = True
+        for spin, value in zip(self.spins, parameters, strict=True):
             spin.blockSignals(True)
             spin.setValue(float(value))
             spin.blockSignals(False)
+        self._syncing = False
         self._preview()
+
+    def _on_edited(self, *_args) -> None:
+        """A free parameter moved: bring the ones that follow it
+        along, so the cell on screen is always one the group allows."""
+        if self._syncing:
+            return
+        self._set(self.constraint.apply(self.parameters()))
 
     # -- preview -------------------------------------------------------
 
@@ -138,8 +190,7 @@ class CellEditDialog(QDialog):
         ok_button = self.buttons.button(QDialogButtonBox.Ok)
         lattice = self.lattice()
         if lattice is None or lattice.volume <= 0:
-            self.preview.setText(
-                "Those angles do not close a cell.")
+            self.preview.setText("Those angles do not close a cell.")
             self.preview.setStyleSheet("color: #8a5a00;")
             ok_button.setEnabled(False)
             return

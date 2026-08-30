@@ -60,6 +60,14 @@ class SceneModel:
     bond_keys: np.ndarray = field(
         default_factory=lambda: np.zeros((0, 5), int))
 
+    # coordination polyhedra: triangles over a shared vertex list
+    polyhedron_points: np.ndarray = field(default_factory=_empty)
+    polyhedron_faces: np.ndarray = field(
+        default_factory=lambda: np.zeros((0, 3), int))          # (F,3)
+    polyhedron_colors: np.ndarray = field(
+        default_factory=lambda: _empty(3, np.uint8))            # (F,3)
+    polyhedron_opacity: float = 0.75
+
     # unit cell wireframe
     cell_starts: np.ndarray = field(default_factory=_empty)    # (L,3)
     cell_ends: np.ndarray = field(default_factory=_empty)      # (L,3)
@@ -67,6 +75,7 @@ class SceneModel:
         default_factory=lambda: _empty(3, np.uint8))           # (L,3)
 
     labels: tuple = ()                  # ((x, y, z), "text"), ...
+    legend: tuple = ()                  # (("Fe", (r, g, b)), ...)
     background: tuple = (255, 255, 255)
 
     @property
@@ -82,15 +91,21 @@ class SceneModel:
         return len(self.cell_starts)
 
     @property
+    def n_polyhedron_faces(self) -> int:
+        return len(self.polyhedron_faces)
+
+    @property
     def is_empty(self) -> bool:
         return (self.n_atoms == 0 and self.n_bond_halves == 0
-                and self.n_cell_lines == 0)
+                and self.n_cell_lines == 0
+                and self.n_polyhedron_faces == 0)
 
     def bounds(self) -> tuple[np.ndarray, np.ndarray]:
         """(min, max) cartesian corner of everything drawn."""
         chunks = [c for c in (self.positions, self.bond_starts,
                               self.bond_ends, self.cell_starts,
-                              self.cell_ends) if len(c)]
+                              self.cell_ends, self.polyhedron_points)
+                  if len(c)]
         if not chunks:
             return np.zeros(3), np.zeros(3)
         stacked = np.vstack(chunks)

@@ -9,8 +9,8 @@ mode and forwards clicks to it; the camera (rotate, zoom, pan) is
 handled by VTK underneath and is never a mode, because you always want
 to be able to turn the structure.
 
-Phase 3 ships **select**.  Add-atom, add-bond, measure and move are
-their own modes and slot in here without the viewport changing.
+Select, add-atom, add-bond and measure are each their own mode and
+slot in here without the viewport changing.
 
 Modes read what was clicked from the scene model's provenance arrays,
 never from the geometry: a drawn atom knows which atom of the P1 cell
@@ -188,6 +188,58 @@ class AddBondMode(Mode):
         return message
 
 
+class MeasureMode(Mode):
+    """Click atoms to measure between them.
+
+    How many atoms you pick is the whole of the choice: two is a
+    distance, three an angle, four a torsion.  ``target`` says which
+    one is wanted, and the measurement is taken the moment that many
+    atoms have been picked -- so measuring a bond is two clicks and
+    nothing else.
+
+    The picks stay selected while they accumulate, so the atoms going
+    into the measurement are visible before the number appears.
+    """
+
+    name = "measure"
+    label = "Measure"
+    hint = ("click 2 atoms for a distance, 3 for an angle, 4 for a "
+            "torsion")
+
+    def __init__(self, target: int = 2):
+        self.target = int(target)
+        self.picked: list = []
+
+    def on_deactivate(self, document) -> None:
+        self.picked = []
+
+    def on_click(self, document, model, event: ClickEvent) -> str:
+        if document is None:
+            return ""
+        kind, index = picking.pick(model, event.origin, event.direction)
+        if kind != "atom":
+            self.picked = []
+            document.select_none()
+            return "cancelled"
+
+        atom, _cell = model.instance(index)
+        if atom in self.picked:
+            return "that atom is already in the measurement"
+        self.picked.append(atom)
+        document.select(self.picked, "set")
+
+        if len(self.picked) < self.target:
+            left = self.target - len(self.picked)
+            return f"{left} more atom{'s' if left > 1 else ''}"
+
+        atoms, self.picked = self.picked, []
+        try:
+            return document.add_measurement(atoms)
+        except ValueError as exc:
+            document.select_none()
+            return str(exc)
+
+
 MODES: dict[str, Mode] = {}
 
 
@@ -210,3 +262,4 @@ def names() -> list[str]:
 register(SelectMode())
 register(AddAtomMode())
 register(AddBondMode())
+register(MeasureMode())

@@ -51,8 +51,10 @@ from xtalapp.dialogs.supercell import SupercellDialog
 from xtalapp.docks.filetree import FileTreeDock
 from xtalapp.docks.info import InfoDock
 from xtalapp.docks.inspector import InspectorDock
+from xtalapp.docks.measure import MeasureDock
 from xtalapp.docks.move import MoveDock
 from xtalapp.docks.sites import SitesDock
+from xtalapp.docks.style_panel import StylePanelDock
 from xtalapp.document import Document
 from xtalapp.settings import AppSettings
 from xtalapp.viewport import modes, styles
@@ -118,6 +120,10 @@ class MainWindow(QMainWindow):
         add("save", "&Save", self.save_document, "Ctrl+S")
         add("save_as", "Save &As...", self.save_document_as,
             "Ctrl+Shift+S")
+        add("save_project", "Save &Project...", self.save_project,
+            "Ctrl+Shift+P",
+            tip="Save the structure together with how it is being "
+                "viewed, what is selected and what you have measured")
         add("export_p1", "Export as P1 CIF...", self.export_p1)
         add("export_image", "Export &Image...", self.export_image)
         add("close_tab", "&Close", self.close_current, "Ctrl+W")
@@ -139,6 +145,8 @@ class MainWindow(QMainWindow):
         add("show_cell", "Unit cell",
             lambda v: self.set_view(show_cell=v), checkable=True,
             checked=True)
+        add("show_legend", "Element legend",
+            lambda v: self.set_view(show_legend=v), checkable=True)
         add("labels", "Labels",
             lambda v: self.set_view(
                 label_mode="label" if v else "none"), checkable=True)
@@ -232,8 +240,8 @@ class MainWindow(QMainWindow):
 
         file_menu = bar.addMenu("&File")
         self.actions_.fill_menu(file_menu, [
-            "new", "open", None, "save", "save_as", None,
-            "export_p1", "export_image", None, "close_tab"])
+            "new", "open", None, "save", "save_as", "save_project",
+            None, "export_p1", "export_image", None, "close_tab"])
         self.recent_menu = file_menu.addMenu("Open &Recent")
         self._rebuild_recent_menu()
         file_menu.addSeparator()
@@ -277,7 +285,7 @@ class MainWindow(QMainWindow):
         show_menu = view_menu.addMenu("&Show")
         self.actions_.fill_menu(
             show_menu, ["show_atoms", "show_bonds", "show_cell",
-                        "labels"])
+                        "labels", "show_legend"])
         view_menu.addSeparator()
         background_menu = view_menu.addMenu("&Background")
         for name in BACKGROUNDS:
@@ -351,16 +359,26 @@ class MainWindow(QMainWindow):
         self.move_dock = MoveDock(self)
         self.addDockWidget(Qt.RightDockWidgetArea, self.move_dock)
 
+        self.style_dock = StylePanelDock(self)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.style_dock)
+
+        self.measure_dock = MeasureDock(self)
+        self.measure_dock.targetChanged.connect(self._on_measure_target)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.measure_dock)
+
         # Three panels compete for the right-hand side; tabbing them
         # keeps the viewport wide by default.
         self.tabifyDockWidget(self.inspector_dock, self.info_dock)
         self.tabifyDockWidget(self.info_dock, self.sites_dock)
         self.tabifyDockWidget(self.sites_dock, self.move_dock)
+        self.tabifyDockWidget(self.move_dock, self.style_dock)
+        self.tabifyDockWidget(self.style_dock, self.measure_dock)
         self.inspector_dock.raise_()
 
         window_menu = self.menuBar().addMenu("&Window")
         for dock in (self.file_dock, self.inspector_dock,
-                     self.info_dock, self.sites_dock, self.move_dock):
+                     self.info_dock, self.sites_dock, self.move_dock,
+                     self.style_dock, self.measure_dock):
             window_menu.addAction(dock.toggleViewAction())
 
     # ==================================================================
@@ -386,6 +404,8 @@ class MainWindow(QMainWindow):
         document.structureChanged.connect(self._on_structure_changed)
         document.viewChanged.connect(self._on_view_changed)
         document.selectionChanged.connect(self._on_selection_changed)
+        document.measurementsChanged.connect(
+            self._on_measurements_changed)
         document.historyChanged.connect(self._update_history_actions)
         if hasattr(viewport, "statusMessage"):
             viewport.statusMessage.connect(
@@ -412,7 +432,7 @@ class MainWindow(QMainWindow):
         path = Path(path)
         try:
             document = Document.load(path)
-        except (ValueError, OSError) as exc:
+        except (ValueError, OSError, KeyError) as exc:
             QMessageBox.warning(self, "Could not open the file",
                                 f"{path.name}\n\n{exc}")
             return None
@@ -455,6 +475,33 @@ class MainWindow(QMainWindow):
             return
         self.settings.add_recent_file(path)
         self._rebuild_recent_menu()
+
+    def save_project(self) -> None:
+        """Write everything: the crystal, the view, the session.
+
+        Saving as a CIF keeps the structure and drops the rest, which
+        is the honest behaviour for an interchange format; this is the
+        one that keeps a working session whole.
+        """
+        document = self.current_document()
+        if document is None:
+            return
+        suggested = str((document.path or Path(self.settings
+                                               .last_directory))
+                        .with_suffix(".xtalproj"))
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save project", suggested,
+            "Crystal Builder project (*.xtalproj)")
+        if not path:
+            return
+        try:
+            written = document.save_project(path)
+        except (ValueError, OSError) as exc:
+            QMessageBox.warning(self, "Could not save", str(exc))
+            return
+        self.settings.add_recent_file(written)
+        self._rebuild_recent_menu()
+        self.statusBar().showMessage(f"wrote {written}", 5000)
 
     def export_p1(self) -> None:
         """Export with every symmetry-generated atom written out."""
@@ -622,6 +669,13 @@ class MainWindow(QMainWindow):
         if viewport is not None and hasattr(viewport, "set_mode"):
             viewport.set_mode(name)
         self.statusBar().showMessage(modes.get(name).hint, 6000)
+
+    def _on_measure_target(self, count: int) -> None:
+        """The measurement chooser sets how many atoms a click run
+        takes; the mode is where that lives."""
+        mode = modes.get("measure")
+        mode.target = int(count)
+        mode.picked = []
 
     def _on_element_changed(self, text: str) -> None:
         from xtal.core import elements as el
@@ -850,12 +904,18 @@ class MainWindow(QMainWindow):
         self.inspector_dock.refresh()
         self.sites_dock.refresh()
         self.move_dock.refresh()
+        self.style_dock.refresh()
         self._rebuild_element_menu(document)
         self._update_ui()
 
     def _on_view_changed(self) -> None:
-        """How it is drawn changed: only the shell's own widgets."""
+        """How it is drawn changed: the shell's own widgets and the
+        style panel, which is the thing that shows view state."""
+        self.style_dock.refresh()
         self._refresh_shell()
+
+    def _on_measurements_changed(self) -> None:
+        self.measure_dock.refresh()
 
     def _update_ui(self, *_args) -> None:
         document = self.current_document()
@@ -863,6 +923,8 @@ class MainWindow(QMainWindow):
         self.inspector_dock.set_document(document)
         self.sites_dock.set_document(document)
         self.move_dock.set_document(document)
+        self.style_dock.set_document(document)
+        self.measure_dock.set_document(document)
         self._rebuild_element_menu(document)
         self._refresh_shell()
 
@@ -871,8 +933,9 @@ class MainWindow(QMainWindow):
         document = self.current_document()
         has_document = document is not None
         self.actions_.set_enabled(
-            ["save", "save_as", "export_p1", "export_image",
-             "close_tab", "reset_view", "view_a", "view_b", "view_c"],
+            ["save", "save_as", "save_project", "export_p1",
+             "export_image", "close_tab", "reset_view", "view_a",
+             "view_b", "view_c"],
             has_document)
         self._update_history_actions()
         self.actions_.set_enabled(
@@ -898,6 +961,15 @@ class MainWindow(QMainWindow):
         name = f"style_{document.view.style}"
         if name in self.actions_:
             self.actions_[name].setChecked(True)
+        for action, value in (("show_atoms", document.view.show_atoms),
+                              ("show_bonds", document.view.show_bonds),
+                              ("show_cell", document.view.show_cell),
+                              ("show_legend",
+                               document.view.show_legend)):
+            widget = self.actions_[action]
+            widget.blockSignals(True)
+            widget.setChecked(value)
+            widget.blockSignals(False)
         viewport = self.current_viewport()
         mode = getattr(viewport, "mode", None)
         if mode is not None and f"mode_{mode.name}" in self.actions_:

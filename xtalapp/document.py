@@ -33,11 +33,11 @@ from xtal.commands import bonds as bond_commands
 from xtal.commands import cell as cell_commands
 from xtal.commands import symmetry as symmetry_commands
 from xtal.commands.clipboard import Fragment, PasteFragment
-from xtal.core import bonding, p1, properties
+from xtal.core import bonding, measure, p1, properties
 from xtal.core import selection as sel
 from xtal.core.selection import Selection
 from xtal.core.structure import Change
-from xtal.io import FORMATS
+from xtal.io import FORMATS, is_project, read_project, write_project
 from xtalapp.viewport.view_settings import ViewSettings
 
 
@@ -46,6 +46,7 @@ class Document(QObject):
 
     structureChanged = Signal(int)      # a Change flag
     selectionChanged = Signal()
+    measurementsChanged = Signal()
     viewChanged = Signal()
     historyChanged = Signal()
     modifiedChanged = Signal(bool)
@@ -54,12 +55,20 @@ class Document(QObject):
     def __init__(self, structure: Structure | None = None,
                  path=None, parent=None):
         super().__init__(parent)
-        self._structure = structure or Structure.empty()
+        # `is None`, not `or`: a Structure is falsy when it has no
+        # sites, so `or` silently replaces a cell you set up before
+        # adding any atoms with the default 10 A one.
+        self._structure = (Structure.empty() if structure is None
+                           else structure)
         self._path = Path(path) if path else None
         self._was_modified = False
         self.stack = CommandStack()
         self.view = ViewSettings()
         self.selection = Selection()
+        # Measurements are neither structure nor view: they are notes
+        # about the crystal, so they live here, are saved with a
+        # project, and never land on the undo stack.
+        self.measurements: list = []
         self.warnings: list[str] = list(
             self._structure.meta.get("warnings", []))
 
@@ -69,7 +78,67 @@ class Document(QObject):
 
     @classmethod
     def load(cls, path) -> Document:
+        """Open a file.  A project brings its view and session with
+        it; anything else brings only the crystal, which is the honest
+        behaviour for an interchange format."""
+        path = Path(path)
+        if is_project(path):
+            structure, view, session = read_project(path)
+            document = cls(structure, path=path)
+            document.view = ViewSettings.from_dict(view)
+            document._restore_session(session)
+            return document
         return cls(FORMATS.read(path), path=path)
+
+    def save_project(self, path) -> Path:
+        """Write the structure, the view and the session as one file.
+
+        This does not become the document's path: a project is a
+        snapshot of a session, and Ctrl+S should keep meaning "write
+        the CIF I opened".
+        """
+        return write_project(self._structure, Path(path),
+                             view=self.view.to_dict(),
+                             session=self.session())
+
+    def session(self) -> dict:
+        """What is selected and what has been measured."""
+        return {
+            "selection": sorted(self.selection.atoms),
+            "bonds": [list(k) if not isinstance(k, tuple) else
+                      [k[0], k[1], list(k[2])]
+                      for k in sorted(self.selection.bonds)],
+            "measurements": [m.to_dict() for m in self.measurements],
+        }
+
+    def _restore_session(self, session: dict) -> None:
+        """Put a saved selection and measurement list back.
+
+        Anything that no longer fits the structure is dropped rather
+        than restored wrong -- a project is a convenience, and a
+        measurement pointing at an atom that is not there would be a
+        lie about the crystal.
+        """
+        cell = self.cell
+        atoms = [int(a) for a in session.get("selection", [])
+                 if 0 <= int(a) < cell.n_atoms]
+        if atoms:
+            self.selection.set_atoms(atoms)
+        for record in session.get("bonds", []):
+            try:
+                i, j, image = record
+                self.selection.bonds.add(
+                    (int(i), int(j), tuple(int(v) for v in image)))
+            except (TypeError, ValueError):
+                continue
+        for record in session.get("measurements", []):
+            try:
+                saved = measure.Measurement.from_dict(record)
+                if max(saved.atoms) < cell.n_atoms:
+                    self.measurements.append(measure.measure(
+                        cell, self._structure.lattice, saved.atoms))
+            except (KeyError, TypeError, ValueError):
+                continue
 
     def save(self, path=None) -> Path:
         target = Path(path) if path else self._path
@@ -110,6 +179,7 @@ class Document(QObject):
         self._structure = structure
         self.warnings = list(structure.meta.get("warnings", []))
         self.selection.clear()
+        self.measurements = []
         self.stack.clear()
         if not modified:
             self.stack.mark_clean()
@@ -184,6 +254,9 @@ class Document(QObject):
         if change & (Change.TOPOLOGY | Change.SYMMETRY | Change.CELL):
             self.selection.prune(self.cell.n_atoms)
             self.selectionChanged.emit()
+            self._prune_measurements()
+        elif change & Change.POSITIONS:
+            self._remeasure()
         self._announce_modified()
         self.structureChanged.emit(int(change))
         self.historyChanged.emit()
@@ -445,6 +518,57 @@ class Document(QObject):
         a, b, c, al, be, ga = lattice.parameters
         return (f"cell {a:.4f} {b:.4f} {c:.4f} "
                 f"{al:.3f} {be:.3f} {ga:.3f} ({keep} kept)")
+
+    # ==================================================================
+    #  MEASUREMENTS
+    # ==================================================================
+    #
+    # A measurement is a note about the crystal, not a change to it, so
+    # none of this is undoable.  It does have to follow the crystal
+    # though: move an atom and the number must change, delete one and
+    # the measurement has to go.
+
+    def add_measurement(self, atoms, kind=None) -> str:
+        """Measure between 2, 3 or 4 atoms of the P1 cell."""
+        result = measure.measure(self.cell, self._structure.lattice,
+                                 atoms)
+        if kind is not None and result.kind != kind:
+            raise ValueError(
+                f"a {kind} needs a different number of atoms")
+        self.measurements.append(result)
+        self.measurementsChanged.emit()
+        return result.text()
+
+    def remove_measurement(self, index: int) -> None:
+        if 0 <= index < len(self.measurements):
+            del self.measurements[index]
+            self.measurementsChanged.emit()
+
+    def clear_measurements(self) -> None:
+        if self.measurements:
+            self.measurements = []
+            self.measurementsChanged.emit()
+
+    def _remeasure(self) -> None:
+        """Recompute every measurement after the atoms moved."""
+        if not self.measurements:
+            return
+        cell, lattice = self.cell, self._structure.lattice
+        self.measurements = [
+            measure.measure(cell, lattice, m.atoms)
+            for m in self.measurements
+            if max(m.atoms) < cell.n_atoms]
+        self.measurementsChanged.emit()
+
+    def _prune_measurements(self) -> None:
+        """Drop the measurements whose atoms no longer exist."""
+        keep = [m for m in self.measurements
+                if max(m.atoms) < self.cell.n_atoms]
+        if len(keep) != len(self.measurements):
+            self.measurements = keep
+            self.measurementsChanged.emit()
+            return
+        self._remeasure()
 
     # ==================================================================
     #  CLIPBOARD

@@ -316,6 +316,17 @@ class BondGraph:
     def bonds_of(self, i: int) -> list[CellBond]:
         return [self.bonds[k] for _j, _t, k in self._adj[i]]
 
+    def neighbors_with_images(self, i: int) -> list[tuple]:
+        """``(j, translation)`` for every neighbour of atom ``i``.
+
+        The translation is what makes a coordination sphere drawable:
+        four of an octahedron's six vertices are usually in the next
+        cell along, and the neighbour index alone points at the copy
+        inside the cell, which is somewhere else entirely.
+        """
+        return [(int(j), np.asarray(t, dtype=int))
+                for j, t, _k in self._adj[i]]
+
     def fragments(self) -> list[Fragment]:
         """Connected components, each flagged as molecular or
         periodic (a framework, chain or sheet that never closes)."""

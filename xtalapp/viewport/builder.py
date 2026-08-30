@@ -63,10 +63,15 @@ def build_scene(structure, settings, selection=None,
 
     drawn = _emit_atoms(cell, settings, style)
     halves = _Halves()
-    if settings.show_bonds and style.draw_bonds and cell.n_atoms:
+    hulls = _Hulls()
+    if cell.n_atoms and (style.draw_polyhedra
+                         or (settings.show_bonds and style.draw_bonds)):
         graph = bonding.graph(structure, bond_rules)
-        _emit_bonds(graph, cell, drawn, halves, settings, style,
-                    selection)
+        if settings.show_bonds and style.draw_bonds:
+            _emit_bonds(graph, cell, drawn, halves, settings, style,
+                        selection)
+        if style.draw_polyhedra:
+            _emit_polyhedra(graph, cell, drawn, hulls, settings)
     drawn.finish()
 
     cart = (lattice.to_cart(drawn.frac).astype(np.float32)
@@ -95,10 +100,15 @@ def build_scene(structure, settings, selection=None,
         bond_keys=bond_keys,
         bond_radius=settings.bond_radius,
         bond_render=style.bond_render,
+        polyhedron_points=hulls.points(lattice),
+        polyhedron_faces=hulls.faces(),
+        polyhedron_colors=hulls.colors(),
+        polyhedron_opacity=settings.polyhedron_opacity,
         cell_starts=cell_starts,
         cell_ends=cell_ends,
         cell_colors=cell_colors,
         labels=_labels(drawn, cell, lattice, settings),
+        legend=_legend(drawn, cell, settings),
         background=tuple(settings.background),
     )
 
@@ -149,6 +159,10 @@ class _Drawn:
         self.radius = np.asarray(radius, np.float32)
         self.color = np.asarray(color, np.uint8).reshape(-1, 3)
         self.count = len(self.atom)
+        # How many are inside the display range.  Ghosts are appended
+        # past this point, so anything that must not draw outside the
+        # range -- a coordination polyhedron, say -- stops here.
+        self.in_range = self.count
         # The translation of each instance as a plain int tuple: the
         # bond loop does this arithmetic once per candidate pair, and
         # numpy is the slow way to add three small integers.
@@ -353,6 +367,82 @@ def _key_row(key) -> tuple:
 
 
 # ======================================================================
+#  POLYHEDRA
+# ======================================================================
+
+class _Hulls:
+    """Coordination polyhedra, as triangles over a shared vertex
+    list."""
+
+    def __init__(self):
+        self._points: list = []
+        self._faces: list = []
+        self._colors: list = []
+
+    def add(self, vertices, triangles, color) -> None:
+        base = len(self._points)
+        self._points.extend(vertices)
+        for triangle in triangles:
+            self._faces.append([base + int(v) for v in triangle])
+            self._colors.append(color)
+
+    def points(self, lattice) -> np.ndarray:
+        if not self._points:
+            return np.zeros((0, 3), np.float32)
+        return lattice.to_cart(
+            np.array(self._points, dtype=float)).astype(np.float32)
+
+    def faces(self) -> np.ndarray:
+        if not self._faces:
+            return np.zeros((0, 3), int)
+        return np.array(self._faces, dtype=int).reshape(-1, 3)
+
+    def colors(self) -> np.ndarray:
+        if not self._colors:
+            return np.zeros((0, 3), np.uint8)
+        return np.array(self._colors, dtype=np.uint8).reshape(-1, 3)
+
+
+def _emit_polyhedra(graph, cell, drawn, hulls, settings) -> None:
+    """One convex hull per drawn atom with enough neighbours.
+
+    The vertices are the *neighbours*, each in the periodic image the
+    bond actually points at -- four of an octahedron's six are usually
+    in the next cell along, and taking the copy inside the cell instead
+    gives a shape that is not the coordination sphere of anything.
+
+    A polyhedron is drawn once per drawn centre, so it follows the
+    display range like everything else.
+    """
+    try:
+        from scipy.spatial import ConvexHull, QhullError
+    except ImportError:                             # pragma: no cover
+        return
+
+    minimum = max(4, int(settings.polyhedron_min_vertices))
+    for index in range(drawn.in_range):
+        centre = int(drawn.atom[index])
+        element = cell.elements[centre]
+        if not settings.is_polyhedral(element):
+            continue
+        partners = graph.neighbors_with_images(centre)
+        if len(partners) < minimum:
+            continue
+        shift = np.asarray(drawn.shift[index], dtype=float)
+        vertices = np.array(
+            [cell.frac[j] + image + shift for j, image in partners])
+        # The hull has to be built in real space: the convex hull of
+        # fractional coordinates in a non-orthogonal cell is the hull
+        # of a sheared shape, which is a different polyhedron.
+        try:
+            hull = ConvexHull(cell.lattice.to_cart(vertices))
+        except (QhullError, ValueError):
+            continue                    # coplanar: no volume, no shape
+        hulls.add(vertices, hull.simplices,
+                  settings.color_for(element))
+
+
+# ======================================================================
 #  CELL AND LABELS
 # ======================================================================
 
@@ -387,6 +477,23 @@ def _cell_lines(structure, settings):
     return (lattice.to_cart(np.array(starts)).astype(np.float32),
             lattice.to_cart(np.array(ends)).astype(np.float32),
             np.array(colors, dtype=np.uint8).reshape(-1, 3))
+
+
+def _legend(drawn, cell, settings) -> tuple:
+    """One entry per element actually in the picture, in the order the
+    periodic table puts them.
+
+    Built from what is *drawn*, not from what the structure contains:
+    a legend that lists an element the display range has cut away is
+    telling the reader about a different picture.
+    """
+    if not settings.show_legend or not drawn.count:
+        return ()
+    from xtal.core import elements as el
+
+    present = {cell.elements[int(k)] for k in drawn.atom}
+    return tuple((symbol, settings.color_for(symbol))
+                 for symbol in sorted(present, key=el.atomic_number))
 
 
 def _labels(drawn, cell, lattice, settings):

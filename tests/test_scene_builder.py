@@ -283,3 +283,99 @@ def test_a_large_cell_builds_without_scanning_every_pair(quartz):
     one = elapsed((1, 1, 1))
     eight = elapsed((2, 2, 2))
     assert eight < 40 * max(one, 1e-4)
+
+
+# --------------------------------------------------- polyhedra, legend
+
+def test_polyhedra_are_convex_hulls_of_the_coordination_sphere(rutile):
+    """Rutile is edge-sharing TiO6: every Ti drawn gets an octahedron,
+    and an octahedron is eight triangles."""
+    scene = build_scene(rutile, ViewSettings(style="polyhedra"))
+    centres = sum(1 for i in range(scene.n_atoms)
+                  if scene.atom_index[i] in (0, 1))
+    assert scene.n_polyhedron_faces == 8 * centres
+    assert len(scene.polyhedron_points) == 6 * centres
+    assert scene.polyhedron_faces.max() < len(scene.polyhedron_points)
+    assert len(scene.polyhedron_colors) == scene.n_polyhedron_faces
+
+
+def test_a_polyhedron_uses_the_neighbours_the_bonds_point_at(rutile):
+    """Four of an octahedron's six vertices are in the next cell along.
+    Taking the copy inside the cell instead gives a shape that is not
+    the coordination sphere of anything -- and one that is far too
+    big."""
+    scene = build_scene(rutile, ViewSettings(style="polyhedra"))
+    hull = scene.polyhedron_points[:6]
+    centre = hull.mean(axis=0)
+    spread = np.linalg.norm(hull - centre, axis=1)
+    assert spread.max() < 2.1                   # Ti-O is about 1.97 A
+    assert spread.min() > 1.8
+
+
+def test_only_the_named_elements_get_polyhedra(rutile):
+    everything = build_scene(rutile, ViewSettings(style="polyhedra"))
+    titanium = build_scene(rutile, ViewSettings(
+        style="polyhedra", polyhedron_centres=("Ti",)))
+    oxygen = build_scene(rutile, ViewSettings(
+        style="polyhedra", polyhedron_centres=("O",)))
+    assert titanium.n_polyhedron_faces == everything.n_polyhedron_faces
+    assert oxygen.n_polyhedron_faces == 0       # O is 3-coordinate
+
+
+def test_polyhedra_need_enough_vertices(quartz):
+    """Silicon is tetrahedral, so four is the useful floor; asking for
+    more leaves the tetrahedra out."""
+    four = build_scene(quartz, ViewSettings(style="polyhedra"))
+    six = build_scene(quartz, ViewSettings(
+        style="polyhedra", polyhedron_min_vertices=6))
+    assert four.n_polyhedron_faces == 4 * (four.n_polyhedron_faces // 4)
+    assert four.n_polyhedron_faces > 0
+    assert six.n_polyhedron_faces == 0
+
+
+def test_other_styles_draw_no_polyhedra(rutile):
+    for name in ("ball_stick", "stick", "wireframe", "spacefill"):
+        scene = build_scene(rutile, ViewSettings(style=name))
+        assert scene.n_polyhedron_faces == 0
+        assert len(scene.polyhedron_points) == 0
+
+
+def test_polyhedra_follow_the_display_range(rutile):
+    settings = ViewSettings(style="polyhedra")
+    one = build_scene(rutile, settings).n_polyhedron_faces
+    settings.set_cells(2, 2, 2)
+    many = build_scene(rutile, settings).n_polyhedron_faces
+    assert many > one
+
+
+def test_the_legend_lists_what_is_drawn(rutile):
+    assert build_scene(rutile, ViewSettings()).legend == ()
+
+    scene = build_scene(rutile, ViewSettings(show_legend=True))
+    assert [element for element, _color in scene.legend] == ["O", "Ti"]
+
+    from xtal.core import elements as el
+    assert dict(scene.legend)["Ti"] == el.color("Ti")
+
+
+def test_the_legend_follows_a_colour_override(rutile):
+    settings = ViewSettings(show_legend=True)
+    settings.element_colors["Ti"] = (1, 2, 3)
+    assert dict(build_scene(rutile, settings).legend)["Ti"] == (1, 2, 3)
+
+
+def test_the_legend_does_not_list_what_the_range_cut_away(rutile):
+    """A legend for an element that is not in the picture describes a
+    different picture."""
+    settings = ViewSettings(show_legend=True, show_atoms=True)
+    settings.element_radii["Ti"] = 0.5
+    full = build_scene(rutile, settings)
+    assert len(full.legend) == 2
+
+    # A slice that holds the oxygen at (0.305, 0.305, 0) and not the
+    # titanium at the origin.
+    narrow = ViewSettings(show_legend=True)
+    narrow.range_a = narrow.range_b = (0.28, 0.33)
+    narrow.range_c = (0.0, 0.1)
+    only_oxygen = build_scene(rutile, narrow)
+    assert [e for e, _c in only_oxygen.legend] == ["O"]

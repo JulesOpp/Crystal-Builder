@@ -597,7 +597,7 @@ Each phase ends with something runnable and a green test suite.
 | **3. Selection & inspection** ✅ | click atoms/bonds, read and edit their properties | picking, Select mode, Inspector dock, structure tree, atom table, delete, change element |
 | **4. Editing & undo** ✅ | build a structure by hand | `CommandStack`, Add-Atom / Add-Bond modes + dialogs, Move dock + gizmo, copy/paste, full undo/redo wiring |
 | **5. Symmetry & cell** ✅ | full symmetry workflow | Find Symmetry dialog with tolerance, space-group picker, reduce-to-P1, supercell, cell edit, cell transform, display range, boundary options |
-| **6. Appearance & analysis** | looks like VESTA | all draw styles incl. polyhedra, colour/radius editors, background, labels, legend, projection modes, measurements, image export, project save/load |
+| **6. Appearance & analysis** ✅ | looks like VESTA | all draw styles incl. polyhedra, colour/radius editors, background, labels, legend, projection modes, measurements, image export, project save/load |
 | **7. UFF** | single-point + optimisation from the GUI | params, typer (+ override table), terms, calculator, FIRE/L-BFGS, worker + live plot, constraints, validation suite |
 | **8. Ship** | signed-ish DMG + Windows installer | PyInstaller specs, icons, file associations, CI release job, user docs |
 | **9. Prove extensibility** | a plugin added without touching core | PXRD simulation module as the first registry-based `Analysis`, plus `docs/extending.md` |

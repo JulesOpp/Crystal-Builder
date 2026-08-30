@@ -35,6 +35,89 @@ structure, and the one that makes a bad refinement obvious at a glance.
   radius.  Both cases have to be visible in the picture rather than
   silently drawn as if they were measured.
 
+### Depth cueing
+
+Fade distant atoms towards the background so a thick slab reads as
+having depth instead of as a flat mat of spheres.  Listed among the
+plan's viewport overlays (§ viewport) and not yet built.
+
+* VTK 9 has no `SetFog` on either the property or the renderer, so
+  this is a render-pass job: an `vtkOpenGLRenderer` render-pass chain
+  ending in a pass that attenuates by depth, or — simpler and enough
+  for a viewer — a shader replacement on the two glyph mappers via
+  `vtkShaderProperty.AddFragmentShaderReplacement`, mixing the
+  fragment colour towards the background by `gl_FragCoord.z`.
+  `vtkDepthOfFieldPass` exists but is a blur, not a fade, and is the
+  wrong effect.
+* Front and back distances default to the scene bounds along the view
+  direction, so it needs no configuration and rescales when the
+  display range grows.
+* `ViewSettings` gains `depth_cue: bool` and a strength; a View menu
+  toggle and a control in the style panel drive it.  It is view state,
+  so it never touches the structure and never lands on the undo stack.
+* Keep it off in `render_offscreen` unless asked for, or the
+  documentation images and the render tests change under it.
+
+### Bonds inside polyhedra
+
+The polyhedral style draws hulls and no bonds at all, which is right
+for a dense inorganic framework and wrong for a structure that is
+partly polyhedral and partly molecular -- an MOF, where the metal nodes
+want polyhedra and the linkers want sticks.
+
+* `DrawStyle` already carries `draw_bonds` and `draw_polyhedra`
+  independently, so the style entry itself is a one-line change; what
+  is missing is the choice of *which* bonds.
+* Drawing every bond leaves a cage of sticks inside each hull.  What is
+  wanted is every bond except the ones from a polyhedron's centre to
+  its own vertices -- those edges are the polyhedron.  `_emit_bonds`
+  would need the set of (centre, vertex) pairs `_emit_polyhedra`
+  consumed, which means running the polyhedra first and passing the
+  set down.
+* Offer it as a style ("Polyhedra and sticks") rather than a checkbox,
+  so it stays a registry entry and the style menu keeps describing the
+  whole picture.
+
+## Selection
+
+### Invert Selection ignores symmetry
+
+`Select ▸ Invert selection` inverts over the atoms of the P1 cell, but
+every *edit* acts on whole symmetry orbits.  So inverting a partial
+orbit gives a selection that overlaps the one it came from: the atoms
+you had are still, in effect, selected, because their orbit-mates are.
+
+* Grow to the symmetry orbit first, then invert
+  (`Document.invert_selection` → `expand_selection("orbit")` then
+  `Selection.invert`).  `sel.symmetry_orbit` already exists.
+* The same argument applies to `Selection.invert` wherever it is
+  reached from the UI; the core predicate should stay orbit-blind and
+  the Document should be the thing that knows about symmetry, matching
+  how delete and move already work.
+* In P1 this is a no-op, which is the right way for it to degrade.
+
+### Rectangular select
+
+Drag a box over the viewport and take everything inside it — the
+fastest way to grab a slab, a surface layer, or one end of a long
+molecule, and the one selection gesture VESTA has that this does not.
+
+* A new interaction mode (`xtalapp/viewport/modes.py`), so it slots in
+  next to select / add-atom / add-bond without the viewport changing.
+* Needs press-drag-release rather than the click the mode API carries
+  today: `ClickEvent` gains a sibling `DragEvent` (press point, current
+  point, modifiers), and `ViewportWidget.eventFilter` — which already
+  distinguishes a drag from a click by `CLICK_SLOP` — feeds it.
+* Hit test by projecting `SceneModel.positions` to display coordinates
+  with the renderer's world-to-display transform and testing the
+  rectangle; that is one vectorised pass and needs no VTK picking.
+* Shift extends, as everywhere else.  A rubber band drawn over the
+  render window (a `vtkBorderWidget`, or a plain Qt overlay widget) is
+  what makes it feel like a selection rather than a guess.
+* Whether the box takes only visible atoms or everything behind them
+  too is a real choice: VESTA takes everything, which is what makes it
+  useful for slabs. Do that, and say so in the status bar.
+
 ## Editing
 
 ### Arrow buttons on translate and rotate
@@ -53,6 +136,26 @@ used, and it is missing.
 * The step size is the spinbox value, so the existing controls keep
   their meaning and the arrows are pure acceleration.
 * Same treatment for rotation about the chosen axis.
+
+### Delete bond as its own action
+
+Deleting a bond means switching to the Add Bond tool and clicking the
+bond, which is not discoverable and is a strange place for it: a tool
+called *Add* is where deleting lives.
+
+* A `Delete bond` entry in the Edit menu, enabled when the selection
+  holds bonds, running the `SuppressBond` command that already exists.
+  `Selection.bonds` is already populated by clicking a bond in Select
+  mode, so the wiring is short.
+* `Del` should delete the selected bonds when bonds are what is
+  selected, and the selected sites otherwise -- one key, whichever
+  thing is in hand, which is what the Inspector's Delete button should
+  do too.
+* Say what happened, and say it in orbit terms: suppressing one bond
+  suppresses its whole symmetry orbit, so "removed 4 Ti-O bonds" is the
+  honest message and "bond removed" is not.
+* The Inspector already describes a selected bond; it should grow the
+  button next to that description.
 
 ### Make planar
 

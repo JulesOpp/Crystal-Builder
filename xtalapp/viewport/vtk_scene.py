@@ -14,9 +14,11 @@ Everything is drawn with as few actors as possible, because actor count
   :class:`vtkGlyph3DMapper` with per-point radius and colour arrays;
 * every bond half is one line in a second polydata, thickened by one
   tube filter, coloured per line;
-* the cell is a third polydata of lines.
+* every coordination polyhedron is a set of triangles in a third,
+  translucent polydata, coloured per face;
+* the cell is a fourth polydata of lines.
 
-Three actors for the structure, however many atoms there are.
+Four actors for the structure, however many atoms there are.
 """
 
 from __future__ import annotations
@@ -49,11 +51,15 @@ from vtkmodules.vtkIOImage import vtkPNGWriter
 from vtkmodules.vtkRenderingAnnotation import vtkAxesActor
 from vtkmodules.vtkRenderingCore import (
     vtkActor,
+    vtkActor2D,
     vtkBillboardTextActor3D,
+    vtkCoordinate,
     vtkGlyph3DMapper,
     vtkPolyDataMapper,
+    vtkPolyDataMapper2D,
     vtkRenderer,
     vtkRenderWindow,
+    vtkTextActor,
     vtkWindowToImageFilter,
 )
 
@@ -65,6 +71,13 @@ ID_TYPE = np.int64 if vtkIdTypeArray().GetDataTypeSize() == 8 \
 SPHERE_RESOLUTION = 24
 TUBE_SIDES = 12
 MAX_LABELS = 400            # beyond this, labels are noise anyway
+
+# The element legend, in fractions of the window.
+LEGEND_X = 0.90
+LEGEND_TOP = 0.94
+LEGEND_ROW = 0.045
+LEGEND_SWATCH = 0.018
+LEGEND_FONT = 15
 
 # Selection is drawn as a translucent halo around the real geometry
 # rather than by recolouring it: the element colours are how a
@@ -122,6 +135,34 @@ def _line_polydata(starts, ends, colors) -> vtkPolyData:
     return poly
 
 
+def _swatch(x: float, y: float, color) -> vtkActor2D:
+    """A filled square in normalized viewport coordinates."""
+    poly = vtkPolyData()
+    half = LEGEND_SWATCH / 2
+    corners = np.array([[x - half, y - half, 0.0],
+                        [x + half, y - half, 0.0],
+                        [x + half, y + half, 0.0],
+                        [x - half, y + half, 0.0]])
+    poly.SetPoints(_points(corners))
+    quad = vtkCellArray()
+    quad.SetData(
+        numpy_to_vtkIdTypeArray(np.array([0, 4], dtype=ID_TYPE),
+                                deep=True),
+        numpy_to_vtkIdTypeArray(np.arange(4, dtype=ID_TYPE),
+                                deep=True))
+    poly.SetPolys(quad)
+
+    mapper = vtkPolyDataMapper2D()
+    mapper.SetInputData(poly)
+    coordinate = vtkCoordinate()
+    coordinate.SetCoordinateSystemToNormalizedViewport()
+    mapper.SetTransformCoordinate(coordinate)
+    actor = vtkActor2D()
+    actor.SetMapper(mapper)
+    actor.GetProperty().SetColor(*color)
+    return actor
+
+
 class VtkScene:
     """Owns the actors for one structure and keeps them in sync with a
     :class:`~xtalapp.viewport.scene.SceneModel`."""
@@ -131,8 +172,10 @@ class VtkScene:
         self.model = None
         self._atom_poly = vtkPolyData()
         self._label_actors: list[vtkBillboardTextActor3D] = []
+        self._legend_actors: list = []
         self._build_atom_actor()
         self._build_bond_actor()
+        self._build_polyhedron_actor()
         self._build_cell_actor()
         self._build_highlight_actors()
 
@@ -172,6 +215,24 @@ class VtkScene:
         self.bond_actor.SetMapper(self.bond_mapper)
         self.bond_actor.GetProperty().SetSpecular(0.2)
         self.renderer.AddActor(self.bond_actor)
+
+    def _build_polyhedron_actor(self):
+        self._polyhedron_poly = vtkPolyData()
+        mapper = vtkPolyDataMapper()
+        mapper.SetInputData(self._polyhedron_poly)
+        mapper.SetScalarModeToUseCellData()
+        mapper.SetColorModeToDirectScalars()
+        self.polyhedron_mapper = mapper
+        self.polyhedron_actor = vtkActor()
+        self.polyhedron_actor.SetMapper(mapper)
+        prop = self.polyhedron_actor.GetProperty()
+        prop.SetSpecular(0.25)
+        prop.SetSpecularPower(20)
+        # Lit from both sides: a hull is a closed surface, but a
+        # translucent one shows its inside faces and they must not read
+        # as black holes in the polyhedron.
+        prop.BackfaceCullingOff()
+        self.renderer.AddActor(self.polyhedron_actor)
 
     def _build_cell_actor(self):
         self._cell_poly = vtkPolyData()
@@ -237,8 +298,10 @@ class VtkScene:
 
         self._set_atoms(model)
         self._set_bonds(model)
+        self._set_polyhedra(model)
         self._set_cell(model)
         self._set_labels(model)
+        self._set_legend(model)
         self._set_highlight(model)
 
     def _set_atoms(self, model):
@@ -269,6 +332,29 @@ class VtkScene:
             self.bond_mapper.SetInputConnection(self._tube.GetOutputPort())
             self.bond_actor.GetProperty().SetLighting(True)
         self.bond_actor.SetVisibility(True)
+
+    def _set_polyhedra(self, model):
+        if not model.n_polyhedron_faces:
+            self.polyhedron_actor.SetVisibility(False)
+            return
+        poly = vtkPolyData()
+        poly.SetPoints(_points(model.polyhedron_points))
+        faces = np.ascontiguousarray(model.polyhedron_faces,
+                                     dtype=ID_TYPE)
+        cells = vtkCellArray()
+        cells.SetData(
+            numpy_to_vtkIdTypeArray(
+                np.arange(0, 3 * len(faces) + 1, 3, dtype=ID_TYPE),
+                deep=True),
+            numpy_to_vtkIdTypeArray(faces.ravel(), deep=True))
+        poly.SetPolys(cells)
+        poly.GetCellData().SetScalars(
+            _to_uchar(model.polyhedron_colors, "colors"))
+        self._polyhedron_poly = poly
+        self.polyhedron_mapper.SetInputData(poly)
+        self.polyhedron_actor.GetProperty().SetOpacity(
+            float(model.polyhedron_opacity))
+        self.polyhedron_actor.SetVisibility(True)
 
     def _set_cell(self, model):
         if not model.n_cell_lines:
@@ -333,6 +419,44 @@ class VtkScene:
             prop.SetColor((0, 0, 0) if lum > 128 else (1, 1, 1))
             self.renderer.AddActor(actor)
             self._label_actors.append(actor)
+
+    def _set_legend(self, model):
+        """Element swatches down the right-hand edge.
+
+        Drawn as a coloured square plus a label rather than with
+        vtkLegendBoxActor, which sizes its text from the box and gives
+        the label the entry's colour -- so a legend for a pale element
+        comes out unreadable on a pale background, which is exactly
+        when a legend is wanted.
+        """
+        for actor in self._legend_actors:
+            self.renderer.RemoveActor(actor)
+        self._legend_actors = []
+        if not model.legend:
+            return
+
+        light = sum(model.background) / 3 > 128
+        text_color = (0.0, 0.0, 0.0) if light else (1.0, 1.0, 1.0)
+        top = LEGEND_TOP
+        for row, (element, color) in enumerate(model.legend):
+            y = top - row * LEGEND_ROW
+            if y < LEGEND_ROW:
+                break                   # ran out of window
+            self._legend_actors.append(
+                _swatch(LEGEND_X, y, [c / 255 for c in color]))
+            label = vtkTextActor()
+            label.SetInput(str(element))
+            label.GetPositionCoordinate() \
+                .SetCoordinateSystemToNormalizedViewport()
+            label.GetPositionCoordinate().SetValue(
+                LEGEND_X + LEGEND_SWATCH * 1.6, y - LEGEND_SWATCH / 3)
+            prop = label.GetTextProperty()
+            prop.SetFontSize(LEGEND_FONT)
+            prop.SetColor(*text_color)
+            prop.SetJustificationToLeft()
+            self._legend_actors.append(label)
+        for actor in self._legend_actors:
+            self.renderer.AddActor(actor)
 
     # -- camera --------------------------------------------------------
 

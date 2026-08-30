@@ -343,3 +343,14 @@ def test_an_empty_document_still_renders_a_cell(window):
                       modified=False)
     assert window.current_viewport().rebuilds >= 1
     assert "empty" in window.status_label.text().lower() or True
+
+
+def test_a_document_keeps_the_empty_cell_it_was_given():
+    """A Structure with no sites is falsy, so `structure or default`
+    throws away a cell that was set up before any atoms were added --
+    which is exactly the state File > New leaves you in."""
+    document = Document(Structure.empty(Lattice.cubic(7.0)))
+    assert document.structure.lattice.lengths[0] == 7.0
+
+    assert Document().structure.n_sites == 0        # still defaults
+    assert Document(None).structure.lattice.lengths[0] == 10.0

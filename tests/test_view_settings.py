@@ -66,11 +66,14 @@ def test_dict_round_trip():
 
 def test_style_registry():
     assert set(styles.names()) == {"ball_stick", "stick", "wireframe",
-                                   "spacefill"}
+                                   "spacefill", "polyhedra"}
     ball = styles.get("ball_stick")
     assert ball.draw_bonds and ball.bond_render == "tube"
     assert not styles.get("spacefill").draw_bonds
     assert styles.get("wireframe").bond_render == "line"
+    polyhedra = styles.get("polyhedra")
+    assert polyhedra.draw_polyhedra and not polyhedra.draw_bonds
+    assert not ball.draw_polyhedra
     with pytest.raises(ValueError):
         styles.get("hologram")
 

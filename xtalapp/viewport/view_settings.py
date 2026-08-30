@@ -55,6 +55,14 @@ class ViewSettings:
 
     background: tuple[int, int, int] = BACKGROUNDS["white"]
     projection: str = "perspective"         # perspective | orthographic
+    show_legend: bool = False
+
+    # Coordination polyhedra.  An empty set of centres means "whatever
+    # has enough neighbours", which is the useful default: naming the
+    # centres by hand is for when that guesses wrong, not before.
+    polyhedron_opacity: float = 0.75
+    polyhedron_min_vertices: int = 4
+    polyhedron_centres: tuple = ()
 
     element_colors: dict = field(default_factory=dict)
     element_radii: dict = field(default_factory=dict)
@@ -77,6 +85,12 @@ class ViewSettings:
         if source == "covalent":
             return el.covalent_radius(element)
         return self.bond_radius
+
+    def is_polyhedral(self, element: str) -> bool:
+        """Does this element get a coordination polyhedron?"""
+        if not self.polyhedron_centres:
+            return True
+        return element in self.polyhedron_centres
 
     # -- display range -------------------------------------------------
 
@@ -107,7 +121,9 @@ class ViewSettings:
     def copy(self) -> ViewSettings:
         return replace(self,
                        element_colors=dict(self.element_colors),
-                       element_radii=dict(self.element_radii))
+                       element_radii=dict(self.element_radii),
+                       polyhedron_centres=tuple(
+                           self.polyhedron_centres))
 
     def to_dict(self) -> dict:
         return {
@@ -125,6 +141,10 @@ class ViewSettings:
             "boundary": self.boundary,
             "background": list(self.background),
             "projection": self.projection,
+            "show_legend": self.show_legend,
+            "polyhedron_opacity": self.polyhedron_opacity,
+            "polyhedron_min_vertices": self.polyhedron_min_vertices,
+            "polyhedron_centres": list(self.polyhedron_centres),
             "element_colors": {k: list(v)
                                for k, v in self.element_colors.items()},
             "element_radii": dict(self.element_radii),
@@ -135,9 +155,13 @@ class ViewSettings:
         s = cls()
         for key in ("style", "atom_scale", "bond_radius", "show_atoms",
                     "show_bonds", "show_cell", "show_axes",
-                    "label_mode", "boundary", "projection"):
+                    "label_mode", "boundary", "projection",
+                    "show_legend", "polyhedron_opacity",
+                    "polyhedron_min_vertices"):
             if key in d:
                 setattr(s, key, d[key])
+        if "polyhedron_centres" in d:
+            s.polyhedron_centres = tuple(d["polyhedron_centres"])
         for key in ("range_a", "range_b", "range_c"):
             if key in d:
                 setattr(s, key, tuple(d[key]))
