@@ -44,8 +44,8 @@ def test_a_move_keeps_the_chemistry_and_drops_the_geometry(rutile):
 
     survived = set(rutile._cache)
     assert not any(k.startswith("p1:") for k in survived)
-    assert {k for k in keys if k.startswith(("bonds:", "bondgraph",
-                                             "uff-typing"))} <= survived
+    assert {k for k in keys
+            if k.startswith(("bonds:", "uff-typing"))} <= survived
 
 
 @pytest.mark.parametrize("flag", CHANGE_FLAGS)
@@ -64,7 +64,7 @@ def test_every_flag_invalidates_exactly_what_it_should(rutile, flag):
         return any(k.startswith(prefix) for k in survived)
 
     assert kept("p1:") is (flag is Change.NONE)
-    assert kept("bondgraph") is not bool(flag & CHEMISTRY)
+    assert kept("bonds:") is not bool(flag & CHEMISTRY)
     assert kept("uff-typing") is not bool(
         flag & (CHEMISTRY | Change.METADATA))
 
@@ -85,7 +85,7 @@ def test_moving_an_atom_does_not_change_the_bonds(rutile, monkeypatch):
     """The complaint this exists for: bonds appearing and disappearing
     under a hand that is dragging one atom."""
     before = {b.key() for b in bonding.perceive(rutile)}
-    perceive = Counter(monkeypatch, bonding, "_perceive_uncached")
+    perceive = Counter(monkeypatch, bonding, "_assemble")
 
     # Far enough to break every Ti-O bond, if perception were re-run.
     rutile.set_frac(1, [0.45, 0.45, 0.0])
@@ -109,7 +109,7 @@ def test_a_relaxation_types_the_atoms_once(rutile, monkeypatch):
 
     calculator = UFFCalculator(rutile)
     assign = Counter(monkeypatch, typer, "_assign")
-    perceive = Counter(monkeypatch, bonding, "_perceive_uncached")
+    perceive = Counter(monkeypatch, bonding, "_assemble")
 
     steps = 0
     for step in optimize.steps(calculator, rutile, "fire", max_steps=20):

@@ -231,3 +231,93 @@ def test_repeated_atoms_accumulate_rather_than_overwrite():
     _e1, g1 = first.energy_and_gradient(POSITIONS, MATRIX)
     _e2, g2 = second.energy_and_gradient(POSITIONS, MATRIX)
     assert np.allclose(g, g1 + g2)
+
+
+# ======================================================================
+#  DEGENERATE GEOMETRY
+# ======================================================================
+#
+# A torsion and an inversion both reach the coordinates through a cross
+# product, so both divide by a sine on the way down.  The energy is
+# written in cosines and is perfectly well behaved; the *gradient* is
+# not, and testing the cross product against a small absolute number
+# tests an area rather than an angle -- which lets a term that is off
+# at exactly 180 degrees switch on with a gradient of thousands a
+# millionth of a degree later.
+
+def _straight_torsion(bend_degrees: float) -> np.ndarray:
+    """Four atoms whose i-j-k angle is ``180 - bend`` degrees."""
+    angle = np.radians(180.0 - bend_degrees)
+    return np.array([
+        [0.0, 0.0, 0.0],                                    # i
+        [1.5, 0.0, 0.0],                                    # j
+        [1.5 + 1.5 * np.cos(angle), 1.5 * np.sin(angle), 0.0],   # k
+        [3.6, 0.9, 1.1],                                    # l
+    ])
+
+
+def _one_torsion() -> terms.TorsionTerm:
+    zero = np.zeros((1, 3))
+    return terms.TorsionTerm(
+        np.array([0]), np.array([1]), np.array([2]), np.array([3]),
+        zero, zero, zero, np.array([1.0]), np.array([6]),
+        np.array([1.0]))
+
+
+@pytest.mark.parametrize("bend", [0.0, 1e-6, 1e-4, 1e-2, 0.1])
+def test_a_straight_torsion_has_no_force_however_straight_it_is(bend):
+    """The failure this pins: at exactly 180 degrees the old guard
+    caught the term and the force was zero; a hair off it, the guard
+    let the term through with a 1/sin in its gradient and the force
+    was in the thousands.  MFU-4l's octahedral zinc sits at exactly
+    180 degrees, so an optimisation started there fell off the cliff
+    on its first step."""
+    term = _one_torsion()
+    _energy, gradient = term.energy_and_gradient(
+        _straight_torsion(bend), MATRIX)
+    assert np.linalg.norm(gradient, axis=1).max() < 1.0
+
+
+def test_a_torsion_that_is_not_straight_still_has_a_force():
+    """The guard has to be a guard, not an off switch."""
+    term = _one_torsion()
+    _energy, gradient = term.energy_and_gradient(
+        _straight_torsion(40.0), MATRIX)
+    assert np.linalg.norm(gradient, axis=1).max() > 0.01
+
+
+def test_a_collinear_inversion_plane_has_no_force():
+    """Two of the three bonds in a line: the plane has no normal, and
+    the inversion gradient divides by its length."""
+    positions = np.array([[0.0, 0.0, 0.0],        # centre
+                          [1.4, 0.0, 0.0],
+                          [-1.4, 1e-7, 0.0],      # all but collinear
+                          [0.3, 0.4, 1.2]])
+    zero = np.zeros((1, 3))
+    term = terms.InversionTerm(
+        np.array([0]), np.array([1]), np.array([2]), np.array([3]),
+        zero, zero, zero, np.array([2.0]), np.array([1.0]),
+        np.array([-1.0]), np.array([0.0]))
+    _energy, gradient = term.energy_and_gradient(positions, MATRIX)
+    assert np.linalg.norm(gradient, axis=1).max() < 1.0
+
+
+# ======================================================================
+#  TORSIONS AROUND A METAL
+# ======================================================================
+
+def test_no_torsion_around_a_bond_to_a_metal():
+    """UFF names each metal type for its commonest geometry, so
+    ``Zn3+2`` reads as sp3 and would otherwise collect a torsion for
+    every bond it makes -- including, in an octahedral node, ones whose
+    i-j-k is exactly straight."""
+    barrier, _n, _cos0 = terms.torsion_parameters("Zn3+2", "N_R", 1.0,
+                                                  6, 3)
+    assert barrier == 0.0
+
+
+def test_organic_torsions_are_untouched_by_the_metal_rule():
+    for a, b in (("C_3", "C_3"), ("C_R", "C_R"), ("C_3", "O_3"),
+                 ("C_R", "N_R")):
+        barrier, _n, _cos0 = terms.torsion_parameters(a, b, 1.0, 3, 3)
+        assert barrier > 0.0, f"{a}-{b} lost its torsion"

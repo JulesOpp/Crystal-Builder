@@ -92,6 +92,16 @@ fractional or cartesian units.  Everything is undoable (`Ctrl+Z` /
 `Ctrl+Shift+Z`), and copy/paste works through the system clipboard as
 XYZ, so fragments travel to and from other programs.
 
+Bonds do not change when atoms move -- not while you drag one, and not
+during a relaxation.  *Structure → Recalculate bonds* (`Ctrl+B`) is
+what changes them, and *Structure → Bond rules* is where the criteria
+live: a radius factor with the bond count beside it, metal-metal
+bonding as its own switch, and a per-pair table of the elements you
+actually have.  The preview says what would change -- "6 added, 2
+removed" -- rather than only the total, because a count alone hides a
+setting that swaps one bond for another.  If you would rather bonds
+followed the geometry, *Structure → Bonds follow the geometry* says so.
+
 The *Symmetry* menu is the workflow the data model was built for.
 *Find symmetry* detects the space group at a tolerance you can change
 while watching the answer -- the same coordinates are P1 at 10⁻⁵ and
@@ -127,9 +137,11 @@ bond rather than the long way round the box.
 *File → Save Project* writes a `.xtalproj`: the structure, how you were
 looking at it, what was selected and what you had measured.  It is a
 zip of a CIF and three small JSON files, so it stays readable and
-diffable, and it is the only format that keeps hand-drawn bonds -- a
-bond here is (site, site, symmetry operation, lattice translation), and
-no CIF tag expresses that.
+diffable, and it is the only format that keeps the bonds -- both the
+perceived graph, so a structure comes back with the bonds you last
+recalculated rather than whatever its geometry now implies, and the
+ones you drew by hand, which are (site, site, symmetry operation,
+lattice translation) and which no CIF tag expresses.
 
 The *Calculate* menu and the **Force Field** panel put an energy on the
 structure.  The panel leads with the thing that decides whether that

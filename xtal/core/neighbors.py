@@ -78,18 +78,34 @@ def image_range(lattice: Lattice, cutoff: float) -> tuple[int, int, int]:
 
 
 def neighbor_pairs(frac, lattice: Lattice, cutoff: float,
-                   min_distance: float = 1e-6) -> PairList:
+                   min_distance: float = 1e-6, subset=None) -> PairList:
     """Every pair of atoms closer than ``cutoff``, listed once.
 
     A pair appears once per periodic image that satisfies the cutoff.
     Self-pairs through a lattice translation (an atom and its own copy
     in the next cell) are included -- for a small cell they are real
     contacts.
+
+    ``subset`` restricts the *search*, not the answer: every pair that
+    comes back has at least one end in it, and the other end may be any
+    atom at all.  That is what "perceive the bonds of the atom I just
+    added" needs, and it costs a query per new atom rather than one per
+    atom in the crystal -- which on a framework is the difference
+    between adding a hydrogen and re-deriving the whole graph.
     """
     frac = np.asarray(frac, dtype=float).reshape(-1, 3)
     n = len(frac)
     if n == 0:
         return _empty_pairs()
+    if subset is None:
+        source = np.arange(n)
+    else:
+        source = np.unique(np.asarray(list(subset), dtype=int))
+        if not len(source):
+            return _empty_pairs()
+        if source[0] < 0 or source[-1] >= n:
+            raise IndexError(
+                f"subset names an atom outside 0..{n - 1}")
 
     na, nb, nc = image_range(lattice, cutoff)
     shifts = np.array(list(itertools.product(
@@ -101,7 +117,7 @@ def neighbor_pairs(frac, lattice: Lattice, cutoff: float,
     ghost_atom = np.tile(np.arange(n), len(shifts))
     ghost_shift = np.repeat(shifts, n, axis=0)
 
-    tree = cKDTree(cart)
+    tree = cKDTree(cart[source])
     ghost_tree = cKDTree(ghost)
     # ``sparse_distance_matrix`` hands the hits back as arrays.  The
     # obvious alternative, ``query_ball_tree``, returns a list of lists
@@ -113,15 +129,23 @@ def neighbor_pairs(frac, lattice: Lattice, cutoff: float,
     if not len(hits):
         return _empty_pairs()
 
-    i_arr = hits["i"].astype(int)
+    i_arr = source[hits["i"].astype(int)]
     ghosts = hits["j"].astype(int)
     j_arr = ghost_atom[ghosts]
     t_arr = ghost_shift[ghosts].reshape(-1, 3)
 
     # Keep each physical pair once: i<j, or the same atom through a
-    # lexicographically positive translation.
-    keep_once = (j_arr > i_arr) | ((j_arr == i_arr)
+    # lexicographically positive translation.  A pair with only one end
+    # in ``subset`` is found only once to begin with, so the tie-break
+    # would throw half of those away rather than deduplicate them.
+    tie_break = (j_arr > i_arr) | ((j_arr == i_arr)
                                    & lexicographically_positive(t_arr))
+    if subset is None:
+        keep_once = tie_break
+    else:
+        searched = np.zeros(n, dtype=bool)
+        searched[source] = True
+        keep_once = np.where(searched[j_arr], tie_break, True)
     i_arr, j_arr, t_arr = (i_arr[keep_once], j_arr[keep_once],
                            t_arr[keep_once])
     if not len(i_arr):

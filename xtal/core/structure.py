@@ -173,6 +173,113 @@ class Bond:
 
 
 # ======================================================================
+#  CELL BOND
+# ======================================================================
+
+@dataclass(frozen=True)
+class CellBond:
+    """A bond between two atoms of the P1 cell.
+
+    The sibling of :class:`Bond`, one level down: a ``Bond`` joins two
+    *sites* through a symmetry operation, and this joins two of the
+    atoms that operation produced.  Perception works here, because
+    distances are between atoms; the user's own bonds are stored as
+    ``Bond`` records, because those are what a save and a change of
+    space group have to survive.
+
+    ``image`` is the lattice translation applied to ``j``, and it is
+    read against the cell as it is currently *wrapped* -- see
+    :class:`PerceivedBonds`, which is what keeps that true when an atom
+    drifts across a cell face.
+    """
+
+    i: int
+    j: int
+    image: tuple[int, int, int]
+    distance: float
+    explicit: bool = False
+
+    def key(self) -> tuple:
+        if (self.j, self.image) < (self.i, tuple(-v for v in self.image)):
+            return (self.j, self.i, tuple(-v for v in self.image))
+        return (self.i, self.j, self.image)
+
+    def to_list(self) -> list:
+        """Compact form for the project file.
+
+        A list rather than a dict: a framework has hundreds of these
+        and the key names would be most of the file.
+        """
+        return [self.i, self.j, *self.image, round(self.distance, 6)]
+
+    @classmethod
+    def from_list(cls, row) -> CellBond:
+        i, j, u, v, w, distance = row
+        return cls(int(i), int(j), (int(u), int(v), int(w)),
+                   float(distance))
+
+
+@dataclass
+class PerceivedBonds:
+    """The distance-perceived bond graph of the P1 cell, stored.
+
+    Perception is expensive, it is not re-run when atoms merely move
+    (see :data:`CHEMISTRY`), and the answer is one a user can change
+    deliberately -- so it is a field on the structure and it is written
+    into the project file, rather than being recomputed from the
+    geometry every time a document is opened.
+
+    Three things travel with the bonds, and each of them exists to stop
+    a stored graph being silently wrong later:
+
+    ``signature`` is the :class:`~xtal.core.bonding.BondRules`
+    signature it came from, so changing the rules re-perceives instead
+    of being ignored.
+
+    ``elements`` is the cell it describes.  Identical means the graph
+    still applies; a *prefix* means atoms were appended and only their
+    bonds need perceiving; anything else means the cell is a different
+    cell and the graph is thrown away.
+
+    ``tau`` is the wrap each atom was drawn at.  ``CellBond.image``
+    counts lattice translations between *wrapped* positions, so an atom
+    that drifts across a cell face and reappears on the other side
+    changes the image of every bond it is in.  Keeping the wrap the
+    graph was built against is what lets those images be moved onto the
+    current one instead of pointing at the copy on the far side of the
+    crystal.
+    """
+
+    bonds: list                     # list[CellBond]
+    signature: str
+    elements: tuple[str, ...]
+    tau: np.ndarray                 # (n_atoms, 3) int
+
+    @property
+    def n_atoms(self) -> int:
+        return len(self.elements)
+
+    def to_dict(self) -> dict:
+        return {
+            "signature": self.signature,
+            "elements": list(self.elements),
+            "tau": np.asarray(self.tau, dtype=int).tolist(),
+            "bonds": [b.to_list() for b in self.bonds],
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> PerceivedBonds:
+        elements = tuple(str(e) for e in d["elements"])
+        tau = np.array(d.get("tau") or [], dtype=int).reshape(-1, 3)
+        if len(tau) != len(elements):
+            raise ValueError(
+                f"the stored bond graph has {len(elements)} elements "
+                f"but {len(tau)} wrap translations")
+        return cls([CellBond.from_list(row) for row in d["bonds"]],
+                   str(d["signature"]), elements, tau)
+
+
+# ======================================================================
 #  STRUCTURE
 # ======================================================================
 
@@ -189,6 +296,12 @@ class Structure:
     # "use the global defaults".
     bond_rules: dict = field(default_factory=dict)
     meta: dict = field(default_factory=dict)
+    # The distance-perceived bond graph of the P1 cell, once something
+    # has asked for it.  ``None`` means "nobody has perceived yet"; it
+    # is filled in on the first read and from then on it is the answer,
+    # which is what makes a recalculated graph survive a save.
+    perceived: PerceivedBonds | None = field(default=None, repr=False,
+                                             compare=False)
 
     revision: int = field(default=0, repr=False)
     last_change: Change = field(default=Change.NONE, repr=False)
@@ -298,6 +411,12 @@ class Structure:
         for flag in CHANGE_FLAGS:
             if change & flag:
                 self._changed_at[flag] = self.revision
+        if change & (Change.CELL | Change.SYMMETRY):
+            # A new lattice or a new group makes the cell a different
+            # set of atoms, and a graph over the old one cannot be
+            # reconciled with it -- only recognised as stale, which is
+            # cheaper to do here than to work out later.
+            self.perceived = None
         self._cache = {
             key: entry for key, entry in self._cache.items()
             if entry[0] == self._stamp(entry[2])}
@@ -455,6 +574,28 @@ class Structure:
         self._cache[key] = (stamp, value, invalidated_by)
         return value
 
+    # -- the stored bond graph -----------------------------------------
+
+    def set_perceived(self, bonds, signature: str, cell) -> None:
+        """Record the distance-perceived bonds of ``cell``.
+
+        Deliberately not a mutation: nothing about the crystal changed,
+        the answer to an expensive question was merely written down.
+        Bumping the revision here would invalidate the very cache the
+        caller is in the middle of filling.
+        """
+        self.perceived = PerceivedBonds(
+            list(bonds), signature, tuple(cell.elements),
+            np.array(cell.tau, dtype=int).reshape(-1, 3))
+
+    def clear_perceived(self) -> None:
+        """Forget the stored graph, so the next read perceives again.
+
+        What ``Recalculate bonds`` does, and the only thing that makes
+        perception follow a geometry that has moved.
+        """
+        self.perceived = None
+
     def drop_cache(self, prefix: str = "") -> None:
         """Forget memoised data whose key starts with ``prefix``.
 
@@ -475,6 +616,14 @@ class Structure:
             bonds=list(self.bonds),             # frozen dataclasses
             bond_rules=dict(self.bond_rules),
             meta=dict(self.meta),
+            # Frozen dataclasses in a fresh list: the copy perceives
+            # the same bonds without perceiving them again, which is
+            # what makes handing a copy to a worker thread cheap.
+            perceived=(None if self.perceived is None else
+                       PerceivedBonds(list(self.perceived.bonds),
+                                      self.perceived.signature,
+                                      self.perceived.elements,
+                                      self.perceived.tau.copy())),
         )
 
     def to_dict(self) -> dict:
@@ -485,6 +634,8 @@ class Structure:
             "bonds": [b.to_dict() for b in self.bonds],
             "bond_rules": dict(self.bond_rules),
             "meta": dict(self.meta),
+            "perceived": (None if self.perceived is None
+                          else self.perceived.to_dict()),
         }
 
     @classmethod
@@ -496,6 +647,8 @@ class Structure:
             bonds=[Bond.from_dict(b) for b in d.get("bonds", [])],
             bond_rules=dict(d.get("bond_rules", {})),
             meta=dict(d.get("meta", {})),
+            perceived=(PerceivedBonds.from_dict(d["perceived"])
+                       if d.get("perceived") else None),
         )
 
     # -- comparison ----------------------------------------------------

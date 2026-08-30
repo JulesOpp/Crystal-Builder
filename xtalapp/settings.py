@@ -10,6 +10,7 @@ instead of the user's real preferences.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from PySide6.QtCore import QRect, QSettings
@@ -25,6 +26,14 @@ MAX_RECENT = 10
 # laptop screen before a single dock has asked for room.
 DEFAULT_FRACTION = 0.85
 MAX_DEFAULT_SIZE = (1600, 1000)
+
+
+def _as_bool(value) -> bool:
+    """QSettings hands booleans back as the strings it wrote them as on
+    some platforms, and ``bool("false")`` is True."""
+    if isinstance(value, str):
+        return value.strip().lower() in ("1", "true", "yes")
+    return bool(value)
 
 
 def screen_area(window=None) -> QRect | None:
@@ -161,6 +170,52 @@ class AppSettings:
     @preview_interval.setter
     def preview_interval(self, value) -> None:
         self._q.setValue("preview_interval", int(value))
+
+    # -- bonding -------------------------------------------------------
+
+    @property
+    def bonds_follow_geometry(self) -> bool:
+        """Re-perceive the bonds after every edit that moves an atom.
+
+        Off, which is the behaviour that was asked for: bonds appearing
+        and disappearing under a hand that is dragging one atom, or
+        under a relaxation, is what ``Structure > Recalculate bonds``
+        exists to be the deliberate alternative to.  It is a preference
+        rather than a rule because the opposite is what someone
+        building a molecule by hand wants -- drag two atoms together
+        and see the bond form.
+
+        It follows *committed* edits only.  A preview -- the geometry a
+        running optimisation is drawing -- is not an edit, and
+        re-perceiving two hundred times a run would cost more than the
+        run.
+        """
+        return _as_bool(self._q.value("bonds/follow_geometry", False))
+
+    @bonds_follow_geometry.setter
+    def bonds_follow_geometry(self, value) -> None:
+        self._q.setValue("bonds/follow_geometry", bool(value))
+
+    def default_bond_rules(self) -> dict:
+        """Perception criteria for a newly opened structure.
+
+        A structure carries its own rules and they travel with the
+        project; this is only what a document that has never had them
+        set starts from.
+        """
+        stored = self._q.value("bonds/default_rules", "")
+        if not stored:
+            return {}
+        try:
+            return dict(json.loads(str(stored)))
+        except (json.JSONDecodeError, TypeError, ValueError):
+            return {}
+
+    def set_default_bond_rules(self, rules: dict | None) -> None:
+        if not rules:
+            self._q.remove("bonds/default_rules")
+        else:
+            self._q.setValue("bonds/default_rules", json.dumps(rules))
 
     # -- view defaults -------------------------------------------------
 

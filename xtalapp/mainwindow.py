@@ -44,6 +44,7 @@ from xtal.core.structure import Change
 from xtal.io import FORMATS
 from xtalapp.actions import ActionRegistry
 from xtalapp.dialogs.add_atom import AddAtomDialog
+from xtalapp.dialogs.bond_rules import BondRulesDialog
 from xtalapp.dialogs.cell_edit import CellEditDialog
 from xtalapp.dialogs.display_range import DisplayRangeDialog
 from xtalapp.dialogs.find_symmetry import FindSymmetryDialog
@@ -177,6 +178,13 @@ class MainWindow(QMainWindow):
             tip="Perceive the bonds again from the geometry as it is "
                 "now.  Bonds do not change on their own when atoms "
                 "move; this is what changes them.")
+        add("bond_rules", "&Bond rules...", self.edit_bond_rules,
+            tip="Which atoms bond, and how close they have to be")
+        add("bonds_follow", "Bonds &follow the geometry",
+            self.set_bonds_follow_geometry, checkable=True,
+            checked=self.settings.bonds_follow_geometry,
+            tip="Re-perceive the bonds after every edit that moves an "
+                "atom, instead of only when you ask")
 
         for mode_name in modes.names():
             mode = modes.get(mode_name)
@@ -291,7 +299,8 @@ class MainWindow(QMainWindow):
 
         structure_menu = bar.addMenu("S&tructure")
         self.actions_.fill_menu(structure_menu, [
-            "add_atom_dialog", "recompute_bonds", None,
+            "add_atom_dialog", None,
+            "bond_rules", "recompute_bonds", "bonds_follow", None,
             *[f"mode_{n}" for n in modes.names()]])
 
         symmetry_menu = bar.addMenu("S&ymmetry")
@@ -467,6 +476,14 @@ class MainWindow(QMainWindow):
         return widget
 
     def add_document(self, document: Document) -> int:
+        document.bonds_follow_geometry = \
+            self.settings.bonds_follow_geometry
+        if not document.structure.bond_rules:
+            # Only when the structure has none of its own: a project
+            # carries the rules it was saved with, and a preference
+            # must not overwrite them.
+            document.structure.bond_rules = \
+                self.settings.default_bond_rules()
         viewport = self._viewport_factory(document, self.tabs)
         if hasattr(viewport, "preview_interval_ms"):
             viewport.preview_interval_ms = self.settings.preview_interval
@@ -755,6 +772,28 @@ class MainWindow(QMainWindow):
         document = self.current_document()
         if document is not None:
             self.show_status(document.recompute_bonds())
+
+    def edit_bond_rules(self) -> None:
+        document = self.current_document()
+        if document is None:
+            return
+        message = BondRulesDialog.ask(document, self, self.settings)
+        if message:
+            self.show_status(message)
+
+    def set_bonds_follow_geometry(self, on: bool) -> None:
+        """The preference, and every document already open.
+
+        Applied to the open documents as well as saved, because a
+        preference that only takes effect on the next file is one the
+        user has to discover twice.
+        """
+        self.settings.bonds_follow_geometry = bool(on)
+        for document in self.documents:
+            document.bonds_follow_geometry = bool(on)
+        self.show_status(
+            "bonds now follow the geometry" if on else
+            "bonds change when you recalculate them")
 
     #: What a right click offers, by what was under it.  Every entry
     #: is a name in the action registry, so each one is already
@@ -1183,7 +1222,8 @@ class MainWindow(QMainWindow):
              "find_symmetry", "set_space_group", "standardize",
              "primitive", "wyckoff", "merge_duplicates", "supercell",
              "edit_cell", "niggli", "delaunay", "wrap_cell",
-             "display_range", "single_point", "optimize"],
+             "display_range", "single_point", "optimize",
+             "bond_rules", "recompute_bonds"],
             has_document)
         if document is None:
             self.status_label.setText("No structure open")

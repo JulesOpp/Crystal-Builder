@@ -16,6 +16,8 @@ from xtal.commands.base import Command
 from xtal.core.bonding import bond_between
 from xtal.core.structure import Bond, Change
 
+_UNSET = object()
+
 
 class AddBond(Command):
     """Add an explicit bond between two sites."""
@@ -108,4 +110,40 @@ class SetBondRules(Command):
 
     def undo(self, host) -> None:
         host.structure.bond_rules = dict(self._old)
+        host.structure.touch(Change.TOPOLOGY)
+
+
+class RecomputeBonds(Command):
+    """Perceive the bonds again, over the geometry as it now is.
+
+    Perception does not follow atoms as they move -- see
+    :data:`xtal.core.structure.CHEMISTRY` -- so the graph a structure
+    is carrying was worked out at some earlier arrangement, and this is
+    the thing that brings it up to date.  It is on the stack because
+    the graph is *stored*: recalculating replaces something the user
+    may have been relying on, and Ctrl+Z has to be able to give it
+    back.
+
+    Nothing is written here beyond dropping the stored graph.  The
+    replacement is perceived lazily, by whoever asks for the bonds
+    next, which is also what makes the undo data small -- one list of
+    bonds rather than two.
+    """
+
+    change = Change.TOPOLOGY
+    label = "Recalculate bonds"
+
+    def __init__(self):
+        self._old = _UNSET
+
+    def do(self, host) -> None:
+        structure = host.structure
+        if self._old is _UNSET:
+            self._old = structure.perceived
+        structure.clear_perceived()
+        structure.touch(Change.TOPOLOGY)
+
+    def undo(self, host) -> None:
+        host.structure.perceived = (None if self._old is _UNSET
+                                    else self._old)
         host.structure.touch(Change.TOPOLOGY)

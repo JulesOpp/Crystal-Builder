@@ -36,13 +36,68 @@ def test_recalculating_unchanged_bonds_says_so(rutile_cif):
     document = Document.load(rutile_cif)
     assert "unchanged" in document.recompute_bonds()
 
-def test_recalculating_bonds_is_not_an_undo_step(rutile_cif):
-    """Nothing in the structure changed -- what was dropped is a memo
-    -- so there is nothing to undo and nothing to save."""
+def test_recalculating_bonds_can_be_undone(rutile_cif):
+    """The graph is stored on the structure and travels with the
+    project, so replacing it is a change like any other -- and the
+    graph it replaced has to be reachable again."""
     document = Document.load(rutile_cif)
+    before = {b.key() for b in document.graph.bonds}
+
+    document.apply(lambda s: s.set_frac(1, [0.45, 0.45, 0.0]),
+                   Change.POSITIONS)
     document.recompute_bonds()
-    assert document.stack.depth == 0
-    assert not document.modified
+    assert document.stack.depth
+    assert {b.key() for b in document.graph.bonds} != before
+
+    assert document.undo()
+    assert {b.key() for b in document.graph.bonds} == before
+
+
+# --------------------------------- bonds following the geometry, or not
+
+def test_bonds_do_not_follow_the_geometry_by_default(rutile_cif):
+    document = Document.load(rutile_cif)
+    before = {b.key() for b in document.graph.bonds}
+    document.apply(lambda s: s.set_frac(1, [0.45, 0.45, 0.0]),
+                   Change.POSITIONS)
+    assert {b.key() for b in document.graph.bonds} == before
+
+
+def test_the_preference_makes_them_follow(rutile_cif):
+    """For the person building a molecule by hand, who wants to drag
+    two atoms together and see the bond form."""
+    document = Document.load(rutile_cif)
+    document.bonds_follow_geometry = True
+    before = {b.key() for b in document.graph.bonds}
+
+    document.apply(lambda s: s.set_frac(1, [0.45, 0.45, 0.0]),
+                   Change.POSITIONS)
+    assert {b.key() for b in document.graph.bonds} != before
+
+    # and undoing the move is enough to undo the perception, because
+    # the perception is derived from the geometry the undo puts back
+    assert document.undo()
+    assert {b.key() for b in document.graph.bonds} == before
+
+
+def test_the_window_hands_the_preference_to_every_document(
+        qtbot, tmp_path, rutile_cif):
+    settings = AppSettings("CrystalBuilderTest", f"Follow{tmp_path.name}")
+    settings.clear_window()
+    settings.last_directory = str(tmp_path)
+    settings.bonds_follow_geometry = False
+    win = MainWindow(viewport_factory=_Stub, settings=settings)
+    qtbot.addWidget(win)
+
+    document = win.open_path(rutile_cif)
+    assert not document.bonds_follow_geometry
+
+    win.set_bonds_follow_geometry(True)
+    assert document.bonds_follow_geometry
+    assert settings.bonds_follow_geometry
+    # a document opened afterwards starts the same way
+    assert win.open_path(rutile_cif).bonds_follow_geometry
+    settings.bonds_follow_geometry = False
 
 
 class _Stub(QWidget):

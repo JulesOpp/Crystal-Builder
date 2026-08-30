@@ -36,7 +36,7 @@ from xtal.commands.clipboard import Fragment, PasteFragment
 from xtal.core import bonding, measure, p1, properties
 from xtal.core import selection as sel
 from xtal.core.selection import Selection
-from xtal.core.structure import Change
+from xtal.core.structure import CHEMISTRY, Change
 from xtal.io import FORMATS, is_project, read_project, write_project
 from xtalapp.viewport.view_settings import ViewSettings
 
@@ -72,6 +72,10 @@ class Document(QObject):
         self.measurements: list = []
         self.warnings: list[str] = list(
             self._structure.meta.get("warnings", []))
+        # Off, and a preference rather than a rule -- see
+        # ``AppSettings.bonds_follow_geometry``.  The window sets it
+        # from the preference on every document it opens.
+        self.bonds_follow_geometry = False
 
     # ==================================================================
     #  LOADING AND SAVING
@@ -252,6 +256,16 @@ class Document(QObject):
 
     def _after_change(self, change: Change) -> None:
         self.warnings = list(self._structure.meta.get("warnings", []))
+        if (self.bonds_follow_geometry and change & Change.POSITIONS
+                and not change & CHEMISTRY):
+            # The preference, applied.  Not a command and not on the
+            # stack: undoing the edit that moved the atom has to undo
+            # the perception that followed it, and it does, because
+            # what is dropped here is re-derived from the geometry the
+            # undo puts back.
+            self._structure.clear_perceived()
+            self._structure.drop_cache("bonds:")
+            self._structure.drop_cache("uff-typing")
         if change & (Change.TOPOLOGY | Change.SYMMETRY | Change.CELL):
             self.selection.prune(self.cell.n_atoms)
             self.selectionChanged.emit()
@@ -416,22 +430,20 @@ class Document(QObject):
     def recompute_bonds(self) -> str:
         """Perceive the bonds again, over the geometry as it now is.
 
-        Perception is memoised against atoms *moving* -- see
+        Perception does not follow atoms as they move -- see
         :data:`xtal.core.structure.CHEMISTRY` -- so a bond does not
         appear because two atoms drifted together, or vanish because
         one was dragged away.  It changes when it is asked to, which is
         here.
 
-        Nothing is stored and no command is pushed, because nothing in
-        the structure changed: what this drops is a memo, and what it
-        reports is how the answer differs now.  There is correspondingly
-        nothing to undo.
+        The graph is stored on the structure and saved with the
+        project, so replacing it is a change like any other and goes on
+        the undo stack -- including when the bonds come back the same,
+        because their lengths did not.
         """
         before = {b.key() for b in bonding.perceive(self._structure)}
-        for prefix in ("bonds:", "bondgraph", "uff-typing"):
-            self._structure.drop_cache(prefix)
+        self.run(bond_commands.RecomputeBonds())
         after = {b.key() for b in bonding.perceive(self._structure)}
-        self._after_change(Change.TOPOLOGY)
 
         added, removed = len(after - before), len(before - after)
         if not added and not removed:

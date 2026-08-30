@@ -234,43 +234,6 @@ can happen before an energy is computed.
 
 ## Bonding
 
-### Bond rules dialog
-
-Bond perception has settings and no way to reach them.  `BondRules`
-already carries all of it -- `scale`, `delta`, `min_distance`,
-`pair_ranges`, `forbidden`, `allow_metal_metal`; `Structure.bond_rules`
-stores it, `SetBondRules` makes a change undoable, and `bonds.json`
-saves it.  The only missing piece is the dialog, which
-[docs/PLAN.md](PLAN.md) has been listing as `dialogs/bond_rules.py`
-since before phase 1.
-
-* A tolerance control on `scale`, with the bond count updating as it
-  moves.  The count is the whole feedback loop, and it is not linear in
-  the way people expect: rutile keeps exactly its 12 Ti-O bonds
-  anywhere from 1.05 to 1.45 and then jumps to 28 at 1.6 when the
-  second coordination shell arrives.  A slider with no number beside it
-  would make that plateau invisible and the cliff a surprise.
-* `allow_metal_metal` as its own checkbox, and it deserves to be
-  prominent rather than tucked away, because it is a different control
-  from the tolerance and not a finer version of one.  No amount of
-  loosening `scale` gives rutile a Ti-Ti bond while the flag is off;
-  turning it on at the default 1.15 takes the cell from 12 bonds to 22.
-  An alloy or an intermetallic needs it first and needs it findable.
-* A per-pair table built from the elements actually present -- one row
-  per unordered pair, a checkbox that writes `forbidden`, and an
-  optional explicit min/max that writes `pair_ranges`.  That is the
-  "which atoms are included" control, and keying it on the pairs in the
-  structure rather than on the periodic table keeps it to a handful of
-  rows for anything real.
-* The preview has to show what *changes*, not the total.  "6 bonds
-  added, 2 removed" against the current rules; a count alone hides a
-  setting that swaps one bond for another and looks like it did
-  nothing.
-* Per structure, not global.  The rules are a field on `Structure` and
-  travel with the project.  A default for new documents belongs in
-  `AppSettings`, and the dialog should offer "use these from now on"
-  rather than quietly making it so.
-
 ### Topology bonds
 
 The underlying net of a framework -- **pcu**, **fcu**, **soc** -- is
@@ -309,35 +272,6 @@ not to a distance criterion.  A topology bond is that decision, drawn.
   *set* of sites rather than one.  Start with atoms, and keep the
   endpoint type loose enough that the second case is an extension and
   not a rewrite.
-
-### Store the bond graph
-
-Bond perception no longer re-runs when atoms move -- it is memoised
-against everything but a geometry change (`xtal.core.structure`'s
-`CHEMISTRY` mask), and `Structure ▸ Recalculate bonds` is what re-runs
-it.  That is the behaviour that was wanted, and it is a memo rather
-than a stored field, which leaves three things it cannot do.
-
-* **It does not survive a save.**  Reopen a project and perception runs
-  again over the geometry as it then is, so a graph you had
-  recalculated -- and were relying on -- can come back different.  A
-  stored `Structure.perceived: list[CellBond] | None` written into
-  `bonds.json` is what fixes it, and is what
-  [docs/PLAN.md](PLAN.md) § 6's never-built `RecomputeBonds` command
-  was for.
-* Store the graph rather than converting perception into explicit
-  `Bond` records.  An explicit `Bond` lives in *site* index space and
-  carries a symmetry operation and a lattice translation; turning
-  MFU-4l's 848 cell bonds into that form at load would be slow, lossy,
-  and would bury the handful of bonds the user actually drew in a list
-  of hundreds they did not.
-* **Adding an atom re-perceives the whole graph**, because a topology
-  change invalidates the memo wholesale.  What is wanted is perception
-  for the new atom only, leaving the rest of the graph alone -- which
-  needs the graph to be a thing that can be added to, which is the
-  stored field again.
-* An `AppSettings` preference for people who want perception to follow
-  the geometry, defaulting off.
 
 ## Symmetry
 

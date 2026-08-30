@@ -143,32 +143,98 @@ pinned against a brute-force reference that looks at every image
 (`tests/test_change_hints.py`), and the redraw claims are asserted by
 counting calls rather than by timing anything.
 
-## 4. Phase B — bonds you control
+## 4. Phase B — bonds you control ✅
 
 **Goal:** the bond graph is a thing the user owns, and it survives
 being saved.
 
-| Item | Size |
-|---|---|
-| Store the bond graph | M |
-| Bond rules dialog | M |
+Shipped.  Most of what this phase was for shipped in A; what landed
+here is the half that needed a stored field rather than a memo.
 
-Most of what this phase was for shipped in A.  What is left is the
-half that needs a stored field rather than a memo: a graph that
-survives a save, an added atom that perceives bonds for itself without
-re-perceiving the rest, and a preference for people who want
-perception to follow the geometry.  Then the rules dialog, whose
-"6 added, 2 removed" preview is only expressible against a graph that
-is stored.
+**The graph is stored.**  `Structure.perceived` holds the
+distance-perceived bonds of the P1 cell -- written on the first read,
+saved into `bonds.json`, and from then on the answer.  Reopening a
+project no longer re-perceives over whatever geometry it finds, so a
+graph you recalculated is the graph you get back.  Three things travel
+with it, and each of them stops a stored graph being quietly wrong
+later: the `BondRules` signature it came from, so changing the rules
+perceives again instead of being ignored; the cell's elements, so a
+graph over a different crystal is recognised rather than reused; and
+the wrap each atom was drawn at.
 
-**Tests.** A project round-trip keeps the graph, including the
-suppressions layered on it; an add perceives only the new atom's
-bonds.
+**Adding an atom perceives that atom.**  The expansion is site-major,
+so an appended site appends its images -- which the store recognises as
+a *prefix* and answers by searching from the new atoms only
+(`neighbors.neighbor_pairs(..., subset=)`).  Everything already in the
+graph is left exactly as it was, which is the behaviour that was
+wanted and not merely the speed.
 
-**Risk.** The rule about which changes force a re-perception is a
-judgement, and getting it wrong is invisible.  It is written down in
-`xtal.core.structure.CHEMISTRY` and enumerated in
-`tests/test_change_hints.py`; keep it that way.
+**`Recalculate bonds` is a command.**  Replacing a stored graph is a
+change like any other, so `RecomputeBonds` is on the undo stack.
+
+**A preference**, `Bonds follow the geometry`, off by default, for
+people building by hand who want to drag two atoms together and see
+the bond form.  It follows committed edits, not previews: re-perceiving
+two hundred times during a relaxation would cost more than the
+relaxation.
+
+**The bond rules dialog**, `xtalapp/dialogs/bond_rules.py`, which
+[docs/PLAN.md](PLAN.md) had been listing since before phase 1.  A
+radius factor with the bond count beside it (the plateau from 1.05 to
+1.45 and the jump at 1.6 are both invisible on a slider alone),
+`allow_metal_metal` as a control of its own rather than a finer
+tolerance, a per-pair table built from the elements actually present,
+and a preview that says *what changes* -- "6 added, 2 removed" -- because
+a total hides the setting that swaps one bond for another.  Previewing
+passes the rules to `perceive` explicitly, which is a question and
+neither reads nor overwrites the stored graph.
+
+**A bond that crossed a cell face.**  Found while debugging a
+relaxation of MFU-4l and fixed here because it is the same machinery:
+`CellBond.image` counts lattice translations between *wrapped*
+positions, so an atom relaxing past x = 0 is redrawn at x = 1 and every
+bond it is in was left pointing at where it used to be -- a line the
+full width of the crystal, and a bond count that flickered from frame
+to frame.  The wrap is now carried with the graph and the images are
+moved onto the current one (`bonding.rebase`).  Nothing crossed a face,
+which is almost every frame, costs one array comparison.
+
+**Tests.** 43 new, in `tests/test_stored_bonds.py` and
+`tests/test_bond_rules_ui.py`.  A project round-trip keeps the graph
+including the suppressions layered on it; an add perceives only the new
+atom's bonds and gives the graph a full perception would; the drawn
+length of a bond is asserted across a cell face.
+
+**Risk, as written before the phase and still true.**  The rule about
+which changes force a re-perception is a judgement, and getting it
+wrong is invisible.  It is written down in
+`xtal.core.structure.CHEMISTRY`, enumerated in
+`tests/test_change_hints.py`, and now also in what
+`bonding._by_distance` will and will not reconcile; keep it that way.
+
+### Shipped alongside: two force-field bugs
+
+Not Phase B, but found by the same MFU-4l relaxation and fixed with
+it.  A user reduced MFU-4l to P1 and ran L-BFGS on defaults; the energy
+stuck at the fourth step and the reported force wandered between 1 and
+600 kcal/mol/A for two hundred iterations without the geometry moving a
+thousandth of an Angstrom.
+
+* **UFF names each metal type for its commonest geometry**, so `Zn3+2`
+  reads as sp3 and collected a torsion for every Zn-N bond -- including,
+  in the octahedral Kuratowski node, ones whose i-j-k is N-Zn-N at
+  exactly 180 degrees.  `torsion_parameters` said in its own docstring
+  that a bond to a metal has no torsion, and did not implement it.  It
+  does now.
+* **The degeneracy guard in the torsion and inversion gradients tested
+  an area, not an angle.**  Both reach the coordinates through a cross
+  product and divide by a sine on the way, and `|b1 x b2| > 1e-9` is
+  satisfied a millionth of a degree off straight -- so the term was off
+  at exactly 180 degrees and switched on one step later with a gradient
+  four orders of magnitude larger than anything real.  The test is now
+  on the sine (`terms.MIN_SINE`).
+
+MFU-4l in P1 now converges in 25 steps.
 
 ## 5. Ship (PLAN § 16 phase 8) goes here
 
@@ -367,7 +433,7 @@ the default bundle, which is the only real argument against it.
 | Phase | Theme | Rough size |
 |---|---|---|
 | **A** | Make it behave | ✅ done |
-| **B** | Bonds you control | S–M |
+| **B** | Bonds you control | ✅ done |
 | — | **Ship** ([PLAN](PLAN.md) § 16 phase 8) | — |
 | **C** | Files, exports, workspace | L |
 | **D** | Modules | M |

@@ -147,3 +147,33 @@ def test_the_scene_builder_handles_it(mfu4l):
     assert scene.n_atoms > 648               # plus boundary copies
     assert scene.n_bond_halves > 1000
     assert scene.n_cell_lines == 12
+
+
+def test_it_relaxes_in_p1_instead_of_grinding(mfu4l):
+    """The regression this pins is what a user hit: MFU-4l reduced to
+    P1, L-BFGS, defaults.  The energy stuck at the fourth step and the
+    reported force wandered between 1 and 600 kcal/mol/A for two
+    hundred iterations without the geometry moving a thousandth of an
+    Angstrom.
+
+    The cause was the octahedral zinc of the Kuratowski node.  UFF
+    types it ``Zn3+2``, which reads as sp3, so every Zn-N bond
+    collected torsions -- and their i-j-k is N-Zn-N at exactly 180
+    degrees, where the torsion gradient divides by a sine.  At the
+    starting geometry that sine was zero and the term was skipped; one
+    step later it was 1e-4, and the term switched on with a gradient
+    four orders of magnitude larger than anything real.
+    """
+    from xtal.ff import ENGINES, optimize
+
+    flat = symmetry.reduce_to_p1(mfu4l)
+    calculator = ENGINES.build("uff", flat)
+    result = optimize.run(calculator, flat, method="lbfgs",
+                          max_steps=200)
+
+    assert result.converged, result.summary()
+    assert result.steps < 60
+    assert result.energy_change < 0          # it went downhill
+    # and it got there by moving atoms, not by giving up
+    moved = ((result.frac - flat.frac) @ flat.lattice.matrix)
+    assert 0.01 < abs(moved).max() < 2.0

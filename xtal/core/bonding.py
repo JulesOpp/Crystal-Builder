@@ -27,7 +27,7 @@ import numpy as np
 
 from xtal.core import elements as el
 from xtal.core import neighbors, p1
-from xtal.core.structure import CHEMISTRY, Bond
+from xtal.core.structure import CHEMISTRY, Bond, CellBond
 
 # Two atoms bond when d <= (r_i + r_j) * SCALE + DELTA, with covalent
 # radii.  1.15 / 0.0 reproduces what VESTA and Mercury draw for common
@@ -119,22 +119,6 @@ class BondRules:
         )
 
 
-@dataclass(frozen=True)
-class CellBond:
-    """A bond between two atoms of the P1 cell."""
-
-    i: int
-    j: int
-    image: tuple[int, int, int]
-    distance: float
-    explicit: bool = False
-
-    def key(self) -> tuple:
-        if (self.j, self.image) < (self.i, tuple(-v for v in self.image)):
-            return (self.j, self.i, tuple(-v for v in self.image))
-        return (self.i, self.j, self.image)
-
-
 # ======================================================================
 #  PERCEPTION
 # ======================================================================
@@ -144,43 +128,92 @@ def perceive(structure, rules: BondRules | None = None,
     """Bonds of the P1 cell: distance-based, plus the user's explicit
     additions, minus the ones they suppressed.
 
-    Memoised on the structure until its next mutation.
+    The distance-based half comes from ``structure.perceived`` -- a
+    stored graph, not a memo, so it survives a save and only changes
+    when something asks it to.  Passing ``rules`` explicitly is a
+    *query* ("what would these criteria give?") and neither reads that
+    store nor writes to it, which is what lets the bond rules dialog
+    show a preview without committing to it.
     """
+    return _drawn(structure, rules, include_explicit).bonds
+
+
+def graph(structure, rules: BondRules | None = None) -> BondGraph:
+    """Bond graph of the P1 cell, memoised with the structure."""
+    return _drawn(structure, rules, True).graph
+
+
+class _Drawn:
+    """One perception, and the graph over it, as the cell is wrapped
+    *now*.
+
+    Perception is memoised against everything but a geometry change, so
+    the bonds it holds were worked out at some earlier arrangement of
+    the atoms.  That is the intended behaviour and it is nearly always
+    harmless -- except for one thing, which is what this class exists
+    for.  ``CellBond.image`` counts lattice translations between
+    *wrapped* positions, and an atom that drifts across a cell face is
+    redrawn on the opposite side, which changes every image it appears
+    in.  Left alone, its bonds are drawn stretching the whole way back
+    across the crystal.
+
+    So the wrap is carried with the bonds and checked on the way out.
+    Nothing has crossed a face, which is the case on almost every
+    frame, costs one array comparison; something has, and the images
+    are moved onto the new wrap and the graph rebuilt over them.
+    """
+
+    def __init__(self, bonds, tau, n_atoms):
+        self._base = bonds
+        self._base_tau = tau
+        self.bonds = bonds
+        self.graph = BondGraph(n_atoms, bonds)
+        self.n_atoms = n_atoms
+        self._tau = tau
+
+    def at(self, tau) -> _Drawn:
+        if np.array_equal(self._tau, tau):
+            return self
+        self.bonds = rebase(self._base, self._base_tau, tau)
+        self.graph = BondGraph(self.n_atoms, self.bonds)
+        self._tau = tau
+        return self
+
+
+def _drawn(structure, rules, include_explicit) -> _Drawn:
+    override = rules is not None
     rules = rules or BondRules.from_dict(structure.bond_rules)
     # The cache key describes the *rules*, not the object holding them:
     # the caller usually builds a fresh BondRules every call, so keying
     # on identity would miss every time and grow the cache without
     # bound.
     key = f"bonds:{include_explicit}:{rules.signature()}"
-    return structure.cached(
-        key, lambda: _perceive_uncached(structure, rules,
-                                        include_explicit),
-        invalidated_by=CHEMISTRY)
+
+    def build():
+        return _assemble(structure, rules, include_explicit,
+                         store=not override)
+
+    cell = p1.expand(structure)
+    drawn = structure.cached(key, build, invalidated_by=CHEMISTRY)
+    if drawn.n_atoms != cell.n_atoms:
+        # A positions-only edit can still change how many atoms the
+        # cell holds: moving an atom onto a special position merges its
+        # orbit, and moving it off splits it again.  The perception is
+        # then over a different set of atoms, and indices that no
+        # longer name the same atom are worse than no perception at
+        # all.
+        structure.drop_cache("bonds:")
+        drawn = structure.cached(key, build, invalidated_by=CHEMISTRY)
+    return drawn.at(cell.tau)
 
 
-def _perceive_uncached(structure, rules, include_explicit):
+def _assemble(structure, rules, include_explicit, store) -> _Drawn:
     cell = p1.expand(structure)
     if cell.n_atoms == 0:
-        return []
+        return _Drawn([], cell.tau, 0)
 
-    cutoff = rules.max_cutoff(cell.elements)
-    found: dict[tuple, CellBond] = {}
-    if cutoff > 0:
-        pairs = neighbors.neighbor_pairs(
-            cell.frac, structure.lattice, cutoff,
-            min_distance=rules.min_distance)
-        for k in range(len(pairs)):
-            i, j = int(pairs.i[k]), int(pairs.j[k])
-            a, b = cell.elements[i], cell.elements[j]
-            if not rules.allows(a, b):
-                continue
-            lo, hi = rules.cutoff(a, b)
-            d = float(pairs.distance[k])
-            if lo <= d <= hi:
-                bond = CellBond(i, j, tuple(int(v) for v in
-                                            pairs.image[k]), d)
-                found[bond.key()] = bond
-
+    found = {b.key(): b for b in _by_distance(structure, rules, cell,
+                                              store)}
     if include_explicit:
         for bond in structure.bonds:
             for mapped in map_explicit_bond(structure, cell, bond):
@@ -189,7 +222,98 @@ def _perceive_uncached(structure, rules, include_explicit):
                 else:
                     found[mapped.key()] = mapped
 
+    bonds = sorted(found.values(), key=lambda b: (b.i, b.j, b.image))
+    return _Drawn(bonds, cell.tau, cell.n_atoms)
+
+
+def _by_distance(structure, rules, cell, store: bool) -> list[CellBond]:
+    """The distance-perceived half of the graph.
+
+    The stored graph is the answer whenever it still describes this
+    cell.  When atoms have been *appended* -- which is what adding one
+    looks like, because the expansion is site-major -- only the new
+    ones are perceived and everything already there is left exactly as
+    it was; that is the whole point of storing it, and it is why adding
+    a hydrogen no longer re-derives a framework's eight hundred bonds.
+    Anything else about the cell having changed means the graph is
+    describing a different crystal, and it goes.
+    """
+    stored = structure.perceived
+    signature = rules.signature()
+    if stored is not None and stored.signature == signature:
+        if stored.elements == cell.elements:
+            return rebase(stored.bonds, stored.tau, cell.tau)
+        if _appended_to(stored.elements, cell.elements):
+            kept = rebase(stored.bonds, stored.tau,
+                          cell.tau[:stored.n_atoms])
+            grown = kept + _search(rules, cell, structure.lattice,
+                                   subset=range(stored.n_atoms,
+                                                cell.n_atoms))
+            if store:
+                structure.set_perceived(grown, signature, cell)
+            return grown
+
+    fresh = _search(rules, cell, structure.lattice)
+    if store:
+        structure.set_perceived(fresh, signature, cell)
+    return fresh
+
+
+def _appended_to(before, after) -> bool:
+    return (len(after) > len(before)
+            and after[:len(before)] == tuple(before))
+
+
+def _search(rules, cell, lattice, subset=None) -> list[CellBond]:
+    """Distance perception over the cell, or over part of it."""
+    cutoff = rules.max_cutoff(cell.elements)
+    if cutoff <= 0:
+        return []
+    pairs = neighbors.neighbor_pairs(
+        cell.frac, lattice, cutoff, min_distance=rules.min_distance,
+        subset=subset)
+
+    found: dict[tuple, CellBond] = {}
+    for k in range(len(pairs)):
+        i, j = int(pairs.i[k]), int(pairs.j[k])
+        a, b = cell.elements[i], cell.elements[j]
+        if not rules.allows(a, b):
+            continue
+        lo, hi = rules.cutoff(a, b)
+        d = float(pairs.distance[k])
+        if lo <= d <= hi:
+            bond = CellBond(i, j,
+                            tuple(int(v) for v in pairs.image[k]), d)
+            found[bond.key()] = bond
     return sorted(found.values(), key=lambda b: (b.i, b.j, b.image))
+
+
+def rebase(bonds, tau_then, tau_now) -> list[CellBond]:
+    """The same bonds, with their images read against a new wrap.
+
+    A bond joins the atom drawn at ``frac[i]`` to the point
+    ``frac[j] + image``, and ``frac[k] = raw[k] + tau[k]``.  What the
+    geometry actually fixes is the separation between the two, so
+
+        image + tau[j] - tau[i]
+
+    is the quantity that does not change while atoms move -- and the
+    image to draw at any later wrap follows from it.  Getting this
+    wrong is not subtle: the bond is drawn to the copy of its partner
+    on the far side of the crystal.
+    """
+    tau_then = np.asarray(tau_then, dtype=int)
+    tau_now = np.asarray(tau_now, dtype=int)
+    if np.array_equal(tau_then, tau_now):
+        return list(bonds)
+    shift = tau_then - tau_now
+    return [
+        CellBond(b.i, b.j,
+                 tuple(int(v) for v in
+                       (np.asarray(b.image) + shift[b.j] - shift[b.i])),
+                 b.distance, b.explicit)
+        for b in bonds
+    ]
 
 
 def map_explicit_bond(structure, cell: p1.P1Cell,
@@ -390,12 +514,3 @@ class Fragment:
     @property
     def kind(self) -> str:
         return "framework" if self.periodic else "molecule"
-
-
-def graph(structure, rules: BondRules | None = None) -> BondGraph:
-    """Bond graph of the P1 cell, memoised with the structure."""
-    cell = p1.expand(structure)
-    bonds = perceive(structure, rules)
-    return structure.cached(
-        "bondgraph", lambda: BondGraph(cell.n_atoms, bonds),
-        invalidated_by=CHEMISTRY)

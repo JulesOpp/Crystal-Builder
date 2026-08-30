@@ -15,7 +15,8 @@ The file is a zip of small, readable parts:
     structure.cif    the crystal, in the interchange format
     cell.json        the bare cell, written only when there are no
                      atoms yet -- a CIF with no sites is not a CIF
-    bonds.json       the hand-drawn and suppressed bonds
+    bonds.json       the perceived graph, and the hand-drawn and
+                     suppressed bonds layered on it
     sites.json       the per-site ``props`` a CIF has nowhere to put,
                      such as a hand-set UFF atom type
     view.json        the ViewSettings record
@@ -36,7 +37,7 @@ import json
 import zipfile
 from pathlib import Path
 
-from xtal.core.structure import Bond
+from xtal.core.structure import Bond, PerceivedBonds
 from xtal.io.cif_reader import read_cif_string
 from xtal.io.cif_writer import cif_string
 
@@ -69,6 +70,13 @@ def write_project(structure, path, view=None,
         "bonds": [b.to_dict() for b in structure.bonds],
         "bond_rules": dict(structure.bond_rules),
     }
+    if structure.perceived is not None:
+        # The perceived graph, and not just the hand-drawn bonds.
+        # Reopening a project used to re-perceive from the geometry as
+        # it then was, so a graph the user had recalculated -- and was
+        # relying on -- could come back different from the one they
+        # saved.
+        bonds["perceived"] = structure.perceived.to_dict()
     header = {"format": "xtalproj", "version": FORMAT_VERSION}
 
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
@@ -180,6 +188,19 @@ def _restore_bonds(structure, data: dict) -> None:
         except (ValueError, IndexError, KeyError, TypeError):
             structure.meta.setdefault("warnings", []).append(
                 f"dropped an unreadable bond: {record}")
+
+    # Last, because add_bond touches the structure and a touch that
+    # changed the cell or the group would throw the graph away again.
+    if data.get("perceived"):
+        try:
+            structure.perceived = PerceivedBonds.from_dict(
+                data["perceived"])
+        except (ValueError, IndexError, KeyError, TypeError) as exc:
+            # Not fatal: without it perception simply runs again, which
+            # is where every structure starts.
+            structure.meta.setdefault("warnings", []).append(
+                f"could not read the stored bond graph ({exc}); "
+                f"the bonds were perceived again")
 
 
 def _restore_props(structure, data: dict) -> None:

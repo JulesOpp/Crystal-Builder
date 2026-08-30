@@ -20,6 +20,14 @@ cos(theta) instead, using the Chebyshev expansion of cos(n theta),
 they are polynomials: smooth everywhere, no special cases, no atoms
 flying apart when a nitrile passes through 180 degrees.
 
+That removes the singularity from the *energy*.  It does not remove
+the one underneath it: a torsion and an inversion both reach the
+coordinates through a cross product, and going from the angle to the
+atoms still divides by a sine.  Nothing rewrites that away, because a
+dihedral about three collinear atoms genuinely does not exist -- so
+those terms are dropped when the geometry is that degenerate, and
+:data:`MIN_SINE` is where the line is drawn.
+
 **Periodic images are carried, not recomputed.**  Every term stores an
 integer lattice translation per participating atom, fixed when the
 topology was built.  A bond that crosses a cell boundary is then just
@@ -35,6 +43,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from xtal.core import elements as el
 from xtal.ff.uff import params
 from xtal.ff.uff.params import FORCE_CONSTANT, LAMBDA
 
@@ -43,6 +52,21 @@ from xtal.ff.uff.params import FORCE_CONSTANT, LAMBDA
 # has no defined direction.  Dropping it is right: the other terms
 # still hold the atom, and a NaN would end the optimisation.
 EPS = 1e-9
+
+# The same idea for a torsion or an inversion, and it has to be a
+# *sine* rather than a length.  Both of those terms reach the
+# coordinates through a cross product, and the chain rule from the
+# angle down to the atoms carries a 1/sin(theta) with it -- so an
+# i-j-k that is straight does not merely have an undefined dihedral,
+# it has an infinite derivative.  Testing |b1 x b2| against a small
+# number instead tests an *area*, which is 1e-9 A^2 for two 2 A bonds
+# at a millionth of a degree from straight: the term switches on with
+# a gradient of thousands and the optimiser chases it forever.
+#
+# 1e-2 is sin(0.57 degrees).  A torsion that close to straight is not
+# a torsion; dropping it costs at most one barrier, and keeping it
+# costs the geometry.
+MIN_SINE = 1e-2
 
 # Group 16, which UFF singles out in the torsion rules.
 GROUP_16 = frozenset({"O", "S", "Se", "Te", "Po"})
@@ -121,6 +145,19 @@ class Term:
 
     def energy(self, positions, matrix) -> float:
         return self.energy_and_gradient(positions, matrix)[0]
+
+
+def _sine(cross_norm, u, v):
+    """``sin(angle between u and v)``, from a cross product already
+    taken.
+
+    Both callers have the cross product in hand and want the angle it
+    encodes without a second trigonometric step; dividing by the two
+    lengths is what turns an area into the dimensionless quantity the
+    degeneracy test needs.
+    """
+    lengths = (np.linalg.norm(u, axis=1) * np.linalg.norm(v, axis=1))
+    return cross_norm / np.maximum(lengths, EPS)
 
 
 def _scatter(grad, indices, values) -> None:
@@ -328,6 +365,18 @@ def torsion_parameters(type_j: str, type_k: str, order: float,
     pj, pk = params.get(type_j), params.get(type_k)
     ej, ek = pj.element, pk.element
 
+    # The metal half of "no torsion here", which the hybridisation
+    # test above does not catch.  UFF has one type per metal and names
+    # it for the commonest geometry, so Zn3+2 says "tetrahedral" and
+    # reads as sp3 -- and then MFU-4l's octahedral zinc, which is that
+    # same type, collects torsions about every Zn-N bond.  They are
+    # meaningless (a dihedral about a bond to a six-coordinate centre
+    # says nothing) and they are where N-Zn-N sits at exactly 180
+    # degrees, which is the one geometry the torsion gradient cannot
+    # be written at.
+    if el.element(ej).is_metal or el.element(ek).is_metal:
+        return 0.0, 1, 1.0
+
     if hj == "sp3" and hk == "sp3":
         if ej in GROUP_16 and ek in GROUP_16:
             # Two group-16 sp3 centres: a 2-fold barrier with its
@@ -413,7 +462,11 @@ class TorsionTerm(Term):
         n2 = np.cross(b2, b3)
         m1 = np.linalg.norm(n1, axis=1)
         m2 = np.linalg.norm(n2, axis=1)
-        good = (m1 > EPS) & (m2 > EPS)
+        # |b1 x b2| is |b1||b2| sin(theta_ijk), so the test that says
+        # "this dihedral is defined" is on the sine and not on the
+        # cross product itself -- see MIN_SINE.
+        good = ((_sine(m1, b1, b2) > MIN_SINE)
+                & (_sine(m2, b2, b3) > MIN_SINE))
         s1 = np.where(good, m1, 1.0)
         s2 = np.where(good, m2, 1.0)
         cos = np.clip(np.einsum("ij,ij->i", n1, n2) / (s1 * s2),
@@ -529,7 +582,10 @@ class InversionTerm(Term):
         normal = np.cross(a, b)
         nn = np.linalg.norm(normal, axis=1)
         nc = np.linalg.norm(c, axis=1)
-        good = (nn > EPS) & (nc > EPS)
+        # The plane has to be a plane: two collinear bonds give a
+        # normal of length zero and a 1/|n| in the gradient, the same
+        # trap the torsion has.
+        good = (_sine(nn, a, b) > MIN_SINE) & (nc > EPS)
         sn = np.where(good, nn, 1.0)
         sc = np.where(good, nc, 1.0)
         sin = np.clip(np.einsum("ij,ij->i", normal, c) / (sn * sc),
