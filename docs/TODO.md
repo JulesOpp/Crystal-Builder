@@ -78,6 +78,40 @@ want polyhedra and the linkers want sticks.
   so it stays a registry entry and the style menu keeps describing the
   whole picture.
 
+### Bond order in the picture
+
+A double bond is drawn as one tube, exactly like a single one, so a
+structure looks identical whether what is in front of you is butadiene
+or butane.  The information exists -- it is what the force field types
+every bond with -- and none of it reaches the screen.
+
+* The orders are inferred today by `xtal.ff.uff.typer`
+  (`Typing.bond_orders`), which is the wrong place for the viewport to
+  reach into.  Move the inference down into `xtal/core/bonding.py` so a
+  `CellBond` carries an `order`, and let the typer consume it rather
+  than produce it.  Counting pi bonds is chemistry, not UFF's business,
+  and the scene builder should not have to import a force field to draw
+  a line.
+* An explicit `Bond` already has an `order` field, so a hand-drawn bond
+  keeps whatever the user set it to and perception only fills in the
+  rest.
+* Two parallel tubes for a double, three for a triple, one tube with a
+  dashed inner line for an aromatic 1.5.  `SceneModel` gains a per-bond
+  `bond_orders` array beside `bond_starts` and `bond_ends`, and
+  `vtk_scene` emits the extra tubes from it; the actor count stays the
+  same.
+* **The offset direction is the whole problem.**  Two parallel tubes
+  need a plane to lie in, and an arbitrary perpendicular to the bond
+  flips as the camera turns -- the picture flickers on every orbit.
+  Use the local pi plane: the normal of the atoms around the sp2
+  centre.  A bare diatomic has no such plane; there, fall back to a
+  perpendicular in the view plane and accept that it follows the
+  camera, because there is nothing for it to be inconsistent with.
+* `ViewSettings` gains `show_bond_orders`, and a View menu toggle.  A
+  framework whose bonds are all single loses nothing by having it on,
+  which is the right default; an MOF with 288 aromatic carbons is the
+  case for being able to turn it off.
+
 ## Selection
 
 ### Invert Selection ignores symmetry
@@ -176,3 +210,213 @@ out of a builder or an optimiser slightly puckered.
 * Symmetry: like every other move, this acts on whole orbits. Fewer
   than three atoms have no plane, and the button says so rather than
   doing nothing.
+
+### Add hydrogens
+
+An X-ray structure has no hydrogens.  Every rule in the force field's
+typer is written to survive that, and every one of them is guessing as
+a result: a benzene carbon judged by two neighbours, a methyl carbon by
+one.  Putting the hydrogens back is the single most useful thing that
+can happen before an energy is computed.
+
+* Where an H goes is the coordination completed.  A three-coordinate
+  sp3 carbon takes the fourth tetrahedral direction, a two-coordinate
+  sp2 the third in the plane of the other two, a one-coordinate carbon
+  three at once.  `xtal.ff.uff.typer` already decides hybridisation,
+  coordination and planarity and already writes the sentence explaining
+  why, so it is the input to this and not a second geometry pass.
+* How many: `elements.VALENCE` less the current bond orders.  That
+  table covers only the main group, which is the right scope -- nobody
+  wants hydrogens guessed onto a metal -- and an element missing from
+  it is left alone and reported rather than skipped in silence.
+* Lengths from `terms.natural_bond_length(type, "H_", 1.0)`, so C-H
+  arrives at 1.109 and O-H at 0.990 and the result is already sitting
+  at the force field's minimum.  Neutron and X-ray H positions differ
+  by 0.1 A for real reasons; offer the short one, do not default to it.
+* **A terminal group's torsion is genuinely undetermined.**  A
+  hydroxyl, a methyl, an amine: the coordination fixes every angle and
+  nothing fixes the rotation.  Place them staggered against the
+  heaviest neighbour-of-the-neighbour, say that is what was assumed,
+  and let a relaxation settle it.
+* Symmetry is the trap.  This works in site space like every other
+  edit, so one hydrogen added to a site on a mirror plane becomes two,
+  and one added to a general position becomes the whole orbit.  The
+  count reported has to be the orbit count -- "added 12 hydrogens to 2
+  sites" -- and a hydrogen that lands on a special position of its own
+  has to be recognised rather than generated twice.
+* A `MacroCommand` over `AddSites`, so the lot is one Ctrl+Z, with a
+  preview of the count before it runs -- the `StructureOperation` shape
+  the symmetry dialogs already use.
+
+## Bonding
+
+### Bond rules dialog
+
+Bond perception has settings and no way to reach them.  `BondRules`
+already carries all of it -- `scale`, `delta`, `min_distance`,
+`pair_ranges`, `forbidden`, `allow_metal_metal`; `Structure.bond_rules`
+stores it, `SetBondRules` makes a change undoable, and `bonds.json`
+saves it.  The only missing piece is the dialog, which
+[docs/PLAN.md](PLAN.md) has been listing as `dialogs/bond_rules.py`
+since before phase 1.
+
+* A tolerance control on `scale`, with the bond count updating as it
+  moves.  The count is the whole feedback loop, and it is not linear in
+  the way people expect: rutile keeps exactly its 12 Ti-O bonds
+  anywhere from 1.05 to 1.45 and then jumps to 28 at 1.6 when the
+  second coordination shell arrives.  A slider with no number beside it
+  would make that plateau invisible and the cliff a surprise.
+* `allow_metal_metal` as its own checkbox, and it deserves to be
+  prominent rather than tucked away, because it is a different control
+  from the tolerance and not a finer version of one.  No amount of
+  loosening `scale` gives rutile a Ti-Ti bond while the flag is off;
+  turning it on at the default 1.15 takes the cell from 12 bonds to 22.
+  An alloy or an intermetallic needs it first and needs it findable.
+* A per-pair table built from the elements actually present -- one row
+  per unordered pair, a checkbox that writes `forbidden`, and an
+  optional explicit min/max that writes `pair_ranges`.  That is the
+  "which atoms are included" control, and keying it on the pairs in the
+  structure rather than on the periodic table keeps it to a handful of
+  rows for anything real.
+* The preview has to show what *changes*, not the total.  "6 bonds
+  added, 2 removed" against the current rules; a count alone hides a
+  setting that swaps one bond for another and looks like it did
+  nothing.
+* Per structure, not global.  The rules are a field on `Structure` and
+  travel with the project.  A default for new documents belongs in
+  `AppSettings`, and the dialog should offer "use these from now on"
+  rather than quietly making it so.
+
+### Topology bonds
+
+The underlying net of a framework -- **pcu**, **fcu**, **soc** -- is
+not its bond graph.  It is what is left after deciding which parts are
+nodes and which are linkers, and that decision belongs to a chemist and
+not to a distance criterion.  A topology bond is that decision, drawn.
+
+* A third value of `Bond.kind`, beside `"explicit"` and
+  `"suppressed"`.  The field is already a string and already round-trips
+  through `bonds.json`, so the change to the data model is one value.
+* It has to be **invisible to everything chemical**.
+  `bonding.perceive` currently treats any stored bond that is not
+  suppressed as a bond to draw and to hand onward, so a topology bond
+  would land in the force field's topology, in coordination numbers and
+  in valence checks, and be wrong in all three.  `perceive` filters them
+  out; a separate `topology_graph(structure)` hands them back as their
+  own `BondGraph`.
+* Drawn as its own layer -- thicker, translucent, one flat colour --
+  running over the real bonds rather than in place of them.  Seeing the
+  net and the chemistry that justifies it at the same time is the whole
+  point of drawing it rather than printing it.
+* What it is *for* is the net's invariants, and those come from the
+  periodic graph: the coordination sequence and the point symbol at
+  each vertex, which is how RCSR names a net.  Both are a breadth-first
+  walk over `(atom, offset)` pairs -- the same bookkeeping
+  `BondGraph.fragments` already does to tell a molecule from a
+  framework, and the same that tells a ring from a lattice repeat.
+* A "Draw topology bond" interaction mode next to add-atom and
+  add-bond, and `Del` on a selected one.  It expands over the symmetry
+  orbit like every other bond, which is what makes drawing one edge of
+  a **pcu** net draw all six.
+* **The open question is whether a vertex is an atom or a cluster.**
+  Between atoms is what this describes, and it is enough for a net
+  whose nodes are single metals.  A Zn4O cluster or a Kuratowski node
+  wants its centroid as the vertex, which means an endpoint that is a
+  *set* of sites rather than one.  Start with atoms, and keep the
+  endpoint type loose enough that the second case is an extension and
+  not a rewrite.
+
+## Symmetry
+
+### Descend to a maximal subgroup
+
+Changing the space group today means picking any of the 230 and asking
+the structure to fit.  The move that actually comes up is the small
+one: drop to a maximal subgroup so that an orbit splits and the atoms
+in it become independent.  That is the first step of every distortion
+model, every ordering model, and every displacive phase transition.
+
+* **Translationengleiche subgroups only** (k-index 1) to begin with:
+  same lattice, same cell, a subset of the operations.  It is the case
+  where nothing moves -- the P1 cell is atom-for-atom what it was, and
+  only the asymmetric unit grows -- so it needs no coordinate
+  transformation, no origin shift and no new cell, and that is exactly
+  why it is the one worth having first.
+* They can be computed rather than tabulated, and a prototype of this
+  runs in well under a second.  Reduce the operations modulo the
+  lattice translations, enumerate the subgroups generated by every
+  subset of at most three of them (every crystallographic point group
+  has a generating set that small), close each under composition, and
+  keep the maximal proper ones.  **The reduction is not an
+  optimisation, it is the algorithm**: Fm-3m has 192 operations and 48
+  once the centring is divided out, and the difference between 48^3 and
+  192^3 closures is the difference between instant and hopeless.
+* What it finds is right.  P4_2/mnm gives 7 maximal subgroups of index
+  2, P3_221 gives 4, Pa-3 gives 6, and Fm-3m gives 10 spread over
+  indices 2, 3 and 4 -- including the F4/mmm and R-3 that a
+  crystallographer would name for the tetragonal and rhombohedral
+  distortions of rock salt.
+* **Naming the result is the hard part, not finding it.**
+  `gemmi.find_spacegroup_by_ops` named 11 of the 27 subgroups in that
+  test and returned nothing for the other 16, because the operations
+  come out in the parent's basis and most subgroups are not in their
+  standard setting there.  Finding the transformation to a standard
+  setting is the work this entry is really asking for; a subgroup that
+  can only be offered as a list of operations is not something anyone
+  can choose from.
+* Show the index and what it costs: quartz in P3_221 has one oxygen
+  site of multiplicity 6, and descending to P3_2 at index 2 leaves two
+  independent oxygens of multiplicity 3.  That split is the reason
+  anyone is doing this, so it is the thing to put in the list, and
+  `p1.expand` gives it before anything is committed -- the same
+  `preview` shape every symmetry command already has.
+* Not every descent splits anything.  All seven of rutile's index-2
+  subgroups leave both its sites whole, because the site symmetry drops
+  by the same factor as the group order; what changes is the freedom
+  each site has, not how many there are.  The list has to say so, or
+  half the entries in it look broken.
+* Going the other way is `FindSymmetry` and exists already.  Say so in
+  the dialog: "descend" and "raise the symmetry" look like a matched
+  pair, and only one of them is a choice.  The other is a measurement.
+* Klassengleiche subgroups -- a doubled cell, a lost centring -- are
+  the harder half and the more interesting one, because that is where
+  superstructures and antiferromagnetic ordering live.  Each relation
+  needs its own cell transformation and origin shift, which is a
+  table's worth of data (Bilbao's MAXSUB) rather than a computation.
+  Worth doing second, and worth not implying the first version does it.
+
+## Force field
+
+### Variable-cell relaxation
+
+The optimiser relaxes the atoms inside a cell it never touches.
+Relaxing the cell as well is what turns UFF into something you can
+predict a lattice constant with -- and the MOF-5 lattice-constant test
+[docs/PLAN.md](PLAN.md) names in its UFF section cannot be written
+until it exists.
+
+* `Calculator.numeric_stress` is already there and already tested: six
+  symmetric strains by central differences, twelve energy evaluations,
+  and every engine gets it without anyone writing an analytic stress.
+  It was built in phase 7 and deliberately left unwired.
+* `SymmetryDOF` gains six strain variables alongside the site
+  coordinates and hands the optimiser one flat vector, as it does now.
+  FIRE and L-BFGS then relax the cell with no change to either.
+* The strain has to be **symmetry-adapted** or the cell leaves its
+  crystal system on the first step -- a cubic cell has one free strain
+  and not six, a hexagonal one has two.  `dialogs/cell_edit.py` already
+  works out which cell parameters a group leaves free and refuses to
+  let you edit the others; the same argument gives the allowed strain
+  components, and the same projector that keeps an atom on a special
+  position applies to the strain tensor.
+* External pressure, as a `P V` term, so that "what does this do at
+  5 GPa" is a number in the panel rather than a separate script.  It
+  also gives the units somewhere to be checked: energies here are
+  kcal/mol and volumes A^3, and the conversion to GPa is the one place
+  a factor quietly goes missing.
+* Analytic stress afterwards.  Twelve extra energy evaluations per step
+  is affordable for a few hundred atoms and is not for a few thousand,
+  and every term already computes the pair vectors a virial needs.
+* The panel needs one control ("relax the cell as well") and one honest
+  warning: a cell relaxed under UFF is a UFF cell, and for a framework
+  it is routinely a few percent out.
