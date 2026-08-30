@@ -129,3 +129,56 @@ def test_no_two_atoms_coincide(name, request):
             d = cell.frac[i] - cell.frac[j]
             d -= np.round(d)
             assert np.linalg.norm(d @ structure.lattice.matrix) > 0.5
+
+
+# ------------------------------------------------------------ lookups
+
+def test_multiplicity_and_orbits_agree_with_a_full_scan(quartz):
+    """Both are memoised groupings now; they must still say exactly
+    what counting by hand says."""
+    cell = p1.expand(quartz)
+    for site in range(quartz.n_sites):
+        expected = np.flatnonzero(cell.site_idx == site)
+        assert np.array_equal(cell.indices_of_site(site), expected)
+        assert cell.multiplicity(site) == len(expected)
+    assert np.array_equal(cell.multiplicities(quartz.n_sites),
+                          [3, 6])           # Si is on a special position
+    assert cell.multiplicity(99) == 0
+    assert len(cell.indices_of_site(99)) == 0
+
+
+def test_orbit_lookups_do_not_scan_the_cell(halite):
+    """The site table asks for these once per row.  Scanning the whole
+    cell each time makes drawing it quadratic, which a P1 structure
+    with a thousand sites notices."""
+    import time
+
+    from xtal.core import symmetry
+
+    flat = symmetry.reduce_to_p1(symmetry.reduce_to_p1(halite))
+    cell = p1.expand(flat)
+    assert cell.n_atoms >= 8
+
+    cell.indices_of_site(0)                 # build the grouping once
+    start = time.perf_counter()
+    for _ in range(200):
+        for site in range(flat.n_sites):
+            cell.multiplicity(site)
+            cell.indices_of_site(site)
+    assert time.perf_counter() - start < 1.0
+
+
+def test_expansion_keeps_the_first_operation_that_reaches_a_point(
+        quartz):
+    """Which operation is recorded for an atom on a special position
+    decides how an edit maps back onto its parent, so it has to be
+    reproducible: the first operation to get there wins."""
+    cell = p1.expand(quartz)
+    again = p1._expand_uncached(quartz, p1.SPECIAL_POSITION_TOL)
+    assert np.array_equal(cell.op_idx, again.op_idx)
+    assert np.array_equal(cell.tau, again.tau)
+    for atom in range(cell.n_atoms):
+        op = quartz.space_group.operations[int(cell.op_idx[atom])]
+        parent = quartz.sites[int(cell.site_idx[atom])]
+        assert np.allclose(op.apply(parent.frac) + cell.tau[atom],
+                           cell.frac[atom], atol=1e-9)

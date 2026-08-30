@@ -2,26 +2,37 @@
 xtalapp.document
 ================
 A Document is one open structure: the crystal, how it is being viewed,
-where it came from, and whether it has unsaved changes.
+what is selected, and its undo history.
 
-Widgets never hold a Structure of their own -- they hold a Document and
-listen to its signals.  The signals carry a *change hint*
-(``xtal.core.structure.Change``) so the viewport can tell "an atom
-moved" from "the topology changed" and pick the cheap redraw over the
-expensive one.
+Widgets never hold a Structure of their own and never mutate one --
+they hold a Document, listen to its signals, and change it by running
+Commands through :meth:`Document.run`.  That single funnel is what
+makes every edit in the application undoable, scriptable and testable
+without a window.
 
-The undo stack lands here in phase 4; the API is already shaped for it,
-which is why every mutation goes through :meth:`apply` rather than
-letting callers poke at ``document.structure``.
+Signals carry a *change hint* (``xtal.core.structure.Change``) so the
+viewport can tell "an atom moved" from "the topology changed" and pick
+the cheap redraw over the expensive one.
+
+"Modified" is derived from the undo stack rather than being a flag that
+edits set: undo back to the point you last saved and the document is
+clean again, exactly as in any other editor.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 from PySide6.QtCore import QObject, Signal
 
 from xtal import Structure
+from xtal.commands import CommandStack, ReplaceStructure, SnapshotEdit
+from xtal.commands import atoms as atom_commands
+from xtal.commands import bonds as bond_commands
+from xtal.commands import cell as cell_commands
+from xtal.commands import symmetry as symmetry_commands
+from xtal.commands.clipboard import Fragment, PasteFragment
 from xtal.core import bonding, p1, properties
 from xtal.core import selection as sel
 from xtal.core.selection import Selection
@@ -31,11 +42,12 @@ from xtalapp.viewport.view_settings import ViewSettings
 
 
 class Document(QObject):
-    """One open structure and its view state."""
+    """One open structure, its view state, and its history."""
 
     structureChanged = Signal(int)      # a Change flag
     selectionChanged = Signal()
     viewChanged = Signal()
+    historyChanged = Signal()
     modifiedChanged = Signal(bool)
     titleChanged = Signal(str)
 
@@ -44,71 +56,148 @@ class Document(QObject):
         super().__init__(parent)
         self._structure = structure or Structure.empty()
         self._path = Path(path) if path else None
-        self._modified = False
+        self._was_modified = False
+        self.stack = CommandStack()
         self.view = ViewSettings()
         self.selection = Selection()
         self.warnings: list[str] = list(
             self._structure.meta.get("warnings", []))
 
-    # -- loading and saving --------------------------------------------
+    # ==================================================================
+    #  LOADING AND SAVING
+    # ==================================================================
 
     @classmethod
     def load(cls, path) -> Document:
-        """Read a structure file into a new document."""
-        structure = FORMATS.read(path)
-        return cls(structure, path=path)
+        return cls(FORMATS.read(path), path=path)
 
     def save(self, path=None) -> Path:
-        """Write the structure back out.  Saving clears the modified
-        flag; exporting (a different format, or P1) does not."""
         target = Path(path) if path else self._path
         if target is None:
             raise ValueError("no path to save to")
         FORMATS.write(self._structure, target)
         self._path = target
-        self.set_modified(False)
+        self.stack.mark_clean()
+        self._announce_modified()
         self.titleChanged.emit(self.title)
         return target
 
     def export(self, path, **kwargs) -> Path:
-        """Write a copy somewhere without adopting it as the
-        document's own file."""
+        """Write a copy somewhere without adopting it."""
         FORMATS.write(self._structure, Path(path), **kwargs)
         return Path(path)
 
-    # -- structure -----------------------------------------------------
+    # ==================================================================
+    #  STRUCTURE
+    # ==================================================================
 
     @property
     def structure(self) -> Structure:
         return self._structure
 
+    @structure.setter
+    def structure(self, value: Structure) -> None:
+        """Assignment point for ReplaceStructure; emits nothing on its
+        own, because the command runner announces the change."""
+        self._structure = value
+
     def set_structure(self, structure: Structure,
                       change: Change = Change.ALL,
                       modified: bool = True) -> None:
-        """Replace the structure wholesale (open, supercell, P1, ...)."""
+        """Adopt a structure outside the undo history (opening a file,
+        or starting again).  Clears the stack -- there is nothing
+        sensible to undo *into*."""
         self._structure = structure
         self.warnings = list(structure.meta.get("warnings", []))
         self.selection.clear()
-        if modified:
-            self.set_modified(True)
+        self.stack.clear()
+        if not modified:
+            self.stack.mark_clean()
+        self._announce_modified()
         self.structureChanged.emit(int(change))
         self.selectionChanged.emit()
+        self.historyChanged.emit()
         self.titleChanged.emit(self.title)
 
-    def apply(self, mutate, change: Change = Change.ALL) -> None:
-        """Run ``mutate(structure)`` and announce the result.
+    # ==================================================================
+    #  COMMANDS
+    # ==================================================================
 
-        In phase 4 this becomes "push a Command"; every caller written
-        against it now keeps working when it does.
+    def run(self, command) -> object:
+        """Run a command and announce what it changed.
+
+        This is the only way the application changes a structure.
         """
-        mutate(self._structure)
-        self.set_modified(True)
+        self.stack.push(command, self)
+        self._after_change(command.change)
+        return command
+
+    def apply(self, mutate, change: Change = Change.ALL,
+              label: str = "Edit") -> object:
+        """Run an arbitrary mutation, undoably, by keeping a copy.
+
+        Convenient from the console and from tests; a real command is
+        cheaper and should be preferred for anything the UI does often.
+        """
+        return self.run(SnapshotEdit(mutate, label, change))
+
+    def transaction(self, label: str):
+        """Group several commands into one undo step:
+
+            with document.transaction("Build water"):
+                document.run(...)
+        """
+        return _Transaction(self, label)
+
+    def undo(self) -> str:
+        command = self.stack.undo(self)
+        if command is None:
+            return ""
+        self._after_change(command.change)
+        return command.label
+
+    def redo(self) -> str:
+        command = self.stack.redo(self)
+        if command is None:
+            return ""
+        self._after_change(command.change)
+        return command.label
+
+    @property
+    def can_undo(self) -> bool:
+        return self.stack.can_undo
+
+    @property
+    def can_redo(self) -> bool:
+        return self.stack.can_redo
+
+    @property
+    def undo_label(self) -> str:
+        return self.stack.undo_label
+
+    @property
+    def redo_label(self) -> str:
+        return self.stack.redo_label
+
+    def _after_change(self, change: Change) -> None:
+        self.warnings = list(self._structure.meta.get("warnings", []))
         if change & (Change.TOPOLOGY | Change.SYMMETRY | Change.CELL):
             self.selection.prune(self.cell.n_atoms)
             self.selectionChanged.emit()
+        self._announce_modified()
         self.structureChanged.emit(int(change))
+        self.historyChanged.emit()
 
-    # -- derived data --------------------------------------------------
+    def _announce_modified(self) -> None:
+        now = self.modified
+        if now != self._was_modified:
+            self._was_modified = now
+            self.modifiedChanged.emit(now)
+        self.titleChanged.emit(self.title)
+
+    # ==================================================================
+    #  DERIVED DATA
+    # ==================================================================
 
     @property
     def cell(self):
@@ -119,11 +208,11 @@ class Document(QObject):
     def graph(self):
         return bonding.graph(self._structure)
 
-    # -- selection -----------------------------------------------------
+    # ==================================================================
+    #  SELECTION
+    # ==================================================================
 
     def select(self, atoms, mode: str = "set") -> None:
-        """Select atoms of the P1 cell.  ``mode`` is set, add, toggle
-        or remove."""
         atoms = [int(a) for a in atoms]
         if mode == "set":
             self.selection.set_atoms(atoms)
@@ -161,12 +250,9 @@ class Document(QObject):
         self.select(sel.by_element(self.cell, symbol), mode)
 
     def select_site(self, site_index: int, mode: str = "set") -> None:
-        """Select every image of one asymmetric-unit site."""
         self.select(sel.by_site(self.cell, site_index), mode)
 
     def expand_selection(self, how: str, value=1) -> None:
-        """Grow the selection: 'shell', 'fragment', 'orbit' or
-        'radius'."""
         atoms = set(self.selection.atoms)
         if not atoms:
             return
@@ -177,8 +263,9 @@ class Document(QObject):
         elif how == "orbit":
             atoms = sel.symmetry_orbit(self.cell, atoms)
         elif how == "radius":
-            atoms = sel.within_radius(self.cell, self._structure.lattice,
-                                      atoms, float(value))
+            atoms = sel.within_radius(self.cell,
+                                      self._structure.lattice, atoms,
+                                      float(value))
         else:
             raise ValueError(f"unknown expansion {how!r}")
         self.select(atoms, "set")
@@ -195,65 +282,212 @@ class Document(QObject):
     def selection_orbit_report(self) -> str:
         return sel.orbit_report(self.cell, self.selection.atoms)
 
-    # -- editing the selection -----------------------------------------
+    # ==================================================================
+    #  EDITING
+    # ==================================================================
+
+    def add_atom(self, element: str, frac, occupancy: float = 1.0,
+                 label: str = "") -> str:
+        site = atom_commands.new_site(element, frac, occupancy, label)
+        self.run(atom_commands.AddSites([site]))
+        return f"added {element}"
 
     def delete_selection(self) -> str:
-        """Delete the sites behind the selected atoms.
-
-        Symmetry ties images together, so this removes whole orbits:
-        the caller is expected to have shown
-        :meth:`selection_orbit_report` first.
-        """
+        """Delete the sites behind the selected atoms.  Symmetry ties
+        images together, so this removes whole orbits."""
         sites = sorted(self.selected_sites())
         if not sites:
             return "nothing to delete"
         atoms = sum(self.cell.multiplicity(s) for s in sites)
-        self.apply(lambda structure: structure.remove_sites(sites),
-                   Change.TOPOLOGY)
+        self.run(atom_commands.DeleteSites(sites))
         return f"deleted {len(sites)} site(s) ({atoms} atoms)"
 
     def set_selection_element(self, symbol: str) -> str:
-        """Change the element of every selected atom's site."""
         sites = sorted(self.selected_sites())
         if not sites:
             return "nothing selected"
-
-        def mutate(structure):
-            for index in sites:
-                structure.sites[index].element = symbol
-            structure.touch(Change.TOPOLOGY)
-
-        self.apply(mutate, Change.TOPOLOGY)
+        self.run(atom_commands.SetElement(sites, symbol))
         return f"changed {len(sites)} site(s) to {symbol}"
 
     def set_site_property(self, site_index: int, **values) -> None:
-        """Edit one site's label, occupancy, Uiso, charge or
-        coordinates."""
-        change = (Change.POSITIONS if set(values) <= {"frac"}
-                  else Change.TOPOLOGY)
+        self.run(atom_commands.SetSiteProperties(site_index, **values))
 
-        def mutate(structure):
-            site = structure.sites[site_index]
-            for key, value in values.items():
-                setattr(site, key, value)
-            structure.touch(change)
+    def move_selection(self, delta, cartesian: bool = False) -> str:
+        """Translate the selected sites."""
+        sites = sorted(self.selected_sites())
+        if not sites:
+            return "nothing selected"
+        maker = (atom_commands.MoveSites.by_cartesian_delta if cartesian
+                 else atom_commands.MoveSites.by_delta)
+        self.run(maker(self._structure, sites, delta))
+        return f"moved {len(sites)} site(s)"
 
-        self.apply(mutate, change)
+    def rotate_selection(self, axis, angle_degrees: float,
+                         centre=None) -> str:
+        sites = sorted(self.selected_sites())
+        if not sites:
+            return "nothing selected"
+        self.run(atom_commands.TransformSites.rotation(
+            sites, axis, angle_degrees, centre))
+        return f"rotated {len(sites)} site(s) by {angle_degrees:g}"
+
+    def mirror_selection(self, normal, centre=None) -> str:
+        sites = sorted(self.selected_sites())
+        if not sites:
+            return "nothing selected"
+        self.run(atom_commands.TransformSites.mirror(sites, normal,
+                                                     centre))
+        return f"mirrored {len(sites)} site(s)"
+
+    def add_bond_between(self, atom_a: int, atom_b: int,
+                         image_a=(0, 0, 0), image_b=(0, 0, 0)) -> str:
+        """Bond two atoms of the P1 cell, as picked in the viewport.
+
+        The images are the lattice translations the two atoms were
+        drawn at: in a multi-cell view the same P1 atom appears many
+        times, and which copy was clicked decides which bond is meant.
+        """
+        command = bond_commands.AddBond.between_atoms(
+            self._structure, self.cell, atom_a, atom_b,
+            image_a, image_b)
+        self.run(command)
+        return "bond added"
+
+    def remove_bond_between(self, atom_a: int, atom_b: int,
+                            image_a=(0, 0, 0),
+                            image_b=(0, 0, 0)) -> str:
+        command = bond_commands.SuppressBond.between_atoms(
+            self._structure, self.cell, atom_a, atom_b,
+            image_a, image_b)
+        self.run(command)
+        return "bond removed"
+
+    def replace_structure(self, structure: Structure, label: str,
+                          change: Change = Change.ALL) -> str:
+        """Undoable wholesale replacement (P1, supercell, symmetry)."""
+        self.run(ReplaceStructure(structure, label, change))
+        return label
+
+    # ==================================================================
+    #  SYMMETRY AND CELL
+    # ==================================================================
+    #
+    # Every one of these is a StructureOperation, which means the
+    # dialog above it can ask what would happen -- how many atoms, what
+    # group, what warnings -- before anything is committed, and then
+    # commit the very same result.
+
+    def operate(self, command):
+        """Run a symmetry or cell operation and hand back its report.
+
+        A failed operation (``report.ok`` false) is not pushed: there
+        is nothing to undo, and leaving a no-op on the stack would make
+        Ctrl+Z lie.
+        """
+        _new, report = command.preview(self._structure)
+        if report is not None and not report.ok:
+            return report
+        self.run(command)
+        return command.report
+
+    def detect_symmetry(self, symprec: float = 1e-5):
+        """What group these coordinates have at this tolerance.
+
+        Read-only, so the Find Symmetry dialog can follow the spinbox
+        without touching the structure.
+        """
+        from xtal.core.symmetry import detect
+        return detect(self._structure, symprec)
 
     def reduce_to_p1(self) -> str:
-        """Expand every orbit into explicit sites, so single atoms can
-        be edited independently."""
-        from xtal.core.symmetry import reduce_to_p1
-        before = self._structure.space_group.short_name
-        self.set_structure(reduce_to_p1(self._structure),
-                           Change.SYMMETRY)
-        return f"expanded {before} to P1"
+        return self.operate(symmetry_commands.ReduceToP1()).message
 
-    # -- view ----------------------------------------------------------
+    def find_symmetry(self, symprec: float = 1e-5,
+                      standardize_cell: bool = False):
+        return self.operate(symmetry_commands.FindSymmetry(
+            symprec, standardize_cell))
+
+    def set_space_group(self, group, mode: str = "reinterpret"):
+        return self.operate(symmetry_commands.SetSpaceGroup(
+            group, mode))
+
+    def standardize_cell(self, symprec: float = 1e-5,
+                         to_primitive: bool = False,
+                         idealize: bool = True):
+        return self.operate(symmetry_commands.Standardize(
+            symprec, to_primitive, idealize))
+
+    def assign_wyckoff(self, symprec: float = 1e-5):
+        return self.operate(symmetry_commands.AssignWyckoff(symprec))
+
+    def merge_duplicates(self, tol: float = 0.05):
+        return self.operate(symmetry_commands.MergeDuplicates(tol))
+
+    def make_supercell(self, na: int, nb: int, nc: int):
+        return self.operate(cell_commands.Supercell(na, nb, nc))
+
+    def transform_cell(self, p_matrix):
+        return self.operate(cell_commands.TransformCell(p_matrix))
+
+    def reduce_cell(self, kind: str = "niggli"):
+        return self.operate(cell_commands.ReduceCell(kind))
+
+    def shift_origin(self, shift):
+        return self.operate(cell_commands.ShiftOrigin(shift))
+
+    def wrap_into_cell(self):
+        return self.operate(cell_commands.WrapIntoCell())
+
+    def set_lattice(self, lattice, keep: str = "fractional") -> str:
+        """Change the cell parameters, keeping either the fractional or
+        the cartesian coordinates -- never both, and never a guess."""
+        self.run(cell_commands.SetLattice(lattice, keep))
+        a, b, c, al, be, ga = lattice.parameters
+        return (f"cell {a:.4f} {b:.4f} {c:.4f} "
+                f"{al:.3f} {be:.3f} {ga:.3f} ({keep} kept)")
+
+    # ==================================================================
+    #  CLIPBOARD
+    # ==================================================================
+
+    def copy_selection(self) -> Fragment:
+        """Lift the selection out as a cell-free fragment."""
+        return Fragment.from_selection(
+            self._structure, self.cell, self.selection.atoms,
+            self.graph)
+
+    def cut_selection(self) -> Fragment:
+        fragment = self.copy_selection()
+        if not fragment.is_empty:
+            with self.transaction("Cut"):
+                self.delete_selection()
+        return fragment
+
+    def paste(self, fragment: Fragment, offset=None) -> str:
+        """Add a fragment; returns what it did, symmetry included."""
+        if fragment.is_empty:
+            return "nothing to paste"
+        command = PasteFragment(fragment, offset)
+        message = command.describe(self._structure)
+        self.run(command)
+        self.select(_atoms_of_sites(self.cell, command.indices))
+        return message
+
+    def duplicate_selection(self, offset=None) -> str:
+        fragment = self.copy_selection()
+        if fragment.is_empty:
+            return "nothing selected"
+        if offset is None:
+            offset = self._structure.lattice.to_cart(
+                self.cell.frac[sorted(self.selection.atoms)]
+            ).mean(axis=0) + np.array([1.0, 0.0, 0.0])
+        return self.paste(fragment, offset)
+
+    # ==================================================================
+    #  VIEW AND STATE
+    # ==================================================================
 
     def update_view(self, **kwargs) -> None:
-        """Change view settings; never marks the document modified,
-        because how a crystal is drawn is not part of the crystal."""
         for key, value in kwargs.items():
             if not hasattr(self.view, key):
                 raise AttributeError(f"no view setting {key!r}")
@@ -264,21 +498,13 @@ class Document(QObject):
         self.view.set_cells(na, nb, nc)
         self.viewChanged.emit()
 
-    # -- state ---------------------------------------------------------
-
     @property
     def path(self) -> Path | None:
         return self._path
 
     @property
     def modified(self) -> bool:
-        return self._modified
-
-    def set_modified(self, value: bool) -> None:
-        if value != self._modified:
-            self._modified = value
-            self.modifiedChanged.emit(value)
-            self.titleChanged.emit(self.title)
+        return not self.stack.is_clean
 
     @property
     def title(self) -> str:
@@ -286,13 +512,12 @@ class Document(QObject):
             name = self._path.name
         else:
             name = str(self._structure.meta.get("title") or "Untitled")
-        return f"{name}*" if self._modified else name
+        return f"{name}*" if self.modified else name
 
     def info(self):
         return properties.info(self._structure)
 
     def status_text(self) -> str:
-        """The one-line summary for the status bar."""
         if not self._structure.n_sites:
             return "empty cell"
         info = self.info()
@@ -304,3 +529,29 @@ class Document(QObject):
 
     def __repr__(self) -> str:
         return f"Document({self.title}, {self._structure!r})"
+
+
+class _Transaction:
+    """Context manager grouping commands into one undo step."""
+
+    def __init__(self, document: Document, label: str):
+        self.document = document
+        self.label = label
+        self._context = None
+
+    def __enter__(self):
+        self._context = self.document.stack.transaction(
+            self.label, self.document)
+        return self._context.__enter__()
+
+    def __exit__(self, *exc):
+        result = self._context.__exit__(*exc)
+        self.document.historyChanged.emit()
+        return result
+
+
+def _atoms_of_sites(cell, site_indices) -> set:
+    atoms = set()
+    for index in site_indices:
+        atoms |= {int(k) for k in cell.indices_of_site(index)}
+    return atoms

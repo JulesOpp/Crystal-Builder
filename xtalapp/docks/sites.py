@@ -15,7 +15,14 @@ undoable for free when the command stack lands.
 
 from __future__ import annotations
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal
+from PySide6.QtCore import (
+    QAbstractTableModel,
+    QItemSelection,
+    QItemSelectionModel,
+    QModelIndex,
+    Qt,
+    Signal,
+)
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -31,6 +38,8 @@ COLUMNS = ["Label", "El", "x", "y", "z", "Occ", "Uiso", "Wyckoff",
 # Qt's model API takes a parent index by value; one shared invalid
 # index stands in for "the root" everywhere.
 NO_PARENT = QModelIndex()
+# Rows sampled when sizing a column to its contents.
+RESIZE_SAMPLE_ROWS = 30
 EDITABLE = {0, 1, 2, 3, 4, 5, 6}
 
 
@@ -160,8 +169,14 @@ class SitesDock(QDockWidget):
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setAlternatingRowColors(True)
         self.table.verticalHeader().setDefaultSectionSize(20)
-        self.table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeToContents)
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeToContents)
+        # Sizing a column to its contents means asking the model for
+        # every cell in it.  A structure reduced to P1 has thousands of
+        # sites, and every one of them would be measured on every
+        # edit; sampling the first few rows sizes the columns just as
+        # well, because they all hold the same kind of number.
+        header.setResizeContentsPrecision(RESIZE_SAMPLE_ROWS)
         self.table.selectionModel().selectionChanged.connect(
             self._on_rows_selected)
         self.setWidget(self.table)
@@ -177,14 +192,25 @@ class SitesDock(QDockWidget):
 
     def sync_selection(self) -> None:
         """Highlight the rows whose sites are selected in the
-        viewport."""
+        viewport.
+
+        Built as one QItemSelection and applied in a single call:
+        selecting rows one at a time makes Qt re-lay-out the table once
+        per row, which a P1 structure with hundreds of sites feels.
+        """
         if self.document is None:
             return
         self._syncing = True
-        selection_model = self.table.selectionModel()
-        selection_model.clearSelection()
-        for row in sorted(self.document.selected_sites()):
-            self.table.selectRow(row)
+        rows = sorted(self.document.selected_sites())
+        last = self.model.columnCount() - 1
+        chosen = QItemSelection()
+        for row in rows:
+            chosen.select(self.model.index(row, 0),
+                          self.model.index(row, last))
+        self.table.selectionModel().select(
+            chosen, QItemSelectionModel.ClearAndSelect)
+        if rows:
+            self.table.scrollTo(self.model.index(rows[0], 0))
         self._syncing = False
 
     def _on_rows_selected(self, *_args) -> None:

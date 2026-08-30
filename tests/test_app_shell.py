@@ -318,6 +318,18 @@ def test_file_tree_opens_structures(window, rutile_cif):
     assert window.tabs.count() == 1
 
 
+def test_file_tree_opens_a_file_once_per_gesture(window, rutile_cif,
+                                                 tmp_path):
+    """A double-click on the tree makes Qt emit `doubleClicked` *and*
+    `activated`.  With both connected the file opened twice, which is
+    two tabs for one gesture."""
+    window.file_dock.set_root(tmp_path)
+    index = window.file_dock.model.index(rutile_cif)
+    window.file_dock.tree.doubleClicked.emit(index)
+    window.file_dock.tree.activated.emit(index)
+    assert window.tabs.count() == 1
+
+
 def test_file_tree_filters_to_known_formats(window):
     from xtalapp.docks.filetree import structure_globs
     globs = structure_globs()

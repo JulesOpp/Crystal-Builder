@@ -21,6 +21,7 @@ Three actors for the structure, however many atoms there are.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -28,8 +29,15 @@ import numpy as np
 # Importing these registers the OpenGL and text rendering factories.
 import vtkmodules.vtkRenderingFreeType  # noqa: F401
 import vtkmodules.vtkRenderingOpenGL2  # noqa: F401
+from vtkmodules.util.numpy_support import (
+    numpy_to_vtk,
+    numpy_to_vtkIdTypeArray,
+)
 from vtkmodules.vtkCommonCore import (
+    VTK_FLOAT,
+    VTK_UNSIGNED_CHAR,
     vtkFloatArray,
+    vtkIdTypeArray,
     vtkPoints,
     vtkUnsignedCharArray,
 )
@@ -49,6 +57,11 @@ from vtkmodules.vtkRenderingCore import (
     vtkWindowToImageFilter,
 )
 
+# vtkIdType is 32- or 64-bit depending on how VTK was built; the
+# connectivity arrays have to match or VTK reads them as garbage.
+ID_TYPE = np.int64 if vtkIdTypeArray().GetDataTypeSize() == 8 \
+    else np.int32
+
 SPHERE_RESOLUTION = 24
 TUBE_SIDES = 12
 MAX_LABELS = 400            # beyond this, labels are noise anyway
@@ -63,48 +76,47 @@ HIGHLIGHT_GROWTH = 1.30     # halo radius, relative to the atom
 
 
 def _to_uchar(colors: np.ndarray, name: str) -> vtkUnsignedCharArray:
-    arr = vtkUnsignedCharArray()
+    arr = numpy_to_vtk(np.ascontiguousarray(colors, dtype=np.uint8),
+                       deep=True, array_type=VTK_UNSIGNED_CHAR)
     arr.SetName(name)
-    arr.SetNumberOfComponents(3)
-    data = np.ascontiguousarray(colors, dtype=np.uint8)
-    arr.SetNumberOfTuples(len(data))
-    for i, (r, g, b) in enumerate(data):
-        arr.SetTypedTuple(i, (int(r), int(g), int(b)))
     return arr
 
 
 def _to_float(values: np.ndarray, name: str) -> vtkFloatArray:
-    arr = vtkFloatArray()
+    arr = numpy_to_vtk(np.ascontiguousarray(values, dtype=np.float32),
+                       deep=True, array_type=VTK_FLOAT)
     arr.SetName(name)
-    arr.SetNumberOfComponents(1)
-    data = np.ascontiguousarray(values, dtype=np.float32)
-    arr.SetNumberOfTuples(len(data))
-    for i, v in enumerate(data):
-        arr.SetValue(i, float(v))
     return arr
 
 
 def _points(positions: np.ndarray) -> vtkPoints:
     pts = vtkPoints()
-    pts.SetNumberOfPoints(len(positions))
-    for i, (x, y, z) in enumerate(positions):
-        pts.SetPoint(i, float(x), float(y), float(z))
+    pts.SetData(numpy_to_vtk(
+        np.ascontiguousarray(positions, dtype=np.float64), deep=True))
     return pts
 
 
 def _line_polydata(starts, ends, colors) -> vtkPolyData:
-    """One line cell per segment, coloured by cell data."""
+    """One line cell per segment, coloured by cell data.
+
+    Every array is handed to VTK whole.  Writing these point by point
+    is what used to make a click on a large structure visibly stutter:
+    the geometry is already in numpy, and copying it a tuple at a time
+    costs more than drawing it.
+    """
+    n = len(starts)
+    interleaved = np.empty((2 * n, 3), dtype=np.float64)
+    interleaved[0::2] = starts
+    interleaved[1::2] = ends
+
     poly = vtkPolyData()
-    pts = vtkPoints()
+    poly.SetPoints(_points(interleaved))
     lines = vtkCellArray()
-    pts.SetNumberOfPoints(2 * len(starts))
-    for i, (a, b) in enumerate(zip(starts, ends, strict=True)):
-        pts.SetPoint(2 * i, *[float(v) for v in a])
-        pts.SetPoint(2 * i + 1, *[float(v) for v in b])
-        lines.InsertNextCell(2)
-        lines.InsertCellPoint(2 * i)
-        lines.InsertCellPoint(2 * i + 1)
-    poly.SetPoints(pts)
+    lines.SetData(
+        numpy_to_vtkIdTypeArray(
+            np.arange(0, 2 * n + 1, 2, dtype=ID_TYPE), deep=True),
+        numpy_to_vtkIdTypeArray(
+            np.arange(2 * n, dtype=ID_TYPE), deep=True))
     poly.SetLines(lines)
     poly.GetCellData().SetScalars(_to_uchar(colors, "colors"))
     return poly
@@ -267,6 +279,20 @@ class VtkScene:
                                          model.cell_colors)
         self.cell_mapper.SetInputData(self._cell_poly)
         self.cell_actor.SetVisibility(True)
+
+    def set_selection(self, selected, selected_bonds) -> None:
+        """Change only what is highlighted.
+
+        Selecting an atom changes no geometry, so the halo actors are
+        the only thing that has to be rebuilt -- and on a big structure
+        that is the difference between a click that lands immediately
+        and one that hangs on a full scene rebuild.
+        """
+        if self.model is None:
+            return
+        self.model = replace(self.model, selected=selected,
+                             selected_bonds=selected_bonds)
+        self._set_highlight(self.model)
 
     def _set_highlight(self, model):
         picked = (model.selected if len(model.selected)

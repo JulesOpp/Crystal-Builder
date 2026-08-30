@@ -195,3 +195,91 @@ def test_selection_flags_follow_the_display_range(rutile):
     settings.set_cells(2, 2, 2)
     many = build_scene(rutile, settings, selection=selection).n_selected
     assert many > one
+
+
+# --------------------------------------------------------- fast paths
+
+def test_bond_halves_know_which_bond_they_draw(quartz):
+    """Provenance, not geometry: a click on a bond has to name the two
+    atoms and the lattice translation it really joins."""
+    from xtal.core import bonding
+    from xtalapp.viewport.builder import build_scene
+
+    scene = build_scene(quartz, ViewSettings())
+    keys = {b.key() for b in bonding.graph(quartz).bonds}
+    assert len(scene.bond_keys) == scene.n_bond_halves
+    for half in range(scene.n_bond_halves):
+        assert scene.bond_key(half) in keys
+    # the two halves of one bond name the same bond
+    assert scene.bond_key(0) == scene.bond_key(1)
+
+
+def test_bond_keys_survive_hidden_atoms(rutile):
+    """Wireframe draws no atom geometry, so nothing can be recovered
+    from the atom arrays -- the bond keys still have to be right."""
+    scene = build_scene(rutile, ViewSettings(style="wireframe"))
+    assert scene.n_atoms == 0
+    assert len(scene.bond_keys) == scene.n_bond_halves > 0
+    assert scene.bond_key(0)[0] >= 0
+
+
+def test_boundary_completes_a_chain_at_both_ends():
+    """An atom bonded to its own periodic image is a chain running
+    through the picture.  With boundary='bonded' it has to be completed
+    at *both* ends: stopping dead at one edge and continuing at the
+    other is worse than either, because the picture then implies an
+    asymmetry the crystal does not have."""
+    chain = Structure.from_arrays(
+        Lattice.orthorhombic(1.45, 9.0, 9.0), ["C"],
+        [[0.0, 0.5, 0.5]], space_group="P1")
+
+    inside = build_scene(chain, ViewSettings(boundary="in_range"))
+    assert inside.n_atoms == 2                  # x = 0 and x = 1
+    assert inside.n_bond_halves == 2            # one bond between them
+
+    bonded = build_scene(chain, ViewSettings(boundary="bonded"))
+    x = np.sort(chain.lattice.to_frac(bonded.positions)[:, 0])
+    assert np.allclose(x, [-1.0, 0.0, 1.0, 2.0])
+    assert bonded.n_bond_halves == 6            # three links, six halves
+
+
+def test_selection_flags_match_a_full_rebuild(rutile):
+    """The viewport reuses a scene and swaps the highlight flags in.
+    It must land on exactly what rebuilding would have produced."""
+    from xtal.core import bonding
+    from xtal.core.selection import Selection
+    from xtalapp.viewport.builder import selection_flags
+
+    selection = Selection()
+    selection.set_atoms([0, 3])
+    selection.bonds = {bonding.graph(rutile).bonds[0].key()}
+
+    settings = ViewSettings()
+    plain = build_scene(rutile, settings)
+    rebuilt = build_scene(rutile, settings, selection=selection)
+    atoms, bonds = selection_flags(plain, selection)
+
+    assert np.array_equal(atoms, rebuilt.selected)
+    assert np.array_equal(bonds, rebuilt.selected_bonds)
+    assert bonds.any()
+
+
+def test_a_large_cell_builds_without_scanning_every_pair(quartz):
+    """Matching bonds to endpoints by scanning every drawn atom is
+    quadratic, and a multi-cell view of a real structure is where that
+    stops being academic.  Eight cells must cost about eight times one,
+    not sixty-four."""
+    import time
+
+    settings = ViewSettings()
+    build_scene(quartz, settings)                   # warm the caches
+
+    def elapsed(cells):
+        settings.set_cells(*cells)
+        start = time.perf_counter()
+        build_scene(quartz, settings)
+        return time.perf_counter() - start
+
+    one = elapsed((1, 1, 1))
+    eight = elapsed((2, 2, 2))
+    assert eight < 40 * max(one, 1e-4)

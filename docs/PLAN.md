@@ -591,12 +591,12 @@ Each phase ends with something runnable and a green test suite.
 
 | Phase | Deliverable | Contents |
 |---|---|---|
-| **0. Skeleton** | `pip install -e .` works, CI green | repo, pyproject, ruff/pytest config, GH Actions, `elements.py`, `lattice.py`, `site.py`, `structure.py` + tests |
-| **1. Crystallography core** | CLI can read a CIF, print symmetry, write a CIF | `cif_reader`/`cif_writer`, `symmetry.py` (detect / set / P1), `neighbors`, `bonding`, `supercell`, `properties`, `cli.py` |
-| **2. App shell + viewport** | window opens a CIF and shows ball-and-stick you can orbit | `mainwindow`, file-tree dock, `Document`, `SceneModel`+builder, VTK widget, camera, cell box, style switching |
-| **3. Selection & inspection** | click atoms/bonds, read and edit their properties | picking, Select mode, Inspector dock, structure tree, atom table, delete, change element |
-| **4. Editing & undo** | build a structure by hand | `CommandStack`, Add-Atom / Add-Bond modes + dialogs, Move dock + gizmo, copy/paste, full undo/redo wiring |
-| **5. Symmetry & cell** | full symmetry workflow | Find Symmetry dialog with tolerance, space-group picker, reduce-to-P1, supercell, cell edit, cell transform, display range, boundary options |
+| **0. Skeleton** ✅ | `pip install -e .` works, CI green | repo, pyproject, ruff/pytest config, GH Actions, `elements.py`, `lattice.py`, `site.py`, `structure.py` + tests |
+| **1. Crystallography core** ✅ | CLI can read a CIF, print symmetry, write a CIF | `cif_reader`/`cif_writer`, `symmetry.py` (detect / set / P1), `neighbors`, `bonding`, `supercell`, `properties`, `cli.py` |
+| **2. App shell + viewport** ✅ | window opens a CIF and shows ball-and-stick you can orbit | `mainwindow`, file-tree dock, `Document`, `SceneModel`+builder, VTK widget, camera, cell box, style switching |
+| **3. Selection & inspection** ✅ | click atoms/bonds, read and edit their properties | picking, Select mode, Inspector dock, structure tree, atom table, delete, change element |
+| **4. Editing & undo** ✅ | build a structure by hand | `CommandStack`, Add-Atom / Add-Bond modes + dialogs, Move dock + gizmo, copy/paste, full undo/redo wiring |
+| **5. Symmetry & cell** ✅ | full symmetry workflow | Find Symmetry dialog with tolerance, space-group picker, reduce-to-P1, supercell, cell edit, cell transform, display range, boundary options |
 | **6. Appearance & analysis** | looks like VESTA | all draw styles incl. polyhedra, colour/radius editors, background, labels, legend, projection modes, measurements, image export, project save/load |
 | **7. UFF** | single-point + optimisation from the GUI | params, typer (+ override table), terms, calculator, FIRE/L-BFGS, worker + live plot, constraints, validation suite |
 | **8. Ship** | signed-ish DMG + Windows installer | PyInstaller specs, icons, file associations, CI release job, user docs |
@@ -606,6 +606,9 @@ Phases 0–1 are pure library work and are worth doing carefully — they
 set every interface the rest of the app leans on. Phase 4 (commands) must
 land before phase 5, or symmetry operations get retrofitted into
 undo/redo later, which is painful.
+
+Work that came out of using the application, and has not been scheduled
+into a phase yet, lives in [TODO.md](TODO.md).
 
 ---
 

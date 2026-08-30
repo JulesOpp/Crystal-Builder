@@ -11,8 +11,9 @@ with no GPU, no window and no VTK at all -- which is where the
 rendering regressions get caught.
 
 Every drawn atom carries its provenance (which atom of the P1 cell it
-is, and which lattice translation put it there), so a pick in the
-viewport can be turned back into a site of the asymmetric unit.
+is, and which lattice translation put it there), and so does every bond
+half, so a pick in the viewport can be turned back into a site or a
+bond of the asymmetric unit.
 """
 
 from __future__ import annotations
@@ -52,6 +53,12 @@ class SceneModel:
     bond_render: str = "tube"                                  # tube|line
     selected_bonds: np.ndarray = field(
         default_factory=lambda: np.zeros(0, bool))             # (K,)
+    # (K,5): which bond of the P1 cell each half belongs to, as
+    # (i, j, image) flattened.  Carrying it here is what lets a click
+    # on a bond name the two atoms it really joins, images included,
+    # instead of guessing from the geometry.
+    bond_keys: np.ndarray = field(
+        default_factory=lambda: np.zeros((0, 5), int))
 
     # unit cell wireframe
     cell_starts: np.ndarray = field(default_factory=_empty)    # (L,3)
@@ -101,3 +108,10 @@ class SceneModel:
     def instance(self, i: int) -> tuple[int, tuple[int, int, int]]:
         """Provenance of drawn atom ``i``: (P1 atom index, cell)."""
         return int(self.atom_index[i]), tuple(self.atom_cell[i])
+
+    def bond_key(self, half: int) -> tuple:
+        """Provenance of bond half ``half``: the (i, j, image) key of
+        the P1-cell bond it draws."""
+        row = self.bond_keys[half]
+        return (int(row[0]), int(row[1]),
+                (int(row[2]), int(row[3]), int(row[4])))

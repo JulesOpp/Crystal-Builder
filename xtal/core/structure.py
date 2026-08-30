@@ -57,9 +57,26 @@ class Change(IntFlag):
 class Bond:
     """An explicit bond between two asymmetric-unit sites.
 
-    ``image`` is the lattice translation applied to site ``j``, so a
-    bond that crosses a periodic boundary survives supercells and
-    display-range changes.  Storing only (i, j) is the classic bug.
+    The bond joins site ``i``, where it sits, to the point
+
+        op[``op``](site ``j``) + ``image``
+
+    -- a symmetry image of site ``j``, displaced by a lattice
+    translation.  Both halves of that are needed and neither is
+    optional:
+
+    ``image`` is what makes a bond that crosses a periodic boundary
+    survive supercells and display-range changes.  Storing only (i, j)
+    is the classic bug.
+
+    ``op`` is what lets *any* two atoms of the cell be joined.  Without
+    it a stored bond can only relate two sites through the same
+    operation, and a click on the wrong one of four symmetry-equivalent
+    neighbours has to be refused -- which, in a group like Fm-3m, is
+    almost every click.  ``op = 0`` is the identity and is the common
+    case; drawing a bond on one pair still puts it on every
+    symmetry-equivalent pair, because it is the *pair* that gets
+    expanded.
 
     ``kind`` is ``"explicit"`` for a bond the user drew, or
     ``"suppressed"`` for one they deleted that automatic perception
@@ -71,44 +88,74 @@ class Bond:
     image: tuple[int, int, int] = (0, 0, 0)
     order: float = 1.0
     kind: str = "explicit"
+    op: int = 0
 
     def __post_init__(self):
         object.__setattr__(self, "i", int(self.i))
         object.__setattr__(self, "j", int(self.j))
+        object.__setattr__(self, "op", int(self.op))
         object.__setattr__(self, "image",
                            tuple(int(v) for v in self.image))
         if len(self.image) != 3:
             raise ValueError("bond image must have 3 components")
-        if self.i == self.j and self.image == (0, 0, 0):
+        if self.op < 0:
+            raise ValueError("bond operation index must be >= 0")
+        if (self.i == self.j and self.op == 0
+                and self.image == (0, 0, 0)):
             raise ValueError("a site cannot bond to itself in the same "
                              "periodic image")
 
-    def canonical(self) -> Bond:
-        """Direction-independent form, so (i,j,t) and (j,i,-t) -- the
-        same physical bond -- compare and hash equal."""
-        flip = (self.j, self.i) < (self.i, self.j) or (
-            self.i == self.j and self.image < tuple(-v for v in self.image)
-        )
-        if not flip:
-            return self
-        return Bond(self.j, self.i, tuple(-v for v in self.image),
-                    self.order, self.kind)
+    def reverse(self, space_group) -> Bond:
+        """The same physical bond, named from the other end.
 
-    def key(self) -> tuple:
-        c = self.canonical()
-        return (c.i, c.j, c.image)
+        Reading it backwards means undoing the operation that placed
+        the far end, which is why this needs the group: operations
+        compose only modulo a lattice translation, and that translation
+        lands in the image.
+        """
+        m, closing = space_group.inverse_of(self.op)
+        rot = space_group.operations[m].rot
+        image = -(closing + rot @ np.asarray(self.image, dtype=float))
+        return Bond(self.j, self.i,
+                    tuple(int(round(v)) for v in image),
+                    self.order, self.kind, m)
+
+    def canonical(self, space_group=None) -> Bond:
+        """Direction-independent form, so a bond and the same bond
+        written from its other end compare and hash equal.
+
+        Without a group only the identity case can be turned around,
+        which is the one every caller that has no group in hand is
+        asking about.
+        """
+        if space_group is None:
+            if self.op != 0:
+                return self
+            other = Bond(self.j, self.i,
+                         tuple(-v for v in self.image),
+                         self.order, self.kind, 0)
+        else:
+            other = self.reverse(space_group)
+        mine = (self.i, self.j, self.op, self.image)
+        theirs = (other.i, other.j, other.op, other.image)
+        return other if theirs < mine else self
+
+    def key(self, space_group=None) -> tuple:
+        c = self.canonical(space_group)
+        return (c.i, c.j, c.op, c.image)
 
     def involves(self, index: int) -> bool:
         return self.i == index or self.j == index
 
     def to_dict(self) -> dict:
         return {"i": self.i, "j": self.j, "image": list(self.image),
-                "order": self.order, "kind": self.kind}
+                "order": self.order, "kind": self.kind, "op": self.op}
 
     @classmethod
     def from_dict(cls, d: dict) -> Bond:
         return cls(d["i"], d["j"], tuple(d.get("image", (0, 0, 0))),
-                   d.get("order", 1.0), d.get("kind", "explicit"))
+                   d.get("order", 1.0), d.get("kind", "explicit"),
+                   d.get("op", 0))
 
 
 # ======================================================================
@@ -281,15 +328,17 @@ class Structure:
         """Add a bond if it is not already there.  Returns whether it
         was added."""
         self._check_bond(bond)
-        if any(b.key() == bond.key() for b in self.bonds):
+        key = bond.key(self.space_group)
+        if any(b.key(self.space_group) == key for b in self.bonds):
             return False
         self.bonds.append(bond)
         self.touch(Change.TOPOLOGY)
         return True
 
     def remove_bond(self, bond: Bond) -> bool:
-        key = bond.key()
-        keep = [b for b in self.bonds if b.key() != key]
+        key = bond.key(self.space_group)
+        keep = [b for b in self.bonds
+                if b.key(self.space_group) != key]
         if len(keep) == len(self.bonds):
             return False
         self.bonds = keep
@@ -322,7 +371,26 @@ class Structure:
             used.add(cand)
         self.touch(Change.METADATA)
 
+    def suggest_label(self, element: str) -> str:
+        """An unused CIF-style label for a new atom of this element.
+
+        Unlike :meth:`ensure_labels` this touches nothing that already
+        exists -- adding an atom must not silently relabel the atoms
+        that were already there, or undoing the addition would leave
+        the structure changed.
+        """
+        used = {site.label for site in self.sites if site.label}
+        n = 1
+        while f"{element}{n}" in used:
+            n += 1
+        return f"{element}{n}"
+
     def _check_bond(self, bond: Bond) -> None:
+        if bond.op >= self.space_group.order:
+            raise ValueError(
+                f"bond operation {bond.op} is outside "
+                f"{self.space_group.short_name}, which has "
+                f"{self.space_group.order} operations")
         n = len(self.sites)
         if not (0 <= bond.i < n and 0 <= bond.j < n):
             raise IndexError(
@@ -389,8 +457,8 @@ class Structure:
             and len(self.sites) == len(other.sites)
             and all(a.almost_equal(b, tol)
                     for a, b in zip(self.sites, other.sites, strict=False))
-            and ({b.key() for b in self.bonds}
-                 == {b.key() for b in other.bonds})
+            and ({b.key(self.space_group) for b in self.bonds}
+                 == {b.key(other.space_group) for b in other.bonds})
         )
 
     def __eq__(self, other) -> bool:

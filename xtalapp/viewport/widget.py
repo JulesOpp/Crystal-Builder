@@ -40,7 +40,10 @@ from vtkmodules.vtkIOImage import vtkPNGWriter  # noqa: E402
 from vtkmodules.vtkRenderingCore import vtkWindowToImageFilter  # noqa: E402
 
 from xtalapp.viewport import modes, picking  # noqa: E402
-from xtalapp.viewport.builder import build_scene  # noqa: E402
+from xtalapp.viewport.builder import (  # noqa: E402
+    build_scene,
+    selection_flags,
+)
 from xtalapp.viewport.vtk_scene import (  # noqa: E402
     VtkScene,
     orientation_marker,
@@ -110,11 +113,11 @@ class ViewportWidget(QWidget):
         if self.document is not None:
             self.document.structureChanged.disconnect(self._on_structure)
             self.document.viewChanged.disconnect(self._on_view)
-            self.document.selectionChanged.disconnect(self._on_view)
+            self.document.selectionChanged.disconnect(self._on_selection)
         self.document = document
         document.structureChanged.connect(self._on_structure)
         document.viewChanged.connect(self._on_view)
-        document.selectionChanged.connect(self._on_view)
+        document.selectionChanged.connect(self._on_selection)
         self.rebuild(reset_camera=True)
 
     def set_mode(self, name: str) -> None:
@@ -128,6 +131,22 @@ class ViewportWidget(QWidget):
 
     def _on_view(self) -> None:
         self.rebuild(reset_camera=False)
+
+    def _on_selection(self) -> None:
+        """Selecting changes the highlight, not the geometry.
+
+        Rebuilding the whole scene to light up one atom is what made
+        clicking around a large structure feel slow; the flags are two
+        arrays and the actors underneath them do not move.
+        """
+        if self.document is None or self.model is None:
+            self.rebuild(reset_camera=False)
+            return
+        atoms, bonds = selection_flags(self.model,
+                                       self.document.selection)
+        self.scene.set_selection(atoms, bonds)
+        self.model = self.scene.model
+        self._safe_render()
 
     def rebuild(self, reset_camera: bool = False) -> None:
         """Rebuild the scene from the document and redraw."""
@@ -181,9 +200,11 @@ class ViewportWidget(QWidget):
         if self.document is None or self.model is None:
             return
         origin, direction = self._ray_at(point)
+        focal = self.scene.renderer.GetActiveCamera().GetFocalPoint()
         message = self.mode.on_click(
             self.document, self.model,
-            modes.ClickEvent(origin, direction, additive, double))
+            modes.ClickEvent(origin, direction, additive, double,
+                             tuple(focal)))
         if message:
             self.statusMessage.emit(message)
 

@@ -80,6 +80,19 @@ class BondRules:
             widest = max(widest, float(hi))
         return widest
 
+    def signature(self) -> str:
+        """A stable string identifying these criteria.
+
+        Two BondRules that would perceive the same bonds share a
+        signature, which is what lets perception be memoised across
+        callers that each build their own rules object.
+        """
+        pairs = sorted((tuple(sorted(k)), tuple(v))
+                       for k, v in self.pair_ranges.items())
+        forbidden = sorted(tuple(sorted(p)) for p in self.forbidden)
+        return (f"{self.scale!r}|{self.delta!r}|{self.min_distance!r}|"
+                f"{pairs!r}|{forbidden!r}|{self.allow_metal_metal!r}")
+
     def to_dict(self) -> dict:
         return {
             "scale": self.scale, "delta": self.delta,
@@ -134,7 +147,11 @@ def perceive(structure, rules: BondRules | None = None,
     Memoised on the structure until its next mutation.
     """
     rules = rules or BondRules.from_dict(structure.bond_rules)
-    key = f"bonds:{include_explicit}:{id(rules) if rules else 0}"
+    # The cache key describes the *rules*, not the object holding them:
+    # the caller usually builds a fresh BondRules every call, so keying
+    # on identity would miss every time and grow the cache without
+    # bound.
+    key = f"bonds:{include_explicit}:{rules.signature()}"
     return structure.cached(
         key, lambda: _perceive_uncached(structure, rules,
                                         include_explicit))
@@ -178,28 +195,91 @@ def map_explicit_bond(structure, cell: p1.P1Cell,
                       bond: Bond) -> list[CellBond]:
     """Expand one asymmetric-unit bond into the P1 cell.
 
-    For every image of site ``i`` produced by operation k, the partner
-    is the same operation applied to ``j`` shifted by the bond's stored
-    lattice translation -- which is how a hand-drawn bond ends up on
-    every symmetry-equivalent pair.
+    A stored bond is a *pair of points* -- site ``i``, and the image of
+    site ``j`` that ``op`` and ``image`` name.  What gets expanded is
+    that pair: every operation of the group is applied to both ends at
+    once, which is how a bond drawn on one Fe-O ends up on all six.
+
+    Every operation is tried, not every distinct atom.  A site on a
+    special position is reached by several operations, and each of them
+    carries the partner somewhere different -- iterating over atoms
+    instead would draw one bond per central atom where the symmetry
+    demands several.
     """
     ops = structure.space_group.operations
     lattice = structure.lattice
-    partner_frac = structure.sites[bond.j].frac + np.array(bond.image)
-    out = []
-    for a in cell.indices_of_site(bond.i):
-        op = ops[int(cell.op_idx[a])]
-        target = op.apply(partner_frac) + cell.tau[a]
-        wrapped = p1._wrap(target)
-        shift = np.round(target - wrapped).astype(int)
-        b = _find_atom(cell, wrapped, lattice)
-        if b is None:
+    near = structure.sites[bond.i].frac
+    far = (ops[bond.op].apply(structure.sites[bond.j].frac)
+           + np.array(bond.image, dtype=float))
+
+    out: dict[tuple, CellBond] = {}
+    for op in ops:
+        here = op.apply(near)
+        wrapped_here = p1._wrap(here)
+        tau = wrapped_here - here               # into the cell
+        a = _find_atom(cell, wrapped_here, lattice)
+        if a is None:                           # pragma: no cover
             continue
-        out.append(CellBond(
-            int(a), int(b), tuple(int(v) for v in -shift),
-            neighbors.min_image_distance(cell.frac[a], target, lattice),
-            explicit=True))
-    return out
+        there = op.apply(far) + tau
+        wrapped_there = p1._wrap(there)
+        b = _find_atom(cell, wrapped_there, lattice)
+        if b is None:                           # pragma: no cover
+            continue
+        # ``there`` is where the partner really is; the atom found for
+        # it lives inside the cell, so the bond carries the translation
+        # between the two.  Getting this sign wrong draws the bond to
+        # the copy on the opposite side -- or, more often, to a partner
+        # that is not in the picture at all, so the bond vanishes.
+        image = np.round(there - wrapped_there).astype(int)
+        cell_bond = CellBond(
+            int(a), int(b), tuple(int(v) for v in image),
+            neighbors.min_image_distance(cell.frac[a], there, lattice),
+            explicit=True)
+        out[cell_bond.key()] = cell_bond
+    return list(out.values())
+
+
+def bond_between(structure, cell, atom_a: int, atom_b: int,
+                 image_a=(0, 0, 0), image_b=(0, 0, 0)) -> Bond:
+    """The asymmetric-unit bond whose expansion joins these two drawn
+    atoms -- the inverse of :func:`map_explicit_bond`.
+
+    Atom ``a`` is some image of site ``i``: ``a = op_a(site_i) + tau``.
+    Undoing that operation carries atom ``b`` to a point ``q`` in site
+    ``i``'s own frame, and the bond to store is the pair (site i, q).
+    Because ``b`` is an image of site ``j``, ``q`` is one too, so there
+    is always an operation and a lattice translation that name it --
+    which is what makes *any* two atoms in the cell bondable.
+
+    Requiring the identity there instead, as if the two ends had to be
+    related by the same operation, refuses most of the bonds a
+    crystallographer would draw: in Fm-3m it refuses all of them.
+
+    ``image_a`` and ``image_b`` are the lattice translations the two
+    atoms were *drawn* at.  A viewer showing more than one cell draws
+    the same P1 atom many times, and bonding the copy at (1, 0, 0) is
+    not the same bond as bonding the one at the origin -- passing the
+    translations in is what stops a click landing on the wrong pair.
+    """
+    ops = structure.space_group.operations
+    site_i = int(cell.site_idx[atom_a])
+    site_j = int(cell.site_idx[atom_b])
+    op_a = ops[int(cell.op_idx[atom_a])]
+    tau_a = cell.tau[atom_a] + np.asarray(image_a, dtype=float)
+    target = cell.frac[atom_b] + np.asarray(image_b, dtype=float)
+
+    # Atom b, seen from site i's own frame: undo op_a.
+    q = np.linalg.inv(op_a.rot) @ (target - tau_a - op_a.trans)
+
+    frac_j = structure.sites[site_j].frac
+    for k, op in enumerate(ops):
+        shift = q - op.apply(frac_j)
+        if np.allclose(shift, np.round(shift), atol=1e-6):
+            return Bond(site_i, site_j,
+                        tuple(int(v) for v in np.round(shift)), op=k)
+    raise ValueError(                           # pragma: no cover
+        "these two atoms are not in orbits of the same space group; "
+        "reduce the structure to P1 to bond them")
 
 
 def _find_atom(cell, frac, lattice, tol=1e-3):

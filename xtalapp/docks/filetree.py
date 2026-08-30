@@ -57,7 +57,11 @@ class FileTreeDock(QDockWidget):
         self.tree.setHeaderHidden(True)
         for column in range(1, self.model.columnCount()):
             self.tree.hideColumn(column)          # name only
-        self.tree.doubleClicked.connect(self._on_activated)
+        # `activated` is the platform's own "open this" gesture -- a
+        # double-click on macOS and Windows, a single click where the
+        # user has asked for that.  Connecting `doubleClicked` as well
+        # means both fire for the same gesture and the file opens
+        # twice.
         self.tree.activated.connect(self._on_activated)
 
         self.path_label = QLabel()

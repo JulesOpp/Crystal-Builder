@@ -203,6 +203,39 @@ class SpaceGroup:
         """Number of operations = maximum site multiplicity."""
         return len(self.operations)
 
+    def inverse_of(self, k: int) -> tuple[int, np.ndarray]:
+        """``(m, shift)`` such that ``op_m(op_k(x)) == x + shift``.
+
+        Operations form a group only *modulo lattice translations*, so
+        the inverse of one comes with the integer vector that closes
+        the loop.  Anything that has to read a relationship between two
+        atoms backwards needs this -- most of all a bond, which is the
+        same bond whichever end you name first.
+        """
+        table = self._cache.get("inverses")
+        if table is None:
+            table = self._build_inverses()
+            self._cache["inverses"] = table
+        return table[int(k)]
+
+    def _build_inverses(self) -> list:
+        ops = self.operations
+        out = []
+        for op in ops:
+            rot = np.linalg.inv(op.rot)
+            for m, candidate in enumerate(ops):
+                if not np.allclose(candidate.rot, rot, atol=1e-9):
+                    continue
+                shift = candidate.rot @ op.trans + candidate.trans
+                if np.allclose(shift, np.round(shift), atol=1e-9):
+                    out.append((m, np.round(shift).astype(int)))
+                    break
+            else:                                   # pragma: no cover
+                raise ValueError(
+                    f"{self.short_name} is not closed under inversion; "
+                    f"{op.triplet} has no inverse in the group")
+        return out
+
     @property
     def triplets(self) -> list[str]:
         """Operation triplets, as written in a CIF symmetry loop."""
@@ -251,3 +284,54 @@ class SpaceGroup:
 
     def __repr__(self) -> str:
         return f"SpaceGroup({self.short_name} #{self.number})"
+
+
+# ======================================================================
+#  THE TABLE
+# ======================================================================
+#
+# A picker needs the whole list, and the whole list is not 230 entries
+# -- it is every *setting* of every group, because P21/c and P21/n are
+# the same group seen down different axes and picking the wrong one
+# silently produces the wrong structure.  gemmi carries them all.
+
+def table() -> tuple[SpaceGroup, ...]:
+    """Every space-group setting, in number order."""
+    cached = _TABLE.get("all")
+    if cached is None:
+        cached = tuple(sorted(
+            (SpaceGroup(entry.hall)
+             for entry in gemmi.spacegroup_table() if entry.number),
+            key=lambda g: (g.number, g.hm)))
+        _TABLE["all"] = cached
+    return cached
+
+
+def search(text: str = "", groups=None) -> list[SpaceGroup]:
+    """Settings matching a typed query.
+
+    A number ("62"), a Hermann-Mauguin symbol with or without spaces
+    ("P21/c", "P 1 21/c 1"), a Hall symbol, or a crystal system
+    ("tetragonal") all work, because a user reaching for this dialog
+    knows the group by exactly one of those and should not have to
+    guess which.
+    """
+    groups = table() if groups is None else groups
+    query = text.strip().lower()
+    if not query:
+        return list(groups)
+    if query.isdigit():
+        number = int(query)
+        return [g for g in groups if g.number == number]
+    squashed = query.replace(" ", "")
+    out = []
+    for g in groups:
+        haystack = (f"{g.number} {g.hm} {g.short_name} {g.hall} "
+                    f"{g.crystal_system}").lower()
+        if query in haystack or squashed in haystack.replace(" ", ""):
+            out.append(g)
+    return out
+
+
+_TABLE: dict = {}
+

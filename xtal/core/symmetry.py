@@ -337,14 +337,29 @@ def _impose(structure, group, tol):
 def _match_atom(cell, target, element, occupancy, lattice, tol):
     """Index of the atom of ``cell`` sitting at ``target`` with the same
     species, or None."""
+    found = _nearest_atom(cell, target, element, occupancy, lattice,
+                          tol)
+    return None if found is None else found[0]
+
+
+def _nearest_atom(cell, target, element, occupancy, lattice, tol):
+    """(index, distance) of the closest atom of ``cell`` within ``tol``
+    of ``target`` and of the same species, or None.
+
+    The distance matters as well as the hit: it is how far a symmetry
+    operation had to move an atom to be believed, and at a loose
+    tolerance that is the number the user has to see.
+    """
     d = cell.frac - target
     d -= np.round(d)
     dist = np.linalg.norm(d @ lattice.matrix, axis=1)
+    best = None
     for k in np.flatnonzero(dist < tol):
         if (cell.elements[k] == element
-                and abs(cell.occupancy[k] - occupancy) < 1e-6):
-            return int(k)
-    return None
+                and abs(cell.occupancy[k] - occupancy) < 1e-6
+                and (best is None or dist[k] < best[1])):
+            best = (int(k), float(dist[k]))
+    return best
 
 
 def _find_clashes(cell, lattice, tol):
@@ -458,7 +473,12 @@ def asymmetrize(structure: Structure,
                     meta=dict(work.meta))
     out.ensure_labels()
 
-    ok, why = _regenerates(out, cell, MATCH_TOL)
+    # Verified at the tolerance the group was *found* at.  Checking a
+    # symprec of 0.05 against a fixed 1e-3 would reject every loose
+    # answer, which would make the tolerance control pointless: the
+    # whole premise of a loose search is that atoms are that far from
+    # their idealised positions.
+    ok, why, worst = _regenerates(out, cell, max(MATCH_TOL, symprec))
     if not ok:
         return structure, SymmetryReport(
             ok=False,
@@ -466,6 +486,10 @@ def asymmetrize(structure: Structure,
             warnings=["the structure is unchanged; reduce the tolerance "
                       "or work in P1"],
         )
+    if worst > MATCH_TOL:
+        notes.append(
+            f"imposing the group idealised the coordinates: atoms move "
+            f"by up to {worst:.4f} A")
     report = SymmetryReport(
         n_before=cell.n_atoms, n_after=len(sites),
         message=(f"{info.international} (#{info.number}): "
@@ -477,18 +501,24 @@ def asymmetrize(structure: Structure,
 
 
 def _regenerates(candidate: Structure, original: p1.P1Cell, tol: float):
-    """Does expanding ``candidate`` reproduce ``original``?"""
+    """Does expanding ``candidate`` reproduce ``original``?
+
+    Returns (ok, why, worst displacement in Angstrom).
+    """
     new = p1.expand(candidate)
     if new.n_atoms != original.n_atoms:
         return False, (f"expansion gives {new.n_atoms} atoms, "
-                       f"expected {original.n_atoms}")
+                       f"expected {original.n_atoms}"), 0.0
     lattice = candidate.lattice
+    worst = 0.0
     for k in range(new.n_atoms):
-        hit = _match_atom(original, new.frac[k], new.elements[k],
-                          new.occupancy[k], lattice, tol)
+        hit = _nearest_atom(original, new.frac[k], new.elements[k],
+                            new.occupancy[k], lattice, tol)
         if hit is None:
-            return False, "expanded atoms do not line up with the cell"
-    return True, ""
+            return (False,
+                    "expanded atoms do not line up with the cell", 0.0)
+        worst = max(worst, hit[1])
+    return True, "", worst
 
 
 # ======================================================================
