@@ -132,6 +132,62 @@ class AppSettings:
     def last_directory(self, value) -> None:
         self._q.setValue("last_directory", str(value))
 
+    # -- workspaces ----------------------------------------------------
+    #
+    # The workspace is remembered and reopened exactly as the last
+    # directory is.  What is *not* done is guessing one: a scratch
+    # folder cleaned on exit will one day throw away a six-hour run,
+    # and a folder chosen under ~/Library/Application Support is one
+    # nobody can find in Finder.  So the application asks once and
+    # remembers the answer.
+
+    @property
+    def last_workspace(self) -> str:
+        return str(self._q.value("workspace/last", "") or "")
+
+    @last_workspace.setter
+    def last_workspace(self, value) -> None:
+        if value:
+            self._q.setValue("workspace/last", str(value))
+        else:
+            self._q.remove("workspace/last")
+
+    def recent_workspaces(self) -> list[str]:
+        stored = self._q.value("workspace/recent", [])
+        if isinstance(stored, str):
+            stored = [stored]
+        return [p for p in (stored or []) if Path(p).is_dir()]
+
+    def add_recent_workspace(self, path) -> None:
+        path = str(Path(path).resolve())
+        paths = [p for p in self.recent_workspaces() if p != path]
+        paths.insert(0, path)
+        self._q.setValue("workspace/recent", paths[:MAX_RECENT])
+
+    @property
+    def auto_workspace(self) -> bool:
+        """Make a workspace beside a structure that is opened without
+        one.
+
+        Off.  A folder created behind somebody's back is one they find
+        later and do not recognise, and the application creating
+        directories next to every file anybody opens is worse than the
+        problem it solves.  With no workspace open a structure still
+        opens and still runs; what it does not do is leave anything
+        behind, and the status bar says so once rather than asking a
+        question the user has to dismiss on every file.
+        """
+        return _as_bool(self._q.value("workspace/auto", False))
+
+    @auto_workspace.setter
+    def auto_workspace(self, value) -> None:
+        self._q.setValue("workspace/auto", bool(value))
+
+    @property
+    def default_workspace_root(self) -> Path:
+        """What the New Workspace dialog suggests."""
+        return Path.home() / "Crystal Builder"
+
     # -- window state --------------------------------------------------
 
     def save_window(self, window) -> None:

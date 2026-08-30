@@ -38,7 +38,14 @@ from xtal.core import selection as sel
 from xtal.core.selection import Selection
 from xtal.core.structure import CHEMISTRY, Change
 from xtal.io import FORMATS, is_project, read_project, write_project
+from xtal.io.project import EXTENSION as PROJECT_EXTENSION
+from xtal.workspace import Workspace
+from xtalapp import playback
 from xtalapp.viewport.view_settings import ViewSettings
+
+
+class PlaybackActive(RuntimeError):
+    """An edit was attempted while a trajectory was being played."""
 
 
 class Document(QObject):
@@ -52,6 +59,8 @@ class Document(QObject):
     historyChanged = Signal()
     modifiedChanged = Signal(bool)
     titleChanged = Signal(str)
+    workspaceChanged = Signal()         # the entry this document is in
+    playbackChanged = Signal()          # a trajectory opened or closed
 
     def __init__(self, structure: Structure | None = None,
                  path=None, parent=None):
@@ -76,6 +85,12 @@ class Document(QObject):
         # ``AppSettings.bonds_follow_geometry``.  The window sets it
         # from the preference on every document it opens.
         self.bonds_follow_geometry = False
+        # The workspace entry this document's calculations land in,
+        # and the trajectory currently being played back.  Both are
+        # None until something puts one there; a document with neither
+        # is exactly the document this application had before.
+        self.entry = None
+        self.playback: playback.Playback | None = None
 
     # ==================================================================
     #  LOADING AND SAVING
@@ -92,19 +107,43 @@ class Document(QObject):
             document = cls(structure, path=path)
             document.view = ViewSettings.from_dict(view)
             document._restore_session(session)
-            return document
-        return cls(FORMATS.read(path), path=path)
+        else:
+            document = cls(FORMATS.read(path), path=path)
+        document.attach_workspace()
+        return document
 
-    def save_project(self, path) -> Path:
-        """Write the structure, the view and the session as one file.
+    def attach_workspace(self, entry=None) -> object | None:
+        """Bind this document to the workspace entry it lives in.
 
-        This does not become the document's path: a project is a
-        snapshot of a session, and Ctrl+S should keep meaning "write
-        the CIF I opened".
+        Found by looking *upwards* from the file rather than by
+        reading a path out of the project.  A workspace that was
+        moved, renamed or copied to another machine still answers, and
+        a stored absolute path would confidently be wrong -- which is
+        also why saving a project inside its own entry folder is what
+        the window offers.
         """
+        if entry is not None:
+            self.entry = entry
+        elif self._path is not None:
+            workspace = Workspace.find(self._path)
+            self.entry = (workspace.entry_for(self._path)
+                          if workspace is not None else None)
+        self.workspaceChanged.emit()
+        return self.entry
+
+    def write_project(self, path) -> Path:
+        """Write the structure, the view and the session as one file,
+        without adopting the path.  :meth:`save` is the one that
+        adopts."""
         return write_project(self._structure, Path(path),
                              view=self.view.to_dict(),
                              session=self.session())
+
+    # ``Save Project...`` used to be a third thing beside Save and
+    # Save As.  It is what Save now is, and the old name is kept
+    # pointing at the same behaviour so nothing that called it is
+    # silently writing a different file.
+    save_project = write_project
 
     def session(self) -> dict:
         """What is selected and what has been measured."""
@@ -146,20 +185,46 @@ class Document(QObject):
                 continue
 
     def save(self, path=None) -> Path:
+        """Save the session.  Always a project, never an export.
+
+        Save and Save As are about the *project*: the structure, the
+        bonds drawn by hand, the view, the selection, the measurements
+        and the atom-type overrides.  The extension is not a choice,
+        because the same command writing a whole session or throwing
+        most of it away depending on three characters after a dot is
+        not a command anybody can predict.  Writing a file for another
+        program is :meth:`export`, which never adopts a path and never
+        pretends to keep what a format cannot hold.
+        """
         target = Path(path) if path else self._path
         if target is None:
             raise ValueError("no path to save to")
-        FORMATS.write(self._structure, target)
+        target = Path(target).with_suffix(PROJECT_EXTENSION)
+        self.write_project(target)
         self._path = target
         self.stack.mark_clean()
         self._announce_modified()
         self.titleChanged.emit(self.title)
         return target
 
-    def export(self, path, **kwargs) -> Path:
-        """Write a copy somewhere without adopting it."""
-        FORMATS.write(self._structure, Path(path), **kwargs)
+    def export(self, path, selection_only: bool = False,
+               **kwargs) -> Path:
+        """Write a copy for something else to read.
+
+        One way, always: it never becomes the document's path, never
+        clears the modified flag, and never pretends the format kept
+        what it has nowhere to put.
+        """
+        FORMATS.write(self.exportable(selection_only), Path(path),
+                      **kwargs)
         return Path(path)
+
+    def exportable(self, selection_only: bool = False) -> Structure:
+        """What an export would write."""
+        if not selection_only:
+            return self._structure
+        return sel.substructure(self._structure, self.cell,
+                                self.selection.atoms)
 
     # ==================================================================
     #  STRUCTURE
@@ -195,6 +260,77 @@ class Document(QObject):
         self.titleChanged.emit(self.title)
 
     # ==================================================================
+    #  PLAYBACK
+    # ==================================================================
+    #
+    # A trajectory open against this document puts it into a preview
+    # state: the atoms show a frame, the history is untouched, and
+    # edits are refused rather than silently lost at the next frame.
+
+    @property
+    def is_playing(self) -> bool:
+        return self.playback is not None
+
+    def open_trajectory(self, trajectory, path=None):
+        """Start playing a trajectory against this structure."""
+        self.playback = playback.open_playback(self._structure,
+                                               trajectory, path)
+        self.playbackChanged.emit()
+        self.show_frame(0)
+        return self.playback
+
+    def show_frame(self, index: int):
+        """Draw one frame.  A preview, and nothing more."""
+        if self.playback is None:
+            return None
+        self.playback.index = self.playback.clamp(index)
+        self.preview_positions(
+            self.playback.frac_at(self.playback.index,
+                                  self._structure.lattice))
+        return self.playback.frame
+
+    def close_playback(self, restore: bool = True) -> None:
+        """Leave playback, putting the atoms back where they were.
+
+        ``restore=False`` is for the caller that has just adopted a
+        frame: the geometry on screen is then the one it committed,
+        and putting the old one back would undo the command that was
+        the whole point of the gesture.
+        """
+        if self.playback is None:
+            return
+        before = self.playback.before
+        self.playback = None
+        if restore and before is not None:
+            self.preview_positions(before)
+        self.playbackChanged.emit()
+
+    def adopt_frame(self) -> str:
+        """Keep the frame on screen, as one undoable edit.
+
+        The way out of playback that keeps something.  It pushes the
+        same command an optimisation pushes, so undo afterwards gives
+        back the geometry the user was on before they started
+        watching -- not the previous frame.
+        """
+        if self.playback is None:
+            raise ValueError("no trajectory is open")
+        from xtal.commands import ff as ff_commands
+        frame = self.playback.index + 1
+        frac = self.playback.frac_at(self.playback.index,
+                                     self._structure.lattice)
+        before = self.playback.before
+        self.close_playback(restore=False)
+        command = ff_commands.ApplyOptimizedGeometry(
+            frac, label=f"Adopt frame {frame}", before=before)
+        moved = command.displacement(self._structure)
+        if moved < 1e-9:
+            return "that frame is the geometry you already had"
+        self.run(command)
+        return (f"adopted frame {frame}; the furthest atom moved "
+                f"{moved:.3f} A")
+
+    # ==================================================================
     #  COMMANDS
     # ==================================================================
 
@@ -202,7 +338,18 @@ class Document(QObject):
         """Run a command and announce what it changed.
 
         This is the only way the application changes a structure.
+
+        A document playing a trajectory back refuses: the atoms are
+        showing a frame, so an edit made against them would be an edit
+        of somebody else's geometry, and it would be wiped by the next
+        frame.  The window disables the editing actions while a
+        trajectory is open, and this is the backstop that makes that a
+        rule rather than a habit.
         """
+        if self.playback is not None:
+            raise PlaybackActive(
+                "this document is playing a trajectory back; adopt "
+                "the frame or close the trajectory before editing")
         self.stack.push(command, self)
         self._after_change(command.change)
         return command

@@ -189,7 +189,44 @@ def cmd_energy(args) -> int:
     print()
     print(f"max force      {result.max_force:.5f} kcal/mol/A")
     print(f"rms force      {result.rms_force:.5f} kcal/mol/A")
+
+    recorder = _recorder(args, structure, calculator, "single-point")
+    if recorder is not None:
+        recorder.energies(result, "Energy")
+        recorder.log.write(
+            f"max force      {result.max_force:.5f} kcal/mol/A")
+        recorder.log.write(
+            f"rms force      {result.rms_force:.5f} kcal/mol/A")
+        recorder.close()
+        print(f"wrote {recorder.folder.path}")
     return 0
+
+
+def _recorder(args, structure, calculator, kind: str):
+    """A run folder in the workspace, when one was asked for.
+
+    ``--workspace`` makes the CLI write exactly what the window writes
+    -- the same folder, the same three files, the same log -- so a run
+    started from a script is one the window can open.  Without it the
+    CLI prints and writes nothing but ``--output``, which is what a
+    pipeline wants.
+    """
+    if not getattr(args, "workspace", None):
+        return None
+    from xtal.ff.record import RunRecorder
+    from xtal.workspace import Workspace
+
+    workspace = Workspace.create(args.workspace)
+    entry = workspace.add_structure(args.file)
+    folder = entry.next_run(args.engine, kind)
+    recorder = RunRecorder(
+        folder, structure, calculator, engine=args.engine,
+        options={"coulomb": args.coulomb, "charges": args.charges},
+        record_trajectory=(kind == "optimise"))
+    recorder.header(kind.replace("-", " "))
+    recorder.typing()
+    recorder.topology()
+    return recorder
 
 
 def cmd_optimize(args) -> int:
@@ -197,11 +234,16 @@ def cmd_optimize(args) -> int:
 
     structure = _load(args.file)
     calculator = _calculator(structure, args)
+    recorder = _recorder(args, structure, calculator, "optimise")
     print(calculator.summary())
     print()
     print("step          energy            max force")
+    if recorder is not None:
+        recorder.begin_steps()
 
     def trace(step):
+        if recorder is not None:
+            recorder.step(step)
         if args.quiet:
             return True
         print(step.line())
@@ -218,11 +260,14 @@ def cmd_optimize(args) -> int:
         print("note: the geometry is where the optimiser stopped, not "
               "a minimum", file=sys.stderr)
 
+    for site, frac in zip(structure.sites, result.frac, strict=True):
+        site.frac = frac
+    structure.touch()
+    if recorder is not None:
+        recorder.result(result, final=structure)
+        recorder.close()
+        print(f"wrote {recorder.folder.path}")
     if args.output:
-        for site, frac in zip(structure.sites, result.frac,
-                              strict=True):
-            site.frac = frac
-        structure.touch()
         FORMATS.write(structure, args.output)
         print(f"wrote {args.output}")
     return 0 if result.converged else 2
@@ -307,6 +352,11 @@ def build_parser() -> argparse.ArgumentParser:
                        choices=["site", "qeq", "zero"],
                        help="where charges come from when "
                             "electrostatics are on")
+        p.add_argument("--workspace", metavar="DIR",
+                       help="write the run into a workspace: a run "
+                            "folder with the log, the trajectory and "
+                            "the final structure, in the layout the "
+                            "application reads")
         if name == "optimize":
             p.add_argument("-o", "--output",
                            help="write the relaxed structure here")

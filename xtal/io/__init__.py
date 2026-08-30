@@ -19,7 +19,21 @@ from xtal.io.project import (
     write_project,
 )
 from xtal.io.registry import FORMATS, Format, FormatRegistry
-from xtal.io.xyz import read_xyz, read_xyz_string, write_xyz, xyz_string
+from xtal.io.trajectory import (
+    Frame,
+    Trajectory,
+    TrajectoryWriter,
+    frame_of,
+    read_trajectory,
+    write_trajectory,
+)
+from xtal.io.xyz import (
+    read_xyz,
+    read_xyz_all,
+    read_xyz_string,
+    write_xyz,
+    xyz_string,
+)
 
 FORMATS.register(Format(
     name="cif",
@@ -47,11 +61,16 @@ FORMATS.register(Format(
     description="Extended XYZ",
     extensions=(".xyz", ".extxyz"),
     read=read_xyz,
+    # A relaxation is a hundred frames in one file, and reading only
+    # the first of them silently answers a different question.
+    read_all=read_xyz_all,
     write=write_xyz,
     keeps=frozenset({"occupancy"}),
 ))
 
 __all__ = ["FORMATS", "Format", "FormatRegistry", "read_cif",
            "read_cif_all", "read_cif_string", "write_cif", "cif_string",
-           "read_xyz", "read_xyz_string", "write_xyz", "xyz_string",
-           "read_project", "write_project", "is_project"]
+           "read_xyz", "read_xyz_all", "read_xyz_string", "write_xyz",
+           "xyz_string", "read_project", "write_project", "is_project",
+           "Frame", "Trajectory", "TrajectoryWriter", "frame_of",
+           "read_trajectory", "write_trajectory"]

@@ -86,6 +86,8 @@ class ForceFieldDock(QDockWidget):
 
     statusMessage = Signal(str)
     previewIntervalChanged = Signal(int)    # ms; 0 every step, -1 never
+    runStarted = Signal(str)                # the run folder's path
+    runFinished = Signal(str)               # the run folder's path
 
     def __init__(self, parent=None):
         super().__init__("Force Field", parent)
@@ -94,6 +96,7 @@ class ForceFieldDock(QDockWidget):
         self.worker: OptimizationWorker | None = None
         self._thread = None
         self._before: np.ndarray | None = None
+        self._recorder = None
 
         self.engine = QComboBox()
         for engine in ENGINES:
@@ -362,6 +365,34 @@ class ForceFieldDock(QDockWidget):
     def is_running(self) -> bool:
         return self.worker is not None and self.worker.is_running
 
+    def _open_run(self, kind: str, calculator):
+        """A run folder in the workspace, when the document has one.
+
+        A document with no workspace entry still runs; it just leaves
+        nothing behind, which is exactly what this application did
+        before there was anywhere to leave it.  The panel says so once
+        rather than silently doing less than the user expects.
+        """
+        document = self.document
+        entry = getattr(document, "entry", None)
+        if entry is None:
+            return None
+        from xtal.ff.record import RunRecorder
+        try:
+            folder = entry.next_run(self.engine_name(), kind)
+            recorder = RunRecorder(
+                folder, document.structure, calculator,
+                engine=self.engine_name(), options=self.options(),
+                record_trajectory=(kind == "optimise"))
+            recorder.header(kind.replace("-", " "))
+            recorder.typing()
+            recorder.topology()
+        except OSError as exc:
+            self.statusMessage.emit(
+                f"could not write into the workspace: {exc}")
+            return None
+        return recorder
+
     def single_point(self) -> None:
         if self.document is None:
             return
@@ -372,6 +403,15 @@ class ForceFieldDock(QDockWidget):
             self.report.setPlainText(f"could not compute: {exc}")
             self.statusMessage.emit(str(exc))
             return
+        recorder = self._open_run("single-point", calculator)
+        if recorder is not None:
+            recorder.energies(result, "Energy")
+            recorder.log.write(f"max force      {result.max_force:.5f} "
+                               f"kcal/mol/A")
+            recorder.log.write(f"rms force      {result.rms_force:.5f} "
+                               f"kcal/mol/A")
+            recorder.close()
+            self.runFinished.emit(str(recorder.folder.path))
         self.report.setPlainText(
             f"{calculator.summary()}\n\n{result.breakdown()}\n\n"
             f"max force  {result.max_force:.5f} kcal/mol/A\n"
@@ -419,12 +459,25 @@ class ForceFieldDock(QDockWidget):
             return
 
         self.plot.clear()
+        self.plot.set_marker(None)
         self.report.setPlainText(
             f"{calculator.summary()}\n\nrunning...")
+        self._recorder = self._open_run("optimise", calculator)
+        if self._recorder is not None:
+            self._recorder.log.write(
+                f"optimiser      {self.method.currentData()}, "
+                f"max {self.max_steps.value()} steps, converge below "
+                f"{self.tolerance.value()} kcal/mol/A")
+            if frozen:
+                self._recorder.log.write(
+                    f"frozen         {len(frozen)} site(s)")
+            self._recorder.log.blank()
+            self.runStarted.emit(str(self._recorder.folder.path))
         self.worker = OptimizationWorker(
             calculator, working, method=self.method.currentData(),
             frozen=frozen, max_steps=self.max_steps.value(),
-            force_tolerance=self.tolerance.value())
+            force_tolerance=self.tolerance.value(),
+            recorder=self._recorder)
         self.worker.stepped.connect(self._on_step)
         self.worker.finished.connect(self._on_finished)
         self.worker.failed.connect(self._on_failed)
@@ -486,6 +539,7 @@ class ForceFieldDock(QDockWidget):
                         for k, v in sorted(result.terms.items(),
                                            key=lambda kv: -abs(kv[1]))))
         self.statusMessage.emit(message)
+        self._close_run(result, document.structure)
         self.worker = None
         # Refresh first, then have the last word: refreshing rewrites
         # the note from the typing, and doing it afterwards would wipe
@@ -497,12 +551,45 @@ class ForceFieldDock(QDockWidget):
                 "geometry is where it got to and not a minimum. Run "
                 "it again to carry on. " + self.notes.text())
 
+    def _close_run(self, result, final) -> None:
+        """Finish the log and say where it went.
+
+        The final structure is written from the document rather than
+        from the worker's copy: it is the geometry the user is looking
+        at, and the one the command that just landed put there.
+        """
+        recorder = self._recorder
+        if recorder is None:
+            return
+        if self.worker is not None and self.worker.recording_failed:
+            self.statusMessage.emit(
+                f"the run was not fully recorded: "
+                f"{self.worker.recording_failed}")
+            recorder.warn(f"recording stopped: "
+                          f"{self.worker.recording_failed}")
+        try:
+            if result is None:
+                recorder.failed("the optimisation failed")
+            else:
+                recorder.result(result, final=final)
+        except OSError as exc:                      # pragma: no cover
+            self.statusMessage.emit(f"could not finish the log: {exc}")
+        recorder.close()
+        self._recorder = None
+        self.runFinished.emit(str(recorder.folder.path))
+
     def _on_failed(self, message: str) -> None:
         self._set_running(False)
         if self.document is not None and self._before is not None:
             self.document.preview_positions(self._before)
         self.report.setPlainText(f"the optimisation failed: {message}")
         self.statusMessage.emit(f"optimisation failed: {message}")
+        if self._recorder is not None:
+            self._recorder.failed(message)
+            self._recorder.close()
+            path = str(self._recorder.folder.path)
+            self._recorder = None
+            self.runFinished.emit(path)
         self.worker = None
 
     def closeEvent(self, event):                    # pragma: no cover

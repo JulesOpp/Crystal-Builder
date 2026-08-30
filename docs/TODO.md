@@ -363,6 +363,41 @@ model, every ordering model, and every displacive phase transition.
   fourth generator and was never found.  Sound after the reduction,
   a starting point before it.
 
+### Merge duplicates never looks at the symmetry
+
+`Ni2Cl2BTDD.cif` is the case that shows it.  The CIF was written with
+a full cell's worth of coordinates under `H-3m`, so `C1` and `C1X` are
+the same carbon written twice -- and `Structure ▸ Merge duplicate
+sites` reports "no duplicates found" at every tolerance.
+
+* `symmetry.merge_duplicates` compares the fractional coordinates of
+  the asymmetric-unit sites **directly**, so it only ever finds sites
+  that were written on top of each other.  `C1` and `C1X` are 7.2 A
+  apart as written; the closest *image* of `C1` is 2e-5 A from `C1X`,
+  which is what makes them the same atom.  The comparison has to be
+  against the orbit, not against the parent: expand the sites kept so
+  far and ask whether the candidate lands on any of their images.
+* The scale of what is being missed is worth stating.  Expanding that
+  file gives 1188 atoms in the cell, of which 2150 pairs are within
+  half an Angstrom of each other -- the structure is several complete
+  copies of itself, and every derived number computed from it (the
+  formula, the density, the energy) is wrong by that factor without
+  anything on screen saying so.
+* **A tolerance control.**  The function already takes `tol` and
+  defaults to 0.05 A; the menu item calls it with the default and
+  offers no way to change it.  Experimental coordinates from a
+  refinement that placed the same atom twice are rarely closer than
+  that, so the setting that matters most is not reachable.  A small
+  dialog with the tolerance and the count it would merge beside it --
+  the same shape as the bond-rules dialog's radius factor -- is what
+  this needs, because the right tolerance is a property of the file
+  and not of the application.
+* Merging by orbit has a consequence to get right: the site that is
+  kept must be the one whose Wyckoff position is the more special, or
+  the multiplicity of what is kept changes the formula.  Keeping the
+  first site written is right when both are general and wrong when one
+  of them sits on the axis.
+
 ### Invert the structure
 
 P4_1 and P4_3 are the same crystal in the two hands, and there is no
@@ -500,186 +535,30 @@ code the panel never explains.
 
 ## Files and calculations
 
-### Save As saves a project; Export writes a structure
+### The same file can be opened twice at once
 
-The File menu offers Save, Save As..., Save Project..., Export as P1
-CIF... and Export Image..., and nothing on screen says how the first
-three differ.  `Save As` dispatches on the extension the user typed:
-`.cif` writes a CIF, `.xtalproj` writes a project, `.xyz` writes an
-XYZ.  So the same command either keeps a whole working session or
-throws most of it away, and which one happened depends on three
-characters after a dot.
+Opening a file that is already open gives a second tab over the same
+bytes, and from then on there are two documents with two undo stacks
+editing what the user thinks is one structure.  Whichever is saved
+last wins and the other one's work is gone, with nothing having said
+so.
 
-The split to settle on:
-
-* **Save and Save As are about the project.**  They write
-  `.xtalproj` -- the structure, the bonds drawn by hand, the view, the
-  selection, the measurements, the atom-type overrides, and (below) the
-  calculations that have been run against it.  The extension is not a
-  choice, and `Save Project...` disappears because that is what Save
-  now is.
-* **Export is about producing a file for something else.**  It never
-  becomes the document's path, never clears the modified flag, and
-  never pretends to keep what the format cannot hold.  A CIF, an XYZ, a
-  POSCAR, an image: all of them one-way.
-* `Document.save` and `Document.export` are already two methods that
-  already differ in exactly this way -- `save` adopts the path and
-  marks the document clean, `export` does neither.  The work is which
-  one each menu item calls, not new machinery.
-* It is a behaviour change for anyone who has been opening a CIF and
-  pressing Ctrl+S, so make it visible rather than silent: opening
-  `MFU4l.cif` and saving offers `MFU4l.xtalproj` beside it, and says
-  that the CIF has not been touched and `File ▸ Export` is how to write
-  one back.
-* The one thing lost is the quick round trip "open a CIF, nudge an
-  atom, save the CIF".  Export with the last-used settings on a
-  shortcut (`Ctrl+Shift+E` is taken by Optimise; `Ctrl+E` is Single
-  point -- both are worth revisiting) gives it back without blurring
-  what Save means.
-
-### File ▸ Export...
-
-One dialog, replacing `Export as P1 CIF...` and eventually absorbing
-`Export Image...`.
-
-* The format list comes from `FORMATS.writable()`, so `xtal/io` stays
-  the only place a format is declared and a new writer appears in the
-  dialog by being registered.
-* Per-format options underneath the picker.  CIF gets the pair that
-  prompted this: **with symmetry** (the asymmetric unit plus the
-  operations) or **P1** (every atom written out).  Both already work --
-  `cif_writer.write_cif` takes `expand_to_p1` -- and only one of them is
-  reachable from the menu today.
-* **Say what the format drops.**  `Format.keeps` exists for this and
-  nothing reads it: a line under the picker, computed from the set,
-  reading "XYZ keeps occupancy; symmetry, bonds and charges are not
-  written".  Exporting a partially occupied structure to a format with
-  nowhere to put the occupancies should not be a silent loss.
-* A "selection only" checkbox.  "Export just this molecule" is the
-  second thing anybody wants after "export this".
-* Designed so that the formats named in [docs/PLAN.md](PLAN.md) -- VASP
-  POSCAR, SHELX `.res`, PDB, the `.gen` DFTB+ wants and the `.cssr`
-  Zeo++ wants -- are each one module plus one registration line and no
-  change here.
-
-### A working folder, and the calculations underneath the structure
-
-Opening `MFU4l.cif` shows one file in a tree rooted at whatever folder
-it came from.  Running an optimisation produces a trajectory, a log and
-a final structure, and all three exist only inside the panel until the
-window closes.  There is nothing that says *this run belongs to that
-structure*, and nothing on disk to go back to.
-
-What is wanted: opening a file creates a **workspace** for it, and
-every calculation run against it lands underneath it.
-
-```
-MFU4l                            the structure, as opened
-├── MFU4l.cif                    a copy, so the workspace is whole
-├── uff-optimise-001
-│   ├── final.cif                the relaxed structure
-│   ├── trajectory.extxyz        every step
-│   └── run.log                  what happened, in order
-└── uff-single-point-002
-    └── run.log
-```
-
-* The current `FileTreeDock` is a `QFileSystemModel` filtered to
-  structure extensions.  It cannot express "this run belongs to that
-  structure", so this replaces it with a real model over a `Workspace`
-  object rather than over a directory listing.  Keep a "browse the
-  filesystem" mode beside it -- opening a file from somewhere else is
-  still how everything starts.
-* Copy the opened file into the workspace rather than referencing it.
-  A workspace that points at a file the user then edits or moves is a
-  tree full of broken nodes; the copy costs kilobytes and the original
-  path goes in `structure.meta["source"]`.
-* **The user picks the workspace, and the application never guesses.**
-  A scratch folder cleaned on exit will one day throw away a six-hour
-  run; a folder chosen for the user somewhere under
-  `~/Library/Application Support` is a folder they cannot find from
-  Finder when they want the trajectory.  So: an explicit workspace,
-  chosen by the user, the way a project directory is chosen in every
-  other piece of scientific software.
-  * `File ▸ Open Workspace...` and `File ▸ New Workspace...`, a
-    workspace switcher in the tree's header, and a recent-workspaces
-    list beside the recent-files one.
-  * On first run, ask once and remember -- a default suggestion of
-    `~/Crystal Builder` in the dialog, not silently created behind
-    their back.
-  * Opening a structure with no workspace open offers to make one
-    beside the file, which is the answer nine times out of ten.
-  * A workspace is a plain directory with a small `workspace.json` at
-    its root naming the format version and nothing else.  Nothing
-    inside it is hidden, everything in it is a real file with a real
-    name, and deleting the folder in Finder is a supported way to
-    clean up.
-  * `AppSettings` remembers the last workspace and reopens it, exactly
-    as it remembers the last directory today.
-* Clicking a node opens the right thing: a structure in a viewport tab,
-  a trajectory in a viewport with a transport bar, a log in a text
-  view.  That dispatch is a small registry keyed on what the artefact
-  is, not on its extension, because a `.cif` that is a run's output and
-  a `.cif` that is the input want the same viewer but different
-  labelling.
-* The run folders are written by the module that ran, not by the tree
-  -- so the CLI produces the identical layout, and a run started from a
-  script is openable in the window.  That means the writing belongs in
-  `xtal`, and only the tree belongs in `xtalapp`.
-
-### Play the trajectory back
-
-The optimiser produces a frame per step, the panel draws each one and
-throws it away, and when the run ends the only thing left is the final
-geometry.  Watching the relaxation again -- which is how anyone works
-out *why* it went somewhere odd -- is impossible.
-
-* `OptimizationWorker` already receives every `Step`; it keeps
-  `(iteration, energy, max_force)` and drops `step.frac`.  Write the
-  frames out as they arrive rather than holding them: 5184 sites is
-  124 kB a frame and 200 steps is 25 MB, which is fine on disk and not
-  fine in a signal queue.
-* Multi-frame extended XYZ, with the cell and the energy on each
-  comment line.  `xtal/io/xyz.py` writes single frames already.
-  Choosing extxyz rather than an invented format means the trajectory
-  opens in OVITO, VMD and ASE without a converter, which is most of
-  what a trajectory is for.
-* Playback is a transport bar under the viewport -- play, pause, step,
-  a frame slider, a speed control -- driving `Document.preview_positions`,
-  which exists for exactly this, already avoids the undo stack and
-  already avoids marking the document modified.
-* Tie it to the energy plot: clicking a point on the trace jumps to
-  that frame.  The plot and the trajectory are the same run seen two
-  ways and should behave like it.
-* **A frame is not an editable structure.**  Scrubbing while an edit is
-  half-made loses the edit at the next frame.  Playback should put the
-  document into a preview state that refuses edits, with an explicit
-  "adopt this frame" command -- the same `ApplyOptimizedGeometry` the
-  panel already pushes -- as the way out of it.
-* Once a trajectory is a thing the application can open, a trajectory
-  from somewhere else opens too: an ASE run, a DFTB+ MD, a LAMMPS dump
-  converted to extxyz.  That is worth having for its own sake.
-
-### Show the log
-
-Nothing is written down.  The report `QTextEdit` in the Force Field
-panel is cleared on the next run, and the reasons behind every typing
-decision -- which the typer computes and the panel shows -- are gone
-with it.
-
-* Every module writes `run.log` into its own run folder, as it goes,
-  and the tree shows it.  Selecting it opens a read-only monospaced
-  viewer that tails the file while the run is live.
-* What it has to contain to be worth keeping three months later: the
-  version, the engine and every option it was given, the full typing
-  table with the confidence and the *reason* for each assignment, the
-  topology counts, the per-step line (`Step.line()` already formats
-  it), and the per-term energy breakdown at the start and at the end.
-* Warnings go in it, in place, rather than only into a status bar
-  message that lasted four seconds.
-* This is also what makes a result defensible.  "Why is this number
-  what it is" is answered by a text file next to the structure, and by
-  nothing else.
+* The test is the resolved path -- same location *and* same name --
+  and not the file name alone: `data/a/MFU4l.cif` and
+  `data/b/MFU4l.cif` are two different crystals that happen to share a
+  name, and refusing to open the second would be worse than the bug.
+  `Path.resolve()` also settles the symlink and the `/var` versus
+  `/private/var` cases, which are the same file spelled two ways.
+* What to do about it is to raise the tab that already has it, and say
+  so in the status bar.  Not a dialog: the user asked to see that
+  file, and showing it to them is the answer.
+* It belongs in `MainWindow.open_path`, which is the one door every
+  route in goes through -- the Open dialog, the recent list, the
+  workspace tree, drag and drop, and the command line.
+* The one case that is genuinely two documents is a file opened, then
+  changed on disk by something else, then opened again to compare.
+  That is rare enough to want an explicit "Open a second copy" rather
+  than to be the default.
 
 ## Modules
 

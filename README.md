@@ -24,8 +24,10 @@ what is wanted but not yet scheduled.
       core/     lattice, sites, space groups, structure,
                 symmetry, P1 expansion, neighbours, bonding,
                 supercells, measurement, properties
-      io/       CIF, extended XYZ and .xtalproj projects,
-                format registry
+      io/       CIF, extended XYZ (single frame and trajectory)
+                and .xtalproj projects, format registry
+      workspace.py  the workspace layout and the run folders a
+                calculation leaves behind
       cli.py    the `xtal` command line
       commands/ undoable mutations: the stack, atom/bond/cell/
                 symmetry commands, the clipboard fragment
@@ -36,8 +38,8 @@ what is wanted but not yet scheduled.
       analysis/ RDF, coordination, later PXRD    (phase 9)
     xtalapp/    the PySide6 + VTK application
       viewport/ scene model, builder, draw styles, VTK, the widget
-      docks/    file tree, inspector, sites, style, measure,
-                force field
+      docks/    workspace tree, inspector, sites, style, measure,
+                force field, log viewer, transport bar
       document.py, mainwindow.py, actions.py, settings.py
       workers.py, plot.py   long jobs off the GUI thread
     tests/      headless test suite
@@ -134,14 +136,54 @@ click is the whole of the choice between them, and every measurement is
 minimum-image aware, so one taken across the cell boundary follows the
 bond rather than the long way round the box.
 
-*File → Save Project* writes a `.xtalproj`: the structure, how you were
-looking at it, what was selected and what you had measured.  It is a
-zip of a CIF and three small JSON files, so it stays readable and
-diffable, and it is the only format that keeps the bonds -- both the
-perceived graph, so a structure comes back with the bonds you last
-recalculated rather than whatever its geometry now implies, and the
-ones you drew by hand, which are (site, site, symmetry operation,
-lattice translation) and which no CIF tag expresses.
+**Save is about the session; Export is about producing a file for
+something else.**  *File → Save* writes a `.xtalproj`: the structure,
+how you were looking at it, what was selected, what you had measured,
+and the calculations run against it.  It is a zip of a CIF and three
+small JSON files, so it stays readable and diffable, and it is the
+only format that keeps the bonds -- both the perceived graph, so a
+structure comes back with the bonds you last recalculated rather than
+whatever its geometry now implies, and the ones you drew by hand,
+which are (site, site, symmetry operation, lattice translation) and
+which no CIF tag expresses.  *File → Export* is one way: it never
+becomes the document's file, and it says what the format drops before
+it writes it ("XYZ keeps occupancy; symmetry, bonds and charges are
+not written").
+
+**A workspace is where calculations land.**  Point *File → New
+Workspace* at an ordinary folder and every structure opened gets a
+folder of its own inside it, with a copy of the file so the workspace
+is whole; every run then lands underneath the structure it was run
+against:
+
+    MFU4l/
+      MFU4l.cif                a copy, so the workspace is whole
+      MFU4l.xtalproj           the session, saved beside it
+      uff-optimise-001/
+        final.cif              the relaxed structure
+        trajectory.extxyz      every step
+        run.log                what happened, in order
+
+Nothing in it is hidden and nothing needs this application to read it
+-- the trajectory opens in OVITO, VMD and ASE, the log is a text file,
+and deleting the folder in Finder is a supported way to clean up.  The
+run folders are written by the module that ran, not by the tree that
+shows them, so `xtal optimize structure.cif --workspace DIR` produces
+the identical layout from a script.
+
+Clicking a node in the tree opens it as what it *is*.  A **trajectory**
+opens a transport bar under the viewport -- play, loop, step, scrub, a
+speed control -- and clicking the energy trace jumps to that frame,
+because the plot and the trajectory are the same run seen two ways.  A
+frame is not an editable structure: playback puts the document into a
+preview state that refuses edits, with *Adopt this frame* as the one
+way out that keeps a geometry, as a single undoable command.  A
+**log** opens a monospaced viewer that tails the file while the run is
+still writing it, and what it contains is what makes a result
+defensible three months later: the version, the engine and every
+option, the full typing table with the reason for each assignment, the
+topology counts, a line per step, and the per-term energy breakdown at
+both ends.
 
 The *Calculate* menu and the **Force Field** panel put an energy on the
 structure.  The panel leads with the thing that decides whether that

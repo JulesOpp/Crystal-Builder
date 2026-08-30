@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import math
 
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
@@ -31,6 +31,7 @@ MARGIN = 52        # room on the left for the tick labels
 PADDING = 5        # top and bottom
 GAP = 14           # between the two boxes
 ENERGY_SHARE = 0.6
+MARKER_COLOR = QColor(120, 120, 120)
 
 
 def _tick(value: float) -> str:
@@ -52,11 +53,25 @@ def _tick(value: float) -> str:
 
 
 class TracePlot(QWidget):
-    """Energy and maximum force against optimisation step."""
+    """Energy and maximum force against optimisation step.
+
+    Also the way into a trajectory.  The plot and the frames are the
+    same run seen two ways, so clicking a point emits the step it
+    belongs to (:attr:`pointClicked`) and the frame being played is
+    drawn on it as a marker.  "Why did it go there" is a question
+    asked at a kink in the energy, and the kink is the fastest way to
+    reach the geometry that caused it.
+    """
+
+    pointClicked = Signal(int)          # the step nearest the click
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.history: list[tuple[int, float, float]] = []
+        self.marker: int | None = None
+        # The step axis as it was last painted, so a click can be
+        # turned back into a step without recomputing the layout.
+        self._axis_map: tuple | None = None
         self.setMinimumHeight(150)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
@@ -70,7 +85,33 @@ class TracePlot(QWidget):
 
     def clear(self) -> None:
         self.history = []
+        self.marker = None
         self.update()
+
+    def set_marker(self, step: int | None) -> None:
+        """Draw a line at one step -- the frame being played."""
+        if step != self.marker:
+            self.marker = step
+            self.update()
+
+    # -- clicking ------------------------------------------------------
+
+    def step_at(self, x: float) -> int | None:
+        """The step of the plotted point nearest an x position."""
+        if not self.history or self._axis_map is None:
+            return None
+        left, width, first, span = self._axis_map
+        if width <= 0:
+            return None                             # pragma: no cover
+        wanted = first + (x - left) / width * span
+        return min((h[0] for h in self.history),
+                   key=lambda s: abs(s - wanted))
+
+    def mousePressEvent(self, event) -> None:
+        step = self.step_at(event.position().x())
+        if step is not None:
+            self.pointClicked.emit(int(step))
+        super().mousePressEvent(event)
 
     # -- painting ------------------------------------------------------
 
@@ -110,6 +151,7 @@ class TracePlot(QWidget):
                     [math.log10(f) for f in forces], FORCE_COLOR,
                     log=True)
 
+        self._marker(painter, energy_box, force_box, steps)
         self._label(painter, energy_box, "energy", ENERGY_COLOR,
                     f"{energies[-1]:.4f} kcal/mol")
         self._label(painter, force_box, "|F|max", FORCE_COLOR,
@@ -121,6 +163,22 @@ class TracePlot(QWidget):
         painter.setPen(pen)
         painter.drawRect(box)
 
+    def _marker(self, painter, energy_box, force_box, steps) -> None:
+        """A vertical line at the frame being played."""
+        if self.marker is None or self._axis_map is None:
+            return
+        left, width, first, span = self._axis_map
+        if not (steps[0] <= self.marker <= steps[-1]):
+            return
+        x = left + width * (self.marker - first) / span
+        pen = QPen(MARKER_COLOR)
+        pen.setWidth(1)
+        pen.setStyle(Qt.DashLine)
+        painter.setPen(pen)
+        for box in (energy_box, force_box):
+            painter.drawLine(QPointF(x, box.top()),
+                             QPointF(x, box.bottom()))
+
     def _trace(self, painter, box, steps, values, color,
                log: bool) -> None:
         low, high = min(values), max(values)
@@ -131,6 +189,7 @@ class TracePlot(QWidget):
 
         first, last = steps[0], steps[-1]
         span = max(last - first, 1)
+        self._axis_map = (box.left(), box.width(), first, span)
         points = [
             QPointF(
                 box.left() + box.width() * (s - first) / span,

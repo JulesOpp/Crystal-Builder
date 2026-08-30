@@ -27,6 +27,8 @@ from xtal.core.spacegroup import SpaceGroup
 from xtal.core.structure import Structure
 
 PAD = 5.0                       # Angstrom of vacuum for cell-less files
+_NO_LATTICE = (f"no Lattice= in the comment line; atoms were placed "
+               f"in a padded box with {PAD:g} A of vacuum")
 _LATTICE_RE = re.compile(r'Lattice\s*=\s*"([^"]*)"')
 
 
@@ -56,6 +58,54 @@ def xyz_string(structure: Structure, comment: str = "") -> str:
 
 def read_xyz(path) -> Structure:
     return read_xyz_string(Path(path).read_text(), name=str(path))
+
+
+def read_xyz_all(path) -> list[Structure]:
+    """Every frame of a multi-frame file, as structures.
+
+    This is what makes ``FORMATS.read_all`` honest about a trajectory:
+    a relaxation written by this application, or by ASE or LAMMPS, is a
+    hundred XYZ frames in one file, and reading only the first of them
+    silently answers a different question.  Playback wants
+    :func:`xtal.io.trajectory.read_trajectory` instead, which keeps the
+    energies and does not build a structure per frame.
+    """
+    from xtal.io.trajectory import read_frames
+
+    path = Path(path)
+    out = []
+    for index, frame in enumerate(read_frames(path.read_text())):
+        if frame.lattice is not None:
+            structure = frame.to_structure()
+        else:
+            lattice, cart = _padded_box(frame.cart)
+            structure = Structure(
+                lattice=lattice,
+                sites=[Site(symbol, f) for symbol, f in
+                       zip(frame.elements, lattice.to_frac(cart),
+                           strict=True)],
+                space_group=SpaceGroup.p1())
+            structure.meta["warnings"] = [_NO_LATTICE]
+            structure.ensure_labels()
+        structure.meta.update({"source": f"{path}#{index}",
+                              "format": "xyz"})
+        out.append(structure)
+    return out
+
+
+def _padded_box(cart: np.ndarray):
+    """A P1 box with ``PAD`` Angstrom of vacuum around the atoms.
+
+    What a file with no ``Lattice=`` on its comment line has to be read
+    into.  There is no honest cell for such a file, so the box is made
+    obvious rather than plausible, and the caller says so in a warning.
+    """
+    cart = np.asarray(cart, dtype=float).reshape(-1, 3)
+    if not len(cart):
+        return Lattice(np.eye(3)), cart
+    span = cart.max(axis=0) - cart.min(axis=0)
+    lattice = Lattice(np.diag(np.maximum(span + 2 * PAD, 1.0)))
+    return lattice, cart - cart.min(axis=0) + PAD
 
 
 def read_xyz_string(text: str, name: str = "<string>") -> Structure:
@@ -89,10 +139,7 @@ def read_xyz_string(text: str, name: str = "<string>") -> Structure:
             raise ValueError("Lattice=... needs nine numbers")
         lattice = Lattice(np.array(values).reshape(3, 3))
     else:
-        span = (cart.max(axis=0) - cart.min(axis=0)) if len(cart) else \
-            np.zeros(3)
-        lattice = Lattice(np.diag(np.maximum(span + 2 * PAD, 1.0)))
-        cart = cart - cart.min(axis=0) + PAD if len(cart) else cart
+        lattice, cart = _padded_box(cart)
 
     frac = lattice.to_frac(cart) if len(cart) else np.zeros((0, 3))
     sites = [Site(sym, f, occupancy=occ)
@@ -102,8 +149,6 @@ def read_xyz_string(text: str, name: str = "<string>") -> Structure:
                           space_group=SpaceGroup.p1())
     structure.meta.update({"source": name, "format": "xyz"})
     if not match:
-        structure.meta["warnings"] = [
-            "no Lattice= in the comment line; atoms were placed in a "
-            f"padded box with {PAD:g} A of vacuum"]
+        structure.meta["warnings"] = [_NO_LATTICE]
     structure.ensure_labels()
     return structure

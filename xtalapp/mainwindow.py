@@ -29,6 +29,7 @@ from PySide6.QtGui import QColor, QGuiApplication
 from PySide6.QtWidgets import (
     QColorDialog,
     QComboBox,
+    QDialog,
     QFileDialog,
     QInputDialog,
     QLabel,
@@ -42,6 +43,7 @@ from PySide6.QtWidgets import (
 from xtal.commands.clipboard import Fragment
 from xtal.core.structure import Change
 from xtal.io import FORMATS
+from xtal.workspace import NotAWorkspace, Workspace
 from xtalapp.actions import ActionRegistry
 from xtalapp.dialogs.add_atom import AddAtomDialog
 from xtalapp.dialogs.bond_rules import BondRulesDialog
@@ -51,13 +53,15 @@ from xtalapp.dialogs.find_symmetry import FindSymmetryDialog
 from xtalapp.dialogs.spacegroup import SpaceGroupDialog
 from xtalapp.dialogs.supercell import SupercellDialog
 from xtalapp.docks.ff_panel import ForceFieldDock
-from xtalapp.docks.filetree import FileTreeDock
 from xtalapp.docks.info import InfoDock
 from xtalapp.docks.inspector import InspectorDock
+from xtalapp.docks.logview import LogDock
 from xtalapp.docks.measure import MeasureDock
 from xtalapp.docks.move import MoveDock
 from xtalapp.docks.sites import SitesDock
 from xtalapp.docks.style_panel import StylePanelDock
+from xtalapp.docks.trajectory import TrajectoryDock
+from xtalapp.docks.workspace import WorkspaceDock
 from xtalapp.document import Document
 from xtalapp.settings import AppSettings, default_size, fit_to_screen
 from xtalapp.viewport import modes, styles
@@ -90,6 +94,10 @@ class MainWindow(QMainWindow):
                                   or _default_viewport_factory)
         self.documents: list[Document] = []
         self.clipboard_fragment = Fragment()
+        # The workspace calculations land in, and the settings the
+        # last export used -- which is what "Export again" repeats.
+        self.workspace: Workspace | None = None
+        self._last_export: tuple | None = None
 
         self.tabs = QTabWidget()
         self.tabs.setTabsClosable(True)
@@ -110,6 +118,7 @@ class MainWindow(QMainWindow):
         self.statusBar().addPermanentWidget(self.selection_label)
 
         self.settings.restore_window(self)
+        self.restore_workspace()
         self._update_ui()
 
         for path in paths or []:
@@ -123,15 +132,24 @@ class MainWindow(QMainWindow):
         add = self.actions_.add
         add("new", "&New", self.new_document, "Ctrl+N")
         add("open", "&Open...", self.open_dialog, "Ctrl+O")
-        add("save", "&Save", self.save_document, "Ctrl+S")
+        add("save", "&Save", self.save_document, "Ctrl+S",
+            tip="Save the session: the structure, the bonds you drew, "
+                "the view, the selection and the measurements")
         add("save_as", "Save &As...", self.save_document_as,
-            "Ctrl+Shift+S")
-        add("save_project", "Save &Project...", self.save_project,
-            "Ctrl+Shift+P",
-            tip="Save the structure together with how it is being "
-                "viewed, what is selected and what you have measured")
-        add("export_p1", "Export as P1 CIF...", self.export_p1)
+            "Ctrl+Shift+S",
+            tip="Save the session under another name")
+        add("export", "&Export...", self.export_dialog,
+            tip="Write a file for something else to read -- a CIF, an "
+                "XYZ.  One way: it never becomes this document's file")
+        add("export_again", "Export a&gain", self.export_again,
+            tip="Export with the settings used last time")
         add("export_image", "Export &Image...", self.export_image)
+        add("open_workspace", "&Open Workspace...",
+            self.open_workspace_dialog,
+            tip="A folder that structures and their calculations live "
+                "in")
+        add("new_workspace", "&New Workspace...",
+            self.new_workspace_dialog)
         add("close_tab", "&Close", self.close_current, "Ctrl+W")
         add("quit", "&Quit", self.close, "Ctrl+Q")
 
@@ -274,8 +292,10 @@ class MainWindow(QMainWindow):
 
         file_menu = bar.addMenu("&File")
         self.actions_.fill_menu(file_menu, [
-            "new", "open", None, "save", "save_as", "save_project",
-            None, "export_p1", "export_image", None, "close_tab"])
+            "new", "open", None, "save", "save_as",
+            None, "export", "export_again", "export_image",
+            None, "new_workspace", "open_workspace",
+            None, "close_tab"])
         self.recent_menu = file_menu.addMenu("Open &Recent")
         self._rebuild_recent_menu()
         file_menu.addSeparator()
@@ -380,9 +400,12 @@ class MainWindow(QMainWindow):
         self.toolbar = bar
 
     def _build_docks(self):
-        self.file_dock = FileTreeDock(self.settings.last_directory,
-                                      self)
+        self.file_dock = WorkspaceDock(self.settings.last_directory,
+                                       self)
         self.file_dock.fileActivated.connect(self.open_path)
+        self.file_dock.artifactActivated.connect(self.open_artifact)
+        self.file_dock.workspaceRequested.connect(
+            self._on_workspace_requested)
 
         self.inspector_dock = InspectorDock(self)
         self.inspector_dock.deleteRequested.connect(
@@ -406,15 +429,36 @@ class MainWindow(QMainWindow):
             self.set_preview_interval)
         self.ff_dock.set_preview_interval(
             self.settings.preview_interval)
+        # A run that has just started or just finished has changed
+        # what is in the workspace, and the tree is read from the
+        # directory -- so this is the whole of keeping it in step.
+        self.ff_dock.runStarted.connect(self._on_run_started)
+        self.ff_dock.runFinished.connect(self._on_run_finished)
 
-        # The file tree on the left; everything else tabbed on the
-        # right, in the order they are listed here.
+        self.log_dock = LogDock(self)
+        self.trajectory_dock = TrajectoryDock(self)
+        self.trajectory_dock.statusMessage.connect(self.show_status)
+        # The plot and the trajectory are the same run seen two ways:
+        # clicking the trace jumps to that frame, and the frame being
+        # played is marked on the trace.
+        self.ff_dock.plot.pointClicked.connect(
+            self.trajectory_dock.show_step)
+        self.trajectory_dock.frameShown.connect(
+            self.ff_dock.plot.set_marker)
+        self.trajectory_dock.historyLoaded.connect(
+            self._on_trajectory_history)
+
+        # The workspace on the left, the transport bar under the
+        # viewport, everything else tabbed on the right in the order
+        # they are listed here.
         self.left_docks = (self.file_dock,)
+        self.bottom_docks = (self.trajectory_dock, self.log_dock)
         self.right_docks = (self.inspector_dock, self.info_dock,
                             self.sites_dock, self.move_dock,
                             self.style_dock, self.measure_dock,
                             self.ff_dock)
-        self.docks = self.left_docks + self.right_docks
+        self.docks = (self.left_docks + self.right_docks
+                      + self.bottom_docks)
         self.apply_default_layout()
 
         window_menu = self.menuBar().addMenu("&Window")
@@ -439,6 +483,8 @@ class MainWindow(QMainWindow):
             self.addDockWidget(Qt.LeftDockWidgetArea, dock)
         for dock in self.right_docks:
             self.addDockWidget(Qt.RightDockWidgetArea, dock)
+        for dock in self.bottom_docks:
+            self.addDockWidget(Qt.BottomDockWidgetArea, dock)
         for previous, dock in zip(self.right_docks,
                                   self.right_docks[1:], strict=False):
             self.tabifyDockWidget(previous, dock)
@@ -497,6 +543,7 @@ class MainWindow(QMainWindow):
         document.measurementsChanged.connect(
             self._on_measurements_changed)
         document.historyChanged.connect(self._update_history_actions)
+        document.playbackChanged.connect(self._refresh_shell)
         if hasattr(viewport, "statusMessage"):
             viewport.statusMessage.connect(
                 lambda text: self.statusBar().showMessage(text, 4000))
@@ -533,79 +580,263 @@ class MainWindow(QMainWindow):
         self.settings.last_directory = str(path.parent)
         self._rebuild_recent_menu()
         self.file_dock.set_root(path.parent)
+        self.place_in_workspace(document, path)
         if document.warnings:
             self.statusBar().showMessage(
                 f"opened with {len(document.warnings)} warning(s)", 8000)
         return document
 
+    # ==================================================================
+    #  THE WORKSPACE
+    # ==================================================================
+
+    def place_in_workspace(self, document, path) -> None:
+        """Give a freshly opened structure somewhere to put its runs.
+
+        The file is **copied** into the workspace rather than pointed
+        at.  A workspace whose nodes are references to files the user
+        then edits, renames or deletes is a tree of broken links; the
+        copy costs kilobytes, and where the file came from is kept in
+        ``structure.meta["source"]``.
+        """
+        path = Path(path)
+        if document.entry is not None:
+            # Already inside a workspace -- opened from the tree, or a
+            # project that found its own by looking upwards.
+            self.refresh_workspace()
+            return
+        workspace = self.workspace or self._offer_workspace(path)
+        if workspace is None:
+            return
+        try:
+            entry = workspace.add_structure(path)
+        except OSError as exc:
+            self.show_message(f"could not copy into the workspace: "
+                              f"{exc}")
+            return
+        document.structure.meta.setdefault("source", str(path))
+        document.attach_workspace(entry)
+        self.refresh_workspace()
+        self.file_dock.tree.select_path(entry.path)
+
+    def _offer_workspace(self, path) -> Workspace | None:
+        """What to do for a structure opened with no workspace open.
+
+        Nothing, and say so.  The user picks the workspace and the
+        application never guesses: a folder created behind somebody's
+        back is one they find later and do not recognise, and a dialog
+        on every file open is worse than the problem it solves.  So a
+        structure with no workspace opens, runs, and leaves nothing
+        behind -- which is exactly what this application did before
+        there was anywhere to leave anything -- and the status bar
+        says how to change that.
+        """
+        if not self.settings.auto_workspace:
+            self.show_message(
+                "no workspace open, so runs will not be kept -- "
+                "File > New Workspace... gives them somewhere to go")
+            return None
+        return self.set_workspace(Path(path).parent / "Crystal Builder",
+                                  create=True)
+
+    def set_workspace(self, root, create: bool = False):
+        """Open a workspace and show it in the tree."""
+        try:
+            workspace = (Workspace.create(root) if create
+                         else Workspace.open(root))
+        except (NotAWorkspace, OSError) as exc:
+            self.show_message(f"could not open that workspace: {exc}")
+            return None
+        self.workspace = workspace
+        self.settings.last_workspace = str(workspace.root)
+        self.settings.add_recent_workspace(workspace.root)
+        self.refresh_workspace()
+        self.show_message(f"workspace: {workspace.root}")
+        return workspace
+
+    def restore_workspace(self) -> None:
+        """Reopen the workspace that was open last, as the last
+        directory is reopened."""
+        last = self.settings.last_workspace
+        if last and Workspace.is_workspace(last):
+            self.workspace = Workspace(last)
+        self.refresh_workspace()
+
+    def refresh_workspace(self) -> None:
+        self.file_dock.set_workspace(
+            self.workspace, self.settings.recent_workspaces())
+
+    def open_workspace_dialog(self) -> None:
+        chosen = QFileDialog.getExistingDirectory(
+            self, "Open workspace",
+            self.settings.last_workspace or
+            str(self.settings.default_workspace_root.parent))
+        if chosen:
+            self.set_workspace(chosen)
+
+    def new_workspace_dialog(self) -> None:
+        chosen = QFileDialog.getSaveFileName(
+            self, "New workspace",
+            str(self.settings.default_workspace_root))[0]
+        if chosen:
+            self.set_workspace(chosen, create=True)
+
+    def _on_workspace_requested(self, what: str) -> None:
+        """The tree's own switcher: open, new, or one of the recent."""
+        if what == "open":
+            self.open_workspace_dialog()
+        elif what == "new":
+            self.new_workspace_dialog()
+        else:
+            self.set_workspace(what)
+
+    def _on_run_started(self, path: str) -> None:
+        self.refresh_workspace()
+        self.log_dock.show_file(Path(path) / "run.log")
+
+    def _on_run_finished(self, path: str) -> None:
+        self.refresh_workspace()
+        self.log_dock.poll()
+
+    def _on_trajectory_history(self, history) -> None:
+        """A trajectory opened from the tree fills the energy plot.
+
+        The plot and the trajectory are the same run seen two ways, so
+        opening one has to populate the other -- otherwise clicking the
+        trace to reach a frame only works for the run you just watched.
+        """
+        if history:
+            self.ff_dock.plot.set_history(history)
+
+    def open_artifact(self, kind: str, path: str) -> None:
+        """Open a node of the workspace tree as what it *is*.
+
+        Dispatch on the artefact's kind rather than on its extension:
+        a ``.cif`` that is a run's output and a ``.cif`` that is the
+        input want the same viewer and different labelling, which an
+        extension cannot say.
+        """
+        target = Path(path)
+        if kind == "log":
+            self.log_dock.show_file(target)
+        elif kind == "trajectory":
+            self.trajectory_dock.set_document(self.current_document())
+            self.trajectory_dock.open_path(target)
+        elif kind in ("structure", "final", "project", "file"):
+            self.open_path(target)
+
     def save_document(self) -> None:
+        """Save the session.
+
+        Save and Save As write a **project**, always.  They used to
+        dispatch on the extension the user typed, so the same command
+        either kept a whole working session or threw most of it away
+        depending on three characters after a dot.  Writing a file for
+        another program is Export, which is one way and says so.
+        """
         document = self.current_document()
         if document is None:
             return
-        if document.path is None:
+        if document.path is None or document.path.suffix != ".xtalproj":
             self.save_document_as()
             return
         try:
             document.save()
         except (ValueError, OSError) as exc:
             QMessageBox.warning(self, "Could not save", str(exc))
+            return
+        self.show_message(f"saved {document.path.name}")
+        self.refresh_workspace()
 
     def save_document_as(self) -> None:
         document = self.current_document()
         if document is None:
             return
-        filters = [f.filter_string() for f in FORMATS.writable()]
+        opened_a_structure = (document.path is not None
+                              and document.path.suffix != ".xtalproj")
         path, _ = QFileDialog.getSaveFileName(
-            self, "Save structure", self.settings.last_directory,
-            ";;".join(filters))
-        if not path:
-            return
-        try:
-            document.save(path)
-        except (ValueError, OSError) as exc:
-            QMessageBox.warning(self, "Could not save", str(exc))
-            return
-        self.settings.add_recent_file(path)
-        self._rebuild_recent_menu()
-
-    def save_project(self) -> None:
-        """Write everything: the crystal, the view, the session.
-
-        Saving as a CIF keeps the structure and drops the rest, which
-        is the honest behaviour for an interchange format; this is the
-        one that keeps a working session whole.
-        """
-        document = self.current_document()
-        if document is None:
-            return
-        suggested = str((document.path or Path(self.settings
-                                               .last_directory))
-                        .with_suffix(".xtalproj"))
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Save project", suggested,
+            self, "Save project", str(self._suggested_project(document)),
             "Crystal Builder project (*.xtalproj)")
         if not path:
             return
         try:
-            written = document.save_project(path)
+            written = document.save(path)
         except (ValueError, OSError) as exc:
             QMessageBox.warning(self, "Could not save", str(exc))
             return
         self.settings.add_recent_file(written)
         self._rebuild_recent_menu()
-        self.statusBar().showMessage(f"wrote {written}", 5000)
+        document.attach_workspace()
+        self.refresh_workspace()
+        if opened_a_structure:
+            # A behaviour change for anybody who has been opening a CIF
+            # and pressing Ctrl+S, so it is made visible rather than
+            # silent.
+            self.show_message(
+                f"wrote {written.name}; the file you opened has not "
+                f"been touched -- File > Export writes one back")
+        else:
+            self.show_message(f"wrote {written.name}")
 
-    def export_p1(self) -> None:
-        """Export with every symmetry-generated atom written out."""
+    def _suggested_project(self, document) -> Path:
+        """Where Save As offers to put the project.
+
+        Inside the workspace entry when there is one, because that is
+        what lets a reopened project find its own workspace by looking
+        upwards rather than by remembering a path that a moved folder
+        would falsify.
+        """
+        if document.entry is not None:
+            return document.entry.project_path
+        base = document.path or Path(self.settings.last_directory) / \
+            (document.structure.meta.get("title") or "structure")
+        return Path(base).with_suffix(".xtalproj")
+
+    def export_dialog(self) -> None:
+        """One dialog for every writable format."""
         document = self.current_document()
         if document is None:
             return
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Export as P1 CIF", self.settings.last_directory,
-            "Crystallographic Information File (*.cif)")
-        if path:
-            document.export(path, expand_to_p1=True)
-            self.statusBar().showMessage(f"exported {path}", 5000)
+        from xtalapp.dialogs.export import ExportDialog
+        dialog = ExportDialog(document, self,
+                              directory=self.settings.last_directory)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        target = dialog.target()
+        if target is None:                          # pragma: no cover
+            return
+        self._export(document, target, dialog.options())
+
+    def export_again(self) -> None:
+        """Export where and how it was exported last.
+
+        The one thing the Save/Export split costs is the quick round
+        trip "open a CIF, nudge an atom, save the CIF"; this gives it
+        back without blurring what Save means.
+        """
+        document = self.current_document()
+        if document is None:
+            return
+        if not self._last_export:
+            self.export_dialog()
+            return
+        path, options = self._last_export
+        target = Path(path)
+        if document.path is not None:
+            target = target.with_name(
+                document.path.stem + target.suffix)
+        self._export(document, target, options)
+
+    def _export(self, document, target, options) -> None:
+        try:
+            written = document.export(target, **options)
+        except (ValueError, OSError) as exc:
+            QMessageBox.warning(self, "Could not export", str(exc))
+            return
+        self._last_export = (str(written), dict(options))
+        self.settings.last_directory = str(written.parent)
+        self.show_message(f"exported {written.name}")
+        self.refresh_workspace()
 
     def export_image(self) -> None:
         viewport = self.current_viewport()
@@ -905,8 +1136,12 @@ class MainWindow(QMainWindow):
             undo.setText("&Undo")
             redo.setText("&Redo")
             return
-        undo.setEnabled(document.can_undo)
-        redo.setEnabled(document.can_redo)
+        # A document playing a trajectory back is showing somebody
+        # else's geometry, so undoing into it would be undoing under a
+        # picture that is about to be replaced by the next frame.
+        editable = not document.is_playing
+        undo.setEnabled(document.can_undo and editable)
+        redo.setEnabled(document.can_redo and editable)
         undo.setText(f"&Undo {document.undo_label}".rstrip())
         redo.setText(f"&Redo {document.redo_label}".rstrip())
 
@@ -1062,7 +1297,17 @@ class MainWindow(QMainWindow):
     # thing that runs them and the menu raises it first.
 
     def show_status(self, text: str) -> None:
+        """Replace the permanent status line.
+
+        This is where a panel says what it just computed, and it
+        stands until the next refresh rewrites it from the document.
+        """
         self.status_label.setText(text)
+
+    def show_message(self, text: str, milliseconds: int = 6000) -> None:
+        """Say something in passing, without taking over the line that
+        describes the crystal."""
+        self.statusBar().showMessage(text, milliseconds)
 
     def show_force_field(self) -> None:
         self.ff_dock.show()
@@ -1203,6 +1448,7 @@ class MainWindow(QMainWindow):
         self.style_dock.set_document(document)
         self.measure_dock.set_document(document)
         self.ff_dock.set_document(document)
+        self.trajectory_dock.set_document(document)
         self._rebuild_element_menu(document)
         self._refresh_shell()
 
@@ -1211,31 +1457,42 @@ class MainWindow(QMainWindow):
         document = self.current_document()
         has_document = document is not None
         self.actions_.set_enabled(
-            ["save", "save_as", "save_project", "export_p1",
+            ["save", "save_as", "export", "export_again",
              "export_image", "close_tab", "reset_view", "view_a",
              "view_b", "view_c"],
             has_document)
         self._update_history_actions()
         self.actions_.set_enabled(
             ["select_all", "select_none", "invert_selection",
-             "reduce_p1", "paste", "add_atom_dialog",
+             "display_range", "bond_rules"],
+            has_document)
+        # Everything that changes the crystal is off while a
+        # trajectory is being played: the atoms are showing a frame,
+        # and an edit made against them would be wiped by the next one
+        # without ever saying so.  ``Document.run`` refuses as well --
+        # this is what stops the user reaching it.
+        editable = has_document and not document.is_playing
+        self.actions_.set_enabled(
+            ["reduce_p1", "paste", "add_atom_dialog",
              "find_symmetry", "set_space_group", "standardize",
              "primitive", "wyckoff", "merge_duplicates", "supercell",
              "edit_cell", "niggli", "delaunay", "wrap_cell",
-             "display_range", "single_point", "optimize",
-             "bond_rules", "recompute_bonds"],
-            has_document)
+             "single_point", "optimize", "recompute_bonds"],
+            editable)
         if document is None:
             self.status_label.setText("No structure open")
             self.selection_label.setText("")
             self.setWindowTitle(APP_NAME)
             return
         self.selection_label.setText(document.selection_summary())
+        has_selection = bool(document.selection.atoms)
         self.actions_.set_enabled(
-            ["delete_selection", "change_element", "select_same",
-             "expand_bonded", "expand_fragment", "expand_orbit",
-             "copy", "cut", "duplicate"],
-            bool(document.selection.atoms))
+            ["select_same", "expand_bonded", "expand_fragment",
+             "expand_orbit", "copy"],
+            has_selection)
+        self.actions_.set_enabled(
+            ["delete_selection", "change_element", "cut", "duplicate"],
+            has_selection and editable)
         self.status_label.setText(document.status_text())
         self.setWindowTitle(f"{document.title} — {APP_NAME}")
         name = f"style_{document.view.style}"

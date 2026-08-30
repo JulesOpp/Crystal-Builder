@@ -71,7 +71,6 @@ out of its phase whenever the pain is worth a detour.
 
 | Item | TODO section | Size |
 |---|---|---|
-| Save As / Export split | Files and calculations | S |
 | Readable UFF atom type descriptions | Force field | S |
 | Invert the structure | Symmetry | S |
 | Invert Selection ignores symmetry | Selection | S |
@@ -244,37 +243,102 @@ is a prerequisite for a build, and everything before it is.
 
 ---
 
-## 6. Phase C — files, exports and the workspace
+## 6. Phase C — files, exports and the workspace ✅
 
 **Goal:** a calculation leaves something behind, and it is findable.
 
-| Item | Size |
-|---|---|
-| Save As saves a project; Export writes a structure | S |
-| File ▸ Export... | M |
-| A working folder, and the calculations underneath the structure | L |
-| Show the log | S |
-| Play the trajectory back | M |
-
-**Deliverable.** Open `MFU4l.cif`; it appears as the root of a
-workspace.  Run an optimisation; a run folder appears underneath it
-holding the final structure, the trajectory and the log.  Click the
-trajectory and scrub it; click the log and read it.  Save the project
+Shipped.  Open a structure with a workspace open and it becomes the
+root of one; run an optimisation and a run folder appears underneath it
+holding the final structure, the trajectory and the log; click the
+trajectory and scrub it, click the log and read it; save the project
 and reopen it with all of that still attached.
 
-**Tests.** Headless first — the workspace layout, the run-folder
-writer and the multi-frame extxyz round trip all live in `xtal` and are
-tested without Qt.  Then `pytest-qt` for the tree model and the
-transport bar.  A project written and reread must produce the identical
-tree.
+**Save and Export are two things now.**  Save and Save As are about
+the *project* and write `.xtalproj`, whatever extension is typed --
+the same command either keeping a whole session or throwing most of it
+away depending on three characters after a dot was not a command
+anybody could predict.  `Save Project...` is gone, because that is
+what Save is.  Export is one way: it never becomes the document's
+path, never clears the modified flag, and says so in the status bar
+the first time a CIF-opened document is saved.  *Export again* repeats
+the last export, which gives back the quick round trip the split
+costs.
 
-**Risk.** The workspace is the entry in TODO.md most likely to sprawl.
-Bound it explicitly: it is a directory layout, a tree model, and a rule
-about where the directory lives.  It is not a database, not a job
-queue, and not provenance tracking.  If it starts needing a schema
-migration, it has grown past its brief.
+**`File ▸ Export...`**, `xtalapp/dialogs/export.py`, replacing `Export
+as P1 CIF...`: the format list comes from `FORMATS.writable()`, CIF
+gets the *with symmetry* / *P1* pair that prompted this (both always
+worked; one of them was reachable), there is a selection-only
+checkbox, and `Format.keeps` -- which had existed since the registry
+did and which nothing read -- is now the line under the picker saying
+what the format drops.
 
----
+**The workspace**, `xtal/workspace.py`.  A plain directory with a
+`workspace.json` naming the format version and nothing else; a folder
+per structure holding a *copy* of the file, because a tree of
+references to files the user then moves is a tree of broken nodes; and
+run folders named `<module>-<kind>-<nnn>`, numbered by looking at what
+is already there.  Nothing in it is hidden, nothing needs this
+application to read it, and deleting the folder in Finder is
+supported.  The application never guesses one: with no workspace open a
+structure still opens and still runs, it just leaves nothing behind,
+and the status bar says so once rather than putting up a dialog on
+every file.
+
+**The run folders are written by the module that ran**, not by the
+tree -- `RunFolder`, `RunLog` and `xtal/ff/record.py` -- so
+`xtal optimize file.cif --workspace DIR` produces the identical layout
+from a script.  That is also what Phase D's process runner will write
+through.
+
+**The log** is what makes a result defensible: the version, the engine
+and every option, the full typing table with the confidence and the
+*reason* for each assignment, the topology counts and warnings in
+place, a line per step, and the per-term energy breakdown at both
+ends.  It is written and flushed as the run goes, so the log of a run
+that hung is the evidence of where it hung, and the viewer tails it
+while it is live.
+
+**The trajectory** is multi-frame extended XYZ
+(`xtal/io/trajectory.py`), written a frame at a time as the steps
+arrive -- 5184 sites is 124 kB a frame and 200 steps is 25 MB, which
+is fine on disk and not fine in a signal queue.  Extxyz rather than an
+invented format means it opens in OVITO, VMD and ASE without a
+converter, and that a trajectory from any of them opens here.
+
+**Playback** is a transport bar with play, loop, step, a frame slider
+and a speed control, driving `Document.preview_positions` -- so
+scrubbing touches neither the undo stack nor the modified flag.
+Clicking the energy trace jumps to that frame and the frame being
+played is marked on the trace, because the plot and the trajectory are
+the same run seen two ways.  A frame is not an editable structure: a
+document with a trajectory open refuses edits (`PlaybackActive`, with
+the editing actions disabled so the refusal is never reached), and
+*Adopt this frame* is the one way out that keeps a geometry, as a
+single undoable command.
+
+The interesting part is the mapping.  A trajectory holds the **P1
+cell**, because that is what another program reads; a document varies
+its **asymmetric unit**.  `p1.parent_frac` carries each frame back
+through the operations that generated it, so a structure in P4_2/mnm
+plays back in P4_2/mnm rather than being silently reduced to P1 by
+being watched.
+
+**Tests.** 58 new.  Headless first: the extxyz round trip and the
+streaming writer (`tests/test_trajectory.py`), the workspace layout,
+the run-folder writer, the log's contents and the CLI producing the
+same layout (`tests/test_workspace.py`).  Then `pytest-qt` for the
+tree model, the transport bar, the log viewer and the save/export
+split (`tests/test_workspace_ui.py`), including the roadmap's own
+demand that a project written and reread produce the identical tree.
+
+**Risk, as written before the phase.**  The workspace was the entry in
+TODO.md most likely to sprawl, bounded explicitly to a directory
+layout, a tree model and a rule about where the directory lives.  It
+stayed inside that: there is no database, no job queue, no provenance
+tracking and no schema beyond a version number, and the tree is read
+from the filesystem on every refresh rather than cached -- an index
+would be a second answer to the same question, and the one that goes
+stale when somebody moves a folder in Finder.
 
 ## 7. Phase D — modules
 
@@ -435,7 +499,7 @@ the default bundle, which is the only real argument against it.
 | **A** | Make it behave | ✅ done |
 | **B** | Bonds you control | ✅ done |
 | — | **Ship** ([PLAN](PLAN.md) § 16 phase 8) | — |
-| **C** | Files, exports, workspace | L |
+| **C** | Files, exports, workspace | ✅ done |
 | **D** | Modules | M |
 | **E** | Force field | L |
 | **F** | Symmetry | L |

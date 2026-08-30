@@ -98,11 +98,34 @@ def test_document_saves_and_clears_the_modified_flag(rutile_cif,
               Change.POSITIONS)
     assert doc.modified and doc.title.endswith("*")
 
-    out = tmp_path / "saved.cif"
+    out = tmp_path / "saved.xtalproj"
     doc.save(out)
     assert out.exists()
     assert not doc.modified
     assert doc.path == out
+
+
+def test_save_writes_a_project_whatever_extension_it_is_given(
+        rutile_cif, tmp_path):
+    """Save is about the session, and the extension is not a choice.
+
+    It used to dispatch on the three characters after the dot, so the
+    same command either kept a whole working session or threw most of
+    it away depending on what the user typed.
+    """
+    from xtal.io import is_project
+
+    doc = Document.load(rutile_cif)
+    doc.add_measurement([0, 1])
+    written = doc.save(tmp_path / "typed_a_cif.cif")
+
+    assert written.suffix == ".xtalproj"
+    assert not (tmp_path / "typed_a_cif.cif").exists()
+    assert is_project(written)
+    assert doc.path == written
+
+    reopened = Document.load(written)
+    assert len(reopened.measurements) == 1
 
 
 def test_document_export_does_not_claim_the_file(rutile_cif, tmp_path):
@@ -301,16 +324,33 @@ def test_export_image(window, rutile_cif, tmp_path, monkeypatch):
     assert target.exists()
 
 
-def test_export_p1(window, rutile_cif, tmp_path, monkeypatch):
-    from PySide6.QtWidgets import QFileDialog
+def test_export_writes_p1_when_the_dialog_asks_for_it(
+        window, rutile_cif, tmp_path, monkeypatch):
+    """Both of CIF's answers are reachable now.
+
+    ``Export as P1 CIF...`` was one format with one of its two options
+    on the menu; ``cif_writer.write_cif`` has always taken
+    ``expand_to_p1`` and only one setting of it could be asked for.
+    """
+    from PySide6.QtWidgets import QDialog
 
     from xtal.io import read_cif
+    from xtalapp.dialogs.export import ExportDialog
     window.open_path(rutile_cif)
     target = tmp_path / "flat.cif"
-    monkeypatch.setattr(QFileDialog, "getSaveFileName",
-                        lambda *a, **k: (str(target), ""))
-    window.export_p1()
+
+    def stub(self, *args, **kwargs):
+        self.path.setText(str(target))
+        self.as_p1.setChecked(True)
+        return QDialog.Accepted
+
+    monkeypatch.setattr(ExportDialog, "exec", stub)
+    window.export_dialog()
     assert read_cif(target).n_sites == 6
+
+    # ...and the document did not adopt it, which is the whole point
+    # of the split.
+    assert window.current_document().path.name == "rutile.cif"
 
 
 def test_file_tree_opens_structures(window, rutile_cif):
@@ -323,10 +363,10 @@ def test_file_tree_opens_a_file_once_per_gesture(window, rutile_cif,
     """A double-click on the tree makes Qt emit `doubleClicked` *and*
     `activated`.  With both connected the file opened twice, which is
     two tabs for one gesture."""
-    window.file_dock.set_root(tmp_path)
-    index = window.file_dock.model.index(rutile_cif)
-    window.file_dock.tree.doubleClicked.emit(index)
-    window.file_dock.tree.activated.emit(index)
+    window.file_dock.browser.set_root(tmp_path)
+    index = window.file_dock.browser.model.index(rutile_cif)
+    window.file_dock.browser.tree.doubleClicked.emit(index)
+    window.file_dock.browser.tree.activated.emit(index)
     assert window.tabs.count() == 1
 
 
@@ -334,7 +374,8 @@ def test_file_tree_filters_to_known_formats(window):
     from xtalapp.docks.filetree import structure_globs
     globs = structure_globs()
     assert "*.cif" in globs and "*.xyz" in globs
-    assert set(window.file_dock.model.nameFilters()) == set(globs)
+    assert set(window.file_dock.browser.model.nameFilters()) \
+        == set(globs)
 
 
 def test_an_empty_document_still_renders_a_cell(window):

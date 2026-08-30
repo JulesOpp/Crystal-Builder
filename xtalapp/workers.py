@@ -40,12 +40,19 @@ class OptimizationWorker(QObject):
     failed = Signal(str)
 
     def __init__(self, calculator, structure, method: str = "lbfgs",
-                 frozen=(), parent=None, **options):
+                 frozen=(), parent=None, recorder=None, **options):
         super().__init__(parent)
         self.calculator = calculator
         self.structure = structure
         self.method = method
         self.frozen = tuple(frozen)
+        # Where the run writes itself down, or None when there is no
+        # workspace to write into.  The frames go out on this thread,
+        # as they arrive, which is the whole reason they can be kept:
+        # 5184 sites is 124 kB a frame and 200 steps is 25 MB, which
+        # is fine on disk and not fine in a signal queue.
+        self.recorder = recorder
+        self.recording_failed = ""
         self.options = options
         self._cancel = threading.Event()
         self._resume = threading.Event()
@@ -86,6 +93,7 @@ class OptimizationWorker(QObject):
         history = []
         first = last = None
         try:
+            self._record(lambda r: r.begin_steps())
             for step in optimize.steps(
                     self.calculator, self.structure, self.method,
                     self.frozen, **self.options):
@@ -94,6 +102,7 @@ class OptimizationWorker(QObject):
                 last = step
                 history.append((step.iteration, step.energy,
                                 step.max_force))
+                self._record(lambda r, s=step: r.step(s))
                 self.stepped.emit(step)
                 self._resume.wait()
                 if self._cancel.is_set():
@@ -118,6 +127,23 @@ class OptimizationWorker(QObject):
             self.failed.emit(str(exc))
         finally:
             self._running = False
+
+    def _record(self, action) -> None:
+        """Write something down, and never lose a run over it.
+
+        A full disk, a workspace on a volume that went away, a folder
+        somebody deleted mid-run: none of those are a reason to throw
+        away the optimisation that is still perfectly happy in memory.
+        The failure is remembered and reported once, and the run
+        carries on without a recorder.
+        """
+        if self.recorder is None:
+            return
+        try:
+            action(self.recorder)
+        except Exception as exc:                    # noqa: BLE001
+            self.recording_failed = str(exc)
+            self.recorder = None
 
 
 def start_in_thread(worker: QObject) -> QThread:

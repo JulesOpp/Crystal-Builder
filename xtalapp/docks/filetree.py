@@ -1,7 +1,14 @@
 """
 xtalapp.docks.filetree
 ======================
-The left bar: a filesystem tree filtered to structure files.
+The filesystem half of the left bar: a directory, filtered to
+structure files.
+
+This is the mode beside the workspace tree rather than the tree
+itself -- opening a file from somewhere else is still how everything
+starts, and a workspace that could only see its own contents would
+have no way in.  The workspace half is
+:mod:`xtalapp.docks.workspace`.
 
 The filter comes from the format registry, so a format added in
 ``xtal.io`` shows up here without this file changing.
@@ -11,9 +18,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QDir, Qt, Signal
+from PySide6.QtCore import QDir, Signal
 from PySide6.QtWidgets import (
-    QDockWidget,
     QFileSystemModel,
     QHBoxLayout,
     QLabel,
@@ -35,16 +41,13 @@ def structure_globs() -> list[str]:
     return sorted(set(globs))
 
 
-class FileTreeDock(QDockWidget):
+class FileBrowser(QWidget):
     """Browse a directory and open structures from it."""
 
     fileActivated = Signal(str)
 
     def __init__(self, root=None, parent=None):
-        super().__init__("Files", parent)
-        self.setObjectName("FileTreeDock")
-        self.setAllowedAreas(Qt.LeftDockWidgetArea |
-                             Qt.RightDockWidgetArea)
+        super().__init__(parent)
 
         self.model = QFileSystemModel(self)
         self.model.setNameFilters(structure_globs())
@@ -79,10 +82,7 @@ class FileTreeDock(QDockWidget):
         body.setSpacing(2)
         body.addLayout(header)
         body.addWidget(self.tree, 1)
-
-        container = QWidget()
-        container.setLayout(body)
-        self.setWidget(container)
+        self.setLayout(body)
 
         self.set_root(root or Path.home())
 

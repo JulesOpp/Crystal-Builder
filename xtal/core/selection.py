@@ -226,3 +226,31 @@ def describe(structure, cell, selection: Selection) -> str:
     if selection.bonds:
         parts.append(f"{len(selection.bonds)} bonds")
     return ", ".join(parts)
+
+
+def substructure(structure, cell, atoms):
+    """A P1 structure holding just the selected atoms of the cell.
+
+    "Export this molecule" is the second thing anybody wants after
+    "export this", and it has to mean *where those atoms are*: the
+    cell is kept, the coordinates are kept, and only the atoms outside
+    the selection are dropped.  The space group cannot be: an
+    asymmetric unit whose orbit is half missing is not a crystal, so
+    the answer is in P1 and says so.
+    """
+    from xtal.core.site import Site
+    from xtal.core.spacegroup import SpaceGroup
+    from xtal.core.structure import Structure
+
+    chosen = sorted(int(a) for a in atoms if 0 <= int(a) < cell.n_atoms)
+    out = Structure(
+        lattice=structure.lattice,
+        sites=[Site(cell.elements[a], cell.frac[a],
+                    occupancy=float(cell.occupancy[a]),
+                    label=cell.labels[a]) for a in chosen],
+        space_group=SpaceGroup.p1())
+    title = structure.meta.get("title")
+    if title:
+        out.meta["title"] = f"{title} (selection)"
+    out.ensure_labels()
+    return out

@@ -275,3 +275,33 @@ def image_transform(structure, cell: P1Cell, atom_index: int):
     displacement rather than a position."""
     op = structure.space_group.operations[int(cell.op_idx[atom_index])]
     return op.rot, op.trans + cell.tau[atom_index]
+
+
+def parent_frac(structure, cell: P1Cell, frac) -> np.ndarray:
+    """The asymmetric unit that regenerates a whole cell of positions.
+
+    The inverse of an expansion, and the way a *frame* -- a trajectory
+    written as the P1 cell, which is what every other program reads --
+    is played back against a structure that is not in P1.  Each site is
+    read from the first image it generated, through the operation that
+    generated it; the other images of that site are not consulted,
+    because a frame that broke the symmetry could not be represented by
+    an asymmetric unit at all and averaging would hide that rather than
+    say it.
+
+    ``frac`` is ``(cell.n_atoms, 3)``; the answer is ``(n_sites, 3)``.
+    """
+    frac = np.asarray(frac, dtype=float).reshape(-1, 3)
+    if len(frac) != cell.n_atoms:
+        raise ValueError(
+            f"expected {cell.n_atoms} positions, one per atom of the "
+            f"cell, and got {len(frac)}")
+    out = np.zeros((structure.n_sites, 3))
+    for index in range(structure.n_sites):
+        images = cell.indices_of_site(index)
+        if not len(images):
+            continue
+        first = int(images[0])
+        out[index] = parent_coordinates(structure, cell, first,
+                                        frac[first])
+    return out
