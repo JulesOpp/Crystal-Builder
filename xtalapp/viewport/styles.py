@@ -16,6 +16,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from xtal.core import elements as el
+
 
 @dataclass(frozen=True)
 class DrawStyle:
@@ -28,11 +30,35 @@ class DrawStyle:
     draw_bonds: bool = True
     bond_render: str = "tube"       # tube | line
     draw_polyhedra: bool = False
+    #: Which atoms get a hull when the user has not named any:
+    #: "any" (whatever has enough neighbours) or "metals".
+    polyhedra_centres: str = "any"
+    #: Draw the atoms as thermal ellipsoids rather than spheres.  The
+    #: bonds, the cell and everything else are unchanged, which is why
+    #: this is a field and not a separate render path.
+    ellipsoids: bool = False
     description: str = ""
 
     def atom_radius(self, element: str, settings) -> float:
         base = settings.base_radius(element, self.radius_source)
         return base * self.radius_factor * settings.atom_scale
+
+    def wants_polyhedron(self, element: str, settings) -> bool:
+        """Does this element get a coordination polyhedron?
+
+        Centres named in the settings are the user speaking, and they
+        win.  With none named the style decides, and the two styles
+        want different things: the polyhedral picture takes anything
+        with enough neighbours, which is right for a dense oxide, and
+        the mixed one takes only the metals -- because in an MOF the
+        linker has four-coordinate carbons too, and drawing those as
+        tetrahedra is the picture this style exists to avoid.
+        """
+        if settings.polyhedron_centres:
+            return element in settings.polyhedron_centres
+        if self.polyhedra_centres == "metals":
+            return el.element(element).is_metal
+        return True
 
 
 STYLES: dict[str, DrawStyle] = {}
@@ -73,6 +99,22 @@ register(DrawStyle(
     name="spacefill", label="Space filling",
     radius_source="vdw", radius_factor=1.0, draw_bonds=False,
     description="Atoms at their van der Waals radius",
+))
+register(DrawStyle(
+    name="ortep", label="Thermal ellipsoids (ORTEP)",
+    radius_source="covalent", radius_factor=0.25,
+    ellipsoids=True,
+    description="Atoms as displacement ellipsoids at the probability "
+                "level set in the style panel -- the picture that "
+                "makes a bad refinement obvious",
+))
+register(DrawStyle(
+    name="polyhedra_stick", label="Polyhedra and sticks",
+    radius_source="covalent", radius_factor=0.25,
+    draw_bonds=True, draw_polyhedra=True, polyhedra_centres="metals",
+    description="Coordination polyhedra for the nodes and tubes for "
+                "everything else -- an MOF's metals and its linkers "
+                "in the same picture",
 ))
 register(DrawStyle(
     name="polyhedra", label="Polyhedra",

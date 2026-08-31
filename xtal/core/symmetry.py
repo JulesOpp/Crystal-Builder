@@ -42,14 +42,6 @@ from xtal.core.site import Site
 from xtal.core.spacegroup import SpaceGroup
 from xtal.core.structure import Structure
 
-# spglib >= 2.5 keeps a deprecated global error flag; opting out makes
-# it raise on failure instead of warning and returning None.
-try:                                            # pragma: no cover
-    import spglib.error as _spglib_error
-    _spglib_error.OLD_ERROR_HANDLING = False
-except (ImportError, AttributeError):           # pragma: no cover
-    pass
-
 DEFAULT_SYMPREC = 1e-5          # Angstrom-ish; spglib's own default
 DEFAULT_ANGLE_TOLERANCE = -1.0  # negative = derive from symprec
 MATCH_TOL = 1e-3                # Angstrom, for matching two atoms
@@ -519,6 +511,116 @@ def _regenerates(candidate: Structure, original: p1.P1Cell, tol: float):
                     "expanded atoms do not line up with the cell", 0.0)
         worst = max(worst, hit[1])
     return True, "", worst
+
+
+# ======================================================================
+#  CHANGE OF HAND
+# ======================================================================
+#
+#  P4_1 and P4_3 are the same crystal in the two hands.  Getting from
+#  one to the other is a change of hand on the *coordinates* and the
+#  matching change of *space group*, and doing only the first is the
+#  bug: negating the coordinates while leaving P4_1 in place gives a
+#  structure whose atoms no longer obey their own symmetry, and the
+#  next P1 expansion of it is nonsense.
+
+
+def change_of_hand_op(group: SpaceGroup):
+    """``(rot, tran)`` of the operation that inverts this group's
+    coordinates and lands back in its standard setting.
+
+    Usually a bare ``-x,-y,-z``, but not always: I4_1 needs
+    ``-x+1/2,-y,-z`` and F4_132 needs ``-x+1/4,-y+1/4,-z+1/4``, and
+    using a bare inversion for those puts 14 groups into a
+    non-standard setting without saying so.
+    """
+    import gemmi
+    op = group._sg.change_of_hand_op()
+    rot = np.array(op.rot, dtype=float) / float(gemmi.Op.DEN)
+    tran = np.array(op.tran, dtype=float) / float(gemmi.Op.DEN)
+    return rot, tran
+
+
+def enantiomorph(group: SpaceGroup) -> SpaceGroup:
+    """The group of the inverted structure.
+
+    Falls out of the operations rather than a table: conjugating by the
+    inversion leaves the rotations alone and negates the translations,
+    which names the partner for all eleven enantiomorphic pairs and
+    returns the group unchanged for the other 219.
+    """
+    import gemmi
+    ops = group._sg.operations()
+    ops.change_basis_forward(group._sg.change_of_hand_op())
+    partner = gemmi.find_spacegroup_by_ops(ops)
+    if partner is None:                             # pragma: no cover
+        return group
+    return SpaceGroup(partner.hall)
+
+
+def hand_description(group: SpaceGroup) -> str:
+    """One line saying which hand this group is, for a panel that is
+    always on screen.
+
+    The read-out is the thing that makes anyone think to invert a
+    structure at all: "chiral, P4_1 (enantiomorph P4_3)" is a standing
+    invitation to check the other hand against the data.
+    """
+    if group.is_centrosymmetric:
+        return "centrosymmetric (achiral)"
+    if not group.is_chiral:
+        return "achiral (improper operations, no inversion centre)"
+    partner = enantiomorph(group)
+    if partner != group:
+        return f"chiral, enantiomorph {partner.short_name}"
+    return "chiral, its own enantiomorph"
+
+
+def invert(structure: Structure) -> tuple[Structure, SymmetryReport]:
+    """The same crystal in the other hand.
+
+    Transforms every site by the change-of-hand operation and sets the
+    group to the partner.  The lattice is left alone: the cell
+    parameters do not change and a right-handed cell stays right-handed
+    -- the hand that changes is the structure's, not the axes'.
+    """
+    group = structure.space_group
+    rot, tran = change_of_hand_op(group)
+    partner = enantiomorph(group)
+
+    out = structure.copy()
+    for site in out.sites:
+        site.frac = p1._wrap(rot @ site.frac + tran)
+    out.set_space_group(partner)
+    # Bond operation indices are numbered within a group; the group has
+    # just changed, so they no longer point where they did.
+    out.bonds = []
+    out.ensure_labels()
+    out.touch()
+
+    if group.is_centrosymmetric:
+        message = (f"{group.short_name} is centrosymmetric: inversion "
+                   f"is already one of its operations and the "
+                   f"structure is unchanged")
+    elif partner != group:
+        message = (f"inverted: {group.short_name} -> "
+                   f"{partner.short_name}")
+    elif not group.is_chiral:
+        message = (f"inverted the coordinates; {group.short_name} has "
+                   f"improper operations, so this is the same crystal "
+                   f"described the other way round")
+    else:
+        message = (f"inverted: {group.short_name} is its own "
+                   f"enantiomorph, so the symbol is unchanged and the "
+                   f"structure is not")
+    report = SymmetryReport(
+        n_before=structure.n_sites, n_after=out.n_sites,
+        message=message)
+    if group.is_centrosymmetric:
+        report.warnings.append(
+            "nothing to undo: the inverted structure is the one you "
+            "already have")
+    return out, report
 
 
 # ======================================================================

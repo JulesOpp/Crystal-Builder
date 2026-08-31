@@ -3,7 +3,7 @@ xtal.commands.symmetry
 ======================
 Undoable symmetry operations.
 
-These are the four things a crystallographer does to the symmetry of a
+These are the things a crystallographer does to the symmetry of a
 structure, wrapped so that each is one step on the undo stack:
 
 * :class:`FindSymmetry` -- detect the group at a tolerance and reduce
@@ -12,7 +12,10 @@ structure, wrapped so that each is one step on the undo stack:
   sites as an asymmetric unit or imposing the group on a full cell;
 * :class:`Standardize` -- rebuild the cell in the conventional or
   primitive setting of the detected group;
-* :class:`ReduceToP1` -- expand every orbit and throw the group away.
+* :class:`ReduceToP1` -- expand every orbit and throw the group away;
+* :class:`Invert` -- swap the structure's hand, group included;
+* :class:`DescendToSubgroup` -- drop to a maximal subgroup so that an
+  orbit splits and its atoms become independent.
 
 Each carries a :class:`~xtal.core.symmetry.SymmetryReport` describing
 what it did or would do, so a dialog can show the consequences at the
@@ -25,7 +28,7 @@ description of "this used to be P1 and now it is Fd-3m".
 from __future__ import annotations
 
 from xtal.commands.base import StructureOperation
-from xtal.core import symmetry
+from xtal.core import subgroups, symmetry
 from xtal.core.spacegroup import SpaceGroup
 from xtal.core.structure import Change
 
@@ -143,6 +146,58 @@ class AssignWyckoff(StructureOperation):
             n_before=structure.n_sites, n_after=out.n_sites,
             message=(f"{out.n_sites} sites on "
                      f"{', '.join(sorted(letters)) or 'no'} positions"))
+
+
+class Invert(StructureOperation):
+    """The same crystal in the other hand.
+
+    Both halves or neither: the coordinates change *and* the group
+    does.  Negating the coordinates while leaving P4_1 in place would
+    give a structure whose atoms no longer obey their own symmetry, and
+    the next expansion of it would be nonsense.
+    """
+
+    change = Change.SYMMETRY | Change.POSITIONS | Change.TOPOLOGY
+    label = "Invert the structure"
+
+    def apply_to(self, structure):
+        return symmetry.invert(structure)
+
+
+class DescendToSubgroup(StructureOperation):
+    """Drop into one of the maximal subgroups of the current group, so
+    that an orbit splits and the atoms in it become independent.
+
+    Going the other way is :class:`FindSymmetry`, and the two are not a
+    matched pair: raising the symmetry is a measurement of the
+    coordinates, and lowering it is a choice between several subgroups
+    that the coordinates cannot make for you.
+    """
+
+    change = Change.SYMMETRY | Change.CELL | Change.TOPOLOGY
+
+    def __init__(self, subgroup, tol: float = symmetry.MATCH_TOL):
+        super().__init__()
+        self.subgroup = subgroup
+        self.tol = float(tol)
+        self.label = f"Descend to {subgroup.symbol}"
+
+    def apply_to(self, structure):
+        out, report = subgroups.descend(structure, self.subgroup,
+                                        self.tol)
+        if report.ok:
+            report.message = (
+                f"{structure.space_group.short_name} -> "
+                f"{self.subgroup.symbol} at index {self.subgroup.index}"
+                f": {structure.n_sites} -> {out.n_sites} independent "
+                f"sites")
+            if not self.subgroup.keeps_the_cell:
+                a, b, c, al, be, ga = out.lattice.parameters
+                report.warnings.append(
+                    f"the cell is now the standard setting of "
+                    f"{self.subgroup.symbol}: a={a:.4f} b={b:.4f} "
+                    f"c={c:.4f}, {al:.2f} {be:.2f} {ga:.2f}")
+        return out, report
 
 
 class MergeDuplicates(StructureOperation):

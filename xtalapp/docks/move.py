@@ -1,7 +1,7 @@
 """
 xtalapp.docks.move
 ==================
-Moving the selection: translate, rotate, mirror.
+Moving the selection: translate, rotate, mirror, flatten.
 
 Rotation and mirroring are done in cartesian space, because that is the
 only space in which they are rigid -- rotating fractional coordinates
@@ -11,11 +11,20 @@ by 1.5 A" are both things people mean.
 
 Every button here runs a command, so everything undoes; repeated nudges
 merge into one undo step while the gesture continues.
+
+The arrows are the point of the dock rather than a decoration on it.
+Typing a number and pressing Apply is how the tool is *specified*;
+holding an arrow and watching the fragment slide is how it is used, and
+a burst of forty nudges has to come back on one Ctrl+Z or the undo
+stack is useless afterwards.  ``MoveSites`` and ``TransformSites``
+merge while the button is down, and the merge window is closed when it
+comes up -- see :meth:`MoveDock._end_gesture`.
 """
 
 from __future__ import annotations
 
 import numpy as np
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QDockWidget,
@@ -25,9 +34,16 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
+
+# A held arrow repeats at this rate, after this delay.  Slow enough
+# that one press is one step, fast enough that holding it reads as a
+# slide rather than a stutter.
+REPEAT_DELAY_MS = 350
+REPEAT_INTERVAL_MS = 60
 
 AXES = {
     "a": None, "b": None, "c": None,          # lattice vectors
@@ -39,6 +55,12 @@ AXES = {
 
 class MoveDock(QDockWidget):
     """Numeric transformations of the current selection."""
+
+    #: What an edit did, for the status bar.  Make planar in
+    #: particular has to say how far it moved things -- "moved by up to
+    #: 0.08 A" is a fix and "0.8 A" is a silent corruption, and the
+    #: picture afterwards looks the same either way.
+    statusMessage = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__("Move", parent)
@@ -70,6 +92,7 @@ class MoveDock(QDockWidget):
         self.units.addItems(["fractional", "cartesian (A)"])
 
         self.steps = []
+        self.nudges = []
         grid = QGridLayout()
         grid.addWidget(self.units, 0, 0, 1, 3)
         for column, axis in enumerate("xyz"):
@@ -81,6 +104,19 @@ class MoveDock(QDockWidget):
             spin.setPrefix(f"{axis} ")
             grid.addWidget(spin, 1, column)
             self.steps.append(spin)
+            # One step per click, repeating while held.  The step is
+            # the spinbox above, so the arrows add no new quantity to
+            # keep track of -- they are pure acceleration.
+            arrows = QHBoxLayout()
+            for glyph, sign in (("\u2212", -1.0), ("+", 1.0)):
+                button = self._arrow(
+                    glyph,
+                    lambda a=column, s=sign: self.nudge(a, s),
+                    f"Move by the {axis} step, and keep moving while "
+                    f"held")
+                arrows.addWidget(button)
+                self.nudges.append(button)
+            grid.addLayout(arrows, 2, column)
 
         # Both buttons go through a lambda: QPushButton.clicked carries
         # a `checked` flag, and connecting `translate` to it directly
@@ -117,27 +153,74 @@ class MoveDock(QDockWidget):
         apply_button = QPushButton("Apply")
         apply_button.clicked.connect(lambda: self.rotate())
 
+        spin_arrows = QHBoxLayout()
+        for glyph, sign in (("\u21ba", -1.0), ("\u21bb", 1.0)):
+            button = self._arrow(
+                glyph, lambda s=sign: self.nudge_rotation(s),
+                "Turn by the angle above, and keep turning while held")
+            spin_arrows.addWidget(button)
+            self.nudges.append(button)
+
         grid = QGridLayout(box)
         grid.addWidget(QLabel("axis"), 0, 0)
         grid.addWidget(self.rotation_axis, 0, 1)
         grid.addWidget(QLabel("angle"), 1, 0)
         grid.addWidget(self.angle, 1, 1)
-        grid.addWidget(QLabel("about"), 2, 0)
-        grid.addWidget(self.rotation_centre, 2, 1)
-        grid.addWidget(apply_button, 3, 0, 1, 2)
+        grid.addLayout(spin_arrows, 2, 1)
+        grid.addWidget(QLabel("about"), 3, 0)
+        grid.addWidget(self.rotation_centre, 3, 1)
+        grid.addWidget(apply_button, 4, 0, 1, 2)
         return box
 
     def _build_mirror(self) -> QGroupBox:
-        box = QGroupBox("Mirror")
+        box = QGroupBox("Reflect and flatten")
         self.mirror_axis = QComboBox()
         self.mirror_axis.addItems(list(AXES))
-        apply_button = QPushButton("Apply")
+        apply_button = QPushButton("Mirror")
         apply_button.clicked.connect(lambda: self.mirror())
-        inner = QHBoxLayout(box)
-        inner.addWidget(QLabel("normal"))
-        inner.addWidget(self.mirror_axis, 1)
-        inner.addWidget(apply_button)
+        row = QHBoxLayout()
+        row.addWidget(QLabel("normal"))
+        row.addWidget(self.mirror_axis, 1)
+        row.addWidget(apply_button)
+
+        self.planar_button = QPushButton("Make planar")
+        self.planar_button.setToolTip(
+            "Flatten the selection onto its best-fit plane -- for a "
+            "ring that came out of a builder slightly puckered")
+        self.planar_button.clicked.connect(lambda: self.planarize())
+
+        inner = QVBoxLayout(box)
+        inner.addLayout(row)
+        inner.addWidget(self.planar_button)
         return box
+
+    def _arrow(self, glyph: str, slot, tip: str) -> QToolButton:
+        """A button that fires once on click and repeats while held.
+
+        The release is wired as well as the press: it is what closes
+        the merge window, so a burst of nudges is one undo step and the
+        *next* burst is a different one.
+        """
+        button = QToolButton()
+        button.setText(glyph)
+        button.setToolTip(tip)
+        button.setAutoRepeat(True)
+        button.setAutoRepeatDelay(REPEAT_DELAY_MS)
+        button.setAutoRepeatInterval(REPEAT_INTERVAL_MS)
+        button.clicked.connect(lambda _checked=False: self._nudged(slot))
+        button.released.connect(self._end_gesture)
+        return button
+
+    def _nudged(self, slot) -> str:
+        message = slot()
+        if message:
+            self.statusMessage.emit(message)
+        return message
+
+    def _end_gesture(self) -> None:
+        """The arrow came up: stop merging into that undo step."""
+        if self.document is not None:
+            self.document.break_merge()
 
     # -- binding -------------------------------------------------------
 
@@ -190,3 +273,35 @@ class MoveDock(QDockWidget):
             return ""
         normal = self._axis_vector(self.mirror_axis.currentText())
         return self.document.mirror_selection(normal)
+
+    def planarize(self) -> str:
+        if self.document is None or not self.document.selection.atoms:
+            return ""
+        message = self.document.planarize_selection()
+        if message:
+            self.statusMessage.emit(message)
+        return message
+
+    def nudge(self, axis: int, sign: float = 1.0) -> str:
+        """One step along one axis, from that axis's spinbox."""
+        if self.document is None or not self.document.selection.atoms:
+            return ""
+        step = self.steps[axis].value()
+        if not step:
+            return ""
+        delta = np.zeros(3)
+        delta[axis] = step * sign
+        cartesian = self.units.currentIndex() == 1
+        return self.document.move_selection(delta, cartesian=cartesian)
+
+    def nudge_rotation(self, sign: float = 1.0) -> str:
+        """One step of rotation about the chosen axis."""
+        if self.document is None or not self.document.selection.atoms:
+            return ""
+        angle = self.angle.value() * sign
+        if not angle:
+            return ""
+        axis = self._axis_vector(self.rotation_axis.currentText())
+        centre = (None if self.rotation_centre.currentIndex() == 0
+                  else np.zeros(3))
+        return self.document.rotate_selection(axis, angle, centre)

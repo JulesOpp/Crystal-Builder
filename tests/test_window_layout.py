@@ -132,11 +132,13 @@ def test_fitting_a_window_that_already_fits_changes_nothing(
 
 # ------------------------------------------------------------- layout
 
-def test_only_two_docks_open_on_a_first_run(window):
+def test_only_the_three_starting_docks_open_on_a_first_run(window):
     """Seven panels tabbed on the right take, between them, the width
-    the viewport is there to use."""
+    the viewport is there to use.  The two that open beside them are
+    what can be run and what it produced."""
     visible = {d.objectName() for d in window.docks if not d.isHidden()}
     assert visible == {window.file_dock.objectName(),
+                       window.modules_dock.objectName(),
                        window.inspector_dock.objectName()}
 
 

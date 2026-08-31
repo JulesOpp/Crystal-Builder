@@ -3,13 +3,15 @@ xtal.commands.ff
 ================
 Undoable edits that come out of the force field.
 
-Two of them.  An optimisation moves every site at once and lands as a
+Three of them.  An optimisation moves every site at once and lands as a
 *single* undo step -- a relaxation is one thing the user asked for, not
 two hundred, and Ctrl+Z after it must give back the structure they
 started from rather than the second-to-last iteration.  And an atom
 type override is an edit like any other, because it changes the answer
 the next calculation gives and the user needs to be able to take it
-back.
+back.  Adding hydrogens is here for the same reason the optimisation
+is: what it does to the structure is an ordinary edit, and everything
+that decides *what* to do is the force field's typing.
 
 Neither belongs in ``xtal.ff``: that package computes and this one
 changes, and the separation is what lets the optimiser run in a worker
@@ -21,7 +23,9 @@ from __future__ import annotations
 
 import numpy as np
 
+from xtal.commands.atoms import AddSites
 from xtal.commands.base import Command
+from xtal.core.lattice import Lattice
 from xtal.core.structure import Change
 
 
@@ -38,10 +42,19 @@ class ApplyOptimizedGeometry(Command):
     change = Change.POSITIONS
 
     def __init__(self, frac, label: str = "Optimise geometry",
-                 report=None, before=None):
+                 report=None, before=None, matrix=None):
         self.frac = np.asarray(frac, dtype=float).reshape(-1, 3)
         self.label = label
         self.report = report
+        # A variable-cell relaxation moves the lattice as well, and it
+        # has to travel with the coordinates in the *same* command: two
+        # commands would mean a Ctrl+Z that put the atoms back into a
+        # cell they were never relaxed in.
+        self.matrix = (None if matrix is None else
+                       np.asarray(matrix, dtype=float).reshape(3, 3))
+        self._old_matrix = None
+        if self.matrix is not None:
+            self.change = Change.POSITIONS | Change.CELL
         # ``before`` matters when the caller has been drawing the
         # optimisation as it ran: the structure then already holds the
         # last previewed geometry, and undo data read from it would
@@ -57,7 +70,8 @@ class ApplyOptimizedGeometry(Command):
         """Build from an :class:`xtal.ff.optimize.OptimizationResult`,
         keeping the report so the panel and the status bar can say what
         happened."""
-        return cls(result.frac, label, report=result)
+        return cls(result.frac, label, report=result,
+                   matrix=getattr(result, "matrix", None))
 
     def do(self, host) -> None:
         structure = host.structure
@@ -68,16 +82,22 @@ class ApplyOptimizedGeometry(Command):
                 f"edited while the calculation was running")
         if self._old is None:
             self._old = structure.frac.copy()
+        if self.matrix is not None and self._old_matrix is None:
+            self._old_matrix = structure.lattice.matrix.copy()
         for site, frac in zip(structure.sites, self.frac,
                               strict=True):
             site.frac = np.array(frac, dtype=float)
-        structure.touch(Change.POSITIONS)
+        if self.matrix is not None:
+            structure.lattice = Lattice(self.matrix)
+        structure.touch(self.change)
 
     def undo(self, host) -> None:
         structure = host.structure
         for site, frac in zip(structure.sites, self._old, strict=True):
             site.frac = np.array(frac, dtype=float)
-        structure.touch(Change.POSITIONS)
+        if self._old_matrix is not None:
+            structure.lattice = Lattice(self._old_matrix)
+        structure.touch(self.change)
 
     def displacement(self, structure) -> float:
         """The largest distance any atom would move, in Angstrom.
@@ -91,7 +111,13 @@ class ApplyOptimizedGeometry(Command):
             before = self._old
         else:
             before = structure.frac
-        delta = (self.frac - before) @ structure.lattice.matrix
+        # In the cell it will end up in, which is the cell the atoms
+        # are actually in once this has run.
+        matrix = (structure.lattice.matrix if self.matrix is None
+                  else self.matrix)
+        delta = self.frac @ matrix - before @ (
+            structure.lattice.matrix if self._old_matrix is None
+            else self._old_matrix)
         if not len(delta):
             return 0.0
         return float(np.linalg.norm(delta, axis=1).max())
@@ -182,3 +208,51 @@ class SetCharges(Command):
                                 strict=True):
             site.charge = charge
         structure.touch(self.change)
+
+
+class AddHydrogens(Command):
+    """Put the missing hydrogens back, as one undoable edit.
+
+    The work is :func:`xtal.ff.hydrogens.plan`; what this adds is the
+    two things a command has to have.  It **says what it will do before
+    it does it** -- :meth:`preview` returns the same plan the run will
+    use, so the dialog's count is the count and not an estimate -- and
+    it lands as *one* entry on the undo stack however many hydrogens
+    it added, because putting the hydrogens back is one thing the user
+    asked for.
+
+    One :class:`~xtal.commands.atoms.AddSites` is enough for that: it
+    already appends a list.  A ``MacroCommand`` over one command per
+    hydrogen would undo identically and describe the operation less
+    honestly.
+    """
+
+    change = Change.TOPOLOGY
+    label = "Add hydrogens"
+
+    def __init__(self, rules=None, xray: bool = False):
+        self.rules = rules
+        self.xray = bool(xray)
+        self.plan = None
+        self._for = None
+        self._add: AddSites | None = None
+
+    def preview(self, structure):
+        """The :class:`~xtal.ff.hydrogens.HydrogenPlan` for this
+        structure, computed once and reused when it is run."""
+        from xtal.ff import hydrogens
+
+        if self._for is not structure or self.plan is None:
+            self.plan = hydrogens.plan(structure, self.rules,
+                                       self.xray)
+            self._for = structure
+        return self.plan
+
+    def do(self, host) -> None:
+        plan = self.preview(host.structure)
+        self._add = AddSites(plan.sites, label=self.label)
+        self._add.do(host)
+
+    def undo(self, host) -> None:
+        if self._add is not None:
+            self._add.undo(host)

@@ -71,12 +71,13 @@ out of its phase whenever the pain is worth a detour.
 
 | Item | TODO section | Size |
 |---|---|---|
-| Readable UFF atom type descriptions | Force field | S |
-| Invert the structure | Symmetry | S |
-| Invert Selection ignores symmetry | Selection | S |
 | Arrow buttons on translate and rotate | Editing | S |
 | Bonds inside polyhedra | Appearance | S |
 | Cutoff and skin controls | Force field | S |
+| Edit cell in the right-click menu | Editing | S |
+
+Two more sat here until Phase F took them: *Invert the structure* and
+*Invert Selection ignores symmetry*, both shipped.
 
 ---
 
@@ -287,7 +288,7 @@ every file.
 **The run folders are written by the module that ran**, not by the
 tree -- `RunFolder`, `RunLog` and `xtal/ff/record.py` -- so
 `xtal optimize file.cif --workspace DIR` produces the identical layout
-from a script.  That is also what Phase D's process runner will write
+from a script.  That is also what Phase D's process runner writes
 through.
 
 **The log** is what makes a result defensible: the version, the engine
@@ -340,101 +341,379 @@ from the filesystem on every refresh rather than cached -- an index
 would be a second answer to the same question, and the one that goes
 stale when somebody moves a folder in Finder.
 
-## 7. Phase D — modules
+## 7. Phase D — modules ✅
 
 **Goal:** "what can I run" is a registry, and adding an engine touches
 no existing file.
 
-| Item | Size |
-|---|---|
-| A Modules menu and a module tree | M |
-| Forcefield moved under it, unchanged | S |
-| An external-process runner, written once | M |
+Shipped.  `Calculate` is gone and `Modules` is in its place, with a
+submenu per module and a module tree dock beside the workspace tree --
+what can be run on one side, what it produced on the other.  Neither is
+written by hand: both are built from `xtal/modules/registry.py`, and
+nothing in `xtalapp/mainwindow.py` names a module.
 
-The process runner is the part worth care: launch in a run folder,
-stream stdout into `run.log` live, cancel by terminating the process
-rather than abandoning a thread, detect a missing binary before
-launching rather than inside a subprocess failure, and surface the exit
-status as something a user can act on.
+**The declaration is the whole of it**, `xtal/modules/registry.py`.  A
+`Module` has a name, a label, an order in the tree, a `check` that says
+whether it can run at all, and a tuple of `Action`s.  An `Action` names
+the parameters it needs (`Param`, rendered into a form), the callable
+that runs it, whether it wants a run folder, and what the middle word
+of that folder's name is.  Registering one is:
 
-**Deliverable.** A Modules menu and a module tree dock, both built from
-the registry, with UFF as the first module and its three entries
-working exactly as they did.  A stub module — one that sleeps, logs and
-writes a file — proves the registry, the form generation, the worker
-and the cancel path without needing a binary installed.
+```python
+MODULES.register(Module(
+    name="zeopp", label="Zeo++",
+    check=lambda: NETWORK.availability(),
+    actions=(Action(name="pore-diameter", label="Pore diameter...",
+                    params=(Param("radii", "Radii file", kind="path"),),
+                    run=zeo.pore_diameter),)))
+```
 
-This is also [docs/PLAN.md](PLAN.md) § 16 phase 9 done for real: a
-DFTB+ module added later without touching core is the evidence that
-phase asks for, and it is better evidence than a PXRD module written
-by the same person who wrote the registry.
+and the menu entry, the tree leaf, the parameter dialog, the worker
+thread, the run folder, the log and the Stop button all follow from it.
+`xtal/plugins.py` calls the `crystal_builder.plugins` entry points at
+start-up, so the same is true of a module installed from another
+package -- which is what makes [docs/PLAN.md](PLAN.md) § 14's claim
+that *no existing file changes* literally rather than nearly true.
 
-**Risk.** Over-generalising the parameter form.  Three modules is not
-enough to know what the fourth needs; keep the declaration small and
-let it grow when a real module strains it.
+**Forcefield moved rather than being rewritten.**  Its three entries
+are the three that were under `Calculate`, they are the same QActions,
+and `Ctrl+E` and `Ctrl+Shift+E` went with them.  They are declared with
+a `shell` field naming the window action that performs them, because
+the Force Field panel does three things a generic runner cannot -- it
+moves the atoms as the geometry changes, plots the energy as it
+arrives, and lands the whole run as one undoable command.  That field
+is the one asymmetry in the design and it is recorded rather than
+hidden: a module written after this one has `run` instead, and gets its
+form and its thread for free.
+
+**The process runner**, `xtal/modules/process.py`, is the part that was
+worth the care, because DFTB+ and Zeo++ both go through it:
+
+* *A missing binary is found before anything is launched.*  `Program`
+  looks at an explicit path, then an environment variable, then PATH,
+  and raises `MissingProgram` naming all three -- and the same call
+  answers `Module.check`, so the tree greys the module out and says
+  why before anybody clicks.
+* *The log is live.*  Every line the child prints is written and
+  flushed as it arrives, so the log of a run that hung is the evidence
+  of where it hung, and the log viewer tails it while it runs.
+* *Cancel reaches the process.*  Abandoning the reading thread leaves
+  the binary running: still on the CPU, still writing into the run
+  folder, still there when the next run starts.  Stop terminates the
+  process *group* (a program launched through a wrapper script is a
+  child of a child), waits five seconds, and kills what survives.
+  Stop pressed before the launch does not launch it at all.
+* *The exit status becomes a sentence.*  `returncode 1` tells nobody
+  anything; the last twenty lines are kept and quoted, because the
+  thing that went wrong is nearly always in them.
+
+`Cancellation` is what lets one Stop button cover both kinds of job: an
+in-process loop polls it (and sleeps on it, so a job resting ten
+seconds still stops in milliseconds) while `ExternalProcess` registers
+its terminator with it.  The button does not have to know which it is
+stopping.
+
+**The stub module**, `xtal/modules/stub.py`, is how all of that is
+tested on a machine with nothing installed.  It counts, logs, writes a
+file and can be told to fail, in two flavours -- one in the worker
+thread and one in a child process, the second launching this
+interpreter rather than a binary.  It is registered only when
+`XTAL_STUB_MODULE` is set, because an entry called *Stub* in a shipped
+menu is a confusing thing to find.
+
+**`xtal modules` and `xtal run`** list the registry and run an entry
+from a script, through `xtal/modules/record.py` -- the same run folder
+and the same log the window writes, which is Phase C's rule applied to
+the registry.  It is also the proof the registry is headless: a module
+that could only be run by clicking it is one whose parameters, run
+folder and log could not be tested without a display.
+
+**Two Qt traps, found by the tests and worth writing down.**  A
+`QThread` whose last Python reference is dropped inside its own
+`finished` slot is destroyed while still running, and Qt aborts the
+process rather than raising -- so `start_in_thread` takes a parent and
+C++ owns the thread.  And `QAction.menu()` hands ownership of the
+submenu to the caller in PySide6, so a test that reached a submenu that
+way destroyed it before asserting on it; menus are found among their
+parent's children instead.
+
+**Tests.** 96 new: the registry, parameters and cancellation
+(`tests/test_modules.py`), the process runner end to end including
+kill-on-cancel and a process that ignores SIGTERM
+(`tests/test_process_runner.py`), the menu, the tree, the generated
+form and a full run with its folder and log
+(`tests/test_modules_ui.py`), and the two new CLI commands.
+
+**Risk, as written before the phase.**  Over-generalising the
+parameter form.  It stayed small: six parameter kinds, no layout
+language, no conditional enabling, no validation beyond a range, and a
+result that is a message and optionally a structure.  Tables, plots and
+overlays are named in the plan as things a module will want to present
+and are deliberately not there yet -- the first module that has one
+gets to decide what the shape is.
 
 ---
 
-## 8. Phase E — the force field, made readable and complete
+## 8. Phase E — the force field, made readable and complete ✅
 
-| Item | Size |
-|---|---|
-| Atom types nobody can read | S |
-| Add hydrogens | M |
-| Variable-cell relaxation | L |
+**Goal:** the one panel whose job is checking can be read, and a
+lattice constant is something this application produces rather than
+something it assumes.
 
-Add hydrogens comes before variable cell for a reason that is easy to
-miss: relaxing a cell around a structure with no hydrogens optimises a
-UFF energy computed from typings that were all guesses.  Getting a
-lattice constant out of that and believing it is the failure mode the
-whole force field section of TODO.md keeps warning about.
+Shipped.  The type table says *octahedral Ti(IV)* beside `Ti6+4`; an
+X-ray structure gets its hydrogens back as one undoable edit with an
+honest orbit count; and a cell relaxes under a symmetry-adapted strain,
+with an external pressure, from the panel and from a script.
 
-**Deliverable.** The type table says "tetrahedral Zn(II)" beside
-`Zn3+2`; an X-ray structure can have its hydrogens put back with an
-honest orbit count; a cell relaxes under symmetry-adapted strain with
-an optional external pressure.
+**The type in words**, `UFFParams.description`.  Built from the parts
+of the five-character name and not from a table of 127 strings, so a
+type added to `params.py` is readable the moment it exists.  The
+geometry character is the whole trick: it is a coordination polyhedron
+on a metal and a hybridisation in the main group, so the same `3` reads
+as *tetrahedral* on zinc and *sp3* on oxygen, and nothing anywhere had
+ever said so.  It goes **beside** the name and never replaces it -- the
+name is what Rappe's Table 1 is indexed by, what an override is stored
+as, and what anybody cross-checking against another program needs --
+in the panel's new column, in the override dialog (`Fe3+2` and `Fe6+2`
+is a choice between two strings; *tetrahedral* and *octahedral* is a
+question about your crystal), in the Inspector, and in the run log,
+which is the copy somebody reads three months later.
 
-**Tests.** The MOF-5 lattice-constant regression named in
-[docs/PLAN.md](PLAN.md) § 11, which cannot be written until variable
-cell exists and is the reason it is on this list.  Symmetry-adapted
-strain must keep a cubic cell cubic and a hexagonal cell hexagonal
-across a full relaxation.
+**Add hydrogens**, `xtal/ff/hydrogens.py`.  The coordination decides
+where, the valence decides how many, the force field decides how far,
+and symmetry decides how many there really are.
+
+* Where: the typer's hybridisation, not a second geometry pass --
+  `typer.Geometry` was made public rather than duplicated.  Benzene's
+  hydrogens come out in the ring plane at 120 degrees, a methyl
+  tetrahedral and *staggered* against the heaviest atom two bonds away,
+  and a hydroxyl bent at 104.51 rather than straight, because the angle
+  is read off the type (`O_3`'s own `theta0`) and not off the
+  coordination number.
+* How many: `elements.VALENCE` less the bond orders the typer inferred
+  -- so an aromatic carbon is judged to be carrying 3.0 and gets one
+  hydrogen, and a carboxylate oxygen already coordinating a metal gets
+  none.  A metal gets none by rule, an element with no tabulated
+  valence gets none and is **named**, and an atom with no neighbours at
+  all gets none because there is no coordination to complete.
+* How far: `terms.natural_bond_length(type, "H_", 1.0)`, so the
+  hydrogen arrives at the minimum of the potential it is about to be
+  relaxed in -- a relaxation afterwards moves it less than 0.05 A.  The
+  X-ray distances are 0.1 A shorter for a real reason and are offered,
+  not defaulted to.
+* The count reported is the **orbit** count: "6 hydrogens on 2 atoms (4
+  sites in the asymmetric unit)".  Two hydrogens either side of a
+  mirror plane are one site, and a candidate that lands in an earlier
+  one's orbit is dropped rather than generated twice.
+* One `AddSites` for the lot, so it is one Ctrl+Z, with the plan --
+  and every assumption in it -- on screen before the button is pressed.
+  Found and fixed on the way: `AddSites` asked the structure for a free
+  label per site without counting the batch, so twelve hydrogens added
+  at once were all called `H1`.
+
+**Variable-cell relaxation.**  `SymmetryDOF` gained six strain
+variables in the same flat vector, so FIRE and L-BFGS relax a lattice
+constant without either of them changing a line.
+
+* **The strain is symmetry-adapted by projection, not by a table.**  A
+  displacement transforms as `u W` and a strain, one rank up, as
+  `W^T e W`; averaging that over the point group is the projector onto
+  the strains the group allows.  It leaves a cubic cell one free strain
+  and a hexagonal or tetragonal one two, and a cubic cell relaxed
+  through it comes back with `a = b = c` and three right angles
+  *exactly* -- not to a tolerance, because there is no variable that
+  could take it anywhere else.
+* The stress is `Calculator.numeric_stress`, built in phase 7 and left
+  unwired until now: twelve energy evaluations a step, which is what an
+  engine with no analytic virial costs and the reason the analytic one
+  is the next thing to write.
+* External pressure as a `P V` term, in GPa, with the conversion
+  written down once (`optimize.GPA`; 1 kcal/mol/A^3 is 6.9477 GPa) and
+  tested by relaxing under 5 GPa and confirming the crystal is pushing
+  back with exactly that.
+* Two scalings keep the six new variables ordinary: the strain is
+  stored times a cell length, so FIRE's step cap is a distance, and its
+  gradient is divided by the atom count, so what is compared against
+  the force tolerance is a force per atom.  `|F|max` still means what
+  it always meant -- the cell's own convergence is reported beside it
+  rather than folded into it, or two runs of the same structure would
+  not be comparable.
+* The cell travels with the coordinates in **one** command, or Ctrl+Z
+  would put the atoms back into a cell they were never relaxed in; the
+  trajectory frames carry it too; and `xtal optimize --relax-cell
+  --pressure` does the same from a script.
+* One control and one honest warning in the panel: a cell relaxed
+  under UFF is a UFF cell, and for a framework it is routinely a few
+  percent out.
+
+A real bug the tests caught: the strain enters the variables additively
+(`F + dF`) and the stress is the derivative of a strain applied to the
+cell `F` already made (`F(I+d)`), which differ by `F^-1`.  With `F^T`
+where `F^-T` belonged, every gradient was a few percent wrong -- it
+still converged, to the wrong cell, which is the failure mode nothing
+but a finite-difference check would ever have found.
+
+**Tests.** 40 new: the descriptions (`tests/test_uff_params.py`), the
+hydrogen geometry, the orbit count and the special-position case
+(`tests/test_hydrogens.py`), the strain subspace, the finite-difference
+check on the strain gradient, the pressure balance and the units
+(`tests/test_variable_cell.py`), plus the panel, the dialog and the CLI.
+
+**The lattice-constant regression is MFU-4l, not MOF-5.**
+[docs/PLAN.md](PLAN.md) § 11 names MOF-5/IRMOF-1 and this repository
+does not have one; transcribing a structure from memory and calling it
+a regression would be worse than saying so.  MFU-4l makes exactly the
+same claim on the framework that is here: 648 atoms, `Fm-3m`, 192
+operations, relaxing from the deposited a = 31.057 A to 30.303 A --
+2.4% in, which is the "few percent" the warning promises -- and staying
+exactly cubic all the way.  It runs in nine seconds and is marked
+`slow`.  Swap in MOF-5 when a trustworthy CIF is at hand.
+
+**Not done, and small:** the type in words does not reach a viewport
+tooltip, because there are no atom tooltips to put it in yet -- that is
+a viewport feature and belongs with Phase G.
 
 ---
 
-## 9. Phase F — symmetry
+## 9. Phase F — symmetry ✅
 
-| Item | Size |
-|---|---|
-| Invert the structure | S |
-| Invert Selection ignores symmetry | S |
-| Descend to a maximal subgroup | L |
+| Item | Size | |
+|---|---|---|
+| Invert the structure | S | ✅ |
+| Invert Selection ignores symmetry | S | ✅ |
+| Descend to a maximal subgroup | L | ✅ translationengleiche |
 
-The first two are a day between them and could go in any phase; they
-are here so the subgroup work has company.  The subgroup entry is the
-largest single piece of crystallography left in TODO.md, and its hard
-part is naming a subgroup in a standard setting, not finding it — so
-budget the phase around the naming and treat the enumeration as done.
+The first two were a day between them and could have gone in any
+phase; they were here so the subgroup work had company.  The subgroup
+entry was the largest single piece of crystallography left in
+TODO.md, and the budget was right: the hard part was naming a subgroup
+in a standard setting, not finding it.
+
+**What shipped.**  `xtal/core/subgroups.py` enumerates the maximal
+translationengleiche subgroups by walking the subgroup lattice upwards
+from the cyclic subgroups over the operations reduced modulo the
+centring — which finds every subgroup without assuming a bound on the
+number of generators, and does Fm-3m in a tenth of a second.
+
+**The naming was solved rather than worked around**, which is what
+made the feature usable.  `gemmi.find_spacegroup_by_ops` names 11 of
+the 27 maximal subgroups of the four fixture structures; building a
+probe crystal — the orbits of two generic points of two different
+species, in a cell of the parent's shape — and asking spglib to
+identify it names all 27, *and* returns the transformation to the
+standard setting along with the name.  Two generic points rather than
+one because a single orbit can acquire an accidental inversion centre
+about its own centroid, which is how a naive version calls P4_2nm
+"P4_2/mnm".  Every answer is checked twice: spglib must report exactly
+as many operations as it was asked about, and the named group's order
+must equal the operation count times the volume ratio of the new cell,
+or the subgroup comes back unnamed rather than mislabelled.
+
+Applying a descent needed one new core routine,
+`supercell.change_setting`: the general form of `transform_cell`, with
+a rational basis and an origin shift, because a subgroup's standard
+setting is generally not the parent's basis.  Rutile's Cmmm — the only
+one of its seven that splits anything, and the one gemmi cannot name —
+needs it.
+
+**What did not ship** is the klassengleiche half, which is back in
+TODO.md as its own entry.  The lost-centring case is the valuable one
+(it is the rock-salt cation-ordering model) and it does *not* fall out
+of the same enumeration for free, which is the one thing the original
+entry got wrong: the centring reduction is load-bearing, and putting
+the centring translations back invalidates the generating-set bound
+that the cheap enumeration rests on.
 
 ---
 
-## 10. Phase G — the picture
+## 10. Phase G — the picture ✅
 
-| Item | Size |
-|---|---|
-| Bonds inside polyhedra | S |
-| Bond order in the picture | M |
-| Depth cueing | M |
-| Rectangular select | M |
-| Arrow buttons on translate and rotate | S |
-| Make planar | S |
-| ORTEP draw style | L |
-| Topology bonds | L |
+| Item | Size | |
+|---|---|---|
+| Bonds inside polyhedra | S | ✅ |
+| Bond order in the picture | M | ✅ |
+| Depth cueing | M | ✅ |
+| Rectangular select | M | ✅ |
+| Arrow buttons on translate and rotate | S | ✅ |
+| Make planar | S | ✅ |
+| ORTEP draw style | L | ✅ |
+| Topology bonds | L | ✅ |
 
-Bond order in the picture needs the bond-order inference moved from the
-UFF typer down into `xtal/core/bonding.py`, which is Phase B's stored
-graph with one more field on it — so it is cheap here and expensive
-before.  ORTEP needs `u_aniso` on `Site` and in the CIF reader and
-writer, which is real I/O work and the reason it is an L.
+Bond order in the picture needed the bond-order inference moved from
+the UFF typer down into `xtal/core/bonding.py`, which is Phase B's
+stored graph with one more field on it — so it was cheap here and
+expensive before.  ORTEP needed `u_aniso` on `Site` and in the CIF
+reader and writer, which is real I/O work and the reason it was an L.
+
+**The bond-order move was the load-bearing one**, and it went further
+than "cut and paste one function".  The old inference was expressed in
+UFF's *type names* — `C_2` has one pi bond to place, `C_1` has two —
+so moving it meant re-deriving those counts from the element and the
+geometry instead: coordination, the angle at a two-coordinate atom, the
+angle sum at a three-coordinate one.  The terminal-atom case had to be
+rewritten outright, because UFF decided it by asking which of its own
+types predicted the measured bond length, and the core has no types to
+ask.  A ratio against the sum of the covalent radii does the same job
+— a double bond runs about 0.9 of a single one and a triple about 0.8
+— and it is what keeps butadiene's double bonds on the outside where
+they belong.  `xtal/ff/uff/typer.py` now *reads* `bonding.orders` and
+adds one thing of its own: UFF's amide C–N order of 1.41, which is a
+convention of that force field and not a fact about the molecule.
+
+**The offset direction was the whole of drawing a double bond**, as the
+entry predicted.  Two parallel tubes need a plane to lie in, and it is
+the local pi plane — the best-fit plane through the bond and the atoms
+around both its ends — so the picture does not flicker as the camera
+turns.  The direction is also *pointed at* the substituents, which is
+what puts an aromatic ring's dashed inner line inside the ring rather
+than outside it, where it would read as a bond to something that is not
+there.  A bare diatomic has no such plane and is the one case allowed
+to consult the camera: it is laid into the plane of the screen, fixed
+when the scene is built and not while the camera moves.
+
+**Depth cueing is a shader replacement** on the atom, bond and
+polyhedron actors, mixing towards the background by `-vertexVCVSOutput.z`
+— view-space distance, which is linear — rather than by
+`gl_FragCoord.z`, which a perspective projection skews so heavily that
+the whole scene lands in the last few thousandths of it and the fade is
+either invisible or total.  The near and far distances are the scene's
+own bounds along the view direction, refreshed from a renderer
+`StartEvent` so they follow the camera instead of sliding off the
+structure on the first zoom.  It is off by default, so no documentation
+image and no render test changed under it.
+
+**ORTEP's two traps were both real.**  The CIF's U^ij are defined
+against the *reciprocal* basis and are not a cartesian tensor;
+`Site.u_cartesian` converts them, and in an orthorhombic cell the two
+agree exactly, which is why getting it wrong survives casual testing.
+The second was the renderer: `vtkGlyph3DMapper` will scale a glyph by
+three components and turn it by a quaternion, so one actor draws every
+ellipsoid — but the split has to be `M = U S`, taking the *left*
+singular vectors alone.  Using `U V^T`, which is the reflex answer for
+"the rotation part of a matrix", pairs each axis length with the wrong
+axis and points every ellipsoid somewhere else.  The three fallbacks
+are each visible as themselves: an isotropic atom is a sphere, and an
+atom with no displacement parameters at all is a small one that does
+*not* grow when the probability level is raised, which is the tell.
+
+**Topology bonds needed the identity of a stored bond widened.**
+`Structure.add_bond` matched on the pair of points alone, so a net edge
+and a chemical bond joining the same two atoms collided — which in a
+net whose vertices are directly bonded metals is every edge.  The kind
+is part of the identity now, and `explicit` and `suppressed`
+deliberately still collide, because they are two answers to the same
+question.  `perceive` filters the net out, `topology_graph` hands it
+back on its own, and `coordination_sequence` and `point_symbol` give
+**pcu** the 6, 18, 38, 66, 102 and the 4^12.6^3 that RCSR does.  The
+open question from the entry stands: a vertex is an atom, and a Zn4O
+cluster still wants its centroid.
+
+**What did not ship** is the atom tooltip Phase E's write-up parked
+here — the UFF type in words, shown on hover.  It was never one of this
+phase's eight entries; it arrived as a sentence at the end of another
+phase, which is not how work gets scheduled.  It is back in TODO.md as
+its own entry, where it can be sized honestly: the tooltip is the
+feature, and the type is only the first thing to put in it.
 
 ---
 
@@ -500,9 +779,9 @@ the default bundle, which is the only real argument against it.
 | **B** | Bonds you control | ✅ done |
 | — | **Ship** ([PLAN](PLAN.md) § 16 phase 8) | — |
 | **C** | Files, exports, workspace | ✅ done |
-| **D** | Modules | M |
-| **E** | Force field | L |
-| **F** | Symmetry | L |
+| **D** | Modules | ✅ done |
+| **E** | Force field | ✅ done |
+| **F** | Symmetry | ✅ done |
 | **G** | The picture | L |
 | **H** | Zeo++, then DFTB+ | L |
 | **I** | Building | M (XL with the sketcher) |

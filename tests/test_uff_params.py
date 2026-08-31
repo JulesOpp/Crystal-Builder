@@ -73,6 +73,50 @@ def test_the_type_name_states_the_coordination_it_expects():
     assert params.get("W_6+6").element == "W"
 
 
+# ------------------------------------------- the type, in plain words
+
+def test_the_type_name_reads_as_a_sentence():
+    """`Zn3+2` is correct and unreadable; both, never one."""
+    assert params.get("Zn3+2").description == "tetrahedral Zn(II)"
+    assert params.get("Fe6+2").description == "octahedral Fe(II)"
+    assert params.get("Fe3+2").description == "tetrahedral Fe(II)"
+    assert params.get("C_R").description == "resonant carbon"
+    assert params.get("O_3_z").description == "sp3 oxygen, zeolitic"
+    assert params.get("H_b").description == "bridging hydrogen"
+
+
+def test_the_geometry_character_is_a_shape_or_a_hybridisation():
+    """The `3` of Zn3+2 means tetrahedral and the `3` of O_3 means
+    sp3, which is the single thing the panel never said."""
+    assert params.get("Zn3+2").shape == "tetrahedral"
+    assert params.get("O_3").shape == "sp3"
+    assert params.get("N_1").description == "sp nitrogen"
+    assert params.get("Ag1+1").description == "linear Ag(I)"
+
+
+def test_a_type_with_no_geometry_and_no_charge_is_just_its_element():
+    assert params.get("Cl").description == "chlorine"
+    assert params.get("H_").description == "hydrogen"
+    assert params.get("Li").description == "lithium"
+
+
+def test_a_main_group_oxidation_state_is_kept_and_written_in_roman():
+    assert params.get("S_3+6").description == "sp3 sulfur(VI)"
+    assert params.get("P_3+3").description == "sp3 phosphorus(III)"
+
+
+def test_every_type_in_the_table_can_be_described():
+    """Built from the parts, not from a table of 126 strings -- so a
+    type added to params.py is readable the moment it exists."""
+    for name, row in params.PARAMS.items():
+        assert row.description, name
+        assert row.description != name, name
+
+
+def test_lawrencium_is_described_under_its_modern_symbol():
+    assert params.get("Lw6+3").description == "octahedral Lr(III)"
+
+
 def test_an_unknown_type_is_refused_by_name():
     with pytest.raises(KeyError, match="not a UFF atom type"):
         params.get("Xx9")

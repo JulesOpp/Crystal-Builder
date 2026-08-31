@@ -9,8 +9,15 @@ mode and forwards clicks to it; the camera (rotate, zoom, pan) is
 handled by VTK underneath and is never a mode, because you always want
 to be able to turn the structure.
 
-Select, add-atom, add-bond and measure are each their own mode and
-slot in here without the viewport changing.
+Select, add-atom, add-bond, box-select and measure are each their own
+mode and slot in here without the viewport changing.
+
+Most modes want a click; box select wants a press, a drag and a
+release, so a mode may declare ``wants_drag`` and receive a
+:class:`DragEvent` instead.  That one flag is the only thing the
+viewport has to know about it: it stops handing the left button to
+VTK's trackball while such a mode is active, because a rubber band and
+a camera rotation are the same gesture and cannot both have it.
 
 Modes read what was clicked from the scene model's provenance arrays,
 never from the geometry: a drawn atom knows which atom of the P1 cell
@@ -56,14 +63,50 @@ class ClickEvent:
         return origin + direction * t
 
 
+@dataclass
+class DragEvent:
+    """A press, a drag and a release over the viewport.
+
+    In *display* coordinates -- pixels from the bottom left, the way
+    VTK counts them -- because that is the space a rubber band is drawn
+    in and the space the atoms have to be projected into to be tested
+    against it.  Turning it into world coordinates would mean choosing
+    a depth, and the whole point of a box is that it has none.
+
+    ``project`` maps an (M, 3) array of world positions to (M, 2)
+    display coordinates.  It is passed in rather than reached for, so
+    this module keeps knowing nothing about VTK.
+    """
+
+    start: tuple             # where the button went down
+    end: tuple               # where it came up
+    additive: bool = False   # shift / cmd held: extend the selection
+    project: object = None
+
+    def rectangle(self) -> tuple:
+        """``((x0, y0), (x1, y1))`` with the corners in order, so a box
+        dragged up and to the left is the same box as one dragged down
+        and to the right."""
+        x0, x1 = sorted((float(self.start[0]), float(self.end[0])))
+        y0, y1 = sorted((float(self.start[1]), float(self.end[1])))
+        return (x0, y0), (x1, y1)
+
+
 class Mode:
     """Base class: a mode may ignore any event it does not use."""
 
     name = "mode"
     label = "Mode"
     hint = ""
+    #: Does this mode want press-drag-release rather than a click?  The
+    #: viewport withholds the left button from VTK's camera while a
+    #: mode that does is active.
+    wants_drag = False
 
     def on_click(self, document, model, event: ClickEvent) -> str:
+        return ""
+
+    def on_drag(self, document, model, event: DragEvent) -> str:
         return ""
 
     def on_deactivate(self, document) -> None:
@@ -188,6 +231,120 @@ class AddBondMode(Mode):
         return message
 
 
+class BoxSelectMode(Mode):
+    """Drag a box over the viewport and take everything inside it.
+
+    The fastest way to grab a slab, a surface layer, or one end of a
+    long molecule.
+
+    **Everything inside, front to back.**  The atoms hidden behind the
+    ones you can see are taken as well, which is what VESTA does and
+    what makes the gesture useful for a slab -- a box that took only
+    the visible face would need to be dragged once per layer.  It is
+    also the one thing about it that can surprise, so the status bar
+    says how many were taken and that they came from all the way
+    through.
+
+    Rotating is not available while this mode is active: the left
+    button cannot both draw a box and turn the crystal.  Panning and
+    zooming still work, and the select mode next door still rotates.
+    """
+
+    name = "box_select"
+    label = "Box select"
+    hint = ("drag a box over the atoms - shift to add - everything "
+            "inside is taken, front to back")
+    wants_drag = True
+
+    def on_click(self, document, model, event: ClickEvent) -> str:
+        """A press that did not travel is still a click.
+
+        Missing this makes the mode feel broken: the user drags a box,
+        then clicks one atom to add it, and nothing happens.
+        """
+        return SelectMode().on_click(document, model, event)
+
+    def on_drag(self, document, model, event: DragEvent) -> str:
+        if document is None or model is None or model.n_atoms == 0:
+            return ""
+        if event.project is None:               # pragma: no cover
+            return ""
+        display = np.asarray(event.project(model.positions), dtype=float)
+        (x0, y0), (x1, y1) = event.rectangle()
+        inside = ((display[:, 0] >= x0) & (display[:, 0] <= x1)
+                  & (display[:, 1] >= y0) & (display[:, 1] <= y1))
+
+        atoms = sorted({int(a) for a in model.atom_index[inside]})
+        if not atoms:
+            if not event.additive:
+                document.select_none()
+            return "nothing in the box"
+        document.select(atoms, "add" if event.additive else "set")
+        return (f"{len(atoms)} atom(s) in the box, front to back")
+
+
+class DrawTopologyMode(Mode):
+    """Click two atoms to draw an edge of the underlying net.
+
+    A net -- **pcu**, **fcu**, **soc** -- is not a bond graph.  It is
+    what is left after deciding which parts of a framework are nodes
+    and which are linkers, and that decision belongs to a chemist and
+    not to a distance criterion.  This is where the decision gets made.
+
+    The edge expands over the symmetry orbit like every other bond,
+    which is what makes drawing one edge of a **pcu** net draw all six.
+    Clicking an edge selects it, and ``Del`` removes it.
+    """
+
+    name = "topology"
+    label = "Draw net"
+    hint = ("click two atoms to draw a net edge - click an edge to "
+            "select it, Del removes it")
+
+    def __init__(self):
+        self.pending: tuple | None = None
+
+    def on_deactivate(self, document) -> None:
+        self.pending = None
+
+    def on_click(self, document, model, event: ClickEvent) -> str:
+        if document is None:
+            return ""
+        kind, index = picking.pick(model, event.origin, event.direction,
+                                   prefer_topology=True)
+
+        if kind == "topology":
+            self.pending = None
+            document.select_topology(model.topology_key(index),
+                                     "toggle" if event.additive
+                                     else "set")
+            return "net edge selected -- Del removes it"
+
+        if kind != "atom":
+            self.pending = None
+            document.select_none()
+            return "cancelled"
+
+        atom, cell = model.instance(index)
+        if self.pending is None:
+            self.pending = (atom, cell)
+            document.select([atom])
+            return "pick the second vertex"
+        first, first_cell = self.pending
+        if (atom, cell) == self.pending:
+            return "pick a different atom"
+
+        self.pending = None
+        try:
+            message = document.add_topology_bond_between(
+                first, atom, first_cell, cell)
+        except ValueError as exc:
+            document.select_none()
+            return str(exc)
+        document.select([first, atom])
+        return message
+
+
 class MeasureMode(Mode):
     """Click atoms to measure between them.
 
@@ -260,6 +417,8 @@ def names() -> list[str]:
 
 
 register(SelectMode())
+register(BoxSelectMode())
 register(AddAtomMode())
 register(AddBondMode())
+register(DrawTopologyMode())
 register(MeasureMode())

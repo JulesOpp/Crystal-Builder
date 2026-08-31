@@ -1,5 +1,7 @@
 """The render model: what actually gets drawn, asserted without a GPU."""
 
+import math
+
 import numpy as np
 import pytest
 
@@ -257,10 +259,11 @@ def test_selection_flags_match_a_full_rebuild(rutile):
     settings = ViewSettings()
     plain = build_scene(rutile, settings)
     rebuilt = build_scene(rutile, settings, selection=selection)
-    atoms, bonds = selection_flags(plain, selection)
+    atoms, bonds, net = selection_flags(plain, selection)
 
     assert np.array_equal(atoms, rebuilt.selected)
     assert np.array_equal(bonds, rebuilt.selected_bonds)
+    assert np.array_equal(net, rebuilt.topology_selected)
     assert bonds.any()
 
 
@@ -379,3 +382,65 @@ def test_the_legend_does_not_list_what_the_range_cut_away(rutile):
     narrow.range_c = (0.0, 0.1)
     only_oxygen = build_scene(rutile, narrow)
     assert [e for e, _c in only_oxygen.legend] == ["O"]
+
+
+# ==================================================== polyhedra and sticks
+
+def test_the_polyhedral_style_draws_no_bonds(rutile):
+    scene = build_scene(rutile, ViewSettings(style="polyhedra"))
+    assert scene.n_polyhedron_faces > 0
+    assert scene.n_bond_halves == 0
+
+
+def test_a_polyhedron_never_has_a_cage_of_sticks_inside_it(rutile):
+    """The mixed style draws the bonds a hull did not already draw.
+    In rutile every bond is an edge of a titanium octahedron, so the
+    answer is none of them -- which is the case that would look worst
+    if it were got wrong."""
+    scene = build_scene(rutile, ViewSettings(style="polyhedra_stick"))
+    assert scene.n_polyhedron_faces > 0
+    assert scene.n_bond_halves == 0
+
+
+def test_the_mixed_style_keeps_the_bonds_no_hull_took():
+    """An MOF is the case it exists for: polyhedra on the metal nodes,
+    tubes on the linker, and both in the same picture."""
+    lattice = Lattice.cubic(14.0)
+    # A zinc with four oxygens around it, and a C-C fragment off on its
+    # own that no polyhedron can possibly claim.
+    d = 1.95 / math.sqrt(3.0)
+    cart = [[0, 0, 0], [d, d, d], [d, -d, -d], [-d, d, -d], [-d, -d, d],
+            [5.0, 5.0, 5.0], [6.5, 5.0, 5.0]]
+    structure = Structure.from_arrays(
+        lattice, ["Zn", "O", "O", "O", "O", "C", "C"],
+        lattice.to_frac(np.array(cart, dtype=float)), space_group="P1")
+
+    hulls = build_scene(structure, ViewSettings(style="polyhedra_stick"))
+    assert hulls.n_polyhedron_faces > 0         # the ZnO4 tetrahedron
+    assert hulls.n_bond_halves > 0              # and the C-C bond
+    keys = {hulls.bond_key(k) for k in range(hulls.n_bond_halves)}
+    assert all(0 not in (i, j) for i, j, _image in keys)  # no Zn-O
+
+
+def test_a_four_coordinate_carbon_is_not_a_polyhedron_node():
+    """Which is why the mixed style takes only the metals when the user
+    has named no centres: an MOF linker has sp3 carbons in it, and
+    drawing those as tetrahedra is the picture this style avoids."""
+    lattice = Lattice.cubic(14.0)
+    d = 1.09 / math.sqrt(3.0)
+    cart = [[0, 0, 0], [d, d, d], [d, -d, -d], [-d, d, -d], [-d, -d, d]]
+    methane = Structure.from_arrays(
+        lattice, ["C", "H", "H", "H", "H"],
+        lattice.to_frac(np.array(cart, dtype=float)), space_group="P1")
+    assert build_scene(
+        methane, ViewSettings(style="polyhedra")).n_polyhedron_faces > 0
+    assert build_scene(
+        methane,
+        ViewSettings(style="polyhedra_stick")).n_polyhedron_faces == 0
+
+
+def test_naming_the_centres_by_hand_beats_the_style(rutile):
+    settings = ViewSettings(style="polyhedra_stick")
+    settings.polyhedron_centres = ("O",)
+    scene = build_scene(rutile, settings)
+    assert scene.n_polyhedron_faces == 0        # O has only 3 partners

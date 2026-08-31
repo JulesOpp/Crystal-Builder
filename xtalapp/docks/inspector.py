@@ -38,6 +38,27 @@ COMMON_ELEMENTS = ["H", "C", "N", "O", "F", "Na", "Mg", "Al", "Si",
                    "I", "Ba", "W", "Pt", "Au", "Pb"]
 
 
+def _force_field_type(document, atom: int) -> str:
+    """``"Zn3+2  (tetrahedral Zn(II))"`` for one atom of the cell.
+
+    Both, never one: the five-character name is what the Force Field
+    panel's override is stored as and what a paper is checked against,
+    and the words are the only half of it that can be read.  A
+    structure the force field cannot type at all -- an element outside
+    UFF -- simply has no such line, because the Inspector is not where
+    that gets explained.
+    """
+    from xtal.ff.uff import params
+
+    try:
+        typing = document.atom_types()
+        name = typing.types[atom].name
+        description = params.get(name).description
+    except Exception:                               # noqa: BLE001
+        return ""
+    return f"{name}  ({description})" if description else name
+
+
 class InspectorDock(QDockWidget):
     """Properties of the current selection."""
 
@@ -261,6 +282,9 @@ class InspectorDock(QDockWidget):
             f"{cart[2]: .4f}   (A)",
             f"occupancy      {site.occupancy:.4f}",
         ]
+        force_field = _force_field_type(document, atom)
+        if force_field:
+            lines.append(f"force field    {force_field}")
         graph = document.graph
         partners = graph.bonds_of(atom)
         if partners:

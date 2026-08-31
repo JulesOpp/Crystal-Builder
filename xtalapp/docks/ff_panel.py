@@ -61,7 +61,12 @@ from xtal.ff.uff import params
 from xtalapp.plot import TracePlot
 from xtalapp.workers import OptimizationWorker, start_in_thread
 
-COLUMNS = ["Site", "Type", "Sure?", "Why"]
+# The type name and the type in words, side by side and never one
+# without the other.  ``Zn3+2`` is what Rappe's Table 1 is indexed by,
+# what an override is stored as and what anybody cross-checking
+# against another program needs; "tetrahedral Zn(II)" is the only one
+# of the two that can be checked by reading it.
+COLUMNS = ["Site", "Type", "What it means", "Sure?", "Why"]
 CHARGE_SOURCES = [
     ("From the sites", "site"),
     ("Equilibrate (QEq)", "qeq"),
@@ -69,6 +74,14 @@ CHARGE_SOURCES = [
 ]
 METHOD_LABELS = {"lbfgs": "L-BFGS (fast near a minimum)",
                  "fire": "FIRE (robust far from one)"}
+
+#: Said whenever the cell is a variable, before and after.  A lattice
+#: constant is the number people most want out of this and the one UFF
+#: is least entitled to be believed about.
+CELL_WARNING = (
+    "A cell relaxed under UFF is a UFF cell: for a framework it is "
+    "routinely a few percent out. Use it as a starting geometry, not "
+    "as a measured lattice constant.")
 
 
 #: Label -> preview redraw interval in milliseconds.  0 draws every
@@ -79,6 +92,26 @@ REDRAW_RATES = (
     ("5 times a second", 200),
     ("Not while it runs", -1),
 )
+
+
+def _describe(name: str) -> str:
+    """The type in words, or nothing if it is not a type we know."""
+    try:
+        return params.get(name).description
+    except KeyError:                                # pragma: no cover
+        return ""
+
+
+def _offer(name: str) -> str:
+    """One line of the override dialog: the name, then the meaning.
+
+    Offered ``Fe3+2`` and ``Fe6+2``, the user is being asked to choose
+    between two strings; offered "tetrahedral Fe(II)" and "octahedral
+    Fe(II)" they are being asked a question about their crystal, which
+    they can answer.
+    """
+    description = _describe(name)
+    return f"{name}  --  {description}" if description else name
 
 
 class ForceFieldDock(QDockWidget):
@@ -130,6 +163,27 @@ class ForceFieldDock(QDockWidget):
         self.freeze.setToolTip(
             "Hold the selected sites still and relax everything else")
 
+        # The cell as a variable.  Off by default, and it says what it
+        # costs: twelve extra energy evaluations a step for an engine
+        # with no analytic stress, which UFF is.
+        self.relax_cell = QCheckBox("Relax the cell as well")
+        self.relax_cell.setToolTip(
+            "Relax the lattice under a symmetry-adapted strain, so a "
+            "cubic cell stays cubic and a hexagonal one hexagonal. "
+            "Costs twelve extra energy evaluations a step, because "
+            "UFF has no analytic stress.")
+        self.relax_cell.toggled.connect(self._on_relax_cell)
+        self.pressure = QDoubleSpinBox()
+        self.pressure.setDecimals(3)
+        self.pressure.setRange(-100.0, 1000.0)
+        self.pressure.setSingleStep(0.5)
+        self.pressure.setValue(0.0)
+        self.pressure.setSuffix(" GPa")
+        self.pressure.setEnabled(False)
+        self.pressure.setToolTip(
+            "External pressure, as a P V term.  Only has an effect "
+            "when the cell is free to respond to it.")
+
         # How often the viewport redraws while a run is going.  Every
         # step is announced whatever this says -- the plot and the
         # status line show all of them; this is only how often the
@@ -155,7 +209,7 @@ class ForceFieldDock(QDockWidget):
         self.table.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(
-            3, QHeaderView.Stretch)
+            COLUMNS.index("Why"), QHeaderView.Stretch)
 
         self.energy_button = QPushButton("Single point")
         self.energy_button.clicked.connect(self.single_point)
@@ -191,6 +245,8 @@ class ForceFieldDock(QDockWidget):
         run.addRow("Max steps", self.max_steps)
         run.addRow("Converge below", self.tolerance)
         run.addRow(self.freeze)
+        run.addRow(self.relax_cell)
+        run.addRow("Pressure", self.pressure)
         run.addRow("Redraw", self.redraw)
         run_box = QGroupBox("Optimisation")
         run_box.setLayout(run)
@@ -268,10 +324,11 @@ class ForceFieldDock(QDockWidget):
                 name += f"  (x{multiplicity})"
             sure = "set" if atom.overridden else atom.confidence
             for column, text in enumerate(
-                    (name, atom.name, sure, atom.reason)):
+                    (name, atom.name, _describe(atom.name), sure,
+                     atom.reason)):
                 item = QTableWidgetItem(text)
                 item.setData(Qt.UserRole, index)
-                if column == 2 and sure == "uncertain":
+                if column == 3 and sure == "uncertain":
                     item.setForeground(Qt.red)
                 if atom.overridden:
                     font = item.font()
@@ -303,6 +360,13 @@ class ForceFieldDock(QDockWidget):
 
     def _on_coulomb(self, on: bool) -> None:
         self.charges.setEnabled(on)
+
+    def _on_relax_cell(self, on: bool) -> None:
+        self.pressure.setEnabled(on)
+        if on:
+            self._say(CELL_WARNING)
+        else:
+            self.refresh()
 
     def set_preview_interval(self, milliseconds: int) -> None:
         """Show a stored redraw rate without announcing it back."""
@@ -341,11 +405,13 @@ class ForceFieldDock(QDockWidget):
         choices = params.types_for(site.element)
         if not choices:                             # pragma: no cover
             return
-        current = self.table.item(row, 1).text()
-        options = ["(let the force field decide)", *choices]
+        current = self.table.item(row, COLUMNS.index("Type")).text()
+        options = ["(let the force field decide)",
+                   *(_offer(c) for c in choices)]
         from PySide6.QtWidgets import QInputDialog
 
-        start = options.index(current) if current in options else 0
+        start = (choices.index(current) + 1 if current in choices
+                 else 0)
         chosen, ok = QInputDialog.getItem(
             self, "Atom type",
             f"UFF type for {site.label or site.element} "
@@ -353,7 +419,8 @@ class ForceFieldDock(QDockWidget):
             options, start, False)
         if not ok:
             return
-        name = None if chosen == options[0] else chosen
+        name = (None if chosen == options[0]
+                else chosen.split("  --  ")[0])
         self.statusMessage.emit(
             self.document.set_atom_type([index], name))
 
@@ -468,6 +535,11 @@ class ForceFieldDock(QDockWidget):
                 f"optimiser      {self.method.currentData()}, "
                 f"max {self.max_steps.value()} steps, converge below "
                 f"{self.tolerance.value()} kcal/mol/A")
+            if self.relax_cell.isChecked():
+                self._recorder.log.write(
+                    f"cell           relaxed under a "
+                    f"symmetry-adapted strain at "
+                    f"{self.pressure.value():g} GPa")
             if frozen:
                 self._recorder.log.write(
                     f"frozen         {len(frozen)} site(s)")
@@ -477,6 +549,8 @@ class ForceFieldDock(QDockWidget):
             calculator, working, method=self.method.currentData(),
             frozen=frozen, max_steps=self.max_steps.value(),
             force_tolerance=self.tolerance.value(),
+            relax_cell=self.relax_cell.isChecked(),
+            pressure=self.pressure.value(),
             recorder=self._recorder)
         self.worker.stepped.connect(self._on_step)
         self.worker.finished.connect(self._on_finished)
@@ -505,13 +579,15 @@ class ForceFieldDock(QDockWidget):
         self.pause_button.setText("Pause")
         for widget in (self.energy_button, self.engine, self.coulomb,
                        self.charges, self.method, self.max_steps,
-                       self.tolerance, self.freeze, self.table):
+                       self.tolerance, self.freeze, self.relax_cell,
+                       self.pressure, self.table):
             widget.setEnabled(not running)
         # Not the redraw rate: turning the picture off is something
         # you want to do *because* a run is going slowly.
         self.redraw.setEnabled(True)
         if not running:
             self.charges.setEnabled(self.coulomb.isChecked())
+            self.pressure.setEnabled(self.relax_cell.isChecked())
 
     # -- signals from the worker ---------------------------------------
 
@@ -545,6 +621,8 @@ class ForceFieldDock(QDockWidget):
         # the note from the typing, and doing it afterwards would wipe
         # the one thing the user most needs to see.
         self.refresh()
+        if getattr(result, "matrix", None) is not None:
+            self._say(CELL_WARNING + " " + self.notes.text())
         if not result.converged:
             self._say(
                 "The optimiser stopped before converging, so this "

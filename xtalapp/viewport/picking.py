@@ -14,8 +14,8 @@ arrays rather than through VTK's hardware selector.  Three reasons:
   through glyph mappers, which the id-buffer approach does not do for
   free.
 
-Only the ray construction needs VTK, and it is one small function kept
-apart from the maths.
+Only the ray construction and the projection need VTK, and they are two
+small functions kept apart from the maths.
 """
 
 from __future__ import annotations
@@ -45,6 +45,40 @@ def ray_from_display(renderer, x: float, y: float):
     if length < 1e-12:
         return near, np.array([0.0, 0.0, 1.0])
     return near, direction / length
+
+
+def project_to_display(renderer, points) -> np.ndarray:
+    """(M, 2) display coordinates of world ``points``.
+
+    One matrix multiply for the whole array rather than a call into VTK
+    per point: a box drag over a supercell projects tens of thousands
+    of atoms and has to do it while the mouse is still moving.
+
+    Points behind the camera come back as NaN.  A perspective divide by
+    a negative w folds them round to the *front* of the picture, and a
+    rectangle test would then take atoms from behind the viewer -- so
+    they are marked unusable rather than quietly wrong, and every
+    comparison against NaN is False, which is the answer wanted.
+    """
+    points = np.asarray(points, dtype=float).reshape(-1, 3)
+    if not len(points):
+        return np.zeros((0, 2))
+    width, height = (int(v) for v in renderer.GetSize())
+    camera = renderer.GetActiveCamera()
+    matrix = camera.GetCompositeProjectionTransformMatrix(
+        width / max(height, 1), -1.0, 1.0)
+    transform = np.array([[matrix.GetElement(r, c) for c in range(4)]
+                          for r in range(4)])
+
+    clip = np.column_stack([points, np.ones(len(points))]) @ transform.T
+    w = clip[:, 3]
+    normalised = clip[:, :2] / np.where(np.abs(w) < 1e-12, 1.0, w)[:, None]
+    origin = renderer.GetOrigin()
+    display = np.column_stack([
+        (normalised[:, 0] + 1.0) * 0.5 * width + origin[0],
+        (normalised[:, 1] + 1.0) * 0.5 * height + origin[1]])
+    display[w <= 0] = np.nan
+    return display
 
 
 def atom_hit(model, origin, direction):
@@ -85,13 +119,30 @@ def pick_atom(model, origin, direction) -> int | None:
 def bond_hit(model, origin, direction):
     """(index, distance along the ray) for the nearest bond half the
     ray passes through, or None."""
-    if model.n_bond_halves == 0:
+    return _segment_hit(model.bond_starts, model.bond_ends,
+                        float(model.bond_radius) * BOND_PICK_SLACK,
+                        origin, direction)
+
+
+def topology_hit(model, origin, direction):
+    """The same, for the net drawn over the bonds.
+
+    Its own test rather than a wider radius on the bond one: a net edge
+    is thicker and runs *over* the chemistry, so a click that lands on
+    both has to be able to prefer it.
+    """
+    return _segment_hit(model.topology_starts, model.topology_ends,
+                        float(model.topology_radius), origin,
+                        direction)
+
+
+def _segment_hit(starts, ends, radius, origin, direction):
+    if len(starts) == 0:
         return None
     origin = np.asarray(origin, dtype=float)
     direction = np.asarray(direction, dtype=float)
-    starts = model.bond_starts.astype(float)
-    ends = model.bond_ends.astype(float)
-    radius = float(model.bond_radius) * BOND_PICK_SLACK
+    starts = np.asarray(starts, dtype=float)
+    ends = np.asarray(ends, dtype=float)
 
     # Closest approach between the ray (origin + t * direction) and
     # each bond segment (start + s * segment), s clamped to [0, 1].
@@ -130,21 +181,29 @@ def pick_bond(model, origin, direction) -> int | None:
     return None if found is None else found[0]
 
 
-def pick(model, origin, direction):
+def pick(model, origin, direction, prefer_topology: bool = False):
     """(kind, index) for the nearest thing under the ray.
 
-    ``kind`` is "atom", "bond" or None.  Whichever the ray reaches
-    first wins, measured at the entry point; atoms win an exact tie,
-    because a click on the join between an atom and the bond leaving it
-    means the atom.
+    ``kind`` is "atom", "bond", "topology" or None.  Whichever the ray
+    reaches first wins, measured at the entry point; atoms win an exact
+    tie, because a click on the join between an atom and the bond
+    leaving it means the atom.
+
+    A net edge is drawn *over* the bonds and is thicker than they are,
+    so on depth alone it would win every click near a framework edge
+    and there would be no way to select the bond underneath.  It is
+    therefore offered only when it is asked for -- which is what the
+    topology mode does -- and ignored otherwise.
     """
-    atom = atom_hit(model, origin, direction)
-    bond = bond_hit(model, origin, direction)
-    if atom is None and bond is None:
+    candidates = [("atom", atom_hit(model, origin, direction)),
+                  ("bond", bond_hit(model, origin, direction))]
+    if prefer_topology:
+        found = topology_hit(model, origin, direction)
+        if found is not None:
+            return "topology", found[0]
+    live = [(kind, hit) for kind, hit in candidates if hit is not None]
+    if not live:
         return None, None
-    if bond is None:
-        return "atom", atom[0]
-    if atom is None:
-        return "bond", bond[0]
-    return ("atom", atom[0]) if atom[1] <= bond[1] + 1e-9 \
-        else ("bond", bond[0])
+    kind, hit = min(live, key=lambda pair: (
+        pair[1][1] + (0.0 if pair[0] == "atom" else 1e-9)))
+    return kind, hit[0]

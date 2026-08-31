@@ -62,6 +62,12 @@ CHANGE_FLAGS = (Change.POSITIONS, Change.TOPOLOGY, Change.CELL,
 #: that is dragging one atom, is the behaviour this excludes.
 CHEMISTRY = Change.TOPOLOGY | Change.CELL | Change.SYMMETRY
 
+#: ``Bond.kind`` for an edge of the underlying net -- pcu, fcu, soc --
+#: rather than a chemical bond.  Named here, next to :class:`Bond`, so
+#: that the identity rules below can tell one from the other without
+#: importing the module that draws them.
+TOPOLOGY = "topology"
+
 
 # ======================================================================
 #  BOND
@@ -92,9 +98,11 @@ class Bond:
     symmetry-equivalent pair, because it is the *pair* that gets
     expanded.
 
-    ``kind`` is ``"explicit"`` for a bond the user drew, or
+    ``kind`` is ``"explicit"`` for a bond the user drew,
     ``"suppressed"`` for one they deleted that automatic perception
-    would otherwise keep re-creating.
+    would otherwise keep re-creating, or :data:`TOPOLOGY` for an edge
+    of the underlying net -- which is not a chemical bond at all and is
+    filtered out of everything that treats one as such.
     """
 
     i: int
@@ -198,6 +206,12 @@ class CellBond:
     image: tuple[int, int, int]
     distance: float
     explicit: bool = False
+    #: How many electron pairs join the two atoms: 1, 1.5 for an
+    #: aromatic bond, 2, 3.  Perception leaves this at 1 and
+    #: :func:`xtal.core.bonding.orders` infers the rest, so the number
+    #: here is only ever *stated* -- carried down from the ``order`` of
+    #: an explicit :class:`Bond` the user drew.
+    order: float = 1.0
 
     def key(self) -> tuple:
         if (self.j, self.image) < (self.i, tuple(-v for v in self.image)):
@@ -471,21 +485,37 @@ class Structure:
         self.space_group = SpaceGroup.from_any(sg)
         self.touch(Change.SYMMETRY)
 
+    def _bond_identity(self, bond: Bond) -> tuple:
+        """What makes two stored bonds the same bond.
+
+        The pair of points, plus whether it is a net edge.  A topology
+        bond and a chemical bond can join exactly the same two atoms
+        and mean entirely different things -- in a net whose vertices
+        are directly bonded metals they always do -- so they must not
+        collide, or drawing the net would refuse and deleting it would
+        take the chemistry with it.
+
+        ``explicit`` and ``suppressed`` deliberately *do* collide,
+        because they are two answers to the same question about the
+        same pair.
+        """
+        return (bond.kind == TOPOLOGY, bond.key(self.space_group))
+
     def add_bond(self, bond: Bond) -> bool:
         """Add a bond if it is not already there.  Returns whether it
         was added."""
         self._check_bond(bond)
-        key = bond.key(self.space_group)
-        if any(b.key(self.space_group) == key for b in self.bonds):
+        identity = self._bond_identity(bond)
+        if any(self._bond_identity(b) == identity for b in self.bonds):
             return False
         self.bonds.append(bond)
         self.touch(Change.TOPOLOGY)
         return True
 
     def remove_bond(self, bond: Bond) -> bool:
-        key = bond.key(self.space_group)
+        identity = self._bond_identity(bond)
         keep = [b for b in self.bonds
-                if b.key(self.space_group) != key]
+                if self._bond_identity(b) != identity]
         if len(keep) == len(self.bonds):
             return False
         self.bonds = keep
@@ -518,15 +548,20 @@ class Structure:
             used.add(cand)
         self.touch(Change.METADATA)
 
-    def suggest_label(self, element: str) -> str:
+    def suggest_label(self, element: str, taken=()) -> str:
         """An unused CIF-style label for a new atom of this element.
 
         Unlike :meth:`ensure_labels` this touches nothing that already
         exists -- adding an atom must not silently relabel the atoms
         that were already there, or undoing the addition would leave
         the structure changed.
+
+        ``taken`` is for a batch being added together, none of which
+        is in the structure yet: without it, twelve hydrogens added at
+        once would every one of them be told that ``H1`` was free.
         """
         used = {site.label for site in self.sites if site.label}
+        used.update(t for t in taken if t)
         n = 1
         while f"{element}{n}" in used:
             n += 1

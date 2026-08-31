@@ -210,6 +210,7 @@ def test_a_recorded_run_is_readable_three_months_later(entry, rutile):
     assert "coulomb      off" in log
     assert "Atom types" in log                   # the typing table...
     assert "Ti6+4" in log and "likely" in log    # ...with the reasons
+    assert "octahedral Ti(IV)" in log            # ...and in words
     assert "Topology" in log                     # the counts
     assert "|F|max" in log                       # a line per step
     assert "bond" in log                         # the term breakdown

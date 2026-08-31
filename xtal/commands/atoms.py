@@ -16,6 +16,7 @@ import numpy as np
 
 from xtal.commands.base import Command
 from xtal.core import elements as el
+from xtal.core import transforms
 from xtal.core.site import Site
 from xtal.core.structure import Change
 
@@ -38,7 +39,8 @@ class AddSites(Command):
         for site in self.sites:
             copy = site.copy()
             if not copy.label:
-                copy.label = structure.suggest_label(copy.element)
+                copy.label = structure.suggest_label(
+                    copy.element, taken=[s.label for s in fresh])
             fresh.append(copy)
         self.indices = structure.add_sites(fresh)
 
@@ -217,6 +219,11 @@ class TransformSites(Command):
             centre, dtype=float).reshape(3)
         self.label = label
         self._old: dict = {}
+        # Where the atoms ended up.  Kept so that a redo replays the
+        # result rather than re-deriving it -- which matters once these
+        # merge, because a merged burst of nudges is one command whose
+        # matrix describes only the last of them.
+        self._new: dict = {}
 
     @classmethod
     def rotation(cls, indices, axis, angle_degrees, centre=None,
@@ -249,14 +256,80 @@ class TransformSites(Command):
     def do(self, host) -> None:
         structure = host.structure
         lattice = structure.lattice
-        if not self._old:
-            self._old = {i: structure.sites[i].frac.copy()
-                         for i in self.indices}
+        if self._new:                       # a redo: replay the result
+            self._write(structure, self._new)
+            return
+        self._old = {i: structure.sites[i].frac.copy()
+                     for i in self.indices}
         cart = np.array([lattice.to_cart(structure.sites[i].frac)
                          for i in self.indices])
         centre = (cart.mean(axis=0) if self.centre is None
                   else self.centre)
         moved = (cart - centre) @ self.matrix.T + centre
+        self._new = {index: lattice.to_frac(position)
+                     for index, position in zip(self.indices, moved,
+                                                strict=True)}
+        self._write(structure, self._new)
+
+    def undo(self, host) -> None:
+        self._write(host.structure, self._old)
+
+    @staticmethod
+    def _write(structure, frac_by_index) -> None:
+        for index, frac in frac_by_index.items():
+            structure.sites[index].frac = np.array(frac, dtype=float)
+        structure.touch(Change.POSITIONS)
+
+    def merge_with(self, other: Command) -> bool:
+        """Absorb a later rotation of the same atoms.
+
+        What is absorbed is the *result*, not the matrix: two rotations
+        about a moving centre do not compose into one, and the thing
+        this command has to be able to reproduce is where the atoms
+        finished up.  The coordinates it undoes to are still the ones
+        from before the first of them, which is what makes a held arrow
+        one Ctrl+Z.
+        """
+        if (isinstance(other, TransformSites)
+                and other.indices == self.indices):
+            self._new = dict(other._new)
+            return True
+        return False
+
+
+class PlanarizeSites(Command):
+    """Flatten sites onto their own best-fit plane.
+
+    The fastest way to fix an aromatic ring that came out of a builder
+    or an optimiser slightly puckered.  Every atom slides along the
+    plane normal and no further, which is the smallest move that makes
+    them coplanar.
+
+    How far the furthest one had to move is the number that matters and
+    is kept on the command: "moved by up to 0.08 A" is a fix and
+    "moved by up to 0.8 A" is a silent corruption, and the two are
+    indistinguishable from the picture afterwards.
+    """
+
+    change = Change.POSITIONS
+
+    def __init__(self, indices, label: str = "Make planar"):
+        self.indices = sorted({int(i) for i in indices})
+        if len(self.indices) < 3:
+            raise ValueError("a plane needs at least three atoms")
+        self.label = label
+        self.displacement = 0.0
+        self._old: dict = {}
+
+    def do(self, host) -> None:
+        structure = host.structure
+        lattice = structure.lattice
+        if not self._old:
+            self._old = {i: structure.sites[i].frac.copy()
+                         for i in self.indices}
+        cart = np.array([lattice.to_cart(structure.sites[i].frac)
+                         for i in self.indices])
+        moved, self.displacement = transforms.planarize(cart)
         for index, position in zip(self.indices, moved, strict=True):
             structure.sites[index].frac = lattice.to_frac(position)
         structure.touch(Change.POSITIONS)

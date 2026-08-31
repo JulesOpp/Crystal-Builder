@@ -77,6 +77,11 @@ class InfoDock(QDockWidget):
         if not structure.n_sites:
             return "Empty cell."
         lines = [document.info().text()]
+        # The hand belongs on a panel that is always on screen rather
+        # than inside the menu item that changes it: a structure solved
+        # in the wrong hand looks perfectly good, and nobody goes
+        # looking for an inversion they have no reason to suspect.
+        lines.append(f"hand           {document.hand()}")
         source = structure.meta.get("source")
         if source:
             lines.append(f"\nfile           {source}")

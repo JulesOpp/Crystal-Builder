@@ -377,8 +377,104 @@ def test_move_dock_rotate_and_mirror_buttons_fire(window, rutile_cif):
     document.select_all()
     window.move_dock.angle.setValue(30.0)
     _button_labelled(window.move_dock, "Apply", box="Rotate").click()
-    _button_labelled(window.move_dock, "Apply", box="Mirror").click()
+    _button_labelled(window.move_dock, "Mirror",
+                     box="Reflect and flatten").click()
     assert document.stack.depth == 2
+
+
+@pytest.fixture
+def puckered(empty_document):
+    """Four atoms in a P1 box, not quite coplanar, all selected.
+
+    P1 on purpose: moving an atom in a symmetric cell can take it off a
+    special position and split its orbit, which changes what the
+    selection means half way through a burst of nudges.  That is real
+    behaviour and worth its own test; it is not what these are about.
+    """
+    window, document = empty_document
+    for frac in ([0.40, 0.40, 0.50], [0.60, 0.40, 0.50],
+                 [0.60, 0.60, 0.53], [0.40, 0.60, 0.50]):
+        document.add_atom("C", frac)
+    document.select_all()
+    return window, document
+
+
+def test_a_burst_of_nudges_is_one_undo_step(puckered):
+    """Holding an arrow is how the tool is used.  Forty presses that
+    came back as forty Ctrl+Z would make the undo stack useless."""
+    window, document = puckered
+    dock = window.move_dock
+    dock.steps[0].setValue(0.01)
+    before = document.stack.depth
+    for _ in range(5):
+        dock.nudge(0, 1.0)
+    assert document.stack.depth == before + 1
+
+
+def test_the_merge_window_ends_when_the_arrow_comes_up(puckered):
+    """The next burst is a different gesture, and undoing it must not
+    also undo the one before."""
+    window, document = puckered
+    dock = window.move_dock
+    dock.steps[0].setValue(0.01)
+    before = document.stack.depth
+    dock.nudge(0, 1.0)
+    dock._end_gesture()
+    dock.nudge(0, 1.0)
+    assert document.stack.depth == before + 2
+
+
+def test_rotation_nudges_merge_and_redo_to_where_they_finished(
+        puckered):
+    """A merged burst is one command whose matrix describes only its
+    last step, so it has to replay the result rather than re-derive
+    it -- otherwise redo lands a fifth of the way back."""
+    window, document = puckered
+    dock = window.move_dock
+    dock.angle.setValue(10.0)
+    before = document.stack.depth
+    for _ in range(5):
+        dock.nudge_rotation(1.0)
+    assert document.stack.depth == before + 1
+
+    turned = [s.frac.copy() for s in document.structure.sites]
+    document.undo()
+    assert not np.allclose(document.structure.sites[0].frac, turned[0])
+    document.redo()
+    for site, expected in zip(document.structure.sites, turned,
+                              strict=True):
+        assert np.allclose(site.frac, expected)
+
+
+def test_make_planar_flattens_and_says_how_far_it_moved(puckered):
+    window, document = puckered
+    from xtal.core.transforms import plane_deviation
+    lattice = document.structure.lattice
+    before = plane_deviation([lattice.to_cart(s.frac)
+                              for s in document.structure.sites])
+    assert before > 0.01                        # it really is puckered
+
+    message = window.move_dock.planarize()
+    assert "planarised 4 site(s)" in message
+    assert "moved by up to" in message
+    after = plane_deviation([lattice.to_cart(s.frac)
+                             for s in document.structure.sites])
+    assert after < 1e-9
+
+    document.undo()
+    assert plane_deviation([lattice.to_cart(s.frac)
+                            for s in document.structure.sites]) \
+        == pytest.approx(before)
+
+
+def test_make_planar_refuses_fewer_than_three_atoms(puckered):
+    """Two atoms have no plane, and the button says so rather than
+    doing nothing."""
+    window, document = puckered
+    document.select([0, 1])
+    depth = document.stack.depth
+    assert "three" in window.move_dock.planarize()
+    assert document.stack.depth == depth
 
 
 def _button_labelled(dock, text, box=None):
@@ -475,3 +571,56 @@ def _click_atom(mode, document, model, index):
     x, y, _z = model.positions[index]
     return mode.on_click(document, model, modes.ClickEvent(
         origin=(float(x), float(y), -50.0), direction=(0.0, 0.0, 1.0)))
+
+
+# ------------------------------------------------------ add hydrogens
+
+def test_the_add_hydrogens_dialog_says_what_it_will_add(window,
+                                                        qtbot):
+    """The count shown is the orbit count, and every assumption behind
+    it is on screen before the button is pressed."""
+    from tests.conftest_ff import benzene
+    from xtalapp.dialogs.add_hydrogens import AddHydrogensDialog
+
+    document = window.new_document()
+    document.set_structure(benzene(with_hydrogen=False),
+                           modified=False)
+    dialog = AddHydrogensDialog(document, window)
+    qtbot.addWidget(dialog)
+
+    assert "6 hydrogens" in dialog.headline.text()
+    assert "C1" in dialog.detail.toPlainText()
+    assert dialog.buttons.button(
+        dialog.buttons.StandardButton.Ok).isEnabled()
+    assert document.structure.n_sites == 6      # nothing yet
+
+
+def test_adding_hydrogens_lands_as_one_undoable_edit(window, qtbot):
+    from tests.conftest_ff import benzene
+
+    document = window.new_document()
+    document.set_structure(benzene(with_hydrogen=False),
+                           modified=False)
+    message = document.add_hydrogens()
+
+    assert "6 hydrogens" in message
+    assert document.structure.n_sites == 12
+    assert document.can_undo and document.modified
+    document.undo()
+    assert document.structure.n_sites == 6
+
+
+def test_the_dialog_refuses_when_there_is_nothing_to_add(window,
+                                                         qtbot,
+                                                         rutile_cif):
+    """Rutile has no hydrogens missing, and the button that would add
+    none of them is off rather than silently doing nothing."""
+    from xtalapp.dialogs.add_hydrogens import AddHydrogensDialog
+
+    document = window.open_path(rutile_cif)
+    dialog = AddHydrogensDialog(document, window)
+    qtbot.addWidget(dialog)
+
+    assert dialog.headline.text() == "no hydrogens to add"
+    assert not dialog.buttons.button(
+        dialog.buttons.StandardButton.Ok).isEnabled()

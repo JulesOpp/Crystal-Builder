@@ -43,6 +43,29 @@ class ViewSettings:
     show_bonds: bool = True
     show_cell: bool = True
     show_axes: bool = True
+    # Draw a double bond as two tubes and a triple as three.  On by
+    # default: a framework whose bonds are all single loses nothing by
+    # it, and a structure that is not is unreadable without it.  An MOF
+    # with three hundred aromatic carbons is the case for turning it
+    # off.
+    show_bond_orders: bool = True
+    # The net a chemist drew over the framework.  On when there is one
+    # to draw, because a topology bond is invisible to everything else
+    # and hiding it as well would leave no sign it existed.
+    show_topology: bool = True
+    # Fade distant atoms towards the background, so a thick slab reads
+    # as having depth instead of as a flat mat of spheres.  Off by
+    # default: it is an effect you reach for when the picture is deep,
+    # and a documentation image or a render test that quietly acquired
+    # it would be showing something nobody asked for.
+    depth_cue: bool = False
+    depth_cue_strength: float = 0.7         # 0 = none, 1 = to nothing
+
+    # The probability an ORTEP ellipsoid encloses.  A view setting and
+    # not structure data: the same refinement drawn at 50% and at 90%
+    # is the same crystal, and every published picture states which it
+    # is.
+    ellipsoid_probability: float = 0.50
     label_mode: str = "none"                # none | element | label | index
 
     # Display range in fractional coordinates, inclusive.
@@ -86,12 +109,6 @@ class ViewSettings:
             return el.covalent_radius(element)
         return self.bond_radius
 
-    def is_polyhedral(self, element: str) -> bool:
-        """Does this element get a coordination polyhedron?"""
-        if not self.polyhedron_centres:
-            return True
-        return element in self.polyhedron_centres
-
     # -- display range -------------------------------------------------
 
     @property
@@ -134,6 +151,11 @@ class ViewSettings:
             "show_bonds": self.show_bonds,
             "show_cell": self.show_cell,
             "show_axes": self.show_axes,
+            "show_bond_orders": self.show_bond_orders,
+            "show_topology": self.show_topology,
+            "depth_cue": self.depth_cue,
+            "depth_cue_strength": self.depth_cue_strength,
+            "ellipsoid_probability": self.ellipsoid_probability,
             "label_mode": self.label_mode,
             "range_a": list(self.range_a),
             "range_b": list(self.range_b),
@@ -155,6 +177,8 @@ class ViewSettings:
         s = cls()
         for key in ("style", "atom_scale", "bond_radius", "show_atoms",
                     "show_bonds", "show_cell", "show_axes",
+                    "show_bond_orders", "show_topology", "depth_cue",
+                    "depth_cue_strength", "ellipsoid_probability",
                     "label_mode", "boundary", "projection",
                     "show_legend", "polyhedron_opacity",
                     "polyhedron_min_vertices"):

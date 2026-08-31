@@ -13,12 +13,19 @@ Everything is drawn with as few actors as possible, because actor count
 * every atom is one point in a single polydata, drawn by one
   :class:`vtkGlyph3DMapper` with per-point radius and colour arrays;
 * every bond half is one line in a second polydata, thickened by one
-  tube filter, coloured per line;
-* every coordination polyhedron is a set of triangles in a third,
+  tube filter, coloured per line -- a double bond contributes two of
+  those lines and a triple three, so the actor count does not move
+  when the orders are drawn;
+* the thin dashed inner lines that mark aromatic bonds are a third,
+  because a tube filter has one radius and they need a smaller one;
+* every coordination polyhedron is a set of triangles in a fourth,
   translucent polydata, coloured per face;
-* the cell is a fourth polydata of lines.
+* the net, when a chemist has drawn one, is a fifth -- thicker,
+  translucent, one flat colour, running over the real bonds rather
+  than in place of them;
+* the cell is a sixth polydata of lines.
 
-Four actors for the structure, however many atoms there are.
+Six actors for the structure, however many atoms there are.
 """
 
 from __future__ import annotations
@@ -63,6 +70,8 @@ from vtkmodules.vtkRenderingCore import (
     vtkWindowToImageFilter,
 )
 
+from xtalapp.viewport.scene import DASH_RADIUS, split_by_order
+
 # vtkIdType is 32- or 64-bit depending on how VTK was built; the
 # connectivity arrays have to match or VTK reads them as garbage.
 ID_TYPE = np.int64 if vtkIdTypeArray().GetDataTypeSize() == 8 \
@@ -86,6 +95,30 @@ LEGEND_FONT = 15
 HIGHLIGHT_COLOR = (255, 205, 40)
 HIGHLIGHT_OPACITY = 0.45
 HIGHLIGHT_GROWTH = 1.30     # halo radius, relative to the atom
+
+# Depth cueing, as a shader replacement.  VTK 9 has no SetFog on either
+# the property or the renderer, and vtkDepthOfFieldPass is a blur
+# rather than a fade, so the fade is written into the fragment shader
+# of the actors that carry it.
+#
+# ``vertexVCVSOutput.z`` and not ``gl_FragCoord.z``: the first is a
+# distance in view space and is linear, the second is the depth buffer
+# and is so heavily skewed by a perspective projection that nearly the
+# whole scene lands in the last few thousandths of it.  Fading by that
+# gives a picture that is either untouched or entirely washed out, with
+# nothing in between.
+#
+# The near and far distances are uniforms rather than constants because
+# they are the scene's own bounds along the view direction, and they
+# change whenever the camera moves or the display range grows -- see
+# :meth:`VtkScene._refresh_depth_cue`.
+DEPTH_CUE_SHADER = """//VTK::Light::Impl
+  float cueDistance = -vertexVCVSOutput.z;
+  float cueT = clamp((cueDistance - cueNear)
+                     / max(cueFar - cueNear, 1e-6), 0.0, 1.0);
+  gl_FragData[0].rgb = mix(gl_FragData[0].rgb, cueColor,
+                           cueT * cueStrength);
+"""
 
 
 def _to_uchar(colors: np.ndarray, name: str) -> vtkUnsignedCharArray:
@@ -182,8 +215,11 @@ class VtkScene:
         self._build_atom_actor()
         self._build_bond_actor()
         self._build_polyhedron_actor()
+        self._build_topology_actor()
         self._build_cell_actor()
         self._build_highlight_actors()
+        self._cue_on = False
+        self._cue_observer = None
 
     # -- actor construction --------------------------------------------
 
@@ -222,6 +258,26 @@ class VtkScene:
         self.bond_actor.GetProperty().SetSpecular(0.2)
         self.renderer.AddActor(self.bond_actor)
 
+        # The aromatic inner line: the same geometry pipeline at a
+        # smaller radius, which is the only reason it cannot share the
+        # actor above -- a tube filter has one radius for everything
+        # it is given.
+        self._dash_poly = vtkPolyData()
+        self._dash_tube = vtkTubeFilter()
+        self._dash_tube.SetInputData(self._dash_poly)
+        self._dash_tube.SetNumberOfSides(TUBE_SIDES)
+        self._dash_tube.CappingOn()
+        self.dash_mapper = vtkPolyDataMapper()
+        self.dash_mapper.SetScalarModeToUseCellData()
+        self.dash_mapper.SetColorModeToDirectScalars()
+        self.dash_mapper.SetInputConnection(
+            self._dash_tube.GetOutputPort())
+        self.dash_actor = vtkActor()
+        self.dash_actor.SetMapper(self.dash_mapper)
+        self.dash_actor.GetProperty().SetSpecular(0.2)
+        self.dash_actor.SetVisibility(False)
+        self.renderer.AddActor(self.dash_actor)
+
     def _build_polyhedron_actor(self):
         self._polyhedron_poly = vtkPolyData()
         mapper = vtkPolyDataMapper()
@@ -239,6 +295,52 @@ class VtkScene:
         # as black holes in the polyhedron.
         prop.BackfaceCullingOff()
         self.renderer.AddActor(self.polyhedron_actor)
+
+    def _build_topology_actor(self):
+        """The net: its own actor, on purpose.
+
+        Seeing the net and the chemistry that justifies it at the same
+        time is the whole point of drawing it rather than printing it,
+        so it needs its own radius, its own opacity and its own
+        colour -- which is three reasons it cannot share the bond
+        actor.
+        """
+        self._topology_poly = vtkPolyData()
+        self._topology_tube = vtkTubeFilter()
+        self._topology_tube.SetInputData(self._topology_poly)
+        self._topology_tube.SetNumberOfSides(TUBE_SIDES)
+        self._topology_tube.CappingOn()
+        mapper = vtkPolyDataMapper()
+        mapper.SetScalarModeToUseCellData()
+        mapper.SetColorModeToDirectScalars()
+        mapper.SetInputConnection(self._topology_tube.GetOutputPort())
+        self.topology_mapper = mapper
+        self.topology_actor = vtkActor()
+        self.topology_actor.SetMapper(mapper)
+        self.topology_actor.GetProperty().SetSpecular(0.1)
+        self.topology_actor.SetVisibility(False)
+        self.renderer.AddActor(self.topology_actor)
+
+    def _set_topology(self, model):
+        if not model.n_topology_edges:
+            self.topology_actor.SetVisibility(False)
+            return
+        colors = np.tile(model.topology_color,
+                         (model.n_topology_edges, 1))
+        # A selected edge is recoloured rather than haloed: the net is
+        # already translucent and already one flat colour, so it has
+        # nothing to lose by saying which edge is picked.
+        if len(model.topology_selected):
+            colors[np.asarray(model.topology_selected, bool)] = \
+                HIGHLIGHT_COLOR
+        self._topology_poly = _line_polydata(model.topology_starts,
+                                             model.topology_ends,
+                                             colors)
+        self._topology_tube.SetInputData(self._topology_poly)
+        self._topology_tube.SetRadius(float(model.topology_radius))
+        self.topology_actor.GetProperty().SetOpacity(
+            float(model.topology_opacity))
+        self.topology_actor.SetVisibility(True)
 
     def _build_cell_actor(self):
         self._cell_poly = vtkPolyData()
@@ -305,10 +407,12 @@ class VtkScene:
         self._set_atoms(model)
         self._set_bonds(model)
         self._set_polyhedra(model)
+        self._set_topology(model)
         self._set_cell(model)
         self._set_labels(model)
         self._set_legend(model)
         self._set_highlight(model)
+        self.set_depth_cue(model.depth_cue, model.depth_cue_strength)
 
     def set_positions(self, model) -> None:
         """Move what is already drawn instead of rebuilding it.
@@ -331,13 +435,23 @@ class VtkScene:
             self._atom_poly.SetPoints(_points(model.positions))
             self._atom_poly.Modified()
         if model.n_bond_halves:
+            solid, dashed = split_by_order(model)
             self._bond_poly.SetPoints(
-                _points(_interleave(model.bond_starts, model.bond_ends)))
+                _points(_interleave(solid[0], solid[1])))
             self._bond_poly.Modified()
+            if len(dashed[0]):
+                self._dash_poly.SetPoints(
+                    _points(_interleave(dashed[0], dashed[1])))
+                self._dash_poly.Modified()
         if model.n_polyhedron_faces:
             self._polyhedron_poly.SetPoints(
                 _points(model.polyhedron_points))
             self._polyhedron_poly.Modified()
+        if model.n_topology_edges:
+            self._topology_poly.SetPoints(
+                _points(_interleave(model.topology_starts,
+                                    model.topology_ends)))
+            self._topology_poly.Modified()
         # These two are placed *at* atoms, so they move with them.
         self._set_highlight(model)
         self._set_labels(model)
@@ -346,32 +460,68 @@ class VtkScene:
         """Does this model draw the same things as the current one?"""
         current = self.model
         return (model.n_atoms == current.n_atoms
+                and model.draws_ellipsoids == current.draws_ellipsoids
                 and model.n_bond_halves == current.n_bond_halves
+                and np.array_equal(model.bond_orders,
+                                   current.bond_orders)
                 and model.bond_render == current.bond_render
                 and model.n_polyhedron_faces
                 == current.n_polyhedron_faces
                 and len(model.polyhedron_points)
                 == len(current.polyhedron_points)
                 and model.n_cell_lines == current.n_cell_lines
+                and model.n_topology_edges == current.n_topology_edges
                 and model.background == current.background)
 
     def _set_atoms(self, model):
+        """Spheres, or ellipsoids when the model carries tensors.
+
+        The same mapper and the same actor either way: an ellipsoid is
+        a sphere with three scales and a rotation, and
+        :class:`vtkGlyph3DMapper` will take both as per-point arrays.
+        """
         poly = vtkPolyData()
         if model.n_atoms:
             poly.SetPoints(_points(model.positions))
             poly.GetPointData().AddArray(_to_float(model.radii, "radii"))
             poly.GetPointData().AddArray(_to_uchar(model.colors,
                                                    "colors"))
+            if model.draws_ellipsoids:
+                axes, quaternions = _decompose(model.atom_tensors)
+                poly.GetPointData().AddArray(_to_float(axes, "axes"))
+                poly.GetPointData().AddArray(
+                    _to_float(quaternions, "quaternions"))
         self._atom_poly = poly
+        self._set_glyph_shape(model)
         self.atom_mapper.SetInputData(poly)
         self.atom_actor.SetVisibility(model.n_atoms > 0)
 
+    def _set_glyph_shape(self, model):
+        mapper = self.atom_mapper
+        if model.draws_ellipsoids and model.n_atoms:
+            mapper.SetScaleArray("axes")
+            mapper.SetScaleModeToScaleByVectorComponents()
+            mapper.SetOrientationArray("quaternions")
+            mapper.SetOrientationModeToQuaternion()
+            mapper.OrientOn()
+        else:
+            mapper.SetScaleArray("radii")
+            mapper.SetScaleModeToScaleByMagnitude()
+            mapper.OrientOff()
+
     def _set_bonds(self, model):
+        """One line per tube: a double bond arrives here as two.
+
+        The split is :func:`~xtalapp.viewport.scene.split_by_order`,
+        which is plain arithmetic over the scene model and is tested
+        without a render window.
+        """
         if not model.n_bond_halves:
             self.bond_actor.SetVisibility(False)
+            self.dash_actor.SetVisibility(False)
             return
-        poly = _line_polydata(model.bond_starts, model.bond_ends,
-                              model.bond_colors)
+        solid, dashed = split_by_order(model)
+        poly = _line_polydata(*solid)
         self._bond_poly = poly
         if model.bond_render == "line":
             self.bond_mapper.SetInputData(poly)
@@ -383,6 +533,14 @@ class VtkScene:
             self.bond_mapper.SetInputConnection(self._tube.GetOutputPort())
             self.bond_actor.GetProperty().SetLighting(True)
         self.bond_actor.SetVisibility(True)
+
+        if len(dashed[0]):
+            self._dash_poly = _line_polydata(*dashed)
+            self._dash_tube.SetInputData(self._dash_poly)
+            self._dash_tube.SetRadius(model.bond_radius * DASH_RADIUS)
+            self.dash_mapper.SetInputConnection(
+                self._dash_tube.GetOutputPort())
+        self.dash_actor.SetVisibility(bool(len(dashed[0])))
 
     def _set_polyhedra(self, model):
         if not model.n_polyhedron_faces:
@@ -417,7 +575,8 @@ class VtkScene:
         self.cell_mapper.SetInputData(self._cell_poly)
         self.cell_actor.SetVisibility(True)
 
-    def set_selection(self, selected, selected_bonds) -> None:
+    def set_selection(self, selected, selected_bonds,
+                      selected_topology=None) -> None:
         """Change only what is highlighted.
 
         Selecting an atom changes no geometry, so the halo actors are
@@ -427,9 +586,13 @@ class VtkScene:
         """
         if self.model is None:
             return
+        if selected_topology is None:
+            selected_topology = self.model.topology_selected
         self.model = replace(self.model, selected=selected,
-                             selected_bonds=selected_bonds)
+                             selected_bonds=selected_bonds,
+                             topology_selected=selected_topology)
         self._set_highlight(self.model)
+        self._set_topology(self.model)
 
     def _set_highlight(self, model):
         picked = (model.selected if len(model.selected)
@@ -508,6 +671,83 @@ class VtkScene:
             self._legend_actors.append(label)
         for actor in self._legend_actors:
             self.renderer.AddActor(actor)
+
+    # -- depth cueing --------------------------------------------------
+
+    def set_depth_cue(self, enabled: bool,
+                      strength: float = 0.7) -> None:
+        """Fade the structure towards the background with distance.
+
+        Applied to the atoms, the bonds and the polyhedra, and
+        deliberately not to the unit cell or to the selection halo:
+        the cell box is the frame the reader measures against and the
+        halo is the answer to "what did I just click", and neither is
+        improved by being harder to see at the back.
+        """
+        self._cue_on = bool(enabled)
+        for actor in self._cued_actors():
+            shader = actor.GetShaderProperty()
+            shader.ClearFragmentShaderReplacement("//VTK::Light::Impl",
+                                                  True)
+            if self._cue_on:
+                shader.AddFragmentShaderReplacement(
+                    "//VTK::Light::Impl", True, DEPTH_CUE_SHADER, False)
+            uniforms = shader.GetFragmentCustomUniforms()
+            uniforms.SetUniformf("cueStrength",
+                                 float(max(0.0, min(1.0, strength))))
+        self._watch_camera()
+        self._refresh_depth_cue()
+
+    def _cued_actors(self):
+        return (self.atom_actor, self.bond_actor, self.dash_actor,
+                self.polyhedron_actor)
+
+    def _watch_camera(self) -> None:
+        """Keep the near and far distances up to date as the camera
+        moves.
+
+        The alternative -- fixing them when the scene is built -- makes
+        the fade slide off the structure the moment anybody zooms,
+        which is the first thing anybody does.
+        """
+        if self._cue_on and self._cue_observer is None:
+            self._cue_observer = self.renderer.AddObserver(
+                "StartEvent", lambda *_a: self._refresh_depth_cue())
+        elif not self._cue_on and self._cue_observer is not None:
+            self.renderer.RemoveObserver(self._cue_observer)
+            self._cue_observer = None
+
+    def _refresh_depth_cue(self) -> None:
+        """Near and far, from the scene's own extent along the view
+        direction."""
+        if not self._cue_on or self.model is None:
+            return
+        near, far = self._depth_range()
+        background = np.array(self.model.background, dtype=float) / 255
+        for actor in self._cued_actors():
+            uniforms = actor.GetShaderProperty() \
+                .GetFragmentCustomUniforms()
+            uniforms.SetUniformf("cueNear", near)
+            uniforms.SetUniformf("cueFar", far)
+            uniforms.SetUniform3f("cueColor",
+                                  [float(c) for c in background])
+
+    def _depth_range(self) -> tuple[float, float]:
+        low, high = self.model.bounds()
+        corners = np.array(
+            [[[low[0], high[0]][(k >> 2) & 1],
+              [low[1], high[1]][(k >> 1) & 1],
+              [low[2], high[2]][k & 1]] for k in range(8)],
+            dtype=float)
+        camera = self.renderer.GetActiveCamera()
+        eye = np.array(camera.GetPosition(), dtype=float)
+        direction = np.array(camera.GetDirectionOfProjection(),
+                             dtype=float)
+        along = (corners - eye) @ direction
+        near, far = float(along.min()), float(along.max())
+        if far - near < 1e-6:               # a flat scene, or one atom
+            far = near + 1.0
+        return near, far
 
     # -- camera --------------------------------------------------------
 
@@ -608,3 +848,67 @@ def render_offscreen(model, path, size=(800, 600), lattice=None):
     writer.Write()
     window.Finalize()
     return Path(path)
+
+
+def _decompose(tensors) -> tuple[np.ndarray, np.ndarray]:
+    """Split ellipsoid transforms into ``(semi-axes, quaternions)``.
+
+    ``vtkGlyph3DMapper`` scales a glyph by three components and *then*
+    turns it by a quaternion, so what it draws is ``R diag(s)`` applied
+    to a unit sphere.  The singular value decomposition
+    ``M = U S V^T`` hands both halves over: the singular values are the
+    semi-axes and ``U`` is the orientation.
+
+    ``V^T`` is dropped, and that is the point rather than an
+    approximation.  It is a rotation *of the unit sphere*, which the
+    unit sphere is invariant under -- so ``U S`` and ``U S V^T`` have
+    exactly the same image and describe the same ellipsoid.  Keeping it
+    as ``U V^T`` instead, which is the reflex answer for "the rotation
+    part of a matrix", pairs the axis lengths with the wrong axes and
+    draws every ellipsoid pointing somewhere else.
+
+    VTK reads a quaternion as ``(w, x, y, z)``.
+    """
+    tensors = np.asarray(tensors, dtype=float)
+    if not len(tensors):
+        return (np.zeros((0, 3), np.float32),
+                np.zeros((0, 4), np.float32))
+    rotations, axes, _vt = np.linalg.svd(tensors)
+    # A reflection is not a rotation and has no quaternion.  Flipping
+    # one axis makes it one and changes nothing visible, because an
+    # ellipsoid is symmetric about each of its axes.
+    flipped = np.linalg.det(rotations) < 0
+    if np.any(flipped):
+        rotations = rotations.copy()
+        rotations[flipped, :, 2] *= -1
+    return axes.astype(np.float32), _to_quaternions(rotations)
+
+
+def _to_quaternions(rotations) -> np.ndarray:
+    """(N, 4) ``(w, x, y, z)`` for a stack of proper rotations.
+
+    Shepperd's method: the naive formula divides by ``w``, and ``w`` is
+    zero for a half turn -- which is not an exotic case here, because
+    half of a space group's operations are two-fold axes.
+    """
+    n = len(rotations)
+    out = np.zeros((n, 4), dtype=np.float64)
+    for k in range(n):
+        m = rotations[k]
+        trace = m[0, 0] + m[1, 1] + m[2, 2]
+        if trace > 0:
+            root = np.sqrt(trace + 1.0) * 2
+            out[k] = [0.25 * root,
+                      (m[2, 1] - m[1, 2]) / root,
+                      (m[0, 2] - m[2, 0]) / root,
+                      (m[1, 0] - m[0, 1]) / root]
+        else:
+            i = int(np.argmax([m[0, 0], m[1, 1], m[2, 2]]))
+            j, q = (i + 1) % 3, (i + 2) % 3
+            root = np.sqrt(1.0 + m[i, i] - m[j, j] - m[q, q]) * 2
+            out[k, 0] = (m[q, j] - m[j, q]) / root
+            out[k, 1 + i] = 0.25 * root
+            out[k, 1 + j] = (m[j, i] + m[i, j]) / root
+            out[k, 1 + q] = (m[q, i] + m[i, q]) / root
+    norm = np.linalg.norm(out, axis=1, keepdims=True)
+    return (out / np.where(norm < 1e-12, 1.0, norm)).astype(np.float32)

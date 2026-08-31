@@ -371,6 +371,17 @@ class Document(QObject):
         """
         return _Transaction(self, label)
 
+    def break_merge(self) -> None:
+        """End the current gesture, so the next edit is its own undo
+        step.
+
+        Held arrows and dragged spinboxes merge while they run; this is
+        what tells the stack the gesture is over.  Without it the next
+        nudge merges into the same step, and Ctrl+Z undoes more than
+        the user did.
+        """
+        self.stack.break_merge()
+
     def undo(self) -> str:
         command = self.stack.undo(self)
         if command is None:
@@ -478,6 +489,21 @@ class Document(QObject):
         self.selectionChanged.emit()
 
     def invert_selection(self) -> None:
+        """Invert over whole symmetry orbits, not over atoms.
+
+        Every *edit* acts on whole orbits, so inverting a partial orbit
+        atom-by-atom hands back a selection that overlaps the one it
+        came from: the atoms you had are still, in effect, selected,
+        because their orbit-mates are.  Growing to the orbit first
+        makes the complement mean what it says.  The core predicate
+        stays orbit-blind and the Document is the thing that knows
+        about symmetry, which is how delete and move already work.  In
+        P1 this is a no-op, which is the right way for it to degrade.
+        """
+        atoms = self.selection.atoms
+        if atoms:
+            self.selection.set_atoms(sel.symmetry_orbit(self.cell,
+                                                        atoms))
         self.selection.invert(self.cell.n_atoms)
         self.selectionChanged.emit()
 
@@ -574,6 +600,21 @@ class Document(QObject):
                                                      centre))
         return f"mirrored {len(sites)} site(s)"
 
+    def planarize_selection(self) -> str:
+        """Flatten the selected sites onto their best-fit plane.
+
+        Says how far the furthest atom had to move, because that is the
+        whole of the difference between straightening a ring that was
+        nearly flat and quietly rebuilding one that was not.
+        """
+        sites = sorted(self.selected_sites())
+        if len(sites) < 3:
+            return "a plane needs at least three atoms"
+        command = atom_commands.PlanarizeSites(sites)
+        self.run(command)
+        return (f"planarised {len(sites)} site(s), moved by up to "
+                f"{command.displacement:.3f} A")
+
     def recompute_bonds(self) -> str:
         """Perceive the bonds again, over the geometry as it now is.
 
@@ -623,6 +664,73 @@ class Document(QObject):
             image_a, image_b)
         self.run(command)
         return "bond removed"
+
+    def add_topology_bond_between(self, atom_a: int, atom_b: int,
+                                  image_a=(0, 0, 0),
+                                  image_b=(0, 0, 0)) -> str:
+        """Draw an edge of the underlying net between two drawn atoms.
+
+        It expands over the symmetry orbit like every other bond, which
+        is what makes drawing one edge of a **pcu** net draw all six.
+        """
+        self.run(bond_commands.AddTopologyBond.between_atoms(
+            self._structure, self.cell, atom_a, atom_b,
+            image_a, image_b))
+        edges = len(bonding.topology_graph(self._structure).bonds)
+        return f"net edge drawn -- {edges} in the cell"
+
+    def select_topology(self, key, mode: str = "set") -> None:
+        if mode == "set":
+            self.selection.topology = {key}
+        else:
+            self.selection.toggle_topology(key)
+        self.selectionChanged.emit()
+
+    def delete_selected_topology(self) -> str:
+        """Remove every selected net edge, as one undo step.
+
+        A plain removal rather than a suppression: nothing perceives a
+        topology bond, so nothing will put it back.
+        """
+        keys = sorted(self.selection.topology)
+        if not keys:
+            return "no net edges are selected"
+        before = len(bonding.topology_graph(self._structure).bonds)
+        with self.transaction(f"Delete {len(keys)} net edge(s)"):
+            for i, j, image in keys:
+                self.run(
+                    bond_commands.RemoveTopologyBond.between_atoms(
+                        self._structure, self.cell, int(i), int(j),
+                        (0, 0, 0), tuple(int(v) for v in image)))
+        gone = before - len(bonding.topology_graph(self._structure).bonds)
+        self.selection.topology.clear()
+        self.selectionChanged.emit()
+        return f"removed {gone} net edge(s)"
+
+    def net_report(self, atom: int | None = None) -> str:
+        """What the net drawn on this structure actually is.
+
+        The coordination sequence and the point symbol are how RCSR
+        names a net, and they are the reason for drawing one rather
+        than printing it: **pcu** is 6, 18, 38, 66 and 4^12.6^3, and
+        nothing else is.
+        """
+        net = bonding.topology_graph(self._structure)
+        if not net.bonds:
+            return "no net has been drawn"
+        vertices = [i for i in range(net.n_atoms)
+                    if net.neighbors(i)]
+        if atom is None:
+            atom = (self.selection.focus if
+                    self.selection.focus in vertices else vertices[0])
+        sequence = bonding.coordination_sequence(net, atom, depth=5)
+        symbol = bonding.point_symbol(net, atom)
+        cell = self.cell
+        label = cell.labels[atom] or cell.elements[atom]
+        return (f"{label}: {len(net.neighbors(atom))}-coordinated, "
+                f"coordination sequence "
+                f"{', '.join(str(n) for n in sequence)}, "
+                f"point symbol {symbol}")
 
     def delete_selected_bonds(self) -> str:
         """Suppress every selected bond, as one undo step.
@@ -711,6 +819,44 @@ class Document(QObject):
     def merge_duplicates(self, tol: float = 0.05):
         return self.operate(symmetry_commands.MergeDuplicates(tol))
 
+    def invert_structure(self):
+        """Swap the hand of the structure, group included."""
+        return self.operate(symmetry_commands.Invert())
+
+    def preview_inversion(self):
+        """What inverting would do, without doing it.  The dialog says
+        so before the user commits, because for a centrosymmetric group
+        the answer is 'nothing'."""
+        _new, report = symmetry_commands.Invert().preview(
+            self._structure)
+        return report
+
+    def hand(self) -> str:
+        """Which hand this structure's group is, in one line."""
+        from xtal.core.symmetry import hand_description
+        return hand_description(self._structure.space_group)
+
+    def subgroups(self):
+        """The translationengleiche subgroups of the current group, one
+        per conjugacy class.  Cached on the group, so a dialog may ask
+        freely."""
+        from xtal.core import subgroups
+        return subgroups.subgroups_of(self._structure.space_group)
+
+    def maximal_subgroups(self):
+        """Only the one-step descents."""
+        from xtal.core import subgroups
+        return subgroups.maximal_subgroups(self._structure.space_group)
+
+    def subgroup_split(self, subgroup):
+        """What descending to ``subgroup`` would do to the sites."""
+        from xtal.core import subgroups
+        return subgroups.describe_split(self._structure, subgroup)
+
+    def descend_to_subgroup(self, subgroup):
+        return self.operate(
+            symmetry_commands.DescendToSubgroup(subgroup))
+
     def make_supercell(self, na: int, nb: int, nc: int):
         return self.operate(cell_commands.Supercell(na, nb, nc))
 
@@ -769,6 +915,31 @@ class Document(QObject):
             out.append((index, typing.types[int(atoms[0])],
                         len(atoms)))
         return out
+
+    def plan_hydrogens(self, xray: bool = False):
+        """Where the missing hydrogens would go, changing nothing.
+
+        Read-only, so the dialog can show the count -- and every
+        assumption behind it -- while the user is still deciding.
+        """
+        from xtal.commands.ff import AddHydrogens
+        return AddHydrogens(xray=xray).preview(self._structure)
+
+    def add_hydrogens(self, xray: bool = False) -> str:
+        """Complete every main-group coordination with hydrogens.
+
+        One command for the lot, so Ctrl+Z takes all of them back
+        together.  A plan that would add nothing is not pushed: there
+        would be nothing to undo, and an empty entry on the stack makes
+        Ctrl+Z lie.
+        """
+        from xtal.commands.ff import AddHydrogens
+        command = AddHydrogens(xray=xray)
+        plan = command.preview(self._structure)
+        if not plan:
+            return plan.message()
+        self.run(command)
+        return plan.message()
 
     def force_field(self, engine: str = "uff", **options):
         """Build a calculator over this structure."""
@@ -835,7 +1006,8 @@ class Document(QObject):
         """
         from xtal.commands import ff as ff_commands
         command = ff_commands.ApplyOptimizedGeometry(
-            result.frac, before=before)
+            result.frac, before=before,
+            matrix=getattr(result, "matrix", None))
         moved = command.displacement(self._structure)
         if moved < 1e-9:
             # A run cancelled before it took a step, or one that

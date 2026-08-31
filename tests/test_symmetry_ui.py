@@ -24,6 +24,7 @@ from xtalapp.dialogs.find_symmetry import (  # noqa: E402
     FindSymmetryDialog,
 )
 from xtalapp.dialogs.spacegroup import SpaceGroupDialog  # noqa: E402
+from xtalapp.dialogs.subgroup import SubgroupDialog  # noqa: E402
 from xtalapp.dialogs.supercell import SupercellDialog  # noqa: E402
 from xtalapp.document import Document  # noqa: E402
 from xtalapp.mainwindow import MainWindow  # noqa: E402
@@ -418,3 +419,233 @@ def test_a_failing_operation_warns_instead_of_crashing(window,
     window.actions_["primitive"].trigger()
     assert warned
     assert document.structure.n_sites == 0
+
+
+# ---------------------------------------------------- descend to a subgroup
+
+@pytest.fixture
+def quartz_document(quartz):
+    return Document(quartz)
+
+
+def test_subgroup_dialog_lists_the_subgroups(qtbot, quartz_document):
+    """P3_2, one row for the three conjugate C2, and P1 at the bottom.
+
+    P1 belongs in the list: dropping every rotation and keeping the
+    lattice is a descent like any other, and reaching it from here
+    gives the primitive cell of the group rather than the conventional
+    one Reduce to P1 leaves you in.
+    """
+    dialog = SubgroupDialog(quartz_document)
+    qtbot.addWidget(dialog)
+    assert dialog.table.rowCount() == 3
+    assert "P 32 2 1" in dialog.heading.text()
+    symbols = {dialog.table.item(row, 0).text()
+               for row in range(dialog.table.rowCount())}
+    assert symbols == {"P 32", "C 1 2 1", "P 1"}
+
+
+def test_subgroup_dialog_offers_more_than_the_maximal_ones(qtbot,
+                                                           document):
+    """Rutile's list is not seven rows of index 2: everything below
+    them is reachable directly, and the maximal ones are marked so the
+    step-by-step path is still visible."""
+    dialog = SubgroupDialog(document)
+    qtbot.addWidget(dialog)
+    assert dialog.table.rowCount() == 26
+    marks = [dialog.table.item(row, 3).text()
+             for row in range(dialog.table.rowCount())]
+    assert marks.count("maximal") == 7
+    indices = {int(dialog.table.item(row, 2).text())
+               for row in range(dialog.table.rowCount())}
+    assert indices > {2}                    # deeper descents are there
+
+
+def test_conjugate_subgroups_are_one_row_that_says_so(qtbot,
+                                                      quartz_document):
+    """Collapsing must not hide: the row carries the count."""
+    dialog = SubgroupDialog(quartz_document)
+    qtbot.addWidget(dialog)
+    row = next(r for r in range(dialog.table.rowCount())
+               if dialog.table.item(r, 0).text() == "C 1 2 1")
+    assert dialog.table.item(row, 4).text() == "1 of 3"
+    dialog.table.setCurrentCell(row, 0)
+    assert "conjugate under the parent" in dialog.detail.text()
+
+
+def test_subgroup_dialog_says_what_splits(qtbot, quartz_document):
+    """The third column is the reason the dialog exists: quartz's one
+    oxygen becomes two independent oxygens in P3_2."""
+    dialog = SubgroupDialog(quartz_document)
+    qtbot.addWidget(dialog)
+    row = next(r for r in range(dialog.table.rowCount())
+               if dialog.table.item(r, 0).text() == "P 32")
+    dialog.table.setCurrentCell(row, 0)
+    assert "2 -> 3 sites" in dialog.table.item(row, 5).text()
+    assert "independent sites" in dialog.detail.text()
+
+
+def test_subgroup_dialog_says_when_nothing_splits(qtbot, document):
+    """Six of rutile's seven maximal subgroups leave both sites whole,
+    and a list that did not say so would look broken for all six."""
+    dialog = SubgroupDialog(document)
+    qtbot.addWidget(dialog)
+    unsplit = None
+    for row in range(dialog.table.rowCount()):
+        dialog.table.setCurrentCell(row, 0)
+        if "none split" in dialog.table.item(row, 5).text():
+            unsplit = row
+            break
+    assert unsplit is not None
+    assert "No orbit splits" in dialog.detail.text()
+
+
+def test_every_row_is_tellable_apart(qtbot, document):
+    """Whatever survives the collapsing has to be distinguishable, or
+    the list has rows nobody can choose between."""
+    dialog = SubgroupDialog(document)
+    qtbot.addWidget(dialog)
+    rows = {(dialog.table.item(r, 0).text(),
+             dialog.table.item(r, 2).text(),
+             dialog.table.item(r, 6).text())
+            for r in range(dialog.table.rowCount())}
+    assert len(rows) == dialog.table.rowCount()
+
+
+def test_subgroup_dialog_applies_the_row_it_previewed(qtbot,
+                                                      quartz_document):
+    dialog = SubgroupDialog(quartz_document)
+    qtbot.addWidget(dialog)
+    row = next(r for r in range(dialog.table.rowCount())
+               if dialog.table.item(r, 0).text() == "P 32")
+    dialog.table.setCurrentCell(row, 0)
+    before = n_atoms(quartz_document)
+    report = quartz_document.descend_to_subgroup(dialog.subgroup())
+    assert report.ok
+    assert quartz_document.structure.space_group.short_name == "P32"
+    assert quartz_document.structure.n_sites == 3
+    assert n_atoms(quartz_document) == before
+
+
+def test_descending_resets_the_view(monkeypatch, window, quartz_cif):
+    """A descent can halve the cell or swap its axes, so the camera
+    that framed the old one frames the new one badly."""
+    window.open_path(quartz_cif)
+    document = window.current_document()
+    viewport = window.current_viewport()
+    subgroup = document.maximal_subgroups()[0]
+    monkeypatch.setattr(SubgroupDialog, "ask",
+                        staticmethod(
+                            lambda doc, parent=None:
+                            doc.descend_to_subgroup(subgroup)))
+    before = viewport.resets
+    window.actions_["subgroup"].trigger()
+    assert document.structure.space_group.short_name == "P32"
+    assert viewport.resets == before + 1
+
+
+def test_the_view_resets_after_a_descent_that_moves_the_cell(
+        monkeypatch, window, quartz_cif):
+    """The case that needs it most: descending to C2 re-expresses the
+    hexagonal cell on C-centred monoclinic axes, which is where the old
+    camera framing is worst.  It also puts up the note about the new
+    cell, so the modal is answered here rather than left to block."""
+    from PySide6.QtWidgets import QMessageBox
+    monkeypatch.setattr(QMessageBox, "warning",
+                        lambda *a, **k: QMessageBox.Ok)
+    window.open_path(quartz_cif)
+    document = window.current_document()
+    viewport = window.current_viewport()
+    subgroup = next(s for s in document.subgroups()
+                    if not s.keeps_the_cell)
+    monkeypatch.setattr(SubgroupDialog, "ask",
+                        staticmethod(
+                            lambda doc, parent=None:
+                            doc.descend_to_subgroup(subgroup)))
+    before = viewport.resets
+    window.actions_["subgroup"].trigger()
+    assert document.structure.space_group.short_name == "C2"
+    assert viewport.resets == before + 1
+
+
+def test_a_cancelled_descent_leaves_the_view_alone(monkeypatch, window,
+                                                   quartz_cif):
+    window.open_path(quartz_cif)
+    viewport = window.current_viewport()
+    monkeypatch.setattr(SubgroupDialog, "ask",
+                        staticmethod(lambda doc, parent=None: None))
+    before = viewport.resets
+    window.actions_["subgroup"].trigger()
+    assert viewport.resets == before
+
+
+def test_descending_is_one_undo_step(quartz_document):
+    subgroup = quartz_document.maximal_subgroups()[0]
+    quartz_document.descend_to_subgroup(subgroup)
+    assert quartz_document.structure.n_sites == 3
+    quartz_document.undo()
+    assert quartz_document.structure.n_sites == 2
+    assert quartz_document.structure.space_group.short_name == "P3221"
+
+
+def test_p1_offers_no_subgroups(qtbot, flat_document):
+    dialog = SubgroupDialog(flat_document)
+    qtbot.addWidget(dialog)
+    assert dialog.table.rowCount() == 0
+    assert not dialog.buttons.button(QDialogButtonBox.Ok).isEnabled()
+    assert "no proper subgroups" in dialog.detail.text()
+
+
+# ------------------------------------------------------------- inversion
+
+def test_inverting_through_the_document(quartz_document):
+    report = quartz_document.invert_structure()
+    assert report.ok
+    assert quartz_document.structure.space_group.short_name == "P3121"
+    quartz_document.undo()
+    assert quartz_document.structure.space_group.short_name == "P3221"
+
+
+def test_the_inversion_preview_says_which_case_this_is(document,
+                                                       quartz_document):
+    assert "centrosymmetric" in document.preview_inversion().message
+    assert "P3221 -> P3121" in \
+        quartz_document.preview_inversion().message
+
+
+def test_the_info_dock_shows_the_hand(qtbot, window, quartz_cif):
+    window.open_path(quartz_cif)
+    text = window.info_dock.text.toPlainText()
+    assert "hand" in text
+    assert "enantiomorph P3121" in text
+
+
+def test_inverting_a_centrosymmetric_structure_asks_nothing(
+        monkeypatch, window, rutile_cif):
+    """No confirmation, no undo entry: the structure it would produce
+    is the one already open."""
+    from PySide6.QtWidgets import QMessageBox
+    shown = []
+    monkeypatch.setattr(QMessageBox, "information",
+                        lambda *a, **k: shown.append(a[2]))
+    window.open_path(rutile_cif)
+    window.actions_["invert"].trigger()
+    assert shown and "centrosymmetric" in shown[0]
+    assert not window.current_document().stack.can_undo
+
+
+def test_inverting_a_chiral_structure_asks_first(monkeypatch, window,
+                                                 quartz_cif):
+    from PySide6.QtWidgets import QMessageBox
+    asked = []
+
+    def answer(*args, **_kwargs):
+        asked.append(args[2])
+        return QMessageBox.Yes
+
+    monkeypatch.setattr(QMessageBox, "question", answer)
+    window.open_path(quartz_cif)
+    window.actions_["invert"].trigger()
+    assert asked and "P3221 -> P3121" in asked[0]
+    assert window.current_document().structure.space_group.short_name \
+        == "P3121"

@@ -32,9 +32,9 @@ from __future__ import annotations
 
 import numpy as np
 
-from xtal.core import p1, properties
+from xtal.core import p1
 from xtal.core.structure import Change
-from xtal.workspace import RunFolder, timestamp
+from xtal.workspace import RunFolder, timestamp, write_header
 
 
 class RunRecorder:
@@ -65,35 +65,20 @@ class RunRecorder:
         return self.folder.log()
 
     def header(self, title: str = "") -> None:
-        """The version, the structure, the engine and the options."""
-        from xtal import __version__
+        """The version, the structure, the engine and the options.
 
-        log = self.log
-        log.write(f"Crystal Builder {__version__}")
-        log.write(f"run            {self.folder.name}")
-        if title:
-            log.write(f"what           {title}")
-        log.write(f"started        {timestamp()}")
-        try:
-            info = properties.info(self.structure)
-            log.write(f"structure      {info.formula} "
-                      f"(Z = {info.z}), {self.structure.n_sites} "
-                      f"sites, {info.n_atoms} atoms in the cell")
-            log.write(f"space group    {info.space_group} "
-                      f"(#{info.space_group_number})")
-        except Exception as exc:                    # noqa: BLE001
-            # A log that refuses to open because the formula could not
-            # be computed would lose the run it was recording.
-            log.write(f"structure      (could not summarise: {exc})")
-        source = self.structure.meta.get("source")
-        if source:
-            log.write(f"source         {source}")
-        if self.engine:
-            log.write(f"engine         {self.engine}"
-                      f"  ({_engine_label(self.engine)})")
-        for key, value in sorted(self.options.items()):
-            log.write(f"  {key:<12s} {_readable(value)}")
-        log.blank()
+        The block itself is :func:`xtal.workspace.write_header`, which
+        the module registry writes too: what somebody asks of a log
+        three months later does not depend on which engine wrote it,
+        and a second copy of this is the one that would stop recording
+        the option they needed.
+        """
+        fields = [("engine", f"{self.engine}  "
+                             f"({_engine_label(self.engine)})")] \
+            if self.engine else []
+        write_header(self.log, self.folder, self.structure,
+                     title=title, fields=fields, options=self.options)
+        self.log.blank()
 
     def typing(self) -> None:
         """The table the whole result rests on."""
@@ -115,12 +100,13 @@ class RunRecorder:
             site = self.structure.sites[index]
             atom = typing.types[int(images[0])]
             rows.append([site.label or f"{site.element}{index}",
-                         atom.name, f"x{len(images)}",
+                         atom.name, _description(atom.name),
+                         f"x{len(images)}",
                          "set" if atom.overridden else atom.confidence,
                          atom.reason])
         log.heading("Atom types")
-        log.table(rows, headers=("site", "type", "orbit", "sure?",
-                                 "why"))
+        log.table(rows, headers=("site", "type", "means", "orbit",
+                                 "sure?", "why"))
         log.blank()
 
     def topology(self) -> None:
@@ -177,13 +163,20 @@ class RunRecorder:
 
         if self._scratch is None:
             self._scratch = self.structure.copy()
+        if getattr(step, "matrix", None) is not None:
+            # A variable-cell run: the frame is the cell as well as the
+            # coordinates, and a trajectory whose cell never changed
+            # would show the atoms of a relaxation rattling inside a
+            # box that was not the one they were relaxed in.
+            from xtal.core.lattice import Lattice
+            self._scratch.lattice = Lattice(step.matrix)
         try:
             for site, frac in zip(self._scratch.sites, step.frac,
                                   strict=True):
                 site.frac = np.asarray(frac, dtype=float)
         except ValueError:                          # pragma: no cover
             return None
-        self._scratch.touch(Change.POSITIONS)
+        self._scratch.touch(Change.POSITIONS | Change.CELL)
         return frame_of(self._scratch, step=int(step.iteration),
                         energy=float(step.energy),
                         max_force=float(step.max_force))
@@ -234,6 +227,21 @@ class RunRecorder:
         self.close()
 
 
+def _description(type_name: str) -> str:
+    """A UFF type in words, for the column beside the name.
+
+    The log is the thing somebody reads three months later, and a
+    column of five-character codes is exactly what they will no longer
+    remember how to decode.
+    """
+    from xtal.ff.uff import params
+
+    try:
+        return params.get(type_name).description
+    except KeyError:                                # pragma: no cover
+        return ""
+
+
 def _terms_text(terms) -> str:
     """Per-term energies, largest first -- which is the order that
     answers "where did this number come from"."""
@@ -253,9 +261,3 @@ def _engine_label(name: str) -> str:
         return ENGINES.get(name).label
     except (ValueError, KeyError):
         return "unregistered engine"
-
-
-def _readable(value) -> str:
-    if isinstance(value, bool):
-        return "on" if value else "off"
-    return str(value)

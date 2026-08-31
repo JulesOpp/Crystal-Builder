@@ -22,12 +22,16 @@ what is wanted but not yet scheduled.
 
     xtal/       core library — no Qt, no VTK, importable anywhere
       core/     lattice, sites, space groups, structure,
-                symmetry, P1 expansion, neighbours, bonding,
-                supercells, measurement, properties
+                symmetry, P1 expansion, neighbours, bonding
+                (perception, orders, nets), supercells, transforms,
+                measurement, properties
       io/       CIF, extended XYZ (single frame and trajectory)
                 and .xtalproj projects, format registry
       workspace.py  the workspace layout and the run folders a
                 calculation leaves behind
+      modules/  the module registry: what can be run, the job and
+                its cancellation, the external-process runner
+      plugins.py  entry-point discovery for out-of-tree registrations
       cli.py    the `xtal` command line
       commands/ undoable mutations: the stack, atom/bond/cell/
                 symmetry commands, the clipboard fragment
@@ -38,8 +42,8 @@ what is wanted but not yet scheduled.
       analysis/ RDF, coordination, later PXRD    (phase 9)
     xtalapp/    the PySide6 + VTK application
       viewport/ scene model, builder, draw styles, VTK, the widget
-      docks/    workspace tree, inspector, sites, style, measure,
-                force field, log viewer, transport bar
+      docks/    workspace tree, module tree, inspector, sites, style,
+                measure, force field, log viewer, transport bar
       document.py, mainwindow.py, actions.py, settings.py
       workers.py, plot.py   long jobs off the GUI thread
     tests/      headless test suite
@@ -70,13 +74,16 @@ crystal-builder quartz.cif
 
 Open a CIF from the file tree on the left or by dropping it on the
 window.  Left-drag orbits, the wheel zooms, middle-drag pans.  The
-*View* menu switches between ball-and-stick, stick, wireframe and
-space-filling; the toolbar spinboxes set how many unit cells are drawn.
+*View* menu switches between ball-and-stick, stick, wireframe,
+space-filling, polyhedral and thermal-ellipsoid pictures; the toolbar
+spinboxes set how many unit cells are drawn.
 
 Click an atom or a bond to select it, shift-click to add to the
-selection, double-click for the whole molecule or framework.  The
-*Select* menu grows a selection by element, by bonded neighbours, by
-fragment or by symmetry orbit.  The Inspector edits the selected site
+selection, double-click for the whole molecule or framework.  *Box
+select* drags a rectangle and takes everything inside it, front to
+back -- the fastest way to grab a slab or one end of a long molecule.
+The *Select* menu grows a selection by element, by bonded neighbours,
+by fragment or by symmetry orbit.  The Inspector edits the selected site
 (element, label, coordinates, occupancy, Uiso, charge) and the Sites
 tab is the same data as a table.
 
@@ -90,9 +97,25 @@ edit atoms one at a time.
 because a drawn atom knows which lattice translation put it there,
 bonding the copy in the next cell along makes the bond it looks like.
 The Move dock translates, rotates and mirrors the selection, in
-fractional or cartesian units.  Everything is undoable (`Ctrl+Z` /
+fractional or cartesian units; the arrows beside each step nudge and
+auto-repeat while held, and a whole burst of them comes back on one
+`Ctrl+Z`.  *Make planar* flattens the selection onto its best-fit
+plane and says how far the furthest atom had to move, which is the
+difference between straightening a puckered ring and quietly rebuilding
+it.  Everything is undoable (`Ctrl+Z` /
 `Ctrl+Shift+Z`), and copy/paste works through the system clipboard as
 XYZ, so fragments travel to and from other programs.
+
+*Structure → Add hydrogens* puts back the ones an X-ray refinement
+never saw.  Where they go is the coordination completed -- the
+hybridisation the force field's typer already decided, so a benzene
+carbon gets one in the ring plane and a methyl gets three, staggered --
+and how far is the bond length UFF itself would relax to.  It says
+what it will do before it does it, and it counts in atoms rather than
+in sites: "6 hydrogens on 2 atoms (4 sites in the asymmetric unit)",
+because two hydrogens either side of a mirror plane are one site.
+A metal is left alone, and so is anything else it would have to guess
+at -- and it says which.
 
 Bonds do not change when atoms move -- not while you drag one, and not
 during a relaxation.  *Structure → Recalculate bonds* (`Ctrl+B`) is
@@ -115,6 +138,32 @@ says by how much.  *Set space group* picks any setting of any of the
 atoms generating or imposing it would leave you with before you
 commit.
 
+*Descend to a subgroup* goes the other way, and it is a choice rather
+than a measurement: it lists the subgroups of the group you are in, and
+each one splits a different orbit into independent sites -- the first
+step of a distortion model.  Not only the maximal ones, because an
+ordering model usually knows the group it is heading for and should not
+have to walk there through three dialogs; the maximal ones are marked
+so the step-by-step path is still visible.  Subgroups that differ only
+in which axis they keep are conjugate under the parent and give the
+same crystal, so they share one row that says how many it stands for.
+
+The list says what each descent costs, because most of them cost
+nothing visible: six of rutile's seven maximal subgroups leave both its
+sites whole, and the seventh, Cmmm, halves both.  Every subgroup is
+named in a standard setting, including the ones whose operations do not
+match any tabulated setting of the cell you are in; where a descent
+needs the cell re-expressed, it says so, the crystal itself does not
+move, and the view resets so the new cell is framed rather than the old
+one.
+
+*Invert the structure* is the other hand of the same crystal --
+coordinates and space group together, since doing only the first
+leaves atoms that no longer obey their own symmetry.  P4_1 comes back
+as P4_3.  The Structure panel says which hand you are in at all times,
+which is what makes anyone think to check: a structure solved in the
+wrong hand looks perfectly good.
+
 The *Cell* menu edits the cell itself: parameters, supercells as
 multiples or as a general integer matrix, and Niggli and Delaunay
 reduction.  The cell editor only lets you change the numbers the space
@@ -130,7 +179,24 @@ The *Style* panel is where the picture is tuned: draw style, atom size,
 bond thickness, labels, background, an element legend, and the colour
 and radius of every element, each overridable and each resettable.
 **Polyhedra** is the VESTA signature style -- coordination spheres as
-translucent convex hulls, coloured by the atom at the centre.  The
+translucent convex hulls, coloured by the atom at the centre -- and
+**Polyhedra and sticks** draws hulls on the metal nodes and tubes on
+everything else, which is the picture an MOF wants.  **Thermal
+ellipsoids** draws the displacement parameters of a refined structure
+at 50%, 90% or 99% probability; an atom refined only isotropically is
+a sphere and one with no displacement parameters at all is a small
+sphere that does not grow with the level, so the picture never claims
+a measurement nobody made.  **Depth cueing** fades the back of a thick
+slab towards the background.
+
+Double and triple bonds are drawn as two and three tubes, and an
+aromatic bond as a tube with a dashed line inside the ring -- inferred
+from the geometry by `xtal.core.bonding`, which is also where the force
+field now gets its bond orders.  A **topology bond** is a different
+kind of thing: an edge of the underlying net, drawn thick and
+translucent over the real bonds rather than in place of them, invisible
+to every chemical question, and reported by its coordination sequence
+and point symbol -- 6, 18, 38, 66 and 4^12.6^3 for **pcu**.  The
 *Measure* tool takes distances, angles and torsions; how many atoms you
 click is the whole of the choice between them, and every measurement is
 minimum-image aware, so one taken across the cell boundary follows the
@@ -185,10 +251,31 @@ option, the full typing table with the reason for each assignment, the
 topology counts, a line per step, and the per-term energy breakdown at
 both ends.
 
-The *Calculate* menu and the **Force Field** panel put an energy on the
-structure.  The panel leads with the thing that decides whether that
-energy means anything: a table of every site's UFF atom type, how sure
-the typer was, and the sentence explaining why it chose that one --
+**The *Modules* menu is what can be run**, and so is the module tree
+beside the workspace tree -- one panel to pick a calculation from, the
+other to watch its folder appear underneath the structure.  Both are
+built from a registry (`xtal/modules/`), so a module declares its name,
+its place in the tree, the parameters it needs and the callable that
+runs them, and gets its menu entry, its parameter form, its worker
+thread, its run folder, its live log and its Stop button without
+writing any of them.  A module installed from another package
+registers through a `crystal_builder.plugins` entry point and appears
+in both, with no file here changing.  Everything external goes through
+one process runner: a binary that is not installed greys its module out
+and says so before anybody clicks it, its output streams into `run.log`
+as it arrives, Stop terminates the process group rather than abandoning
+the thread reading it, and a non-zero exit is reported with the last
+thing the program printed, which is nearly always what actually went
+wrong.
+
+Under *Modules → Forcefield* are the three entries that used to be
+*Calculate*, unchanged, with `Ctrl+E` and `Ctrl+Shift+E` still on them.
+The **Force Field** panel leads with the thing that decides whether an
+energy means anything: a table of every site's UFF atom type, that
+type in words (`Zn3+2` is "tetrahedral Zn(II)", and the `3` of `O_3`
+is sp3 rather than tetrahedral -- the same character means two
+different things and the panel used to say neither), how sure the
+typer was, and the sentence explaining why it chose that one --
 "in a flat aromatic ring", "bridges Si and Si at 144 degrees, a
 framework oxygen", "6 neighbours, which no Zn type in UFF was fitted
 for".  Any of them can be overridden from a drop-down of that
@@ -208,6 +295,15 @@ special position stays on it: rutile's titanium does not move at all,
 and its oxygen relaxes along the [110] direction it is free in and
 nowhere else. To relax every atom independently, *Reduce to P1* first.
 
+*Relax the cell as well* adds the lattice to the variables, under a
+strain the space group allows -- so a cubic cell comes back cubic and
+a hexagonal one hexagonal, exactly, because there is no variable that
+could take them anywhere else.  An external pressure is a `P V` term
+beside it, in GPa.  What comes out is a UFF cell: for a framework it
+is routinely a few percent out (MFU-4l relaxes from 31.06 A to 30.30),
+which is a starting geometry and not a measured lattice constant, and
+the panel says so.
+
 `resources/samples/MFU4l.cif` (CCDC 776578) is a worked example: a
 648-atom metal-organic framework in Fm-3m.  Its eight octahedral zincs
 come out flagged, because UFF has only a tetrahedral zinc.
@@ -219,12 +315,19 @@ From the command line:
 ```bash
 xtal info quartz.cif
 xtal symmetry quartz.cif --symprec 1e-3 --wyckoff
+xtal symmetry quartz.cif --subgroups        # ... and what splits
 xtal bonds quartz.cif
 xtal convert quartz.cif big.xyz --supercell 2 2 2 --p1
 xtal types quartz.cif                       # atom types, and why
 xtal energy quartz.cif                      # per-term breakdown
 xtal optimize quartz.cif -o relaxed.cif     # a line per step
+xtal optimize quartz.cif --relax-cell       # ... the lattice too
+xtal modules                                # what can be run
+xtal run stub.count quartz.cif -p steps=3   # ... and running it
 ```
+
+`xtal run` writes the same run folder the window does, which is what
+makes a run started from a script one the window opens.
 
 From Python:
 
@@ -289,7 +392,20 @@ print(run.frac)                             # the asymmetric unit, relaxed
 
 `ENGINES` is a registry, so LAMMPS, GULP, xTB or a machine-learned
 potential drop in as another `Calculator` and one registration line,
-with no change to the optimiser, the worker thread or the panel.
+with no change to the optimiser, the worker thread or the panel.  So is
+`MODULES`, for anything that runs and leaves artefacts behind rather
+than answering with an energy:
+
+```python
+from xtal.modules import MODULES, Action, Module, Param
+
+MODULES.register(Module(
+    name="zeopp", label="Zeo++",
+    check=lambda: NETWORK.availability(),        # greyed out if absent
+    actions=(Action(name="pore-diameter", label="Pore diameter...",
+                    params=(Param("radii", "Radii file", kind="path"),),
+                    run=zeo.pore_diameter),)))
+```
 Electrostatics are off by default, as in UFF itself; turned on, charges
 come from the sites or from charge equilibration, and the lattice sum
 is Ewald's (it reproduces the rock-salt Madelung constant to seven

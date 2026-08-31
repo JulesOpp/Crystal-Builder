@@ -3,6 +3,10 @@ xtal.core.selection
 ===================
 What the user has selected, and the ways of arriving at a selection.
 
+Atoms, chemical bonds and net edges are three sets and not one.  A
+topology bond can join the same pair of atoms as a chemical bond, so
+their keys collide and only the set they are in tells them apart.
+
 Selections live in **P1 cell index space** -- they refer to the atoms
 that are drawn, not to the asymmetric unit -- because that is what a
 person clicks on.  Turning a set of drawn atoms back into the sites an
@@ -29,17 +33,21 @@ class Selection:
 
     atoms: set = field(default_factory=set)
     bonds: set = field(default_factory=set)     # CellBond.key() tuples
+    # Net edges, keyed the same way.  A separate set and not the same
+    # one: a topology bond and a chemical bond can join the very same
+    # pair of atoms, and their keys would then be indistinguishable.
+    topology: set = field(default_factory=set)
     focus: int | None = None                    # last atom picked
 
     # -- state ---------------------------------------------------------
 
     @property
     def is_empty(self) -> bool:
-        return not self.atoms and not self.bonds
+        return not self.atoms and not self.bonds and not self.topology
 
     @property
     def count(self) -> int:
-        return len(self.atoms) + len(self.bonds)
+        return len(self.atoms) + len(self.bonds) + len(self.topology)
 
     def __len__(self) -> int:
         return self.count
@@ -52,6 +60,7 @@ class Selection:
     def clear(self) -> None:
         self.atoms.clear()
         self.bonds.clear()
+        self.topology.clear()
         self.focus = None
 
     def set_atoms(self, atoms) -> None:
@@ -83,6 +92,13 @@ class Selection:
             self.bonds.discard(key)
             return False
         self.bonds.add(key)
+        return True
+
+    def toggle_topology(self, key) -> bool:
+        if key in self.topology:
+            self.topology.discard(key)
+            return False
+        self.topology.add(key)
         return True
 
     def invert(self, n_atoms: int) -> None:

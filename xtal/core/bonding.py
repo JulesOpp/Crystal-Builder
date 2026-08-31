@@ -10,6 +10,19 @@ Mapping between the two is this module's job: an explicitly drawn bond
 propagates to every symmetry image of the atoms it joins, exactly as it
 does in VESTA -- draw one Fe-O bond and the whole orbit gets it.
 
+A **topology bond** is a third kind, and it is not chemistry at all:
+it is the edge of a net -- pcu, fcu, soc -- which is what is left after
+a chemist decides which parts of a framework are nodes and which are
+linkers.  It is stored like any other explicit bond and is filtered out
+of everything chemical; :func:`topology_graph` hands the net back on
+its own.  See :func:`coordination_sequence` and :func:`point_symbol`,
+which are what the net is *for*.
+
+Bond *order* is inferred here as well, and not in the force field
+that used to own it: counting pi bonds is chemistry, and the viewport
+should not have to import a calculator to decide how many tubes to
+draw.  See :func:`orders`.
+
 Fragment detection is periodicity-aware.  Walking the graph while
 accumulating lattice translations tells a molecule (returns to the
 start with a zero shift) apart from a framework (returns with a
@@ -26,7 +39,8 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from xtal.core import elements as el
-from xtal.core import neighbors, p1
+from xtal.core import neighbors, p1, transforms
+from xtal.core import structure as structure_module
 from xtal.core.structure import CHEMISTRY, Bond, CellBond
 
 # Two atoms bond when d <= (r_i + r_j) * SCALE + DELTA, with covalent
@@ -35,6 +49,13 @@ from xtal.core.structure import CHEMISTRY, Bond, CellBond
 DEFAULT_SCALE = 1.15
 DEFAULT_DELTA = 0.0
 MIN_BOND_DISTANCE = 0.4         # below this it is an overlap, not a bond
+
+#: Re-exported from :mod:`xtal.core.structure`, where the identity
+#: rules for a stored bond have to know about it too.  A topology bond
+#: is drawn, expands over the symmetry orbit and is saved -- and is
+#: invisible to perception, to the force field and to every
+#: coordination count.
+TOPOLOGY = structure_module.TOPOLOGY
 
 
 @dataclass
@@ -216,6 +237,12 @@ def _assemble(structure, rules, include_explicit, store) -> _Drawn:
                                               store)}
     if include_explicit:
         for bond in structure.bonds:
+            if bond.kind == TOPOLOGY:
+                # Not a bond in any chemical sense.  Left in, it would
+                # land in the force field's topology, in every
+                # coordination number and in every valence check, and
+                # be wrong in all three.
+                continue
             for mapped in map_explicit_bond(structure, cell, bond):
                 if bond.kind == "suppressed":
                     found.pop(mapped.key(), None)
@@ -311,7 +338,7 @@ def rebase(bonds, tau_then, tau_now) -> list[CellBond]:
         CellBond(b.i, b.j,
                  tuple(int(v) for v in
                        (np.asarray(b.image) + shift[b.j] - shift[b.i])),
-                 b.distance, b.explicit)
+                 b.distance, b.explicit, b.order)
         for b in bonds
     ]
 
@@ -359,7 +386,7 @@ def map_explicit_bond(structure, cell: p1.P1Cell,
         cell_bond = CellBond(
             int(a), int(b), tuple(int(v) for v in image),
             neighbors.min_image_distance(cell.frac[a], there, lattice),
-            explicit=True)
+            explicit=True, order=bond.order)
         out[cell_bond.key()] = cell_bond
     return list(out.values())
 
@@ -514,3 +541,489 @@ class Fragment:
     @property
     def kind(self) -> str:
         return "framework" if self.periodic else "molecule"
+
+
+# ======================================================================
+#  LOCAL GEOMETRY
+# ======================================================================
+
+class Geometry:
+    """The shape of each atom's coordination, cached.
+
+    A bond graph says *what* an atom is joined to; this says *where*
+    those neighbours are -- which is what tells a nitrile from an
+    ether, a flat ring from a chair, and a double bond from a single
+    one.  The periodic bookkeeping is the whole difficulty and is done
+    once here: a neighbour four cells away is at
+    ``cart[j] + shift @ matrix``, and taking the copy inside the cell
+    instead gives an angle that belongs to nothing.
+
+    Public, and used from three places -- the UFF typer, the hydrogen
+    builder and the bond-order inference below.  A second geometry pass
+    over the same graph would be a second place for that bookkeeping to
+    be got wrong.
+    """
+
+    def __init__(self, cell, graph):
+        self.cell = cell
+        self.graph = graph
+        self.cart = cell.cart
+        self.matrix = cell.lattice.matrix
+        self._vectors: dict[int, np.ndarray] = {}
+        self._partners: dict[int, list[int]] = {}
+
+    def partners(self, i: int) -> list[int]:
+        if i not in self._partners:
+            self._resolve(i)
+        return self._partners[i]
+
+    def vectors(self, i: int) -> np.ndarray:
+        """(n, 3) vectors from atom ``i`` to each bonded neighbour."""
+        if i not in self._vectors:
+            self._resolve(i)
+        return self._vectors[i]
+
+    def _resolve(self, i: int) -> None:
+        partners, vectors = [], []
+        for j, shift in self.graph.neighbors_with_images(i):
+            partners.append(j)
+            vectors.append(self.cart[j] + shift @ self.matrix
+                           - self.cart[i])
+        self._partners[i] = partners
+        self._vectors[i] = (np.array(vectors, dtype=float)
+                            if vectors else np.zeros((0, 3)))
+
+    def coordination(self, i: int) -> int:
+        return len(self.partners(i))
+
+    def distances(self, i: int) -> np.ndarray:
+        return np.linalg.norm(self.vectors(i), axis=1)
+
+    def angles(self, i: int) -> np.ndarray:
+        """Every neighbour-i-neighbour angle, in degrees."""
+        v = self.vectors(i)
+        if len(v) < 2:
+            return np.zeros(0)
+        unit = v / np.linalg.norm(v, axis=1)[:, None]
+        out = []
+        for a in range(len(unit)):
+            for b in range(a + 1, len(unit)):
+                out.append(np.degrees(np.arccos(
+                    np.clip(float(unit[a] @ unit[b]), -1.0, 1.0))))
+        return np.array(out)
+
+    def max_angle(self, i: int) -> float:
+        angles = self.angles(i)
+        return float(angles.max()) if len(angles) else 0.0
+
+    def angle_sum(self, i: int) -> float:
+        """The three angles at a three-coordinate atom: 360 degrees
+        when it is planar, about 328 when it is pyramidal."""
+        return float(self.angles(i).sum())
+
+
+def geometry(structure, rules: BondRules | None = None) -> Geometry:
+    """The coordination geometry of ``structure``'s P1 cell, memoised.
+
+    Positions are deliberately *not* part of the memo key -- the graph
+    it is built over is not either.  Anything watching a relaxation
+    wants the topology to hold still while the atoms move; what it must
+    not do is ask this for angles mid-run and believe them.
+    """
+    key = f"geometry:{rules.signature() if rules else ''}"
+    return structure.cached(
+        key,
+        lambda: Geometry(p1.expand(structure), graph(structure, rules)),
+        invalidated_by=CHEMISTRY)
+
+
+# ======================================================================
+#  RINGS AND AROMATICITY
+# ======================================================================
+
+# Elements that can sit in an aromatic ring.  Restricting the ring
+# search to these is also what keeps it cheap: a metal-oxide framework
+# has enormous numbers of short cycles and none of them are aromatic.
+AROMATIC_ELEMENTS = frozenset({"B", "C", "N", "O", "P", "S", "Se"})
+AROMATIC_RING_SIZES = (5, 6)
+# Root-mean-square deviation from the best-fit plane, in Angstrom,
+# below which a ring counts as flat.  Loose enough for a real
+# refinement, tight enough to reject a cyclohexane chair (~0.25 A).
+PLANARITY_TOLERANCE = 0.12
+
+
+def aromatic_rings(cell, graph, geo=None) -> list[tuple[int, ...]]:
+    """Planar five- and six-membered rings of sp2-capable atoms.
+
+    Aromaticity here is decided by the coordinates rather than by a
+    Kekule structure, which is the right way round for this
+    application: what it has is a refined geometry, and a flat ring of
+    three-coordinate carbons *is* an aromatic ring however the bonds
+    were drawn.
+    """
+    geo = geo or Geometry(cell, graph)
+    candidates = {
+        i for i in range(cell.n_atoms)
+        if cell.elements[i] in AROMATIC_ELEMENTS
+        and 2 <= geo.coordination(i) <= 3
+    }
+    out = []
+    for ring in find_rings(graph, candidates, max(AROMATIC_RING_SIZES)):
+        if len(ring) not in AROMATIC_RING_SIZES:
+            continue
+        points = np.array([geo.cart[i] + np.asarray(shift) @ geo.matrix
+                           for i, shift in ring])
+        if transforms.plane_deviation(points) <= PLANARITY_TOLERANCE:
+            out.append(tuple(i for i, _shift in ring))
+    return out
+
+
+def find_rings(graph, candidates: set, max_size: int) -> list[list]:
+    """Simple cycles of at most ``max_size`` atoms, within
+    ``candidates``, that close with no net lattice translation.
+
+    The translation test is what makes this periodic-safe.  Walking a
+    chain of Si-O-Si along a cell axis returns to the atom it started
+    from after a few steps, but a cell further along; that is the
+    lattice repeating, not a ring, and treating it as one would call
+    every framework aromatic.
+
+    Each ring is found once, from its lowest-numbered atom, and comes
+    back as ``(atom, lattice shift)`` pairs -- the shift is what lets
+    the caller lay the ring out in space when it closes through a cell
+    face.
+    """
+    rings: list[list] = []
+    seen: set[frozenset] = set()
+
+    for start in sorted(candidates):
+        origin = (start, (0, 0, 0))
+        stack = [[origin]]
+        while stack:
+            path = stack.pop()
+            node = path[-1]
+            if len(path) > max_size:
+                continue
+            for j, shift in graph.neighbors_with_images(node[0]):
+                if j not in candidates or j < start:
+                    continue
+                nxt = (j, tuple(int(v) for v in
+                                np.asarray(node[1]) + shift))
+                if nxt == origin:
+                    if len(path) >= 3:
+                        key = frozenset(path)
+                        if key not in seen:
+                            seen.add(key)
+                            rings.append(list(path))
+                    continue
+                if nxt in path or j == start:
+                    continue
+                stack.append([*path, nxt])
+    return rings
+
+
+# ======================================================================
+#  BOND ORDER
+# ======================================================================
+#
+# A crystal structure carries no bond orders -- a CIF has nowhere to
+# put them -- so they have to be inferred, and until now that was done
+# inside the UFF typer against UFF's own type names.  Counting pi bonds
+# is chemistry rather than one force field's business, and the viewport
+# should not have to import a force field to decide how many tubes to
+# draw, so it lives here and the typer reads it.
+
+#: Below this the number is "not stated": an explicit bond left at the
+#: default order is inferred like any other, and one the user actually
+#: set overrides the inference.
+STATED_ORDER_TOLERANCE = 1e-9
+
+AROMATIC_ORDER = 1.5
+
+# How many pi bonds an atom of this element has to place, once its
+# geometry has said what shape it is in.  The thresholds are the same
+# ones the UFF typer reads to tell sp from sp2 from sp3, because they
+# are answering the same question about the same coordinates.
+LINEAR_ANGLE = 155.0        # above this, two neighbours means sp
+SP2_ANGLE = 114.0           # above this, sp2 rather than sp3
+PLANAR_ANGLE_SUM = 345.0    # three angles summing to this is flat
+
+# An atom with one bond has no angles, so nothing above can judge it,
+# and in a structure refined without hydrogens -- which is most of
+# them -- the terminal carbon of an alkene, the carbon of a methyl
+# group and the carbon of a nitrile look identical.  What separates
+# them is the length, measured against the single bond the two
+# covalent radii predict: a double bond runs about 0.9 of it and a
+# triple about 0.8.  Butadiene without its hydrogens is the case this
+# exists for -- its terminal carbons sit 1.34 A from their partners,
+# which is a double bond and nothing else, and calling them saturated
+# puts the double bond in the middle of the molecule where the single
+# bond belongs.
+DOUBLE_BOND_RATIO = 0.96
+TRIPLE_BOND_RATIO = 0.86
+
+#: The most pi bonds each element ever places, whatever the length
+#: says.  Oxygen is the one that matters: a short terminal C-O is a
+#: carbonyl, not a carbon monoxide ligand, and letting the ratio alone
+#: decide would make carbon dioxide O#C-O.
+MAX_PI = {"C": 2, "N": 2, "O": 1, "S": 1, "B": 1}
+
+
+def _pi_capacity(i: int, cell, geo) -> int:
+    """How many pi bonds atom ``i`` has to give away.
+
+    Two neighbours at 180 degrees is an sp centre with two of them; a
+    flat three-coordinate atom is sp2 with one; everything saturated,
+    every metal and every halogen has none.  A terminal atom is judged
+    by its bond length, because it has nothing else.
+
+    Written to survive missing hydrogens, which is the normal state of
+    an X-ray structure: a benzene carbon has two neighbours there, not
+    three, and a rule that demanded three would find no pi bonds in
+    any real refinement.
+    """
+    element = cell.elements[i]
+    cap = MAX_PI.get(element, 0)
+    n = geo.coordination(i)
+    if not cap or n == 0:
+        return 0
+
+    if n == 1:
+        return _terminal_capacity(i, cell, geo, cap)
+    if element == "B":
+        return 0 if n >= 4 else 1
+    if element in ("O", "S"):
+        return 0                        # bridging, an ether, a thioether
+    if n >= 4:
+        return 0
+    if n == 3:
+        return 1 if geo.angle_sum(i) >= PLANAR_ANGLE_SUM else 0
+    angle = geo.max_angle(i)            # n == 2
+    if angle > LINEAR_ANGLE:
+        return 2
+    if element == "N":
+        return 1                        # bent: sp2, and no other option
+    return 1 if angle >= SP2_ANGLE else 0
+
+
+def _terminal_capacity(i: int, cell, geo, cap: int) -> int:
+    """The pi count of an atom with exactly one bond, from its
+    length relative to the single bond its two radii predict."""
+    partner = cell.elements[geo.partners(i)[0]]
+    single = (el.covalent_radius(cell.elements[i])
+              + el.covalent_radius(partner))
+    if single <= 0:                                 # pragma: no cover
+        return 0
+    ratio = float(geo.distances(i)[0]) / single
+    if ratio <= TRIPLE_BOND_RATIO:
+        return min(2, cap)
+    if ratio <= DOUBLE_BOND_RATIO:
+        return min(1, cap)
+    return 0
+
+
+def orders(structure, rules: BondRules | None = None) -> np.ndarray:
+    """A bond order for every bond of the graph, in the graph's order.
+
+    Two rules do the work.  A bond between two aromatic atoms is 1.5.
+    Otherwise every unsaturated atom starts with a number of pi bonds
+    to place -- one for an sp2 atom, two for an sp one -- and bonds
+    take as many as both ends can still spare, shortest bond first.
+
+    Shortest-first is what gets butadiene right.  Its four carbons are
+    all sp2, and pairing them off by length makes the two short bonds
+    double and the long middle one single, which is the answer;
+    calling every sp2-sp2 bond double would stiffen the middle bond by
+    a third.  Counting rather than pairing is what gets carbon dioxide
+    right: its carbon has two pi bonds to give away, not one.
+
+    An explicit bond whose order the user actually *set* is not
+    inferred at all -- perception decides whether two atoms are bonded,
+    not what the bond is.
+
+    Memoised against everything but a geometry change, like the
+    perception it is read over: bonds do not become double because two
+    atoms drifted together.
+    """
+    key = f"bond-orders:{rules.signature() if rules else ''}"
+    return structure.cached(key, lambda: _infer_orders(structure, rules),
+                            invalidated_by=CHEMISTRY)
+
+
+def _infer_orders(structure, rules) -> np.ndarray:
+    cell = p1.expand(structure)
+    bonds = graph(structure, rules).bonds
+    if not bonds:
+        return np.zeros(0)
+    geo = Geometry(cell, graph(structure, rules))
+    aromatic = {i for ring in aromatic_rings(cell, graph(structure, rules),
+                                             geo)
+                for i in ring}
+
+    out = np.ones(len(bonds))
+    spare = {i: _pi_capacity(i, cell, geo) for i in range(cell.n_atoms)}
+
+    # Stated first, and taken out of the counting entirely: a bond the
+    # user called double has already spent the pi electrons at both
+    # ends, and letting the inference spend them again would double up
+    # somewhere else in the same ring.
+    stated = [k for k, b in enumerate(bonds)
+              if b.explicit
+              and abs(b.order - 1.0) > STATED_ORDER_TOLERANCE]
+    for k in stated:
+        out[k] = float(bonds[k].order)
+        used = max(0, int(round(bonds[k].order)) - 1)
+        spare[bonds[k].i] = max(0, spare[bonds[k].i] - used)
+        spare[bonds[k].j] = max(0, spare[bonds[k].j] - used)
+
+    free = set(range(len(bonds))) - set(stated)
+    for k in free:
+        bond = bonds[k]
+        if bond.i in aromatic and bond.j in aromatic:
+            out[k] = AROMATIC_ORDER
+            spare[bond.i] = spare[bond.j] = 0
+
+    candidates = sorted((bonds[k].distance, k) for k in free
+                        if out[k] == 1.0)
+    for _distance, k in candidates:
+        bond = bonds[k]
+        shared = min(spare[bond.i], spare[bond.j])
+        if shared <= 0:
+            continue
+        out[k] = 1.0 + shared
+        spare[bond.i] -= shared
+        spare[bond.j] -= shared
+    return out
+
+
+# ======================================================================
+#  TOPOLOGY
+# ======================================================================
+
+def topology_graph(structure) -> BondGraph:
+    """The net the user drew, as its own graph over the P1 cell.
+
+    Only the bonds marked :data:`TOPOLOGY`, and none of the perceived
+    ones: a net is a statement about which parts of a framework are
+    nodes and which are linkers, and a distance criterion is not
+    qualified to make it.
+
+    Memoised and wrap-corrected like :func:`graph`, so an atom drifting
+    across a cell face does not leave a net edge drawn all the way back
+    across the crystal.
+    """
+    cell = p1.expand(structure)
+
+    def build() -> _Drawn:
+        found: dict[tuple, CellBond] = {}
+        for bond in structure.bonds:
+            if bond.kind != TOPOLOGY:
+                continue
+            for mapped in map_explicit_bond(structure, cell, bond):
+                found[mapped.key()] = mapped
+        bonds = sorted(found.values(),
+                       key=lambda b: (b.i, b.j, b.image))
+        return _Drawn(bonds, cell.tau, cell.n_atoms)
+
+    drawn = structure.cached("topology", build, invalidated_by=CHEMISTRY)
+    if drawn.n_atoms != cell.n_atoms:
+        structure.drop_cache("topology")
+        drawn = structure.cached("topology", build,
+                                 invalidated_by=CHEMISTRY)
+    return drawn.at(cell.tau).graph
+
+
+def coordination_sequence(graph: BondGraph, atom: int,
+                          depth: int = 10) -> list[int]:
+    """How many vertices lie exactly ``k`` edges from ``atom``, for
+    ``k`` from 1 to ``depth``.
+
+    The first invariant RCSR names a net by: **pcu** is
+    6, 18, 38, 66, ... and nothing else is.
+
+    The walk is over ``(atom, lattice offset)`` pairs and not over
+    atoms, which is the whole of the difficulty.  A net is infinite,
+    and the six neighbours of a vertex in **pcu** are six *different*
+    vertices even though the cell holds one atom -- counting atoms
+    instead gives 1, 0, 0, ... for every net there is.
+    """
+    origin = (int(atom), (0, 0, 0))
+    seen = {origin}
+    frontier = {origin}
+    out: list[int] = []
+    for _ in range(max(0, int(depth))):
+        nxt = set()
+        for node, offset in frontier:
+            for j, shift in graph.neighbors_with_images(node):
+                step = (int(j), tuple(int(v) for v in
+                                      np.asarray(offset) + shift))
+                if step not in seen:
+                    nxt.add(step)
+        seen |= nxt
+        out.append(len(nxt))
+        if not nxt:
+            break
+        frontier = nxt
+    return out
+
+
+def point_symbol(graph: BondGraph, atom: int,
+                 max_ring: int = 12) -> str:
+    """The Schlafli point symbol at ``atom`` -- ``4^12.6^3`` for
+    **pcu**.
+
+    For every pair of edges meeting at the vertex, the size of the
+    smallest ring that contains that angle; the symbol collects those
+    sizes with their multiplicities.  A vertex of degree *n* has
+    *n(n-1)/2* angles, and an angle with no ring inside ``max_ring``
+    is written as ``*``, which is what RCSR does and is honest about
+    the search having a bound.
+    """
+    partners = [(int(j), tuple(int(v) for v in shift))
+                for j, shift in graph.neighbors_with_images(int(atom))]
+    origin = (int(atom), (0, 0, 0))
+    counts: dict = {}
+    for a in range(len(partners)):
+        for b in range(a + 1, len(partners)):
+            size = _smallest_ring(graph, origin, partners[a],
+                                  partners[b], max_ring)
+            key = size if size else "*"
+            counts[key] = counts.get(key, 0) + 1
+    if not counts:
+        return ""
+    ordered = sorted(counts, key=lambda k: (k == "*", k))
+    return ".".join(
+        f"{k}^{counts[k]}" if counts[k] > 1 else f"{k}"
+        for k in ordered)
+
+
+def _smallest_ring(graph, origin, first, second, max_ring):
+    """The shortest cycle through ``origin`` containing both edges.
+
+    A breadth-first walk from one neighbour to the other that is not
+    allowed through the vertex itself; the ring is that path plus the
+    two edges back to it.
+    """
+    if first == second:                         # pragma: no cover
+        return 0
+    seen = {origin, first}
+    frontier = [first]
+    # The path already holds two edges (origin-first, second-origin),
+    # so a path of `steps` edges from first to second closes a ring of
+    # `steps + 2`.
+    for steps in range(1, max_ring - 1):
+        nxt = []
+        for node, offset in frontier:
+            for j, shift in graph.neighbors_with_images(node):
+                step = (int(j), tuple(int(v) for v in
+                                      np.asarray(offset) + shift))
+                if step == second:
+                    return steps + 2
+                if step in seen or step == origin:
+                    continue
+                seen.add(step)
+                nxt.append(step)
+        if not nxt:
+            break
+        frontier = nxt
+    return 0

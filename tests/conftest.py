@@ -63,3 +63,11 @@ def rutile_cif(tmp_path, rutile) -> str:
     path = tmp_path / "rutile.cif"
     write_cif(rutile, path)
     return str(path)
+
+
+@pytest.fixture
+def quartz_cif(tmp_path, quartz) -> str:
+    from xtal.io import write_cif
+    path = tmp_path / "quartz.cif"
+    write_cif(quartz, path)
+    return str(path)

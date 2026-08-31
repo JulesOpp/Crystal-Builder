@@ -21,6 +21,13 @@ a plain numpy array of coordinates, which is safe to hand across.
 Cancelling therefore never leaves a half-finished structure behind:
 the document is not touched at all until the run ends and the panel
 pushes a single command.
+
+:class:`ModuleWorker` is the same arrangement for anything the module
+registry offers.  It is separate from :class:`OptimizationWorker`
+rather than a generalisation of it because the two cancel differently
+and report differently, and folding them together would mean a worker
+carrying a pause button that most jobs cannot honour and a step signal
+that most jobs never emit.
 """
 
 from __future__ import annotations
@@ -41,6 +48,10 @@ class OptimizationWorker(QObject):
 
     def __init__(self, calculator, structure, method: str = "lbfgs",
                  frozen=(), parent=None, recorder=None, **options):
+        # ``options`` carries whatever ``optimize.steps`` takes, which
+        # now includes ``relax_cell`` and ``pressure``: the worker has
+        # no opinion about any of them and passing them through by name
+        # would be one more place to forget one.
         super().__init__(parent)
         self.calculator = calculator
         self.structure = structure
@@ -119,6 +130,9 @@ class OptimizationWorker(QObject):
                 frac=last.frac,
                 terms=dict(last.terms),
                 history=history,
+                matrix=last.matrix,
+                initial_matrix=(None if last.matrix is None else
+                                self.structure.lattice.matrix),
                 message=("stopped at step "
                          f"{last.iteration}" if self._cancel.is_set()
                          else last.line()),
@@ -146,15 +160,22 @@ class OptimizationWorker(QObject):
             self.recorder = None
 
 
-def start_in_thread(worker: QObject) -> QThread:
+def start_in_thread(worker: QObject, parent: QObject = None) -> QThread:
     """Move ``worker`` onto a fresh thread and start it.
 
     The thread quits when the worker signals either outcome, and both
     are deleted when it has actually stopped -- deleting a worker while
     its thread is still inside ``run`` is the classic way to crash a Qt
     application on exit.
+
+    Give it a ``parent`` and C++ owns the thread, which is the other
+    half of the same rule.  ``finished`` is emitted from *inside* the
+    thread, so a caller that drops its last Python reference in that
+    slot destroys a ``QThread`` that has not stopped yet -- and Qt
+    aborts the process rather than raising something catchable.  With
+    a parent, the reference count is nobody's problem.
     """
-    thread = QThread()
+    thread = QThread(parent)
     worker.moveToThread(thread)
     thread.started.connect(worker.run)
     worker.finished.connect(thread.quit)
@@ -163,3 +184,79 @@ def start_in_thread(worker: QObject) -> QThread:
     thread.finished.connect(thread.deleteLater)
     thread.start()
     return thread
+
+
+class ModuleWorker(QObject):
+    """Runs one module action's ``run`` callable and reports as it goes.
+
+    The same shape as :class:`OptimizationWorker` and for the same
+    reasons -- a run that takes longer than a frame cannot happen on
+    the window's thread -- with one difference that matters.
+
+    **Cancelling is a message, not a flag the thread checks on its
+    way out.**  An in-process job polls the cancellation between units
+    of work; an external process is killed by it, through a callback
+    registered by :class:`~xtal.modules.process.ExternalProcess`.  Both
+    go through the same :class:`~xtal.modules.job.Cancellation`, so
+    :meth:`cancel` does not have to know which kind of job it is
+    stopping -- and a job that has already finished is unaffected by
+    being cancelled, which is what makes the race between Stop and the
+    last line of output harmless.
+
+    Progress lines arrive on this thread and leave as a signal, which
+    is the only safe way for them to reach a label.
+    """
+
+    progressed = Signal(str)
+    finished = Signal(object)       # xtal.modules.job.JobResult
+    failed = Signal(str)
+
+    def __init__(self, module, action, job, parent=None):
+        super().__init__(parent)
+        self.module = module
+        self.action = action
+        self.job = job
+        self.job.on_progress = self.progressed.emit
+        self._running = False
+
+    @property
+    def label(self) -> str:
+        return f"{self.module.label}: {self.action.label.rstrip('.')}"
+
+    @property
+    def is_running(self) -> bool:
+        return self._running
+
+    def cancel(self) -> None:
+        """Called from the GUI thread, at any point in the run."""
+        self.job.cancel.cancel()
+
+    def run(self) -> None:
+        """The thread's entry point.
+
+        Every exception becomes a ``failed`` signal, for the same
+        reason as in :class:`OptimizationWorker`: an exception that
+        escapes into a QThread goes with it, and the panel waits for a
+        result that never comes, which looks exactly like a hang.
+
+        ``Cancelled`` is not one of them.  Stopping a run is something
+        the user did on purpose and must never be reported as a
+        failure.
+        """
+        from xtal.modules.job import Cancelled, JobResult
+
+        self._running = True
+        try:
+            result = self.action.run(self.job)
+            if result is None:
+                result = JobResult(message=f"{self.label} finished")
+            if self.job.cancelled and not result.cancelled:
+                # It stopped early and said nothing about why.
+                result.cancelled = True
+            self.finished.emit(result)
+        except Cancelled:
+            self.finished.emit(JobResult.stopped())
+        except Exception as exc:                    # noqa: BLE001
+            self.failed.emit(str(exc))
+        finally:
+            self._running = False

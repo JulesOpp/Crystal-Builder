@@ -47,15 +47,11 @@ from xtal.core import bonding, p1
 from xtal.core.structure import CHEMISTRY, Change
 from xtal.ff.uff import params
 
-# Elements that can sit in an aromatic ring.  Restricting the ring
-# search to these is also what keeps it cheap: a metal-oxide framework
-# has enormous numbers of short cycles and none of them are aromatic.
-AROMATIC_ELEMENTS = frozenset({"B", "C", "N", "O", "P", "S", "Se"})
-AROMATIC_RING_SIZES = (5, 6)
-# Root-mean-square deviation from the best-fit plane, in Angstrom,
-# below which a ring counts as flat.  Loose enough for a real
-# refinement, tight enough to reject a cyclohexane chair (~0.25 A).
-PLANARITY_TOLERANCE = 0.12
+#: Coordination geometry, and the ring perception over it, both live
+#: in the core now: a bond graph plus coordinates is not a force
+#: field's private business, and the viewport reads the same answers.
+#: Re-exported because :mod:`xtal.ff.hydrogens` builds one directly.
+Geometry = bonding.Geometry
 
 # The type given to each element that has exactly one sensible answer
 # regardless of what it is bonded to.
@@ -166,8 +162,8 @@ def _assign(structure, rules) -> Typing:
         return Typing((), np.zeros(0), ())
 
     _refuse_unknown_elements(cell)
-    geometry = _Geometry(cell, graph)
-    rings = _aromatic_rings(cell, graph, geometry)
+    geometry = Geometry(cell, graph)
+    rings = bonding.aromatic_rings(cell, graph, geometry)
     aromatic = {i for ring in rings for i in ring}
 
     overrides = _overrides(structure, cell)
@@ -181,7 +177,12 @@ def _assign(structure, rules) -> Typing:
             types.append(_type_of(i, cell, graph, geometry,
                                   i in aromatic))
     _refine_terminal(types, cell, geometry)
-    orders = _bond_orders(graph, [t.name for t in types], aromatic)
+    # The orders are the core's -- counting pi bonds is chemistry, and
+    # the viewport reads the same numbers.  What is added here is the
+    # one place UFF disagrees with a plain bond order, and it is UFF's
+    # own convention rather than a fact about the molecule.
+    orders = np.array(bonding.orders(structure, rules), dtype=float)
+    _amide_bonds(graph, [t.name for t in types], orders)
     return Typing(tuple(types), orders,
                   tuple(tuple(r) for r in rings))
 
@@ -223,153 +224,6 @@ def _overrides(structure, cell) -> dict[int, str]:
 
 # ======================================================================
 #  GEOMETRY
-# ======================================================================
-
-class _Geometry:
-    """Cartesian neighbour vectors, with the periodic images resolved.
-
-    Every rule below needs "where are this atom's neighbours, really",
-    and in a crystal half of them are usually in the next cell along.
-    Resolving that once here is what keeps the rules readable.
-    """
-
-    def __init__(self, cell, graph):
-        self.cell = cell
-        self.graph = graph
-        self.cart = cell.cart
-        self.matrix = cell.lattice.matrix
-        self._vectors: dict[int, np.ndarray] = {}
-        self._partners: dict[int, list[int]] = {}
-
-    def partners(self, i: int) -> list[int]:
-        if i not in self._partners:
-            self._resolve(i)
-        return self._partners[i]
-
-    def vectors(self, i: int) -> np.ndarray:
-        """(n, 3) vectors from atom ``i`` to each bonded neighbour."""
-        if i not in self._vectors:
-            self._resolve(i)
-        return self._vectors[i]
-
-    def _resolve(self, i: int) -> None:
-        partners, vectors = [], []
-        for j, shift in self.graph.neighbors_with_images(i):
-            partners.append(j)
-            vectors.append(self.cart[j] + shift @ self.matrix
-                           - self.cart[i])
-        self._partners[i] = partners
-        self._vectors[i] = (np.array(vectors, dtype=float)
-                            if vectors else np.zeros((0, 3)))
-
-    def coordination(self, i: int) -> int:
-        return len(self.partners(i))
-
-    def distances(self, i: int) -> np.ndarray:
-        return np.linalg.norm(self.vectors(i), axis=1)
-
-    def angles(self, i: int) -> np.ndarray:
-        """Every neighbour-i-neighbour angle, in degrees."""
-        v = self.vectors(i)
-        if len(v) < 2:
-            return np.zeros(0)
-        unit = v / np.linalg.norm(v, axis=1)[:, None]
-        out = []
-        for a in range(len(unit)):
-            for b in range(a + 1, len(unit)):
-                out.append(np.degrees(np.arccos(
-                    np.clip(float(unit[a] @ unit[b]), -1.0, 1.0))))
-        return np.array(out)
-
-    def max_angle(self, i: int) -> float:
-        angles = self.angles(i)
-        return float(angles.max()) if len(angles) else 0.0
-
-    def angle_sum(self, i: int) -> float:
-        """The three angles at a three-coordinate atom: 360 degrees
-        when it is planar, about 328 when it is pyramidal."""
-        return float(self.angles(i).sum())
-
-
-def _plane_deviation(points: np.ndarray) -> float:
-    """RMS distance of ``points`` from their best-fit plane."""
-    if len(points) < 4:
-        return 0.0
-    centred = points - points.mean(axis=0)
-    normal = np.linalg.svd(centred)[2][-1]
-    return float(np.sqrt(np.mean((centred @ normal) ** 2)))
-
-
-# ======================================================================
-#  RINGS AND AROMATICITY
-# ======================================================================
-
-def _aromatic_rings(cell, graph, geometry) -> list[tuple[int, ...]]:
-    """Planar five- and six-membered rings of sp2-capable atoms.
-
-    Aromaticity here is decided by the coordinates rather than by a
-    Kekule structure, which is the right way round for this
-    application: what it has is a refined geometry, and a flat ring of
-    three-coordinate carbons *is* an aromatic ring however the bonds
-    were drawn.
-    """
-    candidates = {
-        i for i in range(cell.n_atoms)
-        if cell.elements[i] in AROMATIC_ELEMENTS
-        and 2 <= geometry.coordination(i) <= 3
-    }
-    out = []
-    for ring in _find_rings(graph, candidates, max(AROMATIC_RING_SIZES)):
-        if len(ring) not in AROMATIC_RING_SIZES:
-            continue
-        points = np.array([geometry.cart[i] + np.asarray(shift) @
-                           geometry.matrix for i, shift in ring])
-        if _plane_deviation(points) <= PLANARITY_TOLERANCE:
-            out.append(tuple(i for i, _shift in ring))
-    return out
-
-
-def _find_rings(graph, candidates: set, max_size: int) -> list[list]:
-    """Simple cycles of at most ``max_size`` atoms, within
-    ``candidates``, that close with no net lattice translation.
-
-    The translation test is what makes this periodic-safe.  Walking a
-    chain of Si-O-Si along a cell axis returns to the atom it started
-    from after a few steps, but a cell further along; that is the
-    lattice repeating, not a ring, and treating it as one would call
-    every framework aromatic.
-
-    Each ring is found once, from its lowest-numbered atom.
-    """
-    rings: list[list] = []
-    seen: set[frozenset] = set()
-
-    for start in sorted(candidates):
-        origin = (start, (0, 0, 0))
-        stack = [[origin]]
-        while stack:
-            path = stack.pop()
-            node = path[-1]
-            if len(path) > max_size:
-                continue
-            for j, shift in graph.neighbors_with_images(node[0]):
-                if j not in candidates or j < start:
-                    continue
-                nxt = (j, tuple(int(v) for v in
-                                np.asarray(node[1]) + shift))
-                if nxt == origin:
-                    if len(path) >= 3:
-                        key = frozenset(path)
-                        if key not in seen:
-                            seen.add(key)
-                            rings.append(list(path))
-                    continue
-                if nxt in path or j == start:
-                    continue
-                stack.append([*path, nxt])
-    return rings
-
-
 # ======================================================================
 #  THE RULES
 # ======================================================================
@@ -658,9 +512,12 @@ def _implied_length(candidate: str, partner: str) -> float:
 #  BOND ORDERS
 # ======================================================================
 
-# How many pi bonds each unsaturated type has to place.  An sp2 atom
-# has one; an sp carbon has two, which is what makes CO2 O=C=O and
-# acetylene a triple bond rather than each of them one bond short.
+# How many pi bonds each unsaturated type has to place.  The orders
+# themselves come from :func:`xtal.core.bonding.orders`; this table is
+# what is left of the old inference, and it survives because
+# ``_implied_length`` has to ask what length a *candidate* type would
+# imply -- a question about a type that no atom has yet been given, so
+# there is nothing in the graph to look it up from.
 PI_CAPACITY = {
     "C_2": 1, "N_2": 1, "O_2": 1, "S_2": 1, "B_2": 1,
     "C_1": 2, "N_1": 2, "O_1": 1,
@@ -668,50 +525,6 @@ PI_CAPACITY = {
 RESONANT_TYPES = frozenset({"C_R", "N_R", "O_R", "S_R"})
 
 AMIDE_ORDER = 1.41          # UFF's bond order for the amide C-N bond
-
-
-def _bond_orders(graph, names, aromatic: set) -> np.ndarray:
-    """A bond order for every bond, inferred from the types.
-
-    A crystal structure carries no bond orders -- a CIF has nowhere to
-    put them -- so they have to come from somewhere, and UFF needs them
-    for every bond length and every torsion barrier.
-
-    Two rules do the work.  A bond between two aromatic atoms is 1.5.
-    Otherwise every unsaturated atom starts with a number of pi bonds
-    to place -- one for an sp2 atom, two for an sp one -- and bonds
-    take as many as both ends can still spare, shortest bond first.
-
-    Shortest-first is what gets butadiene right.  Its four carbons are
-    all sp2, and pairing them off by length makes the two short bonds
-    double and the long middle one single, which is the answer;
-    calling every sp2-sp2 bond double would stiffen the middle bond by
-    a third.  Counting rather than pairing is what gets carbon dioxide
-    right: its carbon has two pi bonds to give away, not one.
-    """
-    orders = np.ones(len(graph.bonds))
-    spare = {i: PI_CAPACITY.get(names[i], 0)
-             for i in range(graph.n_atoms)}
-
-    for k, bond in enumerate(graph.bonds):
-        if bond.i in aromatic and bond.j in aromatic:
-            orders[k] = 1.5
-            spare[bond.i] = spare[bond.j] = 0
-
-    candidates = sorted((bond.distance, k)
-                        for k, bond in enumerate(graph.bonds)
-                        if orders[k] == 1.0)
-    for _distance, k in candidates:
-        bond = graph.bonds[k]
-        shared = min(spare[bond.i], spare[bond.j])
-        if shared <= 0:
-            continue
-        orders[k] = 1.0 + shared
-        spare[bond.i] -= shared
-        spare[bond.j] -= shared
-
-    _amide_bonds(graph, names, orders)
-    return orders
 
 
 def _amide_bonds(graph, names, orders) -> None:

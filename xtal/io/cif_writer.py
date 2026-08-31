@@ -120,8 +120,31 @@ def cif_string(structure: Structure, expand_to_p1: bool = False,
             row += f" {u:8.5f}"
         lines.append(row)
 
+    lines += _aniso_loop(labelled)
     lines.append("")
     return "\n".join(lines)
+
+
+def _aniso_loop(structure) -> list[str]:
+    """The ``_atom_site_aniso_*`` loop, when anything has one.
+
+    Only the sites that were actually refined anisotropically get a
+    row.  A CIF's aniso loop is *sparse* by design -- the hydrogens
+    usually have none -- and padding it with zeros would claim six
+    measurements that were never made.
+    """
+    rows = [s for s in structure.sites if s.u_aniso is not None]
+    if not rows:
+        return []
+    lines = ["", "loop_", "_atom_site_aniso_label",
+             "_atom_site_aniso_U_11", "_atom_site_aniso_U_22",
+             "_atom_site_aniso_U_33", "_atom_site_aniso_U_12",
+             "_atom_site_aniso_U_13", "_atom_site_aniso_U_23"]
+    for site in rows:
+        u11, u22, u33, u12, u13, u23 = site.u_aniso
+        lines.append(f"{site.label:<8s} {u11: .5f} {u22: .5f} "
+                     f"{u33: .5f} {u12: .5f} {u13: .5f} {u23: .5f}")
+    return lines
 
 
 def _type_symbol(site) -> str:

@@ -18,12 +18,17 @@ pytest.importorskip("pytestqt")
 
 from tests.conftest_ff import water  # noqa: E402
 from tests.test_app_shell import StubViewport  # noqa: E402
+from xtalapp.docks.ff_panel import COLUMNS  # noqa: E402
 from xtalapp.document import Document  # noqa: E402
 from xtalapp.mainwindow import MainWindow  # noqa: E402
 from xtalapp.settings import AppSettings  # noqa: E402
 from xtalapp.workers import OptimizationWorker  # noqa: E402
 
 TIMEOUT = 20000
+TYPE = COLUMNS.index("Type")
+MEANS = COLUMNS.index("What it means")
+SURE = COLUMNS.index("Sure?")
+WHY = COLUMNS.index("Why")
 
 
 @pytest.fixture
@@ -74,8 +79,18 @@ def test_the_panel_lists_a_row_per_site(opened):
     _window, document = opened
     dock = _window.ff_dock
     assert dock.table.rowCount() == document.structure.n_sites
-    assert dock.table.item(0, 1).text() == "Ti6+4"
-    assert "neighbours" in dock.table.item(0, 3).text()
+    assert dock.table.item(0, TYPE).text() == "Ti6+4"
+    assert "neighbours" in dock.table.item(0, WHY).text()
+
+
+def test_the_type_is_shown_in_words_beside_its_name(opened):
+    """The one column the user is asked to check was written in a code
+    the panel never explained."""
+    _window, _document = opened
+    dock = _window.ff_dock
+    assert dock.table.item(0, TYPE).text() == "Ti6+4"
+    assert dock.table.item(0, MEANS).text() == "octahedral Ti(IV)"
+    assert dock.table.item(1, MEANS).text() == "sp3 oxygen"
 
 
 def test_the_panel_shows_sites_and_not_cell_atoms(opened):
@@ -115,10 +130,13 @@ def test_the_calculate_actions_need_a_document(window):
         assert not window.actions_[name].isEnabled()
 
 
-def test_the_dock_has_a_window_menu_entry(opened):
+def test_the_force_field_lives_under_the_modules_menu(opened):
+    """Calculate held three entries that were all UFF.  They are the
+    three entries under Forcefield now, and Calculate is gone."""
     window, _document = opened
     titles = [a.text() for a in window.menuBar().actions()]
-    assert "Ca&lculate" in titles
+    assert "&Modules" in titles
+    assert "Ca&lculate" not in titles
 
 
 # ------------------------------------------------------- overriding
@@ -129,13 +147,14 @@ def test_overriding_a_type_is_undoable_and_shows_in_the_table(opened,
     dock = window.ff_dock
     assert document.set_atom_type([0], "Ti3+4")
     dock.refresh()
-    assert dock.table.item(0, 1).text() == "Ti3+4"
-    assert dock.table.item(0, 2).text() == "set"
+    assert dock.table.item(0, TYPE).text() == "Ti3+4"
+    assert dock.table.item(0, MEANS).text() == "tetrahedral Ti(IV)"
+    assert dock.table.item(0, SURE).text() == "set"
     assert document.modified
 
     document.undo()
     dock.refresh()
-    assert dock.table.item(0, 1).text() == "Ti6+4"
+    assert dock.table.item(0, TYPE).text() == "Ti6+4"
 
 
 def test_only_the_types_of_that_element_are_offered(opened,
@@ -154,8 +173,34 @@ def test_only_the_types_of_that_element_are_offered(opened,
 
     monkeypatch.setattr(QInputDialog, "getItem", fake)
     window.ff_dock._edit_type(0, 1)
-    assert "Ti6+4" in seen["options"] and "Ti3+4" in seen["options"]
+    offered = "\n".join(seen["options"])
+    assert "Ti6+4" in offered and "Ti3+4" in offered
     assert not any(o.startswith("O_") for o in seen["options"])
+
+
+def test_the_override_dialog_says_what_each_type_means(opened,
+                                                       monkeypatch):
+    """Offered two strings, the user is being asked to choose between
+    two strings; offered two shapes, they are being asked a question
+    about their crystal."""
+    window, document = opened
+    from PySide6.QtWidgets import QInputDialog
+
+    seen = {}
+
+    def fake(_parent, _title, _label, options, current, _editable):
+        seen["options"] = options
+        seen["current"] = current
+        return options[2], True          # "Ti6+4 -- octahedral Ti(IV)"
+
+    monkeypatch.setattr(QInputDialog, "getItem", fake)
+    window.ff_dock._edit_type(0, 1)
+    assert "Ti3+4  --  tetrahedral Ti(IV)" in seen["options"]
+    assert "Ti6+4  --  octahedral Ti(IV)" in seen["options"]
+    # The type the site already has is the one the dialog opens on,
+    # and what is stored is the five-character name alone.
+    assert seen["options"][seen["current"]].startswith("Ti6+4")
+    assert document.structure.sites[0].props["uff_type"] == "Ti6+4"
 
 
 # ------------------------------------------------------ optimisation
@@ -177,6 +222,41 @@ def test_an_optimisation_lands_as_a_single_undo_step(qtbot, window,
 
     document.undo()
     assert np.allclose(document.structure.frac, before)
+
+
+def test_relaxing_the_cell_changes_the_lattice_in_the_same_command(
+        qtbot, window):
+    """One command, or a Ctrl+Z would put the atoms back into a cell
+    they were never relaxed in."""
+    document = Document(water(oh=1.15, angle=95.0))
+    window.add_document(document)
+    dock = window.ff_dock
+    dock.tolerance.setValue(0.01)
+    dock.relax_cell.setChecked(True)
+    before = document.structure.lattice.matrix.copy()
+
+    dock.start()
+    wait_for_the_run(qtbot, dock)
+
+    assert document.stack.depth == 1
+    assert not np.allclose(document.structure.lattice.matrix, before)
+    document.undo()
+    assert np.allclose(document.structure.lattice.matrix, before)
+
+
+def test_the_pressure_box_follows_the_cell_checkbox(opened):
+    """A pressure is a term in the cell's energy, so offering one for
+    a cell that cannot move would be offering a control that does
+    nothing."""
+    window, _document = opened
+    dock = window.ff_dock
+    assert not dock.relax_cell.isChecked()
+    assert not dock.pressure.isEnabled()
+    dock.relax_cell.setChecked(True)
+    assert dock.pressure.isEnabled()
+    assert "few percent out" in dock.notes.text()
+    dock.relax_cell.setChecked(False)
+    assert not dock.pressure.isEnabled()
 
 
 def test_the_run_draws_itself_as_it_goes(qtbot, window):

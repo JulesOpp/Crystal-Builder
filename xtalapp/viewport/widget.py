@@ -18,6 +18,13 @@ crystallographer expects:
     wheel               zoom
     middle drag         pan
     right drag          dolly
+
+-- except in a mode that wants the left button for itself.  Box select
+does: a rubber band and a camera rotation are the same gesture, and
+only one of them can have it.  Those modes are marked ``wants_drag``
+and the event filter withholds the left button from VTK while they are
+active; pan and zoom keep working throughout, so the view is never
+stuck.
 """
 
 from __future__ import annotations
@@ -25,8 +32,8 @@ from __future__ import annotations
 import os
 
 import numpy as np
-from PySide6.QtCore import QEvent, QPoint, Qt, QTimer, Signal
-from PySide6.QtWidgets import QVBoxLayout, QWidget
+from PySide6.QtCore import QEvent, QPoint, QRect, Qt, QTimer, Signal
+from PySide6.QtWidgets import QRubberBand, QVBoxLayout, QWidget
 
 os.environ.setdefault("QT_API", "pyside6")
 
@@ -105,6 +112,8 @@ class ViewportWidget(QWidget):
         self.mode = modes.get("select")
         self._press_position = None
         self._press_button = None
+        self._band = None
+        self._band_origin = None
 
         self.preview_interval_ms = DEFAULT_PREVIEW_INTERVAL_MS
         self._preview_pending = False
@@ -170,6 +179,9 @@ class ViewportWidget(QWidget):
         if self.mode is not None:
             self.mode.on_deactivate(self.document)
         self.mode = modes.get(name)
+        if self._band is not None:
+            self._band.hide()
+        self._band_origin = None
         self.statusMessage.emit(self.mode.hint)
 
     def _on_structure(self, change: int) -> None:
@@ -216,7 +228,8 @@ class ViewportWidget(QWidget):
             return
         model = build_scene(self.document.structure,
                             self.document.view,
-                            selection=self.document.selection)
+                            selection=self.document.selection,
+                            view_direction=self.camera_direction())
         self.model = model
         self.scene.set_positions(model)
         self._safe_render()
@@ -234,9 +247,9 @@ class ViewportWidget(QWidget):
         if self.document is None or self.model is None:
             self.rebuild(reset_camera=False)
             return
-        atoms, bonds = selection_flags(self.model,
-                                       self.document.selection)
-        self.scene.set_selection(atoms, bonds)
+        atoms, bonds, net = selection_flags(self.model,
+                                            self.document.selection)
+        self.scene.set_selection(atoms, bonds, net)
         self.model = self.scene.model
         self._safe_render()
 
@@ -246,7 +259,8 @@ class ViewportWidget(QWidget):
             return
         model = build_scene(self.document.structure,
                             self.document.view,
-                            selection=self.document.selection)
+                            selection=self.document.selection,
+                            view_direction=self.camera_direction())
         self.model = model
         self.scene.set_model(model)
         self.scene.set_projection(self.document.view.projection)
@@ -257,23 +271,84 @@ class ViewportWidget(QWidget):
     # -- picking -------------------------------------------------------
 
     def eventFilter(self, watched, event):
-        """Turn a non-dragging click into a pick, and keep VTK's own
-        key bindings out of the application."""
+        """Turn a non-dragging click into a pick, run the rubber band
+        for a mode that wants the drag, and keep VTK's own key bindings
+        out of the application."""
         if watched is self._interactor:
             if event.type() == QEvent.MouseButtonPress:
                 self._press_position = event.position().toPoint()
                 self._press_button = event.button()
+                if self._takes_drag(event):
+                    self._begin_band(self._press_position)
+                    return True         # VTK never starts a rotation
+            elif event.type() == QEvent.MouseMove:
+                if self._band_origin is not None:
+                    self._drag_band(event.position().toPoint())
+                    return True
             elif event.type() == QEvent.MouseButtonRelease:
+                if self._band_origin is not None:
+                    self._finish_band(event)
+                    return True
                 self._maybe_pick(event, double=False)
                 self._maybe_context_menu(event)
             elif event.type() == QEvent.MouseButtonDblClick:
                 self._press_position = event.position().toPoint()
                 self._press_button = event.button()
+                if self._takes_drag(event):
+                    return True
                 self._maybe_pick(event, double=True)
             elif event.type() in (QEvent.KeyPress, QEvent.KeyRelease):
                 if is_vtk_reserved_key(event):
                     return True             # consumed: VTK never sees it
         return super().eventFilter(watched, event)
+
+    # -- the rubber band -----------------------------------------------
+
+    def _takes_drag(self, event) -> bool:
+        return (getattr(self.mode, "wants_drag", False)
+                and event.button() == Qt.LeftButton)
+
+    def _begin_band(self, point: QPoint) -> None:
+        if self._band is None:
+            self._band = QRubberBand(QRubberBand.Rectangle,
+                                     self._interactor)
+        self._band_origin = point
+        self._band.setGeometry(QRect(point, point))
+        self._band.show()
+
+    def _drag_band(self, point: QPoint) -> None:
+        self._band.setGeometry(
+            QRect(self._band_origin, point).normalized())
+
+    def _finish_band(self, event) -> None:
+        """The button came up: take what is in the box.
+
+        A band that never left the press point is a click, and is sent
+        on as one -- otherwise clicking a single atom in this mode does
+        nothing at all and the mode feels broken.
+        """
+        origin, self._band_origin = self._band_origin, None
+        point = event.position().toPoint()
+        self._band.hide()
+        if self.document is None or self.model is None:
+            return
+        additive = bool(event.modifiers() & (
+            Qt.ShiftModifier | Qt.ControlModifier | Qt.MetaModifier))
+        if (point - origin).manhattanLength() <= CLICK_SLOP:
+            self._press_position = origin
+            self._press_button = Qt.LeftButton
+            self.pick_at(point, additive=additive, double=False)
+            return
+        message = self.mode.on_drag(
+            self.document, self.model,
+            modes.DragEvent(self._display_at(origin),
+                            self._display_at(point), additive,
+                            self._project))
+        if message:
+            self.statusMessage.emit(message)
+
+    def _project(self, points):
+        return picking.project_to_display(self.scene.renderer, points)
 
     def _maybe_pick(self, event, double: bool) -> None:
         if (self._press_position is None
@@ -351,16 +426,22 @@ class ViewportWidget(QWidget):
         if message:
             self.statusMessage.emit(message)
 
-    def _ray_at(self, point: QPoint):
-        """Widget coordinates (top-left origin, logical pixels) to a
-        world-space ray.  VTK counts display pixels from the bottom
-        left, and on a Retina screen they are not the same size."""
+    def _display_at(self, point: QPoint) -> tuple:
+        """Widget coordinates (top-left origin, logical pixels) to VTK
+        display coordinates (bottom-left origin, device pixels).
+
+        On a Retina screen the two are not the same size, which is the
+        whole reason this is a function and not two subtractions at
+        each call site."""
         window = self._interactor.GetRenderWindow()
         _width, height = window.GetSize()
         ratio = (height / max(self._interactor.height(), 1))
-        return picking.ray_from_display(
-            self.scene.renderer, point.x() * ratio,
-            height - point.y() * ratio)
+        return point.x() * ratio, height - point.y() * ratio
+
+    def _ray_at(self, point: QPoint):
+        """The world-space ray under a widget position."""
+        x, y = self._display_at(point)
+        return picking.ray_from_display(self.scene.renderer, x, y)
 
     # -- camera --------------------------------------------------------
 

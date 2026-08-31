@@ -29,6 +29,31 @@ def test_symmetry_with_wyckoff(rutile_cif, capsys):
     assert "m.mm" in out                    # Ti site symmetry
 
 
+def test_symmetry_reports_the_hand(quartz_cif, capsys):
+    assert main(["symmetry", quartz_cif]) == 0
+    out = capsys.readouterr().out
+    assert "hand           chiral, enantiomorph P3121" in out
+
+
+def test_symmetry_lists_the_subgroups(quartz_cif, capsys):
+    assert main(["symmetry", quartz_cif, "--subgroups"]) == 0
+    out = capsys.readouterr().out
+    assert "subgroups (3, translationengleiche, 2 maximal" in out
+    assert "P 32" in out
+    assert "2 -> 3 sites" in out            # the oxygen splits
+    assert "same axes, same origin" in out
+    assert "x3" in out                      # the three conjugate C2
+
+
+def test_subgroups_of_p1_say_there_are_none(tmp_path, rutile, capsys):
+    from xtal.core import symmetry as sym
+    from xtal.io import write_cif
+    path = tmp_path / "p1.cif"
+    write_cif(sym.reduce_to_p1(rutile), path)
+    assert main(["symmetry", str(path), "--subgroups"]) == 0
+    assert "no proper subgroups" in capsys.readouterr().out
+
+
 def test_symmetry_tolerance_is_exposed(tmp_path, rutile, capsys):
     """A distorted structure looks triclinic at a tight tolerance and
     tetragonal at a loose one -- from the command line too."""
@@ -87,6 +112,41 @@ def test_bonds(rutile_cif, capsys):
     assert "1.9" in out                     # Ti-O distances
 
 
+def test_optimize_can_relax_the_cell_and_writes_it_out(rutile_cif,
+                                                       tmp_path,
+                                                       capsys):
+    """The same relaxation the panel runs, from a script -- including
+    the lattice, which is the part a file has to carry back out."""
+    from xtal.io import read_cif
+
+    out = tmp_path / "relaxed.cif"
+    main(["optimize", rutile_cif, "--relax-cell", "--max-steps", "12",
+          "-o", str(out), "-q"])
+    printed = capsys.readouterr().out
+    assert "cell " in printed
+    assert "by volume" in printed
+
+    before = read_cif(rutile_cif).lattice.parameters
+    after = read_cif(out).lattice.parameters
+    assert after[0] != pytest.approx(before[0], abs=1e-6)
+    # Still tetragonal: a = b, and every angle still a right one.
+    assert after[1] == pytest.approx(after[0], abs=1e-6)
+    assert after[3:] == pytest.approx(before[3:], abs=1e-6)
+
+
+def test_optimize_leaves_the_cell_alone_unless_asked(rutile_cif,
+                                                     tmp_path,
+                                                     capsys):
+    from xtal.io import read_cif
+
+    out = tmp_path / "relaxed.cif"
+    main(["optimize", rutile_cif, "--max-steps", "5", "-o", str(out),
+          "-q"])
+    assert "by volume" not in capsys.readouterr().out
+    assert read_cif(out).lattice.parameters == pytest.approx(
+        read_cif(rutile_cif).lattice.parameters, abs=1e-9)
+
+
 def test_formats(capsys):
     assert main(["formats"]) == 0
     out = capsys.readouterr().out
@@ -127,3 +187,73 @@ def test_version_and_help():
     assert exc.value.code == 0
     with pytest.raises(SystemExit):
         main([])                            # no subcommand
+
+
+# ------------------------------------------------------------ modules
+#
+# The registry is headless, so it is runnable from a script -- and that
+# is the proof, not the convenience: a module that could only be run by
+# clicking it is one whose parameters, run folder and log could not be
+# tested without a display.
+
+@pytest.fixture
+def stub_module():
+    from xtal.modules import MODULES, stub
+    stub.register(MODULES)
+    yield MODULES
+    MODULES.unregister("stub")
+
+
+def test_modules_lists_what_can_be_run(stub_module, capsys):
+    assert main(["modules"]) == 0
+    out = capsys.readouterr().out
+    assert "forcefield.single-point" in out
+    assert "(in the window)" in out         # the panel performs it
+    assert "stub.count" in out
+    assert "-p steps=5" in out              # and what it takes
+
+
+def test_run_executes_a_module_against_a_file(stub_module, rutile_cif,
+                                              capsys):
+    assert main(["run", "stub.count", rutile_cif,
+                 "-p", "steps=2", "-p", "interval=0"]) == 0
+    out = capsys.readouterr().out
+    assert "step 1 of 2" in out
+    assert "counted to 2" in out
+
+
+def test_run_writes_the_same_run_folder_the_window_does(
+        stub_module, tmp_path, rutile_cif, capsys):
+    root = tmp_path / "ws"
+    assert main(["run", "stub.count", rutile_cif, "--workspace",
+                 str(root), "-p", "steps=1", "-p", "interval=0",
+                 "-q"]) == 0
+    folder = root / "rutile" / "stub-count-001"
+    assert (folder / "counted.txt").exists()
+    log = (folder / "run.log").read_text()
+    assert "module         stub.count" in log
+    assert "Stub: Count here" in log
+
+
+def test_run_reports_a_failed_module_with_a_status(stub_module,
+                                                   rutile_cif):
+    assert main(["run", "stub.count", rutile_cif, "-p", "steps=1",
+                 "-p", "interval=0", "-p", "fail=true", "-q"]) == 2
+
+
+def test_run_refuses_an_entry_the_window_performs(stub_module,
+                                                  rutile_cif, capsys):
+    assert main(["run", "forcefield.optimise", rutile_cif]) == 1
+    assert "application window" in capsys.readouterr().err
+
+
+def test_run_says_what_there_is_when_the_name_is_wrong(stub_module,
+                                                       rutile_cif,
+                                                       capsys):
+    assert main(["run", "nonesuch.go", rutile_cif]) == 1
+    assert "unknown module" in capsys.readouterr().err
+
+
+def test_a_parameter_needs_a_value(stub_module, rutile_cif, capsys):
+    assert main(["run", "stub.count", rutile_cif, "-p", "steps"]) == 1
+    assert "name=value" in capsys.readouterr().err

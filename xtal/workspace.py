@@ -66,7 +66,13 @@ FINAL_NAME = "final.cif"
 # called "Fe(bpy)3 2+" has to become a folder name without becoming
 # unrecognisable.
 _UNSAFE = re.compile(r'[^A-Za-z0-9._+-]+')
-_RUN_DIR = re.compile(r"^(?P<module>[a-z0-9]+)-(?P<kind>[a-z0-9-]+?)"
+# A run folder is <module>-<kind>-<nnn>.  The module may not contain a
+# hyphen and the kind may, which is what keeps the split unambiguous
+# from either end -- "uff-single-point-002" is uff, single-point, 2.
+# The module's own name is folded into that charset by `next_run`, so
+# a module called "dftb+" gets a folder this can still read back.
+_RUN_DIR = re.compile(r"^(?P<module>[a-z0-9._+]+)-"
+                      r"(?P<kind>[a-z0-9._+-]+?)"
                       r"-(?P<index>\d+)$")
 
 
@@ -234,7 +240,10 @@ class Entry:
         the order anybody looking for "the one I ran after lunch"
         wants.
         """
-        module = safe_name(module, "module").lower()
+        # The module keeps no hyphen: it is the separator, and a
+        # module called "single-point-energy" would otherwise make a
+        # folder name that reads back as a different module.
+        module = safe_name(module, "module").lower().replace("-", "_")
         kind = safe_name(kind, "run").lower()
         index = max((r.index for r in self.runs()), default=0) + 1
         path = self.path / f"{module}-{kind}-{index:03d}"
@@ -523,3 +532,52 @@ class RunFolder:
 def timestamp() -> str:
     """A log-friendly UTC time, to the second."""
     return datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+
+def readable_option(value) -> str:
+    """One option, as a log reads rather than as Python repr()s."""
+    if isinstance(value, bool):
+        return "on" if value else "off"
+    if isinstance(value, float):
+        return f"{value:g}"
+    return str(value)
+
+
+def write_header(log: RunLog, folder: RunFolder, structure=None,
+                 title: str = "", fields=(), options=None) -> None:
+    """The first block of a run log, whatever it was that ran.
+
+    Shared between the force field and the module registry, because
+    the questions somebody asks of a log three months later do not
+    depend on which engine wrote it: what version, what structure,
+    what was asked for, and with which options.  A second copy of this
+    would be the one that stopped recording the option somebody needed.
+
+    Nothing in here may raise.  A log that refuses to open because the
+    formula could not be computed has lost the run it was recording.
+    """
+    from xtal import __version__
+
+    log.write(f"Crystal Builder {__version__}")
+    log.write(f"run            {folder.name}")
+    if title:
+        log.write(f"what           {title}")
+    log.write(f"started        {timestamp()}")
+    if structure is not None:
+        from xtal.core import properties
+        try:
+            info = properties.info(structure)
+            log.write(f"structure      {info.formula} "
+                      f"(Z = {info.z}), {structure.n_sites} "
+                      f"sites, {info.n_atoms} atoms in the cell")
+            log.write(f"space group    {info.space_group} "
+                      f"(#{info.space_group_number})")
+        except Exception as exc:                    # noqa: BLE001
+            log.write(f"structure      (could not summarise: {exc})")
+        source = structure.meta.get("source")
+        if source:
+            log.write(f"source         {source}")
+    for name, value in fields:
+        log.write(f"{str(name):<15s}{value}")
+    for key, value in sorted(dict(options or {}).items()):
+        log.write(f"  {key:<12s} {readable_option(value)}")

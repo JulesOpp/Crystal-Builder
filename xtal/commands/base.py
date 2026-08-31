@@ -215,6 +215,9 @@ class CommandStack:
     _undone: list = field(default_factory=list, repr=False)
     _macro: MacroCommand | None = field(default=None, repr=False)
     _clean_depth: int = 0
+    # Set by break_merge(): the command on top has finished absorbing
+    # and the next push starts a new undo step.
+    _sealed: bool = False
 
     # -- running commands ----------------------------------------------
 
@@ -226,14 +229,29 @@ class CommandStack:
             return command
 
         self._undone.clear()
-        if self._done and self._done[-1].merge_with(command):
+        if (self._done and not self._sealed
+                and self._done[-1].merge_with(command)):
             return self._done[-1]
+        self._sealed = False
         self._done.append(command)
         if len(self._done) > self.limit:
             trimmed = len(self._done) - self.limit
             del self._done[:trimmed]
             self._clean_depth -= trimmed
         return command
+
+    def break_merge(self) -> None:
+        """End the current gesture: the next command is its own undo
+        step.
+
+        Merging is what turns a held arrow into one Ctrl+Z; without a
+        way to end it, the *next* nudge an hour later merges into the
+        same step as well, and the user's undo goes back further than
+        anything they can remember doing.  So the gesture says when it
+        is over -- on the button coming up, on the drag ending -- and
+        the stack believes it.
+        """
+        self._sealed = True
 
     def undo(self, host) -> Command | None:
         if not self._done:

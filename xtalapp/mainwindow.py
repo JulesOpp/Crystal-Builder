@@ -43,20 +43,26 @@ from PySide6.QtWidgets import (
 from xtal.commands.clipboard import Fragment
 from xtal.core.structure import Change
 from xtal.io import FORMATS
+from xtal.modules import MODULES, Job, ModuleError
+from xtal.modules import record as module_record
 from xtal.workspace import NotAWorkspace, Workspace
 from xtalapp.actions import ActionRegistry
 from xtalapp.dialogs.add_atom import AddAtomDialog
+from xtalapp.dialogs.add_hydrogens import AddHydrogensDialog
 from xtalapp.dialogs.bond_rules import BondRulesDialog
 from xtalapp.dialogs.cell_edit import CellEditDialog
 from xtalapp.dialogs.display_range import DisplayRangeDialog
 from xtalapp.dialogs.find_symmetry import FindSymmetryDialog
+from xtalapp.dialogs.module_form import ModuleDialog
 from xtalapp.dialogs.spacegroup import SpaceGroupDialog
+from xtalapp.dialogs.subgroup import SubgroupDialog
 from xtalapp.dialogs.supercell import SupercellDialog
 from xtalapp.docks.ff_panel import ForceFieldDock
 from xtalapp.docks.info import InfoDock
 from xtalapp.docks.inspector import InspectorDock
 from xtalapp.docks.logview import LogDock
 from xtalapp.docks.measure import MeasureDock
+from xtalapp.docks.modules import ModulesDock
 from xtalapp.docks.move import MoveDock
 from xtalapp.docks.sites import SitesDock
 from xtalapp.docks.style_panel import StylePanelDock
@@ -66,6 +72,7 @@ from xtalapp.document import Document
 from xtalapp.settings import AppSettings, default_size, fit_to_screen
 from xtalapp.viewport import modes, styles
 from xtalapp.viewport.view_settings import BACKGROUNDS
+from xtalapp.workers import ModuleWorker, start_in_thread
 
 APP_NAME = "Crystal Builder"
 
@@ -98,6 +105,16 @@ class MainWindow(QMainWindow):
         # last export used -- which is what "Export again" repeats.
         self.workspace: Workspace | None = None
         self._last_export: tuple | None = None
+        # The one module run that may be going, and what each action
+        # was last run with.  Remembered in the window rather than in
+        # QSettings: a parameter set is worth offering again in the
+        # session that chose it, and not worth restoring six weeks
+        # later against a different structure.
+        self.module_worker: ModuleWorker | None = None
+        self._module_thread = None
+        self._module_params: dict = {}
+        self._module_actions: list[tuple] = []
+        self._module_submenus: dict = {}
 
         self.tabs = QTabWidget()
         self.tabs.setTabsClosable(True)
@@ -171,9 +188,26 @@ class MainWindow(QMainWindow):
             checked=True)
         add("show_legend", "Element legend",
             lambda v: self.set_view(show_legend=v), checkable=True)
+        add("show_bond_orders", "Bond orders",
+            lambda v: self.set_view(show_bond_orders=v),
+            checkable=True, checked=True,
+            tip="Draw a double bond as two tubes and a triple as "
+                "three, with an inner dashed line for an aromatic "
+                "one")
         add("labels", "Labels",
             lambda v: self.set_view(
                 label_mode="label" if v else "none"), checkable=True)
+        add("show_topology", "Net (topology bonds)",
+            lambda v: self.set_view(show_topology=v), checkable=True,
+            checked=True,
+            tip="Draw the net a chemist marked out over the framework "
+                "-- thicker and translucent, over the real bonds "
+                "rather than in place of them")
+        add("depth_cue", "Depth cueing",
+            lambda v: self.set_view(depth_cue=v), checkable=True,
+            tip="Fade distant atoms towards the background, so a "
+                "thick slab reads as having depth instead of as a "
+                "flat mat of spheres")
         add("orthographic", "Orthographic projection",
             lambda v: self.set_view(
                 projection="orthographic" if v else "perspective"),
@@ -191,6 +225,10 @@ class MainWindow(QMainWindow):
         add("duplicate", "Du&plicate", self.duplicate, "Ctrl+D")
         add("add_atom_dialog", "&Add atom...", self.add_atom_dialog,
             "Ctrl+Shift+A")
+        add("add_hydrogens", "Add &hydrogens...",
+            self.add_hydrogens_dialog,
+            tip="Complete every main-group coordination with the "
+                "hydrogens an X-ray structure never had")
         add("recompute_bonds", "&Recalculate bonds",
             self.recompute_bonds, "Ctrl+B",
             tip="Perceive the bonds again from the geometry as it is "
@@ -249,6 +287,13 @@ class MainWindow(QMainWindow):
         add("primitive", "Reduce to pri&mitive cell",
             lambda: self.standardize_cell(True))
         add("wyckoff", "Assign &Wyckoff letters", self.assign_wyckoff)
+        add("subgroup", "&Descend to a subgroup...",
+            self.descend_to_subgroup,
+            tip="Drop to a maximal subgroup so that an orbit splits "
+                "and its atoms become independent")
+        add("invert", "&Invert the structure", self.invert_structure,
+            tip="The same crystal in the other hand: the coordinates "
+                "and the space group together")
         add("merge_duplicates", "Merge &duplicate sites",
             self.merge_duplicates,
             tip="Merge sites of the same element that sit on top of "
@@ -319,24 +364,24 @@ class MainWindow(QMainWindow):
 
         structure_menu = bar.addMenu("S&tructure")
         self.actions_.fill_menu(structure_menu, [
-            "add_atom_dialog", None,
+            "add_atom_dialog", "add_hydrogens", None,
             "bond_rules", "recompute_bonds", "bonds_follow", None,
             *[f"mode_{n}" for n in modes.names()]])
 
         symmetry_menu = bar.addMenu("S&ymmetry")
         self.actions_.fill_menu(symmetry_menu, [
-            "find_symmetry", "set_space_group", None,
+            "find_symmetry", "set_space_group", "subgroup", None,
             "standardize", "primitive", None,
-            "wyckoff", "merge_duplicates", None, "reduce_p1"])
+            "wyckoff", "merge_duplicates", "invert",
+            None, "reduce_p1"])
 
         cell_menu = bar.addMenu("&Cell")
         self.actions_.fill_menu(cell_menu, [
             "edit_cell", "supercell", None,
             "niggli", "delaunay", None, "wrap_cell"])
 
-        calculate_menu = bar.addMenu("Ca&lculate")
-        self.actions_.fill_menu(calculate_menu, [
-            "single_point", "optimize", None, "show_ff"])
+        self.modules_menu = bar.addMenu("&Modules")
+        self._build_modules_menu()
 
         view_menu = bar.addMenu("&View")
         style_menu = view_menu.addMenu("&Style")
@@ -344,8 +389,9 @@ class MainWindow(QMainWindow):
             style_menu, [f"style_{n}" for n in styles.names()])
         show_menu = view_menu.addMenu("&Show")
         self.actions_.fill_menu(
-            show_menu, ["show_atoms", "show_bonds", "show_cell",
-                        "labels", "show_legend"])
+            show_menu, ["show_atoms", "show_bonds", "show_bond_orders",
+                        "show_topology", "show_cell", "labels",
+                        "show_legend"])
         view_menu.addSeparator()
         background_menu = view_menu.addMenu("&Background")
         for name in BACKGROUNDS:
@@ -357,10 +403,82 @@ class MainWindow(QMainWindow):
         view_menu.addSeparator()
         self.actions_.fill_menu(view_menu, [
             "display_range", "boundary_bonded", None, "orthographic",
+            "depth_cue",
             None, "view_a", "view_b", "view_c", "reset_view"])
 
         help_menu = bar.addMenu("&Help")
         help_menu.addAction(self.actions_["about"])
+
+    def _build_modules_menu(self) -> None:
+        """The Modules menu, built from the registry and nothing else.
+
+        ``Calculate`` held a single point, an optimisation and a panel
+        toggle -- three entries that were all UFF, in a menu whose name
+        promised everything that computes.  This one has a submenu per
+        module and knows the name of none of them, so a module
+        installed as a plugin appears here without this file changing.
+
+        The structure is built once; whether each module *can* run is
+        asked again every time the menu opens
+        (:meth:`_refresh_module_availability`), because an engine whose
+        binary was installed while the window was open should stop
+        being greyed out, and a menu that cached the answer would go on
+        saying it is missing.
+        """
+        menu = self.modules_menu
+        menu.clear()
+        self._module_actions = []
+        self._module_submenus = {}
+        for module in MODULES:
+            submenu = menu.addMenu(module.label)
+            self._module_submenus[module.name] = submenu
+            for action in module.actions:
+                submenu.addAction(self._module_action(module, action))
+        if not MODULES.names():                     # pragma: no cover
+            menu.addAction("Nothing registered").setEnabled(False)
+        menu.aboutToShow.connect(self._refresh_module_availability)
+        self._refresh_module_availability()
+
+    def _refresh_module_availability(self) -> None:
+        """Grey out what cannot run, with the reason as the tooltip.
+
+        An external tool that is missing is the most common state it
+        will be in, so the answer belongs where the module is rather
+        than in the failure after clicking it.  ``Module.check`` is a
+        ``shutil.which`` and there are a handful of modules, so asking
+        again on every open costs nothing worth caching.
+        """
+        for name, submenu in self._module_submenus.items():
+            if name not in MODULES:                 # pragma: no cover
+                continue
+            module = MODULES.get(name)
+            available = module.availability()
+            submenu.setEnabled(bool(available))
+            submenu.setToolTip(module.description if available
+                               else available.reason)
+
+    def _module_action(self, module, action):
+        """The QAction for one module entry, made once and reused.
+
+        An entry with a ``shell`` name is performed by the window
+        action of that name -- which is how the three Force Field
+        entries moved into this menu unchanged, keeping Ctrl+E and
+        Ctrl+Shift+E and the panel behind them.  Everything else gets
+        an action of its own, named ``module.<module>.<action>`` so
+        that a keyboard shortcut, a test and the CLI all spell it the
+        same way.
+        """
+        if action.shell and action.shell in self.actions_:
+            return self.actions_[action.shell]
+        name = f"module.{module.name}.{action.name}"
+        self._module_actions.append((name, action.needs_structure))
+        if name not in self.actions_:
+            self.actions_.add(
+                name, action.label,
+                lambda checked=False, m=module.name, a=action.name:
+                    self.run_module_action(m, a),
+                shortcut=action.shortcut, tip=action.tip)
+        return self.actions_[name]
 
     def _build_toolbar(self):
         bar = QToolBar("Main")
@@ -407,6 +525,15 @@ class MainWindow(QMainWindow):
         self.file_dock.workspaceRequested.connect(
             self._on_workspace_requested)
 
+        # What can be run, beside what it produced: the module tree
+        # picks the calculation and the workspace tree shows its
+        # folder appearing underneath the structure.  Those two panels
+        # next to each other are the whole workflow.
+        self.modules_dock = ModulesDock(MODULES, self)
+        self.modules_dock.actionActivated.connect(
+            self.run_module_action)
+        self.modules_dock.stopRequested.connect(self.stop_module)
+
         self.inspector_dock = InspectorDock(self)
         self.inspector_dock.deleteRequested.connect(
             self.delete_selection)
@@ -416,6 +543,7 @@ class MainWindow(QMainWindow):
         self.info_dock = InfoDock(self)
         self.sites_dock = SitesDock(self)
         self.move_dock = MoveDock(self)
+        self.move_dock.statusMessage.connect(self.show_status)
         self.style_dock = StylePanelDock(self)
 
         self.measure_dock = MeasureDock(self)
@@ -451,7 +579,7 @@ class MainWindow(QMainWindow):
         # The workspace on the left, the transport bar under the
         # viewport, everything else tabbed on the right in the order
         # they are listed here.
-        self.left_docks = (self.file_dock,)
+        self.left_docks = (self.file_dock, self.modules_dock)
         self.bottom_docks = (self.trajectory_dock, self.log_dock)
         self.right_docks = (self.inspector_dock, self.info_dock,
                             self.sites_dock, self.move_dock,
@@ -467,17 +595,25 @@ class MainWindow(QMainWindow):
         window_menu.addSeparator()
         window_menu.addAction(self.actions_["reset_layout"])
 
-    #: What a first run shows.  Every other panel is one item away in
-    #: the Window menu; seven of them tabbed on the right hand side
-    #: take, between them, the width the viewport is there to use.
-    DEFAULT_VISIBLE = ("file_dock", "inspector_dock")
+    #: What a first run shows: what can be run and what it produced,
+    #: on the left, and the inspector on the right.  Every other panel
+    #: is one item away in the Window menu; seven of them tabbed on
+    #: the right take, between them, the width the viewport is there
+    #: to use.
+    DEFAULT_VISIBLE = ("file_dock", "modules_dock", "inspector_dock")
 
     def apply_default_layout(self) -> None:
-        """Put every dock back where it starts: the tree on the left,
-        the rest tabbed on the right, and only two of them shown.
+        """Put every dock back where it starts: the two trees on the
+        left, the rest tabbed on the right, and only three of them
+        shown.
 
         Called once on construction -- ``restore_window`` overrides it
         when there is a saved layout -- and again by Reset layout.
+
+        The workspace and the module tree are *split* rather than
+        tabbed: they answer the two halves of one question -- what can
+        I run, and what did it produce -- and tabbing them would mean
+        never seeing both.
         """
         for dock in self.left_docks:
             self.addDockWidget(Qt.LeftDockWidgetArea, dock)
@@ -488,6 +624,8 @@ class MainWindow(QMainWindow):
         for previous, dock in zip(self.right_docks,
                                   self.right_docks[1:], strict=False):
             self.tabifyDockWidget(previous, dock)
+        self.splitDockWidget(self.file_dock, self.modules_dock,
+                             Qt.Vertical)
 
         shown = {getattr(self, name) for name in self.DEFAULT_VISIBLE}
         for dock in self.docks:
@@ -879,6 +1017,24 @@ class MainWindow(QMainWindow):
         if document is not None:
             document.update_view(style=name)
             self.settings.set_default_view(style=name)
+            self._report_ellipsoids(document, name)
+
+    def _report_ellipsoids(self, document, style: str) -> None:
+        """Say what the ellipsoids are made of when ORTEP is chosen.
+
+        A drawing whose atoms are half of them fallbacks looks exactly
+        like one whose atoms were all measured, and the difference is
+        the whole value of the picture -- so it is said once, when the
+        style is picked, rather than left to be discovered.
+        """
+        from xtalapp.viewport import styles
+        if not styles.get(style).ellipsoids:
+            return
+        viewport = self.current_viewport()
+        model = getattr(viewport, "model", None)
+        report = model.thermal_report() if model is not None else ""
+        if report:
+            self.show_status(f"displacement ellipsoids: {report}")
 
     def set_view(self, **kwargs) -> None:
         document = self.current_document()
@@ -1191,14 +1347,18 @@ class MainWindow(QMainWindow):
     def delete_selection(self) -> None:
         """Delete whatever is in hand.
 
-        One key for both: bonds when bonds are what is selected, sites
-        otherwise.  Clicking a bond and pressing delete should delete
-        the bond, and the alternative -- a second key, or a mode -- is
-        how the application ended up with deletion living inside a tool
-        called Add Bond.
+        One key for all three: net edges, then bonds, then sites --
+        each when it is what is selected and nothing else is.  Clicking
+        a bond and pressing delete should delete the bond, and the
+        alternative -- a second key, or a mode -- is how the
+        application ended up with deletion living inside a tool called
+        Add Bond.
         """
         document = self.current_document()
         if document is None:
+            return
+        if document.selection.topology and not document.selection.atoms:
+            self.show_status(document.delete_selected_topology())
             return
         if document.selection.bonds and not document.selection.atoms:
             self.delete_bonds()
@@ -1269,6 +1429,61 @@ class MainWindow(QMainWindow):
     def merge_duplicates(self) -> None:
         self._run(lambda d: d.merge_duplicates())
 
+    def descend_to_subgroup(self) -> None:
+        """Descend, then reset the view.
+
+        A descent can halve the cell or take three quarters of it, and
+        can swap which axis is which -- so the camera that framed the
+        old cell frames the new one badly or not at all.  Resetting is
+        what every other operation that rebuilds the cell would want
+        too; this is the one where it is never wrong, because the
+        crystal has not moved and only the box around it has.
+        """
+        document = self.current_document()
+        if document is None:
+            return
+        report = SubgroupDialog.ask(document, self)
+        self._report(report)
+        if report is not None and report.ok:
+            self.reset_view()
+
+    def invert_structure(self) -> None:
+        """Swap the structure's hand, after saying what that means.
+
+        Worth a confirmation and not worth a dialog of its own: the
+        three answers a user needs -- nothing will change, the symbol
+        will change, or the structure will change but the symbol will
+        not -- are one sentence, and the command has already worked out
+        which one it is.
+        """
+        document = self.current_document()
+        if document is None:
+            return
+        report = document.preview_inversion()
+        group = document.structure.space_group
+        if group.is_centrosymmetric:
+            QMessageBox.information(
+                self, "Invert the structure",
+                f"{group.short_name} is centrosymmetric, so inversion "
+                f"is already one of its operations and the structure "
+                f"you would get is the one you already have.")
+            return
+        answer = QMessageBox.question(
+            self, "Invert the structure",
+            f"{report.message}.\n\nThe cell is unchanged; the "
+            f"coordinates and the space group both move. Continue?",
+            QMessageBox.Yes | QMessageBox.No)
+        if answer == QMessageBox.Yes:
+            self._run(lambda d: d.invert_structure())
+
+    def add_hydrogens_dialog(self) -> None:
+        document = self.current_document()
+        if document is None:
+            return
+        message = AddHydrogensDialog.ask(document, self)
+        if message:
+            self.statusBar().showMessage(message, 8000)
+
     def supercell_dialog(self) -> None:
         document = self.current_document()
         if document is not None:
@@ -1308,6 +1523,199 @@ class MainWindow(QMainWindow):
         """Say something in passing, without taking over the line that
         describes the crystal."""
         self.statusBar().showMessage(text, milliseconds)
+
+    # ==================================================================
+    #  MODULES
+    # ==================================================================
+    #
+    # One run at a time, on a worker thread, into a run folder, with a
+    # Stop button that reaches whatever is actually running -- a loop
+    # in this process or a binary in another.  Nothing here names a
+    # module: everything it needs comes off the registry entry, which
+    # is what "adding an engine touches no existing file" means.
+
+    def run_module_action(self, module_name: str,
+                          action_name: str) -> None:
+        """Run one entry of one module.
+
+        Ask for the parameters, open a run folder under the structure
+        the run belongs to, and start a thread.  The three Force Field
+        entries divert to the panel that has always performed them --
+        see :mod:`xtal.modules.forcefield` for why that is the one
+        exception rather than the pattern.
+        """
+        try:
+            module, action = MODULES.find(
+                f"{module_name}.{action_name}")
+        except ModuleError as exc:
+            self.show_message(str(exc))
+            return
+        if action.shell:
+            shell_action = self.actions_.get(action.shell)
+            if shell_action is None:                # pragma: no cover
+                self.show_message(
+                    f"{module.label} cannot do that here")
+            elif not shell_action.isEnabled():
+                self.show_message(
+                    f"{action.label} is not available right now")
+            else:
+                shell_action.trigger()
+            return
+        if self.module_worker is not None:
+            self.show_message(
+                "a module is already running -- stop it first")
+            return
+        available = module.availability()
+        if not available:
+            self.show_message(available.reason)
+            return
+        document = self.current_document()
+        if action.needs_structure and document is None:
+            self.show_message(
+                f"{action.label} needs a structure open")
+            return
+        if document is not None and document.is_playing:
+            # The atoms are showing a frame of a trajectory, so the
+            # geometry a module would be handed is not the document's.
+            # The menu entries are already disabled; this is what
+            # stops the tree reaching it.
+            self.show_message(
+                "close the trajectory first -- these atoms are a "
+                "frame being played, not the structure")
+            return
+        key = f"{module.name}.{action.name}"
+        values = ModuleDialog.ask(module, action, self,
+                                  self._module_params.get(key))
+        if values is None:                          # cancelled
+            return
+        self._module_params[key] = values
+        self._start_module(module, action, values, document)
+
+    def _start_module(self, module, action, values, document) -> None:
+        folder = None
+        if action.writes_run_folder and document is not None:
+            try:
+                folder = module_record.open_run(
+                    document.entry, module, action, values,
+                    document.structure)
+            except OSError as exc:
+                self.show_message(
+                    f"could not write into the workspace: {exc}")
+                return
+        if folder is None and action.writes_run_folder:
+            # Same rule as the Force Field panel: a structure with no
+            # workspace still runs, it just leaves nothing behind, and
+            # the status bar says so once rather than putting up a
+            # dialog.
+            self.show_message(
+                "no workspace open, so this run will not be kept -- "
+                "File > New Workspace... gives it somewhere to go")
+        # The worker gets a copy of the structure.  It reads it, caches
+        # on it and may move it, while the window goes on redrawing the
+        # one the user can see; sharing them would be a data race in
+        # the most literal sense.
+        job = Job(structure=document.structure.copy()
+                  if document is not None else None,
+                  params=values, folder=folder,
+                  label=f"{module.name}.{action.name}")
+        worker = ModuleWorker(module, action, job)
+        worker.progressed.connect(self.modules_dock.set_progress)
+        worker.finished.connect(self._on_module_finished)
+        worker.failed.connect(self._on_module_failed)
+        self.module_worker = worker
+        self.modules_dock.set_running(worker.label)
+        self._refresh_shell()
+        if folder is not None:
+            self.refresh_workspace()
+            self.log_dock.show_file(folder.path / "run.log")
+        # Parented to the window, so the thread outlives this
+        # method's reference to it whatever Python does with the
+        # attribute below.
+        self._module_thread = start_in_thread(worker, self)
+
+    def stop_module(self) -> None:
+        """Stop whatever the module tree started.
+
+        For an in-process job this is a flag it looks at between units
+        of work; for an external one it is a signal to the process.
+        The button does not have to know which.
+        """
+        if self.module_worker is not None:
+            self.module_worker.cancel()
+            self.show_message("stopping...")
+
+    def _on_module_finished(self, result) -> None:
+        worker, job = self._finish_module()
+        module_record.close_run(job.folder if job else None, result)
+        if result.structure is not None:
+            self._adopt_module_structure(worker, result)
+        self.modules_dock.set_idle(result.summary())
+        self._refresh_shell()
+        self.show_status(result.summary())
+        if result.detail:
+            self.show_message(result.detail.splitlines()[0])
+        self._after_module_run(job)
+
+    def _on_module_failed(self, message: str) -> None:
+        """A module that raised.
+
+        Reported where the run was started from and written into the
+        log that is already open, rather than into a dialog that has
+        to be dismissed before the log can be read.
+        """
+        _worker, job = self._finish_module()
+        module_record.close_run(job.folder if job else None,
+                                error=message)
+        self.modules_dock.set_idle(f"failed: {message}")
+        self._refresh_shell()
+        self.show_status(f"the module failed: {message}")
+        self._after_module_run(job)
+
+    def _finish_module(self):
+        """Let go of the run, but not of the thread it was on.
+
+        The worker signals ``finished`` from inside ``run``, so at
+        this point the thread has not stopped yet.  It is parented to
+        the window and Qt deletes it when it has -- nothing here may
+        touch its lifetime, because destroying a ``QThread`` that is
+        still running aborts the process rather than raising anything
+        catchable.
+        """
+        worker = self.module_worker
+        job = worker.job if worker is not None else None
+        self.module_worker = None
+        return worker, job
+
+    def _after_module_run(self, job) -> None:
+        """The workspace has changed and the log has stopped growing.
+
+        The tree is read from the directory on every refresh, so this
+        is the whole of keeping it in step with what just happened.
+        """
+        if job is not None and job.folder is not None:
+            self.refresh_workspace()
+            self.log_dock.poll()
+        self.modules_dock.refresh()
+
+    def _adopt_module_structure(self, worker, result) -> None:
+        """Take a geometry a module produced, as one undoable edit.
+
+        The module worked on a copy, so this is the only point at
+        which anything it did reaches the document -- and it reaches
+        it as a single command, so Ctrl+Z afterwards gives back the
+        structure the run started from.
+        """
+        document = self.current_document()
+        if document is None or document.is_playing:
+            self.show_message(
+                "the module produced a structure, and it was not "
+                "adopted because the document it ran against is no "
+                "longer in front")
+            return
+        label = f"{worker.module.label}: {worker.action.label}" \
+            if worker is not None else "Module result"
+        document.replace_structure(result.structure,
+                                   label.rstrip("."), Change.ALL)
 
     def show_force_field(self) -> None:
         self.ff_dock.show()
@@ -1473,13 +1881,15 @@ class MainWindow(QMainWindow):
         # this is what stops the user reaching it.
         editable = has_document and not document.is_playing
         self.actions_.set_enabled(
-            ["reduce_p1", "paste", "add_atom_dialog",
+            ["reduce_p1", "paste", "add_atom_dialog", "add_hydrogens",
              "find_symmetry", "set_space_group", "standardize",
-             "primitive", "wyckoff", "merge_duplicates", "supercell",
+             "primitive", "wyckoff", "merge_duplicates", "subgroup",
+             "invert", "supercell",
              "edit_cell", "niggli", "delaunay", "wrap_cell",
              "single_point", "optimize", "recompute_bonds"],
             editable)
         if document is None:
+            self._refresh_module_actions(False)
             self.status_label.setText("No structure open")
             self.selection_label.setText("")
             self.setWindowTitle(APP_NAME)
@@ -1493,6 +1903,7 @@ class MainWindow(QMainWindow):
         self.actions_.set_enabled(
             ["delete_selection", "change_element", "cut", "duplicate"],
             has_selection and editable)
+        self._refresh_module_actions(editable)
         self.status_label.setText(document.status_text())
         self.setWindowTitle(f"{document.title} — {APP_NAME}")
         name = f"style_{document.view.style}"
@@ -1500,9 +1911,14 @@ class MainWindow(QMainWindow):
             self.actions_[name].setChecked(True)
         for action, value in (("show_atoms", document.view.show_atoms),
                               ("show_bonds", document.view.show_bonds),
+                              ("show_bond_orders",
+                               document.view.show_bond_orders),
                               ("show_cell", document.view.show_cell),
                               ("show_legend",
-                               document.view.show_legend)):
+                               document.view.show_legend),
+                              ("show_topology",
+                               document.view.show_topology),
+                              ("depth_cue", document.view.depth_cue)):
             widget = self.actions_[action]
             widget.blockSignals(True)
             widget.setChecked(value)
@@ -1516,6 +1932,20 @@ class MainWindow(QMainWindow):
             spin.blockSignals(True)
             spin.setValue(value)
             spin.blockSignals(False)
+
+    def _refresh_module_actions(self, editable: bool) -> None:
+        """Which module entries can be picked right now.
+
+        Two reasons one cannot: there is nothing for it to run against
+        -- no structure, or a trajectory being played, whose atoms are
+        showing a frame -- or a module run is already going, because
+        two at once would want two run folders and a Stop button that
+        asks which.
+        """
+        idle = self.module_worker is None
+        for name, needs_structure in self._module_actions:
+            self.actions_.set_enabled(
+                [name], idle and (editable or not needs_structure))
 
     def _rebuild_recent_menu(self) -> None:
         self.recent_menu.clear()
@@ -1558,6 +1988,10 @@ class MainWindow(QMainWindow):
                 self.open_path(path)
 
     def closeEvent(self, event):
+        # A module run outlives the window that started it unless it
+        # is stopped -- an external process especially, which would go
+        # on writing into a run folder nobody is watching.
+        self.stop_module()
         for document in list(self.documents):
             if document.modified:
                 answer = QMessageBox.question(

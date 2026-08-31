@@ -8,12 +8,17 @@ appears on every symmetry-equivalent pair.  A bond the user deletes
 cannot simply be removed -- automatic perception would put it straight
 back -- so it is stored as a *suppression*, which is the only way to
 express "these two atoms are close enough to bond but do not".
+
+A *topology* bond is the third kind: an edge of the net rather than a
+chemical bond.  It is stored the same way and expands the same way, and
+it is filtered out of everything chemical -- see
+:data:`xtal.core.bonding.TOPOLOGY`.
 """
 
 from __future__ import annotations
 
 from xtal.commands.base import Command
-from xtal.core.bonding import bond_between
+from xtal.core.bonding import TOPOLOGY, bond_between
 from xtal.core.structure import Bond, Change
 
 _UNSET = object()
@@ -58,6 +63,57 @@ class RemoveBond(Command):
     def __init__(self, bond: Bond):
         self.bond = bond
         self._removed = False
+
+    def do(self, host) -> None:
+        self._removed = host.structure.remove_bond(self.bond)
+
+    def undo(self, host) -> None:
+        if self._removed:
+            host.structure.add_bond(self.bond)
+
+
+class AddTopologyBond(Command):
+    """Draw an edge of the underlying net.
+
+    Stored exactly like a bond the user drew, and marked so that
+    nothing chemical ever sees it: it is a statement about which parts
+    of a framework are nodes, not a claim that two atoms are bonded.
+    Like every other bond it expands over the symmetry orbit, which is
+    what makes drawing one edge of a **pcu** net draw all six.
+    """
+
+    change = Change.TOPOLOGY
+    label = "Draw topology bond"
+
+    def __init__(self, bond: Bond):
+        self.bond = Bond(bond.i, bond.j, bond.image, bond.order,
+                         kind=TOPOLOGY, op=bond.op)
+        self._added = False
+        self._removed = False
+
+    @classmethod
+    def between_atoms(cls, structure, cell, atom_a: int, atom_b: int,
+                      image_a=(0, 0, 0),
+                      image_b=(0, 0, 0)) -> AddTopologyBond:
+        return cls(bond_between(structure, cell, atom_a, atom_b,
+                                image_a, image_b))
+
+    def do(self, host) -> None:
+        self._added = host.structure.add_bond(self.bond)
+
+    def undo(self, host) -> None:
+        if self._added:
+            host.structure.remove_bond(self.bond)
+
+
+class RemoveTopologyBond(AddTopologyBond):
+    """Delete an edge of the net.
+
+    A plain removal and never a suppression: perception never produces
+    a topology bond, so there is nothing that would put it back.
+    """
+
+    label = "Delete topology bond"
 
     def do(self, host) -> None:
         self._removed = host.structure.remove_bond(self.bond)

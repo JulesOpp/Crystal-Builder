@@ -40,6 +40,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.core import elements as el
+from xtal.core.transforms import ELLIPSOID_LEVELS
 from xtalapp.viewport import styles
 from xtalapp.viewport.view_settings import BACKGROUNDS
 
@@ -126,6 +127,45 @@ class StylePanelDock(QDockWidget):
             self._on_background)
         form.addRow("Background", self.background)
 
+        # Every published ORTEP states its probability level, because
+        # the same refinement at 50% and at 90% looks like two
+        # different crystals.  A combo of the levels people actually
+        # use rather than a free number: 50 and 90 are conventions, and
+        # a picture drawn at 63% invites the question of why.
+        self.ellipsoid_probability = QComboBox()
+        for level in ELLIPSOID_LEVELS:
+            self.ellipsoid_probability.addItem(
+                f"{level * 100:g}%", level)
+        self.ellipsoid_probability.setToolTip(
+            "How much of each atom's displacement its ellipsoid "
+            "encloses")
+        self.ellipsoid_probability.currentIndexChanged.connect(
+            lambda: self._set(ellipsoid_probability=(
+                self.ellipsoid_probability.currentData())))
+        form.addRow("Ellipsoids", self.ellipsoid_probability)
+
+        # The slider is the control and the checkbox is the switch,
+        # because a fade with no strength behind it is indistinguishable
+        # from a bug: the user turns it on, nothing visible happens, and
+        # there is nothing on screen to say why.
+        self.depth_cue = QCheckBox("Depth cue")
+        self.depth_cue.setToolTip(
+            "Fade distant atoms towards the background, so a thick "
+            "slab reads as having depth")
+        self.depth_cue.toggled.connect(
+            lambda v: self._set(depth_cue=v))
+        self.depth_cue_strength = QSlider(Qt.Horizontal)
+        self.depth_cue_strength.setRange(0, 100)
+        self.depth_cue_strength.setToolTip("How far into the "
+                                           "background the back of "
+                                           "the picture goes")
+        self.depth_cue_strength.valueChanged.connect(
+            lambda v: self._set(depth_cue_strength=v / 100.0))
+        depth = QHBoxLayout()
+        depth.addWidget(self.depth_cue)
+        depth.addWidget(self.depth_cue_strength, 1)
+        form.addRow(depth)
+
         self.legend = QCheckBox("Element legend")
         self.legend.toggled.connect(
             lambda v: self._set(show_legend=v))
@@ -183,6 +223,14 @@ class StylePanelDock(QDockWidget):
         self.opacity.setValue(round(view.polyhedron_opacity * 100))
         self._choose(self.labels, view.label_mode)
         self._choose(self.background, tuple(view.background))
+        self._choose(self.ellipsoid_probability,
+                     view.ellipsoid_probability)
+        self.ellipsoid_probability.setEnabled(
+            styles.get(view.style).ellipsoids)
+        self.depth_cue.setChecked(view.depth_cue)
+        self.depth_cue_strength.setValue(
+            round(view.depth_cue_strength * 100))
+        self.depth_cue_strength.setEnabled(view.depth_cue)
         self.legend.setChecked(view.show_legend)
         self.cell_box.setChecked(view.show_cell)
         self._refreshing = False

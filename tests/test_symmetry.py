@@ -232,3 +232,83 @@ def test_merge_respects_element_and_periodicity():
 def test_report_is_truthy(rutile):
     _out, report = symmetry.set_space_group(rutile, SpaceGroup.p1())
     assert bool(report) is report.ok
+
+
+# ======================================================================
+#  CHANGE OF HAND
+# ======================================================================
+
+def test_inversion_changes_the_group_as_well_as_the_coordinates(quartz):
+    """Doing only half of it is the bug: negating the coordinates and
+    leaving P3_221 in place gives a structure whose atoms no longer
+    obey their own symmetry."""
+    out, report = symmetry.invert(quartz)
+    assert out.space_group.short_name == "P3121"
+    assert "P3221 -> P3121" in report.message
+    # the inverted structure genuinely has the partner's symmetry
+    assert symmetry.detect(out, 1e-5).international == "P3_121"
+
+
+def test_inversion_is_its_own_inverse(quartz):
+    there, _ = symmetry.invert(quartz)
+    back, _ = symmetry.invert(there)
+    assert back.space_group == quartz.space_group
+    before = np.sort(p1.expand(quartz).frac, axis=0)
+    after = np.sort(p1.expand(back).frac, axis=0)
+    assert np.allclose(before, after, atol=1e-9)
+
+
+def test_inversion_leaves_the_lattice_alone(quartz):
+    out, _ = symmetry.invert(quartz)
+    assert np.allclose(out.lattice.matrix, quartz.lattice.matrix)
+    assert out.lattice.is_right_handed == quartz.lattice.is_right_handed
+
+
+@pytest.mark.parametrize("name,partner", [
+    ("P41", "P43"), ("P43", "P41"), ("P3121", "P3221"),
+    ("P61", "P65"), ("P41212", "P43212"), ("P4132", "P4332"),
+])
+def test_the_eleven_enantiomorphic_pairs_are_named(name, partner):
+    group = SpaceGroup.from_name(name)
+    assert symmetry.enantiomorph(group).short_name == partner
+    assert partner in symmetry.hand_description(group)
+
+
+@pytest.mark.parametrize("name", ["I41", "F4132", "P212121"])
+def test_a_self_enantiomorphic_group_keeps_its_symbol(name):
+    """The case most likely to be mistaken for a no-op: the symbol does
+    not change and the structure does."""
+    group = SpaceGroup.from_name(name)
+    assert symmetry.enantiomorph(group) == group
+    assert symmetry.hand_description(group) == "chiral, its own enantiomorph"
+
+
+def test_the_change_of_hand_op_is_not_always_a_bare_inversion():
+    """I4_1 and F4_132 need an origin shift to land back in the
+    standard setting; using -x,-y,-z for them would put the structure
+    into a non-standard setting without saying so."""
+    _rot, tran = symmetry.change_of_hand_op(SpaceGroup.from_name("I41"))
+    assert np.allclose(tran, [0.5, 0.0, 0.0])
+    _rot, tran = symmetry.change_of_hand_op(
+        SpaceGroup.from_name("F4132"))
+    assert np.allclose(tran, [0.25, 0.25, 0.25])
+
+
+def test_inverting_a_centrosymmetric_structure_says_it_changes_nothing(
+        rutile):
+    out, report = symmetry.invert(rutile)
+    assert out.space_group == rutile.space_group
+    assert "centrosymmetric" in report.message
+    assert report.warnings
+    before = np.sort(p1.expand(rutile).frac, axis=0)
+    after = np.sort(p1.expand(out).frac, axis=0)
+    assert np.allclose(before, after, atol=1e-9)
+
+
+def test_hand_description_covers_the_three_answers(rutile, quartz):
+    assert symmetry.hand_description(rutile.space_group) == \
+        "centrosymmetric (achiral)"
+    assert symmetry.hand_description(quartz.space_group) == \
+        "chiral, enantiomorph P3121"
+    assert "achiral" in symmetry.hand_description(
+        SpaceGroup.from_name("P4mm"))

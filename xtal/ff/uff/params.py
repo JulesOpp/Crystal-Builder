@@ -38,6 +38,53 @@ GEOMETRY_COORDINATION = {
     "6": 6,      # octahedral
 }
 
+# The same character, in words.  This is what the five-character name
+# never says out loud: that the ``3`` of ``Zn3+2`` is a shape and the
+# ``6`` of ``Fe6+2`` is another one.
+GEOMETRY_WORDS = {
+    "1": "linear",
+    "2": "trigonal planar",
+    "3": "tetrahedral",
+    "4": "square planar",
+    "5": "trigonal bipyramidal",
+    "6": "octahedral",
+    "R": "resonant",
+    "b": "bridging",     # ``H_b``, the hydrogen between two borons
+}
+
+# And what it means for a main-group atom, where the same character is
+# a hybridisation rather than a coordination polyhedron: the ``3`` of
+# ``O_3`` is sp3, not tetrahedral oxygen.  Only the three that are a
+# hybridisation are here; a main-group type with any other geometry
+# character falls back to the shape word above.
+HYBRIDISATION_WORDS = {
+    "1": "sp",
+    "2": "sp2",
+    "3": "sp3",
+    "R": "resonant",
+}
+
+# What is left over once the element, the geometry character and the
+# oxidation state have been read off.  One entry, and it says the
+# thing the name is otherwise silent about: ``O_3_z`` is the oxygen
+# fitted to the Si-O-Si of a zeolite and not an ordinary ether oxygen.
+QUALIFIERS = {
+    "O_3_z": "zeolitic",
+}
+
+# The 1992 paper spells lawrencium ``Lw``; the periodic table this
+# application ships calls it ``Lr``.
+IUPAC_SYMBOL = {"Lw": "Lr"}
+
+_ROMAN = ("0", "I", "II", "III", "IV", "V", "VI", "VII", "VIII")
+
+
+def roman(number: int) -> str:
+    """``2`` -> ``"II"``.  Oxidation states, as chemists write them."""
+    if 0 <= number < len(_ROMAN):
+        return _ROMAN[number]
+    return str(number)                              # pragma: no cover
+
 
 @dataclass(frozen=True)
 class UFFParams:
@@ -86,6 +133,59 @@ class UFFParams:
     @property
     def is_resonant(self) -> bool:
         return self.geometry == "R"
+
+    @property
+    def symbol(self) -> str:
+        """The element, spelled the way the rest of the application
+        spells it."""
+        return IUPAC_SYMBOL.get(self.element, self.element)
+
+    @property
+    def is_metal(self) -> bool:
+        from xtal.core import elements
+        try:
+            return elements.element(self.symbol).is_metal
+        except ValueError:                          # pragma: no cover
+            return False
+
+    @property
+    def shape(self) -> str:
+        """The geometry character in words, or ``""``.
+
+        A metal's geometry character is a coordination polyhedron and a
+        main-group atom's is a hybridisation, so the same ``3`` reads
+        as *tetrahedral* on zinc and as *sp3* on oxygen.  Both are the
+        same fact about the same character; which word to say depends
+        only on which half of the table the element is in.
+        """
+        char = "R" if self.is_resonant else self.geometry
+        if not self.is_metal and char in HYBRIDISATION_WORDS:
+            return HYBRIDISATION_WORDS[char]
+        return GEOMETRY_WORDS.get(char, "")
+
+    @property
+    def description(self) -> str:
+        """The type name as a sentence: ``"tetrahedral Zn(II)"``.
+
+        Built from the parts of the name rather than looked up, so a
+        type added to the table above needs no entry anywhere and is
+        readable the moment it exists.  It never replaces the name --
+        the name is what Rappe's Table 1 is indexed by and what an
+        override is stored as -- it goes beside it.
+        """
+        from xtal.core import elements
+        try:
+            noun = elements.element(self.symbol).name.lower()
+        except ValueError:                          # pragma: no cover
+            noun = self.symbol
+        state = self.oxidation_state
+        if state is not None:
+            noun = (f"{self.symbol}({roman(state)})" if self.is_metal
+                    else f"{noun}({roman(state)})")
+        parts = [w for w in (self.shape, noun) if w]
+        out = " ".join(parts)
+        qualifier = QUALIFIERS.get(self.name)
+        return f"{out}, {qualifier}" if qualifier else out
 
 
 def _rows() -> list[UFFParams]:

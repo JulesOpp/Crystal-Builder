@@ -32,6 +32,13 @@ class Site:
     occupancy: float = 1.0
     label: str = ""                       # CIF _atom_site_label
     u_iso: float | None = None            # Angstrom^2
+    #: The six anisotropic displacement parameters of the CIF
+    #: ``_atom_site_aniso_*`` loop, in Voigt order
+    #: ``(U11, U22, U33, U12, U13, U23)`` and in Angstrom^2.  ``None``
+    #: means the refinement gave none, which is not the same as zero
+    #: and must not be drawn as if it were -- see
+    #: :meth:`u_cartesian`.
+    u_aniso: tuple | None = None
     charge: float | None = None
     wyckoff: str | None = None            # filled by symmetry detection
     props: dict = field(default_factory=dict)
@@ -47,6 +54,13 @@ class Site:
         if not 0.0 < occ:
             raise ValueError(f"occupancy must be > 0, got {occ}")
         self.occupancy = occ
+        if self.u_aniso is not None:
+            values = tuple(float(v) for v in self.u_aniso)
+            if len(values) != 6:
+                raise ValueError(
+                    "u_aniso needs six values (U11, U22, U33, U12, "
+                    f"U13, U23), got {len(values)}")
+            self.u_aniso = values
 
     # -- derived -------------------------------------------------------
 
@@ -70,6 +84,45 @@ class Site:
     def is_partial(self) -> bool:
         return self.occupancy < 1.0 - 1e-6
 
+    def u_cartesian(self, lattice) -> np.ndarray | None:
+        """The 3x3 displacement tensor in cartesian axes, or None.
+
+        The CIF's U^ij are *not* a cartesian tensor: they are defined
+        against the reciprocal basis, and drawing them directly gives
+        an ellipsoid that is right only in an orthorhombic cell and
+        visibly sheared in anything else.  The conversion is
+
+            U_cart = N U N^T,   N = A diag(a*, b*, c*)
+
+        with ``A`` the matrix whose columns are the cartesian
+        components of the lattice vectors -- which is
+        ``lattice.matrix`` transposed, since this code stores the
+        vectors as rows.  In an orthogonal cell N is the identity and
+        the two agree, which is why the mistake survives casual
+        testing.
+        """
+        if self.u_aniso is None:
+            return None
+        u11, u22, u33, u12, u13, u23 = self.u_aniso
+        u = np.array([[u11, u12, u13],
+                      [u12, u22, u23],
+                      [u13, u23, u33]], dtype=float)
+        stars = np.diag(lattice.reciprocal().parameters[:3])
+        n = np.asarray(lattice.matrix, dtype=float).T @ stars
+        return n @ u @ n.T
+
+    @property
+    def u_equivalent(self) -> float | None:
+        """``U_eq``: a third of the trace, which is the isotropic
+        number a refinement would have reported instead.
+
+        Taken from ``u_aniso`` when there is one and from ``u_iso``
+        otherwise, so anything that wants one number per atom has one.
+        """
+        if self.u_aniso is not None:
+            return float(sum(self.u_aniso[:3]) / 3.0)
+        return self.u_iso
+
     # -- copying / serialisation ---------------------------------------
 
     def copy(self) -> Site:
@@ -79,6 +132,7 @@ class Site:
             occupancy=self.occupancy,
             label=self.label,
             u_iso=self.u_iso,
+            u_aniso=self.u_aniso,
             charge=self.charge,
             wyckoff=self.wyckoff,
             props=dict(self.props),
@@ -94,6 +148,8 @@ class Site:
         for key in ("u_iso", "charge", "wyckoff"):
             if getattr(self, key) is not None:
                 d[key] = getattr(self, key)
+        if self.u_aniso is not None:
+            d["u_aniso"] = list(self.u_aniso)
         if self.props:
             d["props"] = dict(self.props)
         return d
@@ -106,6 +162,8 @@ class Site:
             occupancy=d.get("occupancy", 1.0),
             label=d.get("label", ""),
             u_iso=d.get("u_iso"),
+            u_aniso=(tuple(d["u_aniso"]) if d.get("u_aniso") is not None
+                     else None),
             charge=d.get("charge"),
             wyckoff=d.get("wyckoff"),
             props=dict(d.get("props", {})),
@@ -121,6 +179,7 @@ class Site:
             and abs(self.occupancy - other.occupancy) <= tol
             and self.label == other.label
             and self.u_iso == other.u_iso
+            and self.u_aniso == other.u_aniso
             and self.charge == other.charge
             and self.props == other.props
         )

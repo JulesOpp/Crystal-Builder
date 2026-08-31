@@ -49,7 +49,7 @@ Repository = "https://github.com/JulesOpp/Crystal-Builder"
 
 [tool.setuptools]
 packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
-            "xtal.ff.uff", "xtal.analysis", "xtalapp",
+            "xtal.ff.uff", "xtal.modules", "xtal.analysis", "xtalapp",
             "xtalapp.viewport", "xtalapp.docks", "xtalapp.dialogs"]
 
 [tool.setuptools_scm]        # version from git tags; no version file to bump
@@ -57,6 +57,12 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 filterwarnings = ["error::DeprecationWarning"]
+markers = [
+    # Seconds rather than milliseconds, and worth it: a variable-cell
+    # relaxation of a 648-atom framework is the only test that
+    # exercises the whole force field on a real deposited structure.
+    "slow: takes seconds; deselect with -m 'not slow'",
+]
 
 [tool.ruff]
 line-length = 79

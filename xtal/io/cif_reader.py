@@ -80,6 +80,7 @@ def _from_small_structure(small, block, path: Path) -> Structure:
             occupancy=s.occ if s.occ > 0 else 1.0,
             label=s.label,
             u_iso=s.u_iso if s.u_iso else None,
+            u_aniso=_aniso(s),
             charge=float(s.charge) if s.charge else None,
         )
         if s.disorder_group:
@@ -104,6 +105,22 @@ def _from_small_structure(small, block, path: Path) -> Structure:
         structure.meta["warnings"] = warnings
     structure.ensure_labels()
     return structure
+
+
+def _aniso(site) -> tuple | None:
+    """The ``_atom_site_aniso_U_*`` loop for one site, or None.
+
+    A site with no entry in that loop comes back from gemmi as six
+    zeros, and zero displacement is not a measurement -- it is the
+    absence of one.  Drawing it as a point-sized ellipsoid would say
+    the atom was refined to be perfectly still, so it is None here and
+    the viewport falls back and says so.
+    """
+    u = site.aniso
+    values = (u.u11, u.u22, u.u33, u.u12, u.u13, u.u23)
+    if not any(abs(v) > 0.0 for v in values):
+        return None
+    return tuple(float(v) for v in values)
 
 
 def _resolve_space_group(small, block, warnings) -> SpaceGroup:

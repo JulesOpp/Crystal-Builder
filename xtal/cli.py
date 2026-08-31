@@ -15,6 +15,8 @@ here (and in the Python console) rather than to automate the widgets.
     xtal types quartz.cif
     xtal energy quartz.cif
     xtal optimize quartz.cif -o relaxed.cif
+    xtal modules
+    xtal run stub.count quartz.cif --workspace ./ws -p steps=3
 """
 
 from __future__ import annotations
@@ -59,6 +61,35 @@ def cmd_info(args) -> int:
     return 0
 
 
+def _print_subgroups(structure) -> None:
+    """The maximal subgroups of the group the structure is in, with
+    what each descent would cost.
+
+    The split is the column worth having: most descents split nothing,
+    and a list that does not say so reads as if it were broken.
+    """
+    from xtal.core import subgroups
+
+    found = subgroups.subgroups_of(structure.space_group)
+    if not found:
+        print("\nno proper subgroups: this is already the smallest "
+              "group there is")
+        return
+    n_maximal = sum(1 for s in found if s.maximal)
+    print(f"\nsubgroups ({len(found)}, translationengleiche, "
+          f"{n_maximal} maximal; conjugates share a row)")
+    print(f"{'group':<14s} {'no.':>4s} {'idx':>4s} {'max':>4s} "
+          f"{'same':>5s}  {'splits':<24s} axes and origin")
+    for sub in found:
+        split = subgroups.describe_split(structure, sub)
+        print(f"{sub.group.hm if sub.group else 'unnamed':<14s} "
+              f"{sub.group.number if sub.group else '':>4} "
+              f"{sub.index:>4} {'yes' if sub.maximal else '':>4} "
+              f"{('' if sub.n_conjugates == 1 else f'x{sub.n_conjugates}'):>5}"
+              f"  {split.summary():<24s} "
+              f"{subgroups.basis_description(sub)}")
+
+
 def cmd_symmetry(args) -> int:
     structure = _load(args.file)
     try:
@@ -77,6 +108,11 @@ def cmd_symmetry(args) -> int:
           f"{'yes' if info.is_standard_setting else 'no'}")
     print(f"current group  {structure.space_group.short_name} "
           f"(#{structure.space_group.number})")
+    print(f"hand           "
+          f"{symmetry.hand_description(structure.space_group)}")
+
+    if args.subgroups:
+        _print_subgroups(structure)
 
     if args.wyckoff:
         print("\natom  wyckoff  site symmetry")
@@ -252,6 +288,7 @@ def cmd_optimize(args) -> int:
     result = optimize.run(
         calculator, structure, method=args.method,
         max_steps=args.max_steps, force_tolerance=args.tolerance,
+        relax_cell=args.relax_cell, pressure=args.pressure,
         callback=trace)
 
     print()
@@ -262,6 +299,13 @@ def cmd_optimize(args) -> int:
 
     for site, frac in zip(structure.sites, result.frac, strict=True):
         site.frac = frac
+    if result.matrix is not None:
+        from xtal.core.lattice import Lattice
+        structure.lattice = Lattice(result.matrix)
+        a, b, c, al, be, ga = structure.lattice.parameters
+        print(f"cell           {a:.4f} {b:.4f} {c:.4f}  "
+              f"{al:.3f} {be:.3f} {ga:.3f}   "
+              f"({structure.lattice.volume:.2f} A^3)")
     structure.touch()
     if recorder is not None:
         recorder.result(result, final=structure)
@@ -271,6 +315,103 @@ def cmd_optimize(args) -> int:
         FORMATS.write(structure, args.output)
         print(f"wrote {args.output}")
     return 0 if result.converged else 2
+
+
+# ----------------------------------------------------------------------
+#  MODULES
+# ----------------------------------------------------------------------
+#
+# The registry is headless, so it is runnable from here -- and that is
+# not a convenience, it is the proof.  A module that can only be run by
+# clicking it is one whose parameters, run folder and log cannot be
+# tested without a display.
+
+def cmd_modules(args) -> int:
+    from xtal import plugins
+    from xtal.modules import MODULES
+
+    plugins.load()
+    for module in MODULES:
+        available = module.availability()
+        mark = "" if available else f"   [unavailable: {available.reason}]"
+        print(f"{module.name}{mark}")
+        for action in module.actions:
+            how = "  (in the window)" if action.shell else ""
+            print(f"  {module.name}.{action.name:<16s} "
+                  f"{action.label}{how}")
+            for param in action.params:
+                print(f"      -p {param.name}={param.default_value()!r}"
+                      f"   {param.kind}, {param.title.lower()}")
+    return 0
+
+
+def cmd_run(args) -> int:
+    """Run one module action against a file, as the window would."""
+    from xtal import plugins
+    from xtal.modules import MODULES, Job
+    from xtal.modules import record as module_record
+
+    plugins.load()
+    module, action = MODULES.find(args.action)
+    if action.run is None:
+        raise ValueError(
+            f"{args.action} is performed by the application window "
+            f"and has nothing to run from a script")
+    available = module.availability()
+    if not available:
+        raise ValueError(available.reason)
+    structure = _load(args.file)
+    params = action.coerce(_parsed_params(args.param))
+
+    folder = None
+    if args.workspace:
+        from xtal.workspace import Workspace
+        workspace = Workspace.create(args.workspace)
+        entry = workspace.add_structure(args.file)
+        folder = module_record.open_run(entry, module, action, params,
+                                        structure)
+    job = Job(structure=structure, params=params, folder=folder,
+              label=args.action,
+              on_progress=None if args.quiet else _echo)
+    try:
+        result = action.run(job)
+    except KeyboardInterrupt:
+        # Ctrl+C is the command line's Stop button, and a run folder
+        # that says where it got to is worth more than a traceback.
+        job.cancel.cancel()
+        module_record.close_run(folder, error="interrupted")
+        print("interrupted", file=sys.stderr)
+        return 130
+    module_record.close_run(folder, result)
+    print(result.summary())
+    if result.detail:
+        print(result.detail, file=sys.stderr)
+    if args.output and result.structure is not None:
+        FORMATS.write(result.structure, args.output)
+        print(f"wrote {args.output}")
+    if folder is not None:
+        print(f"run folder: {folder.path}")
+    return 0 if result.ok else 2
+
+
+def _echo(text: str) -> None:
+    print(text, flush=True)
+
+
+def _parsed_params(pairs) -> dict:
+    """``-p steps=3`` into ``{"steps": "3"}``.
+
+    Left as strings: the parameter itself knows what type it is, and
+    guessing here would mean guessing differently from the form.
+    """
+    out = {}
+    for pair in pairs or ():
+        key, sep, value = str(pair).partition("=")
+        if not sep:
+            raise ValueError(
+                f"--param wants name=value, not {pair!r}")
+        out[key.strip()] = value
+    return out
 
 
 def cmd_formats(args) -> int:
@@ -312,6 +453,10 @@ def build_parser() -> argparse.ArgumentParser:
                         "derive it from symprec")
     p.add_argument("--wyckoff", action="store_true",
                    help="list Wyckoff letters and site symmetries")
+    p.add_argument("--subgroups", action="store_true",
+                   help="list the translationengleiche subgroups of "
+                        "the current group and what descending to each "
+                        "would split")
     p.add_argument("-o", "--output",
                    help="write the symmetrised structure here")
     p.set_defaults(func=cmd_symmetry)
@@ -369,6 +514,14 @@ def build_parser() -> argparse.ArgumentParser:
                            help="stop when the largest force per atom "
                                 "is below this, in kcal/mol/A "
                                 "(default: %(default)g)")
+            p.add_argument("--relax-cell", action="store_true",
+                           dest="relax_cell",
+                           help="relax the lattice as well, under a "
+                                "symmetry-adapted strain")
+            p.add_argument("--pressure", type=float, default=0.0,
+                           help="external pressure in GPa, as a P V "
+                                "term; needs --relax-cell to have any "
+                                "effect")
             p.add_argument("-q", "--quiet", action="store_true",
                            help="do not print a line per step")
         p.set_defaults(func=cmd_energy if name == "energy"
@@ -376,6 +529,26 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("formats", help="list supported file formats")
     p.set_defaults(func=cmd_formats)
+
+    p = sub.add_parser("modules",
+                       help="list the modules and what they take")
+    p.set_defaults(func=cmd_modules)
+
+    p = sub.add_parser("run", help="run one module action")
+    p.add_argument("action", metavar="MODULE.ACTION",
+                   help="which entry to run; `xtal modules` lists them")
+    p.add_argument("file")
+    p.add_argument("-p", "--param", action="append", metavar="NAME=VALUE",
+                   help="a parameter for the module; repeatable")
+    p.add_argument("--workspace", metavar="DIR",
+                   help="write the run into a workspace, in the "
+                        "layout the application reads")
+    p.add_argument("-o", "--output",
+                   help="write the structure it produced here, if it "
+                        "produced one")
+    p.add_argument("-q", "--quiet", action="store_true",
+                   help="do not echo the run's progress")
+    p.set_defaults(func=cmd_run)
     return parser
 
 

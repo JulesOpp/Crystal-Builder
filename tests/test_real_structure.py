@@ -177,3 +177,119 @@ def test_it_relaxes_in_p1_instead_of_grinding(mfu4l):
     # and it got there by moving atoms, not by giving up
     moved = ((result.frac - flat.frac) @ flat.lattice.matrix)
     assert 0.01 < abs(moved).max() < 2.0
+
+
+@pytest.mark.slow
+def test_its_lattice_constant_relaxes_and_stays_cubic(mfu4l):
+    """The lattice-constant regression [docs/PLAN.md] asks for, on the
+    framework this repository actually has.
+
+    Two claims, and the first is the one that is invisible when it
+    breaks.  A cubic cell relaxed under a symmetry-adapted strain has
+    **one** free variable, so what comes out has a = b = c and three
+    right angles exactly -- not to a tolerance, exactly, because there
+    is no variable that could take it anywhere else.  648 atoms, 192
+    operations and a real deposited geometry are what make that worth
+    asserting rather than assuming.
+
+    The second is the number, and it is pinned as much to keep the
+    honesty of the warning beside it as to catch a regression: UFF
+    pulls a 31.06 A framework in to 30.30, which is 2.4% -- "routinely
+    a few percent out", which is what the panel says and what this
+    confirms.  A UFF cell is a starting geometry, not a measurement.
+
+    Nine seconds, because an engine with no analytic stress pays
+    twelve extra energy evaluations a step for it.
+    """
+    from xtal.core.lattice import Lattice
+    from xtal.ff import ENGINES, optimize
+
+    published = mfu4l.lattice.lengths[0]
+    result = optimize.run(ENGINES.build("uff", mfu4l), mfu4l,
+                          method="lbfgs", relax_cell=True,
+                          max_steps=150)
+    assert result.converged, result.summary()
+
+    a, b, c, alpha, beta, gamma = Lattice(result.matrix).parameters
+    assert b == pytest.approx(a, abs=1e-9)
+    assert c == pytest.approx(a, abs=1e-9)
+    for angle in (alpha, beta, gamma):
+        assert angle == pytest.approx(90.0, abs=1e-9)
+
+    assert a == pytest.approx(30.30, abs=0.15)
+    assert abs(a - published) / published < 0.03
+
+
+# ======================================================================
+#  DESCENDING, ON COORDINATES THAT CAME OUT OF A REFINEMENT
+# ======================================================================
+#
+#  The four fixtures elsewhere in the suite have exact coordinates --
+#  0, 1/2, 0.3053 -- and every symmetry image of them coincides to
+#  machine precision.  A deposited CIF does not: MFU-4l is written to
+#  six decimals in a 31 A cell, so images that are the same atom land a
+#  thousandth of an Angstrom apart, and a comparison tight enough for
+#  the fixtures counts them as different atoms.  That is the difference
+#  between the two, and it is why this test is here and not there.
+
+def test_descending_works_on_a_deposited_structure(mfu4l):
+    """Every maximal subgroup of Fm-3m, applied to a real framework.
+
+    Each one has to come out with the atom count its cell demands: the
+    tetragonal descents halve the cell and so halve the atoms, the
+    rhombohedral ones take three quarters of it.  Getting this wrong
+    does not look like a wrong answer, it looks like the operation
+    refusing -- which is what it did.
+    """
+    from xtal.core import subgroups
+
+    before = p1.expand(mfu4l).n_atoms
+    assert before == 648
+    found = subgroups.subgroups_of(mfu4l.space_group)
+    # Fm-3m's 97 proper subgroups, as the 32 conjugacy classes the
+    # dialog offers, of which 5 are maximal.
+    assert len(found) == 32
+    assert sum(1 for s in found if s.maximal) == 5
+    for sub in found:
+        child, report = subgroups.descend(mfu4l, sub)
+        assert report.ok, f"{sub}: {report.message}"
+        assert (p1.expand(child).n_atoms
+                == round(before * sub.volume_ratio)), str(sub)
+
+
+def test_descending_a_real_framework_is_quick_enough_to_watch(mfu4l):
+    """The dialog computes the split for the row you select, on the UI
+    thread, so this is the number that decides whether the window
+    responds.  It was minutes: the cell was being filled by comparing
+    each of fifty thousand candidate positions against every position
+    already kept.
+    """
+    import time
+
+    from xtal.core import subgroups
+
+    found = subgroups.subgroups_of(mfu4l.space_group)
+    started = time.perf_counter()
+    for sub in found:
+        assert subgroups.describe_split(mfu4l, sub).ok
+    elapsed = time.perf_counter() - started
+    # Thirty-two subgroups, a couple of seconds between them on a
+    # laptop; the bound is loose because this is a guard against the
+    # quadratic coming back, not a benchmark.  The dialog only computes
+    # the row you select, so what a user waits for is a thirty-second
+    # of this.
+    assert elapsed < 30.0, f"{len(found)} splits took {elapsed:.1f} s"
+
+
+def test_a_tetragonal_descent_splits_the_linker(mfu4l):
+    """What the descent is for.  MFU-4l's ten sites include one
+    nitrogen and three carbons of the linker; dropping to I4/mmm makes
+    each of them two independent sites, which is the freedom a
+    distortion model needs."""
+    from xtal.core import subgroups
+
+    sub = next(s for s in subgroups.subgroups_of(mfu4l.space_group)
+               if s.group.short_name == "I4/mmm")
+    split = subgroups.describe_split(mfu4l, sub)
+    assert split.splits
+    assert split.before == 10 and split.after == 17

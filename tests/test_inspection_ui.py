@@ -145,6 +145,15 @@ def test_inspector_shows_one_atom(open_rutile):
     assert "operation" in details
 
 
+def test_inspector_says_what_the_force_field_type_means(open_rutile):
+    """The five-character name is what an override is stored as; the
+    words beside it are the half a reader can check."""
+    window, document = open_rutile
+    document.select([0])
+    details = window.inspector_dock.details.toPlainText()
+    assert "force field    Ti6+4  (octahedral Ti(IV))" in details
+
+
 def test_inspector_warns_when_symmetry_will_multiply_an_edit(
         open_rutile):
     window, document = open_rutile
@@ -326,3 +335,37 @@ def test_selection_actions_are_disabled_without_a_selection(
     assert not window.actions_["delete_selection"].isEnabled()
     document.select([0])
     assert window.actions_["delete_selection"].isEnabled()
+
+
+def test_invert_selection_works_in_whole_orbits(rutile_cif):
+    """Every edit acts on whole orbits, so inverting atom-by-atom hands
+    back a selection that overlaps the one it came from: half an orbit
+    inverted still leaves that orbit selected, through its other half.
+    """
+    document = Document.load(rutile_cif)
+    document.select([0])                        # half of the Ti orbit
+    assert document.selected_sites() == {0}
+    document.invert_selection()
+    # not {1, 2, 3, 4, 5}: atom 1 is the other Ti, and taking it would
+    # mean the titanium site is selected either way round
+    assert document.selection.atoms == {2, 3, 4, 5}
+    assert document.selected_sites() == {1}
+    assert document.selection_is_orbit_complete()
+
+
+def test_inverting_a_selection_twice_returns_it(rutile_cif):
+    document = Document.load(rutile_cif)
+    document.select([0, 1])
+    document.invert_selection()
+    document.invert_selection()
+    assert document.selection.atoms == {0, 1}
+
+
+def test_invert_selection_in_p1_is_plain_inversion(rutile_cif):
+    """In P1 every orbit is one atom, so this degrades to exactly what
+    it did before."""
+    document = Document.load(rutile_cif)
+    document.reduce_to_p1()
+    document.select([0])
+    document.invert_selection()
+    assert document.selection.atoms == {1, 2, 3, 4, 5}
