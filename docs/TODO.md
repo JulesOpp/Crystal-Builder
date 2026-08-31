@@ -415,31 +415,6 @@ afterwards.
   driven through `ff/api.py`, which is the path that gets the
   throttling for free and the recording for free with it.
 
-### The same file can be opened twice at once
-
-Opening a file that is already open gives a second tab over the same
-bytes, and from then on there are two documents with two undo stacks
-editing what the user thinks is one structure.  Whichever is saved
-last wins and the other one's work is gone, with nothing having said
-so.
-
-* The test is the resolved path -- same location *and* same name --
-  and not the file name alone: `data/a/MFU4l.cif` and
-  `data/b/MFU4l.cif` are two different crystals that happen to share a
-  name, and refusing to open the second would be worse than the bug.
-  `Path.resolve()` also settles the symlink and the `/var` versus
-  `/private/var` cases, which are the same file spelled two ways.
-* What to do about it is to raise the tab that already has it, and say
-  so in the status bar.  Not a dialog: the user asked to see that
-  file, and showing it to them is the answer.
-* It belongs in `MainWindow.open_path`, which is the one door every
-  route in goes through -- the Open dialog, the recent list, the
-  workspace tree, drag and drop, and the command line.
-* The one case that is genuinely two documents is a file opened, then
-  changed on disk by something else, then opened again to compare.
-  That is rare enough to want an explicit "Open a second copy" rather
-  than to be the default.
-
 ## Modules
 
 ### DFTB+'s own driver

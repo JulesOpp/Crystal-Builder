@@ -98,7 +98,7 @@ class Artifact:
     """
 
     kind: str               # "structure" | "trajectory" | "log" |
-                            # "final" | "project" | "file"
+                            # "final" | "project" | "image" | "file"
     path: Path
     label: str = ""
 
@@ -121,6 +121,12 @@ def classify(path) -> str:
         return "trajectory"
     if suffix == ".xtalproj":
         return "project"
+    if suffix in (".png", ".svg", ".jpg", ".jpeg"):
+        # A plot a run left behind.  Its own kind because the window
+        # opens it in something else entirely -- there is no reading a
+        # picture into a structure, and dispatching on the extension
+        # would have tried.
+        return "image"
     if path.stem == "final":
         return "final"
     if suffix in (".cif", ".mcif", ".xyz", ".gen", ".cssr", ".res"):

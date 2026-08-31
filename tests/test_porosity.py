@@ -12,48 +12,8 @@ module that can be tested anywhere.
 import numpy as np
 import pytest
 
+from tests.conftest_zeo import RES, SA, VOL, psd_text
 from xtal.analysis import porosity
-
-RES = "   MFU4l.res    18.72736 9.18223  18.72243\n"
-
-SA = (
-    "@ MFU4l.sa Unitcell_volume: 29955.3   Density: 0.559382   "
-    "ASA_A^2: 5358.14 ASA_m^2/cm^3: 1788.71 ASA_m^2/g: 3197.65 "
-    "NASA_A^2: 0 NASA_m^2/cm^3: 0 NASA_m^2/g: 0\n"
-    "Number_of_channels: 1 Channel_surface_area_A^2: 5358.14  \n"
-    "Number_of_pockets: 0 Pocket_surface_area_A^2: \n")
-
-VOL = (
-    "@ MFU4l.vol Unitcell_volume: 29955.3   Density: 0.559382   "
-    "AV_A^3: 13827.4 AV_Volume_fraction: 0.4616 AV_cm^3/g: 0.825196 "
-    "NAV_A^3: 0 NAV_Volume_fraction: 0 NAV_cm^3/g: 0\n"
-    "Number_of_channels: 1 Channel_volume_A^3: 13827.4  \n"
-    "Number_of_pockets: 0 Pocket_volume_A^3: \n")
-
-
-def psd_text(counts=((11.5, 40), (18.7, 900))) -> str:
-    """A histogram of a thousand bins with a few of them filled --
-    which is the shape Zeo++ actually writes."""
-    lines = ["Pore size distribution histogram",
-             "Bin size (A): 0.1",
-             "Number of bins: 1000",
-             "From: 0", "To: 100",
-             "Total samples: 5000",
-             "Accessible samples: 2910",
-             "Fraction of sample points in node spheres: 0.582",
-             "Fraction of sample points outside node spheres: 0",
-             "", "Bin Count Cumulative_dist Derivative_dist"]
-    filled = {round(d, 1): n for d, n in counts}
-    total = sum(filled.values()) or 1
-    seen = 0
-    for index in range(1000):
-        diameter = round(index * 0.1, 1)
-        count = filled.get(diameter, 0)
-        seen += count
-        remaining = (total - seen) / total
-        lines.append(f"{diameter} {count} {remaining:.6f} 0")
-    return "\n".join(lines) + "\n"
-
 
 # --------------------------------------------------------- the diameters
 

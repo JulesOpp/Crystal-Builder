@@ -51,6 +51,9 @@ what is wanted but not yet scheduled.
       docks/    workspace tree, module tree, inspector, sites, style,
                 measure, force field, results, log viewer,
                 transport bar
+      dialogs/  add atom, hydrogens, bond rules, cell, export,
+                symmetry, supercell, a module's parameters, and the
+                window that says a run is going
       document.py, mainwindow.py, actions.py, settings.py
       workers.py, plot.py, histogram.py   long jobs off the GUI
                 thread, and the two plots they produce
@@ -382,7 +385,10 @@ xtal run zeopp.psd MOF.cif -p samples=50000 # ... and the spread
 ```
 
 The Zeo++ entries need the `network` binary — on PATH, named by
-`XTAL_ZEOPP`, or built in `resources/zeo++-0.3/`.  DFTB+ is reached
+`XTAL_ZEOPP`, or built in `resources/zeo++-0.3/`.  A run that takes
+more than a moment puts up a window saying so, with the elapsed time,
+the last line the binary printed and Stop; the pore size distribution
+leaves its plot in the run folder as a PNG beside the numbers.  DFTB+ is reached
 the other way, as an *engine* rather than a module, so that the
 optimiser, the symmetry projection and the panel drive it exactly as
 they drive UFF:

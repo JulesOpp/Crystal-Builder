@@ -69,6 +69,7 @@ KIND_LABELS = {
     "final": "final structure",
     "trajectory": "trajectory",
     "log": "log",
+    "image": "plot",
     "project": "session",
     "file": "",
 }

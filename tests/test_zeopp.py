@@ -16,50 +16,17 @@ import sys
 
 import pytest
 
-from tests.test_porosity import RES, SA, psd_text
+from tests.conftest_zeo import write_fake_network
 from xtal.analysis import porosity
 from xtal.modules import MODULES, Job, zeopp
 from xtal.modules.registry import ModuleRegistry
 from xtal.workspace import Workspace
 
-#: A stand-in for ``network``: it writes what it was asked for and
-#: records the command line beside it, so a test can assert on the
-#: arguments the module chose without reading them out of a log.
-FAKE = '''#!/usr/bin/env python
-import sys, pathlib
-argv = sys.argv[1:]
-pathlib.Path("argv.txt").write_text("\\n".join(argv))
-print("Reading input file: " + argv[-1], flush=True)
-print("Performing Voronoi decomposition.", flush=True)
-{body}
-'''
-
-WRITERS = {
-    "-res": 'pathlib.Path(argv[argv.index("-res") + 1]).write_text('
-            f'{RES!r})',
-    "-sa": 'pathlib.Path(argv[argv.index("-sa") + 4]).write_text('
-           f'{SA!r})',
-    "-psd": 'pathlib.Path(argv[argv.index("-psd") + 4]).write_text('
-            "OUTPUT)",
-}
-
 
 @pytest.fixture
 def fake_network(tmp_path, monkeypatch):
     """Every flag the module can pass, answered."""
-    body = "\n".join([
-        f'OUTPUT = {psd_text()!r}',
-        *(f'if "{flag}" in argv: {writer}'
-          for flag, writer in WRITERS.items()),
-    ])
-    script = tmp_path / "network"
-    # The interpreter running the tests, not whatever "python" is on
-    # PATH -- in a virtual environment those are different, and the
-    # difference shows up as a stand-in that will not start.
-    script.write_text(
-        f"#!{sys.executable}\n"
-        + FAKE.format(body=body).split("\n", 1)[1])
-    script.chmod(0o755)
+    script = write_fake_network(tmp_path)
     monkeypatch.setenv("XTAL_ZEOPP", str(script))
     return script
 

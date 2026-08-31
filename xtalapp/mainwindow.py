@@ -22,7 +22,6 @@ responsiveness.
 
 from __future__ import annotations
 
-import pathlib
 from pathlib import Path
 
 from PySide6.QtCore import Qt
@@ -48,7 +47,7 @@ from xtal.core.structure import Change
 from xtal.io import FORMATS
 from xtal.modules import MODULES, Job, ModuleError
 from xtal.modules import record as module_record
-from xtal.workspace import NotAWorkspace, Workspace
+from xtal.workspace import NotAWorkspace, Workspace, safe_name
 from xtalapp.actions import ActionRegistry
 from xtalapp.dialogs.add_atom import AddAtomDialog
 from xtalapp.dialogs.add_hydrogens import AddHydrogensDialog
@@ -57,6 +56,7 @@ from xtalapp.dialogs.cell_edit import CellEditDialog
 from xtalapp.dialogs.display_range import DisplayRangeDialog
 from xtalapp.dialogs.find_symmetry import FindSymmetryDialog
 from xtalapp.dialogs.module_form import ModuleDialog
+from xtalapp.dialogs.run_progress import RunProgressDialog
 from xtalapp.dialogs.spacegroup import SpaceGroupDialog
 from xtalapp.dialogs.subgroup import SubgroupDialog
 from xtalapp.dialogs.supercell import SupercellDialog
@@ -73,6 +73,7 @@ from xtalapp.docks.style_panel import StylePanelDock
 from xtalapp.docks.trajectory import TrajectoryDock
 from xtalapp.docks.workspace import WorkspaceDock
 from xtalapp.document import Document
+from xtalapp.histogram import save_histogram
 from xtalapp.settings import AppSettings, default_size, fit_to_screen
 from xtalapp.viewport import modes, styles
 from xtalapp.viewport.view_settings import BACKGROUNDS
@@ -92,7 +93,7 @@ def _resolved(path):
     if path is None:
         return None
     try:
-        return pathlib.Path(path).resolve()
+        return Path(path).resolve()
     except OSError:                                 # pragma: no cover
         return None
 
@@ -624,6 +625,13 @@ class MainWindow(QMainWindow):
         self.ff_dock.runStarted.connect(self._on_run_started)
         self.ff_dock.runFinished.connect(self._on_run_finished)
 
+        # A run that takes minutes needs to say so somewhere the user
+        # is looking, which the footer of a panel that may be closed
+        # is not.  It arms itself and appears only if the run is still
+        # going a moment later, so a fast module never shows one.
+        self.run_progress = RunProgressDialog(self)
+        self.run_progress.stopRequested.connect(self.stop_module)
+
         # Where a module's tables and histograms land.  Beside the
         # log rather than beside the module tree: the numbers and the
         # output that produced them are read together, and a report
@@ -968,6 +976,16 @@ class MainWindow(QMainWindow):
         elif kind == "trajectory":
             self.trajectory_dock.set_document(self.current_document())
             self.trajectory_dock.open_path(target)
+        elif kind == "image":
+            # A plot a run left behind.  Handed to whatever the
+            # desktop opens PNGs with, because a picture viewer is not
+            # something this application should be growing.
+            from PySide6.QtCore import QUrl
+            from PySide6.QtGui import QDesktopServices
+            if not QDesktopServices.openUrl(
+                    QUrl.fromLocalFile(str(target))):
+                self.show_message(                  # pragma: no cover
+                    f"could not open {target.name}")
         elif kind in ("structure", "final", "project", "file"):
             self.open_path(target)
 
@@ -1793,10 +1811,12 @@ class MainWindow(QMainWindow):
                   label=f"{module.name}.{action.name}")
         worker = ModuleWorker(module, action, job)
         worker.progressed.connect(self.modules_dock.set_progress)
+        worker.progressed.connect(self.run_progress.set_progress)
         worker.finished.connect(self._on_module_finished)
         worker.failed.connect(self._on_module_failed)
         self.module_worker = worker
         self.modules_dock.set_running(worker.label)
+        self.run_progress.start(worker.label)
         self._refresh_shell()
         if folder is not None:
             self.refresh_workspace()
@@ -1819,10 +1839,14 @@ class MainWindow(QMainWindow):
 
     def _on_module_finished(self, result) -> None:
         worker, job = self._finish_module()
+        # The pictures are written before the log is closed, so the
+        # log can name them the way it names every other artefact.
+        self._save_report_images(job, result)
         module_record.close_run(job.folder if job else None, result)
         self._show_report(worker, result)
         if result.structure is not None:
             self._adopt_module_structure(worker, result)
+        self.run_progress.finish()
         self.modules_dock.set_idle(result.summary())
         self._refresh_shell()
         self.show_status(result.summary())
@@ -1843,6 +1867,7 @@ class MainWindow(QMainWindow):
         # The previous run's numbers must not sit there under this
         # run's heading, which is the one way this panel could be
         # worse than no panel.
+        self.run_progress.finish()
         self.results_dock.clear()
         self.modules_dock.set_idle(f"failed: {message}")
         self._refresh_shell()
@@ -1863,6 +1888,32 @@ class MainWindow(QMainWindow):
         if report:
             self.results_dock.show()
             self.results_dock.raise_()
+
+    def _save_report_images(self, job, result) -> None:
+        """Write a run's histograms into its folder as PNGs.
+
+        The picture is the answer for a pore size distribution, and a
+        run folder holding four columns of numbers and no plot is one
+        somebody has to reopen the application to look at.  Drawn here
+        rather than by the module because the drawing is Qt's and the
+        module is headless -- and a failure to write one must never
+        cost the run, which has already succeeded.
+        """
+        report = getattr(result, "report", None)
+        if job is None or job.folder is None or not report:
+            return
+        written = []
+        for index, histogram in enumerate(report.histograms):
+            name = safe_name(histogram.title or f"plot-{index + 1}",
+                             f"plot-{index + 1}").lower()
+            try:
+                written.append(save_histogram(
+                    histogram, job.folder.path / f"{name}.png"))
+            except Exception as exc:                # noqa: BLE001
+                self.show_message(f"could not write the plot: {exc}")
+                return
+        if written:
+            result.artifacts = tuple(result.artifacts) + tuple(written)
 
     def _finish_module(self):
         """Let go of the run, but not of the thread it was on.

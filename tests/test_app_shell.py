@@ -237,10 +237,15 @@ def test_cell_spinboxes_change_the_display_range(window, rutile_cif):
     assert doc.view.range_a == (0.0, 3.0)
 
 
-def test_spinboxes_follow_the_active_document(window, rutile_cif):
+def test_spinboxes_follow_the_active_document(window, rutile_cif,
+                                              quartz_cif):
+    """Two documents, and therefore two *files*: opening one file
+    twice now raises the tab it is already in rather than making a
+    second document, which is what tests/test_open_once.py is
+    about."""
     first = window.open_path(rutile_cif)
     first.set_cells(2, 2, 2)
-    window.open_path(rutile_cif)             # second tab, defaults
+    window.open_path(quartz_cif)             # second tab, defaults
     assert window.cell_spins[0].value() == 1
     window.tabs.setCurrentIndex(0)
     assert window.cell_spins[0].value() == 2

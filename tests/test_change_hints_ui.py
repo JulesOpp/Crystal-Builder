@@ -81,7 +81,7 @@ def test_the_preference_makes_them_follow(rutile_cif):
 
 
 def test_the_window_hands_the_preference_to_every_document(
-        qtbot, tmp_path, rutile_cif):
+        qtbot, tmp_path, rutile_cif, quartz_cif):
     settings = AppSettings("CrystalBuilderTest", f"Follow{tmp_path.name}")
     settings.clear_window()
     settings.last_directory = str(tmp_path)
@@ -95,8 +95,11 @@ def test_the_window_hands_the_preference_to_every_document(
     win.set_bonds_follow_geometry(True)
     assert document.bonds_follow_geometry
     assert settings.bonds_follow_geometry
-    # a document opened afterwards starts the same way
-    assert win.open_path(rutile_cif).bonds_follow_geometry
+    # A document opened afterwards starts the same way -- and it has
+    # to be a different *file*, or the window raises the tab that
+    # already has this one and the assertion is about the document
+    # the preference was just applied to.
+    assert win.open_path(quartz_cif).bonds_follow_geometry
     settings.bonds_follow_geometry = False
 
 

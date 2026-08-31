@@ -33,6 +33,8 @@ numbers are usually put side by side to answer.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QPainter, QPen
@@ -254,3 +256,51 @@ class HistogramPlot(QWidget):
             painter.setPen(color)
             painter.drawText(patch, Qt.AlignCenter, text)
             y += metrics.height()
+
+
+# ======================================================================
+#  THE SAME PICTURE, ON DISK
+# ======================================================================
+
+#: What a saved plot is drawn at.  Wide enough that the tick labels do
+#: not collide and the bars are more than a line, and a fixed size
+#: rather than the panel's, so the file does not depend on how the
+#: window happened to be arranged when the run finished.
+SAVE_SIZE = (1100, 560)
+
+
+def save_histogram(histogram, path, size=SAVE_SIZE, scale: int = 2):
+    """Draw a histogram into a PNG beside the run that produced it.
+
+    The picture is the answer for a pore size distribution, and a run
+    folder holding four columns of numbers and no plot is one somebody
+    has to reopen the application to look at.  Written by the window
+    rather than by the module because the drawing is Qt's and the
+    module is headless -- which is the same split as everywhere else.
+
+    ``scale`` is a device pixel ratio and not a resize: the widget
+    still lays itself out at ``size``, and the *painting* happens at
+    twice the resolution, so the axis labels come out sharp instead of
+    enlarged.  Scaling a finished picture up would give a blurry file
+    at the same information content.
+    """
+    from PySide6.QtCore import QPoint
+    from PySide6.QtGui import QPixmap
+
+    width, height = int(size[0]), int(size[1])
+    scale = max(1, int(scale))
+    plot = HistogramPlot()
+    plot.set_histogram(histogram)
+    plot.resize(width, height)
+
+    picture = QPixmap(width * scale, height * scale)
+    picture.setDevicePixelRatio(scale)
+    picture.fill(plot.palette().base().color())
+    painter = QPainter(picture)
+    plot.render(painter, QPoint())
+    painter.end()
+
+    path = Path(path)
+    if not picture.save(str(path), "PNG"):          # pragma: no cover
+        raise OSError(f"could not write {path}")
+    return path

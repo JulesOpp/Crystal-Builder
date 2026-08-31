@@ -69,15 +69,17 @@ useful would be on screen for two phases.
 Each of these is a day or less, depends on nothing, and can be pulled
 out of its phase whenever the pain is worth a detour.
 
-| Item | TODO section | Size |
+| Item | Phase it belongs to | Size |
 |---|---|---|
-| Arrow buttons on translate and rotate | Editing | S |
-| Bonds inside polyhedra | Appearance | S |
-| Cutoff and skin controls | Force field | S |
-| Edit cell in the right-click menu | Editing | S |
+| Cutoff and skin controls | I | S |
+| Editing the cell must not re-perceive the bonds | I | S |
+| The redraw rate must never decide what is recorded | I | S |
+| Edit cell in the right-click menu | J | S |
+| The window does not open the way it should | J | S |
 
-Two more sat here until Phase F took them: *Invert the structure* and
-*Invert Selection ignores symmetry*, both shipped.
+Four sat here until a phase took them: *Invert the structure* and
+*Invert Selection ignores symmetry* in F, *arrow buttons on translate
+and rotate* and *bonds inside polyhedra* in G.
 
 ---
 
@@ -812,6 +814,16 @@ rewriting every one of them.
   which is most of the cost of an SCC cycle and the reason a DFTB+
   optimisation is affordable at all.
 
+**Checked against DFTB+ 24.1**, once it was installed: the HSD this
+writes is read without conversion, and the ``detailed.out`` it
+produces parses into the energy and the forces the optimiser wants.
+That check moved the pinned parser version from 12 to 14 --
+`Analysis/CalculateForces` became `PrintForces` at 14, and a parser
+reading at 14 does not accept the old spelling quietly, it reports an
+ignored node and halts.  An input pinned lower is converted forward
+with a warning per renamed keyword, which on a two-hundred-step
+relaxation is two hundred copies of the same paragraph in the log.
+
 **Two things this phase moved to make room for it.**
 `Param` and `Availability` left the module registry for `xtal/params.py`
 — DFTB+ is an engine and needed the same declarations, and the
@@ -829,6 +841,41 @@ a module rather than an engine — a second way in, worth having and not
 what "the same features as the force field" asked for.  It is back in
 TODO.md.
 
+### Shipped alongside: four things that were in the way
+
+Not Phase H, but found by using it and fixed with it.
+
+* **A run that takes minutes now says so in a window.**  The module
+  tree's footer was the only thing that said a run was going, and a
+  status line at the bottom of a panel that may not be open is
+  indistinguishable from a frozen application.  The window is armed on
+  a timer and appears only if the run is still going 400 ms later, so
+  a module that answers in a second never puts one on the screen; it
+  carries the elapsed time, the last line the binary printed, and
+  Stop.  Closing it hides it and does not kill the run.
+* **A pore size distribution is written into the run folder as a
+  PNG**, at 2200×1120, drawn by the window because the drawing is Qt's
+  and the module is headless.  A run folder holding four columns of
+  numbers and no plot is one somebody has to reopen the application to
+  look at.  `.png` became an artefact kind of its own, so clicking it
+  in the workspace tree opens it in the desktop's picture viewer
+  rather than being handed to a structure reader that would refuse it.
+* **The same file no longer opens twice** — the TODO entry under
+  *Files and calculations*, which two documents with two undo stacks
+  over one file made worth doing now rather than later.  The test is
+  the resolved path, so a symlink and `/var` versus `/private/var` are
+  one file, and `data/a/MFU4l.cif` and `data/b/MFU4l.cif` are two.
+  The tab that has it is raised and the status bar says so.
+* **`Reset bonds to automatic`**, because *Recalculate bonds* was
+  reported as a button that did nothing.  It was not: it re-perceives
+  and then lays the user's own bond edits back over what it found,
+  which is correct and is also why deleting a bond and recalculating
+  gives back the identical graph in silence.  A deletion is stored as
+  a *suppression* precisely so perception cannot undo it, and it is
+  saved with the project — so until now there was no way back from one
+  once the undo stack had gone.  Recalculating now says what it kept,
+  and the new entry is what drops it.
+
 **Tests.** 79 new, none of which need either binary installed: Zeo++
 and DFTB+ are both driven through a stand-in named by their environment
 variable, which writes the output the real one would.  The one test
@@ -838,7 +885,235 @@ absent.
 
 ---
 
-## 12. Phase I — building
+## 12. Phase I — say the truth
+
+**Goal:** every place the application gives a confident wrong answer
+stops doing it.
+
+The four entries here have one thing in common, and it is the thing
+that makes them first: none of them *fails*.  Each produces a number
+or a file that looks exactly like a right one.  A structure that is
+four copies of itself has a formula, a density and an energy, and all
+three are wrong by that factor with nothing on screen saying so.
+
+| Item | TODO section | Size |
+|---|---|---|
+| Merge duplicates never looks at the symmetry | Symmetry | M |
+| The force field must never change the structure | Force field | M |
+| Editing the cell must not re-perceive the bonds | Editing | S |
+| The cutoff and the skin have no controls | Force field | S |
+| The redraw rate must never decide what is recorded | Files | S |
+
+**Merge duplicates first**, because it is the one with a file that
+demonstrates it: `Ni2Cl2BTDD.cif` expands to 1188 atoms of which 2150
+pairs are within half an Angstrom, and *Merge duplicate sites* reports
+"no duplicates found" at every tolerance.  The comparison is against
+the parent coordinates and has to be against the **orbit** — `C1` and
+`C1X` are 7.2 Å apart as written and 2e-5 Å apart as images.  It needs
+a tolerance dialog with the count beside it, the same shape as the
+bond-rules dialog, because the right tolerance is a property of the
+file; and the site that is kept has to be the one on the more special
+Wyckoff position, or merging changes the multiplicity and therefore
+the formula.
+
+**The force field must never change the structure** is a rule rather
+than a fix: `ff/api.py` and the optimiser take the structure as given,
+`ff/hydrogens.py` becomes reachable only from the Structure menu, and
+every entry point that currently mutates becomes a check that
+*reports*. "Add the 24 hydrogens this needs?" as a question, applied as
+an ordinary undoable edit before the run, is what the present
+behaviour was reaching for — with the user holding the pen.
+
+**Editing the cell must not re-perceive the bonds** is `Change.CELL`
+in `Document._after_change` and `Structure.touch`, which drops the
+stored graph today.  Phase H made the way back from a bond edit
+explicit (*Reset bonds to automatic*); this makes the way *in*
+deliberate, so that nudging *c* by a hundredth of an Ångström to match
+a refinement does not silently rebuild a graph the user drew.
+
+**The last two are a day between them** and are here because they
+belong to the same panels: the vdW cutoff and skin are on
+`UFFOptions` and unreachable, and the redraw-rate rule is true today
+and asserted nowhere — a test that relaxes with the interval at −1 and
+counts the frames in the written trajectory is the whole of it.
+
+---
+
+## 13. Phase J — the window and the gestures
+
+**Goal:** the things done twenty times an hour take one gesture, and
+the application opens in the arrangement somebody actually works in.
+
+| Item | TODO section | Size |
+|---|---|---|
+| The window does not open the way it should | Appearance | S |
+| Edit cell from the right-click menu | Editing | S |
+| Measure from the right-click menu | Editing | M |
+| Add Atom should place the atom at a bond length | Editing | M |
+| An atom has nothing to say when you hover over it | Appearance | M |
+
+Three of these are the same machinery — the action registry and
+`MainWindow.CONTEXT_MENUS` — and one of them is not, which is why the
+phase is not a morning.
+
+**Measure from the right-click menu needs an ordered selection.**  With
+three atoms picked as A–B–C the vertex is B and no other reading is
+right, and `Selection` stores a set.  Stating the rule ("the order you
+clicked them") without keeping the order is a lie, so the order has to
+be kept — which is a change to a type most of the application touches,
+and is the reason this entry is M and not S.
+
+**Add Atom is a two-click gesture**, not a dialog: click an atom to
+anchor, then click a direction, with a ghost atom at the bond distance
+following the cursor in between.  The state machine is the one
+`AddBondMode` already has.  The distance is the sum of the two
+covalent radii, which `xtal.core.elements` already carries.
+
+**The tooltip's content is the interesting decision**, and it should
+be what the current view is about: the label and element always, the
+UFF type and its reason when the Force Field dock is open, U_eq when
+the ORTEP style is drawn.  One that always says the same four things
+is one people learn to ignore.
+
+**The default layout is a default, not a rule** — a saved layout still
+wins — and `Reset layout` has to land on the same arrangement or the
+menu item stops being a way back.
+
+---
+
+## 14. Phase K — the picture says how big, and where
+
+**Goal:** the viewport carries the two things it currently cannot: a
+length, and the geometry the user has defined on top of the crystal.
+
+| Item | TODO section | Size |
+|---|---|---|
+| A fixed scale bar, so a relaxing cell is seen to relax | Appearance | M |
+| A plane you have defined is nowhere on screen | Appearance | M |
+
+Both are new generated geometry in the scene, both are view state that
+never touches the undo stack, both get a View menu toggle, and both are
+saved in the session — so they are one phase and not two.
+
+**The scale bar carries a bug with it.**  `VtkScene.set_positions`
+updates atoms, bonds, polyhedra, highlights and labels and *not*
+`_cell_poly`, and `_same_shape` compares `n_cell_lines`, which does not
+change when the cell merely changes size.  So during a variable-cell
+relaxation the atoms move inside a box that is still the old one.  A
+ruler beside a box that does not move would make that visible and
+still be wrong; the frame's points have to be refreshed alongside the
+atoms.  **The bar must not rescale during a run** — fix it when the
+relaxation starts and leave it, so a cell that contracts by 4% is a box
+that visibly shrinks against a ruler that does not.
+
+**Planes have everything but the drawing.**  `measure.plane` already
+returns the centroid and the normal; what is missing is a translucent
+quad at them, sized from the extent of its own atoms, for the rows
+selected in the Planes list.  The normal goes on as a short line,
+because two nearly parallel planes are told apart by their normals and
+not by their faces.  `VtkScene._set_polyhedra` is the machinery: it
+takes triangles and a colour, which is all a quad is.
+
+---
+
+## 15. Phase L — the engines answer in pictures
+
+**Goal:** the half of Phase H that is a drawing rather than a number,
+and the half of DFTB+ that its own driver does better.
+
+| Item | TODO section | Size |
+|---|---|---|
+| Zeo++: draw the answer, do not only print it | Modules | M |
+| DFTB+'s own driver | Modules | L |
+
+**Zeo++ first, and it is the reason this phase exists.**  The three
+diameters are in a table and the table is right, and a
+porous-materials application that can only *print* 9.18 Å is a
+spreadsheet.  The largest free sphere drawn where it actually sits is
+the picture somebody puts in a paper.  `-res` gives the diameter and
+not the position, so this needs `-chan` or `-visVoro` and a new actor
+beside `_set_polyhedra` — which is the same actor Phase K builds for
+planes, and is the argument for K coming first.  Channel
+dimensionality (1D, 2D or 3D pores) falls out of `-chan`'s output for
+free, and `-vol` is parsed already and wants an action of its own.
+
+**DFTB+'s own driver is a module, not an engine.**  Reached as an
+engine it already does a single point and a geometry optimisation with
+the symmetry projection intact; what its internal driver does better
+is **lattice relaxation** — ours costs twelve extra energy evaluations
+a step because no analytic stress is claimed — and **molecular
+dynamics**, which has no route through `Calculator` at all: MD is a
+trajectory DFTB+ produces, not a sequence of energies we ask for.
+
+Most of it is already written.  `xtal/ff/dftb/hsd.py` writes the input
+and checks the parameter set, `xtal/io/gen.py` reads the geometry
+back, and `xtal/modules/process.py` runs, streams and cancels it.  What
+is new is a `Driver` block, the parsing of a multi-step output, and the
+trajectory read back into the transport bar.
+
+**The cheaper half of the stress question is worth doing first**: read
+DFTB+'s printed stress tensor and *check* it against
+`numeric_stress` on a structure with a known answer.  If it agrees,
+the engine can claim it and variable-cell relaxation gets twelve times
+cheaper without the driver being written at all.
+
+**Phase I's redraw rule applies here in full.**  Whatever DFTB+ writes
+into its run folder has to be a function of the run and not of what the
+window was showing: no frame skipped because nobody was looking, and
+the trajectory after a headless `xtal run` byte-for-byte the same as
+after a watched one.
+
+---
+
+## 16. Phase M — the klassengleiche half
+
+**Goal:** *Descend to a subgroup* offers the subgroups that split an
+orbit without touching the cell, and then the ones that double it.
+
+| Item | TODO section | Size |
+|---|---|---|
+| A lost centring, in the same cell | Symmetry | M |
+| A doubled cell, from the table | Symmetry | L |
+
+One TODO entry, two pieces that are nothing like each other, and they
+are separated here because the first is a computation and the second is
+a data set.
+
+**A lost centring needs no cell transformation at all.**  Fm-3m
+contains Pm-3m as a genuine subset of its operations, at index 4, in
+the same cubic cell; rock salt descended that way puts its four sodiums
+and four chlorines on eight independent sites, which is the
+cation-ordering model.  It is also why halite is the one fixture in the
+suite where no descent splits anything.
+
+**It does not fall out of the existing enumeration** by not dividing
+the centring out.  `xtal/core/subgroups.py` reduces modulo the centring
+translations on purpose: the reduction is what makes the closure
+affordable, and the "generated by at most three elements" shortcut — a
+fact about crystallographic *point* groups — stops being safe the
+moment the translations are back in. A run that assumes it over Fm-3m's
+192 operations reports 96 maximal subgroups, some maximal only because
+the intermediate group needed a fourth generator and was never found.
+The tractable route keeps the reduction: enumerate the subgroups of the
+*centring* group that the point group leaves invariant, lift the
+reduced generators through each coset representative, and close.  For F
+that is a handful of closures.  Naming and application need nothing
+new.
+
+**The doubled cell is the table.**  Superstructures and
+antiferromagnetic ordering live there, every relation carries its own
+cell transformation and origin shift, and that is Bilbao's MAXSUB
+rather than a computation.  Worth doing last, and worth not implying
+the earlier versions do it — the dialog says *translationengleiche*
+and no cell is doubled, which stays true until this lands.
+
+---
+
+## 17. Phase N — building
+
+Pushed to the end deliberately.  Everything above it makes an existing
+crystal easier to trust; this makes a new one, and it is the only phase
+whose main cost is a dependency decision rather than a piece of work.
 
 | Item | Size |
 |---|---|
@@ -851,22 +1126,31 @@ text box that turns `c1ccccc1C(=O)[O-]` into a benzoate sitting in the
 cell is a few days of work and covers most of what the sketcher was
 wanted for.
 
+**The 3D half is the tractable one** and lives in a new headless
+`xtal/build/`: place each atom from the neighbour that put it there,
+using `terms.natural_bond_length` for the distance and the type's own
+`theta0` for the angle, with staggered torsions and templates for ring
+systems — every one of those numbers is already in `xtal/ff/uff` and is
+already the geometry UFF wants, so the result starts at the force
+field's minimum.  Then relax it with UFF, which needs no new code path,
+only a cell with enough vacuum.
+
 The editor itself is an **integration, not a build**.  rdEditor is
 PySide6, RDKit-backed, weak-copyleft and written as reusable widgets;
-the spike that decides the phase is half a day -- put its editor widget
+the spike that decides the phase is half a day — put its editor widget
 in a bare dialog and get a `Mol` back out.  If the widget does not come
 apart from its shell, Ketcher in a `QWebEngineView` is the fallback.
 Writing a canvas from scratch is not on this list.
 
 Decide the RDKit question before starting, because it decides the rest:
 choosing rdEditor is choosing RDKit, and RDKit also solves the 3D half.
-An optional `[build]` extra -- RDKit-backed when installed, the native
-fragment builder when not, one interface over both -- keeps it out of
+An optional `[build]` extra — RDKit-backed when installed, the native
+fragment builder when not, one interface over both — keeps it out of
 the default bundle, which is the only real argument against it.
 
 ---
 
-## 13. Summary
+## 18. Summary
 
 | Phase | Theme | Rough size |
 |---|---|---|
@@ -877,11 +1161,31 @@ the default bundle, which is the only real argument against it.
 | **D** | Modules | ✅ done |
 | **E** | Force field | ✅ done |
 | **F** | Symmetry | ✅ done |
-| **G** | The picture | L |
+| **G** | The picture | ✅ done |
 | **H** | Zeo++, then DFTB+ | ✅ done |
-| **I** | Building | M (XL with the sketcher) |
+| **I** | Say the truth | M |
+| **J** | The window and the gestures | M |
+| **K** | The picture says how big, and where | M |
+| **L** | The engines answer in pictures | L |
+| **M** | The klassengleiche half | L |
+| **N** | Building | M (XL with the sketcher) |
 
-## 14. What this plan does not do
+Phases I to N schedule **every entry left in
+[docs/TODO.md](TODO.md)**, and nothing else.  An entry ships when its
+phase does; a new entry arriving in TODO.md joins the phase it belongs
+to rather than starting a new one, and the day one does not fit any of
+them is the day this file is wrong and gets rewritten again.
+
+The order is one argument: **a wrong number is worse than a missing
+one.**  Phase I is every place the application answers confidently and
+incorrectly, and it comes before anything that makes it nicer to use.
+After that it descends by how often a thing is touched — the gestures
+of an ordinary hour (J), then what the viewport can show (K), then the
+half of the external engines that is a picture (L), then a piece of
+crystallography most users will never reach (M), then the one phase
+that builds something new rather than trusting something old (N).
+
+## 19. What this plan does not do
 
 * It does not schedule PXRD, volumetric data, SHELX round-trips or
   Rietveld.  Those are in [docs/PLAN.md](PLAN.md) § 12 and stay there
