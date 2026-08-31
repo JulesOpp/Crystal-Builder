@@ -177,6 +177,7 @@ def _assign(structure, rules) -> Typing:
             types.append(_type_of(i, cell, graph, geometry,
                                   i in aromatic))
     _refine_terminal(types, cell, geometry)
+    _apply_stated_orders(types, cell, graph, geometry)
     # The orders are the core's -- counting pi bonds is chemistry, and
     # the viewport reads the same numbers.  What is added here is the
     # one place UFF disagrees with a plain bond order, and it is UFF's
@@ -506,6 +507,70 @@ def _implied_length(candidate: str, partner: str) -> float:
     order = 1.0 + min(PI_CAPACITY.get(candidate, 0),
                       PI_CAPACITY.get(partner, 0))
     return terms.natural_bond_length(candidate, partner, order)
+
+
+# ======================================================================
+#  STATED ORDERS: LET THE USER DECIDE
+# ======================================================================
+
+#: The type an atom takes when the pi count at it is *stated*, indexed
+#: by that count: none, one, two.  Only the elements whose UFF types
+#: are a choice of hybridisation are here.  Sulfur and phosphorus are
+#: deliberately absent: their type names encode an oxidation state
+#: rather than a hybridisation -- ``S_3+6`` is a sulfate sulfur, not an
+#: sp3 one -- and their coordination already decides between them.
+BY_STATED_PI = {
+    "C": ("C_3", "C_2", "C_1"),
+    "N": ("N_3", "N_2", "N_1"),
+    "O": ("O_3", "O_2"),
+    "B": ("B_3", "B_2"),
+}
+
+#: The resonant type for an element, for an atom the user called
+#: aromatic.
+BY_STATED_RESONANCE = {"C": "C_R", "N": "N_R", "O": "O_R", "S": "S_R"}
+
+
+def _apply_stated_orders(types, cell, graph, geo) -> None:
+    """Retype the atoms whose bond orders the user has stated.
+
+    The geometry rules above read angles, which is the only evidence
+    there is until somebody says otherwise.  Set Bond Type is somebody
+    saying otherwise, and a stated order settles the hybridisation:
+    two single bonds on a carbon is sp3 whether the model has them
+    drawn at 109 degrees or at 180.  This is what makes *Add
+    hydrogens* put two hydrogens on that carbon rather than one -- the
+    valence was never the part that was wrong.
+
+    A statement that contradicts the coordination is not applied: four
+    neighbours and a stated double bond describes no carbon, and the
+    angles are better evidence than an order that cannot be right.
+    """
+    resonant = bonding.stated_resonant(graph)
+    for atom, pi in bonding.stated_pi(graph).items():
+        if types[atom].overridden:
+            continue                    # a hand-set type outranks it
+        element = cell.elements[atom]
+        neighbours = geo.coordination(atom)
+        if atom in resonant:
+            name = BY_STATED_RESONANCE.get(element)
+            room = 3                    # resonant types are trigonal
+        else:
+            candidates = BY_STATED_PI.get(element)
+            if candidates is None:
+                continue
+            pi = int(round(pi))
+            name = candidates[min(pi, len(candidates) - 1)]
+            # sp3 has four directions to share out, sp2 three, sp two.
+            room = 4 - min(pi, 2)
+        if name is None or neighbours > room:
+            continue
+        types[atom] = AtomType(
+            name, CERTAIN,
+            "every bond at it is stated, and the user called it "
+            "aromatic" if atom in resonant else
+            f"every bond at it is stated, and they carry "
+            f"{pi:g} pi bond(s)")
 
 
 # ======================================================================

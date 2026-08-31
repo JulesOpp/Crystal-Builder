@@ -27,7 +27,7 @@ from tests.conftest_ff import (
 )
 from xtal import Lattice, Structure
 from xtal.core import bonding, p1
-from xtal.core.structure import Bond
+from xtal.core.structure import Bond, Change
 from xtalapp.viewport import scene as scene_module
 from xtalapp.viewport.builder import _bond_frames, build_scene
 from xtalapp.viewport.view_settings import ViewSettings
@@ -244,3 +244,202 @@ def test_an_aromatic_ring_that_closes_through_a_cell_face_is_still_one():
         lattice, ["C"] * 6, lattice.to_frac(np.array(ring)),
         space_group="P1")
     assert set(bonding.orders(structure)) == {1.5}
+
+
+# ------------------------------------------------------ stating an order
+
+def test_a_stated_order_beats_the_inference():
+    """The point of Set Bond Type: the geometry says one thing and the
+    chemist says another, and the chemist wins."""
+    from xtal.commands import Host
+    from xtal.commands.bonds import SetBondType
+
+    molecule = butadiene()
+    cell = p1.expand(molecule)
+    inferred = bonding.orders(molecule)
+    middle = [k for k, b in enumerate(bonding.graph(molecule).bonds)
+              if inferred[k] == 1.0
+              and cell.elements[b.i] == cell.elements[b.j] == "C"][0]
+    bond = bonding.graph(molecule).bonds[middle]
+
+    host = Host(molecule)
+    SetBondType.between_atoms(molecule, cell, bond.i, bond.j, 2.0,
+                              (0, 0, 0), bond.image).do(host)
+
+    orders = bonding.orders(molecule)
+    key = bonding.graph(molecule).bonds[middle].key()
+    same = [k for k, b in enumerate(bonding.graph(molecule).bonds)
+            if b.key() == key][0]
+    assert orders[same] == 2.0
+
+
+def test_a_bond_stated_single_stays_single():
+    """The case a number alone cannot express.
+
+    An explicit bond carries order 1.0 whether the user chose single or
+    never said anything, so "single" has to be stated as well as
+    written -- otherwise the inference goes on calling this bond double
+    because both its ends look sp2.
+    """
+    from xtal.commands import Host
+    from xtal.commands.bonds import SetBondType
+
+    molecule = butadiene()
+    cell = p1.expand(molecule)
+    double = [k for k, b in enumerate(bonding.graph(molecule).bonds)
+              if bonding.orders(molecule)[k] == 2.0][0]
+    bond = bonding.graph(molecule).bonds[double]
+
+    host = Host(molecule)
+    command = SetBondType.between_atoms(molecule, cell, bond.i, bond.j,
+                                        1.0, (0, 0, 0), bond.image)
+    command.do(host)
+
+    key = bond.key()
+    orders = bonding.orders(molecule)
+    same = [k for k, b in enumerate(bonding.graph(molecule).bonds)
+            if b.key() == key][0]
+    assert orders[same] == 1.0
+
+    command.undo(host)
+    orders = bonding.orders(molecule)
+    same = [k for k, b in enumerate(bonding.graph(molecule).bonds)
+            if b.key() == key][0]
+    assert orders[same] == 2.0
+
+
+def test_automatic_takes_the_statement_back():
+    """The way out of a wrong answer that is not Ctrl+Z."""
+    from xtal.commands import Host
+    from xtal.commands.bonds import SetBondType
+
+    molecule = butadiene()
+    cell = p1.expand(molecule)
+    bond = bonding.graph(molecule).bonds[0]
+    host = Host(molecule)
+
+    SetBondType.between_atoms(molecule, cell, bond.i, bond.j, 3.0,
+                              (0, 0, 0), bond.image).do(host)
+    assert any(b.stated for b in molecule.bonds)
+
+    SetBondType.between_atoms(molecule, cell, bond.i, bond.j, None,
+                              (0, 0, 0), bond.image).do(host)
+    assert not molecule.bonds
+
+
+def test_a_stated_order_survives_a_round_trip():
+    """It is a statement about the crystal, so it belongs in the file
+    and not only in the session."""
+    from xtal.core.structure import Bond
+
+    stated = Bond(0, 1, (0, 0, 0), 1.0, "explicit", 0, stated=True)
+    assert Bond.from_dict(stated.to_dict()).stated
+    assert not Bond.from_dict(Bond(0, 1).to_dict()).stated
+    assert stated.reverse(Structure.empty().space_group).stated
+
+
+# --------------------------------------------- many bonds in one edit
+
+def a_framework():
+    """MFU-4l: 648 atoms, 848 drawn bonds, 192 symmetry operations --
+    the structure Select All was unusable on."""
+    from xtal.io import read_cif
+    return read_cif("resources/samples/MFU4l.cif")
+
+
+def test_setting_every_bond_is_one_command_and_one_change():
+    """The fix for the stall.  A command per bond is a touch per bond,
+    and a touch drops the P1 expansion -- so eight hundred bonds
+    re-expanded a 648-atom cell eight hundred times and redrew it
+    eight hundred times on the way to a picture that only changes
+    once."""
+    from xtalapp.document import Document
+
+    document = Document(a_framework())
+    document.select_all()
+    assert len(document.selection.bonds) == 848
+
+    revision = document.structure.revision
+    changes = []
+    document.structureChanged.connect(changes.append)
+    document.set_selected_bond_type(2.0)
+
+    assert changes == [int(Change.TOPOLOGY)]        # one redraw
+    assert document.structure.revision == revision + 1
+    assert document.stack.depth == 1                # one Ctrl+Z
+
+
+def test_deleting_every_bond_is_one_command_too():
+    from xtalapp.document import Document
+
+    document = Document(a_framework())
+    document.select_all()
+    changes = []
+    document.structureChanged.connect(changes.append)
+    document.delete_selected_bonds()
+
+    assert len(changes) == 1
+    assert document.stack.depth == 1
+    assert not bonding.graph(document.structure).bonds
+
+
+def test_a_bulk_edit_is_one_record_per_pair_not_per_drawn_bond():
+    """848 drawn bonds are a handful of pairs of the asymmetric unit,
+    and storing one record each is what keeps the file small and the
+    undo cheap."""
+    from xtalapp.document import Document
+
+    document = Document(a_framework())
+    document.select_all()
+    document.set_selected_bond_type(1.0)
+
+    assert len(document.structure.bonds) < 40
+    assert all(b.stated for b in document.structure.bonds)
+    assert set(bonding.orders(document.structure)) == {1.0}
+
+
+def test_a_bulk_edit_undoes_in_one_step():
+    from xtalapp.document import Document
+
+    document = Document(a_framework())
+    before = list(document.structure.bonds)
+    document.select_all()
+    document.set_selected_bond_type(3.0)
+    assert set(bonding.orders(document.structure)) == {3.0}
+
+    document.undo()
+
+    assert document.structure.bonds == before
+    assert set(bonding.orders(document.structure)) != {3.0}
+
+
+def test_a_bulk_type_edit_leaves_a_suppression_alone():
+    """A suppression says these two atoms are *not* bonded, which is a
+    different statement from an order and must not be overwritten by
+    one -- otherwise Select All then Set Bond Type puts back every bond
+    the user had deleted."""
+    from xtalapp.document import Document
+
+    document = Document(a_framework())
+    document.select_bond(bonding.graph(document.structure).bonds[0].key())
+    document.delete_selected_bonds()
+    gone = len(bonding.graph(document.structure).bonds)
+
+    document.select_all()
+    document.set_selected_bond_type(1.0)
+
+    assert len(bonding.graph(document.structure).bonds) == gone
+    assert any(b.kind == "suppressed" for b in document.structure.bonds)
+
+
+def test_automatic_over_a_whole_selection_takes_every_statement_back():
+    from xtalapp.document import Document
+
+    document = Document(a_framework())
+    document.select_all()
+    document.set_selected_bond_type(2.0)
+    assert document.structure.bonds
+
+    document.set_selected_bond_type(None)
+
+    assert not any(b.stated for b in document.structure.bonds)

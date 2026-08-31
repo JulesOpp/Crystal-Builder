@@ -386,7 +386,7 @@ def map_explicit_bond(structure, cell: p1.P1Cell,
         cell_bond = CellBond(
             int(a), int(b), tuple(int(v) for v in image),
             neighbors.min_image_distance(cell.frac[a], there, lattice),
-            explicit=True, order=bond.order)
+            explicit=True, order=bond.order, stated=bond.stated)
         out[cell_bond.key()] = cell_bond
     return list(out.values())
 
@@ -631,10 +631,20 @@ def geometry(structure, rules: BondRules | None = None) -> Geometry:
     not do is ask this for angles mid-run and believe them.
     """
     key = f"geometry:{rules.signature() if rules else ''}"
-    return structure.cached(
-        key,
-        lambda: Geometry(p1.expand(structure), graph(structure, rules)),
-        invalidated_by=CHEMISTRY)
+
+    def build():
+        return Geometry(p1.expand(structure), graph(structure, rules))
+
+    cell = p1.expand(structure)
+    geo = structure.cached(key, build, invalidated_by=CHEMISTRY)
+    if geo.cell.n_atoms != cell.n_atoms:
+        # The graph underneath was re-perceived because a
+        # positions-only edit changed how many atoms the cell holds --
+        # see :func:`_drawn`.  Holding still is one thing; indexing a
+        # cell that no longer exists is another.
+        structure.drop_cache(key)
+        geo = structure.cached(key, build, invalidated_by=CHEMISTRY)
+    return geo
 
 
 # ======================================================================
@@ -735,7 +745,9 @@ def find_rings(graph, candidates: set, max_size: int) -> list[list]:
 
 #: Below this the number is "not stated": an explicit bond left at the
 #: default order is inferred like any other, and one the user actually
-#: set overrides the inference.
+#: set overrides the inference.  A bond the user set to *single* says so
+#: with :attr:`Bond.stated` instead, because 1.0 is also what an
+#: undecided bond carries.
 STATED_ORDER_TOLERANCE = 1e-9
 
 AROMATIC_ORDER = 1.5
@@ -846,8 +858,59 @@ def orders(structure, rules: BondRules | None = None) -> np.ndarray:
     atoms drifted together.
     """
     key = f"bond-orders:{rules.signature() if rules else ''}"
-    return structure.cached(key, lambda: _infer_orders(structure, rules),
-                            invalidated_by=CHEMISTRY)
+    bonds = graph(structure, rules).bonds
+    out = structure.cached(key, lambda: _infer_orders(structure, rules),
+                           invalidated_by=CHEMISTRY)
+    if len(out) != len(bonds):
+        # One order per bond of the graph, *this* graph.  A
+        # positions-only edit that moves an atom off a special position
+        # splits its orbit, which re-perceives the graph underneath
+        # this array -- see :func:`_drawn` -- and an array that is one
+        # bond per bond of the graph before that is not merely stale,
+        # it is the wrong length, and the code that draws bond orders
+        # indexes off the end of it.
+        structure.drop_cache(key)
+        out = structure.cached(key, lambda: _infer_orders(structure, rules),
+                               invalidated_by=CHEMISTRY)
+    return out
+
+
+def stated_pi(graph) -> dict[int, float]:
+    """The pi count *stated* at each atom, where every bond says one.
+
+    A bond order the user set is a statement about the bonding, and how
+    many pi bonds an atom carries is what decides its hybridisation --
+    so a carbon with two bonds the user called single is sp3 whatever
+    angle the two neighbours happen to be drawn at.  The typer reads
+    this and believes it over the geometry.
+
+    Only atoms whose bonds are *all* stated appear here.  One stated
+    bond among three inferred ones says nothing about the total, and
+    concluding a hybridisation from it would let a single click retype
+    an atom the user was not talking about.
+    """
+    total: dict[int, float] = {}
+    for bond in graph.bonds:
+        for atom in (bond.i, bond.j):
+            if not bond.stated:
+                total[atom] = float("nan")
+            elif total.get(atom) == total.get(atom):    # not already nan
+                total[atom] = total.get(atom, 0.0) + bond.order - 1.0
+    return {atom: pi for atom, pi in total.items() if pi == pi}
+
+
+def stated_resonant(graph) -> set[int]:
+    """The atoms the user called aromatic.
+
+    Read separately from :func:`stated_pi` because the pi count cannot
+    carry it: two aromatic bonds at a ring carbon sum to exactly one pi
+    bond, which is indistinguishable from one plain double bond, and
+    the two mean different types to a force field.
+    """
+    return {atom for bond in graph.bonds
+            if bond.stated
+            and abs(bond.order - AROMATIC_ORDER) < STATED_ORDER_TOLERANCE
+            for atom in (bond.i, bond.j)}
 
 
 def _infer_orders(structure, rules) -> np.ndarray:
@@ -869,7 +932,8 @@ def _infer_orders(structure, rules) -> np.ndarray:
     # somewhere else in the same ring.
     stated = [k for k, b in enumerate(bonds)
               if b.explicit
-              and abs(b.order - 1.0) > STATED_ORDER_TOLERANCE]
+              and (b.stated
+                   or abs(b.order - 1.0) > STATED_ORDER_TOLERANCE)]
     for k in stated:
         out[k] = float(bonds[k].order)
         used = max(0, int(round(bonds[k].order)) - 1)

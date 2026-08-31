@@ -27,9 +27,12 @@ from tests.conftest_ff import (
 )
 from xtal import Lattice, Structure
 from xtal.commands.base import CommandStack, Host
+from xtal.commands.bonds import SetBondType
 from xtal.commands.ff import AddHydrogens
+from xtal.core import bonding, p1
 from xtal.core.site import Site
 from xtal.ff import hydrogens
+from xtal.ff.uff import typer
 
 
 def cart(structure):
@@ -285,3 +288,121 @@ def test_every_added_hydrogen_gets_its_own_label():
     CommandStack().push(AddHydrogens(), host)
     labels = [s.label for s in host.structure.sites if s.element == "H"]
     assert len(set(labels)) == len(labels) == 6
+
+
+# ------------------------------------- the user overruling the geometry
+
+def state_every_bond(structure, order) -> None:
+    """What Set Bond Type does to every bond of a structure."""
+    cell = p1.expand(structure)
+    host = Host(structure)
+    for bond in list(bonding.graph(structure).bonds):
+        SetBondType.between_atoms(structure, cell, bond.i, bond.j,
+                                  order, (0, 0, 0), bond.image).do(host)
+
+
+def state_one_bond(structure, order, which: int = 0):
+    """The same, on a single bond.  Returns the bond it acted on."""
+    bond = bonding.graph(structure).bonds[which]
+    SetBondType.between_atoms(structure, p1.expand(structure), bond.i,
+                              bond.j, order, (0, 0, 0),
+                              bond.image).do(Host(structure))
+    return bond
+
+
+def bent_carbon(angle_degrees: float) -> Structure:
+    """One carbon at the origin with two carbon neighbours, at a
+    chosen angle.  The angle is the point: the typer reads it, and a
+    stated order has to beat it."""
+    half = math.radians(angle_degrees / 2)
+    return skeleton(
+        ("C", [0.0, 0.0, 0.0]),
+        ("C", [1.5 * math.sin(half), 1.5 * math.cos(half), 0.0]),
+        ("C", [-1.5 * math.sin(half), 1.5 * math.cos(half), 0.0]))
+
+
+def on_the_middle(structure) -> int:
+    """How many of the planned hydrogens land on the atom at the
+    origin."""
+    _plan, positions = added(structure)
+    centre = cart(structure)[0]
+    return sum(1 for h in positions
+               if np.linalg.norm(h - centre) < 1.2)
+
+
+@pytest.mark.parametrize("drawn_angle", [109.5, 120.0, 180.0])
+def test_two_stated_single_bonds_want_two_hydrogens(drawn_angle):
+    """A carbon with two bonds the user has called single is sp3, and
+    an sp3 carbon with two neighbours is two hydrogens short --
+    whatever angle the model happens to have them drawn at.
+
+    Before this, the geometry decided the hybridisation on its own: the
+    same carbon drawn at 120 degrees was typed sp2 and got one
+    hydrogen, and drawn linear was typed sp and got none.  The valence
+    was never the part that was wrong.
+    """
+    structure = bent_carbon(drawn_angle)
+    state_every_bond(structure, 1.0)
+    assert on_the_middle(structure) == 2
+
+
+def test_a_stated_double_bond_leaves_room_for_one():
+    """The other half of the same rule: one double and one single is
+    sp2 -- three directions, two of them taken, one hydrogen."""
+    structure = bent_carbon(120.0)
+    state_every_bond(structure, 1.0)
+    state_one_bond(structure, 2.0)
+    assert on_the_middle(structure) == 1
+
+
+def test_two_stated_double_bonds_leave_no_room_at_all():
+    """Two doubles is sp, which has two directions and both are
+    spoken for -- and the valence agrees: 2 + 2 is 4."""
+    structure = bent_carbon(120.0)
+    state_every_bond(structure, 2.0)
+    assert on_the_middle(structure) == 0
+
+
+def test_calling_a_ring_single_makes_it_cyclohexane():
+    """Benzene's carbons take one hydrogen each.  The same ring with
+    every bond called single is sp3 and takes two -- the difference
+    between the molecule the geometry suggests and the one the user
+    says they have."""
+    assert added(benzene(with_hydrogen=False))[0].n_atoms == 6
+
+    saturated = benzene(with_hydrogen=False)
+    state_every_bond(saturated, 1.0)
+    assert added(saturated)[0].n_atoms == 12
+
+
+def test_calling_a_ring_aromatic_keeps_it_aromatic():
+    """Two stated aromatic bonds sum to exactly one pi bond, which is
+    also what one plain double bond sums to -- so resonance has to be
+    read from the orders themselves and not from the total."""
+    ring = benzene(with_hydrogen=False)
+    state_every_bond(ring, 1.5)
+    assert typer.assign(ring).types[0].name == "C_R"
+    assert added(ring)[0].n_atoms == 6
+
+
+def test_an_unstated_bond_leaves_the_geometry_in_charge():
+    """One statement among several says nothing about the total, so it
+    must not retype the atom: a single click would otherwise turn a
+    benzene into a cyclohexane."""
+    ring = benzene(with_hydrogen=False)
+    bond = state_one_bond(ring, 1.0)
+
+    assert typer.assign(ring).types[bond.i].name == "C_R"
+    assert added(ring)[0].n_atoms == 6
+
+
+def test_a_stated_order_that_contradicts_the_coordination_is_ignored():
+    """Four neighbours and a stated double bond describes no carbon.
+    The angles are better evidence than an order that cannot be
+    right."""
+    neopentane_core = skeleton(
+        ("C", [0.0, 0.0, 0.0]), ("C", [0.89, 0.89, 0.89]),
+        ("C", [0.89, -0.89, -0.89]), ("C", [-0.89, 0.89, -0.89]),
+        ("C", [-0.89, -0.89, 0.89]))
+    state_every_bond(neopentane_core, 2.0)
+    assert typer.assign(neopentane_core).types[0].name == "C_3"

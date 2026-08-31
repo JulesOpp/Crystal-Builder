@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 
 from xtal import Lattice, Structure
+from xtal.core.selection import Selection
 from xtalapp.viewport import modes
 from xtalapp.viewport.builder import build_scene
 from xtalapp.viewport.view_settings import ViewSettings
@@ -22,18 +23,23 @@ class FakeDocument:
     def __init__(self):
         self.selected: list = []
         self.calls: list = []
+        self.selection = Selection()
+        self.with_bonds: list = []
 
-    def select(self, atoms, mode="set"):
+    def select(self, atoms, mode="set", with_bonds=False):
         atoms = [int(a) for a in atoms]
         self.calls.append((sorted(atoms), mode))
+        self.with_bonds.append(with_bonds)
         if mode == "add":
             self.selected = sorted(set(self.selected) | set(atoms))
         else:
             self.selected = sorted(atoms)
+        self.selection.set_atoms(self.selected)
 
     def select_none(self):
         self.calls.append(([], "none"))
         self.selected = []
+        self.selection.clear()
 
 
 def a_row_of_atoms(n=5, spacing=2.0, box=30.0) -> Structure:
@@ -135,6 +141,33 @@ def test_a_drawn_copy_selects_the_atom_it_is_a_copy_of(rutile):
         modes.DragEvent((-1e6, -1e6), (1e6, 1e6), False,
                         lambda p: p[:, :2]))
     assert document.selected == sorted(set(model.atom_index.tolist()))
+
+
+def test_the_box_takes_the_bonds_between_what_it_took():
+    """A box is how a fragment gets named, and the bonds inside a named
+    fragment are part of what was named -- otherwise Set Bond Type
+    after a box acts on nothing at all."""
+    model = build_scene(a_row_of_atoms(spacing=1.5),
+                        ViewSettings(show_cell=False))
+    document, message = drag(model, (-0.5, -1.0), (4.0, 1.0))
+    assert document.selected == [0, 1, 2]
+    assert document.with_bonds == [True]
+    assert "bond(s) in the box" in message
+
+
+def test_a_bond_with_one_end_outside_the_box_is_not_inside_it():
+    """Which is what the document decides, from the atoms the box
+    handed it -- so what the mode has to get right is asking for
+    them."""
+    from xtalapp.document import Document
+
+    structure = a_row_of_atoms(spacing=1.5)
+    document = Document(structure)
+    document.select([0, 1], with_bonds=True)
+    assert len(document.selection.bonds) == 1
+
+    document.select([0], with_bonds=True)
+    assert not document.selection.bonds
 
 
 def test_an_empty_scene_is_not_an_error():

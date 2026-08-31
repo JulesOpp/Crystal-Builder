@@ -106,7 +106,8 @@ class Selection:
         self.focus = None
 
     def copy(self) -> Selection:
-        return Selection(set(self.atoms), set(self.bonds), self.focus)
+        return Selection(set(self.atoms), set(self.bonds),
+                         set(self.topology), self.focus)
 
     def mask(self, n_atoms: int) -> np.ndarray:
         """Boolean array over the P1 cell -- what the scene builder
@@ -116,6 +117,18 @@ class Selection:
             valid = [a for a in self.atoms if 0 <= a < n_atoms]
             out[valid] = True
         return out
+
+    def names_beyond(self, n_atoms: int) -> bool:
+        """Does this selection name an atom the cell does not have?
+
+        Asked before pruning, so that a selection which is still
+        correct is left alone -- pruning it unconditionally would
+        announce a selection change on every step of an optimisation.
+        """
+        return (any(a >= n_atoms for a in self.atoms)
+                or any(b[0] >= n_atoms or b[1] >= n_atoms
+                       for b in self.bonds)
+                or (self.focus is not None and self.focus >= n_atoms))
 
     def prune(self, n_atoms: int) -> None:
         """Drop references to atoms that no longer exist (after a

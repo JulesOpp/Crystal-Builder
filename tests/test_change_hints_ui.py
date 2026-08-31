@@ -167,3 +167,35 @@ def test_a_preview_reaches_nothing_but_the_viewport(window, rutile_cif,
 
     assert seen == []
     assert all(c.calls == 0 for c in counts.values())
+
+
+# ------------------------------------- a move that changes the atom count
+
+def test_a_move_that_splits_an_orbit_prunes_the_selection(rutile_cif):
+    """A move is a positions-only change and still changes how many
+    atoms the cell holds -- so the selection can be left naming atoms
+    that are no longer there, which would light up whichever atoms
+    inherited their indices."""
+    document = Document.load(rutile_cif)
+    document.select(range(document.cell.n_atoms))
+    before = document.cell.n_atoms
+
+    document.move_selection([0.02, 0.01, 0.01])   # off the special one
+
+    assert document.cell.n_atoms != before
+    assert max(document.selection.atoms) < document.cell.n_atoms
+
+
+def test_a_move_that_changes_nothing_leaves_the_selection_alone(
+        qtbot, rutile_cif):
+    """The common case, and the one an optimiser runs through hundreds
+    of times: no announcement when there is nothing to announce."""
+    document = Document.load(rutile_cif)
+    document.select([0, 1])
+    seen = []
+    document.selectionChanged.connect(lambda: seen.append(1))
+
+    document.move_selection([0.0, 0.0, 0.001])
+
+    assert seen == []
+    assert document.selection.atoms == {0, 1}

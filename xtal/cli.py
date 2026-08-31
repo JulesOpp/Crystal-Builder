@@ -175,13 +175,30 @@ def cmd_bonds(args) -> int:
 
 def _calculator(structure, args):
     """Build the engine the arguments ask for, and say what it made of
-    the structure before it is used for anything."""
+    the structure before it is used for anything.
+
+    An engine that declares its options (:attr:`Engine.options`) is
+    given those and nothing else -- ``-p method=scc`` is how they are
+    set here, the same spelling ``xtal run`` uses for a module's
+    parameters -- and one that declares none keeps the two flags UFF
+    has always had.  Passing both would mean handing an engine a
+    keyword it has never heard of.
+    """
     from xtal.ff import ENGINES
 
-    calculator = ENGINES.build(
-        args.engine, structure,
-        coulomb=getattr(args, "coulomb", False),
-        charges=getattr(args, "charges", "site"))
+    engine = ENGINES.get(args.engine)
+    if engine.options:
+        options = engine.coerce(_parsed_params(
+            getattr(args, "param", None)))
+    else:
+        options = {"coulomb": getattr(args, "coulomb", False),
+                   "charges": getattr(args, "charges", "site")}
+    # After the options, not before: half of what an external engine
+    # needs to be available is in them.
+    available = engine.availability(**options)
+    if not available:
+        raise ValueError(available.reason)
+    calculator = engine.build(structure, **options)
     for warning in calculator.warnings:
         print(f"warning: {warning}", file=sys.stderr)
     return calculator
@@ -254,13 +271,21 @@ def _recorder(args, structure, calculator, kind: str):
 
     workspace = Workspace.create(args.workspace)
     entry = workspace.add_structure(args.file)
+    from xtal.ff import ENGINES
+    engine = ENGINES.get(args.engine)
     folder = entry.next_run(args.engine, kind)
+    options = (engine.coerce(_parsed_params(getattr(args, "param", None)))
+               if engine.options
+               else {"coulomb": args.coulomb, "charges": args.charges})
     recorder = RunRecorder(
         folder, structure, calculator, engine=args.engine,
-        options={"coulomb": args.coulomb, "charges": args.charges},
-        record_trajectory=(kind == "optimise"))
+        options=options, record_trajectory=(kind == "optimise"))
     recorder.header(kind.replace("-", " "))
-    recorder.typing()
+    if "types" in engine.provides:
+        # UFF's typing table.  Writing it for an engine that has no
+        # atom types would put a page of somebody else's answer in
+        # the middle of this one's log.
+        recorder.typing()
     recorder.topology()
     return recorder
 
@@ -345,6 +370,29 @@ def cmd_modules(args) -> int:
     return 0
 
 
+def cmd_engines(args) -> int:
+    """The energy engines, and what each of them takes.
+
+    The companion to ``xtal modules``, and here for the same reason:
+    an engine that declares its options declares them for the dialog,
+    the log and this list at once, so there is no second place for the
+    spelling to drift.
+    """
+    from xtal.ff import ENGINES
+
+    for engine in ENGINES:
+        available = engine.availability()
+        mark = "" if available \
+            else f"   [unavailable: {available.reason}]"
+        print(f"{engine.name:<8s} {engine.label}{mark}")
+        for param in engine.options:
+            print(f"      -p {param.name}={param.default_value()!r}"
+                  f"   {param.kind}, {param.title.lower()}")
+        if not engine.options:
+            print("      --coulomb, --charges")
+    return 0
+
+
 def cmd_run(args) -> int:
     """Run one module action against a file, as the window would."""
     from xtal import plugins
@@ -384,6 +432,11 @@ def cmd_run(args) -> int:
         return 130
     module_record.close_run(folder, result)
     print(result.summary())
+    # A run whose whole answer is a table has to print the table:
+    # "peak at 18.75 A" is a headline, not a result.
+    if getattr(result, "report", None):
+        print()
+        print(result.report.as_text())
     if result.detail:
         print(result.detail, file=sys.stderr)
     if args.output and result.structure is not None:
@@ -497,6 +550,12 @@ def build_parser() -> argparse.ArgumentParser:
                        choices=["site", "qeq", "zero"],
                        help="where charges come from when "
                             "electrostatics are on")
+        p.add_argument("-p", "--param", action="append",
+                       metavar="NAME=VALUE",
+                       help="an option of an engine that declares "
+                            "them -- DFTB+'s method, parameter "
+                            "directory, dispersion, k-point spacing.  "
+                            "`xtal engines` lists them.")
         p.add_argument("--workspace", metavar="DIR",
                        help="write the run into a workspace: a run "
                             "folder with the log, the trajectory and "
@@ -533,6 +592,11 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("modules",
                        help="list the modules and what they take")
     p.set_defaults(func=cmd_modules)
+
+    p = sub.add_parser("engines",
+                       help="list the energy engines and what they "
+                            "take")
+    p.set_defaults(func=cmd_engines)
 
     p = sub.add_parser("run", help="run one module action")
     p.add_argument("action", metavar="MODULE.ACTION",

@@ -24,40 +24,62 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from xtal.core import neighbors
+from xtal.core import neighbors, transforms
 
 # Kinds of measurement, by how many atoms they take.
 KINDS = {2: "distance", 3: "angle", 4: "torsion"}
-UNITS = {"distance": "A", "angle": "deg", "torsion": "deg"}
+
+#: An angle between two *planes*, which is not taken between atoms at
+#: all and so has no entry in :data:`KINDS`.  It is a measurement like
+#: any other once it exists -- it follows the crystal, it is dropped
+#: when its atoms are, and it is written into the project.
+PLANE_ANGLE = "plane angle"
+
+UNITS = {"distance": "A", "angle": "deg", "torsion": "deg",
+         PLANE_ANGLE: "deg"}
 
 
 @dataclass(frozen=True)
 class Measurement:
-    """One measurement over atoms of the P1 cell."""
+    """One measurement over atoms of the P1 cell.
+
+    ``planes`` is empty for the measurements taken between atoms, and
+    holds the two atom groups for an interplanar angle.  ``atoms`` is
+    still every atom the measurement depends on either way, which is
+    what lets one rule -- "drop it when one of its atoms goes" --
+    cover both.
+    """
 
     atoms: tuple[int, ...]
     kind: str
     value: float
     labels: tuple[str, ...] = ()
+    planes: tuple[tuple[int, ...], ...] = ()
 
     @property
     def unit(self) -> str:
         return UNITS[self.kind]
 
     def text(self) -> str:
-        names = " - ".join(self.labels or
-                           [str(a) for a in self.atoms])
+        joiner = " ^ " if self.planes else " - "
+        names = joiner.join(self.labels or
+                            [str(a) for a in self.atoms])
         digits = 4 if self.kind == "distance" else 2
         return f"{names}   {self.value:.{digits}f} {self.unit}"
 
     def to_dict(self) -> dict:
-        return {"atoms": list(self.atoms), "kind": self.kind,
-                "value": self.value, "labels": list(self.labels)}
+        out = {"atoms": list(self.atoms), "kind": self.kind,
+               "value": self.value, "labels": list(self.labels)}
+        if self.planes:
+            out["planes"] = [list(group) for group in self.planes]
+        return out
 
     @classmethod
     def from_dict(cls, d: dict) -> Measurement:
         return cls(tuple(d["atoms"]), d["kind"], float(d["value"]),
-                   tuple(d.get("labels", ())))
+                   tuple(d.get("labels", ())),
+                   tuple(tuple(int(a) for a in group)
+                         for group in d.get("planes", ())))
 
 
 # ======================================================================
@@ -120,6 +142,94 @@ def _angle_between(first, second) -> float:
         return float("nan")
     cosine = float(np.clip((first @ second) / scale, -1.0, 1.0))
     return float(np.degrees(np.arccos(cosine)))
+
+
+# ======================================================================
+#  PLANES
+# ======================================================================
+#
+# A plane is defined by the atoms that lie in it, not by four numbers:
+# the atoms are what the user picked, they are what the plane has to
+# follow when the crystal changes, and re-fitting three floats from
+# them costs nothing.
+
+@dataclass(eq=False)
+class Plane:
+    """A least-squares plane through three or more atoms of the cell.
+
+    Three atoms determine a plane exactly; more than three are fitted,
+    which is the case that matters -- a phenyl ring, a coordination
+    square, a layer -- and is why ``deviation`` is carried alongside.
+    A benzene ring reports 0.00 A and a badly refined one reports 0.11,
+    and the angle to the next plane means something quite different in
+    the two cases.
+
+    The positions are taken with :func:`unwrapped_positions`, so a ring
+    lying across a cell face is fitted as the ring it is rather than as
+    two halves on opposite sides of the box.
+    """
+
+    atoms: tuple[int, ...]
+    centroid: np.ndarray
+    normal: np.ndarray
+    deviation: float
+    labels: tuple[str, ...] = ()
+    name: str = ""
+
+    def text(self) -> str:
+        atoms = ", ".join(self.labels or [str(a) for a in self.atoms])
+        return (f"{self.name or 'plane'}: {atoms}"
+                f"   rms {self.deviation:.3f} A")
+
+    def to_dict(self) -> dict:
+        return {"atoms": list(self.atoms), "name": self.name,
+                "labels": list(self.labels)}
+
+
+def plane(cell, lattice, atoms, labels=None, name: str = "") -> Plane:
+    """Fit a plane through three or more atoms of the P1 cell."""
+    indices = tuple(int(a) for a in atoms)
+    if len(set(indices)) != len(indices):
+        raise ValueError("an atom cannot be named twice in a plane")
+    if len(indices) < 3:
+        raise ValueError(
+            f"a plane needs at least three atoms, not {len(indices)}")
+    points = unwrapped_positions(cell, lattice, indices)
+    centroid, normal = transforms.best_fit_plane(points)
+    if labels is None:
+        labels = tuple(cell.labels[a] or cell.elements[a]
+                       for a in indices)
+    return Plane(indices, centroid, normal,
+                 transforms.plane_deviation(points), tuple(labels),
+                 name)
+
+
+def plane_angle(first: Plane, second: Plane) -> float:
+    """The angle between two planes, in degrees, in [0, 90].
+
+    A plane has no side: its normal could as well have been computed
+    pointing the other way, and the fit does not decide which.  So the
+    obtuse answer is folded onto the acute one -- 175 degrees between
+    two normals is 5 degrees between the planes, which is what anybody
+    reading "the two rings are nearly parallel" means.
+    """
+    angle_between = _angle_between(first.normal, second.normal)
+    if angle_between != angle_between:               # nan
+        return angle_between
+    return angle_between if angle_between <= 90.0 else 180.0 - angle_between
+
+
+def interplanar_angle(first: Plane, second: Plane) -> Measurement:
+    """The angle between two planes, as a measurement.
+
+    Its ``atoms`` are the atoms of both planes, so it is pruned and
+    recomputed by the same rules as every other measurement.
+    """
+    atoms = tuple(dict.fromkeys(first.atoms + second.atoms))
+    names = (first.name or "plane 1", second.name or "plane 2")
+    return Measurement(atoms, PLANE_ANGLE,
+                       plane_angle(first, second), names,
+                       (first.atoms, second.atoms))
 
 
 # ======================================================================

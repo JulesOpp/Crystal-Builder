@@ -597,5 +597,7 @@ ENGINES.register(Engine(
     description="Universal Force Field (Rappe et al. 1992) -- covers "
                 "the whole periodic table, native and in-process",
     build=build,
-    provides=frozenset({"forces", "stress", "charges", "periodic"}),
+    order=10,
+    provides=frozenset({"forces", "stress", "charges", "periodic",
+                        "types"}),
 ))

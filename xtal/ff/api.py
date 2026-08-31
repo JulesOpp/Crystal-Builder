@@ -88,6 +88,20 @@ class Calculator(ABC):
 
     # -- optional ------------------------------------------------------
 
+    #: Anything the user should know before believing the numbers: a
+    #: parameter the engine had to guess, a warning its own output
+    #: printed.  The panel shows them; nothing here depends on them.
+    warnings: list = []
+
+    def summary(self) -> str:
+        """One line about the model, shown above the result.
+
+        Overridden by every engine that has something to say -- UFF
+        counts its terms, DFTB+ names its parameter set -- and here so
+        that an engine which has not bothered still renders.
+        """
+        return f"{self.n_atoms} atoms"
+
     def numeric_stress(self, positions, matrix,
                        strain: float = 1e-4) -> np.ndarray:
         """Stress by central differences of six symmetric strains.

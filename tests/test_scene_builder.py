@@ -444,3 +444,32 @@ def test_naming_the_centres_by_hand_beats_the_style(rutile):
     settings.polyhedron_centres = ("O",)
     scene = build_scene(rutile, settings)
     assert scene.n_polyhedron_faces == 0        # O has only 3 partners
+
+
+def test_the_picture_follows_a_move_in_a_symmetric_cell(rutile):
+    """The bug where applying a Move left the picture where it was.
+
+    Almost any move in a symmetric structure takes a site off its
+    special position, which splits its orbit and gives the cell more
+    atoms than it had.  Building the scene then raised rather than
+    returning one -- and it raised inside the viewport's redraw, so the
+    structure had changed, the exception went to the console, and the
+    atoms on screen stayed exactly where they were.
+    """
+    before = build_scene(rutile, ViewSettings())
+    rutile.set_frac(1, [0.32, 0.30, 0.01])
+
+    after = build_scene(rutile, ViewSettings())
+    assert after.n_atoms > before.n_atoms       # the orbit split
+    assert not np.array_equal(after.positions[:before.n_atoms],
+                              before.positions)
+
+
+def test_the_picture_follows_a_move_with_bond_orders_drawn(rutile):
+    """The same move with the orders switched on -- which is the
+    default, and is where the failure actually came from."""
+    settings = ViewSettings(show_bond_orders=True)
+    build_scene(rutile, settings)
+    rutile.set_frac(1, [0.32, 0.30, 0.01])
+    scene = build_scene(rutile, settings)
+    assert len(scene.bond_orders) == scene.n_bond_halves

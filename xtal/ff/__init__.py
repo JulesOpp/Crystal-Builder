@@ -18,10 +18,11 @@ over this.
 """
 
 from xtal.ff.api import Calculator, CalculatorError, Result
+from xtal.ff.dftb.calculator import DFTBCalculator, DFTBOptions
 from xtal.ff.registry import ENGINES, Engine, EngineRegistry
 from xtal.ff.uff.calculator import UFFCalculator, UFFOptions
 from xtal.ff.uff.typer import Typing, TypingError
 
 __all__ = ["Calculator", "CalculatorError", "Result", "ENGINES",
            "Engine", "EngineRegistry", "UFFCalculator", "UFFOptions",
-           "Typing", "TypingError"]
+           "DFTBCalculator", "DFTBOptions", "Typing", "TypingError"]

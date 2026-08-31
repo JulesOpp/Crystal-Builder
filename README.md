@@ -9,8 +9,9 @@ Status: **phase 7 complete** — the core, the headless CLI, and an
 application you can build structures in: click to place atoms and draw
 bonds, move and rotate the selection, copy and paste, find the symmetry
 at a tolerance you choose, change the space group, build supercells and
-edit the cell, draw coordination polyhedra, measure distances, angles
-and torsions, save the whole session as a project, and now put a
+edit the cell, draw coordination polyhedra, measure distances, angles,
+torsions and the angle between least-squares planes, set a bond's type
+by hand, save the whole session as a project, and now put a
 **UFF** energy on a structure and relax it without leaving its space
 group.  Next up is packaging.  See [docs/PLAN.md](docs/PLAN.md) for the
 full architecture and roadmap, and [docs/TODO.md](docs/TODO.md) for
@@ -25,12 +26,16 @@ what is wanted but not yet scheduled.
                 symmetry, P1 expansion, neighbours, bonding
                 (perception, orders, nets), supercells, transforms,
                 measurement, properties
-      io/       CIF, extended XYZ (single frame and trajectory)
-                and .xtalproj projects, format registry
+      io/       CIF, extended XYZ (single frame and trajectory),
+                CSSR (Zeo++), .gen (DFTB+) and .xtalproj projects,
+                format registry
       workspace.py  the workspace layout and the run folders a
                 calculation leaves behind
+      params.py the parameter and availability declarations that
+                modules and engines share
       modules/  the module registry: what can be run, the job and
-                its cancellation, the external-process runner
+                its cancellation, the external-process runner, the
+                report a run comes back with, and Zeo++
       plugins.py  entry-point discovery for out-of-tree registrations
       cli.py    the `xtal` command line
       commands/ undoable mutations: the stack, atom/bond/cell/
@@ -39,13 +44,16 @@ what is wanted but not yet scheduled.
                 sums, FIRE and L-BFGS optimisers
         uff/    UFF: parameter table, atom typer, energy terms,
                 calculator, QEq charges
-      analysis/ RDF, coordination, later PXRD    (phase 9)
+        dftb/   DFTB+: HSD input, Slater-Koster check, calculator
+      analysis/ porosity (Zeo++ output), later RDF and PXRD
     xtalapp/    the PySide6 + VTK application
       viewport/ scene model, builder, draw styles, VTK, the widget
       docks/    workspace tree, module tree, inspector, sites, style,
-                measure, force field, log viewer, transport bar
+                measure, force field, results, log viewer,
+                transport bar
       document.py, mainwindow.py, actions.py, settings.py
-      workers.py, plot.py   long jobs off the GUI thread
+      workers.py, plot.py, histogram.py   long jobs off the GUI
+                thread, and the two plots they produce
     tests/      headless test suite
 
 The wall between `xtal/` and `xtalapp/` is enforced by a test
@@ -116,6 +124,18 @@ in sites: "6 hydrogens on 2 atoms (4 sites in the asymmetric unit)",
 because two hydrogens either side of a mirror plane are one site.
 A metal is left alone, and so is anything else it would have to guess
 at -- and it says which.
+
+**Set Bond Type is what overrules it.**  The hybridisation is read from
+the geometry, which is the only evidence there is until somebody says
+otherwise; a carbon whose two bonds you have called single is sp3
+whether the model has them drawn at 109 degrees or at 180, and it gets
+the two hydrogens its valence is short.  A ring with every bond called
+single builds cyclohexane where the same ring untouched builds
+benzene.  One statement among several is not enough -- an atom is
+retyped only when *every* bond at it is stated, because one stated bond
+says nothing about the total -- and a statement that contradicts the
+coordination, four neighbours and a double bond, is left where it
+belongs.
 
 Bonds do not change when atoms move -- not while you drag one, and not
 during a relaxation.  *Structure → Recalculate bonds* (`Ctrl+B`) is
@@ -192,7 +212,30 @@ slab towards the background.
 Double and triple bonds are drawn as two and three tubes, and an
 aromatic bond as a tube with a dashed line inside the ring -- inferred
 from the geometry by `xtal.core.bonding`, which is also where the force
-field now gets its bond orders.  A **topology bond** is a different
+field now gets its bond orders.  Where the geometry is not qualified to
+decide -- 1.39 A between two carbons is aromatic in benzene and a
+stretched double bond in an unrelaxed model -- **Set Bond Type**
+overrules it: right-click a bond, or use *Structure -> Set Bond Type*,
+and call it single, double, triple or aromatic, or *Automatic* to take
+the statement back and let the inference decide again.  A stated order
+is stored against the asymmetric unit like every other bond edit, so
+setting one C-O of an acetate sets the other, and it is saved with the
+project.  It reaches the force field's atom typing, and through that
+*Add hydrogens* -- see above.
+
+An edit over a selection is **one** edit: Select All on MFU-4l names
+848 bonds, and setting their type is a single command, a single change
+to the structure and a single redraw -- not 848 of each -- so it is one
+`Ctrl+Z` and takes about a second rather than half a minute.
+
+The commands that name a **region** take the bonds inside it as well as
+the atoms: *Select All*, the box, *Invert* and the three *Grow*
+commands, so "select the linker, call its bonds aromatic" is one
+gesture rather than eleven clicks.  A bond with one end outside the
+region is not in it.  Clicking an atom, selecting by element or picking
+a row in a table names atoms and leaves the bonds alone, because there
+a bond that quietly joined the selection would be edited by the next
+command without ever having been asked for.  A **topology bond** is a different
 kind of thing: an edge of the underlying net, drawn thick and
 translucent over the real bonds rather than in place of them, invisible
 to every chemical question, and reported by its coordination sequence
@@ -200,7 +243,16 @@ and point symbol -- 6, 18, 38, 66 and 4^12.6^3 for **pcu**.  The
 *Measure* tool takes distances, angles and torsions; how many atoms you
 click is the whole of the choice between them, and every measurement is
 minimum-image aware, so one taken across the cell boundary follows the
-bond rather than the long way round the box.
+bond rather than the long way round the box.  **Planes** are made from
+the selection instead of from a run of clicks, because nobody picks
+exactly three atoms of a phenyl ring: three atoms determine a plane and
+more are fitted by least squares, with the RMS deviation reported
+beside it -- 0.00 A for a flat ring and 0.11 A for one that is not,
+which is the difference between a plane and a number dressed up as one.
+*Measure -> Angle between planes* then measures between them, one angle
+per pair, and a plane is re-fitted from its own atoms whenever they
+move, so an interplanar angle after a relaxation is the angle the
+molecule now has.
 
 **Save is about the session; Export is about producing a file for
 something else.**  *File → Save* writes a `.xtalproj`: the structure,
@@ -324,7 +376,27 @@ xtal optimize quartz.cif -o relaxed.cif     # a line per step
 xtal optimize quartz.cif --relax-cell       # ... the lattice too
 xtal modules                                # what can be run
 xtal run stub.count quartz.cif -p steps=3   # ... and running it
+xtal run zeopp.diameters MOF.cif            # D_i, D_f and D_if
+xtal run zeopp.surface-area MOF.cif         # ... to nitrogen
+xtal run zeopp.psd MOF.cif -p samples=50000 # ... and the spread
 ```
+
+The Zeo++ entries need the `network` binary — on PATH, named by
+`XTAL_ZEOPP`, or built in `resources/zeo++-0.3/`.  DFTB+ is reached
+the other way, as an *engine* rather than a module, so that the
+optimiser, the symmetry projection and the panel drive it exactly as
+they drive UFF:
+
+```bash
+conda install 'dftbplus=*=nompi_*' -c conda-forge
+export DFTB_PREFIX=/where/you/unpacked/3ob-3-1/
+xtal optimize MOF.cif --engine dftb
+```
+
+Its Slater-Koster parameter files are a separate download from
+dftb.org, and every element pair present is checked against them
+*before* anything is launched — a missing pair is named here rather
+than several seconds into a subprocess.
 
 `xtal run` writes the same run folder the window does, which is what
 makes a run started from a script one the window opens.
@@ -405,6 +477,22 @@ MODULES.register(Module(
     actions=(Action(name="pore-diameter", label="Pore diameter...",
                     params=(Param("radii", "Radii file", kind="path"),),
                     run=zeo.pore_diameter),)))
+```
+
+An engine declares the same `Param` objects (`Engine.options`) and gets
+the same generated form, which is how DFTB+'s Hamiltonian, parameter
+set, k-point mesh and filling temperature reached the Force Field panel
+without the panel learning any of those words.  A run that answers with
+more than a sentence returns a `Report` of tables and histograms, which
+the Results panel draws and the run log prints:
+
+```python
+from xtal.analysis import porosity
+from xtal.modules import MODULES, Job
+
+module, action = MODULES.find("zeopp.psd")
+result = action.run(Job(structure=mof, params=action.defaults()))
+print(result.report.as_text())              # the table and the bars
 ```
 Electrostatics are off by default, as in UFF itself; turned on, charges
 come from the sites or from charge equilibration, and the lattice sum

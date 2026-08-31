@@ -245,6 +245,12 @@ class BoxSelectMode(Mode):
     says how many were taken and that they came from all the way
     through.
 
+    **And the bonds between them.**  A box is how a fragment gets
+    named, and the bonds inside a named fragment are part of what was
+    named -- so Set Bond Type after a box acts on the linker that was
+    boxed, rather than on nothing at all.  A bond with one end outside
+    the box is not inside it and is not taken.
+
     Rotating is not available while this mode is active: the left
     button cannot both draw a box and turn the crystal.  Panning and
     zooming still work, and the select mode next door still rotates.
@@ -253,7 +259,7 @@ class BoxSelectMode(Mode):
     name = "box_select"
     label = "Box select"
     hint = ("drag a box over the atoms - shift to add - everything "
-            "inside is taken, front to back")
+            "inside is taken, bonds included, front to back")
     wants_drag = True
 
     def on_click(self, document, model, event: ClickEvent) -> str:
@@ -279,8 +285,15 @@ class BoxSelectMode(Mode):
             if not event.additive:
                 document.select_none()
             return "nothing in the box"
-        document.select(atoms, "add" if event.additive else "set")
-        return (f"{len(atoms)} atom(s) in the box, front to back")
+        # The bonds between them come too: a box drawn round a linker
+        # is a way of naming that linker, and having to click its
+        # eleven bonds one at a time afterwards to set their type is
+        # the gesture this mode exists to replace.
+        document.select(atoms, "add" if event.additive else "set",
+                        with_bonds=True)
+        bonds = len(document.selection.bonds)
+        return (f"{len(atoms)} atom(s) and {bonds} bond(s) in the box, "
+                f"front to back")
 
 
 class DrawTopologyMode(Mode):

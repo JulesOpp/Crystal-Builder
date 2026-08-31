@@ -55,148 +55,25 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-#: The kinds a :class:`Param` can be.  Every one of them has an
-#: obvious widget, an obvious command-line spelling and an obvious
-#: default -- which is the test a fifth kind has to pass.
-KINDS = ("bool", "int", "float", "choice", "text", "path")
+from xtal.params import (
+    KINDS,
+    Availability,
+    Param,
+    ParamError,
+    coerce,
+    defaults,
+)
 
-
-class ModuleError(ValueError):
-    """A module was asked for something it cannot do."""
-
-
-# ======================================================================
-#  PARAMETERS
-# ======================================================================
-
-@dataclass(frozen=True)
-class Param:
-    """One value a module needs before it can run.
-
-    The form is generated from a list of these rather than hand-built,
-    so a module that grows an option grows a line and not a dialog.
-    """
-
-    name: str                       # "steps"
-    label: str = ""                 # "Number of steps"
-    kind: str = "float"
-    default: Any = None
-    #: For ``choice``: either plain values, or ``(value, label)``
-    #: pairs when what the user reads is not what the module wants.
-    choices: tuple = ()
-    minimum: float | None = None
-    maximum: float | None = None
-    step: float | None = None
-    decimals: int = 3
-    suffix: str = ""
-    help: str = ""
-
-    def __post_init__(self):
-        if self.kind not in KINDS:
-            raise ModuleError(
-                f"{self.name}: unknown parameter kind {self.kind!r}; "
-                f"have {', '.join(KINDS)}")
-
-    @property
-    def title(self) -> str:
-        return self.label or self.name.replace("_", " ").capitalize()
-
-    def values_and_labels(self) -> list[tuple[Any, str]]:
-        """``choices`` as ``(value, label)``, however it was written."""
-        out = []
-        for choice in self.choices:
-            if isinstance(choice, tuple | list) and len(choice) == 2:
-                out.append((choice[0], str(choice[1])))
-            else:
-                out.append((choice, str(choice)))
-        return out
-
-    def default_value(self) -> Any:
-        """What this parameter is when nobody has said otherwise."""
-        if self.default is not None:
-            return self.default
-        if self.kind == "bool":
-            return False
-        if self.kind == "int":
-            return int(self.minimum or 0)
-        if self.kind == "float":
-            return float(self.minimum or 0.0)
-        if self.kind == "choice":
-            pairs = self.values_and_labels()
-            return pairs[0][0] if pairs else None
-        return ""
-
-    def coerce(self, value) -> Any:
-        """Turn whatever arrived into what this parameter is.
-
-        A dialog hands back the right type already; a command line and
-        a saved session hand back strings.  Clamping rather than
-        refusing is deliberate for the numeric kinds: a spinbox cannot
-        produce an out-of-range value, so one that arrives came from a
-        script, and stopping a run over it helps nobody.
-        """
-        if value is None:
-            return self.default_value()
-        if self.kind == "bool":
-            if isinstance(value, str):
-                return value.strip().lower() in ("1", "true", "yes",
-                                                 "on")
-            return bool(value)
-        if self.kind in ("int", "float"):
-            number = int(float(value)) if self.kind == "int" \
-                else float(value)
-            if self.minimum is not None:
-                number = max(number, type(number)(self.minimum))
-            if self.maximum is not None:
-                number = min(number, type(number)(self.maximum))
-            return number
-        if self.kind == "choice":
-            allowed = [v for v, _ in self.values_and_labels()]
-            if value in allowed:
-                return value
-            for candidate in allowed:
-                if str(candidate) == str(value):
-                    return candidate
-            raise ModuleError(
-                f"{self.name}: {value!r} is not one of "
-                f"{', '.join(str(a) for a in allowed)}")
-        return str(value)
-
-
-def defaults(params) -> dict:
-    """Every parameter at its default, as a plain dict."""
-    return {p.name: p.default_value() for p in params}
-
-
-def coerce(params, values: dict | None) -> dict:
-    """Fill in what was not given and type what was.
-
-    Unknown keys are dropped rather than passed through: they are
-    almost always a stale saved value or a typo in a script, and a
-    module that received one would have to guess what to do with it.
-    """
-    given = dict(values or {})
-    return {p.name: p.coerce(given.get(p.name)) for p in params}
-
-
-# ======================================================================
-#  MODULES AND THEIR ACTIONS
-# ======================================================================
-
-@dataclass(frozen=True)
-class Availability:
-    """Whether a module can run at all, and why not when it cannot.
-
-    An external tool that is missing is the most common state it will
-    be in, so the answer carries a sentence a user can act on rather
-    than a bare false.
-    """
-
-    ok: bool = True
-    reason: str = ""
-
-    def __bool__(self) -> bool:
-        return self.ok
+#: Parameters and availability are declared in :mod:`xtal.params`,
+#: which is in neither package: DFTB+ is an *engine* rather than a
+#: module and needs the same declarations, and two of everything --
+#: two kinds of ``Param``, two form builders, two coercion rules --
+#: was the alternative.  They are re-exported here because this is
+#: where every module author looks for them.
+#:
+#: ``ModuleError`` is :class:`xtal.params.ParamError` under its old
+#: name, so code that has always caught one goes on catching both.
+ModuleError = ParamError
 
 
 @dataclass(frozen=True)
@@ -357,3 +234,8 @@ class ModuleRegistry:
 
 
 MODULES = ModuleRegistry()
+
+
+__all__ = ["MODULES", "Action", "Availability", "KINDS", "Module",
+           "ModuleError", "ModuleRegistry", "Param", "ParamError",
+           "coerce", "defaults"]

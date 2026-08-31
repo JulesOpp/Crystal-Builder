@@ -62,6 +62,69 @@ def test_a_bond_menu_offers_deleting_the_bond(opened):
     assert any("bond" in t.lower() for t in entries(window, "bond"))
 
 
+def test_a_bond_menu_offers_setting_the_bond_type(opened):
+    """Right-clicking a bond is where an order gets corrected: the
+    menu bar is a long way from the bond in question."""
+    window, document = opened
+    document.select_bond(document.graph.bonds[0].key())
+
+    menu = window.build_context_menu("bond")
+    submenus = [a.menu() for a in menu.actions() if a.menu() is not None]
+    assert len(submenus) == 1
+    assert [a.text().replace("&", "") for a in submenus[0].actions()] == [
+        "Single", "Double", "Triple", "Aromatic", "Automatic"]
+
+
+def test_the_bond_types_are_off_until_a_bond_is_selected(opened):
+    window, document = opened
+    assert not window.actions_["bond_type_double"].isEnabled()
+    document.select_bond(document.graph.bonds[0].key())
+    assert window.actions_["bond_type_double"].isEnabled()
+
+
+def test_the_ticked_type_is_what_the_bond_already_is(opened):
+    """A bond nobody has stated an order for is Automatic, even when
+    the inference made it double."""
+    window, document = opened
+    document.select_bond(document.graph.bonds[0].key())
+    assert window.actions_["bond_type_automatic"].isChecked()
+
+    window.actions_["bond_type_double"].trigger()
+
+    assert window.actions_["bond_type_double"].isChecked()
+    assert not window.actions_["bond_type_automatic"].isChecked()
+    assert document.selected_bond_type() == "Double"
+
+
+def test_setting_a_bond_type_is_undoable(opened):
+    window, document = opened
+    document.select_bond(document.graph.bonds[0].key())
+    window.actions_["bond_type_triple"].trigger()
+    assert any(b.stated for b in document.structure.bonds)
+
+    document.undo()
+
+    assert not any(b.stated for b in document.structure.bonds)
+
+
+def test_the_same_command_is_in_the_menu_bar(opened):
+    """The context menu and the menu bar hold the same actions, so
+    there is one place a bond type can be set from and two ways to
+    reach it -- and enabling it in one enables it in the other."""
+    window, document = opened
+    in_the_bar = window.bond_type_menu.actions()
+    assert window.actions_["bond_type_single"] in in_the_bar
+
+    menu = window.build_context_menu("bond")
+    in_the_click = [a.menu() for a in menu.actions()
+                    if a.menu() is not None][0].actions()
+    assert in_the_click == in_the_bar
+
+    assert not window.actions_["bond_type_single"].isEnabled()
+    document.select_bond(document.graph.bonds[0].key())
+    assert window.actions_["bond_type_single"].isEnabled()
+
+
 def test_the_empty_space_menu_is_about_the_view(opened):
     window, _document = opened
     texts = entries(window, "view")

@@ -721,25 +721,120 @@ feature, and the type is only the first thing to put in it.
 
 | Item | Size |
 |---|---|
-| Zeo++ | M |
-| DFTB+ | L |
+| Zeo++ | M — shipped |
+| DFTB+ | L — shipped as an engine; its own driver did not |
 
-**Zeo++ first**, and not because it is more valuable.  It is the
+**Zeo++ first**, and not because it is more valuable.  It was the
 smaller test of Phase D's runner: one binary, one input file, a handful
-of small text outputs, and a run measured in seconds.  Everything that
-is wrong with the runner will be found by it cheaply.  DFTB+ brings
-Slater-Koster parameter sets, k-point meshes, hour-long runs and a
-`Calculator` implementation, and is much better attempted second.
+of small text outputs, and a run measured in seconds.  It found what
+was missing cheaply, which is what it was for.
 
-**Deliverable, Zeo++.** A `.cssr` writer, a radii file the user can
-choose, the parsers for `.res`/`.sa`/`.vol`/`.psd_histogram`, a results
-table and histogram, and the largest free sphere drawn in the viewport
-where it actually sits.
+### Zeo++
 
-**Deliverable, DFTB+.** A `.gen` reader and writer, an HSD writer, a
-parameter-set check that names missing element pairs before launching,
-single point and geometry optimisation both through `ff/api.py` and
-through DFTB+'s own driver, live log, working cancel.
+Three entries — **Pore diameters**, **Surface area** and **Pore size
+distribution** — under a module that greys itself out with a sentence
+when `network` is not installed.  Measured on MFU-4l reduced by our own
+P1 expansion: D_i 18.73 Å, D_f 9.18 Å, D_if 18.72 Å; 3198 m²/g to
+nitrogen in one channel and no pockets; a distribution with two peaks,
+at 11.5 Å and 18.7 Å, which is the two cavity sizes the framework has.
+The same structure through Zeo++'s own CIF reader agrees to the fourth
+decimal, which is the check that the CSSR writer is right.
+
+**What was built.**
+
+* **A `.cssr` writer and reader** (`xtal/io/cssr.py`), registered in
+  `FORMATS`.  Written in P1 always: Zeo++ ignores the space-group field
+  and treats what it is given as the whole cell, so writing an
+  asymmetric unit into it would not be a lossy export but a wrong one.
+* **The radii are a control, not a constant.**  Zeo++'s own table by
+  default — it is what its papers used — or this application's van der
+  Waals or covalent tables written out as a `.rad`, or a file of the
+  user's own.  Whichever it was is in the log and in the result,
+  because an area quoted without its radii and its probe is not
+  reproducible.  A radii file that was named and is not there stops the
+  run rather than falling back, which would silently be a different
+  calculation.
+* **The parsers** (`xtal/analysis/porosity.py`), tested against
+  captured output rather than against a live binary.  The `.sa` and
+  `.vol` files share a `Key: value` line whose value is sometimes
+  *missing* — Zeo++ writes `Pocket_surface_area_A^2:` and then nothing
+  when there are no pockets — and a parser that took the next token as
+  its value read the following line's key as a number.
+* **A results panel** (`xtalapp/docks/results.py`) and a histogram
+  widget (`xtalapp/histogram.py`), drawn by hand for the same reason
+  `plot.py` is.  The PSD draws the bars *and* the derivative of the
+  cumulative distribution, because the bars are the sampling and the
+  curve is the distribution, and either alone invites the wrong reading
+  of the other.  Only the occupied range is shown: Zeo++ writes a
+  thousand bins of 0.1 Å and a framework fills forty.
+* **`JobResult` grew a report**, which its own docstring had reserved
+  for the first module with an answer a sentence could not carry.  The
+  shape is three frozen records — `Row`, `Table`, `Histogram` — and it
+  prints as text into the run log and from the CLI as well as
+  rendering into the dock.
+* **A partially occupied site is refused**, in front of the writer.
+  Zeo++ cannot express half an atom and handed one returns a confident
+  number for a crystal that does not exist, which is worse than
+  failing.
+
+**What did not ship: the largest free sphere in the viewport.**  It is
+the high-value half of the TODO entry and it is a different job —
+`-res` gives the diameter and not where it sits, so it needs `-chan` or
+`-visVoro` and a new actor in the scene.  It is back in TODO.md.
+
+### DFTB+
+
+**Reached as an engine, not as a module**, which is the decision the
+phase turned on.  A `Calculator` in `ENGINES` gets the optimiser, the
+symmetry projection, the worker thread, the live plot, the trajectory,
+the frozen selection, the cell as a variable, Pause and Stop and the
+single undoable command at the end — all of it, without any of those
+learning what DFTB+ is.  Writing it as a module would have meant
+rewriting every one of them.
+
+* **`.gen` reader and writer** (`xtal/io/gen.py`), which is also how a
+  DFTB+ relaxation comes back.
+* **An HSD writer** (`xtal/ff/dftb/hsd.py`): Hamiltonian, SCC and its
+  tolerance, third order with the 3ob Hubbard derivatives, Fermi
+  filling, dispersion, and a Monkhorst-Pack mesh worked out from the
+  cell — shifted when it is even and not when it is odd, because an odd
+  mesh already contains Γ.
+* **The parameter-set check runs before anything is launched.**  Every
+  ordered element pair present is looked for in the Slater-Koster
+  directory and the missing ones are named.  DFTB+ would have failed
+  several seconds in, naming a file rather than a problem.
+* **Nothing is guessed silently.**  A maximum angular momentum that had
+  to be derived rather than looked up, and a Hubbard derivative DFTB3
+  wanted that 3ob does not publish, are both answers that change the
+  number without failing — so both are warnings on the calculator and
+  both are in the log.
+* **The charges carry over between steps** (`ReadInitialCharges`),
+  which is most of the cost of an SCC cycle and the reason a DFTB+
+  optimisation is affordable at all.
+
+**Two things this phase moved to make room for it.**
+`Param` and `Availability` left the module registry for `xtal/params.py`
+— DFTB+ is an engine and needed the same declarations, and the
+alternative was two of everything.  `Engine` then grew `options` and
+`check`, so the Force Field panel builds a generated form for an engine
+that declares one (DFTB+: Hamiltonian, parameter directory, dispersion,
+charge, temperature, k-point spacing) and keeps UFF's two hand-built
+controls for the engine that predates the mechanism.  That is the same
+asymmetry `Action.shell` records, and it is recorded the same way
+rather than hidden.
+
+**What did not ship: DFTB+'s own driver.**  Its lattice relaxation and
+its MD are the cases where the internal driver beats ours, and they are
+a module rather than an engine — a second way in, worth having and not
+what "the same features as the force field" asked for.  It is back in
+TODO.md.
+
+**Tests.** 79 new, none of which need either binary installed: Zeo++
+and DFTB+ are both driven through a stand-in named by their environment
+variable, which writes the output the real one would.  The one test
+that does use `network` checks the single thing a stand-in cannot — that
+Zeo++ accepts the CSSR this application writes — and skips when it is
+absent.
 
 ---
 
@@ -783,7 +878,7 @@ the default bundle, which is the only real argument against it.
 | **E** | Force field | ✅ done |
 | **F** | Symmetry | ✅ done |
 | **G** | The picture | L |
-| **H** | Zeo++, then DFTB+ | L |
+| **H** | Zeo++, then DFTB+ | ✅ done |
 | **I** | Building | M (XL with the sketcher) |
 
 ## 14. What this plan does not do

@@ -369,3 +369,73 @@ def test_invert_selection_in_p1_is_plain_inversion(rutile_cif):
     document.select([0])
     document.invert_selection()
     assert document.selection.atoms == {1, 2, 3, 4, 5}
+
+
+# ------------------------------------------- selecting a region takes
+#                                             the bonds inside it
+
+def test_select_all_takes_the_bonds_too(rutile_cif):
+    """So that "select everything, set the bond type" is one gesture
+    and not one click per bond."""
+    document = Document.load(rutile_cif)
+    document.select_all()
+
+    assert len(document.selection.atoms) == document.cell.n_atoms
+    assert document.selection.bonds == {b.key()
+                                        for b in document.graph.bonds}
+
+
+def test_select_all_leaves_the_net_alone(rutile_cif):
+    """Delete acts on the net before it acts on anything else, so
+    taking the edges here would make Select All then Delete take the
+    net apart instead of the crystal."""
+    document = Document.load(rutile_cif)
+    document.select_all()
+    assert not document.selection.topology
+
+
+def test_inverting_everything_leaves_nothing(rutile_cif):
+    """The bonds follow the atoms, so the inverse of everything is
+    nothing at all -- not "no atoms and every bond"."""
+    document = Document.load(rutile_cif)
+    document.select_all()
+    document.invert_selection()
+    assert document.selection.is_empty
+
+
+def test_growing_to_a_fragment_takes_its_bonds(rutile_cif):
+    """A fragment is a region, and a region contains the bonds inside
+    it."""
+    document = Document.load(rutile_cif)
+    document.select([0])
+    assert not document.selection.bonds
+
+    document.expand_selection("fragment")
+
+    assert document.selection.bonds
+    inside = document.selection.atoms
+    assert all(i in inside and j in inside
+               for i, j, _image in document.selection.bonds)
+
+
+def test_clicking_an_atom_does_not_take_bonds(rutile_cif):
+    """A click names an atom.  A bond that quietly joined the
+    selection would be edited by the next command without ever having
+    been asked for."""
+    document = Document.load(rutile_cif)
+    document.select([0, 2])
+    assert not document.selection.bonds
+
+
+def test_every_bond_type_can_be_set_at_once(rutile_cif):
+    """The whole point of the selection change."""
+    from xtal.core import bonding
+
+    document = Document.load(rutile_cif)
+    document.select_all()
+    message = document.set_selected_bond_type(2.0)
+
+    orders = bonding.orders(document.structure)
+    assert len(orders) == len(document.graph.bonds)
+    assert set(orders) == {2.0}
+    assert "double" in message

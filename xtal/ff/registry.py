@@ -15,6 +15,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+from xtal.params import Availability, Param, coerce, defaults
+
 
 @dataclass(frozen=True)
 class Engine:
@@ -25,8 +27,46 @@ class Engine:
     description: str
     build: Callable                 # (structure, **options) -> Calculator
     # What it can do, for the UI to grey out honestly:
-    # {"forces", "stress", "charges", "periodic"}
+    # {"forces", "stress", "charges", "periodic", "types"}
     provides: frozenset = field(default_factory=frozenset)
+    #: What it needs asked before it can run, declared the way a
+    #: module's parameters are (:mod:`xtal.params`).  UFF declares
+    #: none and keeps the two hand-built controls it has always had;
+    #: an engine that declares these gets a generated form instead --
+    #: which is what let DFTB+, with its Hamiltonian, its parameter
+    #: set, its k-point mesh and its filling temperature, arrive
+    #: without the panel learning any of those words.
+    options: tuple[Param, ...] = ()
+    #: Whether it can run at all -- typically that a binary is
+    #: installed and that its parameter files have been found.  Called
+    #: every time the panel is refreshed, so it has to be cheap.
+    #:
+    #: It is handed the options, because for an external engine half
+    #: the answer is in them: DFTB+ without a Slater-Koster directory
+    #: cannot run, and *which* directory is a field in the form.  A
+    #: check that ignored them would tell a user their engine was
+    #: unavailable while they were looking at the box that makes it
+    #: available.
+    check: Callable[..., Availability] | None = None
+    #: Where it sits in the chooser.  UFF is 10 because it is the one
+    #: that was there before there was a chooser, and the one that is
+    #: always installed.
+    order: int = 100
+
+    def availability(self, **options) -> Availability:
+        if self.check is None:
+            return Availability(True)
+        try:
+            return self.check(**self.coerce(options))
+        except Exception as exc:                    # noqa: BLE001
+            # A broken check must not take the chooser with it.
+            return Availability(False, str(exc))
+
+    def defaults(self) -> dict:
+        return defaults(self.options)
+
+    def coerce(self, values: dict | None) -> dict:
+        return coerce(self.options, values)
 
     def __call__(self, structure, **options):
         return self.build(structure, **options)
@@ -44,7 +84,8 @@ class EngineRegistry:
         return name in self._engines
 
     def __iter__(self):
-        return iter(self._engines.values())
+        return iter(sorted(self._engines.values(),
+                           key=lambda e: (e.order, e.label)))
 
     def __len__(self) -> int:
         return len(self._engines)

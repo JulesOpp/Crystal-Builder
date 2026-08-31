@@ -8,3 +8,9 @@ dist/
 .ruff_cache/
 .DS_Store
 *.xtalproj
+
+# Zeo++, unpacked into resources/ so the module finds it without an
+# install.  78 MB of somebody else's source, object files and a built
+# binary: it belongs on the machine, not in the history.  Set
+# XTAL_ZEOPP, or put `network` on PATH, if it lives elsewhere.
+resources/zeo++-0.3/

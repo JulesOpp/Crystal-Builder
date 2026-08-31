@@ -175,3 +175,117 @@ def test_bad_measurements_are_refused():
         measure.measure(cell, lattice, [0, 1, 2, 0, 1])  # too many
     with pytest.raises(ValueError):
         measure.measure(cell, lattice, [0, 0])          # same atom
+
+
+# ------------------------------------------------------------- planes
+
+#: A benzene ring in the xy plane, and the same ring tilted about x by
+#: a known angle -- the two planes a measurement has to get right.
+def ring(radius: float = 1.39, tilt: float = 0.0) -> np.ndarray:
+    angles = np.radians(np.arange(0.0, 360.0, 60.0))
+    points = np.stack([radius * np.cos(angles),
+                       radius * np.sin(angles),
+                       np.zeros(6)], axis=1)
+    theta = np.radians(tilt)
+    rotation = np.array([[1.0, 0.0, 0.0],
+                         [0.0, np.cos(theta), -np.sin(theta)],
+                         [0.0, np.sin(theta), np.cos(theta)]])
+    return points @ rotation.T
+
+
+def test_three_atoms_determine_a_plane_exactly():
+    molecule = isolated(["C"] * 3, ring()[:3])
+    cell, lattice = cell_of(molecule)
+    plane = measure.plane(cell, lattice, [0, 1, 2])
+    assert plane.deviation == pytest.approx(0.0, abs=1e-9)
+    assert abs(plane.normal @ [0.0, 0.0, 1.0]) == pytest.approx(1.0)
+
+
+def test_six_atoms_are_fitted_rather_than_refused():
+    """The case the feature exists for: nobody picks exactly three
+    atoms of a phenyl ring."""
+    molecule = isolated(["C"] * 6, ring())
+    cell, lattice = cell_of(molecule)
+    plane = measure.plane(cell, lattice, range(6))
+    assert plane.deviation == pytest.approx(0.0, abs=1e-9)
+    assert abs(plane.normal @ [0.0, 0.0, 1.0]) == pytest.approx(1.0)
+
+
+def test_a_puckered_ring_says_how_far_from_flat_it_is():
+    """0.00 A and 0.11 A are the difference between a plane and a
+    number dressed up as one."""
+    points = ring()
+    points[::2, 2] += 0.20              # a chair
+    molecule = isolated(["C"] * 6, points)
+    cell, lattice = cell_of(molecule)
+    assert measure.plane(cell, lattice, range(6)).deviation > 0.05
+
+
+def test_a_plane_needs_three_atoms():
+    molecule = isolated(["C"] * 6, ring())
+    cell, lattice = cell_of(molecule)
+    with pytest.raises(ValueError):
+        measure.plane(cell, lattice, [0, 1])
+    with pytest.raises(ValueError):
+        measure.plane(cell, lattice, [0, 1, 1])
+
+
+def test_the_angle_between_two_planes_is_the_tilt_between_them():
+    tilted = np.vstack([ring(), ring(tilt=35.0) + [8.0, 0.0, 0.0]])
+    molecule = isolated(["C"] * 12, tilted)
+    cell, lattice = cell_of(molecule)
+    first = measure.plane(cell, lattice, range(6))
+    second = measure.plane(cell, lattice, range(6, 12))
+    assert measure.plane_angle(first, second) == pytest.approx(35.0)
+
+
+def test_the_obtuse_answer_is_folded_onto_the_acute_one():
+    """A plane has no side, so two normals 175 degrees apart describe
+    planes 5 degrees apart -- which is what "nearly parallel" means."""
+    tilted = np.vstack([ring(), ring(tilt=175.0) + [8.0, 0.0, 0.0]])
+    molecule = isolated(["C"] * 12, tilted)
+    cell, lattice = cell_of(molecule)
+    angle = measure.plane_angle(
+        measure.plane(cell, lattice, range(6)),
+        measure.plane(cell, lattice, range(6, 12)))
+    assert angle == pytest.approx(5.0)
+    assert 0.0 <= angle <= 90.0
+
+
+def test_a_plane_follows_a_ring_across_the_boundary():
+    """The same rule the other measurements follow: a ring lying over a
+    cell face is fitted as a ring, not as two halves of the box."""
+    box = 8.0
+    inside = isolated(["C"] * 6, ring(tilt=20.0), box=box)
+    straddling = Structure.from_arrays(
+        Lattice.cubic(box), ["C"] * 6,
+        (ring(tilt=20.0) / box + [0.99, 0.0, 0.0]) % 1.0,
+        space_group="P1")
+    cell_in, lattice = cell_of(inside)
+    cell_edge, _ = cell_of(straddling)
+    assert cell_edge.frac[:, 0].max() > 0.9
+    assert cell_edge.frac[:, 0].min() < 0.2
+
+    flat = measure.plane(cell_in, lattice, range(6))
+    split = measure.plane(cell_edge, lattice, range(6))
+    assert split.deviation == pytest.approx(flat.deviation, abs=1e-9)
+    assert abs(split.normal @ flat.normal) == pytest.approx(1.0)
+
+
+def test_an_interplanar_angle_is_a_measurement_like_any_other():
+    tilted = np.vstack([ring(), ring(tilt=35.0) + [8.0, 0.0, 0.0]])
+    molecule = isolated(["C"] * 12, tilted)
+    cell, lattice = cell_of(molecule)
+    result = measure.interplanar_angle(
+        measure.plane(cell, lattice, range(6), name="Plane 1"),
+        measure.plane(cell, lattice, range(6, 12), name="Plane 2"))
+
+    assert result.kind == measure.PLANE_ANGLE
+    assert result.unit == "deg"
+    assert result.value == pytest.approx(35.0)
+    assert set(result.atoms) == set(range(12))      # what it depends on
+    assert "Plane 1 ^ Plane 2" in result.text()
+
+    back = measure.Measurement.from_dict(result.to_dict())
+    assert back.planes == result.planes
+    assert back.value == pytest.approx(result.value)

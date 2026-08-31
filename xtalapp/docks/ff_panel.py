@@ -58,6 +58,7 @@ from xtal.ff.optimize import (
     METHODS,
 )
 from xtal.ff.uff import params
+from xtalapp.dialogs.module_form import ParamForm
 from xtalapp.plot import TracePlot
 from xtalapp.workers import OptimizationWorker, start_in_thread
 
@@ -136,6 +137,19 @@ class ForceFieldDock(QDockWidget):
             self.engine.addItem(engine.label, engine.name)
             self.engine.setItemData(self.engine.count() - 1,
                                     engine.description, Qt.ToolTipRole)
+        self.engine.currentIndexChanged.connect(self._on_engine)
+
+        # An engine that declares its options gets a generated form,
+        # one per engine, built once and shown when it is chosen.  UFF
+        # declares none and keeps the two controls below, which
+        # predate the mechanism -- the same asymmetry, and the same
+        # honesty about it, as ``Action.shell``.
+        self.engine_forms = {
+            engine.name: ParamForm(engine.options)
+            for engine in ENGINES if engine.options}
+        self.engine_note = QLabel("")
+        self.engine_note.setWordWrap(True)
+        self.engine_note.setStyleSheet("color: palette(mid);")
 
         self.coulomb = QCheckBox("Include electrostatics")
         self.coulomb.setToolTip(
@@ -236,8 +250,18 @@ class ForceFieldDock(QDockWidget):
         setup.addRow("Force field", self.engine)
         setup.addRow(self.coulomb)
         setup.addRow("Charges", self.charges)
+        self.uff_rows = (self.coulomb, self.charges)
+
+        model = QVBoxLayout()
+        model.setContentsMargins(0, 0, 0, 0)
+        model.setSpacing(4)
+        model.addLayout(setup)
+        for form in self.engine_forms.values():
+            model.addWidget(form)
+        model.addWidget(self.engine_note)
         setup_box = QGroupBox("Model")
-        setup_box.setLayout(setup)
+        setup_box.setLayout(model)
+        self.setup_form = setup
 
         run = QFormLayout()
         run.setContentsMargins(0, 0, 0, 0)
@@ -260,7 +284,9 @@ class ForceFieldDock(QDockWidget):
         top.setContentsMargins(8, 8, 8, 4)
         top.setSpacing(6)
         top.addWidget(setup_box)
-        top.addWidget(QLabel("Atom types (double-click to override)"))
+        self.table_heading = QLabel(
+            "Atom types (double-click to override)")
+        top.addWidget(self.table_heading)
         top.addWidget(self.table, 1)
         top_widget = QWidget()
         top_widget.setLayout(top)
@@ -304,6 +330,19 @@ class ForceFieldDock(QDockWidget):
         """
         enabled = self.document is not None and bool(ENGINES)
         self.widget().setEnabled(enabled)
+        self._show_engine()
+        if not self._engine_provides("types"):
+            # The table is UFF's answer to a question DFTB+ does not
+            # ask: there are no atom types in a tight-binding
+            # Hamiltonian, only elements and a parameter set.  Showing
+            # an empty table under its heading would look like a
+            # failure to type them.
+            self.table.setRowCount(0)
+            self.table.setVisible(False)
+            self.table_heading.setVisible(False)
+            return
+        self.table.setVisible(True)
+        self.table_heading.setVisible(True)
         if not enabled or self.document.structure.n_sites == 0:
             self.table.setRowCount(0)
             self._say("")
@@ -358,6 +397,53 @@ class ForceFieldDock(QDockWidget):
     #  OPTIONS
     # ==================================================================
 
+    def _on_engine(self, _index: int = 0) -> None:
+        """A different engine asks for different things."""
+        self._show_engine()
+        self.refresh()
+
+    def _show_engine(self) -> None:
+        """Show the controls the chosen engine actually has, and say
+        so when it cannot run at all.
+
+        An external engine whose binary is missing is the state it
+        will usually be in, and the answer belongs here -- beside the
+        chooser, before the button -- rather than in the failure after
+        pressing Optimise.
+        """
+        name = self.engine_name()
+        if name is None:                            # pragma: no cover
+            return
+        engine = ENGINES.get(name)
+        for form_name, form in self.engine_forms.items():
+            form.setVisible(form_name == name)
+        declared = bool(engine.options)
+        for widget in self.uff_rows:
+            widget.setVisible(not declared)
+            label = self.setup_form.labelForField(widget)
+            if label is not None:
+                label.setVisible(not declared)
+        # With the options, because half of what an external engine
+        # needs to be available is in them -- DFTB+ without a
+        # parameter directory cannot run, and the box that names one
+        # is in the form directly above this note.
+        available = engine.availability(**self.options())
+        self.engine_note.setText("" if available else available.reason)
+        self.engine_note.setVisible(not available)
+        if self.is_running:
+            # Mid-run the run button is Stop, and _set_running owns
+            # the rest.  Re-enabling either from here would offer a
+            # second single point on top of the optimisation.
+            return
+        for button in (self.energy_button, self.run_button):
+            button.setEnabled(bool(available))
+
+    def _engine_provides(self, what: str) -> bool:
+        name = self.engine_name()
+        if name is None:                            # pragma: no cover
+            return False
+        return what in ENGINES.get(name).provides
+
     def _on_coulomb(self, on: bool) -> None:
         self.charges.setEnabled(on)
 
@@ -377,6 +463,16 @@ class ForceFieldDock(QDockWidget):
             self.redraw.blockSignals(False)
 
     def options(self) -> dict:
+        """What to build the calculator with.
+
+        The declared form when the engine has one, and UFF's two
+        hand-built controls when it has not.  Never both: an engine
+        handed a keyword it has never heard of is a ``TypeError`` at
+        the moment the user presses Optimise.
+        """
+        form = self.engine_forms.get(self.engine_name())
+        if form is not None:
+            return form.values()
         return {"coulomb": self.coulomb.isChecked(),
                 "charges": self.charges.currentData()}
 
@@ -452,7 +548,11 @@ class ForceFieldDock(QDockWidget):
                 engine=self.engine_name(), options=self.options(),
                 record_trajectory=(kind == "optimise"))
             recorder.header(kind.replace("-", " "))
-            recorder.typing()
+            if self._engine_provides("types"):
+                # UFF's typing table.  Writing it for an engine that
+                # has no atom types would put a page of somebody
+                # else's answer in the middle of this one's log.
+                recorder.typing()
             recorder.topology()
         except OSError as exc:
             self.statusMessage.emit(
@@ -582,12 +682,17 @@ class ForceFieldDock(QDockWidget):
                        self.tolerance, self.freeze, self.relax_cell,
                        self.pressure, self.table):
             widget.setEnabled(not running)
+        for form in self.engine_forms.values():
+            form.setEnabled(not running)
         # Not the redraw rate: turning the picture off is something
         # you want to do *because* a run is going slowly.
         self.redraw.setEnabled(True)
         if not running:
             self.charges.setEnabled(self.coulomb.isChecked())
             self.pressure.setEnabled(self.relax_cell.isChecked())
+            # And an engine that cannot run stays unable to, which
+            # _set_running would otherwise have just undone.
+            self._show_engine()
 
     # -- signals from the worker ---------------------------------------
 

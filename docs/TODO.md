@@ -47,6 +47,47 @@ fills the same fraction of the window throughout.
 * `ViewSettings` gains `show_scale_bar`, with a View menu toggle, and
   it is view state: never on the undo stack, never in the structure.
 
+### A plane you have defined is nowhere on screen
+
+`Measure > Define plane from selection` fits a plane through the
+selected atoms and puts a row in the Planes list, and that row is the
+only evidence it exists.  The angle between two of them is a number in
+a table; which two planes it is between, and whether either of them is
+the plane the user meant, cannot be checked at all -- a least-squares
+fit through six atoms of a buckled ring is a plausible answer to
+several different questions, and the deviation column says how bad the
+fit is without saying what it is a fit *to*.
+
+* **Draw it as a translucent quad**, in the viewport, at the plane's
+  own centroid and normal.  `measure.plane` already returns both
+  (`Plane.centroid`, `Plane.normal`), so nothing has to be computed --
+  it is the drawing that is missing.
+* **Sized from its own atoms**, not from a fixed number: the extent of
+  the atoms it was fitted through, projected onto the plane, plus a
+  margin.  A plane through one ligand of a framework and a plane
+  through the whole cell are different objects and should not be drawn
+  the same size.
+* **Only the ones the user is looking at.**  The Planes list is
+  multi-select and already emits what is chosen (`_on_plane_chosen`);
+  drawing the selected rows, and all of them when nothing is selected,
+  is the rule that makes six planes usable.  Each one gets the normal
+  as a short line, because two nearly parallel planes are told apart
+  by their normals and not by their faces.
+* Mechanically this is a new field on the scene model and a new actor
+  in `VtkScene`, alongside `_set_polyhedra` -- which is the existing
+  machinery for putting generated geometry into the scene and takes
+  triangles and a colour, which is all a quad is.  The builder reads
+  `document.planes` the way it already reads `document.selection`.
+* A plane is re-fitted from its atoms whenever they move, so the drawn
+  quad follows a relaxation for free.  It has to be rebuilt rather than
+  moved -- its size and orientation both change -- which means
+  `planesChanged` and a geometry change both reach the viewport, and
+  today only the first of them does.
+* It is **view state and not structure**: never on the undo stack,
+  saved in the session beside the planes themselves, with a
+  `View > Show planes` toggle so a picture for a paper can have the
+  measurement without the scaffolding.
+
 ### An atom has nothing to say when you hover over it
 
 There is no tooltip in the viewport, so everything the application
@@ -194,42 +235,6 @@ and view -- not only the one for empty space.
 * Worth the same treatment for `display_range`, which is in the view
   menu only for the same accident.
 
-## Bonding
-
-### Bond order set by hand, and drawn
-
-Which bonds are double, triple or aromatic is chemistry, and a distance
-criterion is not qualified to decide it: 1.39 A between two carbons is
-aromatic in benzene and a stretched double bond in an unrelaxed
-geometry, and nothing in the distance tells them apart.  The user has
-to be able to say, once, and have it stay said.
-
-Phase G built the half that draws it, and the plumbing underneath.
-`bonding.orders` infers an order for every bond, `SceneModel` carries
-it, the viewport draws two tubes for a double and three for a triple,
-and an explicit `Bond` whose order the user set is honoured instead of
-inferred.  What is missing is the way to *say it*.
-
-* An order on a selected bond -- **single, aromatic, double, triple**
-  -- from the bond context menu and from the Inspector.  `Bond.order`
-  is already a float on the model and already round-trips through
-  `bonds.json`, and the picture already shows it; what is missing is
-  the control.
-* **"Not stated" needs to be spellable.**  Perception currently treats
-  an explicit bond left at the default order of 1.0 as *unstated* and
-  infers it like any other, which is right for a bond drawn in the
-  add-bond tool and wrong the moment somebody deliberately sets one to
-  single.  A sentinel -- `order: float | None`, with `None` meaning
-  "nobody said" -- is the honest model, and it needs a migration,
-  because every bond already written to a `bonds.json` carries a
-  literal 1.0 that must not become a statement.
-* Symmetry, as everywhere else: setting the order on one bond sets it
-  on the whole orbit, because it is the *pair* that is stored.
-* The force field already reads `bonding.orders` rather than inferring
-  its own, so a hand-set order reaches the energy the moment it can be
-  set; see *The force field must never change the structure*
-  (§ Force field) for why it must read this and never write it.
-
 ## Symmetry
 
 ### Descend to a klassengleiche subgroup
@@ -332,10 +337,10 @@ nobody chose and nobody can see.
   bonds or draw the bond, not for the calculation to quietly perceive
   a different one.  A force field that re-perceives is also a force
   field whose answer changes when its own cutoffs change.
-* The same rule for **bond order**.  UFF's bond orders are inferred
-  today; once *Bond order set by hand* (§ Bonding) exists they are
-  read from the graph, and the inference is only the fallback for a
-  bond nobody has labelled.
+* The same rule for **bond order**.  UFF reads `bonding.orders`, which
+  honours a bond the user typed by hand and infers only the ones
+  nobody has labelled -- so what the force field must not do is
+  re-decide an order the user stated.
 * **What it may do is refuse.**  A structure the force field cannot
   type -- missing hydrogens, an element with no parameters, an
   unbonded fragment -- gets a clear refusal naming the atoms and
@@ -437,72 +442,61 @@ so.
 
 ## Modules
 
-### DFTB+
+### DFTB+'s own driver
 
-Periodic, DFT-like, and fast enough to relax a framework that UFF can
-only approximate -- the natural second engine, and the one that makes
-a UFF geometry checkable.
+DFTB+ is here as an *engine*: a `Calculator` in `ENGINES`, so the
+optimiser already in this application drives it with the symmetry
+projection intact and the panel, the plot, the trajectory and Stop all
+work unchanged.  That is the right way in for a single point and for a
+geometry optimisation, and it is the wrong way in for two things
+DFTB+'s internal driver does better.
 
-* It is an **external binary**, not a library, so it goes through the
-  process runner Phase D wrote (`xtal/modules/process.py`): declare a
-  `Program("dftb+")` so a missing binary greys the module out instead
-  of failing inside a subprocess, write `dftb_in.hsd`, launch in the
-  run folder, and read `detailed.out` and `geo_end.gen` back.  Nothing
-  about it belongs in-process, and none of the launching, streaming or
-  cancelling has to be written again.
-* New I/O, both small and both worth having anyway: a `.gen` reader and
-  writer in `xtal/io` (it is the simplest crystal format there is), and
-  an HSD writer for the input.
-* **The Slater-Koster parameter sets are what will actually block a
-  user.**  They are separate downloads (3ob, mio, matsci, pbc), they
-  are per-element-pair, and a run fails at the first missing pair.  So:
-  a preference pointing at the set directory, and a check *before*
-  launching that every element pair present has a file -- naming the
-  missing ones, rather than letting DFTB+ fail inside a subprocess.
-* Options that have to be in the form: SCC on/off and its tolerance,
-  the k-point mesh (with a sensible default from the cell dimensions),
-  the parameter set, dispersion, spin, and the run type -- single
-  point, geometry optimisation, lattice optimisation, MD.
-* Two ways in, and both are worth it: behind `ff/api.py::Calculator`
-  for energies and forces, so the optimiser already here can drive it
-  with the symmetry projection intact; and as its own module for the
-  cases where DFTB+'s own driver is better -- its lattice relaxation
-  and its MD.
-* It runs for minutes to hours, so **cancel has to terminate the
-  process**, not just abandon the thread, and the log has to be live or
-  there is no way to tell a slow SCC cycle from a hang.
-* With no binary installed the module says so plainly and points at the
-  preference.  An external tool that is missing is the most common
-  state it will be in.
+* **Lattice relaxation.**  Ours costs twelve extra energy evaluations
+  a step because no analytic stress is claimed -- DFTB+ prints one and
+  its sign and volume conventions were not worth guessing at, since a
+  stress read the wrong way round relaxes a cell in the wrong
+  direction and reports converging while it does it.  DFTB+'s own
+  `Driver = ConjugateGradient { MovedAtoms ... LatticeOpt = Yes }`
+  uses it directly.  Either that, or read the block and *check* it
+  against a numeric stress on a structure with a known answer, which
+  is the cheaper of the two and would let the engine claim it.
+* **Molecular dynamics**, which has no route through `Calculator` at
+  all: it is a trajectory DFTB+ produces, not a sequence of energies
+  we ask for.
+* As a **module** rather than an engine, then: one entry per driver,
+  the run folder holding `dftb_in.hsd`, `detailed.out`, `geo_end.gen`
+  and `md.out`, and the trajectory read back into the transport bar --
+  which already plays anything `xtal/io/trajectory.py` can read.
+* The parts that would be reused rather than rewritten are most of it:
+  `xtal/ff/dftb/hsd.py` writes the input and checks the parameter set,
+  `xtal/io/gen.py` reads the geometry back, and
+  `xtal/modules/process.py` runs, streams and cancels it.  What is new
+  is a `Driver` block and the parsing of a multi-step output.
 
-### Zeo++
+### Zeo++: draw the answer, do not only print it
 
-Pore-size distribution, accessible surface area, pore volume, channel
-dimensionality, and the largest included and free spheres -- the
-numbers a porous-materials paper reports, and the reason to build a MOF
-in this application rather than look at one.
+The three diameters, the surface area and the pore size distribution
+are numbers in a table, and the table is right.  What is missing is the
+half of the TODO entry that made this worth building for a
+porous-materials application rather than a spreadsheet:
 
-* Also an external binary (`network`), also through
-  `xtal/modules/process.py`, and it shares every piece of that
-  machinery with DFTB+ -- which is why the runner was written once, in
-  Phase D, rather than twice here.
-* Input is `.cssr` (or `.cuc`), so `xtal/io` gains a small writer, plus
-  the radii file Zeo++ keys its atom radii from.  Getting the radii
-  right is not a detail: every number Zeo++ returns is a function of
-  them, and the default set is not the one every paper used.
-* Output is a handful of small text files -- `.res`, `.sa`, `.vol`,
-  `.psd_histogram` -- each of which parses into a table or a histogram.
-  That is exactly the `Analysis` result shape [docs/PLAN.md](PLAN.md)
-  § 14 describes, and the first real test of it.
-* **The high-value half is drawing the answer back into the
-  viewport**, not printing it: the accessible volume as an isosurface,
-  the largest free sphere as a translucent ball where it actually sits.
-  The polyhedra style already puts generated geometry into the scene
-  and is the machinery to reuse.
-* Everything it computes assumes a periodic structure with explicit
-  atoms and full occupancy.  A disordered structure has to be resolved
-  first, and the module should refuse and say why rather than hand
-  Zeo++ something that will return a confident wrong number.
+* **The largest free sphere where it actually sits**, as a translucent
+  ball in the viewport.  `-res` gives its *diameter* and not its
+  position, so this needs `-chan` (which writes the channel network) or
+  `-visVoro` (which writes the accessible Voronoi nodes as xyz), and a
+  new actor beside `VtkScene._set_polyhedra` -- which is already the
+  machinery for putting generated geometry into the scene.
+* **The accessible volume as an isosurface**, from `-vol`'s sampling or
+  from `-gridBOV`'s distance grid.  Bigger, and the thing a paper
+  figure actually wants.
+* `-vol` and `-volpo` are parsed already
+  (`xtal.analysis.porosity.Volume`) and have no entry of their own,
+  because nothing yet asked for one.  A fourth action is eight lines
+  the day somebody does.
+* **Channel dimensionality** -- whether the pores form a 1D, 2D or 3D
+  network -- is in `-chan`'s output and is one of the numbers a paper
+  reports.  It comes free with whatever reads `-chan` for the sphere
+  above.
 
 ## Building
 

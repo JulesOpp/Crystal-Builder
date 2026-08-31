@@ -22,6 +22,7 @@ responsiveness.
 
 from __future__ import annotations
 
+import pathlib
 from pathlib import Path
 
 from PySide6.QtCore import Qt
@@ -34,12 +35,14 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QLabel,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QSpinBox,
     QTabWidget,
     QToolBar,
 )
 
+from xtal.commands.bonds import BOND_TYPES
 from xtal.commands.clipboard import Fragment
 from xtal.core.structure import Change
 from xtal.io import FORMATS
@@ -64,6 +67,7 @@ from xtalapp.docks.logview import LogDock
 from xtalapp.docks.measure import MeasureDock
 from xtalapp.docks.modules import ModulesDock
 from xtalapp.docks.move import MoveDock
+from xtalapp.docks.results import ResultsDock
 from xtalapp.docks.sites import SitesDock
 from xtalapp.docks.style_panel import StylePanelDock
 from xtalapp.docks.trajectory import TrajectoryDock
@@ -75,6 +79,22 @@ from xtalapp.viewport.view_settings import BACKGROUNDS
 from xtalapp.workers import ModuleWorker, start_in_thread
 
 APP_NAME = "Crystal Builder"
+
+
+def _resolved(path):
+    """A path as the filesystem knows it, or ``None``.
+
+    ``None`` for a document that has never been saved, and for a path
+    that cannot be resolved at all -- a volume that went away, a
+    permission that was withdrawn.  Both are "not the file you are
+    asking about", which is the answer the caller wants.
+    """
+    if path is None:
+        return None
+    try:
+        return pathlib.Path(path).resolve()
+    except OSError:                                 # pragma: no cover
+        return None
 
 
 def _default_viewport_factory(document, parent=None):
@@ -234,8 +254,27 @@ class MainWindow(QMainWindow):
             tip="Perceive the bonds again from the geometry as it is "
                 "now.  Bonds do not change on their own when atoms "
                 "move; this is what changes them.")
+        add("reset_bonds", "Reset bonds to a&utomatic",
+            self.reset_bonds,
+            tip="Drop the bonds you drew and the ones you deleted, "
+                "and take what the distance criteria give.  The only "
+                "way back from a deleted bond once the undo stack has "
+                "gone, because a deletion is saved with the project.")
         add("bond_rules", "&Bond rules...", self.edit_bond_rules,
             tip="Which atoms bond, and how close they have to be")
+        # One action per bond type, in an exclusive group: the menu
+        # shows what the selected bonds already are, and picking a
+        # different one is the edit.  Automatic is in the same group
+        # because "no stated order" is a state a bond can be in, not
+        # the absence of one.
+        for type_name, order in BOND_TYPES:
+            add(f"bond_type_{type_name.lower()}", f"&{type_name}",
+                lambda checked=False, o=order: self.set_bond_type(o),
+                checkable=True, group="bond_type",
+                tip=("Let the geometry decide this bond's order again"
+                     if order is None else
+                     f"Call the selected bonds {type_name.lower()}, "
+                     f"and their whole symmetry orbit with them"))
         add("bonds_follow", "Bonds &follow the geometry",
             self.set_bonds_follow_geometry, checkable=True,
             checked=self.settings.bonds_follow_geometry,
@@ -248,6 +287,18 @@ class MainWindow(QMainWindow):
                 lambda checked=False, m=mode_name: self.set_mode(m),
                 checkable=True, checked=(mode_name == "select"),
                 tip=mode.hint, group="mode")
+
+        add("define_plane", "Define &plane from selection",
+            self.define_plane, "Ctrl+Shift+P",
+            tip="Fit a plane through the selected atoms: exactly "
+                "through three, least-squares through more")
+        add("plane_angle", "&Angle between planes",
+            self.measure_plane_angles,
+            tip="Measure the angle between the planes defined so far "
+                "-- one measurement per pair")
+        add("clear_planes", "Clear pl&anes", self.clear_planes)
+        add("clear_measurements", "Clear &measurements",
+            self.clear_measurements)
 
         add("select_all", "Select &All", self.select_all, "Ctrl+A")
         add("select_none", "Select &None", self.select_none, "Esc")
@@ -365,8 +416,17 @@ class MainWindow(QMainWindow):
         structure_menu = bar.addMenu("S&tructure")
         self.actions_.fill_menu(structure_menu, [
             "add_atom_dialog", "add_hydrogens", None,
-            "bond_rules", "recompute_bonds", "bonds_follow", None,
-            *[f"mode_{n}" for n in modes.names()]])
+            "bond_rules", "recompute_bonds", "reset_bonds",
+            "bonds_follow"])
+        self.bond_type_menu = self._add_bond_type_menu(structure_menu)
+        structure_menu.addSeparator()
+        self.actions_.fill_menu(structure_menu,
+                                [f"mode_{n}" for n in modes.names()])
+
+        measure_menu = bar.addMenu("&Measure")
+        self.actions_.fill_menu(measure_menu, [
+            "define_plane", "plane_angle", None,
+            "clear_planes", "clear_measurements"])
 
         symmetry_menu = bar.addMenu("S&ymmetry")
         self.actions_.fill_menu(symmetry_menu, [
@@ -548,6 +608,7 @@ class MainWindow(QMainWindow):
 
         self.measure_dock = MeasureDock(self)
         self.measure_dock.targetChanged.connect(self._on_measure_target)
+        self.measure_dock.statusMessage.connect(self.show_status)
 
         self.ff_dock = ForceFieldDock(self)
         # Connected to a method, not to the label: the docks are built
@@ -562,6 +623,12 @@ class MainWindow(QMainWindow):
         # directory -- so this is the whole of keeping it in step.
         self.ff_dock.runStarted.connect(self._on_run_started)
         self.ff_dock.runFinished.connect(self._on_run_finished)
+
+        # Where a module's tables and histograms land.  Beside the
+        # log rather than beside the module tree: the numbers and the
+        # output that produced them are read together, and a report
+        # squeezed into the width of a tree is a report nobody reads.
+        self.results_dock = ResultsDock(self)
 
         self.log_dock = LogDock(self)
         self.trajectory_dock = TrajectoryDock(self)
@@ -580,7 +647,8 @@ class MainWindow(QMainWindow):
         # viewport, everything else tabbed on the right in the order
         # they are listed here.
         self.left_docks = (self.file_dock, self.modules_dock)
-        self.bottom_docks = (self.trajectory_dock, self.log_dock)
+        self.bottom_docks = (self.trajectory_dock, self.log_dock,
+                             self.results_dock)
         self.right_docks = (self.inspector_dock, self.info_dock,
                             self.sites_dock, self.move_dock,
                             self.style_dock, self.measure_dock,
@@ -621,6 +689,11 @@ class MainWindow(QMainWindow):
             self.addDockWidget(Qt.RightDockWidgetArea, dock)
         for dock in self.bottom_docks:
             self.addDockWidget(Qt.BottomDockWidgetArea, dock)
+        # The transport bar, the log and the report are three views of
+        # one run and share the strip under the viewport.
+        for previous, dock in zip(self.bottom_docks,
+                                  self.bottom_docks[1:], strict=False):
+            self.tabifyDockWidget(previous, dock)
         for previous, dock in zip(self.right_docks,
                                   self.right_docks[1:], strict=False):
             self.tabifyDockWidget(previous, dock)
@@ -680,6 +753,7 @@ class MainWindow(QMainWindow):
         document.selectionChanged.connect(self._on_selection_changed)
         document.measurementsChanged.connect(
             self._on_measurements_changed)
+        document.planesChanged.connect(self._on_planes_changed)
         document.historyChanged.connect(self._update_history_actions)
         document.playbackChanged.connect(self._refresh_shell)
         if hasattr(viewport, "statusMessage"):
@@ -707,6 +781,16 @@ class MainWindow(QMainWindow):
 
     def open_path(self, path) -> Document | None:
         path = Path(path)
+        already = self.document_for(path)
+        if already is not None:
+            # Not a dialog and not a refusal: the user asked to see
+            # that file, and showing it to them is the answer.  A
+            # second tab over the same bytes would be two documents
+            # with two undo stacks editing what the user thinks is one
+            # structure, and whichever was saved last would win.
+            self.tabs.setCurrentIndex(self.documents.index(already))
+            self.show_message(f"{path.name} is already open")
+            return already
         try:
             document = Document.load(path)
         except (ValueError, OSError, KeyError) as exc:
@@ -723,6 +807,30 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(
                 f"opened with {len(document.warnings)} warning(s)", 8000)
         return document
+
+    def document_for(self, path) -> Document | None:
+        """The open document that came from this file, or ``None``.
+
+        The test is the **resolved** path -- same location and same
+        name -- and not the file name alone: ``data/a/MFU4l.cif`` and
+        ``data/b/MFU4l.cif`` are two different crystals that happen to
+        share a name, and treating the second as the first would be
+        worse than the bug this exists to fix.  Resolving also settles
+        the symlink and the ``/var`` versus ``/private/var`` cases,
+        which are one file spelled two ways.
+
+        Asked here rather than in each caller because
+        :meth:`open_path` is the one door every route in goes through:
+        the Open dialog, the recent list, the workspace tree, drag and
+        drop and the command line.
+        """
+        wanted = _resolved(path)
+        if wanted is None:
+            return None
+        for document in self.documents:
+            if _resolved(document.path) == wanted:
+                return document
+        return None
 
     # ==================================================================
     #  THE WORKSPACE
@@ -1160,6 +1268,18 @@ class MainWindow(QMainWindow):
         if document is not None:
             self.show_status(document.recompute_bonds())
 
+    def reset_bonds(self) -> None:
+        """Throw away the bond edits and perceive again.
+
+        Separate from Recalculate because the two answer different
+        questions: recalculating asks the geometry, resetting also
+        withdraws every answer the user has given -- which is why it
+        is a menu entry and not what Ctrl+B quietly does.
+        """
+        document = self.current_document()
+        if document is not None:
+            self.show_status(document.reset_bonds())
+
     def edit_bond_rules(self) -> None:
         document = self.current_document()
         if document is None:
@@ -1182,6 +1302,11 @@ class MainWindow(QMainWindow):
             "bonds now follow the geometry" if on else
             "bonds change when you recalculate them")
 
+    #: A place in a context menu for the Set Bond Type submenu.  Not
+    #: an action name, because the entry is a menu and not an action --
+    #: the registry holds the five types inside it.
+    BOND_TYPE_MENU = "@bond_type"
+
     #: What a right click offers, by what was under it.  Every entry
     #: is a name in the action registry, so each one is already
     #: undoable, already has a keyboard shortcut and already appears in
@@ -1191,8 +1316,8 @@ class MainWindow(QMainWindow):
                  "expand_bonded", "expand_fragment", "expand_orbit",
                  "select_same", None, "copy", "cut", "duplicate", None,
                  "recompute_bonds"],
-        "bond": ["delete_bond", None, "select_none", None,
-                 "recompute_bonds"],
+        "bond": ["delete_bond", BOND_TYPE_MENU, None, "select_none",
+                 None, "recompute_bonds"],
         "view": ["select_all", "select_none", None, "display_range",
                  "boundary_bonded", None, "orthographic",
                  "reset_view"],
@@ -1213,8 +1338,6 @@ class MainWindow(QMainWindow):
         entry and a menu-bar entry the same object, enabled and
         disabled by the same rule.
         """
-        from PySide6.QtWidgets import QMenu
-
         names = self.CONTEXT_MENUS.get(kind)
         if not names:
             return None
@@ -1225,6 +1348,8 @@ class MainWindow(QMainWindow):
         for name in names:
             if name is None:
                 menu.addSeparator()
+            elif name == self.BOND_TYPE_MENU:
+                self._add_bond_type_menu(menu)
             elif name in self.COUNTED_ACTIONS and count > 1:
                 self._add_counted(menu, name, count, noun)
             else:
@@ -1234,6 +1359,32 @@ class MainWindow(QMainWindow):
             self.actions_.fill_menu(
                 style, [f"style_{n}" for n in styles.names()])
         return menu
+
+    def _add_bond_type_menu(self, menu):
+        """The Set Bond Type submenu, wherever it is wanted.
+
+        The same five actions in both places, so the context menu and
+        the menu bar are enabled by the same rule and show the same
+        tick -- which is the whole reason the actions live in the
+        registry rather than being built where they are shown.
+        """
+        # Parented to the menu it is added to, so the menu owns it:
+        # a submenu built by ``addMenu(title)`` alone is owned by
+        # Python, and the one in a context menu is collected the moment
+        # this method returns.
+        submenu = QMenu("Set Bond &Type", menu)
+        menu.addMenu(submenu)
+        submenu.setEnabled(self.actions_["bond_type_single"].isEnabled())
+        self.actions_.fill_menu(
+            submenu, [f"bond_type_{n.lower()}" for n, _ in BOND_TYPES])
+        return submenu
+
+    def set_bond_type(self, order) -> None:
+        """Call the selected bonds single, double, triple, aromatic --
+        or nothing, and let the geometry decide again."""
+        document = self.current_document()
+        if document is not None and document.selection.bonds:
+            self.show_status(document.set_selected_bond_type(order))
 
     def show_context_menu(self, kind: str, position) -> None:
         menu = self.build_context_menu(kind)
@@ -1338,6 +1489,28 @@ class MainWindow(QMainWindow):
         document = self.current_document()
         if document is not None:
             document.expand_selection(how)
+
+    def define_plane(self) -> None:
+        """A plane through the selected atoms."""
+        document = self.current_document()
+        if document is not None:
+            self.show_status(document.define_plane())
+
+    def measure_plane_angles(self) -> None:
+        """The angle between every pair of planes defined so far."""
+        document = self.current_document()
+        if document is not None:
+            self.show_status(document.measure_plane_angles())
+
+    def clear_planes(self) -> None:
+        document = self.current_document()
+        if document is not None:
+            document.clear_planes()
+
+    def clear_measurements(self) -> None:
+        document = self.current_document()
+        if document is not None:
+            document.clear_measurements()
 
     def delete_bonds(self) -> None:
         document = self.current_document()
@@ -1647,6 +1820,7 @@ class MainWindow(QMainWindow):
     def _on_module_finished(self, result) -> None:
         worker, job = self._finish_module()
         module_record.close_run(job.folder if job else None, result)
+        self._show_report(worker, result)
         if result.structure is not None:
             self._adopt_module_structure(worker, result)
         self.modules_dock.set_idle(result.summary())
@@ -1666,10 +1840,29 @@ class MainWindow(QMainWindow):
         _worker, job = self._finish_module()
         module_record.close_run(job.folder if job else None,
                                 error=message)
+        # The previous run's numbers must not sit there under this
+        # run's heading, which is the one way this panel could be
+        # worse than no panel.
+        self.results_dock.clear()
         self.modules_dock.set_idle(f"failed: {message}")
         self._refresh_shell()
         self.show_status(f"the module failed: {message}")
         self._after_module_run(job)
+
+    def _show_report(self, worker, result) -> None:
+        """Put a module's tables and histograms where they can be read.
+
+        Raised only when there is something in it.  A panel that
+        appears after every run -- including the ones whose whole
+        answer is a sentence -- is one people learn to close, and then
+        the one run that had a histogram in it goes unseen.
+        """
+        report = getattr(result, "report", None)
+        label = worker.label if worker is not None else ""
+        self.results_dock.show_report(report, label)
+        if report:
+            self.results_dock.show()
+            self.results_dock.raise_()
 
     def _finish_module(self):
         """Let go of the run, but not of the thread it was on.
@@ -1767,6 +1960,9 @@ class MainWindow(QMainWindow):
         self.selection_label.setText(document.selection_summary())
         self.actions_.set_enabled(
             ["delete_bond"], bool(document.selection.bonds))
+        self._sync_bond_type_actions(document)
+        self._refresh_plane_actions()
+        self.measure_dock.refresh_planes()
         self.actions_.set_enabled(
             ["delete_selection", "change_element", "copy", "cut",
              "duplicate", "select_same"],
@@ -1776,6 +1972,42 @@ class MainWindow(QMainWindow):
              "expand_bonded", "expand_fragment", "expand_orbit",
              "copy", "cut", "duplicate"],
             bool(document.selection.atoms))
+
+    def _sync_bond_type_actions(self, document) -> None:
+        """Enable the bond types, and tick what the selection already
+        is -- "" when the selected bonds are not all the same type, in
+        which case none of them is ticked."""
+        names = [f"bond_type_{n.lower()}" for n, _ in BOND_TYPES]
+        selected = bool(document is not None
+                        and not document.is_playing
+                        and document.selection.bonds)
+        self.actions_.set_enabled(names, selected)
+        if hasattr(self, "bond_type_menu"):
+            self.bond_type_menu.setEnabled(selected)
+        current = document.selected_bond_type() if selected else ""
+        for type_name, _order in BOND_TYPES:
+            action = self.actions_[f"bond_type_{type_name.lower()}"]
+            # Without this the group refuses to leave every entry
+            # unticked, and a mixed selection would claim to be
+            # whichever type happened to be ticked last.
+            action.setChecked(type_name == current)
+
+    def _refresh_plane_actions(self) -> None:
+        """A plane needs three atoms and an angle needs two planes, so
+        neither entry is offered before there is anything to do."""
+        document = self.current_document()
+        self.actions_.set_enabled(
+            ["define_plane"],
+            document is not None and len(document.selection.atoms) >= 3)
+        self.actions_.set_enabled(
+            ["plane_angle"],
+            document is not None and len(document.planes) >= 2)
+        self.actions_.set_enabled(
+            ["clear_planes"],
+            document is not None and bool(document.planes))
+        self.actions_.set_enabled(
+            ["clear_measurements"],
+            document is not None and bool(document.measurements))
 
     def _rebuild_element_menu(self, document) -> None:
         self.element_menu.clear()
@@ -1846,6 +2078,11 @@ class MainWindow(QMainWindow):
 
     def _on_measurements_changed(self) -> None:
         self.measure_dock.refresh()
+        self._refresh_plane_actions()
+
+    def _on_planes_changed(self) -> None:
+        self.measure_dock.refresh_planes()
+        self._refresh_plane_actions()
 
     def _update_ui(self, *_args) -> None:
         document = self.current_document()
@@ -1886,10 +2123,13 @@ class MainWindow(QMainWindow):
              "primitive", "wyckoff", "merge_duplicates", "subgroup",
              "invert", "supercell",
              "edit_cell", "niggli", "delaunay", "wrap_cell",
-             "single_point", "optimize", "recompute_bonds"],
+             "single_point", "optimize", "recompute_bonds",
+             "reset_bonds"],
             editable)
         if document is None:
             self._refresh_module_actions(False)
+            self._sync_bond_type_actions(None)
+            self._refresh_plane_actions()
             self.status_label.setText("No structure open")
             self.selection_label.setText("")
             self.setWindowTitle(APP_NAME)
@@ -1904,6 +2144,8 @@ class MainWindow(QMainWindow):
             ["delete_selection", "change_element", "cut", "duplicate"],
             has_selection and editable)
         self._refresh_module_actions(editable)
+        self._sync_bond_type_actions(document)
+        self._refresh_plane_actions()
         self.status_label.setText(document.status_text())
         self.setWindowTitle(f"{document.title} — {APP_NAME}")
         name = f"style_{document.view.style}"

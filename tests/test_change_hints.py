@@ -123,3 +123,42 @@ def test_a_relaxation_types_the_atoms_once(rutile, monkeypatch):
     assert steps > 1
     assert assign.calls == 0
     assert perceive.calls == 0
+
+
+# ------------------------------------- keeping only what is still valid
+
+def test_a_move_off_a_special_position_reperceives_the_orders(rutile):
+    """The bug that froze the picture whenever anything moved.
+
+    Moving a site off a special position splits its orbit, so the cell
+    holds more atoms than it did and the bond graph is perceived again
+    over them.  The *orders* were memoised against the same kinds of
+    change as the graph but had no such guard, so they stayed one entry
+    per bond of the graph before the move -- and the scene builder, one
+    order per bond, indexed off the end of the array.  In the
+    application that exception came out inside the redraw, so the
+    structure changed and the picture did not.
+    """
+    p1.expand(rutile)
+    before = len(bonding.orders(rutile))
+    assert before == len(bonding.graph(rutile).bonds)
+
+    rutile.set_frac(1, [0.28, 0.31, 0.02])      # off the 4f position
+
+    assert len(bonding.orders(rutile)) == len(bonding.graph(rutile).bonds)
+    assert len(bonding.orders(rutile)) != before
+
+
+def test_a_move_off_a_special_position_refits_the_geometry(rutile):
+    """The same guard, on the coordination geometry.
+
+    It is read by the UFF typer and the hydrogen builder over atom
+    indices of the cell, so a geometry describing a smaller cell is not
+    stale, it is wrong about which atom is which.
+    """
+    p1.expand(rutile)
+    assert bonding.geometry(rutile).cell.n_atoms == p1.expand(rutile).n_atoms
+
+    rutile.set_frac(1, [0.28, 0.31, 0.02])
+
+    assert bonding.geometry(rutile).cell.n_atoms == p1.expand(rutile).n_atoms

@@ -103,6 +103,14 @@ class Bond:
     would otherwise keep re-creating, or :data:`TOPOLOGY` for an edge
     of the underlying net -- which is not a chemical bond at all and is
     filtered out of everything that treats one as such.
+
+    ``stated`` says the ``order`` is the user's answer and not a
+    default.  It exists for the one order the number cannot express on
+    its own: a bond the user deliberately called *single* carries
+    ``order = 1.0``, which is exactly what an undecided bond carries,
+    and without this flag the inference would go on making it double
+    because both its ends look sp2.  Set Bond Type sets it; drawing a
+    bond does not.
     """
 
     i: int
@@ -111,9 +119,11 @@ class Bond:
     order: float = 1.0
     kind: str = "explicit"
     op: int = 0
+    stated: bool = False
 
     def __post_init__(self):
         object.__setattr__(self, "i", int(self.i))
+        object.__setattr__(self, "stated", bool(self.stated))
         object.__setattr__(self, "j", int(self.j))
         object.__setattr__(self, "op", int(self.op))
         object.__setattr__(self, "image",
@@ -140,7 +150,7 @@ class Bond:
         image = -(closing + rot @ np.asarray(self.image, dtype=float))
         return Bond(self.j, self.i,
                     tuple(int(round(v)) for v in image),
-                    self.order, self.kind, m)
+                    self.order, self.kind, m, self.stated)
 
     def canonical(self, space_group=None) -> Bond:
         """Direction-independent form, so a bond and the same bond
@@ -155,7 +165,7 @@ class Bond:
                 return self
             other = Bond(self.j, self.i,
                          tuple(-v for v in self.image),
-                         self.order, self.kind, 0)
+                         self.order, self.kind, 0, self.stated)
         else:
             other = self.reverse(space_group)
         mine = (self.i, self.j, self.op, self.image)
@@ -170,14 +180,17 @@ class Bond:
         return self.i == index or self.j == index
 
     def to_dict(self) -> dict:
-        return {"i": self.i, "j": self.j, "image": list(self.image),
-                "order": self.order, "kind": self.kind, "op": self.op}
+        out = {"i": self.i, "j": self.j, "image": list(self.image),
+               "order": self.order, "kind": self.kind, "op": self.op}
+        if self.stated:
+            out["stated"] = True
+        return out
 
     @classmethod
     def from_dict(cls, d: dict) -> Bond:
         return cls(d["i"], d["j"], tuple(d.get("image", (0, 0, 0))),
                    d.get("order", 1.0), d.get("kind", "explicit"),
-                   d.get("op", 0))
+                   d.get("op", 0), d.get("stated", False))
 
 
 # ======================================================================
@@ -212,6 +225,9 @@ class CellBond:
     #: here is only ever *stated* -- carried down from the ``order`` of
     #: an explicit :class:`Bond` the user drew.
     order: float = 1.0
+    #: Whether that order is the user's answer rather than a default --
+    #: see :class:`Bond`.  Perception never states an order.
+    stated: bool = False
 
     def key(self) -> tuple:
         if (self.j, self.image) < (self.i, tuple(-v for v in self.image)):
@@ -464,7 +480,7 @@ class Structure:
                       if i not in drop]
         self.bonds = [
             Bond(b.i - int(shift[b.i]), b.j - int(shift[b.j]),
-                 b.image, b.order, b.kind)
+                 b.image, b.order, b.kind, b.op, b.stated)
             for b in self.bonds
             if b.i not in drop and b.j not in drop
         ]
@@ -521,6 +537,27 @@ class Structure:
         self.bonds = keep
         self.touch(Change.TOPOLOGY)
         return True
+
+    def set_bonds(self, bonds) -> None:
+        """Replace the whole bond list, in one change.
+
+        The bulk form of :meth:`add_bond` and :meth:`remove_bond`, and
+        the only honest way to make a hundred bond edits at once: each
+        of those touches, and a touch drops the P1 expansion, so a loop
+        over them re-expands the cell once per bond.  On a framework
+        with two hundred symmetry operations that is the difference
+        between an edit and a stall.
+
+        The caller owns the deduplication -- this is a replacement, not
+        a merge -- but every bond is still checked against the sites
+        and the group, because a bond list that names a site which is
+        not there is not a saveable structure.
+        """
+        fresh = list(bonds)
+        for bond in fresh:
+            self._check_bond(bond)
+        self.bonds = fresh
+        self.touch(Change.TOPOLOGY)
 
     def bonds_of(self, index: int) -> list[Bond]:
         return [b for b in self.bonds if b.involves(index)]

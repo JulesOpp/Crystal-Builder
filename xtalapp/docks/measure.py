@@ -13,6 +13,13 @@ What kind of measurement you get is decided by how many atoms you
 pick -- two for a distance, three for an angle, four for a torsion --
 so the chooser at the top is really setting "how many clicks", and the
 viewport says how many are left as you go.
+
+Planes are the exception, and are made from the *selection* rather than
+from a run of clicks: three atoms determine one and a ring is six, so
+there is no useful number to count clicks up to.  Select the atoms,
+press the button, and the plane joins a list of its own; the angle
+between planes is then taken between the rows of that list and lands in
+the same table as every other measurement.
 """
 
 from __future__ import annotations
@@ -22,9 +29,11 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
     QDockWidget,
+    QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QListWidget,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -44,6 +53,8 @@ class MeasureDock(QDockWidget):
     """Distances, angles and torsions taken in the viewport."""
 
     targetChanged = Signal(int)
+    #: What a plane command did, for the status bar.
+    statusMessage = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__("Measure", parent)
@@ -86,11 +97,46 @@ class MeasureDock(QDockWidget):
         layout.addWidget(self.hint)
         layout.addWidget(self.table, 1)
         layout.addLayout(buttons)
+        layout.addWidget(self._build_planes())
 
         container = QWidget()
         container.setLayout(layout)
         self.setWidget(container)
         self.set_document(None)
+
+    def _build_planes(self) -> QGroupBox:
+        box = QGroupBox("Planes")
+        self.plane_list = QListWidget()
+        self.plane_list.setSelectionMode(
+            QAbstractItemView.ExtendedSelection)
+        self.plane_list.setToolTip(
+            "Planes defined from the selection.  Choose two or more, "
+            "then take the angle between them.")
+        self.plane_list.itemSelectionChanged.connect(
+            self._on_plane_chosen)
+
+        self.define_button = QPushButton("From selection")
+        self.define_button.setToolTip(
+            "Fit a plane through the selected atoms -- exactly through "
+            "three, least-squares through more")
+        self.define_button.clicked.connect(self.define_plane)
+        self.angle_button = QPushButton("Angle")
+        self.angle_button.setToolTip(
+            "The angle between the chosen planes, or between all of "
+            "them when none is chosen -- one measurement per pair")
+        self.angle_button.clicked.connect(self.measure_plane_angle)
+        self.remove_plane_button = QPushButton("Remove")
+        self.remove_plane_button.clicked.connect(self.remove_planes)
+
+        row = QHBoxLayout()
+        row.addWidget(self.define_button)
+        row.addWidget(self.angle_button)
+        row.addWidget(self.remove_plane_button)
+
+        inner = QVBoxLayout(box)
+        inner.addWidget(self.plane_list)
+        inner.addLayout(row)
+        return box
 
     # -- binding -------------------------------------------------------
 
@@ -120,6 +166,27 @@ class MeasureDock(QDockWidget):
         has_any = bool(measurements)
         self.remove_button.setEnabled(has_any)
         self.clear_button.setEnabled(has_any)
+        self.refresh_planes()
+
+    def refresh_planes(self) -> None:
+        """The plane list, and what can be done with it."""
+        document = self.document
+        planes = document.planes if document else []
+        chosen = {i.row() for i in
+                  self.plane_list.selectionModel().selectedRows()}
+        self.plane_list.blockSignals(True)
+        self.plane_list.clear()
+        for plane in planes:
+            self.plane_list.addItem(plane.text())
+        for row in chosen:
+            if row < self.plane_list.count():
+                self.plane_list.item(row).setSelected(True)
+        self.plane_list.blockSignals(False)
+        selected_atoms = bool(document is not None
+                              and len(document.selection.atoms) >= 3)
+        self.define_button.setEnabled(selected_atoms)
+        self.angle_button.setEnabled(len(planes) >= 2)
+        self.remove_plane_button.setEnabled(bool(planes))
 
     # -- actions -------------------------------------------------------
 
@@ -139,6 +206,45 @@ class MeasureDock(QDockWidget):
     def clear(self) -> None:
         if self.document is not None:
             self.document.clear_measurements()
+
+    def define_plane(self) -> None:
+        if self.document is not None:
+            self.statusMessage.emit(self.document.define_plane())
+
+    def measure_plane_angle(self) -> None:
+        """The angle between the chosen planes, or between all of them.
+
+        Choosing none and meaning all is the common case: two planes
+        are defined and the angle between them is the question.
+        """
+        if self.document is None:
+            return
+        rows = sorted({i.row() for i in
+                       self.plane_list.selectionModel().selectedRows()})
+        self.statusMessage.emit(
+            self.document.measure_plane_angles(rows if len(rows) >= 2
+                                               else None))
+
+    def remove_planes(self) -> None:
+        rows = sorted({i.row() for i in
+                       self.plane_list.selectionModel().selectedRows()},
+                      reverse=True)
+        for row in rows or [len(self.document.planes) - 1]:
+            self.document.remove_plane(row)
+
+    def _on_plane_chosen(self) -> None:
+        """Choosing a plane lights up the atoms it was fitted
+        through -- the only way to tell two rings apart in a picture of
+        a framework."""
+        if self.document is None:
+            return
+        atoms = set()
+        for item in self.plane_list.selectionModel().selectedRows():
+            row = item.row()
+            if 0 <= row < len(self.document.planes):
+                atoms |= set(self.document.planes[row].atoms)
+        if atoms:
+            self.document.select(atoms, "set")
 
     def _on_row_chosen(self) -> None:
         """Selecting a measurement lights up the atoms it was taken

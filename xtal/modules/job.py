@@ -214,10 +214,11 @@ class JobResult:
     """What a run produced, kept as small as three modules can justify.
 
     A message the status bar can show, optionally a geometry to adopt,
-    and the flags that say how it ended.  Tables, plots and overlays
-    are named in the plan as things a module will want to present, and
-    are deliberately not here yet: the first module that has one is
-    the one that gets to decide what the shape is.
+    the flags that say how it ended, and -- since Zeo++, which was the
+    first module with an answer a sentence could not carry -- a
+    :class:`~xtal.modules.report.Report` of the tables and histograms
+    worth looking at.  See that module for why the shape is as small
+    as it is.
     """
 
     message: str = ""
@@ -231,6 +232,10 @@ class JobResult:
     #: tree.
     artifacts: tuple = ()
     detail: str = ""
+    #: What to show: tables and histograms, in the order to show them.
+    #: ``None`` from a module whose whole answer is its message, which
+    #: is most of them.
+    report: Any = None
 
     @classmethod
     def stopped(cls, message: str = "stopped") -> JobResult:

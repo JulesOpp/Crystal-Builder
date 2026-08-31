@@ -55,6 +55,7 @@ class Document(QObject):
     previewChanged = Signal()           # a geometry shown, not committed
     selectionChanged = Signal()
     measurementsChanged = Signal()
+    planesChanged = Signal()            # a plane defined or dropped
     viewChanged = Signal()
     historyChanged = Signal()
     modifiedChanged = Signal(bool)
@@ -79,6 +80,12 @@ class Document(QObject):
         # about the crystal, so they live here, are saved with a
         # project, and never land on the undo stack.
         self.measurements: list = []
+        # The planes the user has defined, in the order they defined
+        # them.  Like measurements they are notes rather than edits --
+        # nothing here is undoable -- but unlike a measurement a plane
+        # is a thing other measurements are taken *between*, so it is
+        # kept in its own list and named.
+        self.planes: list = []
         self.warnings: list[str] = list(
             self._structure.meta.get("warnings", []))
         # Off, and a preference rather than a rule -- see
@@ -153,6 +160,7 @@ class Document(QObject):
                       [k[0], k[1], list(k[2])]
                       for k in sorted(self.selection.bonds)],
             "measurements": [m.to_dict() for m in self.measurements],
+            "planes": [p.to_dict() for p in self.planes],
         }
 
     def _restore_session(self, session: dict) -> None:
@@ -175,12 +183,21 @@ class Document(QObject):
                     (int(i), int(j), tuple(int(v) for v in image)))
             except (TypeError, ValueError):
                 continue
+        for record in session.get("planes", []):
+            try:
+                atoms = [int(a) for a in record["atoms"]]
+                if atoms and max(atoms) < cell.n_atoms:
+                    self.planes.append(measure.plane(
+                        cell, self._structure.lattice, atoms,
+                        name=record.get("name", "")))
+            except (KeyError, TypeError, ValueError):
+                continue
         for record in session.get("measurements", []):
             try:
                 saved = measure.Measurement.from_dict(record)
                 if max(saved.atoms) < cell.n_atoms:
-                    self.measurements.append(measure.measure(
-                        cell, self._structure.lattice, saved.atoms))
+                    self.measurements.append(self._recomputed(
+                        saved, cell, self._structure.lattice))
             except (KeyError, TypeError, ValueError):
                 continue
 
@@ -250,6 +267,7 @@ class Document(QObject):
         self.warnings = list(structure.meta.get("warnings", []))
         self.selection.clear()
         self.measurements = []
+        self.planes = []
         self.stack.clear()
         if not modified:
             self.stack.mark_clean()
@@ -429,6 +447,15 @@ class Document(QObject):
             self.selectionChanged.emit()
             self._prune_measurements()
         elif change & Change.POSITIONS:
+            # A move can change how many atoms the cell holds all the
+            # same: an atom taken off a special position splits its
+            # orbit, and one moved onto one merges it.  The selection
+            # then names atoms that are no longer there, and would
+            # light up whichever atoms inherited their indices.
+            n_atoms = self.cell.n_atoms
+            if self.selection.names_beyond(n_atoms):
+                self.selection.prune(n_atoms)
+                self.selectionChanged.emit()
             self._remeasure()
         self._announce_modified()
         self.structureChanged.emit(int(change))
@@ -458,7 +485,24 @@ class Document(QObject):
     #  SELECTION
     # ==================================================================
 
-    def select(self, atoms, mode: str = "set") -> None:
+    def select(self, atoms, mode: str = "set",
+               with_bonds: bool = False) -> None:
+        """Select atoms, and optionally the bonds between them.
+
+        ``with_bonds`` takes every bond whose *both* ends are in the
+        selection -- the only bonds a selection of atoms can be said to
+        contain.
+
+        It is set by the commands that name a *region*: Select All, the
+        box, Invert, and the three Grow commands.  A region contains
+        the bonds inside it, which is what makes "select the linker,
+        set the bond type" one gesture instead of eleven clicks.  The
+        commands that name *atoms* -- a click, Select same element, a
+        row in a table -- leave the bonds alone, because there the user
+        is talking about atoms and a bond that quietly joined the
+        selection would be edited by the next command without ever
+        having been asked for.
+        """
         atoms = [int(a) for a in atoms]
         if mode == "set":
             self.selection.set_atoms(atoms)
@@ -471,7 +515,28 @@ class Document(QObject):
                 self.selection.toggle_atom(atom)
         else:
             raise ValueError(f"unknown selection mode {mode!r}")
+        if with_bonds:
+            self._take_the_bonds_between(mode)
         self.selectionChanged.emit()
+
+    def _take_the_bonds_between(self, mode: str = "set") -> None:
+        """Bring the selected bonds into line with the selected atoms.
+
+        A bond with one end outside the selection is not in it, which
+        is what each of these three says in its own way: replacing the
+        selection replaces its bonds, adding to it keeps whatever was
+        already held, and removing atoms drops the bonds that are now
+        only half held.  Without the last one a bond stays selected
+        long after the atom it hangs off has gone, and the next Set
+        Bond Type quietly acts on it.
+        """
+        inside = sel.bonds_within(self.graph, self.selection.atoms)
+        if mode == "add":
+            self.selection.bonds |= inside
+        elif mode == "remove":
+            self.selection.bonds &= inside
+        else:
+            self.selection.bonds = inside
 
     def select_bond(self, key, mode: str = "set") -> None:
         if mode == "set":
@@ -485,7 +550,16 @@ class Document(QObject):
         self.selectionChanged.emit()
 
     def select_all(self) -> None:
+        """Everything: the atoms, and the bonds between them.
+
+        Not the net edges.  A topology bond is a statement about which
+        parts of a framework are nodes rather than a bond, and Delete
+        acts on the net before it acts on anything else -- so taking
+        the edges here would make Select All followed by Delete take
+        the net apart instead of the crystal.
+        """
         self.selection.set_atoms(range(self.cell.n_atoms))
+        self.selection.bonds = {b.key() for b in self.graph.bonds}
         self.selectionChanged.emit()
 
     def invert_selection(self) -> None:
@@ -505,6 +579,10 @@ class Document(QObject):
             self.selection.set_atoms(sel.symmetry_orbit(self.cell,
                                                         atoms))
         self.selection.invert(self.cell.n_atoms)
+        # The bonds are re-derived rather than inverted: they follow
+        # the atoms, so the inverse of "everything" is nothing at all
+        # and not "no atoms, every bond".
+        self._take_the_bonds_between()
         self.selectionChanged.emit()
 
     def select_element(self, symbol: str, mode: str = "set") -> None:
@@ -529,7 +607,7 @@ class Document(QObject):
                                       float(value))
         else:
             raise ValueError(f"unknown expansion {how!r}")
-        self.select(atoms, "set")
+        self.select(atoms, "set", with_bonds=True)
 
     def selected_sites(self) -> set:
         return sel.sites_for(self.cell, self.selection.atoms)
@@ -628,6 +706,15 @@ class Document(QObject):
         project, so replacing it is a change like any other and goes on
         the undo stack -- including when the bonds come back the same,
         because their lengths did not.
+
+        What it does **not** do is undo the user's own bond edits: a
+        bond they drew stays drawn and a bond they deleted stays
+        suppressed, because both are information perception cannot
+        produce.  That is also the reason this looked like a button
+        that did nothing -- somebody who deletes a bond and then
+        recalculates gets the identical graph and no explanation.  So
+        the overrides are counted and said out loud, and
+        :meth:`reset_bonds` is named as the way past them.
         """
         before = {b.key() for b in bonding.perceive(self._structure)}
         self.run(bond_commands.RecomputeBonds())
@@ -635,12 +722,55 @@ class Document(QObject):
 
         added, removed = len(after - before), len(before - after)
         if not added and not removed:
-            return f"bonds recalculated, unchanged: {len(after)} bonds"
-        # The difference, not the total: a recalculation that swapped
-        # one bond for another has the same count as one that did
-        # nothing, and they are not the same event.
-        return (f"bonds recalculated: {added} added, {removed} removed "
-                f"-- {len(after)} bonds")
+            head = f"bonds recalculated, unchanged: {len(after)} bonds"
+        else:
+            # The difference, not the total: a recalculation that
+            # swapped one bond for another has the same count as one
+            # that did nothing, and they are not the same event.
+            head = (f"bonds recalculated: {added} added, "
+                    f"{removed} removed -- {len(after)} bonds")
+        held = self.bond_overrides()
+        return head if not held else f"{head} ({held})"
+
+    def bond_overrides(self) -> str:
+        """The user's bond edits, counted -- or "" when there are none.
+
+        Said after every recalculation, because they are what a
+        recalculation deliberately leaves in place, and an unexplained
+        no-op is indistinguishable from a broken button.
+        """
+        drawn = sum(1 for b in self._structure.bonds
+                    if b.kind == "explicit")
+        cut = sum(1 for b in self._structure.bonds
+                  if b.kind == "suppressed")
+        parts = []
+        if drawn:
+            parts.append(f"{drawn} you drew")
+        if cut:
+            parts.append(f"{cut} you deleted")
+        if not parts:
+            return ""
+        return (f"kept {' and '.join(parts)}; "
+                f"Reset bonds is what drops them")
+
+    def reset_bonds(self) -> str:
+        """Drop the bond edits and take the automatic answer.
+
+        The way back from a suppression, which is otherwise permanent:
+        it is stored so that perception cannot undo it and it is saved
+        with the project, so once the undo stack is gone there is
+        nothing else that can.
+        """
+        held = self.bond_overrides()
+        if not held:
+            # Nothing to drop, so this is a recalculation and should
+            # say so rather than claiming to have reset something.
+            return self.recompute_bonds()
+        self.run(bond_commands.ResetBonds())
+        return (f"bonds reset to automatic: "
+                f"{len(bonding.perceive(self._structure))} bonds, "
+                f"and the edits you had made to them are gone -- "
+                f"Ctrl+Z brings them back")
 
     def add_bond_between(self, atom_a: int, atom_b: int,
                          image_a=(0, 0, 0), image_b=(0, 0, 0)) -> str:
@@ -735,28 +865,128 @@ class Document(QObject):
     def delete_selected_bonds(self) -> str:
         """Suppress every selected bond, as one undo step.
 
+        One command for the whole selection, for the reason
+        :meth:`set_selected_bond_type` gives.
+
         Reported in orbit terms, because that is what happens: a bond
         is stored against the asymmetric unit, so suppressing one
         suppresses every bond the symmetry says is the same bond.
         "removed 4 Ti-O bonds" is the honest message where "bond
         removed" is not.
         """
-        keys = sorted(self.selection.bonds)
-        if not keys:
+        bonds, _refused = self._selected_bonds_as_sites()
+        if bonds is None:
             return "no bonds are selected"
+        selected = len(self.selection.bonds)
         before = len(self.graph.bonds)
-        with self.transaction(f"Delete {len(keys)} bond(s)"):
-            for i, j, image in keys:
-                self.run(bond_commands.SuppressBond.between_atoms(
-                    self._structure, self.cell, int(i), int(j),
-                    (0, 0, 0), tuple(int(v) for v in image)))
+        if bonds:
+            self.run(bond_commands.SuppressBonds(bonds))
         gone = before - len(self.graph.bonds)
         self.selection.bonds.clear()
         self.selectionChanged.emit()
-        if gone == len(keys):
+        if gone == selected:
             return f"removed {gone} bond(s)"
-        return (f"removed {gone} bonds -- {len(keys)} were selected, "
+        return (f"removed {gone} bonds -- {selected} were selected, "
                 f"and symmetry carried it to the rest of the orbit")
+
+    def set_selected_bond_type(self, order) -> str:
+        """State the order of every selected bond, as one undo step.
+
+        One command for the whole selection, not one per bond: the
+        structure is touched once, the cell is expanded once and the
+        viewport redraws once.  Select All on a framework selects eight
+        hundred bonds, and the version of this that ran a command each
+        made the application stop for a quarter of a minute drawing
+        pictures nobody asked to see.
+
+        Reported in orbit terms for the same reason deletion is: the
+        statement is stored against the asymmetric unit, so calling one
+        C-O of an acetate double calls the other one double as well,
+        and a message that said "1 bond" would be describing a
+        different edit from the one that happened.
+        """
+        bonds, refused = self._selected_bonds_as_sites()
+        if bonds is None:
+            return "no bonds are selected"
+        name = bond_commands.bond_type_name(order)
+        if bonds:
+            self.run(bond_commands.SetBondTypes(bonds, order))
+        changed = self.count_bonds_of_order(order)
+        selected = len(self.selection.bonds)
+        if refused:
+            return (f"set {changed} bond(s) to {name.lower()}; "
+                    f"{refused} could not be expressed in "
+                    f"{self._structure.space_group.short_name} and "
+                    f"were left alone")
+        if order is None:
+            return f"{selected} bond(s) back to the inferred order"
+        if changed > selected:
+            return (f"set {changed} bonds to {name.lower()} -- "
+                    f"{selected} were selected, and symmetry carried "
+                    f"it to the rest of the orbit")
+        return f"set {changed} bond(s) to {name.lower()}"
+
+    def _selected_bonds_as_sites(self):
+        """``(the selected bonds in site space, how many were refused)``.
+
+        ``None`` for the bonds when nothing is selected.  A bond the
+        space group cannot express is counted rather than raised: one
+        such bond in a selection of eight hundred must not throw the
+        other 799 away.
+        """
+        keys = sorted(self.selection.bonds)
+        if not keys:
+            return None, 0
+        # Read the expansion once.  Nothing in this loop moves an atom,
+        # so the cell it starts with is the cell it ends with -- and
+        # asking the document for it again per bond is what made this
+        # quadratic.
+        cell = self.cell
+        bonds, refused = [], 0
+        for i, j, image in keys:
+            try:
+                bonds.append(bonding.bond_between(
+                    self._structure, cell, int(i), int(j),
+                    (0, 0, 0), tuple(int(v) for v in image)))
+            except ValueError:
+                refused += 1
+        return bonds, refused
+
+    def count_bonds_of_order(self, order) -> int:
+        """How many drawn bonds now carry ``order``."""
+        if order is None:
+            return 0
+        orders = bonding.orders(self._structure)
+        return int(sum(1 for value in orders
+                       if abs(float(value) - float(order)) < 1e-9))
+
+    def selected_bond_type(self) -> str:
+        """What the selected bonds are called, or "" when they differ.
+
+        Read off the drawn graph, which already carries both halves of
+        the answer: the order, and whether anybody stated it.  A bond
+        whose order was inferred is *Automatic* even when the inference
+        made it double, and one the user set is what they set.
+
+        The menu asks this on every selection change, so it is a
+        dictionary and a lookup rather than a walk back into site
+        space per bond -- which on a framework with everything selected
+        was a third of a second every time anything was clicked.
+        """
+        keys = self.selection.bonds
+        if not keys:
+            return ""
+        drawn = {bond.key(): bond for bond in self.graph.bonds}
+        names = set()
+        for key in keys:
+            bond = drawn.get(tuple(key))
+            if bond is None:
+                return ""               # selected but no longer drawn
+            names.add(bond_commands.bond_type_name(bond.order,
+                                                   bond.stated))
+            if len(names) > 1:
+                return ""
+        return names.pop() if names else ""
 
     def replace_structure(self, structure: Structure, label: str,
                           change: Change = Change.ALL) -> str:
@@ -1044,6 +1274,80 @@ class Document(QObject):
         self.measurementsChanged.emit()
         return result.text()
 
+    # -- planes --------------------------------------------------------
+    #
+    # A plane is defined by atoms and re-fitted from them whenever they
+    # move, which is the only way an interplanar angle can be trusted
+    # after an optimisation: a plane stored as four numbers would go on
+    # reporting the angle the molecule used to have.
+
+    def define_plane(self, atoms=None, name: str = "") -> str:
+        """Fit a plane through three or more atoms -- the selection by
+        default.
+
+        Exactly three atoms determine a plane; more are fitted by least
+        squares, which is what makes "select the ring, define the
+        plane" the gesture it should be rather than an error message
+        about having picked six atoms.
+        """
+        indices = (sorted(self.selection.atoms) if atoms is None
+                   else [int(a) for a in atoms])
+        if len(indices) < 3:
+            return "a plane needs at least three atoms"
+        result = measure.plane(
+            self.cell, self._structure.lattice, indices,
+            name=name or self._next_plane_name())
+        self.planes.append(result)
+        self.planesChanged.emit()
+        return result.text()
+
+    def _next_plane_name(self) -> str:
+        """The lowest unused ``Plane n``.
+
+        Counting the list would reuse a name as soon as one is removed,
+        and an interplanar angle already on the table would then be
+        labelled with somebody else's plane.
+        """
+        taken = {p.name for p in self.planes}
+        n = 1
+        while f"Plane {n}" in taken:
+            n += 1
+        return f"Plane {n}"
+
+    def remove_plane(self, index: int) -> None:
+        if 0 <= index < len(self.planes):
+            del self.planes[index]
+            self.planesChanged.emit()
+
+    def clear_planes(self) -> None:
+        if self.planes:
+            self.planes = []
+            self.planesChanged.emit()
+
+    def measure_plane_angles(self, indices=None) -> str:
+        """The angle between planes -- every pair of them.
+
+        Two planes give one angle.  More than two give one angle per
+        pair, because there is no such thing as "the" angle between
+        three planes and picking one pair of the three for the user
+        would be choosing for them.
+        """
+        chosen = (list(range(len(self.planes))) if indices is None
+                  else [int(i) for i in indices])
+        chosen = [i for i in chosen if 0 <= i < len(self.planes)]
+        if len(chosen) < 2:
+            return "define at least two planes to measure between them"
+        added = 0
+        for position, first in enumerate(chosen):
+            for second in chosen[position + 1:]:
+                self.measurements.append(measure.interplanar_angle(
+                    self.planes[first], self.planes[second]))
+                added += 1
+        self.measurementsChanged.emit()
+        if added == 1:
+            return self.measurements[-1].text()
+        return f"measured {added} interplanar angles"
+
     def remove_measurement(self, index: int) -> None:
         if 0 <= index < len(self.measurements):
             del self.measurements[index]
@@ -1055,20 +1359,47 @@ class Document(QObject):
             self.measurementsChanged.emit()
 
     def _remeasure(self) -> None:
-        """Recompute every measurement after the atoms moved."""
+        """Recompute every measurement and re-fit every plane after the
+        atoms moved."""
+        cell, lattice = self.cell, self._structure.lattice
+        if self.planes:
+            self.planes = [
+                measure.plane(cell, lattice, p.atoms, name=p.name)
+                for p in self.planes if max(p.atoms) < cell.n_atoms]
+            self.planesChanged.emit()
         if not self.measurements:
             return
-        cell, lattice = self.cell, self._structure.lattice
         self.measurements = [
-            measure.measure(cell, lattice, m.atoms)
+            self._recomputed(m, cell, lattice)
             for m in self.measurements
             if max(m.atoms) < cell.n_atoms]
         self.measurementsChanged.emit()
 
+    def _recomputed(self, m, cell, lattice):
+        """One measurement, taken again over the atoms as they are now.
+
+        An interplanar angle is re-fitted from its two atom groups
+        rather than from the planes in the list, so a measurement
+        survives the plane it was taken from being removed -- what it
+        records is the two sets of atoms, and those are still there.
+        """
+        if not m.planes:
+            return measure.measure(cell, lattice, m.atoms)
+        first, second = (
+            measure.plane(cell, lattice, group, name=name)
+            for group, name in zip(m.planes, m.labels, strict=False))
+        return measure.interplanar_angle(first, second)
+
     def _prune_measurements(self) -> None:
-        """Drop the measurements whose atoms no longer exist."""
+        """Drop the measurements and planes whose atoms no longer
+        exist."""
+        n_atoms = self.cell.n_atoms
+        planes = [p for p in self.planes if max(p.atoms) < n_atoms]
+        if len(planes) != len(self.planes):
+            self.planes = planes
+            self.planesChanged.emit()
         keep = [m for m in self.measurements
-                if max(m.atoms) < self.cell.n_atoms]
+                if max(m.atoms) < n_atoms]
         if len(keep) != len(self.measurements):
             self.measurements = keep
             self.measurementsChanged.emit()

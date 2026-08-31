@@ -52,6 +52,24 @@ def test_copy_is_independent():
     assert s.atoms == {1, 2}
 
 
+def test_a_copy_keeps_every_set_it_had():
+    """All three sets and the focus, each in its own field: the net
+    edges used to land in the focus, which made a copied selection
+    claim to have edges nobody drew."""
+    s = Selection()
+    s.set_atoms([1, 2])
+    s.bonds = {(1, 2, (0, 0, 0))}
+    s.topology = {(1, 2, (0, 0, 1))}
+    s.focus = 2
+
+    c = s.copy()
+
+    assert c.atoms == s.atoms
+    assert c.bonds == s.bonds
+    assert c.topology == s.topology
+    assert c.focus == 2
+
+
 def test_by_element_and_by_site(rutile):
     cell = p1.expand(rutile)
     assert sel.by_element(cell, "Ti") == {0, 1}
