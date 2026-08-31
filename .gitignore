@@ -8,6 +8,7 @@ dist/
 .ruff_cache/
 .DS_Store
 *.xtalproj
+resources/PTBP/
 
 # Zeo++, unpacked into resources/ so the module finds it without an
 # install.  78 MB of somebody else's source, object files and a built
