@@ -46,9 +46,8 @@ from xtal.commands.bonds import BOND_TYPES
 from xtal.commands.clipboard import Fragment
 from xtal.core.structure import Change
 from xtal.io import FORMATS
-from xtal.modules import MODULES, Job, ModuleError
-from xtal.modules import record as module_record
-from xtal.workspace import NotAWorkspace, Workspace, safe_name
+from xtal.modules import MODULES
+from xtal.workspace import NotAWorkspace, Workspace
 from xtalapp.actions import ActionRegistry
 from xtalapp.dialogs.add_atom import AddAtomDialog
 from xtalapp.dialogs.add_hydrogens import AddHydrogensDialog
@@ -57,7 +56,6 @@ from xtalapp.dialogs.cell_edit import CellEditDialog
 from xtalapp.dialogs.display_range import DisplayRangeDialog
 from xtalapp.dialogs.find_symmetry import FindSymmetryDialog
 from xtalapp.dialogs.merge_duplicates import MergeDuplicatesDialog
-from xtalapp.dialogs.module_form import ModuleDialog
 from xtalapp.dialogs.run_progress import RunProgressDialog
 from xtalapp.dialogs.spacegroup import SpaceGroupDialog
 from xtalapp.dialogs.subgroup import SubgroupDialog
@@ -76,11 +74,10 @@ from xtalapp.docks.style_panel import StylePanelDock
 from xtalapp.docks.trajectory import TrajectoryDock
 from xtalapp.docks.workspace import WorkspaceDock
 from xtalapp.document import Document
-from xtalapp.histogram import save_histogram
+from xtalapp.module_runner import ModuleRunner
 from xtalapp.settings import AppSettings, default_size, fit_to_screen
 from xtalapp.viewport import modes, styles
 from xtalapp.viewport.view_settings import BACKGROUNDS
-from xtalapp.workers import ModuleWorker, start_in_thread
 
 APP_NAME = "Crystal Builder"
 
@@ -146,14 +143,10 @@ class MainWindow(QMainWindow):
         # last export used -- which is what "Export again" repeats.
         self.workspace: Workspace | None = None
         self._last_export: tuple | None = None
-        # The one module run that may be going, and what each action
-        # was last run with.  Remembered in the window rather than in
-        # QSettings: a parameter set is worth offering again in the
-        # session that chose it, and not worth restoring six weeks
-        # later against a different structure.
-        self.module_worker: ModuleWorker | None = None
-        self._module_thread = None
-        self._module_params: dict = {}
+        # What runs a module, and the run that may be going.  Built
+        # before the docks it reports into, because _refresh_shell
+        # asks it whether anything is running.
+        self.module_runner = ModuleRunner(self)
         self._module_actions: list[tuple] = []
         self._module_submenus: dict = {}
 
@@ -1813,247 +1806,28 @@ class MainWindow(QMainWindow):
     #  MODULES
     # ==================================================================
     #
-    # One run at a time, on a worker thread, into a run folder, with a
-    # Stop button that reaches whatever is actually running -- a loop
-    # in this process or a binary in another.  Nothing here names a
-    # module: everything it needs comes off the registry entry, which
-    # is what "adding an engine touches no existing file" means.
+    # The running of them is :mod:`xtalapp.module_runner`; what is left
+    # here is the three names the rest of the application reaches it
+    # by.  The modules dock, the run-progress dialog, ``closeEvent``
+    # and the generated menu entries all call these, so they stay on
+    # the window whatever the runner is called.
+
+    @property
+    def module_worker(self):
+        """The run that is going, or ``None``.
+
+        Read-only, and read from the runner rather than mirrored here:
+        two copies of "is something running" is one copy too many, and
+        the enabling of half the menu bar is decided by it.
+        """
+        return self.module_runner.module_worker
 
     def run_module_action(self, module_name: str,
                           action_name: str) -> None:
-        """Run one entry of one module.
-
-        Ask for the parameters, open a run folder under the structure
-        the run belongs to, and start a thread.  The three Force Field
-        entries divert to the panel that has always performed them --
-        see :mod:`xtal.modules.forcefield` for why that is the one
-        exception rather than the pattern.
-        """
-        try:
-            module, action = MODULES.find(
-                f"{module_name}.{action_name}")
-        except ModuleError as exc:
-            self.show_message(str(exc))
-            return
-        if action.shell:
-            shell_action = self.actions_.get(action.shell)
-            if shell_action is None:                # pragma: no cover
-                self.show_message(
-                    f"{module.label} cannot do that here")
-            elif not shell_action.isEnabled():
-                self.show_message(
-                    f"{action.label} is not available right now")
-            else:
-                shell_action.trigger()
-            return
-        if self.module_worker is not None:
-            self.show_message(
-                "a module is already running -- stop it first")
-            return
-        available = module.availability()
-        if not available:
-            self.show_message(available.reason)
-            return
-        document = self.current_document()
-        if action.needs_structure and document is None:
-            self.show_message(
-                f"{action.label} needs a structure open")
-            return
-        if document is not None and document.is_playing:
-            # The atoms are showing a frame of a trajectory, so the
-            # geometry a module would be handed is not the document's.
-            # The menu entries are already disabled; this is what
-            # stops the tree reaching it.
-            self.show_message(
-                "close the trajectory first -- these atoms are a "
-                "frame being played, not the structure")
-            return
-        key = f"{module.name}.{action.name}"
-        values = ModuleDialog.ask(module, action, self,
-                                  self._module_params.get(key))
-        if values is None:                          # cancelled
-            return
-        self._module_params[key] = values
-        self._start_module(module, action, values, document)
-
-    def _start_module(self, module, action, values, document) -> None:
-        folder = None
-        if action.writes_run_folder and document is not None:
-            try:
-                folder = module_record.open_run(
-                    document.entry, module, action, values,
-                    document.structure)
-            except OSError as exc:
-                self.show_message(
-                    f"could not write into the workspace: {exc}")
-                return
-        if folder is None and action.writes_run_folder:
-            # Same rule as the Force Field panel: a structure with no
-            # workspace still runs, it just leaves nothing behind, and
-            # the status bar says so once rather than putting up a
-            # dialog.
-            self.show_message(
-                "no workspace open, so this run will not be kept -- "
-                "File > New Workspace... gives it somewhere to go")
-        # The worker gets a copy of the structure.  It reads it, caches
-        # on it and may move it, while the window goes on redrawing the
-        # one the user can see; sharing them would be a data race in
-        # the most literal sense.
-        job = Job(structure=document.structure.copy()
-                  if document is not None else None,
-                  params=values, folder=folder,
-                  label=f"{module.name}.{action.name}")
-        worker = ModuleWorker(module, action, job)
-        worker.progressed.connect(self.modules_dock.set_progress)
-        worker.progressed.connect(self.run_progress.set_progress)
-        worker.finished.connect(self._on_module_finished)
-        worker.failed.connect(self._on_module_failed)
-        self.module_worker = worker
-        self.modules_dock.set_running(worker.label)
-        self.run_progress.start(worker.label)
-        self._refresh_shell()
-        if folder is not None:
-            self.refresh_workspace()
-            self.log_dock.show_file(folder.path / "run.log")
-        # Parented to the window, so the thread outlives this
-        # method's reference to it whatever Python does with the
-        # attribute below.
-        self._module_thread = start_in_thread(worker, self)
+        self.module_runner.run_module_action(module_name, action_name)
 
     def stop_module(self) -> None:
-        """Stop whatever the module tree started.
-
-        For an in-process job this is a flag it looks at between units
-        of work; for an external one it is a signal to the process.
-        The button does not have to know which.
-        """
-        if self.module_worker is not None:
-            self.module_worker.cancel()
-            self.show_message("stopping...")
-
-    def _on_module_finished(self, result) -> None:
-        worker, job = self._finish_module()
-        # The pictures are written before the log is closed, so the
-        # log can name them the way it names every other artefact.
-        self._save_report_images(job, result)
-        module_record.close_run(job.folder if job else None, result)
-        self._show_report(worker, result)
-        if result.structure is not None:
-            self._adopt_module_structure(worker, result)
-        self.run_progress.finish()
-        self.modules_dock.set_idle(result.summary())
-        self._refresh_shell()
-        self.show_status(result.summary())
-        if result.detail:
-            self.show_message(result.detail.splitlines()[0])
-        self._after_module_run(job)
-
-    def _on_module_failed(self, message: str) -> None:
-        """A module that raised.
-
-        Reported where the run was started from and written into the
-        log that is already open, rather than into a dialog that has
-        to be dismissed before the log can be read.
-        """
-        _worker, job = self._finish_module()
-        module_record.close_run(job.folder if job else None,
-                                error=message)
-        # The previous run's numbers must not sit there under this
-        # run's heading, which is the one way this panel could be
-        # worse than no panel.
-        self.run_progress.finish()
-        self.results_dock.clear()
-        self.modules_dock.set_idle(f"failed: {message}")
-        self._refresh_shell()
-        self.show_status(f"the module failed: {message}")
-        self._after_module_run(job)
-
-    def _show_report(self, worker, result) -> None:
-        """Put a module's tables and histograms where they can be read.
-
-        Raised only when there is something in it.  A panel that
-        appears after every run -- including the ones whose whole
-        answer is a sentence -- is one people learn to close, and then
-        the one run that had a histogram in it goes unseen.
-        """
-        report = getattr(result, "report", None)
-        label = worker.label if worker is not None else ""
-        self.results_dock.show_report(report, label)
-        if report:
-            self.results_dock.show()
-            self.results_dock.raise_()
-
-    def _save_report_images(self, job, result) -> None:
-        """Write a run's histograms into its folder as PNGs.
-
-        The picture is the answer for a pore size distribution, and a
-        run folder holding four columns of numbers and no plot is one
-        somebody has to reopen the application to look at.  Drawn here
-        rather than by the module because the drawing is Qt's and the
-        module is headless -- and a failure to write one must never
-        cost the run, which has already succeeded.
-        """
-        report = getattr(result, "report", None)
-        if job is None or job.folder is None or not report:
-            return
-        written = []
-        for index, histogram in enumerate(report.histograms):
-            name = safe_name(histogram.title or f"plot-{index + 1}",
-                             f"plot-{index + 1}").lower()
-            try:
-                written.append(save_histogram(
-                    histogram, job.folder.path / f"{name}.png"))
-            except Exception as exc:                # noqa: BLE001
-                self.show_message(f"could not write the plot: {exc}")
-                return
-        if written:
-            result.artifacts = tuple(result.artifacts) + tuple(written)
-
-    def _finish_module(self):
-        """Let go of the run, but not of the thread it was on.
-
-        The worker signals ``finished`` from inside ``run``, so at
-        this point the thread has not stopped yet.  It is parented to
-        the window and Qt deletes it when it has -- nothing here may
-        touch its lifetime, because destroying a ``QThread`` that is
-        still running aborts the process rather than raising anything
-        catchable.
-        """
-        worker = self.module_worker
-        job = worker.job if worker is not None else None
-        self.module_worker = None
-        return worker, job
-
-    def _after_module_run(self, job) -> None:
-        """The workspace has changed and the log has stopped growing.
-
-        The tree is read from the directory on every refresh, so this
-        is the whole of keeping it in step with what just happened.
-        """
-        if job is not None and job.folder is not None:
-            self.refresh_workspace()
-            self.log_dock.poll()
-        self.modules_dock.refresh()
-
-    def _adopt_module_structure(self, worker, result) -> None:
-        """Take a geometry a module produced, as one undoable edit.
-
-        The module worked on a copy, so this is the only point at
-        which anything it did reaches the document -- and it reaches
-        it as a single command, so Ctrl+Z afterwards gives back the
-        structure the run started from.
-        """
-        document = self.current_document()
-        if document is None or document.is_playing:
-            self.show_message(
-                "the module produced a structure, and it was not "
-                "adopted because the document it ran against is no "
-                "longer in front")
-            return
-        label = f"{worker.module.label}: {worker.action.label}" \
-            if worker is not None else "Module result"
-        document.replace_structure(result.structure,
-                                   label.rstrip("."), Change.ALL)
+        self.module_runner.stop_module()
 
     def show_force_field(self) -> None:
         self.ff_dock.show()
