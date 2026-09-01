@@ -1,0 +1,57 @@
+Crystal Builder 0.1.dev2+gd6b2f7e2d.d20260829
+run            zeopp-diameters-005
+what           Zeo++: Pore diameters
+started        2026-09-01 02:22:56 UTC
+structure      C24H12O13Zn4 (Z = 8), 424 sites, 424 atoms in the cell
+space group    P1 (#1)
+source         /Users/julesoppenheim/GitHub/Crystal-Builder/resources/test/MOF-5/MOF-5.cif
+module         zeopp.diameters
+  high_accuracy on
+  radii        builtin
+  radii_file   
+
+wrote structure.cssr: 424 sites expanded to the whole cell
+Zeo++: pore diameters, radii from Zeo++'s own table
+$ /Users/julesoppenheim/GitHub/Crystal-Builder/resources/zeo++-0.3/network -ha -res diameters.res structure.cssr
+  in /Users/julesoppenheim/GitHub/Crystal-Builder/resources/test/MOF-5/zeopp-diameters-005
+High accuracy requested (DEF (default) settings). 
+Reading input file: structure.cssr
+Radii analysis: the smallest atom r = 1.09 while the largest atoms r = 1.7.
+Starting Voronoi decomposition
+Box dimensions:
+  va=(25.865800 0 0)
+  vb=(0.000000 25.865800 0)
+  vc=(0.000000 0.000000 25.865800)
+
+Total particles = 10264
+
+Internal grid size = (11 11 11)
+
+Using voro++ with radii for particles.
+Performing Voronoi decomposition.
+Volume check:
+  Total domain volume  = 17305.244735
+  Total Voronoi volume = 17305.244735
+Voronoi decomposition finished. Rerouting Voronoi network information.
+Finished rerouting information.
+Finished Voronoi decomposition
+Command 0  -ha
+Command 1  -res
+network finished in 9.3 s
+
+Pore diameters
+
+Largest included sphere (D_i)           15.084 A
+Largest free sphere (D_f)               7.926 A
+Included sphere along free path (D_if)  15.084 A
+
+D_f is the one that decides what the framework will admit, and it is always the smallest of the three.
+
+radii from Zeo++'s own table
+
+Result
+------
+D_i 15.084 A, D_f 7.926 A, D_if 15.084 A
+wrote diameters.res
+wrote structure.cssr
+finished       2026-09-01 02:23:05 UTC

@@ -129,6 +129,18 @@ show; `_on_view_changed` touches only the shell's own widgets.
 Rebuilding a site table because a spinbox moved is how a large
 structure loses interactivity.
 
+## Skills
+
+`.claude/skills/` holds the workflows that are worth not re-deriving:
+
+- **run-app** — launch the real window and drive it.
+  `python .claude/skills/run-app/drive.py --open FILE --action NAME
+  --viewport-shot OUT.png`. The suite stubs the viewport and cannot
+  press a button; this can. Use it whenever "it works" needs looking
+  at, and `--list-actions` to find an action's registry name.
+- **pure-move** — moving code between modules without changing
+  behaviour. One seam per commit, green suite between steps.
+
 ## Planning documents
 
 `docs/PLAN.md` is the phase roadmap, `docs/ROADMAP.md` the delivery
