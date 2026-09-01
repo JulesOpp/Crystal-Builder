@@ -88,6 +88,10 @@ from xtalapp.workers import OptimizationWorker, start_in_thread
 # against another program needs; "tetrahedral Zn(II)" is the only one
 # of the two that can be checked by reading it.
 COLUMNS = ["Site", "Type", "What it means", "Sure?", "Why"]
+# Rows sampled when sizing a column to its contents, as in the
+# sites dock: every row of a P1 framework is thousands of
+# measurements for a width the first few already settle.
+RESIZE_SAMPLE_ROWS = 30
 CHARGE_SOURCES = [
     ("From the sites", "site"),
     ("Equilibrate (QEq)", "qeq"),
@@ -285,6 +289,8 @@ class ForceFieldDock(QDockWidget):
             QHeaderView.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(
             COLUMNS.index("Why"), QHeaderView.Stretch)
+        self.table.horizontalHeader().setResizeContentsPrecision(
+            RESIZE_SAMPLE_ROWS)
 
         self.energy_button = QPushButton("Single point")
         self.energy_button.clicked.connect(self.single_point)
@@ -440,24 +446,39 @@ class ForceFieldDock(QDockWidget):
 
         self.table.setRowCount(len(rows))
         structure = self.document.structure
-        for row, (index, atom, multiplicity) in enumerate(rows):
-            site = structure.sites[index]
-            name = site.label or f"{site.element}{index}"
-            if multiplicity > 1:
-                name += f"  (x{multiplicity})"
-            sure = "set" if atom.overridden else atom.confidence
-            for column, text in enumerate(
-                    (name, atom.name, _describe(atom.name), sure,
-                     atom.reason)):
-                item = QTableWidgetItem(text)
-                item.setData(Qt.UserRole, index)
-                if column == 3 and sure == "uncertain":
-                    item.setForeground(Qt.red)
-                if atom.overridden:
-                    font = item.font()
-                    font.setItalic(True)
-                    item.setFont(font)
-                self.table.setItem(row, column, item)
+        # Every setItem emits dataChanged, and the view answers each
+        # one by asking the header where the row is -- which re-sizes
+        # the sized-to-contents columns, which measures and shapes the
+        # text of every sampled row again.  Two thousand cells on a P1
+        # framework is twenty seconds of font shaping, and because Qt
+        # replays those signals from the event loop it is spent
+        # *after* the optimisation has finished: the run is instant
+        # and then the window stops answering.  Fill the table
+        # silently and tell the view once, at the end.
+        model = self.table.model()
+        model.blockSignals(True)
+        try:
+            for row, (index, atom, multiplicity) in enumerate(rows):
+                site = structure.sites[index]
+                name = site.label or f"{site.element}{index}"
+                if multiplicity > 1:
+                    name += f"  (x{multiplicity})"
+                sure = "set" if atom.overridden else atom.confidence
+                for column, text in enumerate(
+                        (name, atom.name, _describe(atom.name), sure,
+                         atom.reason)):
+                    item = QTableWidgetItem(text)
+                    item.setData(Qt.UserRole, index)
+                    if column == 3 and sure == "uncertain":
+                        item.setForeground(Qt.red)
+                    if atom.overridden:
+                        font = item.font()
+                        font.setItalic(True)
+                        item.setFont(font)
+                    self.table.setItem(row, column, item)
+        finally:
+            model.blockSignals(False)
+            model.layoutChanged.emit()
         self._say(self._warnings_text(rows))
 
     def _warnings_text(self, rows) -> str:

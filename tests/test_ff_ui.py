@@ -83,6 +83,40 @@ def test_the_panel_lists_a_row_per_site(opened):
     assert "neighbours" in dock.table.item(0, WHY).text()
 
 
+def test_filling_the_type_table_does_not_emit_a_signal_per_cell(
+        window, rutile):
+    """One layout change for the fill, not one per cell.
+
+    Every setItem emits dataChanged, and the view answers each one by
+    asking the header to size its columns to their contents -- which
+    shapes the text of every sampled row again.  At two thousand cells
+    that was twenty seconds of font shaping, and because Qt replays
+    those signals from the event loop it was spent *after* an
+    optimisation had finished: the run was instant and then the window
+    stopped answering.  Counted rather than timed, because the cost is
+    paid in a deferred repaint that a headless test never performs.
+    """
+    from xtal.core import supercell, symmetry
+
+    big = symmetry.reduce_to_p1(supercell.supercell(rutile, 4, 4, 4))
+    document = Document(big)
+    window.add_document(document)
+    dock = window.ff_dock
+    assert dock.table.rowCount() == big.n_sites > 300
+
+    changes = []
+    layouts = []
+    model = dock.table.model()
+    model.dataChanged.connect(lambda *a: changes.append(a))
+    model.layoutChanged.connect(lambda *a: layouts.append(a))
+
+    dock.refresh()
+
+    assert not changes, f"{len(changes)} dataChanged for one fill"
+    assert len(layouts) == 1
+    assert dock.table.item(big.n_sites - 1, TYPE).text()
+
+
 def test_the_type_is_shown_in_words_beside_its_name(opened):
     """The one column the user is asked to check was written in a code
     the panel never explained."""

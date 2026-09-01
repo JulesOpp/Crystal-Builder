@@ -56,6 +56,10 @@ def _parse(argv):
                         "(see --list-actions)")
     p.add_argument("--eval", action=_Step, metavar="CODE",
                    help="exec Python with win, doc, app, tabs in scope")
+    p.add_argument("--script", action=_Step, metavar="PATH",
+                   help="exec a Python file in the same scope as "
+                        "--eval; for a probe too long for a shell "
+                        "argument")
     p.add_argument("--shot", action=_Step, metavar="PATH",
                    help="PNG of the whole window (menus, docks, tabs)")
     p.add_argument("--viewport-shot", action=_Step, metavar="PATH",
@@ -175,14 +179,21 @@ def _run(step, value, win, app) -> None:
         _settle(app, 400)
         print(f"triggered {value!r} ({action.text()})")
 
-    elif step == "eval":
+    elif step in ("eval", "script"):
         scope = {"win": win, "app": app, "tabs": win.tabs,
                  "doc": win.current_document(),
                  "viewport": win.current_viewport(),
                  "settle": lambda ms=250: _settle(app, ms)}
-        exec(value, scope)
-        _settle(app, 250)
-        print(f"eval ok: {value}")
+        if step == "script":
+            path = Path(value).resolve()
+            code = compile(path.read_text(), str(path), "exec")
+            exec(code, scope)
+            _settle(app, 250)
+            print(f"ran {path.name}")
+        else:
+            exec(value, scope)
+            _settle(app, 250)
+            print(f"eval ok: {value}")
 
     elif step == "shot":
         path = Path(value).resolve()

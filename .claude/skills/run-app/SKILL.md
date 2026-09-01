@@ -29,6 +29,7 @@ wrapper env is needed.
 | `--open PATH` | open a structure; prints site and tab count |
 | `--action NAME` | trigger a registered action, **failing if it is disabled** |
 | `--eval CODE` | exec Python with `win`, `doc`, `app`, `tabs`, `viewport`, `settle()` |
+| `--script PATH` | exec a Python file in that same scope, for a probe too long to quote in a shell |
 | `--shot PATH` | PNG of the window chrome — toolbar, docks, tabs, status bar |
 | `--viewport-shot PATH` | PNG of the 3D view, via VTK |
 | `--settle MS` | pump the event loop (worker threads, animations) |
@@ -57,6 +58,32 @@ registry keys (`recompute_bonds`, `mode_add_bond`, `style_polyhedra`),
 not menu text. `[disabled]` in that listing is itself an answer: an
 action greyed out with a structure open is a bug the screenshot would
 not have shown you.
+
+## Timing something
+
+`--script` is how you find out why the window went away. Patch what
+you want to measure, drive the run, then pump the loop and time *that*
+too -- the cost of a big table or a rebuilt scene is paid in deferred
+events, so a handler that returns in 50 ms can still cost twenty
+seconds afterwards:
+
+```python
+t = time.perf_counter()
+app.processEvents(QEventLoop.AllEvents, 60000)
+print(f"drain {time.perf_counter() - t:.2f} s")
+```
+
+When the drain is the expensive half and Python profiling shows
+nothing, the work is in Qt or VTK. Sample the process instead:
+`subprocess.Popen(["sample", str(os.getpid()), "8", "5", "-f", out])`
+just before the drain, and read the main thread's stack.
+
+**Patch bound methods, not with lambdas.** Replacing a slot with a
+plain lambda changes the connection: a signal connected to a bound
+method of a QObject is queued across threads, and one connected to a
+loose callable is direct, so the handler starts running on the worker
+thread and Qt prints cross-thread warnings your probe invented. Wait
+on `dock.is_running` instead, as the suite does.
 
 ## Things that will bite
 
