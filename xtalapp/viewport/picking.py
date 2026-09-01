@@ -194,12 +194,28 @@ def pick(model, origin, direction, prefer_topology: bool = False):
     and there would be no way to select the bond underneath.  It is
     therefore offered only when it is asked for -- which is what the
     topology mode does -- and ignored otherwise.
+
+    **An edge does not hide its own ends.**  A net edge runs centre to
+    centre, so the two atoms it joins are inside it -- and an edge that
+    won every click would swallow them both, which means the second
+    edge of a net could never be started from where the first one
+    ended.  Draw net stopped after one edge.  So an endpoint in front
+    of its own edge is picked as the atom it is; every other atom the
+    edge covers, a linker's among them, still belongs to the edge,
+    because running straight through those atoms is what a net edge is
+    for.
     """
     candidates = [("atom", atom_hit(model, origin, direction)),
                   ("bond", bond_hit(model, origin, direction))]
     if prefer_topology:
         found = topology_hit(model, origin, direction)
         if found is not None:
+            near = candidates[0][1]
+            if near is not None and near[1] <= found[1]:
+                atom, _cell = model.instance(near[0])
+                i, j, _image = model.topology_key(found[0])
+                if atom in (i, j):
+                    return "atom", near[0]
             return "topology", found[0]
     live = [(kind, hit) for kind, hit in candidates if hit is not None]
     if not live:

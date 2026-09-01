@@ -69,6 +69,7 @@ from xtalapp.docks.logview import LogDock
 from xtalapp.docks.measure import MeasureDock
 from xtalapp.docks.modules import ModulesDock
 from xtalapp.docks.move import MoveDock
+from xtalapp.docks.net import NetDock
 from xtalapp.docks.results import ResultsDock
 from xtalapp.docks.sites import SitesDock
 from xtalapp.docks.style_panel import StylePanelDock
@@ -637,6 +638,11 @@ class MainWindow(QMainWindow):
             self.reduce_to_p1)
 
         self.info_dock = InfoDock(self)
+        # What the net is called, beside what the structure is: they
+        # are the two "what am I looking at" panels and they are read
+        # one after the other.
+        self.net_dock = NetDock(self)
+        self.net_dock.statusMessage.connect(self.show_status)
         self.sites_dock = SitesDock(self)
         self.move_dock = MoveDock(self)
         self.move_dock.statusMessage.connect(self.show_status)
@@ -699,9 +705,10 @@ class MainWindow(QMainWindow):
         self.bottom_docks = (self.trajectory_dock, self.log_dock,
                              self.results_dock)
         self.right_docks = (self.inspector_dock, self.info_dock,
-                            self.sites_dock, self.move_dock,
-                            self.style_dock, self.measure_dock,
-                            self.ff_dock, self.dftb_dock)
+                            self.net_dock, self.sites_dock,
+                            self.move_dock, self.style_dock,
+                            self.measure_dock, self.ff_dock,
+                            self.dftb_dock)
         self.docks = (self.left_docks + self.right_docks
                       + self.bottom_docks)
         self.apply_default_layout()
@@ -2210,6 +2217,12 @@ class MainWindow(QMainWindow):
         self.sites_dock.refresh()
         self.move_dock.refresh()
 
+        # The net panel is the one expensive refresh here, so it is
+        # given the flag and left to decide: identification walks ten
+        # shells of an infinite graph, and a change that did not touch
+        # a bond cannot have changed the answer.
+        self.net_dock.on_structure_changed(change)
+
         if not positions_only:
             self.info_dock.show_document(document)
             self.style_dock.refresh()
@@ -2238,6 +2251,7 @@ class MainWindow(QMainWindow):
     def _update_ui(self, *_args) -> None:
         document = self.current_document()
         self.info_dock.show_document(document)
+        self.net_dock.set_document(document)
         self.inspector_dock.set_document(document)
         self.sites_dock.set_document(document)
         self.move_dock.set_document(document)

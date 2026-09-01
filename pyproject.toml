@@ -52,6 +52,13 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
             "xtal.ff.uff", "xtal.modules", "xtal.analysis", "xtalapp",
             "xtalapp.viewport", "xtalapp.docks", "xtalapp.dialogs"]
 
+# The RCSR index is not optional and is not an external asset: the net
+# panel cannot name anything without it, so it travels inside the
+# package rather than in resources/, which is a source-checkout
+# convenience.  The .cgd it is built from stays in resources/topo.
+[tool.setuptools.package-data]
+"xtal.analysis" = ["data/*.json.gz"]
+
 [tool.setuptools_scm]        # version from git tags; no version file to bump
 
 [tool.pytest.ini_options]

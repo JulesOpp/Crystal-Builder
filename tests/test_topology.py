@@ -261,6 +261,38 @@ def test_the_mode_draws_an_edge_from_two_clicks():
     assert bonding.topology_graph(document.structure).bonds == []
 
 
+def test_a_second_edge_can_start_where_the_first_one_ended():
+    """Drawing a net is a chain of edges, and the chain runs through
+    the atom the last one ended on.
+
+    A net edge is drawn centre to centre, so it covers both of the
+    atoms it joins -- and while the mode asked for the edge to win a
+    click outright, clicking that shared atom selected the edge just
+    drawn instead of starting the next one.  Draw net stopped after one
+    edge, which is not a net.
+    """
+    document = Document(Structure.from_arrays(
+        Lattice.cubic(8.0), ["Zn", "Zn", "Zn"],
+        [[0.1, 0.1, 0.1], [0.4, 0.1, 0.1], [0.7, 0.1, 0.1]],
+        space_group="P1"))
+    mode = modes.get("topology")
+    mode.pending = None
+    ray = (0.0, 0.0, 1.0)
+
+    def click(atom):
+        model = build_scene(document.structure, document.view)
+        point = document.structure.lattice.to_cart(
+            document.structure.sites[atom].frac)
+        return mode.on_click(document, model, modes.ClickEvent(
+            (point[0], point[1], -20.0), ray))
+
+    click(0)
+    assert "net edge" in click(1)
+    assert click(1) == "pick the second vertex"
+    assert "net edge" in click(2)
+    assert len(bonding.topology_graph(document.structure).bonds) == 2
+
+
 def test_deleting_a_selected_edge_removes_it_and_undoes():
     document = Document(pcu())
     model = build_scene(document.structure, document.view)
@@ -297,17 +329,46 @@ def test_a_net_edge_is_only_picked_when_it_is_asked_for():
     underneath could never be selected."""
     from xtalapp.viewport import picking
     model = build_scene(a_framework_with_a_net(), ViewSettings())
-    start = model.topology_starts[0]
-    end = model.topology_ends[0]
-    middle = (np.asarray(start) + np.asarray(end)) / 2.0
-    origin = middle + np.array([0.0, 0.0, -40.0])
-    ray = (0.0, 0.0, 1.0)
+    start = np.asarray(model.topology_starts[0])
+    end = np.asarray(model.topology_ends[0])
+    middle = (start + end) / 2.0
+    # Across the edge rather than along it: down its own axis the atom
+    # at the far end is in front of it, and which of those a click
+    # means is the question the test below this one asks.
+    across = np.cross(end - start, [1.0, 1.0, 0.0])
+    ray = tuple(across / np.linalg.norm(across))
+    origin = middle - 40.0 * np.asarray(ray)
 
     kind, _index = picking.pick(model, origin, ray,
                                 prefer_topology=True)
     assert kind == "topology"
     plain, _ = picking.pick(model, origin, ray)
     assert plain != "topology"
+
+
+def test_a_net_edge_does_not_hide_the_atoms_it_joins():
+    """The edge covers its own two ends -- it is drawn centre to centre
+    -- and while it won every click, clicking the atom a net edge
+    arrived at selected that edge instead of starting the next one, so
+    Draw net stopped after one edge.  A linker in the middle of the
+    edge still belongs to the edge: running straight through it is what
+    the edge is for."""
+    from xtalapp.viewport import picking
+    model = build_scene(a_framework_with_a_net(), ViewSettings())
+    start = np.asarray(model.topology_starts[0])
+    end = np.asarray(model.topology_ends[0])
+    along = (end - start) / np.linalg.norm(end - start)
+
+    node = picking.pick(model, start - 40.0 * along, tuple(along),
+                        prefer_topology=True)
+    assert node[0] == "atom"
+    assert model.instance(node[1])[0] in model.topology_key(0)[:2]
+
+    across = np.cross(end - start, [1.0, 1.0, 0.0])
+    across /= np.linalg.norm(across)
+    linker = (start + end) / 2.0 - 40.0 * across
+    assert picking.pick(model, linker, tuple(across),
+                        prefer_topology=True)[0] == "topology"
 
 
 def test_the_kind_round_trips_through_the_bond_record():

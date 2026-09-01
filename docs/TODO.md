@@ -88,6 +88,43 @@ fit is without saying what it is a fit *to*.
   `View > Show planes` toggle so a picture for a paper can have the
   measurement without the scaffolding.
 
+### A bond that leaves the drawn cell is all or nothing
+
+A bond whose far atom is outside the drawn range is either dropped
+entirely or completed by drawing the whole far atom, and the choice
+between those two is `View > Complete bonds at the boundary`.  Neither
+of them is what a crystallographer draws.  Dropping it says the atom on
+the surface is under-coordinated, which is a lie about the structure;
+completing it hangs a fringe of extra spheres around the box, which
+changes what the picture is *of* -- the cell plus a halo is not the
+cell.
+
+* **Draw the half.**  From the near atom towards the far one, stopping
+  at the midpoint, with no sphere on the end: the universal notation
+  for "this continues into the next cell".  The coordination is honest,
+  the box stays the box, and the direction the framework continues in
+  is visible.
+* `ViewSettings.boundary` becomes three-valued -- `in_range`, `bonded`,
+  `half` -- so the View entry stops being a checkbox and becomes a
+  submenu of three.  A saved session carries the old two-valued string
+  and has to go on loading.
+* Mechanically it is the third branch of the `end is None` case in
+  `builder._emit_bonds`, and it is the one branch that does not have a
+  drawn atom to point at: every array in the scene model is indexed by
+  drawn atom, so a half bond needs either a radius-zero entry in
+  `_Drawn` or a `_Halves` that takes a raw position.  That is the whole
+  cost of the entry, and it is worth deciding which before starting.
+* **The same for the net.**  `_emit_topology` drops any edge whose far
+  vertex is not drawn, and the comment there says why the obvious fix
+  is wrong: a net edge's ends are often whole cells apart, so
+  completing one scatters ghost vertices across the picture.  A half
+  edge is the answer that comment was waiting for -- and it matters
+  more for the net than for the bonds, because a net drawn on one cell
+  of **pcu** currently shows a vertex with three edges where it has
+  six.
+* It is view state: a toggle, never on the undo stack, saved in the
+  session.
+
 ### An atom has nothing to say when you hover over it
 
 There is no tooltip in the viewport, so everything the application
@@ -162,6 +199,12 @@ happened to be is never that.
   project the click ray onto the sphere of that radius around the
   anchor, and use the near intersection, falling back to the closest
   approach when the ray misses.
+* **A selected atom is already an anchor**, and that is the cheaper
+  half of the same feature: with exactly one atom selected, entering
+  Add Atom starts at the second click rather than the first, so the
+  common case -- pick the carbon you want to extend, press the button,
+  point -- is one click shorter.  With nothing selected, or with more
+  than one atom selected, the first click is what anchors it.
 * A click on empty space keeps today's behaviour exactly, and
   `Escape` between the two clicks abandons the anchor.
 * The bond it implies should be created with it, as an explicit bond,
@@ -171,6 +214,27 @@ happened to be is never that.
   single number in the Add Atom dialog is worth deciding before
   building: the pair-wise number is right and the dialog is where a
   user would look to override it.
+
+### Ctrl+B should be the reset, not the recalculation
+
+`Ctrl+B` is *Recalculate bonds*, which perceives again from the
+geometry and keeps every bond the user drew or deleted.  *Reset bonds
+to automatic*, which also withdraws those, has no key at all.  That is
+the wrong way round for how the two are actually reached: recalculating
+after moving atoms is rare, because bonds are not supposed to follow
+the geometry in the first place, and the one people want a key for is
+the way back to a clean answer after an afternoon of editing.
+
+* Move the shortcut: `reset_bonds` takes `Ctrl+B`, `recompute_bonds`
+  keeps its menu entry and its toolbar button and loses the key.
+* The reason it was kept off a key -- that resetting throws work away
+  -- is answered by the undo stack rather than by the absence of a
+  shortcut: `Document.reset_bonds` runs a single `ResetBonds` command,
+  so `Ctrl+Z` is exactly one press, and the message it already prints
+  says so.
+* The toolbar button is *Recalculate*, and it should stay that: a
+  button is pressed by aim rather than by memory, and the destructive
+  one of the pair is the wrong thing to leave under the cursor.
 
 ### Measure from the right-click menu
 
@@ -311,7 +375,81 @@ porous-materials application rather than a spreadsheet:
   reports.  It comes free with whatever reads `-chan` for the sphere
   above.
 
+## Topology
+
+### Nothing can export a net for Systre to check
+
+The naming itself has shipped: the Net panel says **pcu**, the
+invariants it rests on are underneath it, and the canonical key of
+[docs/TOPOLOGY.md](TOPOLOGY.md) § 5 makes that a decision rather than a
+match.  What is missing is the way to doubt it.
+
+`xtal/io/cgd.py` reads `.cgd` and does not write it.  A writer, and an
+action that saves the drawn net through it, is the only way to put a
+net in front of **Systre** -- the reference implementation, in Java --
+and get a second opinion that does not come from the same code that
+produced the first.  The key checks itself against a supercell of
+itself and against 2929 catalogued nets, and neither of those is an
+independent check.
+
+Small: the format is one `CRYSTAL` block with `NAME`, `GROUP P1`,
+`CELL` and one `NODE` per vertex with an `EDGE` per edge, and the net
+is already in exactly that shape.
+
 ## Building
+
+### Build a MOF from a topology, a node and a linker
+
+There is no way to make a framework in this application; there is only
+a way to open one somebody else made.  Reticular chemistry is the one
+place where that is a solved problem -- a MOF is a net with a metal
+cluster on every vertex and a linker on every edge, and picking those
+three things is the whole design -- and
+[PORMAKE](https://github.com/Sangwon91/PORMAKE) does exactly that
+assembly, MIT-licensed, from a bundled library of 2406 topologies and
+867 building blocks (648 for nodes, 219 for edges).
+
+* **Pick a topology, a node building block and an edge building
+  block, and get a structure.**  `Builder.build_by_type(topology,
+  node_bbs, edge_bbs)` returns a framework that writes a CIF; that CIF
+  is what comes back into a new document.
+* **It is a module, and it is the first one that needs no structure
+  open.**  `Action.needs_structure` already exists for exactly this
+  and the menu already honours it -- but the result path does not:
+  `_adopt_module_structure` replaces the *current* document's
+  structure, so a build with nothing open silently does nothing and a
+  build with a structure open destroys it.  The rule to add is that a
+  module which did not need a structure opens the one it made in a new
+  tab.
+* **The generated form cannot express the parameters.**  `Param` is a
+  flat static list, and PORMAKE's choices are neither: the topology
+  decides how many distinct node slots there are and what coordination
+  number each of them demands, and only a building block with that
+  many connection points can go in one.  So the parameters have to be
+  collected by a dialog of its own -- and the run itself must stay a
+  headless callable taking a plain dict, or the CLI and the tests lose
+  it.
+* **The dependency is the decision.**  PORMAKE wants `ase`,
+  `networkx`, `pymatgen` and `jax[cpu]`, which together are larger
+  than everything this application currently installs.  So it is an
+  extra, absent unless asked for, and `Module.check` says how to get
+  it -- the same shape as a missing Zeo++ binary, which is machinery
+  that already exists.  If the environment turns out to be
+  unworkable, the fallback is not writing a builder: it is running
+  PORMAKE as an external process in its own environment, which
+  `xtal/modules/process.py` already does for DFTB+ and Zeo++.
+* **We can check its answer, and nothing else can.**  `net_of` plus
+  the RCSR catalogue names the net of any structure, so the framework
+  that comes back can be identified and compared with the topology
+  that was asked for.  A build that says **tbo** and produces
+  something that is not tbo is a bug worth catching, and every piece
+  of the check is already written and tested.
+* **A user's own building block should be loadable.**  `Database`
+  takes `topo_dir` and `bb_dir`, and a building block is an XYZ with
+  its connection points marked as `X` atoms -- so "use the linker I
+  drew" is a folder and not a code change.  It is also where this
+  entry meets *Draw in 2D, build in 3D*, and the reason those two
+  belong in the same half of the plan.
 
 ### Draw in 2D, build in 3D
 

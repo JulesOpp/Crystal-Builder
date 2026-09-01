@@ -123,3 +123,29 @@ def quartz_cif(tmp_path, quartz) -> str:
     path = tmp_path / "quartz.cif"
     write_cif(quartz, path)
     return str(path)
+
+
+@pytest.fixture
+def rcsr_path():
+    """The RCSR net file, on a checkout that has it.
+
+    It is the input the shipped index is built from and is not needed
+    to *use* the index, so a checkout without it skips these rather
+    than failing: the tests that matter to a user run against the
+    index, which is package data and is always there.
+    """
+    from xtal.analysis.rcsr import source_file
+    path = source_file()
+    if path is None:
+        pytest.skip("resources/topo/RCSRnets-*.cgd is not in this tree")
+    return path
+
+
+@pytest.fixture(scope="session")
+def rcsr_catalogue():
+    """The shipped catalogue, read once for the whole session."""
+    from xtal.analysis.rcsr import RcsrError, catalogue
+    try:
+        return catalogue()
+    except RcsrError as exc:
+        pytest.skip(str(exc))

@@ -27,6 +27,7 @@ import numpy as np
 from PySide6.QtCore import QObject, Signal
 
 from xtal import Structure
+from xtal.analysis import rcsr, topology
 from xtal.commands import CommandStack, ReplaceStructure, SnapshotEdit
 from xtal.commands import atoms as atom_commands
 from xtal.commands import bonds as bond_commands
@@ -843,30 +844,37 @@ class Document(QObject):
         self.selectionChanged.emit()
         return f"removed {gone} net edge(s)"
 
+    def net(self) -> topology.Net:
+        """The net drawn on this structure, as a periodic graph."""
+        return topology.net_of(self._structure)
+
+    def net_identification(self) -> rcsr.NetReport:
+        """Which net this is, looked up in the RCSR.
+
+        Cached against the structure, because identification is not
+        free -- the coordination sequences are a walk over ten shells
+        of an infinite graph -- and because nothing but a change to the
+        bonds can change the answer.  A cell edit, a relaxation and a
+        change of setting all leave it alone, which is exactly what
+        makes a net worth naming.
+        """
+        return self._structure.cached(
+            "net_identification",
+            lambda: rcsr.describe(self.net()),
+            invalidated_by=CHEMISTRY)
+
     def net_report(self, atom: int | None = None) -> str:
-        """What the net drawn on this structure actually is.
+        """What the net drawn on this structure actually is, in a line.
 
         The coordination sequence and the point symbol are how RCSR
         names a net, and they are the reason for drawing one rather
         than printing it: **pcu** is 6, 18, 38, 66 and 4^12.6^3, and
-        nothing else is.
+        nothing else is.  Now that the catalogue is here the name comes
+        first and the numbers it rests on follow, because the name is
+        what was wanted and the numbers are the evidence for it.
         """
-        net = bonding.topology_graph(self._structure)
-        if not net.bonds:
-            return "no net has been drawn"
-        vertices = [i for i in range(net.n_atoms)
-                    if net.neighbors(i)]
-        if atom is None:
-            atom = (self.selection.focus if
-                    self.selection.focus in vertices else vertices[0])
-        sequence = bonding.coordination_sequence(net, atom, depth=5)
-        symbol = bonding.point_symbol(net, atom)
-        cell = self.cell
-        label = cell.labels[atom] or cell.elements[atom]
-        return (f"{label}: {len(net.neighbors(atom))}-coordinated, "
-                f"coordination sequence "
-                f"{', '.join(str(n) for n in sequence)}, "
-                f"point symbol {symbol}")
+        del atom                        # the net is not an atom's
+        return self.net_identification().sentence()
 
     def delete_selected_bonds(self) -> str:
         """Suppress every selected bond, as one undo step.

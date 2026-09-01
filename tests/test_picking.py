@@ -89,6 +89,38 @@ def test_bond_picking_tolerates_a_near_miss(scene):
                              [0, 0, 1]) is None
 
 
+# ============================================ picking a net edge
+
+
+@pytest.fixture
+def net(diatomic):
+    """The same two atoms, with a net edge drawn between them."""
+    from xtal.core.structure import TOPOLOGY, Bond
+
+    diatomic.bonds.append(Bond(0, 1, (0, 0, 0), kind=TOPOLOGY))
+    diatomic.touch()
+    return build_scene(diatomic, ViewSettings(show_cell=False))
+
+
+def test_a_ray_through_a_net_edge_hits_the_edge_when_asked(net):
+    """A net edge is drawn over the bond it covers, so in the topology
+    mode -- and only there -- it is what a click in the middle of it
+    means."""
+    assert picking.pick(net, [2.75, 5, -10], [0, 0, 1],
+                        prefer_topology=True) == ("topology", 0)
+    assert picking.pick(net, [2.75, 5, -10], [0, 0, 1])[0] == "bond"
+
+
+def test_an_atom_with_a_net_edge_on_it_is_still_an_atom(net):
+    """Drawing the second edge of a net starts where the first one
+    ended, and a net edge runs centre to centre -- so an edge that won
+    a click outright would swallow both its own ends and there would be
+    no way to carry on.  It wins on depth and loses to the atom."""
+    for atom, x in ((0, 2.0), (1, 3.5)):
+        assert picking.pick(net, [x, 5, -10], [0, 0, 1],
+                            prefer_topology=True) == ("atom", atom)
+
+
 def test_ray_from_display_needs_a_renderer(rutile):
     """The one VTK-dependent piece: a ray from the camera through a
     pixel, aimed into the scene."""
