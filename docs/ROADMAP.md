@@ -71,15 +71,14 @@ out of its phase whenever the pain is worth a detour.
 
 | Item | Phase it belongs to | Size |
 |---|---|---|
-| Cutoff and skin controls | I | S |
-| Editing the cell must not re-perceive the bonds | I | S |
-| The redraw rate must never decide what is recorded | I | S |
 | Edit cell in the right-click menu | J | S |
 | The window does not open the way it should | J | S |
 
-Four sat here until a phase took them: *Invert the structure* and
+Seven sat here until a phase took them: *Invert the structure* and
 *Invert Selection ignores symmetry* in F, *arrow buttons on translate
-and rotate* and *bonds inside polyhedra* in G.
+and rotate* and *bonds inside polyhedra* in G, and *cutoff and skin
+controls*, *editing the cell must not re-perceive the bonds* and *the
+redraw rate must never decide what is recorded* in I.
 
 ---
 
@@ -243,6 +242,14 @@ MFU-4l in P1 now converges in 25 steps.
 Phases A and B are the difference between an application that can be
 handed to somebody else and one that cannot.  Nothing after this point
 is a prerequisite for a build, and everything before it is.
+
+`packaging/` is still empty, and there is one thing to fix before
+anything is built from this tree: **`[tool.setuptools] packages` in
+`pyproject.toml` does not list `xtal.ff.dftb`**.  Every other
+subpackage is named there by hand, so an editable install (which is
+what the suite runs against) finds the DFTB+ engine and an installed
+wheel does not — the failure appears only in the built artefact, which
+is the worst place to find it.
 
 ---
 
@@ -569,11 +576,21 @@ same claim on the framework that is here: 648 atoms, `Fm-3m`, 192
 operations, relaxing from the deposited a = 31.057 A to 30.303 A --
 2.4% in, which is the "few percent" the warning promises -- and staying
 exactly cubic all the way.  It runs in nine seconds and is marked
-`slow`.  Swap in MOF-5 when a trustworthy CIF is at hand.
+`slow`.
+
+*Since written:* `resources/samples/MOF-5.cif` now exists -- 424 atoms,
+a = 25.866 A, labelled "MOF-5, evacuated PBEsol" and written out of
+VESTA in P1, with no space group and no deposition in it.  It is a
+perfectly good structure to run on and it is not yet a regression
+fixture: a lattice-constant regression is a claim about a *published*
+number, and the file carries neither the number it started from nor
+where it came from.  The regression stays MFU-4l until one of those is
+established.
 
 **Not done, and small:** the type in words does not reach a viewport
 tooltip, because there are no atom tooltips to put it in yet -- that is
-a viewport feature and belongs with Phase G.
+a viewport feature; it is now an entry of its own in
+[TODO.md](TODO.md), scheduled into Phase J.
 
 ---
 
@@ -719,7 +736,7 @@ feature, and the type is only the first thing to put in it.
 
 ---
 
-## 11. Phase H — external engines
+## 11. Phase H — external engines ✅
 
 | Item | Size |
 |---|---|
@@ -890,52 +907,116 @@ absent.
 **Goal:** every place the application gives a confident wrong answer
 stops doing it.
 
-The four entries here have one thing in common, and it is the thing
-that makes them first: none of them *fails*.  Each produces a number
-or a file that looks exactly like a right one.  A structure that is
-four copies of itself has a formula, a density and an energy, and all
-three are wrong by that factor with nothing on screen saying so.
+The entries here have one thing in common, and it is the thing that
+makes them first: none of them *fails*.  Each produces a number or a
+file that looks exactly like a right one.  A structure that is four
+copies of itself has a formula, a density and an energy, and all three
+are wrong by that factor with nothing on screen saying so.
 
-| Item | TODO section | Size |
-|---|---|---|
-| Merge duplicates never looks at the symmetry | Symmetry | M |
-| The force field must never change the structure | Force field | M |
-| Editing the cell must not re-perceive the bonds | Editing | S |
-| The cutoff and the skin have no controls | Force field | S |
-| The redraw rate must never decide what is recorded | Files | S |
+| Item | TODO section | Size | |
+|---|---|---|---|
+| Editing the cell must not re-perceive the bonds | Editing | S | ✅ |
+| The force field must never change the structure | Force field | M | ✅ |
+| The cutoff and the skin have no controls | Force field | S | ✅ |
+| The redraw rate must never decide what is recorded | Files | S | ✅ |
+| Merge duplicates never looks at the symmetry | Symmetry | M | ✅ |
 
-**Merge duplicates first**, because it is the one with a file that
-demonstrates it: `Ni2Cl2BTDD.cif` expands to 1188 atoms of which 2150
-pairs are within half an Angstrom, and *Merge duplicate sites* reports
-"no duplicates found" at every tolerance.  The comparison is against
-the parent coordinates and has to be against the **orbit** — `C1` and
-`C1X` are 7.2 Å apart as written and 2e-5 Å apart as images.  It needs
-a tolerance dialog with the count beside it, the same shape as the
-bond-rules dialog, because the right tolerance is a property of the
-file; and the site that is kept has to be the one on the more special
-Wyckoff position, or merging changes the multiplicity and therefore
-the formula.
+Four of the five shipped in the commit that also made the suite
+parallel — which is why the phase is not written up like the ones
+above it: that work landed without a phase boundary around it.  The
+fifth closes the phase.
 
-**The force field must never change the structure** is a rule rather
-than a fix: `ff/api.py` and the optimiser take the structure as given,
-`ff/hydrogens.py` becomes reachable only from the Structure menu, and
-every entry point that currently mutates becomes a check that
-*reports*. "Add the 24 hydrogens this needs?" as a question, applied as
-an ordinary undoable edit before the run, is what the present
-behaviour was reaching for — with the user holding the pen.
+### What shipped
 
-**Editing the cell must not re-perceive the bonds** is `Change.CELL`
-in `Document._after_change` and `Structure.touch`, which drops the
-stored graph today.  Phase H made the way back from a bond edit
-explicit (*Reset bonds to automatic*); this makes the way *in*
-deliberate, so that nudging *c* by a hundredth of an Ångström to match
-a refinement does not silently rebuild a graph the user drew.
+**Editing the cell no longer re-perceives the bonds.**
+`Structure.touch` dropped the stored graph on `Change.CELL |
+Change.SYMMETRY`; it now drops it on `Change.SYMMETRY` alone.  A metric
+edit leaves the fractional coordinates and the topology untouched, so
+the stored graph still describes the same atoms — and every operation
+that *does* change which atoms there are (a supercell, a basis
+transform, a Niggli reduction) sets `Change.SYMMETRY` alongside
+`Change.CELL` and is still caught.  The Edit Cell dialog says so in a
+line under the controls, because the one case where a cell edit
+*should* change the bonds needs a way to ask for it: *Structure ▸
+Recalculate bonds*, which is now the only thing that recalculates
+bonds.  Pinned by `test_a_new_lattice_keeps_the_graph` and
+`test_a_new_space_group_still_throws_the_graph_away`, which are the
+two halves of the same rule.
 
-**The last two are a day between them** and are here because they
-belong to the same panels: the vdW cutoff and skin are on
-`UFFOptions` and unreachable, and the redraw-rate rule is true today
-and asserted nowhere — a test that relaxes with the interval at −1 and
-counts the frames in the written trajectory is the whole of it.
+**The force field takes what it is given.**  `UFFCalculator` reads the
+stored graph (`bonding.graph` over `Structure.perceived`) — what
+*Recalculate bonds* put there, and what a deleted bond removed from it
+— rather than perceiving fresh with its own idea of the cutoff, and it honours a bond order the user stated
+rather than re-inferring one.  Nothing anywhere passes it bond rules:
+its `rules` argument defaults to `None` and there is no control that
+sets it, which is asserted directly (`inspect.signature`) so that the
+rest of the claim is a rule rather than an accident of a default.
+Adding hydrogens is reachable only from `Structure ▸ Add hydrogens`,
+as an ordinary undoable edit with the user looking at what it did.
+
+**The cutoff and the skin are controls**, in the Force Field panel
+beside the electrostatics ones, each with what it costs written into
+its tooltip rather than left for somebody to find in the source: the
+pair count goes as the cube of the cutoff, and a larger skin trades
+memory for rebuilds.
+
+**The redraw rate is asserted, not assumed.**  `OptimizationWorker`
+has no notion of a preview interval — it calls the recorder for every
+step it emits — and `RunRecorder.step` writes a frame each time it is
+called.  Both are tested at that level (`test_ff_ui.py`,
+`test_workspace.py`), which is where nothing about a viewport could
+ever reach in and skip a frame because nobody was looking.
+
+### Shipped alongside: DFTB+ has its own panel
+
+Not one of the five.  DFTB+ arrived in Phase H as an *engine* under
+`Forcefield`, sharing one panel with UFF behind an engine chooser —
+which meant that panel carried UFF's controls and DFTB+'s eight-field
+generated form at once, and it grew taller than a laptop screen the
+day DFTB+ landed.  `ForceFieldDock` now takes the engines it should
+offer, `xtal/modules/dftb.py` registers DFTB+ as a module of its own,
+and the two docks are separate entries in the Modules tree and the
+Window menu — so a user who has never touched DFTB+ never opens a form
+for it.  The panel also sits in a scroll area now, so a tall form
+makes it scroll rather than refuse to fit the screen it opened on.
+
+### Shipped last: merging duplicates compares the orbit
+
+`Ni2Cl2BTDD.cif` is the file that demonstrates the phase's whole
+premise.  It was written with a full cell's worth of coordinates under
+`H-3m`, so 27 of its 40 sites are atoms already present as a different
+symmetry image, and expanded as it stood it put **1188 atoms in a cell
+that holds 396**.  Nothing failed.  The formula, the density and every
+energy computed from it were wrong by a factor of three, and *Merge
+duplicate sites* answered "no duplicates found" at every tolerance.
+
+`symmetry.merge_duplicates` compared the parent coordinates, so it
+only ever found sites written on top of each other.  `C1` and `C1X`
+there are 7.2 Å apart as written and 2e-5 Å apart once one of them is
+put through the operations of the group.  The comparison is now
+against the **orbit**: each site's parent coordinate against every
+image of the sites kept so far, over a pool sized once at the atom
+count rather than regrown per site, so a P1 structure with thousands
+of sites pays for the arithmetic and not for the growth.
+
+**The tolerance is a dialog now** (`MergeDuplicatesDialog`), the same
+shape as the bond-rules dialog and for the same reason: the count is
+flat over a wide range and then steps, and where it steps is a
+property of the file.  This one steps at 8, 19, 26, 27 as the rounding
+of the file's last decimal place is crossed and then does not move for
+three orders of magnitude.  What the dialog shows is the *atom* count
+— "1188 atoms in the cell become 396" — because "27 of 40 sites" does
+not say that the formula is wrong.
+
+**The site kept is the one on the more special Wyckoff position**, not
+the one written first.  Keeping the first is right when both are
+general and wrong when one of them sits on an axis: an atom written
+0.01 Å off a three-fold generates three times as many atoms as the
+same atom on it, so keeping the general one triples that element in
+the formula while the screen shows three atoms where there is one.
+The rule is the multiplicity the site actually generates, ties go to
+the file's order, and a merge that demoted a site says so in its
+report rather than silently changing a formula.
 
 ---
 
@@ -1163,7 +1244,7 @@ the default bundle, which is the only real argument against it.
 | **F** | Symmetry | ✅ done |
 | **G** | The picture | ✅ done |
 | **H** | Zeo++, then DFTB+ | ✅ done |
-| **I** | Say the truth | M |
+| **I** | Say the truth | M — four of five shipped |
 | **J** | The window and the gestures | M |
 | **K** | The picture says how big, and where | M |
 | **L** | The engines answer in pictures | L |

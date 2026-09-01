@@ -626,38 +626,199 @@ def invert(structure: Structure) -> tuple[Structure, SymmetryReport]:
 # ======================================================================
 #  DUPLICATE MERGING
 # ======================================================================
+# ======================================================================
 
-def merge_duplicates(structure: Structure, tol: float = 0.05
+DEFAULT_MERGE_TOL = 0.05        # Angstrom; loose, for sloppy files
+
+
+@dataclass(frozen=True)
+class MergePreview:
+    """What merging at one tolerance would do, without doing it.
+
+    The atom counts are the reason the dialog exists.  A file that
+    repeats an orbit is not slightly wrong: ``Ni2Cl2BTDD.cif`` puts
+    1188 atoms in the cell where there are 396, and the formula, the
+    density and every energy computed from it are out by that factor
+    with nothing on screen saying so.  "27 sites merge" does not carry
+    that; "1188 atoms become 396" does.
+    """
+
+    tol: float
+    merged: int                 # sites that would be removed
+    sites_before: int
+    sites_after: int
+    atoms_before: int           # atoms in the unit cell
+    atoms_after: int
+    demoted: int                # groups keeping a later, more special site
+
+    def __bool__(self) -> bool:
+        return self.merged > 0
+
+    def message(self) -> str:
+        if not self.merged:
+            return f"no duplicates within {self.tol:g} A"
+        return (f"{self.merged} of {self.sites_before} sites merge -- "
+                f"{self.atoms_before} atoms in the cell become "
+                f"{self.atoms_after}")
+
+
+def duplicate_groups(structure: Structure,
+                     tol: float = DEFAULT_MERGE_TOL) -> list[list[int]]:
+    """Sites of the same element that are the same atom, grouped.
+
+    Each group is the site indices of one atom written more than once,
+    in the order the sites are; an atom written once does not appear.
+
+    The comparison is against the **orbit**, not against the parent
+    coordinates, and that is the whole of it.  A CIF written with a
+    full cell's worth of coordinates under a group -- which is how
+    ``Ni2Cl2BTDD.cif`` and anything else exported from a P1 refinement
+    arrives -- repeats an atom at whichever image the exporter happened
+    to pick, so the two parent coordinates are as far apart as any two
+    atoms in the cell.  ``C1`` and ``C1X`` there are 7.2 A apart as
+    written and 2e-5 A apart once one of them is put through the
+    operations of ``H-3m``.  Comparing parents finds nothing at any
+    tolerance; comparing one parent against the other's images finds
+    all 27 of them.
+    """
+    cell = p1.expand(structure)
+    matrix = structure.lattice.matrix
+    species: dict[str, int] = {}
+
+    # The pool is every image of every group's first site, which is at
+    # most the whole cell -- so it is allocated once and filled rather
+    # than regrown per site.  A P1 structure with a few thousand sites
+    # comes through here, and the regrowth, not the arithmetic, would
+    # be what it cost.
+    pool = np.zeros((cell.n_atoms, 3))
+    pool_group = np.zeros(cell.n_atoms, dtype=int)
+    pool_species = np.zeros(cell.n_atoms, dtype=int)
+    filled = 0
+
+    groups: list[list[int]] = []
+    for i, site in enumerate(structure.sites):
+        kind = species.setdefault(site.element, len(species))
+        found = -1
+        if filled:
+            d = pool[:filled] - site.frac
+            d -= np.round(d)
+            dist = np.linalg.norm(d @ matrix, axis=1)
+            near = np.nonzero((pool_species[:filled] == kind)
+                              & (dist < tol))[0]
+            if len(near):
+                found = int(pool_group[near[np.argmin(dist[near])]])
+        if found >= 0:
+            groups[found].append(i)
+            continue
+
+        members = cell.indices_of_site(i)
+        n = len(members)
+        pool[filled:filled + n] = cell.frac[members]
+        pool_group[filled:filled + n] = len(groups)
+        pool_species[filled:filled + n] = kind
+        filled += n
+        groups.append([i])
+
+    return [g for g in groups if len(g) > 1]
+
+
+def _keeper(cell, group: list[int]) -> int:
+    """Which site of a duplicate group survives.
+
+    The one on the more special Wyckoff position -- the one generating
+    the fewest atoms.  Keeping the site written first is right when
+    both are general and wrong when one of them sits on an axis: an
+    atom written 0.01 A off a three-fold generates twice as many atoms
+    as the same atom written on it, so keeping the general one doubles
+    that element in the formula while the screen shows two atoms where
+    there is one.  Equally special sites tie, and the tie goes to the
+    site written first -- which is what merging has always done.
+    """
+    return min(group, key=lambda i: (cell.multiplicity(i), i))
+
+
+def _site_name(structure: Structure, index: int) -> str:
+    """What to call a site in a report.  A structure built from arrays
+    has no labels at all, and "site 3" beats an empty string."""
+    return structure.sites[index].label or f"site {index + 1}"
+
+
+def preview_merge(structure: Structure,
+                  tol: float = DEFAULT_MERGE_TOL) -> MergePreview:
+    """What :func:`merge_duplicates` would do at ``tol``.
+
+    Cheap enough to run on every keystroke of a spinbox: the expansion
+    it needs is memoised on the structure, so only the first tolerance
+    pays for it, and the atom count afterwards is read off the
+    multiplicities already computed rather than by expanding again.
+    """
+    cell = p1.expand(structure)
+    groups = duplicate_groups(structure, tol)
+    dropped = {i for g in groups for i in g if i != _keeper(cell, g)}
+    demoted = sum(1 for g in groups if _keeper(cell, g) != g[0])
+    kept = [i for i in range(structure.n_sites) if i not in dropped]
+    return MergePreview(
+        tol=float(tol),
+        merged=len(dropped),
+        sites_before=structure.n_sites,
+        sites_after=len(kept),
+        atoms_before=cell.n_atoms,
+        atoms_after=sum(cell.multiplicity(i) for i in kept),
+        demoted=demoted,
+    )
+
+
+def merge_duplicates(structure: Structure,
+                     tol: float = DEFAULT_MERGE_TOL
                      ) -> tuple[Structure, SymmetryReport]:
-    """Merge asymmetric-unit sites of the same element that sit within
-    ``tol`` Angstrom of each other (periodic images included).
+    """Merge asymmetric-unit sites of the same element that are the
+    same atom to within ``tol`` Angstrom, symmetry images included.
 
     Every symmetry-changing operation should offer this: generating a
     group over coordinates that were already the full cell is the
     standard way to end up with near-duplicate atoms.
     """
-    keep: list[int] = []
+    cell = p1.expand(structure)
+    groups = duplicate_groups(structure, tol)
+
     dropped: list[int] = []
-    lattice = structure.lattice
-    for i, site in enumerate(structure.sites):
-        dup = False
-        for j in keep:
-            other = structure.sites[j]
-            if other.element != site.element:
-                continue
-            d = site.frac - other.frac
-            d -= np.round(d)
-            if np.linalg.norm(d @ lattice.matrix) < tol:
-                dup = True
-                break
-        (dropped if dup else keep).append(i)
+    demoted: list[str] = []
+    partial = False
+    for group in groups:
+        keeper = _keeper(cell, group)
+        dropped.extend(i for i in group if i != keeper)
+        partial = partial or any(structure.sites[i].occupancy < 1.0
+                                 for i in group)
+        if keeper != group[0]:
+            demoted.append(
+                f"{_site_name(structure, keeper)} "
+                f"(multiplicity {cell.multiplicity(keeper)}) over "
+                f"{_site_name(structure, group[0])} "
+                f"({cell.multiplicity(group[0])})")
 
     out = structure.copy()
     if dropped:
-        out.remove_sites(dropped)
-    return out, SymmetryReport(
-        n_before=structure.n_sites, n_after=len(keep),
+        out.remove_sites(sorted(dropped))
+    report = SymmetryReport(
+        n_before=structure.n_sites, n_after=out.n_sites,
         merged=len(dropped),
         message=(f"merged {len(dropped)} duplicate site(s) within "
-                 f"{tol} A" if dropped else "no duplicates found"),
+                 f"{tol:g} A" if dropped else "no duplicates found"),
     )
+    if demoted:
+        report.warnings.append(
+            "kept the site on the more special Wyckoff position, so "
+            "the multiplicity is unchanged: " + _first_few(demoted))
+    if partial:
+        report.warnings.append(
+            "some of the merged sites are partially occupied -- check "
+            "the occupancies of what is left against the formula")
+    return out, report
+
+
+def _first_few(items: list[str], limit: int = 3) -> str:
+    """A warning naming twenty sites is a warning nobody reads."""
+    if len(items) <= limit:
+        return "; ".join(items)
+    return (f"{'; '.join(items[:limit])}; and {len(items) - limit} "
+            f"more")

@@ -229,6 +229,79 @@ def test_merge_respects_element_and_periodicity():
     assert {site.element for site in merged.sites} == {"Na", "Cl"}
 
 
+def test_a_site_written_as_a_symmetry_image_is_a_duplicate(quartz):
+    """The comparison has to be against the orbit.
+
+    A CIF written out as a full cell repeats an atom at whichever
+    image the exporter picked, so the two parent coordinates are as
+    far apart as any two atoms in the structure -- and comparing
+    parents finds nothing at any tolerance.
+    """
+    s = quartz.copy()
+    image = p1.expand(quartz).frac[
+        p1.expand(quartz).indices_of_site(0)[2]]
+    s.add_site(Site("Si", image))
+    d = s.sites[0].frac - s.sites[-1].frac
+    d -= np.round(d)
+    assert np.linalg.norm(d @ s.lattice.matrix) > 2.0
+
+    merged, report = symmetry.merge_duplicates(s, tol=0.05)
+    assert report.merged == 1
+    assert merged.n_sites == quartz.n_sites
+    assert p1.expand(merged).n_atoms == p1.expand(quartz).n_atoms
+
+
+def test_the_more_special_site_is_the_one_kept(quartz):
+    """Keeping the site written first changes the multiplicity, and
+    therefore the formula, when the other one sits on an axis."""
+    s = Structure.from_arrays(
+        quartz.lattice,
+        ["Si", "Si", "O"],
+        [[0.4697, 0.001, 2 / 3],        # general, written first
+         [0.4697, 0.0, 2 / 3],          # on the 3a axis
+         [0.4135, 0.2669, 0.7857]],
+        space_group="P3221")
+    cell = p1.expand(s)
+    assert (cell.multiplicity(0), cell.multiplicity(1)) == (6, 3)
+
+    merged, report = symmetry.merge_duplicates(s, tol=0.05)
+    assert report.merged == 1
+    assert merged.sites[0].frac[1] == 0.0
+    assert p1.expand(merged).n_atoms == p1.expand(quartz).n_atoms
+    assert "more special" in " ".join(report.warnings)
+
+
+def test_equally_special_duplicates_keep_the_first_written(quartz):
+    """The tie-break is the order of the file, which is what merging
+    has always done."""
+    s = quartz.copy()
+    s.add_site(Site("O", quartz.sites[1].frac + [0.0005, 0, 0],
+                    label="Oagain"))
+    merged, report = symmetry.merge_duplicates(s, tol=0.05)
+    assert report.merged == 1
+    assert not report.warnings
+    assert [site.label for site in merged.sites][-1] != "Oagain"
+
+
+def test_the_preview_counts_the_atoms_not_only_the_sites(quartz):
+    """"27 sites merge" understates a file that is three copies of
+    itself; the atom count is what says the formula is wrong."""
+    s = quartz.copy()
+    for k in p1.expand(quartz).indices_of_site(0)[1:]:
+        s.add_site(Site("Si", p1.expand(quartz).frac[k]))
+    plan = symmetry.preview_merge(s, tol=0.05)
+    assert plan.merged == 2
+    assert (plan.sites_before, plan.sites_after) == (4, 2)
+    assert plan.atoms_before == 15        # two extra Si orbits of 3
+    assert plan.atoms_after == p1.expand(quartz).n_atoms == 9
+    assert "atoms in the cell become" in plan.message()
+
+    assert s.n_sites == 4                   # a preview changes nothing
+
+    quiet = symmetry.preview_merge(quartz, tol=0.05)
+    assert not quiet and "no duplicates" in quiet.message()
+
+
 def test_report_is_truthy(rutile):
     _out, report = symmetry.set_space_group(rutile, SpaceGroup.p1())
     assert bool(report) is report.ok

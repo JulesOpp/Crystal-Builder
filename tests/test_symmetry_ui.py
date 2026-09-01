@@ -23,6 +23,9 @@ from xtalapp.dialogs.display_range import (  # noqa: E402
 from xtalapp.dialogs.find_symmetry import (  # noqa: E402
     FindSymmetryDialog,
 )
+from xtalapp.dialogs.merge_duplicates import (  # noqa: E402
+    MergeDuplicatesDialog,
+)
 from xtalapp.dialogs.spacegroup import SpaceGroupDialog  # noqa: E402
 from xtalapp.dialogs.subgroup import SubgroupDialog  # noqa: E402
 from xtalapp.dialogs.supercell import SupercellDialog  # noqa: E402
@@ -649,3 +652,83 @@ def test_inverting_a_chiral_structure_asks_first(monkeypatch, window,
     assert asked and "P3221 -> P3121" in asked[0]
     assert window.current_document().structure.space_group.short_name \
         == "P3121"
+
+
+# --------------------------------------------------- merge duplicates
+
+@pytest.fixture
+def doubled(quartz):
+    """Quartz with its Si written a second time, as the symmetry image
+    a CIF exported from a full cell would have written."""
+    from xtal.core.site import Site
+    cell = p1.expand(quartz)
+    s = quartz.copy()
+    s.add_site(Site("Si", cell.frac[cell.indices_of_site(0)[1]],
+                    label="Si1A"))
+    return Document(s)
+
+
+def test_merge_dialog_counts_the_atoms_at_the_tolerance(qtbot,
+                                                        doubled):
+    dialog = MergeDuplicatesDialog(doubled)
+    qtbot.addWidget(dialog)
+    assert dialog.tol.value() == pytest.approx(
+        symmetry.DEFAULT_MERGE_TOL)
+    assert "12 atoms in the cell become 9" in dialog.summary.text()
+    assert dialog.buttons.button(QDialogButtonBox.Ok).isEnabled()
+
+
+def test_merge_dialog_disables_ok_with_nothing_to_merge(qtbot,
+                                                        document):
+    """Rutile has no duplicates at any tolerance, and a Merge button
+    that pushes an empty undo step is worse than a disabled one."""
+    dialog = MergeDuplicatesDialog(document)
+    qtbot.addWidget(dialog)
+    assert not dialog.buttons.button(QDialogButtonBox.Ok).isEnabled()
+    assert "no duplicates" in dialog.summary.text()
+
+
+def test_the_merge_slider_and_the_number_stay_together(qtbot,
+                                                       doubled):
+    dialog = MergeDuplicatesDialog(doubled)
+    qtbot.addWidget(dialog)
+    dialog.slider.setValue(dialog._to_slider(0.3))
+    assert dialog.tol.value() == pytest.approx(0.3, abs=0.01)
+    dialog.tol.setValue(0.02)
+    assert dialog.slider.value() == dialog._to_slider(0.02)
+
+
+def test_the_merge_dialog_applies_the_tolerance_it_previewed(
+        monkeypatch, qtbot, doubled):
+    monkeypatch.setattr(MergeDuplicatesDialog, "exec",
+                        lambda self: QDialog.Accepted)
+    report = MergeDuplicatesDialog.ask(doubled)
+    assert report.merged == 1
+    assert doubled.structure.n_sites == 2
+    assert p1.expand(doubled.structure).n_atoms == 9
+
+
+def test_cancelling_the_merge_dialog_changes_nothing(monkeypatch,
+                                                     qtbot, doubled):
+    monkeypatch.setattr(MergeDuplicatesDialog, "exec",
+                        lambda self: QDialog.Rejected)
+    assert MergeDuplicatesDialog.ask(doubled) is None
+    assert doubled.structure.n_sites == 3
+
+
+def test_the_merge_menu_item_asks_for_the_tolerance(monkeypatch,
+                                                    window,
+                                                    quartz_cif):
+    """It ran at the 0.05 A default with nothing to set, which made the
+    one setting that decides the answer unreachable."""
+    asked = []
+
+    def ask(cls, document, parent=None):
+        asked.append(document)
+        return document.merge_duplicates(0.5)
+
+    monkeypatch.setattr(MergeDuplicatesDialog, "ask",
+                        classmethod(ask))
+    window.open_path(quartz_cif)
+    window.actions_["merge_duplicates"].trigger()
+    assert asked == [window.current_document()]

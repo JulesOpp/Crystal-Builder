@@ -206,13 +206,16 @@ class MergeDuplicates(StructureOperation):
 
     Generating a group over coordinates that were already a full cell
     is the standard way to end up with near-duplicate atoms, so every
-    symmetry-changing dialog offers this next to it.
+    symmetry-changing dialog offers this next to it.  "On top of each
+    other" is judged over the whole orbit: the duplicate a CIF carries
+    is usually a different image of the same atom, written thousandths
+    of an Angstrom from one of the images and Angstroms from the parent.
     """
 
     change = Change.TOPOLOGY
     label = "Merge duplicate sites"
 
-    def __init__(self, tol: float = 0.05):
+    def __init__(self, tol: float = symmetry.DEFAULT_MERGE_TOL):
         super().__init__()
         self.tol = float(tol)
 

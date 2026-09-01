@@ -56,6 +56,7 @@ from xtalapp.dialogs.bond_rules import BondRulesDialog
 from xtalapp.dialogs.cell_edit import CellEditDialog
 from xtalapp.dialogs.display_range import DisplayRangeDialog
 from xtalapp.dialogs.find_symmetry import FindSymmetryDialog
+from xtalapp.dialogs.merge_duplicates import MergeDuplicatesDialog
 from xtalapp.dialogs.module_form import ModuleDialog
 from xtalapp.dialogs.run_progress import RunProgressDialog
 from xtalapp.dialogs.spacegroup import SpaceGroupDialog
@@ -364,10 +365,10 @@ class MainWindow(QMainWindow):
         add("invert", "&Invert the structure", self.invert_structure,
             tip="The same crystal in the other hand: the coordinates "
                 "and the space group together")
-        add("merge_duplicates", "Merge &duplicate sites",
+        add("merge_duplicates", "Merge &duplicate sites...",
             self.merge_duplicates,
-            tip="Merge sites of the same element that sit on top of "
-                "each other")
+            tip="Merge sites of the same element that are the same "
+                "atom, symmetry images included")
 
         add("supercell", "&Supercell...", self.supercell_dialog,
             tip="na x nb x nc, or a general integer transformation")
@@ -1696,7 +1697,15 @@ class MainWindow(QMainWindow):
         self._run(lambda d: d.assign_wyckoff())
 
     def merge_duplicates(self) -> None:
-        self._run(lambda d: d.merge_duplicates())
+        """Ask for the tolerance first.
+
+        The count it would merge is flat over a wide range and then
+        steps, and where it steps is a property of the file -- so the
+        0.05 A default was as likely to be an order of magnitude too
+        tight as it was to be right."""
+        document = self.current_document()
+        if document is not None:
+            self._report(MergeDuplicatesDialog.ask(document, self))
 
     def descend_to_subgroup(self) -> None:
         """Descend, then reset the view.

@@ -24,15 +24,47 @@ from xtal.core.structure import Bond, Change
 _UNSET = object()
 
 
+def _contradicting(structure, bond: Bond) -> Bond | None:
+    """The record already stored for this pair that says the opposite.
+
+    ``explicit`` and ``suppressed`` are two answers to the same
+    question about the same pair, so the structure holds only one of
+    them -- see ``Structure._bond_identity``.  That makes
+    ``add_bond`` refuse the second answer rather than replace the
+    first, and a refusal here is silent: drawing a bond back over one
+    that had been deleted did nothing at all, and neither did deleting
+    one that had been drawn.  So the record being contradicted is
+    taken out by hand, and kept, because undo has to put it back.
+
+    A topology edge is never a contradiction: it joins the same two
+    atoms and means something else entirely.
+    """
+    key = bond.key(structure.space_group)
+    for existing in structure.bonds:
+        if existing.kind in (TOPOLOGY, bond.kind):
+            continue
+        if existing.key(structure.space_group) == key:
+            return existing
+    return None
+
+
 class AddBond(Command):
-    """Add an explicit bond between two sites."""
+    """Add an explicit bond between two sites.
+
+    A bond drawn where one had been *deleted* takes the suppression's
+    place rather than being refused -- see :func:`_contradicting`.
+    Drawing the bond back is the obvious way to undo a deletion once
+    the undo stack has gone, and until the suppression was displaced it
+    was the one pair of atoms in the crystal that could not be bonded.
+    """
 
     change = Change.TOPOLOGY
     label = "Add bond"
 
     def __init__(self, bond: Bond):
         self.bond = bond
-        self._added = False
+        self.added = False
+        self.replaced: Bond | None = None
 
     @classmethod
     def between_atoms(cls, structure, cell, atom_a: int, atom_b: int,
@@ -47,11 +79,17 @@ class AddBond(Command):
                                 image_a, image_b))
 
     def do(self, host) -> None:
-        self._added = host.structure.add_bond(self.bond)
+        structure = host.structure
+        self.replaced = _contradicting(structure, self.bond)
+        if self.replaced is not None:
+            structure.remove_bond(self.replaced)
+        self.added = structure.add_bond(self.bond)
 
     def undo(self, host) -> None:
-        if self._added:
+        if self.added:
             host.structure.remove_bond(self.bond)
+        if self.replaced is not None:
+            host.structure.add_bond(self.replaced)
 
 
 class RemoveBond(Command):
@@ -124,7 +162,14 @@ class RemoveTopologyBond(AddTopologyBond):
 
 
 class SuppressBond(Command):
-    """Hide a bond that distance-based perception keeps finding."""
+    """Hide a bond that distance-based perception keeps finding.
+
+    A bond the user *drew* is deleted by the same click, and its record
+    is displaced the same way -- see :func:`_contradicting`.  The
+    suppression is stored either way: a pair can be both close enough
+    to perceive and carrying a drawn record, and removing only the
+    record would leave the bond on screen.
+    """
 
     change = Change.TOPOLOGY
     label = "Delete bond"
@@ -133,6 +178,7 @@ class SuppressBond(Command):
         self.bond = Bond(bond.i, bond.j, bond.image, bond.order,
                          kind="suppressed", op=bond.op)
         self._added = False
+        self.replaced: Bond | None = None
 
     @classmethod
     def between_atoms(cls, structure, cell, atom_a: int, atom_b: int,
@@ -142,11 +188,17 @@ class SuppressBond(Command):
                                 image_a, image_b))
 
     def do(self, host) -> None:
-        self._added = host.structure.add_bond(self.bond)
+        structure = host.structure
+        self.replaced = _contradicting(structure, self.bond)
+        if self.replaced is not None:
+            structure.remove_bond(self.replaced)
+        self._added = structure.add_bond(self.bond)
 
     def undo(self, host) -> None:
         if self._added:
             host.structure.remove_bond(self.bond)
+        if self.replaced is not None:
+            host.structure.add_bond(self.replaced)
 
 
 class SetBondRules(Command):

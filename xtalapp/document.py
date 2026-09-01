@@ -33,7 +33,7 @@ from xtal.commands import bonds as bond_commands
 from xtal.commands import cell as cell_commands
 from xtal.commands import symmetry as symmetry_commands
 from xtal.commands.clipboard import Fragment, PasteFragment
-from xtal.core import bonding, measure, p1, properties
+from xtal.core import bonding, measure, p1, properties, symmetry
 from xtal.core import selection as sel
 from xtal.core.selection import Selection
 from xtal.core.structure import CHEMISTRY, Change
@@ -784,6 +784,12 @@ class Document(QObject):
             self._structure, self.cell, atom_a, atom_b,
             image_a, image_b)
         self.run(command)
+        if command.replaced is not None:
+            # Worth saying: the click both drew a bond and withdrew a
+            # deletion, and the deletion was the invisible half.
+            return "bond added, over the one you had deleted"
+        if not command.added:
+            return "those atoms are already bonded"
         return "bond added"
 
     def remove_bond_between(self, atom_a: int, atom_b: int,
@@ -1046,8 +1052,17 @@ class Document(QObject):
     def assign_wyckoff(self, symprec: float = 1e-5):
         return self.operate(symmetry_commands.AssignWyckoff(symprec))
 
-    def merge_duplicates(self, tol: float = 0.05):
+    def merge_duplicates(self,
+                         tol: float = symmetry.DEFAULT_MERGE_TOL):
         return self.operate(symmetry_commands.MergeDuplicates(tol))
+
+    def preview_merge(self, tol: float = symmetry.DEFAULT_MERGE_TOL):
+        """What merging duplicates at this tolerance would do.
+
+        The tolerance dialog asks this as the spinbox moves; the right
+        tolerance is a property of the file, so the count has to travel
+        with the number."""
+        return symmetry.preview_merge(self._structure, tol)
 
     def invert_structure(self):
         """Swap the hand of the structure, group included."""

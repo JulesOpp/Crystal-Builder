@@ -59,21 +59,27 @@ overlays — see §12).
 | `spglib` | symmetry detection with tolerance, Wyckoff letters, cell standardisation/refinement, Niggli/Delaunay reduction | |
 | `scipy` | `cKDTree` neighbour search, L-BFGS, sparse ops | |
 
-**Optional extras** — `ase` (bridge to external calculators/optimisers),
-`matplotlib` (plots: future PXRD patterns).
+**Optional extras** — `gui` (`PySide6`, `vtk`) and `ase` (bridge to
+external calculators/optimisers). The core installs with neither, so
+`pip install crystal-builder` stays usable on a headless box.
 
-The plan originally listed `pyqtgraph` for the live convergence plot.
-Phase 7 did not use it: the trace is two polylines and a pair of axes,
-which is a hundred lines of `QPainter` in `xtalapp/plot.py` — less to
-pin and package than a second large GUI dependency, and it follows the
-user's theme without being asked. A richer plot (PXRD overlays with
-pan, zoom and picking) is a real reason to reconsider.
+**No plotting library.** The plan originally listed `pyqtgraph` for the
+live convergence plot, and `matplotlib` for future patterns. Neither is
+a dependency: the optimisation trace and the pore-size histogram are a
+hundred lines each of `QPainter` in `xtalapp/plot.py` and
+`xtalapp/histogram.py` — less to pin and package than a second large
+GUI dependency, and they follow the user's theme without being asked. A
+richer plot (PXRD overlays with pan, zoom and picking) is a real reason
+to reconsider.
 
-**Dev** — `pytest`, `pytest-qt`, `ruff`, `pyinstaller`.
+**Dev** — `pytest`, `pytest-qt`, `pytest-xdist`, `ruff`, `pyinstaller`.
+`pytest-qt` is in the `test` extra and not in `dev`: without it every
+widget test skips itself, and CI installs `[gui,test]` — so the GUI
+half of the suite was passing by not running.
 
-Python **3.11+** (3.13 works; pin the CI matrix to 3.11/3.12/3.13).
-Line length 79 and heavy module docstrings, matching your existing
-house style.
+Python **3.11+**. CI runs 3.11/3.12/3.13 on Linux and 3.12 on
+macOS-14 (arm64), macOS-13 (x86_64) and Windows. Line length 79 and
+heavy module docstrings, matching your existing house style.
 
 ---
 
@@ -82,90 +88,101 @@ house style.
 ```
 Crystal-Builder/
 ├── pyproject.toml            # packaging, deps, extras, entry points, ruff/pytest cfg
+├── CLAUDE.md                 # how to work in this repo: layout, commands, invariants
 ├── README.md
+├── .github/workflows/ci.yml  # ruff + pytest, offscreen Qt on Linux
 ├── docs/
-│   ├── PLAN.md               # this file
-│   ├── architecture.md       # kept current as things land
-│   └── extending.md          # how to add a format / style / analysis / calculator
+│   ├── PLAN.md               # this file: the architecture, and the phases that built it
+│   ├── ROADMAP.md            # the delivery plan for TODO.md — phases A onwards
+│   └── TODO.md               # raised by using the app; an entry is deleted when it ships
 ├── xtal/                     # ---- CORE (no Qt, no VTK) ----
 │   ├── core/
-│   │   ├── elements.py       # Z, symbol, mass, covalent/vdW/ionic radii, CPK+VESTA colours, valence
+│   │   ├── elements.py       # Z, symbol, mass, covalent/vdW radii, CPK+VESTA colours, valence
 │   │   ├── lattice.py        # Lattice: (a,b,c,α,β,γ) ⇄ 3×3 matrix, frac⇄cart, metric,
 │   │   │                     #   reciprocal, volume, d-spacing, strain, transform(P)
 │   │   ├── site.py           # Site: element, frac coords, occupancy, label, Uiso/Uaniso,
-│   │   │                     #   charge, wyckoff, tags, custom props dict
-│   │   ├── structure.py      # Structure: Lattice + asymmetric unit + SpaceGroup + explicit bonds
+│   │   │                     #   charge, wyckoff, props dict
+│   │   ├── structure.py      # Structure: Lattice + asymmetric unit + SpaceGroup + stored bonds;
+│   │   │                     #   Change flags and the cache mask they invalidate
+│   │   ├── spacegroup.py     # SpaceGroup: gemmi tables, Hall symbols, settings, operations
 │   │   ├── p1.py             # P1Cell: expanded atoms with provenance (site_idx, op_idx, tau)
-│   │   ├── symmetry.py       # gemmi space-group tables; spglib detect/refine/standardize;
-│   │   │                     #   set_space_group / reduce_to_p1 / asymmetrise / Wyckoff
+│   │   ├── symmetry.py       # spglib detect/refine/standardise; set_space_group / reduce_to_p1 /
+│   │   │                     #   asymmetrise / Wyckoff / merge_duplicates
+│   │   ├── subgroups.py      # maximal translationengleiche subgroups, named in a standard setting
 │   │   ├── neighbors.py      # periodic neighbour lists (cKDTree over padded images), cutoff maps
-│   │   ├── bonding.py        # distance+radii bond perception, per-pair rules, explicit
-│   │   │                     #   add/remove overrides, bond graph, fragment/molecule detection
-│   │   ├── supercell.py      # supercell (n×n×n and general integer 3×3 P), cell edit modes,
-│   │   │                     #   Niggli/Delaunay reduction, origin shift
+│   │   ├── bonding.py        # perception, per-pair rules, explicit/suppressed/topology bonds,
+│   │   │                     #   bond orders, fragments, coordination sequence and point symbol
+│   │   ├── supercell.py      # supercell, general integer P, change_setting, Niggli/Delaunay
 │   │   ├── selection.py      # Selection set + predicate registry + query parser
-│   │   ├── transforms.py     # translate/rotate/mirror/invert on sites, symmetry-aware variants
-│   │   ├── measure.py        # distance/angle/torsion (min-image aware)
-│   │   ├── properties.py     # formula, Z, density, volume, mass, charge balance
-│   │   └── validate.py       # clashes, occupancy>1, unbonded/odd valence, unreasonable cell
+│   │   ├── transforms.py     # translate/rotate/mirror/invert, best-fit plane, symmetry-aware
+│   │   ├── measure.py        # distance/angle/torsion/plane (min-image aware)
+│   │   └── properties.py     # formula, Z, density, volume, mass, charge balance
 │   ├── io/
 │   │   ├── registry.py       # FormatRegistry: ext → Reader/Writer, capability flags
 │   │   ├── cif_reader.py     # gemmi small-structure read (+ keeps raw block for round-trip)
-│   │   ├── cif_writer.py     # minimal structural CIF + "generated by" note
-│   │   ├── xyz.py, vasp.py, pdb.py, res.py   # incremental extras
-│   │   └── project.py        # .xtalproj (zip: structure.cif + view.json + session.json)
+│   │   ├── cif_writer.py     # structural CIF, with symmetry or in P1, and a "generated by" note
+│   │   ├── xyz.py            # single-frame XYZ
+│   │   ├── cssr.py           # Zeo++'s format; always written in P1, because that is what it reads
+│   │   ├── gen.py            # DFTB+ geometry, read and written
+│   │   ├── trajectory.py     # multi-frame extended XYZ, streamed a frame at a time
+│   │   └── project.py        # .xtalproj (zip: structure.cif + bonds.json + view/session json)
 │   ├── commands/
 │   │   ├── base.py           # Command (do/undo/label/merge_with), CommandStack, macro/transaction
-│   │   ├── atoms.py bonds.py cell.py symmetry.py clipboard.py selection.py
+│   │   └── atoms.py bonds.py cell.py symmetry.py clipboard.py ff.py
 │   ├── ff/
 │   │   ├── api.py            # Calculator ABC: energy/forces/stress + capability flags
-│   │   ├── registry.py       # name → Calculator
-│   │   ├── uff/
-│   │   │   ├── params.py     # Rappé 1992 table (~126 types) as a frozen dict
-│   │   │   ├── typer.py      # geometry+graph → UFF atom types (C_3/C_R/O_2/Fe6+2 …)
-│   │   │   ├── terms.py      # bond, angle, torsion, inversion, vdW, coulomb — E and ∂E/∂x
-│   │   │   ├── calculator.py # assembles terms, neighbour lists, PBC, caching
-│   │   │   └── qeq.py        # optional QEq charge equilibration
+│   │   ├── registry.py       # ENGINES: name → Calculator, with its options and availability
+│   │   ├── uff/              # params.py (Rappé 1992), typer.py, terms.py, calculator.py, qeq.py
+│   │   ├── dftb/             # calculator.py, hsd.py (input), params.py (Slater-Koster sets)
 │   │   ├── ewald.py          # real+reciprocal Coulomb under PBC
-│   │   └── optimize.py       # FIRE / L-BFGS, constraints, cell relaxation, symmetry projection
-│   ├── analysis/             # rdf.py, coordination.py, voids.py … (future: pxrd.py, zeo.py)
+│   │   ├── hydrogens.py      # where the missing hydrogens go, and how many there really are
+│   │   ├── optimize.py       # FIRE / L-BFGS, constraints, symmetry projection, cell strain
+│   │   └── record.py         # what a run leaves in its folder: log, trajectory, final structure
+│   ├── modules/              # registry.py (Module/Action), process.py (external binaries: launch,
+│   │                         #   stream, cancel), job.py, record.py, report.py,
+│   │                         #   forcefield.py dftb.py zeopp.py stub.py
+│   ├── analysis/porosity.py  # Zeo++ output parsed into results (future: pxrd.py)
+│   ├── workspace.py          # the directory a structure and its runs live in
+│   ├── params.py             # Param and Availability, shared by modules and engines
 │   ├── plugins.py            # entry-point discovery + in-tree registration
-│   └── cli.py                # headless: convert, symmetry, supercell, uff-optimize, render
+│   └── cli.py                # headless: convert, symmetry, supercell, optimize, modules, run
 ├── xtalapp/                  # ---- GUI (PySide6 + VTK) ----
 │   ├── main.py               # entry point; `crystal-builder` script
-│   ├── mainwindow.py         # QMainWindow, dock layout, status bar, drag&drop
-│   ├── document.py           # Document: Structure + CommandStack + Selection + ViewSettings
-│   │                         #   emits Qt signals with change hints
+│   ├── mainwindow.py         # QMainWindow, docks, menus, context menus, drag&drop (~2400 lines)
+│   ├── document.py           # Document: Structure + CommandStack + Selection + ViewSettings,
+│   │                         #   emitting Qt signals with change hints
 │   ├── actions.py            # single QAction registry → menus, toolbars, shortcuts, context menus
 │   ├── viewport/
-│   │   ├── widget.py         # QVTKRenderWindowInteractor host, camera, overlays
-│   │   ├── scene.py          # SceneModel dataclass (numpy arrays) + incremental updates
+│   │   ├── widget.py         # QVTKRenderWindowInteractor host, camera, rubber band, hotkeys
+│   │   ├── scene.py          # SceneModel dataclass (numpy arrays)
 │   │   ├── builder.py        # Structure + ViewSettings → SceneModel
-│   │   ├── styles/           # ball_stick.py stick.py wireframe.py spacefill.py polyhedra.py
-│   │   ├── picking.py        # hardware selection → (site, image) ids; rubber-band select
-│   │   ├── gizmo.py          # translate/rotate handles for the move tool
-│   │   └── modes/            # select.py add_atom.py add_bond.py measure.py move.py
+│   │   ├── vtk_scene.py      # SceneModel → actors; set_positions for a geometry-only change
+│   │   ├── styles.py         # ball-and-stick, stick, wireframe, space-filling, polyhedra, ORTEP
+│   │   ├── picking.py        # hardware selection → (site, image) ids
+│   │   ├── modes.py          # select / add atom / add bond / measure / move
+│   │   └── view_settings.py  # what is drawn: never on the undo stack, saved with the session
 │   ├── docks/
-│   │   ├── filetree.py       # left bar: filesystem tree + open documents
-│   │   ├── structure_tree.py # cell → sites → images / molecules
-│   │   ├── inspector.py      # properties of current selection (atom/bond/multi)
-│   │   ├── style_panel.py    # style, colours, radii, background, labels, lighting
-│   │   ├── symmetry_panel.py # detected SG, tolerance, Wyckoff table, set-SG/P1 buttons
-│   │   ├── move_panel.py     # numeric + interactive translate/rotate of selection
-│   │   ├── selection_panel.py# by element / query / connectivity / sphere / symmetry
-│   │   ├── ff_panel.py       # UFF setup, run, live energy plot, per-term breakdown
-│   │   ├── measure_panel.py  # measurement table
-│   │   └── console.py        # log + embedded Python console bound to the command API
-│   ├── dialogs/              # add_atom, cell_edit, supercell, spacegroup_picker, display_range,
-│   │                         #   bond_rules, preferences, export_image, about
-│   ├── models/               # Qt item models (atom table, bond table, measurement table)
-│   ├── workers.py            # QThread wrappers for long jobs (UFF, big supercells) + progress
-│   └── settings.py           # QSettings, themes, recent files, default view settings
-├── tests/                    # mirrors xtal/ ; headless. pytest-qt only for widget logic
-├── resources/                # icons, sample CIFs, element data JSON, app icon
-└── packaging/                # PyInstaller specs, Info.plist, DMG script, Inno Setup script,
-                              #   GitHub Actions workflows
+│   │   ├── workspace.py filetree.py    # what is on disk, and what has been run
+│   │   ├── modules.py results.py logview.py trajectory.py   # what can be run, and its output
+│   │   ├── info.py sites.py inspector.py measure.py move.py style_panel.py
+│   │   └── ff_panel.py       # one class, opened twice: the Forcefield panel and the DFTB+ one
+│   ├── dialogs/              # add_atom, add_hydrogens, bond_rules, cell_edit, display_range,
+│   │                         #   export, find_symmetry, merge_duplicates, module_form,
+│   │                         #   run_progress, spacegroup, subgroup, supercell
+│   ├── plot.py histogram.py  # the two plots, drawn by hand — no plotting dependency
+│   ├── playback.py           # trajectory transport: play, loop, step, scrub
+│   ├── workers.py            # QThread wrappers for long jobs + progress + cancellation
+│   └── settings.py           # QSettings, window geometry, recent files, default view settings
+├── tests/                    # headless where it can be; pytest-qt for widget logic
+├── resources/                # samples/ — real CIFs used as fixtures
+│                             # test/    — a workspace of real runs, read by the workspace tests
+└── packaging/                # empty; PyInstaller specs and installers are § 16 phase 8
 ```
+
+Two files named here in the original plan were never written:
+`docs/architecture.md`, because [ROADMAP.md](ROADMAP.md) turned out to
+be the thing that had to be kept current, and `docs/extending.md`,
+which is owed by § 16 phase 9 along with the plugin that proves it.
 
 ---
 
@@ -307,37 +324,43 @@ document.
 
 ### Window layout
 
+As built — the menu bar gained *Measure* and lost *Calculate* to
+*Modules* (ROADMAP phase D), and there is no Python console:
+
 ```
 ┌───────────────────────────────────────────────────────────────────────┐
-│ menu bar: File Edit Structure Symmetry Cell Select Calculate View …   │
+│ menu bar: File Edit Select Structure Measure Symmetry Cell Modules    │
+│           View Window Help                                            │
 │ toolbar: open save | undo redo | ⟦select add-atom add-bond measure    │
 │          move⟧ | style▾ | cell-range | find-symmetry | UFF ▶          │
 ├──────────────┬──────────────────────────────────────┬─────────────────┤
-│ File tree    │                                      │ Inspector       │
-│ (filesystem  │        VTK viewport (tabs per        │ Style           │
-│  + open      │        open structure)               │ Symmetry        │
-│  documents)  │                                      │ Move            │
-│              │                                      │ Selection       │
-│ Structure    │                                      │ Force field     │
-│ tree         │                                      │ Measurements    │
+│ Workspace    │                                      │ Inspector       │
+│ (filesystem  │        VTK viewport (tabs per        │ Structure       │
+│  + runs)     │        open structure)               │ Sites           │
+│              │                                      │ Style · Move    │
+│ Modules      │                                      │ Measurements    │
+│ (what can    │                                      │ Force Field     │
+│  be run)     │                                      │ DFTB+ · Results │
 ├──────────────┴──────────────────────────────────────┴─────────────────┤
-│ Log / Python console (collapsible)                                    │
+│ Log (tails a running job) · Trajectory transport                      │
 ├───────────────────────────────────────────────────────────────────────┤
 │ status: mode | 3 atoms selected | Fe2O3 · Z=6 · V=301.3 Å³ | progress │
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
 All docks are `QDockWidget`s: floatable, tabbable, hideable, with the
-layout saved/restored via `QSettings` and named layout presets
-("Modelling", "Analysis").
+layout saved/restored via `QSettings` and `Window ▸ Reset layout` as
+the way back. The named presets ("Modelling", "Analysis") were not
+built; which docks a first run opens is a
+[TODO.md](TODO.md) entry.
 
 ### Interaction modes
 
 A mode is a small state machine (`on_click`, `on_drag`, `on_key`,
-`on_hover`) registered in `viewport/modes/`, owning its own status-bar
-hint and cursor. v1 modes: **Select** (default), **Add atom**, **Add
-bond**, **Measure**, **Move**. Adding a future mode (e.g. "define a
-plane", "pick a void") is one file.
+`on_hover`) registered in `viewport/modes.py` — one module rather than
+the package the plan drew, because five modes did not need one — owning
+its own status-bar hint and cursor. v1 modes: **Select** (default),
+**Add atom**, **Add bond**, **Measure**, **Move**.
 
 Mouse (VTK trackball, matching VESTA): left-drag rotate, scroll zoom,
 middle-drag (or shift+left) pan, right-drag dolly, double-click centre
@@ -415,7 +438,7 @@ polyhedra, plus a `focus` for the inspector. Selection sources:
 | 4g | build supercell | `BuildSupercell` — n₁×n₂×n₃ *and* general integer 3×3 matrix, with symmetry handling (result is P1 unless the group survives) |
 | 5 | UFF module | §11 |
 | 6 | drag to orbit, scroll to zoom | §7 mouse map |
-| 7 | window to move atoms/components | Move dock: numeric translate (frac/cart/along a,b,c), rotate about axis/centroid/point, mirror, invert, snap-to-value, plus an on-screen gizmo; symmetry-aware when enabled |
+| 7 | window to move atoms/components | Move dock: numeric translate (frac/cart/along a,b,c), rotate about axis/centroid/point, mirror, invert, snap-to-value; symmetry-aware when enabled. The on-screen gizmo was not built — the numeric panel covered it |
 | 8 | select by type, connectivity, … | §9 |
 | 9 | background/atom colours, draw styles | Style dock + Preferences: per-element colour+radius overrides, palettes (VESTA/CPK/Jmol), solid/gradient background, ball-and-stick / stick / wireframe / space-filling / polyhedral, per-selection style overrides |
 | 10 | change unit cell size | `Cell ▸ Edit Unit Cell…` with the two semantics made explicit: *keep fractional* (atoms deform with the cell) or *keep cartesian* (atoms hold position); also apply a strain tensor |
@@ -475,9 +498,11 @@ energy breakdown, max/RMS force, and any atoms whose typing was
 uncertain.
 
 **Validation** — regression tests against published UFF energies for
-small molecules (benzene, water, cyclohexane), MOF-5/IRMOF-1 lattice
-constants after relaxation, gradient-vs-finite-difference checks on every
-term, and an optional cross-check against ASE+OpenBabel when installed.
+small molecules (benzene, water, cyclohexane), a framework lattice
+constant after relaxation, and gradient-vs-finite-difference checks on
+every term. The lattice-constant regression is **MFU-4l**, not
+MOF-5/IRMOF-1 as first written; see [ROADMAP.md](ROADMAP.md) § 8 for
+why. The cross-check against ASE+OpenBabel is not built.
 
 **Extensibility** — everything sits behind `ff/api.py::Calculator`, so
 LAMMPS, GULP, xTB or an MLIP (MACE/CHGNet) drop in later as alternative
@@ -487,27 +512,32 @@ engines with no GUI changes.
 
 ## 12. Extra features worth building (VESTA/Materials Studio parity)
 
-Ranked by value-per-effort; all are additive under the architecture above.
+Ranked by value-per-effort; all are additive under the architecture
+above. An entry is deleted from this list when it ships — the
+measurement table, the structure info panel, labels, recent files and
+drag-and-drop, merge duplicates, `.xtalproj`, tabs, the polyhedral
+style, the cell transformation dialog and the Zeo++ bridge were all
+here and are all in. What is below has not been built, and what has a
+schedule has it in [ROADMAP.md](ROADMAP.md).
 
 **High value, cheap**
-* Measurement tool + table: distance, angle, torsion, with PBC min-image.
-* Structure info panel: formula, Z, density, volume, mass, charge balance.
 * Bond-length/angle listing and coordination table, exportable to CSV.
-* Labels (element, label, index, occupancy) with placement controls.
-* High-resolution image export (PNG, transparent background, POV-ready).
-* Recent files, drag-and-drop CIF onto the window, sample structure library.
 * Validation panel: overlapping atoms, occupancy sums > 1, odd valences.
-* `Merge duplicate atoms` with tolerance (essential after symmetry ops).
-* Project file `.xtalproj` — structure + view settings + saved selections.
-* Multiple structures open in tabs; **overlay/compare two structures**.
+* Named saved selections, stored in the project — §9 promises them and
+  the project file does not carry them yet.
+* Image export at a chosen resolution, with a transparent background:
+  `File ▸ Export image` writes what is on screen at the size it is on
+  screen, which is not a figure for a paper.
+* A sample structure library — the CIFs are in `resources/samples/`
+  and nothing in the application opens them.
+* **Overlay/compare two structures** in one viewport.
 
 **High value, moderate**
-* Polyhedral drawing style with coordination rules.
 * Embedded Python console driving the same command API (scriptability).
-* Cell transformation dialog (general 3×3 P) with Niggli/Delaunay reduce.
 * Symmetry-mode editing of Wyckoff free parameters only.
 * Slab/surface builder: cut along (hkl), set thickness + vacuum.
-* Molecule/fragment library for pasting common ligands.
+* Molecule/fragment library for pasting common ligands — scheduled, as
+  part of [ROADMAP.md](ROADMAP.md) phase N.
 * Distance-based site disorder tools (split sites, partial occupancy view).
 
 **Later (already anticipated by the plugin API)**
@@ -518,7 +548,6 @@ Ranked by value-per-effort; all are additive under the architecture above.
 * Volumetric data (CHGCAR/CUBE) import + isosurfaces (VESTA's other
   signature feature) with the same glyph/scene infrastructure.
 * SHELX `.ins`/`.res` read/write for refinement round-trips.
-* Zeo++ bridge for pore/void analysis; Poreblazer-style descriptors.
 * Symmetry-mode analysis / distortion decomposition.
 * Other experimental data overlays (PDF, EXAFS, IR/Raman from a Hessian).
 
@@ -600,7 +629,7 @@ Each phase ends with something runnable and a green test suite.
 | **1. Crystallography core** ✅ | CLI can read a CIF, print symmetry, write a CIF | `cif_reader`/`cif_writer`, `symmetry.py` (detect / set / P1), `neighbors`, `bonding`, `supercell`, `properties`, `cli.py` |
 | **2. App shell + viewport** ✅ | window opens a CIF and shows ball-and-stick you can orbit | `mainwindow`, file-tree dock, `Document`, `SceneModel`+builder, VTK widget, camera, cell box, style switching |
 | **3. Selection & inspection** ✅ | click atoms/bonds, read and edit their properties | picking, Select mode, Inspector dock, structure tree, atom table, delete, change element |
-| **4. Editing & undo** ✅ | build a structure by hand | `CommandStack`, Add-Atom / Add-Bond modes + dialogs, Move dock + gizmo, copy/paste, full undo/redo wiring |
+| **4. Editing & undo** ✅ | build a structure by hand | `CommandStack`, Add-Atom / Add-Bond modes + dialogs, Move dock (numeric; no on-screen gizmo was built), copy/paste, full undo/redo wiring |
 | **5. Symmetry & cell** ✅ | full symmetry workflow | Find Symmetry dialog with tolerance, space-group picker, reduce-to-P1, supercell, cell edit, cell transform, display range, boundary options |
 | **6. Appearance & analysis** ✅ | looks like VESTA | all draw styles incl. polyhedra, colour/radius editors, background, labels, legend, projection modes, measurements, image export, project save/load |
 | **7. UFF** ✅ | single-point + optimisation from the GUI | params, typer (+ override table), terms, calculator, FIRE/L-BFGS, worker + live plot, constraints, validation suite |
@@ -612,9 +641,17 @@ set every interface the rest of the app leans on. Phase 4 (commands) must
 land before phase 5, or symmetry operations get retrofitted into
 undo/redo later, which is painful.
 
+Phase 8 has not been done: `packaging/` is empty, and there is no
+build. Phase 9 has been half-answered from an unexpected direction --
+`xtal/modules/` is the registry [ROADMAP.md](ROADMAP.md) phase D built,
+and Zeo++ and DFTB+ went in through it and through
+`crystal_builder.plugins` without touching an existing file, which is
+the claim phase 9 was to prove. What it still owes is
+`docs/extending.md` and a plugin shipped from outside the tree.
+
 Work that came out of using the application, and has not been scheduled
 into a phase yet, lives in [TODO.md](TODO.md); the plan for delivering
-it -- phases A to I, and where phase 8 above falls among them -- is
+it -- phases A to N, and where phase 8 above falls among them -- is
 [ROADMAP.md](ROADMAP.md).
 
 ---
