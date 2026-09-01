@@ -25,7 +25,6 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QGuiApplication
 from PySide6.QtWidgets import (
     QColorDialog,
@@ -42,9 +41,8 @@ from xtal.commands.bonds import BOND_TYPES
 from xtal.commands.clipboard import Fragment
 from xtal.core.structure import Change
 from xtal.io import FORMATS
-from xtal.modules import MODULES
 from xtal.workspace import NotAWorkspace, Workspace
-from xtalapp import menus
+from xtalapp import layout, menus
 from xtalapp.actions import ActionRegistry
 from xtalapp.dialogs.add_atom import AddAtomDialog
 from xtalapp.dialogs.add_hydrogens import AddHydrogensDialog
@@ -53,26 +51,12 @@ from xtalapp.dialogs.cell_edit import CellEditDialog
 from xtalapp.dialogs.display_range import DisplayRangeDialog
 from xtalapp.dialogs.find_symmetry import FindSymmetryDialog
 from xtalapp.dialogs.merge_duplicates import MergeDuplicatesDialog
-from xtalapp.dialogs.run_progress import RunProgressDialog
 from xtalapp.dialogs.spacegroup import SpaceGroupDialog
 from xtalapp.dialogs.subgroup import SubgroupDialog
 from xtalapp.dialogs.supercell import SupercellDialog
-from xtalapp.docks.ff_panel import ForceFieldDock
-from xtalapp.docks.info import InfoDock
-from xtalapp.docks.inspector import InspectorDock
-from xtalapp.docks.logview import LogDock
-from xtalapp.docks.measure import MeasureDock
-from xtalapp.docks.modules import ModulesDock
-from xtalapp.docks.move import MoveDock
-from xtalapp.docks.net import NetDock
-from xtalapp.docks.results import ResultsDock
-from xtalapp.docks.sites import SitesDock
-from xtalapp.docks.style_panel import StylePanelDock
-from xtalapp.docks.trajectory import TrajectoryDock
-from xtalapp.docks.workspace import WorkspaceDock
 from xtalapp.document import Document
 from xtalapp.module_runner import ModuleRunner
-from xtalapp.settings import AppSettings, default_size, fit_to_screen
+from xtalapp.settings import AppSettings, default_size
 from xtalapp.viewport import modes
 from xtalapp.viewport.view_settings import BACKGROUNDS
 
@@ -158,7 +142,7 @@ class MainWindow(QMainWindow):
         menus.build_actions(self)
         menus.build_menus(self)
         menus.build_toolbar(self)
-        self._build_docks()
+        layout.build_docks(self)
 
         self.status_label = QLabel("")
         self.statusBar().addWidget(self.status_label, 1)
@@ -195,165 +179,22 @@ class MainWindow(QMainWindow):
         """
         menus.refresh_module_availability(self)
 
-    def _build_docks(self):
-        self.file_dock = WorkspaceDock(self.settings.last_directory,
-                                       self)
-        self.file_dock.fileActivated.connect(self.open_path)
-        self.file_dock.artifactActivated.connect(self.open_artifact)
-        self.file_dock.workspaceRequested.connect(
-            self._on_workspace_requested)
-
-        # What can be run, beside what it produced: the module tree
-        # picks the calculation and the workspace tree shows its
-        # folder appearing underneath the structure.  Those two panels
-        # next to each other are the whole workflow.
-        self.modules_dock = ModulesDock(MODULES, self)
-        self.modules_dock.actionActivated.connect(
-            self.run_module_action)
-        self.modules_dock.stopRequested.connect(self.stop_module)
-
-        self.inspector_dock = InspectorDock(self)
-        self.inspector_dock.deleteRequested.connect(
-            self.delete_selection)
-        self.inspector_dock.reduceToP1Requested.connect(
-            self.reduce_to_p1)
-
-        self.info_dock = InfoDock(self)
-        # What the net is called, beside what the structure is: they
-        # are the two "what am I looking at" panels and they are read
-        # one after the other.
-        self.net_dock = NetDock(self)
-        self.net_dock.statusMessage.connect(self.show_status)
-        self.sites_dock = SitesDock(self)
-        self.move_dock = MoveDock(self)
-        self.move_dock.statusMessage.connect(self.show_status)
-        self.style_dock = StylePanelDock(self)
-
-        self.measure_dock = MeasureDock(self)
-        self.measure_dock.targetChanged.connect(self._on_measure_target)
-        self.measure_dock.statusMessage.connect(self.show_status)
-
-        self.ff_dock = ForceFieldDock(self, title="Force Field",
-                                      object_name="ForceFieldDock",
-                                      engines=["uff"])
-        self.dftb_dock = ForceFieldDock(self, title="DFTB+",
-                                        object_name="DFTBDock",
-                                        engines=["dftb"])
-        for dock in (self.ff_dock, self.dftb_dock):
-            # Connected to a method, not to the label: the docks are
-            # built before the status bar exists.
-            dock.statusMessage.connect(self.show_status)
-            dock.previewIntervalChanged.connect(
-                self.set_preview_interval)
-            dock.set_preview_interval(self.settings.preview_interval)
-            # A run that has just started or just finished has changed
-            # what is in the workspace, and the tree is read from the
-            # directory -- so this is the whole of keeping it in step.
-            dock.runStarted.connect(self._on_run_started)
-            dock.runFinished.connect(self._on_run_finished)
-
-        # A run that takes minutes needs to say so somewhere the user
-        # is looking, which the footer of a panel that may be closed
-        # is not.  It arms itself and appears only if the run is still
-        # going a moment later, so a fast module never shows one.
-        self.run_progress = RunProgressDialog(self)
-        self.run_progress.stopRequested.connect(self.stop_module)
-
-        # Where a module's tables and histograms land.  Beside the
-        # log rather than beside the module tree: the numbers and the
-        # output that produced them are read together, and a report
-        # squeezed into the width of a tree is a report nobody reads.
-        self.results_dock = ResultsDock(self)
-
-        self.log_dock = LogDock(self)
-        self.trajectory_dock = TrajectoryDock(self)
-        self.trajectory_dock.statusMessage.connect(self.show_status)
-        # The plot and the trajectory are the same run seen two ways:
-        # clicking the trace jumps to that frame, and the frame being
-        # played is marked on the trace.  Both engines' plots feed the
-        # one transport bar -- only one of them is ever showing a run
-        # at a time, so there is nothing to arbitrate between.
-        for dock in (self.ff_dock, self.dftb_dock):
-            dock.plot.pointClicked.connect(self.trajectory_dock.show_step)
-            self.trajectory_dock.frameShown.connect(dock.plot.set_marker)
-        self.trajectory_dock.historyLoaded.connect(
-            self._on_trajectory_history)
-
-        # The workspace on the left, the transport bar under the
-        # viewport, everything else tabbed on the right in the order
-        # they are listed here.
-        self.left_docks = (self.file_dock, self.modules_dock)
-        self.bottom_docks = (self.trajectory_dock, self.log_dock,
-                             self.results_dock)
-        self.right_docks = (self.inspector_dock, self.info_dock,
-                            self.net_dock, self.sites_dock,
-                            self.move_dock, self.style_dock,
-                            self.measure_dock, self.ff_dock,
-                            self.dftb_dock)
-        self.docks = (self.left_docks + self.right_docks
-                      + self.bottom_docks)
-        self.apply_default_layout()
-
-        window_menu = self.menuBar().addMenu("&Window")
-        for dock in self.docks:
-            window_menu.addAction(dock.toggleViewAction())
-        window_menu.addSeparator()
-        window_menu.addAction(self.actions_["reset_layout"])
-
-    #: What a first run shows: what can be run and what it produced,
-    #: on the left, and the inspector on the right.  Every other panel
-    #: is one item away in the Window menu; seven of them tabbed on
-    #: the right take, between them, the width the viewport is there
-    #: to use.
-    DEFAULT_VISIBLE = ("file_dock", "modules_dock", "inspector_dock")
-
     def apply_default_layout(self) -> None:
-        """Put every dock back where it starts: the two trees on the
-        left, the rest tabbed on the right, and only three of them
-        shown.
+        """Put every dock back where it starts.
 
-        Called once on construction -- ``restore_window`` overrides it
-        when there is a saved layout -- and again by Reset layout.
-
-        The workspace and the module tree are *split* rather than
-        tabbed: they answer the two halves of one question -- what can
-        I run, and what did it produce -- and tabbing them would mean
-        never seeing both.
+        Kept as a name on the window because that is what
+        [docs/TODO.md](TODO.md) points at and what Reset layout is a
+        way back to; the arrangement itself is
+        :func:`xtalapp.layout.apply_default_layout`.
         """
-        for dock in self.left_docks:
-            self.addDockWidget(Qt.LeftDockWidgetArea, dock)
-        for dock in self.right_docks:
-            self.addDockWidget(Qt.RightDockWidgetArea, dock)
-        for dock in self.bottom_docks:
-            self.addDockWidget(Qt.BottomDockWidgetArea, dock)
-        # The transport bar, the log and the report are three views of
-        # one run and share the strip under the viewport.
-        for previous, dock in zip(self.bottom_docks,
-                                  self.bottom_docks[1:], strict=False):
-            self.tabifyDockWidget(previous, dock)
-        for previous, dock in zip(self.right_docks,
-                                  self.right_docks[1:], strict=False):
-            self.tabifyDockWidget(previous, dock)
-        self.splitDockWidget(self.file_dock, self.modules_dock,
-                             Qt.Vertical)
-
-        shown = {getattr(self, name) for name in self.DEFAULT_VISIBLE}
-        for dock in self.docks:
-            dock.setFloating(False)
-            dock.setVisible(dock in shown)
-        self.right_docks[0].raise_()
+        layout.apply_default_layout(self)
 
     def reset_layout(self) -> None:
         """Forget the saved layout and start again.
 
-        Without this a window that once went wrong stays wrong: the bad
-        geometry is what gets saved on quit and restored on start.
+        An action slot, so it stays a bound method of this window.
         """
-        self.settings.clear_window()
-        self.apply_default_layout()
-        self.resize(*default_size(self))
-        fit_to_screen(self)
-        self.show_status("layout reset")
+        layout.reset_layout(self)
 
     # ==================================================================
     #  DOCUMENTS

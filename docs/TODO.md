@@ -540,3 +540,36 @@ application is for.  Take an existing editor.
 * A fragment library is the same machinery pointed at a folder of saved
   graphs, and is listed in [docs/PLAN.md](PLAN.md) § 12 already.  Once
   SMILES works, the library is a JSON file of names and strings.
+
+## Testing
+
+### The parallel suite hangs about one run in ten
+
+`python -m pytest -q` finishes in 40-55 s almost every time, and
+roughly once in ten it stops at about 96% and never returns.  Serial
+(`-n0`) has never done it in 1563 tests, and the GUI files on their own
+have never done it either -- it takes the whole suite under `-n auto`.
+
+* **Nothing is computing when it happens.**  Sampling the processes at
+  the stall shows the controller *and* all eight workers parked in
+  `lock_PyThread_acquire_lock`, with the receiver threads blocked
+  reading their pipes: everyone is waiting to be told what to do next.
+  It is xdist losing a unit of work, not a test looping.
+* **The test left unfinished is a different one each time**, and it has
+  always so far been one that builds the `window` fixture and starts a
+  worker thread -- `test_the_pressure_box_follows_the_cell_checkbox`,
+  `test_freezing_everything_refuses_instead_of_running`,
+  `test_the_parameters_are_offered_again_next_time`.  Each of them
+  passes on its own and passes with the other GUI files, repeatedly.
+* The suspicion worth starting from is a worker thread outliving the
+  window that parented it -- `start_in_thread(worker, window)` in
+  `xtalapp/workers.py` -- and the report for that test never being
+  sent, rather than anything in the test itself.
+* **It predates the shell split.**  Measured against
+  `xtalapp/layout.py`'s commit: HEAD 8 runs clean, the branch 10 clean
+  and 1 hung, which is the same rate either side.
+* Until it is found: a hang is not a failed run, it is *this*.  Kill it
+  and run again, and clear the orphans first --- `pkill -f pytest;
+  pkill -9 -f "stdin.readline"` --- because a killed run leaves workers
+  that wedge every later one, which is how this gets mistaken for a
+  regression in whatever was being worked on at the time.
