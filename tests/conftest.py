@@ -9,9 +9,61 @@ that break crystallography code.
 * dry ice  -- cubic but molecular: four discrete CO2 molecules
 """
 
+import os
+
 import pytest
 
 from xtal import Lattice, Structure
+
+# Nothing in a test run can answer a modal.  A widget test whose
+# document still has unsaved edits hits the quit prompt when qtbot
+# tears the window down, and the suite then waits on a human -- which
+# looks like a hang under -q and like an invisible hang under
+# QT_QPA_PLATFORM=offscreen, where the dialog is never even drawn.
+# Set before any window is built, and for the whole session, so no
+# test has to remember to.
+os.environ.setdefault("XTAL_NO_CONFIRM_CLOSE", "1")
+
+
+@pytest.fixture(autouse=True)
+def _no_blocking_modal(monkeypatch):
+    """Turn a modal dialog into a failure instead of a hung suite.
+
+    ``QDialog.exec`` blocks until somebody clicks, and nobody will.
+    Under -q that looks like a slow test; under
+    QT_QPA_PLATFORM=offscreen the dialog is not even drawn, so the run
+    hangs with nothing on screen to explain why.  Either way the
+    person who finds it is a person who waited.
+
+    A test that means to exercise a dialog patches ``exec`` (or the
+    ``ask`` classmethod above it) itself, and that patch is applied
+    after this one and wins.  Reaching this is always a bug in the
+    test.
+    """
+    try:
+        from PySide6.QtWidgets import QDialog, QMessageBox
+    except ImportError:               # the headless half of the suite
+        return
+
+    def refuse(self, *args, **kwargs):
+        raise AssertionError(
+            f"{type(self).__name__}.exec() would wait for a click. "
+            "Patch it, or the classmethod that opens it.")
+
+    monkeypatch.setattr(QDialog, "exec", refuse, raising=False)
+
+    # QMessageBox's conveniences are static and do not go through
+    # QDialog.exec, so they need blocking separately -- and they are
+    # the ones reached from an error path nobody expected to reach.
+    for name in ("question", "warning", "information", "critical",
+                 "about"):
+        def refuse_static(*args, _name=name, **kwargs):
+            raise AssertionError(
+                f"QMessageBox.{_name}() would wait for a click. "
+                "Patch it if the test means to reach it.")
+
+        monkeypatch.setattr(QMessageBox, name, refuse_static,
+                            raising=False)
 
 # Reference values from the literature, for tests that check we get
 # real numbers out and not just self-consistent ones.

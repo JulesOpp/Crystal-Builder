@@ -441,11 +441,25 @@ class Structure:
         for flag in CHANGE_FLAGS:
             if change & flag:
                 self._changed_at[flag] = self.revision
-        if change & (Change.CELL | Change.SYMMETRY):
-            # A new lattice or a new group makes the cell a different
-            # set of atoms, and a graph over the old one cannot be
-            # reconciled with it -- only recognised as stale, which is
-            # cheaper to do here than to work out later.
+        if change & Change.SYMMETRY:
+            # A new group makes the cell a different set of atoms, and
+            # a graph over the old one cannot be reconciled with it --
+            # only recognised as stale, which is cheaper to do here
+            # than to work out later.
+            #
+            # A new lattice on its own is not this.  ``Change.CELL``
+            # used to be checked here too, which meant nudging *c* by
+            # a hundredth of an Angstrom to match a refinement silently
+            # rebuilt a bond graph the user had drawn by hand -- the
+            # fractional coordinates and the topology are unchanged by
+            # a metric edit, so the stored graph still describes the
+            # same atoms.  Every operation that *does* change which
+            # atoms there are (a supercell, a basis transform, a Niggli
+            # reduction) sets ``Change.SYMMETRY`` alongside
+            # ``Change.CELL`` -- see ``xtal.commands.cell`` -- and is
+            # still caught here.  ``Structure ▸ Recalculate bonds`` is
+            # the only thing that should recalculate bonds; see
+            # ``xtal.commands.bonds.RecomputeBonds``.
             self.perceived = None
         self._cache = {
             key: entry for key, entry in self._cache.items()

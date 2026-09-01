@@ -33,6 +33,28 @@ from xtal.ff.dftb import params
 #: that a machine set up for DFTB+ needs no preference filled in.
 ENV_VAR = "DFTB_PREFIX"
 
+#: Where a Slater-Koster set bundled with the source tree would be, the
+#: same way :data:`xtal.modules.zeopp.BUNDLED` finds Zeo++'s binary --
+#: checked last, after the preference and the environment variable, so
+#: a user who has pointed at their own set gets it rather than the one
+#: that ships in ``resources/``.
+BUNDLED = ("resources", "PTBP")
+
+
+def bundled() -> Path | None:
+    """The set in ``resources/PTBP``, if this is a source checkout and
+    it is actually there.
+
+    It is gitignored -- 3ob-sized Slater-Koster sets do not belong in
+    history -- so this is ``None`` on a checkout that has not had it
+    dropped in, and that is a normal, supported state: ``check`` below
+    says so in a sentence rather than pretending the folder exists.
+    """
+    import xtal
+    candidate = Path(xtal.__file__).resolve().parent.parent.joinpath(
+        *BUNDLED)
+    return candidate if candidate.is_dir() else None
+
 #: HSD's parser version.  Pinned rather than omitted, and pinned to a
 #: *current* one rather than an old one: DFTB+ converts an older input
 #: forward and prints a warning per keyword it renames while doing it,
@@ -57,9 +79,13 @@ SUFFIX = ".skf"
 def slater_koster_directory(given: str = "") -> Path | None:
     """Where the parameter files are, or ``None``.
 
-    The preference first, then ``DFTB_PREFIX``.  Nothing is guessed
-    from the filesystem: a directory found by searching would silently
-    become part of the model.
+    The preference first, then ``DFTB_PREFIX``, then the set bundled
+    in ``resources/PTBP`` on a source checkout that has one -- checked
+    last, so a preference or an environment variable pointed
+    somewhere else always wins over the bundled default rather than
+    being silently overridden by it.  Nothing else is guessed from the
+    filesystem: a directory found by searching would silently become
+    part of the model.
     """
     for candidate in (given, os.environ.get(ENV_VAR, "")):
         text = str(candidate or "").strip()
@@ -67,7 +93,7 @@ def slater_koster_directory(given: str = "") -> Path | None:
             path = Path(text).expanduser()
             if path.is_dir():
                 return path
-    return None
+    return bundled()
 
 
 def missing_parameters(symbols, directory) -> list[str]:

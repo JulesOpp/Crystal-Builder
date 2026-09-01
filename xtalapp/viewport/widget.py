@@ -33,7 +33,12 @@ import os
 
 import numpy as np
 from PySide6.QtCore import QEvent, QPoint, QRect, Qt, QTimer, Signal
-from PySide6.QtWidgets import QRubberBand, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QRubberBand,
+    QVBoxLayout,
+    QWidget,
+)
 
 os.environ.setdefault("QT_API", "pyside6")
 
@@ -59,7 +64,31 @@ from xtalapp.viewport.vtk_scene import (  # noqa: E402
 
 # A press and release within this many pixels is a click, not a drag;
 # anything further is the camera being turned and must not select.
+# Fixed at 4 for a mouse, this made a two-click gesture -- add bond,
+# add topology bond -- fail far more often than a one-click one under
+# the same per-click miss rate, because a trackpad "click" routinely
+# carries a few pixels of incidental movement.  Qt's own
+# ``startDragDistance()`` is the platform's answer to exactly this
+# question -- how far is a click allowed to wander before it is a
+# drag -- and every other Qt widget already uses it, so the viewport
+# now agrees with the rest of the application instead of being
+# stricter than all of it.
 CLICK_SLOP = 4
+
+
+def click_slop() -> int:
+    """How far a press may wander and still count as a click.
+
+    Qt's own threshold when there is an application to ask, and the
+    historical constant as a floor: some platform styles report a
+    ``startDragDistance()`` smaller than what feels right for a 3-D
+    pick, and this must never make picking *more* trigger-happy than
+    it already was.
+    """
+    app = QApplication.instance()
+    if app is None:                                 # pragma: no cover
+        return CLICK_SLOP
+    return max(CLICK_SLOP, app.startDragDistance())
 
 # VTK's interactor style binds these single letters to behaviour of its
 # own, and none of it is behaviour this application wants: `e` and `q`
@@ -334,7 +363,7 @@ class ViewportWidget(QWidget):
             return
         additive = bool(event.modifiers() & (
             Qt.ShiftModifier | Qt.ControlModifier | Qt.MetaModifier))
-        if (point - origin).manhattanLength() <= CLICK_SLOP:
+        if (point - origin).manhattanLength() <= click_slop():
             self._press_position = origin
             self._press_button = Qt.LeftButton
             self.pick_at(point, additive=additive, double=False)
@@ -358,7 +387,7 @@ class ViewportWidget(QWidget):
         moved = (event.position().toPoint()
                  - self._press_position).manhattanLength()
         self._press_position = None
-        if moved > CLICK_SLOP:
+        if moved > click_slop():
             return              # the camera was being turned
         self.pick_at(event.position().toPoint(),
                      additive=bool(event.modifiers() & (
@@ -380,7 +409,7 @@ class ViewportWidget(QWidget):
         point = event.position().toPoint()
         moved = (point - self._press_position).manhattanLength()
         self._press_position = None
-        if moved > CLICK_SLOP:
+        if moved > click_slop():
             return                          # the camera was being moved
         kind = self.select_under(point)
         self.contextRequested.emit(

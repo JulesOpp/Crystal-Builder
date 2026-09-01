@@ -221,6 +221,33 @@ def test_a_recorded_run_is_readable_three_months_later(entry, rutile):
     assert run.final_path.exists()
 
 
+def test_the_trajectory_has_one_frame_per_step_whatever_is_drawn(
+        entry, rutile):
+    """Phase I: the redraw rate is a property of the viewport, and the
+    file left behind must not depend on it.  ``RunRecorder.step`` is
+    called once per optimiser step regardless of anything about
+    drawing, so this is asserted at the level nothing about a preview
+    interval could ever reach -- the recorder has no such concept."""
+    from xtal.ff import ENGINES, optimize
+    from xtal.ff.record import RunRecorder
+
+    calculator = ENGINES.build("uff", rutile)
+    steps_taken = 0
+    with RunRecorder(entry.next_run("uff", "optimise"), rutile,
+                     calculator, engine="uff",
+                     options={"coulomb": False}) as recorder:
+        recorder.begin_steps()
+        for step in optimize.steps(calculator, rutile, "lbfgs",
+                                   max_steps=5):
+            recorder.step(step)
+            steps_taken += 1
+
+    run = entry.runs()[0]
+    assert steps_taken > 1
+    assert (read_trajectory(run.trajectory_path).n_frames
+           == steps_taken)
+
+
 def test_the_recorder_writes_the_cell_not_the_asymmetric_unit(entry,
                                                               rutile):
     """The trajectory is what another program will read."""

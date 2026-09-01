@@ -386,6 +386,40 @@ def test_the_worker_reports_every_step_then_finishes(qtbot):
     assert blocker.args[0].converged
 
 
+def test_recording_does_not_depend_on_how_often_anyone_draws(qtbot):
+    """Phase I: the redraw rate is a property of the viewport and of
+    nothing else.  ``OptimizationWorker`` has no notion of a preview
+    interval at all -- it calls the recorder for every step it emits,
+    which is the structural guarantee that a run watched as a moving
+    crystal and a run watched as a plot (or not watched at all, with
+    the viewport's redraw set to "Not while it runs") leave behind the
+    identical trajectory.
+    """
+    from xtal.ff import ENGINES
+
+    class CountingRecorder:
+        def __init__(self):
+            self.steps = 0
+
+        def begin_steps(self):
+            pass
+
+        def step(self, _step):
+            self.steps += 1
+
+    structure = water(oh=1.15, angle=95.0)
+    recorder = CountingRecorder()
+    worker = OptimizationWorker(
+        ENGINES.build("uff", structure.copy()), structure.copy(),
+        max_steps=100, force_tolerance=1e-3, recorder=recorder)
+    steps = []
+    worker.stepped.connect(steps.append)
+    with qtbot.waitSignal(worker.finished, timeout=TIMEOUT):
+        worker.run()
+    assert len(steps) > 1
+    assert recorder.steps == len(steps)
+
+
 def test_a_failing_worker_says_so_instead_of_taking_the_thread_down(
         qtbot):
     """An exception inside run() would otherwise leave the panel

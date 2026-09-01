@@ -1,7 +1,25 @@
 """
 xtalapp.docks.ff_panel
 ======================
-The Force Field panel: set it up, look at what it decided, run it.
+One dock class, opened twice: the Forcefield panel and the DFTB+
+panel.
+
+They used to be one window with an engine chooser at the top, and
+splitting them was Phase I's answer to the DFTB+ half growing taller
+than a laptop screen -- its generated form (Hamiltonian, parameter
+directory, dispersion, charge, temperature, k-point spacing, SCC
+tolerance, angular momentum overrides) stacked on top of the shared
+Optimisation controls, the plot and the report, in one non-scrolling
+column.  ``ForceFieldDock`` now takes the *engines* it should offer:
+``["uff"]`` for one dock and ``["dftb"]`` for the other, each built by
+:class:`~xtalapp.mainwindow.MainWindow` and each its own
+``QDockWidget`` with its own place in the Window menu -- so a user who
+has never touched DFTB+ never opens a form for it.  Offered more than
+one engine (nothing does today, but nothing stops a third one sharing
+a chooser later) the combo box that used to be the only way in is
+still there.  And the whole thing sits in a scroll area rather than a
+bare splitter, so a tall form makes the panel scroll instead of making
+it refuse to fit the screen it opened on.
 
 Three parts stacked in the order they are used.
 
@@ -43,6 +61,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QSplitter,
     QTableWidget,
@@ -57,6 +76,7 @@ from xtal.ff.optimize import (
     DEFAULT_MAX_STEPS,
     METHODS,
 )
+from xtal.ff.uff import calculator as uff_calculator
 from xtal.ff.uff import params
 from xtalapp.dialogs.module_form import ParamForm
 from xtalapp.plot import TracePlot
@@ -116,24 +136,36 @@ def _offer(name: str) -> str:
 
 
 class ForceFieldDock(QDockWidget):
-    """Atom types, a single point, and a geometry optimisation."""
+    """Atom types, a single point, and a geometry optimisation.
+
+    ``engines`` restricts the chooser to the names given -- one engine
+    is the normal case now, and the combo box hides itself when that
+    is all there is to choose between.  Left as ``None`` it offers
+    every registered engine, which is what a test that does not care
+    about the split wants and is also how this behaved before there
+    were two docks.
+    """
 
     statusMessage = Signal(str)
     previewIntervalChanged = Signal(int)    # ms; 0 every step, -1 never
     runStarted = Signal(str)                # the run folder's path
     runFinished = Signal(str)               # the run folder's path
 
-    def __init__(self, parent=None):
-        super().__init__("Force Field", parent)
-        self.setObjectName("ForceFieldDock")
+    def __init__(self, parent=None, *, title="Force Field",
+                object_name="ForceFieldDock", engines=None):
+        super().__init__(title, parent)
+        self.setObjectName(object_name)
         self.document = None
         self.worker: OptimizationWorker | None = None
         self._thread = None
         self._before: np.ndarray | None = None
         self._recorder = None
 
+        self.engines = (list(ENGINES) if engines is None
+                        else [ENGINES.get(name) for name in engines])
+
         self.engine = QComboBox()
-        for engine in ENGINES:
+        for engine in self.engines:
             self.engine.addItem(engine.label, engine.name)
             self.engine.setItemData(self.engine.count() - 1,
                                     engine.description, Qt.ToolTipRole)
@@ -146,7 +178,7 @@ class ForceFieldDock(QDockWidget):
         # honesty about it, as ``Action.shell``.
         self.engine_forms = {
             engine.name: ParamForm(engine.options)
-            for engine in ENGINES if engine.options}
+            for engine in self.engines if engine.options}
         self.engine_note = QLabel("")
         self.engine_note.setWordWrap(True)
         self.engine_note.setStyleSheet("color: palette(mid);")
@@ -160,6 +192,35 @@ class ForceFieldDock(QDockWidget):
         for label, value in CHARGE_SOURCES:
             self.charges.addItem(label, value)
         self.charges.setEnabled(False)
+
+        # The van der Waals pair list is array work now -- 4.0 s down
+        # to 0.49 s for a 5184-atom cell -- and what is left to control
+        # is how big the job is in the first place.  Both are named for
+        # what they cost, not left for somebody to discover by reading
+        # the source.
+        self.vdw_cutoff = QDoubleSpinBox()
+        self.vdw_cutoff.setDecimals(1)
+        self.vdw_cutoff.setRange(4.0, 30.0)
+        self.vdw_cutoff.setSingleStep(1.0)
+        self.vdw_cutoff.setValue(uff_calculator.DEFAULT_VDW_CUTOFF)
+        self.vdw_cutoff.setSuffix(" A")
+        self.vdw_cutoff.setToolTip(
+            "How far the van der Waals sum reaches.  The pair count "
+            "goes as the cube of this: 10 A is 42% fewer pairs than "
+            "12 A, for an LJ tail worth about a thousandth of a "
+            "kcal/mol per pair.")
+        self.skin = QDoubleSpinBox()
+        self.skin.setDecimals(1)
+        self.skin.setRange(0.0, 10.0)
+        self.skin.setSingleStep(0.5)
+        self.skin.setValue(uff_calculator.DEFAULT_SKIN)
+        self.skin.setSuffix(" A")
+        self.skin.setToolTip(
+            "How far an atom can move before the pair list is rebuilt. "
+            "Rebuilt whenever any atom has moved half of this -- a "
+            "larger skin trades memory for fewer rebuilds, which is "
+            "the cheapest knob there is early in a relaxation from a "
+            "hand-built geometry.")
 
         self.method = QComboBox()
         for name in METHODS:
@@ -250,7 +311,18 @@ class ForceFieldDock(QDockWidget):
         setup.addRow("Force field", self.engine)
         setup.addRow(self.coulomb)
         setup.addRow("Charges", self.charges)
-        self.uff_rows = (self.coulomb, self.charges)
+        setup.addRow("van der Waals cutoff", self.vdw_cutoff)
+        setup.addRow("Pair list skin", self.skin)
+        self.uff_rows = (self.coulomb, self.charges, self.vdw_cutoff,
+                         self.skin)
+        if len(self.engines) <= 1:
+            # Nothing to choose between, so the row that would do the
+            # choosing is one more thing standing between opening the
+            # panel and seeing what it is for.
+            self.engine.setVisible(False)
+            chooser_label = setup.labelForField(self.engine)
+            if chooser_label is not None:
+                chooser_label.setVisible(False)
 
         model = QVBoxLayout()
         model.setContentsMargins(0, 0, 0, 0)
@@ -308,7 +380,19 @@ class ForceFieldDock(QDockWidget):
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 1)
         self.table.cellDoubleClicked.connect(self._edit_type)
-        return splitter
+
+        # A QSplitter's own minimum size is the sum of what its
+        # children need, so DFTB+'s generated form -- eight fields on
+        # top of the Optimisation controls, the plot and the report --
+        # was demanding a taller window than some screens have.  A
+        # scroll area's minimum size is not its content's, so the
+        # panel now shrinks to fit and scrolls for the rest instead of
+        # refusing to.
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        scroll.setWidget(splitter)
+        return scroll
 
     # ==================================================================
     #  BINDING
@@ -465,7 +549,7 @@ class ForceFieldDock(QDockWidget):
     def options(self) -> dict:
         """What to build the calculator with.
 
-        The declared form when the engine has one, and UFF's two
+        The declared form when the engine has one, and UFF's four
         hand-built controls when it has not.  Never both: an engine
         handed a keyword it has never heard of is a ``TypeError`` at
         the moment the user presses Optimise.
@@ -474,7 +558,9 @@ class ForceFieldDock(QDockWidget):
         if form is not None:
             return form.values()
         return {"coulomb": self.coulomb.isChecked(),
-                "charges": self.charges.currentData()}
+                "charges": self.charges.currentData(),
+                "vdw_cutoff": self.vdw_cutoff.value(),
+                "skin": self.skin.value()}
 
     def engine_name(self) -> str:
         return self.engine.currentData()
@@ -678,7 +764,8 @@ class ForceFieldDock(QDockWidget):
         self.pause_button.setEnabled(running)
         self.pause_button.setText("Pause")
         for widget in (self.energy_button, self.engine, self.coulomb,
-                       self.charges, self.method, self.max_steps,
+                       self.charges, self.vdw_cutoff, self.skin,
+                       self.method, self.max_steps,
                        self.tolerance, self.freeze, self.relax_cell,
                        self.pressure, self.table):
             widget.setEnabled(not running)

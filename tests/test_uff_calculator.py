@@ -145,6 +145,74 @@ def test_a_bond_across_a_boundary_is_one_bond(quartz):
     assert calculator.n_atoms == 9
 
 
+# ---------------------------------------- Phase I: it takes what it is given
+
+def test_the_calculator_takes_the_stored_graph_not_a_fresh_perception(
+        rutile):
+    """The force field must never change the structure: it reads
+    ``Structure.perceived`` -- what ``Structure ▸ Recalculate bonds``
+    put there, and what a deleted bond removed from it -- rather than
+    perceiving fresh with its own idea of the cutoff.  If it perceived
+    fresh, deleting a bond and then computing an energy would put the
+    bond straight back into the topology as if the deletion had never
+    happened.
+    """
+    from xtal.commands.bonds import SuppressBond
+    from xtal.core.bonding import bond_between, perceive
+
+    document_bonds = build(rutile).topology.counts()["bonds"]
+    assert document_bonds > 0
+    cell = p1.expand(rutile)
+    perceived = perceive(rutile)[0]
+    suppressed = bond_between(rutile, cell, perceived.i, perceived.j,
+                              (0, 0, 0), perceived.image)
+    rutile.add_bond(SuppressBond(suppressed).bond)
+    after = build(rutile).topology.counts()["bonds"]
+    # A suppression drops the whole symmetry orbit of that stored
+    # record -- rutile's Ti sits on a special position, so one
+    # suppression removes several Ti-O bonds at once -- so what
+    # matters here is that it dropped at all, which is what a fresh
+    # perception under the same distance criteria would not do.
+    assert after < document_bonds
+
+
+def test_the_calculator_is_never_handed_a_bond_rules_override(rutile):
+    """There is no control anywhere that lets the panel pass different
+    bond rules into a calculation -- ``UFFCalculator`` reads the graph
+    with ``rules=None``, which is what makes the test above meaningful
+    rather than an accident of the default."""
+    import inspect
+
+    from xtal.ff.uff.calculator import UFFCalculator
+
+    assert "rules" not in inspect.signature(build).parameters
+    signature = inspect.signature(UFFCalculator.__init__)
+    assert signature.parameters["rules"].default is None
+
+
+def test_a_stated_bond_order_is_not_re_decided_by_the_calculator():
+    """The same rule for bond order: UFF must honour an order the user
+    stated by hand rather than re-inferring it, because a force field
+    that re-decides an order the user typed is one whose answer
+    changes depending on what it feels like guessing this time."""
+    from xtal.core.structure import Bond
+
+    molecule = carbon_dioxide()
+    # Carbon dioxide is genuinely two double bonds; state one of them
+    # single instead; the calculator's own bond length has to follow
+    # the stated order, not the inference, or this test cannot tell
+    # the two apart.
+    molecule.bonds = [b for b in molecule.bonds if b.kind != "explicit"]
+    molecule.add_bond(Bond(0, 1, (0, 0, 0), 1.0, "explicit", 0,
+                           stated=True))
+    calculator = build(molecule)
+    orders = dict(zip(
+        [(b.i, b.j) for b in calculator.graph.bonds],
+        calculator.typing.bond_orders, strict=True))
+    assert orders[(0, 1)] == pytest.approx(1.0)
+    assert orders.get((0, 2), 2.0) == pytest.approx(2.0)
+
+
 # --------------------------------------------------------- the forces
 
 @pytest.mark.parametrize("name", ["water", "ethane", "benzene",

@@ -106,7 +106,14 @@ def test_the_log_holds_the_command_that_was_run(folder):
 def test_the_log_is_live_rather_than_written_at_the_end(folder):
     """The log of a run that hung is the only evidence of where it
     hung, so the file has to fill up while the process is still
-    going."""
+    going.
+
+    Read as soon as the first line lands rather than at a fixed delay:
+    the assertion is about ordering, not speed, and a wall-clock
+    deadline here fails on a loaded machine -- under ``-n auto`` this
+    test shares eight cores with the rest of the suite, and the child
+    can easily take longer than half a second just to start.
+    """
     log = folder.log()
     seen = []
     process = ExternalProcess(python(COUNTER, "20", "0.05"),
@@ -114,14 +121,23 @@ def test_the_log_is_live_rather_than_written_at_the_end(folder):
     cancel = Cancellation()
 
     def peek():
-        # Half a second in, some of it must already be on disk.
-        time.sleep(0.5)
-        seen.append(folder.run.log_path.read_text())
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            text = folder.run.log_path.read_text()
+            if "line 0" in text:
+                seen.append(text)
+                break
+            time.sleep(0.01)
         cancel.cancel()
 
-    threading.Thread(target=peek).start()
+    watcher = threading.Thread(target=peek)
+    watcher.start()
     process.run(cancel=cancel)
-    assert seen and "line 0" in seen[0]
+    watcher.join()
+
+    assert seen, "nothing reached the log while the process ran"
+    # Read at line 0 of 20, so the tail cannot be there yet: the file
+    # was being written as it went, not flushed at exit.
     assert "line 19" not in seen[0]
 
 

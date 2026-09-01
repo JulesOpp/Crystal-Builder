@@ -98,9 +98,25 @@ def test_removing_a_site_perceives_again(rutile):
     assert rutile.perceived.elements == ("Ti", "Ti")
 
 
-def test_a_new_lattice_throws_the_graph_away(rutile):
+def test_a_new_lattice_keeps_the_graph(rutile):
+    """Phase I: a metric edit alone -- nudging a lattice constant to
+    match a refinement -- must not silently rebuild a bond graph the
+    user drew.  The fractional coordinates and the topology are
+    unchanged by it, so the stored graph still describes the same
+    atoms; only ``Structure ▸ Recalculate bonds`` recalculates bonds.
+    """
     bonding.perceive(rutile)
     rutile.set_lattice(Lattice.cubic(20.0))
+    assert rutile.perceived is not None
+
+
+def test_a_new_space_group_still_throws_the_graph_away(rutile):
+    """A new group *does* make the cell a different set of atoms --
+    unlike a metric-only edit, this one is still recognised as stale."""
+    from xtal.core.spacegroup import SpaceGroup
+
+    bonding.perceive(rutile)
+    rutile.set_space_group(SpaceGroup.p1())
     assert rutile.perceived is None
 
 

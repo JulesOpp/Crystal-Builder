@@ -22,6 +22,7 @@ responsiveness.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from PySide6.QtCore import Qt
@@ -80,6 +81,23 @@ from xtalapp.viewport.view_settings import BACKGROUNDS
 from xtalapp.workers import ModuleWorker, start_in_thread
 
 APP_NAME = "Crystal Builder"
+
+#: The environment variable that turns the unsaved-changes prompt off.
+NO_CONFIRM_CLOSE_ENV = "XTAL_NO_CONFIRM_CLOSE"
+
+
+def no_confirm_close() -> bool:
+    """Whether closing may discard unsaved work without asking.
+
+    An automated launch -- a screenshot run, a smoke test, an agent
+    driving the GUI -- has nobody to answer the question, and a modal
+    nothing will dismiss hangs the run until it is killed.  Off by
+    default, so an interactive user is still warned before losing
+    edits.  Read on each close rather than at import so a test can set
+    it.  Parsed like XTAL_STUB_MODULE: "0"/"false"/"no"/"off" are off.
+    """
+    return os.environ.get(NO_CONFIRM_CLOSE_ENV, "").strip().lower() not in (
+        "", "0", "false", "no", "off")
 
 
 def _resolved(path):
@@ -376,6 +394,22 @@ class MainWindow(QMainWindow):
         add("show_ff", "&Force Field panel", self.show_force_field,
             tip="Atom types, electrostatics, and how the run is going")
 
+        # DFTB+'s own three, the same shape as UFF's above and kept
+        # deliberately unshortcut'd: Ctrl+E and Ctrl+Shift+E already
+        # mean "run UFF", and a DFTB+ run is launched from its own
+        # panel or the Modules menu rather than a reflex keystroke.
+        add("dftb_single_point", "DFTB+: &Single point energy",
+            self.dftb_single_point,
+            tip="Energy and per-term breakdown at this geometry, "
+                "through DFTB+")
+        add("dftb_optimize", "DFTB+: &Optimise geometry",
+            self.dftb_optimize,
+            tip="Relax the structure within its space group, "
+                "through DFTB+")
+        add("show_dftb", "DFTB&+ panel", self.show_dftb_panel,
+            tip="Hamiltonian, parameter set, dispersion, and how the "
+                "run is going")
+
         add("reset_layout", "Reset &layout", self.reset_layout,
             tip="Put the panels back where they started")
         add("reset_view", "&Reset view", self.reset_view, "Ctrl+0")
@@ -611,19 +645,24 @@ class MainWindow(QMainWindow):
         self.measure_dock.targetChanged.connect(self._on_measure_target)
         self.measure_dock.statusMessage.connect(self.show_status)
 
-        self.ff_dock = ForceFieldDock(self)
-        # Connected to a method, not to the label: the docks are built
-        # before the status bar exists.
-        self.ff_dock.statusMessage.connect(self.show_status)
-        self.ff_dock.previewIntervalChanged.connect(
-            self.set_preview_interval)
-        self.ff_dock.set_preview_interval(
-            self.settings.preview_interval)
-        # A run that has just started or just finished has changed
-        # what is in the workspace, and the tree is read from the
-        # directory -- so this is the whole of keeping it in step.
-        self.ff_dock.runStarted.connect(self._on_run_started)
-        self.ff_dock.runFinished.connect(self._on_run_finished)
+        self.ff_dock = ForceFieldDock(self, title="Force Field",
+                                      object_name="ForceFieldDock",
+                                      engines=["uff"])
+        self.dftb_dock = ForceFieldDock(self, title="DFTB+",
+                                        object_name="DFTBDock",
+                                        engines=["dftb"])
+        for dock in (self.ff_dock, self.dftb_dock):
+            # Connected to a method, not to the label: the docks are
+            # built before the status bar exists.
+            dock.statusMessage.connect(self.show_status)
+            dock.previewIntervalChanged.connect(
+                self.set_preview_interval)
+            dock.set_preview_interval(self.settings.preview_interval)
+            # A run that has just started or just finished has changed
+            # what is in the workspace, and the tree is read from the
+            # directory -- so this is the whole of keeping it in step.
+            dock.runStarted.connect(self._on_run_started)
+            dock.runFinished.connect(self._on_run_finished)
 
         # A run that takes minutes needs to say so somewhere the user
         # is looking, which the footer of a panel that may be closed
@@ -643,11 +682,12 @@ class MainWindow(QMainWindow):
         self.trajectory_dock.statusMessage.connect(self.show_status)
         # The plot and the trajectory are the same run seen two ways:
         # clicking the trace jumps to that frame, and the frame being
-        # played is marked on the trace.
-        self.ff_dock.plot.pointClicked.connect(
-            self.trajectory_dock.show_step)
-        self.trajectory_dock.frameShown.connect(
-            self.ff_dock.plot.set_marker)
+        # played is marked on the trace.  Both engines' plots feed the
+        # one transport bar -- only one of them is ever showing a run
+        # at a time, so there is nothing to arbitrate between.
+        for dock in (self.ff_dock, self.dftb_dock):
+            dock.plot.pointClicked.connect(self.trajectory_dock.show_step)
+            self.trajectory_dock.frameShown.connect(dock.plot.set_marker)
         self.trajectory_dock.historyLoaded.connect(
             self._on_trajectory_history)
 
@@ -660,7 +700,7 @@ class MainWindow(QMainWindow):
         self.right_docks = (self.inspector_dock, self.info_dock,
                             self.sites_dock, self.move_dock,
                             self.style_dock, self.measure_dock,
-                            self.ff_dock)
+                            self.ff_dock, self.dftb_dock)
         self.docks = (self.left_docks + self.right_docks
                       + self.bottom_docks)
         self.apply_default_layout()
@@ -797,7 +837,14 @@ class MainWindow(QMainWindow):
             # with two undo stacks editing what the user thinks is one
             # structure, and whichever was saved last would win.
             self.tabs.setCurrentIndex(self.documents.index(already))
-            self.show_message(f"{path.name} is already open")
+            # Named when the tab is not spelled the way the thing that
+            # was clicked is -- the workspace's copy of a structure,
+            # or a session saved beside it.  "MOF-5.cif is already
+            # open" over a tab called MOF-5.xtalproj reads as a bug.
+            same = _resolved(already.path) == _resolved(path)
+            self.show_message(
+                f"{path.name} is already open" if same else
+                f"{path.name} is already open, as {already.title}")
             return already
         try:
             document = Document.load(path)
@@ -836,9 +883,35 @@ class MainWindow(QMainWindow):
         if wanted is None:
             return None
         for document in self.documents:
-            if _resolved(document.path) == wanted:
+            if wanted in self._paths_naming(document):
                 return document
         return None
+
+    @staticmethod
+    def _paths_naming(document) -> set:
+        """Every path on disk that names this document's structure.
+
+        Its own path, and -- the part that is not obvious -- the copy
+        the workspace made of it.  Opening a structure from outside a
+        workspace copies it in (:meth:`place_in_workspace`), so the
+        file the user opened and the file the tree shows underneath it
+        are two paths to one crystal.  Comparing ``document.path``
+        alone made double-clicking that node open a *second* document
+        over the same atoms, with a second undo stack and a second
+        viewport -- which is the duplicate-tab failure this whole
+        method exists to prevent, arriving through the one route that
+        was not checked for it.
+
+        Only the entry's **structure** file counts, never everything
+        inside the entry: ``final.cif`` from a run is a different
+        geometry that has earned a tab of its own.
+        """
+        out = {_resolved(document.path)}
+        entry = getattr(document, "entry", None)
+        if entry is not None:
+            out.add(_resolved(entry.structure_path))
+        out.discard(None)
+        return out
 
     # ==================================================================
     #  THE WORKSPACE
@@ -960,7 +1033,12 @@ class MainWindow(QMainWindow):
         trace to reach a frame only works for the run you just watched.
         """
         if history:
+            # Which engine produced this run is not carried this far,
+            # so both plots take it -- only the one behind the dock
+            # the user actually opens is looked at, and a stale trace
+            # in the other is harmless.
             self.ff_dock.plot.set_history(history)
+            self.dftb_dock.plot.set_history(history)
 
     def open_artifact(self, kind: str, path: str) -> None:
         """Open a node of the workspace tree as what it *is*.
@@ -1121,7 +1199,7 @@ class MainWindow(QMainWindow):
         if not 0 <= index < len(self.documents):
             return
         document = self.documents[index]
-        if document.modified:
+        if document.modified and not no_confirm_close():
             answer = QMessageBox.question(
                 self, "Unsaved changes",
                 f"{document.title} has unsaved changes. Close it?",
@@ -1973,6 +2051,18 @@ class MainWindow(QMainWindow):
         self.show_force_field()
         self.ff_dock.start()
 
+    def show_dftb_panel(self) -> None:
+        self.dftb_dock.show()
+        self.dftb_dock.raise_()
+
+    def dftb_single_point(self) -> None:
+        self.show_dftb_panel()
+        self.dftb_dock.single_point()
+
+    def dftb_optimize(self) -> None:
+        self.show_dftb_panel()
+        self.dftb_dock.start()
+
     def display_range_dialog(self) -> None:
         document = self.current_document()
         if document is not None:
@@ -2115,6 +2205,7 @@ class MainWindow(QMainWindow):
             self.info_dock.show_document(document)
             self.style_dock.refresh()
             self.ff_dock.refresh()
+            self.dftb_dock.refresh()
             self._rebuild_element_menu(document)
         # The shell, not _update_ui: that one *rebinds* every panel to
         # the document, which is for when the current document changes
@@ -2144,6 +2235,7 @@ class MainWindow(QMainWindow):
         self.style_dock.set_document(document)
         self.measure_dock.set_document(document)
         self.ff_dock.set_document(document)
+        self.dftb_dock.set_document(document)
         self.trajectory_dock.set_document(document)
         self._rebuild_element_menu(document)
         self._refresh_shell()
@@ -2174,8 +2266,8 @@ class MainWindow(QMainWindow):
              "primitive", "wyckoff", "merge_duplicates", "subgroup",
              "invert", "supercell",
              "edit_cell", "niggli", "delaunay", "wrap_cell",
-             "single_point", "optimize", "recompute_bonds",
-             "reset_bonds"],
+             "single_point", "optimize", "dftb_single_point",
+             "dftb_optimize", "recompute_bonds", "reset_bonds"],
             editable)
         if document is None:
             self._refresh_module_actions(False)
@@ -2286,7 +2378,7 @@ class MainWindow(QMainWindow):
         # on writing into a run folder nobody is watching.
         self.stop_module()
         for document in list(self.documents):
-            if document.modified:
+            if document.modified and not no_confirm_close():
                 answer = QMessageBox.question(
                     self, "Unsaved changes",
                     "Some structures have unsaved changes. Quit anyway?",

@@ -87,8 +87,54 @@ def test_a_missing_parameter_directory_is_a_sentence(fake_dftb,
                                                      two_atoms,
                                                      monkeypatch):
     monkeypatch.delenv(hsd.ENV_VAR, raising=False)
+    # A checkout with no ``resources/PTBP`` -- the common case, since
+    # it is gitignored -- must still be told what to do rather than
+    # finding a set that happens to be sitting on this machine.
+    monkeypatch.setattr(hsd, "bundled", lambda: None)
     with pytest.raises(CalculatorError, match="dftb.org"):
         dftb.build(two_atoms)
+
+
+# -------------------------------------------- resources/PTBP fallback
+
+def test_the_bundled_set_is_the_last_resort(monkeypatch, parameters):
+    """Given and the environment variable both win over it; only an
+    empty preference with nothing set falls all the way through."""
+    monkeypatch.delenv(hsd.ENV_VAR, raising=False)
+    monkeypatch.setattr(hsd, "bundled", lambda: parameters)
+    assert hsd.slater_koster_directory("") == parameters
+
+
+def test_a_given_directory_wins_over_the_bundled_one(
+        monkeypatch, parameters, tmp_path):
+    monkeypatch.setattr(hsd, "bundled", lambda: parameters)
+    given = tmp_path / "elsewhere"
+    given.mkdir()
+    assert hsd.slater_koster_directory(str(given)) == given
+
+
+def test_the_environment_variable_wins_over_the_bundled_one(
+        monkeypatch, parameters, tmp_path):
+    monkeypatch.setattr(hsd, "bundled", lambda: parameters)
+    from_env = tmp_path / "from-env"
+    from_env.mkdir()
+    monkeypatch.setenv(hsd.ENV_VAR, str(from_env))
+    assert hsd.slater_koster_directory("") == from_env
+
+
+def test_bundled_looks_in_resources_ptbp_beside_the_package():
+    from pathlib import Path
+
+    import xtal
+    expected = Path(xtal.__file__).resolve().parent.parent / \
+        "resources" / "PTBP"
+    assert hsd.BUNDLED == ("resources", "PTBP")
+    # Whether it exists depends on the checkout -- it is gitignored --
+    # so only the *path* it would answer with is asserted here.
+    if expected.is_dir():
+        assert hsd.bundled() == expected
+    else:
+        assert hsd.bundled() is None
 
 
 def test_a_missing_element_pair_is_named_before_launching(

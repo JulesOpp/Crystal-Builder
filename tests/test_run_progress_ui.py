@@ -18,6 +18,7 @@ from PySide6.QtWidgets import QWidget  # noqa: E402
 
 from tests.conftest_zeo import write_fake_network  # noqa: E402
 from xtal.workspace import Workspace, classify  # noqa: E402
+from xtalapp.dialogs.module_form import ModuleDialog  # noqa: E402
 from xtalapp.dialogs.run_progress import (  # noqa: E402
     RunProgressDialog,
     _duration,
@@ -37,6 +38,20 @@ class _Stub(QWidget):
 def fake_network(tmp_path, monkeypatch):
     """The Zeo++ stand-in, so these run without Zeo++ installed."""
     monkeypatch.setenv("XTAL_ZEOPP", str(write_fake_network(tmp_path)))
+
+
+@pytest.fixture
+def default_answers(monkeypatch):
+    """Answer the parameter dialog with its own defaults.
+
+    ``run_module_action`` asks before it runs, and every Zeo++ action
+    has parameters, so without this the dialog is real: the run never
+    starts and the suite waits on a person.
+    """
+    monkeypatch.setattr(
+        ModuleDialog, "ask",
+        staticmethod(lambda module, action, parent=None, initial=None:
+                     {p.name: p.default for p in action.params}))
 
 
 @pytest.fixture
@@ -137,7 +152,7 @@ def test_a_progress_line_is_squeezed_to_one_line():
 # ------------------------------------------------- through a real run
 
 def test_a_run_arms_the_window_and_puts_it_away_afterwards(
-        window, fake_network, rutile_cif, qtbot):
+        window, fake_network, rutile_cif, qtbot, default_answers):
     document = window.open_path(rutile_cif)
     assert document is not None
 
@@ -150,7 +165,7 @@ def test_a_run_arms_the_window_and_puts_it_away_afterwards(
 
 
 def test_the_distribution_is_written_as_a_png_beside_the_run(
-        window, fake_network, rutile_cif, qtbot, tmp_path):
+        window, fake_network, rutile_cif, qtbot, tmp_path, default_answers):
     """A run folder holding four columns of numbers and no plot is one
     somebody has to reopen the application to look at."""
     window.set_workspace(Workspace.create(tmp_path / "space").root)
@@ -168,7 +183,7 @@ def test_the_distribution_is_written_as_a_png_beside_the_run(
 
 def test_the_log_names_the_plot_it_wrote(window, fake_network,
                                          rutile_cif, qtbot,
-                                         tmp_path):
+                                         tmp_path, default_answers):
     """Written before the log is closed, so the log can name it the
     way it names every other artefact."""
     window.set_workspace(Workspace.create(tmp_path / "space").root)
@@ -183,7 +198,8 @@ def test_the_log_names_the_plot_it_wrote(window, fake_network,
 
 def test_a_run_with_no_histogram_writes_no_png(window, fake_network,
                                                rutile_cif, qtbot,
-                                               tmp_path):
+                                               tmp_path,
+                                               default_answers):
     window.set_workspace(Workspace.create(tmp_path / "space").root)
     document = window.open_path(rutile_cif)
 

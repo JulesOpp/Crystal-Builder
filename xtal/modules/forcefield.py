@@ -9,6 +9,19 @@ That is the point of the step: the menu became a registry, and the
 first module in it is the one that was already working, moved rather
 than rewritten.
 
+DFTB+ was an *engine* under this same module until Phase I, sharing
+one panel with UFF behind an engine chooser.  The two have nothing in
+common that a user cares about -- one is in-process and instant, the
+other launches a binary and can take minutes -- and stacking DFTB+'s
+generated form (Hamiltonian, parameter directory, dispersion, charge,
+temperature, k-point spacing, SCC tolerance, angular momentum
+overrides) on top of the shared Optimisation controls in one panel is
+what made that panel too tall for a laptop screen.  Splitting them
+into two modules -- this one and :mod:`xtal.modules.dftb` -- with a
+dock apiece is the fix, and it also makes DFTB+ discoverable as its
+own thing in the Modules tree rather than a setting to find inside
+Forcefield.
+
 They are the one place :attr:`~xtal.modules.registry.Action.shell` is
 used.  The Force Field panel does three things a generic runner cannot
 -- it draws the geometry as it moves, it plots the energy as it
@@ -30,12 +43,14 @@ from xtal.modules.registry import MODULES, Action, Availability, Module
 
 
 def _available() -> Availability:
-    """There is a force field to run when an engine is registered."""
+    """UFF is native NumPy and in-process, so it is available whenever
+    it is registered -- which is always, unlike DFTB+, which needs a
+    binary and a parameter set found on this machine."""
     from xtal.ff import ENGINES
-    if len(ENGINES):
+    if "uff" in ENGINES:
         return Availability(True)
     return Availability(                            # pragma: no cover
-        False, "no force field engine is registered")
+        False, "the UFF engine is not registered")
 
 
 FORCEFIELD = Module(

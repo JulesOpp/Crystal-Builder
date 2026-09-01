@@ -101,6 +101,24 @@ def test_the_forcefield_is_registered_with_its_three_entries():
     assert all(a.shell for a in module.actions)
 
 
+def test_dftb_is_its_own_module_with_its_own_three_entries():
+    """Phase I split DFTB+ out of Forcefield's engine chooser into a
+    module of its own, so it gets a dock, a submenu and a tree entry
+    that do not depend on Forcefield's panel being open first."""
+    from xtal.modules import MODULES
+
+    module = MODULES.get("dftb")
+    assert module.label == "DFTB+"
+    assert [a.name for a in module.actions] == [
+        "setup", "single-point", "optimise"]
+    assert all(a.shell for a in module.actions)
+    # And the shell names do not collide with UFF's -- two entries
+    # performed by the same window action would mean pressing one
+    # button ran the other engine.
+    forcefield_shells = {a.shell for a in MODULES.get("forcefield")}
+    assert forcefield_shells.isdisjoint({a.shell for a in module})
+
+
 def test_the_stub_is_not_registered_unless_it_is_asked_for():
     """An entry called Stub in a shipped menu is a confusing thing to
     find, so it takes an environment variable to appear."""

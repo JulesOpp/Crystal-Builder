@@ -94,6 +94,19 @@ class CellEditDialog(QDialog):
         self.preview = QLabel()
         self.preview.setWordWrap(True)
 
+        # Phase I: a metric edit used to silently re-perceive the bond
+        # graph, which meant a bond drawn by hand could vanish because
+        # a lattice constant was nudged to match a refinement.  It no
+        # longer does -- said once, here, because the one case where a
+        # cell edit *should* change the bonds (stretching one by 20%)
+        # needs to be told the way to ask for that explicitly.
+        self.bonds_note = QLabel(
+            "The bonds are unchanged by this. Structure ▸ "
+            "Recalculate bonds afterwards if the new cell should "
+            "change them.")
+        self.bonds_note.setWordWrap(True)
+        self.bonds_note.setStyleSheet("color: palette(mid);")
+
         self.buttons = QDialogButtonBox(QDialogButtonBox.Ok
                                         | QDialogButtonBox.Cancel)
         self.buttons.accepted.connect(self.accept)
@@ -106,6 +119,7 @@ class CellEditDialog(QDialog):
         layout.addWidget(self.symmetry_note)
         layout.addLayout(keep_box)
         layout.addWidget(self.preview)
+        layout.addWidget(self.bonds_note)
         layout.addWidget(self.buttons)
 
         self._apply_constraint()

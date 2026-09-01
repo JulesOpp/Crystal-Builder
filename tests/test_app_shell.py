@@ -285,6 +285,11 @@ def test_new_and_close_documents(window, rutile_cif):
 def test_closing_a_modified_document_asks_first(window, rutile_cif,
                                                 monkeypatch):
     from PySide6.QtWidgets import QMessageBox
+
+    # conftest turns the prompt off for the session, because nothing
+    # in a test run can answer it.  This test is about the prompt, so
+    # it is the one place that has to put it back.
+    monkeypatch.delenv("XTAL_NO_CONFIRM_CLOSE", raising=False)
     doc = window.open_path(rutile_cif)
     doc.apply(lambda s: s.wrap_sites(), Change.POSITIONS)
 

@@ -131,3 +131,76 @@ def test_the_workspace_tree_goes_through_the_same_door(window,
 
     assert window.tabs.count() == 1
     assert window.current_document() is first
+
+
+# ============================================================ the copy
+#
+# Opening a structure from outside a workspace copies it in, so the
+# file the user opened and the node the tree draws underneath it are
+# two paths to one crystal.  Double-clicking that node used to open a
+# second document over the same atoms -- the duplicate-tab failure this
+# file is about, arriving through the one route that did not check for
+# it.
+
+@pytest.fixture
+def workspace_window(window, tmp_path, rutile):
+    """A window with a workspace open and a structure opened from
+    *outside* it, so the workspace holds a copy."""
+    from xtal.workspace import Workspace
+
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    source = outside / "rutile.cif"
+    write_cif(rutile, source)
+    Workspace.create(tmp_path / "ws")
+    window.set_workspace(tmp_path / "ws")
+    document = window.open_path(source)
+    return window, document, source
+
+
+def test_the_workspaces_copy_is_the_document_that_made_it(
+        workspace_window):
+    window, document, source = workspace_window
+    copy = document.entry.structure_path
+
+    assert copy is not None
+    assert copy.resolve() != source.resolve()    # genuinely two files
+    assert window.document_for(copy) is document
+
+
+def test_double_clicking_the_copy_raises_the_tab_it_is_already_in(
+        workspace_window):
+    window, document, _source = workspace_window
+    copy = document.entry.structure_path
+
+    window.open_artifact("structure", str(copy))
+
+    assert window.tabs.count() == 1
+    assert window.current_document() is document
+    assert "already open" in window.statusBar().currentMessage()
+
+
+def test_a_runs_output_still_earns_a_tab_of_its_own(workspace_window,
+                                                    rutile):
+    """Only the entry's *structure* file is the document's other name.
+    ``final.cif`` is a different geometry and opening it beside the
+    input is the whole point of having it."""
+    window, document, _source = workspace_window
+    folder = document.entry.next_run("uff", "optimise")
+    final = folder.path / "final.cif"
+    write_cif(rutile, final)
+
+    assert window.document_for(final) is None
+    window.open_artifact("final", str(final))
+    assert window.tabs.count() == 2
+
+
+def test_the_message_names_the_tab_when_it_is_spelled_differently(
+        workspace_window):
+    """"rutile.cif is already open" over a tab the user opened from
+    somewhere else reads as a bug; saying which tab does not."""
+    window, document, _source = workspace_window
+    window.open_artifact("structure", str(document.entry.structure_path))
+    message = window.statusBar().currentMessage()
+    assert "already open, as" in message
+    assert document.title in message

@@ -1,0 +1,457 @@
+Crystal Builder 0.1.dev2+gd6b2f7e2d.d20260829
+run            uff-single-point-001
+what           single point
+started        2026-09-01 01:03:37 UTC
+structure      C24H12O13Zn4 (Z = 8), 424 sites, 424 atoms in the cell
+space group    P1 (#1)
+source         /Users/julesoppenheim/GitHub/Crystal-Builder/resources/test/MOF-5/MOF-5.cif
+engine         uff  (UFF)
+  charges      site
+  coulomb      off
+  skin         2
+  vdw_cutoff   12
+
+Atom types
+----------
+site  type   means               orbit  sure?    why
+----  -----  ------------------  -----  -------  -------------------------------------
+Zn1   Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn2   Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn3   Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn4   Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn5   Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn6   Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn7   Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn8   Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn9   Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn10  Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn11  Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn12  Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn13  Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn14  Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn15  Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn16  Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn17  Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn18  Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn19  Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn20  Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn21  Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn22  Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn23  Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn24  Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn25  Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn26  Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn27  Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn28  Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn29  Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn30  Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn31  Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+Zn32  Zn3+2  tetrahedral Zn(II)  x1     certain  the only type UFF gives this element
+O1    O_3    sp3 oxygen          x1     likely   4 neighbours; bridging or over-bonded
+O2    O_3    sp3 oxygen          x1     likely   4 neighbours; bridging or over-bonded
+O3    O_3    sp3 oxygen          x1     likely   4 neighbours; bridging or over-bonded
+O4    O_3    sp3 oxygen          x1     likely   4 neighbours; bridging or over-bonded
+O5    O_3    sp3 oxygen          x1     likely   4 neighbours; bridging or over-bonded
+O6    O_3    sp3 oxygen          x1     likely   4 neighbours; bridging or over-bonded
+O7    O_3    sp3 oxygen          x1     likely   4 neighbours; bridging or over-bonded
+O8    O_3    sp3 oxygen          x1     likely   4 neighbours; bridging or over-bonded
+O9    O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O10   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O11   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O12   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O13   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O14   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O15   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O16   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O17   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O18   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O19   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O20   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O21   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O22   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O23   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O24   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O25   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O26   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O27   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O28   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O29   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O30   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O31   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O32   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O33   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O34   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O35   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O36   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O37   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O38   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O39   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O40   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O41   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O42   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O43   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O44   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O45   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O46   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O47   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O48   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O49   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O50   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O51   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O52   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O53   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O54   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O55   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O56   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O57   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O58   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O59   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O60   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O61   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O62   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O63   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O64   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O65   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O66   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O67   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O68   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O69   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O70   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O71   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O72   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O73   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O74   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O75   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O76   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O77   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O78   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O79   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O80   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O81   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O82   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O83   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O84   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O85   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O86   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O87   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O88   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O89   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O90   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O91   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O92   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O93   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O94   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O95   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O96   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O97   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O98   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O99   O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O100  O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O101  O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O102  O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O103  O_3    sp3 oxygen          x1     certain  two neighbours at 130
+O104  O_3    sp3 oxygen          x1     certain  two neighbours at 130
+C1    C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C2    C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C3    C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C4    C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C5    C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C6    C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C7    C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C8    C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C9    C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C10   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C11   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C12   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C13   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C14   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C15   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C16   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C17   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C18   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C19   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C20   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C21   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C22   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C23   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C24   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C25   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C26   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C27   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C28   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C29   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C30   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C31   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C32   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C33   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C34   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C35   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C36   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C37   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C38   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C39   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C40   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C41   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C42   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C43   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C44   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C45   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C46   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C47   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C48   C_2    sp2 carbon          x1     certain  planar, angles sum to 360
+C49   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C50   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C51   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C52   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C53   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C54   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C55   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C56   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C57   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C58   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C59   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C60   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C61   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C62   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C63   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C64   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C65   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C66   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C67   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C68   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C69   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C70   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C71   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C72   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C73   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C74   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C75   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C76   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C77   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C78   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C79   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C80   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C81   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C82   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C83   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C84   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C85   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C86   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C87   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C88   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C89   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C90   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C91   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C92   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C93   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C94   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C95   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C96   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C97   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C98   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C99   C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C100  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C101  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C102  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C103  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C104  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C105  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C106  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C107  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C108  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C109  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C110  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C111  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C112  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C113  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C114  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C115  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C116  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C117  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C118  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C119  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C120  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C121  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C122  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C123  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C124  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C125  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C126  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C127  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C128  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C129  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C130  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C131  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C132  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C133  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C134  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C135  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C136  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C137  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C138  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C139  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C140  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C141  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C142  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C143  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C144  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C145  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C146  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C147  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C148  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C149  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C150  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C151  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C152  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C153  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C154  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C155  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C156  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C157  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C158  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C159  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C160  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C161  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C162  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C163  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C164  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C165  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C166  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C167  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C168  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C169  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C170  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C171  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C172  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C173  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C174  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C175  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C176  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C177  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C178  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C179  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C180  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C181  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C182  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C183  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C184  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C185  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C186  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C187  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C188  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C189  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C190  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C191  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+C192  C_R    resonant carbon     x1     certain  in a flat aromatic ring
+H1    H_     hydrogen            x1     certain
+H2    H_     hydrogen            x1     certain
+H3    H_     hydrogen            x1     certain
+H4    H_     hydrogen            x1     certain
+H5    H_     hydrogen            x1     certain
+H6    H_     hydrogen            x1     certain
+H7    H_     hydrogen            x1     certain
+H8    H_     hydrogen            x1     certain
+H9    H_     hydrogen            x1     certain
+H10   H_     hydrogen            x1     certain
+H11   H_     hydrogen            x1     certain
+H12   H_     hydrogen            x1     certain
+H13   H_     hydrogen            x1     certain
+H14   H_     hydrogen            x1     certain
+H15   H_     hydrogen            x1     certain
+H16   H_     hydrogen            x1     certain
+H17   H_     hydrogen            x1     certain
+H18   H_     hydrogen            x1     certain
+H19   H_     hydrogen            x1     certain
+H20   H_     hydrogen            x1     certain
+H21   H_     hydrogen            x1     certain
+H22   H_     hydrogen            x1     certain
+H23   H_     hydrogen            x1     certain
+H24   H_     hydrogen            x1     certain
+H25   H_     hydrogen            x1     certain
+H26   H_     hydrogen            x1     certain
+H27   H_     hydrogen            x1     certain
+H28   H_     hydrogen            x1     certain
+H29   H_     hydrogen            x1     certain
+H30   H_     hydrogen            x1     certain
+H31   H_     hydrogen            x1     certain
+H32   H_     hydrogen            x1     certain
+H33   H_     hydrogen            x1     certain
+H34   H_     hydrogen            x1     certain
+H35   H_     hydrogen            x1     certain
+H36   H_     hydrogen            x1     certain
+H37   H_     hydrogen            x1     certain
+H38   H_     hydrogen            x1     certain
+H39   H_     hydrogen            x1     certain
+H40   H_     hydrogen            x1     certain
+H41   H_     hydrogen            x1     certain
+H42   H_     hydrogen            x1     certain
+H43   H_     hydrogen            x1     certain
+H44   H_     hydrogen            x1     certain
+H45   H_     hydrogen            x1     certain
+H46   H_     hydrogen            x1     certain
+H47   H_     hydrogen            x1     certain
+H48   H_     hydrogen            x1     certain
+H49   H_     hydrogen            x1     certain
+H50   H_     hydrogen            x1     certain
+H51   H_     hydrogen            x1     certain
+H52   H_     hydrogen            x1     certain
+H53   H_     hydrogen            x1     certain
+H54   H_     hydrogen            x1     certain
+H55   H_     hydrogen            x1     certain
+H56   H_     hydrogen            x1     certain
+H57   H_     hydrogen            x1     certain
+H58   H_     hydrogen            x1     certain
+H59   H_     hydrogen            x1     certain
+H60   H_     hydrogen            x1     certain
+H61   H_     hydrogen            x1     certain
+H62   H_     hydrogen            x1     certain
+H63   H_     hydrogen            x1     certain
+H64   H_     hydrogen            x1     certain
+H65   H_     hydrogen            x1     certain
+H66   H_     hydrogen            x1     certain
+H67   H_     hydrogen            x1     certain
+H68   H_     hydrogen            x1     certain
+H69   H_     hydrogen            x1     certain
+H70   H_     hydrogen            x1     certain
+H71   H_     hydrogen            x1     certain
+H72   H_     hydrogen            x1     certain
+H73   H_     hydrogen            x1     certain
+H74   H_     hydrogen            x1     certain
+H75   H_     hydrogen            x1     certain
+H76   H_     hydrogen            x1     certain
+H77   H_     hydrogen            x1     certain
+H78   H_     hydrogen            x1     certain
+H79   H_     hydrogen            x1     certain
+H80   H_     hydrogen            x1     certain
+H81   H_     hydrogen            x1     certain
+H82   H_     hydrogen            x1     certain
+H83   H_     hydrogen            x1     certain
+H84   H_     hydrogen            x1     certain
+H85   H_     hydrogen            x1     certain
+H86   H_     hydrogen            x1     certain
+H87   H_     hydrogen            x1     certain
+H88   H_     hydrogen            x1     certain
+H89   H_     hydrogen            x1     certain
+H90   H_     hydrogen            x1     certain
+H91   H_     hydrogen            x1     certain
+H92   H_     hydrogen            x1     certain
+H93   H_     hydrogen            x1     certain
+H94   H_     hydrogen            x1     certain
+H95   H_     hydrogen            x1     certain
+H96   H_     hydrogen            x1     certain
+
+Topology
+--------
+424 atoms, 512 bonds, 912 angles, 960 torsions, 576 inversions
+
+Energy
+------
+angle             1273.4556
+torsion            960.0000
+bond               862.1448
+van der Waals      385.4686
+inversion            0.0000
+total             3481.0690
+
+max force      155.20117 kcal/mol/A
+rms force      86.04125 kcal/mol/A

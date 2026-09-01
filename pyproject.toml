@@ -37,7 +37,7 @@ ase = ["ase>=3.22"]
 # pytest-qt belongs here and not in [dev]: without it every widget
 # test skips itself, and CI installs [gui,test] -- so the GUI half of
 # the suite was passing by not running.
-test = ["pytest>=8", "pytest-qt>=4"]
+test = ["pytest>=8", "pytest-qt>=4", "pytest-xdist>=3"]
 dev = ["crystal-builder[gui,ase,test]", "ruff", "pyinstaller>=6"]
 
 [project.scripts]
@@ -56,6 +56,13 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# The suite is ~1400 small tests, none of them dominant, so the wall
+# clock is the sum and not one hot spot -- which is the case workers
+# fix.  Each gets its own process and so its own QApplication, which
+# is also why the Qt half parallelises at all.  Use "-p no:xdist" (or
+# "-n0") to get a serial run back when a traceback needs to be read in
+# order, or when a debugger has to attach.
+addopts = ["-n", "auto"]
 filterwarnings = ["error::DeprecationWarning"]
 markers = [
     # Seconds rather than milliseconds, and worth it: a variable-cell
