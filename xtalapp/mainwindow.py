@@ -27,7 +27,6 @@ from pathlib import Path
 from PySide6.QtGui import QColor, QGuiApplication
 from PySide6.QtWidgets import (
     QColorDialog,
-    QFileDialog,
     QInputDialog,
     QLabel,
     QMainWindow,
@@ -38,7 +37,6 @@ from PySide6.QtWidgets import (
 from xtal.commands.bonds import BOND_TYPES
 from xtal.commands.clipboard import Fragment
 from xtal.core.structure import Change
-from xtal.workspace import NotAWorkspace, Workspace
 from xtalapp import layout, menus
 from xtalapp.actions import ActionRegistry
 from xtalapp.dialogs.add_atom import AddAtomDialog
@@ -61,6 +59,7 @@ from xtalapp.module_runner import ModuleRunner
 from xtalapp.settings import AppSettings, default_size
 from xtalapp.viewport import modes
 from xtalapp.viewport.view_settings import BACKGROUNDS
+from xtalapp.workspace_shell import WorkspaceShell
 
 APP_NAME = "Crystal Builder"
 
@@ -87,9 +86,8 @@ class MainWindow(QMainWindow):
         self._viewport_factory = (viewport_factory
                                   or _default_viewport_factory)
         self.clipboard_fragment = Fragment()
-        # The workspace calculations land in, and the settings the
-        # last export used -- which is what "Export again" repeats.
-        self.workspace: Workspace | None = None
+        # The workspace calculations land in.
+        self.workspace_shell = WorkspaceShell(self)
         # What runs a module, and the run that may be going.  Built
         # before the docks it reports into, because _refresh_shell
         # asks it whether anything is running.
@@ -117,7 +115,7 @@ class MainWindow(QMainWindow):
         self.statusBar().addPermanentWidget(self.selection_label)
 
         self.settings.restore_window(self)
-        self.restore_workspace()
+        self.workspace_shell.restore_workspace()
         self._update_ui()
 
         for path in paths or []:
@@ -211,156 +209,52 @@ class MainWindow(QMainWindow):
     # ==================================================================
     #  THE WORKSPACE
     # ==================================================================
+    #
+    # The workspace itself is :mod:`xtalapp.workspace_shell`.  These
+    # eleven names stay because something outside uses them: four are
+    # connected to dock signals in :mod:`xtalapp.layout`, two are menu
+    # actions, and ``refresh_workspace`` is reached by the module
+    # runner, the document set and both force field docks whenever a
+    # run leaves something on disk.
+
+    @property
+    def workspace(self):
+        """The open workspace, or ``None``.
+
+        Read-only, over the workspace shell's: one copy of which
+        folder is open, not two.
+        """
+        return self.workspace_shell.workspace
 
     def place_in_workspace(self, document, path) -> None:
-        """Give a freshly opened structure somewhere to put its runs.
-
-        The file is **copied** into the workspace rather than pointed
-        at.  A workspace whose nodes are references to files the user
-        then edits, renames or deletes is a tree of broken links; the
-        copy costs kilobytes, and where the file came from is kept in
-        ``structure.meta["source"]``.
-        """
-        path = Path(path)
-        if document.entry is not None:
-            # Already inside a workspace -- opened from the tree, or a
-            # project that found its own by looking upwards.
-            self.refresh_workspace()
-            return
-        workspace = self.workspace or self._offer_workspace(path)
-        if workspace is None:
-            return
-        try:
-            entry = workspace.add_structure(path)
-        except OSError as exc:
-            self.show_message(f"could not copy into the workspace: "
-                              f"{exc}")
-            return
-        document.structure.meta.setdefault("source", str(path))
-        document.attach_workspace(entry)
-        self.refresh_workspace()
-        self.file_dock.tree.select_path(entry.path)
-
-    def _offer_workspace(self, path) -> Workspace | None:
-        """What to do for a structure opened with no workspace open.
-
-        Nothing, and say so.  The user picks the workspace and the
-        application never guesses: a folder created behind somebody's
-        back is one they find later and do not recognise, and a dialog
-        on every file open is worse than the problem it solves.  So a
-        structure with no workspace opens, runs, and leaves nothing
-        behind -- which is exactly what this application did before
-        there was anywhere to leave anything -- and the status bar
-        says how to change that.
-        """
-        if not self.settings.auto_workspace:
-            self.show_message(
-                "no workspace open, so runs will not be kept -- "
-                "File > New Workspace... gives them somewhere to go")
-            return None
-        return self.set_workspace(Path(path).parent / "Crystal Builder",
-                                  create=True)
+        self.workspace_shell.place_in_workspace(document, path)
 
     def set_workspace(self, root, create: bool = False):
-        """Open a workspace and show it in the tree."""
-        try:
-            workspace = (Workspace.create(root) if create
-                         else Workspace.open(root))
-        except (NotAWorkspace, OSError) as exc:
-            self.show_message(f"could not open that workspace: {exc}")
-            return None
-        self.workspace = workspace
-        self.settings.last_workspace = str(workspace.root)
-        self.settings.add_recent_workspace(workspace.root)
-        self.refresh_workspace()
-        self.show_message(f"workspace: {workspace.root}")
-        return workspace
-
-    def restore_workspace(self) -> None:
-        """Reopen the workspace that was open last, as the last
-        directory is reopened."""
-        last = self.settings.last_workspace
-        if last and Workspace.is_workspace(last):
-            self.workspace = Workspace(last)
-        self.refresh_workspace()
+        return self.workspace_shell.set_workspace(root, create)
 
     def refresh_workspace(self) -> None:
-        self.file_dock.set_workspace(
-            self.workspace, self.settings.recent_workspaces())
+        self.workspace_shell.refresh_workspace()
 
     def open_workspace_dialog(self) -> None:
-        chosen = QFileDialog.getExistingDirectory(
-            self, "Open workspace",
-            self.settings.last_workspace or
-            str(self.settings.default_workspace_root.parent))
-        if chosen:
-            self.set_workspace(chosen)
+        self.workspace_shell.open_workspace_dialog()
 
     def new_workspace_dialog(self) -> None:
-        chosen = QFileDialog.getSaveFileName(
-            self, "New workspace",
-            str(self.settings.default_workspace_root))[0]
-        if chosen:
-            self.set_workspace(chosen, create=True)
+        self.workspace_shell.new_workspace_dialog()
 
     def _on_workspace_requested(self, what: str) -> None:
-        """The tree's own switcher: open, new, or one of the recent."""
-        if what == "open":
-            self.open_workspace_dialog()
-        elif what == "new":
-            self.new_workspace_dialog()
-        else:
-            self.set_workspace(what)
+        self.workspace_shell._on_workspace_requested(what)
 
     def _on_run_started(self, path: str) -> None:
-        self.refresh_workspace()
-        self.log_dock.show_file(Path(path) / "run.log")
+        self.workspace_shell._on_run_started(path)
 
     def _on_run_finished(self, path: str) -> None:
-        self.refresh_workspace()
-        self.log_dock.poll()
+        self.workspace_shell._on_run_finished(path)
 
     def _on_trajectory_history(self, history) -> None:
-        """A trajectory opened from the tree fills the energy plot.
-
-        The plot and the trajectory are the same run seen two ways, so
-        opening one has to populate the other -- otherwise clicking the
-        trace to reach a frame only works for the run you just watched.
-        """
-        if history:
-            # Which engine produced this run is not carried this far,
-            # so both plots take it -- only the one behind the dock
-            # the user actually opens is looked at, and a stale trace
-            # in the other is harmless.
-            self.ff_dock.plot.set_history(history)
-            self.dftb_dock.plot.set_history(history)
+        self.workspace_shell._on_trajectory_history(history)
 
     def open_artifact(self, kind: str, path: str) -> None:
-        """Open a node of the workspace tree as what it *is*.
-
-        Dispatch on the artefact's kind rather than on its extension:
-        a ``.cif`` that is a run's output and a ``.cif`` that is the
-        input want the same viewer and different labelling, which an
-        extension cannot say.
-        """
-        target = Path(path)
-        if kind == "log":
-            self.log_dock.show_file(target)
-        elif kind == "trajectory":
-            self.trajectory_dock.set_document(self.current_document())
-            self.trajectory_dock.open_path(target)
-        elif kind == "image":
-            # A plot a run left behind.  Handed to whatever the
-            # desktop opens PNGs with, because a picture viewer is not
-            # something this application should be growing.
-            from PySide6.QtCore import QUrl
-            from PySide6.QtGui import QDesktopServices
-            if not QDesktopServices.openUrl(
-                    QUrl.fromLocalFile(str(target))):
-                self.show_message(                  # pragma: no cover
-                    f"could not open {target.name}")
-        elif kind in ("structure", "final", "project", "file"):
-            self.open_path(target)
+        self.workspace_shell.open_artifact(kind, path)
 
     def save_document(self) -> None:
         self.document_set.save_document()
