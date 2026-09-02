@@ -229,6 +229,38 @@ class SceneModel:
 
 
 # ======================================================================
+#  THE GHOST
+# ======================================================================
+
+@dataclass(frozen=True)
+class Ghost:
+    """An atom that is not there yet, and the bond that would come
+    with it.
+
+    Deliberately *not* a field of :class:`SceneModel`, and deliberately
+    not an extra atom appended to one.  A scene model is built from the
+    document and is rebuilt when the document changes; a ghost changes
+    on every mouse move and describes something the document does not
+    contain.  Either spelling makes one of those two facts false: the
+    first rebuilds the crystal at cursor rate, and the second leaves a
+    fictional atom where picking, the selection flags and the bounds
+    calculation all treat what they find as real.
+
+    So it is an overlay -- its own record, its own actors, drawn over
+    the scene and never part of it.  Nothing that reads a SceneModel
+    has to learn about it, which includes every offscreen render.
+    """
+
+    position: np.ndarray                    # (3,) cartesian
+    radius: float = 0.4
+    color: tuple = (170, 170, 170)
+    #: Where the bond that would come with it starts, or ``None`` for
+    #: an atom being placed on its own.
+    anchor: np.ndarray | None = None
+    bond_radius: float = 0.15
+
+
+# ======================================================================
 #  BOND ORDER, AS GEOMETRY
 # ======================================================================
 #

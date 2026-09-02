@@ -96,6 +96,12 @@ HIGHLIGHT_COLOR = (255, 205, 40)
 HIGHLIGHT_OPACITY = 0.45
 HIGHLIGHT_GROWTH = 1.30     # halo radius, relative to the atom
 
+# The ghost: the atom a click would place, drawn in its own colour and
+# see-through, so that what is behind it stays readable while it is
+# being aimed.  Solid enough to read as an atom, faint enough that
+# nobody mistakes it for one that is there.
+GHOST_OPACITY = 0.45
+
 # Depth cueing, as a shader replacement.  VTK 9 has no SetFog on either
 # the property or the renderer, and vtkDepthOfFieldPass is a blur
 # rather than a fade, so the fade is written into the fragment shader
@@ -218,6 +224,7 @@ class VtkScene:
         self._build_topology_actor()
         self._build_cell_actor()
         self._build_highlight_actors()
+        self._build_ghost_actors()
         self._cue_on = False
         self._cue_observer = None
 
@@ -385,6 +392,67 @@ class VtkScene:
         self.halo_bond_actor.SetMapper(bond_mapper)
         self._style_highlight(self.halo_bond_actor)
         self.renderer.AddActor(self.halo_bond_actor)
+
+    def _build_ghost_actors(self):
+        """The atom that is not there yet, and its bond.
+
+        An overlay and not part of the model: one sphere and one tube,
+        moved and shown as the cursor moves, so a ghost costs a
+        transform rather than a rebuild of the scene.  Both start
+        hidden, which is what every mode but Add atom leaves them.
+        """
+        sphere = vtkSphereSource()
+        sphere.SetRadius(1.0)
+        sphere.SetThetaResolution(SPHERE_RESOLUTION)
+        sphere.SetPhiResolution(SPHERE_RESOLUTION)
+        mapper = vtkPolyDataMapper()
+        mapper.SetInputConnection(sphere.GetOutputPort())
+        mapper.ScalarVisibilityOff()
+        self.ghost_actor = vtkActor()
+        self.ghost_actor.SetMapper(mapper)
+        self.ghost_actor.GetProperty().SetOpacity(GHOST_OPACITY)
+        self.ghost_actor.SetVisibility(False)
+        self.renderer.AddActor(self.ghost_actor)
+
+        self._ghost_bond_poly = vtkPolyData()
+        self._ghost_tube = vtkTubeFilter()
+        self._ghost_tube.SetInputData(self._ghost_bond_poly)
+        self._ghost_tube.SetNumberOfSides(TUBE_SIDES)
+        self._ghost_tube.CappingOn()
+        bond_mapper = vtkPolyDataMapper()
+        bond_mapper.SetInputConnection(self._ghost_tube.GetOutputPort())
+        bond_mapper.ScalarVisibilityOff()
+        self.ghost_bond_actor = vtkActor()
+        self.ghost_bond_actor.SetMapper(bond_mapper)
+        self.ghost_bond_actor.GetProperty().SetOpacity(GHOST_OPACITY)
+        self.ghost_bond_actor.SetVisibility(False)
+        self.renderer.AddActor(self.ghost_bond_actor)
+
+    def set_ghost(self, ghost) -> None:
+        """Show the atom a click would place now, or ``None`` to stop
+        showing one."""
+        if ghost is None:
+            self.ghost_actor.SetVisibility(False)
+            self.ghost_bond_actor.SetVisibility(False)
+            return
+        position = np.asarray(ghost.position, dtype=float)
+        colour = [c / 255 for c in ghost.color]
+        self.ghost_actor.SetPosition(*position)
+        self.ghost_actor.SetScale(float(ghost.radius))
+        self.ghost_actor.GetProperty().SetColor(*colour)
+        self.ghost_actor.SetVisibility(True)
+
+        if ghost.anchor is None:
+            self.ghost_bond_actor.SetVisibility(False)
+            return
+        anchor = np.asarray(ghost.anchor, dtype=float)
+        self._ghost_bond_poly = _line_polydata(
+            anchor.reshape(1, 3), position.reshape(1, 3),
+            np.asarray(ghost.color, dtype=np.uint8).reshape(1, 3))
+        self._ghost_tube.SetInputData(self._ghost_bond_poly)
+        self._ghost_tube.SetRadius(float(ghost.bond_radius))
+        self.ghost_bond_actor.GetProperty().SetColor(*colour)
+        self.ghost_bond_actor.SetVisibility(True)
 
     @staticmethod
     def _style_highlight(actor):

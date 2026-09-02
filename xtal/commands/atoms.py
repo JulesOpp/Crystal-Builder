@@ -15,8 +15,8 @@ from __future__ import annotations
 import numpy as np
 
 from xtal.commands.base import Command
+from xtal.core import bonding, p1, transforms
 from xtal.core import elements as el
-from xtal.core import transforms
 from xtal.core.site import Site
 from xtal.core.structure import Change
 
@@ -46,6 +46,83 @@ class AddSites(Command):
 
     def undo(self, host) -> None:
         host.structure.remove_sites(self.indices)
+
+
+class AddBondedSite(Command):
+    """Add a site, and bond it to an atom that is already there.
+
+    One command rather than an :class:`AddSites` next to an
+    ``AddBond``, for two reasons.  The bond cannot be *described*
+    until the site exists -- it joins the new atom, which has no index
+    in the P1 cell to name until then -- and the user made one
+    gesture, so Ctrl+Z should take back one thing.
+
+    The bond is stored explicitly rather than left for perception to
+    find.  The user has just said what the atom is bonded to, and
+    asking the distance criteria a question that was not asked is how
+    an atom placed at exactly a bond length ends up with no bond
+    drawn: an unlucky pair, a forbidden one, or two metals, and the
+    answer is no.
+
+    ``anchor`` is a P1 atom index of the structure *before* the site
+    is added, and stays valid after it: the expansion is site-major,
+    so a site appended last appends its atoms last and renumbers
+    nothing.
+    """
+
+    change = Change.TOPOLOGY
+
+    def __init__(self, site: Site, anchor: int, anchor_image=(0, 0, 0)):
+        self.site = site.copy()
+        self.anchor = int(anchor)
+        self.anchor_image = tuple(int(v) for v in anchor_image)
+        self.label = f"Add bonded {self.site.element}"
+        self.indices: list[int] = []
+        self.bond = None
+        self._bonded = False
+
+    def do(self, host) -> None:
+        structure = host.structure
+        site = self.site.copy()
+        if not site.label:
+            site.label = structure.suggest_label(site.element)
+        self.indices = structure.add_sites([site])
+        self.bond = self._bond_to_anchor(structure, site)
+        self._bonded = structure.add_bond(self.bond)
+
+    def undo(self, host) -> None:
+        structure = host.structure
+        # The bond first: removing the site renumbers every bond after
+        # it, and the one being taken out is the one that named it.
+        if self._bonded:
+            structure.remove_bond(self.bond)
+        structure.remove_sites(self.indices)
+
+    def _bond_to_anchor(self, structure, site):
+        cell = p1.expand(structure)
+        atom, image = _image_at(cell, self.indices[0], site.frac)
+        return bonding.bond_between(structure, cell, self.anchor, atom,
+                                    self.anchor_image, image)
+
+
+def _image_at(cell, site_index: int, frac):
+    """Which drawn atom of a freshly added site sits at ``frac``, and
+    the lattice translation that puts it there.
+
+    A site placed outside the unit cell -- which is most of them, the
+    click being wherever the user pointed -- is folded back into it by
+    the expansion.  The bond has to name the copy that is where the
+    user pointed, which is the folded atom plus the translation that
+    was taken off it.
+    """
+    frac = np.asarray(frac, dtype=float)
+    best, error, shift = None, None, None
+    for atom in cell.indices_of_site(site_index):
+        offset = frac - cell.frac[atom]
+        deviation = float(np.abs(offset - np.round(offset)).max())
+        if error is None or deviation < error:
+            best, error, shift = int(atom), deviation, np.round(offset)
+    return best, tuple(int(v) for v in shift)
 
 
 class DeleteSites(Command):

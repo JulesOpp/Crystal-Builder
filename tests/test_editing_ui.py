@@ -149,10 +149,13 @@ def test_build_a_molecule_atom_by_atom(empty_document):
 
 
 def test_add_atom_mode_places_where_you_click(empty_document):
+    from xtalapp.viewport.builder import build_scene
+
     _window, document = empty_document
     mode = modes.get("add_atom")
     mode.element = "Fe"
-    model = None
+    mode.anchor = None
+    model = build_scene(document.structure, document.view)
     event = modes.ClickEvent(origin=(0.0, 0.0, -10.0),
                              direction=(0.0, 0.0, 1.0),
                              focal=(3.0, 4.0, 5.0))

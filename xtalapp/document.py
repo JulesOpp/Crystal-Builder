@@ -652,6 +652,19 @@ class Document(QObject):
         self.run(atom_commands.AddSites([site]))
         return f"added {element}"
 
+    def add_bonded_atom(self, element: str, frac, anchor: int,
+                        anchor_image=(0, 0, 0), label: str = "") -> str:
+        """Add an atom bonded to one that is already in the cell.
+
+        What a click on an existing atom in Add-atom mode means: the
+        user has said what the new atom is bonded to, so the bond is
+        created with it, explicitly, in the same undo step.
+        """
+        name = self.cell.labels[anchor] or self.cell.elements[anchor]
+        site = atom_commands.new_site(element, frac, label=label)
+        self.run(atom_commands.AddBondedSite(site, anchor, anchor_image))
+        return f"added {element}, bonded to {name}"
+
     def delete_selection(self) -> str:
         """Delete the sites behind the selected atoms.  Symmetry ties
         images together, so this removes whole orbits."""

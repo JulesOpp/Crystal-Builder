@@ -32,18 +32,19 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from xtalapp.viewport import picking
+from xtal.core import elements as el
+from xtalapp.viewport import picking, styles
+from xtalapp.viewport.scene import Ghost
 
 
-@dataclass
-class ClickEvent:
-    """One click, in the terms a mode cares about."""
+class RayEvent:
+    """A pointer position over the viewport, as a ray into the scene.
 
-    origin: tuple            # ray origin, world coordinates
-    direction: tuple         # unit ray direction
-    additive: bool = False   # shift / cmd held: extend the selection
-    double: bool = False
-    focal: tuple = (0.0, 0.0, 0.0)   # what the camera is looking at
+    Shared by the click and the move, because placing an atom and
+    showing the atom that would be placed have to agree about where
+    the cursor is pointing -- two spellings of that would drift apart
+    and the ghost would stop landing where the click does.
+    """
 
     def plane_point(self):
         """Where this ray meets the plane through the camera's focal
@@ -61,6 +62,33 @@ class ClickEvent:
             return focal
         t = float((focal - origin) @ direction) / denominator
         return origin + direction * t
+
+
+@dataclass
+class ClickEvent(RayEvent):
+    """One click, in the terms a mode cares about."""
+
+    origin: tuple            # ray origin, world coordinates
+    direction: tuple         # unit ray direction
+    additive: bool = False   # shift / cmd held: extend the selection
+    double: bool = False
+    focal: tuple = (0.0, 0.0, 0.0)   # what the camera is looking at
+
+
+@dataclass
+class MoveEvent(RayEvent):
+    """The cursor moved over the viewport with no button down.
+
+    A mode that wants these says so with ``wants_move``, and the
+    viewport only casts the ray for the ones that do.  It answers the
+    same question a click does -- what is under the cursor, and where
+    is it pointing -- without committing to anything, which is what a
+    ghost atom and (later) a tooltip both need.
+    """
+
+    origin: tuple
+    direction: tuple
+    focal: tuple = (0.0, 0.0, 0.0)
 
 
 @dataclass
@@ -102,11 +130,42 @@ class Mode:
     #: viewport withholds the left button from VTK's camera while a
     #: mode that does is active.
     wants_drag = False
+    #: Does this mode want to know where the cursor is between clicks?
+    #: Casting a ray per mouse move for the modes that would ignore it
+    #: is a cost with nothing on the other side of it, so they ask.
+    wants_move = False
+
+    def on_activate(self, document, model) -> str:
+        """Entering the mode: what it can say for itself right now.
+
+        The message replaces the hint in the status bar when there is
+        one, which is how a mode that starts in the middle of its own
+        state machine -- Add atom with an atom already selected -- can
+        say so instead of describing a first click that will not
+        happen.
+        """
+        return ""
 
     def on_click(self, document, model, event: ClickEvent) -> str:
         return ""
 
     def on_drag(self, document, model, event: DragEvent) -> str:
+        return ""
+
+    def on_move(self, document, model, event: MoveEvent):
+        """Where the cursor is now.  Returns what to draw over the
+        scene -- a :class:`~xtalapp.viewport.scene.Ghost` -- or None
+        for nothing."""
+        return None
+
+    def on_cancel(self, document) -> str:
+        """Escape: abandon a half-finished gesture, in place.
+
+        The same forgetting that leaving the mode does, without
+        leaving it -- because a mode waiting for a second click is
+        holding state with no other way out of it.
+        """
+        self.on_deactivate(document)
         return ""
 
     def on_deactivate(self, document) -> None:
@@ -164,27 +223,195 @@ def model_element(document, atom: int) -> str:
     return f"{label}"
 
 
+def bond_distance(a: str, b: str) -> float:
+    """How far apart to place a new atom and the one it bonds to.
+
+    The sum of the two covalent radii, which is what perception
+    already uses to decide that two atoms *are* bonded -- so an atom
+    placed here is one the distance criteria would have found anyway,
+    and the bond drawn with it does not contradict the rules that
+    would have drawn it.  Every element carries one, a dummy atom
+    included, so there is no pair this has no answer for.
+    """
+    return el.covalent_radius(a) + el.covalent_radius(b)
+
+
+def point_on_sphere(origin, direction, centre, radius):
+    """Where a ray meets the sphere of ``radius`` about ``centre``.
+
+    The near intersection when the ray hits it, because that is the
+    face of the sphere the user is looking at.  When the ray misses --
+    which is most of the screen, the sphere being about one Angstrom
+    across -- the closest approach is projected back onto the sphere
+    instead, so pointing *that way* still places the atom that way.
+    Refusing a miss would make the second click of the gesture fail
+    almost everywhere it is aimed.
+    """
+    origin = np.asarray(origin, dtype=float)
+    centre = np.asarray(centre, dtype=float)
+    direction = np.asarray(direction, dtype=float)
+    length = float(np.linalg.norm(direction))
+    if length < 1e-12:                              # pragma: no cover
+        return centre + np.array([radius, 0.0, 0.0])
+    direction = direction / length
+
+    offset = origin - centre
+    along = float(offset @ direction)
+    gap = float(offset @ offset) - radius * radius
+    discriminant = along * along - gap
+    if discriminant >= 0.0:
+        root = float(np.sqrt(discriminant))
+        near, far = -along - root, -along + root
+        t = near if near > 0.0 else far
+        if t > 0.0:
+            return centre + _to_radius(origin + direction * t - centre,
+                                       direction, radius)
+    closest = origin - direction * along        # the ray's near point
+    return centre + _to_radius(closest - centre, direction, radius)
+
+
+def _to_radius(offset, direction, radius):
+    """``offset`` scaled to ``radius``, or a direction when it has
+    none: a ray straight down the middle of the anchor says nothing
+    about where to put the atom, so it goes towards the camera."""
+    length = float(np.linalg.norm(offset))
+    if length < 1e-9:
+        return -np.asarray(direction, dtype=float) * radius
+    return np.asarray(offset, dtype=float) / length * radius
+
+
+def drawn_instance(model, atom: int):
+    """One drawn copy of P1 atom ``atom``: ``(atom, cell, position)``.
+
+    The copy in the home cell when it is on screen, because that is
+    the one a user with a single atom selected is looking at; any
+    other copy otherwise, because a display range that starts at
+    (1, 0, 0) still has to be able to anchor.
+    """
+    if model is None or not model.n_atoms:
+        return None
+    rows = np.flatnonzero(np.asarray(model.atom_index) == int(atom))
+    if not len(rows):
+        return None
+    home = [r for r in rows if not np.any(model.atom_cell[r])]
+    row = int(home[0] if home else rows[0])
+    return (int(atom), tuple(int(v) for v in model.atom_cell[row]),
+            np.asarray(model.positions[row], dtype=float))
+
+
 class AddAtomMode(Mode):
     """Click to place an atom of the current element.
 
-    The atom lands on the plane the camera is focused on, which is the
-    only depth a single click can mean.  Exact coordinates are what the
-    Add Atom dialog is for.
+    Over empty space the atom lands on the plane the camera is focused
+    on, which is the only depth a single click can mean.  Over an atom
+    the click means something else entirely -- "another atom bonded to
+    this one" -- and landing it at whatever depth the focal plane
+    happened to be is never that.  So a click on an atom *anchors*
+    rather than places, and the next click carries only a direction:
+    the atom goes at the bond distance for the pair, and the bond goes
+    with it.
+
+    **The anchor has two spellings.**  With exactly one atom selected,
+    entering the mode starts already anchored -- pick the carbon,
+    press the button, point -- and with nothing selected the first
+    click anchors and the second directs.  They are the same state
+    machine entered at different points, and the short one is what an
+    experienced user will actually use.
+
+    Between the two clicks a ghost atom follows the cursor with its
+    bond drawn, so the placement is visible before it is committed,
+    and ``Escape`` drops the anchor.
     """
 
     name = "add_atom"
     label = "Add atom"
-    hint = "click to place an atom · set the element in the toolbar"
+    hint = ("click to place an atom · click an atom first to bond "
+            "to it · set the element in the toolbar")
+    wants_move = True
 
     def __init__(self, element: str = "C"):
         self.element = element
+        # The atom being bonded to, as (P1 index, lattice translation,
+        # cartesian position).  The translation is what makes the copy
+        # that was clicked the copy that gets the bond.
+        self.anchor: tuple | None = None
+
+    def on_activate(self, document, model) -> str:
+        """A single selected atom is already an anchor.
+
+        The cheaper half of the same gesture: the common case is
+        picking the atom to extend and then reaching for the button,
+        and having to click it a second time to say the same thing is
+        the click this removes.
+        """
+        self.anchor = None
+        if document is None:
+            return ""
+        atoms = sorted(document.selection.atoms)
+        if len(atoms) != 1:
+            return ""
+        self.anchor = drawn_instance(model, atoms[0])
+        if self.anchor is None:
+            return ""
+        return (f"bonding to {model_element(document, atoms[0])} "
+                f"· click a direction · Escape to place freely")
+
+    def on_deactivate(self, document) -> None:
+        self.anchor = None
+
+    def on_cancel(self, document) -> str:
+        if self.anchor is None:
+            return ""
+        self.anchor = None
+        return "anchor dropped · the next click places an atom"
+
+    def on_move(self, document, model, event: MoveEvent):
+        """The atom that the next click would place."""
+        if document is None or self.anchor is None:
+            return None
+        atom, _cell, centre = self.anchor
+        distance = bond_distance(document.cell.elements[atom],
+                                 self.element)
+        point = point_on_sphere(event.origin, event.direction, centre,
+                                distance)
+        view = document.view
+        return Ghost(position=point,
+                     radius=styles.get(view.style).atom_radius(
+                         self.element, view),
+                     color=view.color_for(self.element),
+                     anchor=centre,
+                     bond_radius=view.bond_radius)
 
     def on_click(self, document, model, event: ClickEvent) -> str:
         if document is None:
             return ""
+        if self.anchor is not None:
+            return self._place_bonded(document, event)
+
+        kind, index = picking.pick(model, event.origin, event.direction)
+        if kind == "atom":
+            self.anchor = drawn_instance(model, model.instance(index)[0])
+            atom = self.anchor[0]
+            document.select([atom])
+            return (f"bonding to {model_element(document, atom)} "
+                    f"· click a direction · Escape to place "
+                    f"freely")
+
         point = event.plane_point()
         frac = document.structure.lattice.to_frac(point)
         return document.add_atom(self.element, frac)
+
+    def _place_bonded(self, document, event: ClickEvent) -> str:
+        """The direction click: the atom goes at a bond length from
+        the anchor, and the bond goes with it."""
+        atom, cell, centre = self.anchor
+        self.anchor = None
+        distance = bond_distance(document.cell.elements[atom],
+                                 self.element)
+        point = point_on_sphere(event.origin, event.direction, centre,
+                                distance)
+        frac = document.structure.lattice.to_frac(point)
+        return document.add_bonded_atom(self.element, frac, atom, cell)
 
 
 class AddBondMode(Mode):

@@ -521,7 +521,12 @@ class MainWindow(QMainWindow):
         modes.get(name)                     # validate before switching
         viewport = self.current_viewport()
         if viewport is not None and hasattr(viewport, "set_mode"):
+            # The viewport says what entering the mode means here and
+            # now -- Add atom over a selected atom starts anchored --
+            # through its own status signal, and saying the plain hint
+            # afterwards would overwrite it.
             viewport.set_mode(name)
+            return
         self.statusBar().showMessage(modes.get(name).hint, 6000)
 
     def _on_measure_target(self, count: int) -> None:

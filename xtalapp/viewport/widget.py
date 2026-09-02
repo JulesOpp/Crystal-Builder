@@ -25,6 +25,12 @@ only one of them can have it.  Those modes are marked ``wants_drag``
 and the event filter withholds the left button from VTK while they are
 active; pan and zoom keep working throughout, so the view is never
 stuck.
+
+Two things happen between the clicks.  A mode marked ``wants_move``
+is told where the cursor is on every mouse move and may hand back a
+ghost -- the atom a click would place, drawn over the scene and never
+part of it -- and ``Escape`` tells the active mode to put down
+whatever it is halfway through.
 """
 
 from __future__ import annotations
@@ -143,6 +149,7 @@ class ViewportWidget(QWidget):
         self._press_button = None
         self._band = None
         self._band_origin = None
+        self._ghost = None
 
         self.preview_interval_ms = DEFAULT_PREVIEW_INTERVAL_MS
         self._preview_pending = False
@@ -207,11 +214,18 @@ class ViewportWidget(QWidget):
     def set_mode(self, name: str) -> None:
         if self.mode is not None:
             self.mode.on_deactivate(self.document)
+        self.set_ghost(None)
         self.mode = modes.get(name)
         if self._band is not None:
             self._band.hide()
         self._band_origin = None
-        self.statusMessage.emit(self.mode.hint)
+        # What the mode makes of the state it is entering, and the
+        # plain hint when it makes nothing of it: Add atom with one
+        # atom already selected starts halfway through its own
+        # gesture, and describing a first click that will not happen
+        # is worse than saying nothing.
+        message = self.mode.on_activate(self.document, self.model)
+        self.statusMessage.emit(message or self.mode.hint)
 
     def _on_structure(self, change: int) -> None:
         """Redraw as much as the change actually calls for.
@@ -314,6 +328,9 @@ class ViewportWidget(QWidget):
                 if self._band_origin is not None:
                     self._drag_band(event.position().toPoint())
                     return True
+                self._maybe_hover(event)
+            elif event.type() == QEvent.Leave:
+                self.set_ghost(None)
             elif event.type() == QEvent.MouseButtonRelease:
                 if self._band_origin is not None:
                     self._finish_band(event)
@@ -327,6 +344,10 @@ class ViewportWidget(QWidget):
                     return True
                 self._maybe_pick(event, double=True)
             elif event.type() in (QEvent.KeyPress, QEvent.KeyRelease):
+                if (event.type() == QEvent.KeyPress
+                        and event.key() == Qt.Key_Escape):
+                    self.cancel_gesture()
+                    return True
                 if is_vtk_reserved_key(event):
                     return True             # consumed: VTK never sees it
         return super().eventFilter(watched, event)
@@ -395,6 +416,58 @@ class ViewportWidget(QWidget):
                          | Qt.MetaModifier)),
                      double=double)
 
+    # -- the ghost -----------------------------------------------------
+
+    def _maybe_hover(self, event) -> None:
+        """Tell a mode that asked for it where the cursor is.
+
+        Only for a mode that asks (``wants_move``): casting a ray per
+        mouse move for the modes that would ignore it is a cost with
+        nothing on the other side of it.  ``picking.pick`` is exact
+        and vectorised and a mouse move is not a hot loop, so a mode
+        that does ask needs nothing more than this.
+        """
+        if not getattr(self.mode, "wants_move", False):
+            return
+        if self.document is None or self.model is None:
+            return
+        if event.buttons():
+            return                  # a button is down: the camera
+        origin, direction = self._ray_at(event.position().toPoint())
+        focal = self.scene.renderer.GetActiveCamera().GetFocalPoint()
+        self.set_ghost(self.mode.on_move(
+            self.document, self.model,
+            modes.MoveEvent(origin, direction, tuple(focal))))
+
+    def set_ghost(self, ghost) -> None:
+        """Draw the atom a click would place, or clear it.
+
+        Nothing to nothing is not a redraw: every mouse move over a
+        structure with no gesture in progress arrives here, and
+        rendering the same empty overlay each time would put a frame
+        on the wire for a cursor that is only passing through.
+        """
+        if ghost is None and self._ghost is None:
+            return
+        self._ghost = ghost
+        self.scene.set_ghost(ghost)
+        self._safe_render()
+
+    def cancel_gesture(self) -> None:
+        """Escape: abandon whatever the mode is halfway through.
+
+        A mode waiting for a second click holds state -- an add-atom
+        anchor, the first end of a bond, the atoms accumulated for a
+        measurement -- and until now there was no way to put it down
+        except to switch modes and switch back.
+        """
+        if self.mode is None:
+            return
+        message = self.mode.on_cancel(self.document)
+        self.set_ghost(None)
+        if message:
+            self.statusMessage.emit(message)
+
     def _maybe_context_menu(self, event) -> None:
         """A right click that did not drag asks for a context menu.
 
@@ -452,6 +525,10 @@ class ViewportWidget(QWidget):
             self.document, self.model,
             modes.ClickEvent(origin, direction, additive, double,
                              tuple(focal)))
+        # The ghost was showing what this click would do, and it has
+        # now done it; the next mouse move puts a new one up if the
+        # mode still wants one.
+        self.set_ghost(None)
         if message:
             self.statusMessage.emit(message)
 
