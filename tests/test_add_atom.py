@@ -40,6 +40,16 @@ def mode():
 
 
 @pytest.fixture
+def square_document():
+    """Four carbons on a square, close enough to bond each other."""
+    document = Document(Structure.empty(Lattice.cubic(10.0)))
+    for x in (0.485, 0.515):
+        for y in (0.485, 0.515):
+            document.add_atom("C", [x, y, 0.5])
+    return document
+
+
+@pytest.fixture
 def one_carbon():
     """A single C at the middle of a roomy P1 box."""
     document = Document(Structure.empty(Lattice.cubic(20.0)))
@@ -518,17 +528,37 @@ def viewport_module():
 
 
 class ModeViewport(StubViewport):
-    """A stub that changes mode the way the real viewport does."""
+    """A stub that holds a mode the way the real viewport does.
+
+    Its ``set_mode`` and ``cancel_gesture`` are the real ones, because
+    those are what the window talks to -- a stub with its own simpler
+    versions would pass while the shipped pair was broken.
+    """
 
     modeChanged = Signal(str)
+    statusMessage = Signal(str)
 
     def __init__(self, document, parent=None):
         super().__init__(document, parent)
         self.mode = modes.get("select")
+        self.scene = FakeScene()
+        self._ghost = None
 
     def set_mode(self, name):
+        self.mode.on_deactivate(self.document)
         self.mode = modes.get(name)
         self.modeChanged.emit(name)
+
+    def set_ghost(self, ghost):
+        from xtalapp.viewport.widget import ViewportWidget
+        ViewportWidget.set_ghost(self, ghost)
+
+    def cancel_gesture(self):
+        from xtalapp.viewport.widget import ViewportWidget
+        return ViewportWidget.cancel_gesture(self)
+
+    def _safe_render(self):
+        pass
 
 
 def test_a_hover_puts_a_ghost_up(mode, one_carbon):
@@ -693,3 +723,160 @@ def test_every_two_click_mode_reports_what_escape_put_down(one_carbon):
         assert mode.on_cancel(one_carbon), f"{name} said nothing"
         assert not getattr(mode, attribute)
         assert mode.on_cancel(one_carbon) == ""      # and then leaves
+
+
+# --------------------------------------------- bonds are not perceived
+
+def test_a_placed_atom_arrives_bonded_to_nothing(mode, one_carbon):
+    """Bonds change when the user asks them to.  An atom appearing
+    already bonded to whatever it happened to land near is that rule
+    being broken by the one operation nobody expects to break it."""
+    one_carbon.add_atom("H", [0.5 + 0.0545, 0.5, 0.5])   # 1.09 A
+    assert len(one_carbon.graph.bonds) == 0
+    assert "recalculated" in one_carbon.recompute_bonds()
+    assert len(one_carbon.graph.bonds) == 1
+
+
+def test_the_chain_bonds_only_what_it_was_told_to(mode, one_carbon):
+    """Two clicks make one bond, not one bond plus whatever perception
+    found on the way past."""
+    one_carbon.add_atom("O", [0.5, 0.55, 0.5])      # 1 A from the C
+    mode.on_click(one_carbon, scene(one_carbon), ray_at(one_carbon, 0))
+    mode.on_click(one_carbon, scene(one_carbon),
+                  ray_at(one_carbon, 0, offset=(0.0, 0.0, 8.0)))
+
+    assert one_carbon.structure.n_sites == 3
+    assert len(one_carbon.graph.bonds) == 1
+    assert [b.kind for b in one_carbon.structure.bonds] == ["explicit"]
+
+
+def test_reset_bonds_is_the_way_to_the_automatic_answer(one_carbon):
+    one_carbon.add_atom("H", [0.5 + 0.0545, 0.5, 0.5])
+    assert len(one_carbon.graph.bonds) == 0
+    one_carbon.reset_bonds()
+    assert len(one_carbon.graph.bonds) == 1
+
+
+def test_a_centroid_does_not_perceive_either(square_document):
+    document = square_document
+    document.select([0, 1, 2, 3])
+    document.add_centroid("C")          # a real element, close in
+    assert len(document.graph.bonds) == 0
+
+
+def test_add_hydrogens_still_bonds_what_it_adds(rutile_cif):
+    """The other kind of edit, and the reason this is a flag and not a
+    rule: Add hydrogens puts a hydrogen at a bond length from its
+    parent and means the graph to find it."""
+    from xtal.commands.atoms import AddSites, new_site
+
+    document = Document.load(rutile_cif)
+    before = len(document.graph.bonds)
+    site = new_site("H", document.structure.sites[1].frac + [0.05, 0, 0])
+    document.run(AddSites([site]))                  # perceive defaults on
+    assert len(document.graph.bonds) > before
+
+
+# ------------------------------------------------ Escape, from anywhere
+
+def test_escape_is_a_window_action_and_not_a_viewport_key(
+        qtbot, tmp_path, rutile_cif):
+    """The bug this is here for: a key event goes to the widget that
+    has focus, and entering a mode means pressing a toolbar button --
+    so the viewport never saw the key and Escape did nothing at all.
+
+    Two things have to hold, and each is a way it silently broke.  The
+    action must be *on the window*, which is what makes a shortcut
+    live for an action that is in no menu; and triggering it must
+    reach the viewport.
+    """
+    pytest.importorskip("pytestqt")
+    from xtalapp.mainwindow import MainWindow
+    from xtalapp.settings import AppSettings
+
+    settings = AppSettings("CrystalBuilderTest", f"Esc{tmp_path.name}")
+    settings.clear_recent_files()
+    settings.last_directory = str(tmp_path)
+    window = MainWindow(viewport_factory=ModeViewport,
+                        settings=settings)
+    qtbot.addWidget(window)
+    window.open_path(rutile_cif)
+    window.actions_["mode_add_atom"].trigger()
+
+    action = window.actions_["cancel_gesture"]
+    assert action in window.actions(), \
+        "an action in no menu needs adding to the window to have a key"
+
+    add = modes.get("add_atom")
+    add.anchor = (0, (0, 0, 0), np.zeros(3))
+    window.element_combo.setFocus()             # where the focus is
+
+    action.trigger()
+    assert add.anchor is None
+    action.trigger()
+    assert window.current_viewport().mode.name == "select"
+
+
+def test_escape_is_one_action_and_not_two(qtbot, tmp_path):
+    """Two actions on the same key is an "ambiguous shortcut
+    overload", which is Qt for neither of them firing -- and is what
+    made the new binding do nothing next to Select None's."""
+    pytest.importorskip("pytestqt")
+    from PySide6.QtGui import QKeySequence
+
+    from tests.test_app_shell import StubViewport
+    from xtalapp.mainwindow import MainWindow
+    from xtalapp.settings import AppSettings
+
+    settings = AppSettings("CrystalBuilderTest", f"Esc2{tmp_path.name}")
+    settings.clear_recent_files()
+    settings.last_directory = str(tmp_path)
+    window = MainWindow(viewport_factory=StubViewport,
+                        settings=settings)
+    qtbot.addWidget(window)
+
+    escape = QKeySequence("Esc")
+    on_escape = [name for name in window.actions_.names()
+                 if escape in window.actions_[name].shortcuts()]
+    assert on_escape == ["cancel_gesture"]
+
+
+def test_escape_still_clears_the_selection_in_select_mode(
+        qtbot, tmp_path, rutile_cif):
+    """The last rung of the escalation, and where Escape has always
+    ended up."""
+    pytest.importorskip("pytestqt")
+    from xtalapp.mainwindow import MainWindow
+    from xtalapp.settings import AppSettings
+
+    settings = AppSettings("CrystalBuilderTest", f"Esc3{tmp_path.name}")
+    settings.clear_recent_files()
+    settings.last_directory = str(tmp_path)
+    window = MainWindow(viewport_factory=ModeViewport,
+                        settings=settings)
+    qtbot.addWidget(window)
+    window.open_path(rutile_cif)
+    document = window.current_document()
+    document.select([0, 1])
+
+    window.cancel_gesture()
+    assert not document.selection.atoms
+
+
+def test_undoing_an_add_does_not_perceive_again(one_carbon):
+    """The atoms come out again, and the bonds are the ones that were
+    there before -- not a fresh perception at whatever geometry the
+    atoms are at now.  Bonds following a geometry they were never
+    meant to follow, by way of an undo, is still bonds following a
+    geometry."""
+    one_carbon.add_atom("O", [0.5 + 0.062, 0.5, 0.5])
+    one_carbon.recompute_bonds()
+    assert len(one_carbon.graph.bonds) == 1
+
+    one_carbon.select([1])
+    one_carbon.move_selection([3.0, 0.0, 0.0], cartesian=True)
+    assert len(one_carbon.graph.bonds) == 1     # bonds do not follow
+
+    one_carbon.add_atom("N", [0.1, 0.1, 0.1])
+    one_carbon.undo()
+    assert len(one_carbon.graph.bonds) == 1

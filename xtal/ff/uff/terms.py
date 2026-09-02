@@ -166,8 +166,23 @@ def _scatter(grad, indices, values) -> None:
     Plain fancy-index assignment silently keeps only the last write,
     and every atom here appears in many terms, so this is the whole
     correctness of the gradient.
+
+    ``np.bincount`` and not ``np.add.at``, which is the obvious
+    spelling and is unbuffered: it walks the index array one element
+    at a time in Python-level C and was, on its own, forty-five
+    percent of the time in a cell relaxation of MFU-4l.  One bincount
+    per column does the same accumulation as a single vectorised pass
+    and gives the identical answer -- the finite-difference gradient
+    tests are what say so.
     """
-    np.add.at(grad, indices, values)
+    indices = np.asarray(indices)
+    values = np.asarray(values, dtype=float)
+    if not indices.size:
+        return
+    length = grad.shape[0]
+    for axis in range(grad.shape[1]):
+        grad[:, axis] += np.bincount(indices, weights=values[:, axis],
+                                     minlength=length)
 
 
 # ======================================================================

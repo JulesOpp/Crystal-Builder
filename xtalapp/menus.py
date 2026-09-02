@@ -188,6 +188,20 @@ def build_actions(window):
             checkable=True, checked=(mode_name == "select"),
             tip=mode.hint, group="mode")
 
+    # Escape has no menu entry -- there is nothing to click -- so the
+    # window is handed the action directly, which is what makes a
+    # shortcut live.  It has to be a window action and not a key
+    # handler on the viewport: a key event goes to the widget with
+    # focus, and the gesture being cancelled was started by pressing a
+    # toolbar button, so the focus is on the toolbar and the viewport
+    # never sees the key at all.
+    window.addAction(
+        add("cancel_gesture", "Cancel the current gesture",
+            window.cancel_gesture, "Esc",
+            tip="Put down a half-finished click gesture -- an "
+                "add-atom chain, the first end of a bond, the atoms "
+                "of a measurement.  Again to leave the mode."))
+
     add("define_plane", "Define &plane from selection",
         window.define_plane, "Ctrl+Shift+P",
         tip="Fit a plane through the selected atoms: exactly "
@@ -201,7 +215,12 @@ def build_actions(window):
         window.clear_measurements)
 
     add("select_all", "Select &All", window.select_all, "Ctrl+A")
-    add("select_none", "Select &None", window.select_none, "Esc")
+    # No key of its own: Escape is one action, and clearing the
+    # selection is its last rung -- see MainWindow.cancel_gesture.
+    # Two actions on the same key is an "ambiguous shortcut overload",
+    # which is Qt for neither of them firing.
+    add("select_none", "Select &None", window.select_none,
+        tip="Escape, when there is no gesture or mode to leave first")
     add("invert_selection", "&Invert selection",
         window.invert_selection, "Ctrl+I")
     add("select_same", "Select same &element",

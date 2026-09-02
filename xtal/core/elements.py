@@ -183,6 +183,22 @@ class Element:
         return VALENCE.get(self.symbol)
 
 
+#: Symbols that name a *position* rather than an element: the centre
+#: of a ring, the vertex of a net, somewhere a chemist wanted marked.
+#: They carry a covalent radius in the tables only because every
+#: symbol does, and everything that reasons about chemistry has to
+#: leave them out -- perception (:data:`xtal.core.bonding.BondRules`),
+#: the force field, and every external binary that would be handed a
+#: structure containing one.
+#:
+#: ``D`` is not here: deuterium is hydrogen with a neutron.
+DUMMY_ELEMENTS = frozenset({"X"})
+
+
+def is_dummy(symbol: str) -> bool:
+    return symbol in DUMMY_ELEMENTS
+
+
 def _hex_to_rgb(h: str) -> tuple[int, int, int]:
     return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
 

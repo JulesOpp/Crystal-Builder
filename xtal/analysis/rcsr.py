@@ -67,6 +67,7 @@ import gzip
 import json
 from dataclasses import dataclass
 from functools import cached_property, lru_cache
+from itertools import product
 from pathlib import Path
 
 import gemmi
@@ -333,18 +334,36 @@ def _check_coordination(net: Net, entry: CgdEntry, origin, symbol):
 class _Sites:
     """The vertices of one cell, found by position.
 
-    A dictionary on coordinates rounded to a thousandth, probed over
-    the neighbouring cells of that grid so that two points either side
-    of a rounding boundary still meet.  Every candidate is then checked
-    against :data:`TOLERANCE` properly, so the grid is an index and
-    never the answer.
+    A dictionary on coordinates rounded to a thousandth.  Two points
+    either side of a rounding boundary have to meet, so a vertex is
+    filed under its own cell **and every neighbouring one** -- and a
+    lookup then probes a single cell rather than the 3^d around it.
+
+    That is the way round it is for a reason worth stating, because
+    the obvious spelling is the other one.  Expanding the whole RCSR
+    file locates about four endpoints for every vertex it files, so
+    paying 3^d dictionary writes once per vertex buys back 3^d
+    dictionary reads on each of four lookups -- and the reads were
+    building a fresh tuple key apiece.  Filing the neighbourhood took
+    the file from 71 seconds to a few.
+
+    The candidate set is identical either way: a query at cell K finds
+    a vertex at cell C exactly when the two are within one cell of
+    each other, whichever side does the walking.  Every candidate is
+    then checked against :data:`TOLERANCE` properly, so the grid is an
+    index and never the answer.
+
+    Coordinates are kept twice, as arrays for the caller and as plain
+    float tuples for the search.  A three-component subtract-round-
+    norm costs more in NumPy call overhead than it does in Python
+    arithmetic, and this loop runs a million times over the file.
     """
 
     def __init__(self, dimension: int):
         self.dimension = dimension
         self.frac: list[np.ndarray] = []
+        self._points: list[tuple] = []      # the same, as plain floats
         self._index: dict[tuple, list[int]] = {}
-        self._offsets = _neighbourhood(dimension)
 
     @property
     def count(self) -> int:
@@ -352,50 +371,75 @@ class _Sites:
 
     def add(self, point) -> bool:
         """Record a vertex; ``False`` if it was already there."""
-        wrapped = np.mod(np.asarray(point, dtype=float), 1.0)
-        if self._search(wrapped) is not None:
+        values = tuple(float(v) % 1.0 for v in point)
+        cell = _cell(values)
+        if self._find(values, cell) is not None:
             return False
-        self.frac.append(wrapped)
-        self._index.setdefault(_cell(wrapped), []).append(
-            len(self.frac) - 1)
+        index = len(self._points)
+        self._points.append(values)
+        self.frac.append(np.array(values))
+        for key in _neighbourhood(cell):
+            self._index.setdefault(key, []).append(index)
         return True
 
     def locate(self, point, entry) -> tuple[int, np.ndarray]:
         """Which vertex this is, and how many cells away."""
-        raw = np.asarray(point, dtype=float)
-        wrapped = np.mod(raw, 1.0)
-        found = self._search(wrapped)
+        raw = tuple(float(v) for v in point)
+        values = tuple(v % 1.0 for v in raw)
+        found = self._find(values, _cell(values))
         if found is None:
             raise RcsrError(
                 f"{entry.name}: the edge endpoint "
-                f"{np.round(raw, 5).tolist()} is not on any vertex")
-        return found, np.round(raw - self.frac[found])
+                f"{[round(v, 5) for v in raw]} is not on any vertex")
+        return found, np.array(
+            [round(v - w) for v, w in
+             zip(raw, self._points[found], strict=True)], dtype=float)
 
-    def _search(self, wrapped) -> int | None:
-        base = _cell(wrapped)
-        best, distance = None, TOLERANCE
-        for offset in self._offsets:
-            key = tuple((b + o) % _GRID
-                        for b, o in zip(base, offset, strict=True))
-            for candidate in self._index.get(key, ()):
-                delta = wrapped - self.frac[candidate]
-                delta -= np.round(delta)
-                length = float(np.linalg.norm(delta))
-                if length < distance:
-                    best, distance = candidate, length
+    def _find(self, values: tuple, cell: tuple) -> int | None:
+        """The nearest vertex within :data:`TOLERANCE`, or ``None``.
+
+        Compared as squared lengths, so the square root that would be
+        thrown away on every candidate but the winner is never taken.
+        """
+        best, closest = None, TOLERANCE * TOLERANCE
+        for candidate in self._index.get(cell, ()):
+            total = 0.0
+            for value, other in zip(values, self._points[candidate],
+                                    strict=True):
+                delta = value - other
+                delta -= round(delta)           # nearest image
+                total += delta * delta
+                if total >= closest:
+                    break
+            else:
+                best, closest = candidate, total
         return best
 
 
-def _cell(wrapped) -> tuple:
-    return tuple(int(v) % _GRID
-                 for v in np.round(np.asarray(wrapped) * _GRID))
+def _cell(values) -> tuple:
+    """Which cell of the hash grid a wrapped point falls in.
+
+    Plain arithmetic on floats already in [0, 1): ``np.round`` on a
+    three-element array costs more than the rounding it does, and this
+    is called once per lookup.  Python's ``round`` is used and not
+    ``int(v + 0.5)`` because it breaks ties the same way ``np.round``
+    did -- a point landing exactly on a boundary files in the same
+    bucket it always has.
+    """
+    return tuple(round(v * _GRID) % _GRID for v in values)
 
 
-def _neighbourhood(dimension: int) -> list[tuple]:
-    out = [()]
-    for _ in range(dimension):
-        out = [row + (step,) for row in out for step in (-1, 0, 1)]
-    return out
+def _neighbourhood(cell: tuple):
+    """Every cell key within one step of ``cell``, wrapped.
+
+    The three wrapped values are worked out per axis and combined by
+    :func:`itertools.product`, rather than the 3^d offsets each being
+    added and wrapped again: for three dimensions that is nine
+    modulos instead of eighty-one, and it is done once per vertex of
+    every net in the file.
+    """
+    return product(*[((c - 1) % _GRID, c, (c + 1) % _GRID)
+                     for c in cell])
 
 
 # ======================================================================

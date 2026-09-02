@@ -9,7 +9,10 @@ that break crystallography code.
 * dry ice  -- cubic but molecular: four discrete CO2 molecules
 """
 
+import atexit
 import os
+import shutil
+import tempfile
 
 import pytest
 
@@ -23,6 +26,44 @@ from xtal import Lattice, Structure
 # Set before any window is built, and for the whole session, so no
 # test has to remember to.
 os.environ.setdefault("XTAL_NO_CONFIRM_CLOSE", "1")
+
+
+
+def _settings_into_a_scratch_directory() -> None:
+    """Keep QSettings out of the real preferences system.
+
+    On macOS ``QSettings`` *is* CFPreferences, so every window a test
+    builds talks to ``cfprefsd`` -- one system daemon, shared by every
+    xdist worker -- and leaves a plist behind in
+    ~/Library/Preferences that nothing ever removes.  Each window
+    fixture names its domain after ``tmp_path``, so that is one new
+    permanent preference domain per test: this suite had left 278 of
+    them on the machine it was written on.
+
+    Two things go wrong with that, and the second is the expensive
+    one.  It is somebody's real preferences folder and the suite has
+    no business writing there.  And eight workers hammering one
+    daemon with new domains is a contention the suite cannot see
+    inside: a full run would wedge about one time in six, blocked in
+    Qt with no Python frame to blame, which reads as a hung suite.
+
+    Pointing the INI backend at a directory of this process's own
+    takes the same code path through a file instead, touching no
+    daemon and nobody's preferences.  Done at import, because a
+    fixture runs too late for a module-level ``AppSettings``.
+    """
+    try:
+        from PySide6.QtCore import QSettings
+    except ImportError:               # the headless half of the suite
+        return
+    scratch = tempfile.mkdtemp(prefix="xtal-test-settings-")
+    atexit.register(shutil.rmtree, scratch, ignore_errors=True)
+    QSettings.setDefaultFormat(QSettings.IniFormat)
+    for scope in (QSettings.UserScope, QSettings.SystemScope):
+        QSettings.setPath(QSettings.IniFormat, scope, scratch)
+
+
+_settings_into_a_scratch_directory()
 
 
 @pytest.fixture(autouse=True)

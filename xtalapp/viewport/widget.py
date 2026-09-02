@@ -349,6 +349,10 @@ class ViewportWidget(QWidget):
                     return True
                 self._maybe_pick(event, double=True)
             elif event.type() in (QEvent.KeyPress, QEvent.KeyRelease):
+                # Only when the viewport has the focus, which it
+                # often does not -- the window owns Escape as an
+                # action for exactly that reason.  Kept so a viewport
+                # standing on its own still cancels.
                 if (event.type() == QEvent.KeyPress
                         and event.key() == Qt.Key_Escape):
                     self.cancel_gesture()
@@ -458,9 +462,9 @@ class ViewportWidget(QWidget):
         self.scene.set_ghost(ghost)
         self._safe_render()
 
-    def cancel_gesture(self) -> None:
+    def cancel_gesture(self) -> bool:
         """Escape: abandon whatever the mode is halfway through, and
-        then the mode itself.
+        then the mode itself.  Returns whether it did either.
 
         Two stages, because they are two different things to want.
         The first Escape puts down the state the mode is holding -- an
@@ -469,16 +473,22 @@ class ViewportWidget(QWidget):
         switching modes and back.  A second Escape, with nothing left
         to put down, means the user is finished: it returns to Select,
         which is the mode a click can do no harm in.
+
+        Saying so is what lets the window carry the escalation on to
+        the selection, which is the rung above these two and is where
+        Escape has always ended up.
         """
         if self.mode is None:
-            return
+            return False
         message = self.mode.on_cancel(self.document)
         self.set_ghost(None)
-        if not message and self.mode.name != "select":
-            self.set_mode("select")
-            return
         if message:
             self.statusMessage.emit(message)
+            return True
+        if self.mode.name != "select":
+            self.set_mode("select")
+            return True
+        return False
 
     def _maybe_context_menu(self, event) -> None:
         """A right click that did not drag asks for a context menu.

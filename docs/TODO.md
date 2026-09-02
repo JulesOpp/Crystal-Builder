@@ -1,4 +1,6 @@
 # TODO
+# Eric wants export as vector, 
+# Jules 2D builder in PORMAKE
 
 Work that is wanted but not yet scheduled into a phase.
 [docs/PLAN.md](PLAN.md) holds the roadmap; this file holds everything

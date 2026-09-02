@@ -134,16 +134,25 @@ def test_add_atom(empty_document):
 
 
 def test_build_a_molecule_atom_by_atom(empty_document):
-    """Three atoms placed in a P1 box become a water molecule, bonds
-    and all, with no symmetry to complicate it."""
+    """Three atoms placed in a P1 box become a water molecule -- once
+    the bonds are asked for.
+
+    Placing an atom does not perceive one: bonds change when the user
+    says so, and that rule has no exception for the operation that
+    happens to make it inconvenient.  Recalculate is the ask.
+    """
     _window, document = empty_document
     document.add_atom("O", [0.50, 0.50, 0.50])
     document.add_atom("H", [0.596, 0.50, 0.50])     # 0.96 A away
     document.add_atom("H", [0.50, 0.596, 0.50])
     assert document.structure.n_sites == 3
+    assert len(document.graph.bonds) == 0
+
+    document.recompute_bonds()
     assert len(document.graph.bonds) == 2
     assert [f.kind for f in document.graph.fragments()] == ["molecule"]
 
+    document.undo()                                 # the recalculation
     document.undo()
     assert document.structure.n_sites == 2
 
@@ -533,6 +542,7 @@ def test_clicking_a_bond_names_the_atoms_it_really_joins(
     _window, document = empty_document
     document.add_atom("C", [0.5, 0.5, 0.5])
     document.add_atom("O", [0.62, 0.5, 0.5])
+    document.recompute_bonds()          # placing does not perceive
     model = build_scene(document.structure, document.view)
     assert model.n_bond_halves == 2
 
@@ -548,6 +558,7 @@ def test_removing_a_bond_survives_hidden_atoms(empty_document):
     _window, document = empty_document
     document.add_atom("C", [0.5, 0.5, 0.5])
     document.add_atom("O", [0.62, 0.5, 0.5])
+    document.recompute_bonds()          # placing does not perceive
     document.update_view(style="wireframe")
     model = build_scene(document.structure, document.view)
     assert model.n_atoms == 0 and model.n_bond_halves == 2

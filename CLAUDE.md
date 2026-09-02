@@ -19,29 +19,33 @@ bonding, run force field / DFTB+ / Zeo++ calculations on the result.
 ## Commands
 
 ```bash
-python -m pytest -q                    # full suite, parallel, ~60 s
+python -m pytest -q                    # full suite, serial, ~92 s
 python -m pytest -q tests/test_bonding.py    # while iterating
-python -m pytest -q -m "not slow"      # ~23 s; skips the two long ones
-python -m pytest -q -n0                # serial, for a readable traceback
+python -m pytest -q -m "not slow"      # ~68 s; skips the twelve slow ones
 python -m pytest -q --durations=20     # what the run is actually spending
 ruff check .                           # lint (check only — see below)
 crystal-builder                        # launch the GUI
 ```
 
-`-n auto` is the default via `addopts`. Prefer a **targeted file** while
-iterating and the full suite once before committing; the whole suite is
-1600+ tests and running it after every edit is the single most
-expensive habit in this repo.
+**Serial is the default and it is not an oversight** — see the note in
+`pyproject.toml`. `-n auto` finishes in 25 s and wedged four runs out
+of eight; the deadlock behind that is described below. Prefer a
+**targeted file** while iterating and the full suite once before
+committing; the whole suite is 1600+ tests and running it after every
+edit is the single most expensive habit in this repo, and more so now.
 
-**The full run looks like it hangs for the last 45 seconds, and does
-not.** `test_every_entry_agrees_with_its_own_declared_coordination`
-expands all ~2900 RCSR nets and takes 45 s on one worker while every
-other worker drains in about 12; the run is that one test, alone, for
-most of its wall clock. It is marked `slow`, so `-m "not slow"` is the
-fast pass, and `--durations` is how to check the claim rather than
-believe it. Piping the run through `tail` hides the progress dots and
-makes the wait look like a freeze, which is what it has been mistaken
-for.
+**No single test should take anything like a minute**, whatever the
+suite as a whole costs. `--durations` is how to check that rather than
+assume it. Two tests have been fixed rather than tolerated — the RCSR
+expansion (45 s → 9 s, `_Sites` in `analysis/rcsr.py`) and the MFU-4l
+cell relaxation (16 s → 6 s, `_scatter` in `ff/uff/terms.py`) — and
+both fixes made the application faster by the same factor, which is
+the only kind of test-speed fix worth making. The slowest test left is
+about nine seconds.
+
+The suite's own 92 s is the price of running serially, not of any one
+test; getting it back to 25 s means fixing the deadlock, not trimming
+tests.
 
 ## Conventions
 
@@ -83,13 +87,48 @@ A test that is *about* a prompt opts out with
 `QMessageBox.question` itself — see
 `test_closing_a_modified_document_asks_first`.
 
-**If a parallel run ever hangs**, it is almost always orphaned xdist
-workers from a previous interrupted run. They survive `pkill -f
-pytest` and wedge every later run:
+**Settings go to a scratch directory, never to the real ones.**
+`tests/conftest.py` points the INI backend at a temp directory of the
+process's own, at import, before any `AppSettings` exists. On macOS
+`QSettings` *is* CFPreferences, so without this every window fixture --
+each naming its domain after `tmp_path` -- leaves a permanent plist in
+the developer's own ~/Library/Preferences. The suite had left 278 of
+them behind before anybody noticed. Do not give a window test a real
+preferences domain.
+
+**A full run wedges roughly one time in four, and it is a real
+application bug rather than a test one.** `xtalapp/workers.py`
+connects `worker.finished` to `thread.quit`; a bound method owns the
+Python wrapper of the object it is bound to, so when nothing else
+owns it, PySide6 frees a `QThread` wrapper *inside* signal delivery --
+while Qt holds the connection mutex, calling back into Python for
+`disconnectNotify`, which wants the GIL. Any thread holding the GIL
+and asking Qt to connect something then waits for that mutex forever,
+which is why every dump lands in `MainWindow.__init__` at a different
+line. The same race can hang the shipped application when a module
+run finishes. **Unfixed** -- holding the pair alive from Python is the
+obvious remedy and it is not enough on its own; it broke
+`test_modules_ui` outright.
+
+**If you turn `-n auto` back on and a run hangs**, kill the orphaned
+xdist workers before believing anything you measure next. They survive
+`pkill -f pytest`, they wedge every later run, and a loop that
+`kill -9`s the controller on a timeout manufactures a fresh one every
+time -- which is how a hang rate of "one in six" grew to "one in two"
+over an afternoon of measuring it:
 
 ```bash
 pkill -f pytest; pkill -9 -f "stdin.readline"
 ```
+
+To find a hang rather than guess at it, ask Python where it stopped:
+
+```bash
+python -m pytest -q -o faulthandler_timeout=40
+```
+
+Every thread's stack is dumped for any test that overruns, which is
+what named the one above.
 
 `MainWindow` takes a `viewport_factory`, so widget tests inject a stub
 `QWidget` in place of the VTK viewport and never open a real GL
@@ -115,7 +154,18 @@ stress case).
 ## Invariants — these are product decisions, not implementation details
 
 - **Bonds are recalculated only when the user presses Recalculate
-  Bonds.** Not on cell edits, not on load, not after an optimisation.
+  Bonds.** Not on cell edits, not on load, not after an optimisation,
+  and **not when an atom is placed** — an atom arrives with the bonds
+  the user gave it (Add atom draws one to its anchor) and no others.
+  `AddSites(perceive=False)` and `bonding.hold_perception` are how;
+  Add hydrogens is the deliberate exception, because bonding what it
+  adds is the whole operation.
+- **A dummy atom is a marker, not chemistry.** `X` — see
+  `elements.DUMMY_ELEMENTS`. Perception never bonds one, the force
+  field refuses one by name, and no module is ever handed one:
+  `job.without_dummies` holds them back at the door and
+  `restore_dummies` puts them back into a geometry a module returns.
+  Net edges and measurements take them, which is what they are for.
 - **A force field or optimiser never changes the bonding or the
   atoms.** All structural changes are the user's, made explicitly.
 - **Manually set bond types take precedence** over any distance-based

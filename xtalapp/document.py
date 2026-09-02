@@ -648,8 +648,16 @@ class Document(QObject):
 
     def add_atom(self, element: str, frac, occupancy: float = 1.0,
                  label: str = "") -> str:
+        """Place one atom where the user said, and bond it to nothing.
+
+        Perception is not run over it: bonds change when the user asks
+        them to, and an atom appearing already bonded to whatever it
+        happens to be near is that rule being broken by the one
+        operation nobody would expect to break it.  *Recalculate
+        bonds* is how the new atom joins the graph.
+        """
         site = atom_commands.new_site(element, frac, occupancy, label)
-        self.run(atom_commands.AddSites([site]))
+        self.run(atom_commands.AddSites([site], perceive=False))
         return f"added {element}"
 
     def add_bonded_atom(self, element: str, frac, anchor: int,
@@ -696,7 +704,8 @@ class Document(QObject):
                                  atoms)
         frac = self._structure.lattice.to_frac(point)
         site = atom_commands.new_site(element, frac, label=label)
-        self.run(atom_commands.AddSites([site], label="Add centroid"))
+        self.run(atom_commands.AddSites([site], label="Add centroid",
+                                        perceive=False))
         placed = self._structure.n_sites - 1
         self.select(self.cell.indices_of_site(placed).tolist())
         return (f"centroid of {len(atoms)} atoms added as "

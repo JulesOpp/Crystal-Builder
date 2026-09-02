@@ -50,15 +50,14 @@ DEFAULT_SCALE = 1.15
 DEFAULT_DELTA = 0.0
 MIN_BOND_DISTANCE = 0.4         # below this it is an overlap, not a bond
 
-#: Elements that are not chemistry and never bond by perception.  A
-#: dummy atom is a position somebody wanted named -- the centre of a
-#: ring, the vertex of a net -- and it has a covalent radius in the
-#: tables only because every symbol does.  Perceiving a bond to one
-#: would give the centre of a ring a bond to every carbon in it, and a
-#: coordination number nobody asked for.  A bond to a dummy atom that
-#: the user *draws* is a different matter and is stored like any
-#: other; so is a net edge, which is what they are mostly for.
-DUMMY_ELEMENTS = frozenset({"X"})
+#: Re-exported from :mod:`xtal.core.elements`, where the fact belongs:
+#: which symbols name a position rather than an element.  Perception
+#: never bonds one -- the centre of a ring would get a bond to every
+#: carbon in it, and a coordination number nobody asked for.  A bond
+#: to a dummy that the user *draws* is a different matter and is
+#: stored like any other; so is a net edge, which is mostly what they
+#: are for.
+DUMMY_ELEMENTS = el.DUMMY_ELEMENTS
 
 #: Re-exported from :mod:`xtal.core.structure`, where the identity
 #: rules for a stored bond have to know about it too.  A topology bond
@@ -296,6 +295,49 @@ def _by_distance(structure, rules, cell, store: bool) -> list[CellBond]:
     if store:
         structure.set_perceived(fresh, signature, cell)
     return fresh
+
+
+def hold_perception(structure, rules: BondRules | None = None) -> bool:
+    """Carry the stored perception onto atoms that were just appended,
+    giving them no bonds of their own.  Says whether it could.
+
+    Perception *grows* onto appended atoms by default -- see
+    :func:`_by_distance` -- and that is right for the edits that mean
+    "work out what these are bonded to": Add hydrogens puts a hydrogen
+    at a bond length from its parent and expects the graph to find it.
+
+    An atom the **user placed** is the other case entirely.  They said
+    where it goes, and if it bonds to anything they said that too, so
+    a distance criterion offering a second opinion is exactly what
+    "bonds change when you ask them to" exists to prevent -- see
+    :data:`xtal.core.structure.CHEMISTRY`.  Such a command calls this
+    afterwards, and the atom arrives with the bonds it was given and
+    no others.
+
+    :func:`prepare_hold` is the other half and runs *before* the edit:
+    a structure that has never been perceived has nothing to carry
+    forward, and would perceive the whole cell -- new atom included --
+    on the next read.
+    """
+    stored = structure.perceived
+    if stored is None:
+        return False
+    rules = rules or BondRules.from_dict(structure.bond_rules)
+    if stored.signature != rules.signature():
+        return False
+    cell = p1.expand(structure)
+    if not _appended_to(stored.elements, cell.elements):
+        return False
+    kept = rebase(stored.bonds, stored.tau, cell.tau[:stored.n_atoms])
+    structure.set_perceived(kept, stored.signature, cell)
+    return True
+
+
+def prepare_hold(structure, rules: BondRules | None = None) -> None:
+    """Make sure there is a stored perception to hold, before an edit
+    that appends atoms the user placed.  See :func:`hold_perception`."""
+    if structure.perceived is None:
+        perceive(structure, rules)
 
 
 def _appended_to(before, after) -> bool:

@@ -37,6 +37,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from xtal.core import elements as el
+
 
 class Cancelled(Exception):
     """Raised by :meth:`Cancellation.check` when Stop was pressed.
@@ -248,3 +250,64 @@ class JobResult:
     def summary(self) -> str:
         return self.message or ("stopped" if self.cancelled
                                 else "finished")
+
+
+# ======================================================================
+#  WHAT A MODULE IS NOT HANDED
+# ======================================================================
+#
+# A dummy atom is a marker and not chemistry -- see
+# :data:`xtal.core.elements.DUMMY_ELEMENTS`.  It has no force-field
+# type, no radius a porosity code would recognise, and no business in
+# a pore-size histogram; handing one to an external binary is how
+# Zeo++ comes back with an error on a structure the user considers
+# perfectly ordinary.  So the markers are held back at the door, which
+# is here, rather than in each module -- a module written next year
+# would have to remember, and would not.
+
+
+def without_dummies(structure):
+    """``(structure, held)`` -- what a module is handed, and what was
+    kept back from it.
+
+    ``held`` is what :func:`restore_dummies` needs to put them back,
+    and is ``None`` when there were none -- in which case the
+    structure comes back untouched rather than copied, because that is
+    every run on every structure anybody has ever opened.
+    """
+    dummies = [i for i, site in enumerate(structure.sites)
+               if el.is_dummy(site.element)]
+    if not dummies:
+        return structure, None
+    clean = structure.copy()
+    held = (tuple((i, clean.sites[i].copy()) for i in dummies),
+            list(clean.bonds), len(clean.sites) - len(dummies))
+    clean.remove_sites(dummies)
+    return clean, held
+
+
+def restore_dummies(structure, held):
+    """Put the markers back into a structure a module handed back.
+
+    The sites go in at the indices they had and the bond list that
+    named them is restored whole -- the same move
+    ``DeleteSites.undo`` makes, and for the same reason: taking a site
+    out renumbers every bond after it, so putting the site back is not
+    enough on its own.  A user-drawn bond to a dummy, and a net edge
+    to one, both survive the round trip because of it.
+
+    Only when the module gave back the same atoms it was given, which
+    is the only case this can be right about.  A module that returned
+    a different structure -- a supercell, a framework built from
+    nothing -- did not return one the old markers have positions in,
+    and it comes back unchanged with ``False`` to say so.
+    """
+    if held is None:
+        return structure, True
+    sites, bonds, expected = held
+    if len(structure.sites) != expected:
+        return structure, False
+    for index, site in sites:                       # ascending
+        structure.sites.insert(index, site.copy())
+    structure.set_bonds(bonds)
+    return structure, True

@@ -22,19 +22,41 @@ from xtal.core.structure import Change
 
 
 class AddSites(Command):
-    """Append sites to the asymmetric unit."""
+    """Append sites to the asymmetric unit.
+
+    ``perceive`` says whether the atoms are perception's business.
+    Add hydrogens leaves it True: it puts a hydrogen at a bond length
+    from its parent and means the graph to find it, which is the whole
+    point of the operation.  An atom a *user* placed sets it False --
+    they said where it goes, and if it bonds to anything they said
+    that too, so a distance criterion offering a second opinion is
+    what :data:`xtal.core.structure.CHEMISTRY` exists to prevent.
+    See :func:`xtal.core.bonding.hold_perception`.
+    """
 
     change = Change.TOPOLOGY
 
-    def __init__(self, sites, label: str | None = None):
+    def __init__(self, sites, label: str | None = None,
+                 perceive: bool = True):
         self.sites = [s.copy() for s in sites]
         self.label = label or (
             f"Add {self.sites[0].element}" if len(self.sites) == 1
             else f"Add {len(self.sites)} atoms")
+        self.perceive = bool(perceive)
         self.indices: list[int] = []
+        # The stored perception this replaced.  Undo has to put it
+        # back: taking the atoms out again leaves a graph that
+        # describes a longer cell than the one that is there, which
+        # the next read throws away and perceives from scratch -- at
+        # whatever geometry the atoms are at *now*.  Bonds following a
+        # geometry they were never meant to follow, by way of an undo.
+        self._perceived = None
 
     def do(self, host) -> None:
         structure = host.structure
+        self._perceived = structure.perceived
+        if not self.perceive:
+            bonding.prepare_hold(structure)
         fresh = []
         for site in self.sites:
             copy = site.copy()
@@ -43,9 +65,12 @@ class AddSites(Command):
                     copy.element, taken=[s.label for s in fresh])
             fresh.append(copy)
         self.indices = structure.add_sites(fresh)
+        if not self.perceive:
+            bonding.hold_perception(structure)
 
     def undo(self, host) -> None:
         host.structure.remove_sites(self.indices)
+        host.structure.perceived = self._perceived
 
 
 class AddBondedSite(Command):
@@ -80,6 +105,7 @@ class AddBondedSite(Command):
         self.indices: list[int] = []
         self.bond = None
         self._bonded = False
+        self._perceived = None          # see AddSites._perceived
         #: Where the new atom landed in the P1 cell, as (atom,
         #: translation).  The caller cannot work this out for itself
         #: -- the site is wrapped into the cell and its orbit is
@@ -89,11 +115,17 @@ class AddBondedSite(Command):
 
     def do(self, host) -> None:
         structure = host.structure
+        # The user said what this atom is bonded to, and the bond
+        # below is that answer.  Perception is not asked for a second
+        # one -- see `bonding.hold_perception`.
+        self._perceived = structure.perceived
+        bonding.prepare_hold(structure)
         site = self.site.copy()
         if not site.label:
             site.label = structure.suggest_label(site.element)
         self.indices = structure.add_sites([site])
         self.bond = self._bond_to_anchor(structure, site)
+        bonding.hold_perception(structure)
         self._bonded = structure.add_bond(self.bond)
 
     def undo(self, host) -> None:
@@ -103,6 +135,7 @@ class AddBondedSite(Command):
         if self._bonded:
             structure.remove_bond(self.bond)
         structure.remove_sites(self.indices)
+        structure.perceived = self._perceived
 
     def _bond_to_anchor(self, structure, site):
         cell = p1.expand(structure)

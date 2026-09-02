@@ -106,15 +106,25 @@ def test_a_centroid_is_one_undo_step(square):
 
 def test_a_dummy_atom_bonds_to_nothing(square):
     """Even at a distance that would bond anything else: it is not
-    chemistry, and a ring centre with four bonds to its own carbons is
-    the picture this rule exists to prevent."""
-    square.select([0, 1, 2, 3])
-    square.add_centroid()
-    close = len(bonding.perceive(square.structure))
+    chemistry, and a ring centre with a bond to every carbon in the
+    ring is the picture this rule exists to prevent.
 
-    square.select([0, 1])
+    Asked for explicitly, because placing an atom no longer perceives
+    anything on its own -- which makes recalculating the only way a
+    perceived bond to the dummy could appear at all."""
+    square.select([0, 1, 2, 3])
+    square.add_centroid()               # a dummy at the centre
+    square.recompute_bonds()
+    dummy = next(i for i, e in enumerate(square.cell.elements)
+                 if e == "X")
+    assert not square.graph.neighbors(dummy)
+
+    square.select([0, 1, 2, 3])
     square.add_centroid("C")            # the same place, as carbon
-    assert len(bonding.perceive(square.structure)) > close
+    square.recompute_bonds()
+    carbon = square.structure.n_sites - 1
+    placed = square.cell.indices_of_site(carbon)[0]
+    assert square.graph.neighbors(int(placed))
 
 
 def test_the_rules_refuse_a_dummy_pair():
@@ -240,3 +250,110 @@ def test_the_dialog_refuses_a_word_that_is_not_an_element(qtbot):
     assert not dialog.warning.isHidden()
     assert "not an element symbol" in dialog.warning.text()
     assert dialog.result() != QDialog.Accepted
+
+
+# ------------------------------------------ dummy atoms and the modules
+
+def test_a_module_is_never_handed_a_dummy_atom(square):
+    """A marker has no force-field type and no radius a porosity code
+    knows, and one in the cell is enough to fail a Zeo++ run on a
+    structure the user considers perfectly ordinary."""
+    from xtal.modules.job import without_dummies
+
+    square.select([0, 1, 2, 3])
+    square.add_centroid()
+    handed, held = without_dummies(square.structure)
+    assert [s.element for s in handed.sites] == ["C"] * 4
+    assert held is not None
+
+
+def test_a_structure_with_no_dummies_is_handed_over_untouched(square):
+    """Which is every run on every structure anybody has opened."""
+    from xtal.modules.job import without_dummies
+
+    handed, held = without_dummies(square.structure)
+    assert handed is square.structure
+    assert held is None
+
+
+def test_the_markers_come_back_with_their_bonds(square):
+    """Taking a site out renumbers every bond after it, so putting the
+    site back is not enough on its own -- a net edge drawn to a dummy
+    has to survive the round trip."""
+    from xtal.modules.job import restore_dummies, without_dummies
+
+    square.select([0, 1, 2, 3])
+    square.add_centroid()
+    square.add_topology_bond_between(4, 0)
+    edges = len(bonding.topology_graph(square.structure).bonds)
+
+    handed, held = without_dummies(square.structure)
+    assert not bonding.topology_graph(handed).bonds
+    back, restored = restore_dummies(handed, held)
+    assert restored
+    assert [s.element for s in back.sites] == ["C"] * 4 + ["X"]
+    assert len(bonding.topology_graph(back).bonds) == edges
+
+
+def test_a_module_that_returns_different_atoms_says_so(square):
+    """A supercell, or a framework built from nothing, is not a
+    structure the old markers have positions in."""
+    from xtal.commands.atoms import new_site
+    from xtal.modules.job import restore_dummies, without_dummies
+
+    square.select([0, 1, 2, 3])
+    square.add_centroid()
+    handed, held = without_dummies(square.structure)
+    handed.add_sites([new_site("N", [0.1, 0.1, 0.1])])
+
+    back, restored = restore_dummies(handed, held)
+    assert not restored
+    assert "X" not in [s.element for s in back.sites]
+
+
+def test_the_runner_holds_the_dummies_back(qtbot, tmp_path, rutile_cif,
+                                           monkeypatch):
+    """Through the window, because holding them back at the door is
+    the point: a module written next year would have to remember to
+    do it itself, and would not."""
+    pytest.importorskip("pytestqt")
+    from tests.test_app_shell import StubViewport
+    from xtalapp import module_runner
+    from xtalapp.mainwindow import MainWindow
+    from xtalapp.settings import AppSettings
+
+    monkeypatch.setenv("XTAL_STUB_MODULE", "1")
+    from xtal.modules import MODULES
+    from xtal.modules import stub as stub_module
+    stub_module.register()
+
+    settings = AppSettings("CrystalBuilderTest", f"Dum{tmp_path.name}")
+    settings.clear_recent_files()
+    settings.last_directory = str(tmp_path)
+    window = MainWindow(viewport_factory=StubViewport,
+                        settings=settings)
+    qtbot.addWidget(window)
+    window.open_path(rutile_cif)
+    document = window.current_document()
+    document.select([0, 1])
+    document.add_centroid()
+    assert "X" in [s.element for s in document.structure.sites]
+
+    handed = []
+    real_job = module_runner.Job
+
+    def spy(**kwargs):
+        handed.append(kwargs.get("structure"))
+        return real_job(**kwargs)
+
+    monkeypatch.setattr(module_runner, "Job", spy)
+    monkeypatch.setattr(module_runner, "start_in_thread",
+                        lambda worker, parent: None)
+
+    module = MODULES.get("stub")
+    action = module.action(next(iter(module)).name)
+    window.module_runner._start_module(module, action, {}, document)
+
+    assert handed and handed[0] is not None
+    assert "X" not in [s.element for s in handed[0].sites]
+    assert window.module_runner._held_dummies is not None

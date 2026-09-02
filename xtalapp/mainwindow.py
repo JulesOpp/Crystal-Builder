@@ -542,6 +542,29 @@ class MainWindow(QMainWindow):
             return
         self.statusBar().showMessage(modes.get(name).hint, 6000)
 
+    def cancel_gesture(self) -> None:
+        """Escape, from wherever the focus happens to be.
+
+        A window action rather than a key handler on the viewport,
+        because a key event goes to the widget that has focus and the
+        viewport almost never does: entering a mode means pressing a
+        toolbar button, which leaves the focus on the toolbar.
+
+        And an escalation, because Escape means "back out of whatever
+        I am in the middle of" and there are three depths of that: a
+        half-finished click gesture, a mode that is not Select, and a
+        selection.  Each press goes up one rung, so the key never does
+        nothing while there is still something to back out of -- and
+        it still ends where it has always ended, clearing the
+        selection.
+        """
+        viewport = self.current_viewport()
+        if (viewport is not None
+                and hasattr(viewport, "cancel_gesture")
+                and viewport.cancel_gesture()):
+            return
+        self.select_none()
+
     def sync_mode_action(self, name: str) -> None:
         """Press the toolbar button for the mode the viewport is in.
 

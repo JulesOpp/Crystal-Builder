@@ -30,6 +30,7 @@ from PySide6.QtCore import QObject
 from xtal.core.structure import Change
 from xtal.modules import MODULES, Job, ModuleError
 from xtal.modules import record as module_record
+from xtal.modules.job import restore_dummies, without_dummies
 from xtal.workspace import safe_name
 from xtalapp.dialogs import module_dialog
 from xtalapp.dialogs.module_form import ModuleDialog
@@ -62,6 +63,10 @@ class ModuleRunner(QObject):
         self.module_worker: ModuleWorker | None = None
         self._module_thread = None
         self._module_params: dict = {}
+        # The dummy atoms kept out of the run in progress, so they can
+        # be put back into a geometry it hands over.  See
+        # `xtal.modules.job.without_dummies`.
+        self._held_dummies = None
 
     def run_module_action(self, module_name: str,
                           action_name: str) -> None:
@@ -167,10 +172,22 @@ class ModuleRunner(QObject):
         # on it and may move it, while the window goes on redrawing the
         # one the user can see; sharing them would be a data race in
         # the most literal sense.
-        job = Job(structure=document.structure.copy()
-                  if document is not None else None,
+        #
+        # And a copy with the dummy atoms taken out -- see
+        # `xtal.modules.job.without_dummies`.  A marker has no
+        # force-field type and no radius a porosity code knows, and
+        # one in the cell is enough to fail a Zeo++ run outright.
+        # They are put back if the module hands a geometry back.
+        structure, self._held_dummies = (
+            without_dummies(document.structure.copy())
+            if document is not None else (None, None))
+        job = Job(structure=structure,
                   params=values, folder=folder,
                   label=f"{module.name}.{action.name}")
+        if self._held_dummies is not None:
+            self.window.show_message(
+                f"{len(self._held_dummies[0])} dummy atom(s) left out "
+                f"of this run -- a marker is not chemistry")
         worker = ModuleWorker(module, action, job)
         worker.progressed.connect(self.window.modules_dock.set_progress)
         worker.progressed.connect(self.window.run_progress.set_progress)
@@ -352,8 +369,15 @@ class ModuleRunner(QObject):
             return
         label = f"{worker.module.label}: {worker.action.label}" \
             if worker is not None else "Module result"
-        document.replace_structure(result.structure,
-                                   label.rstrip("."), Change.ALL)
+        adopted, restored = restore_dummies(result.structure,
+                                            self._held_dummies)
+        if not restored:
+            self.window.show_message(
+                "the dummy atoms were not put back: this run returned "
+                "different atoms from the ones it was given, so there "
+                "is nowhere they belong in it")
+        document.replace_structure(adopted, label.rstrip("."),
+                                   Change.ALL)
 
     def _open_module_structure(self, worker, result) -> None:
         """A structure a module built from nothing, in a new tab.

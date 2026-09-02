@@ -70,13 +70,27 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# The suite is ~1400 small tests, none of them dominant, so the wall
-# clock is the sum and not one hot spot -- which is the case workers
-# fix.  Each gets its own process and so its own QApplication, which
-# is also why the Qt half parallelises at all.  Use "-p no:xdist" (or
-# "-n0") to get a serial run back when a traceback needs to be read in
-# order, or when a debugger has to attach.
-addopts = ["-n", "auto"]
+# Serial, deliberately, and it costs about a minute.
+#
+# Parallel is three and a half times faster -- 25 s against 92 -- and
+# it wedged four runs out of eight.  The cause is a lock-order
+# inversion between Qt's connection mutex and the GIL: PySide6 frees a
+# QThread's Python wrapper inside signal delivery, which calls back
+# into Python for disconnectNotify while Qt holds the mutex, and any
+# thread that holds the GIL and asks Qt to connect something waits for
+# that mutex forever.  It presents as the run stopping dead in
+# MainWindow.__init__ with no Python frame to blame, and it can hang
+# the shipped application the same way when a module run finishes.
+#
+# The deadlock is inside one process, so serial does not make it
+# impossible -- eight workers' worth of contention is what made it
+# likely, and eight serial runs in a row were clean where four of
+# eight parallel ones were not.  A minute that finishes beats
+# twenty-five seconds that stops one time in two.
+#
+# Put "-n auto" back once workers.py no longer lets a wrapper be
+# freed during signal delivery.  See CLAUDE.md.
+addopts = ["-n0"]
 filterwarnings = [
     "error::DeprecationWarning",
     # PORMAKE's cell relaxation calls scipy's L-BFGS-B with `disp`,
