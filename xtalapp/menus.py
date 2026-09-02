@@ -136,12 +136,21 @@ def build_actions(window):
         tip="Complete every main-group coordination with the "
             "hydrogens an X-ray structure never had")
     add("recompute_bonds", "&Recalculate bonds",
-        window.recompute_bonds, "Ctrl+B",
+        window.recompute_bonds,
         tip="Perceive the bonds again from the geometry as it is "
             "now.  Bonds do not change on their own when atoms "
             "move; this is what changes them.")
+    # Ctrl+B is the reset and not the recalculation, because the two
+    # are reached differently: recalculating after moving atoms is
+    # rare -- bonds do not follow the geometry in the first place --
+    # and the one worth a key is the way back to a clean answer after
+    # an afternoon of editing.  It throws bond edits away, which is
+    # answered by ResetBonds being a single command: Ctrl+Z is exactly
+    # one press.  The toolbar button stays Recalculate; a button is
+    # pressed by aim rather than by memory, and the destructive one of
+    # a pair is the wrong thing to leave under the cursor.
     add("reset_bonds", "Reset bonds to a&utomatic",
-        window.reset_bonds,
+        window.reset_bonds, "Ctrl+B",
         tip="Drop the bonds you drew and the ones you deleted, "
             "and take what the distance criteria give.  The only "
             "way back from a deleted bond once the undo stack has "

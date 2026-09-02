@@ -437,8 +437,8 @@ class MainWindow(QMainWindow):
 
         Separate from Recalculate because the two answer different
         questions: recalculating asks the geometry, resetting also
-        withdraws every answer the user has given -- which is why it
-        is a menu entry and not what Ctrl+B quietly does.
+        withdraws every answer the user has given.  This is the one
+        with the key on it -- see the note in :mod:`xtalapp.menus`.
         """
         document = self.current_document()
         if document is not None:

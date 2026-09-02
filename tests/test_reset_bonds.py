@@ -266,3 +266,41 @@ def test_the_document_draws_a_deleted_bond_back(rutile_cif):
     assert "deleted" in message
     assert document.undo()
     assert len(document.graph.bonds) < before
+
+
+@pytest.fixture
+def bonded_window(qtbot, tmp_path):
+    """A window, only for what its bond actions are bound to."""
+    pytest.importorskip("PySide6")
+    pytest.importorskip("pytestqt")
+    from tests.test_app_shell import StubViewport
+    from xtalapp.mainwindow import MainWindow
+    from xtalapp.settings import AppSettings
+
+    settings = AppSettings("CrystalBuilderTest", f"Keys{tmp_path.name}")
+    settings.clear_recent_files()
+    settings.last_directory = str(tmp_path)
+    window = MainWindow(viewport_factory=StubViewport, settings=settings)
+    qtbot.addWidget(window)
+    return window
+
+
+def test_the_key_is_on_the_reset_and_not_on_the_recalculation(
+        bonded_window):
+    """Ctrl+B is the way back to a clean answer, which is the one of
+    the pair people reach for; recalculating keeps the menu entry and
+    the toolbar button and loses the key."""
+    from PySide6.QtGui import QKeySequence
+
+    assert (bonded_window.actions_["reset_bonds"].shortcut()
+            == QKeySequence("Ctrl+B"))
+    assert bonded_window.actions_["recompute_bonds"].shortcut().isEmpty()
+
+
+def test_the_toolbar_button_is_still_the_recalculation(bonded_window):
+    """A button is pressed by aim rather than by memory, so the
+    destructive one of the pair is the wrong thing to leave under the
+    cursor."""
+    on_bar = [action.text() for action in bonded_window.toolbar.actions()]
+    assert "&Recalculate bonds" in on_bar
+    assert "Reset bonds to a&utomatic" not in on_bar
