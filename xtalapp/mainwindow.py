@@ -542,6 +542,19 @@ class MainWindow(QMainWindow):
             return
         self.statusBar().showMessage(modes.get(name).hint, 6000)
 
+    def sync_mode_action(self, name: str) -> None:
+        """Press the toolbar button for the mode the viewport is in.
+
+        The viewport changes mode by itself when Escape leaves one, so
+        the button cannot be the thing that decides which mode is
+        current -- it has to follow.  ``setChecked`` and not
+        ``trigger``: triggering would call back into
+        :meth:`set_mode` and set the mode that is already set.
+        """
+        action = self.actions_.get(f"mode_{name}")
+        if action is not None and not action.isChecked():
+            action.setChecked(True)
+
     def _on_measure_target(self, count: int) -> None:
         """The measurement chooser sets how many atoms a click run
         takes; the mode is where that lives."""

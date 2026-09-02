@@ -19,6 +19,9 @@ from xtal.core import elements as el
 
 pytest.importorskip("PySide6")
 
+from PySide6.QtCore import Signal  # noqa: E402
+
+from tests.test_app_shell import StubViewport  # noqa: E402
 from xtalapp.document import Document  # noqa: E402
 from xtalapp.viewport import modes  # noqa: E402
 from xtalapp.viewport.builder import build_scene  # noqa: E402
@@ -46,6 +49,11 @@ def one_carbon():
 
 def scene(document):
     return build_scene(document.structure, document.view)
+
+
+def instance_of(model, atom: int):
+    """The drawn row for P1 atom ``atom``, as the mode holds it."""
+    return modes.drawn_instance(model, atom)
 
 
 def ray_at(document, atom: int, offset=(0.0, 0.0, -10.0)):
@@ -139,11 +147,19 @@ def test_the_atom_and_its_bond_are_one_undo_step(mode, one_carbon):
     assert one_carbon.structure.bonds == []
 
 
-def test_the_anchor_is_forgotten_after_the_placement(mode, one_carbon):
+def test_the_anchor_moves_to_the_atom_just_placed(mode, one_carbon):
+    """Drawing a chain is the same gesture repeated, so the mode stays
+    in it: click, point, point.  Re-anchoring by hand between every
+    pair would double the clicks of the one thing this is for."""
     mode.on_click(one_carbon, scene(one_carbon), ray_at(one_carbon, 0))
     mode.on_click(one_carbon, scene(one_carbon),
                   ray_at(one_carbon, 0, offset=(0.0, 8.0, -10.0)))
-    assert mode.anchor is None
+
+    placed = one_carbon.cell.cart[1]
+    assert mode.anchor is not None
+    assert mode.anchor[0] == 1
+    assert np.allclose(mode.anchor[2], placed)
+    assert sorted(one_carbon.selection.atoms) == [1]
 
 
 def test_a_click_on_empty_space_still_places_an_atom(mode, one_carbon):
@@ -192,7 +208,7 @@ def test_nothing_selected_starts_at_the_first_click(mode, one_carbon):
 def test_escape_abandons_the_anchor(mode, one_carbon):
     mode.on_click(one_carbon, scene(one_carbon), ray_at(one_carbon, 0))
     assert mode.anchor is not None
-    assert "dropped" in mode.on_cancel(one_carbon)
+    assert "chain ended" in mode.on_cancel(one_carbon)
     assert mode.anchor is None
     assert one_carbon.structure.n_sites == 1
 
@@ -293,6 +309,130 @@ def test_the_bond_is_to_the_copy_that_was_clicked(mode, quartz):
     assert drawn, "the bond was not drawn to the copy that was clicked"
 
 
+# --------------------------------------------------------- the chain
+
+def test_a_chain_is_one_click_per_atom(mode, one_carbon):
+    """Click the carbon once, then point three times: four atoms and
+    three bonds, and not one re-anchoring click in between."""
+    model = scene(one_carbon)
+    mode.on_click(one_carbon, model, ray_at(one_carbon, 0))
+    for _ in range(3):
+        atom = mode.anchor[0]
+        model = scene(one_carbon)
+        mode.on_click(one_carbon, model,
+                      ray_at(one_carbon, atom, offset=(0.0, 8.0, -10.0)))
+
+    assert one_carbon.structure.n_sites == 4
+    assert len(one_carbon.graph.bonds) == 3
+
+
+def test_every_link_of_the_chain_is_its_own_undo_step(mode, one_carbon):
+    """One gesture, one atom, one Ctrl+Z -- a chain that undid all at
+    once would be a chain you could not correct the end of."""
+    mode.on_click(one_carbon, scene(one_carbon), ray_at(one_carbon, 0))
+    mode.on_click(one_carbon, scene(one_carbon),
+                  ray_at(one_carbon, 0, offset=(0.0, 8.0, -10.0)))
+    mode.on_click(one_carbon, scene(one_carbon),
+                  ray_at(one_carbon, 1, offset=(8.0, 0.0, -10.0)))
+    assert one_carbon.structure.n_sites == 3
+
+    one_carbon.undo()
+    assert one_carbon.structure.n_sites == 2
+    one_carbon.undo()
+    assert one_carbon.structure.n_sites == 1
+
+
+def test_carrying_on_says_so(mode, one_carbon):
+    mode.on_click(one_carbon, scene(one_carbon), ray_at(one_carbon, 0))
+    message = mode.on_click(one_carbon, scene(one_carbon),
+                            ray_at(one_carbon, 0,
+                                   offset=(0.0, 8.0, -10.0)))
+    assert "carry on" in message and "Escape" in message
+
+
+# ---------------------------------------------------------- the snap
+
+def test_hovering_an_atom_snaps_the_ghost_onto_it(mode, one_carbon):
+    """Whatever the distance: the ring being closed is wherever it is,
+    and a ghost hanging a bond length short of it is a picture of the
+    wrong answer."""
+    one_carbon.add_atom("C", [0.8, 0.5, 0.5])       # 6 A away
+    model = scene(one_carbon)
+    mode.anchor = instance_of(model, 0)
+
+    target = model.positions[1]
+    ghost = mode.on_move(one_carbon, model,
+                         modes.MoveEvent(tuple(target + [0, 0, -10]),
+                                         (0.0, 0.0, 1.0)))
+    assert np.allclose(ghost.position, target)
+    reach = float(np.linalg.norm(ghost.position - model.positions[0]))
+    assert reach > modes.bond_distance("C", "C") * 2
+
+
+def test_a_snapped_ghost_swells_the_atom_it_is_on(mode, one_carbon):
+    """A translucent sphere exactly over a solid one is invisible."""
+    one_carbon.add_atom("O", [0.8, 0.5, 0.5])
+    model = scene(one_carbon)
+    mode.anchor = instance_of(model, 0)
+
+    ghost = mode.on_move(
+        one_carbon, model,
+        modes.MoveEvent(tuple(model.positions[1] + [0, 0, -10]),
+                        (0.0, 0.0, 1.0)))
+    assert ghost.radius > float(model.radii[1])
+    assert ghost.color == tuple(int(c) for c in model.colors[1])
+
+
+def test_clicking_a_snapped_atom_bonds_instead_of_placing(
+        mode, one_carbon):
+    """What closes a ring.  Placing a second atom on top of the one
+    that is already there is not that."""
+    one_carbon.add_atom("C", [0.8, 0.5, 0.5])
+    model = scene(one_carbon)
+    mode.anchor = instance_of(model, 0)
+
+    message = mode.on_click(
+        one_carbon, model,
+        modes.ClickEvent(tuple(model.positions[1] + [0, 0, -10]),
+                         (0.0, 0.0, 1.0)))
+    assert "bond added" in message
+    assert one_carbon.structure.n_sites == 2        # nothing placed
+    assert len(one_carbon.graph.bonds) == 1
+    assert mode.anchor[0] == 1                      # chain carries on
+
+
+def test_the_anchor_does_not_snap_to_itself(mode, one_carbon):
+    """It is the atom the cursor is nearest for the first few pixels
+    of every gesture, and an atom does not bond to itself."""
+    model = scene(one_carbon)
+    mode.anchor = instance_of(model, 0)
+
+    ghost = mode.on_move(
+        one_carbon, model,
+        modes.MoveEvent(tuple(model.positions[0] + [0, 0, -10]),
+                        (0.0, 0.0, 1.0)))
+    assert not np.allclose(ghost.position, model.positions[0])
+    assert float(np.linalg.norm(
+        ghost.position - model.positions[0])) == pytest.approx(
+            modes.bond_distance("C", "C"))
+
+
+def test_a_click_anchors_the_copy_that_was_clicked(mode, quartz):
+    """In a multi-cell view the copy in the home cell is a different
+    atom in a different place from the one under the cursor."""
+    document = Document(quartz)
+    document.view.set_cells(2, 1, 1)
+    model = build_scene(document.structure, document.view)
+    row = next(i for i in range(model.n_atoms)
+               if tuple(model.atom_cell[i]) == (1, 0, 0))
+
+    point = model.positions[row] + np.array([0.0, 0.0, -10.0])
+    mode.on_click(document, model,
+                  modes.ClickEvent(tuple(point), (0.0, 0.0, 1.0)))
+    assert mode.anchor[1] == (1, 0, 0)
+    assert np.allclose(mode.anchor[2], model.positions[row])
+
+
 # ------------------------------------------------- through the viewport
 #
 # The widget's own methods, run against a stand-in: what is being
@@ -337,6 +477,7 @@ class FakeViewport:
         self.statusMessage = FakeSignal()
         self._ghost = None
         self.renders = 0
+        self.modes_set: list = []
         self._ray = ray or ((0.0, 0.0, -10.0), (0.0, 0.0, 1.0))
 
     def _ray_at(self, point):
@@ -352,6 +493,11 @@ class FakeViewport:
     def cancel_gesture(self):
         from xtalapp.viewport.widget import ViewportWidget
         ViewportWidget.cancel_gesture(self)
+
+    def set_mode(self, name):
+        self.mode.on_deactivate(self.document)
+        self.mode = modes.get(name)
+        self.modes_set.append(name)
 
 
 class FakeMove:
@@ -369,6 +515,20 @@ class FakeMove:
 def viewport_module():
     from xtalapp.viewport import widget
     return widget
+
+
+class ModeViewport(StubViewport):
+    """A stub that changes mode the way the real viewport does."""
+
+    modeChanged = Signal(str)
+
+    def __init__(self, document, parent=None):
+        super().__init__(document, parent)
+        self.mode = modes.get("select")
+
+    def set_mode(self, name):
+        self.mode = modes.get(name)
+        self.modeChanged.emit(name)
 
 
 def test_a_hover_puts_a_ghost_up(mode, one_carbon):
@@ -463,3 +623,73 @@ def test_escape_reaches_the_mode_through_the_event_filter(
         QKeyEvent(QEvent.KeyPress, Qt.Key_Escape, Qt.NoModifier))
     assert consumed is True                 # VTK never sees it
     assert mode.anchor is None
+
+
+def test_the_first_escape_ends_the_chain_and_the_second_leaves(
+        mode, one_carbon):
+    """Two different things to want.  The first Escape puts down state
+    that is otherwise unreachable except by switching modes and back;
+    the second means the user is finished, and Select is the mode a
+    click can do no harm in."""
+    widget = viewport_module()
+    mode.anchor = (0, (0, 0, 0), one_carbon.cell.cart[0])
+    view = FakeViewport(mode, one_carbon, scene(one_carbon))
+
+    widget.ViewportWidget.cancel_gesture(view)
+    assert mode.anchor is None
+    assert view.modes_set == []                 # still in Add atom
+    assert view.statusMessage.sent
+
+    widget.ViewportWidget.cancel_gesture(view)
+    assert view.modes_set == ["select"]
+
+
+def test_escape_in_select_mode_goes_nowhere(one_carbon):
+    """There is nothing past Select to escape to."""
+    widget = viewport_module()
+    view = FakeViewport(modes.get("select"), one_carbon,
+                        scene(one_carbon))
+    widget.ViewportWidget.cancel_gesture(view)
+    assert view.modes_set == []
+
+
+def test_leaving_a_mode_by_escape_releases_the_toolbar_button(
+        qtbot, tmp_path, rutile_cif):
+    """The viewport changes mode by itself, so the button cannot be
+    what decides which mode is current -- a pressed Add atom over a
+    viewport in Select is a picture of a mode nobody is in."""
+    pytest.importorskip("pytestqt")
+    from xtalapp.mainwindow import MainWindow
+    from xtalapp.settings import AppSettings
+
+    settings = AppSettings("CrystalBuilderTest", f"Mode{tmp_path.name}")
+    settings.clear_recent_files()
+    settings.last_directory = str(tmp_path)
+    window = MainWindow(viewport_factory=ModeViewport,
+                        settings=settings)
+    qtbot.addWidget(window)
+    window.open_path(rutile_cif)
+
+    window.actions_["mode_add_atom"].trigger()
+    assert window.actions_["mode_add_atom"].isChecked()
+
+    window.current_viewport().set_mode("select")    # what Escape does
+    assert window.actions_["mode_select"].isChecked()
+    assert not window.actions_["mode_add_atom"].isChecked()
+
+
+def test_every_two_click_mode_reports_what_escape_put_down(one_carbon):
+    """Silence from ``on_cancel`` is what the viewport reads as
+    "nothing was held, so leave the mode".  A mode that forgets its
+    pending state silently would be left in a single Escape, taking
+    the user out of a mode they were halfway through using."""
+    one_carbon.add_atom("C", [0.6, 0.5, 0.5])
+    pending = {"add_bond": ("pending", (0, (0, 0, 0))),
+               "topology": ("pending", (0, (0, 0, 0))),
+               "measure": ("picked", [0])}
+    for name, (attribute, value) in pending.items():
+        mode = modes.get(name)
+        setattr(mode, attribute, value)
+        assert mode.on_cancel(one_carbon), f"{name} said nothing"
+        assert not getattr(mode, attribute)
+        assert mode.on_cancel(one_carbon) == ""      # and then leaves

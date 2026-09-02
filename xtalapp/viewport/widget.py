@@ -138,6 +138,10 @@ class ViewportWidget(QWidget):
     #: on screen to put the menu.  The window builds the menu, because
     #: the actions in it live in its registry.
     contextRequested = Signal(str, QPoint)
+    #: The mode changed, and the window did not ask for it -- Escape
+    #: leaves a mode.  Without this the toolbar keeps the old button
+    #: pressed, which is a picture of a mode the viewport is not in.
+    modeChanged = Signal(str)
 
     def __init__(self, document=None, parent=None):
         super().__init__(parent)
@@ -225,6 +229,7 @@ class ViewportWidget(QWidget):
         # gesture, and describing a first click that will not happen
         # is worse than saying nothing.
         message = self.mode.on_activate(self.document, self.model)
+        self.modeChanged.emit(name)
         self.statusMessage.emit(message or self.mode.hint)
 
     def _on_structure(self, change: int) -> None:
@@ -454,17 +459,24 @@ class ViewportWidget(QWidget):
         self._safe_render()
 
     def cancel_gesture(self) -> None:
-        """Escape: abandon whatever the mode is halfway through.
+        """Escape: abandon whatever the mode is halfway through, and
+        then the mode itself.
 
-        A mode waiting for a second click holds state -- an add-atom
-        anchor, the first end of a bond, the atoms accumulated for a
-        measurement -- and until now there was no way to put it down
-        except to switch modes and switch back.
+        Two stages, because they are two different things to want.
+        The first Escape puts down the state the mode is holding -- an
+        add-atom chain, the first end of a bond, the atoms gathered
+        for a measurement -- which is otherwise unreachable except by
+        switching modes and back.  A second Escape, with nothing left
+        to put down, means the user is finished: it returns to Select,
+        which is the mode a click can do no harm in.
         """
         if self.mode is None:
             return
         message = self.mode.on_cancel(self.document)
         self.set_ghost(None)
+        if not message and self.mode.name != "select":
+            self.set_mode("select")
+            return
         if message:
             self.statusMessage.emit(message)
 

@@ -136,6 +136,8 @@ class DocumentSet:
                 lambda text: self.window.statusBar().showMessage(text, 4000))
         if hasattr(viewport, "contextRequested"):
             viewport.contextRequested.connect(self.window.show_context_menu)
+        if hasattr(viewport, "modeChanged"):
+            viewport.modeChanged.connect(self.window.sync_mode_action)
         self.tabs.setCurrentIndex(index)
         self.window._update_ui()
         return index

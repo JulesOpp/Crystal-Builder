@@ -280,13 +280,27 @@ def _to_radius(offset, direction, radius):
     return np.asarray(offset, dtype=float) / length * radius
 
 
+def instance_at(model, row: int) -> tuple:
+    """The drawn atom in ``row``: ``(P1 atom, translation, position)``.
+
+    The copy that was *picked*, translation and all.  Looking the
+    atom up again by index would find the copy in the home cell, and
+    in a multi-cell view that is a different atom in a different place
+    from the one under the cursor.
+    """
+    return (int(model.atom_index[row]),
+            tuple(int(v) for v in model.atom_cell[row]),
+            np.asarray(model.positions[row], dtype=float))
+
+
 def drawn_instance(model, atom: int):
     """One drawn copy of P1 atom ``atom``: ``(atom, cell, position)``.
 
     The copy in the home cell when it is on screen, because that is
     the one a user with a single atom selected is looking at; any
     other copy otherwise, because a display range that starts at
-    (1, 0, 0) still has to be able to anchor.
+    (1, 0, 0) still has to be able to anchor.  Where a click said
+    which copy, :func:`instance_at` is the one to use instead.
     """
     if model is None or not model.n_atoms:
         return None
@@ -294,9 +308,14 @@ def drawn_instance(model, atom: int):
     if not len(rows):
         return None
     home = [r for r in rows if not np.any(model.atom_cell[r])]
-    row = int(home[0] if home else rows[0])
-    return (int(atom), tuple(int(v) for v in model.atom_cell[row]),
-            np.asarray(model.positions[row], dtype=float))
+    return instance_at(model, int(home[0] if home else rows[0]))
+
+
+#: How much bigger than the atom itself the ghost is drawn when it has
+#: snapped onto one.  A translucent sphere exactly over a solid one is
+#: invisible; a slightly larger one reads as "this atom", which is
+#: what the snap has to say.
+SNAP_GROWTH = 1.35
 
 
 class AddAtomMode(Mode):
@@ -318,15 +337,28 @@ class AddAtomMode(Mode):
     machine entered at different points, and the short one is what an
     experienced user will actually use.
 
-    Between the two clicks a ghost atom follows the cursor with its
-    bond drawn, so the placement is visible before it is committed,
-    and ``Escape`` drops the anchor.
+    **Then the anchor moves to what was just placed.**  Drawing a
+    chain is the common case and it is the same gesture repeated, so
+    the mode stays in it: click, point, point, point.  Re-anchoring by
+    hand between every pair would double the clicks of the one thing
+    this mode is for.
+
+    **Hovering an existing atom snaps to it**, whatever the distance,
+    and the click then bonds to that atom instead of placing a new
+    one.  That is what closes a ring: the last atom of a chain has to
+    join one that is already there, and placing a second atom on top
+    of it at a bond length is not that.
+
+    Between the clicks a ghost atom follows the cursor with its bond
+    drawn, so what the click will do is visible before it does it.
+    ``Escape`` ends the chain, and a second ``Escape`` -- with nothing
+    left to end -- leaves the mode.
     """
 
     name = "add_atom"
     label = "Add atom"
-    hint = ("click to place an atom · click an atom first to bond "
-            "to it · set the element in the toolbar")
+    hint = ("click to place an atom · click an atom to build from "
+            "it, then keep clicking to chain · Escape stops")
     wants_move = True
 
     def __init__(self, element: str = "C"):
@@ -363,19 +395,26 @@ class AddAtomMode(Mode):
         if self.anchor is None:
             return ""
         self.anchor = None
-        return "anchor dropped · the next click places an atom"
+        return "chain ended · the next click places an atom"
 
     def on_move(self, document, model, event: MoveEvent):
-        """The atom that the next click would place."""
+        """What the next click would do, drawn."""
         if document is None or self.anchor is None:
             return None
-        atom, _cell, centre = self.anchor
-        distance = bond_distance(document.cell.elements[atom],
-                                 self.element)
-        point = point_on_sphere(event.origin, event.direction, centre,
-                                distance)
+        _atom, _cell, centre = self.anchor
         view = document.view
-        return Ghost(position=point,
+        row = self._snap_row(model, event.origin, event.direction)
+        if row is not None:
+            # Snapped: the ghost swells the atom under the cursor
+            # rather than showing a new one, because the click will
+            # bond to it and place nothing.
+            return Ghost(position=np.asarray(model.positions[row],
+                                             dtype=float),
+                         radius=float(model.radii[row]) * SNAP_GROWTH,
+                         color=tuple(int(c) for c in model.colors[row]),
+                         anchor=centre,
+                         bond_radius=view.bond_radius)
+        return Ghost(position=self._free_point(document, event),
                      radius=styles.get(view.style).atom_radius(
                          self.element, view),
                      color=view.color_for(self.element),
@@ -386,32 +425,92 @@ class AddAtomMode(Mode):
         if document is None:
             return ""
         if self.anchor is not None:
-            return self._place_bonded(document, event)
+            return self._extend(document, model, event)
 
         kind, index = picking.pick(model, event.origin, event.direction)
         if kind == "atom":
-            self.anchor = drawn_instance(model, model.instance(index)[0])
+            # The copy that was clicked, translation and all: in a
+            # multi-cell view the copy in the home cell is a different
+            # atom somewhere else.
+            self.anchor = instance_at(model, index)
             atom = self.anchor[0]
             document.select([atom])
             return (f"bonding to {model_element(document, atom)} "
-                    f"· click a direction · Escape to place "
-                    f"freely")
+                    f"· click a direction · Escape to stop")
 
         point = event.plane_point()
         frac = document.structure.lattice.to_frac(point)
         return document.add_atom(self.element, frac)
 
-    def _place_bonded(self, document, event: ClickEvent) -> str:
-        """The direction click: the atom goes at a bond length from
-        the anchor, and the bond goes with it."""
-        atom, cell, centre = self.anchor
-        self.anchor = None
+    # -- the anchored half ---------------------------------------------
+
+    def _snap_row(self, model, origin, direction):
+        """The drawn atom under the cursor to bond to, or ``None``.
+
+        The anchor itself is not one: an atom does not bond to itself,
+        and the anchor is the atom the cursor is nearest to for the
+        first few pixels of every gesture.
+        """
+        if model is None or self.anchor is None:
+            return None
+        kind, index = picking.pick(model, origin, direction)
+        if kind != "atom":
+            return None
+        if instance_at(model, index)[:2] == self.anchor[:2]:
+            return None
+        return int(index)
+
+    def _free_point(self, document, event):
+        """Where the new atom goes: a bond length from the anchor, in
+        the direction the cursor is pointing."""
+        atom, _cell, centre = self.anchor
         distance = bond_distance(document.cell.elements[atom],
                                  self.element)
-        point = point_on_sphere(event.origin, event.direction, centre,
-                                distance)
+        return point_on_sphere(event.origin, event.direction, centre,
+                               distance)
+
+    def _extend(self, document, model, event: ClickEvent) -> str:
+        """The direction click, and the one after it.
+
+        Either a bond to the atom under the cursor or a new atom at a
+        bond length; either way the anchor moves to the far end, so
+        the next click carries the chain on.
+        """
+        row = self._snap_row(model, event.origin, event.direction)
+        if row is not None:
+            return self._bond_to(document, instance_at(model, row))
+
+        atom, cell, _centre = self.anchor
+        point = self._free_point(document, event)
         frac = document.structure.lattice.to_frac(point)
-        return document.add_bonded_atom(self.element, frac, atom, cell)
+        message, placed = document.add_bonded_atom(
+            self.element, frac, atom, cell)
+        self._move_anchor(document, (placed[0], placed[1], point))
+        return f"{message} · click again to carry on · Escape to stop"
+
+    def _bond_to(self, document, target: tuple) -> str:
+        """Join the anchor to an atom that is already there -- which is
+        how a chain closes a ring."""
+        atom, cell, _centre = self.anchor
+        try:
+            message = document.add_bond_between(atom, target[0], cell,
+                                                target[1])
+        except ValueError as exc:
+            self.anchor = None
+            document.select_none()
+            return str(exc)
+        self._move_anchor(document, target)
+        return f"{message} · click again to carry on · Escape to stop"
+
+    def _move_anchor(self, document, instance: tuple) -> None:
+        """Carry the chain on from ``instance``, and show where it is.
+
+        Selected as well as anchored: the anchor is otherwise
+        invisible, and a chain being drawn from an atom the user
+        cannot pick out is a chain drawn by guesswork.
+        """
+        self.anchor = instance
+        document.select([instance[0]])
 
 
 class AddBondMode(Mode):
@@ -433,6 +532,15 @@ class AddBondMode(Mode):
 
     def on_deactivate(self, document) -> None:
         self.pending = None
+
+    def on_cancel(self, document) -> str:
+        """Escape puts down the first end.  Saying so is what makes it
+        the *first* stage: silence here means nothing was held, and
+        the viewport takes that as leave-the-mode."""
+        if self.pending is None:
+            return ""
+        self.pending = None
+        return "first atom dropped"
 
     def on_click(self, document, model, event: ClickEvent) -> str:
         if document is None:
@@ -558,6 +666,12 @@ class DrawTopologyMode(Mode):
     def on_deactivate(self, document) -> None:
         self.pending = None
 
+    def on_cancel(self, document) -> str:
+        if self.pending is None:
+            return ""
+        self.pending = None
+        return "first vertex dropped"
+
     def on_click(self, document, model, event: ClickEvent) -> str:
         if document is None:
             return ""
@@ -620,6 +734,12 @@ class MeasureMode(Mode):
 
     def on_deactivate(self, document) -> None:
         self.picked = []
+
+    def on_cancel(self, document) -> str:
+        if not self.picked:
+            return ""
+        self.picked = []
+        return "measurement abandoned"
 
     def on_click(self, document, model, event: ClickEvent) -> str:
         if document is None:

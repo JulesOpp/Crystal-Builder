@@ -80,6 +80,12 @@ class AddBondedSite(Command):
         self.indices: list[int] = []
         self.bond = None
         self._bonded = False
+        #: Where the new atom landed in the P1 cell, as (atom,
+        #: translation).  The caller cannot work this out for itself
+        #: -- the site is wrapped into the cell and its orbit is
+        #: generated -- and a gesture that carries on from the atom it
+        #: just placed has to know which one that is.
+        self.placed: tuple | None = None
 
     def do(self, host) -> None:
         structure = host.structure
@@ -101,6 +107,7 @@ class AddBondedSite(Command):
     def _bond_to_anchor(self, structure, site):
         cell = p1.expand(structure)
         atom, image = _image_at(cell, self.indices[0], site.frac)
+        self.placed = (atom, image)
         return bonding.bond_between(structure, cell, self.anchor, atom,
                                     self.anchor_image, image)
 

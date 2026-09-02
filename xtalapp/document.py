@@ -653,17 +653,25 @@ class Document(QObject):
         return f"added {element}"
 
     def add_bonded_atom(self, element: str, frac, anchor: int,
-                        anchor_image=(0, 0, 0), label: str = "") -> str:
+                        anchor_image=(0, 0, 0),
+                        label: str = "") -> tuple[str, tuple]:
         """Add an atom bonded to one that is already in the cell.
 
         What a click on an existing atom in Add-atom mode means: the
         user has said what the new atom is bonded to, so the bond is
         created with it, explicitly, in the same undo step.
+
+        Returns the message *and* where the atom landed, as ``(P1
+        atom, translation)``.  The caller cannot work the second out
+        for itself -- the site is wrapped into the cell and its orbit
+        generated -- and the gesture that placed it carries on from
+        it.
         """
         name = self.cell.labels[anchor] or self.cell.elements[anchor]
         site = atom_commands.new_site(element, frac, label=label)
-        self.run(atom_commands.AddBondedSite(site, anchor, anchor_image))
-        return f"added {element}, bonded to {name}"
+        command = self.run(
+            atom_commands.AddBondedSite(site, anchor, anchor_image))
+        return f"added {element}, bonded to {name}", command.placed
 
     def add_centroid(self, element: str = "X", label: str = "") -> str:
         """Put an atom at the middle of the selected atoms.

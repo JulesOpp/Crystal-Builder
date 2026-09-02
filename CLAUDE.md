@@ -19,18 +19,29 @@ bonding, run force field / DFTB+ / Zeo++ calculations on the result.
 ## Commands
 
 ```bash
-python -m pytest -q                    # full suite, parallel, ~35 s
+python -m pytest -q                    # full suite, parallel, ~60 s
 python -m pytest -q tests/test_bonding.py    # while iterating
-python -m pytest -q -m "not slow"      # skip the seconds-long relaxations
+python -m pytest -q -m "not slow"      # ~23 s; skips the two long ones
 python -m pytest -q -n0                # serial, for a readable traceback
+python -m pytest -q --durations=20     # what the run is actually spending
 ruff check .                           # lint (check only — see below)
 crystal-builder                        # launch the GUI
 ```
 
 `-n auto` is the default via `addopts`. Prefer a **targeted file** while
 iterating and the full suite once before committing; the whole suite is
-1400+ tests and running it after every edit is the single most
+1600+ tests and running it after every edit is the single most
 expensive habit in this repo.
+
+**The full run looks like it hangs for the last 45 seconds, and does
+not.** `test_every_entry_agrees_with_its_own_declared_coordination`
+expands all ~2900 RCSR nets and takes 45 s on one worker while every
+other worker drains in about 12; the run is that one test, alone, for
+most of its wall clock. It is marked `slow`, so `-m "not slow"` is the
+fast pass, and `--durations` is how to check the claim rather than
+believe it. Piping the run through `tail` hides the progress dots and
+makes the wait look like a freeze, which is what it has been mistaken
+for.
 
 ## Conventions
 

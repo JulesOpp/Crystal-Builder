@@ -438,6 +438,27 @@ step.  The user has just said what it is bonded to; leaving it for
 perception to find would be a different answer to a question that was
 not asked.
 
+**Then the gesture repeats.**  The anchor moves to the atom that was
+just placed, so a chain is one click per atom rather than two —
+re-anchoring by hand between every pair would double the clicks of
+the one thing the mode is for.  Each link is still its own undo step,
+because each was its own gesture.
+
+**Hovering an existing atom snaps to it**, whatever the distance, and
+the click then bonds to that atom and places nothing.  That is what
+closes a ring: the last atom of a chain has to join one that is
+already there, and a ghost hanging a bond length short of it is a
+picture of the wrong answer.  The snapped ghost swells the atom under
+the cursor rather than showing a new one, because a translucent
+sphere exactly over a solid one is invisible.
+
+**Escape is two stages**, because they are two different things to
+want: the first ends the chain, and a second — with nothing left to
+end — leaves for Select.  The viewport therefore changes mode by
+itself, which is what `ViewportWidget.modeChanged` is for: the
+toolbar button has to follow rather than decide, or it shows a mode
+nobody is in.
+
 **The new machinery is `Mode.on_move`.**  The mode protocol has
 `on_click`, `on_drag` and `on_deactivate` and no hover event at all,
 and the ghost atom needs one.  So does Phase T's tooltip, which is why
