@@ -142,6 +142,17 @@ class SelectMode(Mode):
                 document.expand_selection("fragment")
             return f"{model_element(document, atom)} selected"
 
+        if kind == "topology":
+            # Reached only where the ray met nothing else, so this is
+            # a click on the span of a net edge.  Named explicitly
+            # rather than falling through: the index is into the
+            # edges, and handing it to bond_key would select whatever
+            # chemical bond happened to share the number.
+            document.select_topology(
+                model.topology_key(index),
+                "toggle" if event.additive else "set")
+            return "net edge selected -- Del removes it"
+
         document.select_bond(model.bond_key(index),
                              "toggle" if event.additive else "set")
         return "bond selected"

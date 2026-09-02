@@ -191,9 +191,18 @@ def pick(model, origin, direction, prefer_topology: bool = False):
 
     A net edge is drawn *over* the bonds and is thicker than they are,
     so on depth alone it would win every click near a framework edge
-    and there would be no way to select the bond underneath.  It is
-    therefore offered only when it is asked for -- which is what the
-    topology mode does -- and ignored otherwise.
+    and there would be no way to select the bond underneath.  So it
+    never competes on depth: it is taken first only when it is asked
+    for -- which is what the topology mode does -- and otherwise only
+    when the ray reached nothing else at all.
+
+    **That last resort is what makes an edge selectable outside Draw
+    net.**  Without it a click on the span of an edge, where it crosses
+    the gap a linker leaves, hit nothing and cleared the selection
+    instead -- so a net edge could not be picked in Select mode, and
+    Del had nothing to act on.  Where the edge lies over a bond or an
+    atom, that bond or atom still wins, which is the property the
+    paragraph above is about.
 
     **An edge does not hide its own ends.**  A net edge runs centre to
     centre, so the two atoms it joins are inside it -- and an edge that
@@ -219,7 +228,9 @@ def pick(model, origin, direction, prefer_topology: bool = False):
             return "topology", found[0]
     live = [(kind, hit) for kind, hit in candidates if hit is not None]
     if not live:
-        return None, None
+        found = topology_hit(model, origin, direction)
+        return ("topology", found[0]) if found is not None \
+            else (None, None)
     kind, hit = min(live, key=lambda pair: (
         pair[1][1] + (0.0 if pair[0] == "atom" else 1e-9)))
     return kind, hit[0]

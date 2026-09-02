@@ -385,3 +385,48 @@ def test_the_kind_round_trips_through_the_bond_record():
 def test_the_sequence_stops_where_it_is_told(depth):
     net = bonding.topology_graph(pcu())
     assert len(bonding.coordination_sequence(net, 0, depth)) == depth
+
+
+def test_select_mode_can_pick_a_net_edge():
+    """A net edge could not be selected outside Draw net.
+
+    ``pick`` ignored the edges unless it was asked for them, so a click
+    on the span of one -- where it crosses the gap a linker leaves --
+    reached nothing and *cleared* the selection.  Nothing was selected,
+    so Del had nothing to act on and did nothing.
+    """
+    document = Document(pcu())
+    model = build_scene(document.structure, document.view)
+    mode = modes.get("select")
+
+    # Down the z axis at the middle of the edge along x from the
+    # origin: the edge is there and no atom or bond is.
+    a = document.structure.lattice.lengths[0]
+    message = mode.on_click(document, model, modes.ClickEvent(
+        (a / 2, 0.0, -20.0), (0.0, 0.0, 1.0)))
+
+    assert "net edge" in message
+    assert len(document.selection.topology) == 1
+    assert not document.selection.atoms and not document.selection.bonds
+    assert "removed 1 net edge" in document.delete_selected_topology()
+
+
+def test_an_edge_never_wins_a_click_from_the_bond_under_it():
+    """The edge is drawn over the bonds and is thicker, so if it
+    competed on depth there would be no way to reach the bond
+    underneath.  It is a last resort and not a preference."""
+    structure = pcu()
+    # A real bond along a, under the net edge that is already there.
+    structure.bonds.append(Bond(0, 0, (1, 0, 0), kind="single"))
+    structure.touch()
+    document = Document(structure)
+    model = build_scene(document.structure, document.view)
+    mode = modes.get("select")
+
+    a = document.structure.lattice.lengths[0]
+    message = mode.on_click(document, model, modes.ClickEvent(
+        (a / 2, 0.0, -20.0), (0.0, 0.0, 1.0)))
+
+    assert message == "bond selected"
+    assert len(document.selection.bonds) == 1
+    assert not document.selection.topology
