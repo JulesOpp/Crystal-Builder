@@ -541,6 +541,33 @@ application is for.  Take an existing editor.
   graphs, and is listed in [docs/PLAN.md](PLAN.md) § 12 already.  Once
   SMILES works, the library is a JSON file of names and strings.
 
+### A net edge under a bond cannot be clicked
+
+Selecting a net edge works where the edge crosses open space and not
+where a bond or an atom is in front of it: on Fm-3m MOF-5 with an edge
+drawn between C1 and C97, clicking the midpoint of each of the 96
+edges reaches the edge 56 times, the chemistry 40.
+
+* That is deliberate as far as it goes.  An edge is drawn *over* the
+  bonds and is thicker than they are, so if it competed on depth there
+  would be no way to select the bond underneath -- which is why
+  `picking.pick` takes one only when the ray reached nothing else.
+* But **the failure is worse than not selecting anything**: the click
+  lands on the chemical bond instead, and `Del` then suppresses that
+  bond and its whole symmetry orbit.  A user aiming at a net edge and
+  pressing Del can delete 96 chemical bonds and see the net still
+  there.  Whatever the rule becomes, that outcome is the one to
+  remove first.
+* The shape of an answer is probably **the distance to the edge's
+  axis** rather than depth: a click within a fraction of the drawn
+  radius of the axis means the edge even when a bond is nearer the
+  camera, and a click out towards the tube's edge means whatever is
+  behind it.  A modifier, or a "select nets" toggle in the View menu,
+  is the cheaper version and is honest about being a mode.
+* `tests/test_topology.py::test_an_edge_never_wins_a_click_from_the_bond_under_it`
+  pins the current rule, and is the test to change deliberately rather
+  than to discover.
+
 ## Testing
 
 ### The parallel suite hangs about one run in ten

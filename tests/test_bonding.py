@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from xtal import Bond, Lattice, Structure
+from xtal.commands import bonds
 from xtal.core import bonding, p1
 
 
@@ -268,3 +269,51 @@ def test_reversing_a_bond_twice_gives_it_back(rutile):
         assert there_and_back.j == bond.j
         assert there_and_back.op == bond.op
         assert there_and_back.image == bond.image
+
+
+def test_a_net_edge_is_removed_by_any_of_its_copies(halite):
+    """Deleting a net edge worked only where the user had drawn it.
+
+    A record names "site i, joined to op(site j) + image", and a bond
+    on a special position has more than one such name -- so a click on
+    a symmetry copy produced a *different* record, and removal, which
+    matched the record it was handed, found nothing.  Fm-3m halite:
+    one record, 32 drawn edges, eight spellings.
+    """
+    halite.bonds.append(Bond(0, 1, (0, 0, 0), kind=bonding.TOPOLOGY))
+    halite.touch()
+    cell = p1.expand(halite)
+    edges = bonding.topology_graph(halite).bonds
+    assert len(edges) > 1
+
+    # Every one of them is drawn by the single stored record.
+    for edge in edges:
+        found = bonding.records_drawing(halite, cell, edge.key())
+        assert len(found) == 1
+        assert found[0].kind == bonding.TOPOLOGY
+
+
+def test_the_same_net_edge_is_not_stored_twice(halite):
+    """Drawing an edge where symmetry has already put one must not add
+    a second record: it draws the same net, and then removing one of
+    the pair leaves the net on screen."""
+    cell = p1.expand(halite)
+    first = bonding.bond_between(halite, cell, 0, 1, (0, 0, 0),
+                                 (0, 0, 0))
+    first = Bond(first.i, first.j, first.image, first.order,
+                 kind=bonding.TOPOLOGY, op=first.op)
+    assert halite.add_bond(first) is True
+    drawn = len(bonding.topology_graph(halite).bonds)
+
+    class Host:
+        structure = halite
+
+    for edge in bonding.topology_graph(halite).bonds:
+        command = bonds.AddTopologyBond.between_atoms(
+            halite, cell, edge.i, edge.j, (0, 0, 0), edge.image)
+        command.do(Host())
+        assert command._added is False
+
+    topology = [b for b in halite.bonds if b.kind == bonding.TOPOLOGY]
+    assert len(topology) == 1
+    assert len(bonding.topology_graph(halite).bonds) == drawn

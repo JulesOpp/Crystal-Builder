@@ -391,6 +391,50 @@ def map_explicit_bond(structure, cell: p1.P1Cell,
     return list(out.values())
 
 
+def records_drawing(structure, cell: p1.P1Cell, key,
+                    kind: str = TOPOLOGY) -> list[Bond]:
+    """Every stored bond whose expansion draws this P1 edge.
+
+    :func:`bond_between` answers a *different* question -- what to
+    store for a pair of drawn atoms -- and it is not the inverse of
+    this one, because a bond has more than one name.  A record says
+    "site i, joined to op(site j) + image", and the same pair of
+    points can be written with a different operation whenever either
+    site sits on a special position: composing with anything that
+    fixes site i moves the pair and re-anchors it, and composing with
+    anything that fixes site j renames the operation without moving
+    anything at all.
+
+    That is not a curiosity.  In Fm-3m MOF-5 one drawn net edge stores
+    one record and draws ninety-six edges, and clicking those edges
+    yields *two* spellings of that one record; in halite, eight.  A
+    removal that matched the record it was handed therefore deleted
+    the net when the user clicked the edge they had drawn and did
+    nothing at all when they clicked any of the others.
+
+    So the question is asked the way the user asks it -- "which record
+    puts this edge on the screen?" -- and answered by expanding, which
+    is what drew it in the first place.  Empty when nothing stored
+    draws it.
+
+    **All of them, not the first.**  Two records that spell the same
+    bond differently both draw it, and the same ambiguity is what let
+    them both be stored: ``add_bond`` refuses a duplicate by comparing
+    the very numbers that are not unique.  Removing one of a pair
+    would leave the net on screen and look exactly like the failure
+    this function exists to fix.
+    """
+    out = []
+    for bond in structure.bonds:
+        if bond.kind != kind:
+            continue
+        for mapped in map_explicit_bond(structure, cell, bond):
+            if mapped.key() == key:
+                out.append(bond)
+                break
+    return out
+
+
 def bond_between(structure, cell, atom_a: int, atom_b: int,
                  image_a=(0, 0, 0), image_b=(0, 0, 0)) -> Bond:
     """The asymmetric-unit bond whose expansion joins these two drawn

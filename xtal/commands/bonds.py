@@ -18,7 +18,13 @@ it is filtered out of everything chemical -- see
 from __future__ import annotations
 
 from xtal.commands.base import Command
-from xtal.core.bonding import TOPOLOGY, bond_between
+from xtal.core import p1
+from xtal.core.bonding import (
+    TOPOLOGY,
+    bond_between,
+    map_explicit_bond,
+    records_drawing,
+)
 from xtal.core.structure import Bond, Change
 
 _UNSET = object()
@@ -137,7 +143,22 @@ class AddTopologyBond(Command):
                                 image_a, image_b))
 
     def do(self, host) -> None:
+        # Refused when the net already has this edge, even under
+        # another name.  ``add_bond`` compares the stored numbers, and
+        # a bond on a special position has more than one spelling --
+        # so drawing the edge a second time somewhere symmetry had
+        # already put it stored a second record that drew exactly the
+        # same net.  See :func:`~xtal.core.bonding.records_drawing`.
+        if self._already_drawn(host.structure):
+            self._added = False
+            return
         self._added = host.structure.add_bond(self.bond)
+
+    def _already_drawn(self, structure) -> bool:
+        cell = p1.expand(structure)
+        drawn = map_explicit_bond(structure, cell, self.bond)
+        return bool(drawn) and bool(
+            records_drawing(structure, cell, drawn[0].key()))
 
     def undo(self, host) -> None:
         if self._added:

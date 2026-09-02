@@ -830,10 +830,16 @@ class Document(QObject):
         It expands over the symmetry orbit like every other bond, which
         is what makes drawing one edge of a **pcu** net draw all six.
         """
-        self.run(bond_commands.AddTopologyBond.between_atoms(
+        command = bond_commands.AddTopologyBond.between_atoms(
             self._structure, self.cell, atom_a, atom_b,
-            image_a, image_b))
+            image_a, image_b)
+        self.run(command)
         edges = len(bonding.topology_graph(self._structure).bonds)
+        if not command._added:
+            # Symmetry had already put an edge here.  Saying "drawn"
+            # would be a lie, and the honest answer is also the useful
+            # one: the net already says this.
+            return f"already a net edge -- {edges} in the cell"
         return f"net edge drawn -- {edges} in the cell"
 
     def select_topology(self, key, mode: str = "set") -> None:
@@ -862,12 +868,25 @@ class Document(QObject):
         if not keys:
             return "no net edges are selected"
         before = len(bonding.topology_graph(self._structure).bonds)
+        # Which record *draws* this edge, rather than what a click on
+        # it would store.  Those are different questions the moment a
+        # site is on a special position -- see
+        # :func:`~xtal.core.bonding.record_drawing` -- and asking the
+        # second one deleted nothing unless the user happened to click
+        # the copy they had drawn.
+        records = []
+        for key in keys:
+            for found in bonding.records_drawing(
+                    self._structure, self.cell,
+                    (int(key[0]), int(key[1]),
+                     tuple(int(v) for v in key[2]))):
+                if found not in records:
+                    records.append(found)
+        if not records:
+            return "removed 0 net edge(s)"
         with self.transaction(f"Delete {len(keys)} net edge(s)"):
-            for i, j, image in keys:
-                self.run(
-                    bond_commands.RemoveTopologyBond.between_atoms(
-                        self._structure, self.cell, int(i), int(j),
-                        (0, 0, 0), tuple(int(v) for v in image)))
+            for record in records:
+                self.run(bond_commands.RemoveTopologyBond(record))
         gone = before - len(bonding.topology_graph(self._structure).bonds)
         self.selection.topology.clear()
         self.selectionChanged.emit()
