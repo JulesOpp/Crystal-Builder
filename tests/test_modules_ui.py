@@ -221,7 +221,11 @@ def test_activating_a_module_row_folds_it_rather_than_running(window):
     assert tree.isExpanded(index) is not was
 
 
-def test_an_unavailable_module_is_disabled_in_the_tree():
+def test_an_unavailable_module_is_disabled_in_the_tree(qapp):
+    # ``qapp`` because this one builds a widget without going through
+    # the window: a QTreeView with no QApplication aborts the process
+    # rather than raising, so without it the test passes only when it
+    # shares an xdist worker with a test that made one first.
     registry = type(MODULES)()
     registry.register(Module(
         name="absent", label="Absent",

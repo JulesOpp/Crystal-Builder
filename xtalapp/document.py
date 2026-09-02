@@ -506,6 +506,16 @@ class Document(QObject):
         """
         atoms = [int(a) for a in atoms]
         if mode == "set":
+            # "Set" replaces the whole selection and not merely the
+            # atoms in it.  A bond or a net edge left behind by the
+            # previous click is what the *next* command acts on --
+            # Delete looks at the net first and the bonds second, so a
+            # stale edge means Del takes the edge the user stopped
+            # pointing at three clicks ago.  ``with_bonds`` below
+            # decides what a region brings with it; it does not decide
+            # whether the last selection survives this one.
+            self.selection.bonds.clear()
+            self.selection.topology.clear()
             self.selection.set_atoms(atoms)
         elif mode == "add":
             self.selection.add_atoms(atoms)
@@ -540,7 +550,17 @@ class Document(QObject):
             self.selection.bonds = inside
 
     def select_bond(self, key, mode: str = "set") -> None:
+        """Select one bond, replacing the selection or adding to it.
+
+        Clicking a bond and pressing Del must delete *that bond*, and
+        it did not: ``delete_selection`` acts on the atoms when there
+        are any, so an atom left selected from the click before meant
+        Del deleted the atom -- and its whole symmetry orbit with it,
+        which is why it looked like atoms at random around the cell.
+        """
         if mode == "set":
+            self.selection.set_atoms(())
+            self.selection.topology.clear()
             self.selection.bonds = {key}
         else:
             self.selection.toggle_bond(key)
@@ -817,7 +837,16 @@ class Document(QObject):
         return f"net edge drawn -- {edges} in the cell"
 
     def select_topology(self, key, mode: str = "set") -> None:
+        """Select one net edge, replacing the selection or adding to it.
+
+        Replaces the atoms and bonds for the same reason
+        :meth:`select_bond` does: *Draw net* says "click an edge to
+        select it, Del removes it", and the first vertex of a
+        half-finished edge is an atom that would be deleted instead.
+        """
         if mode == "set":
+            self.selection.set_atoms(())
+            self.selection.bonds.clear()
             self.selection.topology = {key}
         else:
             self.selection.toggle_topology(key)

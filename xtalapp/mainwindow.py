@@ -901,14 +901,17 @@ class MainWindow(QMainWindow):
         self._sync_bond_type_actions(document)
         self._refresh_plane_actions()
         self.measure_dock.refresh_planes()
+        # Delete acts on whichever of the three is held -- net edges,
+        # then bonds, then sites -- so it is enabled by any of them.
+        # It used to be listed here *and* in the atoms-only call
+        # below, and the second call wins: with a bond selected and no
+        # atom, Del was greyed out and the key did nothing.
         self.actions_.set_enabled(
-            ["delete_selection", "change_element", "copy", "cut",
-             "duplicate", "select_same"],
-            bool(document.selection.atoms or document.selection.bonds))
+            ["delete_selection"], bool(document.selection))
         self.actions_.set_enabled(
-            ["delete_selection", "change_element", "select_same",
-             "expand_bonded", "expand_fragment", "expand_orbit",
-             "copy", "cut", "duplicate"],
+            ["change_element", "select_same", "expand_bonded",
+             "expand_fragment", "expand_orbit", "copy", "cut",
+             "duplicate"],
             bool(document.selection.atoms))
 
     def _sync_bond_type_actions(self, document) -> None:
@@ -1088,8 +1091,12 @@ class MainWindow(QMainWindow):
              "expand_orbit", "copy"],
             has_selection)
         self.actions_.set_enabled(
-            ["delete_selection", "change_element", "cut", "duplicate"],
+            ["change_element", "cut", "duplicate"],
             has_selection and editable)
+        # Anything selected, not just atoms -- see _on_selection_changed.
+        self.actions_.set_enabled(
+            ["delete_selection"],
+            bool(document.selection) and editable)
         self._refresh_module_actions(editable)
         self._sync_bond_type_actions(document)
         self._refresh_plane_actions()

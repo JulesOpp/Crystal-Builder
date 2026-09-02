@@ -624,3 +624,95 @@ def test_the_dialog_refuses_when_there_is_nothing_to_add(window,
     assert dialog.headline.text() == "no hydrogens to add"
     assert not dialog.buttons.button(
         dialog.buttons.StandardButton.Ok).isEnabled()
+
+
+# ------------------------------------------- Del acts on what is held
+
+def test_clicking_a_bond_after_an_atom_deletes_the_bond(window,
+                                                        rutile_cif):
+    """Del must delete what was clicked last.
+
+    ``select_bond`` used to replace only the *bonds*, so an atom
+    selected by the click before survived it -- and ``delete_selection``
+    prefers atoms, so Del deleted that atom and its whole symmetry
+    orbit while the bond it was pointing at stayed put.  On a framework
+    that reads as atoms vanishing at random around the cell.
+    """
+    document = window.open_path(rutile_cif)
+    window.recompute_bonds()
+    sites = document.structure.n_sites
+    bond = document.graph.bonds[0]
+
+    document.select([bond.i], "set")
+    document.select_bond(bond.key())
+    assert not document.selection.atoms
+
+    window.delete_selection()
+    assert document.structure.n_sites == sites
+    assert bond.key() not in {b.key() for b in document.graph.bonds}
+
+
+def test_clicking_an_atom_after_a_bond_deletes_the_atom(window,
+                                                        rutile_cif):
+    """And the same the other way round: a bond left over from the
+    previous click must not be what Del takes."""
+    document = window.open_path(rutile_cif)
+    window.recompute_bonds()
+    bond = document.graph.bonds[0]
+
+    document.select_bond(bond.key())
+    document.select([bond.i], "set")
+    assert not document.selection.bonds
+
+    sites = document.structure.n_sites
+    window.delete_selection()
+    assert document.structure.n_sites < sites
+
+
+def test_a_region_still_brings_its_own_bonds(window, rutile_cif):
+    """Replacing the selection must not cost Select All its bonds --
+    ``with_bonds`` says what a region contains, and that is a different
+    question from whether the last selection survives."""
+    document = window.open_path(rutile_cif)
+    window.recompute_bonds()
+    document.select_all()
+    assert document.selection.atoms and document.selection.bonds
+
+
+def test_delete_is_enabled_by_a_bond_alone(window, rutile_cif):
+    """The Delete key did nothing at all for bonds.
+
+    ``_on_selection_changed`` listed ``delete_selection`` twice: once
+    for "atoms or bonds" and again in the atoms-only call below it,
+    and the second call wins -- so with a bond selected and no atom the
+    action was greyed out and Del was inert.  ``_refresh_shell`` gated
+    it the same way.
+    """
+    document = window.open_path(rutile_cif)
+    window.recompute_bonds()
+    document.select_bond(document.graph.bonds[0].key())
+
+    assert window.actions_["delete_selection"].isEnabled()
+    window._refresh_shell()
+    assert window.actions_["delete_selection"].isEnabled()
+
+    # And the things that really do need atoms stay off.
+    assert not window.actions_["change_element"].isEnabled()
+    assert not window.actions_["copy"].isEnabled()
+
+
+def test_delete_is_enabled_by_a_net_edge_alone(window, rutile_cif):
+    """Draw net says "click an edge, Del removes it", so Del has to be
+    reachable with only an edge in hand."""
+    document = window.open_path(rutile_cif)
+    window.recompute_bonds()
+    bond = document.graph.bonds[0]
+    document.add_topology_bond_between(bond.i, bond.j,
+                                       (0, 0, 0), bond.image)
+    from xtal.core import bonding
+    edges = bonding.topology_graph(document.structure).bonds
+    document.select_topology(edges[0].key())
+
+    assert window.actions_["delete_selection"].isEnabled()
+    window._refresh_shell()
+    assert window.actions_["delete_selection"].isEnabled()
