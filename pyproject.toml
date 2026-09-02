@@ -34,6 +34,12 @@ dependencies = [
 # follows the user's theme without being asked.
 gui = ["PySide6>=6.6", "vtk>=9.3"]
 ase = ["ase>=3.22"]
+# The MOF builder.  Its own line and not a dependency, because
+# `pip install pormake` pulls in 44 packages and 889 MB -- ase,
+# networkx, pymatgen and jax[cpu] -- against the four the core
+# installs.  Absent, the Modules tree greys the entry out and says
+# this, which is the same machinery Zeo++ uses for its binary.
+mof = ["pormake>=0.2.3"]
 # pytest-qt belongs here and not in [dev]: without it every widget
 # test skips itself, and CI installs [gui,test] -- so the GUI half of
 # the suite was passing by not running.
@@ -49,8 +55,9 @@ Repository = "https://github.com/JulesOpp/Crystal-Builder"
 
 [tool.setuptools]
 packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
-            "xtal.ff.uff", "xtal.modules", "xtal.analysis", "xtalapp",
-            "xtalapp.viewport", "xtalapp.docks", "xtalapp.dialogs"]
+            "xtal.ff.uff", "xtal.modules", "xtal.analysis", "xtal.mof",
+            "xtalapp", "xtalapp.viewport", "xtalapp.docks",
+            "xtalapp.dialogs"]
 
 # The RCSR index is not optional and is not an external asset: the net
 # panel cannot name anything without it, so it travels inside the
@@ -70,7 +77,25 @@ testpaths = ["tests"]
 # "-n0") to get a serial run back when a traceback needs to be read in
 # order, or when a debugger has to attach.
 addopts = ["-n", "auto"]
-filterwarnings = ["error::DeprecationWarning"]
+filterwarnings = [
+    "error::DeprecationWarning",
+    # PORMAKE's cell relaxation calls scipy's L-BFGS-B with `disp`,
+    # which scipy deprecated in 1.16.  It is a dependency's line in a
+    # dependency's optimiser and there is nothing this application can
+    # do about it; when scipy 1.18 removes the option the build tests
+    # will fail on the TypeError rather than scrolling past, which is
+    # what the rule above is really for.  Delete this when PORMAKE
+    # stops passing it.
+    # (the message pattern cannot hold a colon, hence the .*)
+    "ignore:scipy\\.optimize.*`disp` and `iprint`.*:DeprecationWarning",
+    # And the same for ase: PORMAKE's CIF writer calls
+    # ``get_cell_lengths_and_angles``, which ase deprecated.  This one
+    # bites harder than it looks -- PORMAKE catches whatever the write
+    # raises, deletes the half-written file and logs it -- so without
+    # this every build test fails on a missing CIF rather than on the
+    # deprecation.
+    "ignore:Please use atoms.cell.cellpar\\(\\) instead:DeprecationWarning",
+]
 markers = [
     # Seconds rather than milliseconds, and worth it: a variable-cell
     # relaxation of a 648-atom framework is the only test that

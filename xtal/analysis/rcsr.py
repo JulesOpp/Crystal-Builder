@@ -220,6 +220,19 @@ def operations(entry: CgdEntry) -> list[tuple]:
 #  EXPANDING AN ENTRY
 # ======================================================================
 
+def placement(entry: CgdEntry) -> tuple[Net, np.ndarray]:
+    """:func:`expand`, and where it put the vertices.
+
+    The coordinates are not part of a net -- two nets are the same
+    net when their graphs agree, whatever the file drew them at --
+    which is why :class:`Net` does not carry them and why everything
+    that identifies a net ignores them.  They are here for the one
+    thing that does want them, which is drawing a picture of the net
+    for somebody about to build a framework on it.
+    """
+    return _placed(entry)
+
+
 def expand(entry: CgdEntry) -> Net:
     """One RCSR entry as the periodic graph it describes.
 
@@ -236,6 +249,10 @@ def expand(entry: CgdEntry) -> Net:
     silent one, trying the other setting and keeping whichever resolves
     every endpoint is safe: a wrong setting cannot pass this test.
     """
+    return _placed(entry)[0]
+
+
+def _placed(entry: CgdEntry) -> tuple[Net, np.ndarray]:
     problems = []
     for symbol in _settings(entry):
         try:
@@ -251,7 +268,8 @@ def _settings(entry: CgdEntry) -> list[str]:
     return [entry.group, f"{entry.group}:2", f"{entry.group}:1"]
 
 
-def _expand_with(entry: CgdEntry, symbol: str) -> Net:
+def _expand_with(entry: CgdEntry, symbol: str
+                 ) -> tuple[Net, np.ndarray]:
     ops = (plane_group_operations(symbol) if entry.dimension == 2
            else list(_space_group_operations(symbol)))
     sites = _Sites(entry.dimension)
@@ -278,7 +296,8 @@ def _expand_with(entry: CgdEntry, symbol: str) -> Net:
               tuple(entry.nodes[node].label for node in origin),
               tuple(origin))
     _check_coordination(net, entry, origin, symbol)
-    return net
+    return net, np.asarray(sites.frac, dtype=float).reshape(
+        len(sites.frac), -1)
 
 
 def _pad(vector: np.ndarray) -> np.ndarray:

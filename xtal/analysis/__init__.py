@@ -47,6 +47,7 @@ from xtal.analysis.rcsr import (
     catalogue,
     describe,
     identify,
+    placement,
 )
 from xtal.analysis.topology import (
     Edge,
@@ -62,4 +63,5 @@ __all__ = ["Catalogue", "CatalogueEntry", "Diameters", "Edge",
            "TopologyError", "Volume", "ZeoOutputError", "catalogue",
            "describe",
            "identify", "net_of", "parse_psd", "parse_res",
-           "parse_summary", "probe_label", "probe_radius", "refuse"]
+           "parse_summary", "placement", "probe_label",
+           "probe_radius", "refuse"]

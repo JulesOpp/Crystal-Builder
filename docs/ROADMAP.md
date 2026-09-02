@@ -39,6 +39,9 @@ installs four packages) has to be answered by trying it, and the answer
 changes what Phase U is allowed to assume.  Everything else on this
 list is work; this one is work plus a fact we do not have yet.
 
+*The fact is now in: 889 MB, 44 packages, and a ten-second import.
+Workable, as an extra and never on the import path — § 4.*
+
 **Add Atom at a bond length third**, because it is the smallest of the
 three and it does not block anything — but it builds the one piece of
 machinery two later entries need: the viewport has no hover event at
@@ -78,10 +81,11 @@ out of its phase whenever the pain is worth a detour.
 | Export a net as `.cgd` for Systre | V | S |
 
 The `.cgd` writer is the one to notice: it is listed last in priority
-and it is an afternoon, and Phase Q puts a second consumer in front of
+and it is an afternoon, and Phase Q put a second consumer in front of
 it — PORMAKE reads `.cgd` topologies, so a writer is also the route
-from *a net the user drew* to *a framework built on it*.  If Phase Q is
-going well, take it there.  Take it once, either way.
+from *a net the user drew* to *a framework built on it*.  Phase Q used
+the **reader** and did not need the writer, so this is still owed and
+is now the last piece of "build on the net I drew".
 
 ---
 
@@ -132,9 +136,20 @@ window, through a handle it is constructed with: `show_message`,
 dock, the run-progress dialog and two tests connect to those names, and
 a pure move does not get to rename them.
 
-**Shape.**  A plain object (not a `QObject`; it owns no signals)
-constructed in `__init__` after the docks, holding a reference to the
-window.  `self.module_runner = ModuleRunner(self)`.
+**Shape.**  A `QObject` parented to the window, constructed where the
+state it owns was initialised, holding a reference to the window.
+`self.module_runner = ModuleRunner(self)`.
+
+**It has to be a `QObject`, and "it owns no signals" is the wrong
+test.**  It owns none; it *receives* two, and the worker emits them
+from inside its own thread.  Qt picks a queued or a direct connection
+from the receiver's thread affinity, and a plain Python object has
+none — so the finished handler runs on the worker thread, and the
+first thing it does is `_refresh_shell`, which reaches
+`setWindowTitle`.  Touching a widget from another thread aborts the
+process rather than raising.  **Any of the objects below that receives
+a signal is a `QObject` for the same reason**, whether or not it emits
+one.
 
 **What cannot move cleanly.**  Two things, and both stay reachable
 through the window handle rather than being fixed here:
@@ -292,7 +307,7 @@ screen.
 
 ---
 
-## 4. Phase Q — build a MOF from a net
+## 4. Phase Q — build a MOF from a net — **shipped**
 
 **Goal:** pick a topology, a metal node and a linker, and get a
 framework in a new tab — with the net of what came out identified
@@ -302,93 +317,87 @@ against the net that was asked for.
 |---|---|---|
 | Build a MOF from a topology, a node and a linker | Building | M |
 
-[PORMAKE](https://github.com/Sangwon91/PORMAKE) is MIT-licensed, is
-`pormake` on PyPI, and ships 2406 topologies and 867 building blocks
-(648 node, 219 edge) inside its own wheel.  Its
-`Builder.build_by_type(topology, node_bbs, edge_bbs)` returns a
-framework that writes a CIF.  We are not writing a builder; we are
-writing the four things that stand between that call and this
-application.
+### What the spike answered
 
-**Spike first, half a day, before anything else in this phase.**  Three
-questions, and the answers decide the shape:
+Three questions decided the shape, and all three are settled.
 
-1. does `pormake` import and build `pcu` on macOS/arm64 without a
-   `jax` problem;
-2. does `Database()` find its bundled database from an installed
-   wheel, or only from a checkout;
-3. how large is the resulting environment, honestly measured.
+1. **`pormake` imports and builds on macOS/arm64 with no `jax`
+   problem.**  `pcu` with a metal node and a linker is 0.6 s.  So it
+   runs in this process and the external-process fallback is not
+   needed.
+2. **`Database()` finds its bundled database from an installed
+   wheel** — 2403 `.cgd` nets and 867 `.xyz` blocks under
+   `site-packages/pormake/database`.
+3. **A fresh environment holding nothing but `pormake` is 889 MB**,
+   44 packages: `jax` and `jaxlib` are 570 MB of it, `pymatgen` brings
+   `pandas`, `sympy`, `plotly` and `matplotlib`.  The import itself is
+   **ten seconds warm and thirty-three cold**, which is the number
+   that shaped the code more than the megabytes did.
 
-If (1) or (3) is bad the fallback is **not** writing a builder.  It is
-running PORMAKE as an external process in its own environment, which
-`xtal/modules/process.py` already does for DFTB+ and Zeo++, and which
-turns the dependency question into an installation question.  Decide
-this before writing the dialog, because it does not change the dialog.
+So: a `mof` extra in `pyproject.toml`; `Module.check` is
+`importlib.util.find_spec` and a directory test, never an import; and
+`import pormake` happens once, on the worker thread, inside the run
+that needs it.
 
-**It is an optional extra.**  `ase`, `networkx`, `pymatgen` and
-`jax[cpu]` together are larger than everything this application
-currently installs, so `pyproject.toml` gains a `mof` extra and
-`Module.check` returns an `Availability` saying `pip install
-crystal-builder[mof]` when it is absent.  That is the same machinery
-that greys out Zeo++ when its binary is missing, unchanged.
+### What was built
 
-**The parameter form is the one piece of new machinery.**  `Param` is
-a flat, static list on purpose — the registry says so and gives the
-reason — and PORMAKE's parameters are neither flat nor static: the
-topology decides how many distinct node slots exist and what
-coordination number each demands, and only a building block with that
-many connection points may go in one.  Two routes:
+`xtal/mof/` is the headless half and imports no Qt.
 
-* **the `shell` escape hatch**, as the Force Field panel uses: the
-  window performs the whole thing.  Rejected — it gives up the run
-  folder, the worker thread, Stop and the CLI in one go;
-* **one new field, `Action.dialog`**, naming a dialog the shell opens
-  *instead of* the generated form, which returns the same `values`
-  dict.  The `run` callable stays headless, takes
-  `{"topology": "tbo", "node_bbs": …, "edge_bbs": …}` as plain data,
-  and is still what `xtal run` invokes and what a test calls with no
-  display.
+* **`catalog.py` reads the database without importing PORMAKE.**  The
+  topologies are `.cgd`, which `xtal/io/cgd.py` has read since the
+  RCSR work, and a building block is an XYZ whose second line lists
+  its connection points.  The whole 3.7 MB parses in 0.4 s, so the
+  picker opens instantly.  Node type *i* is the *i*-th `NODE` line of
+  the file, which is not a convention invented here — PORMAKE tags
+  each expanded site with that index and calls it the node type, so
+  reading the file is reading PORMAKE's own numbering.
+* **`build.py` runs it, hands over as CIF, and draws the net.**
 
-Take the second.  It substitutes the collection of the parameters and
-nothing else, which is exactly the difference between PORMAKE and the
-three modules that came before it.
+`Action.dialog` is the one new field, exactly as this phase proposed:
+a name the shell resolves to a dialog it opens *instead of* the
+generated form, which hands back the same `values` dict.  `run` stays
+headless, `xtal run mof.build -p topology=pcu -p nodes=N59 -p
+edges=E32` works, and a test calls it with no display.
 
-**The result is a new document, and today it is a lost one.**
-`Action.needs_structure = False` already exists — the registry
-comments even name "a module that fetches or builds one" as the case
-it is for — and the menu already enables such an action with nothing
-open.  What does not exist is the other end: `_adopt_module_structure`
-replaces the *current* document's structure, so a build with nothing
-open silently does nothing and a build with a structure open destroys
-it.  **The rule to add: a module that did not need a structure opens
-the one it made in a new tab.**  That is one branch in the runner
-Phase P step 1 has just created, which is the whole ordering argument
-for P before Q.
+`FILE` became optional on `xtal run`, required by the action rather
+than by the parser — the other half of `needs_structure = False`.
 
-**CIF is the handover.**  `Framework.write_cif` into the run folder,
-read back with our own reader.  Not the ASE or pymatgen objects: the
-run folder wants the file on disk anyway, gemmi already reads it, and
-a translation layer between three different atom containers is a bug
-farm with no upside.
+### The check, which turned out better than planned
 
-**And then check it, which nothing else does.**  `net_of` gives the
-net of any structure and the RCSR catalogue names it, both of which
-landed with the topology work.  Identify the framework that came back
-and compare it with the topology that was asked for; a build that says
-**tbo** and produces something that is not tbo is a bug worth
-catching, and the check costs a report row because every piece of it
-is already written and tested.  This is the first thing in the
-application that uses the canonical key for something other than
-answering a question.
+The phase said `net_of` would identify the framework that came back.
+It cannot on its own: `net_of` reads **topology bonds**, and a CIF
+read fresh has none.  What closes the gap is that PORMAKE knows
+exactly which atoms are one node — so the framework is handed over
+with its net **already drawn** on it, as `TOPOLOGY` bonds between each
+node's own atoms.
 
-**A user's own building block is a folder, not a code change.**
-`Database(topo_dir=…, bb_dir=…)` takes directories, and a building
-block is an XYZ whose connection points are `X` atoms.  Wire the two
-paths through as settings from the start, even with nothing in them:
-it is where this phase meets Phase U, and it is four lines now against
-a refactor later.
+That is worth more than the check it was for.  The Net panel names the
+framework the moment the tab opens, without anybody drawing anything;
+and the check is then genuinely over the bonds stored in the file
+rather than over anything PORMAKE said.  `pcu`, `dia` and `tbo` all
+come back named as themselves.
 
----
+### What is *not* done, and why
+
+**The picker does not identify the net it is showing.**  Naming a net
+against the RCSR is milliseconds for `pcu` and *thirty seconds* for
+the worst net in the database — far too slow for a click in a list of
+2399.  It is drawn instead: `xtalapp/dialogs/mof_preview.py` paints
+the net and the building blocks with `QPainter`, the vertices coloured
+by node type in the order the slot rows ask about them.  The
+identification belongs to the run, where it is a check rather than a
+label.
+
+**Four of the 2403 topologies cannot be expanded** — they give edge
+midpoints instead of endpoints, and a midpoint does not say what it
+joins.  They stay in the list, because the list is where a name is
+found, and clicking one says so and disables Build.
+
+**`.cgd` export is still owed** (§ 2).  Phase Q consumed the reader,
+not the writer: PORMAKE's topologies come *in* as `.cgd`, and the
+route from *a net the user drew* to *a framework built on it* still
+wants a writer.  It stays a cheap win and Phase V's Systre entry is
+still where it lives.
 
 ## 5. Phase R — Add Atom means what the click meant
 
@@ -400,6 +409,11 @@ people reach for.
 |---|---|---|
 | Add Atom should place the atom at a bond length | Editing | M |
 | Ctrl+B becomes *Reset bonds to automatic* | Editing | S |
+
+**Note from Jules: also add a feature to Add Centroid in the middle
+of selected atoms. This centroid should have the option to be an 
+atom type, like carbon, or as a Dummy Atom. Dummy Atoms should be
+able to be used to draw Topology Bonds and Measure.
 
 **The anchor has two spellings and the cheap one comes first.**  With
 exactly one atom selected, entering Add Atom starts already anchored:
@@ -715,18 +729,18 @@ and no cell is doubled, which stays true until this lands.
 
 ## 11. Summary
 
-| Phase | Theme | Rough size |
-|---|---|---|
-| **P** | Break up the shell | M |
-| **Q** | Build a MOF from a net | M |
-| **R** | Add Atom means what the click meant | M |
-| **S** | The picture says how big, where, and where it continues | M |
-| **T** | The window and the rest of the gestures | M |
-| **U** | Draw in 2D, build in 3D | M (XL with the sketcher) |
-| **V** | The engines answer in pictures | L |
-| **W** | The klassengleiche half | L |
+| Phase | Theme | Rough size | |
+|---|---|---|---|
+| **P** | Break up the shell | M | *shipped* |
+| **Q** | Build a MOF from a net | M | *shipped* |
+| **R** | Add Atom means what the click meant | M | |
+| **S** | The picture says how big, where, and where it continues | M | |
+| **T** | The window and the rest of the gestures | M | |
+| **U** | Draw in 2D, build in 3D | M (XL with the sketcher) | |
+| **V** | The engines answer in pictures | L | |
+| **W** | The klassengleiche half | L | |
 
-Phases Q to W schedule **every entry left in
+Phases R to W schedule **every entry left in
 [docs/TODO.md](TODO.md)**, and nothing else.  P is the one phase with
 no TODO entry behind it, because nobody using the application ever
 asked for it and nobody using it will see it.  An entry ships when its
@@ -738,8 +752,9 @@ The order is one argument, and it has changed since the last version of
 this file.  It used to be *a wrong number is worse than a missing one*,
 and those phases have shipped.  It is now: **clear the ground, then
 build something new, then make what is already there easier to see.**
-P clears the ground; Q and U are the two phases that produce a
-structure rather than trusting one; R, S and T are the ordinary hour;
+P cleared the ground and Q built the first thing; U is the other
+phase that produces a structure rather than trusting one; R, S and T
+are the ordinary hour;
 V and W are the two places where an external tool and a piece of
 crystallography most users will never reach are still owed work.
 

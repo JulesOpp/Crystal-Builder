@@ -62,10 +62,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-#: Every keyword the RCSR file uses.  A line starting with anything
+#: Every keyword a ``.cgd`` file uses.  A line starting with anything
 #: else is a continuation row belonging to the keyword above it.
+#:
+#: ``edge_center`` is here to be *ignored*.  The RCSR file writes the
+#: midpoints as ``# EDGE_CENTER`` comments, which are stripped before
+#: this is consulted, but PORMAKE's topology database writes four of
+#: its 2404 nets with the same word as a live keyword -- and without
+#: it in this set those lines are read as rows belonging to the
+#: ``NODE`` above them, which fails on a coordinate where a
+#: coordination number was expected.  A midpoint says nothing a pair
+#: of endpoints has not already said, so naming it is the whole fix.
 _KEYWORDS = frozenset({"crystal", "end", "name", "group", "cell",
-                       "node", "atom", "edge"})
+                       "node", "atom", "edge", "edge_center"})
 
 Point = tuple[float, ...]
 

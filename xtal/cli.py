@@ -408,14 +408,22 @@ def cmd_run(args) -> int:
     available = module.availability()
     if not available:
         raise ValueError(available.reason)
-    structure = _load(args.file)
+    # A module that builds a structure rather than measuring one has
+    # no input file, and the registry has said so since it was
+    # written -- so FILE is optional here and required by the action
+    # rather than by the parser.
+    if action.needs_structure and not args.file:
+        raise ValueError(f"{args.action} needs a structure to run "
+                         f"against: give it a file")
+    structure = _load(args.file) if args.file else None
     params = action.coerce(_parsed_params(args.param))
 
     folder = None
     if args.workspace:
         from xtal.workspace import Workspace
         workspace = Workspace.create(args.workspace)
-        entry = workspace.add_structure(args.file)
+        entry = (workspace.add_structure(args.file) if args.file
+                 else workspace.add_document(module.label))
         folder = module_record.open_run(entry, module, action, params,
                                         structure)
     job = Job(structure=structure, params=params, folder=folder,
@@ -601,7 +609,9 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("run", help="run one module action")
     p.add_argument("action", metavar="MODULE.ACTION",
                    help="which entry to run; `xtal modules` lists them")
-    p.add_argument("file")
+    p.add_argument("file", nargs="?",
+                   help="the structure to run against; omitted for a "
+                        "module that builds one instead of reading it")
     p.add_argument("-p", "--param", action="append", metavar="NAME=VALUE",
                    help="a parameter for the module; repeatable")
     p.add_argument("--workspace", metavar="DIR",

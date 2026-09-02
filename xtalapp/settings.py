@@ -132,6 +132,43 @@ class AppSettings:
     def last_directory(self, value) -> None:
         self._q.setValue("last_directory", str(value))
 
+    # -- the MOF builder's own folders ---------------------------------
+    #
+    # PORMAKE's database is a folder of ``.cgd`` nets and a folder of
+    # ``.xyz`` building blocks, so "a user's own building block" is a
+    # file they drop in a folder rather than a change to this
+    # application.  These two are remembered exactly as the last
+    # directory is, and for the same reason: a folder found once
+    # should not have to be found again next session.
+
+    @property
+    def mof_topology_dir(self) -> str:
+        return str(self._q.value("mof/topology_dir", "") or "")
+
+    @mof_topology_dir.setter
+    def mof_topology_dir(self, value) -> None:
+        self._set_or_clear("mof/topology_dir", value)
+
+    @property
+    def mof_bb_dir(self) -> str:
+        return str(self._q.value("mof/bb_dir", "") or "")
+
+    @mof_bb_dir.setter
+    def mof_bb_dir(self, value) -> None:
+        self._set_or_clear("mof/bb_dir", value)
+
+    def _set_or_clear(self, key: str, value) -> None:
+        """Store a setting, or forget it when it is emptied.
+
+        An empty string stored is not the same as nothing stored: the
+        first would have to be told apart from a default every time it
+        is read.
+        """
+        if str(value or "").strip():
+            self._q.setValue(key, str(value))
+        else:
+            self._q.remove(key)
+
     # -- workspaces ----------------------------------------------------
     #
     # The workspace is remembered and reopened exactly as the last

@@ -103,6 +103,19 @@ class Action:
     params: tuple[Param, ...] = ()
     run: Callable | None = None     # (Job) -> JobResult
     shell: str = ""                 # the window performs it instead
+    #: A dialog the shell opens *instead of* the generated form,
+    #: named rather than imported so that nothing here needs Qt.  It
+    #: hands back the same ``values`` dict the form would, so ``run``
+    #: stays headless and the CLI is unaffected.
+    #:
+    #: It is not a second ``shell``.  ``shell`` gives the whole action
+    #: away and with it the run folder, the worker thread and Stop;
+    #: this substitutes the *collection of the parameters* and nothing
+    #: else.  That is the difference PORMAKE needed: a topology
+    #: decides how many node slots there are and what coordination
+    #: number each demands, so the parameters are neither flat nor
+    #: static and :class:`Param` is deliberately both.
+    dialog: str = ""
     #: Whether the run folder is opened before ``run`` is called.  A
     #: module that only reads (a validity check, a table) has nothing
     #: to leave behind and should not litter the workspace with empty

@@ -398,59 +398,6 @@ is already in exactly that shape.
 
 ## Building
 
-### Build a MOF from a topology, a node and a linker
-
-There is no way to make a framework in this application; there is only
-a way to open one somebody else made.  Reticular chemistry is the one
-place where that is a solved problem -- a MOF is a net with a metal
-cluster on every vertex and a linker on every edge, and picking those
-three things is the whole design -- and
-[PORMAKE](https://github.com/Sangwon91/PORMAKE) does exactly that
-assembly, MIT-licensed, from a bundled library of 2406 topologies and
-867 building blocks (648 for nodes, 219 for edges).
-
-* **Pick a topology, a node building block and an edge building
-  block, and get a structure.**  `Builder.build_by_type(topology,
-  node_bbs, edge_bbs)` returns a framework that writes a CIF; that CIF
-  is what comes back into a new document.
-* **It is a module, and it is the first one that needs no structure
-  open.**  `Action.needs_structure` already exists for exactly this
-  and the menu already honours it -- but the result path does not:
-  `_adopt_module_structure` replaces the *current* document's
-  structure, so a build with nothing open silently does nothing and a
-  build with a structure open destroys it.  The rule to add is that a
-  module which did not need a structure opens the one it made in a new
-  tab.
-* **The generated form cannot express the parameters.**  `Param` is a
-  flat static list, and PORMAKE's choices are neither: the topology
-  decides how many distinct node slots there are and what coordination
-  number each of them demands, and only a building block with that
-  many connection points can go in one.  So the parameters have to be
-  collected by a dialog of its own -- and the run itself must stay a
-  headless callable taking a plain dict, or the CLI and the tests lose
-  it.
-* **The dependency is the decision.**  PORMAKE wants `ase`,
-  `networkx`, `pymatgen` and `jax[cpu]`, which together are larger
-  than everything this application currently installs.  So it is an
-  extra, absent unless asked for, and `Module.check` says how to get
-  it -- the same shape as a missing Zeo++ binary, which is machinery
-  that already exists.  If the environment turns out to be
-  unworkable, the fallback is not writing a builder: it is running
-  PORMAKE as an external process in its own environment, which
-  `xtal/modules/process.py` already does for DFTB+ and Zeo++.
-* **We can check its answer, and nothing else can.**  `net_of` plus
-  the RCSR catalogue names the net of any structure, so the framework
-  that comes back can be identified and compared with the topology
-  that was asked for.  A build that says **tbo** and produces
-  something that is not tbo is a bug worth catching, and every piece
-  of the check is already written and tested.
-* **A user's own building block should be loadable.**  `Database`
-  takes `topo_dir` and `bb_dir`, and a building block is an XYZ with
-  its connection points marked as `X` atoms -- so "use the linker I
-  drew" is a folder and not a code change.  It is also where this
-  entry meets *Draw in 2D, build in 3D*, and the reason those two
-  belong in the same half of the plan.
-
 ### Draw in 2D, build in 3D
 
 Maestro's sketcher: draw a molecule the way you would on paper, press a

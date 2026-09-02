@@ -257,3 +257,29 @@ def test_run_says_what_there_is_when_the_name_is_wrong(stub_module,
 def test_a_parameter_needs_a_value(stub_module, rutile_cif, capsys):
     assert main(["run", "stub.count", rutile_cif, "-p", "steps"]) == 1
     assert "name=value" in capsys.readouterr().err
+
+
+def test_a_module_that_builds_a_structure_runs_with_no_file(capsys):
+    """FILE is what the action needs, not what the parser demands.
+
+    ``needs_structure = False`` has meant "a module that fetches or
+    builds one" since the registry was written, and such a module has
+    nothing to be given.  Checked against the MOF builder's own
+    availability so that it says the same thing whether or not PORMAKE
+    is installed.
+    """
+    code = main(["run", "mof.build", "-p", "topology=", "-q"])
+    said = "".join(capsys.readouterr())
+    # It got as far as the module's own refusal -- a build with no net
+    # named -- rather than being stopped by the parser for a file it
+    # was never going to read.  Which refusal it is depends on whether
+    # PORMAKE is installed, and both are the module's.
+    assert code != 0
+    assert "needs a structure" not in said
+    assert "topology" in said.lower() or "pormake" in said.lower()
+
+
+def test_a_module_that_needs_a_structure_still_asks_for_one(
+        stub_module, capsys):
+    assert main(["run", "stub.count"]) == 1
+    assert "needs a structure" in capsys.readouterr().err

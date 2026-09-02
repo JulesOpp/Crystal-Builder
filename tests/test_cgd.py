@@ -180,6 +180,51 @@ def test_a_file_that_is_not_cgd_is_a_file_with_no_nets():
     assert len(read_cgd_string("hello\nworld\n")) == 0
 
 
+def test_a_live_edge_center_keyword_is_read_and_ignored():
+    """PORMAKE's topology database writes four of its 2403 nets with
+    ``EDGE_CENTER`` as a keyword rather than as the ``#`` comment the
+    RCSR file uses.
+
+    Without the word in the keyword set those lines are read as rows
+    belonging to the ``NODE`` above them, and the read dies on a
+    coordinate where a coordination number was expected -- taking the
+    whole catalogue with it rather than one net.  A midpoint says
+    nothing a pair of endpoints has not, so an entry that has only
+    midpoints comes back as a net with no edges, which is a refusal
+    the caller can report.
+    """
+    read = read_cgd_string("""
+CRYSTAL
+  NAME bcu-b
+  GROUP Pm-3m
+  CELL 1.1547 1.1547 1.1547 90.0 90.0 90.0
+  NODE 1 8  0.0 0.0 0.0
+  NODE 2 8  0.5 0.5 0.5
+  EDGE_CENTER  0.25 0.25 0.25
+END
+""")
+    assert read.entries == ()
+    assert "bcu-b has no edges" in read.problems[0]
+
+
+def test_an_edge_center_beside_real_edges_changes_nothing():
+    """The RCSR file writes them as comments and this reader has
+    always dropped them; naming the keyword must not start reading
+    them."""
+    read = read_cgd_string("""
+CRYSTAL
+  NAME pcu
+  GROUP Pm-3m
+  NODE 1 6  0.0 0.0 0.0
+  EDGE  0.0 0.0 0.0   0.0 0.0 1.0
+  EDGE_CENTER  0.0 0.0 0.5
+  EDGE  0.0 0.0 0.0   0.0 1.0 0.0
+  EDGE  0.0 0.0 0.0   1.0 0.0 0.0
+END
+""")
+    assert len(read["pcu"].edges) == 3
+
+
 # ============================================== against the real file
 
 def test_the_rcsr_file_reads(rcsr_path):

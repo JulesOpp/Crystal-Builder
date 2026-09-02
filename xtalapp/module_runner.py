@@ -31,7 +31,9 @@ from xtal.core.structure import Change
 from xtal.modules import MODULES, Job, ModuleError
 from xtal.modules import record as module_record
 from xtal.workspace import safe_name
+from xtalapp.dialogs import module_dialog
 from xtalapp.dialogs.module_form import ModuleDialog
+from xtalapp.document import Document
 from xtalapp.histogram import save_histogram
 from xtalapp.workers import ModuleWorker, start_in_thread
 
@@ -97,11 +99,16 @@ class ModuleRunner(QObject):
             self.window.show_message(available.reason)
             return
         document = self.window.current_document()
-        if action.needs_structure and document is None:
+        if not action.needs_structure:
+            # It makes its own structure, so whatever is in front is
+            # not what it runs against and must not be handed to it.
+            # A trajectory being played is not in its way either.
+            document = None
+        elif document is None:
             self.window.show_message(
                 f"{action.label} needs a structure open")
             return
-        if document is not None and document.is_playing:
+        elif document.is_playing:
             # The atoms are showing a frame of a trajectory, so the
             # geometry a module would be handed is not the document's.
             # The menu entries are already disabled; this is what
@@ -111,20 +118,39 @@ class ModuleRunner(QObject):
                 "frame being played, not the structure")
             return
         key = f"{module.name}.{action.name}"
-        values = ModuleDialog.ask(module, action, self.window,
-                                  self._module_params.get(key))
+        values = self._ask(module, action,
+                           self._module_params.get(key))
         if values is None:                          # cancelled
             return
         self._module_params[key] = values
         self._start_module(module, action, values, document)
 
+    def _ask(self, module, action, initial) -> dict | None:
+        """The parameters to run with, or ``None`` if it was cancelled.
+
+        The generated form, unless the action named a dialog of its
+        own.  ``Action.dialog`` substitutes the *collection* of the
+        parameters and nothing else -- the values come back in the
+        same dict, and ``run`` never learns which asked for them --
+        because PORMAKE's parameters are decided by the topology that
+        was picked and a flat static form cannot ask that question.
+        See :class:`xtal.modules.registry.Action`.
+        """
+        chosen = module_dialog(action.dialog)
+        if chosen is None:
+            return ModuleDialog.ask(module, action, self.window,
+                                    initial)
+        return chosen.ask(module, action, self.window, initial)
+
     def _start_module(self, module, action, values, document) -> None:
         folder = None
-        if action.writes_run_folder and document is not None:
+        if action.writes_run_folder:
             try:
                 folder = module_record.open_run(
-                    document.entry, module, action, values,
-                    document.structure)
+                    self._entry_for(module, document), module, action,
+                    values,
+                    document.structure if document is not None
+                    else None)
             except OSError as exc:
                 self.window.show_message(
                     f"could not write into the workspace: {exc}")
@@ -161,6 +187,29 @@ class ModuleRunner(QObject):
         # method's reference to it whatever Python does with the
         # attribute below.
         self._module_thread = start_in_thread(worker, self.window)
+
+    def _entry_for(self, module, document):
+        """Which workspace entry this run's folder goes under.
+
+        The document's, when the run is about a document.  A module
+        that builds its own structure has none, so its runs go under
+        an entry named for the module -- ``add_document`` exists for
+        exactly that, and the alternative is putting a framework built
+        from nothing into the folder of whichever crystal happened to
+        be in front, which is a filing error a person would then have
+        to undo.
+        """
+        if document is not None:
+            return document.entry
+        workspace = self.window.workspace
+        if workspace is None:
+            return None
+        try:
+            return workspace.add_document(module.label)
+        except OSError as exc:
+            self.window.show_message(
+                f"could not write into the workspace: {exc}")
+            return None
 
     def stop_module(self) -> None:
         """Stop whatever the module tree started.
@@ -284,7 +333,16 @@ class ModuleRunner(QObject):
         which anything it did reaches the document -- and it reaches
         it as a single command, so Ctrl+Z afterwards gives back the
         structure the run started from.
+
+        Unless it did not start from one.  A module that declared
+        ``needs_structure = False`` was handed no document and built
+        what it returned out of nothing, so there is no edit to make
+        and nothing to undo -- it opens in a tab of its own instead.
         """
+        action = worker.action if worker is not None else None
+        if action is not None and not action.needs_structure:
+            self._open_module_structure(worker, result)
+            return
         document = self.window.current_document()
         if document is None or document.is_playing:
             self.window.show_message(
@@ -296,3 +354,22 @@ class ModuleRunner(QObject):
             if worker is not None else "Module result"
         document.replace_structure(result.structure,
                                    label.rstrip("."), Change.ALL)
+
+    def _open_module_structure(self, worker, result) -> None:
+        """A structure a module built from nothing, in a new tab.
+
+        Not into the current document, which is the rule this branch
+        exists to break: ``_adopt_module_structure`` replaces the
+        structure that is in front, so a build with something open
+        would have destroyed it and a build with nothing open would
+        have silently thrown away what it had just made.
+
+        The document has no path.  It is named after the structure
+        rather than after a file, and File > Save As is what gives it
+        one -- the run folder already holds the CIF it was read back
+        from, so nothing is lost if the tab is closed without saving.
+        """
+        document = Document(result.structure)
+        self.window.add_document(document)
+        self.window.show_message(
+            f"{document.title} opened in a new tab")
