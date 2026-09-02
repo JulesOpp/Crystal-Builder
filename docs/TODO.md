@@ -174,68 +174,6 @@ give is the arrangement somebody actually works in:
 
 ## Editing
 
-### Add Atom should place the atom at a bond length
-
-Add-atom drops the new atom wherever the click ray meets the view
-plane, which is the right behaviour over empty space and the wrong one
-over an existing atom: what a click on a carbon means is "another atom
-bonded to this one", and landing it at whatever depth the plane
-happened to be is never that.
-
-* **Click an atom, then click a direction.**  The first click on an
-  existing atom anchors the new one to it; the second click fixes the
-  direction, and the atom is placed along it at the bond distance for
-  that pair -- roughly 1.2 A for a C-C single bond, and properly the
-  sum of the two covalent radii, which `xtal.core.elements` already
-  carries and `bonding` already uses for perception.
-* **It has to be visible while it is happening.**  Between the two
-  clicks, a ghost atom at the fixed radius follows the cursor, with
-  the bond drawn to it: the same interaction as add-bond, which
-  already keeps a first endpoint between clicks
-  (`AddBondMode.on_deactivate` clears it), so the state machine is
-  the one that exists.
-* The anchored distance is what makes the placement usable without a
-  dialog, so the *direction* is all the second click has to carry:
-  project the click ray onto the sphere of that radius around the
-  anchor, and use the near intersection, falling back to the closest
-  approach when the ray misses.
-* **A selected atom is already an anchor**, and that is the cheaper
-  half of the same feature: with exactly one atom selected, entering
-  Add Atom starts at the second click rather than the first, so the
-  common case -- pick the carbon you want to extend, press the button,
-  point -- is one click shorter.  With nothing selected, or with more
-  than one atom selected, the first click is what anchors it.
-* A click on empty space keeps today's behaviour exactly, and
-  `Escape` between the two clicks abandons the anchor.
-* The bond it implies should be created with it, as an explicit bond,
-  rather than left for perception to find -- the user has just said
-  what it is bonded to.
-* Whether the default distance should follow the element pair or be a
-  single number in the Add Atom dialog is worth deciding before
-  building: the pair-wise number is right and the dialog is where a
-  user would look to override it.
-
-### Ctrl+B should be the reset, not the recalculation
-
-`Ctrl+B` is *Recalculate bonds*, which perceives again from the
-geometry and keeps every bond the user drew or deleted.  *Reset bonds
-to automatic*, which also withdraws those, has no key at all.  That is
-the wrong way round for how the two are actually reached: recalculating
-after moving atoms is rare, because bonds are not supposed to follow
-the geometry in the first place, and the one people want a key for is
-the way back to a clean answer after an afternoon of editing.
-
-* Move the shortcut: `reset_bonds` takes `Ctrl+B`, `recompute_bonds`
-  keeps its menu entry and its toolbar button and loses the key.
-* The reason it was kept off a key -- that resetting throws work away
-  -- is answered by the undo stack rather than by the absence of a
-  shortcut: `Document.reset_bonds` runs a single `ResetBonds` command,
-  so `Ctrl+Z` is exactly one press, and the message it already prints
-  says so.
-* The toolbar button is *Recalculate*, and it should stay that: a
-  button is pressed by aim rather than by memory, and the destructive
-  one of the pair is the wrong thing to leave under the cursor.
-
 ### Measure from the right-click menu
 
 Distance, angle and torsion already exist -- `xtal.core.measure`

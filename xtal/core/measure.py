@@ -103,6 +103,32 @@ def unwrapped_positions(cell, lattice, atoms) -> np.ndarray:
     return np.array(points)
 
 
+def centroid(cell, lattice, atoms) -> np.ndarray:
+    """Cartesian centre of ``atoms``, gathered across the boundary.
+
+    Every atom is taken in the periodic image nearest the first one,
+    not in the image the P1 expansion happened to wrap it into.  The
+    middle of a ring that straddles the cell boundary is *in the
+    ring*; averaging the wrapped coordinates puts it in the middle of
+    the box, which is a point in the vacuum with nothing to do with
+    the ring.
+
+    Nearest to the first atom rather than chained atom to atom, which
+    is what :func:`unwrapped_positions` does for an angle: a selection
+    has no order worth following, and a star is the reading that does
+    not depend on one.
+    """
+    indices = [int(a) for a in atoms]
+    if not indices:
+        raise ValueError("a centroid needs at least one atom")
+    origin = lattice.to_cart(cell.frac[indices[0]])
+    points = [origin] + [
+        origin + neighbors.min_image_vector(cell.frac[indices[0]],
+                                            cell.frac[a], lattice)
+        for a in indices[1:]]
+    return np.mean(points, axis=0)
+
+
 def distance(cell, lattice, i: int, j: int) -> float:
     """Minimum-image distance in Angstrom."""
     return neighbors.min_image_distance(cell.frac[int(i)],

@@ -40,6 +40,7 @@ from xtal.core.structure import Change
 from xtalapp import layout, menus
 from xtalapp.actions import ActionRegistry
 from xtalapp.dialogs.add_atom import AddAtomDialog
+from xtalapp.dialogs.add_centroid import AddCentroidDialog
 from xtalapp.dialogs.add_hydrogens import AddHydrogensDialog
 from xtalapp.dialogs.bond_rules import BondRulesDialog
 from xtalapp.dialogs.cell_edit import CellEditDialog
@@ -414,6 +415,17 @@ class MainWindow(QMainWindow):
             return
         self.statusBar().showMessage(document.add_atom(**values), 4000)
 
+    def add_centroid_dialog(self) -> None:
+        document = self.current_document()
+        if document is None:
+            return
+        values = AddCentroidDialog.ask(len(document.selection.atoms),
+                                       self,
+                                       self.element_combo.currentText())
+        if values is None:
+            return
+        self.show_status(document.add_centroid(**values))
+
     def set_preview_interval(self, milliseconds: int) -> None:
         """How often a running calculation redraws the viewport.
 
@@ -478,7 +490,8 @@ class MainWindow(QMainWindow):
     CONTEXT_MENUS = {
         "atom": ["change_element", "delete_selection", None,
                  "expand_bonded", "expand_fragment", "expand_orbit",
-                 "select_same", None, "copy", "cut", "duplicate", None,
+                 "select_same", None, "copy", "cut", "duplicate",
+                 "add_centroid", None,
                  "recompute_bonds"],
         "bond": ["delete_bond", BOND_TYPE_MENU, None, "select_none",
                  None, "recompute_bonds"],
@@ -918,6 +931,9 @@ class MainWindow(QMainWindow):
              "expand_fragment", "expand_orbit", "copy", "cut",
              "duplicate"],
             bool(document.selection.atoms))
+        # A centroid needs a middle, and one atom has none.
+        self.actions_.set_enabled(
+            ["add_centroid"], len(document.selection.atoms) > 1)
 
     def _sync_bond_type_actions(self, document) -> None:
         """Enable the bond types, and tick what the selection already
@@ -1098,6 +1114,10 @@ class MainWindow(QMainWindow):
         self.actions_.set_enabled(
             ["change_element", "cut", "duplicate"],
             has_selection and editable)
+        # A centroid needs a middle, and one atom has none.
+        self.actions_.set_enabled(
+            ["add_centroid"],
+            len(document.selection.atoms) > 1 and editable)
         # Anything selected, not just atoms -- see _on_selection_changed.
         self.actions_.set_enabled(
             ["delete_selection"],

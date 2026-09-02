@@ -189,14 +189,29 @@ def _assign(structure, rules) -> Typing:
 
 
 def _refuse_unknown_elements(cell) -> None:
+    """Refuse before typing rather than during it, and say which.
+
+    A dummy atom is called out separately because it is the one that
+    arrives by an ordinary gesture -- Add centroid puts one in -- and
+    "no parameters, the field stops at lawrencium" is the wrong
+    explanation for a marker that was never chemistry to begin with.
+    """
     unknown = sorted({e for e in cell.elements
                       if not params.has_element(e)})
-    if unknown:
+    if not unknown:
+        return
+    dummies = [e for e in unknown if e in bonding.DUMMY_ELEMENTS]
+    if dummies:
         raise TypingError(
-            "UFF has no parameters for "
-            + ", ".join(unknown)
-            + "; the force field covers hydrogen to lawrencium and "
-              "nothing beyond it")
+            "a force field has nothing to say about a dummy atom ("
+            + ", ".join(dummies)
+            + "); delete it, or change its element, before running "
+              "one")
+    raise TypingError(
+        "UFF has no parameters for "
+        + ", ".join(unknown)
+        + "; the force field covers hydrogen to lawrencium and "
+          "nothing beyond it")
 
 
 def _overrides(structure, cell) -> dict[int, str]:

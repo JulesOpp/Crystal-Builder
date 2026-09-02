@@ -48,6 +48,10 @@ machinery two later entries need: the viewport has no hover event at
 all today, and the ghost atom, the tooltip and any future drag-preview
 all want the same `on_move`.
 
+*`Mode.on_move` is now there, along with `MoveEvent` and a
+`wants_move` flag so only the modes that ask pay for the ray.
+Phase T's tooltip inherits all of it — § 5.*
+
 ```
     P. split the shell ─┬──> the PORMAKE runner branch     (Phase Q)
                         ├──> the default layout            (Phase T)
@@ -76,7 +80,6 @@ out of its phase whenever the pain is worth a detour.
 
 | Item | Phase it belongs to | Size |
 |---|---|---|
-| Ctrl+B becomes *Reset bonds to automatic* | R | S |
 | Edit cell in the right-click menu | T | S |
 | Export a net as `.cgd` for Systre | V | S |
 
@@ -399,7 +402,7 @@ route from *a net the user drew* to *a framework built on it* still
 wants a writer.  It stays a cheap win and Phase V's Systre entry is
 still where it lives.
 
-## 5. Phase R — Add Atom means what the click meant
+## 5. Phase R — Add Atom means what the click meant — **shipped**
 
 **Goal:** an atom placed next to an atom lands at a bond length from
 it, with the bond drawn, and the key that resets the bonds is the one
@@ -409,11 +412,12 @@ people reach for.
 |---|---|---|
 | Add Atom should place the atom at a bond length | Editing | M |
 | Ctrl+B becomes *Reset bonds to automatic* | Editing | S |
+| Add centroid, and dummy atoms | Jules, below | M |
 
 **Note from Jules: also add a feature to Add Centroid in the middle
-of selected atoms. This centroid should have the option to be an 
+of selected atoms. This centroid should have the option to be an
 atom type, like carbon, or as a Dummy Atom. Dummy Atoms should be
-able to be used to draw Topology Bonds and Measure.
+able to be used to draw Topology Bonds and Measure.**
 
 **The anchor has two spellings and the cheap one comes first.**  With
 exactly one atom selected, entering Add Atom starts already anchored:
@@ -448,6 +452,17 @@ one atom appended.  The first is honest and is a wider change; the
 second is smaller and puts a fictional atom into a structure-shaped
 object.  Half a day's decision, made once, before the mode is written.
 
+*Decided: neither.*  Both spellings assume the ghost belongs to the
+model, and it does not — a `SceneModel` is built from the document and
+rebuilt when the document changes, while a ghost changes at cursor
+rate and describes something the document does not contain.  The first
+would rebuild the crystal on every mouse move; the second would leave
+a fictional atom where picking, the selection flags and `bounds()` all
+treat what they find as real.  So `scene.Ghost` is an **overlay**:
+its own record, its own two actors on the `VtkScene`, drawn over the
+scene and never part of it.  Nothing that reads a SceneModel — every
+offscreen render included — had to learn about it.
+
 **Ctrl+B rides along** because it is the same complaint: the gesture
 should mean what the user meant.  `reset_bonds` takes the key,
 `recompute_bonds` keeps the menu entry and the toolbar button.  The
@@ -457,6 +472,42 @@ command, so Ctrl+Z is exactly one press.  The **toolbar button stays
 Recalculate**: a button is pressed by aim rather than by memory, and
 the destructive one of a pair is the wrong thing to leave under the
 cursor.
+
+### What Add centroid turned out to need
+
+Jules's note is one gesture and three facts about the atom it places.
+
+**The middle is a minimum-image middle.**  `measure.centroid` takes
+every atom in the image nearest the *first* one, not in the image the
+P1 expansion wrapped it into — the centre of a ring that straddles the
+cell boundary is in the ring, and the average of the wrapped
+coordinates is a point in the vacuum.  Nearest to the first rather
+than chained atom to atom, which is what `unwrapped_positions` does
+for an angle: a selection has no order worth following.
+
+**A dummy atom is not chemistry, so perception never bonds one.**
+`bonding.DUMMY_ELEMENTS` is checked in `BondRules.allows`, which is
+the one place both the cutoff scan and the rules dialog go through.
+Without it a ring centre acquires six bonds to its own carbons and a
+coordination number nobody asked for: `X` carries a covalent radius in
+the tables only because every symbol does.  A bond the *user* draws to
+one is a different matter and is stored like any other — and so is a
+net edge, which is mostly what they are for.  `D` is deuterium and is
+not a dummy.
+
+**A force field has to say so.**  The UFF typer refused `X` with "the
+field covers hydrogen to lawrencium and nothing beyond it", which was
+a true sentence about the wrong problem — and it is now reachable by
+an ordinary gesture (add a centroid, press Optimise), so it names the
+dummy instead.
+
+The dummy is the dialog's **default**, because a centroid usually is
+one and because it is the answer that cannot quietly change what the
+crystal means; an element is the other radio button, and building a
+bridging atom into the middle of a ring is a different act with the
+same gesture.  The new atom is left selected, because a centroid lands
+inside the ring it was taken from where an unhighlighted new atom is
+genuinely hard to find.
 
 ---
 
@@ -733,7 +784,7 @@ and no cell is doubled, which stays true until this lands.
 |---|---|---|---|
 | **P** | Break up the shell | M | *shipped* |
 | **Q** | Build a MOF from a net | M | *shipped* |
-| **R** | Add Atom means what the click meant | M | |
+| **R** | Add Atom means what the click meant | M | *shipped* |
 | **S** | The picture says how big, where, and where it continues | M | |
 | **T** | The window and the rest of the gestures | M | |
 | **U** | Draw in 2D, build in 3D | M (XL with the sketcher) | |

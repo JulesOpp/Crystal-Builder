@@ -50,6 +50,16 @@ DEFAULT_SCALE = 1.15
 DEFAULT_DELTA = 0.0
 MIN_BOND_DISTANCE = 0.4         # below this it is an overlap, not a bond
 
+#: Elements that are not chemistry and never bond by perception.  A
+#: dummy atom is a position somebody wanted named -- the centre of a
+#: ring, the vertex of a net -- and it has a covalent radius in the
+#: tables only because every symbol does.  Perceiving a bond to one
+#: would give the centre of a ring a bond to every carbon in it, and a
+#: coordination number nobody asked for.  A bond to a dummy atom that
+#: the user *draws* is a different matter and is stored like any
+#: other; so is a net edge, which is what they are mostly for.
+DUMMY_ELEMENTS = frozenset({"X"})
+
 #: Re-exported from :mod:`xtal.core.structure`, where the identity
 #: rules for a stored bond have to know about it too.  A topology bond
 #: is drawn, expands over the symmetry orbit and is saved -- and is
@@ -81,6 +91,8 @@ class BondRules:
         return self.min_distance, radii * self.scale + self.delta
 
     def allows(self, a: str, b: str) -> bool:
+        if a in DUMMY_ELEMENTS or b in DUMMY_ELEMENTS:
+            return False                # see DUMMY_ELEMENTS
         if tuple(sorted((a, b))) in {tuple(sorted(p))
                                      for p in self.forbidden}:
             return False

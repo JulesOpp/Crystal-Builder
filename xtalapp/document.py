@@ -665,6 +665,35 @@ class Document(QObject):
         self.run(atom_commands.AddBondedSite(site, anchor, anchor_image))
         return f"added {element}, bonded to {name}"
 
+    def add_centroid(self, element: str = "X", label: str = "") -> str:
+        """Put an atom at the middle of the selected atoms.
+
+        A **dummy atom** by default, because that is what a centroid
+        usually is: a position somebody wants named -- the centre of a
+        ring, the vertex of a net -- rather than a piece of chemistry.
+        A dummy bonds to nothing by perception (see
+        ``bonding.DUMMY_ELEMENTS``), and net edges and measurements
+        take it like any other atom, which is what it is for.  Naming
+        a real element instead builds with it, and that is a different
+        thing the same gesture does.
+
+        The new atom is left selected: a centroid lands inside the
+        ring it was taken from, where an unhighlighted new atom is
+        genuinely hard to find.
+        """
+        atoms = sorted(self.selection.atoms)
+        if len(atoms) < 2:
+            return "select at least two atoms to put a centroid between"
+        point = measure.centroid(self.cell, self._structure.lattice,
+                                 atoms)
+        frac = self._structure.lattice.to_frac(point)
+        site = atom_commands.new_site(element, frac, label=label)
+        self.run(atom_commands.AddSites([site], label="Add centroid"))
+        placed = self._structure.n_sites - 1
+        self.select(self.cell.indices_of_site(placed).tolist())
+        return (f"centroid of {len(atoms)} atoms added as "
+                f"{self._structure.sites[placed].label}")
+
     def delete_selection(self) -> str:
         """Delete the sites behind the selected atoms.  Symmetry ties
         images together, so this removes whole orbits."""

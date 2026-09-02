@@ -131,6 +131,11 @@ def build_actions(window):
     add("duplicate", "Du&plicate", window.duplicate, "Ctrl+D")
     add("add_atom_dialog", "&Add atom...", window.add_atom_dialog,
         "Ctrl+Shift+A")
+    add("add_centroid", "Add &centroid...",
+        window.add_centroid_dialog,
+        tip="Put an atom at the middle of the selected atoms -- a "
+            "dummy atom, which bonds to nothing and is what net "
+            "edges and measurements are drawn to, or an element")
     add("add_hydrogens", "Add &hydrogens...",
         window.add_hydrogens_dialog,
         tip="Complete every main-group coordination with the "
@@ -326,7 +331,7 @@ def build_menus(window):
 
     structure_menu = bar.addMenu("S&tructure")
     window.actions_.fill_menu(structure_menu, [
-        "add_atom_dialog", "add_hydrogens", None,
+        "add_atom_dialog", "add_centroid", "add_hydrogens", None,
         "bond_rules", "recompute_bonds", "reset_bonds",
         "bonds_follow"])
     window.bond_type_menu = add_bond_type_menu(window,
