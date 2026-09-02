@@ -532,7 +532,7 @@ genuinely hard to find.
 
 ---
 
-## 6. Phase S — the picture says how big, where, and where it continues
+## 6. Phase S — the picture says how big, where, and where it continues — **shipped**
 
 **Goal:** the viewport carries the three things it currently cannot: a
 length, the geometry the user has defined on top of the crystal, and
@@ -595,6 +595,95 @@ picture and not a missing feature.
 submenu of three — and the session reader has to go on accepting the
 old two-valued string.
 
+### What was built
+
+**The half bond is a `_Halves` stub and not a radius-zero `_Drawn`
+entry**, which was the decision the entry said to take first.  Every
+array in the scene model is indexed by drawn atom — the radii, the
+colours, the labels, the ellipsoids, the legend, the selection flags
+and the picking all read them by that index — so a radius-zero entry
+is a fictional atom that seven separate things would each have to
+learn to skip, and the first one that forgot would put a label in
+mid-air or an element in the legend that is not in the picture.  A
+stub instead carries its own near index and the (atom, translation) of
+the far end, resolved to coordinates in the same vectorised pass as
+everything else, so the matching loop stays integer arithmetic.  Both
+halves of a whole bond still sit adjacent and the stubs follow them.
+
+**The net takes the same branch and gains the most from it.**
+`_emit_topology` now offers each edge from both ends and draws it
+whole only from the *i* side — a stub is anchored to the drawn vertex
+it starts at, so the *j* side contributes stubs and no duplicate
+edges.  A pcu vertex drawn on one cell shows six edges instead of
+three.
+
+**The scale bar is a function of the camera and of nothing else**,
+which is what makes it honest during a relaxation without any
+"freeze it when the run starts" machinery.  A ruler taken from the
+structure's own size would shrink with the cell it is there to
+measure; the camera does not move while a run steps the atoms, so the
+same length comes out every frame and the box moves against a bar
+that stands still.  It is refreshed from a renderer observer, added
+only while the bar is on, and rounded to 1, 2 or 5 per decade.
+
+**The cell frame bug was real and is fixed.**  `set_positions` now
+rebuilds `_cell_poly` alongside the atoms.  It is ninety-six lines at
+most, which is nothing beside the geometry it stands around, and
+without it the bar would have been measuring against a lie.
+
+**A plane is drawn from `measure.plane_quad`**, which lives in
+`xtal.core` with the fit rather than in the viewport.  The quads and
+the normals are their own two actors and not the polyhedron's — a
+plane must not vanish with the polyhedra or take their opacity — and
+`Document.shown_planes` follows the rows chosen in the Planes list,
+with none chosen meaning all of them, which is the convention
+`measure_plane_angles` already worked to.
+
+**The quad spans the cell and does not crop to its own atoms**, which
+reverses what this file argued for above.  The argument for cropping
+was that a quad the size of the box says nothing about which ring it
+came from; the argument against is stronger and is the reason planes
+are drawn at all.  Two planes meet in a *line*, and that line — how
+two rings are canted against each other, whether three of them share
+an axis — is the thing worth looking at.  Quads cropped to their own
+rings never touch, so there is nothing to see.  What is lost is
+answered elsewhere: the normal, the row in the Planes list, and
+selecting that row, which lights up the fitted atoms and draws that
+plane alone.  The opacity came down to 0.22 to pay for it, because
+two or three of them now overlap over most of the picture.
+
+**One bug found on the way.**  Ticking a member of an exclusive
+`QActionGroup` with its signals blocked leaves every member ticked:
+the group unticks the others *through* the signal it was blocked from
+seeing.  The refresh sets all three and blocks nothing, which is what
+`_sync_bond_type_actions` was already doing for the same reason.
+
+**`half` is the default**, which is the point of having built it.  Of
+the three, `in_range` draws every atom on the surface of the picture
+under-coordinated and `bonded` draws a box surrounded by atoms that
+are not in it; only the half bond is not wrong about something, so it
+is what the application opens with.  A session written before it
+existed still carries one of the other two and is still read as it was
+saved — only a value from a *newer* version falls back.
+
+**Nothing that reasons chemically is handed a dummy atom any more.**
+This was not in the phase and belongs with it.  The rule used to be
+that the force field *refuses* one by name, and that was defensible
+while a marker was exotic; a centroid is one click, so what it
+actually meant was a button that would not run on a structure the user
+considers ordinary, with "delete the marker" as the only remedy
+offered.  The markers are held back at the door instead —
+`xtal/ff/markers.py`, `hold_back` plus a `WithoutMarkers` façade that
+presents the whole cell again with zero force on them, applied in
+`Engine.__call__` so that UFF, DFTB+ and an engine written next year
+all get it without knowing.  `hydrogens.plan` uses the same call, and
+so does the typer, which now types the marker-free cell and scatters
+the answers back: a bond somebody drew from a carbon to a centroid
+would otherwise make that carbon three-coordinate and it would be
+typed as something it is not.  The types table gains a row saying the
+force field is not looking at that atom, which is worth more than the
+exception it used to raise.
+
 ---
 
 ## 7. Phase T — the window and the rest of the gestures
@@ -609,36 +698,69 @@ works in, and the things done twenty times an hour take one gesture.
 | Measure from the right-click menu | Editing | M |
 | An atom has nothing to say when you hover over it | Appearance | M |
 
-Two of these are a name in a list, one is a change to a type most of
-the application touches, and one is a decision about content.
+Two of these were a name in a list, one a change to a type most of the
+application touches, and one a decision about content.
 
-**The layout lands in `layout.py`**, which Phase P step 3 created for
+**The layout landed in `layout.py`**, which Phase P step 3 created for
 it: Structure top left, Workspace bottom left, the crystal in the
-middle, Sites raised on the right.  `info_dock` and `file_dock` move
-into `left_docks` and are split vertically rather than tabbed.  **The
-default is a default, not a rule** — a saved layout still wins — and
-`Reset layout` has to land on the same arrangement or the menu item
-stops being a way back.
+middle, Sites raised on the right.  `info_dock` joins `left_docks` and
+the three of them are split vertically rather than tabbed — the module
+tree stays in the column and stays closed, because nothing on the left
+is tabbed and the argument for that has not changed: those three
+answer different questions and tabbing any pair means never seeing
+both.  **The default is a default, not a rule** — a saved layout still
+wins — and `apply_default_layout` is one function rather than two
+descriptions, so `Reset layout` cannot drift away from what a first
+run gives.
 
-**Measure from the right-click menu needs an ordered selection.**  With
-three atoms picked as A–B–C the vertex is B and no other reading is
-right, and `Selection` stores a set with a single `focus` field for the
-last atom picked.  Stating the rule ("the order you clicked them")
-without keeping the order is a lie, so the order has to be kept — which
-is a change to a type most of the application touches, and is the
-reason this entry is M and not S.
+**The ordered selection was the real work of the phase.**  `Selection`
+kept a set and a single `focus` field, and `focus` was `max(atoms)` —
+the field said "last atom picked" and stored the largest index, which
+is the same lie in miniature.  It now keeps an `order` list, `focus`
+is a property reading the end of it, and the honest answer fell out:
+re-picking an atom moves it to the end, because that is when it was
+picked.  Nothing outside the class ever assigned `atoms` — every
+mutation already went through the six methods — which is why a change
+to a type the whole application touches cost nothing outside it.
 
-**Edit cell belongs in all three context menus**, not only the one for
-empty space: the cell is the one thing that is always under the cursor,
-whatever was clicked.  One name in three lists; the action already
-exists, is already undoable and already previews.  `display_range`
-deserves the same treatment for the same reason.
+**A selection that was never clicked is in index order.**  Select all,
+an orbit, an element: none of those was picked in an order, and a
+set's own iteration order is not one anybody can predict twice, so
+`set_atoms` sorts a set and keeps a sequence.  A stated rule is worth
+having only if the same selection means the same thing on the next
+run.
 
-**The tooltip's content is the interesting decision**, and it rides on
-the `on_move` Phase R added.  It should be what the current view is
-about: the label and element always, the UFF type and its reason when
-the Force Field dock is open, U_eq when the ORTEP style is drawn.  One
-that always says the same four things is one people learn to ignore.
+**Edit cell is in all three context menus** now, not only the one for
+empty space: the cell is the one thing always under the cursor,
+whatever was clicked.  One name in three lists, `display_range`
+alongside it, and both were already undoable and already previewed.
+
+**The tooltip says what the current view is about**, which was the
+decision worth making slowly.  The label and element always; the UFF
+type and its reason only while the Force Field dock is *on screen* —
+`visibilityChanged` on a tabified dock reports False for a dock that
+exists behind another tab, which is exactly the question being asked;
+and U_eq with whether anybody refined it anisotropically when the
+ORTEP style is drawn, because an ellipsoid grown from a `u_iso` is a
+sphere by assumption and the picture gives no sign of which is which.
+
+**The wording is `xtal/core/describe.py` and needs no display.**  What
+the viewport decides is only the half the window knows — whether the
+force field is on screen, whether the picture is being drawn from the
+displacement parameters — and it passes those in.  A marker needs no
+case of its own: the typer's own reason travels with the type, so a
+dummy atom's tooltip says the force field is not looking at it in the
+same words the types table uses.
+
+**Phase R paid for the hover twice over.**  `_maybe_hover` used to
+return early for any mode that did not want moves; the ray is now cast
+once and serves both the ghost and the tooltip, which is the shape the
+argument in Phase R predicted.  The text is recomputed only when the
+atom under the cursor changes — a mouse crossing a framework arrives
+there a hundred times over the same atom — and `setToolTip` rather
+than `QToolTip.showText`, so Qt owns the delay and a tooltip does not
+appear in front of somebody moving the cursor across the picture to
+get somewhere else.
 
 ---
 
@@ -806,13 +928,13 @@ and no cell is doubled, which stays true until this lands.
 | **P** | Break up the shell | M | *shipped* |
 | **Q** | Build a MOF from a net | M | *shipped* |
 | **R** | Add Atom means what the click meant | M | *shipped* |
-| **S** | The picture says how big, where, and where it continues | M | |
-| **T** | The window and the rest of the gestures | M | |
+| **S** | The picture says how big, where, and where it continues | M | *shipped* |
+| **T** | The window and the rest of the gestures | M | *shipped* |
 | **U** | Draw in 2D, build in 3D | M (XL with the sketcher) | |
 | **V** | The engines answer in pictures | L | |
 | **W** | The klassengleiche half | L | |
 
-Phases R to W schedule **every entry left in
+Phases U to W schedule **every entry left in
 [docs/TODO.md](TODO.md)**, and nothing else.  P is the one phase with
 no TODO entry behind it, because nobody using the application ever
 asked for it and nobody using it will see it.  An entry ships when its

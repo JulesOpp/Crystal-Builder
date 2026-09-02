@@ -47,6 +47,16 @@ placed either side of a mirror plane are *one* site, not two.  Both
 have to be true of the number reported -- "12 hydrogens on 2 sites" --
 or the preview is a lie about what the button does.
 
+**A dummy atom is not chemistry**, so it is held back at the door --
+:func:`xtal.ff.markers.hold_back`, the same door the engines use.
+``X`` marks a position: the centre of a ring, the vertex of a net.  A
+bond somebody drew to one would otherwise spend valence at the atom it
+came from, and the hydrogen that atom is actually missing would never
+be offered.  Nothing has to put the markers back -- unlike a module,
+this hands back coordinates for new atoms rather than a structure --
+and the command adds those to the structure the user still has,
+markers and all.
+
 What is deliberately not here: a torsion that is actually determined.
 A hydroxyl, a methyl and an amine have every angle fixed by the
 coordination and nothing at all fixing the rotation, so they are placed
@@ -62,6 +72,7 @@ import numpy as np
 
 from xtal.core import bonding, elements, p1
 from xtal.core.site import Site
+from xtal.ff import markers
 from xtal.ff.uff import params, terms, typer
 
 #: Hydrogens refined against X-ray data sit about this much closer to
@@ -143,6 +154,7 @@ def plan(structure, rules: bonding.BondRules | None = None,
     comparing against a structure whose other hydrogens were refined
     against X-ray data.
     """
+    structure, _kept = markers.hold_back(structure)
     cell = p1.expand(structure)
     if cell.n_atoms == 0:
         return HydrogenPlan()

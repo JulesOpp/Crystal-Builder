@@ -122,23 +122,29 @@ def build_docks(window):
     # played is marked on the trace.  Both engines' plots feed the
     # one transport bar -- only one of them is ever showing a run
     # at a time, so there is nothing to arbitrate between.
+    # The viewport's tooltip says what the current view is about, and
+    # the force field's reading of an atom is part of that only while
+    # somebody is looking at the force field.  The dock is the only
+    # thing that knows, so it says so.
+    window.ff_dock.visibilityChanged.connect(window.show_atom_types)
+
     for dock in (window.ff_dock, window.dftb_dock):
         dock.plot.pointClicked.connect(window.trajectory_dock.show_step)
         window.trajectory_dock.frameShown.connect(dock.plot.set_marker)
     window.trajectory_dock.historyLoaded.connect(
         window._on_trajectory_history)
 
-    # The workspace on the left, the transport bar under the
-    # viewport, everything else tabbed on the right in the order
-    # they are listed here.
-    window.left_docks = (window.file_dock, window.modules_dock)
+    # What the structure is and where it came from on the left, the
+    # transport bar under the viewport, everything else tabbed on
+    # the right in the order they are listed here.
+    window.left_docks = (window.info_dock, window.file_dock,
+                         window.modules_dock)
     window.bottom_docks = (window.trajectory_dock, window.log_dock,
                            window.results_dock)
-    window.right_docks = (window.inspector_dock, window.info_dock,
-                          window.net_dock, window.sites_dock,
-                          window.move_dock, window.style_dock,
-                          window.measure_dock, window.ff_dock,
-                          window.dftb_dock)
+    window.right_docks = (window.inspector_dock, window.net_dock,
+                          window.sites_dock, window.move_dock,
+                          window.style_dock, window.measure_dock,
+                          window.ff_dock, window.dftb_dock)
     window.docks = (window.left_docks + window.right_docks
                     + window.bottom_docks)
     apply_default_layout(window)
@@ -150,25 +156,26 @@ def build_docks(window):
     window_menu.addAction(window.actions_["reset_layout"])
 
 
-#: What a first run shows: what can be run and what it produced,
-#: on the left, and the inspector on the right.  Every other panel
-#: is one item away in the Window menu; seven of them tabbed on
-#: the right take, between them, the width the viewport is there
-#: to use.
-DEFAULT_VISIBLE = ("file_dock", "modules_dock", "inspector_dock")
+#: What a first run shows: what the structure is and what is on
+#: disk, on the left, and the asymmetric unit on the right.  Those
+#: are the three panels somebody editing a structure reads without
+#: having been asked to open anything.  Every other panel is one
+#: item away in the Window menu; seven of them tabbed on the right
+#: take, between them, the width the viewport is there to use.
+DEFAULT_VISIBLE = ("info_dock", "file_dock", "sites_dock")
 
 
 def apply_default_layout(window) -> None:
-    """Put every dock back where it starts: the two trees on the
-    left, the rest tabbed on the right, and only three of them
-    shown.
+    """Put every dock back where it starts: Structure over the two
+    trees on the left, the rest tabbed on the right, and only three
+    of them shown.
 
     Called once on construction -- ``restore_window`` overrides it
     when there is a saved layout -- and again by Reset layout.
 
-    The workspace and the module tree are *split* rather than
-    tabbed: they answer the two halves of one question -- what can
-    I run, and what did it produce -- and tabbing them would mean
+    Nothing on the left is *tabbed*.  Structure says what the
+    structure is, the workspace what is on disk and the module tree
+    what can be run on it; tabbing any pair of those would mean
     never seeing both.
     """
     for dock in window.left_docks:
@@ -185,14 +192,17 @@ def apply_default_layout(window) -> None:
     for previous, dock in zip(window.right_docks,
                               window.right_docks[1:], strict=False):
         window.tabifyDockWidget(previous, dock)
-    window.splitDockWidget(window.file_dock, window.modules_dock,
-                           Qt.Vertical)
+    for previous, dock in zip(window.left_docks,
+                              window.left_docks[1:], strict=False):
+        window.splitDockWidget(previous, dock, Qt.Vertical)
 
     shown = {getattr(window, name) for name in DEFAULT_VISIBLE}
     for dock in window.docks:
         dock.setFloating(False)
         dock.setVisible(dock in shown)
-    window.right_docks[0].raise_()
+    # Sites, and not whatever is first in the tuple: the asymmetric
+    # unit is what the right-hand column is open for.
+    window.sites_dock.raise_()
 
 
 def reset_layout(window) -> None:

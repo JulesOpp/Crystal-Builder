@@ -489,9 +489,25 @@ class FakeViewport:
         self.renders = 0
         self.modes_set: list = []
         self._ray = ray or ((0.0, 0.0, -10.0), (0.0, 0.0, 1.0))
+        # The hover path serves the ghost and the tooltip out of one
+        # ray, so a stub that runs it needs both halves.
+        self.show_types = False
+        self._tooltip_atom = None
+        self.tooltips: list = []
 
     def _ray_at(self, point):
         return self._ray
+
+    def setToolTip(self, text):
+        self.tooltips.append(text)
+
+    def _update_tooltip(self, origin, direction):
+        from xtalapp.viewport.widget import ViewportWidget
+        ViewportWidget._update_tooltip(self, origin, direction)
+
+    def _describe(self, atom):
+        from xtalapp.viewport.widget import ViewportWidget
+        return ViewportWidget._describe(self, atom)
 
     def _safe_render(self):
         self.renders += 1
@@ -575,8 +591,10 @@ def test_a_hover_puts_a_ghost_up(mode, one_carbon):
 
 
 def test_a_mode_that_wants_no_moves_is_never_asked(one_carbon):
-    """A ray per mouse move for a mode that would ignore it is a cost
-    with nothing on the other side of it."""
+    """The ray is cast for the tooltip whatever mode is current, but
+    a mode that would ignore a move is not asked for a ghost -- and
+    Select putting an atom up would be a picture of an edit nobody
+    asked for."""
     widget = viewport_module()
     view = FakeViewport(modes.get("select"), one_carbon,
                         scene(one_carbon))

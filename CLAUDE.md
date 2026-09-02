@@ -161,11 +161,17 @@ stress case).
   Add hydrogens is the deliberate exception, because bonding what it
   adds is the whole operation.
 - **A dummy atom is a marker, not chemistry.** `X` — see
-  `elements.DUMMY_ELEMENTS`. Perception never bonds one, the force
-  field refuses one by name, and no module is ever handed one:
-  `job.without_dummies` holds them back at the door and
-  `restore_dummies` puts them back into a geometry a module returns.
-  Net edges and measurements take them, which is what they are for.
+  `elements.DUMMY_ELEMENTS`. Perception never bonds one, and nothing
+  that reasons chemically is ever handed one — it is **held back at
+  the door** rather than refused, in three places that do the same
+  thing: `markers.hold_back` for a force field (the engine is built
+  over a structure with none, and `WithoutMarkers` presents the whole
+  cell again with zero force on them), the same call in
+  `hydrogens.plan`, and `job.without_dummies` / `restore_dummies` for
+  a module run. Refusing was the old behaviour and it was wrong: a
+  centroid is one click, and "delete the marker" throws away what the
+  user added it for. Net edges and measurements take them, which is
+  what they are for.
 - **A force field or optimiser never changes the bonding or the
   atoms.** All structural changes are the user's, made explicitly.
 - **Manually set bond types take precedence** over any distance-based

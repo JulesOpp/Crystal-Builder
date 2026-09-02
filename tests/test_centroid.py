@@ -174,17 +174,60 @@ def test_a_dummy_survives_a_cif_round_trip(square, tmp_path):
     assert [s.element for s in FORMATS.read(path).sites][-1] == "X"
 
 
-def test_a_force_field_says_what_is_wrong_rather_than_a_radius(square):
-    """The refusal is reachable by an ordinary gesture now -- add a
-    centroid, press Optimise -- so it has to name the dummy rather
-    than talk about the end of the periodic table."""
+def test_a_force_field_runs_over_a_structure_with_a_centroid(square):
+    """It used to refuse the whole crystal by name, and that refusal
+    was reachable by an ordinary gesture: add a centroid, press
+    Optimise.  Deleting the marker was the only remedy offered, and it
+    throws away the thing the user added it for -- so the marker is
+    held back at the door instead."""
     from xtal.ff import ENGINES
-    from xtal.ff.uff.typer import TypingError
 
     square.select([0, 1, 2, 3])
     square.add_centroid()
-    with pytest.raises(TypingError, match="dummy atom"):
-        ENGINES.build("uff", square.structure)
+    calculator = ENGINES.build("uff", square.structure)
+    assert calculator.n_atoms == square.cell.n_atoms
+    assert "dummy" in calculator.summary()
+
+
+def test_the_marker_feels_no_force_and_exerts_none(square):
+    """What "the force field ignores it" has to mean: it does not
+    move, and nothing moves because of it."""
+    from xtal.ff import ENGINES
+
+    square.select([0, 1, 2, 3])
+    square.add_centroid()
+    structure = square.structure
+    marker = [i for i, s in enumerate(structure.sites)
+              if s.element == "X"]
+    assert len(marker) == 1
+
+    with_it = ENGINES.build("uff", structure).compute(
+        square.cell.cart, structure.lattice.matrix)
+    assert np.allclose(with_it.forces[-1], 0.0)
+
+    without = structure.copy()
+    without.remove_sites(marker)
+    plain = ENGINES.build("uff", without).compute(
+        p1.expand(without).cart, without.lattice.matrix)
+    assert with_it.energy == pytest.approx(plain.energy)
+
+
+def test_a_bond_drawn_to_a_marker_does_not_retype_the_atom(square):
+    """A bond from a carbon to a centroid is a thing to draw, not a
+    neighbour.  Counted as one it would make that carbon
+    three-coordinate and the typer would call it something it is
+    not."""
+    from xtal.ff.uff import typer
+
+    square.select([0, 1, 2, 3])
+    square.add_centroid()
+    before = typer.assign(square.structure).types[0].name
+    square.add_bond_between(4, 0)
+    after = typer.assign(square.structure)
+
+    assert after.types[0].name == before
+    assert after.types[4].name == typer.MARKER_TYPE
+    assert "not chemistry" in after.types[4].reason
 
 
 # ------------------------------------------------- through the window
@@ -357,3 +400,30 @@ def test_the_runner_holds_the_dummies_back(qtbot, tmp_path, rutile_cif,
     assert handed and handed[0] is not None
     assert "X" not in [s.element for s in handed[0].sites]
     assert window.module_runner._held_dummies is not None
+
+
+def test_an_optimisation_leaves_the_marker_where_it_was(square):
+    """Zero force is what makes this true without anything being told
+    about markers: a site whose whole orbit feels nothing has no
+    gradient."""
+    from xtal.ff import ENGINES, optimize
+
+    square.select([0, 1, 2, 3])
+    square.add_centroid()
+    structure = square.structure
+    before = structure.sites[-1].frac.copy()
+
+    result = optimize.run(ENGINES.build("uff", structure), structure,
+                          max_steps=10)
+    assert np.allclose(result.frac[-1], before, atol=1e-9)
+
+
+def test_the_typing_table_still_has_a_row_for_the_marker(square):
+    """It used to raise instead of returning a table, which took the
+    Force Field dock with it.  A row that says the force field is not
+    looking at this atom is worth more than an exception."""
+    square.select([0, 1, 2, 3])
+    square.add_centroid()
+    rows = square.site_types()
+    assert len(rows) == square.structure.n_sites
+    assert rows[-1][1].name == "X"

@@ -222,3 +222,89 @@ def test_clearing_planes_leaves_the_measurements(window, document):
     assert not document.planes
     assert len(document.measurements) == 1
     assert window.measure_dock.table.rowCount() == 1
+
+
+# --------------------------------------------------------- the picture
+
+def scene_of(document):
+    from xtalapp.viewport.builder import build_scene
+    return build_scene(document.structure, document.view,
+                       planes=document.planes_to_draw())
+
+
+def test_a_defined_plane_is_actually_drawn(document):
+    """The complaint this answers: you press Define and the plane is
+    nowhere on screen -- the row in the list is the only sign it
+    exists."""
+    assert scene_of(document).n_plane_faces == 0
+    document.select(range(6))
+    document.define_plane()
+
+    scene = scene_of(document)
+    assert scene.n_plane_faces == 2         # a quad is two triangles
+    assert scene.n_planes == 1              # and one normal
+
+
+def test_choosing_rows_draws_only_those_planes(window, document):
+    """Two rings and two planes is already a picture with a quad over
+    everything; choosing a row is how one of them is looked at."""
+    window.add_document(document)
+    define_both(document)
+    assert scene_of(document).n_planes == 2
+
+    window.measure_dock.plane_list.item(1).setSelected(True)
+    assert document.shown_planes == (1,)
+
+    scene = scene_of(document)
+    assert scene.n_planes == 1
+    # the quad spans the cell, so which plane it is shows in where its
+    # centre and its normal are, not in where its corners are
+    assert np.allclose(scene.normal_starts[0],
+                       document.planes[1].centroid, atol=1e-4)
+
+
+def test_choosing_nothing_goes_back_to_all_of_them(window, document):
+    """The same convention the angle button already works to: none
+    chosen means all of them, because otherwise one plane defined and
+    never clicked would never appear."""
+    window.add_document(document)
+    define_both(document)
+    window.measure_dock.plane_list.item(0).setSelected(True)
+    assert document.shown_planes == (0,)
+
+    window.measure_dock.plane_list.clearSelection()
+    assert document.shown_planes == ()
+    assert scene_of(document).n_planes == 2
+
+
+def test_removing_a_plane_forgets_which_rows_were_chosen(document):
+    """The rows renumber underneath, so a remembered index would draw
+    a different plane than the one that was clicked."""
+    define_both(document)
+    document.set_shown_planes([1])
+    document.remove_plane(0)
+    assert document.shown_planes == ()
+    assert scene_of(document).n_planes == 1
+
+
+def test_the_planes_can_be_turned_off(document):
+    define_both(document)
+    document.update_view(show_planes=False)
+    assert scene_of(document).n_plane_faces == 0
+
+
+def test_a_plane_is_redrawn_where_the_atoms_moved_to(document):
+    """A plane is re-fitted from its atoms whenever they move, and the
+    quad has to follow the fit or the picture claims the old plane."""
+    document.select(range(6))
+    document.define_plane()
+    before = scene_of(document).plane_points.mean(axis=0)
+
+    structure = document.structure
+    for k in range(6):
+        frac = structure.sites[k].frac.copy()
+        frac[2] += 0.1
+        structure.set_frac(k, frac)
+    document._remeasure()
+    after = scene_of(document).plane_points.mean(axis=0)
+    assert after[2] - before[2] == pytest.approx(0.1 * BOX, abs=1e-6)

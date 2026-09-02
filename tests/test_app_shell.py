@@ -229,6 +229,60 @@ def test_visibility_actions(window, rutile_cif):
     assert doc.view.boundary == "bonded"
 
 
+def test_the_three_boundary_answers_are_one_choice(window, rutile_cif):
+    """One question with three answers, so an exclusive group and not
+    three checkboxes -- picking one has to clear the last."""
+    doc = window.open_path(rutile_cif)
+    for name in ("half", "bonded", "in_range", "half"):
+        window.actions_[f"boundary_{name}"].trigger()
+        assert doc.view.boundary == name
+        checked = [n for n in ("in_range", "bonded", "half")
+                   if window.actions_[f"boundary_{n}"].isChecked()]
+        assert checked == [name]
+
+
+def test_the_boundary_tick_follows_the_document(window, rutile_cif):
+    """The menu has to show what the current document is set to, and
+    exactly one entry of the three.
+
+    Blocking the action's signals while ticking it was what got this
+    wrong: an exclusive group unticks the others *through* the signal
+    it was then not seeing, so all three ended up ticked at once and
+    the menu claimed every answer.
+    """
+    document = window.open_path(rutile_cif)
+    for name in ("half", "bonded", "in_range"):
+        document.update_view(boundary=name)
+        checked = [n for n in ("in_range", "bonded", "half")
+                   if window.actions_[f"boundary_{n}"].isChecked()]
+        assert checked == [name]
+
+
+def test_the_boundary_tick_follows_the_tab(window, rutile_cif):
+    """Two documents at different settings: the menu shows the one in
+    front, or it is a picture of somebody else's view."""
+    first = window.open_path(rutile_cif)
+    first.update_view(boundary="half")
+    window.new_document()
+    second = window.current_document()
+    assert second is not first
+    second.update_view(boundary="bonded")
+    assert window.actions_["boundary_bonded"].isChecked()
+
+    window.tabs.setCurrentIndex(window.documents.index(first))
+    assert window.actions_["boundary_half"].isChecked()
+    assert not window.actions_["boundary_bonded"].isChecked()
+
+
+def test_the_new_view_toggles_reach_the_document(window, rutile_cif):
+    doc = window.open_path(rutile_cif)
+    assert doc.view.show_planes and not doc.view.show_scale_bar
+    window.actions_["show_planes"].trigger()
+    assert not doc.view.show_planes
+    window.actions_["show_scale_bar"].trigger()
+    assert doc.view.show_scale_bar
+
+
 def test_cell_spinboxes_change_the_display_range(window, rutile_cif):
     doc = window.open_path(rutile_cif)
     window.cell_spins[0].setValue(3)

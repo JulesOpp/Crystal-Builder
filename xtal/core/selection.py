@@ -29,7 +29,8 @@ import numpy as np
 
 @dataclass
 class Selection:
-    """A set of selected atoms and bonds, plus the focused atom."""
+    """A set of selected atoms and bonds, and the order they arrived
+    in."""
 
     atoms: set = field(default_factory=set)
     bonds: set = field(default_factory=set)     # CellBond.key() tuples
@@ -37,9 +38,19 @@ class Selection:
     # one: a topology bond and a chemical bond can join the very same
     # pair of atoms, and their keys would then be indistinguishable.
     topology: set = field(default_factory=set)
-    focus: int | None = None                    # last atom picked
+    # The same atoms, in the order they were picked.  A set cannot
+    # answer what a measurement asks: three atoms picked A-B-C make an
+    # angle about B, and B-A-C is a different question over the same
+    # three atoms.  Stating the rule ("the order you clicked them")
+    # without keeping the order is a lie, so the order is kept.
+    order: list = field(default_factory=list)
 
     # -- state ---------------------------------------------------------
+
+    @property
+    def focus(self) -> int | None:
+        """The last atom picked, or ``None``."""
+        return self.order[-1] if self.order else None
 
     @property
     def is_empty(self) -> bool:
@@ -61,30 +72,46 @@ class Selection:
         self.atoms.clear()
         self.bonds.clear()
         self.topology.clear()
-        self.focus = None
+        self.order.clear()
 
     def set_atoms(self, atoms) -> None:
-        self.atoms = {int(a) for a in atoms}
-        self.focus = max(self.atoms) if self.atoms else None
+        """Replace the selected atoms.
+
+        A *sequence* states its own order, which is what a click path
+        passes and what a measurement then reads back.  A set has no
+        order to state, so it is taken in index order rather than in
+        whatever order that particular set happens to iterate in:
+        "the middle one of however the set came out" is not an answer
+        anybody can predict twice.
+        """
+        self.order = _ordered(atoms)
+        self.atoms = set(self.order)
 
     def add_atoms(self, atoms) -> None:
-        self.atoms |= {int(a) for a in atoms}
+        for atom in _ordered(atoms):
+            if atom not in self.atoms:
+                self.atoms.add(atom)
+                self.order.append(atom)
 
     def remove_atoms(self, atoms) -> None:
-        self.atoms -= {int(a) for a in atoms}
-        if self.focus is not None and self.focus not in self.atoms:
-            self.focus = None
+        gone = {int(a) for a in atoms}
+        self.atoms -= gone
+        self.order = [a for a in self.order if a not in gone]
 
     def toggle_atom(self, atom: int) -> bool:
-        """Toggle one atom; returns whether it ended up selected."""
+        """Toggle one atom; returns whether it ended up selected.
+
+        A re-picked atom goes to the *end* of the order, because that
+        is when it was picked -- clicking it off and on again is how
+        somebody corrects the vertex of an angle.
+        """
         atom = int(atom)
         if atom in self.atoms:
             self.atoms.discard(atom)
-            if self.focus == atom:
-                self.focus = None
+            self.order.remove(atom)
             return False
         self.atoms.add(atom)
-        self.focus = atom
+        self.order.append(atom)
         return True
 
     def toggle_bond(self, key) -> bool:
@@ -102,12 +129,11 @@ class Selection:
         return True
 
     def invert(self, n_atoms: int) -> None:
-        self.atoms = set(range(n_atoms)) - self.atoms
-        self.focus = None
+        self.set_atoms(set(range(n_atoms)) - self.atoms)
 
     def copy(self) -> Selection:
         return Selection(set(self.atoms), set(self.bonds),
-                         set(self.topology), self.focus)
+                         set(self.topology), list(self.order))
 
     def mask(self, n_atoms: int) -> np.ndarray:
         """Boolean array over the P1 cell -- what the scene builder
@@ -127,17 +153,27 @@ class Selection:
         """
         return (any(a >= n_atoms for a in self.atoms)
                 or any(b[0] >= n_atoms or b[1] >= n_atoms
-                       for b in self.bonds)
-                or (self.focus is not None and self.focus >= n_atoms))
+                       for b in self.bonds))
 
     def prune(self, n_atoms: int) -> None:
         """Drop references to atoms that no longer exist (after a
         delete, a supercell, a change of space group)."""
         self.atoms = {a for a in self.atoms if 0 <= a < n_atoms}
+        self.order = [a for a in self.order if a in self.atoms]
         self.bonds = {b for b in self.bonds
                       if b[0] < n_atoms and b[1] < n_atoms}
-        if self.focus is not None and self.focus >= n_atoms:
-            self.focus = None
+
+
+def _ordered(atoms) -> list:
+    """The atoms as a list, deduplicated, first occurrence winning.
+
+    Sets and dict keys are sorted on the way past: they have no order
+    of their own, and taking one from the iteration order would make
+    the same selection mean different things on different runs.
+    """
+    if isinstance(atoms, set | frozenset | dict):
+        atoms = sorted(atoms)
+    return list(dict.fromkeys(int(a) for a in atoms))
 
 
 # ======================================================================

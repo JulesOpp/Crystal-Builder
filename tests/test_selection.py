@@ -12,7 +12,7 @@ def test_basic_editing():
     assert s.is_empty and len(s) == 0
 
     s.set_atoms([3, 1, 1])
-    assert s.atoms == {1, 3} and s.focus == 3
+    assert s.atoms == {1, 3} and s.focus == 1
     s.add_atoms([5])
     assert s.atoms == {1, 3, 5}
     s.remove_atoms([1])
@@ -37,11 +37,12 @@ def test_prune_after_the_structure_shrinks():
     s = Selection()
     s.set_atoms([0, 5, 9])
     s.bonds = {(0, 5, (0, 0, 0)), (5, 9, (0, 0, 0))}
-    s.focus = 9
+    assert s.focus == 9
     s.prune(6)
     assert s.atoms == {0, 5}
+    assert s.order == [0, 5]
     assert s.bonds == {(0, 5, (0, 0, 0))}
-    assert s.focus is None
+    assert s.focus == 5
 
 
 def test_copy_is_independent():
@@ -53,21 +54,51 @@ def test_copy_is_independent():
 
 
 def test_a_copy_keeps_every_set_it_had():
-    """All three sets and the focus, each in its own field: the net
+    """All three sets and the order, each in its own field: the net
     edges used to land in the focus, which made a copied selection
     claim to have edges nobody drew."""
     s = Selection()
-    s.set_atoms([1, 2])
+    s.set_atoms([2, 1])
     s.bonds = {(1, 2, (0, 0, 0))}
     s.topology = {(1, 2, (0, 0, 1))}
-    s.focus = 2
 
     c = s.copy()
+    c.add_atoms([7])
 
-    assert c.atoms == s.atoms
+    assert c.atoms == s.atoms | {7}
     assert c.bonds == s.bonds
     assert c.topology == s.topology
-    assert c.focus == 2
+    assert s.order == [2, 1]
+
+
+def test_a_selection_remembers_the_order_atoms_were_clicked():
+    """Three atoms picked A-B-C make an angle about B, and the set
+    alone cannot say which one B was."""
+    s = Selection()
+    for atom in (7, 2, 5):
+        s.toggle_atom(atom)
+    assert s.order == [7, 2, 5]
+    assert s.focus == 5
+
+
+def test_re_picking_an_atom_moves_it_to_the_end():
+    """Clicking one off and on again is how somebody corrects the
+    vertex, so the second click is when it was picked."""
+    s = Selection()
+    for atom in (7, 2, 5):
+        s.toggle_atom(atom)
+    s.toggle_atom(2)
+    s.toggle_atom(2)
+    assert s.order == [7, 5, 2]
+
+
+def test_a_selection_that_was_never_clicked_is_in_index_order():
+    """Select all, an orbit, an element: none of those was clicked in
+    an order, and a set's own iteration order is not one anybody can
+    predict twice."""
+    s = Selection()
+    s.set_atoms({5, 1, 9})
+    assert s.order == [1, 5, 9]
 
 
 def test_by_element_and_by_site(rutile):

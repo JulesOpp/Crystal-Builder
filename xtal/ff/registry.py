@@ -69,7 +69,26 @@ class Engine:
         return coerce(self.options, values)
 
     def __call__(self, structure, **options):
-        return self.build(structure, **options)
+        """Build a calculator, with the markers held at the door.
+
+        This and not :attr:`build` is what everything should call.
+        ``build`` is the engine's own factory and knows nothing about
+        dummy atoms; asking it directly hands one a structure with
+        markers in it, which is how a centroid used to make every
+        force field refuse the crystal it was added to.  Doing it here
+        rather than in each engine is the same argument
+        :mod:`xtal.ff.markers` makes: an engine written next year
+        would have to remember, and would not.
+        """
+        from xtal.core import p1
+        from xtal.ff import markers
+
+        clean, kept = markers.hold_back(structure)
+        calculator = self.build(clean, **options)
+        if kept is None:
+            return calculator
+        return markers.WithoutMarkers(calculator, kept,
+                                      p1.expand(structure).n_atoms)
 
 
 class EngineRegistry:
@@ -103,7 +122,7 @@ class EngineRegistry:
         return list(self._engines)
 
     def build(self, name: str, structure, **options):
-        return self.get(name).build(structure, **options)
+        return self.get(name)(structure, **options)
 
 
 ENGINES = EngineRegistry()

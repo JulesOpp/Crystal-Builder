@@ -45,6 +45,7 @@ import numpy as np
 
 from xtal.core import bonding, p1
 from xtal.core.structure import CHEMISTRY, Change
+from xtal.ff import markers
 from xtal.ff.uff import params
 
 #: Coordination geometry, and the ring perception over it, both live
@@ -160,6 +161,10 @@ def _assign(structure, rules) -> Typing:
     graph = bonding.graph(structure, rules)
     if cell.n_atoms == 0:
         return Typing((), np.zeros(0), ())
+    clean, kept = markers.hold_back(structure)
+    if kept is not None:
+        return _around_the_markers(structure, cell, graph, clean,
+                                   kept, rules)
 
     _refuse_unknown_elements(cell)
     geometry = Geometry(cell, graph)
@@ -188,25 +193,69 @@ def _assign(structure, rules) -> Typing:
                   tuple(tuple(r) for r in rings))
 
 
+#: What a marker is called in the types table.  Not a UFF type and
+#: not pretending to be one -- ``params.get`` has never heard of it,
+#: and the table's description column comes out empty, which is the
+#: right amount to say about an atom the force field is not looking
+#: at.
+MARKER_TYPE = "X"
+MARKER_REASON = ("a marker and not chemistry, so the force field "
+                 "leaves it out: it is given no type, it spends no "
+                 "valence, and nothing is coordinated through it")
+
+
+def _around_the_markers(structure, cell, graph, clean, kept,
+                        rules) -> Typing:
+    """Type the structure's real atoms and put the markers back.
+
+    The typing is done over a cell with no markers in it at all,
+    which is what stops one being counted as a neighbour: a bond the
+    user drew from a carbon to a centroid would otherwise make that
+    carbon three-coordinate, and it would be typed as something it is
+    not.  The answers are then scattered back onto the whole cell, so
+    everything that reads a ``Typing`` -- the table above all -- goes
+    on indexing it by the atoms it can see.
+
+    The orders are matched by bond *key* rather than by position, so
+    nothing here depends on two graphs enumerating their bonds in the
+    same order.  A bond to a marker gets an order of zero, which is
+    the only honest number for an edge the force field is not adding
+    up.
+    """
+    inner = _assign(clean, rules)
+    marker = AtomType(MARKER_TYPE, CERTAIN, MARKER_REASON)
+    types = [marker] * cell.n_atoms
+    for position, atom in enumerate(kept):
+        types[int(atom)] = inner.types[position]
+
+    clean_graph = bonding.graph(clean, rules)
+    by_key = {}
+    for k, bond in enumerate(clean_graph.bonds):
+        by_key[(int(kept[bond.i]), int(kept[bond.j]),
+                tuple(int(v) for v in bond.image))] = \
+            float(inner.bond_orders[k])
+    orders = np.array(
+        [by_key.get((int(b.i), int(b.j),
+                     tuple(int(v) for v in b.image)), 0.0)
+         for b in graph.bonds], dtype=float)
+
+    rings = tuple(tuple(int(kept[a]) for a in ring)
+                  for ring in inner.rings)
+    return Typing(tuple(types), orders, rings)
+
+
 def _refuse_unknown_elements(cell) -> None:
     """Refuse before typing rather than during it, and say which.
 
-    A dummy atom is called out separately because it is the one that
-    arrives by an ordinary gesture -- Add centroid puts one in -- and
-    "no parameters, the field stops at lawrencium" is the wrong
-    explanation for a marker that was never chemistry to begin with.
+    Markers never reach here -- :func:`_around_the_markers` has
+    already taken them out -- so what is left is a real element the
+    field has no parameters for, which is the one case worth an
+    exception.
     """
     unknown = sorted({e for e in cell.elements
                       if not params.has_element(e)})
     if not unknown:
         return
-    dummies = [e for e in unknown if e in bonding.DUMMY_ELEMENTS]
-    if dummies:
-        raise TypingError(
-            "a force field has nothing to say about a dummy atom ("
-            + ", ".join(dummies)
-            + "); delete it, or change its element, before running "
-              "one")
     raise TypingError(
         "UFF has no parameters for "
         + ", ".join(unknown)

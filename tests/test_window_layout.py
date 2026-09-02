@@ -134,12 +134,50 @@ def test_fitting_a_window_that_already_fits_changes_nothing(
 
 def test_only_the_three_starting_docks_open_on_a_first_run(window):
     """Seven panels tabbed on the right take, between them, the width
-    the viewport is there to use.  The two that open beside them are
-    what can be run and what it produced."""
+    the viewport is there to use.  What opens instead is the three a
+    person editing a structure reads: what it is, where it came from,
+    and the asymmetric unit."""
     visible = {d.objectName() for d in window.docks if not d.isHidden()}
-    assert visible == {window.file_dock.objectName(),
-                       window.modules_dock.objectName(),
-                       window.inspector_dock.objectName()}
+    assert visible == {window.info_dock.objectName(),
+                       window.file_dock.objectName(),
+                       window.sites_dock.objectName()}
+
+
+def test_the_first_run_puts_structure_and_workspace_down_the_left(
+        window):
+    """Structure over Workspace, split and not tabbed -- tabbing them
+    would mean never seeing both -- with Sites raised on the right.
+    A default layout that hides half of itself behind a tab bar is
+    the one people rearrange before they start."""
+    assert window.info_dock in window.left_docks
+    assert window.file_dock in window.left_docks
+    assert window.sites_dock in window.right_docks
+    assert (window.dockWidgetArea(window.info_dock)
+            == Qt.LeftDockWidgetArea)
+    assert (window.dockWidgetArea(window.file_dock)
+            == Qt.LeftDockWidgetArea)
+    assert (window.dockWidgetArea(window.sites_dock)
+            == Qt.RightDockWidgetArea)
+    assert window.info_dock not in window.tabifiedDockWidgets(
+        window.file_dock)
+
+
+def test_reset_layout_lands_on_the_default_arrangement(window):
+    """Reset layout is the way back, so it has to arrive at the same
+    place a first run does -- one function and not two descriptions
+    of the same thing."""
+    window.style_dock.setVisible(True)
+    window.sites_dock.setVisible(False)
+    window.addDockWidget(Qt.RightDockWidgetArea, window.info_dock)
+
+    window.reset_layout()
+
+    visible = {d.objectName() for d in window.docks if not d.isHidden()}
+    assert visible == {window.info_dock.objectName(),
+                       window.file_dock.objectName(),
+                       window.sites_dock.objectName()}
+    assert (window.dockWidgetArea(window.info_dock)
+            == Qt.LeftDockWidgetArea)
 
 
 def test_reset_layout_puts_the_panels_back(window, settings):

@@ -31,6 +31,7 @@ from xtal.commands.bonds import SetBondType
 from xtal.commands.ff import AddHydrogens
 from xtal.core import bonding, p1
 from xtal.core.site import Site
+from xtal.core.structure import Bond
 from xtal.ff import hydrogens
 from xtal.ff.uff import typer
 
@@ -406,3 +407,56 @@ def test_a_stated_order_that_contradicts_the_coordination_is_ignored():
         ("C", [-0.89, -0.89, 0.89]))
     state_every_bond(neopentane_core, 2.0)
     assert typer.assign(neopentane_core).types[0].name == "C_3"
+
+
+# ------------------------------------------------------- dummy atoms
+
+def with_a_marker(structure, frac=(0.9, 0.9, 0.9)) -> Structure:
+    """The structure with a dummy atom dropped into a corner of the
+    cell, well away from everything."""
+    structure.sites.append(Site("X", list(frac)))
+    structure.touch()
+    return structure
+
+
+def test_a_dummy_atom_does_not_stop_the_hydrogens_going_back():
+    """Add centroid puts an X in by an ordinary gesture, and the force
+    field this reads refuses one by name -- so before the marker was
+    held back at the door, one centroid anywhere in the cell made Add
+    hydrogens fail outright on the whole structure."""
+    plain = hydrogens.plan(benzene(with_hydrogen=False))
+    marked = hydrogens.plan(with_a_marker(benzene(with_hydrogen=False)))
+    assert marked.n_atoms == plain.n_atoms == 6
+    assert marked.message() == plain.message()
+
+
+def test_no_hydrogen_is_offered_to_a_dummy_atom():
+    """A marker is a position and not an atom: it has no valence to
+    complete, and nothing may be hung off it."""
+    marked = with_a_marker(benzene(with_hydrogen=False))
+    host = Host(marked)
+    CommandStack().push(AddHydrogens(), host)
+    for site in host.structure.sites:
+        if site.element != "H":
+            continue
+        marker = host.structure.lattice.to_cart([0.9, 0.9, 0.9])
+        near = host.structure.lattice.to_cart(site.frac)
+        assert np.linalg.norm(near - marker) > 2.0
+
+
+def test_the_marker_is_still_there_afterwards():
+    """Held back from the reasoning, not deleted from the crystal."""
+    host = Host(with_a_marker(benzene(with_hydrogen=False)))
+    CommandStack().push(AddHydrogens(), host)
+    assert [s.element for s in host.structure.sites].count("X") == 1
+
+
+def test_a_bond_drawn_to_a_marker_spends_no_valence():
+    """A user-drawn bond from a carbon to a centroid would otherwise
+    look like a fourth neighbour, and that carbon would go without the
+    hydrogen it is actually missing."""
+    marked = with_a_marker(benzene(with_hydrogen=False),
+                           frac=(0.5, 0.5, 0.5))
+    marked.bonds.append(Bond(0, 6, (0, 0, 0)))
+    marked.touch()
+    assert hydrogens.plan(marked).n_atoms == 6

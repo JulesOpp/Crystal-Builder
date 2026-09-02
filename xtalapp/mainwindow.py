@@ -59,7 +59,10 @@ from xtalapp.documents import (
 from xtalapp.module_runner import ModuleRunner
 from xtalapp.settings import AppSettings, default_size
 from xtalapp.viewport import modes
-from xtalapp.viewport.view_settings import BACKGROUNDS
+from xtalapp.viewport.view_settings import (
+    BACKGROUNDS,
+    BOUNDARIES,
+)
 from xtalapp.workspace_shell import WorkspaceShell
 
 APP_NAME = "Crystal Builder"
@@ -95,6 +98,12 @@ class MainWindow(QMainWindow):
         self.module_runner = ModuleRunner(self)
         self._module_actions: list[tuple] = []
         self._module_submenus: dict = {}
+
+        # Whether the viewport tooltip carries the force field's
+        # reading of an atom.  Set before the docks are built, because
+        # the Force Field dock reports its own visibility on the way
+        # up and a new tab reads this to catch up.
+        self._show_atom_types = False
 
         self.document_set = DocumentSet(self)
         self.tabs = QTabWidget()
@@ -439,6 +448,22 @@ class MainWindow(QMainWindow):
             if hasattr(viewport, "preview_interval_ms"):
                 viewport.preview_interval_ms = int(milliseconds)
 
+    def show_atom_types(self, showing: bool) -> None:
+        """Put the force field's reading into the viewport tooltip, or
+        take it out again.
+
+        Driven by the Force Field dock's own visibility, so the
+        tooltip follows what is on screen rather than a preference
+        nobody set.  Every tab and not just the current one: a dock is
+        the window's, and switching tabs must not change what a
+        tooltip says.
+        """
+        self._show_atom_types = bool(showing)
+        for index in range(self.tabs.count()):
+            viewport = self.tabs.widget(index)
+            if hasattr(viewport, "show_types"):
+                viewport.show_types = self._show_atom_types
+
     def recompute_bonds(self) -> None:
         document = self.current_document()
         if document is not None:
@@ -483,21 +508,35 @@ class MainWindow(QMainWindow):
     #: the registry holds the five types inside it.
     BOND_TYPE_MENU = "@bond_type"
 
+    #: The same, for the three boundary answers.
+    BOUNDARY_MENU = "@boundary"
+
+    #: The measurement the selected atoms admit, whichever it is.
+    #: Built at click time because it depends on the count, and
+    #: absent at a count that admits none.
+    MEASURE_ENTRY = "@measure"
+
     #: What a right click offers, by what was under it.  Every entry
     #: is a name in the action registry, so each one is already
     #: undoable, already has a keyboard shortcut and already appears in
     #: the menu bar -- and adding one costs a name in a list.
+    #: The cell is the one thing that is always under the cursor,
+    #: whatever was clicked, so ``edit_cell`` and ``display_range``
+    #: end all three lists rather than only the one for empty space.
     CONTEXT_MENUS = {
         "atom": ["change_element", "delete_selection", None,
                  "expand_bonded", "expand_fragment", "expand_orbit",
                  "select_same", None, "copy", "cut", "duplicate",
-                 "add_centroid", None,
-                 "recompute_bonds"],
+                 "add_centroid", MEASURE_ENTRY, None,
+                 "recompute_bonds", None,
+                 "edit_cell", "display_range"],
         "bond": ["delete_bond", BOND_TYPE_MENU, None, "select_none",
-                 None, "recompute_bonds"],
-        "view": ["select_all", "select_none", None, "display_range",
-                 "boundary_bonded", None, "orthographic",
-                 "reset_view"],
+                 None, "recompute_bonds", None,
+                 "edit_cell", "display_range"],
+        "view": ["select_all", "select_none", None,
+                 BOUNDARY_MENU, None, "orthographic",
+                 "reset_view", None,
+                 "edit_cell", "display_range"],
     }
 
     #: The entries whose wording should say how much they will take.
@@ -653,6 +692,23 @@ class MainWindow(QMainWindow):
         document = self.current_document()
         if document is not None:
             self.show_status(document.define_plane())
+
+    def measure_selection(self) -> None:
+        """Measure the selected atoms, in the order they were picked.
+
+        Two is a distance, three an angle about the middle one, four
+        a torsion -- the same rule the measuring mode works to, taken
+        over atoms that are already selected rather than making
+        somebody click them a second time.
+        """
+        document = self.current_document()
+        if document is None:
+            return
+        try:
+            self.show_status(
+                document.add_measurement(document.selection.order))
+        except ValueError as exc:
+            self.show_status(str(exc))
 
     def measure_plane_angles(self) -> None:
         """The angle between every pair of planes defined so far."""
@@ -991,12 +1047,17 @@ class MainWindow(QMainWindow):
             action.setChecked(type_name == current)
 
     def _refresh_plane_actions(self) -> None:
-        """A plane needs three atoms and an angle needs two planes, so
-        neither entry is offered before there is anything to do."""
+        """A plane needs three atoms, an angle needs two planes and a
+        measurement needs two to four atoms, so none of these entries
+        is offered before there is anything to do."""
         document = self.current_document()
         self.actions_.set_enabled(
             ["define_plane"],
             document is not None and len(document.selection.atoms) >= 3)
+        self.actions_.set_enabled(
+            ["measure_selection"],
+            document is not None
+            and len(document.selection.atoms) in menus.MEASURE_LABELS)
         self.actions_.set_enabled(
             ["plane_angle"],
             document is not None and len(document.planes) >= 2)
@@ -1175,11 +1236,26 @@ class MainWindow(QMainWindow):
                                document.view.show_legend),
                               ("show_topology",
                                document.view.show_topology),
+                              ("show_planes",
+                               document.view.show_planes),
+                              ("show_scale_bar",
+                               document.view.show_scale_bar),
                               ("depth_cue", document.view.depth_cue)):
             widget = self.actions_[action]
             widget.blockSignals(True)
             widget.setChecked(value)
             widget.blockSignals(False)
+        # Set on each of the three and not just on the current one,
+        # and without blocking signals: an exclusive QActionGroup
+        # unticks the others *through* the signal it was blocked from
+        # seeing, so blocking here left all three ticked at once.  The
+        # slots hang off ``triggered``, which ``setChecked`` does not
+        # emit -- see ``_sync_bond_type_actions``, which is the same
+        # move for the same reason.
+        for name in BOUNDARIES:
+            action = self.actions_.get(f"boundary_{name}")
+            if action is not None:
+                action.setChecked(name == document.view.boundary)
         viewport = self.current_viewport()
         mode = getattr(viewport, "mode", None)
         if mode is not None and f"mode_{mode.name}" in self.actions_:

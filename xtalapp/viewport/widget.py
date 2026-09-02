@@ -26,10 +26,11 @@ and the event filter withholds the left button from VTK while they are
 active; pan and zoom keep working throughout, so the view is never
 stuck.
 
-Two things happen between the clicks.  A mode marked ``wants_move``
-is told where the cursor is on every mouse move and may hand back a
-ghost -- the atom a click would place, drawn over the scene and never
-part of it -- and ``Escape`` tells the active mode to put down
+Two things happen between the clicks.  The cursor's position goes to
+whoever wants it -- a mode marked ``wants_move`` may hand back a ghost,
+the atom a click would place, drawn over the scene and never part of
+it, and the tooltip says what the atom under the cursor is whatever
+mode is current -- and ``Escape`` tells the active mode to put down
 whatever it is halfway through.
 """
 
@@ -57,6 +58,7 @@ from vtkmodules.vtkInteractionStyle import (
 from vtkmodules.vtkIOImage import vtkPNGWriter  # noqa: E402
 from vtkmodules.vtkRenderingCore import vtkWindowToImageFilter  # noqa: E402
 
+from xtal.core import describe  # noqa: E402
 from xtal.core.structure import Change  # noqa: E402
 from xtalapp.viewport import modes, picking  # noqa: E402
 from xtalapp.viewport.builder import (  # noqa: E402
@@ -154,6 +156,13 @@ class ViewportWidget(QWidget):
         self._band = None
         self._band_origin = None
         self._ghost = None
+        # Whether the tooltip carries the force field's reading of the
+        # atom.  Set by the shell when the Force Field dock opens or
+        # closes: the viewport cannot see a dock, and reciting a UFF
+        # type at somebody who is not looking at the force field is
+        # how a tooltip becomes the one people stop reading.
+        self.show_types = False
+        self._tooltip_atom = None
 
         self.preview_interval_ms = DEFAULT_PREVIEW_INTERVAL_MS
         self._preview_pending = False
@@ -208,11 +217,16 @@ class ViewportWidget(QWidget):
             self.document.previewChanged.disconnect(self._on_preview)
             self.document.viewChanged.disconnect(self._on_view)
             self.document.selectionChanged.disconnect(self._on_selection)
+            self.document.planesChanged.disconnect(self._on_view)
         self.document = document
         document.structureChanged.connect(self._on_structure)
         document.previewChanged.connect(self._on_preview)
         document.viewChanged.connect(self._on_view)
         document.selectionChanged.connect(self._on_selection)
+        # A plane is drawn geometry that is not in the structure, so
+        # defining one, dropping one or choosing a different row in
+        # the list all change the picture and nothing else says so.
+        document.planesChanged.connect(self._on_view)
         self.rebuild(reset_camera=True)
 
     def set_mode(self, name: str) -> None:
@@ -277,7 +291,8 @@ class ViewportWidget(QWidget):
         model = build_scene(self.document.structure,
                             self.document.view,
                             selection=self.document.selection,
-                            view_direction=self.camera_direction())
+                            view_direction=self.camera_direction(),
+                            planes=self.document.planes_to_draw())
         self.model = model
         self.scene.set_positions(model)
         self._safe_render()
@@ -308,10 +323,17 @@ class ViewportWidget(QWidget):
         model = build_scene(self.document.structure,
                             self.document.view,
                             selection=self.document.selection,
-                            view_direction=self.camera_direction())
+                            view_direction=self.camera_direction(),
+                            planes=self.document.planes_to_draw())
         self.model = model
         self.scene.set_model(model)
         self.scene.set_projection(self.document.view.projection)
+        # The atom the tooltip is about is a P1 cell index, and a
+        # rebuild is where those stop meaning what they meant: after a
+        # delete or a change of space group the text under the cursor
+        # would be about somebody else's atom.
+        self._tooltip_atom = None
+        self.setToolTip("")
         if reset_camera:
             self.scene.reset_camera()
         self._safe_render()
@@ -428,25 +450,71 @@ class ViewportWidget(QWidget):
     # -- the ghost -----------------------------------------------------
 
     def _maybe_hover(self, event) -> None:
-        """Tell a mode that asked for it where the cursor is.
+        """Say where the cursor is, to whoever wants to know.
 
-        Only for a mode that asks (``wants_move``): casting a ray per
-        mouse move for the modes that would ignore it is a cost with
-        nothing on the other side of it.  ``picking.pick`` is exact
-        and vectorised and a mouse move is not a hot loop, so a mode
-        that does ask needs nothing more than this.
+        Two things do, and they want different answers: a mode marked
+        ``wants_move`` wants the ghost of what a click would place,
+        and the tooltip wants the atom under the cursor whatever mode
+        is current.  ``picking.pick`` is exact and vectorised and a
+        mouse move is not a hot loop, so the ray is cast once here and
+        both are served out of it -- which is also why the tooltip
+        needed no machinery of its own.
         """
-        if not getattr(self.mode, "wants_move", False):
-            return
         if self.document is None or self.model is None:
             return
         if event.buttons():
             return                  # a button is down: the camera
         origin, direction = self._ray_at(event.position().toPoint())
+        self._update_tooltip(origin, direction)
+        if not getattr(self.mode, "wants_move", False):
+            return
         focal = self.scene.renderer.GetActiveCamera().GetFocalPoint()
         self.set_ghost(self.mode.on_move(
             self.document, self.model,
             modes.MoveEvent(origin, direction, tuple(focal))))
+
+    def _update_tooltip(self, origin, direction) -> None:
+        """What the atom under the cursor is, if it is an atom.
+
+        ``setToolTip`` rather than ``QToolTip.showText``: Qt then owns
+        the delay, and a tooltip that appeared the instant the cursor
+        crossed an atom would be in the way of everybody moving the
+        mouse across the structure to get somewhere else.
+
+        Recomputed only when the atom under the cursor changes -- a
+        mouse crossing a framework arrives here a hundred times over
+        the same atom, and the text is the same every time.
+        """
+        kind, index = picking.pick(self.model, origin, direction)
+        atom = (self.model.instance(index)[0] if kind == "atom"
+                else None)
+        if atom == self._tooltip_atom:
+            return
+        self._tooltip_atom = atom
+        self.setToolTip("" if atom is None else self._describe(atom))
+
+    def _describe(self, atom: int) -> str:
+        """The tooltip's text: what the *current view* is about.
+
+        The wording is :mod:`xtal.core.describe`, which needs no
+        display to be right.  What is decided here is the half only
+        the window knows -- whether the force field is on screen, and
+        whether the picture is being drawn from the displacement
+        parameters -- because neither is a fact about the crystal.
+        """
+        document = self.document
+        atom_type = None
+        if self.show_types:
+            try:
+                atom_type = document.atom_types().types[int(atom)]
+            except Exception:                       # noqa: BLE001
+                # A structure the typer will not touch -- an element
+                # it has no parameters for -- still has a label and an
+                # element, and those are the half worth saying.
+                atom_type = None
+        return describe.atom(document.structure, document.cell, atom,
+                             atom_type=atom_type,
+                             thermal=document.view.style == "ortep")
 
     def set_ghost(self, ghost) -> None:
         """Draw the atom a click would place, or clear it.

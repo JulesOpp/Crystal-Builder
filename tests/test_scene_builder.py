@@ -7,7 +7,7 @@ import pytest
 
 from xtal import Lattice, Structure
 from xtal.core import p1
-from xtalapp.viewport.builder import build_scene
+from xtalapp.viewport.builder import build_scene, selection_flags
 from xtalapp.viewport.view_settings import ViewSettings
 
 
@@ -473,3 +473,89 @@ def test_the_picture_follows_a_move_with_bond_orders_drawn(rutile):
     rutile.set_frac(1, [0.32, 0.30, 0.01])
     scene = build_scene(rutile, settings)
     assert len(scene.bond_orders) == scene.n_bond_halves
+
+
+# ======================================================== half bonds
+
+def a_chain(spacing: float = 1.45) -> Structure:
+    """One carbon bonded to its own periodic image: a chain running
+    straight through the picture and out of both sides."""
+    return Structure.from_arrays(
+        Lattice.orthorhombic(spacing, 9.0, 9.0), ["C"],
+        [[0.0, 0.5, 0.5]], space_group="P1")
+
+
+def test_a_half_bond_draws_no_atom_on_its_far_end():
+    """The whole point of the third boundary answer.  'bonded' says
+    what is out there by drawing it, which hangs a halo of spheres
+    round a picture of one cell; 'half' says it by stopping."""
+    chain = a_chain()
+    half = build_scene(chain, ViewSettings(boundary="half"))
+    bonded = build_scene(chain, ViewSettings(boundary="bonded"))
+    inside = build_scene(chain, ViewSettings(boundary="in_range"))
+
+    assert half.n_atoms == inside.n_atoms == 2
+    assert bonded.n_atoms == 4
+    assert half.n_bond_halves == 4      # one whole bond plus two stubs
+
+
+def test_a_half_bond_stops_at_the_midpoint():
+    """Half of a bond and not all of it: a stub that ran the whole way
+    would draw a bond to an atom that is not in the picture."""
+    chain = a_chain()
+    scene = build_scene(chain, ViewSettings(boundary="half"))
+    x_start = chain.lattice.to_frac(scene.bond_starts)[:, 0]
+    x_end = chain.lattice.to_frac(scene.bond_ends)[:, 0]
+    stubs = (x_end < -1e-6) | (x_end > 1 + 1e-6)
+    assert stubs.sum() == 2
+    assert sorted(np.round(x_end[stubs], 6)) == [-0.5, 1.5]
+    # each leaves from an atom that really is drawn
+    assert sorted(np.round(x_start[stubs], 6)) == [0.0, 1.0]
+
+
+def test_a_half_bond_takes_its_own_atom_s_colour(dry_ice):
+    """A stub is one half and there is no second half to take the
+    other colour, so it must be the near atom's -- an oxygen stub in
+    carbon grey names the wrong element."""
+    scene = build_scene(dry_ice, ViewSettings(boundary="half"))
+    from xtal.core import elements as el
+    cell = p1.expand(dry_ice)
+    for k in range(scene.n_bond_halves):
+        i, j, _image = scene.bond_key(k)
+        near = {tuple(el.color(cell.elements[i])),
+                tuple(el.color(cell.elements[j]))}
+        assert tuple(scene.bond_colors[k]) in near
+
+
+def test_a_half_bond_can_still_be_named_and_selected(dry_ice):
+    """It is a real bond of the cell drawn short, not a decoration, so
+    clicking it has to give the bond back."""
+    from xtal.core.selection import Selection
+    scene = build_scene(dry_ice, ViewSettings(boundary="half"))
+    assert len(scene.bond_keys) == scene.n_bond_halves
+    selection = Selection()
+    selection.bonds = {scene.bond_key(scene.n_bond_halves - 1)}
+    _atoms, bonds, _net = selection_flags(scene, selection)
+    assert bonds.any()
+
+
+def test_half_bonds_carry_orders_like_any_other_half(dry_ice):
+    """A double bond that leaves the picture is still double, and the
+    order arrays are indexed by half -- a stub missing from them
+    silently shifts every order after it onto the wrong bond."""
+    settings = ViewSettings(boundary="half", show_bond_orders=True)
+    scene = build_scene(dry_ice, settings)
+    assert len(scene.bond_orders) == scene.n_bond_halves
+    assert len(scene.bond_offsets) == scene.n_bond_halves
+
+
+def test_the_other_two_boundaries_draw_no_stubs(rutile):
+    """A change to what 'half' does must not change what the settings
+    that were there before it do."""
+    for name in ("in_range", "bonded"):
+        settings = ViewSettings(boundary=name)
+        scene = build_scene(rutile, settings)
+        assert scene.n_bond_halves % 2 == 0
+        for k in range(0, scene.n_bond_halves, 2):
+            assert np.allclose(scene.bond_ends[k],
+                               scene.bond_ends[k + 1])

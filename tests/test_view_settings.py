@@ -3,7 +3,11 @@
 import pytest
 
 from xtalapp.viewport import styles
-from xtalapp.viewport.view_settings import BACKGROUNDS, ViewSettings
+from xtalapp.viewport.view_settings import (
+    BACKGROUNDS,
+    BOUNDARIES,
+    ViewSettings,
+)
 
 
 def test_defaults():
@@ -62,6 +66,50 @@ def test_dict_round_trip():
     assert back.background == BACKGROUNDS["slate"]
     assert back.ranges == s.ranges
     assert back.element_colors["Fe"] == (10, 20, 30)
+
+
+# --------------------------------------------- the three boundaries
+
+def test_the_boundary_starts_at_the_one_that_misleads_nobody():
+    """``in_range`` under-coordinates every atom on the surface of the
+    picture and ``bonded`` draws a box surrounded by atoms that are
+    not in it.  Only one of the three is not wrong about something,
+    so it is the one the application opens with."""
+    assert BOUNDARIES == ("in_range", "bonded", "half")
+    assert ViewSettings().boundary == "half"
+
+
+def test_the_new_view_state_survives_a_session():
+    s = ViewSettings(boundary="half", show_planes=False,
+                     show_scale_bar=True)
+    back = ViewSettings.from_dict(s.to_dict())
+    assert back.boundary == "half"
+    assert not back.show_planes
+    assert back.show_scale_bar
+
+
+def test_a_session_written_before_half_existed_still_reads():
+    """The two-valued string is what every project on disk holds, and
+    a reader that rejected it would lose the setting on every file
+    saved before this."""
+    for old in ("in_range", "bonded"):
+        assert ViewSettings.from_dict({"boundary": old}).boundary == old
+
+
+def test_a_boundary_this_version_does_not_know_falls_back():
+    """A project from a later version names a fourth answer.  Drawing
+    it the default way is right; refusing to open it is not."""
+    assert ViewSettings.from_dict(
+        {"boundary": "sliced"}).boundary == ViewSettings().boundary
+
+
+def test_the_new_toggles_default_the_way_they_were_argued_for():
+    """Planes on, because defining one and seeing nothing is the
+    complaint.  Scale bar off, like depth cueing: an effect a picture
+    must not acquire on its own."""
+    s = ViewSettings()
+    assert s.show_planes
+    assert not s.show_scale_bar
 
 
 def test_style_registry():

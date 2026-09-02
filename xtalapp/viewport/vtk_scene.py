@@ -23,9 +23,16 @@ Everything is drawn with as few actors as possible, because actor count
 * the net, when a chemist has drawn one, is a fifth -- thicker,
   translucent, one flat colour, running over the real bonds rather
   than in place of them;
-* the cell is a sixth polydata of lines.
+* the planes the user defined are a sixth, translucent triangles like
+  the polyhedra, with their normals in a seventh set of lines;
+* the cell is an eighth polydata of lines.
 
-Six actors for the structure, however many atoms there are.
+Eight actors for the structure, however many atoms there are.
+
+The scale bar is the one thing here that is not geometry.  It is two
+2-D actors in the corner and its length is a question about the
+camera, so it is refreshed from an observer rather than from the
+model -- see :meth:`VtkScene._refresh_scale_bar`.
 """
 
 from __future__ import annotations
@@ -95,6 +102,20 @@ LEGEND_FONT = 15
 HIGHLIGHT_COLOR = (255, 205, 40)
 HIGHLIGHT_OPACITY = 0.45
 HIGHLIGHT_GROWTH = 1.30     # halo radius, relative to the atom
+
+# The scale bar, in fractions of the window: where its left end sits,
+# and how much of the width it aims for before the length is rounded
+# to something a reader can multiply by.
+# Clear of the orientation gizmo, which owns the bottom-left corner
+# out to x = 0.16 -- see :func:`orientation_marker`.
+BAR_X = 0.21
+BAR_Y = 0.055
+BAR_TICK = 0.012            # half-height of the end caps
+BAR_TARGET = 0.22
+BAR_FONT = 15
+#: The lengths a scale bar is allowed to be, per decade.  1, 2 and 5
+#: are the numbers a reader can count off a picture; 3 and 7 are not.
+BAR_STEPS = (1.0, 2.0, 5.0)
 
 # The ghost: the atom a click would place, drawn in its own colour and
 # see-through, so that what is behind it stays readable while it is
@@ -180,6 +201,38 @@ def _line_polydata(starts, ends, colors) -> vtkPolyData:
     return poly
 
 
+def _triangle_polydata(points, faces, colors) -> vtkPolyData:
+    """Triangles over a shared vertex list, coloured by cell data."""
+    poly = vtkPolyData()
+    poly.SetPoints(_points(points))
+    faces = np.ascontiguousarray(faces, dtype=ID_TYPE)
+    cells = vtkCellArray()
+    cells.SetData(
+        numpy_to_vtkIdTypeArray(
+            np.arange(0, 3 * len(faces) + 1, 3, dtype=ID_TYPE),
+            deep=True),
+        numpy_to_vtkIdTypeArray(faces.ravel(), deep=True))
+    poly.SetPolys(cells)
+    poly.GetCellData().SetScalars(_to_uchar(colors, "colors"))
+    return poly
+
+
+def _nice_length(wanted: float) -> float:
+    """The nearest length at or below ``wanted`` that a reader can
+    count in: 1, 2 or 5 times a power of ten.
+
+    Never zero, however far in the camera is -- a bar of no length is
+    a bar that says nothing, and the picture is better off claiming
+    0.001 A than claiming nothing.
+    """
+    wanted = max(float(wanted), 1e-6)
+    decade = 10.0 ** np.floor(np.log10(wanted))
+    for step in reversed(BAR_STEPS):
+        if step * decade <= wanted:
+            return float(step * decade)
+    return float(decade)                            # pragma: no cover
+
+
 def _swatch(x: float, y: float, color) -> vtkActor2D:
     """A filled square in normalized viewport coordinates."""
     poly = vtkPolyData()
@@ -222,11 +275,15 @@ class VtkScene:
         self._build_bond_actor()
         self._build_polyhedron_actor()
         self._build_topology_actor()
+        self._build_plane_actors()
         self._build_cell_actor()
         self._build_highlight_actors()
         self._build_ghost_actors()
+        self._build_scale_bar()
         self._cue_on = False
         self._cue_observer = None
+        self._bar_on = False
+        self._bar_observer = None
 
     # -- actor construction --------------------------------------------
 
@@ -348,6 +405,66 @@ class VtkScene:
         self.topology_actor.GetProperty().SetOpacity(
             float(model.topology_opacity))
         self.topology_actor.SetVisibility(True)
+
+    def _build_plane_actors(self):
+        """The planes the user defined, and their normals.
+
+        Their own actors and not the polyhedron's, though the geometry
+        is the same kind: a plane is a note about the crystal rather
+        than part of it, and sharing an actor would mean a plane
+        disappearing with the polyhedra and taking their opacity.  The
+        normals are lines, because two nearly parallel planes have
+        faces that look identical and normals that do not.
+        """
+        self._plane_poly = vtkPolyData()
+        mapper = vtkPolyDataMapper()
+        mapper.SetInputData(self._plane_poly)
+        mapper.SetScalarModeToUseCellData()
+        mapper.SetColorModeToDirectScalars()
+        self.plane_mapper = mapper
+        self.plane_actor = vtkActor()
+        self.plane_actor.SetMapper(mapper)
+        prop = self.plane_actor.GetProperty()
+        prop.SetSpecular(0.0)
+        # A quad has one side facing the camera and one facing away,
+        # and a plane has no front: culled backfaces would make it
+        # vanish from half the orbit.
+        prop.BackfaceCullingOff()
+        prop.SetAmbient(0.4)
+        prop.SetDiffuse(0.6)
+        self.plane_actor.SetVisibility(False)
+        self.renderer.AddActor(self.plane_actor)
+
+        self._normal_poly = vtkPolyData()
+        self.normal_mapper = vtkPolyDataMapper()
+        self.normal_mapper.SetInputData(self._normal_poly)
+        self.normal_mapper.SetScalarModeToUseCellData()
+        self.normal_mapper.SetColorModeToDirectScalars()
+        self.normal_actor = vtkActor()
+        self.normal_actor.SetMapper(self.normal_mapper)
+        self.normal_actor.GetProperty().SetLineWidth(2.0)
+        self.normal_actor.GetProperty().SetLighting(False)
+        self.normal_actor.SetVisibility(False)
+        self.renderer.AddActor(self.normal_actor)
+
+    def _set_planes(self, model):
+        if not model.n_plane_faces:
+            self.plane_actor.SetVisibility(False)
+            self.normal_actor.SetVisibility(False)
+            return
+        self._plane_poly = _triangle_polydata(model.plane_points,
+                                              model.plane_faces,
+                                              model.plane_colors)
+        self.plane_mapper.SetInputData(self._plane_poly)
+        self.plane_actor.GetProperty().SetOpacity(
+            float(model.plane_opacity))
+        self.plane_actor.SetVisibility(True)
+
+        self._normal_poly = _line_polydata(model.normal_starts,
+                                           model.normal_ends,
+                                           model.normal_colors)
+        self.normal_mapper.SetInputData(self._normal_poly)
+        self.normal_actor.SetVisibility(True)
 
     def _build_cell_actor(self):
         self._cell_poly = vtkPolyData()
@@ -476,11 +593,13 @@ class VtkScene:
         self._set_bonds(model)
         self._set_polyhedra(model)
         self._set_topology(model)
+        self._set_planes(model)
         self._set_cell(model)
         self._set_labels(model)
         self._set_legend(model)
         self._set_highlight(model)
         self.set_depth_cue(model.depth_cue, model.depth_cue_strength)
+        self.set_scale_bar(model.scale_bar)
 
     def set_positions(self, model) -> None:
         """Move what is already drawn instead of rebuilding it.
@@ -490,6 +609,16 @@ class VtkScene:
         actors, the mappers and the glyph sources all stand, and only
         the coordinates underneath them are replaced -- which is what
         makes watching a relaxation on a large cell affordable.
+
+        **The cell is one of the things that move.**  A variable-cell
+        relaxation changes the lattice, and the box has the same
+        twelve lines per cell before and after -- so ``_same_shape``
+        says nothing has changed shape and this path is taken, and for
+        a long time the atoms then contracted inside a box that was
+        still the old one.  The frame is rebuilt here alongside the
+        atoms; it is ninety-six lines at the most, which is nothing
+        beside the geometry it stands around, and without it the scale
+        bar would be measuring against a lie.
 
         Falls back to a full rebuild when the arrays no longer have the
         same shape, because then the caller was wrong about what
@@ -520,6 +649,14 @@ class VtkScene:
                 _points(_interleave(model.topology_starts,
                                     model.topology_ends)))
             self._topology_poly.Modified()
+        if model.n_plane_faces:
+            self._plane_poly.SetPoints(_points(model.plane_points))
+            self._plane_poly.Modified()
+            self._normal_poly.SetPoints(
+                _points(_interleave(model.normal_starts,
+                                    model.normal_ends)))
+            self._normal_poly.Modified()
+        self._set_cell(model)
         # These two are placed *at* atoms, so they move with them.
         self._set_highlight(model)
         self._set_labels(model)
@@ -539,6 +676,9 @@ class VtkScene:
                 == len(current.polyhedron_points)
                 and model.n_cell_lines == current.n_cell_lines
                 and model.n_topology_edges == current.n_topology_edges
+                and model.n_plane_faces == current.n_plane_faces
+                and model.n_planes == current.n_planes
+                and model.scale_bar == current.scale_bar
                 and model.background == current.background)
 
     def _set_atoms(self, model):
@@ -614,19 +754,9 @@ class VtkScene:
         if not model.n_polyhedron_faces:
             self.polyhedron_actor.SetVisibility(False)
             return
-        poly = vtkPolyData()
-        poly.SetPoints(_points(model.polyhedron_points))
-        faces = np.ascontiguousarray(model.polyhedron_faces,
-                                     dtype=ID_TYPE)
-        cells = vtkCellArray()
-        cells.SetData(
-            numpy_to_vtkIdTypeArray(
-                np.arange(0, 3 * len(faces) + 1, 3, dtype=ID_TYPE),
-                deep=True),
-            numpy_to_vtkIdTypeArray(faces.ravel(), deep=True))
-        poly.SetPolys(cells)
-        poly.GetCellData().SetScalars(
-            _to_uchar(model.polyhedron_colors, "colors"))
+        poly = _triangle_polydata(model.polyhedron_points,
+                                   model.polyhedron_faces,
+                                   model.polyhedron_colors)
         self._polyhedron_poly = poly
         self.polyhedron_mapper.SetInputData(poly)
         self.polyhedron_actor.GetProperty().SetOpacity(
@@ -740,6 +870,113 @@ class VtkScene:
         for actor in self._legend_actors:
             self.renderer.AddActor(actor)
 
+    # -- the scale bar -------------------------------------------------
+
+    def _build_scale_bar(self):
+        """A ruler in the corner: a capped line and a number.
+
+        Two 2-D actors in normalized viewport coordinates, so nothing
+        about the bar is in the scene and nothing in the scene has to
+        know about it.  Its geometry is rewritten in place by
+        :meth:`_refresh_scale_bar`.
+        """
+        self._bar_poly = vtkPolyData()
+        lines = vtkCellArray()
+        lines.SetData(
+            numpy_to_vtkIdTypeArray(
+                np.arange(0, 7, 2, dtype=ID_TYPE), deep=True),
+            numpy_to_vtkIdTypeArray(
+                np.arange(6, dtype=ID_TYPE), deep=True))
+        self._bar_poly.SetLines(lines)
+        mapper = vtkPolyDataMapper2D()
+        mapper.SetInputData(self._bar_poly)
+        coordinate = vtkCoordinate()
+        coordinate.SetCoordinateSystemToNormalizedViewport()
+        mapper.SetTransformCoordinate(coordinate)
+        self.bar_actor = vtkActor2D()
+        self.bar_actor.SetMapper(mapper)
+        self.bar_actor.GetProperty().SetLineWidth(2.0)
+        self.bar_actor.SetVisibility(False)
+        self.renderer.AddActor(self.bar_actor)
+
+        self.bar_label = vtkTextActor()
+        self.bar_label.GetPositionCoordinate() \
+            .SetCoordinateSystemToNormalizedViewport()
+        self.bar_label.GetTextProperty().SetFontSize(BAR_FONT)
+        self.bar_label.GetTextProperty().SetJustificationToCentered()
+        self.bar_label.SetVisibility(False)
+        self.renderer.AddActor(self.bar_label)
+
+    def set_scale_bar(self, enabled: bool) -> None:
+        self._bar_on = bool(enabled)
+        self.bar_actor.SetVisibility(self._bar_on)
+        self.bar_label.SetVisibility(self._bar_on)
+        self._watch_camera()
+        self._refresh_scale_bar()
+
+    def _refresh_scale_bar(self) -> None:
+        """Put the bar where the current camera says it belongs.
+
+        The length in Angstrom is worked out from the camera and from
+        nothing else, and that is what makes the bar honest during a
+        variable-cell relaxation.  A ruler taken from the *structure's*
+        size would shrink with the cell it was there to measure, and
+        the picture would show a box and a ruler contracting together
+        -- which is a picture of nothing happening.  The camera does
+        not move while a run steps the atoms, so this recomputes the
+        same number every frame and the bar stands still while the box
+        moves against it.
+
+        Rounded to 1, 2 or 5 per decade, because the reader's job is
+        to count the bar off against the picture and 3.7 A is not a
+        length anybody counts in.
+        """
+        if not self._bar_on:
+            return
+        width, height = (int(v) for v in self.renderer.GetSize())
+        if width <= 0 or height <= 0:               # never shown yet
+            return
+        span = self._world_width(width, height)
+        if span <= 0:                               # pragma: no cover
+            return
+        length = _nice_length(span * BAR_TARGET)
+        fraction = length / span
+        right = BAR_X + fraction
+        # the bar, then a cap at each end
+        self._bar_poly.SetPoints(_points(np.array([
+            [BAR_X, BAR_Y, 0.0], [right, BAR_Y, 0.0],
+            [BAR_X, BAR_Y - BAR_TICK, 0.0],
+            [BAR_X, BAR_Y + BAR_TICK, 0.0],
+            [right, BAR_Y - BAR_TICK, 0.0],
+            [right, BAR_Y + BAR_TICK, 0.0]])))
+        self._bar_poly.Modified()
+        self.bar_label.SetInput(f"{length:g} A")
+        self.bar_label.GetPositionCoordinate().SetValue(
+            (BAR_X + right) / 2.0, BAR_Y + BAR_TICK * 1.6)
+        ink = ((0.0, 0.0, 0.0) if self.model is None
+               or sum(self.model.background) / 3 > 128
+               else (1.0, 1.0, 1.0))
+        self.bar_actor.GetProperty().SetColor(*ink)
+        self.bar_label.GetTextProperty().SetColor(*ink)
+
+    def _world_width(self, width: int, height: int) -> float:
+        """How many Angstrom the window is across, at the focal plane.
+
+        In parallel projection that is exact everywhere.  In
+        perspective it is only true at the depth the camera is focused
+        on, and a scale bar in a perspective view is approximate by
+        construction -- which is an argument for drawing it in
+        orthographic when the number matters, not for refusing to draw
+        it.
+        """
+        camera = self.renderer.GetActiveCamera()
+        if camera.GetParallelProjection():
+            tall = 2.0 * camera.GetParallelScale()
+        else:
+            half = np.radians(camera.GetViewAngle()) / 2.0
+            tall = 2.0 * camera.GetDistance() * np.tan(half)
+        return float(tall) * width / max(height, 1)
+
     # -- depth cueing --------------------------------------------------
 
     def set_depth_cue(self, enabled: bool,
@@ -771,19 +1008,28 @@ class VtkScene:
                 self.polyhedron_actor)
 
     def _watch_camera(self) -> None:
-        """Keep the near and far distances up to date as the camera
-        moves.
+        """Keep the near and far distances, and the scale bar, up to
+        date as the camera moves.
 
         The alternative -- fixing them when the scene is built -- makes
         the fade slide off the structure the moment anybody zooms,
-        which is the first thing anybody does.
+        which is the first thing anybody does, and leaves the bar
+        claiming a length the picture no longer has.
+
+        One observer each, added only while its feature is on: an
+        observer on every render is a Python call on every frame, and
+        the scene draws during camera drags.
         """
-        if self._cue_on and self._cue_observer is None:
-            self._cue_observer = self.renderer.AddObserver(
-                "StartEvent", lambda *_a: self._refresh_depth_cue())
-        elif not self._cue_on and self._cue_observer is not None:
-            self.renderer.RemoveObserver(self._cue_observer)
-            self._cue_observer = None
+        for on, name, refresh in (
+                (self._cue_on, "_cue_observer", self._refresh_depth_cue),
+                (self._bar_on, "_bar_observer", self._refresh_scale_bar)):
+            observer = getattr(self, name)
+            if on and observer is None:
+                setattr(self, name, self.renderer.AddObserver(
+                    "StartEvent", lambda *_a, f=refresh: f()))
+            elif not on and observer is not None:
+                self.renderer.RemoveObserver(observer)
+                setattr(self, name, None)
 
     def _refresh_depth_cue(self) -> None:
         """Near and far, from the scene's own extent along the view

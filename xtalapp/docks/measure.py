@@ -233,16 +233,23 @@ class MeasureDock(QDockWidget):
             self.document.remove_plane(row)
 
     def _on_plane_chosen(self) -> None:
-        """Choosing a plane lights up the atoms it was fitted
-        through -- the only way to tell two rings apart in a picture of
-        a framework."""
+        """Choosing a plane lights up the atoms it was fitted through,
+        and narrows the picture to that plane's own quad.
+
+        Lighting up the atoms is the only way to tell two rings apart
+        in a picture of a framework; narrowing the drawing is what
+        makes the quads usable once there are several of them, and
+        choosing none goes back to showing them all.
+        """
         if self.document is None:
             return
-        atoms = set()
+        rows, atoms = [], set()
         for item in self.plane_list.selectionModel().selectedRows():
             row = item.row()
             if 0 <= row < len(self.document.planes):
+                rows.append(row)
                 atoms |= set(self.document.planes[row].atoms)
+        self.document.set_shown_planes(rows)
         if atoms:
             self.document.select(atoms, "set")
 

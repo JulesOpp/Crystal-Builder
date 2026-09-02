@@ -116,6 +116,32 @@ class SceneModel:
         default_factory=lambda: _empty(3, np.uint8))            # (F,3)
     polyhedron_opacity: float = 0.75
 
+    # planes: the geometry the user defined on top of the crystal.
+    # Triangles like a polyhedron, because a quad is two of them, plus
+    # one line per plane along its normal -- two nearly parallel
+    # planes are told apart by their normals and not by their faces.
+    plane_points: np.ndarray = field(default_factory=_empty)
+    plane_faces: np.ndarray = field(
+        default_factory=lambda: np.zeros((0, 3), int))          # (F,3)
+    plane_colors: np.ndarray = field(
+        default_factory=lambda: _empty(3, np.uint8))            # (F,3)
+    # Fainter than a polyhedron, and deliberately.  A plane is drawn
+    # across the whole cell so that two of them intersect where the
+    # reader can see it, which means two or three of them overlap over
+    # much of the picture -- at a polyhedron's opacity that stack
+    # hides the crystal it is about.
+    plane_opacity: float = 0.22
+    normal_starts: np.ndarray = field(default_factory=_empty)   # (P,3)
+    normal_ends: np.ndarray = field(default_factory=_empty)     # (P,3)
+    normal_colors: np.ndarray = field(
+        default_factory=lambda: _empty(3, np.uint8))            # (P,3)
+
+    # A ruler in the corner.  A flag and not a length: how long the
+    # bar is in Angstrom is a question about the camera, which the
+    # scene model knows nothing about and must not -- see
+    # ``VtkScene._refresh_scale_bar``.
+    scale_bar: bool = False
+
     # unit cell wireframe
     cell_starts: np.ndarray = field(default_factory=_empty)    # (L,3)
     cell_ends: np.ndarray = field(default_factory=_empty)      # (L,3)
@@ -161,6 +187,14 @@ class SceneModel:
         return len(self.polyhedron_faces)
 
     @property
+    def n_plane_faces(self) -> int:
+        return len(self.plane_faces)
+
+    @property
+    def n_planes(self) -> int:
+        return len(self.normal_starts)
+
+    @property
     def is_empty(self) -> bool:
         return (self.n_atoms == 0 and self.n_bond_halves == 0
                 and self.n_cell_lines == 0
@@ -173,7 +207,8 @@ class SceneModel:
                               self.bond_ends, self.cell_starts,
                               self.cell_ends, self.polyhedron_points,
                               self.topology_starts,
-                              self.topology_ends)
+                              self.topology_ends, self.plane_points,
+                              self.normal_ends)
                   if len(c)]
         if not chunks:
             return np.zeros(3), np.zeros(3)

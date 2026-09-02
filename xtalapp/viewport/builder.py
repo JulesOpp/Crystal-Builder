@@ -15,7 +15,9 @@ of gnawed.
 **Bonds across boundaries.**  A bond is (i, j, translation).  Both ends
 have to be drawn instances for the bond to appear; with
 ``boundary="bonded"`` the missing partner is drawn as well, so
-coordination polyhedra at the cell edge stay whole.
+coordination polyhedra at the cell edge stay whole, and with
+``boundary="half"`` the near half is drawn with nothing on the end of
+it, which says "there is more here" without drawing what is not.
 
 **Half-bonds.**  Each bond is split at its midpoint into two segments
 that take their own atom's colour, which is how every crystallography
@@ -36,7 +38,7 @@ import itertools
 
 import numpy as np
 
-from xtal.core import bonding, p1, transforms
+from xtal.core import bonding, measure, p1, transforms
 from xtalapp.viewport import scene as scene_model
 from xtalapp.viewport import styles
 from xtalapp.viewport.scene import SceneModel
@@ -56,15 +58,29 @@ TOPOLOGY_COLOR = (124, 96, 200)
 TOPOLOGY_RADIUS_FACTOR = 2.4
 TOPOLOGY_OPACITY = 0.55
 
+# A plane is not chemistry either, so like the net it takes one flat
+# colour that is nobody's element.  Translucent enough to read the
+# ring through, opaque enough to be seen edge-on.
+PLANE_COLOR = (232, 168, 60)
+NORMAL_COLOR = (150, 96, 20)
+
 
 def build_scene(structure, settings, selection=None,
-                bond_rules=None, view_direction=None) -> SceneModel:
+                bond_rules=None, view_direction=None,
+                planes=()) -> SceneModel:
     """Build the render model for one structure.
 
     ``selection`` is a :class:`xtal.core.selection.Selection` over P1
     atom indices; the atoms and bonds it names come back flagged so the
     viewport can highlight them without a second pass over the
     structure.
+
+    ``planes`` are :class:`xtal.core.measure.Plane` objects to draw as
+    translucent quads.  They are passed in rather than read off the
+    structure because they are not on it: a plane is a note the user
+    made about the crystal, it lives on the document beside the
+    measurements, and which of them are being shown is the user's
+    choice made in the Planes list.
 
     ``view_direction`` is the camera's direction of projection, and is
     used for one thing only: laying the second tube of a bond that has
@@ -102,7 +118,7 @@ def build_scene(structure, settings, selection=None,
     cart = (lattice.to_cart(drawn.frac).astype(np.float32)
             if drawn.count else np.zeros((0, 3), np.float32))
     (starts, ends, bond_colors, bond_flags, bond_keys,
-     bond_orders, bond_offsets) = halves.arrays(drawn, lattice,
+     bond_orders, bond_offsets) = halves.arrays(drawn, cell, lattice,
                                                 orders, frames)
     flags = _atom_flags(drawn.atom, selection)
 
@@ -111,9 +127,12 @@ def build_scene(structure, settings, selection=None,
         else (np.zeros((0, 3), np.float32),) * 2
         + (np.zeros((0, 3), np.uint8),))
 
-    net = (_emit_topology(structure, cell, drawn, lattice, selection)
+    net = (_emit_topology(structure, cell, drawn, lattice, settings,
+                          selection)
            if settings.show_topology
            else _Segments().arrays())
+    faces = (_emit_planes(planes, cell, lattice)
+             if settings.show_planes else _no_planes())
 
     show_atoms = settings.show_atoms and style.radius_factor > 0
     tensors, thermal = (
@@ -151,6 +170,13 @@ def build_scene(structure, settings, selection=None,
         topology_radius=settings.bond_radius * TOPOLOGY_RADIUS_FACTOR,
         topology_color=TOPOLOGY_COLOR,
         topology_opacity=TOPOLOGY_OPACITY,
+        plane_points=faces[0],
+        plane_faces=faces[1],
+        plane_colors=faces[2],
+        normal_starts=faces[3],
+        normal_ends=faces[4],
+        normal_colors=faces[5],
+        scale_bar=settings.show_scale_bar,
         cell_starts=cell_starts,
         cell_ends=cell_ends,
         cell_colors=cell_colors,
@@ -328,6 +354,23 @@ class _Halves:
     the pairs are resolved to coordinates and colours in one vectorised
     pass at the end, which is most of what makes a large picture cheap
     to rebuild.
+
+    A bond that runs out of the picture is a **stub**: one half, from
+    its own atom to where the midpoint would be, and no sphere on the
+    end of it.  Stubs are kept in lists of their own rather than as a
+    drawn atom of radius zero, and that is the whole of the decision.
+    Every array in the scene model is indexed by drawn atom -- the
+    radii, the colours, the labels, the ellipsoids, the legend, the
+    selection flags and the picking all read them by that index -- so
+    a radius-zero entry is a fictional atom that seven other things
+    would each have to learn to skip, and the first one that forgot
+    would put a label in mid-air or an element in the legend that is
+    not in the picture.
+
+    The far end is named by (atom, translation) and not by a position,
+    because the matching loop is integer arithmetic on purpose and a
+    numpy add per candidate pair is what this module is written to
+    avoid.
     """
 
     def __init__(self):
@@ -336,6 +379,13 @@ class _Halves:
         self.flags: list = []
         self.keys: list = []
         self.of_bond: list = []         # index into graph.bonds
+        # the stubs, in the same shape but one half each
+        self.stub_near: list = []
+        self.stub_atom: list = []
+        self.stub_shift: list = []
+        self.stub_flags: list = []
+        self.stub_keys: list = []
+        self.stub_of_bond: list = []
 
     def add(self, near: int, far: int, key, selected,
             bond: int) -> None:
@@ -345,14 +395,52 @@ class _Halves:
         self.keys.append(key)
         self.of_bond.append(bond)
 
-    def arrays(self, drawn, lattice, orders=None, offsets=None):
-        """(starts, ends, colours, flags, keys), two halves per bond.
+    def add_stub(self, near: int, far_atom: int, far_shift, key,
+                 selected, bond: int) -> None:
+        """One half of a bond whose far atom is not drawn."""
+        self.stub_near.append(near)
+        self.stub_atom.append(far_atom)
+        self.stub_shift.append(far_shift)
+        self.stub_flags.append(selected)
+        self.stub_keys.append(key)
+        self.stub_of_bond.append(bond)
+
+    def arrays(self, drawn, cell, lattice, orders=None, offsets=None):
+        """(starts, ends, colours, flags, keys, orders, offsets).
 
         Each half runs from its own atom to the midpoint and takes that
-        atom's colour; the two halves of a bond stay adjacent, which is
-        what the viewport and the tests rely on.
+        atom's colour.  The two halves of a whole bond stay adjacent,
+        which is what the viewport and the tests rely on, and the
+        stubs -- one half each, with nothing to be adjacent to --
+        follow them.
         """
-        if not self.near:
+        starts, ends, colors = [], [], []
+        flags, keys, of_bond = [], [], []
+        if self.near:
+            near = np.array(self.near, dtype=int)
+            far = np.array(self.far, dtype=int)
+            ends_of_half = np.empty(2 * len(near), dtype=int)
+            ends_of_half[0::2] = near
+            ends_of_half[1::2] = far
+            middle = (drawn.frac[near] + drawn.frac[far]) / 2.0
+            starts.append(drawn.frac[ends_of_half])
+            ends.append(np.repeat(middle, 2, axis=0))
+            colors.append(drawn.color[ends_of_half])
+            flags.append(np.repeat(np.array(self.flags, bool), 2))
+            keys.append(np.repeat(
+                np.array(self.keys, int).reshape(-1, 5), 2, axis=0))
+            of_bond.append(np.repeat(np.array(self.of_bond, int), 2))
+        if self.stub_near:
+            near = np.array(self.stub_near, dtype=int)
+            away = (cell.frac[np.array(self.stub_atom, dtype=int)]
+                    + np.array(self.stub_shift, dtype=float))
+            starts.append(drawn.frac[near])
+            ends.append((drawn.frac[near] + away) / 2.0)
+            colors.append(drawn.color[near])
+            flags.append(np.array(self.stub_flags, bool))
+            keys.append(np.array(self.stub_keys, int).reshape(-1, 5))
+            of_bond.append(np.array(self.stub_of_bond, int))
+        if not starts:
             return (np.zeros((0, 3), np.float32),
                     np.zeros((0, 3), np.float32),
                     np.zeros((0, 3), np.uint8),
@@ -360,17 +448,6 @@ class _Halves:
                     np.zeros((0, 5), int),
                     np.zeros(0, np.float32),
                     np.zeros((0, 3), np.float32))
-        near = np.array(self.near, dtype=int)
-        far = np.array(self.far, dtype=int)
-        ends_of_half = np.empty(2 * len(near), dtype=int)
-        ends_of_half[0::2] = near
-        ends_of_half[1::2] = far
-
-        start_frac = drawn.frac[ends_of_half]
-        middle = (drawn.frac[near] + drawn.frac[far]) / 2.0
-        starts = lattice.to_cart(start_frac).astype(np.float32)
-        ends = lattice.to_cart(np.repeat(middle, 2, axis=0)
-                               ).astype(np.float32)
         # Both halves of a bond carry the same order and the same
         # offset direction, so the two tubes of a double bond meet at
         # the midpoint instead of crossing it.
@@ -378,15 +455,14 @@ class _Halves:
             per_half_order = np.zeros(0, np.float32)
             per_half_offset = np.zeros((0, 3), np.float32)
         else:
-            of_bond = np.array(self.of_bond, dtype=int)
-            per_half_order = np.repeat(
-                np.asarray(orders, np.float32)[of_bond], 2)
-            per_half_offset = np.repeat(
-                np.asarray(offsets, np.float32)[of_bond], 2, axis=0)
-        return (starts, ends, drawn.color[ends_of_half],
-                np.repeat(np.array(self.flags, bool), 2),
-                np.repeat(np.array(self.keys, int).reshape(-1, 5), 2,
-                          axis=0),
+            rows = np.concatenate(of_bond)
+            per_half_order = np.asarray(orders, np.float32)[rows]
+            per_half_offset = np.asarray(offsets, np.float32)[rows]
+        return (lattice.to_cart(np.vstack(starts)).astype(np.float32),
+                lattice.to_cart(np.vstack(ends)).astype(np.float32),
+                np.vstack(colors),
+                np.concatenate(flags),
+                np.vstack(keys),
                 per_half_order, per_half_offset)
 
 
@@ -403,9 +479,14 @@ def _emit_bonds(graph, cell, drawn, halves, settings, style,
     ``skip`` names the bonds a polyhedron has already drawn as its own
     edges, which is what makes a picture that is polyhedral at the
     nodes and molecular at the linkers.
+
+    When the far image is not drawn, ``settings.boundary`` decides
+    between the three answers: drop the bond, draw the far atom too,
+    or draw the near half and stop.
     """
     chosen = set() if selection is None else set(selection.bonds)
     complete = settings.boundary == "bonded"
+    stub = settings.boundary == "half"
     radius_of, color_of = _appearance(cell, settings, style)
     shift_of, index_of = drawn.shift, drawn.index_of
 
@@ -425,6 +506,10 @@ def _emit_bonds(graph, cell, drawn, halves, settings, style,
                 far_shift = (s[0] + du, s[1] + dv, s[2] + dw)
                 end = index_of.get((far_atom, far_shift))
                 if end is None:
+                    if stub:
+                        halves.add_stub(start, far_atom, far_shift,
+                                        key, selected, index)
+                        continue
                     if not complete:
                         continue
                     end = drawn.add(
@@ -805,7 +890,8 @@ class _Segments:
 
     A net edge takes one flat colour and belongs to neither of the
     atoms it joins, so it is not split at the midpoint the way a
-    chemical bond is.
+    chemical bond is -- except when the far vertex is not drawn, where
+    the half *is* the edge there is room for.
     """
 
     def __init__(self):
@@ -813,6 +899,10 @@ class _Segments:
         self.far: list = []
         self.keys: list = []
         self.flags: list = []
+        self.stub_near: list = []
+        self.stub_frac: list = []
+        self.stub_keys: list = []
+        self.stub_flags: list = []
 
     def add(self, near, far, key, selected) -> None:
         self.near.append(near)
@@ -820,21 +910,41 @@ class _Segments:
         self.keys.append(key)
         self.flags.append(selected)
 
+    def add_stub(self, near, far_frac, key, selected) -> None:
+        self.stub_near.append(near)
+        self.stub_frac.append(far_frac)
+        self.stub_keys.append(key)
+        self.stub_flags.append(selected)
+
     def arrays(self, drawn=None, lattice=None):
-        if not self.near:
+        starts, ends, keys, flags = [], [], [], []
+        if self.near:
+            near = np.array(self.near, dtype=int)
+            far = np.array(self.far, dtype=int)
+            starts.append(drawn.frac[near])
+            ends.append(drawn.frac[far])
+            keys.append(np.array(self.keys, int).reshape(-1, 5))
+            flags.append(np.array(self.flags, bool))
+        if self.stub_near:
+            near = np.array(self.stub_near, dtype=int)
+            away = np.array(self.stub_frac, dtype=float).reshape(-1, 3)
+            starts.append(drawn.frac[near])
+            ends.append((drawn.frac[near] + away) / 2.0)
+            keys.append(np.array(self.stub_keys, int).reshape(-1, 5))
+            flags.append(np.array(self.stub_flags, bool))
+        if not starts:
             return (np.zeros((0, 3), np.float32),
                     np.zeros((0, 3), np.float32),
                     np.zeros((0, 5), int),
                     np.zeros(0, bool))
-        near = np.array(self.near, dtype=int)
-        far = np.array(self.far, dtype=int)
-        return (lattice.to_cart(drawn.frac[near]).astype(np.float32),
-                lattice.to_cart(drawn.frac[far]).astype(np.float32),
-                np.array(self.keys, int).reshape(-1, 5),
-                np.array(self.flags, bool))
+        return (lattice.to_cart(np.vstack(starts)).astype(np.float32),
+                lattice.to_cart(np.vstack(ends)).astype(np.float32),
+                np.vstack(keys),
+                np.concatenate(flags))
 
 
-def _emit_topology(structure, cell, drawn, lattice, selection):
+def _emit_topology(structure, cell, drawn, lattice, settings,
+                   selection):
     """The net, matched to the drawn images of its vertices.
 
     The same pairing as :func:`_emit_bonds`, with one difference that
@@ -842,12 +952,17 @@ def _emit_topology(structure, cell, drawn, lattice, selection):
     two ends are often whole cells apart -- that is what makes it a net
     edge rather than a bond -- and drawing the missing vertex would
     scatter ghost atoms across the picture wherever the box was cut.
+    So ``boundary="bonded"`` does nothing here, and the half edge is
+    what the net wanted all along: without it a net drawn on one cell
+    of **pcu** shows three edges at a six-coordinate vertex, which is
+    a wrong picture rather than a missing feature.
     """
     net = bonding.topology_graph(structure)
     segments = _Segments()
     if not net.bonds or not drawn.count:
         return segments.arrays()
 
+    stub = settings.boundary == "half"
     chosen = set() if selection is None else set(
         getattr(selection, "topology", ()))
     shift_of, index_of = drawn.shift, drawn.index_of
@@ -855,10 +970,77 @@ def _emit_topology(structure, cell, drawn, lattice, selection):
         key = _key_row(bond.key())
         selected = bond.key() in chosen
         u, v, w = (int(n) for n in bond.image)
-        for start in drawn.by_atom[bond.i]:
-            s = shift_of[start]
-            end = index_of.get((bond.j, (s[0] + u, s[1] + v,
-                                         s[2] + w)))
-            if end is not None:
-                segments.add(start, end, key, selected)
+        # Offered from both ends, but drawn whole only from the i
+        # side: a stub is anchored to the drawn vertex it starts at,
+        # so the j side has stubs of its own to contribute and no
+        # whole edge that the i side has not already given.  The flag
+        # says which side this is, rather than comparing the atoms --
+        # a net edge from a vertex to its own image has i == j.
+        for whole, far_atom, (du, dv, dw), group in (
+                (True, bond.j, (u, v, w), drawn.by_atom[bond.i]),
+                (False, bond.i, (-u, -v, -w), drawn.by_atom[bond.j])):
+            if not whole and not stub:
+                continue
+            for start in group:
+                s = shift_of[start]
+                far_shift = (s[0] + du, s[1] + dv, s[2] + dw)
+                end = index_of.get((far_atom, far_shift))
+                if end is None:
+                    if stub:
+                        segments.add_stub(
+                            start,
+                            cell.frac[far_atom] + np.asarray(far_shift,
+                                                             float),
+                            key, selected)
+                elif whole:
+                    segments.add(start, end, key, selected)
     return segments.arrays(drawn, lattice)
+
+
+# ======================================================================
+#  PLANES
+# ======================================================================
+
+def _no_planes():
+    return (np.zeros((0, 3), np.float32),
+            np.zeros((0, 3), int),
+            np.zeros((0, 3), np.uint8),
+            np.zeros((0, 3), np.float32),
+            np.zeros((0, 3), np.float32),
+            np.zeros((0, 3), np.uint8))
+
+
+def _emit_planes(planes, cell, lattice):
+    """A translucent quad at each plane, with its normal on it.
+
+    Two triangles and a line, which is why this borrows the polyhedron
+    machinery rather than growing any of its own: the renderer already
+    takes triangles with a colour per face and lines with a colour per
+    segment, and a quad is two of the first.
+
+    A plane whose atoms are no longer in the cell is skipped rather
+    than drawn wrong.  The document prunes those, but it prunes them
+    on a signal, and a picture built between the edit and the signal
+    must not index off the end of the cell.
+    """
+    points, faces, colors = [], [], []
+    starts, ends = [], []
+    for plane in planes:
+        if not plane.atoms or max(plane.atoms) >= cell.n_atoms:
+            continue
+        corners, tip = measure.plane_quad(plane, cell, lattice)
+        base = len(points)
+        points.extend(corners)
+        faces.extend([[base, base + 1, base + 2],
+                      [base, base + 2, base + 3]])
+        colors.extend([PLANE_COLOR, PLANE_COLOR])
+        starts.append(plane.centroid)
+        ends.append(tip)
+    if not faces:
+        return _no_planes()
+    return (np.array(points, np.float32).reshape(-1, 3),
+            np.array(faces, int).reshape(-1, 3),
+            np.array(colors, np.uint8).reshape(-1, 3),
+            np.array(starts, np.float32).reshape(-1, 3),
+            np.array(ends, np.float32).reshape(-1, 3),
+            np.tile(np.array(NORMAL_COLOR, np.uint8), (len(ends), 1)))

@@ -14,9 +14,11 @@ the atom at x = 0 is drawn again at x = 1, so the cell closes.
 
 The boundary option is the other half of the same question.  A bond is
 between an atom and a translation of another atom, and at the edge of
-the range one of those two is outside the picture.  *In range* draws
-the bond stub; *bonded* also draws the partner, which is the only way a
-coordination polyhedron at the cell edge stays whole.
+the range one of those two is outside the picture.  There are three
+answers and each is right for a different picture: drop the bond,
+draw the partner as well -- the only way a coordination polyhedron at
+the cell edge stays whole -- or draw the near half and nothing on the
+end of it, which is what a surface bond has always been drawn as.
 
 Nothing here touches the structure: this is view state, so it never
 lands on the undo stack and never marks the document modified.
@@ -25,22 +27,30 @@ lands on the undo stack and never marks the document modified.
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
-    QCheckBox,
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
     QGridLayout,
+    QGroupBox,
     QLabel,
     QPushButton,
+    QRadioButton,
     QVBoxLayout,
 )
 
 AXES = ["a", "b", "c"]
 
 BOUNDARIES = [
-    ("in_range", "Draw only atoms inside the range"),
-    ("bonded", "Also draw the atoms just outside that complete a "
-               "bond"),
+    ("in_range", "Draw only atoms inside the range",
+     "Every atom on the surface of the picture is then drawn "
+     "under-coordinated"),
+    ("bonded", "Also draw the atoms just outside that complete a bond",
+     "Keeps coordination polyhedra whole at the edge of the picture, "
+     "at the cost of a halo of extra atoms around the box"),
+    ("half", "Draw the near half of the bond, and nothing on the end",
+     "The usual notation for a bond that leaves the picture, and the "
+     "only one that draws a six-coordinate net vertex with six "
+     "edges"),
 ]
 
 
@@ -70,11 +80,20 @@ class DisplayRangeDialog(QDialog):
                 grid.addWidget(spin, row, column)
                 values.append(spin)
 
-        self.bonded = QCheckBox(BOUNDARIES[1][1])
-        self.bonded.setChecked(document.view.boundary == "bonded")
-        self.bonded.setToolTip(
-            "Keeps coordination polyhedra whole at the edge of the "
-            "picture")
+        # Radio buttons and not a combo: the three are one question
+        # with three answers and the trade-off between them is in the
+        # wording, which a collapsed combo hides.
+        box = QGroupBox("A bond that leaves the range")
+        choices = QVBoxLayout(box)
+        self.boundaries = {}
+        for name, label, tip in BOUNDARIES:
+            button = QRadioButton(label)
+            button.setToolTip(tip)
+            button.setChecked(document.view.boundary == name)
+            choices.addWidget(button)
+            self.boundaries[name] = button
+        if not any(b.isChecked() for b in self.boundaries.values()):
+            self.boundaries["in_range"].setChecked(True)
 
         self.preview = QLabel()
         self.preview.setWordWrap(True)
@@ -89,7 +108,7 @@ class DisplayRangeDialog(QDialog):
 
         layout = QVBoxLayout(self)
         layout.addLayout(grid)
-        layout.addWidget(self.bonded)
+        layout.addWidget(box)
         layout.addWidget(self.preview)
         layout.addWidget(self.buttons)
         self._preview()
@@ -102,7 +121,10 @@ class DisplayRangeDialog(QDialog):
                                        strict=True))
 
     def boundary(self) -> str:
-        return "bonded" if self.bonded.isChecked() else "in_range"
+        for name, button in self.boundaries.items():
+            if button.isChecked():
+                return name
+        return "in_range"                           # pragma: no cover
 
     def reset(self) -> None:
         for lo, hi in zip(self.los, self.his, strict=True):

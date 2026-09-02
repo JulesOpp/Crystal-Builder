@@ -198,7 +198,9 @@ def _calculator(structure, args):
     available = engine.availability(**options)
     if not available:
         raise ValueError(available.reason)
-    calculator = engine.build(structure, **options)
+    # The engine, not ``engine.build``: the call is where dummy
+    # atoms are held back -- see :mod:`xtal.ff.markers`.
+    calculator = engine(structure, **options)
     for warning in calculator.warnings:
         print(f"warning: {warning}", file=sys.stderr)
     return calculator

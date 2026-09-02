@@ -119,6 +119,8 @@ class DocumentSet:
         if hasattr(viewport, "preview_interval_ms"):
             viewport.preview_interval_ms = \
                 self.window.settings.preview_interval
+        if hasattr(viewport, "show_types"):
+            viewport.show_types = self.window._show_atom_types
         self.documents.append(document)
         index = self.tabs.addTab(viewport, document.title)
         document.titleChanged.connect(

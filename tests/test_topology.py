@@ -224,6 +224,51 @@ def test_a_net_edge_is_never_completed_at_the_boundary():
     assert spread.n_topology_edges == tidy.n_topology_edges
 
 
+def test_a_six_coordinate_vertex_draws_six_edges_as_halves():
+    """The picture the half edge exists for.  A pcu vertex is
+    six-coordinate; drawn on one cell with the edges dropped at the
+    boundary it shows three, which is a wrong picture of the net
+    rather than a missing feature.  Completing them is not the answer
+    -- a net edge's ends are often whole cells apart, so the ghost
+    vertices would be scattered across the box."""
+    settings = ViewSettings(boundary="half")
+    settings.range_a = settings.range_b = settings.range_c = (0.0, 0.0)
+    one_vertex = build_scene(pcu(), settings)
+    assert one_vertex.n_atoms == 1
+    assert one_vertex.n_topology_edges == 6
+
+    dropped = ViewSettings(boundary="in_range")
+    dropped.range_a = dropped.range_b = dropped.range_c = (0.0, 0.0)
+    assert build_scene(pcu(), dropped).n_topology_edges == 0
+
+
+def test_a_half_edge_stops_at_the_midpoint():
+    """Half of the edge, so the picture says the net continues without
+    saying where the far vertex is."""
+    settings = ViewSettings(boundary="half")
+    settings.range_a = settings.range_b = settings.range_c = (0.0, 0.0)
+    scene = build_scene(pcu(a=5.0), settings)
+    lengths = np.linalg.norm(scene.topology_ends
+                             - scene.topology_starts, axis=1)
+    assert np.allclose(lengths, 2.5)
+
+
+def test_a_half_edge_is_still_the_edge_it_came_from():
+    """It carries the key of the whole edge, so a click on one names
+    the net bond rather than a fragment of it.
+
+    A vertex bonded to its own image contributes both halves of the
+    same edge -- one leaving each way -- and both carry that edge's
+    key, which is what makes selecting it light up both."""
+    settings = ViewSettings(boundary="half")
+    settings.range_a = settings.range_b = settings.range_c = (0.0, 0.0)
+    scene = build_scene(pcu(), settings)
+    keys = [scene.topology_key(k)
+            for k in range(scene.n_topology_edges)]
+    assert {k[2] for k in keys} == {(1, 0, 0), (0, 1, 0), (0, 0, 1)}
+    assert all(keys.count(k) == 2 for k in keys)
+
+
 def test_selecting_a_net_edge_lights_that_one_up():
     from xtal.core.selection import Selection
     model = build_scene(pcu(), ViewSettings())

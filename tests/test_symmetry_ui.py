@@ -356,7 +356,7 @@ def test_display_range_dialog_edits_the_view_only(qtbot, document):
 
     dialog.los[0].setValue(-0.5)
     dialog.his[0].setValue(1.5)
-    dialog.bonded.setChecked(True)
+    dialog.boundaries["bonded"].setChecked(True)
     document.update_view(range_a=dialog.ranges()[0],
                          boundary=dialog.boundary())
 

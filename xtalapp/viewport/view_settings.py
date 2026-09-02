@@ -24,6 +24,31 @@ from xtal.core import elements as el
 # here so settings stay a plain, serialisable record.
 DEFAULT_STYLE = "ball_stick"
 
+#: What becomes of a bond whose far atom is outside the display
+#: range, in the order the menu offers them.
+#:
+#: ``in_range`` drops it, which under-coordinates every atom on the
+#: surface of the picture.  ``bonded`` draws the far atom as well,
+#: which keeps a coordination polyhedron whole at the cell edge and
+#: hangs a halo of extra spheres round a picture that was meant to be
+#: of one cell.  ``half`` draws the near half of the bond and no
+#: sphere at all on the end of it -- the notation every
+#: crystallography program has used for a surface bond, and the only
+#: one that says "there is more here" without drawing what is not.
+#:
+#: ``half`` is the default.  The other two are each wrong about
+#: something and only one of them can be turned off at a time:
+#: ``in_range`` draws every atom on the surface of the picture
+#: under-coordinated, and ``bonded`` draws a box surrounded by atoms
+#: that are not in it.  A half bond is what a crystallographer draws
+#: and is the answer that misleads nobody, so it is what the
+#: application opens with.
+#:
+#: A session written before ``half`` existed holds one of the first
+#: two, so the reader needs no migration -- it keeps what it is told
+#: and only falls back for a value from a *newer* version.
+BOUNDARIES = ("in_range", "bonded", "half")
+
 BACKGROUNDS = {
     "white": (255, 255, 255),
     "black": (0, 0, 0),
@@ -68,13 +93,25 @@ class ViewSettings:
     ellipsoid_probability: float = 0.50
     label_mode: str = "none"                # none | element | label | index
 
+    # A translucent quad at every plane the user has defined, with its
+    # normal on it.  On, because a plane is defined by pressing a
+    # button and then has nothing on screen to show for it -- the
+    # entry in the list is the only sign it exists.
+    show_planes: bool = True
+    # A ruler in the corner, in Angstrom.  Off by default, like depth
+    # cueing: it is what you reach for when the size is the question,
+    # and a documentation image that quietly acquired one would be
+    # showing something nobody asked for.
+    show_scale_bar: bool = False
+
     # Display range in fractional coordinates, inclusive.
     range_a: tuple[float, float] = (0.0, 1.0)
     range_b: tuple[float, float] = (0.0, 1.0)
     range_c: tuple[float, float] = (0.0, 1.0)
-    # in_range: draw only atoms inside the range
-    # bonded:   also draw the atoms just outside that complete a bond
-    boundary: str = "in_range"
+    #: What happens to a bond whose far atom is outside the range.
+    #: ``half`` by default: of the three it is the only one that is
+    #: not wrong about something -- see :data:`BOUNDARIES`.
+    boundary: str = "half"
 
     background: tuple[int, int, int] = BACKGROUNDS["white"]
     projection: str = "perspective"         # perspective | orthographic
@@ -153,6 +190,8 @@ class ViewSettings:
             "show_axes": self.show_axes,
             "show_bond_orders": self.show_bond_orders,
             "show_topology": self.show_topology,
+            "show_planes": self.show_planes,
+            "show_scale_bar": self.show_scale_bar,
             "depth_cue": self.depth_cue,
             "depth_cue_strength": self.depth_cue_strength,
             "ellipsoid_probability": self.ellipsoid_probability,
@@ -177,13 +216,16 @@ class ViewSettings:
         s = cls()
         for key in ("style", "atom_scale", "bond_radius", "show_atoms",
                     "show_bonds", "show_cell", "show_axes",
-                    "show_bond_orders", "show_topology", "depth_cue",
+                    "show_bond_orders", "show_topology",
+                    "show_planes", "show_scale_bar", "depth_cue",
                     "depth_cue_strength", "ellipsoid_probability",
                     "label_mode", "boundary", "projection",
                     "show_legend", "polyhedron_opacity",
                     "polyhedron_min_vertices"):
             if key in d:
                 setattr(s, key, d[key])
+        if s.boundary not in BOUNDARIES:
+            s.boundary = cls.boundary
         if "polyhedron_centres" in d:
             s.polyhedron_centres = tuple(d["polyhedron_centres"])
         for key in ("range_a", "range_b", "range_c"):

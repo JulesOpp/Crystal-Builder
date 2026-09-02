@@ -230,6 +230,85 @@ def plane(cell, lattice, atoms, labels=None, name: str = "") -> Plane:
                  name)
 
 
+#: How far a drawn plane reaches past the cell corner furthest from
+#: its centroid, as a fraction of that reach.  Slightly over 1 so
+#: that a plane through atoms on a cell face still closes over the
+#: corner rather than stopping exactly on it.
+PLANE_MARGIN = 0.1
+#: A plane fitted through three atoms of a small ring can be under an
+#: Angstrom across, and a quad that size is invisible.
+MIN_PLANE_HALF_WIDTH = 0.5
+#: The normal is drawn this long, relative to the plane's own extent.
+#: It is what tells two nearly parallel planes apart -- their faces
+#: look identical and their normals do not -- so it has to be long
+#: enough to read as a direction.
+NORMAL_LENGTH_FACTOR = 0.3
+MIN_NORMAL_LENGTH = 1.0
+
+#: The eight corners of the unit cell, in fractional coordinates.
+_CELL_CORNERS = np.array([[float((k >> 2) & 1), float((k >> 1) & 1),
+                           float(k & 1)] for k in range(8)])
+
+
+def plane_quad(plane: Plane, cell, lattice) -> tuple:
+    """``(corners, tip)`` for drawing one plane.
+
+    ``corners`` are the four cartesian corners of a rectangle lying in
+    the plane, in order round it; ``tip`` is the far end of a short
+    line along the normal, starting at the centroid.
+
+    **Sized to cross the whole cell**, not to cover its own atoms.
+    Two planes meet in a line and that line is the thing worth
+    looking at -- how two rings of a framework are canted against each
+    other, whether three of them share an axis -- and quads cropped to
+    their own rings never touch, so there is nothing to see.  A plane
+    that spans the box always meets any other one that is not parallel
+    to it, which is what makes several of them readable together.
+
+    The cost is that the quad no longer says which atoms it came
+    from.  The normal, the Planes list and selecting a row -- which
+    lights up the fitted atoms and draws that plane alone -- are where
+    that is answered instead.
+
+    The extent is measured from the *centroid*, over the eight cell
+    corners projected onto the plane's own axes, so a plane whose
+    centroid sits outside the box still reaches across it.
+    """
+    corners = lattice.to_cart(_CELL_CORNERS) - plane.centroid
+    points = unwrapped_positions(cell, lattice, plane.atoms) \
+        - plane.centroid
+    first, second = plane_axes(plane.normal)
+    half = []
+    for axis in (first, second):
+        reach = max(float(np.abs(corners @ axis).max()),
+                    float(np.abs(points @ axis).max()))
+        half.append(max(reach * (1.0 + PLANE_MARGIN),
+                        MIN_PLANE_HALF_WIDTH))
+    quad = np.array(
+        [plane.centroid + first * (u * half[0]) + second * (v * half[1])
+         for u, v in ((-1, -1), (1, -1), (1, 1), (-1, 1))])
+    normal = np.asarray(plane.normal, dtype=float)
+    length = max(NORMAL_LENGTH_FACTOR * max(half), MIN_NORMAL_LENGTH)
+    return quad, plane.centroid + normal * length
+
+
+def plane_axes(normal) -> tuple[np.ndarray, np.ndarray]:
+    """Two orthonormal vectors spanning the plane with this normal.
+
+    The first is crossed with the cartesian direction the normal leans
+    on *least*, which is never near parallel to it -- a fixed trial
+    axis gives a zero cross product for exactly the planes that lie
+    along it, which are the ones a crystal is full of.
+    """
+    normal = np.asarray(normal, dtype=float)
+    normal = normal / max(float(np.linalg.norm(normal)), 1e-12)
+    trial = np.zeros(3)
+    trial[int(np.argmin(np.abs(normal)))] = 1.0
+    first = np.cross(normal, trial)
+    first = first / float(np.linalg.norm(first))
+    return first, np.cross(normal, first)
+
+
 def plane_angle(first: Plane, second: Plane) -> float:
     """The angle between two planes, in degrees, in [0, 90].
 

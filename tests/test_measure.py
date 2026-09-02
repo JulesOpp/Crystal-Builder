@@ -272,6 +272,88 @@ def test_a_plane_follows_a_ring_across_the_boundary():
     assert abs(split.normal @ flat.normal) == pytest.approx(1.0)
 
 
+# ------------------------------------------------- drawing a plane
+
+def test_a_drawn_plane_lies_in_the_plane_it_was_fitted_to():
+    """Every corner has to be *on* the plane.  A quad that is even
+    slightly off it reads as a different plane the moment the picture
+    is turned edge-on, which is exactly the view a plane is looked at
+    in."""
+    molecule = isolated(["C"] * 6, ring(tilt=35.0))
+    cell, lattice = cell_of(molecule)
+    fitted = measure.plane(cell, lattice, range(6))
+    corners, _tip = measure.plane_quad(fitted, cell, lattice)
+    offsets = (corners - fitted.centroid) @ fitted.normal
+    assert np.abs(offsets).max() < 1e-9
+
+
+def test_a_drawn_plane_crosses_the_whole_cell():
+    """Two planes meet in a line, and the line is the thing worth
+    looking at.  Quads cropped to their own rings never touch, so
+    there is nothing to see -- a plane has to span the box for
+    several of them to be readable together."""
+    box = 30.0
+    molecule = isolated(["C"] * 6, ring(radius=1.39), box=box)
+    cell, lattice = cell_of(molecule)
+    fitted = measure.plane(cell, lattice, range(6))
+    corners, _tip = measure.plane_quad(fitted, cell, lattice)
+
+    reach = np.linalg.norm(corners - fitted.centroid, axis=1).max()
+    assert reach > box / 2                      # the box, not the ring
+
+
+def test_two_planes_that_are_not_parallel_actually_intersect():
+    """The whole reason they are drawn to the cell: two rings eight
+    Angstrom apart, canted against each other, have to show where
+    their planes cross."""
+    box = 30.0
+    both = np.vstack([ring(), ring(tilt=40.0) + [8.0, 0.0, 0.0]])
+    molecule = isolated(["C"] * 12, both, box=box)
+    cell, lattice = cell_of(molecule)
+    quads = [measure.plane_quad(
+        measure.plane(cell, lattice, group), cell, lattice)[0]
+        for group in (range(6), range(6, 12))]
+
+    # each quad reaches across the other plane -- corners on both
+    # sides of it -- which is what an intersection inside the picture
+    # is
+    for quad, other in ((quads[0], 1), (quads[1], 0)):
+        plane = measure.plane(cell, lattice,
+                              range(6 * other, 6 * other + 6))
+        side = (quad - plane.centroid) @ plane.normal
+        assert side.min() < 0 < side.max()
+
+
+def test_a_drawn_plane_carries_a_normal_at_right_angles_to_itself():
+    """Two nearly parallel planes have faces that look identical and
+    normals that do not, which is the whole reason the normal is
+    drawn."""
+    molecule = isolated(["C"] * 6, ring(tilt=35.0))
+    cell, lattice = cell_of(molecule)
+    fitted = measure.plane(cell, lattice, range(6))
+    corners, tip = measure.plane_quad(fitted, cell, lattice)
+    along = tip - fitted.centroid
+    assert np.linalg.norm(along) > 0.5
+    for edge in (corners[1] - corners[0], corners[3] - corners[0]):
+        assert abs(along @ edge) < 1e-9
+
+
+def test_a_drawn_plane_sits_on_the_ring_it_was_fitted_through():
+    """The quad spans the cell, but it is still *that* plane: its
+    centre is the fitted centroid, which for a ring lying over a cell
+    face is on the ring rather than in the middle of the box."""
+    box = 8.0
+    straddling = Structure.from_arrays(
+        Lattice.cubic(box), ["C"] * 6,
+        (ring() / box + [0.99, 0.0, 0.0]) % 1.0, space_group="P1")
+    cell, lattice = cell_of(straddling)
+    fitted = measure.plane(cell, lattice, range(6))
+    corners, _tip = measure.plane_quad(fitted, cell, lattice)
+    assert np.allclose(corners.mean(axis=0), fitted.centroid)
+    offsets = (corners - fitted.centroid) @ fitted.normal
+    assert np.abs(offsets).max() < 1e-9
+
+
 def test_an_interplanar_angle_is_a_measurement_like_any_other():
     tilted = np.vstack([ring(), ring(tilt=35.0) + [8.0, 0.0, 0.0]])
     molecule = isolated(["C"] * 12, tilted)

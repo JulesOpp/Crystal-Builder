@@ -1,0 +1,36 @@
+data_pcu
+_cell_length_a 35.59592
+_cell_length_b 35.59592
+_cell_length_c 35.59592
+_cell_angle_alpha 90.0000
+_cell_angle_beta 90.0000
+_cell_angle_gamma 90.0000
+_space_group_IT_number '225'
+_symmetry_space_group_name_H-M_alt 'F m -3 m'
+_space_group_name_Hall '-F 4 2 3'
+loop_
+ _atom_site_label
+ _atom_site_type_symbol
+ _atom_site_fract_x
+ _atom_site_fract_y
+ _atom_site_fract_z
+ _atom_site_occupancy
+  H0 H 0.00000 0.00000 0.00000 0.1
+  H1 H 0.09164 0.09164 0.40836 0.1
+  H2 H 0.00000 0.00000 0.22475 0.1
+  He3  He 0.011455 0.011455 0.24770125 0.1
+  He4  He 0.02291 0.02291 0.2706525 0.1
+  He5  He 0.034365 0.034365 0.29360375 0.1
+  He6  He 0.04582 0.04582 0.31655500000000003 0.1
+  He7  He 0.057275 0.057275 0.33950625 0.1
+  He8  He 0.06873 0.06873 0.3624575 0.1
+  He9  He 0.080185 0.080185 0.38540874999999997 0.1
+  He10  He 0.09164 0.09164 0.40836 0.1
+  He4  He 0.0 0.0 0.02809375 0.1
+  He5  He 0.0 0.0 0.0561875 0.1
+  He6  He 0.0 0.0 0.08428125 0.1
+  He7  He 0.0 0.0 0.112375 0.1
+  He8  He 0.0 0.0 0.14046875 0.1
+  He9  He 0.0 0.0 0.1685625 0.1
+  He10  He 0.0 0.0 0.19665625 0.1
+  He11  He 0.0 0.0 0.22475 0.1

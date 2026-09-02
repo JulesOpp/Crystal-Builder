@@ -42,7 +42,25 @@ from PySide6.QtWidgets import (
 from xtal.commands.bonds import BOND_TYPES
 from xtal.modules import MODULES
 from xtalapp.viewport import modes, styles
-from xtalapp.viewport.view_settings import BACKGROUNDS
+from xtalapp.viewport.view_settings import BACKGROUNDS, ViewSettings
+
+#: The three boundary answers, as menu entries.  In
+#: :data:`xtalapp.viewport.view_settings.BOUNDARIES` order, which is
+#: least drawn to most said.
+BOUNDARY_ACTIONS = (
+    ("in_range", "&Drop bonds at the boundary",
+     "A bond whose far atom is outside the range is not drawn, so "
+     "every atom on the surface of the picture is drawn "
+     "under-coordinated"),
+    ("bonded", "&Complete bonds at the boundary",
+     "Draw the far atom as well.  The only way a coordination "
+     "polyhedron at the cell edge stays whole, at the cost of a halo "
+     "of extra atoms around the box"),
+    ("half", "Draw &half bonds at the boundary",
+     "Draw the near half and nothing on the end of it -- the usual "
+     "notation for a bond that leaves the picture, and the only one "
+     "that draws a six-coordinate net vertex with six edges"),
+)
 
 
 def build_actions(window):
@@ -118,10 +136,29 @@ def build_actions(window):
         lambda v: window.set_view(
             projection="orthographic" if v else "perspective"),
         checkable=True)
-    add("boundary_bonded", "Complete bonds at the boundary",
-        lambda v: window.set_view(
-            boundary="bonded" if v else "in_range"),
-        checkable=True)
+    # Three answers to one question -- what happens to a bond whose
+    # far atom is outside the display range -- so an exclusive group
+    # and not three checkboxes.  ``boundary_bonded`` keeps its name:
+    # it is in a context menu, in the View menu and in the tests, and
+    # renaming it would be a rename and nothing else.
+    for name, label, tip in BOUNDARY_ACTIONS:
+        add(f"boundary_{name}", label,
+            lambda checked=False, b=name: (
+                window.set_view(boundary=b) if checked else None),
+            checkable=True,
+            checked=(name == ViewSettings.boundary),
+            group="boundary", tip=tip)
+    add("show_planes", "Planes",
+        lambda v: window.set_view(show_planes=v), checkable=True,
+        checked=True,
+        tip="Draw a translucent quad at every plane in the Measure "
+            "panel, with its normal on it -- choose rows in that "
+            "list to draw only those")
+    add("show_scale_bar", "Scale bar",
+        lambda v: window.set_view(show_scale_bar=v), checkable=True,
+        tip="A ruler in the corner, in Angstrom.  It measures the "
+            "camera and not the crystal, so a cell that contracts "
+            "during a relaxation is seen to contract against it")
 
     add("undo", "&Undo", window.undo, "Ctrl+Z")
     add("redo", "&Redo", window.redo, "Ctrl+Shift+Z")
@@ -202,6 +239,11 @@ def build_actions(window):
                 "add-atom chain, the first end of a bond, the atoms "
                 "of a measurement.  Again to leave the mode."))
 
+    add("measure_selection", "&Measure selection",
+        window.measure_selection, "Ctrl+M",
+        tip="Measure the selected atoms in the order they were "
+            "picked: two a distance, three an angle about the "
+            "middle one, four a torsion")
     add("define_plane", "Define &plane from selection",
         window.define_plane, "Ctrl+Shift+P",
         tip="Fit a plane through the selected atoms: exactly "
@@ -361,6 +403,7 @@ def build_menus(window):
 
     measure_menu = bar.addMenu("&Measure")
     window.actions_.fill_menu(measure_menu, [
+        "measure_selection", None,
         "define_plane", "plane_angle", None,
         "clear_planes", "clear_measurements"])
 
@@ -386,8 +429,8 @@ def build_menus(window):
     show_menu = view_menu.addMenu("&Show")
     window.actions_.fill_menu(
         show_menu, ["show_atoms", "show_bonds", "show_bond_orders",
-                    "show_topology", "show_cell", "labels",
-                    "show_legend"])
+                    "show_topology", "show_cell", "show_planes",
+                    "labels", "show_legend", "show_scale_bar"])
     view_menu.addSeparator()
     background_menu = view_menu.addMenu("&Background")
     for name in BACKGROUNDS:
@@ -397,9 +440,10 @@ def build_menus(window):
     background_menu.addSeparator()
     background_menu.addAction("Custom...", window.choose_background)
     view_menu.addSeparator()
+    window.actions_.fill_menu(view_menu, ["display_range"])
+    add_boundary_menu(window, view_menu)
     window.actions_.fill_menu(view_menu, [
-        "display_range", "boundary_bonded", None, "orthographic",
-        "depth_cue",
+        None, "orthographic", "depth_cue",
         None, "view_a", "view_b", "view_c", "reset_view"])
 
     help_menu = bar.addMenu("&Help")
@@ -534,6 +578,10 @@ def context_menu(window, kind: str):
             menu.addSeparator()
         elif name == window.BOND_TYPE_MENU:
             add_bond_type_menu(window, menu)
+        elif name == window.BOUNDARY_MENU:
+            add_boundary_menu(window, menu)
+        elif name == window.MEASURE_ENTRY:
+            add_measure(window, menu, count)
         elif name in window.COUNTED_ACTIONS and count > 1:
             add_counted(window, menu, name, count, noun)
         else:
@@ -543,6 +591,19 @@ def context_menu(window, kind: str):
         window.actions_.fill_menu(
             style, [f"style_{n}" for n in styles.names()])
     return menu
+
+def add_boundary_menu(window, menu):
+    """The three boundary answers, wherever they are wanted.
+
+    Parented to the menu it is added to, for the reason spelled out
+    in :func:`add_bond_type_menu`: a submenu built by ``addMenu(title)``
+    alone is owned by Python and is collected the moment this returns.
+    """
+    submenu = QMenu("Bonds at the &boundary", menu)
+    menu.addMenu(submenu)
+    window.actions_.fill_menu(
+        submenu, [f"boundary_{n}" for n, _l, _t in BOUNDARY_ACTIONS])
+
 
 def add_bond_type_menu(window, menu):
     """The Set Bond Type submenu, wherever it is wanted.
@@ -562,6 +623,31 @@ def add_bond_type_menu(window, menu):
     window.actions_.fill_menu(
         submenu, [f"bond_type_{n.lower()}" for n, _ in BOND_TYPES])
     return submenu
+
+#: What each number of selected atoms admits.  One entry and not
+#: three, and *absent* at any other count rather than greyed out:
+#: "Measure" over one atom is not something that would happen if
+#: only the right thing were enabled.
+MEASURE_LABELS = {2: "&Measure distance", 3: "&Measure angle",
+                  4: "&Measure dihedral"}
+
+
+def add_measure(window, menu, count: int):
+    """The one measurement this many atoms admit, or nothing at all.
+
+    A fresh action rather than the registry's own, for the reason
+    given in :func:`add_counted`: the registry's is the object the
+    menu bar shows, and renaming it here would rename it there.
+    """
+    label = MEASURE_LABELS.get(count)
+    if label is None:
+        return None
+    action = window.actions_["measure_selection"]
+    entry = menu.addAction(label)
+    entry.setEnabled(action.isEnabled())
+    entry.triggered.connect(action.trigger)
+    return entry
+
 
 def add_counted(window, menu, name: str, count: int, noun: str):
     """A menu entry that says what it will act on.

@@ -290,3 +290,114 @@ def test_the_glyph_goes_back_to_spheres_when_the_style_changes():
     scene.set_model(build_scene(structure,
                                 ViewSettings(show_cell=False)))
     assert not scene.atom_mapper.GetOrient()
+
+
+# ============================================================ the cell
+
+def test_the_cell_frame_follows_a_relaxing_lattice():
+    """The bug the scale bar made visible.  ``set_positions`` moved
+    the atoms and left ``_cell_poly`` alone, and ``_same_shape``
+    compares the number of cell *lines* -- which is twelve before and
+    twelve after -- so a variable-cell relaxation drew the atoms
+    contracting inside a box that was still the old one."""
+    from xtal import Lattice, Structure
+    settings = ViewSettings()
+
+    def box(a):
+        return Structure.from_arrays(Lattice.cubic(a), ["Na"],
+                                     [[0.0, 0.0, 0.0]],
+                                     space_group="P1")
+
+    scene = vtk_scene.VtkScene()
+    scene.set_model(build_scene(box(6.0), settings))
+    before = np.array(scene._cell_poly.GetPoints().GetData()).max()
+
+    smaller = build_scene(box(5.4), settings)
+    assert scene._same_shape(smaller)       # nothing looks different
+    scene.set_positions(smaller)
+    after = np.array(scene._cell_poly.GetPoints().GetData()).max()
+    assert after == pytest.approx(before * 0.9, rel=1e-5)
+
+
+# ======================================================= the scale bar
+
+def test_a_nice_length_is_one_two_or_five_per_decade():
+    """A reader counts the bar off against the picture, and 3.7 A is
+    not a length anybody counts in."""
+    nice = vtk_scene._nice_length
+    assert nice(1.0) == 1.0
+    assert nice(3.7) == 2.0
+    assert nice(9.9) == 5.0
+    assert nice(37.0) == 20.0
+    assert nice(0.37) == pytest.approx(0.2)
+    assert nice(0.0) > 0.0                  # never a bar of no length
+
+
+def _with_a_bar(structure, cells=1):
+    settings = ViewSettings(show_scale_bar=True)
+    settings.set_cells(cells, cells, cells)
+    scene = vtk_scene.VtkScene()
+    scene.renderer.SetViewport(0.0, 0.0, 1.0, 1.0)
+    window = vtk_scene.vtkRenderWindow()
+    window.SetOffScreenRendering(True)
+    window.SetSize(*SIZE)
+    window.AddRenderer(scene.renderer)
+    scene.set_model(build_scene(structure, settings))
+    scene.reset_camera()
+    window.Render()
+    # The renderer keeps only a back-pointer to its window, so without
+    # this the window is collected and the next Render finds nothing.
+    scene.window = window
+    return scene
+
+
+def test_the_scale_bar_appears_only_when_it_is_asked_for(rutile):
+    scene = vtk_scene.VtkScene()
+    scene.set_model(build_scene(rutile, ViewSettings()))
+    assert not scene.bar_actor.GetVisibility()
+    assert not scene.bar_label.GetVisibility()
+
+    scene.set_model(build_scene(rutile,
+                                ViewSettings(show_scale_bar=True)))
+    assert scene.bar_actor.GetVisibility()
+    assert scene.bar_label.GetVisibility()
+
+
+def test_the_bar_says_how_long_it_is(rutile):
+    scene = _with_a_bar(rutile)
+    label = scene.bar_label.GetInput()
+    assert label.endswith(" A")
+    assert float(label[:-2]) > 0.0
+
+
+def test_a_bigger_picture_gets_a_longer_bar(rutile):
+    """The bar measures the camera, so drawing three cells instead of
+    one has to give a bar worth more Angstrom."""
+    one = float(_with_a_bar(rutile, 1).bar_label.GetInput()[:-2])
+    three = float(_with_a_bar(rutile, 3).bar_label.GetInput()[:-2])
+    assert three > one
+
+
+def test_the_bar_stands_still_while_the_cell_contracts():
+    """The whole point of it.  A ruler taken from the structure's own
+    size would shrink with the cell it is there to measure, and the
+    picture would show a box and a ruler contracting together -- which
+    is a picture of nothing happening."""
+    from xtal import Lattice, Structure
+
+    def box(a):
+        return Structure.from_arrays(Lattice.cubic(a), ["Na"],
+                                     [[0.0, 0.0, 0.0]],
+                                     space_group="P1")
+
+    settings = ViewSettings(show_scale_bar=True)
+    scene = _with_a_bar(box(10.0))
+    before = scene.bar_label.GetInput()
+    before_points = np.array(
+        scene._bar_poly.GetPoints().GetData()).copy()
+
+    scene.set_positions(build_scene(box(9.6), settings))
+    scene.window.Render()
+    assert scene.bar_label.GetInput() == before
+    assert np.allclose(
+        np.array(scene._bar_poly.GetPoints().GetData()), before_points)

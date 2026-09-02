@@ -87,6 +87,12 @@ class Document(QObject):
         # is a thing other measurements are taken *between*, so it is
         # kept in its own list and named.
         self.planes: list = []
+        # Which rows of that list the picture draws, or () for all of
+        # them.  View state and not a note: it follows what is
+        # selected in the Planes list, it is not written into the
+        # project, and "none chosen means all of them" is the same
+        # convention ``measure_plane_angles`` already works to.
+        self.shown_planes: tuple = ()
         self.warnings: list[str] = list(
             self._structure.meta.get("warnings", []))
         # Off, and a preference rather than a rule -- see
@@ -269,6 +275,7 @@ class Document(QObject):
         self.selection.clear()
         self.measurements = []
         self.planes = []
+        self.shown_planes = ()
         self.stack.clear()
         if not modified:
             self.stack.mark_clean()
@@ -1447,12 +1454,35 @@ class Document(QObject):
     def remove_plane(self, index: int) -> None:
         if 0 <= index < len(self.planes):
             del self.planes[index]
+            self.shown_planes = ()
             self.planesChanged.emit()
 
     def clear_planes(self) -> None:
         if self.planes:
             self.planes = []
+            self.shown_planes = ()
             self.planesChanged.emit()
+
+    def set_shown_planes(self, rows) -> None:
+        """Draw only these rows of the plane list, or all of them when
+        the list is given nothing.
+
+        Choosing none and meaning all is the useful default here for
+        the same reason it is in :meth:`measure_plane_angles`: one
+        plane is defined and looked at, and having to select the row
+        as well before it appears would make the button look broken.
+        """
+        rows = tuple(sorted({int(r) for r in rows}))
+        if rows != self.shown_planes:
+            self.shown_planes = rows
+            self.planesChanged.emit()
+
+    def planes_to_draw(self) -> list:
+        """The planes the viewport is to draw, in list order."""
+        if not self.shown_planes:
+            return list(self.planes)
+        return [self.planes[r] for r in self.shown_planes
+                if 0 <= r < len(self.planes)]
 
     def measure_plane_angles(self, indices=None) -> str:
         """The angle between planes -- every pair of them.
@@ -1527,6 +1557,7 @@ class Document(QObject):
         planes = [p for p in self.planes if max(p.atoms) < n_atoms]
         if len(planes) != len(self.planes):
             self.planes = planes
+            self.shown_planes = ()      # the rows have renumbered
             self.planesChanged.emit()
         keep = [m for m in self.measurements
                 if max(m.atoms) < n_atoms]

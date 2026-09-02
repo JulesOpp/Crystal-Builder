@@ -132,6 +132,63 @@ def test_the_empty_space_menu_is_about_the_view(opened):
     assert any("Style" in t for t in texts)
 
 
+def test_every_menu_offers_the_cell(opened):
+    """The cell is the one thing that is always under the cursor,
+    whatever was clicked, so reaching it must not depend on having
+    right-clicked empty space."""
+    window, document = opened
+    document.select([0])
+    document.select_bond(document.graph.bonds[0].key())
+    for kind in ("atom", "bond", "view"):
+        texts = [t.replace("&", "") for t in entries(window, kind)]
+        assert any("Edit cell" in t for t in texts), kind
+        assert any("Display range" in t for t in texts), kind
+
+
+def test_the_measurement_offered_is_the_one_the_count_admits(opened):
+    """Two atoms are a distance, three an angle, four a dihedral --
+    one entry and not three, because the number picked is the whole
+    of the choice."""
+    window, document = opened
+    wanted = {2: "distance", 3: "angle", 4: "dihedral"}
+    for count, word in wanted.items():
+        document.select(range(count), "set")
+        texts = [t.lower() for t in entries(window, "atom")]
+        offered = [t for t in texts if "measure" in t]
+        assert len(offered) == 1, (count, offered)
+        assert word in offered[0]
+
+
+def test_no_measurement_is_offered_at_a_count_that_admits_none(opened):
+    """Absent rather than greyed out: "Measure" over one atom is not
+    something that would happen if only the right thing were on."""
+    window, document = opened
+    for count in (1, 5):
+        document.select(range(count), "set")
+        texts = [t.lower() for t in entries(window, "atom")]
+        assert not [t for t in texts if "measure" in t], count
+
+
+def test_three_selected_atoms_offer_an_angle_about_the_middle_one(
+        opened):
+    """The order is the order they were clicked, so A-B-C is an angle
+    at B -- and picking the same three in another order asks a
+    different question."""
+    window, document = opened
+    for atom in (2, 0, 3):
+        document.select([atom], "toggle")
+    assert document.selection.order == [2, 0, 3]
+
+    menu = window.build_context_menu("atom")
+    [entry] = [a for a in menu.actions()
+               if "measure" in a.text().lower()]
+    entry.trigger()
+
+    [taken] = document.measurements
+    assert taken.kind == "angle"
+    assert taken.atoms == (2, 0, 3)
+
+
 def test_an_unknown_target_offers_nothing(opened):
     window, _document = opened
     assert window.build_context_menu("nothing at all") is None
