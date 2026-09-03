@@ -27,10 +27,14 @@ changes when the geometry relaxes.  The relaxation happens once, on
 the worker thread or at the paste, with the parameters the form
 actually says.
 
-The picture is read-only and behind :class:`_Sketch`, whose whole
-interface is ``set_smiles`` in and ``smilesChanged`` out.  That is the
-seam the rdEditor spike lands on: a live editor is a widget with the
-same two, and nothing else in this file would change.
+**The picture is one of two widgets with the same two members.**
+``set_smiles`` in and ``smilesChanged`` out is the whole interface,
+and :func:`_sketch_for` chooses between :class:`_Sketch` -- the
+read-only depiction -- and
+:class:`xtalapp.dialogs.sketch.SketchEditor`, which is rdeditor's
+canvas and can be drawn on.  Which one is decided by whether
+``rdeditor`` is installed, and nothing else in this file knows the
+difference.
 """
 
 from __future__ import annotations
@@ -86,7 +90,7 @@ class BuildMoleculeDialog(QDialog):
         self.form.set_values(action.coerce(initial or {}))
         self.library = _Library(self, self.pastes)
         self.library.chosen.connect(self._on_library)
-        self.sketch = _Sketch(self)
+        self.sketch = _sketch_for(self)
         self.footer = QLabel(self)
         self.footer.setWordWrap(True)
         self.footer.setTextFormat(Qt.RichText)
@@ -291,6 +295,19 @@ def _grouped(entries) -> list[list]:
 # ======================================================================
 #  THE PICTURE
 # ======================================================================
+
+def _sketch_for(parent):
+    """The drawable canvas if there is one, the depiction otherwise.
+
+    The choice is made per dialog rather than per session on purpose:
+    it is a ``find_spec``, it costs nothing, and a test that takes
+    rdeditor away has to be able to see the other branch without
+    reaching into a module-level cache.
+    """
+    if sketch.installed():
+        return sketch.SketchEditor(parent)
+    return _Sketch(parent)
+
 
 class _Sketch(QWidget):
     """A 2D depiction of a SMILES string.

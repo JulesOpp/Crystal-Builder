@@ -19,9 +19,10 @@ from tests.test_app_shell import StubViewport  # noqa: E402
 from xtal.build import installed  # noqa: E402
 from xtal.io import write_cif  # noqa: E402
 from xtal.modules.build import BUILD, INSERT  # noqa: E402
-from xtalapp.dialogs import module_dialog  # noqa: E402
+from xtalapp.dialogs import module_dialog, sketch  # noqa: E402
 from xtalapp.dialogs.build_molecule import (  # noqa: E402
     BuildMoleculeDialog,
+    _Sketch,
 )
 from xtalapp.mainwindow import MainWindow  # noqa: E402
 from xtalapp.settings import AppSettings  # noqa: E402
@@ -30,6 +31,11 @@ needs_rdkit = pytest.mark.skipif(
     not installed(),
     reason="RDKit is not installed; pip install "
            "'crystal-builder[build]'")
+
+needs_rdeditor = pytest.mark.skipif(
+    not (installed() and sketch.installed()),
+    reason="rdeditor is not installed; pip install "
+           "'crystal-builder[sketch]'")
 
 
 @pytest.fixture
@@ -212,6 +218,64 @@ def test_an_unfinished_string_leaves_the_last_picture_up(window,
     assert dialog.sketch.view.renderer().defaultSize() == drawn
     assert dialog.sketch.view.renderer().isValid()
     assert dialog.sketch.view.isVisibleTo(dialog.sketch)
+
+
+# -------------------------------------------------- the 2D editor
+
+@needs_rdeditor
+def test_the_editor_replaces_the_picture_when_rdeditor_is_installed(
+        window, qtbot):
+    """The same two members either way -- set_smiles in,
+    smilesChanged out -- which is why the dialog around it did not
+    have to change to gain an editor."""
+    dialog = BuildMoleculeDialog(BUILD, BUILD.action("molecule"),
+                                 window)
+    qtbot.addWidget(dialog)
+    typed(dialog, qtbot, "c1ccccc1")
+
+    assert isinstance(dialog.sketch, sketch.SketchEditor)
+    assert dialog.sketch.smiles() == "c1ccccc1"
+    assert dialog.sketch.view.mol.GetNumAtoms() == 6
+
+
+@needs_rdkit
+def test_without_rdeditor_the_picture_is_still_there_and_says_what_to_install(  # noqa: E501
+        window, qtbot, monkeypatch):
+    """The fine greying axis.  No RDKit turns the menu entry off; RDKit
+    without rdeditor is not an error at all, so the dialog opens with
+    the depiction that always worked and names the extra underneath
+    it rather than leaving somebody to wonder why it cannot be drawn
+    on."""
+    monkeypatch.setattr(sketch, "installed", lambda: False)
+    dialog = BuildMoleculeDialog(BUILD, BUILD.action("molecule"),
+                                 window)
+    qtbot.addWidget(dialog)
+    typed(dialog, qtbot, "c1ccccc1")
+
+    assert isinstance(dialog.sketch, _Sketch)
+    assert dialog.sketch.view.renderer().isValid()
+    assert "crystal-builder[sketch]" in dialog.sketch.hint.text()
+    assert dialog.sketch.hint.isVisibleTo(dialog.sketch)
+
+
+@needs_rdeditor
+def test_closing_the_dialog_twice_does_not_take_the_editor_with_it(
+        window, qtbot):
+    """rdeditor sets WA_DeleteOnClose on the canvas, which is right
+    for the standalone window it ships in and wrong for a dialog that
+    is opened, closed and opened again -- the second open would be
+    holding a freed C++ object."""
+    dialog = BuildMoleculeDialog(BUILD, BUILD.action("molecule"),
+                                 window)
+    qtbot.addWidget(dialog)
+    dialog.show()
+    dialog.close()
+    dialog.show()
+    dialog.close()
+
+    assert not dialog.sketch.view.testAttribute(Qt.WA_DeleteOnClose)
+    typed(dialog, qtbot, "CCO")
+    assert dialog.sketch.view.mol.GetNumAtoms() == 3
 
 
 @needs_rdkit
