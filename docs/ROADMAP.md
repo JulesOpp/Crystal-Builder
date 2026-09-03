@@ -93,7 +93,7 @@ is now the last piece of "build on the net I drew".
 ---
 
 
-## 8. Phase U — draw in 2D, build in 3D — **all but the editor**
+## 8. Phase U — draw in 2D, build in 3D — *shipped*
 
 **Goal:** a molecule that does not exist yet, into the open cell — and
 into the `bb_dir` Phase Q wired through.
@@ -102,7 +102,6 @@ into the `bb_dir` Phase Q wired through.
 |---|---|---|---|
 | SMILES to 3D, into the open cell | Building | M | *shipped* |
 | Fragment library | Building | S | *shipped* |
-| An embedded 2D editor (rdEditor, or Ketcher) | Building | M | |
 
 Do the first two, live with them, and only then take the editor.  A
 text box that turns `c1ccccc1C(=O)[O-]` into a benzoate sitting in the
@@ -179,9 +178,10 @@ by the **symbol** `X` and never reads the index line, so a writer must
 emit both.  And there is a fourth section after the atoms, `i j` and a
 letter in `S/D/T/A`, which is how a molecule's bond orders survive
 into the built framework's CIF.  `xtal/mof/block.py` holds the
-constant and the geometry; the writer is still owed.
+constant and the geometry, and `write_building_block` emits all
+three.
 
-**All of that is now in except the rdEditor spike**, and one thing
+**All of that is now in**, and one thing
 had to be fixed before any of it: `PasteFragment` grew perceived bonds
 onto what it pasted -- it never called `bonding.hold_perception` --
 which was a live invariant violation reachable by Ctrl+V, and a
@@ -214,10 +214,77 @@ further clicked, and the acceptance test builds **pcu** from a linker
 this application wrote against a shipped node and reads the net back
 off the framework to check it is still pcu.
 
-**Still owed:** the rdEditor spike.
-`xtalapp.dialogs.build_molecule._Sketch` is the seam it lands on --
-`set_smiles` in, `smilesChanged` out, and nothing else in the dialog
-knows the difference between a picture and an editor.
+### The editor, and what the seam was worth
+
+**The widget did come apart from its shell**, which is the question
+the spike was for.  `rdeditor.molEditWidget.MolEditWidget` is a
+`QSvgWidget` subclass that constructs standalone, takes a `Mol` in,
+signals `molChanged` out and undoes its own edits.  So Ketcher in a
+`QWebEngineView` is not needed and QtWebEngine stays out of the
+bundle.  rdeditor is LGPL-3.0, so it is a dependency and never
+vendored -- a third extra, `sketch`, separate from `build` because
+`xtal/` imports no Qt and this is PySide6 plus a theme package.
+
+**The seam paid for itself exactly as claimed.**  `set_smiles` in and
+`smilesChanged` out was the whole interface, and the editor went in
+behind it: the footer, the library picker, the build timer and the
+two entries' differences are untouched.  What did *not* survive
+contact was the assumption that the seam was one-way.  A picture is a
+line -- text in, drawing out -- and an editor is a **cycle**: draw,
+box, the 350 ms timer, build, and the string back into the canvas.
+
+**Both hops of that cycle guard on the molecule, not the string,**
+and a string compare is not close enough.  The two ends disagree
+about spelling constantly -- a benzene drawn from the ring template
+comes back kekulized where the box says `c1ccccc1`, a library entry
+writes `[*:1]c1ccc([*:2])cc1` where the depiction canonicalises the
+ring -- and each disagreement would have rewritten the box, restarted
+the timer, rebuilt, and re-laid the drawing out under the cursor, on
+every keystroke.  Round-tripping both sides through `MolToSmiles`
+asks the question that was actually meant.
+
+**The chrome is ours.**  `MolEditWidget` has none: everything a user
+presses in rdEditor lives on their `MainWindow`, which is a
+thousand-line application and is not coming with the widget.  So:
+Select / Add / Remove / Replace, seven elements, three bond orders,
+two ring templates, undo.  Their `ptable_widget` is skipped
+deliberately -- it wants a `QActionGroup` built by that `MainWindow`
+and would couple this dialog to the plumbing the widget was extracted
+from.  Anything off the element row is typed into the box, which is
+why the box did not go away.
+
+**The connection-point tool needed no chemistry at all.**  An atom of
+atomic number zero is `*` in SMILES, `*` is what the box already
+takes, and `from_smiles` already turns that into the `X` that
+perception, the force field and every module run hold back at the
+door.  It is offered only when `not pastes` -- the same flag the
+footer and the picker read -- because the entry that pastes refuses a
+starred string, and a tool whose only outcome is the footer turning
+red is worse than no tool.
+
+**Three things rdeditor does to its host are undone at
+construction**, and none of them is a reason not to use it.  It sets
+`WA_DeleteOnClose` on the canvas, right for the window it ships in
+and wrong for a dialog opened, closed and opened again.
+`MolWidget.__init__` calls `logging.basicConfig` and then sets the
+level of the *root* logger, which is the application's.  And its own
+constructor drops the parent on the floor -- `MolEditWidget` passes
+`parent` to `MolWidget`, whose first parameter is the *molecule* --
+so the canvas is built unparented and the layout adopts it.  Two
+notes without a remedy: `rdeditor/__init__.py` does `from .rdEditor
+import MainWindow`, so any import from the package executes that
+shell and pulls in `qdarktheme` (0.1.7 on Python 3.13; it imports
+fine because their `MainWindow` is never constructed) -- which is why
+availability is `find_spec` and never an import.  And rdeditor draws
+a connection point labelled `R`, relabelling it in its own `mol`
+setter, where the box says `*` and the tab says `X`; the tooltip says
+so rather than leaving somebody to work it out.
+
+**The acceptance ran end to end**: benzene-1,4-dicarboxylate drawn
+click by click from the toolbar with two connection points, Build,
+a tab of 18 atoms with 2 `X` in it, saved as a building block, and
+868 blocks in the MOF picker afterwards -- the 867 PORMAKE ships and
+the one this application drew, with nothing further clicked.
 
 ---
 
@@ -331,7 +398,6 @@ and no cell is doubled, which stays true until this lands.
 
 | Phase | Theme | Rough size | |
 |---|---|---|---|
-| **U** | Draw in 2D, build in 3D | M (XL with the sketcher) | *all but the editor* |
 | **V** | The engines answer in pictures | L | |
 | **W** | The klassengleiche half | L | |
 

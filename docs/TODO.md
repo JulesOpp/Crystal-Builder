@@ -162,53 +162,6 @@ is already in exactly that shape.
 
 ## Building
 
-### An embedded 2D editor
-
-The 3D half shipped: `xtal/build/` turns a SMILES string into a
-molecule, `Structure > Insert molecule...` drops it into the open cell
-at the camera's focal point, and the Modules tree builds one into a
-tab of its own.  Twenty-six fragments ship in
-`xtal/build/data/fragments.json`, and a molecule with connection
-points on it writes out as a PORMAKE building block.  What is left of
-this entry is the half that was always going to be an integration
-rather than a build: **drawing** the molecule instead of typing it.
-
-`xtalapp.dialogs.build_molecule._Sketch` is the seam it lands on.  It
-is a read-only 2D depiction whose whole interface is `set_smiles` in
-and `smilesChanged` out; an editor with those two is a widget swap and
-touches nothing else in that dialog.
-
-* **[rdEditor](https://github.com/EBjerrum/rdeditor) is the candidate
-  to try first.**  It is a molecule editor written in Python on
-  **PySide6** with **RDKit** underneath, weak-copyleft licensed, still
-  maintained (there is a 2024 software note describing it), and --
-  the part that matters -- it is written so that its widgets are
-  reusable: it is an editor *component* plus a shell around it, not a
-  monolithic application.  Embedding its canvas widget in a dialog and
-  taking the `Mol` back out is the shape to aim for.  RDKit is already
-  the `build` extra, so it costs no new dependency.  What has to be
-  checked before committing: that the editor widget really does come
-  apart from its main window, and that its Qt version tracks ours
-  rather than pinning us.
-* **[BKChem](https://bkchem.zirael.org/) is the wrong shape for this.**
-  It is GPL-2+, which is the wrong licence to link into an LGPL Qt
-  application, it is Tkinter rather than Qt so it cannot be embedded at
-  all, and the original project stopped in 2010 (a Python 3 port
-  exists, which fixes the least important of those three problems).
-  Worth naming here only so nobody spends a day rediscovering it.
-* **Ketcher** (EPAM, Apache-2.0, actively maintained) is the serious
-  alternative: a full sketcher in JavaScript, embedded in a
-  `QWebEngineView`, handing SMILES or molfile back over its API.  It is
-  the best editor of the three by some distance; the cost is
-  QtWebEngine in the bundle, which is not small.  If rdEditor's widget
-  turns out not to be separable, this is the fallback, not writing a
-  canvas.
-* **Writing a canvas is not on this list.**  A palette, click-to-cycle
-  bond order, ring templates, charges, implicit hydrogen counts and
-  the dozen interactions that make drawing feel like drawing --
-  ChemDraw is a product, and writing a small one is months that buy
-  nothing this application is for.
-
 ### A net edge under a bond cannot be clicked
 
 Selecting a net edge works where the edge crosses open space and not
