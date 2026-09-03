@@ -409,6 +409,19 @@ def test_a_connection_point_drawn_comes_back_as_a_star(window, qtbot):
     assert "1 connection point(s)" in dialog.footer.text()
 
 
+@needs_rdeditor
+def test_a_dark_window_gets_a_dark_canvas(window, qtbot,
+                                          monkeypatch):
+    """RDKit draws on white whatever the application looks like, and
+    on a dark theme that is the brightest thing on screen."""
+    monkeypatch.setattr(sketch, "is_dark", lambda _palette: True)
+    dialog = BuildMoleculeDialog(BUILD, BUILD.action("molecule"),
+                                 window)
+    qtbot.addWidget(dialog)
+
+    assert dialog.sketch.view.darkmode
+
+
 @needs_rdkit
 def test_what_the_dialog_hands_back_is_what_the_module_would_run(
         window, qtbot):

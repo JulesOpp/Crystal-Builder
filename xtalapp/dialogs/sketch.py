@@ -38,6 +38,7 @@ import importlib.util
 import logging
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QPalette
 from PySide6.QtWidgets import (
     QButtonGroup,
     QFrame,
@@ -118,6 +119,12 @@ class SketchEditor(QWidget):
         # canvas that deletes itself on the first close leaves the
         # second one holding a freed C++ object.
         self.view.setAttribute(Qt.WA_DeleteOnClose, False)
+        # Their default is a white canvas whatever the application
+        # looks like, which on a dark theme is the brightest thing on
+        # screen.  Read once, at construction: this dialog is built
+        # fresh each time it is opened, so following the theme live
+        # would be machinery for a case that cannot arise.
+        self.view.darkmode = is_dark(self.palette())
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.tools)
@@ -346,6 +353,17 @@ def _canvas():
 #  SMILES, BOTH WAYS
 # ======================================================================
 
+def is_dark(palette: QPalette) -> bool:
+    """Whether the window colour is a dark one.
+
+    Asked of the palette rather than of a setting, because the theme
+    here is the desktop's: on macOS the application follows the
+    system appearance and nothing in this program is consulted about
+    it.
+    """
+    return palette.color(QPalette.Window).lightness() < 128
+
+
 def _parse(text: str):
     """The molecule a string means, or ``None`` for an unreadable one.
 
@@ -391,4 +409,4 @@ def canonical(text: str) -> str:
 
 
 __all__ = ["ACTIONS", "BONDS", "ELEMENTS", "MISSING", "RINGS",
-           "SketchEditor", "canonical", "installed"]
+           "SketchEditor", "canonical", "installed", "is_dark"]

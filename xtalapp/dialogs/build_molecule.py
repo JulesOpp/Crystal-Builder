@@ -409,6 +409,12 @@ class _Sketch(QWidget):
                 drawer = rdMolDraw2D.MolDraw2DSVG(
                     max(self.view.width(), 240),
                     max(self.view.height(), 180))
+                # The same call the editor makes of rdeditor, for the
+                # same reason: RDKit draws on white whatever the
+                # application looks like, and on a dark theme that is
+                # the brightest thing on screen.
+                if sketch.is_dark(self.palette()):
+                    rdMolDraw2D.SetDarkMode(drawer.drawOptions())
                 rdMolDraw2D.PrepareAndDrawMolecule(drawer, mol)
                 drawer.FinishDrawing()
                 return drawer.GetDrawingText()
