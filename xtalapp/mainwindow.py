@@ -330,7 +330,6 @@ class MainWindow(QMainWindow):
         document = self.current_document()
         if document is not None:
             document.update_view(style=name)
-            self.settings.set_default_view(style=name)
             self._report_ellipsoids(document, name)
 
     def _report_ellipsoids(self, document, style: str) -> None:
@@ -356,8 +355,14 @@ class MainWindow(QMainWindow):
             document.update_view(**kwargs)
 
     def set_background(self, name: str) -> None:
+        """Paint this document's background, and only this one's.
+
+        The View menu used to write the *default* as well, so choosing
+        a style or a colour here silently decided what the next
+        structure would open as.  That default is now Preferences >
+        View defaults, which says which of the two it is.
+        """
         self.set_view(background=BACKGROUNDS[name])
-        self.settings.set_default_view(background=BACKGROUNDS[name])
 
     def choose_background(self) -> None:
         document = self.current_document()
@@ -566,6 +571,11 @@ class MainWindow(QMainWindow):
             viewport = self.tabs.widget(index)
             if hasattr(viewport, "preview_interval_ms"):
                 viewport.preview_interval_ms = int(milliseconds)
+        # The two run panels show the same number, and one of them is
+        # usually where it was changed.  Their setter announces
+        # nothing back, so this cannot loop.
+        for dock in (self.ff_dock, self.dftb_dock):
+            dock.set_preview_interval(int(milliseconds))
 
     def show_atom_types(self, showing: bool) -> None:
         """Put the force field's reading into the viewport tooltip, or
@@ -1460,6 +1470,50 @@ class MainWindow(QMainWindow):
                 "nothing is being logged to a file.")
             return
         applog.reveal()
+
+    def open_at_startup(self) -> Document | None:
+        """What Preferences > General says to open with.
+
+        Called by :func:`xtalapp.main.main` once, and only when
+        nothing else has been opened: a launch that named a file --
+        on the command line, or by double-clicking one in Finder --
+        gets that file and is not also handed a sample.
+
+        An empty window is the default and is what this application
+        has always started as.
+        """
+        action = self.settings.startup_action
+        if action == "recent":
+            for path in self.settings.recent_files():
+                return self.open_path(path)
+            return None
+        if action == "sample":
+            return self.open_sample(self.settings.startup_sample)
+        return None
+
+    def preferences_dialog(self):
+        """The Preferences window, wired to this one.
+
+        Built here rather than in the dialog, because these three are
+        the whole of what a preference has to reach outside itself:
+        the recent list is drawn in the File menu, the layout is this
+        window's own, and a redraw interval has to reach the viewports
+        of documents that are already open.  Everything else on those
+        pages is a QSettings write and is read the next time something
+        asks.
+
+        Separate from :meth:`show_preferences` so a test can have the
+        dialog without a modal loop.
+        """
+        from xtalapp.dialogs.preferences import PreferencesDialog
+        dialog = PreferencesDialog(self.settings, self)
+        dialog.recentCleared.connect(self._rebuild_recent_menu)
+        dialog.layoutReset.connect(self.reset_layout)
+        dialog.previewIntervalChanged.connect(self.set_preview_interval)
+        return dialog
+
+    def show_preferences(self) -> None:
+        self.preferences_dialog().exec()
 
     def show_about(self) -> None:
         from xtal import __version__

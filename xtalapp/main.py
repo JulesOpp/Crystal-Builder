@@ -64,6 +64,14 @@ def main(argv=None) -> int:
     window.show()
     app.file_opened.connect(window.open_from_desktop)
     app.start_delivering()
+
+    # After the queue is released, and only if it left nothing: a
+    # launch that named a file wants that file, not the sample or the
+    # last session's structure in front of it.  Preferences > General
+    # owns this, and its default is the empty window this application
+    # has always opened with.
+    if not window.documents:
+        window.open_at_startup()
     return app.exec()
 
 

@@ -94,6 +94,14 @@ class Document(QObject):
         # project, and "none chosen means all of them" is the same
         # convention ``measure_plane_angles`` already works to.
         self.shown_planes: tuple = ()
+        # Whether ``view`` came out of a saved project.  A project
+        # carries the view it was saved with and the preference for
+        # what a *new* document looks like must not overwrite it --
+        # the same rule the default bond rules follow, and the reason
+        # it has to be a flag is that a project whose style happens to
+        # equal the built-in one is indistinguishable from a fresh
+        # document by looking at the values.
+        self.view_is_saved = False
         self.warnings: list[str] = list(
             self._structure.meta.get("warnings", []))
         # Off, and a preference rather than a rule -- see
@@ -121,6 +129,7 @@ class Document(QObject):
             structure, view, session = read_project(path)
             document = cls(structure, path=path)
             document.view = ViewSettings.from_dict(view)
+            document.view_is_saved = True
             document._restore_session(session)
         else:
             document = cls(FORMATS.read(path), path=path)

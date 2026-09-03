@@ -27,6 +27,19 @@ MAX_RECENT = 10
 DEFAULT_FRACTION = 0.85
 MAX_DEFAULT_SIZE = (1600, 1000)
 
+#: What the New Workspace dialog suggests when Preferences has not
+#: been given somewhere else.
+BUILT_IN_WORKSPACE_ROOT = Path.home() / "Crystal Builder"
+
+#: What the application does with an empty window when it starts, in
+#: the order Preferences offers them.  ``empty`` is the default and is
+#: what it has always done.
+STARTUP_ACTIONS = ("empty", "recent", "sample")
+
+#: The sample opened by ``startup/action = sample`` when none has been
+#: chosen -- the name of an entry in :mod:`xtalapp.samples`.
+DEFAULT_STARTUP_SAMPLE = "mof5"
+
 
 def _as_bool(value) -> bool:
     """QSettings hands booleans back as the strings it wrote them as on
@@ -222,8 +235,66 @@ class AppSettings:
 
     @property
     def default_workspace_root(self) -> Path:
-        """What the New Workspace dialog suggests."""
-        return Path.home() / "Crystal Builder"
+        """What the New Workspace dialog suggests.
+
+        Under the home folder, because a workspace is the user's own
+        directory of runs and belongs somewhere they can find it.
+        Settable from Preferences for the person who keeps their work
+        on another disk, and stored rather than guessed so that answer
+        survives the session it was given in.
+        """
+        stored = str(self._q.value("workspace/root", "") or "")
+        return Path(stored) if stored else BUILT_IN_WORKSPACE_ROOT
+
+    @default_workspace_root.setter
+    def default_workspace_root(self, value) -> None:
+        # Emptied means "back to the built-in one", which is why this
+        # forgets the key rather than storing the path it would have
+        # answered with -- a stored copy of the default would not
+        # follow a home folder that moved.
+        self._set_or_clear("workspace/root", value)
+
+    # -- what the application does when it starts -----------------------
+
+    @property
+    def startup_action(self) -> str:
+        """Empty window, the last file back, or a sample.
+
+        ``empty`` is the default and is what this application has
+        always done.  The other two exist because a packaged build's
+        first window is the whole of its first impression: somebody
+        who works on one structure for a week wants it back, and
+        somebody who has just installed it may not own a CIF yet.
+
+        An unrecognised value -- a preference written by a later
+        version, then opened by this one -- reads as ``empty``, which
+        is the answer that cannot surprise anybody.
+        """
+        stored = str(self._q.value("startup/action", "empty"))
+        return stored if stored in STARTUP_ACTIONS else "empty"
+
+    @startup_action.setter
+    def startup_action(self, value) -> None:
+        self._q.setValue("startup/action", str(value))
+
+    @property
+    def startup_sample(self) -> str:
+        """Which sample ``startup_action = "sample"`` opens.
+
+        Checked against the catalogue on the way out, so a name that
+        no longer exists -- a sample renamed between versions -- opens
+        the default one instead of failing the launch.
+        """
+        from xtalapp import samples
+        stored = str(self._q.value("startup/sample",
+                                   DEFAULT_STARTUP_SAMPLE)
+                     or DEFAULT_STARTUP_SAMPLE)
+        known = [s.name for s in samples.SAMPLES]
+        return stored if stored in known else DEFAULT_STARTUP_SAMPLE
+
+    @startup_sample.setter
+    def startup_sample(self, value) -> None:
+        self._set_or_clear("startup/sample", value)
 
     # -- window state --------------------------------------------------
 

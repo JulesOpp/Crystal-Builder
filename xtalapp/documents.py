@@ -116,6 +116,15 @@ class DocumentSet:
             # must not overwrite them.
             document.structure.bond_rules = \
                 self.window.settings.default_bond_rules()
+        if not document.view_is_saved:
+            # What Preferences > View defaults says a newly opened
+            # structure starts as.  Not applied to a project, which
+            # brings the view it was saved with -- and applied here,
+            # before the viewport is built over it, so nothing is
+            # drawn twice.
+            default = self.window.settings.default_view()
+            document.view.style = default["style"]
+            document.view.background = default["background"]
         viewport = self.window._viewport_factory(document, self.tabs)
         if hasattr(viewport, "preview_interval_ms"):
             viewport.preview_interval_ms = \

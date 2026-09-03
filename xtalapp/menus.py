@@ -104,6 +104,11 @@ def build_actions(window):
     add("new_workspace", "&New Workspace...",
         window.new_workspace_dialog)
     add("close_tab", "&Close", window.close_current, "Ctrl+W")
+    add("preferences", "&Preferences...", window.show_preferences,
+        "Ctrl+,", role=QAction.MenuRole.PreferencesRole,
+        tip="Everything this application remembers between sessions "
+            "-- what it opens with, where workspaces go, and what a "
+            "newly opened structure is drawn as")
     # QuitRole and AboutRole, said rather than guessed: macOS moves
     # both of these into the application menu, and left to itself Qt
     # decides which entries those are by reading their English text.
@@ -421,7 +426,9 @@ def build_menus(window):
     window.recent_menu = file_menu.addMenu("Open &Recent")
     window._rebuild_recent_menu()
     file_menu.addSeparator()
-    file_menu.addAction(window.actions_["quit"])
+    # Both of these are drawn here on Windows and Linux and are moved
+    # into the application menu on macOS, by the roles they carry.
+    window.actions_.fill_menu(file_menu, ["preferences", None, "quit"])
 
     edit_menu = bar.addMenu("&Edit")
     window.actions_.fill_menu(edit_menu, [
