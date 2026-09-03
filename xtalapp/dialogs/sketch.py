@@ -37,7 +37,7 @@ from __future__ import annotations
 import importlib.util
 import logging
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QPalette
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -128,7 +128,7 @@ class SketchEditor(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.tools)
-        layout.addWidget(self.view, 1)
+        layout.addWidget(_Square(self.view, self), 1)
         self.setMinimumHeight(240)
         self._smiles = ""
         self.view.molChanged.connect(self._on_mol)
@@ -317,6 +317,46 @@ def _separator(parent) -> QFrame:
     line.setFrameShape(QFrame.VLine)
     line.setFrameShadow(QFrame.Sunken)
     return line
+
+
+class _Square(QWidget):
+    """One child, square, centred, and as large as it fits.
+
+    rdeditor asks RDKit for a **300 x 300** drawing whatever shape its
+    canvas is, and ``QSvgWidget`` stretches what it is given to fill
+    the widget -- so in a canvas twice as wide as it is tall, a
+    benzene is drawn as a flattened hexagon.
+
+    Letterboxing the renderer instead would fix the picture and break
+    the clicking.  rdeditor turns a click into SVG coordinates by
+    scaling x and y independently by the widget's own width and
+    height, which is exactly right for a stretched render and wrong
+    for a centred one -- every click would land somewhere the cursor
+    was not.  Making the widget the shape of the drawing keeps both
+    halves true at once, and costs only the margin either side.
+
+    The child is placed by hand rather than by a layout because that
+    is the whole job: a layout that could express "square" would
+    still have to be told the side.
+    """
+
+    def __init__(self, child, parent=None):
+        super().__init__(parent)
+        self.child = child
+        child.setParent(self)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        side = max(min(self.width(), self.height()), 1)
+        self.child.setGeometry((self.width() - side) // 2,
+                               (self.height() - side) // 2,
+                               side, side)
+
+    def sizeHint(self) -> QSize:
+        return QSize(360, 360)
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(220, 220)
 
 
 def _canvas():

@@ -345,7 +345,17 @@ class _Sketch(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.view = QSvgWidget(self)
+        # The drawing is made at the size of the widget, so a widget
+        # that has since changed size is showing a picture stretched
+        # to fit -- which is a benzene drawn as a flattened hexagon.
+        # Restarted rather than drawn per event, because dragging a
+        # dialog's corner is a hundred resizes and one final size.
+        self._redraw = QTimer(self)
+        self._redraw.setSingleShot(True)
+        self._redraw.setInterval(60)
+        self._redraw.timeout.connect(self._again)
+        self.view = _SvgView(self)
+        self.view.resized.connect(self._redraw.start)
         self.empty = QLabel("The molecule appears here as it is "
                             "typed", self)
         self.empty.setAlignment(Qt.AlignCenter)
@@ -369,6 +379,11 @@ class _Sketch(QWidget):
 
     def smiles(self) -> str:
         return self._smiles
+
+    def _again(self) -> None:
+        """Draw the last string again, at the size the view is now."""
+        if self._smiles.strip():
+            self.set_smiles(self._smiles)
 
     def set_smiles(self, text: str) -> None:
         self._smiles = str(text or "")
@@ -420,6 +435,21 @@ class _Sketch(QWidget):
                 return drawer.GetDrawingText()
             except (ValueError, RuntimeError):      # pragma: no cover
                 return ""
+
+
+class _SvgView(QSvgWidget):
+    """A ``QSvgWidget`` that says when it has changed size.
+
+    ``QSvgWidget`` stretches whatever it holds to its own rectangle,
+    so the only way a depiction stays in proportion is to be redrawn
+    at the new shape -- and nothing else here would know to.
+    """
+
+    resized = Signal()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self.resized.emit()
 
 
 def _on_change(widget, slot) -> None:

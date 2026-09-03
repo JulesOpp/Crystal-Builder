@@ -422,6 +422,50 @@ def test_a_dark_window_gets_a_dark_canvas(window, qtbot,
     assert dialog.sketch.view.darkmode
 
 
+@needs_rdeditor
+def test_the_canvas_stays_square_in_a_wide_dialog(window, qtbot):
+    """rdeditor asks RDKit for a 300x300 drawing whatever shape its
+    canvas is, and QSvgWidget stretches what it is given -- so in a
+    canvas twice as wide as it is tall a benzene is a flattened
+    hexagon."""
+    dialog = BuildMoleculeDialog(BUILD, BUILD.action("molecule"),
+                                 window)
+    qtbot.addWidget(dialog)
+    dialog.resize(1200, 600)
+    dialog.show()
+    qtbot.waitExposed(dialog)
+
+    view = dialog.sketch.view
+    assert view.width() == view.height()
+    assert view.width() > 200
+    assert view.parent().width() > view.width()
+
+
+@needs_rdkit
+def test_the_picture_is_drawn_again_when_the_panel_changes_shape(
+        window, qtbot, monkeypatch):
+    """The depiction is made at the size of the widget, so one made
+    before the layout had sized it is a picture stretched to fit."""
+    monkeypatch.setattr(sketch, "installed", lambda: False)
+    dialog = BuildMoleculeDialog(BUILD, BUILD.action("molecule"),
+                                 window)
+    qtbot.addWidget(dialog)
+    dialog.show()
+    qtbot.waitExposed(dialog)
+    typed(dialog, qtbot, "c1ccccc1")
+    view = dialog.sketch.view
+    qtbot.waitUntil(lambda: not dialog.sketch._redraw.isActive(),
+                    timeout=5000)
+
+    dialog.resize(1100, 700)
+    qtbot.waitUntil(lambda: not dialog.sketch._redraw.isActive(),
+                    timeout=5000)
+    drawn = view.renderer().defaultSize()
+
+    assert abs(drawn.width() - view.width()) <= 1
+    assert abs(drawn.height() - view.height()) <= 1
+
+
 @needs_rdkit
 def test_what_the_dialog_hands_back_is_what_the_module_would_run(
         window, qtbot):
