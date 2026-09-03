@@ -70,6 +70,7 @@ from PySide6.QtWidgets import (
 
 from xtal.mof import Catalog
 from xtal.mof.build import BuildRequest
+from xtal.mof.catalog import matches_composition
 from xtalapp.dialogs.mof_preview import (
     ORBIT_COLORS,
     BlockPreview,
@@ -147,6 +148,16 @@ class MofBuildDialog(QDialog):
         top.addWidget(right)
         top.setStretchFactor(1, 1)
 
+        self.composition = QLineEdit(self)
+        self.composition.setPlaceholderText(
+            "Search building blocks by composition -- 6C 4N 3Zn, or "
+            "C H N O, or Zn")
+        self.composition.setToolTip(
+            "A count and a symbol asks for exactly that many -- "
+            "6C.  A bare symbol asks only that it be present -- Zn.  "
+            "Every word in the box is ANDed together.")
+        self.composition.textChanged.connect(self._apply_composition)
+
         self.slots_box = QGroupBox("Building blocks", self)
         self.slots_layout = QVBoxLayout(self.slots_box)
         area = QScrollArea(self)
@@ -171,6 +182,7 @@ class MofBuildDialog(QDialog):
 
         layout = QVBoxLayout(self)
         layout.addWidget(top, 1)
+        layout.addWidget(self.composition)
         layout.addWidget(area)
         layout.addWidget(folders)
         layout.addWidget(buttons)
@@ -263,6 +275,7 @@ class MofBuildDialog(QDialog):
         for slot in slots:
             row = _SlotRow(slot, self.catalog, self.bb_dir.text(),
                           self.slots_box)
+            row.set_composition(self.composition.text())
             row.drawn.connect(self._on_block_drawn)
             self.slots_layout.addWidget(row)
             self._rows.append(row)
@@ -277,6 +290,10 @@ class MofBuildDialog(QDialog):
         self.details.setText(
             f"<b>{self._topology.name}</b><br>{why}")
         self.build_button.setEnabled(False)
+
+    def _apply_composition(self, text: str) -> None:
+        for row in self._rows:
+            row.set_composition(text)
 
     def _on_block_drawn(self, name: str) -> None:
         """A block was sketched and written from inside one row.
@@ -400,6 +417,8 @@ class _SlotRow(QWidget):
         super().__init__(parent)
         self.slot = slot
         self.folder = str(folder or "")
+        self._catalog = catalog
+        self._composition = ""
         self.combo = QComboBox(self)
         self.draw_button = QPushButton("Draw...", self)
         self.draw_button.setToolTip(
@@ -411,14 +430,10 @@ class _SlotRow(QWidget):
         # whatever height the dialog happens to be.
         self.preview = BlockPreview(self, minimum=(190, 140))
         self.preview.setFixedSize(190, 140)
-
-        self._catalog = catalog
-        fitting = _ordered(catalog.fitting(slot.coordination))
-        self._fill(fitting)
         self.combo.currentIndexChanged.connect(self._on_changed)
 
         heading = QLabel(f"<b>{slot.label}</b>", self)
-        self.count = QLabel(f"{len(fitting)} block(s) fit", self)
+        self.count = QLabel(self)
         self.count.setStyleSheet("color: palette(mid);")
 
         picker = QHBoxLayout()
@@ -433,20 +448,20 @@ class _SlotRow(QWidget):
         grid.addWidget(self.count, 2, 0)
         grid.addWidget(self.preview, 0, 1, 3, 1)
         grid.setColumnStretch(0, 1)
-        self._on_changed()
+        self._rebuild()
 
-    def _fill(self, fitting) -> None:
-        self.combo.clear()
-        if self.slot.is_edge:
-            # A net has edges whether or not anything is put on them,
-            # and PORMAKE builds an empty one as a direct bond between
-            # the two nodes.  That is a real answer -- it is what a
-            # framework with no linker is -- so it is offered rather
-            # than reached by leaving a box blank.
-            self.combo.addItem(NO_LINKER, "")
-        for block in fitting:
-            self.combo.addItem(f"{block.name}    {block.summary()}",
-                               block.name)
+    def _fitting(self) -> list:
+        """The blocks that fit this slot, narrowed further by
+        whatever composition search is active -- both the
+        coordination rule (:meth:`Catalog.fitting`) and the search box
+        are "offer only what could be right", the same principle
+        stated twice."""
+        found = self._catalog.fitting(self.slot.coordination)
+        query = self._composition.strip()
+        if query:
+            found = [b for b in found
+                    if matches_composition(b, query)]
+        return _ordered(found)
 
     def _on_changed(self, *_args) -> None:
         name = self.block()
@@ -462,24 +477,47 @@ class _SlotRow(QWidget):
             self.combo.setCurrentIndex(index)
         return index >= 0
 
-    def refresh(self, catalog: Catalog) -> None:
-        """Reread the blocks that fit, against a catalogue that has
-        changed -- a folder was edited, or a block was just drawn --
-        keeping whatever this row already held if it still fits.
+    def _rebuild(self) -> None:
+        """Repopulate the combo from :meth:`_fitting`, keeping
+        whatever was chosen if it still fits.
 
-        Rebuilt rather than diffed: 210 combo entries is nothing to
-        repopulate, and a diff would be more code for a saving nobody
-        would see.
+        The one place the combo is ever filled, called from
+        construction and from every reason the fitting list can
+        change: a folder edited, a block drawn, or the composition
+        search box typed into.  Rebuilt rather than diffed -- 210
+        combo entries is nothing to repopulate, and a diff would be
+        more code for a saving nobody would see.
         """
-        self._catalog = catalog
         kept = self.block()
-        fitting = _ordered(catalog.fitting(self.slot.coordination))
+        fitting = self._fitting()
         self.combo.blockSignals(True)
-        self._fill(fitting)
+        self.combo.clear()
+        if self.slot.is_edge:
+            # A net has edges whether or not anything is put on them,
+            # and PORMAKE builds an empty one as a direct bond between
+            # the two nodes.  That is a real answer -- it is what a
+            # framework with no linker is -- so it is offered rather
+            # than reached by leaving a box blank.
+            self.combo.addItem(NO_LINKER, "")
+        for block in fitting:
+            self.combo.addItem(f"{block.name}    {block.summary()}",
+                               block.name)
         self.combo.blockSignals(False)
         self.count.setText(f"{len(fitting)} block(s) fit")
         self.set_block(kept)
         self._on_changed()
+
+    def refresh(self, catalog: Catalog) -> None:
+        """Reread against a catalogue that has changed -- a folder
+        was edited, or a block was just drawn."""
+        self._catalog = catalog
+        self._rebuild()
+
+    def set_composition(self, query: str) -> None:
+        """Narrow the combo to blocks whose composition answers
+        *query* -- see :func:`xtal.mof.catalog.matches_composition`."""
+        self._composition = str(query or "")
+        self._rebuild()
 
     def _draw(self) -> None:
         from xtalapp.dialogs.draw_block import DrawBlockDialog

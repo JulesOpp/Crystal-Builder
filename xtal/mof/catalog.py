@@ -41,6 +41,7 @@ falls back on asking PORMAKE, which is imported by then anyway.
 from __future__ import annotations
 
 import importlib.util
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -134,18 +135,86 @@ class BuildingBlock:
                      and s != CONNECTION)
 
     @property
-    def formula(self) -> str:
+    def composition(self) -> dict[str, int]:
+        """Element symbol -> count, over the real atoms -- what
+        :attr:`formula` renders as text and :func:`matches_composition`
+        reads as numbers."""
         counts: dict[str, int] = {}
         for symbol in self.body_symbols:
             counts[symbol] = counts.get(symbol, 0) + 1
+        return counts
+
+    @property
+    def formula(self) -> str:
         return "".join(f"{s}{n if n > 1 else ''}"
-                       for s, n in sorted(counts.items()))
+                       for s, n in sorted(self.composition.items()))
 
     def summary(self) -> str:
         """The line the picker shows beside the name."""
         metal = ", metal" if self.has_metal else ""
         return (f"{self.n_connections}-connected{metal}  ·  "
                 f"{self.formula}")
+
+
+#: A composition query's tokens: an optional leading count and one or
+#: two letters that might be an element symbol -- ``6C``, ``Zn``,
+#: ``n`` (checked against the real table, not assumed).
+_COMPOSITION_TOKEN = re.compile(r"^(\d*)([A-Za-z]{1,2})$")
+
+
+def _parse_composition(text: str) -> tuple[dict[str, int], frozenset]:
+    """A composition query, split into the elements that need an
+    exact count and the ones that only need to be present.
+
+    ``"6C 4N 3Zn"`` -- every token counted -- gives
+    ``({"C": 6, "N": 4, "Zn": 3}, frozenset())``.  ``"C H N O"`` --
+    no counts at all -- gives ``({}, {"C", "H", "N", "O"})``.  The two
+    forms mix freely token by token, which is what lets the same box
+    answer "exactly 6 carbons" and "contains nitrogen" without two
+    different searches.
+
+    A token that is not a count-plus-symbol, or whose letters are not
+    a real element, is dropped rather than refused: a person still
+    typing "3Z" has not finished, and a search box that raises on an
+    unfinished query is worse than one that waits for the rest of it.
+    """
+    exact: dict[str, int] = {}
+    present: set[str] = set()
+    for token in str(text or "").split():
+        match = _COMPOSITION_TOKEN.match(token)
+        if not match:
+            continue
+        count, letters = match.groups()
+        try:
+            symbol = el.parse_symbol(letters)
+        except ValueError:
+            continue
+        if count:
+            exact[symbol] = int(count)
+        else:
+            present.add(symbol)
+    return exact, frozenset(present)
+
+
+def matches_composition(block: BuildingBlock, query: str) -> bool:
+    """Whether *block* answers a composition search.
+
+    Every token in *query* is ANDed together over
+    :attr:`BuildingBlock.composition`: ``"6C 4N 3Zn"`` wants exactly
+    six carbons, four nitrogens and three zincs, whatever else the
+    block is made of; ``"C H N O"`` wants all four elements present in
+    any amount; ``"Zn"`` wants zinc, alone, or in company.  An empty or
+    unreadable query matches everything, which is what an empty search
+    box has to do.
+    """
+    exact, present = _parse_composition(query)
+    if not exact and not present:
+        return True
+    composition = block.composition
+    if not present.issubset(composition.keys()):
+        return False
+    return all(composition.get(symbol, 0) == count
+              for symbol, count in exact.items())
 
 
 def read_building_block(path) -> BuildingBlock:

@@ -13,7 +13,11 @@ import pytest
 
 from xtal.mof import Catalog, MofError, database_root, installed
 from xtal.mof.build import BuildRequest, build
-from xtal.mof.catalog import CatalogError, read_building_block
+from xtal.mof.catalog import (
+    CatalogError,
+    matches_composition,
+    read_building_block,
+)
 
 needs_pormake = pytest.mark.skipif(
     not installed() or database_root() is None,
@@ -111,6 +115,61 @@ def test_only_blocks_of_the_right_coordination_fit_a_slot(catalog):
     assert fitting
     assert all(b.n_connections == 6 for b in fitting)
     assert "N59" in {b.name for b in fitting}
+
+
+@needs_pormake
+def test_composition_search_finds_the_exact_counts_asked_for(
+        catalog):
+    """N59 is C6Cd2O12 -- exactly 6 carbons, 2 cadmiums, 12 oxygens,
+    nothing else."""
+    n59 = catalog.building_block("N59")
+    assert matches_composition(n59, "6C 2Cd 12O")
+    assert not matches_composition(n59, "6C 2Cd 11O")
+    assert not matches_composition(n59, "5C 2Cd 12O")
+
+
+@needs_pormake
+def test_composition_search_by_bare_element_wants_only_presence(
+        catalog):
+    """No count on a token means "contains this", however many --
+    the same query that finds C6Cd2O12 also finds C18H12."""
+    n59 = catalog.building_block("N59")
+    e1 = catalog.building_block("E1")
+    assert matches_composition(n59, "C O")
+    assert matches_composition(e1, "C")
+    assert not matches_composition(e1, "Cd")
+
+
+def test_composition_search_mixes_exact_counts_and_presence():
+    """"6C N" -- exactly six carbons, and nitrogen in any amount --
+    is the shape the two building-block examples in the request are:
+    a full formula and a bare-element search, in one query."""
+    from xtal.mof.catalog import BuildingBlock
+
+    block = BuildingBlock("test", None, ("C",) * 6 + ("N",) * 3,
+                          None, ())
+    assert matches_composition(block, "6C N")
+    assert not matches_composition(block, "6C O")
+    assert not matches_composition(block, "7C N")
+
+
+def test_an_empty_composition_query_matches_everything():
+    from xtal.mof.catalog import BuildingBlock
+
+    block = BuildingBlock("test", None, ("C", "H"), None, ())
+    assert matches_composition(block, "")
+    assert matches_composition(block, "   ")
+
+
+def test_composition_search_ignores_a_token_it_cannot_read():
+    """A query still being typed -- "3Z" before the rest of "Zn" --
+    is dropped rather than refused, and a query of nothing readable
+    matches everything, the same as a blank box."""
+    from xtal.mof.catalog import BuildingBlock
+
+    block = BuildingBlock("test", None, ("C", "H"), None, ())
+    assert matches_composition(block, "3Z")
+    assert matches_composition(block, "not an element either")
 
 
 @needs_pormake

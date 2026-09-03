@@ -292,6 +292,57 @@ def test_a_folder_of_your_own_blocks_appears_beside_pormakes(
 
 
 @needs_database
+def test_typing_a_composition_narrows_the_slot_that_fits_it(dialog,
+                                                            qtbot):
+    """N59 is C6Cd2O12 -- exactly six carbons, two cadmiums, twelve
+    oxygens -- and the search box is one query for every row, not
+    one per slot."""
+    row = dialog._rows[0]
+    before = row.combo.count()
+    dialog.composition.setText("2Cd")
+
+    offered = {row.combo.itemData(i)
+              for i in range(row.combo.count())}
+    assert "N59" in offered
+    assert row.combo.count() < before
+
+
+@needs_database
+def test_clearing_the_composition_search_offers_everything_again(
+        dialog):
+    row = dialog._rows[0]
+    before = row.combo.count()
+    dialog.composition.setText("2Cd")
+    dialog.composition.setText("")
+
+    assert row.combo.count() == before
+
+
+@needs_database
+def test_a_composition_that_fits_nothing_is_not_an_error(dialog):
+    """A query only RDKit's own periodic table would recognise as
+    absurd -- "40C" on a slot where nothing has forty carbons -- empties
+    the combo rather than raising, the same way a name typed into the
+    topology filter that matches nothing just shows an empty list."""
+    dialog.composition.setText("400C")
+
+    row = dialog._rows[0]
+    assert row.combo.count() == (1 if row.slot.is_edge else 0)
+
+
+@needs_database
+def test_switching_topology_keeps_the_composition_search_applied(
+        dialog):
+    """The search box is dialog-wide, not per slot -- so picking a
+    different net must not silently drop what was typed into it."""
+    dialog.composition.setText("2Cd")
+    assert dialog._select("tbo")
+
+    for row in dialog._rows:
+        assert row._composition == "2Cd"
+
+
+@needs_database
 def test_a_net_that_cannot_be_expanded_refuses_rather_than_raises(
         dialog):
     """Four of PORMAKE's 2403 files give edge midpoints instead of
