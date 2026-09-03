@@ -63,6 +63,16 @@ BOUNDARY_ACTIONS = (
 )
 
 
+#: The tooltip on ``Insert molecule...`` when it is available.  Named
+#: because the window puts :data:`xtal.build.MISSING` there instead
+#: when RDKit is not installed, and has to be able to put this back.
+INSERT_MOLECULE_TIP = (
+    "Build a molecule from a SMILES string and paste it into this "
+    "structure.  It arrives with the bonds the builder gave it and "
+    "no others, and pasting into a group with symmetry multiplies it "
+    "-- the dialog says by how much before you press the button.")
+
+
 def build_actions(window):
     # The one name in here that lives in the module importing this
     # one, wanted for a single menu entry.  At the top it would be a
@@ -177,6 +187,8 @@ def build_actions(window):
         window.add_hydrogens_dialog,
         tip="Complete every main-group coordination with the "
             "hydrogens an X-ray structure never had")
+    add("insert_molecule", "&Insert molecule...",
+        window.insert_molecule_dialog, tip=INSERT_MOLECULE_TIP)
     add("recompute_bonds", "&Recalculate bonds",
         window.recompute_bonds,
         tip="Perceive the bonds again from the geometry as it is "
@@ -392,7 +404,8 @@ def build_menus(window):
 
     structure_menu = bar.addMenu("S&tructure")
     window.actions_.fill_menu(structure_menu, [
-        "add_atom_dialog", "add_centroid", "add_hydrogens", None,
+        "add_atom_dialog", "add_centroid", "add_hydrogens",
+        "insert_molecule", None,
         "bond_rules", "recompute_bonds", "reset_bonds",
         "bonds_follow"])
     window.bond_type_menu = add_bond_type_menu(window,

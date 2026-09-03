@@ -44,6 +44,11 @@ build that says **tbo** and produces something that is not tbo says so
 in its own report.
 """
 
+from xtal.mof.block import (
+    BOND_LETTERS,
+    CONNECTION_DISTANCE,
+    pull_in,
+)
 from xtal.mof.build import (
     BuildRequest,
     MofError,
@@ -60,6 +65,7 @@ from xtal.mof.catalog import (
     installed,
 )
 
-__all__ = ["BuildRequest", "BuildingBlock", "Catalog", "MofError",
-           "Slot", "Topology", "build", "check_net", "database_root",
-           "draw_net", "installed"]
+__all__ = ["BOND_LETTERS", "BuildRequest", "BuildingBlock",
+           "CONNECTION_DISTANCE", "Catalog", "MofError", "Slot",
+           "Topology", "build", "check_net", "database_root",
+           "draw_net", "installed", "pull_in"]

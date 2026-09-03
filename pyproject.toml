@@ -40,11 +40,18 @@ ase = ["ase>=3.22"]
 # installs.  Absent, the Modules tree greys the entry out and says
 # this, which is the same machinery Zeo++ uses for its binary.
 mof = ["pormake>=0.2.3"]
+# The molecule builder.  Required for the feature and absent for
+# everybody else: RDKit is a large wheel with a compiled core, and the
+# four packages the core installs are what make `pip install
+# crystal-builder` usable on a cluster node.  Without it the Build
+# entries grey out naming this extra, the same way `mof` does.
+build = ["rdkit>=2023.9"]
 # pytest-qt belongs here and not in [dev]: without it every widget
 # test skips itself, and CI installs [gui,test] -- so the GUI half of
 # the suite was passing by not running.
 test = ["pytest>=8", "pytest-qt>=4", "pytest-xdist>=3"]
-dev = ["crystal-builder[gui,ase,test]", "ruff", "pyinstaller>=6"]
+dev = ["crystal-builder[gui,ase,build,test]", "ruff",
+       "pyinstaller>=6"]
 
 [project.scripts]
 xtal = "xtal.cli:main"                    # headless CLI (phase 1)
@@ -56,6 +63,7 @@ Repository = "https://github.com/JulesOpp/Crystal-Builder"
 [tool.setuptools]
 packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
             "xtal.ff.uff", "xtal.modules", "xtal.analysis", "xtal.mof",
+            "xtal.build",
             "xtalapp", "xtalapp.viewport", "xtalapp.docks",
             "xtalapp.dialogs"]
 

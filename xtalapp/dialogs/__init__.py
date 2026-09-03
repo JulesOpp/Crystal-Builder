@@ -18,11 +18,23 @@ reason above: resolving one name must not drag in the other thirteen.
 
 from __future__ import annotations
 
-#: Action name -> where the dialog lives.  One entry, and the shape
-#: is the point: a module that grows a dialog adds a line here and
-#: changes nothing else.
+#: Action name -> where the dialog lives.  The shape is the point: a
+#: module that grows a dialog adds a line here and changes nothing
+#: else.
+#:
+#: Two names answer to one class on purpose.  The molecule builder has
+#: two entries -- one opens a tab of its own, one pastes into the
+#: structure already open -- and they differ only in whether
+#: connection points are on offer and in what the footer says will
+#: happen.  One dialog reading the action's *name* is the whole of
+#: that difference; two classes would be two of everything to keep in
+#: step.  See :mod:`xtalapp.dialogs.build_molecule`.
 _BY_NAME = {
     "mof-build": ("xtalapp.dialogs.mof_build", "MofBuildDialog"),
+    "build-molecule": ("xtalapp.dialogs.build_molecule",
+                       "BuildMoleculeDialog"),
+    "build-insert": ("xtalapp.dialogs.build_molecule",
+                     "BuildMoleculeDialog"),
 }
 
 

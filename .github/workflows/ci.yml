@@ -35,7 +35,7 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[gui,test]"
+          pip install -e ".[gui,build,test]"
       - name: Test
         # Qt needs a platform plugin with no display; the VTK render
         # tests skip themselves where offscreen OpenGL is unavailable.

@@ -813,6 +813,53 @@ marked is a PORMAKE building block, and a molecule without them is a
 serves both, and that is the reason these two phases are the same half
 of the plan.
 
+### What is built, and what the plan above got wrong
+
+**The native fragment builder is withdrawn.**  Writing one means also
+writing a SMILES parser -- aromaticity, stereo, ring perception -- for
+a result strictly worse than ETKDG, which is most of the phase spent
+on the fallback.  So RDKit is **required** for the feature, as a
+`build` extra, and absent it the entries grey out naming the extra:
+the pattern Phase Q established, applied honestly rather than
+half-answered.  Two extras, `mof` and `build`, neither in a default
+install, and installing one buys nothing towards the other.
+
+**`xtal/build/` is in** -- `from_smiles` gives a `Molecule` that
+converts to a `Fragment` for the open cell or a P1 `Structure` for a
+tab of its own, with its bonds set explicitly and nothing perceived.
+A connection point is `*` in SMILES and `X` in what comes out, which
+is the dummy that already exists: perception, the force field and
+every module run hold it back at the door already, and a second
+symbol -- radon was proposed -- would have meant teaching all three
+about it and putting a radon atom in every CIF this wrote.
+
+**Connection points are capped with hydrogen before the geometry is
+touched.**  RDKit's MMFF has no parameters for atomic number zero, so
+a `*` left in place either refuses to optimise or falls back silently.
+A hydrogen points exactly where a substituent would, so the direction
+that comes back is the one the connection point wants -- and the
+direction is the whole of what it carries.
+
+**The PORMAKE block format was read rather than assumed**, and three
+facts came out of the 867 shipped files that the plan above did not
+have.  A connection point sits **0.75 A** from the atom it hangs off
+-- median over 4256 X-to-body bonds -- and not at a bond length; a
+block written at 1.4 A builds a framework with every linker bond twice
+too long and nothing reports it.  PORMAKE identifies connection points
+by the **symbol** `X` and never reads the index line, so a writer must
+emit both.  And there is a fourth section after the atoms, `i j` and a
+letter in `S/D/T/A`, which is how a molecule's bond orders survive
+into the built framework's CIF.  `xtal/mof/block.py` holds the
+constant and the geometry; the writer is still owed.
+
+**Still owed:** the paste into the open cell at the camera focal
+point, marking connection points in an open structure, the block
+writer and its Save action, the fragment library, and the rdEditor
+spike.  `PasteFragment` also grows perceived bonds onto what it pastes
+-- it never calls `bonding.hold_perception` -- which is a live
+invariant violation reachable today by Ctrl+V, and it has to be fixed
+before a molecule is dropped into a framework.
+
 ---
 
 ## 9. Phase V — the engines answer in pictures

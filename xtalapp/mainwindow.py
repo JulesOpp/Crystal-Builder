@@ -34,6 +34,9 @@ from PySide6.QtWidgets import (
     QTabWidget,
 )
 
+from xtal.build import MISSING as NO_RDKIT
+from xtal.build import BuildError
+from xtal.build import installed as rdkit_installed
 from xtal.commands.bonds import BOND_TYPES
 from xtal.commands.clipboard import Fragment
 from xtal.core.structure import Change
@@ -90,6 +93,12 @@ class MainWindow(QMainWindow):
         self._viewport_factory = (viewport_factory
                                   or _default_viewport_factory)
         self.clipboard_fragment = Fragment()
+        # What Insert molecule was last asked for.  Remembered
+        # for the session and not in QSettings, the same rule
+        # ModuleRunner keeps its parameters by: a SMILES string
+        # is worth offering again while the work it belongs to is
+        # open, and not six weeks later.
+        self._insert_values: dict = {}
         # The workspace calculations land in.
         self.workspace_shell = WorkspaceShell(self)
         # What runs a module, and the run that may be going.  Built
@@ -423,6 +432,34 @@ class MainWindow(QMainWindow):
         if values is None:
             return
         self.statusBar().showMessage(document.add_atom(**values), 4000)
+
+    def insert_molecule_dialog(self) -> None:
+        """Build a molecule from a string and paste it into this cell.
+
+        A shell action rather than a module one, and
+        :mod:`xtal.modules.build` gives the reason: a module's
+        returned structure either replaces the open document or opens
+        a tab of its own, and a paste is neither.  What it borrows
+        from the registry is the parameter declaration and the dialog
+        name, so the box that inserts and the box that builds a new
+        document are one dialog with one set of parameters.
+        """
+        document = self.current_document()
+        if document is None:
+            return
+        from xtal.modules.build import BUILD, INSERT, molecule_for
+        from xtalapp.dialogs import module_dialog
+        values = module_dialog(INSERT.dialog).ask(
+            BUILD, INSERT, self, self._insert_values)
+        if values is None:
+            return
+        self._insert_values = values
+        try:
+            molecule = molecule_for(values, connection_points=False)
+        except BuildError as exc:
+            self.show_message(str(exc))
+            return
+        self.show_status(document.paste(molecule.to_fragment()))
 
     def add_centroid_dialog(self) -> None:
         document = self.current_document()
@@ -1165,6 +1202,29 @@ class MainWindow(QMainWindow):
         self._rebuild_element_menu(document)
         self._refresh_shell()
 
+    def _refresh_insert_molecule(self, editable: bool) -> None:
+        """Insert molecule, and the reason when it is off.
+
+        Greyed with the sentence rather than absent.  RDKit is an
+        optional extra, and an entry that is simply not there leaves
+        somebody looking for a feature they have read about with
+        nothing to find; one that is greyed and says ``pip install
+        'crystal-builder[build]'`` in its tooltip tells them what to
+        do.  The Modules tree greys its own entry from
+        :func:`xtal.modules.build.available` and says the same thing.
+
+        ``installed`` is ``find_spec``, which is why this can be
+        called from every shell refresh.
+        """
+        action = self.actions_.get("insert_molecule")
+        if action is None:                          # pragma: no cover
+            return
+        has_rdkit = rdkit_installed()
+        action.setEnabled(editable and has_rdkit)
+        tip = NO_RDKIT if not has_rdkit else menus.INSERT_MOLECULE_TIP
+        action.setToolTip(tip)
+        action.setStatusTip(tip)
+
     def _refresh_shell(self) -> None:
         """Menus, toolbar and status bar for the current document."""
         document = self.current_document()
@@ -1196,6 +1256,7 @@ class MainWindow(QMainWindow):
             editable)
         if document is None:
             self._refresh_module_actions(False)
+            self._refresh_insert_molecule(False)
             self._sync_bond_type_actions(None)
             self._refresh_plane_actions()
             self.status_label.setText("No structure open")
@@ -1220,6 +1281,7 @@ class MainWindow(QMainWindow):
             ["delete_selection"],
             bool(document.selection) and editable)
         self._refresh_module_actions(editable)
+        self._refresh_insert_molecule(editable)
         self._sync_bond_type_actions(document)
         self._refresh_plane_actions()
         self.status_label.setText(document.status_text())

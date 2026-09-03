@@ -1,7 +1,10 @@
 __pycache__/
 *.py[cod]
 *.egg-info/
-build/
+# Anchored: setuptools' build directory is the one at the root.  Bare
+# `build/` also matches `xtal/build/`, the molecule builder, and would
+# have kept the whole package out of the history without saying so.
+/build/
 dist/
 .venv/
 .pytest_cache/
