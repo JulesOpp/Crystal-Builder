@@ -555,6 +555,11 @@ schedule has it in [ROADMAP.md](ROADMAP.md).
 
 ## 13. Packaging and distribution
 
+The sketch below is the shape of it; the buildable version of this
+section -- what the frozen app needs changed before any spec is
+written, what goes in the bundle and what does not, and the order --
+is [PACKAGING.md](PACKAGING.md).
+
 * **Build**: PyInstaller (onedir) with a spec per platform in
   `packaging/`. VTK and PySide6 both need explicit hidden imports and
   data collection — the spec files handle this once.
@@ -642,7 +647,7 @@ land before phase 5, or symmetry operations get retrofitted into
 undo/redo later, which is painful.
 
 Phase 8 has not been done: `packaging/` is empty, and there is no
-build. Phase 9 has been half-answered from an unexpected direction --
+build -- [PACKAGING.md](PACKAGING.md) is the plan for it. Phase 9 has been half-answered from an unexpected direction --
 `xtal/modules/` is the registry [ROADMAP.md](ROADMAP.md) phase D built,
 and Zeo++ and DFTB+ went in through it and through
 `crystal_builder.plugins` without touching an existing file, which is
