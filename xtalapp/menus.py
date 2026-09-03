@@ -189,6 +189,12 @@ def build_actions(window):
             "hydrogens an X-ray structure never had")
     add("insert_molecule", "&Insert molecule...",
         window.insert_molecule_dialog, tip=INSERT_MOLECULE_TIP)
+    add("save_building_block", "Save as a &building block...",
+        window.save_building_block,
+        tip="Write this molecule into the folder the MOF builder "
+            "reads, so it appears in the block picker beside the 867 "
+            "PORMAKE ships.  It needs connection points on it -- the "
+            "dialog says what is missing.")
     add("mark_connection_points", "&Mark connection points",
         window.mark_connection_points,
         tip="Turn each selected atom that has exactly one bond into "
@@ -386,6 +392,7 @@ def build_menus(window):
     window.actions_.fill_menu(file_menu, [
         "new", "open", None, "save", "save_as",
         None, "export", "export_again", "export_image",
+        "save_building_block",
         None, "new_workspace", "open_workspace",
         None, "close_tab"])
     window.recent_menu = file_menu.addMenu("Open &Recent")

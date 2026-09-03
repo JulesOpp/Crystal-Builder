@@ -489,6 +489,32 @@ class MainWindow(QMainWindow):
             # a renderer but nothing for it to look at.
             return None
 
+    def save_building_block(self) -> None:
+        """Write the open molecule into the folder the MOF builder
+        reads its own blocks from.
+
+        The last step of the building-block path and the one that
+        closes it: what is written here appears in the MOF picker next
+        time with nothing further clicked -- see
+        :mod:`xtalapp.dialogs.save_block`.
+        """
+        document = self.current_document()
+        if document is None:
+            return
+        from xtal.mof.block import BlockError, write_building_block
+        from xtalapp.dialogs.save_block import SaveBlockDialog
+        path = SaveBlockDialog.ask(document.structure, self,
+                                   self.settings.mof_bb_dir)
+        if path is None:
+            return
+        try:
+            written = write_building_block(document.structure, path)
+        except (BlockError, OSError) as exc:
+            self.show_message(f"could not write the block: {exc}")
+            return
+        self.show_status(f"wrote {written.name} -- it is in the MOF "
+                         f"builder's picker now")
+
     def mark_connection_points(self) -> None:
         document = self.current_document()
         if document is not None:
@@ -1284,6 +1310,7 @@ class MainWindow(QMainWindow):
              "primitive", "wyckoff", "merge_duplicates", "subgroup",
              "invert", "supercell",
              "edit_cell", "niggli", "delaunay", "wrap_cell",
+             "save_building_block",
              "single_point", "optimize", "dftb_single_point",
              "dftb_optimize", "recompute_bonds", "reset_bonds"],
             editable)

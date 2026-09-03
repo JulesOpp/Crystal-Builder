@@ -367,3 +367,81 @@ def test_marking_an_atom_that_has_no_single_bond_says_which(
     assert document.cell.elements[carbon] == "C"
     assert not document.can_undo
     assert "bond" in window.status_label.text()
+
+
+# ------------------------------------------------- saving a block
+
+@needs_rdkit
+def test_the_save_dialog_defaults_to_the_folder_the_picker_reads(
+        window, qtbot, tmp_path):
+    """The whole of "with nothing further clicked": it is the same
+    box the MOF builder reads its extra blocks from."""
+    from xtalapp.dialogs.save_block import SaveBlockDialog
+    window.settings.mof_bb_dir = str(tmp_path / "mine")
+    document = window.new_document()
+    document.paste(linker_fragment())
+
+    dialog = SaveBlockDialog(document.structure, window)
+    qtbot.addWidget(dialog)
+    assert dialog.folder.text() == str(tmp_path / "mine")
+
+
+@needs_rdkit
+def test_the_save_dialog_says_what_stops_it_being_a_block(window,
+                                                          qtbot):
+    """Told before the click, because every one of these is something
+    to go back and change."""
+    from xtalapp.dialogs.save_block import SaveBlockDialog
+    document = window.new_document()
+    document.paste(water_fragment())
+
+    dialog = SaveBlockDialog(document.structure, window)
+    qtbot.addWidget(dialog)
+    assert not dialog.ok_button.isEnabled()
+    assert "nothing marks where this joins" in dialog.summary.text()
+
+
+@needs_rdkit
+def test_saving_a_block_writes_it_where_the_picker_will_find_it(
+        window, qtbot, tmp_path, monkeypatch):
+    from xtal.mof.catalog import read_building_block
+    from xtalapp.dialogs.save_block import SaveBlockDialog
+
+    window.settings.mof_bb_dir = ""
+    blocks = tmp_path / "bbs"
+    document = window.new_document()
+    document.paste(linker_fragment())
+    monkeypatch.setattr(
+        SaveBlockDialog, "ask",
+        classmethod(lambda cls, *a, **k: blocks / "UPhen.xyz"))
+    window.save_building_block()
+
+    written = blocks / "UPhen.xyz"
+    assert written.exists()
+    assert read_building_block(written).n_connections == 2
+    assert "picker" in window.status_label.text()
+
+
+@needs_rdkit
+def test_saving_something_that_is_not_a_block_is_reported(
+        window, tmp_path, monkeypatch):
+    from xtalapp.dialogs.save_block import SaveBlockDialog
+
+    document = window.new_document()
+    document.paste(water_fragment())
+    monkeypatch.setattr(
+        SaveBlockDialog, "ask",
+        classmethod(lambda cls, *a, **k: tmp_path / "no.xyz"))
+    window.save_building_block()
+
+    assert not (tmp_path / "no.xyz").exists()
+
+
+def linker_fragment():
+    from xtal.build import from_smiles
+    return from_smiles("[*:1]c1ccc([*:2])cc1").to_fragment()
+
+
+def water_fragment():
+    from xtal.build import from_smiles
+    return from_smiles("O").to_fragment()

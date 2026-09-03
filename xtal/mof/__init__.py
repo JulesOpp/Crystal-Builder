@@ -47,7 +47,11 @@ in its own report.
 from xtal.mof.block import (
     BOND_LETTERS,
     CONNECTION_DISTANCE,
+    BlockError,
+    block_string,
+    problems,
     pull_in,
+    write_building_block,
 )
 from xtal.mof.build import (
     BuildRequest,
@@ -65,7 +69,8 @@ from xtal.mof.catalog import (
     installed,
 )
 
-__all__ = ["BOND_LETTERS", "BuildRequest", "BuildingBlock",
-           "CONNECTION_DISTANCE", "Catalog", "MofError", "Slot",
-           "Topology", "build", "check_net", "database_root",
-           "draw_net", "installed", "pull_in"]
+__all__ = ["BOND_LETTERS", "BlockError", "BuildRequest",
+           "BuildingBlock", "CONNECTION_DISTANCE", "Catalog",
+           "MofError", "Slot", "Topology", "block_string", "build",
+           "check_net", "database_root", "draw_net", "installed",
+           "problems", "pull_in", "write_building_block"]

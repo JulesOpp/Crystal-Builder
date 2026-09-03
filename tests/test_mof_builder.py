@@ -38,10 +38,24 @@ def test_the_catalogue_is_read_without_importing_pormake(catalog):
     seconds; everything the picker shows is in the .cgd and .xyz files
     themselves.  If this ever fails, opening the Modules tree freezes
     the window.
+
+    In a subprocess because the claim is about a fresh interpreter:
+    any earlier test that actually built a framework has PORMAKE in
+    ``sys.modules`` already, and this would then pass or fail on the
+    order the files happened to run in.
     """
     assert catalog.topologies()
     assert catalog.building_blocks()
-    assert "pormake" not in sys.modules
+
+    import subprocess
+    out = subprocess.run(
+        [sys.executable, "-c",
+         "import sys; from xtal.mof import Catalog; "
+         "read = Catalog.default(); "
+         "print(bool(read.topologies()), "
+         "'pormake' in sys.modules)"],
+        capture_output=True, text=True, check=True)
+    assert out.stdout.split() == ["True", "False"]
 
 
 @needs_pormake
