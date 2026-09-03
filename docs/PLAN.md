@@ -528,8 +528,6 @@ schedule has it in [ROADMAP.md](ROADMAP.md).
 * Image export at a chosen resolution, with a transparent background:
   `File ▸ Export image` writes what is on screen at the size it is on
   screen, which is not a figure for a paper.
-* A sample structure library — the CIFs are in `resources/samples/`
-  and nothing in the application opens them.
 * **Overlay/compare two structures** in one viewport.
 
 **High value, moderate**

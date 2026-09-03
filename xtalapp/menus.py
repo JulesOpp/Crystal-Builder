@@ -41,6 +41,7 @@ from PySide6.QtWidgets import (
 
 from xtal.commands.bonds import BOND_TYPES
 from xtal.modules import MODULES
+from xtalapp import samples
 from xtalapp.viewport import modes, styles
 from xtalapp.viewport.view_settings import BACKGROUNDS, ViewSettings
 
@@ -103,6 +104,15 @@ def build_actions(window):
         window.new_workspace_dialog)
     add("close_tab", "&Close", window.close_current, "Ctrl+W")
     add("quit", "&Quit", window.close, "Ctrl+Q")
+
+    # One per structure shipped in ``resources/samples``.  Registered
+    # whether or not the file is there, so that the run-app driver and
+    # the tests have a name to type either way; the menu is what
+    # decides which of them can be pressed.
+    for sample in samples.SAMPLES:
+        add(f"sample_{sample.name}", sample.label,
+            lambda checked=False, n=sample.name: window.open_sample(n),
+            tip=sample.description)
 
     for name in styles.names():
         style = styles.get(name)
@@ -392,8 +402,11 @@ def build_menus(window):
     bar = window.menuBar()
 
     file_menu = bar.addMenu("&File")
+    window.actions_.fill_menu(file_menu, ["new", "open"])
+    window.sample_menu = file_menu.addMenu("Open Sa&mple")
+    build_sample_menu(window)
     window.actions_.fill_menu(file_menu, [
-        "new", "open", None, "save", "save_as",
+        None, "save", "save_as",
         None, "export", "export_again", "export_image",
         "save_building_block",
         None, "new_workspace", "open_workspace",
@@ -478,6 +491,29 @@ def build_menus(window):
 
     help_menu = bar.addMenu("&Help")
     window.actions_.fill_menu(help_menu, ["show_log", None, "about"])
+
+def build_sample_menu(window) -> None:
+    """The structures that ship with the application, as one submenu.
+
+    Built once and never refreshed, unlike the Modules menu: a
+    module's binary can be installed while the window is open, and
+    these files cannot -- they are part of the installation itself.
+
+    A copy that has not got them is a real state rather than a broken
+    one: ``resources/`` is not package data, so a wheel install has no
+    samples exactly as it has no bundled Zeo++.  That gets a disabled
+    menu carrying the reason, which is the same answer a module with
+    no binary gives, and not seven entries that each raise a dialog.
+    """
+    menu = window.sample_menu
+    menu.clear()
+    present = samples.installed()
+    menu.setEnabled(bool(present))
+    menu.setToolTip("" if present else samples.MISSING)
+    for sample in samples.SAMPLES:
+        action = window.actions_[f"sample_{sample.name}"]
+        action.setEnabled(sample.path is not None)
+        menu.addAction(action)
 
 def build_modules_menu(window) -> None:
     """The Modules menu, built from the registry and nothing else.

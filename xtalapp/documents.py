@@ -35,6 +35,7 @@ from pathlib import Path
 from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox
 
 from xtal.io import FORMATS
+from xtalapp import samples
 from xtalapp.document import Document
 
 #: The environment variable that turns the unsaved-changes prompt off.
@@ -189,6 +190,48 @@ class DocumentSet:
         self.window._rebuild_recent_menu()
         self.window.file_dock.set_root(path.parent)
         self.window.place_in_workspace(document, path)
+        if document.warnings:
+            self.window.statusBar().showMessage(
+                f"opened with {len(document.warnings)} warning(s)", 8000)
+        return document
+
+    def open_sample(self, name: str) -> Document | None:
+        """Open one of the structures that ship with the application.
+
+        As a **new untitled document with no path**, which is the
+        whole difference between this and :meth:`open_path`.  The file
+        lives inside the application's own folder -- a signed bundle
+        on macOS, under ``Program Files`` on Windows -- so a document
+        that adopted it would answer ``Ctrl+S`` by writing there, and
+        the save would either be refused or land somewhere nobody will
+        find it again.  With no path, Save asks.
+
+        Nothing else about it is special, and that is deliberate: it
+        does not enter the recent list (there is no file to come back
+        to), it does not move ``last_directory`` into ``resources/``,
+        and it is not placed in the workspace, which copies a file in
+        by path.  Opening the same sample twice gives two documents
+        rather than raising the tab that has one, because two untitled
+        copies cannot overwrite each other.
+        """
+        sample = samples.get(name)
+        path = sample.path
+        if path is None:
+            QMessageBox.warning(self.window, "No sample structures",
+                                samples.MISSING)
+            return None
+        try:
+            structure = FORMATS.read(path)
+        except (ValueError, OSError, KeyError) as exc:   # pragma: no cover
+            QMessageBox.warning(self.window, "Could not open the sample",
+                                f"{sample.label}\n\n{exc}")
+            return None
+        # The tab is named from here, because a pathless document
+        # takes its title from the structure's, and these files carry
+        # the data block name whoever exported them left behind.
+        structure.meta["title"] = sample.label
+        document = Document(structure)
+        self.add_document(document)
         if document.warnings:
             self.window.statusBar().showMessage(
                 f"opened with {len(document.warnings)} warning(s)", 8000)

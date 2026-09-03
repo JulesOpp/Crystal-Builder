@@ -225,6 +225,15 @@ class MainWindow(QMainWindow):
     def document_for(self, path) -> Document | None:
         return self.document_set.document_for(path)
 
+    def open_sample(self, name: str) -> Document | None:
+        """Open a structure that ships with the application.
+
+        An action slot -- one per entry in ``File > Open Sample`` --
+        and the one route in that produces a document with no file
+        behind it: see :meth:`xtalapp.documents.DocumentSet.open_sample`.
+        """
+        return self.document_set.open_sample(name)
+
     def open_from_desktop(self, path) -> Document | None:
         """A file handed over by Finder or Explorer.
 
