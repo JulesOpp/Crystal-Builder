@@ -136,14 +136,23 @@ class BuildMoleculeDialog(QDialog):
         self._quiet.start()
 
     def _on_sketch(self, text: str) -> None:
-        """What a live editor would send back.
+        """What was drawn, into the box.
 
-        Nothing emits it today -- the picture is read-only -- and the
-        slot exists so that the editor that replaces :class:`_Sketch`
-        is a widget swap and not a rewrite of this dialog.
+        **Guarded on the molecule and not on the string.**  This is
+        one hop of a cycle -- draw, box, timer, build, back into the
+        canvas -- and the two ends of it disagree about spelling
+        constantly: a benzene template comes back kekulized where the
+        box says ``c1ccccc1``, and a library entry writes
+        ``[*:1]c1ccc([*:2])cc1`` where the depiction canonicalises
+        the ring.  A text compare would rewrite the box for every one
+        of those, restart the timer, rebuild, and re-lay the drawing
+        out under the cursor.  The question worth asking is whether
+        the molecule changed.
         """
         widget = self.form.widgets.get("smiles")
-        if widget is not None and widget.text() != text:
+        if widget is None:                          # pragma: no cover
+            return
+        if sketch.canonical(widget.text()) != sketch.canonical(text):
             widget.setText(text)
 
     def _on_library(self, entry) -> None:

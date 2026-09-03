@@ -67,6 +67,20 @@ def typed(dialog, qtbot, text):
     qtbot.waitUntil(lambda: not dialog._quiet.isActive(), timeout=5000)
 
 
+def drawn(dialog, qtbot, symbol):
+    """Put one atom on the canvas, the way a click on it would.
+
+    Through the editor's own API rather than a synthetic mouse event:
+    what is under test is the cycle from the canvas to the box and
+    back, and rdeditor's hit-testing is rdeditor's business.
+    """
+    from rdkit.Geometry.rdGeometry import Point2D
+
+    dialog.sketch.view.setChemEntity(symbol)
+    dialog.sketch.view.add_canvas_atom(Point2D(0.0, 0.0))
+    qtbot.waitUntil(lambda: not dialog._quiet.isActive(), timeout=5000)
+
+
 # --------------------------------------------------- the shell entry
 
 def test_the_insert_entry_needs_a_structure_to_insert_into(window):
@@ -276,6 +290,50 @@ def test_closing_the_dialog_twice_does_not_take_the_editor_with_it(
     assert not dialog.sketch.view.testAttribute(Qt.WA_DeleteOnClose)
     typed(dialog, qtbot, "CCO")
     assert dialog.sketch.view.mol.GetNumAtoms() == 3
+
+
+@needs_rdeditor
+def test_drawing_an_atom_puts_the_smiles_in_the_box(window, qtbot):
+    """The direction that did not exist while the picture was
+    read-only: what is drawn is what the box says, so the button
+    below builds what is on screen."""
+    dialog = BuildMoleculeDialog(BUILD, BUILD.action("molecule"),
+                                 window)
+    qtbot.addWidget(dialog)
+    drawn(dialog, qtbot, "O")
+
+    assert dialog.form.widgets["smiles"].text() == "O"
+    assert dialog.molecule.formula == "H2O"
+
+
+@needs_rdeditor
+def test_typing_in_the_box_redraws_the_editor(window, qtbot):
+    dialog = BuildMoleculeDialog(BUILD, BUILD.action("molecule"),
+                                 window)
+    qtbot.addWidget(dialog)
+    typed(dialog, qtbot, "CCO")
+
+    assert dialog.sketch.view.mol.GetNumAtoms() == 3
+
+
+@needs_rdeditor
+def test_the_same_molecule_typed_back_does_not_relayout_the_drawing(
+        window, qtbot):
+    """The two ends of the cycle disagree about spelling constantly --
+    a ring template comes back kekulized where the box says
+    c1ccccc1 -- so the guard is on the canonical SMILES and not on
+    the string.  Setting the mol again re-lays the depiction out
+    under the cursor, which is the failure being avoided."""
+    dialog = BuildMoleculeDialog(BUILD, BUILD.action("molecule"),
+                                 window)
+    qtbot.addWidget(dialog)
+    typed(dialog, qtbot, "c1ccccc1")
+    before = dialog.sketch.view.mol
+
+    typed(dialog, qtbot, "C1=CC=CC=C1")
+
+    assert dialog.sketch.view.mol is before
+    assert dialog.form.widgets["smiles"].text() == "C1=CC=CC=C1"
 
 
 @needs_rdkit

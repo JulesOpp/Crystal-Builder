@@ -117,7 +117,7 @@ class SketchEditor(QWidget):
     def set_smiles(self, text: str) -> None:
         """Draw what the box says, unless it already says it."""
         text = str(text or "")
-        if _canonical(text) == _canonical(self._smiles):
+        if canonical(text) == canonical(self._smiles):
             return
         mol = _parse(text)
         if mol is None:
@@ -136,8 +136,8 @@ class SketchEditor(QWidget):
         going out is the one :meth:`set_smiles` will compare against
         when it comes back.
         """
-        text = _canonical(_raw_smiles(self.view.mol))
-        if _canonical(self._smiles) == _canonical(text):
+        text = canonical(_raw_smiles(self.view.mol))
+        if canonical(self._smiles) == canonical(text):
             return
         self._smiles = text
         self.smilesChanged.emit(text)
@@ -212,7 +212,7 @@ def _raw_smiles(mol) -> str:
         return ""
 
 
-def _canonical(text: str) -> str:
+def canonical(text: str) -> str:
     """The string as RDKit would write it, or the string itself.
 
     Unchanged for anything unreadable, which is what makes this safe
@@ -224,4 +224,5 @@ def _canonical(text: str) -> str:
     return _raw_smiles(mol) if mol is not None else text
 
 
-__all__ = ["MISSING", "SketchEditor", "installed"]
+__all__ = ["MISSING", "SketchEditor", "canonical",
+           "installed"]
