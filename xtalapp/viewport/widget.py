@@ -680,3 +680,21 @@ class ViewportWidget(QWidget):
     def camera_direction(self) -> np.ndarray:
         camera = self.scene.renderer.GetActiveCamera()
         return np.array(camera.GetDirectionOfProjection())
+
+    def focal_point(self) -> np.ndarray:
+        """What the camera is looking at, in cartesian Angstrom.
+
+        The middle of the picture, which is where something dropped
+        into the structure belongs: with nothing under the cursor to
+        point at, "here" is what is in front of the user, and a
+        molecule that lands at the centre of the cell instead can be
+        off screen entirely on a framework somebody has zoomed into.
+
+        The renderer's world coordinates are the structure's cartesian
+        ones -- the scene places every atom at
+        ``lattice.to_cart(frac)`` -- so this is already what
+        :meth:`xtal.commands.clipboard.Fragment.to_sites` means by an
+        offset, and needs no conversion.
+        """
+        camera = self.scene.renderer.GetActiveCamera()
+        return np.array(camera.GetFocalPoint(), dtype=float)

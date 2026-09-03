@@ -7,6 +7,7 @@ dialog says what the button will do before it is pressed, and that the
 same class serves the entry that opens a tab and the entry that pastes.
 """
 
+import numpy as np
 import pytest
 
 pytest.importorskip("PySide6")
@@ -255,3 +256,73 @@ def test_a_cancelled_insert_changes_nothing(window, tmp_path, rutile,
 
     assert not document.can_undo
     assert document.structure.n_sites == rutile.n_sites
+
+
+# ------------------------------------------------- where it lands
+
+class CameraViewport(StubViewport):
+    """A stub with a camera, which the plain one deliberately has
+    not: the shell has to work with both."""
+
+    focal = (3.0, 4.0, 6.0)
+
+    def focal_point(self):
+        return np.array(self.focal, dtype=float)
+
+
+@pytest.fixture
+def camera_window(qtbot, settings):
+    win = MainWindow(viewport_factory=CameraViewport,
+                     settings=settings)
+    qtbot.addWidget(win)
+    return win
+
+
+def test_a_viewport_with_no_camera_asks_for_the_middle_of_the_cell(
+        window, tmp_path, rutile):
+    """``None`` is not a failure: it is what Fragment.to_sites has
+    always read as the centre of the cell, and the stub the widget
+    tests inject has no camera to ask."""
+    opened(window, tmp_path, rutile)
+    assert window.paste_offset() is None
+
+
+def test_the_focal_point_is_where_a_paste_is_offered(camera_window):
+    camera_window.new_document()
+    assert list(camera_window.paste_offset()) == [3.0, 4.0, 6.0]
+
+
+@needs_rdkit
+def test_a_molecule_lands_in_the_middle_of_the_picture(
+        camera_window, monkeypatch):
+    """A framework somebody has zoomed into puts the centre of the
+    cell off screen, and a molecule that lands there has to be hunted
+    for."""
+    document = camera_window.new_document()
+    monkeypatch.setattr(
+        BuildMoleculeDialog, "ask",
+        classmethod(lambda cls, *a, **k: {"smiles": "O", "name": "",
+                                          "optimise": False,
+                                          "seed": 1}))
+    camera_window.insert_molecule_dialog()
+
+    placed = document.structure.lattice.to_cart(
+        [s.frac for s in document.structure.sites])
+    assert placed.mean(axis=0) == pytest.approx(
+        np.array(CameraViewport.focal), abs=1e-6)
+
+
+@needs_rdkit
+def test_with_no_camera_it_lands_in_the_middle_of_the_cell(
+        window, monkeypatch):
+    document = window.new_document()
+    monkeypatch.setattr(
+        BuildMoleculeDialog, "ask",
+        classmethod(lambda cls, *a, **k: {"smiles": "O", "name": "",
+                                          "optimise": False,
+                                          "seed": 1}))
+    window.insert_molecule_dialog()
+
+    placed = np.array([s.frac for s in document.structure.sites])
+    assert placed.mean(axis=0) == pytest.approx([0.5, 0.5, 0.5],
+                                                abs=1e-6)

@@ -459,7 +459,35 @@ class MainWindow(QMainWindow):
         except BuildError as exc:
             self.show_message(str(exc))
             return
-        self.show_status(document.paste(molecule.to_fragment()))
+        self.show_status(document.paste(molecule.to_fragment(),
+                                        self.paste_offset()))
+
+    def paste_offset(self):
+        """Where something dropped into the structure lands.
+
+        The camera's focal point -- the middle of the picture -- or
+        ``None``, which is what
+        :meth:`xtal.commands.clipboard.Fragment.to_sites` already
+        reads as the centre of the cell.
+
+        Asked for defensively rather than assumed, because the
+        viewport is injected: the stub the widget tests use is a bare
+        ``QWidget`` with no camera and no intention of growing one,
+        and a shell that needed it to would be a shell that cannot be
+        tested without a GL context.  Both answers are real -- the
+        cell centre is where a paste has always landed -- so a missing
+        camera is not an error to report.
+        """
+        viewport = self.current_viewport()
+        focal = getattr(viewport, "focal_point", None)
+        if focal is None:
+            return None
+        try:
+            return focal()
+        except Exception:                           # noqa: BLE001
+            # A tab whose render window has not been realised yet has
+            # a renderer but nothing for it to look at.
+            return None
 
     def add_centroid_dialog(self) -> None:
         document = self.current_document()
