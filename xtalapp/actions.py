@@ -40,10 +40,27 @@ class ActionRegistry:
         self._groups: dict[str, QActionGroup] = {}
 
     def add(self, name, text, slot=None, shortcut=None, checkable=False,
-            checked=False, tip=None, group=None) -> QAction:
+            checked=False, tip=None, group=None, role=None) -> QAction:
         """Register an action.  ``shortcut`` takes one key or a list of
-        equivalent ones."""
+        equivalent ones.
+
+        ``role`` is the macOS menu role -- what Qt does with an entry
+        that belongs in the *application* menu on that platform rather
+        than in the menu it was added to.  Quit, About and Preferences
+        are relocated there, which is what every Mac user expects and
+        is why an entry set up here can be correct and still not be
+        where this file put it.
+
+        Left unset, Qt uses ``TextHeuristicRole``: it *guesses* the
+        role from the action's text, and it guesses from the **English**
+        text.  So the relocation works today and would stop working the
+        first time a menu entry is reworded or the application is
+        translated, silently and on one platform only.  Saying which
+        role an action has is one argument and it is the whole fix.
+        """
         action = QAction(text, self.parent)
+        if role is not None:
+            action.setMenuRole(role)
         if shortcut:
             action.setShortcuts(key_sequences(shortcut))
         action.setCheckable(checkable)

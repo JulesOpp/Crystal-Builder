@@ -31,6 +31,7 @@ would change how they are spelled without buying anything.
 
 from __future__ import annotations
 
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QComboBox,
     QLabel,
@@ -103,7 +104,12 @@ def build_actions(window):
     add("new_workspace", "&New Workspace...",
         window.new_workspace_dialog)
     add("close_tab", "&Close", window.close_current, "Ctrl+W")
-    add("quit", "&Quit", window.close, "Ctrl+Q")
+    # QuitRole and AboutRole, said rather than guessed: macOS moves
+    # both of these into the application menu, and left to itself Qt
+    # decides which entries those are by reading their English text.
+    # See ``ActionRegistry.add``.
+    add("quit", "&Quit", window.close, "Ctrl+Q",
+        role=QAction.MenuRole.QuitRole)
 
     # One per structure shipped in ``resources/samples``.  Registered
     # whether or not the file is there, so that the run-app driver and
@@ -393,7 +399,8 @@ def build_actions(window):
     add("view_a", "Along &a", lambda: window.look_along(0), "1")
     add("view_b", "Along &b", lambda: window.look_along(1), "2")
     add("view_c", "Along &c", lambda: window.look_along(2), "3")
-    add("about", f"About {APP_NAME}", window.show_about)
+    add("about", f"About {APP_NAME}", window.show_about,
+        role=QAction.MenuRole.AboutRole)
     add("show_log", "Show &Log", window.show_log,
         tip="Reveal the file this application writes its warnings "
             "and its crashes to")
