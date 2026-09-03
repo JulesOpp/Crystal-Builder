@@ -88,6 +88,58 @@ def test_saving_writes_a_block_the_catalog_can_read_back(qtbot,
 
 
 @needs_rdkit
+def test_a_click_inside_the_debounce_window_saves_the_latest_drawing(
+        qtbot, tmp_path):
+    """A click landing inside the 350 ms window after the last edit
+    must not save whatever the box held before that edit -- accept()
+    used to read a cached preview that the debounce timer had not
+    caught up to yet."""
+    slot = Slot("edge", (0, 0), 2)
+    dialog = DrawBlockDialog(slot, str(tmp_path))
+    qtbot.addWidget(dialog)
+    dialog.form.set_values({"name": "race"})
+    typed(dialog, qtbot, "[*:1]CC[*:2]")
+
+    dialog.form.widgets["smiles"].setText("[*:1]CCCC[*:2]")
+    assert dialog._quiet.isActive()
+    dialog.accept()
+
+    written = tmp_path / "race.xyz"
+    assert dialog.path == written
+    assert read_building_block(written).composition.get("C") == 4
+
+
+@needs_rdkit
+def test_saving_uses_the_forms_real_optimise_flag_not_the_preview(
+        qtbot, tmp_path, monkeypatch):
+    """The live preview is always optimise=False -- the same
+    shortcut the molecule builder's footer takes.  The block that
+    gets written has to be built fresh with what "Relax it" actually
+    says, not with the preview's cached, always-unrelaxed molecule."""
+    import xtalapp.dialogs.draw_block as draw_block_module
+
+    real = draw_block_module.molecule_for
+    calls = []
+
+    def spy(values, connection_points):
+        calls.append(dict(values))
+        return real(values, connection_points=connection_points)
+
+    monkeypatch.setattr(draw_block_module, "molecule_for", spy)
+
+    slot = Slot("edge", (0, 0), 2)
+    dialog = DrawBlockDialog(slot, str(tmp_path))
+    qtbot.addWidget(dialog)
+    dialog.form.set_values({"name": "relaxed", "optimise": True})
+    typed(dialog, qtbot, "[*:1]CC[*:2]")
+    assert calls[-1]["optimise"] is False
+
+    dialog.accept()
+
+    assert calls[-1]["optimise"] is True
+
+
+@needs_rdkit
 def test_with_no_folder_saving_is_refused_and_says_why(qtbot):
     """Nowhere of the user's own to write into -- the MOF builder's
     own "Extra building blocks" folder is where a drawn block has to

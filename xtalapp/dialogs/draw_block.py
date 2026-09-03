@@ -179,16 +179,48 @@ class DrawBlockDialog(QDialog):
     # -- the save ---------------------------------------------------
 
     def accept(self) -> None:
+        """Write the block, from a fresh build and not the preview.
+
+        Two things :attr:`molecule` is not allowed to be, both fixed
+        by rebuilding here rather than reusing it as it stood:
+
+        **Stale.** The 350 ms timer means a click landing inside that
+        window after the last edit finds :attr:`molecule` describing
+        whatever was drawn *before* it -- one connection point where
+        the canvas now shows two.  ``BuildMoleculeDialog`` never has
+        this problem, because its ``accept`` is the default one and
+        hands back the live form values rather than a built molecule;
+        this dialog's ``accept`` is the one place anything gets
+        written, so the rebuild has to happen here, synchronously,
+        before anything is read off :attr:`molecule`.
+
+        **Unrelaxed.** The preview is always ``optimise=False`` --
+        the same shortcut the molecule builder's footer takes, and
+        for the same reason: nothing the preview shows changes with
+        the geometry.  But unlike ``build_molecule()``, which rebuilds
+        from the job's own parameters once a run actually starts,
+        this dialog had been writing the *preview* molecule straight
+        to disk -- so "Relax it" was checked, drawn, and completely
+        ignored.  The block that gets written is built fresh, from
+        the form's real values, exactly once.
+        """
+        self._rebuild()
         if (self.molecule is None or not self.folder or
                 self.molecule.n_connections != self.slot.coordination):
             return
-        name = str(self.form.values().get("name") or "")
-        stem = safe_name(name or self.molecule.name or
-                         self.molecule.smiles, "block")
+        values = self.action.coerce(self.form.values())
+        stem = safe_name(str(values.get("name") or "") or
+                         self.molecule.name or self.molecule.smiles,
+                         "block")
+        try:
+            final = molecule_for(values, connection_points=True)
+        except BuildError as exc:
+            self._say(str(exc), ok=False)
+            return
         path = Path(self.folder) / f"{stem}.xyz"
         try:
             self.path = write_building_block(
-                self.molecule.to_structure(), path)
+                final.to_structure(), path)
         except (BlockError, OSError) as exc:
             self._say(str(exc), ok=False)
             return
