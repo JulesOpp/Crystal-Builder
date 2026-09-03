@@ -1,11 +1,27 @@
 # TODO
-# Eric wants export as vector, .svg
-# Jules 2D builder in PORMAKE
-# Zhentao wants PXRD simulating - merge data plotter into this software 
+# Add an option to export an image as a vector (.svg)
+# For export as image for rasterized, add an option for the file format, an option for transparent background, and an option for resolution
+# Add a module that simulates the PXRD patterns, allow exporting the simulated (with convolution) as .xy filetype, and Reflection Table. Before implementing this, have Jules load in pre-existing code from another app which has already written this code. We will want to merge part of this other app into here. This other app allows for plotting of experimental PXRD data, in file type .xy, and plotting simulated data against the experimental. And exporting the plots as vectors. We will turn this into a new module.
 # Add change color of topology bonds, add style that is topology bonds only, all atoms hidden
 # Add change color to planes
-# Add help menus
+# Add help menus that explain what variables are or what commands do
 # The Tops2/acs.cif file doesn't open, this is a fake structure type that I have, where I can connect H-He and He-He and draw polyhedra around the H to make nice looking pictures of topologies
+# select bond->Measure or Measure->select bond, should both report the bond length
+# Creating a file with MOF builder or molecule builder should automatically save the file in the workspace
+# MOF builder should have a feature to search by composition 
+# within MOF builder, you should be able to molecule build a node
+# Add more forcefield options to the Forcefield module
+# Make the ORTEP look pretty, add the octant shading contours
+# Add a style the atoms in Ball-and-stick with multi-colored pie chart spheres, as like in VESTA
+# Propose a better organization for the top bar, i.e., File, Edit, Select, Structure, Measure, .... Make sure the last one will be Help
+# Propose a better organization for the top bar of the app, i.e., Open, Save, Undo, Redo, Reset View, ...
+# In the top bar of the app for showing translational equivalents, it says [a 1] [b 1] [c 1], but should be a [1] b [1] c [1]
+# When changing the number of translational equivalents shown, automatically call Reset view
+# Under File add Preferences with a short cut of command-comma. Propose a layout for what this window includes. It could have paths that point to modules that will eventually not ship with the App. Think about this carefully, and make some proposals
+# In Structure->Add Atom, to the right of Element [], add a button that pops up a periodic table, where the user can select any element without having to type out the element type
+# Remove the Export again button, unless there is a strong reason to keep it in the menu
+# Change menu name of Supercell to Non-periodic supercell
+
 
 Work that is wanted but not yet scheduled into a phase.
 [docs/PLAN.md](PLAN.md) holds the roadmap; this file holds everything
@@ -64,6 +80,10 @@ are nothing like each other in difficulty.
 ## Modules
 
 ### DFTB+'s own driver
+
+Jules note that overrides anything below: We want to use all of the 
+Native features of DFTB+. Do not rewrite anything that already exists
+Within DFTB+ natively. We just need to make a wrapper for it.
 
 DFTB+ is here as an *engine*: a `Calculator` in `ENGINES`, so the
 optimiser already in this application drives it with the symmetry

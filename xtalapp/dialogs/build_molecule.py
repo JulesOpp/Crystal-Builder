@@ -50,6 +50,7 @@ from PySide6.QtWidgets import (
 from xtal.build import BuildError, library
 from xtal.commands.clipboard import PasteFragment
 from xtal.modules.build import molecule_for
+from xtalapp.dialogs import sketch
 
 #: The action that pastes into the open cell, by name.  Everything
 #: else this dialog is opened for builds a document of its own.
@@ -317,10 +318,19 @@ class _Sketch(QWidget):
                             "typed", self)
         self.empty.setAlignment(Qt.AlignCenter)
         self.empty.setStyleSheet("color: palette(mid);")
+        # The offer, made where somebody is looking at the thing they
+        # cannot do.  Absent when rdeditor is there, because then this
+        # class is not what the dialog is showing.
+        self.hint = QLabel(sketch.MISSING, self)
+        self.hint.setWordWrap(True)
+        self.hint.setAlignment(Qt.AlignCenter)
+        self.hint.setStyleSheet("color: palette(mid);")
+        self.hint.setVisible(not sketch.installed())
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.view, 1)
         layout.addWidget(self.empty, 1)
+        layout.addWidget(self.hint)
         self.setMinimumHeight(200)
         self._smiles = ""
         self._show(False)

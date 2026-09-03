@@ -46,11 +46,18 @@ mof = ["pormake>=0.2.3"]
 # crystal-builder` usable on a cluster node.  Without it the Build
 # entries grey out naming this extra, the same way `mof` does.
 build = ["rdkit>=2023.9"]
+# Drawing the molecule rather than typing it.  Its own line and not
+# part of `build`, because rdeditor is PySide6 plus a theme package
+# where `build` is RDKit alone -- and xtal/ imports no Qt, so a
+# headless install that wants `build` must not be given a widget
+# toolkit to get it.  Without it the dialog opens with the read-only
+# picture and says what to install.
+sketch = ["rdeditor>=0.5"]
 # pytest-qt belongs here and not in [dev]: without it every widget
 # test skips itself, and CI installs [gui,test] -- so the GUI half of
 # the suite was passing by not running.
 test = ["pytest>=8", "pytest-qt>=4", "pytest-xdist>=3"]
-dev = ["crystal-builder[gui,ase,build,test]", "ruff",
+dev = ["crystal-builder[gui,ase,build,sketch,test]", "ruff",
        "pyinstaller>=6"]
 
 [project.scripts]
