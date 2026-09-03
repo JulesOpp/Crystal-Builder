@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import os
 
-from xtal.modules import dftb, forcefield, mof, zeopp
+from xtal.modules import build, dftb, forcefield, mof, zeopp
 from xtal.modules.job import Cancellation, Cancelled, Job, JobResult
 from xtal.modules.process import (
     ExternalProcess,
@@ -49,6 +49,7 @@ forcefield.register()
 dftb.register()
 zeopp.register()
 mof.register()
+build.register()
 
 if os.environ.get("XTAL_STUB_MODULE", "").strip().lower() not in (
         "", "0", "false", "no", "off"):
