@@ -1,0 +1,162 @@
+{
+  "version": 1,
+  "note": "Molecules worth not typing twice.  Edit this file to add one; nothing else has to change.",
+  "fragments": [
+    {
+      "name": "Water",
+      "smiles": "O",
+      "category": "Solvent",
+      "description": "The guest that is in every pore somebody forgot to evacuate"
+    },
+    {
+      "name": "Methanol",
+      "smiles": "CO",
+      "category": "Solvent",
+      "description": "Wash solvent, and the commonest thing left in a pore"
+    },
+    {
+      "name": "Acetonitrile",
+      "smiles": "CC#N",
+      "category": "Solvent",
+      "description": "Linear, weakly coordinating"
+    },
+    {
+      "name": "DMF",
+      "smiles": "CN(C)C=O",
+      "category": "Solvent",
+      "description": "N,N-dimethylformamide: the synthesis solvent, and what activation is trying to remove"
+    },
+    {
+      "name": "DEF",
+      "smiles": "CCN(CC)C=O",
+      "category": "Solvent",
+      "description": "N,N-diethylformamide, the larger sibling of DMF"
+    },
+    {
+      "name": "Ethanol",
+      "smiles": "CCO",
+      "category": "Solvent",
+      "description": "Exchange solvent before a supercritical dry"
+    },
+    {
+      "name": "Benzene",
+      "smiles": "c1ccccc1",
+      "category": "Ring",
+      "description": "The aromatic ring, flat and 1.39 A round"
+    },
+    {
+      "name": "Pyridine",
+      "smiles": "c1ccncc1",
+      "category": "Ring",
+      "description": "One nitrogen donor, pointing out of the ring"
+    },
+    {
+      "name": "Imidazole",
+      "smiles": "c1c[nH]cn1",
+      "category": "Ring",
+      "description": "The ZIF linker before it is deprotonated"
+    },
+    {
+      "name": "Naphthalene",
+      "smiles": "c1ccc2ccccc2c1",
+      "category": "Ring",
+      "description": "Two fused rings, for a longer strut"
+    },
+    {
+      "name": "Cyclohexane",
+      "smiles": "C1CCCCC1",
+      "category": "Ring",
+      "description": "The saturated ring, which comes out as a chair"
+    },
+    {
+      "name": "Benzoate",
+      "smiles": "c1ccccc1C(=O)[O-]",
+      "category": "Ligand",
+      "description": "A monodentate carboxylate, for capping a node"
+    },
+    {
+      "name": "Acetate",
+      "smiles": "CC(=O)[O-]",
+      "category": "Ligand",
+      "description": "The modulator that ends up on a defect site"
+    },
+    {
+      "name": "Formate",
+      "smiles": "[O-]C=O",
+      "category": "Ligand",
+      "description": "The smallest carboxylate there is"
+    },
+    {
+      "name": "4,4'-bipyridine",
+      "smiles": "c1cc(ccn1)-c2ccncc2",
+      "category": "Ligand",
+      "description": "The pillar in a pillared-layer framework"
+    },
+    {
+      "name": "Terephthalic acid",
+      "smiles": "OC(=O)c1ccc(cc1)C(=O)O",
+      "category": "Ligand",
+      "description": "H2BDC, the linker of MOF-5 before it loses its protons"
+    },
+    {
+      "name": "Trimesic acid",
+      "smiles": "OC(=O)c1cc(cc(c1)C(=O)O)C(=O)O",
+      "category": "Ligand",
+      "description": "H3BTC, the three-connected linker of HKUST-1"
+    },
+    {
+      "name": "Phenylene",
+      "smiles": "[*:1]c1ccc([*:2])cc1",
+      "category": "Linker",
+      "description": "A two-connected benzene strut, connection points where it joins its nodes"
+    },
+    {
+      "name": "Biphenylene",
+      "smiles": "[*:1]c1ccc(cc1)-c2ccc([*:2])cc2",
+      "category": "Linker",
+      "description": "Two rings: the same net, a larger pore"
+    },
+    {
+      "name": "Terphenylene",
+      "smiles": "[*:1]c1ccc(cc1)-c2ccc(cc2)-c3ccc([*:2])cc3",
+      "category": "Linker",
+      "description": "Three rings, where interpenetration usually starts"
+    },
+    {
+      "name": "Acetylene-extended phenylene",
+      "smiles": "[*:1]c1ccc(cc1)C#C[*:2]",
+      "category": "Linker",
+      "description": "A rigid strut that lengthens without another ring"
+    },
+    {
+      "name": "Naphthalene linker",
+      "smiles": "[*:1]c1ccc2cc([*:2])ccc2c1",
+      "category": "Linker",
+      "description": "Two-connected and fused, so it cannot twist"
+    },
+    {
+      "name": "Benzene tritopic",
+      "smiles": "[*:1]c1cc([*:2])cc([*:3])c1",
+      "category": "Linker",
+      "description": "Three connection points at 120 degrees, for a tbo or pto net"
+    },
+    {
+      "name": "Tetraphenylmethane",
+      "smiles": "[*:1]c1ccc(cc1)C(c2ccc([*:2])cc2)(c3ccc([*:3])cc3)c4ccc([*:4])cc4",
+      "category": "Linker",
+      "description": "Four connection points, tetrahedral: the dia and pts node"
+    },
+    {
+      "name": "Methyl",
+      "smiles": "[*:1]C",
+      "category": "Group",
+      "description": "One connection point, for testing that a block writes"
+    },
+    {
+      "name": "Amino-phenylene",
+      "smiles": "[*:1]c1ccc([*:2])cc1N",
+      "category": "Linker",
+      "description": "A functionalised strut: the same geometry, a different pore wall"
+    }
+  ]
+}

@@ -63,7 +63,7 @@ Repository = "https://github.com/JulesOpp/Crystal-Builder"
 [tool.setuptools]
 packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
             "xtal.ff.uff", "xtal.modules", "xtal.analysis", "xtal.mof",
-            "xtal.build",
+            "xtal.build", "xtal.build.data",
             "xtalapp", "xtalapp.viewport", "xtalapp.docks",
             "xtalapp.dialogs"]
 
@@ -73,6 +73,11 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
 # convenience.  The .cgd it is built from stays in resources/topo.
 [tool.setuptools.package-data]
 "xtal.analysis" = ["data/*.json.gz"]
+# The fragment library, for the same reason: a picker with nothing in
+# it is not a smaller feature, it is a broken one.  Text, kilobytes,
+# and read through importlib.resources so a wheel and a source
+# checkout are the same case.
+"xtal.build.data" = ["*.json"]
 
 [tool.setuptools_scm]        # version from git tags; no version file to bump
 

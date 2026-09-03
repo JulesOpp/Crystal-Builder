@@ -38,14 +38,16 @@ from __future__ import annotations
 from PySide6.QtCore import QByteArray, Qt, QTimer, Signal
 from PySide6.QtSvgWidgets import QSvgWidget
 from PySide6.QtWidgets import (
+    QComboBox,
     QDialog,
     QDialogButtonBox,
+    QFormLayout,
     QLabel,
     QVBoxLayout,
     QWidget,
 )
 
-from xtal.build import BuildError
+from xtal.build import BuildError, library
 from xtal.commands.clipboard import PasteFragment
 from xtal.modules.build import molecule_for
 
@@ -81,6 +83,8 @@ class BuildMoleculeDialog(QDialog):
         from xtalapp.dialogs.module_form import ParamForm
         self.form = ParamForm(action.params, self)
         self.form.set_values(action.coerce(initial or {}))
+        self.library = _Library(self, self.pastes)
+        self.library.chosen.connect(self._on_library)
         self.sketch = _Sketch(self)
         self.footer = QLabel(self)
         self.footer.setWordWrap(True)
@@ -109,7 +113,12 @@ class BuildMoleculeDialog(QDialog):
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)
 
+        picker = QFormLayout()
+        picker.setContentsMargins(0, 0, 0, 0)
+        picker.addRow("Start from", self.library)
+
         layout = QVBoxLayout(self)
+        layout.addLayout(picker)
         layout.addWidget(self.form)
         layout.addWidget(self.sketch, 1)
         layout.addWidget(self.footer)
@@ -131,6 +140,16 @@ class BuildMoleculeDialog(QDialog):
         widget = self.form.widgets.get("smiles")
         if widget is not None and widget.text() != text:
             widget.setText(text)
+
+    def _on_library(self, entry) -> None:
+        """Fill the boxes from a library entry.
+
+        Into the boxes rather than around them: what is picked is a
+        starting point, and the next thing anybody does with a
+        phenylene is put a methyl on it.
+        """
+        self.form.set_values({"smiles": entry.smiles,
+                              "name": entry.name})
 
     def _rebuild(self) -> None:
         """Build what the box says, and report it in the footer."""
@@ -206,6 +225,66 @@ class BuildMoleculeDialog(QDialog):
         if dialog.exec() != QDialog.Accepted:
             return None
         return dialog.values()
+
+
+# ======================================================================
+#  THE LIBRARY
+# ======================================================================
+
+class _Library(QWidget):
+    """The shipped fragments, in one combo box.
+
+    Grouped by category, in the file's own order rather than
+    alphabetically: it lists solvents before linkers because that is
+    the order somebody looks for them in.  The entries with connection
+    points are left out of the box that pastes into a cell, which
+    refuses a starred string -- offering them there would be offering
+    entries that answer with a refusal.
+
+    A library that cannot be read is an empty picker and not an error:
+    the box beside it still takes a SMILES string, which is the whole
+    feature, and a dialog that refuses to open because a convenience
+    file is missing would be a worse failure than the one it reports.
+    """
+
+    chosen = Signal(object)                 # a library.Entry
+
+    def __init__(self, parent=None, pastes: bool = False):
+        super().__init__(parent)
+        self.combo = QComboBox(self)
+        self.combo.addItem("(type it yourself)", None)
+        try:
+            entries = library.matching(connection_points=not pastes)
+        except library.LibraryError:            # pragma: no cover
+            entries = ()
+        for category in _grouped(entries):
+            self.combo.insertSeparator(self.combo.count())
+            for entry in category:
+                self.combo.addItem(f"{entry.name}    "
+                                   f"{entry.summary()}", entry)
+        self.combo.currentIndexChanged.connect(self._on_changed)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.combo)
+
+    def _on_changed(self, *_args) -> None:
+        entry = self.combo.currentData()
+        if entry is not None:
+            self.chosen.emit(entry)
+
+    def count(self) -> int:
+        """How many fragments are on offer, separators and the
+        type-it-yourself row not counted."""
+        return sum(1 for i in range(self.combo.count())
+                   if self.combo.itemData(i) is not None)
+
+
+def _grouped(entries) -> list[list]:
+    """The entries by category, both in file order."""
+    out: dict[str, list] = {}
+    for entry in entries:
+        out.setdefault(entry.category, []).append(entry)
+    return list(out.values())
 
 
 # ======================================================================

@@ -13,6 +13,8 @@ import pytest
 pytest.importorskip("PySide6")
 pytest.importorskip("pytestqt")
 
+from PySide6.QtCore import Qt  # noqa: E402
+
 from tests.test_app_shell import StubViewport  # noqa: E402
 from xtal.build import installed  # noqa: E402
 from xtal.io import write_cif  # noqa: E402
@@ -445,3 +447,47 @@ def linker_fragment():
 def water_fragment():
     from xtal.build import from_smiles
     return from_smiles("O").to_fragment()
+
+
+# ---------------------------------------------------- the library
+
+def test_the_library_fills_the_picker(window, qtbot):
+    """It is text, so the picker fills whether or not RDKit is
+    there."""
+    dialog = BuildMoleculeDialog(BUILD, BUILD.action("molecule"),
+                                 window)
+    qtbot.addWidget(dialog)
+    from xtal.build import library
+
+    assert dialog.library.count() == len(library.entries())
+
+
+def test_the_picker_that_pastes_leaves_out_the_linkers(window, qtbot):
+    """That box refuses a starred string, so a linker in it would be
+    an entry that answers with a refusal."""
+    from xtal.build import library
+
+    dialog = BuildMoleculeDialog(BUILD, INSERT, window)
+    qtbot.addWidget(dialog)
+    offered = dialog.library.count()
+
+    assert offered == len(library.matching(connection_points=False))
+    assert offered < len(library.entries())
+
+
+@needs_rdkit
+def test_choosing_a_fragment_fills_the_boxes_and_draws_it(window,
+                                                          qtbot):
+    """Into the boxes rather than around them: the next thing anybody
+    does with a phenylene is put a methyl on it."""
+    dialog = BuildMoleculeDialog(BUILD, BUILD.action("molecule"),
+                                 window)
+    qtbot.addWidget(dialog)
+    index = dialog.library.combo.findText("Phenylene", Qt.MatchStartsWith)
+    dialog.library.combo.setCurrentIndex(index)
+    qtbot.waitUntil(lambda: not dialog._quiet.isActive(), timeout=5000)
+
+    assert dialog.form.widgets["smiles"].text().startswith("[*:1]")
+    assert dialog.values()["name"] == "Phenylene"
+    assert dialog.molecule.n_connections == 2
+    assert "2 connection point(s)" in dialog.footer.text()
