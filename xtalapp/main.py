@@ -17,6 +17,11 @@ Logging starts before any of that -- see :mod:`xtalapp.applog`.  It is
 started here and nowhere else: a window must not install a
 process-wide excepthook, and a plugin that fails during ``load()``
 below is the first thing there is to write down.
+
+The application object is :class:`xtalapp.application.Application`
+rather than a plain ``QApplication``, so that a file the desktop
+hands over has somewhere to land -- see that module for why the
+order below matters.
 """
 
 from __future__ import annotations
@@ -29,10 +34,9 @@ os.environ.setdefault("QT_API", "pyside6")
 
 
 def main(argv=None) -> int:
-    from PySide6.QtWidgets import QApplication
-
     from xtal import __version__, plugins
     from xtalapp import applog
+    from xtalapp.application import Application
     from xtalapp.mainwindow import APP_NAME, MainWindow
 
     applog.start()
@@ -47,13 +51,19 @@ def main(argv=None) -> int:
         log.warning("plugin %s failed to load: %s", name, message)
 
     argv = list(sys.argv if argv is None else argv)
-    app = QApplication(argv)
+    app = Application(argv)
     app.setApplicationName(APP_NAME)
     app.setOrganizationName("CrystalBuilder")
 
+    # Built before the window, so that a launch-by-double-click --
+    # which delivers its QFileOpenEvent during start-up, before there
+    # is anything to open it in -- has already been queued by the
+    # time the queue is released below.
     paths = [a for a in argv[1:] if not a.startswith("-")]
     window = MainWindow(paths=paths)
     window.show()
+    app.file_opened.connect(window.open_from_desktop)
+    app.start_delivering()
     return app.exec()
 
 

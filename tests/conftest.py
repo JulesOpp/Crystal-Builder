@@ -77,6 +77,21 @@ def _settings_into_a_scratch_directory() -> None:
 _settings_into_a_scratch_directory()
 
 
+@pytest.fixture(scope="session")
+def qapp_cls():
+    """Run the suite under the application class ``main()`` builds.
+
+    pytest-qt gives every widget test a plain ``QApplication``
+    otherwise -- and the one thing this application overrides on it,
+    the ``QFileOpenEvent`` that is how macOS hands a file to an
+    already-running program, would then be untestable as well as
+    untested.  It is a path no developer exercises by hand and the
+    only one Finder uses.
+    """
+    from xtalapp.application import Application
+    return Application
+
+
 @pytest.fixture(autouse=True)
 def _no_blocking_modal(monkeypatch):
     """Turn a modal dialog into a failure instead of a hung suite.

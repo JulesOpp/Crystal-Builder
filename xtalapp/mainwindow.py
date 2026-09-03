@@ -225,6 +225,20 @@ class MainWindow(QMainWindow):
     def document_for(self, path) -> Document | None:
         return self.document_set.document_for(path)
 
+    def open_from_desktop(self, path) -> Document | None:
+        """A file handed over by Finder or Explorer.
+
+        The same open as any other, and then the window comes
+        forward: somebody who double-clicked a file in Finder is
+        asking to look at it, and leaving the structure open behind
+        whatever they clicked from is indistinguishable from nothing
+        having happened.
+        """
+        document = self.open_path(path)
+        self.raise_()
+        self.activateWindow()
+        return document
+
     # ==================================================================
     #  THE WORKSPACE
     # ==================================================================
