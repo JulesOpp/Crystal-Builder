@@ -8,8 +8,6 @@
 # The Tops2/acs.cif file doesn't open, this is a fake structure type that I have, where I can connect H-He and He-He and draw polyhedra around the H to make nice looking pictures of topologies
 # select bond->Measure or Measure->select bond, should both report the bond length
 # Creating a file with MOF builder or molecule builder should automatically save the file in the workspace
-# MOF builder should have a feature to search by composition 
-# within MOF builder, you should be able to molecule build a node
 # Add more forcefield options to the Forcefield module
 # Make the ORTEP look pretty, add the octant shading contours
 # Add a style the atoms in Ball-and-stick with multi-colored pie chart spheres, as like in VESTA
