@@ -375,6 +375,40 @@ def test_undo_takes_the_last_thing_drawn_back_out_of_the_box(
     assert dialog.form.widgets["smiles"].text() == "CCO"
 
 
+@needs_rdeditor
+def test_the_paste_entry_offers_no_connection_point_tool(window,
+                                                         qtbot):
+    """That box refuses a starred string, so a tool that draws one
+    would be a button whose only outcome is the footer turning red."""
+    pastes = BuildMoleculeDialog(BUILD, INSERT, window)
+    builds = BuildMoleculeDialog(BUILD, BUILD.action("molecule"),
+                                 window)
+    qtbot.addWidget(pastes)
+    qtbot.addWidget(builds)
+
+    assert pastes.sketch.tools.button("X") is None
+    assert builds.sketch.tools.button("X") is not None
+
+
+@needs_rdeditor
+def test_a_connection_point_drawn_comes_back_as_a_star(window, qtbot):
+    """No special case anywhere below the toolbar: an atom of atomic
+    number zero is a * in the box, and from_smiles already turns that
+    into the X the block writer and every marker guard know about."""
+    dialog = BuildMoleculeDialog(BUILD, BUILD.action("molecule"),
+                                 window)
+    qtbot.addWidget(dialog)
+    typed(dialog, qtbot, "c1ccccc1")
+    dialog.sketch.tools.check("X")
+    dialog.sketch.view.add_atom_to_atom(
+        dialog.sketch.view.mol.GetAtomWithIdx(0))
+    qtbot.waitUntil(lambda: not dialog._quiet.isActive(), timeout=5000)
+
+    assert "*" in dialog.form.widgets["smiles"].text()
+    assert dialog.molecule.n_connections == 1
+    assert "1 connection point(s)" in dialog.footer.text()
+
+
 @needs_rdkit
 def test_what_the_dialog_hands_back_is_what_the_module_would_run(
         window, qtbot):

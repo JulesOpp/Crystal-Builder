@@ -90,7 +90,7 @@ class BuildMoleculeDialog(QDialog):
         self.form.set_values(action.coerce(initial or {}))
         self.library = _Library(self, self.pastes)
         self.library.chosen.connect(self._on_library)
-        self.sketch = _sketch_for(self)
+        self.sketch = _sketch_for(self, not self.pastes)
         self.footer = QLabel(self)
         self.footer.setWordWrap(True)
         self.footer.setTextFormat(Qt.RichText)
@@ -305,16 +305,22 @@ def _grouped(entries) -> list[list]:
 #  THE PICTURE
 # ======================================================================
 
-def _sketch_for(parent):
+def _sketch_for(parent, connection_points: bool):
     """The drawable canvas if there is one, the depiction otherwise.
 
     The choice is made per dialog rather than per session on purpose:
     it is a ``find_spec``, it costs nothing, and a test that takes
     rdeditor away has to be able to see the other branch without
     reaching into a module-level cache.
+
+    ``connection_points`` is ``not self.pastes``, the same flag the
+    footer and the library picker read.  The entry that pastes
+    refuses a starred string, so it must not hand out the tool that
+    draws one either -- a button whose only outcome is the footer
+    turning red is worse than no button.
     """
     if sketch.installed():
-        return sketch.SketchEditor(parent)
+        return sketch.SketchEditor(parent, connection_points)
     return _Sketch(parent)
 
 

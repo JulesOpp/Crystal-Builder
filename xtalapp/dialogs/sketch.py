@@ -47,6 +47,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from xtal.build.chem import CONNECTION
+
 MISSING = ("rdeditor is not installed, so the molecule is drawn "
            "rather than drawable -- pip install "
            "'crystal-builder[sketch]'")
@@ -96,14 +98,20 @@ class SketchEditor(QWidget):
     :attr:`view` is the ``MolEditWidget`` itself, and it is a
     ``QSvgWidget`` -- so the assertions written against the read-only
     picture's renderer hold here unchanged.
+
+    ``connection_points`` is the dialog's ``not pastes`` and decides
+    only whether the tool for one is on the toolbar.  The entry that
+    pastes into an open cell refuses a starred string in the box, and
+    a toolbar that hands out a tool the box will refuse would be
+    offering a button that answers with an error.
     """
 
     smilesChanged = Signal(str)                     # noqa: N815
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, connection_points: bool = True):
         super().__init__(parent)
         self.view = _canvas()
-        self.tools = _Tools(self.view, self)
+        self.tools = _Tools(self.view, self, connection_points)
         # rdeditor sets WA_DeleteOnClose on the canvas itself, which
         # is right for the standalone window it ships in and wrong
         # here: this dialog is opened, closed and opened again, and a
@@ -190,6 +198,19 @@ BONDS = (("\u2014", "SINGLE", "Single bond"),
 #: for a name that is gone logs an error and places nothing.
 RINGS = (("Benzene", "benzene"), ("Cyclohexane", "cyclohexane"))
 
+#: The connection-point tool, which is an atom of atomic number zero
+#: and needs no special case anywhere below it: ``*`` is what RDKit
+#: writes for one, ``*`` is what the box already accepts, and
+#: :func:`xtal.build.from_smiles` already turns it into
+#: :data:`~xtal.build.chem.CONNECTION`.
+#:
+#: rdeditor draws it ``R`` and there is no talking it out of that --
+#: its ``mol`` setter relabels every zero-atomic-number atom on the
+#: way in.  So the tooltip says so, rather than leaving somebody to
+#: work out why the canvas disagrees with the box and the tab.
+CONNECTION_TIP = ("Connection point -- an X in the structure and a "
+                  "* in the box; rdeditor draws it R")
+
 
 class _Tools(QWidget):
     """Our own chrome over rdeditor's canvas.
@@ -205,7 +226,8 @@ class _Tools(QWidget):
     them into one row of buttons would have lost that.
     """
 
-    def __init__(self, view, parent=None):
+    def __init__(self, view, parent=None,
+                 connection_points: bool = True):
         super().__init__(parent)
         self.view = view
         self.actions_ = QButtonGroup(self)
@@ -236,6 +258,9 @@ class _Tools(QWidget):
         for label, ring in RINGS:
             if ring in view.available_rings:
                 self._add(label, f"Add a {label.lower()} ring", ring)
+        if connection_points:
+            self.row.addWidget(_separator(self))
+            self._add(CONNECTION, CONNECTION_TIP, 0)
         self.row.addStretch(1)
 
         layout = QVBoxLayout(self)
