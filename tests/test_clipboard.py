@@ -135,3 +135,59 @@ def test_occupancies_survive_a_copy():
     assert fragment.occupancies == (0.3, 0.7)
     sites = fragment.to_sites(structure.lattice)
     assert [s.occupancy for s in sites] == [0.3, 0.7]
+
+
+def test_a_paste_lands_with_its_own_bonds_and_no_perceived_ones(
+        dry_ice):
+    """Pasting a molecule beside an atom must not bond it to that
+    atom.  The check has to be on ``bonding.graph``: the perceived
+    half never reaches ``structure.bonds``, so a test that counts
+    explicit bonds sees nothing wrong."""
+    from xtal.core.symmetry import reduce_to_p1
+    flat = reduce_to_p1(dry_ice)
+    molecule = bonding.graph(flat).fragments()[0].atoms
+    fragment = fragment_of(flat, molecule)
+
+    host = Host(flat.copy())
+    before = host.structure.n_sites
+    # a bond length from an atom that is already there, which is the
+    # geometry perception would happily bond across
+    neighbour = host.structure.lattice.to_cart(
+        p1.expand(host.structure).frac[0])
+    CommandStack().push(
+        PasteFragment(fragment, offset=neighbour + [1.4, 0.0, 0.0]),
+        host)
+
+    pasted = set(range(before, host.structure.n_sites))
+    graph = bonding.graph(host.structure)
+    assert not [b for b in graph.bonds
+                if (b.i in pasted) != (b.j in pasted)]
+    assert len([b for b in graph.bonds
+                if b.i in pasted and b.j in pasted]) == 2
+
+    # and the geometry really was close enough: Recalculate bonds,
+    # the one gesture allowed to change this, does find the bond
+    from xtal.commands.bonds import RecomputeBonds
+    CommandStack().push(RecomputeBonds(), host)
+    assert [b for b in bonding.graph(host.structure).bonds
+            if (b.i in pasted) != (b.j in pasted)]
+
+
+def test_undoing_a_paste_leaves_the_bonds_that_were_there(dry_ice):
+    """Undo puts the stored perception back rather than leaving a
+    graph of the wrong length to be perceived afresh at whatever
+    geometry the cell is at now."""
+    from xtal.core.symmetry import reduce_to_p1
+    flat = reduce_to_p1(dry_ice)
+    fragment = fragment_of(flat, bonding.graph(flat).fragments()[0]
+                           .atoms)
+    host = Host(flat.copy())
+    before = len(bonding.graph(host.structure).bonds)
+    perceived = host.structure.perceived
+
+    stack = CommandStack()
+    stack.push(PasteFragment(fragment, offset=[1.0, 1.0, 1.0]), host)
+    stack.undo(host)
+
+    assert host.structure.perceived is perceived
+    assert len(bonding.graph(host.structure).bonds) == before

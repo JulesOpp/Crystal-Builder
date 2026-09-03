@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from xtal.commands.base import Command
+from xtal.core import bonding
 from xtal.core import elements as el
 from xtal.core.site import Site
 from xtal.core.structure import Bond, Change
@@ -157,6 +158,7 @@ class PasteFragment(Command):
         self.label = label or f"Paste {fragment.formula}"
         self.indices: list[int] = []
         self._bonds: list[Bond] = []
+        self._perceived = None          # see AddSites._perceived
 
     def describe(self, structure) -> str:
         """What the paste will actually do, symmetry included."""
@@ -168,11 +170,26 @@ class PasteFragment(Command):
                 f"will multiply them by up to {group.order}")
 
     def do(self, host) -> None:
+        """Place the atoms with the fragment's own bonds and no others.
+
+        A fragment arrives with its bonding already settled -- copied
+        out of a structure, read from somebody else's XYZ, or built
+        from a SMILES string -- and it lands wherever the user pointed.
+        Left to perception it would also pick up a distance-perceived
+        bond to whatever it happened to land beside, which is the
+        second opinion :data:`xtal.core.structure.CHEMISTRY` exists to
+        refuse; a molecule dropped into a framework would arrive
+        already bonded into it.  See
+        :func:`xtal.core.bonding.hold_perception`.
+        """
         structure = host.structure
+        self._perceived = structure.perceived
+        bonding.prepare_hold(structure)
         sites = self.fragment.to_sites(structure.lattice, self.offset)
         for site in sites:
             site.label = structure.suggest_label(site.element)
         self.indices = structure.add_sites(sites)
+        bonding.hold_perception(structure)
         self._bonds = []
         for i, j, order in self.fragment.bonds:
             bond = Bond(self.indices[i], self.indices[j], (0, 0, 0),
@@ -181,6 +198,10 @@ class PasteFragment(Command):
                 self._bonds.append(bond)
 
     def undo(self, host) -> None:
+        structure = host.structure
+        # The bonds first: removing the sites renumbers everything
+        # after them, and these name the atoms being taken out.
         for bond in self._bonds:
-            host.structure.remove_bond(bond)
-        host.structure.remove_sites(self.indices)
+            structure.remove_bond(bond)
+        structure.remove_sites(self.indices)
+        structure.perceived = self._perceived
