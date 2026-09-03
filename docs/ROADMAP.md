@@ -764,16 +764,16 @@ get somewhere else.
 
 ---
 
-## 8. Phase U — draw in 2D, build in 3D
+## 8. Phase U — draw in 2D, build in 3D — **all but the editor**
 
 **Goal:** a molecule that does not exist yet, into the open cell — and
 into the `bb_dir` Phase Q wired through.
 
-| Item | TODO section | Size |
-|---|---|---|
-| SMILES to 3D, into the open cell | Building | M |
-| Fragment library | Building | S |
-| An embedded 2D editor (rdEditor, or Ketcher) | Building | M |
+| Item | TODO section | Size | |
+|---|---|---|---|
+| SMILES to 3D, into the open cell | Building | M | *shipped* |
+| Fragment library | Building | S | *shipped* |
+| An embedded 2D editor (rdEditor, or Ketcher) | Building | M | |
 
 Do the first two, live with them, and only then take the editor.  A
 text box that turns `c1ccccc1C(=O)[O-]` into a benzoate sitting in the
@@ -852,13 +852,43 @@ letter in `S/D/T/A`, which is how a molecule's bond orders survive
 into the built framework's CIF.  `xtal/mof/block.py` holds the
 constant and the geometry; the writer is still owed.
 
-**Still owed:** the paste into the open cell at the camera focal
-point, marking connection points in an open structure, the block
-writer and its Save action, the fragment library, and the rdEditor
-spike.  `PasteFragment` also grows perceived bonds onto what it pastes
--- it never calls `bonding.hold_perception` -- which is a live
-invariant violation reachable today by Ctrl+V, and it has to be fixed
-before a molecule is dropped into a framework.
+**All of that is now in except the rdEditor spike**, and one thing
+had to be fixed before any of it: `PasteFragment` grew perceived bonds
+onto what it pasted -- it never called `bonding.hold_perception` --
+which was a live invariant violation reachable by Ctrl+V, and a
+molecule dropped into a framework would have arrived already bonded
+into it.  The paste tests missed it by counting `structure.bonds`,
+where the perceived half never appears.
+
+**What shipped, and the two shapes worth keeping.**  Building a
+molecule into a tab of its own is a module (`xtal/modules/build.py`,
+greyed with the extra named when RDKit is absent); dropping the same
+molecule into the open cell is **not**, and cannot be -- the registry
+has two behaviours for a returned structure, replace the open document
+or open a new tab, and a paste is neither.  So it is a shell action,
+`Structure > Insert molecule...`, landing at
+`ViewportWidget.focal_point` because the centre of a cell somebody has
+zoomed into is off screen.  And the two entries share **one** dialog,
+which reads the connection-point flag off `action.name`: they differ
+only in whether `*` is on offer and in what the footer says, and the
+footer is `PasteFragment.describe` shown live, because pasting into
+Fm-3m multiplies a molecule by 192 and that has to be said before the
+click.
+
+`MarkConnectionPoints` turns a selected atom with exactly one bond
+into an `X` at 0.75 A along it, in one command because Ctrl+Z has to
+give back both halves; the block writer emits the count, the index
+line, `X` atoms *and* the bond block, because PORMAKE reads the
+symbols and this application's own reader reads the line.  A block
+saved from the Save dialog is in the MOF picker next time with nothing
+further clicked, and the acceptance test builds **pcu** from a linker
+this application wrote against a shipped node and reads the net back
+off the framework to check it is still pcu.
+
+**Still owed:** the rdEditor spike.
+`xtalapp.dialogs.build_molecule._Sketch` is the seam it lands on --
+`set_smiles` in, `smilesChanged` out, and nothing else in the dialog
+knows the difference between a picture and an editor.
 
 ---
 
@@ -977,7 +1007,7 @@ and no cell is doubled, which stays true until this lands.
 | **R** | Add Atom means what the click meant | M | *shipped* |
 | **S** | The picture says how big, where, and where it continues | M | *shipped* |
 | **T** | The window and the rest of the gestures | M | *shipped* |
-| **U** | Draw in 2D, build in 3D | M (XL with the sketcher) | |
+| **U** | Draw in 2D, build in 3D | M (XL with the sketcher) | *all but the editor* |
 | **V** | The engines answer in pictures | L | |
 | **W** | The klassengleiche half | L | |
 

@@ -12,6 +12,7 @@ bonding, run force field / DFTB+ / Zeo++ calculations on the result.
 | `xtal/io/` | CIF and project (`.xtalproj`) read/write |
 | `xtal/commands/` | Undoable operations on a structure |
 | `xtal/ff/`, `xtal/modules/` | Calculators (UFF, DFTB+) and the module/job registry (Zeo++) |
+| `xtal/mof/`, `xtal/build/` | PORMAKE frameworks, and SMILES to a molecule. Both are **extras** (`mof`, `build`) — the check is `find_spec` and never an import, and the entries grey out naming the extra. |
 | `xtalapp/` | The Qt/PySide6 + VTK GUI shell. Holds no crystallography of its own. |
 | `xtalapp/mainwindow.py` | The shell: menus, docks, tabs. Large; see "Working in mainwindow" below. |
 | `xtalapp/document.py` | `Document` — a structure plus its undo stack. The GUI asks the Document to change things; it does not edit structures directly. |
@@ -176,6 +177,13 @@ stress case).
   atoms.** All structural changes are the user's, made explicitly.
 - **Manually set bond types take precedence** over any distance-based
   determination.
+- **A connection point is 0.75 A from the atom it hangs off**, not a
+  bond length — `mof.block.CONNECTION_DISTANCE`, measured over the 867
+  blocks PORMAKE ships. A block written at 1.4 A builds a framework
+  with every linker bond twice too long and nothing reports it. It is
+  an `X`, so everything that holds a marker back at the door already
+  holds these back too, and there is no *Unmark*: an `X` does not
+  remember what it was, so the way back is Ctrl+Z.
 - Structure edits go through `Document.apply(...)` with a `Change`
   flag, so they land as one undo step and refresh only the panels that
   care. Do not mutate a structure behind the Document's back.

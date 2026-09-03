@@ -389,6 +389,25 @@ def test_the_save_dialog_defaults_to_the_folder_the_picker_reads(
 
 
 @needs_rdkit
+def test_saving_remembers_the_folder_for_the_mof_picker(window,
+                                                        qtbot,
+                                                        tmp_path):
+    """The other half of "with nothing further clicked": the MOF
+    builder reads its extra blocks from this same setting."""
+    from xtalapp.dialogs.save_block import SaveBlockDialog
+    window.settings.mof_bb_dir = ""
+    document = window.new_document()
+    document.paste(linker_fragment())
+
+    dialog = SaveBlockDialog(document.structure, window)
+    qtbot.addWidget(dialog)
+    dialog.folder.setText(str(tmp_path / "mine"))
+    dialog.accept()
+
+    assert window.settings.mof_bb_dir == str(tmp_path / "mine")
+
+
+@needs_rdkit
 def test_the_save_dialog_says_what_stops_it_being_a_block(window,
                                                           qtbot):
     """Told before the click, because every one of these is something

@@ -142,45 +142,21 @@ is already in exactly that shape.
 
 ## Building
 
-### Draw in 2D, build in 3D
+### An embedded 2D editor
 
-Maestro's sketcher: draw a molecule the way you would on paper, press a
-button, and get it in 3D.  For this application the case is putting a
-linker into a framework -- there is no way at all to make a benzoate
-today except placing eleven atoms by hand and hoping.
+The 3D half shipped: `xtal/build/` turns a SMILES string into a
+molecule, `Structure > Insert molecule...` drops it into the open cell
+at the camera's focal point, and the Modules tree builds one into a
+tab of its own.  Twenty-six fragments ship in
+`xtal/build/data/fragments.json`, and a molecule with connection
+points on it writes out as a PORMAKE building block.  What is left of
+this entry is the half that was always going to be an integration
+rather than a build: **drawing** the molecule instead of typing it.
 
-It is two separate problems and they are worth keeping separate,
-because one of them is solved and the other is a product.
-
-**The 3D half is the tractable one.**  Connectivity plus element plus
-bond order in, coordinates out.
-
-* Build by fragments and torsions rather than by distance geometry:
-  place each atom from the neighbour that put it there, using
-  `terms.natural_bond_length(type_i, type_j, order)` for the distance
-  and the type's own `theta0` for the angle, with staggered torsions.
-  Every one of those numbers is already in `xtal/ff/uff` and is
-  already the geometry UFF wants, so the result starts at the force
-  field's minimum instead of somewhere that has to be dragged there.
-* Then relax it with UFF, which is here, is tested, and covers the
-  whole periodic table.  A molecule in vacuum is a molecule in a box
-  large enough that the periodic images do not see each other --
-  Coulomb is off by default and the vdW is cutoff-limited, so this
-  needs no new code path, only a cell.
-* Rings are the part the naive placement gets wrong: a six-ring closed
-  by torsions does not close.  Place ring systems from templates
-  (planar regular polygons for aromatics, a chair for cyclohexane) and
-  hang the substituents off them, which is what every builder does and
-  is enough for anything a linker is made of.
-* Lives in a new `xtal/build/`, headless and testable: graph in,
-  `Structure` out, no Qt anywhere near it.
-
-**The 2D half should not be written here at all.**  A canvas of atom
-and bond items, an element palette, click-to-cycle bond order, ring
-templates, charges, implicit hydrogen counts, and the dozen
-interactions that make drawing feel like drawing -- ChemDraw is a
-product, and writing a small one is months that buy nothing this
-application is for.  Take an existing editor.
+`xtalapp.dialogs.build_molecule._Sketch` is the seam it lands on.  It
+is a read-only 2D depiction whose whole interface is `set_smiles` in
+and `smilesChanged` out; an editor with those two is a widget swap and
+touches nothing else in that dialog.
 
 * **[rdEditor](https://github.com/EBjerrum/rdeditor) is the candidate
   to try first.**  It is a molecule editor written in Python on
@@ -189,7 +165,8 @@ application is for.  Take an existing editor.
   the part that matters -- it is written so that its widgets are
   reusable: it is an editor *component* plus a shell around it, not a
   monolithic application.  Embedding its canvas widget in a dialog and
-  taking the `Mol` back out is the shape to aim for.  What has to be
+  taking the `Mol` back out is the shape to aim for.  RDKit is already
+  the `build` extra, so it costs no new dependency.  What has to be
   checked before committing: that the editor widget really does come
   apart from its main window, and that its Qt version tracks ours
   rather than pinning us.
@@ -206,31 +183,11 @@ application is for.  Take an existing editor.
   QtWebEngine in the bundle, which is not small.  If rdEditor's widget
   turns out not to be separable, this is the fallback, not writing a
   canvas.
-* **The cheap version that gets most of the value is a text box, and
-  it comes first regardless.**  Accept a SMILES string, build it in 3D,
-  drop it into the cell.  It is a hundred lines, it answers "put a
-  benzoate linker in this cell", and whichever editor is chosen later
-  produces the same graph and reuses the whole 3D half.  Ship this,
-  live with it, and let the editor be a later decision made with
-  evidence.
-* **RDKit is the dependency question underneath all of it.**  It solves
-  the 3D half too (`MolFromSmiles`, `EmbedMolecule` with ETKDG,
-  `MMFFOptimizeMolecule`), and rdEditor requires it anyway, so choosing
-  rdEditor is choosing RDKit.  The argument against making it required
-  is packaging: it is a large wheel and would become the biggest thing
-  in the PyInstaller bundle.  So: a `[build]` extra, RDKit-backed when
-  installed, the native fragment builder as the fallback, one
-  interface over both -- and the sketcher simply absent without the
-  extra, which is honest and is how optional features should degrade.
-* Where the result lands needs deciding.  A molecule has no cell.
-  Building into an open structure means picking a position -- the
-  camera's focal plane, as Add Atom already does -- and a
-  `PasteFragment`, which exists and is already undoable.  Building into
-  an empty document means generating a box with enough vacuum around
-  it, which `supercell.add_vacuum` can already do.
-* A fragment library is the same machinery pointed at a folder of saved
-  graphs, and is listed in [docs/PLAN.md](PLAN.md) § 12 already.  Once
-  SMILES works, the library is a JSON file of names and strings.
+* **Writing a canvas is not on this list.**  A palette, click-to-cycle
+  bond order, ring templates, charges, implicit hydrogen counts and
+  the dozen interactions that make drawing feel like drawing --
+  ChemDraw is a product, and writing a small one is months that buy
+  nothing this application is for.
 
 ### A net edge under a bond cannot be clicked
 
