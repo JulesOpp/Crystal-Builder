@@ -326,3 +326,44 @@ def test_with_no_camera_it_lands_in_the_middle_of_the_cell(
     placed = np.array([s.frac for s in document.structure.sites])
     assert placed.mean(axis=0) == pytest.approx([0.5, 0.5, 0.5],
                                                 abs=1e-6)
+
+
+# --------------------------------------------- marking in the window
+
+def test_marking_needs_something_selected(window, tmp_path, rutile):
+    opened(window, tmp_path, rutile)
+    assert not window.actions_["mark_connection_points"].isEnabled()
+
+
+def test_marking_the_selection_is_one_undo_step(window, tmp_path,
+                                                dry_ice):
+    """One gesture, one press of Ctrl+Z -- and the element and the
+    position come back together."""
+    document = opened(window, tmp_path, dry_ice, "dry_ice")
+    cell = document.cell
+    oxygen = int(np.flatnonzero(np.array(cell.elements) == "O")[0])
+    document.select({oxygen})
+
+    assert window.actions_["mark_connection_points"].isEnabled()
+    window.actions_["mark_connection_points"].trigger()
+    assert document.cell.elements[oxygen] == "X"
+    assert document.can_undo
+
+    document.undo()
+    assert document.cell.elements[oxygen] == "O"
+    assert not document.can_undo
+
+
+def test_marking_an_atom_that_has_no_single_bond_says_which(
+        window, tmp_path, dry_ice):
+    """Named rather than counted: the label of the one that cannot be
+    marked is what tells somebody where to look."""
+    document = opened(window, tmp_path, dry_ice, "dry_ice")
+    cell = document.cell
+    carbon = int(np.flatnonzero(np.array(cell.elements) == "C")[0])
+    document.select({carbon})
+    window.actions_["mark_connection_points"].trigger()
+
+    assert document.cell.elements[carbon] == "C"
+    assert not document.can_undo
+    assert "bond" in window.status_label.text()

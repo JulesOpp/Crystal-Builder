@@ -489,6 +489,11 @@ class MainWindow(QMainWindow):
             # a renderer but nothing for it to look at.
             return None
 
+    def mark_connection_points(self) -> None:
+        document = self.current_document()
+        if document is not None:
+            self.show_status(document.mark_connection_points())
+
     def add_centroid_dialog(self) -> None:
         document = self.current_document()
         if document is None:
@@ -1086,7 +1091,7 @@ class MainWindow(QMainWindow):
         self.actions_.set_enabled(
             ["change_element", "select_same", "expand_bonded",
              "expand_fragment", "expand_orbit", "copy", "cut",
-             "duplicate"],
+             "duplicate", "mark_connection_points"],
             bool(document.selection.atoms))
         # A centroid needs a middle, and one atom has none.
         self.actions_.set_enabled(
@@ -1298,7 +1303,8 @@ class MainWindow(QMainWindow):
              "expand_orbit", "copy"],
             has_selection)
         self.actions_.set_enabled(
-            ["change_element", "cut", "duplicate"],
+            ["change_element", "cut", "duplicate",
+             "mark_connection_points"],
             has_selection and editable)
         # A centroid needs a middle, and one atom has none.
         self.actions_.set_enabled(

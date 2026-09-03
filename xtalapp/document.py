@@ -32,6 +32,7 @@ from xtal.commands import CommandStack, ReplaceStructure, SnapshotEdit
 from xtal.commands import atoms as atom_commands
 from xtal.commands import bonds as bond_commands
 from xtal.commands import cell as cell_commands
+from xtal.commands import connections as connection_commands
 from xtal.commands import symmetry as symmetry_commands
 from xtal.commands.clipboard import Fragment, PasteFragment
 from xtal.core import bonding, measure, p1, properties, symmetry
@@ -737,6 +738,26 @@ class Document(QObject):
 
     def set_site_property(self, site_index: int, **values) -> None:
         self.run(atom_commands.SetSiteProperties(site_index, **values))
+
+    def mark_connection_points(self) -> str:
+        """Turn the selected atoms into a building block's connection
+        points -- see :mod:`xtal.commands.connections`, including why
+        there is no way back except Ctrl+Z.
+
+        Planned before it is run so that a selection nothing in which
+        can be marked is a sentence in the status bar rather than an
+        undo step that changed nothing.
+        """
+        sites = sorted(self.selected_sites())
+        if not sites:
+            return "nothing selected"
+        planned = connection_commands.plan(self._structure, sites)
+        if not planned[0]:
+            return "; ".join(planned[2]) or "nothing to mark"
+        command = connection_commands.MarkConnectionPoints(
+            sites, plan_for=planned)
+        self.run(command)
+        return command.summary()
 
     def move_selection(self, delta, cartesian: bool = False) -> str:
         """Translate the selected sites."""

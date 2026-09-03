@@ -189,6 +189,13 @@ def build_actions(window):
             "hydrogens an X-ray structure never had")
     add("insert_molecule", "&Insert molecule...",
         window.insert_molecule_dialog, tip=INSERT_MOLECULE_TIP)
+    add("mark_connection_points", "&Mark connection points",
+        window.mark_connection_points,
+        tip="Turn each selected atom that has exactly one bond into "
+            "a connection point: a dummy 0.75 A along that bond, "
+            "which is what a PORMAKE building block is joined by.  "
+            "There is no unmark -- an X does not remember what it "
+            "was, so the way back is Ctrl+Z.")
     add("recompute_bonds", "&Recalculate bonds",
         window.recompute_bonds,
         tip="Perceive the bonds again from the geometry as it is "
@@ -405,7 +412,7 @@ def build_menus(window):
     structure_menu = bar.addMenu("S&tructure")
     window.actions_.fill_menu(structure_menu, [
         "add_atom_dialog", "add_centroid", "add_hydrogens",
-        "insert_molecule", None,
+        "insert_molecule", "mark_connection_points", None,
         "bond_rules", "recompute_bonds", "reset_bonds",
         "bonds_follow"])
     window.bond_type_menu = add_bond_type_menu(window,
