@@ -336,6 +336,45 @@ def test_the_same_molecule_typed_back_does_not_relayout_the_drawing(
     assert dialog.form.widgets["smiles"].text() == "C1=CC=CC=C1"
 
 
+@needs_rdeditor
+def test_the_toolbar_chooses_what_the_canvas_draws(window, qtbot):
+    """Our own chrome and not theirs: MolEditWidget has none, and the
+    toolbar rdEditor puts above it lives on a MainWindow that is not
+    coming with the widget."""
+    dialog = BuildMoleculeDialog(BUILD, BUILD.action("molecule"),
+                                 window)
+    qtbot.addWidget(dialog)
+    tools = dialog.sketch.tools
+    tools.check("O")
+    drawn(dialog, qtbot, "O")
+    tools.check("Benzene")
+    dialog.sketch.view.add_ring_to_atom(
+        dialog.sketch.view.mol.GetAtomWithIdx(0))
+    qtbot.waitUntil(lambda: not dialog._quiet.isActive(), timeout=5000)
+
+    assert tools.button("Benzene").isChecked()
+    assert not tools.button("O").isChecked()
+    assert dialog.sketch.view.mol.GetNumAtoms() == 6
+
+
+@needs_rdeditor
+def test_undo_takes_the_last_thing_drawn_back_out_of_the_box(
+        window, qtbot):
+    """Undo is the way back from a connection point as well: an X does
+    not remember what it was, so Ctrl+Z is the whole of unmarking."""
+    dialog = BuildMoleculeDialog(BUILD, BUILD.action("molecule"),
+                                 window)
+    qtbot.addWidget(dialog)
+    typed(dialog, qtbot, "CCO")
+    drawn(dialog, qtbot, "N")
+    assert dialog.form.widgets["smiles"].text() != "CCO"
+
+    dialog.sketch.tools.button("Undo").click()
+    qtbot.waitUntil(lambda: not dialog._quiet.isActive(), timeout=5000)
+
+    assert dialog.form.widgets["smiles"].text() == "CCO"
+
+
 @needs_rdkit
 def test_what_the_dialog_hands_back_is_what_the_module_would_run(
         window, qtbot):

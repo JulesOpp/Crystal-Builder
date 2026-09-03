@@ -38,7 +38,14 @@ import importlib.util
 import logging
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QButtonGroup,
+    QFrame,
+    QHBoxLayout,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 MISSING = ("rdeditor is not installed, so the molecule is drawn "
            "rather than drawable -- pip install "
@@ -96,6 +103,7 @@ class SketchEditor(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.view = _canvas()
+        self.tools = _Tools(self.view, self)
         # rdeditor sets WA_DeleteOnClose on the canvas itself, which
         # is right for the standalone window it ships in and wrong
         # here: this dialog is opened, closed and opened again, and a
@@ -104,8 +112,9 @@ class SketchEditor(QWidget):
         self.view.setAttribute(Qt.WA_DeleteOnClose, False)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.tools)
         layout.addWidget(self.view, 1)
-        self.setMinimumHeight(200)
+        self.setMinimumHeight(240)
         self._smiles = ""
         self.view.molChanged.connect(self._on_mol)
 
@@ -144,6 +153,138 @@ class SketchEditor(QWidget):
 
     def undo(self) -> None:
         self.view.undo()
+
+
+# ======================================================================
+#  THE TOOLBAR
+# ======================================================================
+
+#: What a click does, by rdeditor's own name for it.  Four of the ten
+#: their shell offers: charges, atom numbering and the two stereo
+#: toggles are chemistry this application does not carry through
+#: :func:`xtal.build.from_smiles` anyway, and a toolbar of ten buttons
+#: over a canvas this size is a toolbar nobody reads.
+ACTIONS = (
+    ("Select", "Select atoms; click the canvas to clear"),
+    ("Add", "Add whatever is chosen on the right"),
+    ("Remove", "Delete the atom or bond clicked"),
+    ("Replace", "Replace the atom or bond clicked"),
+)
+
+#: The elements a linker is made of, and no periodic table.  rdeditor
+#: ships one -- ``ptable_widget`` -- and it is not taken: it wants a
+#: ``QActionGroup`` built by their ``MainWindow`` and would couple this
+#: dialog to plumbing that is not coming with the widget.  Anything
+#: off this row is typed into the box, which is still the fastest way
+#: to enter a molecule and is why the box did not go away.
+ELEMENTS = ("C", "N", "O", "S", "F", "Cl", "Br")
+
+#: Bond orders, as the glyphs they are drawn with.
+BONDS = (("\u2014", "SINGLE", "Single bond"),
+         ("=", "DOUBLE", "Double bond"),
+         ("\u2261", "TRIPLE", "Triple bond"))
+
+#: Ring templates, by rdeditor's label for them.  A label the
+#: installed version does not know is left out rather than offered:
+#: ``available_rings`` was ``("ARO6", "ALI6")`` before 0.5 and asking
+#: for a name that is gone logs an error and places nothing.
+RINGS = (("Benzene", "benzene"), ("Cyclohexane", "cyclohexane"))
+
+
+class _Tools(QWidget):
+    """Our own chrome over rdeditor's canvas.
+
+    ``MolEditWidget`` has none of its own -- everything a user presses
+    in rdEditor lives on their ``MainWindow``, which is a
+    thousand-line application and is not coming with us.  So the
+    buttons are here, they set ``action`` and ``chemEntity`` and read
+    nothing back, and that is the entire coupling to the widget.
+
+    Two exclusive groups because they are two independent choices:
+    *Replace* with *O* is how a carbon becomes an oxygen, and folding
+    them into one row of buttons would have lost that.
+    """
+
+    def __init__(self, view, parent=None):
+        super().__init__(parent)
+        self.view = view
+        self.actions_ = QButtonGroup(self)
+        self.entities = QButtonGroup(self)
+        self._buttons: dict[str, QToolButton] = {}
+
+        top = QHBoxLayout()
+        top.setContentsMargins(0, 0, 0, 0)
+        for name, tip in ACTIONS:
+            top.addWidget(self._button(name, tip, self.actions_,
+                                       view.setAction, name))
+        top.addStretch(1)
+        undo = QToolButton(self)
+        undo.setText("Undo")
+        undo.setToolTip("Undo the last change to the drawing")
+        undo.clicked.connect(view.undo)
+        self._buttons["Undo"] = undo
+        top.addWidget(undo)
+
+        self.row = QHBoxLayout()
+        self.row.setContentsMargins(0, 0, 0, 0)
+        for symbol in ELEMENTS:
+            self._add(symbol, f"Draw {symbol}", symbol)
+        self.row.addWidget(_separator(self))
+        for glyph, order, tip in BONDS:
+            self._add(glyph, tip, order)
+        self.row.addWidget(_separator(self))
+        for label, ring in RINGS:
+            if ring in view.available_rings:
+                self._add(label, f"Add a {label.lower()} ring", ring)
+        self.row.addStretch(1)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addLayout(top)
+        layout.addLayout(self.row)
+        # Add and carbon, because the first click on an empty canvas
+        # has to put an atom somewhere: a bond tool on nothing draws
+        # nothing and reads as a broken editor.
+        self.check("Add")
+        self.check("C")
+
+    def _add(self, label, tip, entity) -> None:
+        self.row.addWidget(self._button(label, tip, self.entities,
+                                        self.view.setChemEntity,
+                                        entity))
+
+    def _button(self, label, tip, group, slot, value):
+        button = QToolButton(self)
+        button.setText(label)
+        button.setToolTip(tip)
+        button.setCheckable(True)
+        button.clicked.connect(lambda _checked=False: slot(value))
+        group.addButton(button)
+        self._buttons[label] = button
+        return button
+
+    def button(self, label: str):
+        """The button with that label, or ``None``.
+
+        By label rather than by index: the rows are built from the
+        tables above and from what the installed rdeditor admits to
+        knowing, so anything counting positions would break the first
+        time a ring template was left out.
+        """
+        return self._buttons.get(label)
+
+    def check(self, label: str) -> None:
+        """Press a tool as if it had been clicked."""
+        button = self.button(label)
+        if button is not None:                      # pragma: no cover
+            button.click()
+
+
+def _separator(parent) -> QFrame:
+    line = QFrame(parent)
+    line.setFrameShape(QFrame.VLine)
+    line.setFrameShadow(QFrame.Sunken)
+    return line
 
 
 def _canvas():
@@ -224,5 +365,5 @@ def canonical(text: str) -> str:
     return _raw_smiles(mol) if mol is not None else text
 
 
-__all__ = ["MISSING", "SketchEditor", "canonical",
-           "installed"]
+__all__ = ["ACTIONS", "BONDS", "ELEMENTS", "MISSING", "RINGS",
+           "SketchEditor", "canonical", "installed"]
