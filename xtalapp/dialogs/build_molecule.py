@@ -29,7 +29,7 @@ actually says.
 
 **The picture is one of two widgets with the same two members.**
 ``set_smiles`` in and ``smilesChanged`` out is the whole interface,
-and :func:`_sketch_for` chooses between :class:`_Sketch` -- the
+and :func:`sketch_for` chooses between :class:`_Sketch` -- the
 read-only depiction -- and
 :class:`xtalapp.dialogs.sketch.SketchEditor`, which is rdeditor's
 canvas and can be drawn on.  Which one is decided by whether
@@ -90,7 +90,7 @@ class BuildMoleculeDialog(QDialog):
         self.form.set_values(action.coerce(initial or {}))
         self.library = _Library(self, self.pastes)
         self.library.chosen.connect(self._on_library)
-        self.sketch = _sketch_for(self, not self.pastes)
+        self.sketch = sketch_for(self, not self.pastes)
         self.footer = QLabel(self)
         self.footer.setWordWrap(True)
         self.footer.setTextFormat(Qt.RichText)
@@ -104,7 +104,7 @@ class BuildMoleculeDialog(QDialog):
         self._quiet.setInterval(QUIET_MS)
         self._quiet.timeout.connect(self._rebuild)
         for name in ("smiles", "optimise", "seed"):
-            _on_change(self.form.widgets.get(name), self._touched)
+            on_change(self.form.widgets.get(name), self._touched)
         self.sketch.smilesChanged.connect(self._on_sketch)
 
         self._build_ui()
@@ -305,19 +305,25 @@ def _grouped(entries) -> list[list]:
 #  THE PICTURE
 # ======================================================================
 
-def _sketch_for(parent, connection_points: bool):
+def sketch_for(parent, connection_points: bool):
     """The drawable canvas if there is one, the depiction otherwise.
+
+    Not prefixed private any more:
+    :mod:`xtalapp.dialogs.draw_block` calls this too, to sketch a
+    building block rather than a molecule, and the choice of widget
+    is exactly the same question either way.
 
     The choice is made per dialog rather than per session on purpose:
     it is a ``find_spec``, it costs nothing, and a test that takes
     rdeditor away has to be able to see the other branch without
     reaching into a module-level cache.
 
-    ``connection_points`` is ``not self.pastes``, the same flag the
-    footer and the library picker read.  The entry that pastes
-    refuses a starred string, so it must not hand out the tool that
-    draws one either -- a button whose only outcome is the footer
-    turning red is worse than no button.
+    ``connection_points`` is ``not self.pastes`` here and always
+    ``True`` for a building block, which cannot exist without any --
+    the flag decides only whether the tool that draws one is on the
+    toolbar.  A box that refuses a starred string must not hand out
+    the tool that draws one either: a button whose only outcome is
+    the footer turning red is worse than no button.
     """
     if sketch.installed():
         return sketch.SketchEditor(parent, connection_points)
@@ -452,13 +458,14 @@ class _SvgView(QSvgWidget):
         self.resized.emit()
 
 
-def _on_change(widget, slot) -> None:
+def on_change(widget, slot) -> None:
     """Connect whichever "the user changed this" signal a widget has.
 
     The form is generated, so what a parameter renders as is
-    :mod:`xtalapp.dialogs.module_form`'s decision and not this
-    dialog's; asking each widget what it offers is how this one keeps
-    following when a parameter changes kind.
+    :mod:`xtalapp.dialogs.module_form`'s decision and not the
+    dialog's; asking each widget what it offers is how this keeps
+    following when a parameter changes kind, in any dialog built on a
+    :class:`~xtalapp.dialogs.module_form.ParamForm`.
     """
     if widget is None:                              # pragma: no cover
         return

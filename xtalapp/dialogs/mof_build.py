@@ -261,7 +261,9 @@ class MofBuildDialog(QDialog):
                          f"{exc}")
             return
         for slot in slots:
-            row = _SlotRow(slot, self.catalog, self.slots_box)
+            row = _SlotRow(slot, self.catalog, self.bb_dir.text(),
+                          self.slots_box)
+            row.drawn.connect(self._on_block_drawn)
             self.slots_layout.addWidget(row)
             self._rows.append(row)
         # So that one row does not stretch to fill a box sized for
@@ -275,6 +277,25 @@ class MofBuildDialog(QDialog):
         self.details.setText(
             f"<b>{self._topology.name}</b><br>{why}")
         self.build_button.setEnabled(False)
+
+    def _on_block_drawn(self, name: str) -> None:
+        """A block was sketched and written from inside one row.
+
+        Every row is reread and not only the one that asked: a block
+        fits every slot of its own coordination, so a linker drawn
+        for one edge belongs, just as much, in every other edge row
+        of the same net.  The row that asked gets it selected as
+        well -- drawing a node for an empty slot and then having to
+        find it in a combo box afterwards would be the "with nothing
+        further clicked" rule broken for the one feature that most
+        wants it.
+        """
+        self.catalog = self._catalog()
+        sender = self.sender()
+        for row in self._rows:
+            row.refresh(self.catalog)
+        if isinstance(sender, _SlotRow):
+            sender.set_block(name)
 
     def _describe(self, slots) -> None:
         topology = self._topology
@@ -363,21 +384,60 @@ class _SlotRow(QWidget):
     The choice offers only the blocks that fit -- a six-connected slot
     takes a block with six connection points and nothing else fits it
     at all -- because a list that offers the 657 that do not fit is a
-    list whose every wrong answer is refused after the fact.
+    list whose every wrong answer is refused after the fact.  "Draw
+    a building block whose connectivity matches this slot" is the
+    same rule stated the other way round, and is why the button that
+    draws one lives on this row rather than somewhere general: the
+    dialog that opens already knows the number to check against.
     """
 
-    def __init__(self, slot, catalog: Catalog, parent=None):
+    #: A block was drawn and written for this row -- the name it was
+    #: saved under, PORMAKE's key for it and the file's own stem.
+    drawn = Signal(str)                              # noqa: N815
+
+    def __init__(self, slot, catalog: Catalog, folder: str = "",
+                 parent=None):
         super().__init__(parent)
         self.slot = slot
+        self.folder = str(folder or "")
         self.combo = QComboBox(self)
+        self.draw_button = QPushButton("Draw...", self)
+        self.draw_button.setToolTip(
+            "Sketch a new building block for this slot -- checked "
+            "against its connectivity before it can be saved")
+        self.draw_button.clicked.connect(self._draw)
         # Fixed, not expanding: three slot rows sharing a scroll area
         # should each be a picture and a combo box, not a third of
         # whatever height the dialog happens to be.
         self.preview = BlockPreview(self, minimum=(190, 140))
         self.preview.setFixedSize(190, 140)
 
+        self._catalog = catalog
         fitting = _ordered(catalog.fitting(slot.coordination))
-        if slot.is_edge:
+        self._fill(fitting)
+        self.combo.currentIndexChanged.connect(self._on_changed)
+
+        heading = QLabel(f"<b>{slot.label}</b>", self)
+        self.count = QLabel(f"{len(fitting)} block(s) fit", self)
+        self.count.setStyleSheet("color: palette(mid);")
+
+        picker = QHBoxLayout()
+        picker.setContentsMargins(0, 0, 0, 0)
+        picker.addWidget(self.combo, 1)
+        picker.addWidget(self.draw_button)
+
+        grid = QGridLayout(self)
+        grid.setContentsMargins(0, 4, 0, 4)
+        grid.addWidget(heading, 0, 0)
+        grid.addLayout(picker, 1, 0)
+        grid.addWidget(self.count, 2, 0)
+        grid.addWidget(self.preview, 0, 1, 3, 1)
+        grid.setColumnStretch(0, 1)
+        self._on_changed()
+
+    def _fill(self, fitting) -> None:
+        self.combo.clear()
+        if self.slot.is_edge:
             # A net has edges whether or not anything is put on them,
             # and PORMAKE builds an empty one as a direct bond between
             # the two nodes.  That is a real answer -- it is what a
@@ -387,21 +447,6 @@ class _SlotRow(QWidget):
         for block in fitting:
             self.combo.addItem(f"{block.name}    {block.summary()}",
                                block.name)
-        self.combo.currentIndexChanged.connect(self._on_changed)
-        self._catalog = catalog
-
-        heading = QLabel(f"<b>{slot.label}</b>", self)
-        count = QLabel(f"{len(fitting)} block(s) fit", self)
-        count.setStyleSheet("color: palette(mid);")
-
-        grid = QGridLayout(self)
-        grid.setContentsMargins(0, 4, 0, 4)
-        grid.addWidget(heading, 0, 0)
-        grid.addWidget(self.combo, 1, 0)
-        grid.addWidget(count, 2, 0)
-        grid.addWidget(self.preview, 0, 1, 3, 1)
-        grid.setColumnStretch(0, 1)
-        self._on_changed()
 
     def _on_changed(self, *_args) -> None:
         name = self.block()
@@ -411,10 +456,36 @@ class _SlotRow(QWidget):
     def block(self) -> str:
         return str(self.combo.currentData() or "")
 
-    def set_block(self, name: str) -> None:
+    def set_block(self, name: str) -> bool:
         index = self.combo.findData(str(name or ""))
         if index >= 0:
             self.combo.setCurrentIndex(index)
+        return index >= 0
+
+    def refresh(self, catalog: Catalog) -> None:
+        """Reread the blocks that fit, against a catalogue that has
+        changed -- a folder was edited, or a block was just drawn --
+        keeping whatever this row already held if it still fits.
+
+        Rebuilt rather than diffed: 210 combo entries is nothing to
+        repopulate, and a diff would be more code for a saving nobody
+        would see.
+        """
+        self._catalog = catalog
+        kept = self.block()
+        fitting = _ordered(catalog.fitting(self.slot.coordination))
+        self.combo.blockSignals(True)
+        self._fill(fitting)
+        self.combo.blockSignals(False)
+        self.count.setText(f"{len(fitting)} block(s) fit")
+        self.set_block(kept)
+        self._on_changed()
+
+    def _draw(self) -> None:
+        from xtalapp.dialogs.draw_block import DrawBlockDialog
+        written = DrawBlockDialog.ask(self.slot, self.folder, self)
+        if written is not None:
+            self.drawn.emit(written.stem)
 
 
 def _ordered(blocks) -> list:
