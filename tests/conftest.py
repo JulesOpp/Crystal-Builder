@@ -27,6 +27,17 @@ from xtal import Lattice, Structure
 # test has to remember to.
 os.environ.setdefault("XTAL_NO_CONFIRM_CLOSE", "1")
 
+# And the same for the log.  ``xtalapp.applog`` writes to the
+# platform's application-data folder -- ~/Library/Application Support
+# on this machine -- and honours this variable ahead of everything
+# else.  No test calls ``applog.start()``, but "no test does that
+# today" is exactly the guarantee that expired the last time
+# something in this suite reached the real preferences system and
+# left 278 plists behind.  Set before any import can look.
+_LOGS = tempfile.mkdtemp(prefix="xtal-test-logs-")
+atexit.register(shutil.rmtree, _LOGS, ignore_errors=True)
+os.environ.setdefault("XTAL_LOG_DIR", _LOGS)
+
 
 
 def _settings_into_a_scratch_directory() -> None:

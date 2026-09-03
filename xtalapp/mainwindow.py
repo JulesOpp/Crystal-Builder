@@ -1421,6 +1421,23 @@ class MainWindow(QMainWindow):
         self.settings.clear_recent_files()
         self._rebuild_recent_menu()
 
+    def show_log(self) -> None:
+        """Reveal the application log, or say why there is not one.
+
+        There is no log in a test or in an embedded window: logging
+        is started by :func:`xtalapp.main.main` and by nothing else,
+        so a window built directly has never had one.  Saying so is
+        better than a menu entry that does nothing.
+        """
+        from xtalapp import applog
+        if applog.log_file() is None:
+            QMessageBox.information(
+                self, "Log",
+                "This window was not started by the application, so "
+                "nothing is being logged to a file.")
+            return
+        applog.reveal()
+
     def show_about(self) -> None:
         from xtal import __version__
         QMessageBox.about(

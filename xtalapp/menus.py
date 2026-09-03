@@ -384,6 +384,9 @@ def build_actions(window):
     add("view_b", "Along &b", lambda: window.look_along(1), "2")
     add("view_c", "Along &c", lambda: window.look_along(2), "3")
     add("about", f"About {APP_NAME}", window.show_about)
+    add("show_log", "Show &Log", window.show_log,
+        tip="Reveal the file this application writes its warnings "
+            "and its crashes to")
 
 def build_menus(window):
     bar = window.menuBar()
@@ -474,7 +477,7 @@ def build_menus(window):
         None, "view_a", "view_b", "view_c", "reset_view"])
 
     help_menu = bar.addMenu("&Help")
-    help_menu.addAction(window.actions_["about"])
+    window.actions_.fill_menu(help_menu, ["show_log", None, "about"])
 
 def build_modules_menu(window) -> None:
     """The Modules menu, built from the registry and nothing else.
