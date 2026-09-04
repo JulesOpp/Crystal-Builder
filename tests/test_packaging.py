@@ -14,9 +14,10 @@ specs call and this file does not, because CI's test job installs
 
 from __future__ import annotations
 
+import subprocess
 import sys
 import tomllib
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import pytest
 
@@ -174,6 +175,38 @@ def test_no_third_party_binary_is_carried(destinations):
         for source in destinations:
             assert not source.is_relative_to(refused), \
                 f"{source} is part of {refused}"
+
+
+def test_no_path_is_a_reserved_name_on_windows():
+    """A Windows checkout fails outright on one of these, and it takes
+    the whole clone with it rather than the one file.
+
+    ``resources/topo/TopCIF/nul.cif`` was such a path, and the Windows
+    CI job had been failing at the *checkout* step because of it, long
+    before it installed anything or ran a test:
+
+        error: invalid path 'resources/topo/TopCIF/nul.cif'
+
+    The names are reserved with any extension and in any directory, so
+    the check is on the stem.  There is no way to test this from macOS
+    or Linux other than by looking, which is what this does.
+    """
+    reserved = {"con", "prn", "aux", "nul"}
+    reserved |= {f"com{n}" for n in range(1, 10)}
+    reserved |= {f"lpt{n}" for n in range(1, 10)}
+
+    listed = subprocess.run(
+        ["git", "ls-files"], cwd=ROOT, capture_output=True, text=True)
+    if listed.returncode != 0:            # not a checkout; nothing to say
+        pytest.skip("not a git checkout")
+
+    offenders = [
+        line for line in listed.stdout.splitlines()
+        if PurePosixPath(line).stem.lower() in reserved
+    ]
+    assert not offenders, (
+        f"{offenders} cannot be checked out on Windows, and the "
+        "failure takes the entire clone with it")
 
 
 def test_every_icon_the_specs_name_exists():
