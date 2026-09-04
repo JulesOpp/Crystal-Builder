@@ -168,13 +168,32 @@ jobs:
         if: runner.os == 'macOS' && startsWith(github.ref, 'refs/tags/v')
         run: python packaging/makedmg.py "dist/Crystal Builder.app" .
 
+      # ISCC is on the runner image today, but "today" is not a
+      # contract and this step only ever runs on a tag -- the worst
+      # possible moment to find out otherwise.  Look for it, install
+      # it if it is not there, and fail with a sentence rather than
+      # with "term not recognised" if neither works.
       - name: Package (Windows)
         if: runner.os == 'Windows' && startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         run: |
+          $iscc = Get-ChildItem -Path `
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", `
+            "${env:ProgramFiles}\Inno Setup 6\ISCC.exe" `
+            -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $iscc) {
+            choco install innosetup -y --no-progress
+            $iscc = Get-ChildItem -Path `
+              "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", `
+              "${env:ProgramFiles}\Inno Setup 6\ISCC.exe" `
+              -ErrorAction SilentlyContinue | Select-Object -First 1
+          }
+          if (-not $iscc) {
+            throw "Inno Setup 6 is not on this runner and could not be installed"
+          }
           $version = "${env:GITHUB_REF_NAME}".TrimStart("v")
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
-            "/DAppVersion=$version" packaging\crystal-builder.iss
+          & $iscc.FullName "/DAppVersion=$version" `
+            packaging\crystal-builder.iss
 
       - uses: actions/upload-artifact@v4
         with:
