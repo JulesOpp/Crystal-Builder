@@ -10,6 +10,7 @@ that break crystallography code.
 """
 
 import atexit
+import functools
 import os
 import shutil
 import tempfile
@@ -96,6 +97,56 @@ def _settings_into_a_scratch_directory() -> None:
 
 
 _settings_into_a_scratch_directory()
+
+
+#: The probe that decides whether this machine can render offscreen,
+#: run in a process of its own.  A string because the whole point is
+#: that it executes somewhere a crash cannot reach us.
+_GL_PROBE = """
+from xtalapp.viewport import vtk_scene
+from xtalapp.viewport.scene import SceneModel
+
+image = vtk_scene.render_to_array(SceneModel(), (8, 8))
+raise SystemExit(0 if image.shape == (8, 8, 3) else 1)
+"""
+
+
+@functools.lru_cache(maxsize=1)
+def offscreen_gl_works() -> bool:
+    """Whether a real GL context can be had here, asked once.
+
+    **Every test that calls ``window.Render()`` has to be behind
+    this**, and a ``try/except`` around the render is not a
+    substitute.  A machine with no GL driver does not raise: VTK
+    reaches an access violation in C++ and the interpreter dies, so
+    the ``except`` never runs and pytest goes down mid-run with a
+    faulthandler dump and no results for anything, passed or failed.
+
+    That is what the Windows runner did the first two times it ever
+    got far enough to execute the suite -- it has no GPU -- and it
+    was a different unguarded file each time.  Hence one shared
+    answer here rather than a copy per module.
+
+    The subprocess cannot take us with it: it crashes, we read a
+    non-zero return code, and the caller skips.  Cached, so the cost
+    is one interpreter start and one VTK import per session.
+    """
+    import subprocess
+    import sys
+
+    try:
+        finished = subprocess.run(
+            [sys.executable, "-c", _GL_PROBE],
+            capture_output=True, timeout=120)
+    except (subprocess.TimeoutExpired, OSError):    # pragma: no cover
+        return False
+    return finished.returncode == 0
+
+
+#: What such a module puts in its ``pytestmark``.
+needs_offscreen_gl = pytest.mark.skipif(
+    not offscreen_gl_works(),
+    reason="offscreen OpenGL is not available here")
 
 
 @pytest.fixture(scope="session")

@@ -3,6 +3,7 @@
 import numpy as np
 import pytest
 
+from tests.conftest import needs_offscreen_gl
 from xtal import Lattice, Structure
 from xtalapp.viewport import picking
 from xtalapp.viewport.builder import build_scene
@@ -121,6 +122,10 @@ def test_an_atom_with_a_net_edge_on_it_is_still_an_atom(net):
                             prefer_topology=True) == ("atom", atom)
 
 
+# Renders for real, so it needs a GL driver; the rest of this
+# file does not and must keep running without one.  See
+# conftest.offscreen_gl_works.
+@needs_offscreen_gl
 def test_ray_from_display_needs_a_renderer(rutile):
     """The one VTK-dependent piece: a ray from the camera through a
     pixel, aimed into the scene."""

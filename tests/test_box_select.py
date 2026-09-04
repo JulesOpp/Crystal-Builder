@@ -10,6 +10,7 @@ selection -- neither of which needs a GPU to be wrong.
 import numpy as np
 import pytest
 
+from tests.conftest import needs_offscreen_gl
 from xtal import Lattice, Structure
 from xtal.core.selection import Selection
 from xtalapp.viewport import modes
@@ -189,6 +190,10 @@ def test_a_click_in_box_mode_is_still_a_click():
 vtk_scene = pytest.importorskip("xtalapp.viewport.vtk_scene")
 
 
+# Renders for real, so it needs a GL driver; the rest of this
+# file does not and must keep running without one.  See
+# conftest.offscreen_gl_works.
+@needs_offscreen_gl
 def test_projection_puts_the_centre_of_the_scene_in_the_middle():
     """The camera looks at the middle of what it is shown, so the atom
     there lands in the middle of the window -- which is the calibration
@@ -215,6 +220,10 @@ def test_projection_puts_the_centre_of_the_scene_in_the_middle():
     window.Finalize()
 
 
+# Renders for real, so it needs a GL driver; the rest of this
+# file does not and must keep running without one.  See
+# conftest.offscreen_gl_works.
+@needs_offscreen_gl
 def test_something_behind_the_camera_is_not_in_front_of_it():
     """A perspective divide by a negative w folds a point behind the
     viewer round to the front of the picture.  Left alone, a box drawn
