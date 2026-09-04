@@ -20,3 +20,10 @@ archive/
 # binary: it belongs on the machine, not in the history.  Set
 # XTAL_ZEOPP, or put `network` on PATH, if it lives elsewhere.
 resources/zeo++-0.3/
+
+# The virtual environment PyInstaller builds against.  Not the
+# developer's own: a windowed .app wants a python.org framework build,
+# and the interpreter that happens to be first on PATH is usually
+# conda's, whose vtkmodules is 592 MB and whose libpython layout makes
+# a poor base for a bundle.  See docs/PACKAGING.md.
+.venv-build/

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The document icon for .cif files. A crystal structure, in the format the field actually exchanges.
+
+  Same cell as app.svg, at 0.6 scale and in the accent colour rather
+  than white, so a folder of these reads as one family. The two types
+  are told apart by colour and by the label band, in that order: at
+  32 px the band is a coloured stripe long before the word in it is a
+  word, and that stripe is the whole job.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"
+     width="1024" height="1024">
+  <defs>
+    <clipPath id="page">
+      <path d="M242 96 L652 96 L832 276 L832 878
+               A50 50 0 0 1 782 928 L242 928
+               A50 50 0 0 1 192 878 L192 146
+               A50 50 0 0 1 242 96 Z"/>
+    </clipPath>
+  </defs>
+
+  <path d="M242 96 L652 96 L832 276 L832 878
+           A50 50 0 0 1 782 928 L242 928
+           A50 50 0 0 1 192 878 L192 146
+           A50 50 0 0 1 242 96 Z"
+        fill="#FFFFFF" stroke="#C9CED6" stroke-width="10"/>
+
+  <!-- The turned corner, which is what makes the shape read as paper
+       rather than as a card. -->
+  <path d="M652 96 L832 276 L652 276 Z" fill="#DFE3E9"/>
+  <path d="M652 96 L652 276 L832 276" fill="none"
+        stroke="#C9CED6" stroke-width="10" stroke-linejoin="round"/>
+
+  <g transform="translate(204.5 132.5) scale(0.6)">
+    <g fill="#4C6EF5">
+      <path d="M194 360 L584 360 L779 236 L389 236 Z" fill-opacity="0.34"/>
+      <path d="M636 789 L831 665 L779 236 L584 360 Z" fill-opacity="0.10"/>
+      <path d="M246 789 L636 789 L584 360 L194 360 Z" fill-opacity="0.20"/>
+    </g>
+    <g fill="none" stroke="#4C6EF5" stroke-width="34"
+       stroke-linejoin="round" stroke-linecap="round">
+      <path d="M246 789 L636 789 L831 665 L779 236 L389 236 L194 360 Z"/>
+      <path d="M584 360 L194 360"/>
+      <path d="M584 360 L636 789"/>
+      <path d="M584 360 L779 236"/>
+    </g>
+  </g>
+
+  <!-- Clipped to the page so the band takes the page's own rounded
+       bottom corners instead of squaring them off. -->
+  <g clip-path="url(#page)">
+    <rect x="192" y="742" width="640" height="186" fill="#4C6EF5"/>
+  </g>
+  <text x="512" y="872" fill="#FFFFFF" font-size="118"
+        font-family="Helvetica Neue, Helvetica, Arial, sans-serif"
+        font-weight="700" letter-spacing="6"
+        text-anchor="middle">CIF</text>
+</svg>

@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Crystal Builder, the application icon.
+
+  Source of truth for every rendered icon: build_icons.py rasterises
+  this, and nothing downstream of it is hand edited.
+
+  Drawn for 16 px first, which is the size that kills app icons. What
+  survives there is the silhouette, so the cell is a solid with three
+  shaded faces rather than a wireframe (eight hairlines at 16 px are a
+  grey smudge), and the one thing that has to read at that size is a
+  bright dot in a dark tile.
+
+  It is a monoclinic cell and not a cube on purpose. A cube in
+  isometric projection is the most generic icon on any desktop; the
+  skew is what says this one is about crystals. The vertices are the
+  eight corners of a parallelepiped with the rear one occluded, so the
+  outline is a hexagon and the three near edges meet off centre.
+
+  Note for anyone editing this file: XML comments cannot contain a
+  double hyphen, so the em dashes this project writes as two hyphens
+  elsewhere are commas and brackets here.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"
+     width="1024" height="1024">
+  <defs>
+    <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4C6EF5"/>
+      <stop offset="1" stop-color="#1B247A"/>
+    </linearGradient>
+    <radialGradient id="node" cx="0.35" cy="0.32" r="0.75">
+      <stop offset="0" stop-color="#FFD98A"/>
+      <stop offset="1" stop-color="#F08C1B"/>
+    </radialGradient>
+  </defs>
+
+  <!-- The squircle macOS expects: 824 of the 1024 grid, the rest the
+       margin every other icon in the Dock also leaves. -->
+  <rect x="100" y="100" width="824" height="824" rx="185"
+        fill="url(#ground)"/>
+
+  <!-- Faces, painted back to front. Opacity rather than three flat
+       colours, so the same file works over any ground. -->
+  <g>
+    <path d="M194 360 L584 360 L779 236 L389 236 Z"
+          fill="#FFFFFF" fill-opacity="0.34"/>
+    <path d="M636 789 L831 665 L779 236 L584 360 Z"
+          fill="#FFFFFF" fill-opacity="0.10"/>
+    <path d="M246 789 L636 789 L584 360 L194 360 Z"
+          fill="#FFFFFF" fill-opacity="0.20"/>
+  </g>
+
+  <!-- Edges: the hexagonal outline, then the three that meet at the
+       near corner. The rear vertex is occluded and is not drawn. -->
+  <g fill="none" stroke="#FFFFFF" stroke-width="24"
+     stroke-linejoin="round" stroke-linecap="round">
+    <path d="M246 789 L636 789 L831 665 L779 236 L389 236 L194 360 Z"/>
+    <path d="M584 360 L194 360"/>
+    <path d="M584 360 L636 789"/>
+    <path d="M584 360 L779 236"/>
+  </g>
+
+  <!-- Lattice points. Gone below about 64 px, which is the intent:
+       they enrich the large sizes and get out of the silhouette's way
+       at the small ones. -->
+  <g fill="#FFFFFF">
+    <circle cx="246" cy="789" r="30"/>
+    <circle cx="636" cy="789" r="30"/>
+    <circle cx="831" cy="665" r="30"/>
+    <circle cx="779" cy="236" r="30"/>
+    <circle cx="389" cy="236" r="30"/>
+    <circle cx="194" cy="360" r="30"/>
+    <circle cx="584" cy="360" r="34"/>
+  </g>
+
+  <!-- The body centre atom, and the only warm thing in the icon. At
+       16 px this is the icon: a blue tile with an amber dot in it. -->
+  <circle cx="512" cy="512" r="88" fill="url(#node)"/>
+</svg>

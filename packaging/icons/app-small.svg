@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The same icon, redrawn for 16 and 32 px.
+
+  Not a stylistic variant: at 16 px the 24 unit stroke in app.svg is
+  three eighths of a pixel and the six lattice points land inside one
+  pixel of the edges they sit on, so the drawing that is right at 512
+  resolves to a blue tile with a grey smudge in it. This is what Apple
+  ask for and what every icon that survives the Dock does.
+
+  Three changes and no others, so the two files stay the same picture:
+  the cell is 15% larger and thus fills more of the tile, the edges are
+  58 units instead of 24, and the lattice points are gone. The body
+  centre atom is bigger, because at this size it is doing most of the
+  work of telling this app apart from every other blue tile.
+
+  (XML comments cannot contain a double hyphen, so the em dashes this
+  project writes as two of them are commas here.)
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"
+     width="1024" height="1024">
+  <defs>
+    <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4C6EF5"/>
+      <stop offset="1" stop-color="#1B247A"/>
+    </linearGradient>
+    <radialGradient id="node" cx="0.35" cy="0.32" r="0.75">
+      <stop offset="0" stop-color="#FFD98A"/>
+      <stop offset="1" stop-color="#F08C1B"/>
+    </radialGradient>
+  </defs>
+
+  <rect x="100" y="100" width="824" height="824" rx="185"
+        fill="url(#ground)"/>
+
+  <g>
+    <path d="M146 337 L595 337 L819 195 L370 195 Z"
+          fill="#FFFFFF" fill-opacity="0.38"/>
+    <path d="M655 831 L879 688 L819 195 L595 337 Z"
+          fill="#FFFFFF" fill-opacity="0.10"/>
+    <path d="M206 831 L655 831 L595 337 L146 337 Z"
+          fill="#FFFFFF" fill-opacity="0.22"/>
+  </g>
+
+  <g fill="none" stroke="#FFFFFF" stroke-width="58"
+     stroke-linejoin="round" stroke-linecap="round">
+    <path d="M206 831 L655 831 L879 688 L819 195 L370 195 L146 337 Z"/>
+    <path d="M595 337 L146 337"/>
+    <path d="M595 337 L655 831"/>
+    <path d="M595 337 L819 195"/>
+  </g>
+
+  <circle cx="512" cy="512" r="128" fill="url(#node)"/>
+</svg>
