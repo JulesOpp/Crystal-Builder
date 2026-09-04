@@ -70,7 +70,13 @@ VSVersionInfo(
 )
 """
 
-VERSION_FILE = Path(SPECPATH) / "build" / "version_info.txt"
+# The root build/ directory, which is gitignored.  Not
+# packaging/build/: .gitignore anchors the rule as `/build/`,
+# deliberately, so that it cannot swallow xtal/build/, and a
+# generated file under packaging/ would therefore show up as
+# untracked after every Windows build.
+VERSION_FILE = (Path(SPECPATH).parent / "build"
+                / "version_info.txt")
 VERSION_FILE.parent.mkdir(parents=True, exist_ok=True)
 VERSION_FILE.write_text(VERSION_RESOURCE, encoding="utf-8")
 

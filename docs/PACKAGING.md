@@ -326,9 +326,42 @@ something load-bearing.
 
 ## 7. CI: the release job
 
-`ci.yml` already triggers on `tags: ["v*"]` and already has the three
-runners.  Add a `build` job, `needs: test`, `if:
-startsWith(github.ref, 'refs/tags/v')`:
+### First, the thing this file got wrong
+
+This section used to open by saying CI was "already green on all
+three targets".  **It was not, and had not been for at least six runs
+on `main` going back to Phase G**: `lint` passed and every test job
+failed, on every platform.  Since `build` is `needs: test`, the whole
+release path was dead on arrival, and the Windows build — which only
+CI can produce, because PyInstaller cannot cross-compile — could
+never have run at all.
+
+None of the three causes was a failing test:
+
+- **Windows never got as far as installing Python.** `git checkout`
+  failed on `resources/topo/TopCIF/nul.cif`; `nul` is a reserved
+  device name and git cannot create the path, so the *entire clone*
+  failed. Renamed, with a test that fails if another reserved name
+  appears — there is no way to catch this from macOS or Linux except
+  by looking.
+- **macOS could not import its own test helpers.** A dozen modules do
+  `from tests.conftest_ff import ...`, there is no
+  `tests/__init__.py`, and CI ran bare `pytest`, which does not put
+  the working directory on `sys.path`. CLAUDE.md had prescribed
+  `python -m pytest` all along, which does.
+- **Linux failed before the first test.** PySide6 links `libEGL` and
+  the runner image does not carry it; pytest-qt imports QtGui during
+  `pytest_configure`, so it was an `INTERNALERROR` rather than a skip.
+
+The lesson worth keeping is not any of the three. It is that **a
+green badge was assumed and never looked at**, for long enough that a
+plan got written on top of it.
+
+### The job
+
+`ci.yml` triggers on `tags: ["v*"]` and has the three runners.  Add a
+`build` job, `needs: test`, `if: startsWith(github.ref,
+'refs/tags/v')`:
 
 | Runner | Produces |
 |---|---|
