@@ -118,6 +118,73 @@ def test_the_fragment_library_is_collected(destinations):
     assert destinations[path] == "xtal/build/data"
 
 
+def test_the_mof_database_is_collected(destinations):
+    """The MOF builder is only in the bundle if its database is.
+
+    PORMAKE is vendored precisely so a packaged user gets the builder
+    -- and the code alone builds nothing.  ``database_root`` looks
+    beside :mod:`xtal.mof.pormake` for 2404 nets and 867 blocks, and
+    :func:`xtal.modules.mof.available` greys the entry out when it
+    finds none, which in a shipped build would read as the feature
+    having quietly gone away again.
+
+    3271 files, so this asserts the counts and the two destinations
+    rather than naming them: the failure being caught is "the glob
+    stopped matching", and that shows up as a count of zero.
+    """
+    root = ROOT / "xtal" / "mof" / "pormake" / "database"
+    nets = sorted((root / "topologies").glob("*.cgd"))
+    blocks = sorted((root / "bbs").glob("*.xyz"))
+    assert len(nets) > 2000
+    assert len(blocks) > 800
+
+    for path in (nets[0], nets[-1]):
+        assert path in destinations
+        assert destinations[path] == "xtal/mof/pormake/database/topologies"
+    for path in (blocks[0], blocks[-1]):
+        assert path in destinations
+        assert destinations[path] == "xtal/mof/pormake/database/bbs"
+
+    collected = {p for p in destinations if p.is_relative_to(root)}
+    assert len(collected) == len(nets) + len(blocks)
+
+
+def test_the_vendored_licence_and_provenance_are_collected(
+        destinations):
+    """Vendoring somebody else's MIT code obliges the notice to travel
+    with it, including into a DMG and an installer.
+
+    ``PROVENANCE.md`` travels for a different reason and an equally
+    good one: it is the only record of what was changed and why, and a
+    copy of the code without it is a fork nobody can diff.
+    """
+    root = ROOT / "xtal" / "mof" / "pormake"
+    for name in ("LICENSE.md", "PROVENANCE.md"):
+        path = root / name
+        assert path.is_file()
+        assert path in destinations
+        assert destinations[path] == "xtal/mof/pormake"
+
+
+def test_pormake_is_no_longer_excluded_from_the_bundle():
+    """The change this whole vendoring was for, as an assertion.
+
+    ``pormake`` and ``ase`` were both on the exclude list, and the
+    first of them made the MOF builder the single feature a packaged
+    user could not have.  Excluding either name now would cut a piece
+    out of ``xtal`` itself: the builder is :mod:`xtal.mof.pormake`,
+    and it is written over ``ase``.
+
+    The three that came with PORMAKE stay excluded, and that is the
+    other half of the claim -- 889 MB became 23 because they went, so
+    a build that quietly reacquired one has lost the benefit.
+    """
+    assert "pormake" not in bundle.EXCLUDES
+    assert "ase" not in bundle.EXCLUDES
+    for gone in ("jax", "jaxlib", "pymatgen", "networkx"):
+        assert gone in bundle.EXCLUDES
+
+
 def test_the_package_data_globs_still_match_pyproject():
     """``pyproject.toml`` is what a wheel ships and ``bundle.py`` is
     what the application ships, and they have to agree.
@@ -131,8 +198,8 @@ def test_the_package_data_globs_still_match_pyproject():
         declared = tomllib.load(handle)["tool"]["setuptools"][
             "package-data"]
 
-    ours = {package.replace("/", "."): [pattern]
-            for package, pattern in bundle.PACKAGE_DATA.items()}
+    ours = {package.replace("/", "."): list(patterns)
+            for package, patterns in bundle.PACKAGE_DATA.items()}
     assert ours == declared
 
 

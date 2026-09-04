@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import os
 import sys
+import tempfile
 import traceback
 from pathlib import Path
 
@@ -148,8 +149,10 @@ def check_extras(report) -> None:
     """The optional packages a packaged build promises are there.
 
     *Preferences > Optional features* tells the user that RDKit and
-    rdeditor are included and working, and that PORMAKE is not.  In a
-    bundle the user cannot check any of that, so this does.
+    rdeditor are included and working.  In a bundle the user cannot
+    check that, so this does.  The MOF builder used to be the third
+    row and the one that said "not included"; it is vendored now and
+    has a check of its own below.
 
     RDKit is the one worth exercising rather than importing: it is
     collected wholesale with ``collect_all`` and it carries data
@@ -186,12 +189,62 @@ def check_extras(report) -> None:
             "sketcher is bundled")
     report("rdeditor: present")
 
-    # And the one that is deliberately absent, so that the page's
-    # other claim is true too.
-    from xtal.mof import catalog
 
-    report(f"PORMAKE: {'present' if catalog.installed() else 'absent'}"
-           " (absent is correct in a packaged build)")
+def check_mof_builder(report) -> None:
+    """The MOF builder builds a framework, in this build.
+
+    **The check the bundle exists for.**  PORMAKE was excluded from
+    packaged builds for being 889 MB, which made the MOF builder the
+    single feature a packaged user could not have; it is vendored and
+    trimmed now (``xtal/mof/pormake``) and the whole point is that it
+    ships.  ``tests/test_packaging.py`` asserts that
+    ``packaging/bundle.py`` *names* the 3271 nets and blocks.  Only
+    this can say they survived PyInstaller.
+
+    Exercised rather than imported, for the same reason RDKit is
+    above and a stronger one: a build with the code and no database
+    imports perfectly and then greys the entry out, which is
+    indistinguishable to a user from the feature having been dropped
+    again.  So it builds **pcu** and asks what came out -- which
+    covers the database, the vendored code, ``ase``, the SciPy
+    relaxation that replaced jax's gradient, and the net
+    identification, in about a second.
+    """
+    from xtal.mof import Catalog, database_root, has_ase
+
+    root = database_root()
+    if root is None:
+        raise AssertionError(
+            "the PORMAKE database did not come along.  The MOF "
+            "builder is in this build and has nothing to build with; "
+            "see PACKAGE_DATA in packaging/bundle.py.")
+    if not has_ase():
+        raise AssertionError(
+            "ase is missing, so the MOF builder greys out in a build "
+            "that was made to carry it.  The build job installs the "
+            "`ase` extra; see .github/workflows/ci.yml.")
+
+    catalogue = Catalog.default()
+    nets = catalogue.topologies()
+    blocks = catalogue.building_blocks()
+    report(f"PORMAKE database: {len(nets)} nets, {len(blocks)} blocks")
+    if len(nets) < 2000 or len(blocks) < 800:
+        raise AssertionError(
+            f"the database is short: {len(nets)} nets and "
+            f"{len(blocks)} blocks, against 2404 and 867")
+
+    from xtal.mof.build import BuildRequest, build
+
+    with tempfile.TemporaryDirectory(prefix="selftest-mof-") as folder:
+        outcome = build(BuildRequest.parse("pcu", "N59", "E32"),
+                        folder, catalogue)
+    report(f"MOF builder: pcu-N59-E32, {outcome.n_atoms} atoms, "
+           f"net identified as {outcome.net_name}")
+    if not outcome.net_agrees:
+        raise AssertionError(
+            f"built pcu and got {outcome.net_name}.  The framework is "
+            "wrong, which in a bundle means the vendored PORMAKE or "
+            "its database is not what the tests ran against.")
 
 
 def check_window(report, shot: Path | None) -> None:
@@ -272,6 +325,7 @@ def run(shot: Path | None = None, out=None) -> int:
         ("fragment library", check_fragment_library),
         ("samples", check_samples),
         ("bundled extras", check_extras),
+        ("MOF builder", check_mof_builder),
         ("window and 3D view", lambda r: check_window(r, shot)),
     ]
 

@@ -125,7 +125,14 @@ asked for, with the feature honestly missing when it is — and it does
 *not* make RDKit cheaper, because `pymatgen` is not RDKit and
 installing `[mof]` gives you nothing towards `[build]`.  So: two
 extras, either installable alone, and a default install that has
-neither.  Choosing rdEditor is still choosing RDKit, and RDKit still
+neither.
+
+> Since written: **there is no `[mof]` extra any more.**  PORMAKE is
+> vendored at `xtal/mof/pormake/`, trimmed of `jax`, `pymatgen` and
+> `networkx`, so the MOF builder ships and the only extra it needs is
+> `[ase]`.  The pattern this phase established is unchanged and is
+> what `[build]` and `[sketch]` still use; see
+> [PACKAGING.md](PACKAGING.md) § 4.  Choosing rdEditor is still choosing RDKit, and RDKit still
 solves the 3D half.
 
 **The editor is an integration, not a build.**  rdEditor is PySide6,

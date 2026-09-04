@@ -3,12 +3,11 @@ xtalapp.extras
 ==============
 What is optional, whether it is here, and how to get it.
 
-Three features are gated on a package this application does not
-install: the molecule builder needs RDKit, the sketcher needs
-rdeditor, and the MOF builder needs PORMAKE.  Each greys its menu
-entry out and names the extra to install -- ``pip install
-'crystal-builder[mof]'`` -- which is exactly the right advice on a
-source checkout.
+Two features are gated on a package this application does not install:
+the molecule builder needs RDKit and the sketcher needs rdeditor.
+Each greys its menu entry out and names the extra to install -- ``pip
+install 'crystal-builder[build]'`` -- which is exactly the right
+advice on a source checkout.
 
 **In a frozen build it is advice about nothing.**  There is no
 environment to install into: the bundled interpreter is not on the
@@ -19,22 +18,29 @@ module knows which build it is in and the page says different things.
 The decision behind it (SHELL.md 3) is *bundle the small ones and be
 honest about the big one*.  RDKit is about 107 MB and buys two whole
 features; rdeditor is a megabyte on top of a PySide6 that is bundled
-anyway.  PORMAKE is 44 packages and about 889 MB -- jax and pymatgen
-for one dialog -- which is larger than the rest of the application put
-together, so it is the one feature a packaged user cannot have, and
-the page says so in those words rather than pretending.
+anyway.
 
-**The folder on ``sys.path``** is the other half.  A user-writable
+**The MOF builder was the big one, and it is not on this page any
+more.**  It needed PORMAKE: 44 packages and about 889 MB, jax and
+pymatgen for one dialog, larger than the rest of the application put
+together.  So it was excluded, and it was the single feature a
+packaged user could not have.  PORMAKE is now vendored and trimmed of
+all three -- :mod:`xtal.mof.pormake`, about 23 MB with the ``ase``
+it is written over, see ``xtal/mof/pormake/PROVENANCE.md`` -- so the
+builder ships, there is
+nothing to install, and a page listing it as optional would be the
+untrue thing this module exists to avoid.
+
+**The folder on ``sys.path`` outlives that.**  A user-writable
 directory beside the log, prepended at start-up, so that ``pip install
 --target`` from any Python can put a pure-Python package where a
-frozen build will find it.  It is ten lines, it is the only answer a
-bundle has to "install a plugin" at all -- see SHELL.md 2, where the
-entry-point half has none -- and for PORMAKE specifically it is the
-route that is *not* recommended: its dependencies are compiled and
-have to match the bundled interpreter's exact version and ABI, and its
-numpy would collide with the one already in the bundle.  The page says
-that where somebody reading it will see it, rather than in a document
-nobody opens.
+frozen build will find it.  It is ten lines and it is the only answer
+a bundle has to "install a plugin" at all -- see SHELL.md 2, where the
+entry-point half has none.  It kept the warning that used to be about
+PORMAKE in particular, because that warning was never really about
+PORMAKE: a package with compiled dependencies has to match the bundled
+interpreter's exact version and ABI, and its numpy will collide with
+the one already here.
 """
 
 from __future__ import annotations
@@ -45,7 +51,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from xtal import build as build_extra
-from xtal.mof import catalog as mof_catalog
 from xtalapp import applog
 from xtalapp.dialogs import sketch
 
@@ -75,8 +80,11 @@ class Extra:
     package: str                # what is imported
     extra: str                  # the pip extra that installs it
     powers: str
-    #: Whether a packaged build includes it.  PORMAKE does not, and
-    #: that is the product decision this table exists to record.
+    #: Whether a packaged build includes it.  Both rows say ``True``
+    #: now that the MOF builder is vendored, and the field stays: it
+    #: is the product decision this table exists to record, and
+    #: :func:`status` tells "missing from a build meant to carry it"
+    #: -- a fault -- apart from "deliberately left out".
     bundled: bool
 
     def installed(self) -> bool:
@@ -98,7 +106,6 @@ class Extra:
 _CHECKS = {
     "rdkit": lambda: build_extra.installed(),
     "rdeditor": lambda: sketch.installed(),
-    "pormake": lambda: mof_catalog.installed(),
 }
 
 
@@ -116,32 +123,24 @@ EXTRAS = (
     Extra("Molecule sketcher", "rdeditor", "sketch",
           "Draw a molecule instead of typing a SMILES string.  Needs "
           "the molecule builder as well.", True),
-    Extra("MOF builder", "pormake", "mof",
-          "Build a framework from a net, a metal node and a linker.  "
-          "Net identification and the .cgd reader are this project's "
-          "own and keep working without it.", False),
 )
 
-#: What to install to get the MOF builder the supported way: the
-#: application itself, from Python, with the extra.
-FULL_COMMAND = "pip install 'crystal-builder[gui,mof]'"
-
-#: Why PORMAKE is not in a packaged build, in the words the page uses.
-#: The honest reason and not a shorter one.
-PORMAKE_REASON = (
-    "PORMAKE is 44 packages and about 889 MB -- jax and pymatgen "
-    "among them -- for one dialog.  That is larger than the rest of "
-    "this application put together, so a build that included it would "
-    "be a gigabyte download for everybody to give one feature to a "
-    "few.")
+#: What the folder below is for, in the words the page uses.
+PACKAGES_REASON = (
+    "A packaged build has no pip and nothing to install into, so this "
+    "folder is the only way to add a Python package to it.  It is put "
+    "first on the import path when the application starts, which is "
+    "also how a package here can replace one that shipped.")
 
 #: The warning that belongs on the page rather than in a document.
+#: It used to be about PORMAKE, which is now vendored; it was never
+#: really about PORMAKE.
 TARGET_WARNING = (
     "This works for a package that is pure Python.  It is not "
-    "reliable for PORMAKE: its dependencies are compiled, they have "
-    "to match this build's exact Python version and ABI, and its "
-    "numpy would collide with the one already here.  For PORMAKE, "
-    "run Crystal Builder from Python instead.")
+    "reliable for one with compiled dependencies: they have to match "
+    "this build's exact Python version and ABI, and a second numpy "
+    "would collide with the one already here.  For those, run "
+    "Crystal Builder from Python instead.")
 
 
 # ======================================================================
@@ -183,7 +182,7 @@ def add_to_path() -> Path | None:
     return path
 
 
-def target_command(package: str = "pormake") -> str:
+def target_command(package: str = "<package>") -> str:
     """``pip install --target`` into that folder, ready to paste."""
     return f'pip install --target "{folder()}" {package}'
 

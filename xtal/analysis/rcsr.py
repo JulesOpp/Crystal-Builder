@@ -198,7 +198,13 @@ def _signature(operation) -> tuple:
 
 
 @lru_cache(maxsize=512)
-def _space_group_operations(symbol: str) -> tuple:
+def space_group_operations(symbol: str) -> tuple:
+    """The operations of a space group, as ``(rotation, translation)``.
+
+    Public because the vendored PORMAKE expands its ``.cgd`` nets with
+    it -- see ``xtal/mof/pormake/PROVENANCE.md``.  That expansion used
+    to be a ``pymatgen`` call, and pymatgen is 250 MB.
+    """
     group = gemmi.SpaceGroup(symbol)
     den = float(gemmi.Op.DEN)
     return tuple((np.array(op.rot) / den,
@@ -211,7 +217,7 @@ def operations(entry: CgdEntry) -> list[tuple]:
     if entry.dimension == 2:
         return plane_group_operations(entry.group)
     try:
-        return list(_space_group_operations(entry.group))
+        return list(space_group_operations(entry.group))
     except (RuntimeError, ValueError):
         raise RcsrError(
             f"{entry.name}: no space group {entry.group!r}") from None
@@ -272,7 +278,7 @@ def _settings(entry: CgdEntry) -> list[str]:
 def _expand_with(entry: CgdEntry, symbol: str
                  ) -> tuple[Net, np.ndarray]:
     ops = (plane_group_operations(symbol) if entry.dimension == 2
-           else list(_space_group_operations(symbol)))
+           else list(space_group_operations(symbol)))
     sites = _Sites(entry.dimension)
     origin: list[int] = []
     for index, node in enumerate(entry.nodes):

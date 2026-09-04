@@ -2,9 +2,15 @@
 
 Two halves.  Everything down to :class:`BuildRequest` reads files and
 is tested unconditionally, because the whole point of
-:mod:`xtal.mof.catalog` is that it works without PORMAKE.  The builds
-themselves are skipped when PORMAKE is not installed and marked slow
-when it is -- ``import pormake`` is ten seconds on its own.
+:mod:`xtal.mof.catalog` is that it works without importing PORMAKE.
+The builds themselves are marked slow.
+
+**Nothing here is skipped for a missing PORMAKE any more.**  It is
+vendored, at :mod:`xtal.mof.pormake`, so the only thing that can be
+absent is the database of nets and blocks beside it -- which is a
+broken installation rather than a choice, and is what
+``needs_database`` now says.  ``tests/test_mof_vendored.py`` is where
+the vendored copy is diffed against a real upstream one.
 """
 
 import sys
@@ -19,29 +25,40 @@ from xtal.mof.catalog import (
     read_building_block,
 )
 
-needs_pormake = pytest.mark.skipif(
-    not installed() or database_root() is None,
-    reason="PORMAKE is not installed; pip install "
-           "'crystal-builder[mof]'")
+needs_database = pytest.mark.skipif(
+    database_root() is None,
+    reason="the vendored PORMAKE database of nets and blocks is "
+           "missing from this installation")
+
+#: Building needs one thing more than listing does.  The vendored
+#: PORMAKE is written over ``ase``, which stays an extra so that
+#: ``pip install crystal-builder`` keeps working with four packages --
+#: so a checkout without it can read the whole catalogue and cannot
+#: build, and the two halves of this file skip separately.
+needs_builder = pytest.mark.skipif(
+    not installed(),
+    reason="the MOF builder needs ase -- pip install "
+           "'crystal-builder[ase]'")
 
 
 @pytest.fixture(scope="module")
 def catalog():
     if database_root() is None:
-        pytest.skip("PORMAKE's database is not installed")
+        pytest.skip("the vendored PORMAKE database is missing")
     return Catalog.default()
 
 
 # ----------------------------------------------------- the catalogue
 
-@needs_pormake
+@needs_database
 def test_the_catalogue_is_read_without_importing_pormake(catalog):
     """The dialog opens instantly because of this.
 
-    ``import pormake`` brings jax and pymatgen with it and takes ten
-    seconds; everything the picker shows is in the .cgd and .xyz files
-    themselves.  If this ever fails, opening the Modules tree freezes
-    the window.
+    Importing PORMAKE used to bring jax and pymatgen with it and take
+    ten seconds.  Vendoring took both away, and the claim still
+    matters: everything the picker shows is in the .cgd and .xyz files
+    themselves, and a catalogue that imported a builder to list files
+    would put that import on every rebuild of the Modules tree.
 
     In a subprocess because the claim is about a fresh interpreter:
     any earlier test that actually built a framework has PORMAKE in
@@ -57,12 +74,12 @@ def test_the_catalogue_is_read_without_importing_pormake(catalog):
          "import sys; from xtal.mof import Catalog; "
          "read = Catalog.default(); "
          "print(bool(read.topologies()), "
-         "'pormake' in sys.modules)"],
+         "'xtal.mof.pormake' in sys.modules)"],
         capture_output=True, text=True, check=True)
     assert out.stdout.split() == ["True", "False"]
 
 
-@needs_pormake
+@needs_database
 def test_the_whole_database_reads_without_a_failure(catalog):
     """2399 nets and 867 blocks, and nothing in the shipped database
     that this reader chokes on."""
@@ -71,7 +88,7 @@ def test_the_whole_database_reads_without_a_failure(catalog):
     assert catalog.failures == ()
 
 
-@needs_pormake
+@needs_database
 def test_a_topology_states_its_node_types_in_pormakes_order(catalog):
     """Node type 0 is the first NODE line of the .cgd.
 
@@ -85,7 +102,7 @@ def test_a_topology_states_its_node_types_in_pormakes_order(catalog):
     assert tbo.group == "Fm-3m"
 
 
-@needs_pormake
+@needs_database
 def test_the_slots_of_a_net_are_its_nodes_and_the_pairs_they_join(
         catalog):
     slots = catalog.topology("tbo").slots()
@@ -94,14 +111,14 @@ def test_the_slots_of_a_net_are_its_nodes_and_the_pairs_they_join(
     assert [s.token for s in slots] == ["0", "1", "0-1"]
 
 
-@needs_pormake
+@needs_database
 def test_a_one_node_net_has_one_node_slot_and_one_edge_slot(catalog):
     slots = catalog.topology("pcu").slots()
     assert [s.token for s in slots] == ["0", "0-0"]
     assert slots[0].coordination == 6
 
 
-@needs_pormake
+@needs_database
 def test_a_building_block_knows_where_it_connects(catalog):
     block = catalog.building_block("N59")
     assert block.n_connections == 6
@@ -109,7 +126,7 @@ def test_a_building_block_knows_where_it_connects(catalog):
     assert "Cd" in block.formula
 
 
-@needs_pormake
+@needs_database
 def test_only_blocks_of_the_right_coordination_fit_a_slot(catalog):
     fitting = catalog.fitting(6)
     assert fitting
@@ -117,7 +134,7 @@ def test_only_blocks_of_the_right_coordination_fit_a_slot(catalog):
     assert "N59" in {b.name for b in fitting}
 
 
-@needs_pormake
+@needs_database
 def test_composition_search_finds_the_exact_counts_asked_for(
         catalog):
     """N59 is C6Cd2O12 -- exactly 6 carbons, 2 cadmiums, 12 oxygens,
@@ -128,7 +145,7 @@ def test_composition_search_finds_the_exact_counts_asked_for(
     assert not matches_composition(n59, "5C 2Cd 12O")
 
 
-@needs_pormake
+@needs_database
 def test_composition_search_by_bare_element_wants_only_presence(
         catalog):
     """No count on a token means "contains this", however many --
@@ -172,7 +189,7 @@ def test_composition_search_ignores_a_token_it_cannot_read():
     assert matches_composition(block, "not an element either")
 
 
-@needs_pormake
+@needs_database
 def test_a_name_that_is_in_neither_folder_says_where_it_looked(
         catalog):
     with pytest.raises(CatalogError) as raised:
@@ -273,7 +290,7 @@ def test_something_that_does_not_name_a_slot_says_how_to_write_one():
     assert "0=N59" in str(raised.value)
 
 
-@needs_pormake
+@needs_database
 def test_a_block_that_does_not_fit_its_slot_names_both(tmp_path,
                                                        catalog):
     """PORMAKE's own refusal is an assertion inside a locator.
@@ -288,7 +305,7 @@ def test_a_block_that_does_not_fit_its_slot_names_both(tmp_path,
     assert "6 connection point" in str(raised.value)
 
 
-@needs_pormake
+@needs_database
 def test_a_node_slot_left_empty_is_refused(tmp_path, catalog):
     """A net has to have something on every node.  An empty edge is a
     framework with no linker; an empty node is nothing at all."""
@@ -299,7 +316,7 @@ def test_a_node_slot_left_empty_is_refused(tmp_path, catalog):
 
 # --------------------------------------------------------- the build
 
-@needs_pormake
+@needs_builder
 @pytest.mark.slow
 def test_a_build_produces_the_net_it_was_asked_for(tmp_path, catalog):
     """The check the whole phase is for.
@@ -317,7 +334,7 @@ def test_a_build_produces_the_net_it_was_asked_for(tmp_path, catalog):
     assert "as asked" in outcome.verdict()
 
 
-@needs_pormake
+@needs_builder
 @pytest.mark.slow
 def test_the_framework_arrives_with_its_net_already_drawn(tmp_path,
                                                           catalog):
@@ -337,7 +354,7 @@ def test_the_framework_arrives_with_its_net_already_drawn(tmp_path,
     assert outcome.structure.meta["title"] == "pcu-N59-E32"
 
 
-@needs_pormake
+@needs_builder
 @pytest.mark.slow
 def test_the_cif_is_written_where_the_run_folder_is(tmp_path, catalog):
     outcome = build(BuildRequest.parse("pcu", "N59", "E32"), tmp_path,
@@ -347,7 +364,7 @@ def test_the_cif_is_written_where_the_run_folder_is(tmp_path, catalog):
     assert outcome.n_atoms == 98
 
 
-@needs_pormake
+@needs_builder
 @pytest.mark.slow
 def test_a_net_with_two_node_types_builds_on_both(tmp_path, catalog):
     """tbo is 3-c and 4-c, and putting the wrong block on either slot
@@ -362,7 +379,7 @@ def test_a_net_with_two_node_types_builds_on_both(tmp_path, catalog):
     assert outcome.net_name == "tbo"
 
 
-@needs_pormake
+@needs_builder
 @pytest.mark.slow
 def test_a_net_built_with_no_linker_at_all_still_gets_its_net(
         tmp_path, catalog):
@@ -379,17 +396,20 @@ def test_a_net_built_with_no_linker_at_all_still_gets_its_net(
     assert outcome.n_atoms == 20
 
 
-@needs_pormake
+@needs_builder
 @pytest.mark.slow
 def test_importing_pormake_does_not_write_into_the_working_directory(
         tmp_path, catalog, monkeypatch):
-    """PORMAKE opens ``runtime.log`` in the current directory, in mode
-    "w", at import time.
+    """Upstream PORMAKE opens ``runtime.log`` in the current
+    directory, in mode "w", at import time.
 
     That is whatever folder the application was launched from, and a
     file of the user's with that name would be truncated by an import
-    they never asked for.  The import is contained; this is what says
-    so.
+    they never asked for.  This used to be contained by swapping
+    ``logging.FileHandler`` out for the duration of the import;
+    vendoring let it be fixed where it happens, in
+    ``xtal/mof/pormake/log.py``.  The guarantee is unchanged and so is
+    this test, which is the point of keeping it.
     """
     monkeypatch.chdir(tmp_path)
     build(BuildRequest.parse("pcu", "N59", "E32"), tmp_path, catalog)

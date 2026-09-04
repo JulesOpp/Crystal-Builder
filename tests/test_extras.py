@@ -1,13 +1,18 @@
 """What is optional, what a build says about it, and the folder.
 
-Three features are gated on a package this application does not
-install, and each greys its menu entry out naming the extra to install
--- which is right on a source checkout and is advice about nothing in
-a packaged build, where there is no environment to install into.
+Two features are gated on a package this application does not install,
+and each greys its menu entry out naming the extra to install -- which
+is right on a source checkout and is advice about nothing in a
+packaged build, where there is no environment to install into.
 
 So the interesting behaviour is that the wording *changes*: these
 tests drive both builds by faking ``sys.frozen``, because on this
 machine only one of the two is ever the real one.
+
+**There used to be a third, and it was the MOF builder.**  PORMAKE is
+vendored now -- :mod:`xtal.mof.pormake` -- so the feature ships, it is
+not on this page, and the box that offered two ways of having it
+anyway is a general one about adding a package to a build with no pip.
 """
 
 import sys
@@ -20,7 +25,6 @@ pytest.importorskip("pytestqt")
 from PySide6.QtWidgets import QWidget  # noqa: E402
 
 from xtal import build as build_extra  # noqa: E402
-from xtal.mof import catalog as mof_catalog  # noqa: E402
 from xtalapp import extras  # noqa: E402
 from xtalapp.dialogs.preferences import PreferencesDialog  # noqa: E402
 from xtalapp.settings import AppSettings  # noqa: E402
@@ -59,12 +63,12 @@ def frozen_build(monkeypatch, on=True):
 # -- what each build says ----------------------------------------------
 
 def test_a_checkout_says_what_to_install(monkeypatch):
-    monkeypatch.setattr(mof_catalog, "installed", lambda: False)
+    monkeypatch.setattr(build_extra, "installed", lambda: False)
 
-    ok, sentence = extras.status(extra("pormake"))
+    ok, sentence = extras.status(extra("rdkit"))
 
     assert not ok
-    assert "pip install 'crystal-builder[mof]'" in sentence
+    assert "pip install 'crystal-builder[build]'" in sentence
 
 
 def test_a_bundle_never_says_pip_install(monkeypatch):
@@ -72,13 +76,12 @@ def test_a_bundle_never_says_pip_install(monkeypatch):
     interpreter is not on the user's PATH and has no pip.  Saying it
     anyway would be a polished way of saying something untrue."""
     frozen_build(monkeypatch)
-    monkeypatch.setattr(mof_catalog, "installed", lambda: False)
+    monkeypatch.setattr(build_extra, "installed", lambda: False)
 
-    ok, sentence = extras.status(extra("pormake"))
+    ok, sentence = extras.status(extra("rdkit"))
 
     assert not ok
     assert "pip" not in sentence
-    assert "Not included in this build" in sentence
 
 
 def test_a_bundled_feature_that_is_missing_is_a_fault_not_a_choice(
@@ -105,12 +108,20 @@ def test_a_bundle_says_a_working_feature_came_with_it(monkeypatch):
     assert "included in this build" in sentence
 
 
-def test_only_pormake_is_left_out_of_a_build():
-    """The product decision in SHELL.md 3: bundle the small ones, and
-    be honest about the one that is larger than the application."""
-    left_out = [e.package for e in extras.EXTRAS if not e.bundled]
+def test_nothing_on_the_page_is_left_out_of_a_build_any_more():
+    """The product decision in SHELL.md 3 was: bundle the small ones,
+    and be honest about the one that is larger than the application.
 
-    assert left_out == ["pormake"]
+    That one was PORMAKE, and vendoring it settled the question --
+    every feature this page lists now ships.  The ``bundled`` field
+    stays because :func:`extras.status` still needs to tell "missing
+    from a build meant to carry it", which is a fault, apart from
+    "deliberately left out"; this is what fails if a row is added and
+    the page starts making promises a build does not keep.
+    """
+    assert extras.EXTRAS
+    assert [e.package for e in extras.EXTRAS if not e.bundled] == []
+    assert "pormake" not in {e.package for e in extras.EXTRAS}
 
 
 def test_the_check_is_each_feature_s_own():
@@ -189,16 +200,18 @@ def test_the_page_has_a_row_for_every_optional_feature(page):
     assert set(page.rows) == {e.package for e in extras.EXTRAS}
 
 
-def test_the_supported_route_is_the_one_offered_first(page):
-    """Route 1 is running from Python; route 2 exists and is warned
-    about in the same breath."""
-    assert page.full_command.text() == extras.FULL_COMMAND
-    assert "pormake" in page.target_command.text()
+def test_the_folder_command_is_offered_with_its_warning(page):
+    """The box used to offer two routes to a PORMAKE that was not in
+    the bundle.  PORMAKE is vendored, so what is left is the one thing
+    it always really was: how to add a package to a build with no pip,
+    warned about in the same breath."""
+    assert "pip install --target" in page.target_command.text()
+    assert str(extras.folder()) in page.target_command.text()
 
 
 def test_the_warning_about_route_two_is_on_the_page(page):
     """Not in a document nobody opens: --target works for pure Python
-    and PORMAKE's dependencies are compiled."""
+    and a compiled dependency has to match this build's ABI."""
     labels = [w.text() for w in page.findChildren(QWidget)
               if hasattr(w, "text") and isinstance(w.text(), str)]
 
@@ -208,6 +221,6 @@ def test_the_warning_about_route_two_is_on_the_page(page):
 def test_copying_a_command_puts_it_on_the_clipboard(page, qtbot):
     from PySide6.QtWidgets import QApplication
 
-    page.full_command._copy()
+    page.target_command._copy()
 
-    assert QApplication.clipboard().text() == extras.FULL_COMMAND
+    assert QApplication.clipboard().text() == extras.target_command()

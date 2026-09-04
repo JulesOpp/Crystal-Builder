@@ -4,10 +4,12 @@ xtal.mof.catalog
 What there is to build with, read from the files rather than from
 PORMAKE.
 
-``import pormake`` costs ten seconds on a warm cache and half a minute
-on a cold one, because it imports ``jax`` and ``pymatgen`` on the way
-in.  A picker that has to show 2399 topologies and 867 building blocks
-cannot pay that when it opens, and it does not have to: the topologies
+Importing PORMAKE used to cost ten seconds warm and half a minute
+cold, because it imported ``jax`` and ``pymatgen`` on the way in.
+Vendoring it took both away -- see ``xtal/mof/pormake/PROVENANCE.md``
+-- and the argument here is unchanged even so: a picker that has to
+show 2399 topologies and 867 building blocks should not import a
+builder to list files, and it does not have to.  The topologies
 are ``.cgd`` files, which :mod:`xtal.io.cgd` has read since the RCSR
 work, and a building block is an XYZ whose second line lists which of
 its atoms are connection points.  Everything the picker shows -- the
@@ -68,28 +70,55 @@ CONNECTION = "X"
 # ======================================================================
 
 def installed() -> bool:
-    """Whether ``pormake`` is importable -- without importing it.
+    """Whether a framework can actually be *built*.
 
-    ``find_spec`` reads the package's location off the path and stops.
-    That is the whole difference between a menu that greys an entry out
-    in microseconds and one that freezes for ten seconds every time it
-    is rebuilt.
+    **PORMAKE is vendored**, at :mod:`xtal.mof.pormake`, so its code is
+    always there -- see ``xtal/mof/pormake/PROVENANCE.md``.  Two
+    things beside it can still be absent, and they fail differently:
+
+    * the nets and blocks -- 3271 files, 2.8 MB -- which a broken
+      installation is missing and nobody can install;
+    * ``ase``, which the vendored code is written over and which stays
+      an extra, because ``pip install crystal-builder`` has to keep
+      working on a headless box with four packages.
+
+    :func:`xtal.modules.mof.available` tells the user which, because
+    only one of the two is something they can act on.  This is the
+    plain yes-or-no for everything that just wants to know whether to
+    offer the feature.
+
+    **Reading the catalogue needs neither**, which is why
+    :func:`database_root` is separate: listing 2404 nets and 867
+    blocks is file parsing this project does itself.
+
+    No import either way.  This runs on every menu rebuild.
+    """
+    return database_root() is not None and has_ase()
+
+
+def has_ase() -> bool:
+    """Whether ``ase`` is importable -- without importing it.
+
+    ``find_spec`` reads the location off the path and stops, which is
+    the difference between a menu that greys an entry out in
+    microseconds and one that pauses every time it is rebuilt.
     """
     try:
-        return importlib.util.find_spec("pormake") is not None
+        return importlib.util.find_spec("ase") is not None
     except (ImportError, ValueError):           # pragma: no cover
         return False
 
 
 def database_root() -> Path | None:
-    """PORMAKE's bundled ``database/``, or ``None``.
+    """The vendored ``database/`` of nets and blocks, or ``None``.
 
-    It ships inside the wheel, so an installed PORMAKE has it and a
-    source checkout has it in the same place.  Found through the
-    module spec rather than by importing, for the reason above.
+    Beside the vendored package, which is where upstream keeps it too.
+    Found through the module spec rather than by importing, for the
+    reason above: ``find_spec`` reads the location off the path and
+    stops, where the import costs seconds.
     """
     try:
-        spec = importlib.util.find_spec("pormake")
+        spec = importlib.util.find_spec("xtal.mof.pormake")
     except (ImportError, ValueError):           # pragma: no cover
         return None
     if spec is None or not spec.submodule_search_locations:

@@ -12,12 +12,14 @@ than in :mod:`xtal.modules.mof` because none of them needs a run
 folder, a worker thread or a menu:
 
 **Reading the catalogue without importing PORMAKE.**
-:mod:`~xtal.mof.catalog`.  ``import pormake`` pulls in ``jax`` and
-``pymatgen`` and takes ten seconds warm and half a minute cold, which
-is not a thing to do when a dialog opens -- and everything the dialog
-has to show is in the files themselves.  The topologies are ``.cgd``,
-which :mod:`xtal.io.cgd` has read since the RCSR work, and a building
-block is an XYZ with its connection points listed on the second line.
+:mod:`~xtal.mof.catalog`.  PORMAKE is vendored at
+:mod:`xtal.mof.pormake` and the ``jax`` and ``pymatgen`` that made
+the import cost ten seconds warm and half a minute cold are gone with
+it, but the import is still not a thing to do when a dialog opens --
+and everything the dialog has to show is in the files themselves.
+The topologies are ``.cgd``, which :mod:`xtal.io.cgd` has read since
+the RCSR work, and a building block is an XYZ with its connection
+points listed on the second line.
 So the picker is instant and PORMAKE is imported once, on the worker
 thread, by the run that needs it.
 
@@ -66,11 +68,13 @@ from xtal.mof.catalog import (
     Slot,
     Topology,
     database_root,
+    has_ase,
     installed,
 )
 
 __all__ = ["BOND_LETTERS", "BlockError", "BuildRequest",
            "BuildingBlock", "CONNECTION_DISTANCE", "Catalog",
            "MofError", "Slot", "Topology", "block_string", "build",
-           "check_net", "database_root", "draw_net", "installed",
+           "check_net", "database_root", "draw_net", "has_ase",
+           "installed",
            "problems", "pull_in", "write_building_block"]

@@ -265,18 +265,24 @@ def test_a_module_that_builds_a_structure_runs_with_no_file(capsys):
     ``needs_structure = False`` has meant "a module that fetches or
     builds one" since the registry was written, and such a module has
     nothing to be given.  Checked against the MOF builder's own
-    availability so that it says the same thing whether or not PORMAKE
-    is installed.
+    availability so that it says the same thing on every machine.
     """
+    from xtal.modules.mof import available
+
     code = main(["run", "mof.build", "-p", "topology=", "-q"])
-    said = "".join(capsys.readouterr())
-    # It got as far as the module's own refusal -- a build with no net
-    # named -- rather than being stopped by the parser for a file it
-    # was never going to read.  Which refusal it is depends on whether
-    # PORMAKE is installed, and both are the module's.
+    said = "".join(capsys.readouterr()).lower()
+    # It got as far as the module's own refusal rather than being
+    # stopped by the parser for a file it was never going to read.
+    # Which refusal it is depends on the machine: a build with no net
+    # named when the builder works, and otherwise whatever
+    # `available` gives as the reason -- a missing database, or a
+    # missing ase.  All three are the module's own.
     assert code != 0
     assert "needs a structure" not in said
-    assert "topology" in said.lower() or "pormake" in said.lower()
+    availability = available()
+    expected = ("topology" if availability.ok
+                else availability.reason.lower())
+    assert expected in said
 
 
 def test_a_module_that_needs_a_structure_still_asks_for_one(

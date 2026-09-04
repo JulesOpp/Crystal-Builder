@@ -10,19 +10,25 @@ in Phase D; everything about topologies, building blocks and the net
 that came out is :mod:`xtal.mof`.  What is here is only what is true
 of PORMAKE in particular, and there are four things.
 
-**It is an optional extra.**  ``pormake`` brings ``ase``, ``networkx``,
-``pymatgen`` and ``jax[cpu]`` with it: 44 packages and 889 MB in a
-fresh environment, against the four this application installs today.
-So ``pyproject.toml`` gains a ``mof`` extra and :func:`available` says
-``pip install crystal-builder[mof]`` when it is absent -- the same
-machinery that greys out Zeo++ when its binary is missing, unchanged.
+**It is not an optional extra any more, and that is the interesting
+part.**  ``pip install pormake`` brings ``ase``, ``networkx``,
+``pymatgen`` and ``jax[cpu]``: 44 packages and 889 MB against the four
+this application installs.  So it was excluded from the bundle, and
+the MOF builder was the one feature a packaged user could not have.
 
-**Nothing here imports it.**  ``import pormake`` costs ten seconds on
-a warm cache and half a minute on a cold one, and
-:meth:`Module.availability` is called every time the module tree is
-rebuilt.  So the check is ``importlib.util.find_spec`` and the import
-happens once, inside :func:`xtal.mof.build.build`, on the worker
-thread.
+It is now **vendored and trimmed**, at :mod:`xtal.mof.pormake` --
+``networkx`` was never imported, ``jax`` was one gradient and
+``pymatgen`` was one call, and both are gone.  What is left is about
+23 MB -- 3 MB of code and database, and ``ase``, which it is written
+over -- it ships, and there is nothing for a user to configure.
+``xtal/mof/pormake/PROVENANCE.md`` records all of it.
+
+**Nothing here imports it even so.**  :meth:`Module.availability` is
+called every time the module tree is rebuilt, and the import still
+costs more than a menu should; it happens once, inside
+:func:`xtal.mof.build.build`, on the worker thread.  What
+:func:`available` checks is the database, which is the only half that
+can now go missing.
 
 **Its parameters are not flat, and that is what ``Action.dialog`` is
 for.**  How many node slots a build has, and what coordination number
@@ -58,31 +64,46 @@ from xtal.modules.registry import (
     Param,
 )
 from xtal.modules.report import Report, Row, Table
-from xtal.mof import Catalog, MofError, database_root, installed
+from xtal.mof import Catalog, MofError, database_root, has_ase
 from xtal.mof.build import BuildRequest, build
 
-#: What to say when it is not there.  The extra rather than
-#: ``pip install pormake``, because the extra is what pins a version
-#: this application has been run against.
-MISSING = ("PORMAKE is not installed, so there is nothing to build "
-           "with -- pip install 'crystal-builder[mof]'")
+#: What to say when the database is not there.  It ships inside the
+#: package, so this is not a missing dependency a user can install --
+#: it is a broken installation, and saying so is more use than naming
+#: a ``pip`` command that would not help.
+MISSING = ("The PORMAKE database of nets and building blocks is "
+           "missing from this installation, so there is nothing to "
+           "build with")
+
+#: And what to say when ``ase`` is not there.  This one *is* something
+#: the user can act on, which is why it is a separate sentence: the
+#: vendored PORMAKE is written over ``ase.Atoms`` and
+#: ``ase.neighborlist``, and replacing those with this project's own
+#: :class:`~xtal.core.structure.Structure` is a much larger piece of
+#: work than the trim that brought the builder in.
+NEEDS_ASE = ("The MOF builder needs ase -- pip install "
+             "'crystal-builder[ase]'")
 
 
 def available() -> Availability:
     """The registry's answer, consulted every time the tree is built.
 
     ``find_spec`` and a directory test, and deliberately nothing more:
-    this runs on every menu rebuild and importing PORMAKE to find out
-    whether PORMAKE is installed would freeze the window for ten
-    seconds to answer a question the file system already knows.
+    this runs on every menu rebuild, and importing PORMAKE to find out
+    whether the builder works would freeze the window for seconds to
+    answer a question the file system already knows.
+
+    The code is vendored, so it cannot be absent.  Two things beside
+    it can be, and they are different answers rather than one wording
+    with a hole in it: the nets and blocks, which
+    ``packaging/bundle.py`` has to name and a wheel has to carry, and
+    which a user cannot install; and ``ase``, which they can.
     """
-    if not installed():
-        return Availability(False, MISSING)
     root = database_root()
     if root is None:
-        return Availability(
-            False, "PORMAKE is installed but its topology and "
-                   "building-block database is not beside it")
+        return Availability(False, MISSING)
+    if not has_ase():
+        return Availability(False, NEEDS_ASE)
     return Availability(True, str(root))
 
 

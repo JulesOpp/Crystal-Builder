@@ -46,10 +46,16 @@ jobs:
             libxcb-cursor0 libxcb-icccm4 libxcb-image0 \
             libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 \
             libxcb-shape0 libxcb-xinerama0 libxcb-xfixes0
+      # `ase` is here because the MOF builder needs it.  PORMAKE is
+      # vendored (xtal/mof/pormake) and is written over ase.Atoms and
+      # ase.neighborlist, so without this extra every build test
+      # skips itself -- which is how the MOF builder went untested on
+      # CI for its whole life, back when PORMAKE was an extra nobody
+      # installed here.
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[gui,build,test]"
+          pip install -e ".[gui,build,ase,test]"
       - name: Test
         # Qt needs a platform plugin with no display; the VTK render
         # tests skip themselves where offscreen OpenGL is unavailable.
@@ -111,10 +117,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      # `ase` is not optional for a *build*, whatever pyproject calls
+      # it: the MOF builder is vendored into the application now, and
+      # a bundle without ase ships it greyed out saying "pip install
+      # crystal-builder[ase]" to somebody who double-clicked a DMG --
+      # which is the exact failure vendoring PORMAKE was done to end.
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[gui,build,sketch]" pyinstaller
+          pip install -e ".[gui,build,sketch,ase]" pyinstaller
 
       - name: Build
         env:

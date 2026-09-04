@@ -53,18 +53,18 @@ dependencies = [
 # paintEvent.  Until then, raising this bound ships an application
 # that cannot draw.
 gui = ["PySide6>=6.6,<6.10", "vtk>=9.3"]
+# Not optional any more in practice: the vendored PORMAKE
+# (xtal/mof/pormake) uses ase.Atoms, ase.neighborlist and ase.io
+# throughout, so the MOF builder needs it.  It stays an extra and
+# stays out of `dependencies` because `pip install crystal-builder`
+# must keep working on a headless box with four packages, and every
+# entry point into xtal.mof already greys out without it.
 ase = ["ase>=3.22"]
-# The MOF builder.  Its own line and not a dependency, because
-# `pip install pormake` pulls in 44 packages and 889 MB -- ase,
-# networkx, pymatgen and jax[cpu] -- against the four the core
-# installs.  Absent, the Modules tree greys the entry out and says
-# this, which is the same machinery Zeo++ uses for its binary.
-mof = ["pormake>=0.2.3"]
 # The molecule builder.  Required for the feature and absent for
 # everybody else: RDKit is a large wheel with a compiled core, and the
 # four packages the core installs are what make `pip install
 # crystal-builder` usable on a cluster node.  Without it the Build
-# entries grey out naming this extra, the same way `mof` does.
+# entries grey out naming this extra, the same way `sketch` does.
 build = ["rdkit>=2023.9"]
 # Drawing the molecule rather than typing it.  Its own line and not
 # part of `build`, because rdeditor is PySide6 plus a theme package
@@ -90,6 +90,7 @@ Repository = "https://github.com/JulesOpp/Crystal-Builder"
 [tool.setuptools]
 packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
             "xtal.ff.uff", "xtal.modules", "xtal.analysis", "xtal.mof",
+            "xtal.mof.pormake",
             "xtal.build", "xtal.build.data",
             "xtalapp", "xtalapp.viewport", "xtalapp.docks",
             "xtalapp.dialogs"]
@@ -105,6 +106,13 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
 # and read through importlib.resources so a wheel and a source
 # checkout are the same case.
 "xtal.build.data" = ["*.json"]
+# PORMAKE's nets and building blocks, vendored with it.  Not optional
+# by the same argument: a topology picker with nothing in it is not a
+# smaller MOF builder, it is a broken one, and there is no second
+# database to fall back on.  3271 files and 2.8 MB, and the licence
+# and the record of what was changed travel beside it.
+"xtal.mof.pormake" = ["database/topologies/*.cgd", "database/bbs/*.xyz",
+                      "LICENSE.md", "PROVENANCE.md"]
 
 [tool.setuptools_scm]        # version from git tags; no version file to bump
 
@@ -131,25 +139,17 @@ testpaths = ["tests"]
 # Put "-n auto" back once workers.py no longer lets a wrapper be
 # freed during signal delivery.  See CLAUDE.md.
 addopts = ["-n0"]
-filterwarnings = [
-    "error::DeprecationWarning",
-    # PORMAKE's cell relaxation calls scipy's L-BFGS-B with `disp`,
-    # which scipy deprecated in 1.16.  It is a dependency's line in a
-    # dependency's optimiser and there is nothing this application can
-    # do about it; when scipy 1.18 removes the option the build tests
-    # will fail on the TypeError rather than scrolling past, which is
-    # what the rule above is really for.  Delete this when PORMAKE
-    # stops passing it.
-    # (the message pattern cannot hold a colon, hence the .*)
-    "ignore:scipy\\.optimize.*`disp` and `iprint`.*:DeprecationWarning",
-    # And the same for ase: PORMAKE's CIF writer calls
-    # ``get_cell_lengths_and_angles``, which ase deprecated.  This one
-    # bites harder than it looks -- PORMAKE catches whatever the write
-    # raises, deletes the half-written file and logs it -- so without
-    # this every build test fails on a missing CIF rather than on the
-    # deprecation.
-    "ignore:Please use atoms.cell.cellpar\\(\\) instead:DeprecationWarning",
-]
+# Both PORMAKE deprecations that used to be ignored here are gone,
+# and they are worth a sentence because the fix was the same one.
+# They were a dependency's lines in a dependency's code -- scipy's
+# `disp` in the cell relaxation, ase's `get_cell_lengths_and_angles`
+# in the CIF writer -- so there was nothing to do but ignore them.
+# Vendoring made them ours, and they are fixed at the line rather
+# than suppressed here.  The ase one mattered more than it looked:
+# PORMAKE catches whatever the write raises, deletes the half-written
+# file and logs it, so every build test failed on a *missing CIF*
+# rather than on the deprecation.
+filterwarnings = ["error::DeprecationWarning"]
 markers = [
     # Seconds rather than milliseconds, and worth it: a variable-cell
     # relaxation of a 648-atom framework is the only test that
@@ -159,6 +159,16 @@ markers = [
 
 [tool.ruff]
 line-length = 79
+# Somebody else's code, vendored verbatim so that it can be diffed
+# against the version it came from.  It fails this project's lint in
+# twenty places -- `[]` defaults, `.format` over f-strings, an
+# ambiguous `I`, four long lines -- all of them upstream's own style
+# and none of them a defect.  Rewrapping it to 79 columns is how a
+# vendored tree stops being diffable, which is the one thing
+# `xtal/mof/pormake/PROVENANCE.md` exists to preserve.  The two
+# substitutions this project actually made are held to the line
+# length by hand.
+extend-exclude = ["xtal/mof/pormake"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]

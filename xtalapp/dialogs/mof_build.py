@@ -30,9 +30,11 @@ so "node 2" in the form and the orange vertices in the picture are
 visibly the same thing.
 
 **It never imports PORMAKE.**  The catalogue is read from the files,
-which takes half a second for the whole 3.7 MB of it; ``import
-pormake`` takes ten, and a dialog that pauses for ten seconds before
-appearing is one people stop opening.  See :mod:`xtal.mof.catalog`.
+which takes half a second for the whole 3.7 MB of it.  The import used
+to take ten seconds -- ``jax`` and ``pymatgen``, both gone now that it
+is vendored -- and a dialog that pauses before appearing is one people
+stop opening, so it still reads files rather than asking a builder.
+See :mod:`xtal.mof.catalog`.
 
 **It does not identify the net it is showing.**  Naming a net against
 the RCSR is a walk over ten shells and a smallest-ring search at every

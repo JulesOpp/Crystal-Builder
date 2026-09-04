@@ -82,9 +82,27 @@ OMITTED = {
 #: there: a net panel that cannot name anything and a fragment picker
 #: with nothing in it are broken features, not smaller ones.  The test
 #: reads pyproject and asserts this list still matches it.
+#:
+#: A package may have more than one pattern, which is why the values
+#: are lists: ``pyproject.toml`` writes the vendored PORMAKE's four in
+#: one entry, and the test that compares the two files compares them
+#: literally.
 PACKAGE_DATA = {
-    "xtal/analysis": "data/*.json.gz",      # the RCSR index
-    "xtal/build/data": "*.json",            # the fragment library
+    "xtal/analysis": ["data/*.json.gz"],    # the RCSR index
+    "xtal/build/data": ["*.json"],          # the fragment library
+    # PORMAKE's nets and building blocks, vendored with it: 3271
+    # files, 2.8 MB of bytes and about 13 MB once installed, because
+    # a file that small is a 4 KB block.  The builder is broken
+    # without them --
+    # `xtal.mof.catalog.database_root` is what looks, and
+    # `xtal.modules.mof.available` greys the entry out when it finds
+    # nothing -- so this is the entry that turns "the download is
+    # missing the database" into a failing test rather than a bug
+    # report.  The licence has to travel with the code, and the record
+    # of what was changed in it is no use if it does not.
+    "xtal/mof/pormake": ["database/topologies/*.cgd",
+                         "database/bbs/*.xyz",
+                         "LICENSE.md", "PROVENANCE.md"],
 }
 
 #: Imported for their side effect and not for a name, or reached only
@@ -108,20 +126,41 @@ HIDDEN_IMPORTS = [
 #: invisible to static analysis even though the import itself is not,
 #: and RDKit carries data directories that no amount of import
 #: scanning would find.
-COLLECT = ["rdkit", "rdeditor", "qdarktheme"]
+#:
+#: ``ase`` is the fourth and it is the conservative one.  The vendored
+#: PORMAKE imports it statically, so PyInstaller would trace most of
+#: it anyway -- but ``ase.io``'s format registry imports its readers
+#: through ``importlib`` at call time, and the MOF builder is the one
+#: feature that cannot be exercised until a bundle exists.  Collecting
+#: it whole trades a few megabytes for not shipping a builder that
+#: raises on a format lookup.  PACKAGING.md 4 says to build the
+#: exclude list empirically; this is a line to revisit against a real
+#: ``xref-*.html``, not a permanent decision.
+COLLECT = ["rdkit", "rdeditor", "qdarktheme", "ase"]
 
 #: Not bundled, and each line is a decision rather than an oversight.
 EXCLUDES = [
-    # 44 packages and ~889 MB, including jax and pymatgen, for one
-    # dialog: larger than the rest of the application put together.
-    # The MOF builder is the single feature a packaged user cannot
-    # have; it greys out saying so and Preferences > Optional
-    # features says what to do about it.
-    "pormake",
-    # Nothing in this tree imports ase.  The `ase` extra is the
-    # calculator bridge PLAN.md 2 describes and nobody has built, so
-    # bundling it would add 20 MB for no feature.
-    "ase",
+    # `pormake` is NOT excluded any more, and its absence from this
+    # list is the point.  It used to be: 44 packages and ~889 MB,
+    # jax and pymatgen for one dialog, which made the MOF builder the
+    # single feature a packaged user could not have.  It is now
+    # vendored inside `xtal.mof.pormake`, trimmed of all three, and it
+    # ships -- see `xtal/mof/pormake/PROVENANCE.md`.  Excluding the
+    # name here would now exclude part of `xtal` itself.
+    #
+    # `ase` is not excluded any more either, for the same reason:
+    # the vendored PORMAKE uses `ase.Atoms`, `ase.neighborlist` and
+    # `ase.io` throughout, so the 26 MB now buys the MOF builder
+    # rather than nothing.  Replacing it with
+    # `xtal.core.structure.Structure` is a much larger piece of work
+    # and is not a packaging decision.
+    #
+    # The three that came with them are still excluded, because
+    # nothing imports them now:
+    "jax",
+    "jaxlib",
+    "pymatgen",
+    "networkx",
     # The one plot this application draws is a hundred lines of
     # QPainter in xtalapp/plot.py.  matplotlib arrives as a
     # dependency of rdkit's drawing code, which this application does
@@ -183,11 +222,15 @@ def project_datas() -> list[tuple[str, str]]:
             if path.is_file() and not path.name.startswith("."):
                 datas.append((str(path), relative))
 
-    for package, pattern in sorted(PACKAGE_DATA.items()):
+    for package, patterns in sorted(PACKAGE_DATA.items()):
         folder = ROOT / package
-        for path in sorted(folder.glob(pattern)):
-            destination = path.parent.relative_to(ROOT)
-            datas.append((str(path), str(destination)))
+        for pattern in patterns:
+            for path in sorted(folder.glob(pattern)):
+                # From the file's own parent, so a pattern that
+                # reaches down a subdirectory -- as the vendored
+                # database's two do -- lands where it was found.
+                destination = path.parent.relative_to(ROOT)
+                datas.append((str(path), str(destination)))
 
     return datas
 

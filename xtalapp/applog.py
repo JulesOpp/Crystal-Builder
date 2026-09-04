@@ -28,8 +28,12 @@ file without either of them knowing this exists.  Two things already
 in this application move the root logger around, and both are safe:
 :func:`xtalapp.dialogs.sketch._canvas` saves and restores its level
 and handlers around rdeditor's ``basicConfig``, and
-:func:`xtal.mof.build.import_pormake` swaps ``logging.FileHandler``
-only for the duration of an import.  There are tests for both, in
+:func:`xtal.mof.build.import_pormake` takes PORMAKE's own handlers off
+its logger and forwards it into the run's log.  (That second one used
+to swap ``logging.FileHandler`` out for the duration of an import, to
+stop PORMAKE opening ``runtime.log`` in the user's home folder.
+Vendoring let it be fixed where it happened instead -- see
+``xtal/mof/pormake/log.py``.)  There are tests for both, in
 ``tests/test_applog.py``, because "still true" is the whole claim.
 """
 

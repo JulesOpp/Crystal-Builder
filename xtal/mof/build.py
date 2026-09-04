@@ -50,7 +50,6 @@ from __future__ import annotations
 
 import logging
 import sys
-import tempfile
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -316,8 +315,7 @@ def build(request: BuildRequest, directory, catalog: Catalog | None
 
 def _build(topology, node_bbs, edge_bbs, log):
     """The one call, with PORMAKE imported at the point of use."""
-    _say(log, "importing PORMAKE (this takes a few seconds the first "
-              "time in a session)")
+    _say(log, "loading PORMAKE")
     pormake = import_pormake()
     # By path rather than through ``pormake.Database``, which is a
     # name-to-file lookup over one topology folder and one block
@@ -337,24 +335,28 @@ def _build(topology, node_bbs, edge_bbs, log):
 
 
 # ======================================================================
-#  IMPORTING IT, WHICH IS NOT AS PLAIN AS IT LOOKS
+#  IMPORTING IT
 # ======================================================================
 #
-# ``import pormake`` does two things on the way in that this
-# application has to answer for, and both are done once, here, behind
-# a lock, because an import races on nothing else.
+# **PORMAKE is vendored**, at :mod:`xtal.mof.pormake`, trimmed of
+# ``jax``, ``pymatgen`` and ``networkx``.  See
+# ``xtal/mof/pormake/PROVENANCE.md`` for what changed and why.
 #
-# It costs ten seconds warm and half a minute cold -- ``jax`` and
-# ``pymatgen`` -- which is why nothing imports it until a build is
-# actually running on a worker thread.
+# Both of the reasons this function used to be complicated are gone
+# with them.  The import cost ten seconds warm and half a minute cold,
+# and that was ``jax`` and ``pymatgen`` starting up, not PORMAKE; what
+# is left is twelve modules over ``ase``, measured at 0.33 s cold in a
+# fresh interpreter.  And it
+# opened ``runtime.log`` in the current directory, in mode ``"w"``, at
+# import -- somebody's home folder -- which took a swapped-out
+# ``logging.FileHandler`` to contain and is now simply not done: see
+# the note in ``pormake/log.py``.
 #
-# And it opens ``runtime.log`` in the *current directory*, in mode
-# ``"w"``, at import time.  That is somebody's home folder, or
-# whatever they launched the application from, and a file of theirs
-# with that name would be truncated by an import they did not ask
-# for.  So the file handler is contained for the length of the import
-# and PORMAKE's logger is rewired afterwards to write where the rest
-# of the run writes -- which is where its trace belonged anyway.
+# What remains is worth keeping.  The lock, because ``_rewire`` must
+# happen exactly once and an import races on nothing else; and the
+# rewiring itself, because PORMAKE's logger is how the builder reports
+# what it did -- and, in one case, the *only* place it reports that a
+# CIF was written and then deleted.
 
 _LOCK = threading.Lock()
 
@@ -391,31 +393,13 @@ class _Forwarder(logging.Handler):
 
 
 def import_pormake():
-    """``pormake``, imported without it writing where it likes."""
+    """The vendored ``pormake``, with its logger pointed at the run."""
     with _LOCK:
-        if "pormake" in sys.modules:
-            return sys.modules["pormake"]
-        holder = tempfile.TemporaryDirectory(prefix="pormake-import-")
-        original = logging.FileHandler
-
-        class _Contained(original):             # type: ignore[misc]
-            def __init__(self, filename, *args, **kwargs):
-                given = Path(filename)
-                if not given.is_absolute():
-                    filename = Path(holder.name) / given.name
-                super().__init__(filename, *args, **kwargs)
-
-        logging.FileHandler = _Contained
-        try:
-            import pormake
-        except ImportError as exc:              # pragma: no cover
-            raise MofError(
-                f"PORMAKE is not installed: {exc}.  "
-                f"pip install 'crystal-builder[mof]'") from None
-        finally:
-            logging.FileHandler = original
+        name = "xtal.mof.pormake"
+        if name in sys.modules:
+            return sys.modules[name]
+        import xtal.mof.pormake as pormake
         _rewire()
-        holder.cleanup()
         return pormake
 
 
@@ -426,7 +410,7 @@ def _rewire() -> None:
     a file handler holds its file open, and on Windows an open file
     cannot be removed at all.
     """
-    from pormake.log import logger
+    from xtal.mof.pormake.log import logger
 
     for handler in list(logger.handlers):
         logger.removeHandler(handler)

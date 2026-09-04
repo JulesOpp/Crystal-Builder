@@ -159,38 +159,58 @@ It is also what `--selftest` in § 8 opens.
 `resources/topo/` — 13 MB, and only `python -m xtal.analysis.rcsr
 build` reads it.  The built index ships; its source does not.
 
-`pormake`, the `mof` extra, and nothing else.  **Decided**, and this
-is the table the decision was made from — it lived in SHELL.md § 3
-and is the part of that file worth keeping:
+Nothing, now.  **This section used to say `pormake` and the `mof`
+extra, and that is the decision that got reversed** — see below.  The
+table it was decided from lived in SHELL.md § 3 and is worth keeping
+because the reversal is only legible against it:
 
 | | Bundle? | Why |
 |---|---|---|
 | **rdkit** (~107 MB) | **yes** | Buys two whole features — build from SMILES, and the sketcher.  Greying out *Draw* in a GUI-only distribution hides Phase U from exactly the people it was for. |
 | **rdeditor** (~1 MB) | **yes** | PySide6 plus a theme package, both already bundled.  Free. |
-| **ase** (~20 MB) | **no** | Nothing in this tree imports it. |
-| **pormake** | **no** | 44 packages, ~889 MB, `jax` and `pymatgen`, and a ten-second import, for one dialog. |
+| **ase** (~20 MB) | ~~no~~ **yes** | Was "nothing in this tree imports it".  The vendored PORMAKE does, throughout, so the 20 MB now buys the MOF builder rather than nothing. |
+| **pormake** | ~~no~~ **vendored** | Was 44 packages, ~889 MB, `jax` and `pymatgen`, and a ten-second import, for one dialog.  All three are gone. |
 
 "Repeat `pip install 'crystal-builder[mof]'` in a nicer dialog" is not
 an answer in a bundle, because there is no environment to install
 into: the bundled interpreter is not on the user's PATH and has no
 `pip`.  That is why *Preferences → Optional features* knows which
-build it is in and says different things — and why it had to exist
-before this table could be decided.
+build it is in and says different things.
 
-The `ase` row is the one that was corrected rather than decided.  "It
-is I/O; excluding it costs a format" was wrong: **nothing in this tree
-imports it**, every format in `xtal/io/` is this project's own code,
-and the `ase` extra is the calculator bridge [PLAN.md](PLAN.md) § 2
-describes and nobody has written.  It costs no feature either way, so
-it is not on the extras page — a row saying "powers nothing" is not a
-feature — and it comes back on its own merits when that bridge is
-built.
+### The reversal, which is the interesting part
 
-That makes the MOF builder the single feature a bundled user cannot
-have.  It greys out saying so, and the Preferences extras page says
-what to do about it — which is the thing that had to exist before
-this could be decided, because "run `pip install`" is not advice you
-can give somebody who double-clicked a DMG.
+The MOF builder was the single feature a bundled user could not have,
+and the sentence above is why: there was no honest advice to give
+somebody who double-clicked a DMG.  An external-tool route — point at
+a conda environment, the way the app finds DFTB+ — was designed and
+proven working, then rejected, because it still asks the user to
+configure something.
+
+**The 889 MB turned out to be almost entirely two dependencies PORMAKE
+barely uses.**  `networkx` was declared and never imported.  `jax` and
+`jaxlib` were 554 MB supplying **one gradient** to a `scipy` optimiser
+that was already there.  `pymatgen` and its ~250 MB of sympy, pandas,
+plotly and matplotlib were **one call**, expanding a net's asymmetric
+unit — which `xtal/analysis/rcsr.py` already does over gemmi.
+
+So PORMAKE is **vendored**, at `xtal/mof/pormake/`, MIT and trimmed of
+all three: 12 files of Python, 2.8 MB of nets and blocks, and `ase`.
+About 23 MB where it was 889.  `xtal/mof/pormake/PROVENANCE.md`
+records every difference from upstream 0.2.3, and
+`tests/test_mof_vendored.py` diffs the vendored copy against a real
+installed one — same slots, same composition, same RMSD, same net —
+whenever a machine has both.
+
+`ase` moved with it and stays an extra: the core's four packages are
+what make `pip install crystal-builder` usable on a cluster node, and
+`xtal.modules.mof.available` greys the entry out naming
+`crystal-builder[ase]` when it is missing.  The build jobs install it.
+
+**Preferences → Optional features no longer lists the MOF builder at
+all**, because a page listing a feature that ships as optional is the
+untrue thing that page exists to avoid.  What is left of that box is
+the folder on `sys.path`, which was always the general mechanism and
+is now described as one.
 
 ### Never
 
@@ -402,10 +422,18 @@ bundle.  Three layers, cheapest first:
    nobody answers hangs the job) and a `--selftest` flag that opens
    `resources/samples/MOF-5.cif`, asserts the version is not
    `0.0.dev0`, asserts the RCSR index and the fragment library both
-   load, writes a viewport PNG, and exits non-zero on any failure.
-   That single flag covers § 3.1, § 3.2 and the VTK OpenGL context,
-   which are the three things that break in a bundle and nowhere
-   else.
+   load, embeds a benzene through RDKit, **builds a pcu framework and
+   checks the net that comes out**, writes a viewport PNG, and exits
+   non-zero on any failure. That single flag covers § 3.1, § 3.2 and
+   the VTK OpenGL context, which are the three things that break in a
+   bundle and nowhere else.
+
+   The MOF check is the newest and is layer 2's whole justification in
+   miniature: layer 1 asserts `bundle.py` *names* the 3271 nets and
+   blocks, and only a built bundle can say they survived PyInstaller.
+   A build with the code and no database imports perfectly and then
+   greys the entry out — indistinguishable, to a user, from the
+   feature having been dropped again.
 3. **Look at it, once per release**, on both platforms, with the
    **run-app** skill's checklist: open a CIF, find symmetry, run a
    UFF optimisation to completion, run a Zeo++ job if a binary is
@@ -483,4 +511,15 @@ optional:
 So 487 MB installed is what this application weighs once it is
 honest about what it does, and the remaining levers are all bad
 trades.  The 166 MB download is the number to quote.
+
+**Both numbers are from before the MOF builder was brought in**, and
+neither has been remeasured on a real bundle since.  What was added is
+`ase` at 20 MB, the vendored PORMAKE's 0.2 MB of Python, and a
+database that is 2.8 MB of bytes in about 3271 files — which a onedir
+bundle stores individually, so it costs closer to 13 MB of disk and
+almost nothing in a compressed DMG.  Expect roughly **+35 MB
+installed and +5 MB on the download**, and replace this paragraph with
+the measured figures the next time a DMG is built rather than leaving
+an estimate in a section whose whole point is that the earlier one was
+a guess.
 

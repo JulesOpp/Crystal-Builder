@@ -570,7 +570,7 @@ class OptionalFeaturesPage(QWidget):
             "for the environment it is running in."))
         for extra in extras.EXTRAS:
             layout.addWidget(self._row(extra))
-        layout.addWidget(self._pormake_box())
+        layout.addWidget(self._packages_box())
         layout.addStretch(1)
 
     def _row(self, extra) -> QGroupBox:
@@ -587,30 +587,20 @@ class OptionalFeaturesPage(QWidget):
         self.rows[extra.package] = state
         return box
 
-    def _pormake_box(self) -> QGroupBox:
-        """The two ways to have the MOF builder anyway.
+    def _packages_box(self) -> QGroupBox:
+        """The folder a frozen build can have a package added to.
 
-        Both are built, and one of them is recommended: see
-        ``extras.TARGET_WARNING``.  The folder exists whatever this
-        page says, because it is the only mechanism a frozen build has
-        for adding a package at all.
+        This used to be "Having the MOF builder anyway", offering two
+        routes to a PORMAKE that was not in the bundle.  PORMAKE is
+        vendored now, so the box is what it always really was: the one
+        mechanism a build with no pip has for adding a package at all.
+        The caveat in ``extras.TARGET_WARNING`` is unchanged and was
+        never specific to PORMAKE.
         """
-        box = QGroupBox("Having the MOF builder anyway")
+        box = QGroupBox("Adding a package to this copy")
         inner = QVBoxLayout(box)
-        inner.addWidget(_hint(extras.PORMAKE_REASON))
+        inner.addWidget(_hint(extras.PACKAGES_REASON))
 
-        inner.addWidget(QLabel("Run Crystal Builder from Python"))
-        inner.addWidget(_hint(
-            "The supported route, and the one that gets every other "
-            "feature at its own version too."))
-        self.full_command = _Command(extras.FULL_COMMAND)
-        inner.addWidget(self.full_command)
-
-        inner.addWidget(QLabel("Or add a package to this copy"))
-        inner.addWidget(_hint(
-            "This folder is put first on the import path when the "
-            "application starts, so a package installed into it is "
-            "found before the ones inside."))
         self.target_command = _Command(extras.target_command())
         inner.addWidget(self.target_command)
         warning = QLabel(extras.TARGET_WARNING)

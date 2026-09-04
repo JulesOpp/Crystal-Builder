@@ -12,7 +12,7 @@ bonding, run force field / DFTB+ / Zeo++ calculations on the result.
 | `xtal/io/` | CIF and project (`.xtalproj`) read/write |
 | `xtal/commands/` | Undoable operations on a structure |
 | `xtal/ff/`, `xtal/modules/` | Calculators (UFF, DFTB+) and the module/job registry (Zeo++) |
-| `xtal/mof/`, `xtal/build/` | PORMAKE frameworks, and SMILES to a molecule. Both are **extras** (`mof`, `build`) — the check is `find_spec` and never an import, and the entries grey out naming the extra. |
+| `xtal/mof/`, `xtal/build/` | PORMAKE frameworks, and SMILES to a molecule. **PORMAKE is vendored** at `xtal/mof/pormake/` — MIT, trimmed of `jax`, `pymatgen` and `networkx`; see its `PROVENANCE.md`, and do not reformat it. The MOF builder needs the `ase` extra, the molecule builder the `build` one; the check is `find_spec` and never an import, and the entries grey out naming the extra. |
 | `xtalapp/` | The Qt/PySide6 + VTK GUI shell. Holds no crystallography of its own. |
 | `xtalapp/mainwindow.py` | The shell: menus, docks, tabs. Large; see "Working in mainwindow" below. |
 | `xtalapp/document.py` | `Document` — a structure plus its undo stack. The GUI asks the Document to change things; it does not edit structures directly. |
@@ -20,9 +20,9 @@ bonding, run force field / DFTB+ / Zeo++ calculations on the result.
 ## Commands
 
 ```bash
-python -m pytest -q                    # full suite, serial, ~92 s
+python -m pytest -q                    # full suite, serial, ~155 s
 python -m pytest -q tests/test_bonding.py    # while iterating
-python -m pytest -q -m "not slow"      # ~68 s; skips the twelve slow ones
+python -m pytest -q -m "not slow"      # ~99 s; skips the 35 slow ones
 python -m pytest -q --durations=20     # what the run is actually spending
 ruff check .                           # lint (check only — see below)
 crystal-builder                        # launch the GUI
@@ -32,7 +32,7 @@ crystal-builder                        # launch the GUI
 `pyproject.toml`. `-n auto` finishes in 25 s and wedged four runs out
 of eight; the deadlock behind that is described below. Prefer a
 **targeted file** while iterating and the full suite once before
-committing; the whole suite is 1600+ tests and running it after every
+committing; the whole suite is 2000+ tests and running it after every
 edit is the single most expensive habit in this repo, and more so now.
 
 **No single test should take anything like a minute**, whatever the
@@ -44,9 +44,16 @@ both fixes made the application faster by the same factor, which is
 the only kind of test-speed fix worth making. The slowest test left is
 about nine seconds.
 
-The suite's own 92 s is the price of running serially, not of any one
-test; getting it back to 25 s means fixing the deadlock, not trimming
-tests.
+The suite's own 155 s is the price of running serially, not of any one
+test; getting it back means fixing the deadlock, not trimming tests.
+
+It was 92 s before the MOF builder was vendored. Most of the increase
+is that the builds in `tests/test_mof_builder.py` and
+`tests/test_mof_vendored.py` now *run* — they used to skip on a
+machine without PORMAKE and be ten seconds of import on one with it.
+The slowest single test is the expansion-speed comparison in
+`tests/test_mof_vendored.py`, at about 10 s, and it is 10 s because it
+reads two large nets twice — once through the real PORMAKE.
 
 ## Conventions
 
