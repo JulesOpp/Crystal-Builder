@@ -11,6 +11,7 @@ instead of the user's real preferences.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from PySide6.QtCore import QRect, QSettings
@@ -19,6 +20,11 @@ from PySide6.QtGui import QGuiApplication
 ORGANISATION = "CrystalBuilder"
 APPLICATION = "CrystalBuilder"
 MAX_RECENT = 10
+
+#: Points the preferences at a directory of the caller's own, as an
+#: INI file, instead of at the platform's own preferences system.  For
+#: the test suite, and for the same reason ``XTAL_LOG_DIR`` exists.
+SETTINGS_DIR_ENV = "XTAL_SETTINGS_DIR"
 
 # How much of the screen a fresh window takes, and the size beyond
 # which taking more of it stops helping.  A fixed pixel size is a guess
@@ -111,12 +117,40 @@ def fit_to_screen(window) -> None:
                                       -margins[2], -margins[3]))
 
 
+def open_settings(organisation=ORGANISATION,
+                  application=APPLICATION) -> QSettings:
+    """The store this application's preferences live in.
+
+    The platform's own -- a plist on macOS, the registry on Windows --
+    unless :data:`SETTINGS_DIR_ENV` names a directory, in which case
+    an INI file inside it.
+
+    **The format has to be passed in explicitly** and that is the
+    whole reason this function exists.  ``QSettings.setDefaultFormat``
+    is the documented way to ask for INI, and on macOS the
+    organisation/application constructors ignore it: they hand back a
+    ``NativeFormat`` object talking to CFPreferences whatever the
+    default says.  So a test suite that set the default and believed
+    it was redirected went on writing a permanent plist per window
+    into the developer's ~/Library/Preferences -- 374 of them, on the
+    machine this was found on, after the redirection was written
+    specifically to stop that.
+    """
+    directory = os.environ.get(SETTINGS_DIR_ENV, "").strip()
+    if not directory:
+        return QSettings(organisation, application)
+    QSettings.setPath(QSettings.IniFormat, QSettings.UserScope,
+                      directory)
+    return QSettings(QSettings.IniFormat, QSettings.UserScope,
+                     organisation, application)
+
+
 class AppSettings:
     """Window layout, recent files, and view defaults."""
 
     def __init__(self, organisation=ORGANISATION,
                  application=APPLICATION):
-        self._q = QSettings(organisation, application)
+        self._q = open_settings(organisation, application)
 
     # -- recent files --------------------------------------------------
 
@@ -169,6 +203,22 @@ class AppSettings:
     @mof_bb_dir.setter
     def mof_bb_dir(self, value) -> None:
         self._set_or_clear("mof/bb_dir", value)
+
+    # -- external tools -------------------------------------------------
+    #
+    # Where somebody else's program is.  One pair of accessors keyed by
+    # the setting's own name rather than a property each, because the
+    # name is already written down where it is needed: ``Program`` has
+    # carried a ``setting`` field since the module machinery was built
+    # (``tools/zeopp``, ``tools/dftb``), and a plugin's program can
+    # name one this class has never heard of.
+
+    def path_setting(self, key: str) -> str:
+        """A stored path, or ``""``."""
+        return str(self._q.value(key, "") or "")
+
+    def set_path_setting(self, key: str, value) -> None:
+        self._set_or_clear(key, value)
 
     def _set_or_clear(self, key: str, value) -> None:
         """Store a setting, or forget it when it is emptied.

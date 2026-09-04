@@ -62,13 +62,26 @@ def _settings_into_a_scratch_directory() -> None:
     takes the same code path through a file instead, touching no
     daemon and nobody's preferences.  Done at import, because a
     fixture runs too late for a module-level ``AppSettings``.
+
+    **``setDefaultFormat`` is not enough and looked like it was.**  On
+    macOS the organisation/application constructors ignore it and hand
+    back a NativeFormat object anyway, so this guard silently did
+    nothing for as long as it has existed: 374 plists were sitting in
+    ~/Library/Preferences when a test finally read one back from a
+    previous run and failed on it.  The format has to be passed to the
+    constructor, which is what ``XTAL_SETTINGS_DIR`` makes
+    ``AppSettings`` do.
     """
+    scratch = tempfile.mkdtemp(prefix="xtal-test-settings-")
+    atexit.register(shutil.rmtree, scratch, ignore_errors=True)
+    # Spelled out rather than imported: this file is read before
+    # anything else and the headless half of the suite has no Qt to
+    # import xtalapp.settings through.
+    os.environ.setdefault("XTAL_SETTINGS_DIR", scratch)
     try:
         from PySide6.QtCore import QSettings
     except ImportError:               # the headless half of the suite
         return
-    scratch = tempfile.mkdtemp(prefix="xtal-test-settings-")
-    atexit.register(shutil.rmtree, scratch, ignore_errors=True)
     QSettings.setDefaultFormat(QSettings.IniFormat)
     for scope in (QSettings.UserScope, QSettings.SystemScope):
         QSettings.setPath(QSettings.IniFormat, scope, scratch)
@@ -131,6 +144,23 @@ def _no_blocking_modal(monkeypatch):
 
         monkeypatch.setattr(QMessageBox, name, refuse_static,
                             raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _no_leftover_tool_hints():
+    """Forget where a test said Zeo++ or DFTB+ is.
+
+    ``xtal.modules.process`` holds the paths the GUI's preferences
+    name in a module-level table, which is process-wide and outlives a
+    test the way an environment variable would.  One test pointing at
+    a fake binary in its own tmp_path would otherwise decide what
+    every later test finds, and the later test would be the one that
+    failed.
+    """
+    from xtal.modules import process
+    process.clear_hints()
+    yield
+    process.clear_hints()
 
 # Reference values from the literature, for tests that check we get
 # real numbers out and not just self-consistent ones.
