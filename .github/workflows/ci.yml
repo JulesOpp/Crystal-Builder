@@ -106,40 +106,46 @@ jobs:
       # PyInstaller's symlinks, and whether VTK still has an OpenGL
       # context after the excludes.  XTAL_NO_CONFIRM_CLOSE per
       # CLAUDE.md: a modal nobody answers hangs the job.
+      # Strip and drop the unused Qt plugins, then sign.  Not a
+      # tidying step: it is about 175 MB of the download, and
+      # PyInstaller's own strip cannot do the larger half of it.  See
+      # the module docstring.  Signing happens here, after the file
+      # rewriting, because a signature made before stripping is
+      # invalidated by it and an invalid one will not launch at all
+      # on Apple silicon.
+      - name: Strip and sign (macOS)
+        if: runner.os == 'macOS'
+        run: python packaging/postbuild.py "dist/Crystal Builder.app"
+
       - name: Selftest (macOS)
         if: runner.os == 'macOS'
         env:
           XTAL_NO_CONFIRM_CLOSE: "1"
-        run: |
-          codesign --force --deep -s - "dist/Crystal Builder.app"
-          "dist/Crystal Builder.app/Contents/MacOS/Crystal Builder" \
-            --selftest --selftest-image selftest.png
+        run: >-
+          "dist/Crystal Builder.app/Contents/MacOS/Crystal Builder"
+          --selftest --selftest-image selftest.png
 
       # Windows runners have no GPU, so VTK falls back to the
       # software rasteriser rather than failing; that is still a real
       # OpenGL context and still proves the bundle can draw.
       - name: Selftest (Windows)
         if: runner.os == 'Windows'
+        shell: pwsh
         env:
           XTAL_NO_CONFIRM_CLOSE: "1"
         run: >-
           & "dist/Crystal Builder/Crystal Builder.exe"
           --selftest --selftest-image selftest.png
 
+      # hdiutil, not create-dmg: create-dmg positions the icons by
+      # driving Finder over Apple events, which a runner is not
+      # authorised to do and cannot be asked to allow.  What that
+      # buys is a background image and icon placement, which is
+      # explicitly not phase 8; what it does not affect is the volume
+      # name, the app, or the /Applications symlink to drag it to.
       - name: Package (macOS)
         if: runner.os == 'macOS' && startsWith(github.ref, 'refs/tags/v')
-        run: |
-          brew install create-dmg
-          VERSION="${GITHUB_REF_NAME#v}"
-          ARCH="${{ matrix.label }}"
-          create-dmg \
-            --volname "Crystal Builder" \
-            --icon "Crystal Builder.app" 150 190 \
-            --app-drop-link 450 190 \
-            --window-size 600 400 \
-            --no-internet-enable \
-            "Crystal-Builder-${VERSION}-${ARCH#macos-}.dmg" \
-            "dist/Crystal Builder.app"
+        run: python packaging/makedmg.py "dist/Crystal Builder.app" .
 
       - name: Package (Windows)
         if: runner.os == 'Windows' && startsWith(github.ref, 'refs/tags/v')

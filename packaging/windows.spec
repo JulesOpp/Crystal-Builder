@@ -127,6 +127,11 @@ collection = COLLECT(
     executable,
     analysis.binaries,
     analysis.datas,
+    # PyInstaller's strip is `strip -S` on macOS, which removes debug
+    # symbols these libraries do not have, and costs minutes.  The
+    # saving is in the *local* symbol table, which is `strip -x`, and
+    # packaging/postbuild.py does that afterwards: 54.7 MB of
+    # libvtkCommonCore's 98.4 MB is one __LINKEDIT segment.
     strip=False,
     upx=False,
     upx_exclude=[],

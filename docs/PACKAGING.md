@@ -13,25 +13,18 @@ service of that or is explicitly deferred.
 
 ---
 
-## 1. What already exists
-
-More than the empty `packaging/` directory suggests.
+## 1. Where this got to
 
 | Piece | State |
 |---|---|
-| `packaging/` | exists, empty — this is where the specs go |
-| `pyinstaller>=6` | already in the `dev` extra |
-| CI on all three targets | `macos-14` (arm64), `macos-13` (x86_64), `windows-latest`, already green |
-| Version from git tags | `setuptools-scm`, and CI already fetches with `fetch-depth: 0` |
-| Tag trigger | `ci.yml` already runs on `tags: ["v*"]` — it just does nothing extra with them |
-| A GUI entry point | `crystal-builder = "xtalapp.main:main"`, which takes file paths on argv |
-| Granular VTK imports | `xtalapp/viewport/` imports `vtkmodules.vtkRenderingCore` and thirteen siblings, never `vtk` or `vtkmodules.all` — which is the form a frozen build can actually prune |
-| Package data declared | `[tool.setuptools.package-data]` already names the RCSR index and the fragment library |
-| A way to drive the real window | the **run-app** skill |
-
-What does not exist: any spec file, any icon (there is not a single
-`.icns`, `.ico`, `.png` or `.svg` in the tree), any installer script,
-any release job, and any of the four code changes in § 3.
+| `packaging/bundle.py` + `tests/test_packaging.py` | done; 11 tests, no PyInstaller needed |
+| `packaging/icons/` | done; `.svg` sources, `.icns`/`.ico` rendered by `build_icons.py`, plus a separate `app-small.svg` for 16 and 32 px |
+| `packaging/macos.spec` | done; builds a `.app` that passes `--selftest` |
+| `packaging/postbuild.py` | done; strip and Qt pruning, then the ad-hoc signature |
+| `packaging/windows.spec`, `crystal-builder.iss` | **written, never run** — no Windows machine here; CI is the first execution |
+| `crystal-builder --selftest` | done; passes on a checkout and inside the bundle |
+| CI `build` + `release` jobs | written; build-on-main included, first run is the proof |
+| A tag | **none yet.** Until there is one, every build says `0.1.devN` |
 
 ---
 
@@ -68,100 +61,80 @@ is one fix and not two.  It is not a build script — `pyinstaller
 packaging/macos.spec` stays the command.
 
 ---
+## 3. The one constraint, and the one line
 
-## 3. Four code changes the frozen app needs
+SHELL.md used to sit here with five pieces of shell work in it, on
+the grounds that each was a bug in the shipped app if it was skipped.
+All five have shipped — `xtalapp/applog.py`, `xtalapp/application.py`,
+`xtalapp/samples.py`, `xtalapp/extras.py` and the Preferences window,
+with `Program.setting` wired through `locate(hint=...)` — so that
+file is gone, as an entry is when it ships.  What is left of it is
+the bundle/don't-bundle decision, which is § 4.
 
-These come **first**, before any spec is written.  Each is testable
-in the normal suite on a source checkout, and each is a bug in the
-shipped app if it is skipped.
+### 3.1 The four `parent.parent` lookups — a constraint, not a change
 
-Three of the four turned out to be larger than "small", and they grew
-a fifth — Preferences, without which a frozen app has no way to be
-told where Zeo++ is.  The buildable version of all of it, with the
-layout proposals and the order, is [SHELL.md](SHELL.md); what stays
-below is the packaging-side summary of why each exists.
-
-### 3.1 The three `bundled()` lookups — no change, but a constraint
-
-`xtal/analysis/rcsr.py:source_file`, `xtal/modules/zeopp.py:bundled`
-and `xtal/ff/dftb/hsd.py:bundled` all compute the same thing:
+`xtal/analysis/rcsr.py:source_file`, `xtal/modules/zeopp.py:bundled`,
+`xtal/ff/dftb/hsd.py:bundled` and `xtalapp/samples.py:folder` all
+compute the same thing:
 
 ```python
-Path(xtal.__file__).resolve().parent.parent.joinpath(*SOURCE)
+Path(<a module>.__file__).resolve().parent.parent.joinpath(*PARTS)
 ```
+
+There were three of these when this was written; `samples.py` made it
+four, and it is the one that matters most, because it is the only one
+whose target actually ships.
 
 In a PyInstaller onedir bundle `xtal.__file__` is
 `<bundle>/_internal/xtal/__init__.pyc`, so `parent.parent` is
-`_internal`, which is `sys._MEIPASS`.  **So all three keep working
-unchanged, provided anything they look for is placed at
-`_internal/resources/...`.**  That is a free win and it is worth not
-throwing away: do not add a `sys.frozen` branch to any of these three,
-and do not flatten `resources/` into the package.  Put the tree where
-they already look.
+`_internal`, which is `sys._MEIPASS`.  **All four keep working
+unchanged provided anything they look for is placed at
+`_internal/resources/...`.**  Do not add a `sys.frozen` branch to any
+of them and do not flatten `resources/` into the package.
 
-The one caveat is macOS, where PyInstaller 6 splits a `.app` between
-`Contents/Frameworks` and `Contents/Resources` and symlinks between
-them.  It resolves — but `.resolve()` on a symlinked path is exactly
-the kind of thing that works on one PyInstaller point release and not
-the next, so **§ 8 has a test that asserts it from inside the built
-bundle** rather than trusting this paragraph.
+**Confirmed on a real bundle**, which is the only way this could be
+confirmed: `--selftest` opens a sample from inside the built `.app`,
+so `.resolve()` is demonstrably surviving PyInstaller 6's
+`Contents/Frameworks` ↔ `Contents/Resources` symlink split rather
+than being asserted to in a paragraph.
 
 ### 3.2 `copy_metadata('crystal-builder')`
 
-Two things read the installed distribution's metadata and both fail
-quietly without it:
+One line in `bundle.py`, and invisible until it is missing.  `pip`
+writes `crystal_builder-<version>.dist-info/` beside the code, holding
+the version and the entry points; PyInstaller copies code and not
+that.  Without it `version("crystal-builder")` raises,
+`xtal/__init__.py`'s `except` catches it, and **Help → About reports
+`0.0.dev0` on every release** — worse than showing nothing, because it
+looks like a real number and a bug report quoting it is useless.
 
-- `xtal/__init__.py:16` — `version("crystal-builder")`, which falls
-  back to `"0.0.dev0"`.  Help → About would report `0.0.dev0` on
-  every release build, which is worse than no version at all because
-  it looks like a number.
-- `xtal/plugins.py:load` — `entry_points(group=...)`.  With no
-  metadata this returns nothing, silently, and every out-of-tree
-  plugin stops existing.  Phase 9's whole claim is that a plugin
-  installed from outside the tree works; in a bundle there is nowhere
-  to install one *to*, so the honest position is that **the shipped
-  app supports in-tree modules only**, and § 7 says so in the release
-  notes rather than leaving a dead menu.
+A tag has to exist as well, and that is easy to miss: with no tag
+anywhere in the repository, setuptools-scm has nothing to derive a
+number *from*, and `copy_metadata` faithfully carries a dev string.
+`--selftest` fails on both cases rather than either.
 
-This is one line in `bundle.py`, but it needs a test that a built
-bundle reports the tag it was built from — see § 8.
+The other half is `xtal/plugins.py:load`, which calls
+`entry_points(group=...)`.  That works again with this line, but the
+honest position is that a frozen app has no `pip` and nowhere to
+install a plugin *to*: **the shipped build supports in-tree modules
+only**, plus whatever is in the folder `xtalapp/extras.py` prepends to
+`sys.path`.  The release notes say so.
 
-### 3.3 A log file, because windowed builds have no stderr
+### 3.3 A dependency bound, found by `--selftest` on its first run
 
-`xtalapp/main.py:36` prints plugin load failures to `sys.stderr`.  In
-a `--windowed` build there is no stderr, so that warning goes
-nowhere; and any uncaught exception anywhere in the app takes the
-window down with no traceback and nothing on disk to say why.  For a
-scientific tool that runs external binaries and parses other people's
-CIFs this is not acceptable — the first bug report will be "it
-closed".
+**PySide6 must stay below 6.10.**  VTK's
+`QVTKRenderWindowInteractor.paintEvent` is one line — `self._Iren.Render()`
+— and from 6.10.0 Qt re-posts a paint event for the render, so the
+widget repaints forever at 100% of a core: the window comes up, the 3D
+view stays empty, nothing responds again.  Bisected on macOS 13
+against VTK 9.6.2 and 9.7.0, which are both fine: 6.9.3 works, 6.10.0
+does not.  `pyproject.toml` carries the bound and the reason.
 
-So: a `xtalapp/logging.py` that writes to
-`QStandardPaths.AppDataLocation/crystal-builder.log`, installs a
-`sys.excepthook` that logs the traceback and then shows a QMessageBox
-naming the log file, and a **Help → Show log** menu item that reveals
-it in Finder/Explorer.  Plugin failures and module-run stderr go
-there too.
-
-This is worth doing whether or not the app is ever frozen, which is
-why it is a change to the app and not to the spec.
-
-### 3.4 `QFileOpenEvent`, or file associations only half work
-
-`xtalapp/main.py` reads paths off `argv`, which is how Windows
-associations and a *cold* macOS launch deliver a file.  It is **not**
-how macOS delivers one to an app that is already running: that
-arrives as a `QFileOpenEvent` on the `QApplication`, and today nothing
-handles it.  Double-clicking a second `.cif` with the window open
-would do nothing at all, which reads as the association being broken.
-
-A `QApplication` subclass (or an `installEventFilter`) that turns the
-event into the same `MainWindow.open` call the argv loop at
-`mainwindow.py:140` already makes.  Note the ordering trap: the event
-can arrive *before* the window exists, so it queues into a list that
-the window drains on construction.
-
----
+The suite cannot catch this and never will: widget tests inject a stub
+`QWidget` in place of the viewport precisely so they never open a GL
+context, so two thousand tests pass against a PySide6 that hangs the
+real window.  That gap is the whole argument for § 8.2 drawing a
+picture rather than asserting a window exists.
 
 ## 4. What goes in the bundle, and what does not
 
@@ -186,18 +159,32 @@ It is also what `--selftest` in § 8 opens.
 `resources/topo/` — 13 MB, and only `python -m xtal.analysis.rcsr
 build` reads it.  The built index ships; its source does not.
 
-`pormake`, the `mof` extra, and nothing else.  **Decided** —
-`rdkit` and `rdeditor` are bundled; the argument and the numbers are
-[SHELL.md](SHELL.md) § 3.  The short version: RDKit buys two whole
-features for ~107 MB against a bundle already heading for ~300 MB,
-rdeditor is a rounding error on top of PySide6, and PORMAKE is 44
-packages and ~889 MB including `jax` and `pymatgen` for one dialog.
+`pormake`, the `mof` extra, and nothing else.  **Decided**, and this
+is the table the decision was made from — it lived in SHELL.md § 3
+and is the part of that file worth keeping:
 
-`ase` was in this list and is not any more: **nothing in this tree
-imports it.**  It is the calculator bridge [PLAN.md](PLAN.md) § 2
-describes and nobody has written, so bundling it would add 20 MB and
-one more thing to hook, for no feature.  When that bridge is built it
-comes back, on its own merits.
+| | Bundle? | Why |
+|---|---|---|
+| **rdkit** (~107 MB) | **yes** | Buys two whole features — build from SMILES, and the sketcher.  Greying out *Draw* in a GUI-only distribution hides Phase U from exactly the people it was for. |
+| **rdeditor** (~1 MB) | **yes** | PySide6 plus a theme package, both already bundled.  Free. |
+| **ase** (~20 MB) | **no** | Nothing in this tree imports it. |
+| **pormake** | **no** | 44 packages, ~889 MB, `jax` and `pymatgen`, and a ten-second import, for one dialog. |
+
+"Repeat `pip install 'crystal-builder[mof]'` in a nicer dialog" is not
+an answer in a bundle, because there is no environment to install
+into: the bundled interpreter is not on the user's PATH and has no
+`pip`.  That is why *Preferences → Optional features* knows which
+build it is in and says different things — and why it had to exist
+before this table could be decided.
+
+The `ase` row is the one that was corrected rather than decided.  "It
+is I/O; excluding it costs a format" was wrong: **nothing in this tree
+imports it**, every format in `xtal/io/` is this project's own code,
+and the `ase` extra is the calculator bridge [PLAN.md](PLAN.md) § 2
+describes and nobody has written.  It costs no feature either way, so
+it is not on the extras page — a row saying "powers nothing" is not a
+feature — and it comes back on its own merits when that bridge is
+built.
 
 That makes the MOF builder the single feature a bundled user cannot
 have.  It greys out saying so, and the Preferences extras page says
@@ -233,6 +220,37 @@ excluded, read `build/*/xref-*.html`, cut the biggest thing that is
 obviously unused, rebuild, launch.  Guessing at it produces a bundle
 that starts and then fails on the one dialog nobody tested.
 
+**And two things the exclude list cannot do, which together beat it.**
+Both are in `packaging/postbuild.py`, run after PyInstaller.
+
+*Strip, with the right flag.*  The VTK wheel ships its dylibs with
+their local symbol tables: 54.7 MB of `libvtkCommonCore.dylib`'s
+98.4 MB is one `__LINKEDIT` segment.  **PyInstaller's own
+`strip=True` does not remove it** — on macOS it runs `strip -S`,
+which takes out *debug* symbols these libraries have none of.  The
+flag that works is `-x`: measured on that library, `-S` leaves it at
+98.4 MB and `-x` takes it to 45.6.  So the specs set `strip=False`,
+because PyInstaller's pass costs minutes for nothing, and postbuild
+does `strip -x` instead.  About 150 MB.
+
+*Removing two Qt plugins.*  `imageformats/libqpdf.dylib` renders a
+PDF as an image, and `platforminputcontexts/libqtvirtualkeyboardplugin.dylib`
+is an on-screen keyboard for touch devices.  Neither can ever be
+called here, and each is the **only** thing in the bundle linking a
+chain of frameworks: the first is what drags in QtPdf, the second the
+whole of QtQuick, QtQml and QtVirtualKeyboard.  About 25 MB reachable
+from two files.  Qt finds plugins by scanning a directory, so a
+missing optional one is never offered rather than looked up and
+missed.
+
+The removal checks itself rather than trusting that list: postbuild
+re-runs `otool` over everything still in the bundle and keeps any
+framework that turns out to have a dependent, saying so.  Note that
+PyInstaller rewrites Qt's install names down to a bare `@rpath/QtSvg`
+— matching on `QtSvg.framework/` finds nothing and cheerfully reports
+that every framework is unused, which is a convincing way to delete
+something load-bearing.
+
 ---
 
 ## 5. macOS
@@ -250,9 +268,14 @@ that starts and then fails on the one dialog nobody tested.
   `Crystal-Builder-<version>-arm64.dmg` and `-x86_64.dmg` and let the
   download page name them.  Do not ship arm64 only and tell Intel
   users about Rosetta — Rosetta cannot help, the app is not there.
-* **DMG**: `create-dmg`, with the `.app` and a symlink to
-  `/Applications`.  A background image and a window layout are nice
-  and are not phase 8.
+* **DMG**: `packaging/makedmg.py`, with the `.app` and a symlink to
+  `/Applications`.  `hdiutil` and **not** `create-dmg`, which was
+  tried first: it positions the mounted window's icons by driving
+  Finder over Apple events, and anything without macOS Automation
+  permission gets `Not authorized to send Apple events to Finder
+  (-1743)`.  A developer can grant that in System Settings; a CI
+  runner cannot be asked.  What it buys is a background image and
+  icon placement, which this section already put outside phase 8.
 * **Signing.** Be honest about the three options and pick one:
   1. *Ad-hoc* (`codesign -s -`) — required on Apple silicon or the
      app will not launch at all, and still Gatekeeper-blocked.  The
@@ -382,25 +405,49 @@ this is belongs to the release and not to this file.
 
 ---
 
-## 10. Order of work
+## 10. What is left
 
-Nine steps.  Each ends with a green suite; steps 1–4 also end with
-something visible on a source checkout, which is what makes them
-worth doing first.
+Steps 1 to 6 and the DMG have shipped and are deleted from this list.
+What remains:
 
 | | Step | Done when |
 |---|---|---|
-| 1 | Everything in [SHELL.md](SHELL.md) — logging, `QFileOpenEvent`, samples, Preferences | its own eight-step table, green suite throughout |
-| 2 | Icons: draw `app.svg`, render `.icns`/`.ico` + the two document icons | they exist and look right at 16 px |
-| 3 | `packaging/bundle.py` + `tests/test_packaging.py` (§ 8.1) | the test passes and fails when a data file is removed from it |
-| 4 | `--selftest` (§ 8.2) | it passes on a source checkout |
-| 5 | `packaging/macos.spec` → an `.app` that launches | `--selftest` passes inside the bundle; § 3.1 confirmed through the symlinks |
-| 6 | Prune the bundle empirically (§ 4) | under ~350 MB, `--selftest` still green, dialogs still open |
-| 7 | `packaging/windows.spec` + `.iss` | installer installs, associates, uninstalls cleanly on a fresh VM |
-| 8 | DMG + the CI jobs (§ 7), build-on-main included | a tag produces three attached artifacts |
-| 9 | The `workers.py` fix (§ 9), then tag `v0.1.0` | a hundred module runs finish without a hang |
+| 7 | `windows.spec` + `.iss`, through CI | the installer installs, associates and uninstalls cleanly on a real machine |
+| 8 | The first tagged release | a tag produces three attached artifacts and `--selftest` is green on all three |
+| 9 | The `workers.py` fix (§ 9), then `v0.1.0` | a hundred module runs finish without a hang |
 
-Steps 5 and 7 are the ones that will take longer than they look —
-both are "build, launch, read the traceback, add a hidden import,
-repeat", and on Windows that loop is slow.  Budget for that rather
-than for the spec files, which are short.
+**Step 7 is the one with real risk left in it.**  Everything in it was
+written on a Mac and has never been executed: PyInstaller cannot
+cross-compile, so `windows.spec` and `crystal-builder.iss` are the
+only pieces of this that have not been run even once.  Expect the
+usual "build, read the traceback, add a hidden import, repeat" loop,
+at a CI round trip of about ten minutes a turn, plus the things that
+only appear on Windows — a missing MSVC runtime, a path with a space
+in it, an antivirus scanner holding a file open.
+
+### On the size
+
+**The DMG is 166 MB and the installed `.app` is 487 MB.**  The first
+of those is the one a user experiences, and it is fine; UDZO
+compresses the bundle to about a third.
+
+The 487 is against the ~350 MB this file guessed at before anything
+had been measured, and the guess was never reachable: it was made
+when the bundle was "heading for ~300 MB" and RDKit had not yet been
+added to it, and ~300 + 107 is ~400 by its own arithmetic.
+
+Where it goes, after stripping: VTK 184 MB, PySide6 62 MB, RDKit
+70 MB, scipy 52 MB, numpy 23 MB, and about 90 MB of Python, Pillow,
+gemmi, spglib and the application itself.  Nothing on that list is
+optional:
+
+- **VTK** is the 3D view.
+- **RDKit** is *Build from SMILES* and the sketcher, which the extras
+  page promises a packaged user has, and dropping it saves 70 MB by
+  removing two whole features.
+- **scipy** is the force field's optimiser.
+
+So 487 MB installed is what this application weighs once it is
+honest about what it does, and the remaining levers are all bad
+trades.  The 166 MB download is the number to quote.
+

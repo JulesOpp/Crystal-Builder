@@ -63,6 +63,33 @@ The wall between `xtal/` and `xtalapp/` is enforced by a test
 (`tests/test_core_is_headless.py`): the core may never import Qt or
 VTK, so it stays usable from a script, a notebook, or CI.
 
+## Install
+
+Download a build and double-click it. No Python, no conda, no
+prerequisites section.
+
+| You have | Download |
+|---|---|
+| A Mac with Apple silicon | `Crystal-Builder-<version>-arm64.dmg` |
+| A Mac with an Intel processor | `Crystal-Builder-<version>-x86_64.dmg` |
+| Windows, 64-bit | `Crystal-Builder-<version>-setup.exe` |
+
+from [Releases](https://github.com/JulesOpp/Crystal-Builder/releases).
+There is no universal Mac build: VTK publishes no universal2 wheel, so
+the two are built separately, and Rosetta cannot bridge them in the
+direction that would help.
+
+Neither build is code-signed yet, so the first launch needs one extra
+click on both platforms — right-click → **Open** on macOS, **More
+info → Run anyway** on Windows.
+[docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) has the details, what is
+in the download and what is not, and the known issues.
+
+The MOF builder (PORMAKE) is the one feature the packaged builds do
+not carry: it is 44 packages and about 889 MB, larger than the rest of
+the application together. Everything else, RDKit and the sketcher
+included, is in the box. Run from Python if you need it.
+
 ## Install (development)
 
 ```bash

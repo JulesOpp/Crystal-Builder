@@ -6,7 +6,7 @@ frozen one.  This runs *inside* whatever it was built into, so CI can
 launch the packaged executable and get a non-zero exit rather than a
 screenshot nobody looks at.
 
-It checks the four things that break in a bundle and nowhere else:
+It checks the five things that break in a bundle and nowhere else:
 
 1. **The version.**  ``pip`` writes the version into a ``dist-info``
    folder beside the code, and PyInstaller copies code and not that,
@@ -23,7 +23,12 @@ It checks the four things that break in a bundle and nowhere else:
    read two different ways -- a filesystem join and
    ``importlib.resources`` -- and a bundle can get one right and the
    other wrong.
-4. **The VTK OpenGL context.**  Rendering is the single largest thing
+4. **The bundled extras.**  RDKit and rdeditor are collected whole
+   and RDKit carries data directories, so an import can succeed
+   against a build whose parameter files did not come along.
+   *Preferences > Optional features* promises both work; in a bundle
+   the user cannot check that, so this does.
+5. **The VTK OpenGL context.**  Rendering is the single largest thing
    in the bundle and the most likely to have been pruned too hard.
    Writing a PNG of the 3D view is the only honest way to ask.
 
@@ -139,6 +144,56 @@ def check_samples(report) -> None:
             f"{', '.join(missing)}")
 
 
+def check_extras(report) -> None:
+    """The optional packages a packaged build promises are there.
+
+    *Preferences > Optional features* tells the user that RDKit and
+    rdeditor are included and working, and that PORMAKE is not.  In a
+    bundle the user cannot check any of that, so this does.
+
+    RDKit is the one worth exercising rather than importing: it is
+    collected wholesale with ``collect_all`` and it carries data
+    directories, so an import can succeed against a build whose
+    parameter files did not come along.  Embedding a SMILES actually
+    uses them.
+    """
+    from xtal import build as build_extra
+    from xtalapp.dialogs import sketch
+
+    if not build_extra.installed():
+        raise AssertionError(
+            "RDKit is missing, but the extras page says it is "
+            "bundled.  The page is now lying to somebody who cannot "
+            "check.")
+
+    from xtal.build import chem
+
+    # (symbols, cart, bonds, connections) -- benzene, so six carbons
+    # and six hydrogens once RDKit has added them, with real
+    # coordinates from a conformer rather than a parsed graph.
+    symbols, cart, bonds, _connections = chem.embed("c1ccccc1")
+    report(f"RDKit: benzene embedded, {len(symbols)} atoms, "
+           f"{len(bonds)} bonds")
+    if len(symbols) != 12 or len(cart) != 12:
+        raise AssertionError(
+            f"benzene embedded as {len(symbols)} atoms rather than "
+            "12, which usually means RDKit's data files did not come "
+            "along")
+
+    if not sketch.installed():
+        raise AssertionError(
+            "rdeditor is missing, but the extras page says the "
+            "sketcher is bundled")
+    report("rdeditor: present")
+
+    # And the one that is deliberately absent, so that the page's
+    # other claim is true too.
+    from xtal.mof import catalog
+
+    report(f"PORMAKE: {'present' if catalog.installed() else 'absent'}"
+           " (absent is correct in a packaged build)")
+
+
 def check_window(report, shot: Path | None) -> None:
     """Build the real window, open a sample, and draw it.
 
@@ -216,6 +271,7 @@ def run(shot: Path | None = None, out=None) -> int:
         ("RCSR index", check_rcsr_index),
         ("fragment library", check_fragment_library),
         ("samples", check_samples),
+        ("bundled extras", check_extras),
         ("window and 3D view", lambda r: check_window(r, shot)),
     ]
 
