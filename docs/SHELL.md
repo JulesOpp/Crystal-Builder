@@ -219,7 +219,7 @@ So the answer is mostly *bundle it*, and the rest is honesty:
 |---|---|---|
 | **rdkit** (~107 MB) | **yes** | Buys two whole features — build from SMILES, and the sketcher.  Greying out *Draw* in a GUI-only distribution hides Phase U from exactly the people it was for. |
 | **rdeditor** (~1 MB) | **yes** | PySide6 + a theme package, both already bundled.  Free. |
-| **ase** (~20 MB) | **yes** — changed | I had this excluded.  It is small, pure Python, and it is I/O; excluding it saves nothing and costs a format. |
+| **ase** (~20 MB) | **moot** — corrected while building step 8 | "It is I/O; excluding it costs a format" was wrong: **nothing in this tree imports ase.** The `ase` extra is the bridge to external calculators that [PLAN.md](PLAN.md) § 2 describes and nobody has built, and every format in `xtal/io/` is this project's own code. So it costs no feature either way, it is not on the extras page — a row saying "powers nothing" is not a feature — and bundling it buys nothing until that bridge exists. |
 | **pormake** | **no** | 44 packages, ~889 MB, `jax` and `pymatgen`, and a ten-second import, for one dialog. |
 
 That leaves **pormake as the only feature a bundled user cannot
@@ -231,8 +231,9 @@ the one where the size argument is overwhelming.
 A page that tells the truth about each, with what is actually
 actionable:
 
-- **Bundled and working** — rdkit, rdeditor, ase: a tick, one line
-  saying what it powers.  No command, because there is nothing to do.
+- **Bundled and working** — rdkit and rdeditor (not ase; see the row
+  above): a tick, one line saying what it powers.  No command, because
+  there is nothing to do.
 - **PORMAKE — not included** — a short paragraph saying why (the
   honest one: it is larger than the rest of the application put
   together), what is lost (the MOF builder; net identification and

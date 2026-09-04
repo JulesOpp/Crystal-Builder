@@ -175,12 +175,11 @@ non-optional by the argument already in `pyproject.toml`: a net panel
 that cannot name anything and a fragment picker with nothing in it are
 broken features, not smaller ones.
 
-`resources/samples/` — 164 KB of seven real structures.  Nothing in
-the app references them today, and that is the gap: a first-run
-**File → Open Sample** submenu is what makes a freshly installed app
-show something in the viewport within one click instead of presenting
-an empty window to somebody who does not own a CIF yet.  Small
-feature, large effect on the only impression this build gets to make.
+`resources/samples/` — 164 KB of seven real structures.  **File →
+Open Sample** now opens each of them as an untitled document
+(`xtalapp/samples.py`), so this folder has to be in the bundle or
+seven menu entries grey out with a sentence about a source checkout.
+It is also what `--selftest` in § 8 opens.
 
 ### Out
 
@@ -188,12 +187,17 @@ feature, large effect on the only impression this build gets to make.
 build` reads it.  The built index ships; its source does not.
 
 `pormake`, the `mof` extra, and nothing else.  **Decided** —
-`rdkit`, `rdeditor` and `ase` are bundled; the argument and the
-numbers are [SHELL.md](SHELL.md) § 3.  The short version: RDKit buys
-two whole features for ~107 MB against a bundle already heading for
-~300 MB, rdeditor is a rounding error on top of PySide6, ase is 20 MB
-of pure Python, and PORMAKE is 44 packages and ~889 MB including
-`jax` and `pymatgen` for one dialog.
+`rdkit` and `rdeditor` are bundled; the argument and the numbers are
+[SHELL.md](SHELL.md) § 3.  The short version: RDKit buys two whole
+features for ~107 MB against a bundle already heading for ~300 MB,
+rdeditor is a rounding error on top of PySide6, and PORMAKE is 44
+packages and ~889 MB including `jax` and `pymatgen` for one dialog.
+
+`ase` was in this list and is not any more: **nothing in this tree
+imports it.**  It is the calculator bridge [PLAN.md](PLAN.md) § 2
+describes and nobody has written, so bundling it would add 20 MB and
+one more thing to hook, for no feature.  When that bridge is built it
+comes back, on its own merits.
 
 That makes the MOF builder the single feature a bundled user cannot
 have.  It greys out saying so, and the Preferences extras page says
