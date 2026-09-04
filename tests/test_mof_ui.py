@@ -23,7 +23,11 @@ from xtal.core.structure import Site, Structure  # noqa: E402
 from xtal.io import write_cif  # noqa: E402
 from xtal.modules import MODULES  # noqa: E402
 from xtal.modules.job import JobResult  # noqa: E402
-from xtal.modules.registry import Action, Module  # noqa: E402
+from xtal.modules.registry import (  # noqa: E402
+    Action,
+    Availability,
+    Module,
+)
 from xtal.mof import database_root  # noqa: E402
 from xtalapp.dialogs import module_dialog  # noqa: E402
 from xtalapp.dialogs.module_form import ModuleDialog  # noqa: E402
@@ -185,8 +189,23 @@ def test_the_mof_action_names_a_dialog_the_shell_can_find():
 def test_the_named_dialog_is_asked_instead_of_the_form(window,
                                                        monkeypatch):
     """The substitution is of the *collection* of the parameters and
-    nothing else -- the values come back in the same dict."""
+    nothing else -- the values come back in the same dict.
+
+    The availability check is faked, and that is the point rather than
+    a convenience: this is a test about which dialog the runner
+    reaches for, which is a fact about the shell and not about whether
+    PORMAKE is installed.  Without the fake it passes on a machine
+    that happens to have PORMAKE and silently asserts nothing
+    anywhere else -- the runner refuses an unavailable module before
+    it ever picks a dialog, so `asked` stays empty and the failure
+    names the dialog rather than the missing package.
+    """
     from xtalapp.dialogs.mof_build import MofBuildDialog
+
+    # Module is a frozen dataclass, so its `check` field cannot be
+    # replaced on the instance; the method that reads it can.
+    monkeypatch.setattr(Module, "availability",
+                        lambda self: Availability(True))
 
     asked = []
     monkeypatch.setattr(ModuleDialog, "ask",

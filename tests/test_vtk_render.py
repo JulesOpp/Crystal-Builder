@@ -5,21 +5,50 @@ pixels.  A file-size check would pass on a blank image; "there are red
 pixels where the oxygen is" would not.
 """
 
+import subprocess
+import sys
+
 import numpy as np
 import pytest
 
 vtk_scene = pytest.importorskip("xtalapp.viewport.vtk_scene")
 
+#: The probe, run in a process of its own.  Small enough to read, and
+#: it has to be a string because the point is that it runs somewhere
+#: this process cannot be hurt by.
+_PROBE = """
+from xtalapp.viewport import vtk_scene
+from xtalapp.viewport.scene import SceneModel
+
+image = vtk_scene.render_to_array(SceneModel(), (8, 8))
+raise SystemExit(0 if image.shape == (8, 8, 3) else 1)
+"""
+
 
 def _offscreen_gl_works() -> bool:
-    """Some CI images have no GL driver at all; there the render tests
-    are skipped rather than failing on the environment."""
+    """Whether this machine can render offscreen at all, asked in a
+    subprocess.
+
+    **A `try/except` here does not work, and the way it fails is
+    total.**  A machine with no GL driver does not raise out of
+    `window.Render()`; VTK aborts the process from C++, so the
+    `except` is never reached and pytest dies mid-collection with a
+    faulthandler dump and no test results at all.  That is what the
+    Windows runner did the first time it ever got far enough to run
+    the suite -- it has no GPU, and this module is imported during
+    collection, so one unavailable driver took the whole job down.
+
+    A subprocess cannot do that to us: it crashes, we read a non-zero
+    return code, and the module skips.  It costs one interpreter
+    start and a VTK import, once per session.
+    """
     try:
-        from xtalapp.viewport.scene import SceneModel
-        image = vtk_scene.render_to_array(SceneModel(), (8, 8))
-        return image.shape == (8, 8, 3)
-    except Exception:                       # pragma: no cover
+        finished = subprocess.run(
+            [sys.executable, "-c", _PROBE],
+            capture_output=True, timeout=120)
+    except (subprocess.TimeoutExpired, OSError):    # pragma: no cover
         return False
+    return finished.returncode == 0
 
 
 pytestmark = pytest.mark.skipif(
