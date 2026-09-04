@@ -19,6 +19,7 @@ pytest.importorskip("pytestqt")
 from PySide6.QtGui import QAction  # noqa: E402
 from PySide6.QtWidgets import QWidget  # noqa: E402
 
+from xtal.core import bonding  # noqa: E402
 from xtalapp import samples  # noqa: E402
 from xtalapp.dialogs.preferences import PreferencesDialog  # noqa: E402
 from xtalapp.mainwindow import MainWindow  # noqa: E402
@@ -77,7 +78,7 @@ def test_the_pages_are_a_list_and_a_stack(dialog):
     titles = [dialog.list.item(i).text()
               for i in range(dialog.list.count())]
 
-    assert titles == ["General", "View defaults"]
+    assert titles == ["General", "View defaults", "Bonding"]
     assert dialog.stack.count() == len(titles)
 
 
@@ -249,6 +250,84 @@ def test_the_view_menu_no_longer_decides_the_default(window, rutile,
 
     assert window.current_document().view.style == "spacefill"
     assert window.settings.default_view() == before
+
+
+# -- Bonding -----------------------------------------------------------
+
+def test_the_bonding_page_says_what_the_defaults_are(dialog,
+                                                     settings):
+    """Editing them is a dialog; saying what they are now is what a
+    page owes, and it must not need one opened to answer."""
+    settings.set_default_bond_rules(None)
+    page = dialog.page("Bonding")
+    page._show_defaults()
+
+    assert "built-in" in page.summary.text()
+    assert not page.reset.isEnabled()
+
+
+def test_a_stored_default_is_described_rather_than_named(qtbot,
+                                                         settings):
+    settings.set_default_bond_rules(
+        {"scale": 1.4, "allow_metal_metal": True,
+         "forbidden": ["O-O"]})
+    dialog = PreferencesDialog(settings)
+    qtbot.addWidget(dialog)
+    page = dialog.page("Bonding")
+
+    assert "1.4" in page.summary.text()
+    assert "metal-metal bonds allowed" in page.summary.text()
+    assert "1 element pair(s) named" in page.summary.text()
+    assert page.reset.isEnabled()
+    settings.set_default_bond_rules(None)
+
+
+def test_the_defaults_can_be_put_back_to_the_built_in_ones(qtbot,
+                                                           settings):
+    settings.set_default_bond_rules({"scale": 1.4})
+    dialog = PreferencesDialog(settings)
+    qtbot.addWidget(dialog)
+
+    dialog.page("Bonding")._reset_defaults()
+
+    assert settings.default_bond_rules() == {}
+
+
+def test_editing_the_defaults_needs_no_structure(dialog, settings,
+                                                 monkeypatch):
+    """The whole point of the page: this was previously reachable only
+    from the Bond Rules dialog opened on a document."""
+    from PySide6.QtWidgets import QDialog
+
+    from xtalapp.dialogs.bond_rules import BondRulesDialog
+    settings.set_default_bond_rules(None)
+    monkeypatch.setattr(BondRulesDialog, "exec",
+                        lambda self: QDialog.Accepted)
+    page = dialog.page("Bonding")
+
+    page._edit_defaults()
+
+    assert settings.default_bond_rules()["scale"] == pytest.approx(
+        bonding.DEFAULT_SCALE)
+    settings.set_default_bond_rules(None)
+
+
+def test_bonds_following_the_geometry_is_the_menu_s_own_setting(
+        window, rutile, tmp_path):
+    """One setting in two places: the page must tick the menu entry
+    and reach the documents that are already open, which is what the
+    action's own slot does."""
+    from xtal.io import write_cif
+    path = tmp_path / "rutile.cif"
+    write_cif(rutile, path)
+    document = window.open_path(path)
+    dialog = window.preferences_dialog()
+
+    dialog.page("Bonding").follow.setChecked(True)
+
+    assert window.settings.bonds_follow_geometry is True
+    assert window.actions_["bonds_follow"].isChecked()
+    assert document.bonds_follow_geometry is True
 
 
 # -- what has to reach further than the next session --------------------

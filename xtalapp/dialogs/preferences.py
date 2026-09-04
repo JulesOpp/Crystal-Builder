@@ -54,7 +54,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from xtal.core import bonding
 from xtalapp import samples
+from xtalapp.dialogs.bond_rules import BondRulesDialog
 from xtalapp.docks.ff_panel import REDRAW_RATES
 from xtalapp.viewport import styles
 from xtalapp.viewport.view_settings import BACKGROUNDS
@@ -327,9 +329,111 @@ class ViewDefaultsPage(QWidget):
         return tuple(BACKGROUNDS.get(name, self._custom_background))
 
 
+class BondingPage(QWidget):
+    """When bonds are worked out again, and what they start from.
+
+    Both settings existed and one of them could only be reached
+    through a door that needs a structure open: the default rules are
+    written by ticking a box in the Bond Rules dialog, which is
+    disabled with no document.  So a user with no file open could not
+    set what their files would open with -- which is the one moment
+    they might want to.
+    """
+
+    TITLE = "Bonding"
+
+    #: The same setting as ``Structure > Bonds follow the geometry``.
+    #: It is one QAction and the window keeps the two in step, because
+    #: the menu entry also has to apply it to the documents that are
+    #: already open.
+    followGeometryChanged = Signal(bool)
+
+    def __init__(self, settings, parent=None):
+        super().__init__(parent)
+        self.settings = settings
+        layout = QVBoxLayout(self)
+
+        box = QGroupBox("When bonds are worked out")
+        inner = QVBoxLayout(box)
+        self.follow = QCheckBox("Bonds follow the geometry")
+        self.follow.setChecked(settings.bonds_follow_geometry)
+        self.follow.toggled.connect(self._follow_toggled)
+        inner.addWidget(self.follow)
+        inner.addWidget(_hint(
+            "Off: bonds change when you ask them to, with Recalculate "
+            "bonds.  On, they are worked out again after every edit "
+            "that moves an atom -- which is what somebody building a "
+            "molecule by hand wants, and what somebody watching a "
+            "relaxation does not."))
+        layout.addWidget(box)
+
+        box = QGroupBox("What a newly opened structure starts from")
+        inner = QVBoxLayout(box)
+        self.summary = QLabel()
+        self.summary.setWordWrap(True)
+        inner.addWidget(self.summary)
+        row = QHBoxLayout()
+        edit = QPushButton("Edit defaults...")
+        edit.clicked.connect(self._edit_defaults)
+        self.reset = QPushButton("Reset to built-in")
+        self.reset.clicked.connect(self._reset_defaults)
+        row.addWidget(edit)
+        row.addWidget(self.reset)
+        row.addStretch(1)
+        inner.addLayout(row)
+        inner.addWidget(_hint(
+            "A structure carries its own rules and a project keeps "
+            "the ones it was saved with, so this is a starting point "
+            "and never an override."))
+        layout.addWidget(box)
+        layout.addStretch(1)
+        self._show_defaults()
+
+    # -- what the controls do ------------------------------------------
+
+    def _follow_toggled(self, on: bool) -> None:
+        self.settings.bonds_follow_geometry = on
+        self.followGeometryChanged.emit(on)
+
+    def _edit_defaults(self) -> None:
+        if BondRulesDialog.edit_defaults(self.settings, self):
+            self._show_defaults()
+
+    def _reset_defaults(self) -> None:
+        self.settings.set_default_bond_rules(None)
+        self._show_defaults()
+
+    def _show_defaults(self) -> None:
+        stored = self.settings.default_bond_rules()
+        self.reset.setEnabled(bool(stored))
+        self.summary.setText(describe_rules(stored))
+
+
+def describe_rules(stored: dict) -> str:
+    """The stored default criteria, in a sentence.
+
+    A dialog is where they are edited; what a page like this owes is
+    an answer to "what are they now" that does not need one opened.
+    """
+    if not stored:
+        return ("The built-in criteria: a radius factor of "
+                f"{bonding.DEFAULT_SCALE:g}, no extra allowance, and "
+                "no metal-metal bonds.")
+    rules = bonding.BondRules.from_dict(stored)
+    parts = [f"Radius factor {rules.scale:g}"]
+    if rules.delta:
+        parts.append(f"{rules.delta:+g} A allowance")
+    parts.append("metal-metal bonds allowed" if rules.allow_metal_metal
+                 else "no metal-metal bonds")
+    named = len(rules.pair_ranges) + len(rules.forbidden)
+    if named:
+        parts.append(f"{named} element pair(s) named")
+    return ", ".join(parts) + "."
+
+
 #: The pages, in the order the list shows them.  Steps 6 to 8 of
 #: SHELL.md add Bonding, External tools and Optional features here.
-PAGES = (GeneralPage, ViewDefaultsPage)
+PAGES = (GeneralPage, ViewDefaultsPage, BondingPage)
 
 
 class PreferencesDialog(QDialog):
@@ -338,6 +442,7 @@ class PreferencesDialog(QDialog):
     recentCleared = Signal()
     layoutReset = Signal()
     previewIntervalChanged = Signal(int)
+    followGeometryChanged = Signal(bool)
 
     def __init__(self, settings, parent=None):
         super().__init__(parent)
@@ -363,7 +468,8 @@ class PreferencesDialog(QDialog):
             area.setWidget(page)
             self.stack.addWidget(area)
             for name in ("recentCleared", "layoutReset",
-                         "previewIntervalChanged"):
+                         "previewIntervalChanged",
+                         "followGeometryChanged"):
                 signal = getattr(page, name, None)
                 if signal is not None:
                     signal.connect(getattr(self, name))

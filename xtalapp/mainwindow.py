@@ -1510,7 +1510,20 @@ class MainWindow(QMainWindow):
         dialog.recentCleared.connect(self._rebuild_recent_menu)
         dialog.layoutReset.connect(self.reset_layout)
         dialog.previewIntervalChanged.connect(self.set_preview_interval)
+        dialog.followGeometryChanged.connect(self._follow_geometry_set)
         return dialog
+
+    def _follow_geometry_set(self, on: bool) -> None:
+        """The Bonding page's copy of ``Structure > Bonds follow the
+        geometry``.
+
+        The menu entry is the action and this ticks it, because
+        ``setChecked`` raises ``toggled`` and not ``triggered`` -- so
+        the action's own slot has to be called as well, and it is the
+        one that reaches the documents already open.
+        """
+        self.actions_["bonds_follow"].setChecked(bool(on))
+        self.set_bonds_follow_geometry(bool(on))
 
     def show_preferences(self) -> None:
         self.preferences_dialog().exec()

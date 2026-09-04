@@ -203,10 +203,107 @@ def test_remembering_the_rules_is_asked_for_not_assumed(qtbot, rutile,
     settings.set_default_bond_rules(None)
 
 
+# ------------------------------------------- the same form, no crystal
+#
+# Preferences > Bonding opens this dialog with no document, over the
+# criteria a newly opened structure starts from.  Those could
+# previously be set only by opening this dialog *on a structure* and
+# ticking a box, so somebody with no file open -- which is the moment
+# they might want to say what their files should open as -- could not
+# reach them at all.
+
+def test_it_opens_with_no_structure_at_all(qtbot):
+    widget = BondRulesDialog(None, rules={"scale": 1.4,
+                                          "allow_metal_metal": True})
+    qtbot.addWidget(widget)
+
+    assert widget.defaults_mode
+    assert widget.scale.value() == pytest.approx(1.4)
+    assert widget.metal_metal.isChecked()
+
+
+def test_with_no_crystal_there_is_no_count_of_what_changed(qtbot):
+    """The preview says what a rule *changes*, which is a fact about a
+    structure.  With none, it says what the rules are for instead."""
+    widget = BondRulesDialog(None)
+    qtbot.addWidget(widget)
+
+    assert "opened from now on" in widget.summary.text()
+
+
+def test_with_no_crystal_the_pair_table_has_nothing_to_key_on(qtbot):
+    """The rows are the elements in a structure.  Without one the
+    alternative is the whole periodic table, which is 8000 rows."""
+    widget = BondRulesDialog(None)
+    qtbot.addWidget(widget)
+
+    assert widget.pairs == []
+    assert widget.table.isHidden()
+
+
+def test_a_pair_the_defaults_already_name_still_gets_a_row(qtbot):
+    """Otherwise opening this dialog would silently drop a rule that
+    was set from a structure."""
+    widget = BondRulesDialog(None, rules={
+        "pair_ranges": {"O-Ti": [0.0, 2.4]}, "forbidden": ["O-O"]})
+    qtbot.addWidget(widget)
+
+    assert widget.pairs == [("O", "O"), ("O", "Ti")]
+    assert not widget.table.isHidden()
+    assert widget.rules().pair_ranges[("O", "Ti")] == (0.0, 2.4)
+
+
+def test_there_is_nothing_to_remember_them_for(qtbot):
+    """The checkbox makes a structure's rules the default.  In this
+    mode they are the default."""
+    widget = BondRulesDialog(None)
+    qtbot.addWidget(widget)
+
+    assert widget.remember.isHidden()
+
+
+def test_accepting_the_defaults_writes_them_to_the_preference(
+        qtbot, tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QDialog
+
+    settings = AppSettings("CrystalBuilderTest", f"Defs{tmp_path.name}")
+    settings.set_default_bond_rules(None)
+    monkeypatch.setattr(BondRulesDialog, "exec",
+                        lambda self: QDialog.Accepted)
+    monkeypatch.setattr(BondRulesDialog, "__init__",
+                        _accepting_defaults(BondRulesDialog.__init__,
+                                            1.35))
+
+    assert BondRulesDialog.edit_defaults(settings) is True
+    assert settings.default_bond_rules()["scale"] == pytest.approx(1.35)
+
+
+def test_cancelling_leaves_the_defaults_as_they_were(qtbot, tmp_path,
+                                                     monkeypatch):
+    from PySide6.QtWidgets import QDialog
+
+    settings = AppSettings("CrystalBuilderTest", f"Keep{tmp_path.name}")
+    settings.set_default_bond_rules({"scale": 1.25})
+    monkeypatch.setattr(BondRulesDialog, "exec",
+                        lambda self: QDialog.Rejected)
+
+    assert BondRulesDialog.edit_defaults(settings) is False
+    assert settings.default_bond_rules()["scale"] == pytest.approx(1.25)
+    settings.set_default_bond_rules(None)
+
+
 def _accepting(original, scale, remember=False):
     """A dialog that comes up already set the way the test wants."""
     def patched(self, document, parent=None):
         original(self, document, parent)
         self.scale.setValue(scale)
         self.remember.setChecked(remember)
+    return patched
+
+
+def _accepting_defaults(original, scale):
+    """The same, for the form opened with no document."""
+    def patched(self, document=None, parent=None, rules=None):
+        original(self, document, parent, rules)
+        self.scale.setValue(scale)
     return patched

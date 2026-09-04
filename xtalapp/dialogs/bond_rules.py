@@ -74,16 +74,29 @@ class BondRulesDialog(QDialog):
     """Edit a structure's bond perception criteria, with a live count
     of what they would change."""
 
-    def __init__(self, document, parent=None):
+    def __init__(self, document=None, parent=None, rules=None):
         super().__init__(parent)
-        self.setWindowTitle("Bond rules")
+        # With no document this is the same form over the criteria a
+        # *newly opened* structure starts from -- Preferences >
+        # Bonding, where they could previously be reached only by
+        # opening this dialog on a structure and ticking a box, so a
+        # user with no file open could not set them at all.
         self.document = document
-        self.structure = document.structure
+        self.structure = None if document is None else document.structure
+        self.defaults_mode = document is None
+        self.setWindowTitle("Default bond rules" if self.defaults_mode
+                            else "Bond rules")
         self._loading = True
 
-        rules = bonding.BondRules.from_dict(self.structure.bond_rules)
-        self._before = {b.key() for b in
-                        bonding.perceive(self.structure)}
+        if rules is None:
+            rules = {} if self.structure is None else \
+                self.structure.bond_rules
+        rules = bonding.BondRules.from_dict(rules)
+        # Nothing to compare against with no structure, which is what
+        # makes this the mode with no preview: the count of what a
+        # rule changes is a fact about a crystal.
+        self._before = set() if self.structure is None else \
+            {b.key() for b in bonding.perceive(self.structure)}
 
         layout = QVBoxLayout(self)
         layout.addWidget(self._build_tolerance(rules))
@@ -99,6 +112,8 @@ class BondRulesDialog(QDialog):
             "The rules belong to this structure and travel with the "
             "project; this also makes them the starting point for new "
             "documents")
+        # In defaults mode there is nothing else these could be for.
+        self.remember.setVisible(not self.defaults_mode)
         layout.addWidget(self.remember)
 
         self.buttons = QDialogButtonBox(
@@ -110,6 +125,12 @@ class BondRulesDialog(QDialog):
             QDialogButtonBox.RestoreDefaults).clicked.connect(
                 self.restore_defaults)
         layout.addWidget(self.buttons)
+
+        if self.defaults_mode:
+            # Nothing here is a table of a crystal's elements, so the
+            # form is a column of numbers and does not want the width
+            # one needs.
+            self.resize(520, self.sizeHint().height())
 
         self._loading = False
         self._preview()
@@ -127,6 +148,10 @@ class BondRulesDialog(QDialog):
         self.scale.setSingleStep(0.05)
         self.scale.setRange(SCALE_MIN, SCALE_MAX)
         self.scale.setValue(rules.scale)
+        # The slider beside it takes the width it is given; without a
+        # floor the number this dialog is *about* is squeezed until
+        # its own digits are clipped.
+        self.scale.setMinimumWidth(80)
         self.scale.setToolTip(
             "Two atoms bond when they are closer than this multiple of "
             "the sum of their covalent radii")
@@ -184,12 +209,23 @@ class BondRulesDialog(QDialog):
         """
         box = QGroupBox("Element pairs")
         layout = QVBoxLayout(box)
-        layout.addWidget(QLabel(
-            "Leave the distances blank to use the covalent radii."))
+        blank_note = QLabel(
+            "Leave the distances blank to use the covalent radii.")
+        layout.addWidget(blank_note)
 
-        self.pairs = sorted(
-            (a, b) for i, a in enumerate(sorted(self.structure.elements))
-            for b in sorted(self.structure.elements)[i:])
+        if self.structure is None:
+            # No crystal to key the rows on, so the only pairs worth a
+            # row are the ones the stored defaults already name.  The
+            # rest of the periodic table would be 8000 rows of
+            # "automatic".
+            self.pairs = sorted(
+                {tuple(sorted(pair)) for pair in
+                 list(rules.pair_ranges) + list(rules.forbidden)})
+        else:
+            elements = sorted(self.structure.elements)
+            self.pairs = sorted(
+                (a, b) for i, a in enumerate(elements)
+                for b in elements[i:])
         self.table = QTableWidget(len(self.pairs), 4)
         self.table.setHorizontalHeaderLabels(
             ["Pair", "Bond", "Min (A)", "Max (A)"])
@@ -217,6 +253,21 @@ class BondRulesDialog(QDialog):
 
         self.table.itemChanged.connect(self._preview)
         layout.addWidget(self.table)
+        if self.structure is None and not self.pairs:
+            # An empty four-column table reads as something that
+            # failed to load, and the note above it is about cells
+            # there are none of.  Say why there is nothing in it
+            # instead.
+            self.table.setVisible(False)
+            blank_note.setVisible(False)
+            empty = QLabel(
+                "A pair's own distances are set from a structure, "
+                "because the rows are the elements that are in one.  "
+                "Any that a default already carries appear here.")
+            # Wrapped, or this one sentence sets the width of the
+            # whole dialog.
+            empty.setWordWrap(True)
+            layout.addWidget(empty)
         return box
 
     # ==================================================================
@@ -296,6 +347,13 @@ class BondRulesDialog(QDialog):
     def _preview(self) -> None:
         if self._loading:
             return
+        if self.defaults_mode:
+            self.summary.setText(
+                "What a structure opened from now on starts with.  A "
+                "structure carries its own rules once it has been "
+                "given some, and a project keeps the ones it was "
+                "saved with.")
+            return
         added, removed, total = self.difference()
         if not added and not removed:
             self.summary.setText(
@@ -324,6 +382,23 @@ class BondRulesDialog(QDialog):
         document.run(bond_commands.SetBondRules(rules))
         return (f"bond rules applied: {added} added, {removed} removed "
                 f"-- {total} bonds")
+
+
+    @classmethod
+    def edit_defaults(cls, settings, parent=None) -> bool:
+        """The same form over the criteria new structures start from.
+
+        Returns whether they were changed.  The rules are written to
+        the preference and to nothing else -- there is no document
+        here to apply them to, and the ones already open keep what
+        they were opened with, which is the same promise a document
+        makes about its own rules.
+        """
+        dialog = cls(None, parent, rules=settings.default_bond_rules())
+        if dialog.exec() != QDialog.Accepted:
+            return False
+        settings.set_default_bond_rules(dialog.rules().to_dict())
+        return True
 
 
 def _number(item) -> float | None:
