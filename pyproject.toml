@@ -32,7 +32,27 @@ dependencies = [
 # optimisation trace) is a hundred lines of QPainter in xtalapp/plot.py,
 # which is less to pin and package than a second large dependency and
 # follows the user's theme without being asked.
-gui = ["PySide6>=6.6", "vtk>=9.3"]
+#
+# PySide6 is capped below 6.10 and the cap is load-bearing.  From
+# 6.10.0 onward, VTK's QVTKRenderWindowInteractor.paintEvent -- which
+# is one line, `self._Iren.Render()` -- renders into a paint event
+# that Qt then re-posts, and the widget repaints forever at 100% of a
+# core.  The window comes up, the 3D view stays empty and the
+# application never responds again.  Bisected on macOS 13 against VTK
+# 9.6.2 and 9.7.0, which are both fine: 6.9.3 works, 6.10.0 does not,
+# and the VTK version makes no difference either way.
+#
+# The suite does not catch this and cannot: widget tests inject a stub
+# QWidget in place of the viewport precisely so they never open a GL
+# context, so every test passes against a PySide6 that hangs the real
+# window.  `crystal-builder --selftest` is what catches it, which is
+# why that flag opens a sample and writes a PNG of the 3D view rather
+# than asserting the window exists.
+#
+# Revisit when VTK ships a bridge that does not render inside
+# paintEvent.  Until then, raising this bound ships an application
+# that cannot draw.
+gui = ["PySide6>=6.6,<6.10", "vtk>=9.3"]
 ase = ["ase>=3.22"]
 # The MOF builder.  Its own line and not a dependency, because
 # `pip install pormake` pulls in 44 packages and 889 MB -- ase,

@@ -22,6 +22,11 @@ The application object is :class:`xtalapp.application.Application`
 rather than a plain ``QApplication``, so that a file the desktop
 hands over has somewhere to land -- see that module for why the
 order below matters.
+
+``--selftest`` is the one flag this entry point takes, and it is here
+rather than in a script beside it because the only place it is useful
+is *inside a frozen build*, where there is nothing beside it.  See
+:mod:`xtalapp.selftest`.
 """
 
 from __future__ import annotations
@@ -31,6 +36,14 @@ import os
 import sys
 
 os.environ.setdefault("QT_API", "pyside6")
+
+
+#: ``--selftest``, and where to put the image it draws.  Parsed by
+#: hand rather than with argparse: this entry point takes file paths
+#: and nothing else, and an ArgumentParser here would start answering
+#: ``-h`` in a windowed build that has no console to answer it into.
+SELFTEST = "--selftest"
+SELFTEST_SHOT = "--selftest-image"
 
 
 def main(argv=None) -> int:
@@ -59,6 +72,17 @@ def main(argv=None) -> int:
         log.warning("plugin %s failed to load: %s", name, message)
 
     argv = list(sys.argv if argv is None else argv)
+
+    if SELFTEST in argv:
+        from pathlib import Path
+
+        from xtalapp import selftest
+
+        shot = None
+        if SELFTEST_SHOT in argv:
+            shot = Path(argv[argv.index(SELFTEST_SHOT) + 1])
+        return selftest.run(shot=shot)
+
     app = Application(argv)
     app.setApplicationName(APP_NAME)
     app.setOrganizationName("CrystalBuilder")
