@@ -55,7 +55,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.core import bonding
-from xtalapp import external, samples
+from xtalapp import external, extras, samples
 from xtalapp.dialogs.bond_rules import BondRulesDialog
 from xtalapp.docks.ff_panel import REDRAW_RATES
 from xtalapp.viewport import styles
@@ -517,10 +517,119 @@ class ExternalToolsPage(QWidget):
         label.setStyleSheet("" if ok else "color: #8a5a00;")
 
 
+class _Command(QWidget):
+    """A command to type, and the button that saves typing it.
+
+    A line of shell in a dialog is a thing somebody has to retype by
+    hand into a terminal, and mistyping a quoted extra is the most
+    likely way to end up believing the advice was wrong.
+    """
+
+    def __init__(self, command: str, parent=None):
+        super().__init__(parent)
+        self.field = QLineEdit(command)
+        self.field.setReadOnly(True)
+        self.field.setCursorPosition(0)
+        self.copy = QPushButton("Copy")
+        self.copy.clicked.connect(self._copy)
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.addWidget(self.field, 1)
+        row.addWidget(self.copy)
+
+    def text(self) -> str:
+        return self.field.text()
+
+    def _copy(self) -> None:
+        from PySide6.QtWidgets import QApplication
+        QApplication.clipboard().setText(self.field.text())
+        self.copy.setText("Copied")
+
+
+class OptionalFeaturesPage(QWidget):
+    """What is optional, whether it is here, and how to get it.
+
+    The page that replaces "run pip install", and the one that has to
+    say a different thing in a packaged build than on a checkout --
+    where there is no environment to install into, advice to install
+    something is a polished way of saying something untrue.  The
+    wording, and the decision behind it, are :mod:`xtalapp.extras`.
+    """
+
+    TITLE = "Optional features"
+
+    def __init__(self, settings, parent=None):
+        super().__init__(parent)
+        self.settings = settings
+        self.rows: dict = {}
+        layout = QVBoxLayout(self)
+        layout.addWidget(_hint(
+            "This is a packaged build: the Python inside it is not "
+            "yours and has no pip." if extras.frozen() else
+            "Running from a source checkout, so these commands are "
+            "for the environment it is running in."))
+        for extra in extras.EXTRAS:
+            layout.addWidget(self._row(extra))
+        layout.addWidget(self._pormake_box())
+        layout.addStretch(1)
+
+    def _row(self, extra) -> QGroupBox:
+        ok, sentence = extras.status(extra)
+        box = QGroupBox(f"{extra.label} ({extra.package})")
+        inner = QVBoxLayout(box)
+        inner.addWidget(_hint(extra.powers))
+        state = QLabel(sentence)
+        state.setWordWrap(True)
+        state.setStyleSheet("" if ok else "color: #8a5a00;")
+        inner.addWidget(state)
+        if not ok and not extras.frozen():
+            inner.addWidget(_Command(extra.command()))
+        self.rows[extra.package] = state
+        return box
+
+    def _pormake_box(self) -> QGroupBox:
+        """The two ways to have the MOF builder anyway.
+
+        Both are built, and one of them is recommended: see
+        ``extras.TARGET_WARNING``.  The folder exists whatever this
+        page says, because it is the only mechanism a frozen build has
+        for adding a package at all.
+        """
+        box = QGroupBox("Having the MOF builder anyway")
+        inner = QVBoxLayout(box)
+        inner.addWidget(_hint(extras.PORMAKE_REASON))
+
+        inner.addWidget(QLabel("Run Crystal Builder from Python"))
+        inner.addWidget(_hint(
+            "The supported route, and the one that gets every other "
+            "feature at its own version too."))
+        self.full_command = _Command(extras.FULL_COMMAND)
+        inner.addWidget(self.full_command)
+
+        inner.addWidget(QLabel("Or add a package to this copy"))
+        inner.addWidget(_hint(
+            "This folder is put first on the import path when the "
+            "application starts, so a package installed into it is "
+            "found before the ones inside."))
+        self.target_command = _Command(extras.target_command())
+        inner.addWidget(self.target_command)
+        warning = QLabel(extras.TARGET_WARNING)
+        warning.setWordWrap(True)
+        warning.setStyleSheet("color: #8a5a00;")
+        inner.addWidget(warning)
+        self.reveal = QPushButton("Show the folder")
+        self.reveal.clicked.connect(lambda: extras.reveal())
+        row = QHBoxLayout()
+        row.addWidget(self.reveal)
+        row.addStretch(1)
+        inner.addLayout(row)
+        return box
+
+
 #: The pages, in the order the list shows them.  Steps 6 to 8 of
 #: SHELL.md add Bonding, External tools and Optional features here.
 PAGES = (GeneralPage, ViewDefaultsPage, BondingPage,
-         ExternalToolsPage)
+         ExternalToolsPage, OptionalFeaturesPage)
 
 
 class PreferencesDialog(QDialog):

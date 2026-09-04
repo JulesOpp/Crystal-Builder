@@ -35,13 +35,21 @@ os.environ.setdefault("QT_API", "pyside6")
 
 def main(argv=None) -> int:
     from xtal import __version__, plugins
-    from xtalapp import applog
+    from xtalapp import applog, extras
     from xtalapp.application import Application
     from xtalapp.mainwindow import APP_NAME, MainWindow
 
     applog.start()
     log = logging.getLogger("xtalapp")
     log.info("%s %s starting", APP_NAME, __version__)
+
+    # Before the plugins, because a package the user installed into
+    # that folder is one they may have installed a plugin *from*, and
+    # a bundle has nowhere else to put one at all.  See
+    # :mod:`xtalapp.extras`.
+    added = extras.add_to_path()
+    if added is not None:
+        log.info("added %s to the import path", added)
 
     report = plugins.load()
     for name, message in report.failures:

@@ -38,6 +38,14 @@ _LOGS = tempfile.mkdtemp(prefix="xtal-test-logs-")
 atexit.register(shutil.rmtree, _LOGS, ignore_errors=True)
 os.environ.setdefault("XTAL_LOG_DIR", _LOGS)
 
+# And the folder ``xtalapp.extras`` puts on sys.path, which lives
+# beside the log for the same reason and must not be a real one
+# either: revealing it creates it, and a test that reached that would
+# make a directory in somebody's Application Support.
+_PACKAGES = tempfile.mkdtemp(prefix="xtal-test-packages-")
+atexit.register(shutil.rmtree, _PACKAGES, ignore_errors=True)
+os.environ.setdefault("XTAL_PACKAGES_DIR", _PACKAGES)
+
 
 
 def _settings_into_a_scratch_directory() -> None:

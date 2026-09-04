@@ -74,11 +74,15 @@ _added: list = []
 _in_hook = False
 
 
-def default_directory() -> Path:
-    """Where the log goes when nobody says otherwise."""
-    given = os.environ.get(DIR_VAR, "").strip()
-    if given:
-        return Path(given).expanduser()
+def app_data() -> Path:
+    """This application's folder under the platform's data directory.
+
+    ``~/Library/Application Support/CrystalBuilder`` here,
+    ``%APPDATA%\\CrystalBuilder`` on Windows.  The log lives in it and
+    so does the folder :mod:`xtalapp.extras` puts on ``sys.path``,
+    which is why the lookup is a name of its own rather than part of
+    the log's.
+    """
     try:
         from PySide6.QtCore import QStandardPaths
     except ImportError:                             # pragma: no cover
@@ -88,6 +92,12 @@ def default_directory() -> Path:
     if not root:                                    # pragma: no cover
         return Path.home() / f".{FOLDER.lower()}"
     return Path(root) / FOLDER
+
+
+def default_directory() -> Path:
+    """Where the log goes when nobody says otherwise."""
+    given = os.environ.get(DIR_VAR, "").strip()
+    return Path(given).expanduser() if given else app_data()
 
 
 def log_file() -> Path | None:
