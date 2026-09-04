@@ -40,7 +40,7 @@ from xtal.build import installed as rdkit_installed
 from xtal.commands.bonds import BOND_TYPES
 from xtal.commands.clipboard import Fragment
 from xtal.core.structure import Change
-from xtalapp import layout, menus
+from xtalapp import external, layout, menus
 from xtalapp.actions import ActionRegistry
 from xtalapp.dialogs.add_atom import AddAtomDialog
 from xtalapp.dialogs.add_centroid import AddCentroidDialog
@@ -1511,7 +1511,25 @@ class MainWindow(QMainWindow):
         dialog.layoutReset.connect(self.reset_layout)
         dialog.previewIntervalChanged.connect(self.set_preview_interval)
         dialog.followGeometryChanged.connect(self._follow_geometry_set)
+        dialog.toolPathsChanged.connect(self._tool_paths_changed)
         return dialog
+
+    def _tool_paths_changed(self) -> None:
+        """A program was named in Preferences > External tools.
+
+        Everything that says whether a tool can run is asked again,
+        here and now: the Modules menu greys its entries from the same
+        lookup, and the two run panels report the engine's
+        availability beside the button.  Without this the answer is
+        right only after a restart, which is exactly the thing a
+        person filling in a path is trying to avoid.
+        """
+        external.apply_hints(self.settings)
+        menus.refresh_module_availability(self)
+        for dock in (self.ff_dock, self.dftb_dock):
+            dock.set_parameter_directory(
+                self.settings.path_setting(external.SLATER_KOSTER))
+            dock.refresh()
 
     def _follow_geometry_set(self, on: bool) -> None:
         """The Bonding page's copy of ``Structure > Bonds follow the

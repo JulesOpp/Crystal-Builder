@@ -55,7 +55,7 @@ from xtal.modules.report import Histogram, Report, Row, Table
 #: the last resort rather than the first.
 PROGRAM = Program(
     name="network", label="Zeo++", env_var="XTAL_ZEOPP",
-    url="https://www.zeoplusplus.org/")
+    url="https://www.zeoplusplus.org/", setting="tools/zeopp")
 
 #: Where a copy that ships with the source tree would be.  Checked
 #: after PATH, so a user who has installed Zeo++ properly gets theirs.

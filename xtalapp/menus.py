@@ -42,7 +42,7 @@ from PySide6.QtWidgets import (
 
 from xtal.commands.bonds import BOND_TYPES
 from xtal.modules import MODULES
-from xtalapp import samples
+from xtalapp import external, samples
 from xtalapp.viewport import modes, styles
 from xtalapp.viewport.view_settings import BACKGROUNDS, ViewSettings
 
@@ -568,7 +568,13 @@ def refresh_module_availability(window) -> None:
     than in the failure after clicking it.  ``Module.check`` is a
     ``shutil.which`` and there are a handful of modules, so asking
     again on every open costs nothing worth caching.
+
+    The paths from Preferences are pushed into :mod:`xtal`'s lookup
+    first, which is what makes a module whose binary was named there
+    stop being greyed out without a restart -- and what keeps that
+    true for a plugin's module, which this file has never heard of.
     """
+    external.apply_hints(window.settings)
     for name, submenu in window._module_submenus.items():
         if name not in MODULES:                 # pragma: no cover
             continue

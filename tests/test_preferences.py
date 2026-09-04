@@ -20,7 +20,7 @@ from PySide6.QtGui import QAction  # noqa: E402
 from PySide6.QtWidgets import QWidget  # noqa: E402
 
 from xtal.core import bonding  # noqa: E402
-from xtalapp import samples  # noqa: E402
+from xtalapp import external, menus, samples  # noqa: E402
 from xtalapp.dialogs.preferences import PreferencesDialog  # noqa: E402
 from xtalapp.mainwindow import MainWindow  # noqa: E402
 from xtalapp.settings import (  # noqa: E402
@@ -78,7 +78,8 @@ def test_the_pages_are_a_list_and_a_stack(dialog):
     titles = [dialog.list.item(i).text()
               for i in range(dialog.list.count())]
 
-    assert titles == ["General", "View defaults", "Bonding"]
+    assert titles == ["General", "View defaults", "Bonding",
+                      "External tools"]
     assert dialog.stack.count() == len(titles)
 
 
@@ -328,6 +329,85 @@ def test_bonds_following_the_geometry_is_the_menu_s_own_setting(
     assert window.settings.bonds_follow_geometry is True
     assert window.actions_["bonds_follow"].isChecked()
     assert document.bonds_follow_geometry is True
+
+
+# -- External tools ----------------------------------------------------
+
+def _fake_binary(directory, name="network"):
+    """Something shutil.which will say yes to."""
+    import stat
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / name
+    path.write_text("#!/bin/sh\nexit 0\n")
+    path.chmod(path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP
+               | stat.S_IXOTH)
+    return path
+
+
+def test_a_path_typed_here_is_stored_and_reported(dialog, settings,
+                                                  tmp_path):
+    binary = _fake_binary(tmp_path)
+    page = dialog.page("External tools")
+
+    page.fields["tools/zeopp"].setText(str(binary))
+
+    assert settings.path_setting("tools/zeopp") == str(binary)
+    assert "Found at" in page.status["tools/zeopp"].text()
+
+
+def test_naming_a_binary_lights_up_its_module_without_a_restart(
+        window, tmp_path, monkeypatch):
+    """SHELL.md's own test for this step, and the reason the hints are
+    pushed again every time the Modules menu opens."""
+    from xtal.modules import zeopp
+    monkeypatch.setattr(zeopp, "bundled", lambda: None)
+    monkeypatch.delenv(zeopp.PROGRAM.env_var, raising=False)
+    menus.refresh_module_availability(window)
+    assert not window._module_submenus["zeopp"].isEnabled()
+    dialog = window.preferences_dialog()
+
+    dialog.page("External tools").fields["tools/zeopp"].setText(
+        str(_fake_binary(tmp_path)))
+
+    assert window._module_submenus["zeopp"].isEnabled()
+
+
+def test_a_path_that_is_wrong_is_named_rather_than_reddened(
+        dialog, settings, tmp_path, monkeypatch):
+    from xtal.modules import zeopp
+    monkeypatch.setattr(zeopp, "bundled", lambda: None)
+    monkeypatch.delenv(zeopp.PROGRAM.env_var, raising=False)
+    page = dialog.page("External tools")
+
+    page.fields["tools/zeopp"].setText(str(tmp_path / "typo"))
+
+    assert "typo" in page.status["tools/zeopp"].text()
+    assert "Not found" in page.status["tools/zeopp"].text()
+
+
+def test_the_parameter_folder_becomes_the_run_form_s_default(
+        window, tmp_path):
+    """Set once here instead of typed on every run.  Into an empty
+    field only: what somebody typed for this run is this run's."""
+    dialog = window.preferences_dialog()
+
+    dialog.page("External tools").fields[
+        external.SLATER_KOSTER].setText(str(tmp_path))
+
+    form = window.dftb_dock.engine_forms["dftb"]
+    assert form.values()["parameter_directory"] == str(tmp_path)
+
+
+def test_a_directory_typed_for_this_run_is_not_overwritten(window,
+                                                           tmp_path):
+    form = window.dftb_dock.engine_forms["dftb"]
+    form.set_values({"parameter_directory": "/typed/for/this/run"})
+    dialog = window.preferences_dialog()
+
+    dialog.page("External tools").fields[
+        external.SLATER_KOSTER].setText(str(tmp_path))
+
+    assert form.values()["parameter_directory"] == "/typed/for/this/run"
 
 
 # -- what has to reach further than the next session --------------------

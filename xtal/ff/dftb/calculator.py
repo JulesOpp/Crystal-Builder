@@ -73,7 +73,7 @@ LOG_NAME = "dftb.out"
 PROGRAM = Program(
     name="dftb+", label="DFTB+", env_var="XTAL_DFTB",
     url="https://dftbplus.org  (conda install 'dftbplus=*=nompi_*' "
-        "-c conda-forge)")
+        "-c conda-forge)", setting="tools/dftb")
 
 _ENERGY = re.compile(
     r"Total (?:Mermin free )?energy:\s*(-?\d+\.\d+)\s*H",

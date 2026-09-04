@@ -27,6 +27,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 
 from xtal.modules import MODULES
+from xtalapp import external
 from xtalapp.dialogs.run_progress import RunProgressDialog
 from xtalapp.docks.ff_panel import ForceFieldDock
 from xtalapp.docks.info import InfoDock
@@ -95,6 +96,8 @@ def build_docks(window):
         dock.previewIntervalChanged.connect(
             window.set_preview_interval)
         dock.set_preview_interval(window.settings.preview_interval)
+        dock.set_parameter_directory(
+            window.settings.path_setting(external.SLATER_KOSTER))
         # A run that has just started or just finished has changed
         # what is in the workspace, and the tree is read from the
         # directory -- so this is the whole of keeping it in step.

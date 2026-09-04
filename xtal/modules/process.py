@@ -66,6 +66,43 @@ TAIL_LINES = 20
 WINDOWS = sys.platform == "win32"
 
 
+#: Paths the caller has been told to use, by ``Program.setting``.
+#:
+#: This is how a preference reaches a lookup in a package that must
+#: never read one.  :mod:`xtal` imports no Qt and has no idea what a
+#: QSettings is; the GUI resolves its own preference and puts the
+#: answer here, exactly as a shell puts one in an environment
+#: variable.  Nothing in this package writes to it.
+_HINTS: dict[str, str] = {}
+
+
+def set_hint(setting: str, path) -> None:
+    """Say where a program is, for every later lookup of it.
+
+    An empty path forgets it rather than storing an empty string: a
+    stored blank would have to be told apart from "never set" at every
+    place that reads one.
+    """
+    if not setting:
+        return
+    text = str(path or "").strip()
+    if text:
+        _HINTS[setting] = text
+    else:
+        _HINTS.pop(setting, None)
+
+
+def hint_for(setting: str) -> str:
+    """The path set for that preference, or ``""``."""
+    return _HINTS.get(setting, "") if setting else ""
+
+
+def clear_hints() -> None:
+    """Forget every one.  For the suite, and for a session that has
+    just had its preferences reset."""
+    _HINTS.clear()
+
+
 class MissingProgram(RuntimeError):
     """The binary is not installed, or not where we were told.
 
@@ -117,12 +154,47 @@ class Program:
                 return found
         return None
 
+    def hint(self, given=None) -> str:
+        """The path this lookup should try first.
+
+        What the caller passed, or what was set for this program's
+        preference.  **Ahead of the environment variable**, which is
+        the decision worth recording: a variable is what a shell sets
+        and a preference is what a person set on purpose, and a
+        packaged application has no shell to set the first one in.
+        """
+        return str(given) if given else hint_for(self.setting)
+
     def _candidates(self, hint=None):
+        hint = self.hint(hint)
         if hint:
-            yield str(hint)
+            yield hint
         if self.env_var and os.environ.get(self.env_var):
             yield os.environ[self.env_var]
         yield self.name
+
+    def search(self, hint=None) -> tuple:
+        """Every place that would be looked, and what is there.
+
+        ``(source, candidate, found)`` per place, in order, where
+        ``source`` is ``"preference"``, the environment variable's
+        name, or ``"PATH"``.  Unlike :meth:`locate` this does not stop
+        at the first answer, because it exists for the status line
+        that has to say *what was tried* -- "not found, and
+        XTAL_ZEOPP is not set" is the sentence that saves somebody an
+        afternoon, and a bare red field is what makes them conclude
+        the feature is broken.
+        """
+        out = []
+        hint = self.hint(hint)
+        if hint:
+            out.append(("preference", hint, _executable(hint)))
+        if self.env_var:
+            value = os.environ.get(self.env_var, "")
+            out.append((self.env_var, value,
+                        _executable(value) if value else None))
+        out.append(("PATH", self.name, _executable(self.name)))
+        return tuple(out)
 
     def resolve(self, hint=None) -> Path:
         """Where it is, or a :class:`MissingProgram` saying where we
@@ -131,7 +203,7 @@ class Program:
         if found is None:
             raise MissingProgram(
                 self.title, searched=tuple(self._candidates(hint)),
-                hint=str(hint) if hint else
+                hint=self.hint(hint) or
                 (self.env_var and os.environ.get(self.env_var, "")),
                 url=self.url)
         return found
@@ -145,8 +217,22 @@ class Program:
         found = self.locate(hint)
         if found is not None:
             return Availability(True, str(found))
-        where = f" ({self.env_var} is not set either)" \
-            if self.env_var else ""
+        # Every place that was named and is wrong, because a path
+        # that was set and is a typo looks exactly like one that was
+        # never set, and only one of the two is five seconds from
+        # working.
+        given = self.hint(hint)
+        from_env = os.environ.get(self.env_var, "") if self.env_var \
+            else ""
+        parts = []
+        if given:
+            parts.append(f"not at {given}, which is set for it")
+        if from_env:
+            parts.append(f"not at {from_env}, which {self.env_var} "
+                         f"names")
+        elif self.env_var:
+            parts.append(f"{self.env_var} is not set")
+        where = f" ({'; '.join(parts)})" if parts else ""
         tail = f".  It is at {self.url}" if self.url else ""
         return Availability(
             False,

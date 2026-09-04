@@ -412,6 +412,24 @@ class ForceFieldDock(QDockWidget):
         self.report.setPlainText("")
         self.refresh()
 
+    def set_parameter_directory(self, path: str) -> None:
+        """Preferences' Slater-Koster folder, as this form's default.
+
+        **Into an empty field only.**  A directory typed for this run
+        belongs to this run, and a preference that overwrote it would
+        undo what somebody had just typed -- the field is still the
+        thing that decides, and this only saves it being filled in on
+        every run.  Which is also why the preference is not read at
+        run time: :func:`xtal.ff.dftb.hsd.slater_koster_directory`
+        takes what the form says, and it stays the one answer.
+        """
+        form = self.engine_forms.get("dftb")
+        if form is None or not str(path or "").strip():
+            return
+        current = str(form.values().get("parameter_directory", ""))
+        if not current.strip():
+            form.set_values({"parameter_directory": str(path)})
+
     def refresh(self) -> None:
         """Redraw the type table for the current structure.
 

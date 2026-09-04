@@ -55,7 +55,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.core import bonding
-from xtalapp import samples
+from xtalapp import external, samples
 from xtalapp.dialogs.bond_rules import BondRulesDialog
 from xtalapp.docks.ff_panel import REDRAW_RATES
 from xtalapp.viewport import styles
@@ -431,9 +431,96 @@ def describe_rules(stored: dict) -> str:
     return ", ".join(parts) + "."
 
 
+class ExternalToolsPage(QWidget):
+    """Where the programs this application shells out to are.
+
+    The page a packaged build exists for.  Zeo++, DFTB+ and the
+    Slater-Koster sets are found through ``XTAL_ZEOPP``,
+    ``XTAL_DFTB`` and ``DFTB_PREFIX``, which is right in a terminal
+    and useless in a double-clicked application: there is no shell to
+    export one in.
+
+    Every row carries a status line, and that line is the feature.  A
+    path field that turns red says nothing anybody can act on; "Not
+    found.  Looked at XTAL_ZEOPP, which is not set, and on PATH" is
+    the sentence that saves an afternoon.  See :mod:`xtalapp.external`.
+    """
+
+    TITLE = "External tools"
+
+    #: A path was changed.  The window pushes the new one into
+    #: :mod:`xtal`'s lookup and asks the Modules menu again, which is
+    #: what makes a greyed-out module light up without a restart.
+    toolPathsChanged = Signal()
+
+    def __init__(self, settings, parent=None):
+        super().__init__(parent)
+        self.settings = settings
+        self.fields: dict = {}
+        self.status: dict = {}
+        layout = QVBoxLayout(self)
+        for tool in external.TOOLS:
+            layout.addWidget(self._row(tool))
+        layout.addStretch(1)
+
+    def _row(self, tool) -> QGroupBox:
+        box = QGroupBox(tool.label)
+        inner = QVBoxLayout(box)
+        inner.addWidget(_hint(tool.hint))
+
+        field = QLineEdit(self.settings.path_setting(tool.key))
+        field.setCursorPosition(0)
+        field.setPlaceholderText("Found automatically")
+        field.textChanged.connect(
+            lambda text, t=tool: self._typed(t, text))
+        browse = QPushButton("Browse...")
+        browse.clicked.connect(lambda _c=False, t=tool: self._browse(t))
+        row = QHBoxLayout()
+        row.addWidget(field, 1)
+        row.addWidget(browse)
+        inner.addLayout(row)
+
+        status = QLabel()
+        status.setWordWrap(True)
+        inner.addWidget(status)
+        self.fields[tool.key] = field
+        self.status[tool.key] = status
+        self._show_status(tool)
+        return box
+
+    # -- what the controls do ------------------------------------------
+
+    def _typed(self, tool, text: str) -> None:
+        self.settings.set_path_setting(tool.key, text)
+        self._show_status(tool)
+        self.toolPathsChanged.emit()
+
+    def _browse(self, tool) -> None:
+        field = self.fields[tool.key]
+        if tool.kind == "folder":
+            chosen = QFileDialog.getExistingDirectory(
+                self, tool.label, field.text())
+        else:
+            chosen = QFileDialog.getOpenFileName(
+                self, tool.label, field.text())[0]
+        if chosen:
+            # Through the field, so the write and the status line are
+            # the ones typing already does.
+            field.setText(chosen)
+
+    def _show_status(self, tool) -> None:
+        ok, sentence = external.status(self.settings, tool)
+        label = self.status[tool.key]
+        label.setText(sentence)
+        # Not grey when it is found: the description above it is
+        # grey, and the answer must not read as more of the blurb.
+        label.setStyleSheet("" if ok else "color: #8a5a00;")
+
+
 #: The pages, in the order the list shows them.  Steps 6 to 8 of
 #: SHELL.md add Bonding, External tools and Optional features here.
-PAGES = (GeneralPage, ViewDefaultsPage, BondingPage)
+PAGES = (GeneralPage, ViewDefaultsPage, BondingPage,
+         ExternalToolsPage)
 
 
 class PreferencesDialog(QDialog):
@@ -443,6 +530,7 @@ class PreferencesDialog(QDialog):
     layoutReset = Signal()
     previewIntervalChanged = Signal(int)
     followGeometryChanged = Signal(bool)
+    toolPathsChanged = Signal()
 
     def __init__(self, settings, parent=None):
         super().__init__(parent)
@@ -469,7 +557,7 @@ class PreferencesDialog(QDialog):
             self.stack.addWidget(area)
             for name in ("recentCleared", "layoutReset",
                          "previewIntervalChanged",
-                         "followGeometryChanged"):
+                         "followGeometryChanged", "toolPathsChanged"):
                 signal = getattr(page, name, None)
                 if signal is not None:
                     signal.connect(getattr(self, name))
