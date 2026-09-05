@@ -37,6 +37,7 @@ whatever it is halfway through.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import numpy as np
 from PySide6.QtCore import QEvent, QPoint, QRect, Qt, QTimer, Signal
@@ -55,8 +56,6 @@ from vtkmodules.qt.QVTKRenderWindowInteractor import (
 from vtkmodules.vtkInteractionStyle import (
     vtkInteractorStyleTrackballCamera,  # noqa: E402
 )
-from vtkmodules.vtkIOImage import vtkPNGWriter  # noqa: E402
-from vtkmodules.vtkRenderingCore import vtkWindowToImageFilter  # noqa: E402
 
 from xtal.core import describe  # noqa: E402
 from xtal.core.structure import Change  # noqa: E402
@@ -65,9 +64,12 @@ from xtalapp.viewport.builder import (  # noqa: E402
     build_scene,
     selection_flags,
 )
+from xtalapp.viewport.svg_export import write_svg  # noqa: E402
 from xtalapp.viewport.vtk_scene import (  # noqa: E402
     VtkScene,
     orientation_marker,
+    projection_for,
+    write_image,
 )
 
 # A press and release within this many pixels is a click, not a drag;
@@ -664,18 +666,54 @@ class ViewportWidget(QWidget):
         self.scene.reset_camera()
         self._safe_render()
 
-    def save_image(self, path, magnification: int = 2):
-        """Write a high-resolution PNG of the current view."""
-        window = self._interactor.GetRenderWindow()
-        grabber = vtkWindowToImageFilter()
-        grabber.SetInput(window)
-        grabber.SetScale(magnification)
-        grabber.Update()
-        writer = vtkPNGWriter()
-        writer.SetFileName(str(path))
-        writer.SetInputConnection(grabber.GetOutputPort())
-        writer.Write()
-        return path
+    def image_size(self) -> tuple[int, int]:
+        """The pixels one unscaled grab of this view would be.
+
+        The render window's own size, which on a Retina screen is
+        already twice the widget's logical size -- see
+        :meth:`_display_at`.  The export dialog shows this multiplied
+        by the magnification, because "2x" means nothing to somebody
+        who wants a figure 3000 pixels wide.
+        """
+        return tuple(self._interactor.GetRenderWindow().GetSize())
+
+    def save_image(self, path, magnification: int = 2,
+                   transparent: bool = False):
+        """Write the current view, in the format the suffix names.
+
+        The two halves are different in kind and not only in encoding.
+        A raster export is the pixels, grabbed by
+        :func:`xtalapp.viewport.vtk_scene.write_image`; an SVG is the
+        *geometry*, projected by :meth:`save_vector`.  Neither takes a
+        widget, which is why both can be exercised without one.
+        """
+        if Path(path).suffix.lower() == ".svg":
+            return self.save_vector(path, transparent=transparent)
+        return write_image(self._interactor.GetRenderWindow(), path,
+                           magnification=magnification,
+                           transparent=transparent)
+
+    def save_vector(self, path, transparent: bool = False):
+        """Write the scene as editable SVG.
+
+        The atoms arrive as circles and the bonds as strokes, which is
+        the whole point: the file is exported so that somebody can
+        recolour one atom in Illustrator.  Screen-grab formats cannot
+        do that and neither can GL2PS, which is why this projects the
+        model itself -- see :mod:`xtalapp.viewport.svg_export`.
+
+        The labels are the P1 cell's, so each atom carries the name
+        the crystallographer knows it by; the document has them and
+        the exporter has no business reading a structure.
+        """
+        names = None
+        if self.document is not None:
+            names = list(self.document.cell.labels)
+        projection = projection_for(
+            self.scene.renderer,
+            self._interactor.GetRenderWindow().GetSize())
+        return write_svg(self.model, projection, path, names=names,
+                         transparent=transparent)
 
     def camera_direction(self) -> np.ndarray:
         camera = self.scene.renderer.GetActiveCamera()

@@ -5,6 +5,8 @@ pixels.  A file-size check would pass on a blank image; "there are red
 pixels where the oxygen is" would not.
 """
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -83,6 +85,160 @@ def test_png_export(rutile, tmp_path):
         build_scene(rutile, ViewSettings()), tmp_path / "shot.png",
         size=SIZE)
     assert path.exists() and path.stat().st_size > 1000
+
+
+def _offscreen_window(model, size=SIZE):
+    """A real GL context showing a structure, and nothing Qt.
+
+    :func:`~xtalapp.viewport.vtk_scene.write_image` takes a render
+    window rather than the viewport widget precisely so these can
+    reach it: a widget would want a realised native surface, which is
+    what the rest of the suite stubs out.
+    """
+    from vtkmodules.vtkRenderingCore import vtkRenderWindow
+    scene = vtk_scene.VtkScene()
+    scene.set_model(model)
+    window = vtkRenderWindow()
+    window.SetOffScreenRendering(1)
+    window.SetSize(*size)
+    window.AddRenderer(scene.renderer)
+    scene.reset_camera()
+    window.Render()
+    return window
+
+
+def _read_image(path):
+    """A written file back as an (H, W, C) array.
+
+    VTK's own readers rather than Pillow, which is not a dependency of
+    this project and only happens to be installed here.
+    """
+    from vtkmodules.util.numpy_support import vtk_to_numpy
+    from vtkmodules.vtkIOImage import vtkJPEGReader, vtkPNGReader
+
+    reader = (vtkJPEGReader() if Path(path).suffix in (".jpg", ".jpeg")
+              else vtkPNGReader())
+    reader.SetFileName(str(path))
+    reader.Update()
+    image = reader.GetOutput()
+    width, height, _ = image.GetDimensions()
+    pixels = vtk_to_numpy(image.GetPointData().GetScalars())
+    return pixels.reshape(height, width, -1)
+
+
+def test_the_suffix_picks_the_writer(rutile, tmp_path):
+    """One dialog offers four formats and the path is all that says
+    which; a wrong writer here would still leave a file behind."""
+    window = _offscreen_window(build_scene(rutile, ViewSettings()))
+    try:
+        for name, magic in (("shot.png", b"\x89PNG"),
+                            ("shot.jpg", b"\xff\xd8\xff"),
+                            ("shot.tif", (b"II*\x00", b"MM\x00*"))):
+            path = vtk_scene.write_image(window, tmp_path / name,
+                                         magnification=1)
+            head = path.read_bytes()[:4]
+            assert head.startswith(magic), name
+    finally:
+        window.Finalize()
+
+
+def test_magnification_multiplies_the_pixels(rutile, tmp_path):
+    """What the dialog's "3360 x 3882" is a promise about."""
+    window = _offscreen_window(build_scene(rutile, ViewSettings()))
+    try:
+        one = vtk_scene.write_image(window, tmp_path / "one.png",
+                                    magnification=1)
+        three = vtk_scene.write_image(window, tmp_path / "three.png",
+                                      magnification=3)
+    finally:
+        window.Finalize()
+    assert _read_image(one).shape[:2] == (SIZE[1], SIZE[0])
+    assert _read_image(three).shape[:2] == (SIZE[1] * 3, SIZE[0] * 3)
+
+
+def test_a_transparent_export_keeps_the_atoms_and_drops_the_ground(
+        rutile, tmp_path):
+    """The point of the box: the background goes and the crystal does
+    not, so the picture drops onto a slide of any colour."""
+    window = _offscreen_window(
+        build_scene(rutile, ViewSettings(show_cell=False)))
+    try:
+        path = vtk_scene.write_image(window, tmp_path / "clear.png",
+                                     magnification=1, transparent=True)
+    finally:
+        window.Finalize()
+    written = _read_image(path)
+    assert written.shape[2] == 4, "no alpha channel was written"
+    alpha = written[:, :, 3]
+    assert alpha[0, 0] < 10                 # the corner is background
+    assert (alpha > 200).mean() > 0.05      # the crystal is still there
+
+
+def test_an_opaque_export_has_no_alpha_to_see_through(rutile, tmp_path):
+    window = _offscreen_window(build_scene(rutile, ViewSettings()))
+    try:
+        path = vtk_scene.write_image(window, tmp_path / "solid.png",
+                                     magnification=1)
+    finally:
+        window.Finalize()
+    assert _read_image(path).shape[2] == 3
+
+
+def test_jpeg_cannot_be_transparent_and_is_written_anyway(rutile,
+                                                          tmp_path):
+    """The dialog greys the box out, but the option can still arrive
+    here; four components would write a broken JPEG rather than
+    raise."""
+    window = _offscreen_window(build_scene(rutile, ViewSettings()))
+    try:
+        path = vtk_scene.write_image(window, tmp_path / "solid.jpg",
+                                     magnification=1, transparent=True)
+    finally:
+        window.Finalize()
+    written = _read_image(path)
+    assert written.shape == (SIZE[1], SIZE[0], 3)
+
+
+def test_the_camera_projects_the_crystal_onto_the_canvas(rutile):
+    """The seam between VTK and the SVG writer.
+
+    ``projection_for`` hands over the renderer's own composite matrix,
+    so an atom lands where the viewport has it -- a projection built
+    from the wrong convention still writes a plausible-looking file,
+    with the crystal off the canvas or upside down.
+    """
+    scene = build_scene(rutile, ViewSettings())
+    window = _offscreen_window(scene)
+    try:
+        projection = vtk_scene.projection_for(
+            window.GetRenderers().GetFirstRenderer(), SIZE)
+    finally:
+        window.Finalize()
+    xy, _depth = projection.to_display(scene.positions)
+    assert ((xy[:, 0] >= 0) & (xy[:, 0] <= SIZE[0])).all()
+    assert ((xy[:, 1] >= 0) & (xy[:, 1] <= SIZE[1])).all()
+
+
+def test_an_svg_written_from_the_scene_carries_no_raster(rutile,
+                                                         tmp_path):
+    """What ``Export Image`` writes for ``.svg``.
+
+    GL2PS wrote the crystal as one embedded PNG here, which is a
+    picture of a picture: the format is offered so that each atom can
+    be moved and recoloured in Illustrator.
+    """
+    from xtalapp.viewport.svg_export import write_svg
+    scene = build_scene(rutile, ViewSettings())
+    window = _offscreen_window(scene)
+    try:
+        projection = vtk_scene.projection_for(
+            window.GetRenderers().GetFirstRenderer(), SIZE)
+    finally:
+        window.Finalize()
+    path = write_svg(scene, projection, tmp_path / "figure.svg")
+    text = path.read_text()
+    assert "base64" not in text and "<image" not in text
+    assert text.count("<circle") == scene.n_atoms
 
 
 def test_scene_actors_track_the_model(rutile):

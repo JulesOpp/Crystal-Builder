@@ -379,26 +379,6 @@ class DocumentSet:
             return
         self._export(document, target, dialog.options())
 
-    def export_again(self) -> None:
-        """Export where and how it was exported last.
-
-        The one thing the Save/Export split costs is the quick round
-        trip "open a CIF, nudge an atom, save the CIF"; this gives it
-        back without blurring what Save means.
-        """
-        document = self.current_document()
-        if document is None:
-            return
-        if not self._last_export:
-            self.export_dialog()
-            return
-        path, options = self._last_export
-        target = Path(path)
-        if document.path is not None:
-            target = target.with_name(
-                document.path.stem + target.suffix)
-        self._export(document, target, options)
-
     def _export(self, document, target, options) -> None:
         try:
             written = document.export(target, **options)
@@ -411,15 +391,42 @@ class DocumentSet:
         self.window.refresh_workspace()
 
     def export_image(self) -> None:
+        """A picture of the view, in a format the user chose.
+
+        The same shape as :meth:`export_dialog`, down to moving
+        ``last_directory``, which the native save dialog this replaced
+        never did.
+        """
         viewport = self.current_viewport()
-        if viewport is None or not hasattr(viewport, "save_image"):
+        # Most widget tests inject a bare QWidget in place of the VTK
+        # viewport, and it can neither be measured nor grabbed.
+        if viewport is None or not hasattr(viewport, "save_image") \
+                or not hasattr(viewport, "image_size"):
             return
-        path, _ = QFileDialog.getSaveFileName(
-            self.window, "Export image", self.window.settings.last_directory,
-            "PNG image (*.png)")
-        if path:
-            viewport.save_image(path)
-            self.window.statusBar().showMessage(f"wrote {path}", 5000)
+        document = self.current_document()
+        stem = "view"
+        if document is not None:
+            stem = (document.path.stem if document.path is not None
+                    else str(document.structure.meta.get("title")
+                             or "view"))
+        from xtalapp.dialogs.image_export import ImageExportDialog
+        dialog = ImageExportDialog(
+            self.window, directory=self.window.settings.last_directory,
+            stem=stem, size=viewport.image_size())
+        if dialog.exec() != QDialog.Accepted:
+            return
+        target = dialog.target()
+        if target is None:                          # pragma: no cover
+            return
+        try:
+            written = viewport.save_image(target, **dialog.options())
+        except (KeyError, OSError) as exc:
+            QMessageBox.warning(self.window, "Could not export image",
+                                str(exc))
+            return
+        written = Path(written)
+        self.window.settings.last_directory = str(written.parent)
+        self.window.show_message(f"wrote {written.name}")
 
     def close_current(self) -> None:
         if self.tabs.currentIndex() >= 0:

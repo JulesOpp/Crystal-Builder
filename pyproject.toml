@@ -98,9 +98,12 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
 # The RCSR index is not optional and is not an external asset: the net
 # panel cannot name anything without it, so it travels inside the
 # package rather than in resources/, which is a source-checkout
-# convenience.  The .cgd it is built from stays in resources/topo.
+# convenience.  The .cgd beside it is the nets themselves rather than
+# the index of them, and ships for a second reason: the index holds no
+# coordinates, so it can say a structure is pcu and cannot draw one.
+# 1.8 MB of text, 331 KB compressed.
 [tool.setuptools.package-data]
-"xtal.analysis" = ["data/*.json.gz"]
+"xtal.analysis" = ["data/*.json.gz", "data/*.cgd.gz"]
 # The fragment library, for the same reason: a picker with nothing in
 # it is not a smaller feature, it is a broken one.  Text, kilobytes,
 # and read through importlib.resources so a wheel and a source
@@ -149,7 +152,19 @@ addopts = ["-n0"]
 # PORMAKE catches whatever the write raises, deletes the half-written
 # file and logs it, so every build test failed on a *missing CIF*
 # rather than on the deprecation.
-filterwarnings = ["error::DeprecationWarning"]
+#
+# The one that is here is not ours and cannot be made ours the same
+# way: ase's `Atoms.new_array` sets `.shape` on an empty array, which
+# numpy 2.5 deprecated, so building any block slices an Atoms and
+# every MOF test fails on ase 3.29 -- the newest there is -- the
+# moment numpy 2.5 is installed.  The alternatives were pinning numpy
+# below 2.5 for everybody, or vendoring ase as well.  It is scoped to
+# that one message in that one module so a new deprecation anywhere
+# else still fails the run.
+filterwarnings = [
+    "error::DeprecationWarning",
+    'ignore:Setting the shape on a NumPy array:DeprecationWarning:ase\.atoms',
+]
 markers = [
     # Seconds rather than milliseconds, and worth it: a variable-cell
     # relaxation of a 648-atom framework is the only test that
@@ -168,7 +183,14 @@ line-length = 79
 # `xtal/mof/pormake/PROVENANCE.md` exists to preserve.  The two
 # substitutions this project actually made are held to the line
 # length by hand.
-extend-exclude = ["xtal/mof/pormake"]
+# The script that generated `resources/topo/TopCIF/` once, kept for
+# the same reason and failing lint in 146 places -- tabs, `l` as a
+# loop variable, lines past 79, a hardcoded path into somebody's
+# Downloads.  It is a record of how those files were made and of the
+# numbers `xtal/build/topology.py` inherited from it (scale 8, eight
+# beads, occupancy 0.1), and reformatting a record is how it stops
+# being one.  Nothing imports it and nothing runs it.
+extend-exclude = ["xtal/mof/pormake", "resources/topo/Top2Cif.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]

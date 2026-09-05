@@ -310,9 +310,6 @@ class MainWindow(QMainWindow):
     def export_dialog(self) -> None:
         self.document_set.export_dialog()
 
-    def export_again(self) -> None:
-        self.document_set.export_again()
-
     def export_image(self) -> None:
         self.document_set.export_image()
 
@@ -1322,9 +1319,8 @@ class MainWindow(QMainWindow):
         document = self.current_document()
         has_document = document is not None
         self.actions_.set_enabled(
-            ["save", "save_as", "export", "export_again",
-             "export_image", "close_tab", "reset_view", "view_a",
-             "view_b", "view_c"],
+            ["save", "save_as", "export", "export_image",
+             "close_tab", "reset_view", "view_a", "view_b", "view_c"],
             has_document)
         self._update_history_actions()
         self.actions_.set_enabled(

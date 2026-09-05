@@ -319,6 +319,19 @@ DASHES_PER_HALF = 3
 DASH_DUTY = 0.55            # fraction of each dash slot that is drawn
 
 
+# Selection is drawn as a translucent halo around the real geometry
+# rather than by recolouring it: the element colours are how a
+# crystallographer reads the picture, and a selection must not take
+# them away.
+HIGHLIGHT_COLOR = (255, 205, 40)
+HIGHLIGHT_OPACITY = 0.45
+HIGHLIGHT_GROWTH = 1.30     # halo radius, relative to the atom
+
+#: How much wider a bond's halo is than the halo growth alone, so a
+#: selected bond reads as selected beside a selected atom.
+HIGHLIGHT_BOND_GROWTH = 1.4
+
+
 def split_by_order(model) -> tuple[tuple, tuple]:
     """``(solid, dashed)`` line sets for the bonds this model draws.
 

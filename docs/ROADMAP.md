@@ -132,8 +132,10 @@ neither.
 > `networkx`, so the MOF builder ships and the only extra it needs is
 > `[ase]`.  The pattern this phase established is unchanged and is
 > what `[build]` and `[sketch]` still use; see
-> [PACKAGING.md](PACKAGING.md) § 4.  Choosing rdEditor is still choosing RDKit, and RDKit still
-solves the 3D half.
+> [PACKAGING.md](PACKAGING.md) § 4.
+
+Choosing rdEditor is still choosing RDKit, and RDKit still solves the
+3D half.
 
 **The editor is an integration, not a build.**  rdEditor is PySide6,
 RDKit-backed, weak-copyleft and written as reusable widgets; the spike

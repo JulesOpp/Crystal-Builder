@@ -703,10 +703,11 @@ def _emit_polyhedra(graph, cell, drawn, hulls, settings,
 
     consumed: set = set()
     minimum = max(4, int(settings.polyhedron_min_vertices))
+    centres = style.centres(cell.elements, settings)
     for index in range(drawn.in_range):
         centre = int(drawn.atom[index])
         element = cell.elements[centre]
-        if not style.wants_polyhedron(element, settings):
+        if element not in centres:
             continue
         partners = graph.neighbors_with_images(centre)
         if len(partners) < minimum:

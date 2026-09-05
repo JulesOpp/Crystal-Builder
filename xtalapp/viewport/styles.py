@@ -43,8 +43,9 @@ class DrawStyle:
         base = settings.base_radius(element, self.radius_source)
         return base * self.radius_factor * settings.atom_scale
 
-    def wants_polyhedron(self, element: str, settings) -> bool:
-        """Does this element get a coordination polyhedron?
+    def centres(self, elements, settings) -> frozenset:
+        """Which elements get a coordination polyhedron, decided once
+        for the whole structure rather than atom by atom.
 
         Centres named in the settings are the user speaking, and they
         win.  With none named the style decides, and the two styles
@@ -53,12 +54,27 @@ class DrawStyle:
         the mixed one takes only the metals -- because in an MOF the
         linker has four-coordinate carbons too, and drawing those as
         tetrahedra is the picture this style exists to avoid.
+
+        **A structure with no metals in it is the case that rule gets
+        wrong**, and it takes the whole structure to see it: asked one
+        element at a time, "is this a metal?" answers no for every atom
+        of a topology net or an organic crystal, and *Polyhedra and
+        sticks* draws no polyhedra at all.  A style whose name promises
+        them and delivers none is broken rather than restrained, so
+        when the metals rule selects nothing the style falls back to
+        what *Polyhedra* would have done.  It never fires on a
+        structure that has a metal in it, which is every case the rule
+        was written for.
         """
         if settings.polyhedron_centres:
-            return element in settings.polyhedron_centres
+            return frozenset(settings.polyhedron_centres)
+        present = frozenset(elements)
         if self.polyhedra_centres == "metals":
-            return el.element(element).is_metal
-        return True
+            metals = frozenset(symbol for symbol in present
+                               if el.element(symbol).is_metal)
+            if metals:
+                return metals
+        return present
 
 
 STYLES: dict[str, DrawStyle] = {}

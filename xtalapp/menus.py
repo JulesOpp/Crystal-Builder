@@ -94,8 +94,6 @@ def build_actions(window):
     add("export", "&Export...", window.export_dialog,
         tip="Write a file for something else to read -- a CIF, an "
             "XYZ.  One way: it never becomes this document's file")
-    add("export_again", "Export a&gain", window.export_again,
-        tip="Export with the settings used last time")
     add("export_image", "Export &Image...", window.export_image)
     add("open_workspace", "&Open Workspace...",
         window.open_workspace_dialog,
@@ -419,7 +417,7 @@ def build_menus(window):
     build_sample_menu(window)
     window.actions_.fill_menu(file_menu, [
         None, "save", "save_as",
-        None, "export", "export_again", "export_image",
+        None, "export", "export_image",
         "save_building_block",
         None, "new_workspace", "open_workspace",
         None, "close_tab"])

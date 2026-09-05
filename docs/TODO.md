@@ -1,11 +1,8 @@
 # TODO
-# Add an option to export an image as a vector (.svg)
-# For export as image for rasterized, add an option for the file format, an option for transparent background, and an option for resolution
 # Add a module that simulates the PXRD patterns, allow exporting the simulated (with convolution) as .xy filetype, and Reflection Table. Before implementing this, have Jules load in pre-existing code from another app which has already written this code. We will want to merge part of this other app into here. This other app allows for plotting of experimental PXRD data, in file type .xy, and plotting simulated data against the experimental. And exporting the plots as vectors. We will turn this into a new module.
 # Add change color of topology bonds, add style that is topology bonds only, all atoms hidden
 # Add change color to planes
 # Add help menus that explain what variables are or what commands do
-# The Tops2/acs.cif file doesn't open, this is a fake structure type that I have, where I can connect H-He and He-He and draw polyhedra around the H to make nice looking pictures of topologies
 # select bond->Measure or Measure->select bond, should both report the bond length
 # Creating a file with MOF builder or molecule builder should automatically save the file in the workspace
 # Add more forcefield options to the Forcefield module
@@ -17,7 +14,6 @@
 # When changing the number of translational equivalents shown, automatically call Reset view
 # Under File add Preferences with a short cut of command-comma. Propose a layout for what this window includes. It could have paths that point to modules that will eventually not ship with the App. Think about this carefully, and make some proposals
 # In Structure->Add Atom, to the right of Element [], add a button that pops up a periodic table, where the user can select any element without having to type out the element type
-# Remove the Export again button, unless there is a strong reason to keep it in the menu
 # Change menu name of Supercell to Non-periodic supercell
 
 

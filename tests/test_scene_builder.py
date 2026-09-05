@@ -422,21 +422,84 @@ def test_the_mixed_style_keeps_the_bonds_no_hull_took():
     assert all(0 not in (i, j) for i, j, _image in keys)  # no Zn-O
 
 
+def _methane_at(origin) -> tuple[list, list]:
+    """CH4, as elements and cartesian coordinates about ``origin``."""
+    d = 1.09 / math.sqrt(3.0)
+    offsets = [[0, 0, 0], [d, d, d], [d, -d, -d], [-d, d, -d],
+               [-d, -d, d]]
+    return (["C", "H", "H", "H", "H"],
+            [[o + p for o, p in zip(origin, offset, strict=True)]
+             for offset in offsets])
+
+
 def test_a_four_coordinate_carbon_is_not_a_polyhedron_node():
     """Which is why the mixed style takes only the metals when the user
     has named no centres: an MOF linker has sp3 carbons in it, and
-    drawing those as tetrahedra is the picture this style avoids."""
+    drawing those as tetrahedra is the picture this style avoids.
+
+    Tested against a structure that *has* a metal in it, because that
+    is the only condition under which the rule applies -- with no metal
+    anywhere the style falls back rather than draw nothing, which is
+    the test below."""
+    lattice = Lattice.cubic(20.0)
+    d = 1.95 / math.sqrt(3.0)
+    elements = ["Zn", "O", "O", "O", "O"]
+    cart = [[10, 10, 10], [10 + d, 10 + d, 10 + d],
+            [10 + d, 10 - d, 10 - d], [10 - d, 10 + d, 10 - d],
+            [10 - d, 10 - d, 10 + d]]
+    carbon, methane = _methane_at([2.0, 2.0, 2.0])
+    elements += carbon
+    cart += methane
+    structure = Structure.from_arrays(
+        lattice, elements,
+        lattice.to_frac(np.array(cart, dtype=float)), space_group="P1")
+
+    everything = build_scene(
+        structure, ViewSettings(style="polyhedra")).n_polyhedron_faces
+    metals_only = build_scene(
+        structure,
+        ViewSettings(style="polyhedra_stick")).n_polyhedron_faces
+    assert metals_only > 0                  # the ZnO4 tetrahedron
+    assert metals_only < everything         # and not the CH4 one
+
+
+def test_the_mixed_style_falls_back_when_there_is_no_metal_at_all():
+    """The rule above is right about an MOF and wrong about everything
+    with no metal in it, and it takes the whole structure to see that:
+    asked one atom at a time, "is this a metal?" says no for every atom
+    of quartz, of a borate, and of a topology net drawn as hydrogen and
+    helium.  *Polyhedra and sticks* then draws none at all, which for a
+    silicate means losing the SiO4 tetrahedron -- the polyhedral
+    picture there is.
+
+    A style whose name promises polyhedra and delivers none is broken
+    rather than restrained, so with no metal present it draws what
+    *Polyhedra* would have.  Every structure in ``resources/samples``
+    has a metal, so this never changes any of them."""
     lattice = Lattice.cubic(14.0)
-    d = 1.09 / math.sqrt(3.0)
-    cart = [[0, 0, 0], [d, d, d], [d, -d, -d], [-d, d, -d], [-d, -d, d]]
+    elements, cart = _methane_at([7.0, 7.0, 7.0])
     methane = Structure.from_arrays(
-        lattice, ["C", "H", "H", "H", "H"],
+        lattice, elements,
         lattice.to_frac(np.array(cart, dtype=float)), space_group="P1")
     assert build_scene(
         methane, ViewSettings(style="polyhedra")).n_polyhedron_faces > 0
     assert build_scene(
-        methane,
-        ViewSettings(style="polyhedra_stick")).n_polyhedron_faces == 0
+        methane, ViewSettings(style="polyhedra_stick")
+    ).n_polyhedron_faces > 0
+
+
+def test_naming_a_centre_still_overrides_the_style():
+    """The fallback is what happens when nobody has said anything.  A
+    user who names centres is still the last word, including when what
+    they name gets no hull."""
+    lattice = Lattice.cubic(14.0)
+    elements, cart = _methane_at([7.0, 7.0, 7.0])
+    methane = Structure.from_arrays(
+        lattice, elements,
+        lattice.to_frac(np.array(cart, dtype=float)), space_group="P1")
+    assert build_scene(methane, ViewSettings(
+        style="polyhedra_stick",
+        polyhedron_centres=("H",))).n_polyhedron_faces == 0
 
 
 def test_naming_the_centres_by_hand_beats_the_style(rutile):

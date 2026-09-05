@@ -19,16 +19,25 @@ and *Preferences → Optional features* explained the absence.
 
 The 889 MB turned out to be almost entirely two dependencies PORMAKE
 barely uses: **one gradient** and **one function call**. Removing those
-two brings the whole builder in for about **23 MB** on top of the
-numpy, scipy and spglib that already ship — 0.2 MB of Python, 2.8 MB
-of nets and blocks, and `ase`'s 20 MB, which is the one dependency
-kept. So it is vendored and trimmed rather than excluded, and there is
-nothing left for a user to configure.
+two brings the whole builder in on top of the numpy, scipy and spglib
+that already ship, and measured on a real macOS bundle rather than
+estimated it costs **5.2 MB of bytes**: 2.85 MB of nets and blocks,
+1.41 MB of `ase` and the twelve vendored modules compiled into the
+PyInstaller archive, and 0.95 MB of code-signature hashes, which grow
+with the file count. So it is vendored and trimmed rather than
+excluded, and there is nothing left for a user to configure.
 
-(The database is 3271 small files, so `du` reports it as 13 MB where
-the bytes are 2.8. The 13 is the honest number for an *installed*
-bundle, which pays a 4 KB block per file; the 2.8 is what a download
-carries.)
+`ase` is nearly all of that 1.41 MB, and it is that small because
+it is traced and not collected whole: PyInstaller reaches 200 of its
+1218 modules, which is every one the builder touches. See `COLLECT` in
+`packaging/bundle.py`, and "On the size" in `docs/PACKAGING.md` for
+the rest of the measurement.
+
+(The database is 3271 small files, so `du` reports it as 13.5 MB where
+the bytes are 2.85, and the installed bundle grows by 15.8 MB rather
+than 5.2 for the same reason. The 13.5 is the honest number for an
+*installed* bundle, which pays a 4 KB block per file; the 2.85 is what
+a download carries.)
 
 An external-tool route — point the application at a conda environment,
 the way it finds DFTB+ — was designed and proven working first, then
@@ -97,9 +106,15 @@ it.
 
 ### `ase` — kept
 
-26 MB and genuinely pervasive: `Atoms`, `neighborlist` and `io`
-throughout. Replacing it with `xtal.core.structure.Structure` is a much
-larger refactor and must not ride along with this one.
+26 MB installed on disk, 20 MB of bytes, and genuinely pervasive:
+`Atoms`, `neighborlist` and `io` throughout. Replacing it with
+`xtal.core.structure.Structure` is a much larger refactor and must not
+ride along with this one.
+
+Only 200 of its 1218 modules reach a bundle, though, and none of its
+106 data files: `ase.io` is imported here and never called, because
+`framework.py` formats its own CIF. That is why it came off `COLLECT`
+in `packaging/bundle.py`.
 
 The free part was taken: `ase.visualize` was imported by four
 `view()` methods and nothing else — `building_block.py`,
@@ -110,6 +125,12 @@ All four are deleted, along with their imports.
 ## Other changes
 
 - **`experimental/decomposer` is not vendored.** Nothing imports it.
+- **2404 `.cgd` files are 2403 nets, and nothing is missing.**
+  `pry.cgd` declares `NAME pyr` upstream, and `pyr.cgd` is there as
+  well, so the catalogue — which keys on the declared name — has one
+  entry fewer than the directory has files. `packaging/bundle.py`
+  counts 3271 files and `--selftest` reports 2403 nets for that
+  reason.
 - **Twelve files in `database/topologies/` are not vendored**: nine
   `.pickle`, `RCSR_topology.zip`, `cgd_list.txt` and `rcsr_list.txt`,
   about 1 MB. The lists and the archive are unread. The pickles are

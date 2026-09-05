@@ -190,6 +190,37 @@ def check_extras(report) -> None:
     report("rdeditor: present")
 
 
+def check_module_dialogs(report) -> None:
+    """Every dialog an action names resolves, in this build.
+
+    **The check that was missing, and it cost a bundle.**  A module
+    declares its parameters as data and imports no Qt, so an action
+    wanting a dialog of its own can only *name* one;
+    ``xtalapp.dialogs.module_dialog`` turns that name into a class
+    with ``importlib.import_module``.  PyInstaller's analysis cannot
+    see through that, so the first build carrying the MOF builder had
+    neither ``mof_build`` nor ``build_molecule`` in it, and *Build
+    MOF*, *Build molecule* and *Insert molecule* all died on
+    ``ModuleNotFoundError`` the moment they were clicked.
+
+    The MOF check below went past it because it builds through
+    ``xtal.mof.build`` and never touches the dialog -- the feature
+    worked and the button did not.  Resolving is enough here: the
+    failure is an import, and constructing a modal dialog in a
+    selftest is a different and worse idea.
+    """
+    from xtalapp.dialogs import dialog_actions, dialog_modules, module_dialog
+
+    actions = dialog_actions()
+    for name in actions:
+        if module_dialog(name) is None:
+            raise AssertionError(
+                f"the action {name!r} names a dialog and nothing "
+                "answered to it")
+    report(f"module dialogs: {len(actions)} actions resolve to "
+           f"{len(dialog_modules())} modules")
+
+
 def check_mof_builder(report) -> None:
     """The MOF builder builds a framework, in this build.
 
@@ -231,7 +262,7 @@ def check_mof_builder(report) -> None:
     if len(nets) < 2000 or len(blocks) < 800:
         raise AssertionError(
             f"the database is short: {len(nets)} nets and "
-            f"{len(blocks)} blocks, against 2404 and 867")
+            f"{len(blocks)} blocks, against 2403 and 867")
 
     from xtal.mof.build import BuildRequest, build
 
@@ -325,6 +356,7 @@ def run(shot: Path | None = None, out=None) -> int:
         ("fragment library", check_fragment_library),
         ("samples", check_samples),
         ("bundled extras", check_extras),
+        ("module dialogs", check_module_dialogs),
         ("MOF builder", check_mof_builder),
         ("window and 3D view", lambda r: check_window(r, shot)),
     ]

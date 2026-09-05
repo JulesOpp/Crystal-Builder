@@ -17,6 +17,14 @@ out saying so -- the pattern :mod:`xtal.modules.mof` established for
 PORMAKE, and for the same reason: a check that costs an import is a
 check nothing can afford to run on every menu rebuild.
 
+**A second thing is built here and shares none of that.**
+:mod:`xtal.build.topology` draws a named RCSR net as a structure, and
+it needs numpy and the ``.cgd`` reader and nothing else -- no extra,
+no optional import, nothing to grey out.  It is in this package
+because this is where a structure that did not exist before is made,
+and it is not re-exported below because importing it pulls in the
+catalogue: ``from xtal.build import topology`` is the way in.
+
 Connection points are ``*`` in SMILES and ``X`` -- see
 :data:`~xtal.core.elements.DUMMY_ELEMENTS` -- in the structure that
 comes out, which is what :mod:`xtal.mof.catalog` already calls a

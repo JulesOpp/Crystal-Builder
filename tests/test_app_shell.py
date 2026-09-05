@@ -41,8 +41,12 @@ class StubViewport(QWidget):
     def look_along_axis(self, axis):
         self.axis_views.append(axis)
 
-    def save_image(self, path, magnification=2):
+    def image_size(self):
+        return (640, 480)
+
+    def save_image(self, path, magnification=2, transparent=False):
         from pathlib import Path
+        self.saved = (Path(path), magnification, transparent)
         Path(path).write_bytes(b"png")
         return path
 
@@ -378,14 +382,104 @@ def test_warnings_from_a_file_are_shown(window, tmp_path):
     assert "P1" in window.info_dock.warnings.text()
 
 
-def test_export_image(window, rutile_cif, tmp_path, monkeypatch):
-    from PySide6.QtWidgets import QFileDialog
+def test_export_image_writes_what_the_dialog_asked_for(
+        window, rutile_cif, tmp_path, monkeypatch):
+    """The format, the magnification and the background are the
+    user's now; they used to be PNG at 2x over the view's colour with
+    nowhere to say otherwise."""
+    from PySide6.QtWidgets import QDialog
+
+    from xtalapp.dialogs.image_export import ImageExportDialog
     window.open_path(rutile_cif)
-    target = tmp_path / "shot.png"
-    monkeypatch.setattr(QFileDialog, "getSaveFileName",
-                        lambda *a, **k: (str(target), ""))
+    target = tmp_path / "shot.tif"
+
+    def stub(self):
+        self.format.setCurrentIndex(2)
+        self.scale.setValue(4)
+        self.transparent.setChecked(True)
+        self.path.setText(str(target))
+        return QDialog.Accepted
+
+    monkeypatch.setattr(ImageExportDialog, "exec", stub)
     window.export_image()
     assert target.exists()
+    assert window.current_viewport().saved == (target, 4, True)
+
+
+def test_exporting_an_image_moves_the_last_directory(
+        window, rutile_cif, tmp_path, monkeypatch):
+    """The native save dialog this replaced never did, so the next
+    Export opened wherever the last structure came from."""
+    from PySide6.QtWidgets import QDialog
+
+    from xtalapp.dialogs.image_export import ImageExportDialog
+    window.open_path(rutile_cif)
+    elsewhere = tmp_path / "figures"
+    elsewhere.mkdir()
+
+    def stub(self):
+        self.path.setText(str(elsewhere / "shot.png"))
+        return QDialog.Accepted
+
+    monkeypatch.setattr(ImageExportDialog, "exec", stub)
+    window.export_image()
+    assert window.settings.last_directory == str(elsewhere)
+
+
+def test_the_image_dialog_says_the_pixels_it_will_write(window):
+    """"2x" is a lie on a Retina screen, where the render window is
+    already twice the widget: the dialog multiplies it out."""
+    from xtalapp.dialogs.image_export import ImageExportDialog
+    dialog = ImageExportDialog(window, size=(1120, 1294))
+    dialog.scale.setValue(3)
+    assert dialog.output_size() == (3360, 3882)
+    assert "3360 x 3882" in dialog.pixels.text()
+
+
+def test_the_image_dialog_drops_the_options_a_format_cannot_take(
+        window):
+    """JPEG has no alpha channel and GL2PS takes the window at its own
+    size, so neither box may pretend to work."""
+    from xtalapp.dialogs.image_export import ImageExportDialog
+    dialog = ImageExportDialog(window, size=(400, 300))
+    assert dialog.transparent.isEnabled() and dialog.scale.isEnabled()
+
+    dialog.format.setCurrentIndex(1)                # JPEG
+    assert not dialog.transparent.isEnabled()
+    assert dialog.scale.isEnabled()
+
+    # SVG has no resolution -- it is shapes -- but leaving the ground
+    # out of it is exactly as meaningful as for a PNG.
+    dialog.format.setCurrentIndex(3)
+    assert not dialog.scale.isEnabled()
+    assert dialog.transparent.isEnabled()
+    assert dialog.output_size() == (400, 300)
+    dialog.transparent.setChecked(True)
+    assert dialog.options() == {"magnification": 1, "transparent": True}
+
+
+def test_every_image_format_says_what_it_costs(window):
+    """The counterpart of ``ExportDialog``'s ``keeps_text``: JPEG is
+    lossy, TIFF is enormous, and SVG has no resolution to set at
+    all."""
+    from xtalapp.dialogs.image_export import ImageExportDialog
+    dialog = ImageExportDialog(window, size=(400, 300))
+    seen = set()
+    for index in range(dialog.format.count()):
+        dialog.format.setCurrentIndex(index)
+        assert dialog.note.text().strip()
+        seen.add(dialog.note.text())
+    assert len(seen) == dialog.format.count()
+    assert "editable" in dialog.note.text()         # SVG is the last
+
+
+def test_the_image_dialog_swaps_the_suffix_with_the_format(window,
+                                                           tmp_path):
+    from xtalapp.dialogs.image_export import ImageExportDialog
+    dialog = ImageExportDialog(window, directory=tmp_path, stem="rutile")
+    assert dialog.target().name == "rutile.png"
+    dialog.format.setCurrentIndex(3)
+    assert dialog.target().name == "rutile.svg"
 
 
 def test_export_writes_p1_when_the_dialog_asks_for_it(

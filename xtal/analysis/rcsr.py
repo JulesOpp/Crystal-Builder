@@ -81,13 +81,27 @@ from xtal.analysis.topology import (
     Net,
     TopologyError,
 )
-from xtal.io.cgd import CgdEntry, CgdError, read_cgd
+from xtal.io.cgd import (
+    CgdEntry,
+    CgdError,
+    CgdFile,
+    read_cgd,
+    read_cgd_string,
+)
 
 #: The catalogue that ships with the package.
 DATA = Path(__file__).resolve().parent / "data"
 INDEX = DATA / "rcsr-2019-06-01.json.gz"
 
-#: The file it is built from, on a source checkout.
+#: The nets themselves, gzipped, beside it.  The index answers "which
+#: net is this?" and holds no coordinates, so it cannot answer "draw me
+#: **pcu**" -- and drawing one is what :mod:`xtal.build.topology` is
+#: for.  1.8 MB of text is 331 KB compressed, which is less than the
+#: index already shipping next to it, so both travel.
+NETS = DATA / "RCSRnets-2019-06-01.cgd.gz"
+
+#: The same file uncompressed, on a source checkout.  It is what
+#: ``build`` reads, and what :func:`nets` falls back to.
 SOURCE = ("resources", "topo", "RCSRnets-2019-06-01.cgd")
 
 #: Fractional distance within which two points are the same vertex.
@@ -1028,6 +1042,32 @@ def catalogue() -> Catalogue:
         tuple(CatalogueEntry.from_row(r) for r in payload["nets"]),
         payload.get("source", ""),
         tuple(tuple(r) for r in payload.get("refused", ())))
+
+
+@lru_cache(maxsize=1)
+def nets() -> CgdFile:
+    """Every RCSR net as it was published, with its cell and
+    coordinates.
+
+    :func:`catalogue` is the index and is what names a net; this is the
+    net itself, and the two are separate files because they answer
+    opposite questions.  Read once and kept, for the same reason:
+    parsing 2931 blocks takes about a second and every net drawn
+    afterwards is a lookup.
+
+    The packaged copy wins over the source checkout so that a wheel
+    install and a working tree behave the same way; the checkout is the
+    fallback for a tree whose package data has not been built.
+    """
+    if NETS.is_file():
+        with gzip.open(NETS, "rt", encoding="utf-8") as handle:
+            return read_cgd_string(handle.read())
+    source = source_file()
+    if source is None:
+        raise RcsrError(
+            f"the RCSR nets are missing from {NETS}, and "
+            f"{Path(*SOURCE)} is not there either")
+    return read_cgd(source)
 
 
 def source_file() -> Path | None:

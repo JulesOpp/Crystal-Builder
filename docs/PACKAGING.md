@@ -148,6 +148,13 @@ non-optional by the argument already in `pyproject.toml`: a net panel
 that cannot name anything and a fragment picker with nothing in it are
 broken features, not smaller ones.
 
+`xtal.analysis/data/*.cgd.gz` — the RCSR nets themselves, 331 KB, and
+**not a second copy of the index beside it**.  The index carries
+invariants and a canonical key and no coordinates at all, so it can
+say a structure is **pcu** and cannot draw one; drawing one is
+`xtal.build.topology`, and it needs the cell and the vertices the
+`.cgd` has.  Compressed it is smaller than the index it sits next to.
+
 `resources/samples/` — 164 KB of seven real structures.  **File →
 Open Sample** now opens each of them as an untitled document
 (`xtalapp/samples.py`), so this folder has to be in the bundle or
@@ -156,8 +163,16 @@ It is also what `--selftest` in § 8 opens.
 
 ### Out
 
-`resources/topo/` — 13 MB, and only `python -m xtal.analysis.rcsr
-build` reads it.  The built index ships; its source does not.
+`resources/topo/` — the uncompressed `.cgd`, which only `python -m
+xtal.analysis.rcsr build` reads.  A gzipped copy ships as package data
+and `xtal.analysis.rcsr.nets()` prefers it, so the shipped app draws
+every net without this folder.
+
+It used to be 13 MB, 12 of which was `TopCIF/` — 2728 CIFs generated
+once from the `.cgd` beside them by `resources/topo/Top2Cif.py` and
+committed.  `xtal.build.topology` generates the same structures in
+about 20 ms each, so the folder is gone: the answer was always
+cheaper than looking it up.
 
 Nothing, now.  **This section used to say `pormake` and the `mof`
 extra, and that is the decision that got reversed** — see below.  The
@@ -168,7 +183,7 @@ because the reversal is only legible against it:
 |---|---|---|
 | **rdkit** (~107 MB) | **yes** | Buys two whole features — build from SMILES, and the sketcher.  Greying out *Draw* in a GUI-only distribution hides Phase U from exactly the people it was for. |
 | **rdeditor** (~1 MB) | **yes** | PySide6 plus a theme package, both already bundled.  Free. |
-| **ase** (~20 MB) | ~~no~~ **yes** | Was "nothing in this tree imports it".  The vendored PORMAKE does, throughout, so the 20 MB now buys the MOF builder rather than nothing. |
+| **ase** (20 MB installed, **1.4 MB in the bundle**) | ~~no~~ **yes** | Was "nothing in this tree imports it".  The vendored PORMAKE does, throughout.  It is traced and not collected whole, so what it costs is the 200 modules of its 1218 the builder reaches — measured, see `COLLECT` in `bundle.py`. |
 | **pormake** | ~~no~~ **vendored** | Was 44 packages, ~889 MB, `jax` and `pymatgen`, and a ten-second import, for one dialog.  All three are gone. |
 
 "Repeat `pip install 'crystal-builder[mof]'` in a nicer dialog" is not
@@ -195,7 +210,9 @@ unit — which `xtal/analysis/rcsr.py` already does over gemmi.
 
 So PORMAKE is **vendored**, at `xtal/mof/pormake/`, MIT and trimmed of
 all three: 12 files of Python, 2.8 MB of nets and blocks, and `ase`.
-About 23 MB where it was 889.  `xtal/mof/pormake/PROVENANCE.md`
+Measured on a built bundle it is **5.2 MB** where it was 889 — see
+"On the size" for that measurement and for the reason the same
+addition is 15.8 MB on disk.  `xtal/mof/pormake/PROVENANCE.md`
 records every difference from upstream 0.2.3, and
 `tests/test_mof_vendored.py` diffs the vendored copy against a real
 installed one — same slots, same composition, same RMSD, same net —
@@ -422,18 +439,32 @@ bundle.  Three layers, cheapest first:
    nobody answers hangs the job) and a `--selftest` flag that opens
    `resources/samples/MOF-5.cif`, asserts the version is not
    `0.0.dev0`, asserts the RCSR index and the fragment library both
-   load, embeds a benzene through RDKit, **builds a pcu framework and
-   checks the net that comes out**, writes a viewport PNG, and exits
-   non-zero on any failure. That single flag covers § 3.1, § 3.2 and
-   the VTK OpenGL context, which are the three things that break in a
-   bundle and nowhere else.
+   load, embeds a benzene through RDKit, **resolves every dialog an
+   action can only name**, **builds a pcu framework and checks the net
+   that comes out**, writes a viewport PNG, and exits non-zero on any
+   failure. That single flag covers § 3.1, § 3.2 and the VTK OpenGL
+   context, which are the three things that break in a bundle and
+   nowhere else.
 
-   The MOF check is the newest and is layer 2's whole justification in
-   miniature: layer 1 asserts `bundle.py` *names* the 3271 nets and
-   blocks, and only a built bundle can say they survived PyInstaller.
-   A build with the code and no database imports perfectly and then
-   greys the entry out — indistinguishable, to a user, from the
-   feature having been dropped again.
+   The MOF check is layer 2's whole justification in miniature: layer
+   1 asserts `bundle.py` *names* the 3271 nets and blocks, and only a
+   built bundle can say they survived PyInstaller. A build with the
+   code and no database imports perfectly and then greys the entry out
+   — indistinguishable, to a user, from the feature having been
+   dropped again.
+
+   **The dialog check is there because layer 2 missed one.** The first
+   bundle carrying the MOF builder passed every check above and then
+   raised `ModuleNotFoundError: No module named
+   'xtalapp.dialogs.mof_build'` the moment somebody clicked *Build
+   MOF* — and *Build molecule* and *Insert molecule* with it. A module
+   declares its parameters as data and imports no Qt, so an action
+   wanting a dialog of its own can only name one, and
+   `xtalapp.dialogs.module_dialog` resolves that name with
+   `importlib`; PyInstaller cannot see through it. The lesson is the
+   one this section already argues: exercising `xtal.mof.build` proved
+   the *feature* worked in the bundle and said nothing about the
+   *button*, and only one of those is what a user has.
 3. **Look at it, once per release**, on both platforms, with the
    **run-app** skill's checklist: open a CIF, find symmetry, run a
    UFF optimisation to completion, run a Zeo++ job if a binary is
@@ -488,38 +519,83 @@ in it, an antivirus scanner holding a file open.
 
 ### On the size
 
-**The DMG is 166 MB and the installed `.app` is 487 MB.**  The first
-of those is the one a user experiences, and it is fine; UDZO
-compresses the bundle to about a third.
+**The DMG is about 185 MB and the installed `.app` is 493 MB**,
+measured on an arm64 build of this tree rather than estimated.  The
+first is the one a user experiences and it is fine; UDZO compresses
+the bundle to about a third.
 
-The 487 is against the ~350 MB this file guessed at before anything
-had been measured, and the guess was never reachable: it was made
-when the bundle was "heading for ~300 MB" and RDKit had not yet been
-added to it, and ~300 + 107 is ~400 by its own arithmetic.
+*About* 185, because **`hdiutil ... UDZO` is not reproducible.**  Six
+DMGs of the same build, minutes apart, measured 181, 183, 187, 187,
+188 and 189 MB.  The variance arrived with the MOF database — four
+runs against a bundle without it gave the identical byte count three
+times — so it is the 3271 tiny files being laid out
+and compressed differently each time.  Nobody should read a few MB of
+movement between two release DMGs as a regression.
 
-Where it goes, after stripping: VTK 184 MB, PySide6 62 MB, RDKit
-70 MB, scipy 52 MB, numpy 23 MB, and about 90 MB of Python, Pillow,
-gemmi, spglib and the application itself.  Nothing on that list is
-optional:
+One correction before the numbers, because this section used to
+compare two things measured differently.  The 166 MB it quoted for the
+DMG was `du -h`, which is MiB; the same file is **174 MB of bytes**,
+which is what Finder and a download page say.  The `.app`'s 487 was
+already decimal MB, from `postbuild.py`.  Everything below is decimal
+MB, and where bytes and disk differ both are given.
+
+Where it goes, after stripping: VTK 205 MB, RDKit 86 MB, PySide6
+62 MB, scipy 55 MB, numpy 24 MB, and about 60 MB of Python, Pillow,
+gemmi, spglib, the PyInstaller archive and the application itself.
+This list used to open with "VTK 184 MB", and that was simply a stale
+figure: the pre-MOF bundle measures 205 MB of VTK as well, so nothing
+grew.  Nothing on the list is optional:
 
 - **VTK** is the 3D view.
 - **RDKit** is *Build from SMILES* and the sketcher, which the extras
-  page promises a packaged user has, and dropping it saves 70 MB by
+  page promises a packaged user has, and dropping it saves 86 MB by
   removing two whole features.
 - **scipy** is the force field's optimiser.
 
-So 487 MB installed is what this application weighs once it is
-honest about what it does, and the remaining levers are all bad
-trades.  The 166 MB download is the number to quote.
+So 493 MB installed is what this application weighs once it is honest
+about what it does, and the remaining levers are all bad trades.  The
+~185 MB download is the number to quote.
 
-**Both numbers are from before the MOF builder was brought in**, and
-neither has been remeasured on a real bundle since.  What was added is
-`ase` at 20 MB, the vendored PORMAKE's 0.2 MB of Python, and a
-database that is 2.8 MB of bytes in about 3271 files — which a onedir
-bundle stores individually, so it costs closer to 13 MB of disk and
-almost nothing in a compressed DMG.  Expect roughly **+35 MB
-installed and +5 MB on the download**, and replace this paragraph with
-the measured figures the next time a DMG is built rather than leaving
-an estimate in a section whose whole point is that the earlier one was
-a guess.
+#### What the MOF builder cost
 
+Measured against a control build of this same tree with `ase` excluded
+and the database left uncollected — the bundle as it would be without
+the feature — rather than against the older build, so that nothing
+else in between is being attributed to it:
+
+| | without | with | difference |
+|---|---|---|---|
+| `.app`, bytes | 487.4 MB | 492.5 MB | **+5.2 MB** |
+| `.app`, on disk | 490.9 MB | 506.7 MB | **+15.8 MB** |
+| files in the `.app` | 2113 | 5386 | +3273 |
+| DMG | 176.3 MB | 181–189 MB | **about +9 MB** |
+
+The 5.2 MB is fully accounted for, and the last of the three is the
+one worth knowing about:
+
+- **2.85 MB** the vendored database, plus its licence and
+  `PROVENANCE.md` — 3273 files.
+- **1.41 MB** `ase` and the twelve vendored PORMAKE modules, compiled
+  into the PyInstaller archive.
+- **0.95 MB** the ad-hoc signature's own hash list.  `CodeResources`
+  carries a digest per file, so it grows with the *count* and not with
+  the bytes, and 3273 more files is nearly a megabyte of hashes.
+
+**The shipped `.app` is 493 MB of bytes and 507 MB on disk**, and
+three quarters of that 14 MB gap is the database alone.  3271 of the
+new files are a single net or building block of a few hundred bytes
+and each one pays a 4 KB block, so 2.85 MB of database occupies
+13.5 MB of disk.  Quote 493 MB where the context is bytes — a download
+page's "space required" — and 507 MB for what a disk actually loses.
+
+The estimate this replaces was +35 MB installed and +5 MB on the
+download.  The download was about half of what it costs — and only
+the `.app` rows above are precise enough to argue with.  The installed
+figure was wrong in a way worth keeping: it assumed `ase` arrived as
+its whole 20 MB, which is what `COLLECT` in `packaging/bundle.py` was
+doing conservatively.  Taking it off — PyInstaller traces 200 of ase's
+1218 modules, which is every one the MOF builder touches, and they
+compress into 1.4 MB of the archive — is worth **16 MB of the `.app`** on its
+own, and `--selftest` still builds pcu inside the bundle.  The three
+measurements that settled it are recorded above `COLLECT`; § 4's
+"build the exclude list empirically" is what they are an instance of.

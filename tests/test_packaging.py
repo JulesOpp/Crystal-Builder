@@ -185,6 +185,34 @@ def test_pormake_is_no_longer_excluded_from_the_bundle():
         assert gone in bundle.EXCLUDES
 
 
+def test_a_dialog_an_action_only_names_is_still_named_to_pyinstaller():
+    """A dialog reached through ``importlib`` has to be listed, or the
+    button raises in a bundle and nowhere else.
+
+    ``xtalapp.dialogs.module_dialog`` turns a module's declared dialog
+    name into a class at click time, which PyInstaller's analysis
+    cannot follow.  The first build that carried the MOF builder was
+    missing both modules behind that mapping, so *Build MOF*, *Build
+    molecule* and *Insert molecule* all died on
+    ``ModuleNotFoundError`` -- while a source checkout, and therefore
+    every other test in this file, imported them perfectly.
+
+    This asserts the two lists are the same list.  ``bundle.py`` reads
+    the mapping instead of copying it, so what is really being guarded
+    is that nobody replaces that with a hand-written copy.
+    """
+    from xtalapp.dialogs import dialog_actions, dialog_modules, module_dialog
+
+    named = bundle.dialog_imports()
+
+    assert named, "no dialog modules named to PyInstaller at all"
+    assert set(named) == set(dialog_modules())
+    for action in dialog_actions():
+        found = module_dialog(action)
+        assert found is not None, f"{action} resolves to nothing"
+        assert found.__module__ in named
+
+
 def test_the_package_data_globs_still_match_pyproject():
     """``pyproject.toml`` is what a wheel ships and ``bundle.py`` is
     what the application ships, and they have to agree.

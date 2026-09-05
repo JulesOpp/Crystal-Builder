@@ -41,13 +41,44 @@ def read_cif(path) -> Structure:
     return blocks[0]
 
 
+#: Tags gemmi reads with ``as_int`` rather than ``as_string``, so that
+#: a quoted value throws instead of being read.  A CIF may quote any
+#: value it likes and plenty do: everything the RCSR's own generator
+#: wrote carries ``_space_group_IT_number \'194\'``, and every one of
+#: those files failed to open with ``not an integer: \'``.  The throw
+#: is inside gemmi and happens before any of this module runs, so the
+#: only place to fix it is before the block is handed over.
+_INT_TAGS = (
+    "_space_group_IT_number",
+    "_symmetry_Int_Tables_number",
+    "_cell_formula_units_Z",
+)
+
+
+def _unquote_ints(block):
+    """Strip the quotes off the integer tags, in place.
+
+    ``as_string`` is gemmi's own unquoting, so a value that was never
+    quoted survives it unchanged and this is a no-op on a file that did
+    not need it.
+    """
+    for tag in _INT_TAGS:
+        value = block.find_value(tag)
+        if value is not None:
+            unquoted = gemmi.cif.as_string(value)
+            if unquoted != value:
+                block.set_pair(tag, unquoted)
+    return block
+
+
 def read_cif_all(path) -> list[Structure]:
     """Read every data block that contains a structure."""
     path = Path(path)
     doc = gemmi.cif.read_file(str(path))
     out = []
     for block in doc:
-        small = gemmi.make_small_structure_from_block(block)
+        small = gemmi.make_small_structure_from_block(
+            _unquote_ints(block))
         if not small.sites or small.cell.volume <= 0:
             continue                    # a metadata-only block
         out.append(_from_small_structure(small, block, path))
@@ -58,7 +89,8 @@ def read_cif_string(text: str, name: str = "<string>") -> Structure:
     """Read a CIF held in memory -- used by paste and by tests."""
     doc = gemmi.cif.read_string(text)
     for block in doc:
-        small = gemmi.make_small_structure_from_block(block)
+        small = gemmi.make_small_structure_from_block(
+            _unquote_ints(block))
         if small.sites and small.cell.volume > 0:
             return _from_small_structure(small, block, Path(name))
     raise ValueError("no structure found in the CIF text")

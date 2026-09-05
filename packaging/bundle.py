@@ -60,9 +60,10 @@ RESOURCES = {
 #: than quietly adding a gigabyte and a half to the download.
 OMITTED = {
     "resources/topo":
-        "13 MB, and only `python -m xtal.analysis.rcsr build` reads "
-        "it.  The index it produces ships as package data; its source "
-        "does not.",
+        "The uncompressed .cgd, which only `python -m "
+        "xtal.analysis.rcsr build` reads.  A gzipped copy of the same "
+        "file ships as package data, and `xtal.analysis.rcsr.nets` "
+        "prefers it, so the shipped app draws every net without this.",
     "resources/PTBP":
         "Somebody else's Slater-Koster parameters, with their own "
         "licence and citation terms.  Gitignored, so CI could not "
@@ -88,7 +89,11 @@ OMITTED = {
 #: one entry, and the test that compares the two files compares them
 #: literally.
 PACKAGE_DATA = {
-    "xtal/analysis": ["data/*.json.gz"],    # the RCSR index
+    # The RCSR index, and the nets it indexes.  The second is not a
+    # duplicate of the first: the index carries invariants and a key
+    # and no coordinates, so it names a net and cannot draw one, and
+    # drawing one is what `xtal.build.topology` does.  331 KB.
+    "xtal/analysis": ["data/*.json.gz", "data/*.cgd.gz"],
     "xtal/build/data": ["*.json"],          # the fragment library
     # PORMAKE's nets and building blocks, vendored with it: 3271
     # files, 2.8 MB of bytes and about 13 MB once installed, because
@@ -109,6 +114,9 @@ PACKAGE_DATA = {
 #: at run time.  VTK's rendering back end registers factory overrides
 #: when it is imported and is then never referred to again, which is
 #: exactly the shape static analysis misses.
+#:
+#: :func:`dialog_imports` adds the other shape of the same problem and
+#: is kept separate because it is *derived* rather than listed.
 HIDDEN_IMPORTS = [
     "vtkmodules.vtkRenderingOpenGL2",
     "vtkmodules.vtkRenderingFreeType",
@@ -127,16 +135,30 @@ HIDDEN_IMPORTS = [
 #: and RDKit carries data directories that no amount of import
 #: scanning would find.
 #:
-#: ``ase`` is the fourth and it is the conservative one.  The vendored
-#: PORMAKE imports it statically, so PyInstaller would trace most of
-#: it anyway -- but ``ase.io``'s format registry imports its readers
-#: through ``importlib`` at call time, and the MOF builder is the one
-#: feature that cannot be exercised until a bundle exists.  Collecting
-#: it whole trades a few megabytes for not shipping a builder that
-#: raises on a format lookup.  PACKAGING.md 4 says to build the
-#: exclude list empirically; this is a line to revisit against a real
-#: ``xref-*.html``, not a permanent decision.
-COLLECT = ["rdkit", "rdeditor", "qdarktheme", "ase"]
+#: ``ase`` was a fourth entry here and is not one any more, which is
+#: PACKAGING.md 4's "build the exclude list empirically" doing its
+#: job.  It went on conservatively -- the vendored PORMAKE imports it
+#: statically, so most of it would be traced anyway, but ``ase.io``'s
+#: format registry imports its readers through ``importlib`` at call
+#: time, and the MOF builder was the one feature that could not be
+#: exercised until a bundle existed.  A bundle exists now, and three
+#: measurements agree that the caution bought nothing:
+#:
+#: * ``ase.io`` is imported by the vendored ``utils.py`` and never
+#:   called.  Nothing here reads or writes through ase --
+#:   ``framework.py`` formats its own CIF -- so there is no format
+#:   lookup to fail.
+#: * Static tracing finds 200 of ase's 1218 modules, and every one of
+#:   the 65 the MOF tests actually import is among them.
+#: * ase's 106 non-Python files are all ``ase.gui`` translations,
+#:   ``ase.db`` templates, ``spacegroup.dat`` and the molecule
+#:   collections.  With every one of them renamed away, the MOF tests
+#:   still pass; ``ase.spacegroup`` is imported but never constructs a
+#:   ``Spacegroup``, which is the only thing that reads the ``.dat``.
+#:
+#: Off the list, ``--selftest`` still builds pcu inside the bundle,
+#: and the ``.app`` is 16 MB smaller.
+COLLECT = ["rdkit", "rdeditor", "qdarktheme"]
 
 #: Not bundled, and each line is a decision rather than an oversight.
 EXCLUDES = [
@@ -207,6 +229,35 @@ EXCLUDES = [
 ]
 
 
+def dialog_imports() -> list[str]:
+    """The dialogs an action can only *name*.
+
+    ``xtalapp.dialogs.module_dialog`` turns a module's declared dialog
+    name into a class with ``importlib.import_module``, because a
+    module declares its parameters as data and imports no Qt.  Nothing
+    static can see through that, so the first bundle to carry the MOF
+    builder shipped without ``xtalapp.dialogs.mof_build`` **or**
+    ``xtalapp.dialogs.build_molecule`` in it, and all three actions
+    that use them died on ``ModuleNotFoundError`` at the click:
+
+        File "xtalapp/dialogs/__init__.py", line 55, in module_dialog
+        ModuleNotFoundError: No module named 'xtalapp.dialogs.mof_build'
+
+    A source checkout imports these perfectly, so no test in the suite
+    could have caught it and ``--selftest`` did not either -- it built
+    a framework through ``xtal.mof.build`` and never went near the
+    dialog a person actually clicks.  It checks the resolution now.
+
+    Pure, and asked of ``xtalapp.dialogs`` rather than repeated here:
+    that module holds nothing and imports no Qt, and a list copied
+    into this file is a list that goes stale the next time somebody
+    adds a dialog.
+    """
+    from xtalapp.dialogs import dialog_modules
+
+    return dialog_modules()
+
+
 def project_datas() -> list[tuple[str, str]]:
     """Every file this project owns that the bundle needs, as
     PyInstaller ``(source, destination directory)`` pairs.
@@ -266,11 +317,11 @@ def datas() -> list[tuple[str, str]]:
 
 
 def hiddenimports() -> list[str]:
-    """:data:`HIDDEN_IMPORTS`, plus the modules ``collect_all`` finds
-    inside the bundled extras."""
+    """:data:`HIDDEN_IMPORTS`, plus :func:`dialog_imports` and the
+    modules ``collect_all`` finds inside the bundled extras."""
     from PyInstaller.utils.hooks import collect_all
 
-    found = list(HIDDEN_IMPORTS)
+    found = list(HIDDEN_IMPORTS) + dialog_imports()
     for package in COLLECT:
         _datas, _binaries, hidden = collect_all(package)
         found += hidden

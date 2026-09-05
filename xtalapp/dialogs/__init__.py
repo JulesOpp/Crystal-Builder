@@ -6,14 +6,14 @@ imported.
 
 Everything in here is imported by path -- ``from
 xtalapp.dialogs.supercell import SupercellDialog`` -- and this file
-holds nothing, which is how a package of fourteen dialogs stays cheap
-to import.
+holds nothing, which is how a package this size stays cheap to
+import.
 
 The exception is :attr:`xtal.modules.registry.Action.dialog`.  A
 module declares its parameters as data and imports no Qt, so an action
 that needs a dialog of its own can only *name* one; this is where the
 name becomes a class.  The import is inside the function for the
-reason above: resolving one name must not drag in the other thirteen.
+reason above: resolving one name must not drag in all the others.
 """
 
 from __future__ import annotations
@@ -35,7 +35,34 @@ _BY_NAME = {
                        "BuildMoleculeDialog"),
     "build-insert": ("xtalapp.dialogs.build_molecule",
                      "BuildMoleculeDialog"),
+    "net-draw": ("xtalapp.dialogs.net_draw", "NetDrawDialog"),
 }
+
+
+def dialog_modules() -> list[str]:
+    """Every module :func:`module_dialog` might import.
+
+    For ``packaging/bundle.py``, and it is not a convenience.  A
+    module reached only through :func:`importlib.import_module` is
+    invisible to PyInstaller's analysis, so it is simply absent from a
+    frozen build and the action raises ``ModuleNotFoundError`` the
+    moment somebody clicks it -- which is what happened to all three
+    of the names above in the first bundle that carried them.  Nothing
+    in the suite can see that, because a source checkout imports fine.
+
+    Derived from the mapping rather than repeated beside it, so a
+    module that grows a dialog still changes one line.
+    """
+    return sorted({module for module, _class in _BY_NAME.values()})
+
+
+def dialog_actions() -> list[str]:
+    """Every action name :func:`module_dialog` answers to.
+
+    For ``crystal-builder --selftest``, which resolves all of them
+    inside the built bundle for the reason in :func:`dialog_modules`.
+    """
+    return sorted(_BY_NAME)
 
 
 def module_dialog(name: str):
@@ -55,4 +82,4 @@ def module_dialog(name: str):
     return getattr(importlib.import_module(module_name), class_name)
 
 
-__all__ = ["module_dialog"]
+__all__ = ["dialog_actions", "dialog_modules", "module_dialog"]

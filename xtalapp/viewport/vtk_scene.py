@@ -61,7 +61,11 @@ from vtkmodules.vtkCommonDataModel import vtkCellArray, vtkPolyData
 from vtkmodules.vtkFiltersCore import vtkTubeFilter
 from vtkmodules.vtkFiltersSources import vtkSphereSource
 from vtkmodules.vtkInteractionWidgets import vtkOrientationMarkerWidget
-from vtkmodules.vtkIOImage import vtkPNGWriter
+from vtkmodules.vtkIOImage import (
+    vtkJPEGWriter,
+    vtkPNGWriter,
+    vtkTIFFWriter,
+)
 from vtkmodules.vtkRenderingAnnotation import vtkAxesActor
 from vtkmodules.vtkRenderingCore import (
     vtkActor,
@@ -77,7 +81,14 @@ from vtkmodules.vtkRenderingCore import (
     vtkWindowToImageFilter,
 )
 
-from xtalapp.viewport.scene import DASH_RADIUS, split_by_order
+from xtalapp.viewport.scene import (
+    DASH_RADIUS,
+    HIGHLIGHT_BOND_GROWTH,
+    HIGHLIGHT_COLOR,
+    HIGHLIGHT_GROWTH,
+    HIGHLIGHT_OPACITY,
+    split_by_order,
+)
 
 # vtkIdType is 32- or 64-bit depending on how VTK was built; the
 # connectivity arrays have to match or VTK reads them as garbage.
@@ -95,13 +106,6 @@ LEGEND_ROW = 0.045
 LEGEND_SWATCH = 0.018
 LEGEND_FONT = 15
 
-# Selection is drawn as a translucent halo around the real geometry
-# rather than by recolouring it: the element colours are how a
-# crystallographer reads the picture, and a selection must not take
-# them away.
-HIGHLIGHT_COLOR = (255, 205, 40)
-HIGHLIGHT_OPACITY = 0.45
-HIGHLIGHT_GROWTH = 1.30     # halo radius, relative to the atom
 
 # The scale bar, in fractions of the window: where its left end sits,
 # and how much of the width it aims for before the length is rounded
@@ -814,7 +818,8 @@ class VtkScene:
                 np.tile(HIGHLIGHT_COLOR, (len(chosen), 1)))
             self._halo_tube.SetInputData(self._halo_bond_poly)
             self._halo_tube.SetRadius(model.bond_radius
-                                      * HIGHLIGHT_GROWTH * 1.4)
+                                      * HIGHLIGHT_GROWTH
+                                      * HIGHLIGHT_BOND_GROWTH)
         self.halo_bond_actor.SetVisibility(len(chosen) > 0)
 
     def _set_labels(self, model):
@@ -1102,6 +1107,104 @@ def orientation_marker(interactor) -> vtkOrientationMarkerWidget:
     widget.SetEnabled(1)
     widget.InteractiveOff()
     return widget
+
+
+#: The raster writers, by the suffix the export dialog offers.  They
+#: are interchangeable at this seam: adding a format is one line here
+#: and one in :mod:`xtalapp.dialogs.image_export`.
+WRITERS = {
+    ".png": vtkPNGWriter,
+    ".jpg": vtkJPEGWriter,
+    ".jpeg": vtkJPEGWriter,
+    ".tif": vtkTIFFWriter,
+    ".tiff": vtkTIFFWriter,
+}
+
+#: The ones with somewhere to put an alpha channel.  Handing
+#: ``vtkJPEGWriter`` four components writes a broken file rather than
+#: raising, so transparency is dropped for it rather than refused.
+ALPHA_SUFFIXES = frozenset({".png", ".tif", ".tiff"})
+
+SVG_SUFFIX = ".svg"
+
+
+def projection_for(renderer, size):
+    """The camera's world-to-picture transform, as plain arrays.
+
+    ``GetCompositeProjectionTransformMatrix`` is the same 4x4 the
+    renderer draws through, so an SVG built from it lands every atom
+    where the viewport has it -- including the parallel scale and the
+    perspective the user set.
+
+    The camera's horizontal axis comes back with it because
+    :class:`~xtalapp.viewport.svg_export.Projection` measures an atom
+    by projecting a point one radius to the side of it, and the matrix
+    alone does not say which way that is.
+    """
+    from xtalapp.viewport.svg_export import Projection
+
+    camera = renderer.GetActiveCamera()
+    width, height = int(size[0]), int(size[1])
+    matrix = camera.GetCompositeProjectionTransformMatrix(
+        width / max(height, 1), -1.0, 1.0)
+    values = np.array([[matrix.GetElement(i, j) for j in range(4)]
+                       for i in range(4)], dtype=float)
+    # The cross product is perpendicular to both whatever the view up
+    # is, which VTK does not require to be square to the view.
+    direction = np.array(camera.GetDirectionOfProjection(), float)
+    right = np.cross(direction, np.array(camera.GetViewUp(), float))
+    norm = np.linalg.norm(right)
+    right = right / norm if norm > 1e-12 else np.array([1.0, 0.0, 0.0])
+    return Projection(matrix=values, right=right,
+                      size=(width, height), direction=direction)
+
+
+def write_image(window, path, magnification: int = 2,
+                transparent: bool = False):
+    """Write what a render window is showing, as the suffix names.
+
+    Raster only -- ``.svg`` is
+    :func:`xtalapp.viewport.svg_export.write_svg`, which works from
+    the scene model rather than from the pixels and so is not
+    something a render window alone can answer.
+
+    A render window and not a widget, so the whole of this is
+    exercised offscreen by ``tests/test_vtk_render.py`` -- the same
+    reason nothing else in this module knows about Qt.
+
+    ``transparent`` asks the grabber for the alpha channel instead of
+    letting it composite over the background colour, which is what
+    puts the crystal on a slide of any colour.
+    """
+    path = Path(path)
+    suffix = path.suffix.lower()
+    writer = WRITERS[suffix]()
+    transparent = transparent and suffix in ALPHA_SUFFIXES
+    # An alpha channel has to be in the buffer before the grabber can
+    # read one; macOS supplies it either way, a bare X11 visual does
+    # not.
+    planes = window.GetAlphaBitPlanes()
+    if transparent and not planes:
+        window.SetAlphaBitPlanes(1)
+        window.Render()
+    try:
+        grabber = vtkWindowToImageFilter()
+        grabber.SetInput(window)
+        grabber.SetScale(magnification)
+        if transparent:
+            grabber.SetInputBufferTypeToRGBA()
+        # The front buffer is whatever the compositor last put on
+        # screen, and on a window that has just been uncovered that is
+        # not this scene.
+        grabber.ReadFrontBufferOff()
+        grabber.Update()
+        writer.SetFileName(str(path))
+        writer.SetInputConnection(grabber.GetOutputPort())
+        writer.Write()
+    finally:
+        if transparent and not planes:
+            window.SetAlphaBitPlanes(planes)
+    return path
 
 
 def render_to_array(model, size=(400, 300), direction=None):
