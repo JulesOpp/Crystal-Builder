@@ -44,6 +44,18 @@ from xtal.core.transforms import ELLIPSOID_LEVELS
 from xtalapp.viewport import styles
 from xtalapp.viewport.view_settings import BACKGROUNDS
 
+#: The two flat colours that belong to no element: the net a chemist
+#: drew over the framework, and the planes the user defined.  They are
+#: side by side here because they are the same kind of thing -- a note
+#: about the crystal rather than part of it -- and because the picture
+#: they are chosen against is the same picture.
+FLAT_COLORS = [("topology_color", "Net", "The colour of the topology "
+                                         "net drawn over the bonds"),
+               ("plane_color", "Planes", "The colour of every plane "
+                                         "that has not been given one "
+                                         "of its own in the Measure "
+                                         "dock, and of its normal")]
+
 LABEL_MODES = [("none", "None"), ("element", "Element"),
                ("label", "Site label"), ("index", "Atom index")]
 ELEMENT_COLUMNS = ["El", "Colour", "Radius"]
@@ -142,7 +154,18 @@ class StylePanelDock(QDockWidget):
         self.ellipsoid_probability.currentIndexChanged.connect(
             lambda: self._set(ellipsoid_probability=(
                 self.ellipsoid_probability.currentData())))
-        form.addRow("Ellipsoids", self.ellipsoid_probability)
+        # The level and the shading answer the same question -- what
+        # this ellipsoid claims -- so they share a row.
+        self.octants = QCheckBox("Octants")
+        self.octants.setToolTip(
+            "ORTEP's principal sections and octant shading, drawn on "
+            "the atoms refined anisotropically")
+        self.octants.toggled.connect(
+            lambda v: self._set(ellipsoid_octants=v))
+        ellipsoids = QHBoxLayout()
+        ellipsoids.addWidget(self.ellipsoid_probability, 1)
+        ellipsoids.addWidget(self.octants)
+        form.addRow("Ellipsoids", ellipsoids)
 
         # The slider is the control and the checkbox is the switch,
         # because a fade with no strength behind it is indistinguishable
@@ -165,6 +188,21 @@ class StylePanelDock(QDockWidget):
         depth.addWidget(self.depth_cue)
         depth.addWidget(self.depth_cue_strength, 1)
         form.addRow(depth)
+
+        # A swatch button each, not a combo: there is no shortlist of
+        # sensible net colours the way there is of backgrounds, and the
+        # only question worth asking is "which one".
+        self.flat = {}
+        swatches = QHBoxLayout()
+        for field, label, tip in FLAT_COLORS:
+            button = QPushButton(label)
+            button.setToolTip(tip)
+            button.clicked.connect(
+                lambda _checked=False, f=field, t=label:
+                self._choose_flat(f, t))
+            self.flat[field] = button
+            swatches.addWidget(button)
+        form.addRow("Colours", swatches)
 
         self.legend = QCheckBox("Element legend")
         self.legend.toggled.connect(
@@ -225,16 +263,38 @@ class StylePanelDock(QDockWidget):
         self._choose(self.background, tuple(view.background))
         self._choose(self.ellipsoid_probability,
                      view.ellipsoid_probability)
-        self.ellipsoid_probability.setEnabled(
-            styles.get(view.style).ellipsoids)
+        ellipsoids = styles.get(view.style).ellipsoids
+        self.ellipsoid_probability.setEnabled(ellipsoids)
+        self.octants.setChecked(view.ellipsoid_octants)
+        self.octants.setEnabled(ellipsoids)
         self.depth_cue.setChecked(view.depth_cue)
         self.depth_cue_strength.setValue(
             round(view.depth_cue_strength * 100))
         self.depth_cue_strength.setEnabled(view.depth_cue)
+        for field, button in self.flat.items():
+            self._paint(button, getattr(view, field))
         self.legend.setChecked(view.show_legend)
         self.cell_box.setChecked(view.show_cell)
         self._refreshing = False
         self._fill_elements()
+
+    @staticmethod
+    def _paint(button: QPushButton, color) -> None:
+        """Show a colour on the button that changes it.
+
+        The swatch is the label's background rather than an icon
+        because a stylesheet survives the button being disabled with
+        no document open, and an icon rendered once does not.
+        """
+        r, g, b = (int(c) for c in color)
+        # Black text on a light swatch and white on a dark one: a
+        # fixed ink colour is unreadable against half of the range
+        # the dialog can return, and the label is what says which
+        # button this is.
+        ink = "#000" if (r * 299 + g * 587 + b * 114) / 1000 > 140 \
+            else "#fff"
+        button.setStyleSheet(
+            f"background-color: rgb({r},{g},{b}); color: {ink};")
 
     @staticmethod
     def _choose(combo: QComboBox, value) -> None:
@@ -283,6 +343,15 @@ class StylePanelDock(QDockWidget):
                                   chosen.blue()))
         else:
             self.refresh()              # put the old choice back
+
+    def _choose_flat(self, field: str, title: str) -> None:
+        if self.document is None:
+            return
+        current = QColor(*getattr(self.document.view, field))
+        chosen = QColorDialog.getColor(current, self, f"{title} colour")
+        if chosen.isValid():
+            self._set(**{field: (chosen.red(), chosen.green(),
+                                 chosen.blue())})
 
     def _on_element_cell(self, row: int, column: int) -> None:
         item = self.elements.item(row, 0)

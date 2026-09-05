@@ -152,11 +152,16 @@ def build_docks(window):
                     + window.bottom_docks)
     apply_default_layout(window)
 
-    window_menu = window.menuBar().addMenu("&Window")
+    # Filled, not added.  :func:`xtalapp.menus.build_menus` creates
+    # this menu in the place the menu bar should read it, because
+    # this function runs after it and a menu added here would land
+    # after Help -- which is exactly where the Window menu used to
+    # be.  The docks do not exist until the lines above, so filling
+    # it is still this function's job.
     for dock in window.docks:
-        window_menu.addAction(dock.toggleViewAction())
-    window_menu.addSeparator()
-    window_menu.addAction(window.actions_["reset_layout"])
+        window.window_menu.addAction(dock.toggleViewAction())
+    window.window_menu.addSeparator()
+    window.window_menu.addAction(window.actions_["reset_layout"])
 
 
 #: What a first run shows: what the structure is and what is on

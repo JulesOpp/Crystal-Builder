@@ -201,6 +201,14 @@ class Plane:
     deviation: float
     labels: tuple[str, ...] = ()
     name: str = ""
+    #: What colour to draw it in, or ``None`` for whatever the viewer
+    #: is using as its default.  It rides on the plane and not on the
+    #: view settings because two planes need two colours -- the whole
+    #: reason for drawing a quad is to see where two of them cross,
+    #: and one colour for both is the picture that cannot be read.
+    #: ``None`` rather than the default copied in, so that changing
+    #: the default still moves every plane nobody has coloured.
+    color: tuple[int, int, int] | None = None
 
     def text(self) -> str:
         atoms = ", ".join(self.labels or [str(a) for a in self.atoms])
@@ -208,11 +216,15 @@ class Plane:
                 f"   rms {self.deviation:.3f} A")
 
     def to_dict(self) -> dict:
-        return {"atoms": list(self.atoms), "name": self.name,
-                "labels": list(self.labels)}
+        record = {"atoms": list(self.atoms), "name": self.name,
+                  "labels": list(self.labels)}
+        if self.color is not None:
+            record["color"] = list(self.color)
+        return record
 
 
-def plane(cell, lattice, atoms, labels=None, name: str = "") -> Plane:
+def plane(cell, lattice, atoms, labels=None, name: str = "",
+          color=None) -> Plane:
     """Fit a plane through three or more atoms of the P1 cell."""
     indices = tuple(int(a) for a in atoms)
     if len(set(indices)) != len(indices):
@@ -227,7 +239,7 @@ def plane(cell, lattice, atoms, labels=None, name: str = "") -> Plane:
                        for a in indices)
     return Plane(indices, centroid, normal,
                  transforms.plane_deviation(points), tuple(labels),
-                 name)
+                 name, None if color is None else tuple(color))
 
 
 #: How far a drawn plane reaches past the cell corner furthest from

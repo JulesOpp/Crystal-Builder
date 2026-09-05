@@ -37,6 +37,11 @@ class DrawStyle:
     #: bonds, the cell and everything else are unchanged, which is why
     #: this is a field and not a separate render path.
     ellipsoids: bool = False
+    #: Draw a site that more than one thing shares as a sphere cut
+    #: into wedges, one per occupant -- VESTA's picture of disorder.
+    #: A field for the same reason ``ellipsoids`` is one: the bonds,
+    #: the cell and everything else are unchanged.
+    occupancy_pies: bool = False
     description: str = ""
 
     def atom_radius(self, element: str, settings) -> float:
@@ -102,6 +107,14 @@ register(DrawStyle(
     description="Atoms at half their covalent radius, tubes for bonds",
 ))
 register(DrawStyle(
+    name="ball_stick_occupancy", label="Ball and stick (occupancy)",
+    radius_source="covalent", radius_factor=0.5,
+    occupancy_pies=True,
+    description="Ball and stick, with every shared or partly empty "
+                "site cut into wedges -- one per occupant, and a grey "
+                "one for the vacancy",
+))
+register(DrawStyle(
     name="stick", label="Stick",
     radius_source="bond", radius_factor=1.0,
     description="Bond-width tubes with matching spheres at the joints",
@@ -110,6 +123,13 @@ register(DrawStyle(
     name="wireframe", label="Wireframe",
     radius_source="bond", radius_factor=0.0, bond_render="line",
     description="Bonds as lines, no atom geometry",
+))
+register(DrawStyle(
+    name="net", label="Net only",
+    radius_source="bond", radius_factor=0.0, draw_bonds=False,
+    description="The topology and nothing else -- no atoms and no "
+                "chemical bonds, for looking at the net a framework "
+                "reduces to",
 ))
 register(DrawStyle(
     name="spacefill", label="Space filling",

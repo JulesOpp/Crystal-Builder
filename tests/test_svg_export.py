@@ -125,6 +125,33 @@ def test_the_nearer_atom_is_written_last(projection):
     assert far < near
 
 
+def test_every_bond_half_is_written_before_its_own_atom(projection):
+    """The complaint this answers: a bond running towards the camera
+    was painted at its *midpoint's* depth, which is nearer than the
+    atom it starts at, so it was drawn over the sphere and every atom
+    in the picture had sticks laid across its face.
+
+    Two atoms, one of them well in front of the other, joined by a
+    bond that therefore runs steeply out of the page.  Each half has
+    to land behind its own atom and in front of the far one.
+    """
+    from xtalapp.viewport.scene import SceneModel
+    near, far = [0.0, 0.0, 5.0], [0.0, 0.0, -5.0]
+    middle = [0.0, 0.0, 0.0]
+    model = SceneModel(
+        positions=np.array([far, near], np.float32),
+        radii=np.array([1.0, 1.0], np.float32),
+        colors=np.array([[255, 0, 0], [0, 0, 255]], np.uint8),
+        atom_index=np.array([0, 1]),
+        bond_starts=np.array([far, near], np.float32),
+        bond_ends=np.array([middle, middle], np.float32),
+        bond_colors=np.array([[255, 0, 0], [0, 0, 255]], np.uint8))
+    markup = render_svg(model, projection)
+    order = [markup.index(f'id="{name}"') for name in
+             ("bond-0", "atom-0", "bond-1", "atom-1")]
+    assert order == sorted(order)
+
+
 def test_the_background_is_a_rectangle_that_transparency_drops(rutile):
     """A transparent SVG is one with nothing behind the crystal, and
     the background being its own element is what makes it removable by
@@ -157,6 +184,26 @@ def test_polyhedron_faces_are_polygons_shaded_by_their_tilt(quartz):
     faces = by_class(root, "polyhedron")
     assert len(faces) == model.n_polyhedron_faces
     assert len({f.get("fill") for f in faces}) > 1
+
+
+def test_an_occupancy_pie_reaches_the_vector_export():
+    """The export is the version that goes in a paper, so a style whose
+    whole subject is disorder must not quietly become a plain sphere in
+    it."""
+    from xtal import Lattice, Structure
+    from xtal.core.site import Site
+    structure = Structure(
+        lattice=Lattice.cubic(6.0),
+        sites=[Site("Fe", [0.0, 0.0, 0.0], occupancy=0.5),
+               Site("O", [0.0, 0.0, 0.0], occupancy=0.5)],
+        space_group="P1")
+    model = build_scene(structure,
+                        ViewSettings(style="ball_stick_occupancy",
+                                     show_cell=False))
+    assert model.n_pie_faces
+    wedges = by_class(parse(render_svg(model, _fitted(model))), "pie")
+    assert len(wedges) == model.n_pie_faces
+    assert len({w.get("fill") for w in wedges}) > 1
 
 
 def test_a_selected_atom_gets_a_halo_behind_it(rutile):

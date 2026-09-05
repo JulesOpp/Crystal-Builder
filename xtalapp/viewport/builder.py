@@ -40,7 +40,7 @@ import numpy as np
 
 from xtal.core import bonding, measure, p1, transforms
 from xtalapp.viewport import scene as scene_model
-from xtalapp.viewport import styles
+from xtalapp.viewport import styles, view_settings
 from xtalapp.viewport.scene import SceneModel
 
 RANGE_TOL = 1e-6
@@ -52,17 +52,27 @@ CELL_COLOR = (120, 120, 130)
 
 # The net is drawn over the chemistry rather than in place of it, so it
 # has to be distinguishable at a glance from every bond underneath:
-# one flat colour that is nobody's element, thicker than a bond, and
-# translucent enough to see the framework through.
-TOPOLOGY_COLOR = (124, 96, 200)
+# thicker than a bond, and translucent enough to see the framework
+# through.  Its colour is the user's -- ``settings.topology_color`` --
+# because a flat colour that is nobody's element on a white background
+# is somebody's element on a black one.
 TOPOLOGY_RADIUS_FACTOR = 2.4
 TOPOLOGY_OPACITY = 0.55
 
-# A plane is not chemistry either, so like the net it takes one flat
-# colour that is nobody's element.  Translucent enough to read the
-# ring through, opaque enough to be seen edge-on.
-PLANE_COLOR = (232, 168, 60)
-NORMAL_COLOR = (150, 96, 20)
+#: The empty part of a partly occupied site.  A neutral grey and not
+#: the background: a vacancy is something the refinement measured, and
+#: a wedge the colour of the paper reads as a hole in the picture.
+VACANCY_COLOR = (170, 172, 178)
+#: How much bigger than the largest sphere it stands on an occupancy
+#: pie is drawn.  It has to cover them, and a wedge sagging inside the
+#: sphere underneath z-fights -- the same arithmetic the ORTEP octants
+#: in ``vtk_scene`` document, at this tessellation.
+PIE_MARGIN = 1.02
+PIE_MERIDIANS = 28              # over the whole circle, before cutting
+PIE_PARALLELS = 18
+#: How far from 1 an occupancy has to be before a site is drawn as
+#: partly empty.  Refinements write 0.9999 and mean full.
+OCCUPANCY_TOL = 1e-3
 
 
 def build_scene(structure, settings, selection=None,
@@ -131,10 +141,12 @@ def build_scene(structure, settings, selection=None,
                           selection)
            if settings.show_topology
            else _Segments().arrays())
-    faces = (_emit_planes(planes, cell, lattice)
+    faces = (_emit_planes(planes, cell, lattice, settings)
              if settings.show_planes else _no_planes())
 
     show_atoms = settings.show_atoms and style.radius_factor > 0
+    pies = (_emit_pies(cell, drawn, cart)
+            if show_atoms and style.occupancy_pies else _no_pies())
     tensors, thermal = (
         _emit_ellipsoids(cell, drawn, structure, settings)
         if show_atoms and style.ellipsoids
@@ -148,6 +160,7 @@ def build_scene(structure, settings, selection=None,
         selected=flags if show_atoms else np.zeros(0, bool),
         atom_tensors=tensors,
         atom_thermal=thermal,
+        ellipsoid_octants=bool(settings.ellipsoid_octants),
         bond_starts=starts,
         bond_ends=ends,
         bond_colors=bond_colors,
@@ -161,6 +174,11 @@ def build_scene(structure, settings, selection=None,
         polyhedron_faces=hulls.faces(),
         polyhedron_colors=hulls.colors(),
         polyhedron_opacity=settings.polyhedron_opacity,
+        pie_local=pies[0],
+        pie_centres=pies[1],
+        pie_faces=pies[2],
+        pie_colors=pies[3],
+        pie_normals=pies[4],
         depth_cue=settings.depth_cue,
         depth_cue_strength=settings.depth_cue_strength,
         topology_starts=net[0],
@@ -168,7 +186,7 @@ def build_scene(structure, settings, selection=None,
         topology_keys=net[2],
         topology_selected=net[3],
         topology_radius=settings.bond_radius * TOPOLOGY_RADIUS_FACTOR,
-        topology_color=TOPOLOGY_COLOR,
+        topology_color=tuple(settings.topology_color),
         topology_opacity=TOPOLOGY_OPACITY,
         plane_points=faces[0],
         plane_faces=faces[1],
@@ -801,6 +819,132 @@ def _labels(drawn, cell, lattice, settings):
 
 
 # ======================================================================
+#  OCCUPANCY PIES
+# ======================================================================
+
+def _no_pies():
+    return (np.zeros((0, 3), np.float32),
+            np.zeros((0, 3), np.float32),
+            np.zeros((0, 3), int),
+            np.zeros((0, 3), np.uint8),
+            np.zeros((0, 3), np.float32))
+
+
+def _emit_pies(cell, drawn, cart):
+    """VESTA's occupancy spheres: one wedge per occupant of a site.
+
+    A site two things share, or one that is partly empty, is the case
+    every other style draws as a lie -- two spheres exactly on top of
+    each other, of which the reader sees whichever happens to be
+    larger, with nothing on screen to say the other is there.
+
+    **What comes out of here is in a frame of its own**, with the
+    wedges cut about +z and the first one starting at +x -- and the
+    renderer turns that frame to face the camera, so the pie reads as
+    a pie from every angle instead of as stripes from most of them.
+    That is the one thing in this module a camera gets a say in, and
+    it is kept out of here on purpose: a scene rebuilt on every orbit
+    is what the display range and the bond matching exist to avoid, so
+    the vertices are emitted once as offsets from their own centre and
+    :meth:`~xtalapp.viewport.scene.SceneModel.pie_geometry` turns them
+    per frame -- a 3x3 matrix multiply over a few thousand points, and
+    only for the sites that have a pie at all.
+
+    **The spheres underneath are still drawn.**  Every array in the
+    scene model is indexed by drawn atom -- the labels, the legend,
+    the selection flags, the picking -- so dropping the occupants of a
+    shared site would put four other things out of step to save
+    geometry that is hidden anyway.  The pie is drawn a whisker
+    outside the largest of them instead.
+
+    An occupancy over 1 is somebody's refinement and not this
+    module's to correct: the wedges are scaled to fit the circle and
+    no vacancy is drawn, which shows the site full rather than
+    silently dropping the excess.
+    """
+    occupancy = np.asarray(cell.occupancy, float)[drawn.atom]
+    # Sites are shared when they are at the same place, and a CIF
+    # writes the same place as the same digits.  Rounding rather than
+    # clustering on purpose: a split site at 0.245 and 0.255 is two
+    # sites and VESTA draws it as two, so a tolerance wide enough to
+    # merge them would be wrong about a real structure.
+    _where, group = np.unique(np.round(drawn.frac, 3), axis=0,
+                              return_inverse=True)
+    members: dict[int, list[int]] = {}
+    for index, key in enumerate(group.ravel().tolist()):
+        members.setdefault(key, []).append(index)
+
+    local, centres, faces, colors, normals = [], [], [], [], []
+    for rows in members.values():
+        shares = occupancy[rows]
+        total = float(shares.sum())
+        if len(rows) == 1 and total > 1.0 - OCCUPANCY_TOL:
+            continue
+        radius = float(drawn.radius[rows].max()) * PIE_MARGIN
+        if radius <= 0.0:
+            continue
+        scale = max(total, 1.0)
+        # Biggest share first, so which colour a site opens with does
+        # not depend on the order the sites were written in.
+        order = sorted(range(len(rows)),
+                       key=lambda k: (-shares[k], rows[k]))
+        wedges = []
+        start = 0.0
+        for k in order:
+            end = start + float(shares[k]) / scale
+            wedges.append((start, end, tuple(drawn.color[rows[k]])))
+            start = end
+        if start < 1.0 - OCCUPANCY_TOL:
+            wedges.append((start, 1.0, VACANCY_COLOR))
+        for lo, hi, color in wedges:
+            _wedge(cart[rows[0]], radius, lo, hi,
+                   local, centres, faces, colors, normals, color)
+
+    if not faces:
+        return _no_pies()
+    return (np.concatenate(local).astype(np.float32),
+            np.concatenate(centres).astype(np.float32),
+            np.concatenate(faces).astype(int),
+            np.concatenate(colors).astype(np.uint8),
+            np.concatenate(normals).astype(np.float32))
+
+
+def _wedge(centre, radius, lo, hi, local, centres, faces, colors,
+           normals, color):
+    """One slice of a sphere, from fraction ``lo`` round to ``hi``.
+
+    In the pie's own frame: the slice runs round the +z axis and the
+    centre it belongs to is carried beside it, because where the +z
+    axis ends up pointing is the camera's business and not this
+    function's.
+    """
+    meridians = max(2, int(np.ceil((hi - lo) * PIE_MERIDIANS)))
+    phi = np.linspace(lo, hi, meridians + 1) * 2.0 * np.pi
+    theta = np.linspace(0.0, np.pi, PIE_PARALLELS + 1)
+    sin_t, cos_t = np.sin(theta), np.cos(theta)
+    verts = np.stack(
+        [np.outer(sin_t, np.cos(phi)),
+         np.outer(sin_t, np.sin(phi)),
+         np.repeat(cos_t[:, None], meridians + 1, axis=1)],
+        axis=-1).reshape(-1, 3)
+
+    base = sum(len(block) for block in local)
+    local.append(verts * radius)
+    centres.append(np.tile(np.asarray(centre, float), (len(verts), 1)))
+    normals.append(verts)
+
+    row, column = np.meshgrid(np.arange(PIE_PARALLELS),
+                              np.arange(meridians), indexing="ij")
+    a = (row * (meridians + 1) + column).ravel() + base
+    b, c, d = a + 1, a + meridians + 1, a + meridians + 2
+    quads = np.concatenate([np.stack([a, c, b], axis=1),
+                            np.stack([b, c, d], axis=1)])
+    faces.append(quads)
+    colors.append(np.tile(np.asarray(color, np.uint8),
+                          (len(quads), 1)))
+
+
+# ======================================================================
 #  THERMAL ELLIPSOIDS
 # ======================================================================
 
@@ -1011,7 +1155,7 @@ def _no_planes():
             np.zeros((0, 3), np.uint8))
 
 
-def _emit_planes(planes, cell, lattice):
+def _emit_planes(planes, cell, lattice, settings):
     """A translucent quad at each plane, with its normal on it.
 
     Two triangles and a line, which is why this borrows the polyhedron
@@ -1023,20 +1167,29 @@ def _emit_planes(planes, cell, lattice):
     than drawn wrong.  The document prunes those, but it prunes them
     on a signal, and a picture built between the edit and the signal
     must not index off the end of the cell.
+
+    **Each plane's own colour wins over the settings' default.**  The
+    reason for drawing a quad at all is to see where two planes cross,
+    and two quads in one colour is the picture that cannot be read --
+    so the colour belongs to the plane, and the setting is what a
+    plane nobody has coloured falls back to.
     """
+    default = tuple(settings.plane_color)
     points, faces, colors = [], [], []
-    starts, ends = [], []
+    starts, ends, normal_colors = [], [], []
     for plane in planes:
         if not plane.atoms or max(plane.atoms) >= cell.n_atoms:
             continue
+        color = default if plane.color is None else tuple(plane.color)
         corners, tip = measure.plane_quad(plane, cell, lattice)
         base = len(points)
         points.extend(corners)
         faces.extend([[base, base + 1, base + 2],
                       [base, base + 2, base + 3]])
-        colors.extend([PLANE_COLOR, PLANE_COLOR])
+        colors.extend([color, color])
         starts.append(plane.centroid)
         ends.append(tip)
+        normal_colors.append(view_settings.normal_of(color))
     if not faces:
         return _no_planes()
     return (np.array(points, np.float32).reshape(-1, 3),
@@ -1044,4 +1197,4 @@ def _emit_planes(planes, cell, lattice):
             np.array(colors, np.uint8).reshape(-1, 3),
             np.array(starts, np.float32).reshape(-1, 3),
             np.array(ends, np.float32).reshape(-1, 3),
-            np.tile(np.array(NORMAL_COLOR, np.uint8), (len(ends), 1)))
+            np.array(normal_colors, np.uint8).reshape(-1, 3))

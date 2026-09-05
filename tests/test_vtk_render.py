@@ -423,6 +423,80 @@ def test_an_ellipsoid_is_drawn_pointing_where_its_tensor_says():
     assert abs(round_[0] - round_[1]) < 0.2 * round_[0]
 
 
+def test_octant_shading_darkens_the_ellipsoid_it_is_drawn_on():
+    """A sphere and a 3:1 ellipsoid seen down its long axis have the
+    same silhouette, and the arcs are what tell them apart.  So the
+    shading has to reach the pixels and not only the scene model."""
+    structure = _one_atom_with((0.09, 0.02, 0.01, 0.01, 0.0, 0.0))
+    settings = ViewSettings(style="ortep", show_cell=False)
+
+    def dark(on):
+        settings.ellipsoid_octants = on
+        image = vtk_scene.render_to_array(
+            build_scene(structure, settings), (400, 400),
+            direction=(0.0, 0.0, -1.0))
+        return fraction_of(image, lambda i: i.sum(axis=2) < 200)
+
+    assert dark(True) > 3 * dark(False)
+
+
+def test_the_octant_glyph_covers_only_the_measured_atoms():
+    """One extra actor over a subset of the same points, so the count
+    in its polydata is the whole of the claim."""
+    from xtal import Lattice, Structure
+    from xtal.core.site import Site
+    structure = Structure(
+        lattice=Lattice.cubic(12.0),
+        sites=[Site("C", [0.3, 0.3, 0.3],
+                    u_aniso=(0.02, 0.03, 0.05, 0.0, 0.0, 0.0)),
+               Site("H", [0.6, 0.6, 0.6], u_iso=0.05)],
+        space_group="P1")
+    scene = vtk_scene.VtkScene()
+    model = build_scene(structure,
+                        ViewSettings(style="ortep", show_cell=False))
+    scene.set_model(model)
+    assert scene.octant_actor.GetVisibility()
+    assert scene._octant_poly.GetNumberOfPoints() == 1
+
+    scene.set_model(build_scene(structure,
+                                ViewSettings(show_cell=False)))
+    assert not scene.octant_actor.GetVisibility()
+
+
+def test_a_pie_puts_both_occupants_of_a_site_on_the_screen():
+    """The complaint the style answers: an Fe/Ni site drawn any other
+    way is one sphere, and which of the two you are looking at is a
+    coin toss."""
+    from xtal import Lattice, Structure
+    from xtal.core.site import Site
+    structure = Structure(
+        lattice=Lattice.cubic(6.0),
+        sites=[Site("Fe", [0.5, 0.5, 0.5], occupancy=0.5),
+               Site("O", [0.5, 0.5, 0.5], occupancy=0.5)],
+        space_group="P1")
+    image = vtk_scene.render_to_array(
+        build_scene(structure,
+                    ViewSettings(style="ball_stick_occupancy",
+                                 show_cell=False)),
+        (400, 400), direction=(0.0, 0.0, -1.0))
+    # By hue and not by brightness: a pie is shaded like any other
+    # sphere, so a threshold on the red channel counts the lit half of
+    # the oxygen and none of its dark half.
+    def scarlet(i):                                     # oxygen
+        return ((i[:, :, 0] > 60) & (i[:, :, 1] < 0.25 * i[:, :, 0])
+                & (i[:, :, 2] < 0.25 * i[:, :, 0]))
+
+    def rust(i):                                        # iron
+        return ((i[:, :, 0] > 60) & (i[:, :, 1] > 0.3 * i[:, :, 0])
+                & (i[:, :, 1] < 0.65 * i[:, :, 0])
+                & (i[:, :, 2] < 0.45 * i[:, :, 0]))
+
+    oxygen, iron = fraction_of(image, scarlet), fraction_of(image, rust)
+    assert oxygen > 0.05 and iron > 0.05
+    # half the circle each, so neither may be a sliver beside the other
+    assert 0.6 < oxygen / iron < 1.7
+
+
 def test_the_glyph_goes_back_to_spheres_when_the_style_changes():
     """One mapper draws both, so the switch has to put the scale and
     orientation arrays back or every atom keeps the last ellipsoid it

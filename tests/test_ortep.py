@@ -199,6 +199,36 @@ def test_each_fallback_is_marked_for_what_it_is():
     assert "anisotropic" in report and "no displacement" in report
 
 
+def test_only_a_measured_atom_gets_octant_shading():
+    """The shading says which way the ellipsoid points, so it is drawn
+    only on the atoms that have a way of pointing.  Arcs on a U_iso
+    sphere would claim three directions the refinement never measured,
+    and once one atom in a picture is shaded on invented axes the
+    shading means nothing on the atoms where it was earned."""
+    model = build_scene(a_refined_ring(), ortep_settings())
+    rows = model.octant_atoms
+    assert len(rows)
+    kinds = {int(model.atom_thermal[i]) for i in rows}
+    assert kinds == {scene_module.ANISOTROPIC}
+    assert len(rows) < model.n_atoms
+
+
+def test_the_octants_can_be_turned_off_and_the_ellipsoids_stay():
+    settings = ortep_settings()
+    settings.ellipsoid_octants = False
+    model = build_scene(a_refined_ring(), settings)
+    assert model.draws_ellipsoids
+    assert len(model.octant_atoms) == 0
+
+
+def test_a_sphere_style_never_asks_for_octants():
+    """The flag is on by default, so the guard has to be that there
+    are no tensors and not that the user said no."""
+    settings = ViewSettings()
+    assert settings.ellipsoid_octants
+    assert len(build_scene(a_refined_ring(), settings).octant_atoms) == 0
+
+
 def test_an_isotropic_atom_is_drawn_as_a_sphere():
     """Because that is what an isotropic refinement *is*, and a sphere
     among ellipsoids says so without a caption."""

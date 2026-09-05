@@ -99,6 +99,35 @@ def test_element_colours_and_radii_can_be_overridden(window,
     assert not document.modified
 
 
+def test_the_net_and_plane_colours_are_chosen_from_the_style_dock(
+        window, rutile_cif, monkeypatch):
+    """Both were module constants, which meant a net drawn over a
+    purple framework and no way to move either of them."""
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    monkeypatch.setattr(QColorDialog, "getColor",
+                        lambda *a, **k: QColor(10, 200, 90))
+
+    dock.flat["topology_color"].click()
+    assert document.view.topology_color == (10, 200, 90)
+    dock.flat["plane_color"].click()
+    assert document.view.plane_color == (10, 200, 90)
+    assert not document.modified
+
+
+def test_the_octant_switch_only_applies_where_there_are_ellipsoids(
+        window, rutile_cif):
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    assert not dock.octants.isEnabled()
+
+    document.update_view(style="ortep")
+    assert dock.octants.isEnabled() and dock.octants.isChecked()
+    dock.octants.setChecked(False)
+    assert not document.view.ellipsoid_octants
+    assert not document.modified
+
+
 def test_a_cancelled_colour_dialog_changes_nothing(window, rutile_cif,
                                                    monkeypatch):
     document = window.open_path(rutile_cif)

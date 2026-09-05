@@ -12,22 +12,28 @@ Everything is drawn with as few actors as possible, because actor count
 
 * every atom is one point in a single polydata, drawn by one
   :class:`vtkGlyph3DMapper` with per-point radius and colour arrays;
-* every bond half is one line in a second polydata, thickened by one
+* ORTEP's octant shading is a second glyph over the same points,
+  instanced from one small source of arcs and shaded octants -- the
+  boundary is the same curve on every ellipsoid because every
+  ellipsoid is the same unit sphere transformed;
+* every bond half is one line in a third polydata, thickened by one
   tube filter, coloured per line -- a double bond contributes two of
   those lines and a triple three, so the actor count does not move
   when the orders are drawn;
-* the thin dashed inner lines that mark aromatic bonds are a third,
+* the thin dashed inner lines that mark aromatic bonds are a fourth,
   because a tube filter has one radius and they need a smaller one;
-* every coordination polyhedron is a set of triangles in a fourth,
+* every coordination polyhedron is a set of triangles in a fifth,
   translucent polydata, coloured per face;
-* the net, when a chemist has drawn one, is a fifth -- thicker,
+* a site more than one thing shares is a sphere cut into wedges in a
+  sixth, opaque, standing over the spheres it replaces;
+* the net, when a chemist has drawn one, is a seventh -- thicker,
   translucent, one flat colour, running over the real bonds rather
   than in place of them;
-* the planes the user defined are a sixth, translucent triangles like
-  the polyhedra, with their normals in a seventh set of lines;
-* the cell is an eighth polydata of lines.
+* the planes the user defined are an eighth, translucent triangles
+  like the polyhedra, with their normals in a ninth set of lines;
+* the cell is a tenth polydata of lines.
 
-Eight actors for the structure, however many atoms there are.
+Ten actors for the structure, however many atoms there are.
 
 The scale bar is the one thing here that is not geometry.  It is two
 2-D actors in the corner and its length is a question about the
@@ -97,6 +103,32 @@ ID_TYPE = np.int64 if vtkIdTypeArray().GetDataTypeSize() == 8 \
 
 SPHERE_RESOLUTION = 24
 TUBE_SIDES = 12
+
+# ORTEP's octant shading, in glyph space -- the unit sphere every
+# ellipsoid is a transform of.  Both radii are just over 1 so the
+# furniture sits outside the ellipsoid rather than z-fighting with it,
+# and the arcs are outside the shading for the same reason.  They
+# scale with the ellipsoid because the glyph does, so the margin stays
+# proportional however big the atom is drawn.
+#
+# **The margin is set by the tessellation and not by taste.**  Nothing
+# here is a sphere: a triangle spanning an angle t on a sphere of
+# radius R sags to R cos(t/2) in the middle, and the ellipsoid
+# underneath is inscribed -- so an octant patch clears it only while
+# ``R cos(t/2) > 1``.  At five subdivisions a 90-degree octant sags
+# 1.2% and 1.006 sank *inside* the atom over the middle of every
+# facet, which is what the speckled first attempt was.  Ten
+# subdivisions sag 0.3%, which 1.012 clears with room for the depth
+# buffer; raising the radius instead is the fix that grows the atom.
+OCTANT_ARC_RADIUS = 1.020
+OCTANT_SHADE_RADIUS = 1.012
+OCTANT_SEGMENTS = 48            # per principal section
+OCTANT_SUBDIVISIONS = 10        # of each shaded octant
+#: How far towards black the shading and the arcs are taken from the
+#: atom's own colour.  Dark enough to read as ORTEP ink, still the
+#: element's hue -- a fixed black would lose which atom is which in a
+#: picture whose whole subject is the atoms.
+OCTANT_DARKEN = 0.42
 MAX_LABELS = 400            # beyond this, labels are noise anyway
 
 # The element legend, in fractions of the window.
@@ -221,6 +253,99 @@ def _triangle_polydata(points, faces, colors) -> vtkPolyData:
     return poly
 
 
+def _darken(colors, amount: float) -> np.ndarray:
+    """The same hue, further towards black."""
+    return np.clip(np.asarray(colors, float) * amount,
+                   0, 255).astype(np.uint8)
+
+
+def _spherical_triangle(corners, radius: float, subdivisions: int):
+    """One octant of a sphere, as points and triangles.
+
+    A barycentric grid over the flat triangle pushed out onto the
+    sphere.  Subdividing and then normalising -- rather than
+    normalising three corners and calling it a face -- is what keeps
+    the shaded octant against the surface instead of cutting a chord
+    across it, which at a 3:1 axis ratio is the difference between a
+    shaded region and a visible facet.
+    """
+    n = subdivisions
+    corners = np.asarray(corners, dtype=float)
+    index, points = {}, []
+    for i in range(n + 1):
+        for j in range(n + 1 - i):
+            weights = np.array([i, j, n - i - j], dtype=float) / n
+            v = weights @ corners
+            index[(i, j)] = len(points)
+            points.append(radius * v / np.linalg.norm(v))
+    faces = []
+    for i in range(n):
+        for j in range(n - i):
+            faces.append((index[(i, j)], index[(i + 1, j)],
+                          index[(i, j + 1)]))
+            if i + j < n - 1:
+                faces.append((index[(i + 1, j)], index[(i + 1, j + 1)],
+                              index[(i, j + 1)]))
+    return np.array(points), np.array(faces, dtype=ID_TYPE)
+
+
+def _octant_source() -> vtkPolyData:
+    """The ORTEP furniture for one ellipsoid, in glyph space.
+
+    Three principal sections as closed polylines, and **two opposite
+    octants** filled.  Two and not the one ORTEP draws on paper,
+    because a paper figure is drawn from a chosen viewpoint and this
+    is not: an octant fixed in the ellipsoid's own frame faces away
+    from the camera for half of the orientations in a crystal, and an
+    atom that loses its shading as the structure is turned reads as a
+    different kind of atom.  A centrosymmetric pair cannot: whichever
+    way the camera looks, one of the two is on the near side.
+
+    Built in glyph space once and instanced, which is the whole reason
+    this costs one actor rather than one mesh per atom -- every
+    ellipsoid is the same unit sphere under a different transform, so
+    the octant boundary is the same curve on all of them.
+    """
+    axes = np.eye(3)
+    blocks, cells = [], []
+    lines = vtkCellArray()
+    base = 0
+    for u, v in ((0, 1), (1, 2), (2, 0)):
+        angle = np.linspace(0.0, 2 * np.pi, OCTANT_SEGMENTS,
+                            endpoint=False)
+        ring = OCTANT_ARC_RADIUS * (
+            np.cos(angle)[:, None] * axes[u]
+            + np.sin(angle)[:, None] * axes[v])
+        blocks.append(ring)
+        lines.InsertNextCell(OCTANT_SEGMENTS + 1)
+        for k in range(OCTANT_SEGMENTS):
+            lines.InsertCellPoint(base + k)
+        lines.InsertCellPoint(base)             # close the loop
+        base += OCTANT_SEGMENTS
+
+    for sign in (1.0, -1.0):
+        points, faces = _spherical_triangle(
+            sign * axes, OCTANT_SHADE_RADIUS, OCTANT_SUBDIVISIONS)
+        blocks.append(points)
+        cells.append(faces + base)
+        base += len(points)
+    faces = np.concatenate(cells)
+
+    poly = vtkPolyData()
+    poly.SetPoints(_points(np.concatenate(blocks)))
+    poly.SetLines(lines)
+    polys = vtkCellArray()
+    polys.SetData(
+        numpy_to_vtkIdTypeArray(
+            np.arange(0, 3 * len(faces) + 1, 3, dtype=ID_TYPE),
+            deep=True),
+        numpy_to_vtkIdTypeArray(
+            np.ascontiguousarray(faces.ravel(), dtype=ID_TYPE),
+            deep=True))
+    poly.SetPolys(polys)
+    return poly
+
+
 def _nice_length(wanted: float) -> float:
     """The nearest length at or below ``wanted`` that a reader can
     count in: 1, 2 or 5 times a power of ten.
@@ -273,11 +398,15 @@ class VtkScene:
         self.renderer = renderer or vtkRenderer()
         self.model = None
         self._atom_poly = vtkPolyData()
+        self._axes = np.zeros((0, 3), np.float32)
+        self._quaternions = np.zeros((0, 4), np.float32)
         self._label_actors: list[vtkBillboardTextActor3D] = []
         self._legend_actors: list = []
         self._build_atom_actor()
+        self._build_octant_actor()
         self._build_bond_actor()
         self._build_polyhedron_actor()
+        self._build_pie_actor()
         self._build_topology_actor()
         self._build_plane_actors()
         self._build_cell_actor()
@@ -288,6 +417,9 @@ class VtkScene:
         self._cue_observer = None
         self._bar_on = False
         self._bar_observer = None
+        self._pies_on = False
+        self._pie_observer = None
+        self._pie_frame = None
 
     # -- actor construction --------------------------------------------
 
@@ -311,6 +443,44 @@ class VtkScene:
         self.atom_actor.GetProperty().SetSpecular(0.3)
         self.atom_actor.GetProperty().SetSpecularPower(30)
         self.renderer.AddActor(self.atom_actor)
+
+    def _build_octant_actor(self):
+        """ORTEP's octant shading: a second glyph over the same atoms.
+
+        The same scale and orientation arrays as the ellipsoids
+        themselves, so the arcs land on the surface of every one of
+        them without a single per-atom mesh -- and its own input
+        polydata, because only the atoms whose orientation was
+        measured are in it.  See
+        :attr:`~xtalapp.viewport.scene.SceneModel.octant_atoms`.
+        """
+        self._octant_poly = vtkPolyData()
+        self._octant_rows = np.zeros(0, int)
+        mapper = vtkGlyph3DMapper()
+        mapper.SetSourceData(_octant_source())
+        mapper.SetInputData(self._octant_poly)
+        mapper.SetScalarModeToUsePointFieldData()
+        mapper.SelectColorArray("colors")
+        mapper.SetColorModeToDirectScalars()
+        mapper.ScalarVisibilityOn()
+        mapper.SetScaleArray("axes")
+        mapper.SetScaleModeToScaleByVectorComponents()
+        mapper.SetOrientationArray("quaternions")
+        mapper.SetOrientationModeToQuaternion()
+        mapper.OrientOn()
+        self.octant_mapper = mapper
+        self.octant_actor = vtkActor()
+        self.octant_actor.SetMapper(mapper)
+        prop = self.octant_actor.GetProperty()
+        # Mostly ambient: an ORTEP figure is ink and the arcs have to
+        # stay readable on the side of the ellipsoid facing away from
+        # the light, where a diffuse-lit line goes to nothing.
+        prop.SetAmbient(0.65)
+        prop.SetDiffuse(0.35)
+        prop.SetSpecular(0.0)
+        prop.SetLineWidth(1.4)
+        self.octant_actor.SetVisibility(False)
+        self.renderer.AddActor(self.octant_actor)
 
     def _build_bond_actor(self):
         self._bond_poly = vtkPolyData()
@@ -363,6 +533,77 @@ class VtkScene:
         # as black holes in the polyhedron.
         prop.BackfaceCullingOff()
         self.renderer.AddActor(self.polyhedron_actor)
+
+    def _build_pie_actor(self):
+        """Occupancy pies: opaque triangles, and their own actor.
+
+        Not the polyhedron actor, though the geometry is the same
+        kind: a hull is translucent and a pie is the surface of an
+        atom, and a pie that took the polyhedron opacity would show
+        the sphere it is drawn to replace straight through itself.
+        """
+        self._pie_poly = vtkPolyData()
+        mapper = vtkPolyDataMapper()
+        mapper.SetInputData(self._pie_poly)
+        mapper.SetScalarModeToUseCellData()
+        mapper.SetColorModeToDirectScalars()
+        self.pie_mapper = mapper
+        self.pie_actor = vtkActor()
+        self.pie_actor.SetMapper(mapper)
+        self.pie_actor.GetProperty().SetSpecular(0.3)
+        self.pie_actor.GetProperty().SetSpecularPower(30)
+        self.pie_actor.SetVisibility(False)
+        self.renderer.AddActor(self.pie_actor)
+
+    def _set_pies(self, model):
+        """The wedges, and an observer to keep them facing the camera.
+
+        A pie chart is only readable face on -- cut about a fixed
+        crystallographic axis, the same 60/40 site reads as any split
+        at all from most directions -- so the frame follows the camera
+        the way the depth cue and the scale bar already do, from a
+        render observer rather than from a rebuilt scene.
+        """
+        self._pies_on = bool(model.n_pie_faces)
+        self._pie_frame = None
+        if not self._pies_on:
+            self.pie_actor.SetVisibility(False)
+            self._watch_camera()
+            return
+        points, normals = model.pie_geometry(*self._camera_frame())
+        self._pie_poly = _triangle_polydata(points, model.pie_faces,
+                                            model.pie_colors)
+        self._pie_poly.GetPointData().SetNormals(
+            _to_float(normals, "normals"))
+        self.pie_mapper.SetInputData(self._pie_poly)
+        self.pie_actor.SetVisibility(True)
+        self._watch_camera()
+        self._refresh_pies()
+
+    def _camera_frame(self):
+        camera = self.renderer.GetActiveCamera()
+        return (np.array(camera.GetDirectionOfProjection(), float),
+                np.array(camera.GetViewUp(), float))
+
+    def _refresh_pies(self) -> None:
+        """Turn the pies onto the camera's axes, if it has moved.
+
+        The guard is not an optimisation to be tidied away: this runs
+        before every render, and a render happens while the camera is
+        being dragged.
+        """
+        if not self._pies_on or self.model is None:
+            return
+        frame = self._camera_frame()
+        if (self._pie_frame is not None
+                and np.allclose(frame, self._pie_frame, atol=1e-9)):
+            return
+        self._pie_frame = frame
+        points, normals = self.model.pie_geometry(*frame)
+        self._pie_poly.SetPoints(_points(points))
+        self._pie_poly.GetPointData().SetNormals(
+            _to_float(normals, "normals"))
+        self._pie_poly.Modified()
 
     def _build_topology_actor(self):
         """The net: its own actor, on purpose.
@@ -594,8 +835,10 @@ class VtkScene:
         self.renderer.SetBackground(r / 255, g / 255, b / 255)
 
         self._set_atoms(model)
+        self._set_octants(model)
         self._set_bonds(model)
         self._set_polyhedra(model)
+        self._set_pies(model)
         self._set_topology(model)
         self._set_planes(model)
         self._set_cell(model)
@@ -635,6 +878,10 @@ class VtkScene:
         if model.n_atoms:
             self._atom_poly.SetPoints(_points(model.positions))
             self._atom_poly.Modified()
+        if len(self._octant_rows):
+            self._octant_poly.SetPoints(
+                _points(model.positions[self._octant_rows]))
+            self._octant_poly.Modified()
         if model.n_bond_halves:
             solid, dashed = split_by_order(model)
             self._bond_poly.SetPoints(
@@ -648,6 +895,12 @@ class VtkScene:
             self._polyhedron_poly.SetPoints(
                 _points(model.polyhedron_points))
             self._polyhedron_poly.Modified()
+        if model.n_pie_faces:
+            # The centres moved, and the camera did not -- so the
+            # frame cache has to be dropped or the refresh below
+            # decides there is nothing to do.
+            self._pie_frame = None
+            self._refresh_pies()
         if model.n_topology_edges:
             self._topology_poly.SetPoints(
                 _points(_interleave(model.topology_starts,
@@ -670,6 +923,7 @@ class VtkScene:
         current = self.model
         return (model.n_atoms == current.n_atoms
                 and model.draws_ellipsoids == current.draws_ellipsoids
+                and model.ellipsoid_octants == current.ellipsoid_octants
                 and model.n_bond_halves == current.n_bond_halves
                 and np.array_equal(model.bond_orders,
                                    current.bond_orders)
@@ -678,6 +932,8 @@ class VtkScene:
                 == current.n_polyhedron_faces
                 and len(model.polyhedron_points)
                 == len(current.polyhedron_points)
+                and model.n_pie_faces == current.n_pie_faces
+                and len(model.pie_local) == len(current.pie_local)
                 and model.n_cell_lines == current.n_cell_lines
                 and model.n_topology_edges == current.n_topology_edges
                 and model.n_plane_faces == current.n_plane_faces
@@ -700,6 +956,10 @@ class VtkScene:
                                                    "colors"))
             if model.draws_ellipsoids:
                 axes, quaternions = _decompose(model.atom_tensors)
+                # Kept for the octant glyph, which needs the same two
+                # arrays over a subset of the same atoms.  One SVD per
+                # picture rather than two.
+                self._axes, self._quaternions = axes, quaternions
                 poly.GetPointData().AddArray(_to_float(axes, "axes"))
                 poly.GetPointData().AddArray(
                     _to_float(quaternions, "quaternions"))
@@ -720,6 +980,30 @@ class VtkScene:
             mapper.SetScaleArray("radii")
             mapper.SetScaleModeToScaleByMagnitude()
             mapper.OrientOff()
+
+    def _set_octants(self, model):
+        """The arcs and the shaded octants, over the anisotropic atoms.
+
+        Nothing here is geometry of its own: the points are the atoms
+        already drawn, and the shape comes from the glyph source built
+        once in :func:`_octant_source`.
+        """
+        rows = model.octant_atoms
+        self._octant_rows = rows
+        if not len(rows):
+            self.octant_actor.SetVisibility(False)
+            return
+        poly = vtkPolyData()
+        poly.SetPoints(_points(model.positions[rows]))
+        data = poly.GetPointData()
+        data.AddArray(_to_float(self._axes[rows], "axes"))
+        data.AddArray(_to_float(self._quaternions[rows],
+                                "quaternions"))
+        data.AddArray(_to_uchar(
+            _darken(model.colors[rows], OCTANT_DARKEN), "colors"))
+        self._octant_poly = poly
+        self.octant_mapper.SetInputData(poly)
+        self.octant_actor.SetVisibility(True)
 
     def _set_bonds(self, model):
         """One line per tube: a double bond arrives here as two.
@@ -1009,8 +1293,8 @@ class VtkScene:
         self._refresh_depth_cue()
 
     def _cued_actors(self):
-        return (self.atom_actor, self.bond_actor, self.dash_actor,
-                self.polyhedron_actor)
+        return (self.atom_actor, self.octant_actor, self.bond_actor,
+                self.dash_actor, self.polyhedron_actor, self.pie_actor)
 
     def _watch_camera(self) -> None:
         """Keep the near and far distances, and the scale bar, up to
@@ -1027,7 +1311,8 @@ class VtkScene:
         """
         for on, name, refresh in (
                 (self._cue_on, "_cue_observer", self._refresh_depth_cue),
-                (self._bar_on, "_bar_observer", self._refresh_scale_bar)):
+                (self._bar_on, "_bar_observer", self._refresh_scale_bar),
+                (self._pies_on, "_pie_observer", self._refresh_pies)):
             observer = getattr(self, name)
             if on and observer is None:
                 setattr(self, name, self.renderer.AddObserver(

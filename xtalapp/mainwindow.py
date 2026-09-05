@@ -49,6 +49,7 @@ from xtalapp.dialogs.bond_rules import BondRulesDialog
 from xtalapp.dialogs.cell_edit import CellEditDialog
 from xtalapp.dialogs.display_range import DisplayRangeDialog
 from xtalapp.dialogs.find_symmetry import FindSymmetryDialog
+from xtalapp.dialogs.help import HelpWindow
 from xtalapp.dialogs.merge_duplicates import MergeDuplicatesDialog
 from xtalapp.dialogs.spacegroup import SpaceGroupDialog
 from xtalapp.dialogs.subgroup import SubgroupDialog
@@ -113,6 +114,10 @@ class MainWindow(QMainWindow):
         # the Force Field dock reports its own visibility on the way
         # up and a new tab reads this to catch up.
         self._show_atom_types = False
+
+        # Built by Help > Help on demand and kept, so the pages are
+        # generated once and the window comes back where it was left.
+        self._help_window = None
 
         self.document_set = DocumentSet(self)
         self.tabs = QTabWidget()
@@ -1204,10 +1209,32 @@ class MainWindow(QMainWindow):
                 lambda checked=False, s=symbol: self.select_element(s))
 
     def _on_cells_changed(self, _value=None) -> None:
+        """More cells, and then a camera that frames them.
+
+        Growing 1x1x1 into 3x3x3 puts eight ninths of the picture
+        outside the frame, and the frame is where it is because it
+        was set for one cell -- so the user's next action was always
+        Reset view.  :meth:`descend_to_subgroup` resets for the same
+        reason and its docstring carries the argument.
+
+        **The rule lives here rather than on ``Document.set_cells``**,
+        deliberately.  A camera belongs to a viewport and a document
+        does not have one; ``set_cells`` is also called with no user
+        present -- restoring a workspace, and by the tests -- where a
+        reset would fight a view that has just been restored.  The
+        second route to the same ranges, ``DisplayRangeDialog``, does
+        not travel through ``set_cells`` either (it goes through
+        ``update_view``), so putting it there would not have covered
+        it; and it should not be covered.  That dialog composes a
+        picture -- a half cell to look inside a framework, a slab
+        one cell thick -- with the camera already placed on the
+        thing being looked at, and resetting would throw that away.
+        """
         document = self.current_document()
         if document is None:
             return
         document.set_cells(*[s.value() for s in self.cell_spins])
+        self.reset_view()
 
     # ==================================================================
     #  HOUSEKEEPING
@@ -1541,6 +1568,22 @@ class MainWindow(QMainWindow):
 
     def show_preferences(self) -> None:
         self.preferences_dialog().exec()
+
+    def show_help(self) -> None:
+        """The generated help pages.
+
+        Modeless and kept on the window: help about a command is read
+        while looking for the command, so a modal sheet over the top
+        of the structure would be the wrong shape.  Built once and
+        raised again after that -- the pages are read off the action
+        registry and the module registry, and neither changes while a
+        window is open.
+        """
+        if self._help_window is None:
+            self._help_window = HelpWindow(self, self)
+        self._help_window.show()
+        self._help_window.raise_()
+        self._help_window.activateWindow()
 
     def show_about(self) -> None:
         from xtal import __version__

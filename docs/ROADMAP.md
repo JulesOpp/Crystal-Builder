@@ -90,210 +90,140 @@ from *a net the user drew* to *a framework built on it*.  Phase Q used
 the **reader** and did not need the writer, so this is still owed and
 is now the last piece of "build on the net I drew".
 
+
 ---
 
+## 3. The TODO header, in front of V and W
 
-## 8. Phase U — draw in 2D, build in 3D — *shipped*
+`docs/TODO.md` gained a header of work raised while using the
+application, and it takes priority over Phases V and W below, which
+stay written and move behind it.  It is not one theme, so grouped by
+area it is seven phases, each landing in one or two files with a green
+suite between.
 
-**Goal:** a molecule that does not exist yet, into the open cell — and
-into the `bb_dir` Phase Q wired through.
-
-| Item | TODO section | Size | |
+| Phase | Theme | Size | |
 |---|---|---|---|
-| SMILES to 3D, into the open cell | Building | M | *shipped* |
-| Fragment library | Building | S | *shipped* |
+| 1 | Topologies, generated rather than stored | M | *shipped* |
+| 2 | Image export | M | *shipped* |
+| 3 | Appearance | M | *shipped* |
+| 4 | Shell and menus, then a proposal | S | *shipped* |
+| 5 | Structure editing | S–M | |
+| 6 | Force fields — UFF4MOF and GFN-FF/xTB | M | |
+| 7 | PXRD | L | |
 
-Do the first two, live with them, and only then take the editor.  A
-text box that turns `c1ccccc1C(=O)[O-]` into a benzoate sitting in the
-cell is a few days of work and covers most of what the sketcher was
-wanted for.
+**Phase 3 landed four entries and no new render path.**  The net and
+the plane colours were module constants and are now settings with a
+swatch each in the style panel; *Net only* is one more
+`register(DrawStyle(...))` and needed no builder branch, because
+`radius_factor = 0` already hides the atoms the way *Wireframe* does.
 
-**The 3D half is the tractable one** and lives in a new headless
-`xtal/build/`: place each atom from the neighbour that put it there,
-using `terms.natural_bond_length` for the distance and the type's own
-`theta0` for the angle, with staggered torsions and templates for ring
-systems — every one of those numbers is already in `xtal/ff/uff` and is
-already the geometry UFF wants, so the result starts at the force
-field's minimum.  Then relax it with UFF, which needs no new code path,
-only a cell with enough vacuum.
+A plane's colour did not stay a single setting for long.  The reason
+to draw a quad at all is to see where two planes cross, and two quads
+in one colour is the picture that cannot be read -- so the colour
+rides on the `Plane`, set per row from the Measure dock, and
+`ViewSettings.plane_color` is what a plane nobody has coloured falls
+back to.  Stored as an override and not as a copy of the default, so
+moving the default still moves every plane that was left alone.
 
-**Phase Q changes the dependency argument, and it is worth being
-precise about how.**  The objection to RDKit was never that it is a
-dependency; it was that it is a large one in a default install.  Phase
-Q establishes the pattern that answers that — an extra, absent unless
-asked for, with the feature honestly missing when it is — and it does
-*not* make RDKit cheaper, because `pymatgen` is not RDKit and
-installing `[mof]` gives you nothing towards `[build]`.  So: two
-extras, either installable alone, and a default install that has
-neither.
+The two hard ones both came down to the same fact — **there is no
+per-atom mesh.**  Every ellipsoid is one instanced `vtkSphereSource`
+under a scale and a quaternion, so ORTEP's octants could not be
+per-point colours.  They are a second glyph over the same arrays
+instead: one small source of three principal sections and two opposite
+octants, which is right on every ellipsoid because every ellipsoid is
+the same unit sphere transformed.  Two opposite octants and not
+ORTEP's one, because a single octant fixed in the ellipsoid's frame
+faces away from the camera half the time and an atom that loses its
+shading as the structure turns reads as a different kind of atom.
+They are drawn only where the refinement measured an orientation.
 
-> Since written: **there is no `[mof]` extra any more.**  PORMAKE is
-> vendored at `xtal/mof/pormake/`, trimmed of `jax`, `pymatgen` and
-> `networkx`, so the MOF builder ships and the only extra it needs is
-> `[ase]`.  The pattern this phase established is unchanged and is
-> what `[build]` and `[sketch]` still use; see
-> [PACKAGING.md](PACKAGING.md) § 4.
+Occupancy pies could not take that route -- the angles differ per site
+-- so they are real triangles from the builder, like a coordination
+polyhedron, over the spheres they replace rather than instead of them:
+every array in the scene model is indexed by drawn atom, and dropping
+the occupants of a shared site would put the labels, the legend, the
+picking and the selection flags out of step to save geometry that is
+hidden anyway.  Both offsets are set by the tessellation and not by
+taste, and the arithmetic is written down where they are.
 
-Choosing rdEditor is still choosing RDKit, and RDKit still solves the
-3D half.
+**And a pie faces the camera**, which is the one thing in the builder
+a camera gets a say in.  Cut about a fixed crystallographic axis the
+same 60/40 site reads as any split at all from most directions, and a
+pie chart that cannot be compared is not a pie chart.  It is still not
+a scene rebuilt on every orbit: the builder emits the vertices once as
+offsets from their own centre in a frame of the pie's own, and
+`SceneModel.pie_geometry` turns them onto the camera's axes -- from a
+render observer in the viewport, the way the depth cue and the scale
+bar already work, and from the projection's own frame in the SVG
+export, so the exported figure is not the one picture where the
+wedges cannot be compared.
 
-**The editor is an integration, not a build.**  rdEditor is PySide6,
-RDKit-backed, weak-copyleft and written as reusable widgets; the spike
-that decides it is half a day — put its editor widget in a bare dialog
-and get a `Mol` back out.  If the widget does not come apart from its
-shell, Ketcher in a `QWebEngineView` is the fallback.  Writing a canvas
-from scratch is not on this list.
+**The vector export also had its order wrong.**  A bond half was
+painted at its *midpoint's* depth, which is nearer than the atom it
+starts at whenever the bond runs towards the camera -- so half the
+bonds in any figure were drawn across the faces of their own atoms.
+A half carries its own atom's depth now, and the stable sort plus the
+emission order in `render_svg` puts it immediately behind the sphere
+it grows out of.
 
-**Where it lands** meets Phase Q: a molecule with connection points
-marked is a PORMAKE building block, and a molecule without them is a
-`PasteFragment` at the camera's focal plane.  The same 3D builder
-serves both, and that is the reason these two phases are the same half
-of the plan.
+**Phase 4 was three fixes and one document.**  The axis letter is a
+label beside each cell spin rather than the spinbox's prefix, which is
+what had been drawing it inside the field where the number goes; a
+cell-count change resets the camera, because growing 1x1x1 into 3x3x3
+puts eight ninths of the picture outside a frame that was set for one
+cell.  That rule is on the toolbar handler and deliberately not on
+`Document.set_cells`: a camera belongs to a viewport, `set_cells` is
+also called with nobody watching, and the second route to the same
+ranges -- `DisplayRangeDialog` -- does not go through it anyway.  Nor
+should it.  That dialog composes a picture with the camera already
+placed on what is being looked at.
 
-### What is built, and what the plan above got wrong
+**Help is generated, not written.**  Every action already carries the
+sentence it shows in the status bar and every module parameter carries
+its own `help`, so `Help > Crystal Builder Help` reads both registries
+and builds two pages at the moment it opens: every command grouped the
+way the menu bar groups it, and every module with what each of its
+settings accepts.  Prose typed beside them would have repeated all of
+it and then drifted.  A command with no tip shows as a name and a key
+and nothing else, which is honest and is also the list of tips still
+owed.
 
-**The native fragment builder is withdrawn.**  Writing one means also
-writing a SMILES parser -- aromaticity, stereo, ring perception -- for
-a result strictly worse than ETKDG, which is most of the phase spent
-on the fallback.  So RDKit is **required** for the feature, as a
-`build` extra, and absent it the entries grey out naming the extra:
-the pattern Phase Q established, applied honestly rather than
-half-answered.  Two extras, `mof` and `build`, neither in a default
-install, and installing one buys nothing towards the other.
+**The menu and toolbar rearrangement was written as a proposal --
+[docs/MENUS.md](MENUS.md) -- approved, and then built in the same
+phase.**  Its first section was not a matter of taste: Window sat
+after Help because `build_docks` appended a menu of its own after
+`build_menus` had finished, so the menu bar's order was a property of
+two files' call order rather than of either file's contents.
+`build_menus` creates the Window menu now, in the place the bar should
+read it, and `build_docks` fills it -- which is the only half that
+needs the docks.
 
-**`xtal/build/` is in** -- `from_smiles` gives a `Molecule` that
-converts to a `Fragment` for the open cell or a P1 `Structure` for a
-tab of its own, with its bonds set explicitly and nothing perceived.
-A connection point is `*` in SMILES and `X` in what comes out, which
-is the dummy that already exists: perception, the force field and
-every module run hold it back at the door already, and a second
-symbol -- radon was proposed -- would have meant teaching all three
-about it and putting a radon atom in every CIF this wrote.
+The bar reads File · Edit · Select · **Structure · Symmetry · Cell** ·
+**Measure · View** · Modules · Window · Help: what edits the crystal
+together, what changes the picture together, and what is about the
+application last.  The six mouse modes are a `Mouse mode` submenu
+rather than six flat entries that made the bottom of Structure read as
+though a mode were an edit, and Open Recent moved up beside Open
+Sample from the far end of the menu.  On the toolbar the element combo
+moved to the mode it belongs to -- it is the element Add atom places,
+and it stood beside Recalculate bonds -- and Reset view moved out of
+the undo group to close the bar with the three axis views, which were
+on no toolbar at all.  Those are a letter wide there and still
+`Along a` in the menu, because a toolbar button shows an action's icon
+text.
 
-**Connection points are capped with hydrogen before the geometry is
-touched.**  RDKit's MMFF has no parameters for atomic number zero, so
-a `*` left in place either refuses to optimise or falls back silently.
-A hydrogen points exactly where a substituent would, so the direction
-that comes back is the one the connection point wants -- and the
-direction is the whole of what it carries.
+**Nothing was renamed, so the expensive half was never paid.**  Six
+test files assert action *text* and action *keys*; not one of them
+changed, because every registry key is the key it was.  Nothing
+asserted menu *order* before, which is what made the rearrangement
+cheap -- and something does now, because the point of the fix is that
+the order should be a thing a file states.
 
-**The PORMAKE block format was read rather than assumed**, and three
-facts came out of the 867 shipped files that the plan above did not
-have.  A connection point sits **0.75 A** from the atom it hangs off
--- median over 4256 X-to-body bonds -- and not at a bond length; a
-block written at 1.4 A builds a framework with every linker bond twice
-too long and nothing reports it.  PORMAKE identifies connection points
-by the **symbol** `X` and never reads the index line, so a writer must
-emit both.  And there is a fourth section after the atoms, `i j` and a
-letter in `S/D/T/A`, which is how a molecule's bond orders survive
-into the built framework's CIF.  `xtal/mof/block.py` holds the
-constant and the geometry, and `write_building_block` emits all
-three.
-
-**All of that is now in**, and one thing
-had to be fixed before any of it: `PasteFragment` grew perceived bonds
-onto what it pasted -- it never called `bonding.hold_perception` --
-which was a live invariant violation reachable by Ctrl+V, and a
-molecule dropped into a framework would have arrived already bonded
-into it.  The paste tests missed it by counting `structure.bonds`,
-where the perceived half never appears.
-
-**What shipped, and the two shapes worth keeping.**  Building a
-molecule into a tab of its own is a module (`xtal/modules/build.py`,
-greyed with the extra named when RDKit is absent); dropping the same
-molecule into the open cell is **not**, and cannot be -- the registry
-has two behaviours for a returned structure, replace the open document
-or open a new tab, and a paste is neither.  So it is a shell action,
-`Structure > Insert molecule...`, landing at
-`ViewportWidget.focal_point` because the centre of a cell somebody has
-zoomed into is off screen.  And the two entries share **one** dialog,
-which reads the connection-point flag off `action.name`: they differ
-only in whether `*` is on offer and in what the footer says, and the
-footer is `PasteFragment.describe` shown live, because pasting into
-Fm-3m multiplies a molecule by 192 and that has to be said before the
-click.
-
-`MarkConnectionPoints` turns a selected atom with exactly one bond
-into an `X` at 0.75 A along it, in one command because Ctrl+Z has to
-give back both halves; the block writer emits the count, the index
-line, `X` atoms *and* the bond block, because PORMAKE reads the
-symbols and this application's own reader reads the line.  A block
-saved from the Save dialog is in the MOF picker next time with nothing
-further clicked, and the acceptance test builds **pcu** from a linker
-this application wrote against a shipped node and reads the net back
-off the framework to check it is still pcu.
-
-### The editor, and what the seam was worth
-
-**The widget did come apart from its shell**, which is the question
-the spike was for.  `rdeditor.molEditWidget.MolEditWidget` is a
-`QSvgWidget` subclass that constructs standalone, takes a `Mol` in,
-signals `molChanged` out and undoes its own edits.  So Ketcher in a
-`QWebEngineView` is not needed and QtWebEngine stays out of the
-bundle.  rdeditor is LGPL-3.0, so it is a dependency and never
-vendored -- a third extra, `sketch`, separate from `build` because
-`xtal/` imports no Qt and this is PySide6 plus a theme package.
-
-**The seam paid for itself exactly as claimed.**  `set_smiles` in and
-`smilesChanged` out was the whole interface, and the editor went in
-behind it: the footer, the library picker, the build timer and the
-two entries' differences are untouched.  What did *not* survive
-contact was the assumption that the seam was one-way.  A picture is a
-line -- text in, drawing out -- and an editor is a **cycle**: draw,
-box, the 350 ms timer, build, and the string back into the canvas.
-
-**Both hops of that cycle guard on the molecule, not the string,**
-and a string compare is not close enough.  The two ends disagree
-about spelling constantly -- a benzene drawn from the ring template
-comes back kekulized where the box says `c1ccccc1`, a library entry
-writes `[*:1]c1ccc([*:2])cc1` where the depiction canonicalises the
-ring -- and each disagreement would have rewritten the box, restarted
-the timer, rebuilt, and re-laid the drawing out under the cursor, on
-every keystroke.  Round-tripping both sides through `MolToSmiles`
-asks the question that was actually meant.
-
-**The chrome is ours.**  `MolEditWidget` has none: everything a user
-presses in rdEditor lives on their `MainWindow`, which is a
-thousand-line application and is not coming with the widget.  So:
-Select / Add / Remove / Replace, seven elements, three bond orders,
-two ring templates, undo.  Their `ptable_widget` is skipped
-deliberately -- it wants a `QActionGroup` built by that `MainWindow`
-and would couple this dialog to the plumbing the widget was extracted
-from.  Anything off the element row is typed into the box, which is
-why the box did not go away.
-
-**The connection-point tool needed no chemistry at all.**  An atom of
-atomic number zero is `*` in SMILES, `*` is what the box already
-takes, and `from_smiles` already turns that into the `X` that
-perception, the force field and every module run hold back at the
-door.  It is offered only when `not pastes` -- the same flag the
-footer and the picker read -- because the entry that pastes refuses a
-starred string, and a tool whose only outcome is the footer turning
-red is worse than no tool.
-
-**Three things rdeditor does to its host are undone at
-construction**, and none of them is a reason not to use it.  It sets
-`WA_DeleteOnClose` on the canvas, right for the window it ships in
-and wrong for a dialog opened, closed and opened again.
-`MolWidget.__init__` calls `logging.basicConfig` and then sets the
-level of the *root* logger, which is the application's.  And its own
-constructor drops the parent on the floor -- `MolEditWidget` passes
-`parent` to `MolWidget`, whose first parameter is the *molecule* --
-so the canvas is built unparented and the layout adopts it.  Two
-notes without a remedy: `rdeditor/__init__.py` does `from .rdEditor
-import MainWindow`, so any import from the package executes that
-shell and pulls in `qdarktheme` (0.1.7 on Python 3.13; it imports
-fine because their `MainWindow` is never constructed) -- which is why
-availability is `find_spec` and never an import.  And rdeditor draws
-a connection point labelled `R`, relabelling it in its own `mol`
-setter, where the box says `*` and the tab says `X`; the tooltip says
-so rather than leaving somebody to work it out.
-
-**The acceptance ran end to end**: benzene-1,4-dicarboxylate drawn
-click by click from the toolbar with two connection points, Build,
-a tab of 18 atoms with 2 `X` in it, saved as a building block, and
-868 blocks in the MOF picker afterwards -- the 867 PORMAKE ships and
-the one this application drew, with nothing further clicked.
+Items 18 and 21 were deleted from the TODO header without being built:
+Preferences shipped some time ago as a five-page dialog on Ctrl+comma,
+and the Supercell rename is withdrawn -- `Cell > Supercell...` builds
+a genuinely periodic supercell, and the non-periodic replication is
+the toolbar spins the same phase relabelled.
 
 ---
 
@@ -407,10 +337,11 @@ and no cell is doubled, which stays true until this lands.
 
 | Phase | Theme | Rough size | |
 |---|---|---|---|
+| **1–7** | The TODO header, by area — § 3 | M–L | *3 of 7 shipped* |
 | **V** | The engines answer in pictures | L | |
 | **W** | The klassengleiche half | L | |
 
-Phases U to W schedule **every entry left in
+The header phases and V and W together schedule **every entry left in
 [docs/TODO.md](TODO.md)**, and nothing else.  P is the one phase with
 no TODO entry behind it, because nobody using the application ever
 asked for it and nobody using it will see it.  An entry ships when its

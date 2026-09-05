@@ -27,6 +27,33 @@ def _empty(n_cols: int = 3, dtype=np.float32) -> np.ndarray:
     return np.zeros((0, n_cols), dtype=dtype)
 
 
+def view_basis(direction, view_up) -> np.ndarray:
+    """The camera's own axes as the columns ``(right, up, towards)``.
+
+    ``towards`` points *at* the viewer, which is the axis anything
+    that has to face the camera is turned onto; ``direction`` is where
+    the camera looks, so it is the negative of that.
+
+    ``view_up`` is orthogonalised rather than trusted -- VTK's camera
+    up is not required to be square to the view direction, and a basis
+    built from a skewed one shears whatever it turns.  Looking exactly
+    along the up vector leaves nothing to orthogonalise, so any
+    perpendicular does: the roll is arbitrary there and only has to be
+    a rotation.
+    """
+    towards = -np.asarray(direction, float).reshape(3)
+    towards = towards / max(np.linalg.norm(towards), 1e-12)
+    up = np.asarray(view_up, float).reshape(3)
+    up = up - towards * float(up @ towards)
+    length = np.linalg.norm(up)
+    if length < 1e-9:
+        fallback = np.eye(3)[int(np.argmin(np.abs(towards)))]
+        up = fallback - towards * float(fallback @ towards)
+        length = np.linalg.norm(up)
+    up = up / length
+    return np.column_stack([np.cross(up, towards), up, towards])
+
+
 # What an atom's ellipsoid rests on.  Ordered by how much is known.
 UNMEASURED = 0
 NON_POSITIVE = 1
@@ -69,6 +96,12 @@ class SceneModel:
     # were never made.
     atom_thermal: np.ndarray = field(
         default_factory=lambda: np.zeros(0, np.uint8))
+    # ORTEP's octant shading, drawn only on the atoms whose orientation
+    # was actually measured -- see ``VtkScene._set_octants``.  A flag
+    # and not geometry: every ellipsoid is the same unit sphere under a
+    # different transform, so the arcs and the shaded octants are one
+    # glyph source instanced with the arrays above.
+    ellipsoid_octants: bool = False
 
     # bonds, already split in half so each end takes its atom's colour
     bond_starts: np.ndarray = field(default_factory=_empty)    # (K,3)
@@ -115,6 +148,29 @@ class SceneModel:
     polyhedron_colors: np.ndarray = field(
         default_factory=lambda: _empty(3, np.uint8))            # (F,3)
     polyhedron_opacity: float = 0.75
+
+    # occupancy pies: a shared or partly empty site drawn as a sphere
+    # cut into wedges, one per occupant.  Triangles over a shared
+    # vertex list like a polyhedron, and opaque -- the sphere it
+    # covers is still drawn underneath it, because every other array
+    # here is indexed by drawn atom and dropping one would put a
+    # label, a legend entry or a pick out of step.
+    #
+    # **Not world coordinates.**  A pie faces the camera, so what the
+    # builder emits is (P,3) offsets from each vertex's own centre in
+    # a frame of the pie's own -- cut about +z, starting at +x -- with
+    # that centre carried beside it and the outward normal with it.
+    # :meth:`pie_geometry` turns the pair into world points for
+    # whichever way the camera is looking.  Normals are carried rather
+    # than left to the renderer because without them every pie is
+    # flat-shaded and reads as a stack of rings.
+    pie_local: np.ndarray = field(default_factory=_empty)
+    pie_centres: np.ndarray = field(default_factory=_empty)
+    pie_normals: np.ndarray = field(default_factory=_empty)
+    pie_faces: np.ndarray = field(
+        default_factory=lambda: np.zeros((0, 3), int))          # (F,3)
+    pie_colors: np.ndarray = field(
+        default_factory=lambda: _empty(3, np.uint8))            # (F,3)
 
     # planes: the geometry the user defined on top of the crystal.
     # Triangles like a polyhedron, because a quad is two of them, plus
@@ -187,6 +243,34 @@ class SceneModel:
         return len(self.polyhedron_faces)
 
     @property
+    def n_pie_faces(self) -> int:
+        return len(self.pie_faces)
+
+    def pie_geometry(self, direction, view_up):
+        """``(points, normals)`` for the occupancy pies, cut about the
+        axis a camera looking along ``direction`` is on.
+
+        The whole point of a pie chart is that the reader can compare
+        the wedges, and wedges cut about a fixed crystallographic axis
+        are only comparable from the two directions that axis points
+        in -- from anywhere else the same 60/40 site reads as any
+        split between 0 and 100.  So the frame follows the camera, and
+        it costs one 3x3 multiply over the pies' own vertices rather
+        than a rebuilt scene, which is why the builder emits offsets
+        and leaves this to whoever is drawing.
+
+        ``view_up`` fixes the roll: without it the pie would be free
+        to spin about the view axis and would, as soon as anything
+        re-derived the frame.
+        """
+        if not len(self.pie_local):
+            return (np.zeros((0, 3), np.float32),
+                    np.zeros((0, 3), np.float32))
+        basis = view_basis(direction, view_up)
+        return (self.pie_centres + self.pie_local @ basis.T,
+                self.pie_normals @ basis.T)
+
+    @property
     def n_plane_faces(self) -> int:
         return len(self.plane_faces)
 
@@ -231,6 +315,21 @@ class SceneModel:
     @property
     def draws_ellipsoids(self) -> bool:
         return bool(len(self.atom_tensors))
+
+    @property
+    def octant_atoms(self) -> np.ndarray:
+        """Which drawn atoms get octant shading: the anisotropic ones.
+
+        Not all of them, and that is the point.  A U_iso sphere and a
+        fallback have no principal axes, so arcs on them would draw
+        three directions the refinement never measured -- and once one
+        atom in a picture is shaded on invented axes the shading stops
+        meaning anything on the atoms where it was earned.
+        """
+        if not (self.ellipsoid_octants and self.draws_ellipsoids):
+            return np.zeros(0, int)
+        return np.flatnonzero(
+            np.asarray(self.atom_thermal) == ANISOTROPIC)
 
     def thermal_report(self) -> str:
         """What the ellipsoids in this picture are actually made of.

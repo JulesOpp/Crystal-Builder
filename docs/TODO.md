@@ -1,20 +1,9 @@
 # TODO
 # Add a module that simulates the PXRD patterns, allow exporting the simulated (with convolution) as .xy filetype, and Reflection Table. Before implementing this, have Jules load in pre-existing code from another app which has already written this code. We will want to merge part of this other app into here. This other app allows for plotting of experimental PXRD data, in file type .xy, and plotting simulated data against the experimental. And exporting the plots as vectors. We will turn this into a new module.
-# Add change color of topology bonds, add style that is topology bonds only, all atoms hidden
-# Add change color to planes
-# Add help menus that explain what variables are or what commands do
 # select bond->Measure or Measure->select bond, should both report the bond length
 # Creating a file with MOF builder or molecule builder should automatically save the file in the workspace
 # Add more forcefield options to the Forcefield module
-# Make the ORTEP look pretty, add the octant shading contours
-# Add a style the atoms in Ball-and-stick with multi-colored pie chart spheres, as like in VESTA
-# Propose a better organization for the top bar, i.e., File, Edit, Select, Structure, Measure, .... Make sure the last one will be Help
-# Propose a better organization for the top bar of the app, i.e., Open, Save, Undo, Redo, Reset View, ...
-# In the top bar of the app for showing translational equivalents, it says [a 1] [b 1] [c 1], but should be a [1] b [1] c [1]
-# When changing the number of translational equivalents shown, automatically call Reset view
-# Under File add Preferences with a short cut of command-comma. Propose a layout for what this window includes. It could have paths that point to modules that will eventually not ship with the App. Think about this carefully, and make some proposals
 # In Structure->Add Atom, to the right of Element [], add a button that pops up a periodic table, where the user can select any element without having to type out the element type
-# Change menu name of Supercell to Non-periodic supercell
 
 
 Work that is wanted but not yet scheduled into a phase.

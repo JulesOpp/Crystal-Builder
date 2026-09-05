@@ -298,7 +298,18 @@ def _atom_name(i: int, model, names) -> str:
 
 
 def _bond_shapes(model, projection, out) -> None:
-    """Every bond half, doubles and triples already split into lanes."""
+    """Every bond half, doubles and triples already split into lanes.
+
+    **A half is painted at its own atom's depth, not at its midpoint's.**
+    That is what the model already says a half *is* -- a segment from
+    one atom's centre outwards -- and it is the whole of getting the
+    order right: sorted farthest first and emitted before the atoms,
+    every half lands immediately behind the sphere it grows out of, so
+    the atom covers the stub inside it instead of being sliced through
+    by its own bonds.  Painting at the midpoint put the half in front
+    of its atom whenever the bond ran towards the camera, which is
+    half of them.
+    """
     solid, dashed = split_by_order(model)
     wire = model.bond_render == "line"
     for kind, (starts, ends, colors), scale in (
@@ -307,13 +318,13 @@ def _bond_shapes(model, projection, out) -> None:
         if not len(starts):
             continue
         a, depth_a = projection.to_display(starts)
-        b, depth_b = projection.to_display(ends)
+        b, _depth_b = projection.to_display(ends)
         widths = (np.full(len(starts), WIREFRAME_WIDTH) if wire else
                   projection.width_at(starts, ends,
                                       model.bond_radius * scale))
         for i in range(len(starts)):
             out.append((
-                0.5 * (depth_a[i] + depth_b[i]),
+                depth_a[i],
                 _line(a[i][0], a[i][1], b[i][0], b[i][1], colors[i],
                       max(widths[i], 0.4), f"{kind}-{i}", kind,
                       cap="butt" if not wire else "round")))
@@ -329,12 +340,12 @@ def _bond_halos(model, projection, out) -> None:
     starts = np.asarray(model.bond_starts, float)[chosen]
     ends = np.asarray(model.bond_ends, float)[chosen]
     a, depth_a = projection.to_display(starts)
-    b, depth_b = projection.to_display(ends)
+    b, _depth_b = projection.to_display(ends)
     widths = projection.width_at(
         starts, ends,
         model.bond_radius * HIGHLIGHT_GROWTH * HIGHLIGHT_BOND_GROWTH)
     for i in range(len(chosen)):
-        out.append((0.5 * (depth_a[i] + depth_b[i]) + 1e-6,
+        out.append((depth_a[i] + 1e-6,
                     _line(a[i][0], a[i][1], b[i][0], b[i][1],
                           HIGHLIGHT_COLOR, widths[i],
                           f"halo-bond-{int(chosen[i])}", "selection",
@@ -414,6 +425,31 @@ def _face_shapes(points, faces, colors, opacity, projection, kind,
                     f'stroke-opacity="{_n(opacity)}"/>'))
 
 
+def _pie_shapes(model, projection, out) -> None:
+    """The occupancy wedges, cut about this picture's own view axis.
+
+    Opaque, and emitted before the atoms but sorted by depth like
+    everything else -- the near half of a pie is in front of the
+    circle it covers and the far half is behind it, which is what
+    makes the sphere read as one object.
+
+    The pie faces the camera in the viewport and has to face it here
+    too, or the exported figure is the one picture of the structure
+    where the wedges cannot be compared.  A projection carries where
+    the camera looks and its horizontal axis, which is the frame.
+    """
+    if not model.n_pie_faces:
+        return
+    direction = (np.array([0.0, 0.0, -1.0])
+                 if projection.direction is None
+                 else np.asarray(projection.direction, float))
+    points, _normals = model.pie_geometry(
+        direction, np.cross(np.asarray(projection.right, float),
+                            direction))
+    _face_shapes(points, model.pie_faces, model.pie_colors, 1.0,
+                 projection, "pie", out)
+
+
 def _cell_shapes(model, projection, out) -> None:
     if not model.n_cell_lines:
         return
@@ -476,6 +512,7 @@ def render_svg(model, projection, names=None,
     _face_shapes(model.plane_points, model.plane_faces,
                  model.plane_colors, model.plane_opacity, projection,
                  "plane", shapes)
+    _pie_shapes(model, projection, shapes)
     _normal_shapes(model, projection, shapes)
     _cell_shapes(model, projection, shapes)
     _topology_shapes(model, projection, shapes)
@@ -485,7 +522,11 @@ def render_svg(model, projection, names=None,
 
     # Farthest first.  Python's sort is stable, so shapes at equal
     # depth keep the order they were emitted in above -- which is what
-    # puts a halo behind its atom and a label in front of everything.
+    # puts a halo behind its atom and a label in front of everything,
+    # and what puts every bond half behind the atom it grows out of:
+    # a half carries its own atom's depth, so the tie is broken by
+    # bonds being emitted before atoms here.  The order of these calls
+    # is therefore load-bearing and not tidiness.
     shapes.sort(key=lambda item: -item[0])
 
     width, height = projection.size

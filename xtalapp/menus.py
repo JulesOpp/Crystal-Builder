@@ -31,7 +31,7 @@ would change how they are spelled without buying anything.
 
 from __future__ import annotations
 
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QComboBox,
     QLabel,
@@ -45,6 +45,11 @@ from xtal.modules import MODULES
 from xtalapp import external, samples
 from xtalapp.viewport import modes, styles
 from xtalapp.viewport.view_settings import BACKGROUNDS, ViewSettings
+
+#: Which mouse mode the element combo belongs beside on the toolbar.
+#: Named rather than positioned: the combo is the element *that* mode
+#: places, so if the mode ever goes the combo has no reason to stay.
+ELEMENT_MODE = "add_atom"
 
 #: The three boundary answers, as menu entries.  In
 #: :data:`xtalapp.viewport.view_settings.BOUNDARIES` order, which is
@@ -398,21 +403,36 @@ def build_actions(window):
 
     add("reset_layout", "Reset &layout", window.reset_layout,
         tip="Put the panels back where they started")
-    add("reset_view", "&Reset view", window.reset_view, "Ctrl+0")
-    add("view_a", "Along &a", lambda: window.look_along(0), "1")
-    add("view_b", "Along &b", lambda: window.look_along(1), "2")
-    add("view_c", "Along &c", lambda: window.look_along(2), "3")
+    # All four are on the toolbar now, where a button with no tooltip
+    # is a button nobody presses twice.
+    add("reset_view", "&Reset view", window.reset_view, "Ctrl+0",
+        tip="Frame the whole of what is drawn again")
+    add("view_a", "Along &a", lambda: window.look_along(0), "1",
+        tip="Look down the a axis")
+    add("view_b", "Along &b", lambda: window.look_along(1), "2",
+        tip="Look down the b axis")
+    add("view_c", "Along &c", lambda: window.look_along(2), "3",
+        tip="Look down the c axis")
     add("about", f"About {APP_NAME}", window.show_about,
         role=QAction.MenuRole.AboutRole)
     add("show_log", "Show &Log", window.show_log,
         tip="Reveal the file this application writes its warnings "
             "and its crashes to")
+    add("help_contents", f"{APP_NAME} &Help", window.show_help,
+        QKeySequence.StandardKey.HelpContents,
+        tip="Every command and every module setting, generated from "
+            "the application itself")
 
 def build_menus(window):
     bar = window.menuBar()
 
     file_menu = bar.addMenu("&File")
     window.actions_.fill_menu(file_menu, ["new", "open"])
+    # The three ways to open something, together.  Recent was below
+    # Close, at the far end of a menu whose top is where somebody
+    # opening a file is looking.
+    window.recent_menu = file_menu.addMenu("Open &Recent")
+    window._rebuild_recent_menu()
     window.sample_menu = file_menu.addMenu("Open Sa&mple")
     build_sample_menu(window)
     window.actions_.fill_menu(file_menu, [
@@ -421,8 +441,6 @@ def build_menus(window):
         "save_building_block",
         None, "new_workspace", "open_workspace",
         None, "close_tab"])
-    window.recent_menu = file_menu.addMenu("Open &Recent")
-    window._rebuild_recent_menu()
     file_menu.addSeparator()
     # Both of these are drawn here on Windows and Linux and are moved
     # into the application menu on macOS, by the roles they carry.
@@ -453,14 +471,12 @@ def build_menus(window):
     window.bond_type_menu = add_bond_type_menu(window,
                                               structure_menu)
     structure_menu.addSeparator()
-    window.actions_.fill_menu(structure_menu,
+    # A submenu and not six flat entries: these are what the *mouse*
+    # does, and under the bond commands they made the bottom of
+    # Structure read as though a mode were an edit.
+    window.mode_menu = structure_menu.addMenu("Mouse &mode")
+    window.actions_.fill_menu(window.mode_menu,
                             [f"mode_{n}" for n in modes.names()])
-
-    measure_menu = bar.addMenu("&Measure")
-    window.actions_.fill_menu(measure_menu, [
-        "measure_selection", None,
-        "define_plane", "plane_angle", None,
-        "clear_planes", "clear_measurements"])
 
     symmetry_menu = bar.addMenu("S&ymmetry")
     window.actions_.fill_menu(symmetry_menu, [
@@ -474,8 +490,11 @@ def build_menus(window):
         "edit_cell", "supercell", None,
         "niggli", "delaunay", None, "wrap_cell"])
 
-    window.modules_menu = bar.addMenu("&Modules")
-    build_modules_menu(window)
+    measure_menu = bar.addMenu("&Measure")
+    window.actions_.fill_menu(measure_menu, [
+        "measure_selection", None,
+        "define_plane", "plane_angle", None,
+        "clear_planes", "clear_measurements"])
 
     view_menu = bar.addMenu("&View")
     style_menu = view_menu.addMenu("&Style")
@@ -501,8 +520,21 @@ def build_menus(window):
         None, "orthographic", "depth_cue",
         None, "view_a", "view_b", "view_c", "reset_view"])
 
+    window.modules_menu = bar.addMenu("&Modules")
+    build_modules_menu(window)
+
+    # Created here and filled by :func:`xtalapp.layout.build_docks`,
+    # which is where the docks it lists come from.  It used to add a
+    # menu of its own, and because that runs after this function the
+    # Window menu landed after Help -- the menu bar's order was a
+    # property of two files' call order rather than of either file's
+    # contents, which is how it could be wrong with no line looking
+    # wrong.  The whole order is here now, and it reads as it reads.
+    window.window_menu = bar.addMenu("&Window")
+
     help_menu = bar.addMenu("&Help")
-    window.actions_.fill_menu(help_menu, ["show_log", None, "about"])
+    window.actions_.fill_menu(help_menu, ["help_contents", None,
+                                          "show_log", None, "about"])
 
 def build_sample_menu(window) -> None:
     """The structures that ship with the application, as one submenu.
@@ -606,16 +638,23 @@ def module_action(window, module, action):
     return window.actions_[name]
 
 def build_toolbar(window):
+    """The toolbar, in three groups: the file and the undo stack, what
+    the mouse does, and what is being looked at.
+
+    Two things sat in the wrong group before ``docs/MENUS.md``.  The
+    element combo is *the element Add atom places* -- its own tooltip
+    says so -- and it stood two controls away from that button on the
+    far side of a separator, beside Recalculate bonds, which it has
+    nothing to do with.  Reset view was grouped with Undo and Redo,
+    which reads as though it undid something.
+    """
     bar = QToolBar("Main")
     bar.setObjectName("MainToolBar")
     bar.setMovable(False)
     window.actions_.fill_menu(bar, ["open", "save", None, "undo",
-                                  "redo", None, "reset_view"])
+                                  "redo"])
     bar.addSeparator()
-    window.actions_.fill_menu(
-        bar, [f"mode_{n}" for n in modes.names()])
-    bar.addSeparator()
-    bar.addAction(window.actions_["recompute_bonds"])
+
     window.element_combo = QComboBox()
     window.element_combo.setEditable(True)
     window.element_combo.addItems(
@@ -625,7 +664,12 @@ def build_toolbar(window):
     window.element_combo.setToolTip("Element placed by Add atom")
     window.element_combo.currentTextChanged.connect(
         window._on_element_changed)
-    bar.addWidget(window.element_combo)
+    for name in modes.names():
+        bar.addAction(window.actions_[f"mode_{name}"])
+        if name == ELEMENT_MODE:
+            bar.addWidget(window.element_combo)
+    bar.addSeparator()
+    bar.addAction(window.actions_["recompute_bonds"])
     bar.addSeparator()
     bar.addWidget(QLabel("  cells "))
     window.cell_spins = []
@@ -633,12 +677,30 @@ def build_toolbar(window):
         spin = QSpinBox()
         spin.setRange(1, 20)
         spin.setValue(1)
-        spin.setPrefix(f"{axis} ")
         spin.setToolTip(f"Unit cells shown along {axis}")
         spin.valueChanged.connect(window._on_cells_changed)
+        # The axis letter is a label beside the box, not the
+        # spinbox's prefix.  A prefix is drawn *inside* the field, so
+        # the box read "a 1" -- the letter sitting where the number
+        # is, in the space the user clicks into to type one.
+        bar.addWidget(QLabel(f" {axis} "))
         bar.addWidget(spin)
         window.cell_spins.append(spin)
     bar.addSeparator()
+
+    # The axis views are as often pressed as Reset view and were on no
+    # toolbar at all.  They are labelled by their letter here and stay
+    # "Along a" in the View menu: a toolbar button shows the action's
+    # *icon text*, which is the one place a shorter spelling belongs.
+    # The word before them is what keeps three bare letters from being
+    # read as more cell counts.
+    bar.addAction(window.actions_["reset_view"])
+    bar.addWidget(QLabel("  along "))
+    for axis, name in zip("abc", ["view_a", "view_b", "view_c"],
+                          strict=True):
+        action = window.actions_[name]
+        action.setIconText(axis)
+        bar.addAction(action)
     window.addToolBar(bar)
     window.toolbar = bar
 

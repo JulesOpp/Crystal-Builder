@@ -295,6 +295,114 @@ def test_cell_spinboxes_change_the_display_range(window, rutile_cif):
     assert doc.view.range_a == (0.0, 3.0)
 
 
+def test_the_menu_bar_ends_with_window_and_help(window):
+    """Window used to be after Help, because build_docks added a menu
+    of its own after build_menus had finished -- so the order was a
+    property of two files' call order.  build_menus owns it now."""
+    titles = [a.text().replace("&", "")
+              for a in window.menuBar().actions()]
+    assert titles == ["File", "Edit", "Select", "Structure",
+                      "Symmetry", "Cell", "Measure", "View",
+                      "Modules", "Window", "Help"]
+
+
+def test_the_window_menu_still_lists_every_dock(window):
+    """build_menus creates it empty; build_docks fills it, because the
+    docks do not exist until it has built them."""
+    entries = [a.text() for a in window.window_menu.actions()]
+    for dock in window.docks:
+        assert dock.toggleViewAction().text() in entries
+    assert entries[-1] == window.actions_["reset_layout"].text()
+
+
+def test_the_mouse_modes_are_a_submenu_of_structure(window):
+    """Six flat entries under the bond commands made the bottom of
+    Structure read as though a mode were an edit."""
+    from xtalapp.viewport import modes
+    entries = [a.text() for a in window.mode_menu.actions()]
+    assert entries == [window.actions_[f"mode_{n}"].text()
+                       for n in modes.names()]
+
+
+def test_the_ways_of_opening_a_file_are_together(window):
+    """Open Recent was below Close, at the far end of a menu whose top
+    is where somebody opening a file is looking."""
+    # The entry is held while its submenu is read: PySide gives the
+    # QMenu to Python, and letting the QAction wrapper go while the
+    # menu is still wanted takes the menu with it.
+    entry = window.menuBar().actions()[0]
+    titles = [a.text().replace("&", "") for a in entry.menu().actions()]
+    assert titles[:4] == ["New", "Open...", "Open Recent",
+                          "Open Sample"]
+
+
+def test_the_element_combo_sits_with_the_mode_that_places_it(window):
+    """It is the element Add atom places -- its own tooltip says so --
+    and it stood beside Recalculate bonds, which it has nothing to do
+    with."""
+    bar = window.toolbar
+    widgets = [bar.widgetForAction(a) for a in bar.actions()]
+    order = [w for w in widgets if w is not None]
+    combo = order.index(window.element_combo)
+    add_atom = order.index(
+        bar.widgetForAction(window.actions_["mode_add_atom"]))
+    recompute = order.index(
+        bar.widgetForAction(window.actions_["recompute_bonds"]))
+    assert add_atom < combo < recompute
+
+
+def test_the_camera_buttons_are_at_the_far_end_of_the_toolbar(window):
+    """Reset view was grouped with Undo and Redo, which reads as
+    though it undid something; the axis views were on no toolbar."""
+    on_bar = [a for a in window.toolbar.actions()]
+    for name in ("reset_view", "view_a", "view_b", "view_c"):
+        assert window.actions_[name] in on_bar
+    assert on_bar[-1] is window.actions_["view_c"]
+    assert on_bar.index(window.actions_["reset_view"]) > \
+        on_bar.index(window.actions_["undo"])
+
+
+def test_an_axis_button_is_a_letter_on_the_bar_and_a_sentence_in_the_menu(
+        window):
+    """A toolbar button shows the action's icon text, which is the one
+    place a shorter spelling belongs."""
+    assert window.actions_["view_a"].iconText() == "a"
+    assert window.actions_["view_a"].text() == "Along &a"
+
+
+def test_the_axis_letter_is_beside_the_cell_spin_and_not_inside_it(
+        window):
+    """The letter was the spinbox's prefix, so the box read "a 1" and
+    the letter sat where the number the user types goes."""
+    from PySide6.QtWidgets import QLabel
+    assert [s.prefix() for s in window.cell_spins] == ["", "", ""]
+    labels = [w.text().strip() for w in window.toolbar.findChildren(QLabel)]
+    assert ["a", "b", "c"] == [t for t in labels
+                               if t in ("a", "b", "c")]
+
+
+def test_growing_the_cell_count_reframes_the_picture(window, rutile_cif):
+    """1x1x1 to 3x1x1 puts two thirds of the picture outside a frame
+    that was set for one cell, so the camera resets with it."""
+    window.open_path(rutile_cif)
+    viewport = window.current_viewport()
+    before = viewport.resets
+    window.cell_spins[0].setValue(3)
+    assert viewport.resets == before + 1
+
+
+def test_the_display_range_dialog_leaves_the_camera_alone(window,
+                                                         rutile_cif):
+    """The other route to the same ranges composes a picture -- a slab,
+    a half cell -- with the camera already placed on what is being
+    looked at."""
+    document = window.open_path(rutile_cif)
+    viewport = window.current_viewport()
+    before = viewport.resets
+    document.update_view(range_a=(0.0, 0.5))
+    assert viewport.resets == before
+
+
 def test_spinboxes_follow_the_active_document(window, rutile_cif,
                                               quartz_cif):
     """Two documents, and therefore two *files*: opening one file

@@ -49,6 +49,31 @@ DEFAULT_STYLE = "ball_stick"
 #: and only falls back for a value from a *newer* version.
 BOUNDARIES = ("in_range", "bonded", "half")
 
+#: The net is drawn over the chemistry rather than in place of it, so
+#: it opens in one flat colour that is nobody's element, and the user
+#: can move it from there.
+TOPOLOGY_COLOR = (124, 96, 200)
+
+#: A plane is not chemistry either, and takes a flat colour for the
+#: same reason.
+PLANE_COLOR = (232, 168, 60)
+
+#: How far towards black a plane's normal is taken from the plane's
+#: own colour.  Derived rather than settable: two controls for one
+#: object is two chances to make it unreadable.
+NORMAL_DARKEN = 0.62
+
+
+def normal_of(color) -> tuple[int, int, int]:
+    """A plane's normal, taken from the plane's own colour.
+
+    A function and not just a property, because a plane may carry a
+    colour of its own and its normal has to follow *that* one -- two
+    planes in two colours with their normals both in a third is the
+    picture this is drawn to avoid.
+    """
+    return tuple(int(round(c * NORMAL_DARKEN)) for c in color)
+
 BACKGROUNDS = {
     "white": (255, 255, 255),
     "black": (0, 0, 0),
@@ -78,6 +103,11 @@ class ViewSettings:
     # to draw, because a topology bond is invisible to everything else
     # and hiding it as well would leave no sign it existed.
     show_topology: bool = True
+    # What colour the net is drawn in.  A setting and not a constant
+    # because the one flat colour that is nobody's element on a white
+    # background is somebody's element on a black one, and a net drawn
+    # over a purple framework is the picture this exists to avoid.
+    topology_color: tuple[int, int, int] = TOPOLOGY_COLOR
     # Fade distant atoms towards the background, so a thick slab reads
     # as having depth instead of as a flat mat of spheres.  Off by
     # default: it is an effect you reach for when the picture is deep,
@@ -91,6 +121,14 @@ class ViewSettings:
     # is the same crystal, and every published picture states which it
     # is.
     ellipsoid_probability: float = 0.50
+    #: ORTEP's octant shading: the three principal sections drawn as
+    #: arcs, and one pair of opposite octants filled.  On, because it
+    #: is what makes an ellipsoid read as an ellipsoid rather than as
+    #: a squashed ball -- a sphere and a 3:1 ellipsoid seen down its
+    #: long axis are the same silhouette, and only the arcs tell them
+    #: apart.  Off is for a picture that wants the shape and not the
+    #: refinement.
+    ellipsoid_octants: bool = True
     label_mode: str = "none"                # none | element | label | index
 
     # A translucent quad at every plane the user has defined, with its
@@ -98,6 +136,12 @@ class ViewSettings:
     # button and then has nothing on screen to show for it -- the
     # entry in the list is the only sign it exists.
     show_planes: bool = True
+    #: What colour a quad is when its plane does not name one -- a
+    #: plane carries its own, because two planes want two colours.
+    #: The normal is drawn in a darkened version of whichever applies
+    #: rather than in a colour of its own: a normal is the plane's
+    #: arrow and reading as a separate object is what it must not do.
+    plane_color: tuple[int, int, int] = PLANE_COLOR
     # A ruler in the corner, in Angstrom.  Off by default, like depth
     # cueing: it is what you reach for when the size is the question,
     # and a documentation image that quietly acquired one would be
@@ -146,6 +190,11 @@ class ViewSettings:
             return el.covalent_radius(element)
         return self.bond_radius
 
+    @property
+    def normal_color(self) -> tuple[int, int, int]:
+        """The normal of a plane that has no colour of its own."""
+        return normal_of(self.plane_color)
+
     # -- display range -------------------------------------------------
 
     @property
@@ -190,11 +239,14 @@ class ViewSettings:
             "show_axes": self.show_axes,
             "show_bond_orders": self.show_bond_orders,
             "show_topology": self.show_topology,
+            "topology_color": list(self.topology_color),
             "show_planes": self.show_planes,
+            "plane_color": list(self.plane_color),
             "show_scale_bar": self.show_scale_bar,
             "depth_cue": self.depth_cue,
             "depth_cue_strength": self.depth_cue_strength,
             "ellipsoid_probability": self.ellipsoid_probability,
+            "ellipsoid_octants": self.ellipsoid_octants,
             "label_mode": self.label_mode,
             "range_a": list(self.range_a),
             "range_b": list(self.range_b),
@@ -219,6 +271,7 @@ class ViewSettings:
                     "show_bond_orders", "show_topology",
                     "show_planes", "show_scale_bar", "depth_cue",
                     "depth_cue_strength", "ellipsoid_probability",
+                    "ellipsoid_octants",
                     "label_mode", "boundary", "projection",
                     "show_legend", "polyhedron_opacity",
                     "polyhedron_min_vertices"):
@@ -231,8 +284,9 @@ class ViewSettings:
         for key in ("range_a", "range_b", "range_c"):
             if key in d:
                 setattr(s, key, tuple(d[key]))
-        if "background" in d:
-            s.background = tuple(d["background"])
+        for key in ("background", "topology_color", "plane_color"):
+            if key in d:
+                setattr(s, key, tuple(d[key]))
         s.element_colors = {k: tuple(v) for k, v in
                             d.get("element_colors", {}).items()}
         s.element_radii = dict(d.get("element_radii", {}))

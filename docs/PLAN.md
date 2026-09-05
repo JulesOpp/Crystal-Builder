@@ -157,7 +157,8 @@ Crystal-Builder/
 │   │   ├── scene.py          # SceneModel dataclass (numpy arrays)
 │   │   ├── builder.py        # Structure + ViewSettings → SceneModel
 │   │   ├── vtk_scene.py      # SceneModel → actors; set_positions for a geometry-only change
-│   │   ├── styles.py         # ball-and-stick, stick, wireframe, space-filling, polyhedra, ORTEP
+│   │   ├── styles.py         # ball-and-stick (plain and occupancy), stick, wireframe, net,
+│   │   │                     #   space-filling, polyhedra, ORTEP
 │   │   ├── picking.py        # hardware selection → (site, image) ids
 │   │   ├── modes.py          # select / add atom / add bond / measure / move
 │   │   └── view_settings.py  # what is drawn: never on the undo stack, saved with the session
@@ -329,10 +330,11 @@ As built — the menu bar gained *Measure* and lost *Calculate* to
 
 ```
 ┌───────────────────────────────────────────────────────────────────────┐
-│ menu bar: File Edit Select Structure Measure Symmetry Cell Modules    │
-│           View Window Help                                            │
-│ toolbar: open save | undo redo | ⟦select add-atom add-bond measure    │
-│          move⟧ | style▾ | cell-range | find-symmetry | UFF ▶          │
+│ menu bar: File Edit Select Structure Symmetry Cell Measure View       │
+│           Modules Window Help          (why: docs/MENUS.md)           │
+│ toolbar: open save | undo redo | ⟦select box-select add-atom [C▾]     │
+│          add-bond draw-net measure⟧ | recalculate bonds |             │
+│          cells a[1] b[1] c[1] | reset view  along a b c               │
 ├──────────────┬──────────────────────────────────────┬─────────────────┤
 │ Workspace    │                                      │ Inspector       │
 │ (filesystem  │        VTK viewport (tabs per        │ Structure       │
@@ -388,6 +390,10 @@ two half-bonds so each half takes its atom's colour) | cell_edges | labels
   optional extra cells drawn faintly.
 * Polyhedra → coordination polyhedra as convex hulls per central atom
   (VESTA's signature style), semi-transparent, colour from centre atom.
+* ORTEP → the octant shading as a second glyph over the same scale and
+  orientation arrays, on the atoms refined anisotropically.
+* Occupancy → a site more than one thing shares, as a sphere cut into
+  wedges over the spheres it replaces.
 * Overlays: orientation axes widget, scale bar, element legend, depth
   cueing/fog toggle, perspective ⇄ orthographic, user-set clipping slab.
 * Picking uses `vtkHardwareSelector` on the glyph mapper and maps the
@@ -536,7 +542,8 @@ schedule has it in [ROADMAP.md](ROADMAP.md).
 * Slab/surface builder: cut along (hkl), set thickness + vacuum.
 * Molecule/fragment library for pasting common ligands — scheduled, as
   part of [ROADMAP.md](ROADMAP.md) phase N.
-* Distance-based site disorder tools (split sites, partial occupancy view).
+* Distance-based site disorder tools (split sites) — the partial
+  occupancy *view* has shipped as the occupancy pie style.
 
 **Later (already anticipated by the plugin API)**
 * PXRD simulation (structure factors, Lorentz-polarisation, profile

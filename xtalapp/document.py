@@ -204,9 +204,11 @@ class Document(QObject):
             try:
                 atoms = [int(a) for a in record["atoms"]]
                 if atoms and max(atoms) < cell.n_atoms:
+                    color = record.get("color")
                     self.planes.append(measure.plane(
                         cell, self._structure.lattice, atoms,
-                        name=record.get("name", "")))
+                        name=record.get("name", ""),
+                        color=None if color is None else tuple(color)))
             except (KeyError, TypeError, ValueError):
                 continue
         for record in session.get("measurements", []):
@@ -1487,6 +1489,23 @@ class Document(QObject):
             self.shown_planes = ()
             self.planesChanged.emit()
 
+    def set_plane_color(self, rows, color) -> None:
+        """Colour these planes, or put them back on the default.
+
+        ``color`` of ``None`` clears the override rather than storing
+        the default, so a plane nobody has coloured still follows the
+        Planes swatch in the style panel when that is changed.
+        """
+        color = None if color is None else tuple(int(c) for c in color)
+        changed = False
+        for row in {int(r) for r in rows}:
+            if 0 <= row < len(self.planes) \
+                    and self.planes[row].color != color:
+                self.planes[row].color = color
+                changed = True
+        if changed:
+            self.planesChanged.emit()
+
     def clear_planes(self) -> None:
         if self.planes:
             self.planes = []
@@ -1554,7 +1573,8 @@ class Document(QObject):
         cell, lattice = self.cell, self._structure.lattice
         if self.planes:
             self.planes = [
-                measure.plane(cell, lattice, p.atoms, name=p.name)
+                measure.plane(cell, lattice, p.atoms, name=p.name,
+                              color=p.color)
                 for p in self.planes if max(p.atoms) < cell.n_atoms]
             self.planesChanged.emit()
         if not self.measurements:

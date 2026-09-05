@@ -213,6 +213,29 @@ def test_the_net_can_be_turned_off():
     assert build_scene(pcu(), settings).n_topology_edges == 0
 
 
+def test_the_net_takes_the_colour_it_is_given():
+    """A flat colour that is nobody's element on a white background is
+    somebody's element on a black one, so it is a setting."""
+    settings = ViewSettings()
+    assert build_scene(pcu(), settings).topology_color == (124, 96, 200)
+    settings.topology_color = (10, 200, 90)
+    assert build_scene(pcu(), settings).topology_color == (10, 200, 90)
+
+
+def test_the_net_only_style_draws_the_net_and_nothing_else():
+    """The whole reason for the style: on a framework the net is drawn
+    over, the chemistry is what hides the net."""
+    structure = a_framework_with_a_net()
+    everything = build_scene(structure, ViewSettings())
+    assert everything.n_atoms > 0 and everything.n_bond_halves > 0
+
+    model = build_scene(structure, ViewSettings(style="net"))
+    assert model.n_topology_edges == everything.n_topology_edges
+    assert model.n_atoms == 0
+    assert model.n_bond_halves == 0
+    assert model.n_cell_lines == everything.n_cell_lines
+
+
 def test_a_net_edge_is_never_completed_at_the_boundary():
     """Its two ends are often whole cells apart -- that is what makes
     it a net edge -- so completing it would scatter ghost atoms

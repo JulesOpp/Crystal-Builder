@@ -211,6 +211,29 @@ def test_the_dock_defines_and_measures_too(window, document):
     assert window.measure_dock.plane_list.count() == 2
 
 
+def test_the_dock_colours_the_chosen_planes(window, document,
+                                            monkeypatch):
+    """Colouring takes the chosen rows and not all of them, because
+    "every plane the same" is what the Style panel's swatch already
+    is -- so the button waits for a row to be chosen."""
+    from PySide6.QtGui import QColor
+    from PySide6.QtWidgets import QColorDialog
+
+    window.add_document(document)
+    define_both(document)
+    dock = window.measure_dock
+    assert not dock.plane_color_button.isEnabled()
+
+    dock.plane_list.item(1).setSelected(True)
+    assert dock.plane_color_button.isEnabled()
+    monkeypatch.setattr(QColorDialog, "getColor",
+                        lambda *a, **k: QColor(3, 4, 5))
+    dock.color_planes()
+
+    assert [p.color for p in document.planes] == [None, (3, 4, 5)]
+    assert not document.modified
+
+
 def test_clearing_planes_leaves_the_measurements(window, document):
     """A measurement records two sets of atoms, not two rows of a
     list, so it outlives the planes it was taken between."""
@@ -285,6 +308,89 @@ def test_removing_a_plane_forgets_which_rows_were_chosen(document):
     document.remove_plane(0)
     assert document.shown_planes == ()
     assert scene_of(document).n_planes == 1
+
+
+def test_a_plane_and_its_normal_take_the_colour_they_are_given(
+        document):
+    """One control, two things: a normal in a colour of its own would
+    read as a separate object instead of as the plane's arrow."""
+    document.select(range(6))
+    document.define_plane()
+    document.update_view(plane_color=(20, 40, 200))
+
+    scene = scene_of(document)
+    assert tuple(scene.plane_colors[0]) == (20, 40, 200)
+    # darkened out of the same colour, and darker in every channel
+    normal = tuple(int(c) for c in scene.normal_colors[0])
+    assert normal == (12, 25, 124)
+
+
+def test_each_plane_can_be_coloured_on_its_own(document):
+    """Two planes in one colour is the picture that cannot be read,
+    and seeing where two of them cross is the reason for drawing a
+    quad at all."""
+    define_both(document)
+    document.set_plane_color([0], (255, 0, 0))
+
+    scene = scene_of(document)
+    # two triangles per quad, in list order
+    assert tuple(scene.plane_colors[0]) == (255, 0, 0)
+    assert tuple(scene.plane_colors[1]) == (255, 0, 0)
+    assert tuple(scene.plane_colors[2]) == document.view.plane_color
+    # and each normal follows its own plane rather than the default
+    assert tuple(scene.normal_colors[0]) == (158, 0, 0)
+    assert tuple(scene.normal_colors[1]) == document.view.normal_color
+
+
+def test_the_default_still_moves_the_planes_nobody_has_coloured(
+        document):
+    """The override is stored as an override and not as a copy of the
+    default, so a plane left alone still follows the Style panel."""
+    define_both(document)
+    document.set_plane_color([1], (0, 200, 0))
+    document.update_view(plane_color=(10, 20, 30))
+
+    colors = [tuple(c) for c in scene_of(document).plane_colors]
+    assert colors[:2] == [(10, 20, 30)] * 2
+    assert colors[2:] == [(0, 200, 0)] * 2
+
+
+def test_a_plane_colour_can_be_taken_back_off(document):
+    document.select(range(6))
+    document.define_plane()
+    document.set_plane_color([0], (255, 0, 0))
+    document.set_plane_color([0], None)
+    assert document.planes[0].color is None
+    assert (tuple(scene_of(document).plane_colors[0])
+            == document.view.plane_color)
+
+
+def test_a_plane_colour_survives_the_atoms_moving(document):
+    """A plane is re-fitted from its atoms whenever they move, and a
+    re-fit that rebuilt it without the colour would repaint the
+    picture every time anything was optimised."""
+    document.select(range(6))
+    document.define_plane()
+    document.set_plane_color([0], (255, 0, 0))
+
+    structure = document.structure
+    for k in range(6):
+        frac = structure.sites[k].frac.copy()
+        frac[2] += 0.1
+        structure.set_frac(k, frac)
+    document._remeasure()
+    assert document.planes[0].color == (255, 0, 0)
+    assert tuple(scene_of(document).plane_colors[0]) == (255, 0, 0)
+
+
+def test_a_plane_colour_survives_a_save_and_reopen(document,
+                                                   tmp_path):
+    define_both(document)
+    document.set_plane_color([1], (7, 8, 9))
+    path = document.save(tmp_path / "coloured.xtalproj")
+
+    reopened = Document.load(path)
+    assert [p.color for p in reopened.planes] == [None, (7, 8, 9)]
 
 
 def test_the_planes_can_be_turned_off(document):

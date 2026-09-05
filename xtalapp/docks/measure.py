@@ -25,8 +25,10 @@ the same table as every other measurement.
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QColorDialog,
     QComboBox,
     QDockWidget,
     QGroupBox,
@@ -34,6 +36,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QListWidget,
+    QListWidgetItem,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -43,10 +46,20 @@ from PySide6.QtWidgets import (
 
 from xtal.core.measure import KINDS
 
+#: The swatch beside each plane in the list, in pixels.
+SWATCH = 12
+
 COLUMNS = ["Atoms", "Kind", "Value"]
 # (label, how many atoms), in the order the chooser offers them.
 TARGETS = [(f"{kind.capitalize()} ({count} atoms)", count)
            for count, kind in sorted(KINDS.items())]
+
+
+def _swatch(color) -> QIcon:
+    """A plane's colour, as an icon for its row."""
+    pixmap = QPixmap(SWATCH, SWATCH)
+    pixmap.fill(QColor(*color))
+    return QIcon(pixmap)
 
 
 class MeasureDock(QDockWidget):
@@ -125,12 +138,24 @@ class MeasureDock(QDockWidget):
             "The angle between the chosen planes, or between all of "
             "them when none is chosen -- one measurement per pair")
         self.angle_button.clicked.connect(self.measure_plane_angle)
+        # Its own colour per plane, and not one setting for all of
+        # them: the reason for drawing a quad is to see where two
+        # planes cross, and two quads in the same colour is the
+        # picture that cannot be read.  It takes the chosen rows
+        # rather than all of them, because "colour every plane the
+        # same" is what the Planes swatch in the Style panel is.
+        self.plane_color_button = QPushButton("Colour")
+        self.plane_color_button.setToolTip(
+            "Give the chosen planes a colour of their own, so two of "
+            "them can be told apart where they cross")
+        self.plane_color_button.clicked.connect(self.color_planes)
         self.remove_plane_button = QPushButton("Remove")
         self.remove_plane_button.clicked.connect(self.remove_planes)
 
         row = QHBoxLayout()
         row.addWidget(self.define_button)
         row.addWidget(self.angle_button)
+        row.addWidget(self.plane_color_button)
         row.addWidget(self.remove_plane_button)
 
         inner = QVBoxLayout(box)
@@ -177,7 +202,8 @@ class MeasureDock(QDockWidget):
         self.plane_list.blockSignals(True)
         self.plane_list.clear()
         for plane in planes:
-            self.plane_list.addItem(plane.text())
+            self.plane_list.addItem(QListWidgetItem(
+                _swatch(self._plane_color(plane)), plane.text()))
         for row in chosen:
             if row < self.plane_list.count():
                 self.plane_list.item(row).setSelected(True)
@@ -186,7 +212,15 @@ class MeasureDock(QDockWidget):
                               and len(document.selection.atoms) >= 3)
         self.define_button.setEnabled(selected_atoms)
         self.angle_button.setEnabled(len(planes) >= 2)
+        self.plane_color_button.setEnabled(bool(chosen))
         self.remove_plane_button.setEnabled(bool(planes))
+
+    def _plane_color(self, plane) -> tuple:
+        """What this plane is actually drawn in: its own colour, or
+        the default it has not been moved off."""
+        if plane.color is not None:
+            return tuple(plane.color)
+        return tuple(self.document.view.plane_color)
 
     # -- actions -------------------------------------------------------
 
@@ -224,6 +258,24 @@ class MeasureDock(QDockWidget):
         self.statusMessage.emit(
             self.document.measure_plane_angles(rows if len(rows) >= 2
                                                else None))
+
+    def color_planes(self) -> None:
+        """Recolour the chosen planes.
+
+        Opened on the first chosen plane's current colour, so a small
+        adjustment starts where the plane already is rather than at
+        whatever the dialog last showed.
+        """
+        rows = sorted({i.row() for i in
+                       self.plane_list.selectionModel().selectedRows()})
+        if self.document is None or not rows:
+            return
+        current = self._plane_color(self.document.planes[rows[0]])
+        chosen = QColorDialog.getColor(QColor(*current), self,
+                                       "Plane colour")
+        if chosen.isValid():
+            self.document.set_plane_color(
+                rows, (chosen.red(), chosen.green(), chosen.blue()))
 
     def remove_planes(self) -> None:
         rows = sorted({i.row() for i in

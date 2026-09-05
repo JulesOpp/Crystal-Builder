@@ -68,6 +68,37 @@ def test_dict_round_trip():
     assert back.element_colors["Fe"] == (10, 20, 30)
 
 
+def test_the_appearance_choices_survive_a_session():
+    """Colours the user chose for the net and the planes, and whether
+    the ellipsoids are shaded -- all of it saved with the project, none
+    of it with the CIF."""
+    s = ViewSettings(topology_color=(10, 200, 90),
+                     plane_color=(0, 0, 255))
+    s.ellipsoid_octants = False
+    back = ViewSettings.from_dict(s.to_dict())
+    assert back.topology_color == (10, 200, 90)
+    assert back.plane_color == (0, 0, 255)
+    assert not back.ellipsoid_octants
+
+
+def test_a_session_written_before_the_colours_existed_reads_defaults():
+    """Every project on disk was written without them, and a reader
+    that needed them would fail to open all of them."""
+    s = ViewSettings.from_dict({"style": "spacefill"})
+    assert s.topology_color == ViewSettings().topology_color
+    assert s.plane_color == ViewSettings().plane_color
+    assert s.ellipsoid_octants
+
+
+def test_a_planes_normal_is_darker_than_the_plane_itself():
+    """One control, two things: the normal is the plane's arrow and
+    reading as a separate object is what it must not do."""
+    s = ViewSettings(plane_color=(200, 100, 50))
+    assert all(n < c for n, c in zip(s.normal_color, s.plane_color,
+                                     strict=True))
+    assert ViewSettings(plane_color=(0, 0, 0)).normal_color == (0, 0, 0)
+
+
 # --------------------------------------------- the three boundaries
 
 def test_the_boundary_starts_at_the_one_that_misleads_nobody():
@@ -113,13 +144,18 @@ def test_the_new_toggles_default_the_way_they_were_argued_for():
 
 
 def test_style_registry():
-    assert set(styles.names()) == {"ball_stick", "stick", "wireframe",
+    assert set(styles.names()) == {"ball_stick", "ball_stick_occupancy",
+                                   "stick", "wireframe", "net",
                                    "spacefill", "polyhedra",
                                    "polyhedra_stick", "ortep"}
     ball = styles.get("ball_stick")
     assert ball.draw_bonds and ball.bond_render == "tube"
     assert not styles.get("spacefill").draw_bonds
     assert styles.get("wireframe").bond_render == "line"
+    net = styles.get("net")
+    assert net.radius_factor == 0.0 and not net.draw_bonds
+    assert styles.get("ball_stick_occupancy").occupancy_pies
+    assert not ball.occupancy_pies
     polyhedra = styles.get("polyhedra")
     assert polyhedra.draw_polyhedra and not polyhedra.draw_bonds
     assert not ball.draw_polyhedra
