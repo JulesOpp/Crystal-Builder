@@ -19,7 +19,7 @@ from xtal import Lattice, Structure  # noqa: E402
 from xtalapp.document import Document  # noqa: E402
 from xtalapp.mainwindow import MainWindow  # noqa: E402
 from xtalapp.settings import AppSettings  # noqa: E402
-from xtalapp.viewport import modes  # noqa: E402
+from xtalapp.viewport import modes, picking  # noqa: E402
 from xtalapp.viewport.builder import build_scene  # noqa: E402
 
 
@@ -248,6 +248,128 @@ def test_choosing_a_measurement_selects_its_atoms(window, rutile_cif):
     assert document.selection.atoms == {0, 2}
 
 
+# ------------------------------------------------- measuring a bond
+#
+# "How long is that bond?" is the question the measuring tool is most
+# often opened for, and it was the one thing it would not answer: a
+# selected bond holds no atoms, so Measure was greyed out over the
+# very thing being asked about.
+
+
+def test_a_selected_bond_reports_its_length(window, rutile_cif):
+    """Both directions of the gesture end here -- select a bond then
+    press Measure, or press Measure then click the bond."""
+    document = window.open_path(rutile_cif)
+    bond = document.graph.bonds[0]
+    document.select_bond(bond.key())
+
+    assert window.actions_["measure_selection"].isEnabled()
+    window.measure_selection()
+
+    [taken] = document.measurements
+    assert taken.kind == "distance"
+    assert taken.atoms == tuple(sorted((bond.i, bond.j)))
+    assert taken.value == pytest.approx(bond.distance, abs=1e-9)
+    assert not document.modified and not document.can_undo
+
+
+def test_measuring_a_bond_is_measuring_its_two_ends(window,
+                                                    rutile_cif):
+    """Stored as the pair of atoms and not as the bond, so it survives
+    -- and follows the crystal -- the way every other measurement
+    does."""
+    document = window.open_path(rutile_cif)
+    bond = document.graph.bonds[0]
+    document.select_bond(bond.key())
+    window.measure_selection()
+    document.add_measurement([bond.i, bond.j])
+
+    first, second = document.measurements
+    assert first.value == pytest.approx(second.value)
+    assert first.atoms == tuple(sorted(second.atoms))
+
+
+def test_several_selected_bonds_are_measured_in_one_batch(
+        window, rutile_cif):
+    """A box round a linker selects eleven bonds, and eleven separate
+    announcements is what makes a large structure stop responding."""
+    document = window.open_path(rutile_cif)
+    for bond in document.graph.bonds:
+        document.select_bond(bond.key(), "toggle")
+    pairs = {key[:2] for key in document.selection.bonds}
+    assert len(pairs) > 1
+
+    fired = []
+    document.measurementsChanged.connect(lambda: fired.append(1))
+    message = document.add_bond_measurements(document.selection.bonds)
+
+    assert fired == [1]
+    assert len(document.measurements) == len(pairs)
+    assert f"{len(pairs)} bonds" in message
+
+
+def test_one_bond_measured_twice_over_is_one_number(document):
+    """Two images of the same pair recompute to the same distance, so
+    a second row could never disagree with the first."""
+    bonds = [b for b in document.graph.bonds]
+    pair = bonds[0].i, bonds[0].j
+    document.add_bond_measurements([(pair[0], pair[1], (0, 0, 0)),
+                                    (pair[0], pair[1], (1, 0, 0))])
+    assert len(document.measurements) == 1
+
+
+def test_a_bond_to_an_atoms_own_image_says_why_it_cannot(document):
+    """A real state and not an oversight: the two ends are one atom,
+    and the minimum image between an atom and itself is zero."""
+    with pytest.raises(ValueError, match="one atom"):
+        document.add_bond_measurements([(0, 0, (1, 0, 0))])
+
+
+def test_measure_is_not_offered_when_an_atom_is_also_in_hand(
+        window, rutile_cif):
+    """An atom in hand means the atoms are the question -- otherwise
+    picking up a bond on the way would quietly change what Measure
+    means."""
+    document = window.open_path(rutile_cif)
+    document.select_bond(document.graph.bonds[0].key())
+    document.select([0], "toggle")
+    assert not window.actions_["measure_selection"].isEnabled()
+
+
+def test_the_measure_mode_takes_a_bond_in_one_click(document):
+    """The bond already names its two atoms; asking for each end is
+    asking the user to say it twice -- and it happens whatever the
+    mode was counting down to."""
+    model = build_scene(document.structure, document.view)
+    mode = modes.get("measure")
+    mode.target, mode.picked = 4, []
+
+    message = _click_bond(mode, document, model)
+    assert " A" in message
+    [taken] = document.measurements
+    assert taken.kind == "distance"
+    assert len(document.selection.bonds) == 1
+    assert taken.atoms == tuple(
+        sorted(next(iter(document.selection.bonds))[:2]))
+    assert mode.picked == []
+
+
+def test_a_bond_click_drops_a_half_finished_measurement(document):
+    """The click named a different measurement from the one being
+    assembled, and folding the atoms into it would answer a question
+    nobody asked."""
+    model = build_scene(document.structure, document.view)
+    mode = modes.get("measure")
+    mode.target, mode.picked = 3, []
+    _click(mode, document, model, 0)
+    assert mode.picked == [0]
+
+    _click_bond(mode, document, model)
+    assert mode.picked == []
+    assert not document.selection.atoms
+    assert [m.kind for m in document.measurements] == ["distance"]
+
+
 # ------------------------------------------------------- projects
 
 def test_a_project_keeps_a_whole_session(window, rutile_cif, tmp_path):
@@ -309,6 +431,26 @@ def test_a_session_pointing_at_atoms_that_are_gone_is_dropped(
     reopened = Document.load(path)
     assert reopened.measurements == []
     assert reopened.selection.atoms == {0}
+
+
+def _click_bond(mode, document, model, half: int = 1):
+    """Fire a click down z through a bond half, from the point along
+    it where the ray reaches the bond first.
+
+    Not simply the middle: an atom wins the depth test -- which is
+    what makes a click on the join between an atom and the bond
+    leaving it mean the atom -- so the point has to be far enough
+    along the half to be clear of both ends.
+    """
+    start, end = model.bond_starts[half], model.bond_ends[half]
+    for fraction in (0.5, 0.7, 0.85, 0.95):
+        x, y, z = start + fraction * (end - start)
+        origin = (float(x), float(y), float(z) - 500.0)
+        if picking.pick(model, origin, (0.0, 0.0, 1.0))[0] == "bond":
+            return mode.on_click(document, model,
+                                 modes.ClickEvent(origin,
+                                                  (0.0, 0.0, 1.0)))
+    raise AssertionError("every ray through that bond met an atom")
 
 
 def _click(mode, document, model, atom):

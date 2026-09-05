@@ -1443,6 +1443,45 @@ class Document(QObject):
         self.measurementsChanged.emit()
         return result.text()
 
+    def add_bond_measurements(self, keys) -> str:
+        """Measure the selected bonds -- one distance each.
+
+        A bond already names its two atoms, so "how long is that?" is
+        one click on it rather than two clicks on its ends.  What gets
+        stored is the pair of atoms and not the bond: a measurement
+        follows the crystal by being taken again over its atoms
+        (:meth:`_remeasure`), and a bond that recalculation removes
+        would take an honest number off the table with it.
+
+        The distance is the **minimum image** one, like every other
+        measurement, which is the same number as the bond's own for
+        every bond perception draws.  A bond the user drew to a
+        further image reports the near one, and says so by being a
+        distance rather than claiming to be that bond.
+
+        Duplicates collapse: two bonds between the same pair in
+        different images recompute to one number, so listing it twice
+        would be two rows that can never disagree.
+
+        Taken in one batch and announced once -- a box drawn round a
+        linker selects eleven bonds, and eleven separate signals is
+        what made Select All slow enough to notice.
+        """
+        pairs = sorted({(int(i), int(j)) for i, j, _image in keys
+                        if int(i) != int(j)})
+        if not pairs:
+            raise ValueError(
+                "a bond from an atom to its own periodic image joins "
+                "one atom, and has no distance to report")
+        cell, lattice = self.cell, self._structure.lattice
+        taken = [measure.measure(cell, lattice, pair)
+                 for pair in pairs]
+        self.measurements.extend(taken)
+        self.measurementsChanged.emit()
+        if len(taken) == 1:
+            return taken[0].text()
+        return f"measured {len(taken)} bonds"
+
     # -- planes --------------------------------------------------------
     #
     # A plane is defined by atoms and re-fitted from them whenever they

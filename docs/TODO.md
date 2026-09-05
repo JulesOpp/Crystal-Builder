@@ -1,9 +1,10 @@
 # TODO
 # Add a module that simulates the PXRD patterns, allow exporting the simulated (with convolution) as .xy filetype, and Reflection Table. Before implementing this, have Jules load in pre-existing code from another app which has already written this code. We will want to merge part of this other app into here. This other app allows for plotting of experimental PXRD data, in file type .xy, and plotting simulated data against the experimental. And exporting the plots as vectors. We will turn this into a new module.
-# select bond->Measure or Measure->select bond, should both report the bond length
 # Creating a file with MOF builder or molecule builder should automatically save the file in the workspace
 # Add more forcefield options to the Forcefield module
-# In Structure->Add Atom, to the right of Element [], add a button that pops up a periodic table, where the user can select any element without having to type out the element type
+# There is a bug. If the default background is set to paper, the background in the Style tab says White.
+# In the Find Symmetry, the default should be re-express in the standard setting (keep the button checked)
+# In the Find Symmetry, if the cell is re-expressed, then automatically call Reset View
 
 
 Work that is wanted but not yet scheduled into a phase.

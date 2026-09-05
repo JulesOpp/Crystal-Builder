@@ -107,7 +107,7 @@ suite between.
 | 2 | Image export | M | *shipped* |
 | 3 | Appearance | M | *shipped* |
 | 4 | Shell and menus, then a proposal | S | *shipped* |
-| 5 | Structure editing | S–M | |
+| 5 | Structure editing | S–M | *shipped* |
 | 6 | Force fields — UFF4MOF and GFN-FF/xTB | M | |
 | 7 | PXRD | L | |
 
@@ -225,6 +225,36 @@ and the Supercell rename is withdrawn -- `Cell > Supercell...` builds
 a genuinely periodic supercell, and the non-periodic replication is
 the toolbar spins the same phase relabelled.
 
+**Phase 5 was two entries and one new widget.**  The periodic table is
+`xtalapp/widgets/periodic_table.py`, the package's first, because the
+button belongs beside all four of the application's element choosers
+and not only beside Add atom's.  Where each element sits is the one
+piece of data that was missing -- `xtal.core.elements` carries symbol,
+number, name and colour and no group or period, because nothing
+headless has ever needed them -- and it is written as a picture of the
+table rather than as 118 row/column pairs, so a misplaced element is
+visible rather than buried in a dict.  The buttons are drawn in the
+Jmol colours the viewport already uses, with the ink following the
+ground: hydrogen is white and iodine near-black, and one ink colour
+makes one end of the table unreadable.  One click picks and closes,
+because the dialog asks exactly one question.
+
+**A selected bond now reports its length, in both directions.**  It
+was the one question the measuring tool would not answer: a bond
+selection holds no atoms, so `Ctrl+M` was greyed out over the very
+thing being asked about, and Measure mode read a click on a bond as a
+click on nothing and cancelled.  What is stored is the *pair of
+atoms*, not the bond -- a measurement follows the crystal by being
+taken again over its atoms, and a bond that Recalculate removes would
+have taken an honest number off the table with it.  The number is the
+minimum-image distance like every other measurement, which is the
+bond's own for every bond perception draws.  Bonds are read only when
+no atom is selected, which is the state `select_bond` puts the
+selection in anyway; an atom still in hand means the atoms are the
+question.  Several selected bonds are measured in one batch and
+announced once, and the menu says how many it will take -- the promise
+`COUNTED_ACTIONS` already makes for Delete.
+
 ---
 
 ## 9. Phase V — the engines answer in pictures
@@ -337,7 +367,7 @@ and no cell is doubled, which stays true until this lands.
 
 | Phase | Theme | Rough size | |
 |---|---|---|---|
-| **1–7** | The TODO header, by area — § 3 | M–L | *3 of 7 shipped* |
+| **1–7** | The TODO header, by area — § 3 | M–L | *5 of 7 shipped* |
 | **V** | The engines answer in pictures | L | |
 | **W** | The klassengleiche half | L | |
 

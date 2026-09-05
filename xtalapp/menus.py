@@ -292,7 +292,8 @@ def build_actions(window):
         window.measure_selection, "Ctrl+M",
         tip="Measure the selected atoms in the order they were "
             "picked: two a distance, three an angle about the "
-            "middle one, four a torsion")
+            "middle one, four a torsion -- or the length of every "
+            "selected bond")
     add("define_plane", "Define &plane from selection",
         window.define_plane, "Ctrl+Shift+P",
         tip="Fit a plane through the selected atoms: exactly "
@@ -727,7 +728,7 @@ def context_menu(window, kind: str):
         elif name == window.BOUNDARY_MENU:
             add_boundary_menu(window, menu)
         elif name == window.MEASURE_ENTRY:
-            add_measure(window, menu, count)
+            add_measure(window, menu, count, kind)
         elif name in window.COUNTED_ACTIONS and count > 1:
             add_counted(window, menu, name, count, noun)
         else:
@@ -778,14 +779,32 @@ MEASURE_LABELS = {2: "&Measure distance", 3: "&Measure angle",
                   4: "&Measure dihedral"}
 
 
-def add_measure(window, menu, count: int):
-    """The one measurement this many atoms admit, or nothing at all.
+def bond_measure_label(count: int) -> str | None:
+    """What measuring this many selected bonds is called.
+
+    A bond admits exactly one measurement whatever the count -- it is
+    a pair of atoms and the answer is a length -- so the count changes
+    the wording rather than the question.  It is said for the reason
+    :data:`MainWindow.COUNTED_ACTIONS` exists: a box drawn round a
+    linker selects eleven bonds, and "Measure bond length" over
+    eleven of them promises one row and delivers eleven.
+    """
+    if count < 1:
+        return None
+    if count == 1:
+        return "&Measure bond length"
+    return f"&Measure {count} bond lengths"
+
+
+def add_measure(window, menu, count: int, kind: str = "atom"):
+    """The one measurement this selection admits, or nothing at all.
 
     A fresh action rather than the registry's own, for the reason
     given in :func:`add_counted`: the registry's is the object the
     menu bar shows, and renaming it here would rename it there.
     """
-    label = MEASURE_LABELS.get(count)
+    label = (bond_measure_label(count) if kind == "bond"
+             else MEASURE_LABELS.get(count))
     if label is None:
         return None
     action = window.actions_["measure_selection"]

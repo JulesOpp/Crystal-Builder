@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 
 from xtal.core import elements as el
 from xtalapp.docks.inspector import COMMON_ELEMENTS
+from xtalapp.widgets.periodic_table import PeriodicTableButton
 
 
 class AddAtomDialog(QDialog):
@@ -42,6 +43,14 @@ class AddAtomDialog(QDialog):
         self.element.setEditable(True)
         self.element.addItems(COMMON_ELEMENTS)
         self.element.setCurrentText(element)
+
+        # The combo is faster for carbon and useless for the element
+        # somebody knows by position; the button is the other half.
+        # It writes into the combo rather than replacing it, so the
+        # dialog still has one field holding the answer.
+        self.table = PeriodicTableButton(
+            self, current=self.element.currentText)
+        self.table.chosen.connect(self.element.setCurrentText)
 
         self.units = QComboBox()
         self.units.addItems(["fractional", "cartesian (A)"])
@@ -76,8 +85,12 @@ class AddAtomDialog(QDialog):
         for spin in self.coords:
             position.addWidget(spin)
 
+        chooser = QHBoxLayout()
+        chooser.addWidget(self.element, 1)
+        chooser.addWidget(self.table)
+
         form = QFormLayout()
-        form.addRow("Element", self.element)
+        form.addRow("Element", chooser)
         form.addRow("Coordinates", self.units)
         form.addRow("Position", position)
         form.addRow("Occupancy", self.occupancy)

@@ -716,8 +716,12 @@ class MeasureMode(Mode):
     How many atoms you pick is the whole of the choice: two is a
     distance, three an angle, four a torsion.  ``target`` says which
     one is wanted, and the measurement is taken the moment that many
-    atoms have been picked -- so measuring a bond is two clicks and
-    nothing else.
+    atoms have been picked.
+
+    **Clicking the bond itself is one click, whatever the target.**  A
+    bond already names its two atoms, so asking the user to find each
+    end of the thing they are pointing at is asking them to say it
+    twice.
 
     The picks stay selected while they accumulate, so the atoms going
     into the measurement are visible before the number appears.
@@ -725,8 +729,8 @@ class MeasureMode(Mode):
 
     name = "measure"
     label = "Measure"
-    hint = ("click 2 atoms for a distance, 3 for an angle, 4 for a "
-            "torsion")
+    hint = ("click a bond for its length, or 2 atoms for a distance, "
+            "3 for an angle, 4 for a torsion")
 
     def __init__(self, target: int = 2):
         self.target = int(target)
@@ -745,6 +749,17 @@ class MeasureMode(Mode):
         if document is None:
             return ""
         kind, index = picking.pick(model, event.origin, event.direction)
+        if kind == "bond":
+            # Whatever was half-picked goes: the click named a
+            # different measurement from the one being assembled, and
+            # keeping the atoms would fold them into it.
+            self.picked = []
+            key = model.bond_key(index)
+            document.select_bond(key)
+            try:
+                return document.add_bond_measurements([key])
+            except ValueError as exc:
+                return str(exc)
         if kind != "atom":
             self.picked = []
             document.select_none()

@@ -642,9 +642,11 @@ class MainWindow(QMainWindow):
     #: The same, for the three boundary answers.
     BOUNDARY_MENU = "@boundary"
 
-    #: The measurement the selected atoms admit, whichever it is.
-    #: Built at click time because it depends on the count, and
-    #: absent at a count that admits none.
+    #: The measurement the selection admits, whichever it is.
+    #: Built at click time because it depends on what was clicked and
+    #: on how much of it there is, and absent where nothing is
+    #: admitted -- so it reads "Measure angle" over three atoms and
+    #: "Measure bond length" over a bond.
     MEASURE_ENTRY = "@measure"
 
     #: What a right click offers, by what was under it.  Every entry
@@ -661,7 +663,8 @@ class MainWindow(QMainWindow):
                  "add_centroid", MEASURE_ENTRY, None,
                  "recompute_bonds", None,
                  "edit_cell", "display_range"],
-        "bond": ["delete_bond", BOND_TYPE_MENU, None, "select_none",
+        "bond": ["delete_bond", BOND_TYPE_MENU, MEASURE_ENTRY, None,
+                 "select_none",
                  None, "recompute_bonds", None,
                  "edit_cell", "display_range"],
         "view": ["select_all", "select_none", None,
@@ -825,19 +828,33 @@ class MainWindow(QMainWindow):
             self.show_status(document.define_plane())
 
     def measure_selection(self) -> None:
-        """Measure the selected atoms, in the order they were picked.
+        """Measure what is selected, in the order it was picked.
 
-        Two is a distance, three an angle about the middle one, four
-        a torsion -- the same rule the measuring mode works to, taken
-        over atoms that are already selected rather than making
+        Two atoms are a distance, three an angle about the middle one,
+        four a torsion -- the same rule the measuring mode works to,
+        taken over atoms that are already selected rather than making
         somebody click them a second time.
+
+        **A selected bond is its own measurement.**  Clicking a bond
+        and asking for a distance is the shortest way anybody asks how
+        long a bond is, and until this branch existed it was the one
+        thing Measure would not answer -- the selection held no atoms,
+        so the entry was greyed out over the very thing being asked
+        about.  Bonds are read only when no atom is selected, which is
+        the state :meth:`Document.select_bond` puts the selection in
+        anyway; an atom in hand still means the atoms are the question.
         """
         document = self.current_document()
         if document is None:
             return
+        selection = document.selection
         try:
-            self.show_status(
-                document.add_measurement(document.selection.order))
+            if selection.bonds and not selection.atoms:
+                self.show_status(
+                    document.add_bond_measurements(selection.bonds))
+            else:
+                self.show_status(
+                    document.add_measurement(selection.order))
         except ValueError as exc:
             self.show_status(str(exc))
 
@@ -1179,8 +1196,8 @@ class MainWindow(QMainWindow):
 
     def _refresh_plane_actions(self) -> None:
         """A plane needs three atoms, an angle needs two planes and a
-        measurement needs two to four atoms, so none of these entries
-        is offered before there is anything to do."""
+        measurement needs two to four atoms -- or a bond -- so none of
+        these entries is offered before there is anything to do."""
         document = self.current_document()
         self.actions_.set_enabled(
             ["define_plane"],
@@ -1188,7 +1205,7 @@ class MainWindow(QMainWindow):
         self.actions_.set_enabled(
             ["measure_selection"],
             document is not None
-            and len(document.selection.atoms) in menus.MEASURE_LABELS)
+            and self._measurable(document.selection))
         self.actions_.set_enabled(
             ["plane_angle"],
             document is not None and len(document.planes) >= 2)
@@ -1198,6 +1215,18 @@ class MainWindow(QMainWindow):
         self.actions_.set_enabled(
             ["clear_measurements"],
             document is not None and bool(document.measurements))
+
+    @staticmethod
+    def _measurable(selection) -> bool:
+        """Whether this selection admits a measurement.
+
+        The same rule :meth:`measure_selection` acts on, asked here so
+        the entry is enabled exactly when pressing it would do
+        something -- two to four atoms, or bonds with no atom in hand.
+        """
+        if selection.bonds and not selection.atoms:
+            return True
+        return len(selection.atoms) in menus.MEASURE_LABELS
 
     def _rebuild_element_menu(self, document) -> None:
         self.element_menu.clear()

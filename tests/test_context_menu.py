@@ -169,6 +169,32 @@ def test_no_measurement_is_offered_at_a_count_that_admits_none(opened):
         assert not [t for t in texts if "measure" in t], count
 
 
+def test_a_bond_menu_offers_the_length_of_the_bond(opened):
+    """"How long is that?" is what a right click on a bond is most
+    often for, and it was the one thing the menu would not say."""
+    window, document = opened
+    document.select_bond(document.graph.bonds[0].key())
+    texts = [t.replace("&", "") for t in entries(window, "bond")]
+    offered = [t for t in texts if "Measure" in t]
+    assert offered == ["Measure bond length"]
+
+    [entry] = [a for a in window.build_context_menu("bond").actions()
+               if "measure" in a.text().lower()]
+    assert entry.isEnabled()
+    entry.trigger()
+    assert [m.kind for m in document.measurements] == ["distance"]
+
+
+def test_the_bond_menu_says_how_many_lengths_it_will_take(opened):
+    """The same promise "Delete 6 atoms" makes: a box round a linker
+    selects eleven bonds, and one row is not what arrives."""
+    window, document = opened
+    for bond in document.graph.bonds[:3]:
+        document.select_bond(bond.key(), "toggle")
+    texts = [t.replace("&", "") for t in entries(window, "bond")]
+    assert any("Measure 3 bond lengths" in t for t in texts)
+
+
 def test_three_selected_atoms_offer_an_angle_about_the_middle_one(
         opened):
     """The order is the order they were clicked, so A-B-C is an angle
