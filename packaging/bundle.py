@@ -124,6 +124,13 @@ HIDDEN_IMPORTS = [
     "vtkmodules.vtkInteractionStyle",
     "vtkmodules.qt.QVTKRenderWindowInteractor",
     "vtkmodules.util.numpy_support",
+    # matplotlib's Qt back end, named for the same reason the four
+    # VTK entries above are: `xtalapp/dialogs/pattern.py` imports it
+    # inside a function, so that the module can be imported -- and
+    # `installed()` asked -- on a machine with no matplotlib.
+    # `collect_all` below should find it as a submodule; this is the
+    # belt to that brace, and it costs a line.
+    "matplotlib.backends.backend_qtagg",
 ]
 
 #: Collected whole, data files and all.  These are the extras SHELL.md
@@ -134,6 +141,15 @@ HIDDEN_IMPORTS = [
 #: invisible to static analysis even though the import itself is not,
 #: and RDKit carries data directories that no amount of import
 #: scanning would find.
+#:
+#: ``matplotlib`` is the fourth, and it is the newest: PXRD's overlay
+#: window wants axes that pan, zoom and pick and a vector export whose
+#: text is still text, which is the case `docs/PLAN.md` section 2 had
+#: named in advance as the one that would reverse "no plotting
+#: library".  It is collected whole rather than traced because the Qt
+#: back end is chosen at run time and ``mpl-data`` -- the fonts and
+#: the style sheets -- is found by path, so a traced build imports and
+#: then fails to draw.
 #:
 #: ``ase`` was a fourth entry here and is not one any more, which is
 #: PACKAGING.md 4's "build the exclude list empirically" doing its
@@ -158,7 +174,7 @@ HIDDEN_IMPORTS = [
 #:
 #: Off the list, ``--selftest`` still builds pcu inside the bundle,
 #: and the ``.app`` is 16 MB smaller.
-COLLECT = ["rdkit", "rdeditor", "qdarktheme"]
+COLLECT = ["rdkit", "rdeditor", "qdarktheme", "matplotlib"]
 
 #: Not bundled, and each line is a decision rather than an oversight.
 EXCLUDES = [
@@ -183,11 +199,22 @@ EXCLUDES = [
     "jaxlib",
     "pymatgen",
     "networkx",
-    # The one plot this application draws is a hundred lines of
-    # QPainter in xtalapp/plot.py.  matplotlib arrives as a
-    # dependency of rdkit's drawing code, which this application does
-    # not use, and it is tens of megabytes.
-    "matplotlib",
+    # `matplotlib` is NOT excluded any more, and its absence from
+    # this list is the point.  It used to be, because the plots this
+    # application drew were a hundred lines of QPainter each and the
+    # only matplotlib in the environment arrived as a dependency of
+    # rdkit's drawing code, which is not used.  PXRD changed that: an
+    # overlay of a measured pattern on a calculated one wants axes
+    # that pan, zoom and pick, and a vector export whose text is
+    # still text -- see `xtalapp/dialogs/pattern.py`.  It is in
+    # COLLECT above, because the backend and `mpl-data` are found at
+    # run time and are invisible to the import analysis.
+    #
+    # The panels are still QPainter, and that is what makes this a
+    # bounded decision rather than a slide: `xtalapp/plot.py`,
+    # `xtalapp/histogram.py` and `xtalapp/curve.py` draw with nothing
+    # installed, so a build that failed to collect matplotlib loses
+    # one window and no answers.
     "tkinter",
     # `import vtkmodules.all` would pull in every one of the ~180
     # modules in a 592 MB package.  xtalapp/viewport imports thirteen

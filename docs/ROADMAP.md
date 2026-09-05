@@ -109,7 +109,7 @@ suite between.
 | 4 | Shell and menus, then a proposal | S | *shipped* |
 | 5 | Structure editing | S–M | *shipped* |
 | 6 | Force fields — UFF4MOF and GFN-FF/xTB | M | |
-| 7 | PXRD | L | |
+| 7 | PXRD | L | *shipped* |
 
 **Phase 3 landed four entries and no new render path.**  The net and
 the plane colours were module constants and are now settings with a
@@ -255,6 +255,108 @@ question.  Several selected bonds are measured in one batch and
 announced once, and the menu says how many it will take -- the promise
 `COUNTED_ACTIONS` already makes for Delete.
 
+**Phase 7 is a module, a report block and one reversed decision.**
+The science was ported nearly verbatim from the author's own
+`DataPlotter` -- the Lorentz-polarisation factor, the multiplicity
+count, the Debye-Waller attenuation, the pseudo-Voigt profile and the
+Caglioti width relation -- because it had already been checked against
+published patterns and it is numpy and gemmi, which are core
+dependencies.  What the port had to write was the input:
+`to_small_structure` takes the open document rather than a file, and
+its one real trap is that **the symmetry has to arrive as
+operations**.  Setting `spacegroup_hm` alone leaves `cell.images`
+empty, every structure factor is then summed over the asymmetric unit
+instead of the cell, and the pattern comes back with peaks in exactly
+the right places and the forbidden ones present -- halite's 100, which
+F centring forbids, a third the height of 200.  That is the one test
+worth having above all the others here.
+
+**The report grew its third block and its table grew columns**, which
+is the rule working twice.  `xtal/modules/report.py` said the second
+module that needed something its records could not say would get to
+add it against a real use, and a pattern is that use: ten thousand
+points on an angle axis is not a histogram of anything.  `Curve`
+carries the trace, further traces over the same axis, and *combs* of
+positions -- more than one, because the reflections a group allows and
+the ones it forbids are two statements about one axis, and telling
+which an unexpected peak sits over is the difference between an
+impurity and the wrong space group.  `Table` grew `columns` and `Row`
+grew `cells` for the same kind of reason: **No.**, **hkl**, **d**,
+**2θ** and **I** are five quantities across one row, where every table
+before it had one quantity per row.
+
+**Two things were built and taken back out**, and both are worth the
+sentence because both looked like improvements.  Coincident
+reflections were folded onto one line -- 333 and 511 share a d-spacing
+-- and a threshold hid the weak ones.  Folding made the reflection
+list stop describing the structure it came from, which is the one
+thing the list is for: a crystal expanded to P1 has 100, 010 and 001
+as three independent reflections and is entitled to be told so.  The
+threshold hid exactly the rows somebody scanning for a second phase is
+looking for.  The list now shows every symmetry-*inequivalent*
+reflection, one per orbit, with the equivalents counted into the
+intensity -- and the representative is chosen to be the one a powder
+diffraction file prints, because gemmi's asymmetric unit hands back
+`0 2 0` where every card in the world writes `200`.
+
+**And the panel was made to scroll.**  Measured on MOF-5 in P1 --
+3177 reflections and 3701 points.  The table is a
+`QAbstractTableModel` behind a `QTableView` rather than fifteen
+thousand `QTableWidgetItem`s, which is what made a three-thousand-row
+list open at all.
+
+**Then it had two scrollbars, and they fought.**  The list scrolled
+inside a panel that also scrolled, so reaching the *Export table*
+button under a table meant scrolling the outer one past a widget that
+swallowed the wheel.  The fix is a size policy and not arithmetic, and
+the arithmetic is worth recording because it was written first:
+measure the other blocks, give the difference to the tables, correct
+on a second pass, defer a third.  It could not be made to settle.
+Every quantity it needed -- a wrapped label's height, the viewport's
+height, the layout's cached size hint -- is only true *after* the
+layout has run, and changing a table's height runs it again; the
+passes raced the resize and the panel came up differently on the same
+dock twice running.
+
+So the table is told what it is instead: at least `MIN_TABLE_ROWS`
+tall, never taller than its own rows, vertically expanding with a
+stretch factor of one, and the trailing spacer that would compete for
+the same slack is added only when there is no table to take it.  Qt
+distributes the leftover synchronously on every layout.  The last
+piece was `FittedTable.sizeHint`, and it is the one that is not
+guessable: `QScrollArea` with `widgetResizable` sizes its child to
+`max(viewport, sizeHint)` and **never to its minimum**, so a table
+that hinted at its content kept the outer scrollbar alive whatever
+else was done.  It hints at its minimum and grows by policy.
+
+Its **column widths are measured in Python rather than by Qt**, and
+that was two bugs in a row.  `ResizeToContents` measures every row, so it
+is O(rows) per layout and paid again on every scroll; capping it with
+`setResizeContentsPrecision` fixed the cost and broke the table, since
+the cap looks at the first fifty rows and a reflection list's
+hundredth row is the first whose **No.** is three digits -- so the
+column truncated for the rest of it.  Deciding each width from the
+longest string in the column, and handing only the ties to the font,
+is exact and costs nothing: 0.93 s to build the panel became 9 ms.  The curve caches
+its geometry, thins the trace to two points per pixel column, batches
+the comb into one `drawLines`, and -- the surprise, worth 40× on its
+own -- draws with a **one-pixel** pen, because Qt's raster engine
+strokes anything wider by building and filling a polygon outline.  A
+repaint went from 48 ms to 0.7 ms.
+
+**And matplotlib comes in, against § 2 of [docs/PLAN.md](PLAN.md).**
+That section had already named the case that would reverse it, which
+is exactly this one: an overlay of a measurement on a calculation
+wants axes that pan, zoom and pick, and a vector export whose text is
+still text.  It is the `pxrd` extra and not a dependency, and the line
+it is held to is that **the panel draws the answer without it** --
+`xtalapp/curve.py` is the same hundred lines of `QPainter` the
+optimisation trace and the pore size distribution are, the `.xy` is
+written either way, and what greys out naming the extra is one button
+that opens one window.  It is on the bundle's `COLLECT` list rather
+than its `EXCLUDES` now, which is the packaging half of the same
+decision.
+
 ---
 
 ## 9. Phase V — the engines answer in pictures
@@ -391,9 +493,12 @@ crystallography most users will never reach are still owed work.
 
 ## 12. What this plan does not do
 
-* It does not schedule PXRD, volumetric data, SHELX round-trips or
+* It does not schedule volumetric data, SHELX round-trips or
   Rietveld.  Those are in [docs/PLAN.md](PLAN.md) § 12 and stay there
-  until something in this list is finished.
+  until something in this list is finished.  PXRD *was* on this line
+  and is Phase 7 above: simulation, the `.xy` either side of it and
+  the overlay, which is the machinery Rietveld would be built on and
+  is deliberately not Rietveld.
 * It does not promise the 2D sketcher.  It promises the 3D builder
   underneath it, a text route into it, and — in Phase Q — a builder for
   the one class of material where the 2D half is not needed at all.

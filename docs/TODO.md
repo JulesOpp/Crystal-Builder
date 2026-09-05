@@ -1,11 +1,12 @@
 # TODO
-# Add a module that simulates the PXRD patterns, allow exporting the simulated (with convolution) as .xy filetype, and Reflection Table. Before implementing this, have Jules load in pre-existing code from another app which has already written this code. We will want to merge part of this other app into here. This other app allows for plotting of experimental PXRD data, in file type .xy, and plotting simulated data against the experimental. And exporting the plots as vectors. We will turn this into a new module.
 # Creating a file with MOF builder or molecule builder should automatically save the file in the workspace
 # Add more forcefield options to the Forcefield module
 # There is a bug. If the default background is set to paper, the background in the Style tab says White.
 # In the Find Symmetry, the default should be re-express in the standard setting (keep the button checked)
 # In the Find Symmetry, if the cell is re-expressed, then automatically call Reset View
-
+# When doing command-Q to exit, it doesn't ask you to save if you are in some dialog windows
+# Add platon/checkcif atom style
+# Add cartoon atom style, this one should be easily vectorized for exporting
 
 Work that is wanted but not yet scheduled into a phase.
 [docs/PLAN.md](PLAN.md) holds the roadmap; this file holds everything

@@ -3,11 +3,18 @@ xtalapp.extras
 ==============
 What is optional, whether it is here, and how to get it.
 
-Two features are gated on a package this application does not install:
-the molecule builder needs RDKit and the sketcher needs rdeditor.
-Each greys its menu entry out and names the extra to install -- ``pip
-install 'crystal-builder[build]'`` -- which is exactly the right
-advice on a source checkout.
+Three features are gated on a package this application does not
+install: the molecule builder needs RDKit, the sketcher needs
+rdeditor, and the PXRD overlay window needs matplotlib.  Each greys
+its entry out and names the extra to install -- ``pip install
+'crystal-builder[build]'`` -- which is exactly the right advice on a
+source checkout.
+
+The third is the narrowest of the three and is worth the distinction:
+what is missing without matplotlib is a *window*, not a feature.  The
+pattern is still calculated, still drawn in the Results panel by
+:mod:`xtalapp.curve`, and still written as ``.xy``; the button that
+zooms into it and lays a measured file over it is what greys out.
 
 **In a frozen build it is advice about nothing.**  There is no
 environment to install into: the bundled interpreter is not on the
@@ -52,7 +59,7 @@ from pathlib import Path
 
 from xtal import build as build_extra
 from xtalapp import applog
-from xtalapp.dialogs import sketch
+from xtalapp.dialogs import pattern, sketch
 
 #: The folder under the application's data directory, and the variable
 #: that moves it.  The suite points this at a scratch directory the way
@@ -106,6 +113,7 @@ class Extra:
 _CHECKS = {
     "rdkit": lambda: build_extra.installed(),
     "rdeditor": lambda: sketch.installed(),
+    "matplotlib": lambda: pattern.installed(),
 }
 
 
@@ -123,6 +131,12 @@ EXTRAS = (
     Extra("Molecule sketcher", "rdeditor", "sketch",
           "Draw a molecule instead of typing a SMILES string.  Needs "
           "the molecule builder as well.", True),
+    Extra("Pattern plot window", "matplotlib", "pxrd",
+          "Zoom into a calculated PXRD pattern, overlay a measured "
+          ".xy file on it, and export the figure as a vector with "
+          "the text still editable.  The pattern itself is "
+          "calculated, drawn in the Results panel and written as .xy "
+          "without it.", True),
 )
 
 #: What the folder below is for, in the words the page uses.

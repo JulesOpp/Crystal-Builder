@@ -161,6 +161,28 @@ Open Sample** now opens each of them as an untitled document
 seven menu entries grey out with a sentence about a source checkout.
 It is also what `--selftest` in § 8 opens.
 
+`matplotlib` — **new, and the second reversal on this page.**  It was
+on the exclude list below, and the reason it was there was true when
+it was written: every plot this application drew was a hundred lines
+of `QPainter`, and the only `matplotlib` in the environment arrived as
+a dependency of RDKit's drawing code, which is never used.  PXRD
+changed what is being asked for.  Laying a measured pattern over a
+calculated one and reading off which peak moved wants axes that pan,
+zoom and pick; putting the result in a paper wants a vector figure
+whose text is still text.  Neither is a hundred lines of anything, and
+`xtalapp/dialogs/pattern.py` is the one window that uses it.
+
+It is on `COLLECT` rather than being traced, because the Qt back end
+and `mpl-data` are found at run time and are invisible to the import
+analysis — the same reason `rdkit` and `rdeditor` are there.  What
+keeps this bounded rather than a slide is the line in
+`pyproject.toml`: **every panel still draws with nothing installed.**
+`xtalapp/plot.py`, `xtalapp/histogram.py` and `xtalapp/curve.py` are
+still `QPainter`, the pattern is still calculated and still written as
+`.xy`, and a build that failed to collect `matplotlib` loses one
+window and no answers — which is exactly what *Preferences → Optional
+features* says it would.
+
 ### Out
 
 `resources/topo/` — the uncompressed `.cgd`, which only `python -m
@@ -247,8 +269,10 @@ shipped app finds these; it does not carry them.
 and PyInstaller will happily bundle all of it.  The exclude list
 (`vtkmodules.all`, the unused rendering back ends, `QtWebEngine`,
 `Qt3D`, `QtCharts`, `QtQuick`, `QtMultimedia`, `QtNetwork`'s TLS
-plugins, `tkinter`, `matplotlib`) is the difference between a ~300 MB
-download and a ~1 GB one.  The app uses exactly four Qt modules —
+plugins, `tkinter`) is the difference between a ~300 MB download and a
+~1 GB one.  `matplotlib` was on that list and is not any more — see
+*In* above; it is the one entry that came off for a feature rather
+than for a size.  The app uses exactly four Qt modules —
 `QtCore`, `QtGui`, `QtWidgets`, `QtSvgWidgets` — which makes the
 PySide6 half of this unusually easy to be aggressive about.
 

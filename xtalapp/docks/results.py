@@ -29,28 +29,63 @@ paper.
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from pathlib import Path
+
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDockWidget,
+    QFileDialog,
+    QHBoxLayout,
     QHeaderView,
     QLabel,
+    QMessageBox,
+    QPushButton,
     QScrollArea,
-    QTableWidget,
-    QTableWidgetItem,
+    QSizePolicy,
+    QTableView,
     QVBoxLayout,
     QWidget,
 )
 
-from xtal.modules.report import Histogram, Table
+from xtal.modules.report import Curve, Histogram, Table, is_number
+from xtalapp.curve import CurvePlot
+from xtalapp.dialogs import pattern as pattern_window
 from xtalapp.histogram import HistogramPlot
 
-COLUMNS = ["Quantity", "Value", "Unit"]
+#: The fewest rows a table is ever squeezed to.  Below this it stops
+#: being a table and becomes a slot, and the panel is better off
+#: scrolling instead.
+#:
+#: Three and not four, and the difference is one row of the *whole
+#: panel*: with the curve at its own 200 px minimum, four rows put a
+#: PXRD report fourteen pixels over a 640 px dock -- so the outer
+#: scrollbar came back for the sake of one row of a table that is
+#: scrolling anyway.
+MIN_TABLE_ROWS = 3
+
+#: Pixels held back when dividing the panel up.  The arithmetic
+#: lands a few short of the frame's own, and a five-pixel outer
+#: scrollbar is the exact thing :meth:`ResultsDock.fit_tables` exists
+#: to remove.  It usually costs nothing, because the heights are
+#: snapped to whole rows afterwards and a row is thirty pixels.
+SLACK = 8
+
+#: What a long table is given before the panel has a size to divide up
+#: -- :meth:`ResultsDock.fit_tables` replaces it the moment there is
+#: one.
+FIT_ROWS = 24
+
+#: Qt's "no parent", as a singleton: the row and column counts take
+#: one as a default and constructing a fresh ``QModelIndex`` in a
+#: signature is both wasteful and what B008 is about.
+NO_PARENT = QModelIndex()
 
 EMPTY = ("Nothing has been run yet.\n\n"
-         "A module that produces a table or a histogram -- Zeo++'s "
-         "pore diameters, its surface area, its pore size "
-         "distribution -- shows it here when it finishes.")
+         "A module that produces a table, a histogram or a curve -- "
+         "Zeo++'s pore diameters, its pore size distribution, a "
+         "calculated PXRD pattern -- shows it here when it "
+         "finishes.")
 
 
 class ResultsDock(QDockWidget):
@@ -78,7 +113,6 @@ class ResultsDock(QDockWidget):
         self.body.setSpacing(6)
         self.body.addWidget(self.heading)
         self.body.addWidget(self.note)
-        self.body.addStretch(1)
 
         inner = QWidget()
         inner.setLayout(self.body)
@@ -121,18 +155,65 @@ class ResultsDock(QDockWidget):
         self.heading.setVisible(True)
         self.note.setText(report.note)
         self.note.setVisible(bool(report.note))
+        stretched = False
         for block in report.blocks:
             widget = self._render(block)
-            if widget is not None:
-                self._blocks.append(widget)
-                # Before the stretch, which is always the last item.
-                self.body.insertWidget(self.body.count() - 1, widget)
+            if widget is None:
+                continue
+            self._blocks.append(widget)
+            # A table is the only block that can be any height it
+            # likes -- a curve wants its aspect and a label wants its
+            # text -- so it is the one given a stretch factor, and the
+            # layout hands it whatever the others are not using.
+            grows = bool(widget.findChildren(QTableView))
+            self.body.addWidget(widget, 1 if grows else 0)
+            stretched = stretched or grows
+        self._set_tail(stretched)
+
+    # -- one scrollbar, not two ----------------------------------------
+
+    def _set_tail(self, stretched: bool) -> None:
+        """Keep the blocks at the top, unless a table is taking the
+        slack.
+
+        **The panel had two scrollbars and they fought.**  A long
+        table was laid out at a fixed number of rows, which left the
+        panel taller than the dock -- so the reflection list scrolled
+        inside a panel that also scrolled, and reaching the *Export
+        table* button under a table meant scrolling the outer one past
+        a widget that swallowed the wheel.
+
+        The fix is a size policy and not arithmetic, and it is worth
+        saying that the arithmetic was written first: measure the
+        other blocks, give the difference to the tables, correct on a
+        second pass.  It could not be made to settle.  Every quantity
+        it needed -- a wrapped label's height, the viewport's height,
+        the layout's cached size hint -- is only true *after* the
+        layout has run, and changing a table's height runs it again;
+        the passes raced with the resize and the panel came up
+        differently on the same dock twice running.
+
+        So the table is told what it is instead: at least
+        :data:`MIN_TABLE_ROWS` tall, never taller than its own rows,
+        and vertically expanding with a stretch factor of one.  Qt
+        then gives it exactly the space the other blocks are not
+        using, synchronously, on every layout, and the trailing
+        spacer -- which would otherwise compete for the same slack --
+        is only added when there is no table to take it.
+        """
+        last = self.body.itemAt(self.body.count() - 1)
+        if last is not None and last.spacerItem() is not None:
+            self.body.takeAt(self.body.count() - 1)
+        if not stretched:
+            self.body.addStretch(1)
 
     def _render(self, block):
         if isinstance(block, Table):
             return _table_widget(block)
         if isinstance(block, Histogram):
             return _histogram_widget(block)
+        if isinstance(block, Curve):
+            return _curve_widget(block, self)
         return None                                 # pragma: no cover
 
     def _drop_blocks(self) -> None:
@@ -143,44 +224,159 @@ class ResultsDock(QDockWidget):
         self._blocks = []
 
 
+class TableModel(QAbstractTableModel):
+    """A :class:`~xtal.modules.report.Table`, as a model.
+
+    A model rather than the ``QTableWidget`` this used to build, and
+    the reason is one table: a reflection list is a few thousand rows
+    of five columns, which is fifteen thousand ``QTableWidgetItem``
+    objects to construct, own and lay out for a panel that shows
+    twenty of them at a time.  A model constructs none -- Qt asks for
+    the cells it is about to paint -- so the list opens instantly and
+    scrolls at whatever the view can draw.
+
+    It is not a PXRD model.  It reads :attr:`Row.texts`, so the three
+    columns every other table has and the five this one has are the
+    same case.
+    """
+
+    def __init__(self, table: Table, parent=None):
+        super().__init__(parent)
+        self.table = table
+
+    def rowCount(self, parent=NO_PARENT) -> int:
+        return 0 if parent.isValid() else len(self.table.rows)
+
+    def columnCount(self, parent=NO_PARENT) -> int:
+        return 0 if parent.isValid() else len(self.table.columns)
+
+    def data(self, index, role=Qt.DisplayRole):
+        if not index.isValid():                     # pragma: no cover
+            return None
+        row = self.table.rows[index.row()]
+        cells = row.texts
+        text = (cells[index.column()]
+                if index.column() < len(cells) else "")
+        if role == Qt.DisplayRole:
+            return text
+        if role == Qt.ToolTipRole:
+            return row.note or None
+        if role == Qt.TextAlignmentRole:
+            # Numbers right so the decimal points line up, words
+            # left -- decided by the cell, see `report.is_number`.
+            return int(Qt.AlignRight | Qt.AlignVCenter) \
+                if is_number(text) \
+                else int(Qt.AlignLeft | Qt.AlignVCenter)
+        return None
+
+    def headerData(self, section, orientation, role=Qt.DisplayRole):
+        if role != Qt.DisplayRole or orientation != Qt.Horizontal:
+            return None
+        return self.table.columns[section]
+
+
+class FittedTable(QTableView):
+    """A table that asks for the least it can live with.
+
+    ``QScrollArea`` with ``widgetResizable`` sizes its child to
+    ``max(viewport, sizeHint)`` and never to its *minimum*, so a
+    panel whose size hint exceeds the viewport scrolls rather than
+    compressing -- and a table's own hint is its content, which for a
+    reflection list is enormous.  That is what kept the outer
+    scrollbar alive after everything else was in place.
+
+    So this hints at its minimum and grows by policy instead: the
+    layout hands it whatever the other blocks are not using, up to its
+    maximum, and the panel's hint stays small enough that the
+    scrollbar has nothing to do.
+    """
+
+    def sizeHint(self):
+        hint = super().sizeHint()
+        hint.setHeight(self.minimumHeight())
+        return hint
+
+
 def _table_widget(table: Table) -> QWidget:
     box = QWidget()
+    box.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
     layout = QVBoxLayout(box)
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(3)
     if table.title:
         layout.addWidget(QLabel(table.title))
 
-    widget = QTableWidget(len(table.rows), len(COLUMNS))
-    widget.setHorizontalHeaderLabels(COLUMNS)
+    widget = FittedTable()
+    model = TableModel(table, widget)
+    widget.setModel(model)
     widget.verticalHeader().setVisible(False)
     widget.setEditTriggers(QAbstractItemView.NoEditTriggers)
     widget.setSelectionBehavior(QAbstractItemView.SelectRows)
-    widget.horizontalHeader().setSectionResizeMode(
-        0, QHeaderView.Stretch)
-    widget.horizontalHeader().setSectionResizeMode(
-        1, QHeaderView.ResizeToContents)
-    widget.horizontalHeader().setSectionResizeMode(
-        2, QHeaderView.ResizeToContents)
-    for row, entry in enumerate(table.rows):
-        name = f"{entry.label} ({entry.symbol})" if entry.symbol \
-            else entry.label
-        for column, text in enumerate((name, entry.value, entry.unit)):
-            item = QTableWidgetItem(text)
-            if entry.note:
-                item.setToolTip(entry.note)
-            if column == 1:
-                item.setTextAlignment(Qt.AlignRight |
-                                      Qt.AlignVCenter)
-            widget.setItem(row, column, item)
-    # Tall enough for its own rows and no taller: several tables in a
-    # column, each with its own scrollbar, is unreadable.
-    height = widget.horizontalHeader().height() + 2
-    for row in range(widget.rowCount()):
-        height += widget.rowHeight(row)
-    widget.setFixedHeight(height + 2)
-    widget.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-    layout.addWidget(widget)
+    widget.setAlternatingRowColors(len(table.rows) > FIT_ROWS)
+    # Uniform heights lets the view size itself without measuring
+    # every row, which is the other half of a long table being cheap.
+    widget.verticalHeader().setDefaultSectionSize(
+        widget.fontMetrics().height() + 8)
+    widget.verticalHeader().setSectionResizeMode(QHeaderView.Fixed)
+    header = widget.horizontalHeader()
+    # The first column takes the slack in a Quantity/Value/Unit
+    # table, because that is where the sentence is; in a table with
+    # columns of its own every column is measured -- see `_widths`.
+    if table.named_columns:
+        # Nothing stretches: a reflection table is five narrow
+        # columns of numbers, and giving the slack to the last of
+        # them puts I(%) an inch away from the 2-theta it belongs
+        # to.  Empty space to the right of a packed table reads as
+        # empty space; a stretched column reads as a mistake.
+        header.setStretchLastSection(False)
+        for column, width in enumerate(_widths(table, widget)):
+            header.setSectionResizeMode(column, QHeaderView.Interactive)
+            widget.setColumnWidth(column, width)
+    else:
+        header.setVisible(False)
+        header.setSectionResizeMode(0, QHeaderView.Stretch)
+        for column in range(1, len(table.columns)):
+            header.setSectionResizeMode(
+                column, QHeaderView.ResizeToContents)
+
+    rows = len(table.rows)
+    row_height = widget.verticalHeader().defaultSectionSize()
+    # `isHidden` and not `isVisible`: this widget has not been shown
+    # yet, so `isVisible` is False for a header that is going to be
+    # there and the table would come up one header short.
+    # The header plus the frame, and nothing else: a table whose
+    # height is its chrome plus a whole number of rows shows whole
+    # rows, and every pixel over shows a sliver of the next one.
+    chrome = ((0 if header.isHidden() else header.sizeHint().height())
+              + 2 * widget.frameWidth())
+    # What it would be at its full height, and the two numbers
+    # `ResultsDock.fit_tables` needs to shrink it to a whole number of
+    # rows.  Recorded on the widget rather than returned, so that the
+    # dock can find every table in a report without this function and
+    # `_render` both having to carry them out.
+    natural = chrome + rows * row_height
+    widget.setProperty("naturalHeight", natural)
+    widget.setProperty("rowHeight", row_height)
+    widget.setProperty("chrome", chrome)
+    widget.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+    # Between four rows and all of them, and expanding in between --
+    # see `ResultsDock._set_tail` for why this is a size policy and
+    # not a calculation.
+    widget.setMinimumHeight(min(natural,
+                                chrome + MIN_TABLE_ROWS * row_height))
+    widget.setMaximumHeight(natural)
+    widget.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+    layout.addWidget(widget, 1)
+
+    export = QPushButton("Export table...")
+    export.setToolTip(
+        "Write this table as a .csv -- the heading row and the cells, "
+        "which is what a spreadsheet reads")
+    export.clicked.connect(lambda: _export_table(table, box))
+    row = QHBoxLayout()
+    row.addWidget(export)
+    row.addStretch(1)
+    layout.addLayout(row)
 
     if table.note:
         note = QLabel(table.note)
@@ -188,6 +384,62 @@ def _table_widget(table: Table) -> QWidget:
         note.setStyleSheet("color: palette(mid);")
         layout.addWidget(note)
     return box
+
+
+def _widths(table: Table, widget) -> list[int]:
+    """A pixel width per column, wide enough for every cell in it.
+
+    Measured here rather than left to ``ResizeToContents``, and both
+    halves of that are deliberate.  ``ResizeToContents`` measures
+    *every* row, which on a few thousand is O(rows) per layout and is
+    paid again on every scroll; capping it with
+    ``setResizeContentsPrecision`` fixes the cost and introduces a
+    worse bug, because the cap measures the first fifty rows and a
+    reflection list's hundredth row is the first one whose **No.** is
+    three digits.  The column then truncates for the rest of the
+    table.
+
+    So: the longest string in each column decides it.  Only the
+    longest few are handed to the font -- ties are common in a column
+    of numbers and measuring three thousand strings is the cost this
+    is avoiding -- and the heading is always one of the candidates,
+    because a one-character column still has to fit ``No.``.
+    """
+    metrics = widget.fontMetrics()
+    padding = 18                    # the cell's own margins, plus air
+    out = []
+    for column, heading in enumerate(table.columns):
+        texts = [row.texts[column] for row in table.rows
+                 if column < len(row.texts)]
+        longest = max((len(text) for text in texts), default=0)
+        candidates = [heading] + [text for text in texts
+                                  if len(text) == longest]
+        out.append(max(metrics.horizontalAdvance(text)
+                       for text in candidates[:32]) + padding)
+    return out
+
+
+def _export_table(table: Table, parent) -> None:
+    """Write one table as a ``.csv`` where the user asks for it.
+
+    Every table, not only the reflection list: the panel knows no
+    module, and a pore-diameter table somebody wants in a spreadsheet
+    is the same request.  What gets written is
+    :meth:`~xtal.modules.report.Table.as_csv`, so the file is the same
+    one the CLI would produce.
+    """
+    from xtal.workspace import safe_name
+
+    suggested = safe_name(table.title or "table", "table").lower()
+    path, _filter = QFileDialog.getSaveFileName(
+        parent, "Export the table", f"{suggested}.csv",
+        "Comma-separated values (*.csv);;All files (*)")
+    if not path:
+        return
+    try:
+        Path(path).write_text(table.as_csv(), encoding="utf-8")
+    except OSError as exc:
+        QMessageBox.warning(parent, "Export the table", str(exc))
 
 
 def _histogram_widget(histogram: Histogram) -> QWidget:
@@ -206,3 +458,61 @@ def _histogram_widget(histogram: Histogram) -> QWidget:
         note.setStyleSheet("color: palette(mid);")
         layout.addWidget(note)
     return box
+
+
+def _curve_widget(curve: Curve, dock) -> QWidget:
+    """A trace, and the button that opens it properly.
+
+    The plot in the panel is :mod:`xtalapp.curve` and needs nothing
+    installed; the button is the matplotlib window, which is the
+    ``pxrd`` extra.  Both are here rather than one instead of the
+    other because the panel has to *show* the answer on any machine,
+    and only the second can zoom into it, lay a measured file over it
+    and write a vector figure.
+
+    Nothing about this is PXRD.  The panel knows no module, and a
+    curve from the next one that produces a curve gets the same
+    button for the same reason.
+    """
+    box = QWidget()
+    layout = QVBoxLayout(box)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(3)
+    if curve.title:
+        layout.addWidget(QLabel(curve.title))
+
+    plot = CurvePlot()
+    plot.set_curve(curve)
+    layout.addWidget(plot)
+
+    open_plot = QPushButton("Plot and overlay data...")
+    open_plot.setEnabled(pattern_window.installed())
+    open_plot.setToolTip(
+        "Zoom, overlay a measured .xy pattern, and export a figure"
+        if pattern_window.installed() else pattern_window.MISSING)
+    open_plot.clicked.connect(lambda: _open_pattern(curve, dock))
+    row = QHBoxLayout()
+    row.addWidget(open_plot)
+    row.addStretch(1)
+    layout.addLayout(row)
+
+    if curve.note:
+        note = QLabel(curve.note)
+        note.setWordWrap(True)
+        note.setStyleSheet("color: palette(mid);")
+        layout.addWidget(note)
+    return box
+
+
+def _open_pattern(curve: Curve, dock) -> None:
+    """Open the matplotlib window, or say why it did not.
+
+    Modeless and owned by the dock, so a pattern can stay on screen
+    while the structure it came from is worked on -- which is most of
+    what somebody comparing a calculation with a measurement is doing.
+    """
+    window = pattern_window.PatternDialog(curve, dock)
+    window.setAttribute(Qt.WA_DeleteOnClose)
+    window.setModal(False)
+    window.show()
+    window.raise_()

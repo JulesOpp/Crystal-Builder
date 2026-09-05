@@ -8,6 +8,11 @@ in-tree; third-party formats register themselves through the
     from xtal.io import FORMATS
     structure = FORMATS.read("quartz.cif")
     FORMATS.write(structure, "quartz_out.cif")
+
+One reader here is deliberately *not* in that registry.  Every format
+in it reads and writes a structure, and ``.xy`` is a diffraction
+pattern -- see :mod:`xtal.io.xy` for why registering it would put a
+file in the Open dialog that nothing downstream could accept.
 """
 
 from xtal.io.cif_reader import read_cif, read_cif_all, read_cif_string
@@ -34,6 +39,7 @@ from xtal.io.trajectory import (
     read_trajectory,
     write_trajectory,
 )
+from xtal.io.xy import read_xy, write_xy, xy_string
 from xtal.io.xyz import (
     read_xyz,
     read_xyz_all,
@@ -103,4 +109,5 @@ __all__ = ["FORMATS", "Format", "FormatRegistry", "read_cif",
            "read_xyz", "read_xyz_all", "read_xyz_string", "write_xyz",
            "xyz_string", "read_project", "write_project", "is_project",
            "Frame", "Trajectory", "TrajectoryWriter", "frame_of",
-           "read_trajectory", "write_trajectory"]
+           "read_trajectory", "write_trajectory", "read_xy",
+           "write_xy", "xy_string"]

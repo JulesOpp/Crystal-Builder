@@ -59,18 +59,32 @@ overlays — see §12).
 | `spglib` | symmetry detection with tolerance, Wyckoff letters, cell standardisation/refinement, Niggli/Delaunay reduction | |
 | `scipy` | `cKDTree` neighbour search, L-BFGS, sparse ops | |
 
-**Optional extras** — `gui` (`PySide6`, `vtk`) and `ase` (bridge to
-external calculators/optimisers). The core installs with neither, so
-`pip install crystal-builder` stays usable on a headless box.
+**Optional extras** — `gui` (`PySide6`, `vtk`), `ase` (bridge to
+external calculators/optimisers), `build`/`sketch` (the molecule
+builder and its 2D editor) and `pxrd` (`matplotlib`, below). The core
+installs with none of them, so `pip install crystal-builder` stays
+usable on a headless box.
 
-**No plotting library.** The plan originally listed `pyqtgraph` for the
-live convergence plot, and `matplotlib` for future patterns. Neither is
-a dependency: the optimisation trace and the pore-size histogram are a
-hundred lines each of `QPainter` in `xtalapp/plot.py` and
-`xtalapp/histogram.py` — less to pin and package than a second large
-GUI dependency, and they follow the user's theme without being asked. A
-richer plot (PXRD overlays with pan, zoom and picking) is a real reason
-to reconsider.
+**One plotting library, and only for the window that needs one.** The
+plan originally listed `pyqtgraph` for the live convergence plot and
+`matplotlib` for future patterns, and refused both: the optimisation
+trace, the pore-size histogram and the calculated PXRD pattern are a
+hundred lines each of `QPainter` in `xtalapp/plot.py`,
+`xtalapp/histogram.py` and `xtalapp/curve.py` — less to pin and
+package than a large GUI dependency, and they follow the user's theme
+without being asked. **Every panel in the application still draws with
+no extra installed**, and that is the line this decision is held to.
+
+This section also named the case that would reverse it — "a richer
+plot (PXRD overlays with pan, zoom and picking) is a real reason to
+reconsider" — and phase 7 is that case. Laying a measured pattern over
+a calculated one and reading off which peak moved wants axes that pan,
+zoom and pick, and a vector export whose text survives as text; both
+are a plotting library's job. So `matplotlib` is the **`pxrd` extra**,
+checked with `find_spec` and never an import, powering
+`xtalapp/dialogs/pattern.py` and nothing else. Without it the pattern
+is still calculated, still drawn in the Results panel and still
+written as `.xy`; one button greys out naming the extra.
 
 **Dev** — `pytest`, `pytest-qt`, `pytest-xdist`, `ruff`, `pyinstaller`.
 `pytest-qt` is in the `test` extra and not in `dev`: without it every
@@ -141,7 +155,8 @@ Crystal-Builder/
 │   ├── modules/              # registry.py (Module/Action), process.py (external binaries: launch,
 │   │                         #   stream, cancel), job.py, record.py, report.py,
 │   │                         #   forcefield.py dftb.py zeopp.py stub.py
-│   ├── analysis/porosity.py  # Zeo++ output parsed into results (future: pxrd.py)
+│   ├── analysis/porosity.py  # Zeo++ output parsed into results
+│   ├── analysis/pxrd.py     # powder pattern: structure factors, LP, profiles
 │   ├── workspace.py          # the directory a structure and its runs live in
 │   ├── params.py             # Param and Availability, shared by modules and engines
 │   ├── plugins.py            # entry-point discovery + in-tree registration
@@ -546,9 +561,15 @@ schedule has it in [ROADMAP.md](ROADMAP.md).
   occupancy *view* has shipped as the occupancy pie style.
 
 **Later (already anticipated by the plugin API)**
-* PXRD simulation (structure factors, Lorentz-polarisation, profile
-  functions) — then import experimental XRD to overlay, then Rietveld/
-  Pawley refinement on top of the same machinery.
+* Rietveld / Pawley refinement, on top of the machinery PXRD
+  simulation now provides. The first two thirds of this entry have
+  shipped — structure factors, Lorentz-polarisation and profile
+  functions in `xtal/analysis/pxrd.py`, the indexed reflection list
+  and its systematic absences, and the experimental overlay in
+  `xtalapp/dialogs/pattern.py` — and what is left is the fitting,
+  which is a different kind of work: a refinement is a least-squares
+  problem over the cell, the profile and the atoms, and it wants an
+  answer to "which parameters are free" that nothing here has yet.
 * Electron/neutron diffraction patterns and reciprocal-space views.
 * Volumetric data (CHGCAR/CUBE) import + isosurfaces (VESTA's other
   signature feature) with the same glyph/scene infrastructure.

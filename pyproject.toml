@@ -28,10 +28,21 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# No plotting library: the one plot the application draws (the live
-# optimisation trace) is a hundred lines of QPainter in xtalapp/plot.py,
-# which is less to pin and package than a second large dependency and
-# follows the user's theme without being asked.
+# The plots this application draws *itself* are still QPainter, and
+# still for the reason below: the optimisation trace
+# (xtalapp/plot.py), the pore size distribution (xtalapp/histogram.py)
+# and the calculated PXRD pattern (xtalapp/curve.py) are a hundred
+# lines each, are less to pin and package than a large dependency, and
+# follow the user's theme without being asked.  Every panel in the
+# application draws with no extra installed.
+#
+# `pxrd` is the exception and it is the one PLAN.md section 2 named in
+# advance: overlaying a measured pattern on a calculated one wants
+# axes that pan, zoom and pick, and a vector export whose text is
+# still text.  That is a plotting library's job and not a hundred
+# lines of anything.  It stays an extra, so the pattern is still
+# calculated, drawn and written as .xy without it -- what is missing
+# is the overlay window, and the button says so.
 #
 # PySide6 is capped below 6.10 and the cap is load-bearing.  From
 # 6.10.0 onward, VTK's QVTKRenderWindowInteractor.paintEvent -- which
@@ -73,11 +84,17 @@ build = ["rdkit>=2023.9"]
 # toolkit to get it.  Without it the dialog opens with the read-only
 # picture and says what to install.
 sketch = ["rdeditor>=0.5"]
+# Overlaying a measured pattern on a calculated one, and writing the
+# figure as a vector with the text still editable.  See the note above
+# for why this is the one plotting dependency; without it the PXRD
+# module runs, the panel draws the pattern and the .xy is written, and
+# only the plot window is greyed out naming this extra.
+pxrd = ["matplotlib>=3.7"]
 # pytest-qt belongs here and not in [dev]: without it every widget
 # test skips itself, and CI installs [gui,test] -- so the GUI half of
 # the suite was passing by not running.
 test = ["pytest>=8", "pytest-qt>=4", "pytest-xdist>=3"]
-dev = ["crystal-builder[gui,ase,build,sketch,test]", "ruff",
+dev = ["crystal-builder[gui,ase,build,sketch,pxrd,test]", "ruff",
        "pyinstaller>=6"]
 
 [project.scripts]

@@ -32,6 +32,7 @@ from xtal.modules import MODULES, Job, ModuleError
 from xtal.modules import record as module_record
 from xtal.modules.job import restore_dummies, without_dummies
 from xtal.workspace import safe_name
+from xtalapp.curve import save_curve
 from xtalapp.dialogs import module_dialog
 from xtalapp.dialogs.module_form import ModuleDialog
 from xtalapp.document import Document
@@ -292,7 +293,7 @@ class ModuleRunner(QObject):
             self.window.results_dock.raise_()
 
     def _save_report_images(self, job, result) -> None:
-        """Write a run's histograms into its folder as PNGs.
+        """Write a run's histograms and curves into its folder as PNGs.
 
         The picture is the answer for a pore size distribution, and a
         run folder holding four columns of numbers and no plot is one
@@ -305,12 +306,14 @@ class ModuleRunner(QObject):
         if job is None or job.folder is None or not report:
             return
         written = []
-        for index, histogram in enumerate(report.histograms):
-            name = safe_name(histogram.title or f"plot-{index + 1}",
+        plots = ([(h, save_histogram) for h in report.histograms]
+                 + [(c, save_curve) for c in report.curves])
+        for index, (block, draw) in enumerate(plots):
+            name = safe_name(block.title or f"plot-{index + 1}",
                              f"plot-{index + 1}").lower()
             try:
-                written.append(save_histogram(
-                    histogram, job.folder.path / f"{name}.png"))
+                written.append(draw(
+                    block, job.folder.path / f"{name}.png"))
             except Exception as exc:                # noqa: BLE001
                 self.window.show_message(f"could not write the plot: {exc}")
                 return

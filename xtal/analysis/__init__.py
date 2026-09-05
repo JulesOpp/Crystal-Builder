@@ -20,7 +20,14 @@ those invariants are looked up in, and the answer it returns is a
 holds: nothing in either launches anything, and the RCSR index they
 read is package data.
 
-RDF, coordination statistics and PXRD are named in
+**PXRD is here now**, and it is the third kind of answer: not a
+number and not a name but a *curve* -- intensity against angle, over
+the reflections the cell and the space group allow.  It obeys the
+same rule as the other two: :mod:`~xtal.analysis.pxrd` calculates and
+:mod:`xtal.modules.pxrd` is what runs it, so the pattern can be
+checked against a published one with no display attached.
+
+RDF and coordination statistics are named in
 [docs/PLAN.md](../../docs/PLAN.md) as the rest of this package and are
 not here yet.
 """
