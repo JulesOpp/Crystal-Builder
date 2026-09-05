@@ -6,6 +6,8 @@ is what these tests assert on.  The rendering itself is covered by
 tests/test_vtk_render.py.
 """
 
+import gc
+
 import pytest
 
 pytest.importorskip("PySide6")
@@ -315,6 +317,36 @@ def test_the_window_menu_still_lists_every_dock(window):
     assert entries[-1] == window.actions_["reset_layout"].text()
 
 
+def test_every_stored_menu_survives_a_walk_of_the_menu_bar(window):
+    """Reading a submenu off its QAction must not take the submenu.
+
+    A menu built by ``parent.addMenu(title)`` hands back a wrapper
+    tied to the QAction the walk produced; when that temporary is
+    collected the handle stored on the window is invalidated, while
+    the menu itself goes on dropping down as though nothing were
+    wrong.  Generating the help pages walks the whole bar, so opening
+    Help once made the next structure edit die in
+    ``_rebuild_element_menu``.
+    """
+    def walk(menu):
+        for action in menu.actions():
+            child = action.menu()
+            if child is not None:
+                walk(child)
+
+    for action in window.menuBar().actions():
+        walk(action.menu())
+    gc.collect()
+
+    stored = ["sample_menu", "recent_menu", "element_menu",
+              "mode_menu", "bond_type_menu", "modules_menu",
+              "window_menu"]
+    for name in stored:
+        getattr(window, name).actions()
+    for name, menu in window._module_submenus.items():
+        assert menu.actions(), name
+
+
 def test_the_mouse_modes_are_a_submenu_of_structure(window):
     """Six flat entries under the bond commands made the bottom of
     Structure read as though a mode were an edit."""
@@ -327,9 +359,6 @@ def test_the_mouse_modes_are_a_submenu_of_structure(window):
 def test_the_ways_of_opening_a_file_are_together(window):
     """Open Recent was below Close, at the far end of a menu whose top
     is where somebody opening a file is looking."""
-    # The entry is held while its submenu is read: PySide gives the
-    # QMenu to Python, and letting the QAction wrapper go while the
-    # menu is still wanted takes the menu with it.
     entry = window.menuBar().actions()[0]
     titles = [a.text().replace("&", "") for a in entry.menu().actions()]
     assert titles[:4] == ["New", "Open...", "Open Recent",

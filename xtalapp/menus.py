@@ -80,6 +80,30 @@ INSERT_MOLECULE_TIP = (
     "-- the dialog says by how much before you press the button.")
 
 
+def submenu(parent, title: str) -> QMenu:
+    """A menu under *parent* -- a menu bar or a menu -- that it owns.
+
+    ``parent.addMenu(title)`` is the obvious spelling and it hands
+    back a wrapper that PySide6 can invalidate while the C++ menu
+    goes on living: the wrapper is tied to the temporary ``QAction``
+    the walk over ``parent.actions()`` produced, and dies with it.
+    Nothing looks wrong afterwards -- the menu still drops down and
+    still lists its entries -- but every handle stored on the window
+    raises ``Internal C++ object already deleted`` the next time it
+    is read.  Generating the help pages walks the whole menu bar,
+    which is how opening Help once made the next edit to a structure
+    crash in ``_rebuild_element_menu``.
+
+    Constructing the menu with its parent and adding it as an object
+    ties the wrapper to the parent menu instead, which outlives every
+    walk.  Every submenu in this module goes through here, stored on
+    the window or not: the ones that are only ever shown are as easy
+    to store later as they are to leave alone now.
+    """
+    menu = QMenu(title, parent)
+    parent.addMenu(menu)
+    return menu
+
 def build_actions(window):
     # The one name in here that lives in the module importing this
     # one, wanted for a single menu entry.  At the top it would be a
@@ -426,14 +450,14 @@ def build_actions(window):
 def build_menus(window):
     bar = window.menuBar()
 
-    file_menu = bar.addMenu("&File")
+    file_menu = submenu(bar, "&File")
     window.actions_.fill_menu(file_menu, ["new", "open"])
     # The three ways to open something, together.  Recent was below
     # Close, at the far end of a menu whose top is where somebody
     # opening a file is looking.
-    window.recent_menu = file_menu.addMenu("Open &Recent")
+    window.recent_menu = submenu(file_menu, "Open &Recent")
     window._rebuild_recent_menu()
-    window.sample_menu = file_menu.addMenu("Open Sa&mple")
+    window.sample_menu = submenu(file_menu, "Open Sa&mple")
     build_sample_menu(window)
     window.actions_.fill_menu(file_menu, [
         None, "save", "save_as",
@@ -446,23 +470,23 @@ def build_menus(window):
     # into the application menu on macOS, by the roles they carry.
     window.actions_.fill_menu(file_menu, ["preferences", None, "quit"])
 
-    edit_menu = bar.addMenu("&Edit")
+    edit_menu = submenu(bar, "&Edit")
     window.actions_.fill_menu(edit_menu, [
         "undo", "redo", None, "cut", "copy", "paste", "duplicate",
         None, "delete_selection", "delete_bond",
         "change_element"])
 
-    select_menu = bar.addMenu("&Select")
+    select_menu = submenu(bar, "&Select")
     window.actions_.fill_menu(select_menu, [
         "select_all", "select_none", "invert_selection", None,
         "select_same"])
-    window.element_menu = select_menu.addMenu("By &element")
-    grow_menu = select_menu.addMenu("&Grow")
+    window.element_menu = submenu(select_menu, "By &element")
+    grow_menu = submenu(select_menu, "&Grow")
     window.actions_.fill_menu(grow_menu, ["expand_bonded",
                                         "expand_fragment",
                                         "expand_orbit"])
 
-    structure_menu = bar.addMenu("S&tructure")
+    structure_menu = submenu(bar, "S&tructure")
     window.actions_.fill_menu(structure_menu, [
         "add_atom_dialog", "add_centroid", "add_hydrogens",
         "insert_molecule", "mark_connection_points", None,
@@ -474,39 +498,39 @@ def build_menus(window):
     # A submenu and not six flat entries: these are what the *mouse*
     # does, and under the bond commands they made the bottom of
     # Structure read as though a mode were an edit.
-    window.mode_menu = structure_menu.addMenu("Mouse &mode")
+    window.mode_menu = submenu(structure_menu, "Mouse &mode")
     window.actions_.fill_menu(window.mode_menu,
                             [f"mode_{n}" for n in modes.names()])
 
-    symmetry_menu = bar.addMenu("S&ymmetry")
+    symmetry_menu = submenu(bar, "S&ymmetry")
     window.actions_.fill_menu(symmetry_menu, [
         "find_symmetry", "set_space_group", "subgroup", None,
         "standardize", "primitive", None,
         "wyckoff", "merge_duplicates", "invert",
         None, "reduce_p1"])
 
-    cell_menu = bar.addMenu("&Cell")
+    cell_menu = submenu(bar, "&Cell")
     window.actions_.fill_menu(cell_menu, [
         "edit_cell", "supercell", None,
         "niggli", "delaunay", None, "wrap_cell"])
 
-    measure_menu = bar.addMenu("&Measure")
+    measure_menu = submenu(bar, "&Measure")
     window.actions_.fill_menu(measure_menu, [
         "measure_selection", None,
         "define_plane", "plane_angle", None,
         "clear_planes", "clear_measurements"])
 
-    view_menu = bar.addMenu("&View")
-    style_menu = view_menu.addMenu("&Style")
+    view_menu = submenu(bar, "&View")
+    style_menu = submenu(view_menu, "&Style")
     window.actions_.fill_menu(
         style_menu, [f"style_{n}" for n in styles.names()])
-    show_menu = view_menu.addMenu("&Show")
+    show_menu = submenu(view_menu, "&Show")
     window.actions_.fill_menu(
         show_menu, ["show_atoms", "show_bonds", "show_bond_orders",
                     "show_topology", "show_cell", "show_planes",
                     "labels", "show_legend", "show_scale_bar"])
     view_menu.addSeparator()
-    background_menu = view_menu.addMenu("&Background")
+    background_menu = submenu(view_menu, "&Background")
     for name in BACKGROUNDS:
         background_menu.addAction(
             name.capitalize(),
@@ -520,7 +544,7 @@ def build_menus(window):
         None, "orthographic", "depth_cue",
         None, "view_a", "view_b", "view_c", "reset_view"])
 
-    window.modules_menu = bar.addMenu("&Modules")
+    window.modules_menu = submenu(bar, "&Modules")
     build_modules_menu(window)
 
     # Created here and filled by :func:`xtalapp.layout.build_docks`,
@@ -530,9 +554,9 @@ def build_menus(window):
     # property of two files' call order rather than of either file's
     # contents, which is how it could be wrong with no line looking
     # wrong.  The whole order is here now, and it reads as it reads.
-    window.window_menu = bar.addMenu("&Window")
+    window.window_menu = submenu(bar, "&Window")
 
-    help_menu = bar.addMenu("&Help")
+    help_menu = submenu(bar, "&Help")
     window.actions_.fill_menu(help_menu, ["help_contents", None,
                                           "show_log", None, "about"])
 
@@ -580,11 +604,11 @@ def build_modules_menu(window) -> None:
     window._module_actions = []
     window._module_submenus = {}
     for module in MODULES:
-        submenu = menu.addMenu(module.label)
-        window._module_submenus[module.name] = submenu
+        entry = submenu(menu, module.label)
+        window._module_submenus[module.name] = entry
         for action in module.actions:
-            submenu.addAction(module_action(window, module,
-                                            action))
+            entry.addAction(module_action(window, module,
+                                          action))
     if not MODULES.names():                     # pragma: no cover
         menu.addAction("Nothing registered").setEnabled(False)
     menu.aboutToShow.connect(window._refresh_module_availability)
@@ -733,22 +757,16 @@ def context_menu(window, kind: str):
         else:
             menu.addAction(window.actions_[name])
     if kind == "view":
-        style = menu.addMenu("&Style")
+        style = submenu(menu, "&Style")
         window.actions_.fill_menu(
             style, [f"style_{n}" for n in styles.names()])
     return menu
 
 def add_boundary_menu(window, menu):
-    """The three boundary answers, wherever they are wanted.
-
-    Parented to the menu it is added to, for the reason spelled out
-    in :func:`add_bond_type_menu`: a submenu built by ``addMenu(title)``
-    alone is owned by Python and is collected the moment this returns.
-    """
-    submenu = QMenu("Bonds at the &boundary", menu)
-    menu.addMenu(submenu)
+    """The three boundary answers, wherever they are wanted."""
+    entry = submenu(menu, "Bonds at the &boundary")
     window.actions_.fill_menu(
-        submenu, [f"boundary_{n}" for n, _l, _t in BOUNDARY_ACTIONS])
+        entry, [f"boundary_{n}" for n, _l, _t in BOUNDARY_ACTIONS])
 
 
 def add_bond_type_menu(window, menu):
@@ -759,16 +777,11 @@ def add_bond_type_menu(window, menu):
     tick -- which is the whole reason the actions live in the
     registry rather than being built where they are shown.
     """
-    # Parented to the menu it is added to, so the menu owns it:
-    # a submenu built by ``addMenu(title)`` alone is owned by
-    # Python, and the one in a context menu is collected the moment
-    # this method returns.
-    submenu = QMenu("Set Bond &Type", menu)
-    menu.addMenu(submenu)
-    submenu.setEnabled(window.actions_["bond_type_single"].isEnabled())
+    entry = submenu(menu, "Set Bond &Type")
+    entry.setEnabled(window.actions_["bond_type_single"].isEnabled())
     window.actions_.fill_menu(
-        submenu, [f"bond_type_{n.lower()}" for n, _ in BOND_TYPES])
-    return submenu
+        entry, [f"bond_type_{n.lower()}" for n, _ in BOND_TYPES])
+    return entry
 
 #: What each number of selected atoms admits.  One entry and not
 #: three, and *absent* at any other count rather than greyed out:
