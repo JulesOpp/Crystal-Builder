@@ -208,11 +208,17 @@ jobs:
           Invoke-WebRequest -Uri $url -OutFile mesa.7z
           7z x mesa.7z -omesa -y | Out-Null
           $app = "dist/Crystal Builder"
+          $added = @()
           foreach ($dll in "opengl32.dll", "libgallium_wgl.dll",
                            "dxil.dll") {
             Copy-Item "mesa/x64/$dll" $app -Force
+            $added += $dll
           }
           Set-Content -Path "$app/Crystal Builder.exe.local" -Value ""
+          $added += "Crystal Builder.exe.local"
+          # Written down rather than repeated in the step that takes
+          # them out again, so the two lists cannot drift apart.
+          $added | Set-Content mesa-files.txt
 
       - name: Selftest (Windows)
         if: runner.os == 'Windows'
@@ -245,6 +251,31 @@ jobs:
           }
           if (-not (Test-Path selftest.png)) {
             Write-Host "::error::the selftest drew no image"
+            exit 1
+          }
+
+      # Mesa was for the selftest and must not reach a user.  The
+      # installer takes `dist\Crystal Builder\*` with recursesubdirs,
+      # so anything still in that folder is shipped -- and what is in
+      # it is an `opengl32.dll` that overrides the GPU driver of every
+      # machine it lands on, turning a hardware-rendered viewport into
+      # a software-rendered one on hardware that was fine.  Removing
+      # without -ErrorAction so a file that is not there fails the
+      # job, and the check after it is for the same mistake made a
+      # different way.
+      - name: Take the software OpenGL back out (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $app = "dist/Crystal Builder"
+          Get-Content mesa-files.txt | ForEach-Object {
+            Remove-Item "$app/$_" -Force
+          }
+          $left = Get-ChildItem $app -Recurse -Include `
+              opengl32.dll, libgallium_wgl.dll, "*.local"
+          if ($left) {
+            Write-Host "::error::Mesa is still in the bundle:"
+            $left | ForEach-Object { Write-Host "  $($_.FullName)" }
             exit 1
           }
 
