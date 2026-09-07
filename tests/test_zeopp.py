@@ -12,10 +12,9 @@ The one test that does use the real binary is skipped when it is not
 there.
 """
 
-import sys
-
 import pytest
 
+from tests.conftest_program import write_program
 from tests.conftest_zeo import write_fake_network
 from xtal.analysis import porosity
 from xtal.modules import MODULES, Job, zeopp
@@ -243,9 +242,8 @@ def test_a_disordered_structure_never_reaches_zeopp(fake_network,
 
 def test_a_run_that_writes_nothing_says_so(tmp_path, rutile,
                                            workspace, monkeypatch):
-    silent = tmp_path / "silent"
-    silent.write_text(f"#!{sys.executable}\nprint('did nothing')\n")
-    silent.chmod(0o755)
+    silent = write_program(tmp_path, "silent",
+                           "print('did nothing')\n")
     monkeypatch.setenv("XTAL_ZEOPP", str(silent))
 
     with pytest.raises(ValueError, match="without writing"):
@@ -254,11 +252,10 @@ def test_a_run_that_writes_nothing_says_so(tmp_path, rutile,
 
 def test_a_failing_binary_is_a_failed_result_not_an_exception(
         tmp_path, rutile, workspace, monkeypatch):
-    broken = tmp_path / "broken"
-    broken.write_text(
-        f"#!{sys.executable}\nimport sys\n"
+    broken = write_program(
+        tmp_path, "broken",
+        "import sys\n"
         "print('cannot read that file')\nsys.exit(2)\n")
-    broken.chmod(0o755)
     monkeypatch.setenv("XTAL_ZEOPP", str(broken))
 
     result, _folder = run("diameters", rutile, workspace)

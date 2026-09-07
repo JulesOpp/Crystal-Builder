@@ -16,12 +16,12 @@ is an optimisation that converges to the wrong geometry rather than
 one that fails.
 """
 
-import sys
 from itertools import product
 
 import numpy as np
 import pytest
 
+from tests.conftest_program import write_program
 from xtal.ff import ENGINES
 from xtal.ff.api import CalculatorError
 from xtal.ff.dftb import calculator as dftb
@@ -59,10 +59,8 @@ def parameters(tmp_path):
 
 @pytest.fixture
 def fake_dftb(tmp_path, monkeypatch):
-    script = tmp_path / "dftb+"
-    script.write_text(f"#!{sys.executable}\nOUTPUT = {DETAILED!r}\n"
-                      + FAKE)
-    script.chmod(0o755)
+    script = write_program(tmp_path, "dftb+",
+                           f"OUTPUT = {DETAILED!r}\n" + FAKE)
     monkeypatch.setenv("XTAL_DFTB", str(script))
     return script
 
@@ -355,9 +353,8 @@ def test_the_wrong_number_of_atoms_is_refused(two_atoms, parameters,
 
 def test_a_run_that_writes_nothing_says_where_to_look(
         two_atoms, parameters, tmp_path, monkeypatch):
-    silent = tmp_path / "dftb+"
-    silent.write_text(f"#!{sys.executable}\nprint('nothing to say')\n")
-    silent.chmod(0o755)
+    silent = write_program(tmp_path, "dftb+",
+                           "print('nothing to say')\n")
     monkeypatch.setenv("XTAL_DFTB", str(silent))
 
     engine = build(two_atoms, parameters)
@@ -369,11 +366,10 @@ def test_an_unconverged_scc_is_named_as_one(two_atoms, parameters,
                                             tmp_path, monkeypatch):
     """DFTB+ writes a detailed.out with no total energy in it, which
     is not an obvious thing to read out of a file."""
-    stubborn = tmp_path / "dftb+"
-    stubborn.write_text(
-        f"#!{sys.executable}\nimport pathlib\n"
+    stubborn = write_program(
+        tmp_path, "dftb+",
+        "import pathlib\n"
         "pathlib.Path('detailed.out').write_text('nothing useful')\n")
-    stubborn.chmod(0o755)
     monkeypatch.setenv("XTAL_DFTB", str(stubborn))
 
     engine = build(two_atoms, parameters)
@@ -383,11 +379,10 @@ def test_an_unconverged_scc_is_named_as_one(two_atoms, parameters,
 
 def test_a_failing_binary_quotes_what_it_said(two_atoms, parameters,
                                               tmp_path, monkeypatch):
-    broken = tmp_path / "dftb+"
-    broken.write_text(
-        f"#!{sys.executable}\nimport sys\n"
+    broken = write_program(
+        tmp_path, "dftb+",
+        "import sys\n"
         "print('Geometry step exceeded')\nsys.exit(1)\n")
-    broken.chmod(0o755)
     monkeypatch.setenv("XTAL_DFTB", str(broken))
 
     engine = build(two_atoms, parameters)

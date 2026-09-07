@@ -307,8 +307,13 @@ def project_datas() -> list[tuple[str, str]]:
                 # From the file's own parent, so a pattern that
                 # reaches down a subdirectory -- as the vendored
                 # database's two do -- lands where it was found.
+                # `as_posix`, because a destination is a path *inside*
+                # the bundle and not one on the machine building it:
+                # `str()` here spells it `xtal\build\data` on
+                # Windows, which is not what the entries above, or
+                # PyInstaller, or the bundle's own layout use.
                 destination = path.parent.relative_to(ROOT)
-                datas.append((str(path), str(destination)))
+                datas.append((str(path), destination.as_posix()))
 
     return datas
 

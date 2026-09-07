@@ -19,11 +19,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The core is headless, so the bulk of the matrix is cheap
-        # Linux; macOS (arm64 + x86_64) and Windows are the platforms
-        # we actually ship, so they get one run each.
-        os: [ubuntu-latest]
-        python: ["3.11", "3.12", "3.13"]
+        # The three platforms we ship, and nothing else.  Linux used
+        # to carry the version sweep here because it is the cheap
+        # runner, but nothing is released for it: what that bought
+        # was three more ways for a red tick to mean something
+        # nobody is going to install.
         include:
           - os: macos-14          # Apple silicon
             python: "3.12"
@@ -41,6 +41,9 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python }}
+      # Dormant while the matrix above ships no Linux entry, and kept
+      # rather than deleted because it is the whole of what anybody
+      # putting one back needs to know:
       # PySide6 links these and the runner images do not carry them,
       # so `import PySide6.QtGui` fails with
       # `libEGL.so.1: cannot open shared object file` before a single

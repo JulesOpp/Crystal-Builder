@@ -15,8 +15,9 @@ The captured text is from a real run of ``network`` 0.3 on MFU-4l.
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
+
+from tests.conftest_program import write_program
 
 RES = "   MFU4l.res    18.72736 9.18223  18.72243\n"
 
@@ -84,10 +85,5 @@ def write_fake_network(directory) -> Path:
         *(f'if "{flag}" in argv: {writer}'
           for flag, writer in _WRITERS.items()),
     ])
-    script = Path(directory) / "network"
-    # The interpreter running the tests, not whatever "python" is on
-    # PATH -- in a virtual environment those are different, and the
-    # difference shows up as a stand-in that will not start.
-    script.write_text(f"#!{sys.executable}\n" + _SCRIPT.format(body=body))
-    script.chmod(0o755)
-    return script
+    return write_program(directory, "network",
+                         _SCRIPT.format(body=body))

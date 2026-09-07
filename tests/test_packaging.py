@@ -83,7 +83,7 @@ def test_the_samples_land_where_the_application_looks_for_them(
     from xtalapp import samples
 
     relative = samples.folder().relative_to(ROOT)
-    assert set(destinations.values()) >= {str(relative)}
+    assert set(destinations.values()) >= {relative.as_posix()}
 
 
 def test_the_rcsr_index_is_collected(destinations):
@@ -266,7 +266,7 @@ def test_no_third_party_binary_is_carried(destinations):
     # that must not ship in both cases.
     for parts in (zeopp.BUNDLED, hsd.BUNDLED):
         refused = ROOT.joinpath(*parts[:2])
-        assert str(refused.relative_to(ROOT)) in bundle.OMITTED
+        assert refused.relative_to(ROOT).as_posix() in bundle.OMITTED
         for source in destinations:
             assert not source.is_relative_to(refused), \
                 f"{source} is part of {refused}"

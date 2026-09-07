@@ -4,6 +4,8 @@ The window is driven with the stub viewport from test_app_shell, so
 none of this needs a display.
 """
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -121,7 +123,7 @@ def test_the_tree_says_what_a_node_is_not_what_it_is_called(opened):
     for index in tree._walk():
         payload = tree.model_.itemFromIndex(index).data(ARTIFACT_ROLE)
         if payload:
-            kinds[str(payload[1]).rsplit("/", 1)[-1]] = payload[0]
+            kinds[Path(payload[1]).name] = payload[0]
     assert kinds["rutile.cif"] == "structure"
     assert kinds["final.cif"] == "final"
 
