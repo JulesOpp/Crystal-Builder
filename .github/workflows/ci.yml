@@ -163,25 +163,90 @@ jobs:
         if: runner.os == 'macOS'
         run: python packaging/postbuild.py "dist/Crystal Builder.app"
 
+      # Read back what it said, and not only what it returned.  The
+      # exit code alone let a Windows run go green having died inside
+      # the 3D view: no traceback, no `selftest FAILED`, no image, and
+      # a green tick -- so what the job proved was that the bundle
+      # starts.  `packaging/release-macos.sh` has always grepped its
+      # output for exactly this reason; this is the same check, in the
+      # place that gates a release.
       - name: Selftest (macOS)
         if: runner.os == 'macOS'
         env:
           XTAL_NO_CONFIRM_CLOSE: "1"
-        run: >-
-          "dist/Crystal Builder.app/Contents/MacOS/Crystal Builder"
-          --selftest --selftest-image selftest.png
+        run: |
+          set -o pipefail
+          "dist/Crystal Builder.app/Contents/MacOS/Crystal Builder" \
+              --selftest --selftest-image selftest.png | tee selftest.log
+          grep -q "selftest passed" selftest.log \
+              || { echo "::error::the selftest did not run to the end"; \
+                   exit 1; }
+          test -s selftest.png \
+              || { echo "::error::the selftest drew no image"; exit 1; }
 
-      # Windows runners have no GPU, so VTK falls back to the
-      # software rasteriser rather than failing; that is still a real
-      # OpenGL context and still proves the bundle can draw.
+      # VTK needs an OpenGL context and the runner has no GPU.  What
+      # stood here claimed Windows "falls back to the software
+      # rasteriser"; it does not.  It asks for `osmesa.dll`, which is
+      # not on the image -- and is not in Mesa's Windows package
+      # either.  What that package has is the WGL driver, which is
+      # the better answer anyway: Mesa goes beside the executable and
+      # VTK's ordinary `vtkWin32OpenGLRenderWindow` gets a real
+      # llvmpipe context through its normal path rather than a
+      # fallback.
+      #
+      # The `.local` is the load-bearing half and it is one byte:
+      # without it Windows resolves `opengl32.dll` from system32 and
+      # never looks at the copy beside the executable, which is the
+      # failure that looks exactly like not having copied it.
+      - name: Software OpenGL (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = "26.2.0"
+          $url = "https://github.com/pal1000/mesa-dist-win/releases" +
+                 "/download/$version/mesa3d-$version-release-msvc.7z"
+          Invoke-WebRequest -Uri $url -OutFile mesa.7z
+          7z x mesa.7z -omesa -y | Out-Null
+          $app = "dist/Crystal Builder"
+          foreach ($dll in "opengl32.dll", "libgallium_wgl.dll",
+                           "dxil.dll") {
+            Copy-Item "mesa/x64/$dll" $app -Force
+          }
+          Set-Content -Path "$app/Crystal Builder.exe.local" -Value ""
+
       - name: Selftest (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         env:
           XTAL_NO_CONFIRM_CLOSE: "1"
-        run: >-
-          & "dist/Crystal Builder/Crystal Builder.exe"
-          --selftest --selftest-image selftest.png
+          # llvmpipe by name, so that a Mesa which would rather use
+          # d3d12 on a machine with no GPU does not quietly pick the
+          # path this step is not testing.
+          GALLIUM_DRIVER: llvmpipe
+        run: |
+          # Both preferences off, so that a non-zero exit does not
+          # become a terminating error before the output it needs to
+          # be diagnosed by has been printed.  The checks below are
+          # what fails this step.
+          $ErrorActionPreference = "Continue"
+          $PSNativeCommandUseErrorActionPreference = $false
+          & "dist/Crystal Builder/Crystal Builder.exe" `
+              --selftest --selftest-image selftest.png 2>&1 |
+              Tee-Object -FilePath selftest.log
+          $code = $LASTEXITCODE
+          $said = Get-Content selftest.log -Raw
+          if ($code -ne 0) {
+            Write-Host "::error::the selftest exited $code"
+            exit 1
+          }
+          if ($said -notmatch "selftest passed") {
+            Write-Host "::error::the selftest did not run to the end"
+            exit 1
+          }
+          if (-not (Test-Path selftest.png)) {
+            Write-Host "::error::the selftest drew no image"
+            exit 1
+          }
 
       # hdiutil, not create-dmg: create-dmg positions the icons by
       # driving Finder over Apple events, which a runner is not
@@ -220,10 +285,16 @@ jobs:
           & $iscc.FullName "/DAppVersion=$version" `
             packaging\crystal-builder.iss
 
+      # `error`, not `ignore`.  On a plain push only `selftest.png`
+      # matches -- the .dmg and the installer are made on a tag -- so
+      # this asks the one question `ignore` was silently answering
+      # wrong: the Windows job uploaded no artifact at all for weeks
+      # and said nothing, because the image it should have carried
+      # was never drawn.
       - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.label }}
-          if-no-files-found: ignore
+          if-no-files-found: error
           path: |
             *.dmg
             dist/*.exe
