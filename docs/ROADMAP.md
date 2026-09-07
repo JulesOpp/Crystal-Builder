@@ -3,510 +3,286 @@
 [docs/PLAN.md](PLAN.md) is the architecture and the roadmap that got
 the application built; [docs/TODO.md](TODO.md) is everything that came
 out of using it and has never been scheduled.  This file schedules it:
-what order, what each phase delivers, what it is allowed to touch, and
-what has to be true before the next one starts.
+what order, what each phase delivers, and what it is allowed to touch.
 
 Every phase ends with something runnable and a green suite, which is
 the same rule [docs/PLAN.md](PLAN.md) § 16 works to.  Sizes are orders
 of magnitude, not estimates: **S** is a day or less, **M** a few days,
-**L** a week or more, **XL** a project of its own.
+**L** a week or more.
 
-Phases A to I have shipped and their entries are gone from
-[docs/TODO.md](TODO.md).  What follows is the plan for what is left,
-rewritten around a change of priorities: the application can be
-trusted, and the next thing it has to do is **make** something.
-
----
-
-## 1. What comes first, and why in this order
-
-Three things are wanted before anything else, and they are wanted for
-different reasons.
-
-**Breaking up `mainwindow.py` comes first**, and not because 2415
-lines is unpleasant.  It comes first because two of the other five
-phases land inside it: PORMAKE is a new branch in the module-run
-plumbing and a dialog of its own, and the window rearrangement is a
-rewrite of the layout code.  Doing the split afterwards means doing it
-over code that has just been changed, with the diff of a pure move
-tangled up in the diff of a feature — which is the one thing a pure
-move must never be.  It is also the only phase here that adds no
-capability at all, so it is the one worth getting behind us.
-
-**PORMAKE next**, because it is the phase with a decision in it.  The
-dependency question (`pymatgen` and `jax` in an application that today
-installs four packages) has to be answered by trying it, and the answer
-changes what Phase U is allowed to assume.  Everything else on this
-list is work; this one is work plus a fact we do not have yet.
-
-*The fact is now in: 889 MB, 44 packages, and a ten-second import.
-Workable, as an extra and never on the import path — § 4.*
-
-**Add Atom at a bond length third**, because it is the smallest of the
-three and it does not block anything — but it builds the one piece of
-machinery two later entries need: the viewport has no hover event at
-all today, and the ghost atom, the tooltip and any future drag-preview
-all want the same `on_move`.
-
-*`Mode.on_move` is now there, along with `MoveEvent` and a
-`wants_move` flag so only the modes that ask pay for the ray.
-Phase T's tooltip inherits all of it — § 5.*
-
-```
-    P. split the shell ─┬──> the PORMAKE runner branch     (Phase Q)
-                        ├──> the default layout            (Phase T)
-                        └──> every phase after it
-
-    Q. PORMAKE ─────────┬──> the dependency answer         (Phase U)
-                        └──> "use the linker I drew"       (Phase U)
-
-    R. hover events ────┬──> the ghost atom                (Phase R)
-                        └──> the atom tooltip              (Phase T)
-```
-
-After those three the order is the user's stated one, with a single
-rearrangement: the **half bonds at the boundary** ride in Phase S
-rather than waiting, because they are a change to
-`viewport/builder.py`, which is the file Phase S is already open in,
-and because a net drawn on one cell of **pcu** showing three edges at a
-six-coordinate vertex is a wrong picture rather than a missing feature.
+A phase ships and its entries are deleted from
+[docs/TODO.md](TODO.md); a phase that has shipped is deleted from here.
+What follows is everything still owed.
 
 ---
 
-## 2. Cheap wins, available at any time
+## 1. The order
 
-Each of these is a day or less, depends on nothing, and can be pulled
-out of its phase whenever the pain is worth a detour.
-
-| Item | Phase it belongs to | Size |
+| Phase | Theme | Size |
 |---|---|---|
-| Edit cell in the right-click menu | T | S |
-| Export a net as `.cgd` for Systre | V | S |
+| 9 | A builder's output has nowhere to live | S |
+| 10 | Move mode, and what a click means | M |
+| 11 | Two more draw styles | M |
+| 6 | Force fields — UFF4MOF and GFN-FF/xTB | M |
+| V | The engines answer in pictures | L |
+| W | The klassengleiche half | L |
 
-The `.cgd` writer is the one to notice: it is listed last in priority
-and it is an afternoon, and Phase Q put a second consumer in front of
-it — PORMAKE reads `.cgd` topologies, so a writer is also the route
-from *a net the user drew* to *a framework built on it*.  Phase Q used
-the **reader** and did not need the writer, so this is still owed and
-is now the last piece of "build on the net I drew".
+The argument is **wrong before missing, and small before large**.
+Phase 9 is a bug wearing the clothes of a feature — a framework the
+application builds and then forgets — and it is a file or two.  10
+and 11 are the new capability, and 11 waits behind 10 because 10 is the
+one somebody asked for in order to *use* the application rather than to
+photograph it.  6 is data plus a registry entry and can be pulled
+forward whenever a MOF needs typing.  V and W are where an external
+tool and a piece of crystallography most users never reach are owed
+work, and neither blocks anything above it.
 
-
----
-
-## 3. The TODO header, in front of V and W
-
-`docs/TODO.md` gained a header of work raised while using the
-application, and it takes priority over Phases V and W below, which
-stay written and move behind it.  It is not one theme, so grouped by
-area it is seven phases, each landing in one or two files with a green
-suite between.
-
-| Phase | Theme | Size | |
-|---|---|---|---|
-| 1 | Topologies, generated rather than stored | M | *shipped* |
-| 2 | Image export | M | *shipped* |
-| 3 | Appearance | M | *shipped* |
-| 4 | Shell and menus, then a proposal | S | *shipped* |
-| 5 | Structure editing | S–M | *shipped* |
-| 6 | Force fields — UFF4MOF and GFN-FF/xTB | M | |
-| 7 | PXRD | L | *shipped* |
-
-**Phase 3 landed four entries and no new render path.**  The net and
-the plane colours were module constants and are now settings with a
-swatch each in the style panel; *Net only* is one more
-`register(DrawStyle(...))` and needed no builder branch, because
-`radius_factor = 0` already hides the atoms the way *Wireframe* does.
-
-A plane's colour did not stay a single setting for long.  The reason
-to draw a quad at all is to see where two planes cross, and two quads
-in one colour is the picture that cannot be read -- so the colour
-rides on the `Plane`, set per row from the Measure dock, and
-`ViewSettings.plane_color` is what a plane nobody has coloured falls
-back to.  Stored as an override and not as a copy of the default, so
-moving the default still moves every plane that was left alone.
-
-The two hard ones both came down to the same fact — **there is no
-per-atom mesh.**  Every ellipsoid is one instanced `vtkSphereSource`
-under a scale and a quaternion, so ORTEP's octants could not be
-per-point colours.  They are a second glyph over the same arrays
-instead: one small source of three principal sections and two opposite
-octants, which is right on every ellipsoid because every ellipsoid is
-the same unit sphere transformed.  Two opposite octants and not
-ORTEP's one, because a single octant fixed in the ellipsoid's frame
-faces away from the camera half the time and an atom that loses its
-shading as the structure turns reads as a different kind of atom.
-They are drawn only where the refinement measured an orientation.
-
-Occupancy pies could not take that route -- the angles differ per site
--- so they are real triangles from the builder, like a coordination
-polyhedron, over the spheres they replace rather than instead of them:
-every array in the scene model is indexed by drawn atom, and dropping
-the occupants of a shared site would put the labels, the legend, the
-picking and the selection flags out of step to save geometry that is
-hidden anyway.  Both offsets are set by the tessellation and not by
-taste, and the arithmetic is written down where they are.
-
-**And a pie faces the camera**, which is the one thing in the builder
-a camera gets a say in.  Cut about a fixed crystallographic axis the
-same 60/40 site reads as any split at all from most directions, and a
-pie chart that cannot be compared is not a pie chart.  It is still not
-a scene rebuilt on every orbit: the builder emits the vertices once as
-offsets from their own centre in a frame of the pie's own, and
-`SceneModel.pie_geometry` turns them onto the camera's axes -- from a
-render observer in the viewport, the way the depth cue and the scale
-bar already work, and from the projection's own frame in the SVG
-export, so the exported figure is not the one picture where the
-wedges cannot be compared.
-
-**The vector export also had its order wrong.**  A bond half was
-painted at its *midpoint's* depth, which is nearer than the atom it
-starts at whenever the bond runs towards the camera -- so half the
-bonds in any figure were drawn across the faces of their own atoms.
-A half carries its own atom's depth now, and the stable sort plus the
-emission order in `render_svg` puts it immediately behind the sphere
-it grows out of.
-
-**Phase 4 was three fixes and one document.**  The axis letter is a
-label beside each cell spin rather than the spinbox's prefix, which is
-what had been drawing it inside the field where the number goes; a
-cell-count change resets the camera, because growing 1x1x1 into 3x3x3
-puts eight ninths of the picture outside a frame that was set for one
-cell.  That rule is on the toolbar handler and deliberately not on
-`Document.set_cells`: a camera belongs to a viewport, `set_cells` is
-also called with nobody watching, and the second route to the same
-ranges -- `DisplayRangeDialog` -- does not go through it anyway.  Nor
-should it.  That dialog composes a picture with the camera already
-placed on what is being looked at.
-
-**Help is generated, not written.**  Every action already carries the
-sentence it shows in the status bar and every module parameter carries
-its own `help`, so `Help > Crystal Builder Help` reads both registries
-and builds two pages at the moment it opens: every command grouped the
-way the menu bar groups it, and every module with what each of its
-settings accepts.  Prose typed beside them would have repeated all of
-it and then drifted.  A command with no tip shows as a name and a key
-and nothing else, which is honest and is also the list of tips still
-owed.
-
-**The menu and toolbar rearrangement was written as a proposal --
-[docs/MENUS.md](MENUS.md) -- approved, and then built in the same
-phase.**  Its first section was not a matter of taste: Window sat
-after Help because `build_docks` appended a menu of its own after
-`build_menus` had finished, so the menu bar's order was a property of
-two files' call order rather than of either file's contents.
-`build_menus` creates the Window menu now, in the place the bar should
-read it, and `build_docks` fills it -- which is the only half that
-needs the docks.
-
-The bar reads File · Edit · Select · **Structure · Symmetry · Cell** ·
-**Measure · View** · Modules · Window · Help: what edits the crystal
-together, what changes the picture together, and what is about the
-application last.  The six mouse modes are a `Mouse mode` submenu
-rather than six flat entries that made the bottom of Structure read as
-though a mode were an edit, and Open Recent moved up beside Open
-Sample from the far end of the menu.  On the toolbar the element combo
-moved to the mode it belongs to -- it is the element Add atom places,
-and it stood beside Recalculate bonds -- and Reset view moved out of
-the undo group to close the bar with the three axis views, which were
-on no toolbar at all.  Those are a letter wide there and still
-`Along a` in the menu, because a toolbar button shows an action's icon
-text.
-
-**Nothing was renamed, so the expensive half was never paid.**  Six
-test files assert action *text* and action *keys*; not one of them
-changed, because every registry key is the key it was.  Nothing
-asserted menu *order* before, which is what made the rearrangement
-cheap -- and something does now, because the point of the fix is that
-the order should be a thing a file states.
-
-Items 18 and 21 were deleted from the TODO header without being built:
-Preferences shipped some time ago as a five-page dialog on Ctrl+comma,
-and the Supercell rename is withdrawn -- `Cell > Supercell...` builds
-a genuinely periodic supercell, and the non-periodic replication is
-the toolbar spins the same phase relabelled.
-
-**Phase 5 was two entries and one new widget.**  The periodic table is
-`xtalapp/widgets/periodic_table.py`, the package's first, because the
-button belongs beside all four of the application's element choosers
-and not only beside Add atom's.  Where each element sits is the one
-piece of data that was missing -- `xtal.core.elements` carries symbol,
-number, name and colour and no group or period, because nothing
-headless has ever needed them -- and it is written as a picture of the
-table rather than as 118 row/column pairs, so a misplaced element is
-visible rather than buried in a dict.  The buttons are drawn in the
-Jmol colours the viewport already uses, with the ink following the
-ground: hydrogen is white and iodine near-black, and one ink colour
-makes one end of the table unreadable.  One click picks and closes,
-because the dialog asks exactly one question.
-
-**A selected bond now reports its length, in both directions.**  It
-was the one question the measuring tool would not answer: a bond
-selection holds no atoms, so `Ctrl+M` was greyed out over the very
-thing being asked about, and Measure mode read a click on a bond as a
-click on nothing and cancelled.  What is stored is the *pair of
-atoms*, not the bond -- a measurement follows the crystal by being
-taken again over its atoms, and a bond that Recalculate removes would
-have taken an honest number off the table with it.  The number is the
-minimum-image distance like every other measurement, which is the
-bond's own for every bond perception draws.  Bonds are read only when
-no atom is selected, which is the state `select_bond` puts the
-selection in anyway; an atom still in hand means the atoms are the
-question.  Several selected bonds are measured in one batch and
-announced once, and the menu says how many it will take -- the promise
-`COUNTED_ACTIONS` already makes for Delete.
-
-**Phase 7 is a module, a report block and one reversed decision.**
-The science was ported nearly verbatim from the author's own
-`DataPlotter` -- the Lorentz-polarisation factor, the multiplicity
-count, the Debye-Waller attenuation, the pseudo-Voigt profile and the
-Caglioti width relation -- because it had already been checked against
-published patterns and it is numpy and gemmi, which are core
-dependencies.  What the port had to write was the input:
-`to_small_structure` takes the open document rather than a file, and
-its one real trap is that **the symmetry has to arrive as
-operations**.  Setting `spacegroup_hm` alone leaves `cell.images`
-empty, every structure factor is then summed over the asymmetric unit
-instead of the cell, and the pattern comes back with peaks in exactly
-the right places and the forbidden ones present -- halite's 100, which
-F centring forbids, a third the height of 200.  That is the one test
-worth having above all the others here.
-
-**The report grew its third block and its table grew columns**, which
-is the rule working twice.  `xtal/modules/report.py` said the second
-module that needed something its records could not say would get to
-add it against a real use, and a pattern is that use: ten thousand
-points on an angle axis is not a histogram of anything.  `Curve`
-carries the trace, further traces over the same axis, and *combs* of
-positions -- more than one, because the reflections a group allows and
-the ones it forbids are two statements about one axis, and telling
-which an unexpected peak sits over is the difference between an
-impurity and the wrong space group.  `Table` grew `columns` and `Row`
-grew `cells` for the same kind of reason: **No.**, **hkl**, **d**,
-**2θ** and **I** are five quantities across one row, where every table
-before it had one quantity per row.
-
-**Two things were built and taken back out**, and both are worth the
-sentence because both looked like improvements.  Coincident
-reflections were folded onto one line -- 333 and 511 share a d-spacing
--- and a threshold hid the weak ones.  Folding made the reflection
-list stop describing the structure it came from, which is the one
-thing the list is for: a crystal expanded to P1 has 100, 010 and 001
-as three independent reflections and is entitled to be told so.  The
-threshold hid exactly the rows somebody scanning for a second phase is
-looking for.  The list now shows every symmetry-*inequivalent*
-reflection, one per orbit, with the equivalents counted into the
-intensity -- and the representative is chosen to be the one a powder
-diffraction file prints, because gemmi's asymmetric unit hands back
-`0 2 0` where every card in the world writes `200`.
-
-**And the panel was made to scroll.**  Measured on MOF-5 in P1 --
-3177 reflections and 3701 points.  The table is a
-`QAbstractTableModel` behind a `QTableView` rather than fifteen
-thousand `QTableWidgetItem`s, which is what made a three-thousand-row
-list open at all.
-
-**Then it had two scrollbars, and they fought.**  The list scrolled
-inside a panel that also scrolled, so reaching the *Export table*
-button under a table meant scrolling the outer one past a widget that
-swallowed the wheel.  The fix is a size policy and not arithmetic, and
-the arithmetic is worth recording because it was written first:
-measure the other blocks, give the difference to the tables, correct
-on a second pass, defer a third.  It could not be made to settle.
-Every quantity it needed -- a wrapped label's height, the viewport's
-height, the layout's cached size hint -- is only true *after* the
-layout has run, and changing a table's height runs it again; the
-passes raced the resize and the panel came up differently on the same
-dock twice running.
-
-So the table is told what it is instead: at least `MIN_TABLE_ROWS`
-tall, never taller than its own rows, vertically expanding with a
-stretch factor of one, and the trailing spacer that would compete for
-the same slack is added only when there is no table to take it.  Qt
-distributes the leftover synchronously on every layout.  The last
-piece was `FittedTable.sizeHint`, and it is the one that is not
-guessable: `QScrollArea` with `widgetResizable` sizes its child to
-`max(viewport, sizeHint)` and **never to its minimum**, so a table
-that hinted at its content kept the outer scrollbar alive whatever
-else was done.  It hints at its minimum and grows by policy.
-
-Its **column widths are measured in Python rather than by Qt**, and
-that was two bugs in a row.  `ResizeToContents` measures every row, so it
-is O(rows) per layout and paid again on every scroll; capping it with
-`setResizeContentsPrecision` fixed the cost and broke the table, since
-the cap looks at the first fifty rows and a reflection list's
-hundredth row is the first whose **No.** is three digits -- so the
-column truncated for the rest of it.  Deciding each width from the
-longest string in the column, and handing only the ties to the font,
-is exact and costs nothing: 0.93 s to build the panel became 9 ms.  The curve caches
-its geometry, thins the trace to two points per pixel column, batches
-the comb into one `drawLines`, and -- the surprise, worth 40× on its
-own -- draws with a **one-pixel** pen, because Qt's raster engine
-strokes anything wider by building and filling a polygon outline.  A
-repaint went from 48 ms to 0.7 ms.
-
-**And matplotlib comes in, against § 2 of [docs/PLAN.md](PLAN.md).**
-That section had already named the case that would reverse it, which
-is exactly this one: an overlay of a measurement on a calculation
-wants axes that pan, zoom and pick, and a vector export whose text is
-still text.  It is the `pxrd` extra and not a dependency, and the line
-it is held to is that **the panel draws the answer without it** --
-`xtalapp/curve.py` is the same hundred lines of `QPainter` the
-optimisation trace and the pore size distribution are, the `.xy` is
-written either way, and what greys out naming the extra is one button
-that opens one window.  It is on the bundle's `COLLECT` list rather
-than its `EXCLUDES` now, which is the packaging half of the same
-decision.
+**One cheap win is available at any time**: the `.cgd` writer for
+Systre (Phase V, an afternoon).  It is listed last in priority and is
+also the only way to *doubt* the net the Net panel names.
 
 ---
 
-## 9. Phase V — the engines answer in pictures
+## 2. Phase 9 — a builder's output has nowhere to live
+
+**Goal:** a framework or a molecule the application builds is in the
+workspace when it opens, not after a trip through *Save As*.
+
+| Item | TODO entry | Size |
+|---|---|---|
+| MOF and molecule builds land in the workspace | header | S |
+
+Both builders are module actions with `needs_structure=False`
+(`xtal/modules/mof.py:297`, `xtal/modules/build.py:148`), so both arrive
+at `ModuleRunner._open_module_structure`, which opens a `Document` with
+no path and says so.  That was right when there was nowhere to put one
+and is wrong now: everything else in the tree got there without being
+asked about, and a build is the case where the file the user would save
+does not exist anywhere else yet.
+
+`Workspace.add_document(name)` was written for this — "an entry for a
+structure that has no file yet" — so the work is to take an entry when
+a workspace is open, write the CIF into it, and `attach_workspace`.
+The rule that survives is `_offer_workspace`'s: **with no workspace
+open, nothing is created behind anybody's back.**  The build opens in a
+tab as it does today and the status bar says why nothing was kept.
+
+---
+
+## 3. Phase 10 — Move mode, and what a click means
+
+**Goal:** drag an atom or a selection where it should go, and stop a
+click aimed at a net edge from deleting the chemistry under it.
+
+| Item | TODO entry | Size |
+|---|---|---|
+| Click-and-drag move, bonding unchanged | header | M |
+| A net edge under a bond cannot be clicked | Building | M |
+
+**A mode, not a tool.**  `modes.register(MoveMode())` puts *Move* in
+`Structure ▸ Mouse mode` and on the toolbar with no further change —
+`menus.py:270` and `menus.py:669` both generate from `modes.names()` —
+and its place beside *Draw net* is its place in the registration list
+at the foot of `modes.py`.
+
+The two pieces that do not already exist:
+
+* **A drag that reports while it is happening.**  `DragEvent` is a
+  press and a release with nothing in between, because the only mode
+  that wanted one was the rubber band, and the viewport hard-wires
+  press-drag-release to `_begin_band` / `_drag_band` / `_finish_band`.
+  A mode has to be able to say what a drag *is* for it — the way
+  `wants_move` was added so only the modes that need a ray pay for one
+  — and get the intermediate positions.
+* **A world position for a screen movement**, which is the same
+  question `AddAtomMode` answers with `point_on_sphere`: a drag has no
+  depth of its own, so the atom moves in the plane through it facing
+  the camera unless a modifier says otherwise.
+
+Everything downstream is built.  `MoveSites` merges while a gesture
+continues and closes its window when the button comes up
+(`docks/move.py`, `commands/atoms.py:265`), so forty frames of drag are
+one Ctrl+Z — and a move that changes no bonding is what every command
+in that file already does, so the invariant costs nothing here.
+
+**The net-edge click rides in this phase** because it is the same file
+and the same question.  Today an edge is taken only when the ray
+reached nothing else, so a click on an edge crossing a bond lands on
+the *bond* — and `Del` then suppresses that bond and its whole orbit:
+aiming at one net edge on MOF-5 and pressing Del deletes 96 chemical
+bonds and leaves the net on screen.  **Remove that outcome first**, and
+it is separable from whatever the picking rule becomes.  The rule
+worth trying is distance to the edge's axis rather than depth: inside a
+fraction of the drawn radius means the edge even when a bond is nearer
+the camera, outside means whatever is behind it.
+`test_an_edge_never_wins_a_click_from_the_bond_under_it` pins the
+current behaviour and is to be changed deliberately, not discovered.
+
+---
+
+## 4. Phase 11 — two more draw styles
+
+**Goal:** the two pictures a paper wants that the application cannot
+draw.
+
+| Item | TODO entry | Size |
+|---|---|---|
+| PLATON / CheckCIF style | header | M |
+| Cartoon style, made to vectorise | header | M |
+
+A style is a record in `viewport/styles.py` and the builder never asks
+which style it is — that is the rule polyhedra were the test of.  These
+two are honestly more than a record, and the cost is worth stating
+before the work starts: **there is no per-atom mesh**, so anything that
+is not a radius, a colour or a flag on `SceneModel` is a second glyph
+or real triangles, the way ORTEP's octants and the occupancy pies are.
+
+* **PLATON/CheckCIF** is a displacement-ellipsoid plot in the
+  convention every structure report is checked in: outlined atoms,
+  thin bonds, no specular highlight, and the ellipsoids the ORTEP style
+  already builds.  Most of it is fields — `ellipsoids=True`, a
+  monochrome-ish palette, the material settings that already exist per
+  actor in `vtk_scene.py`.  The outline is the new part.
+* **The cartoon style is the one with a reason beyond taste**: flat
+  fill plus a dark outline is *fewer* elements than the picture the SVG
+  exporter writes today, which gives every sphere a radial gradient in
+  `<defs>`.  A flat style exports as circles and strokes that
+  Illustrator can recolour by class in one selection.  So this style is
+  finished when `svg_export.py` draws it, not when the viewport does —
+  and the exporter reads flags off `SceneModel` (`bond_render`,
+  `ellipsoid_octants`), which is where the flag goes.
+
+Take PLATON first: it shares everything with a style that already
+works, and it says how much of "outline an instanced glyph" costs
+before the cartoon style is committed to.
+
+---
+
+## 5. Phase 6 — force fields
+
+**Goal:** the force field combo has something in it, and an MOF can be
+typed.
+
+| Item | TODO entry | Size |
+|---|---|---|
+| UFF4MOF | Phase 6 | M |
+| GFN-FF / xTB | Phase 6 | M |
+| Show the engines in the panel | Phase 6 | S |
+
+Kept in [docs/TODO.md](TODO.md) with its file references; the schedule
+is that **UFF4MOF goes first** because it is data.  `params.py`'s own
+docstring says a type name is a record and adding one needs no code, so
+the work is transcription, a typer rule where the geometry character is
+not enough, and a validation test against published geometries.  It
+makes a real MOF typable, which is the application's own stress case.
+
+GFN-FF/xTB is a second `ENGINES.register(Engine(...))` following
+`ff/dftb/calculator.py:451` exactly, including a `check` returning
+`Availability` so the entry greys out naming what is missing.
+
+Neither appears until `layout.py:86` lists it — `ForceFieldDock` hides
+its combo when it is given one engine — so that one-line change is the
+end of each of them, and it is what makes the phase visible at all.
+
+---
+
+## 6. Phase V — the engines answer in pictures
 
 **Goal:** the half of the external tools that is a drawing rather than
-a number, and the half of DFTB+ that its own driver does better.
+a number, and the half of DFTB+ its own driver does better.
 
-| Item | TODO section | Size |
+| Item | TODO entry | Size |
 |---|---|---|
 | Export a net as `.cgd` for Systre | Topology | S |
 | Zeo++: draw the answer, do not only print it | Modules | M |
 | DFTB+'s own driver | Modules | L |
 
-**The `.cgd` writer first, and it is an afternoon.**  The naming has
-shipped — the Net panel says **pcu** and the canonical key makes that
-a decision rather than a match — and there is still no way to *doubt*
-it.  `xtal/io/cgd.py` reads the format and does not write it; a writer
-and an action that saves the drawn net through it is the only way to
-put a net in front of **Systre**, the reference implementation, and
-get a second opinion that does not come from the code that produced
-the first.  The format is one `CRYSTAL` block with `NAME`, `GROUP P1`,
-`CELL` and one `NODE` per vertex with an `EDGE` per edge, and the net
-is already in exactly that shape.  Take it in Phase Q instead if
-PORMAKE's `.cgd` handling makes it fall out — but take it once.
+**The `.cgd` writer is an afternoon.**  The Net panel says **pcu** and
+the canonical key makes that a decision rather than a match, and there
+is still no way to doubt it.  `xtal/io/cgd.py` reads the format and
+does not write it; a writer and an action that saves the drawn net
+through it is the only second opinion that does not come from the code
+that produced the first.  One `CRYSTAL` block with `NAME`, `GROUP P1`,
+`CELL`, and a `NODE` per vertex with an `EDGE` per edge — the net is
+already in that shape.
 
-**Zeo++ is the reason this phase exists.**  The three diameters are in
-a table and the table is right, and a porous-materials application that
-can only *print* 9.18 Å is a spreadsheet.  The largest free sphere
-drawn where it actually sits is the picture somebody puts in a paper.
-`-res` gives the diameter and not the position, so this needs `-chan`
-or `-visVoro` and a new actor beside `_set_polyhedra` — which is the
-same actor Phase S builds for planes, and is the argument for S coming
-first.  Channel dimensionality (1D, 2D or 3D pores) falls out of
-`-chan`'s output for free, and `-vol` is parsed already and wants an
-action of its own.
+**Zeo++ is the reason this phase exists.**  A porous-materials
+application that can only *print* 9.18 Å is a spreadsheet.  `-res`
+gives the diameter and not the position, so the largest free sphere
+drawn where it sits needs `-chan` or `-visVoro` and a new actor beside
+`_set_polyhedra`.  Channel dimensionality falls out of `-chan` for
+free, and `-vol` is parsed already and wants an action of its own.
 
-**DFTB+'s own driver is a module, not an engine.**  Reached as an
-engine it already does a single point and a geometry optimisation with
-the symmetry projection intact; what its internal driver does better
-is **lattice relaxation** — ours costs twelve extra energy evaluations
-a step because no analytic stress is claimed — and **molecular
-dynamics**, which has no route through `Calculator` at all: MD is a
-trajectory DFTB+ produces, not a sequence of energies we ask for.
+**DFTB+'s own driver is a module, not an engine** — and per the note in
+[docs/TODO.md](TODO.md), a wrapper over what DFTB+ already does rather
+than a reimplementation of any of it.  As an engine it does a single
+point and a geometry optimisation with the symmetry projection intact;
+what the internal driver does better is **lattice relaxation** (ours
+costs twelve extra energy evaluations a step because no analytic stress
+is claimed) and **molecular dynamics**, which has no route through
+`Calculator` at all.  `ff/dftb/hsd.py` writes the input, `io/gen.py`
+reads the geometry back and `modules/process.py` runs, streams and
+cancels it; what is new is a `Driver` block, a multi-step output parser
+and the trajectory read into the transport bar.
 
-Most of it is already written.  `xtal/ff/dftb/hsd.py` writes the input
-and checks the parameter set, `xtal/io/gen.py` reads the geometry back,
-and `xtal/modules/process.py` runs, streams and cancels it.  What is
-new is a `Driver` block, the parsing of a multi-step output, and the
-trajectory read back into the transport bar.
-
-**The cheaper half of the stress question is worth doing first**: read
-DFTB+'s printed stress tensor and *check* it against `numeric_stress`
-on a structure with a known answer.  If it agrees, the engine can claim
-it and variable-cell relaxation gets twelve times cheaper without the
-driver being written at all.
-
-**Phase I's redraw rule applies here in full.**  Whatever DFTB+ writes
-into its run folder has to be a function of the run and not of what the
-window was showing: no frame skipped because nobody was looking, and
-the trajectory after a headless `xtal run` byte-for-byte the same as
-after a watched one.
+**The cheaper half of the stress question comes first**: read DFTB+'s
+printed stress tensor and *check* it against `numeric_stress` on a
+structure with a known answer.  If it agrees, the engine claims it and
+variable-cell relaxation gets twelve times cheaper with no driver
+written.  Phase I's redraw rule applies in full — what lands in the run
+folder is a function of the run and not of what the window was showing.
 
 ---
 
-## 10. Phase W — the klassengleiche half
+## 7. Phase W — the klassengleiche half
 
 **Goal:** *Descend to a subgroup* offers the subgroups that split an
 orbit without touching the cell, and then the ones that double it.
 
-| Item | TODO section | Size |
+| Item | TODO entry | Size |
 |---|---|---|
 | A lost centring, in the same cell | Symmetry | M |
 | A doubled cell, from the table | Symmetry | L |
 
-One TODO entry, two pieces that are nothing like each other, and they
-are separated here because the first is a computation and the second is
-a data set.
-
-**A lost centring needs no cell transformation at all.**  Fm-3m
-contains Pm-3m as a genuine subset of its operations, at index 4, in
-the same cubic cell; rock salt descended that way puts its four sodiums
-and four chlorines on eight independent sites, which is the
-cation-ordering model.  It is also why halite is the one fixture in the
-suite where no descent splits anything.
+**A lost centring needs no cell transformation.**  Fm-3m contains
+Pm-3m as a genuine subset of its operations, at index 4, in the same
+cubic cell; rock salt descended that way puts its sodiums and chlorines
+on eight independent sites, which is the cation-ordering model — and it
+is why halite is the one fixture where no descent splits anything.
 
 **It does not fall out of the existing enumeration** by not dividing
-the centring out.  `xtal/core/subgroups.py` reduces modulo the centring
+the centring out.  `core/subgroups.py` reduces modulo the centring
 translations on purpose: the reduction is what makes the closure
-affordable, and the "generated by at most three elements" shortcut — a
-fact about crystallographic *point* groups — stops being safe the
-moment the translations are back in.  A run that assumes it over
-Fm-3m's 192 operations reports 96 maximal subgroups, some maximal only
-because the intermediate group needed a fourth generator and was never
-found.  The tractable route keeps the reduction: enumerate the
-subgroups of the *centring* group that the point group leaves
-invariant, lift the reduced generators through each coset
-representative, and close.  For F that is a handful of closures.
-Naming and application need nothing new.
+affordable, and the "generated by at most three elements" shortcut is a
+fact about crystallographic *point* groups that stops being safe the
+moment the translations are back in.  The tractable route keeps the
+reduction — enumerate the subgroups of the *centring* group the point
+group leaves invariant, lift the reduced generators through each coset
+representative, and close.  Naming and application need nothing new.
 
-**The doubled cell is the table.**  Superstructures and
-antiferromagnetic ordering live there, every relation carries its own
-cell transformation and origin shift, and that is Bilbao's MAXSUB
-rather than a computation.  Worth doing last, and worth not implying
-the earlier versions do it — the dialog says *translationengleiche*
-and no cell is doubled, which stays true until this lands.
+**The doubled cell is a table, not a computation.**  Superstructures
+and antiferromagnetic ordering live there and every relation carries
+its own cell transformation and origin shift: Bilbao's MAXSUB.  Last,
+and worth not implying the earlier versions do it — the dialog says
+*translationengleiche* and no cell is doubled, which stays true until
+this lands.
 
 ---
 
-## 11. Summary
+## 8. What this plan does not do
 
-| Phase | Theme | Rough size | |
-|---|---|---|---|
-| **1–7** | The TODO header, by area — § 3 | M–L | *5 of 7 shipped* |
-| **V** | The engines answer in pictures | L | |
-| **W** | The klassengleiche half | L | |
-
-The header phases and V and W together schedule **every entry left in
-[docs/TODO.md](TODO.md)**, and nothing else.  P is the one phase with
-no TODO entry behind it, because nobody using the application ever
-asked for it and nobody using it will see it.  An entry ships when its
-phase does; a new entry arriving in TODO.md joins the phase it belongs
-to rather than starting a new one, and the day one does not fit any of
-them is the day this file is wrong and gets rewritten again.
-
-The order is one argument, and it has changed since the last version of
-this file.  It used to be *a wrong number is worse than a missing one*,
-and those phases have shipped.  It is now: **clear the ground, then
-build something new, then make what is already there easier to see.**
-P cleared the ground and Q built the first thing; U is the other
-phase that produces a structure rather than trusting one; R, S and T
-are the ordinary hour;
-V and W are the two places where an external tool and a piece of
-crystallography most users will never reach are still owed work.
-
-## 12. What this plan does not do
-
-* It does not schedule volumetric data, SHELX round-trips or
-  Rietveld.  Those are in [docs/PLAN.md](PLAN.md) § 12 and stay there
-  until something in this list is finished.  PXRD *was* on this line
-  and is Phase 7 above: simulation, the `.xy` either side of it and
-  the overlay, which is the machinery Rietveld would be built on and
-  is deliberately not Rietveld.
-* It does not promise the 2D sketcher.  It promises the 3D builder
-  underneath it, a text route into it, and — in Phase Q — a builder for
-  the one class of material where the 2D half is not needed at all.
-* It does not write a reticular builder.  Phase Q integrates one, and
-  the argument for that is in the phase.
+* It does not schedule the **parallel-suite hang**
+  ([docs/TODO.md](TODO.md) § Testing).  Serial is the default and the
+  suite is green; the hang costs 60 s a run, not correctness, and the
+  diagnosis in [CLAUDE.md](../CLAUDE.md) is where it waits for someone
+  with an afternoon and a `faulthandler` dump.
+* It does not schedule volumetric data, SHELX round-trips or Rietveld.
+  Those are [docs/PLAN.md](PLAN.md) § 12 and stay there until this
+  list is finished.  PXRD shipped and is deliberately not Rietveld.
+* It does not promise the 2D sketcher — it promises the 3D builder
+  under it and a text route into it.
 * It does not touch the design principles in
   [docs/PLAN.md](PLAN.md) § 1.  Every phase above keeps the core
   Qt-free, keeps every mutation a command, and adds capability through
-  registries — and where an entry in TODO.md is expensive, it is
-  usually because it is being made to obey those rules rather than go
-  around them.
+  registries — and where an entry is expensive, it is usually because
+  it is being made to obey those rules rather than go around them.

@@ -116,7 +116,11 @@ def build_actions(window):
     # both of these into the application menu, and left to itself Qt
     # decides which entries those are by reading their English text.
     # See ``ActionRegistry.add``.
-    add("quit", "&Quit", window.close, "Ctrl+Q",
+    # ``request_quit`` and not ``close``: Quit is reached from over a
+    # dialog as often as from the window, and the question about
+    # unsaved work has to be asked in front of it.  See
+    # ``MainWindow.confirm_quit``.
+    add("quit", "&Quit", window.request_quit, "Ctrl+Q",
         role=QAction.MenuRole.QuitRole)
 
     # One per structure shipped in ``resources/samples``.  Registered

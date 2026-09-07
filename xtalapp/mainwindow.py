@@ -26,6 +26,7 @@ from pathlib import Path
 
 from PySide6.QtGui import QColor, QGuiApplication
 from PySide6.QtWidgets import (
+    QApplication,
     QColorDialog,
     QInputDialog,
     QLabel,
@@ -76,6 +77,23 @@ def _default_viewport_factory(document, parent=None):
     return ViewportWidget(document, parent)
 
 
+def _dismiss_modals() -> None:
+    """Close whatever modal dialogs are open, the top one first.
+
+    A modal holds the keyboard, so a question raised behind one cannot
+    be answered and reads as no question at all.  Each is asked once
+    and the loop stops the moment one stays where it is, rather than
+    spinning against a dialog that declines to close.
+    """
+    asked: set[int] = set()
+    while True:
+        modal = QApplication.activeModalWidget()
+        if modal is None or id(modal) in asked:
+            return
+        asked.add(id(modal))
+        modal.close()
+
+
 class MainWindow(QMainWindow):
     """The one window: file tree on the left, structures in the middle,
     information on the right."""
@@ -118,6 +136,11 @@ class MainWindow(QMainWindow):
         # Built by Help > Help on demand and kept, so the pages are
         # generated once and the window comes back where it was left.
         self._help_window = None
+
+        # An answer to the unsaved-work question that a quit has
+        # already collected, waiting for the close it causes.  See
+        # ``confirm_quit``.
+        self._quit_confirmed = False
 
         self.document_set = DocumentSet(self)
         self.tabs = QTabWidget()
@@ -944,10 +967,23 @@ class MainWindow(QMainWindow):
     # here either opens one or is unambiguous enough not to need it.
 
     def find_symmetry(self) -> None:
+        """Detect and adopt, then reframe a cell that was re-expressed.
+
+        The camera belongs to the viewport and not to the dialog, so
+        the reset is here -- the same split *Descend to a subgroup*
+        keeps.  What the dialog has to say is *which* thing happened:
+        *Adopt* and *Label Wyckoff only* both come back Accepted and
+        only one of them re-expresses the cell, and a camera that
+        framed the old setting frames the new one badly or not at all.
+        """
         document = self.current_document()
-        if document is not None:
-            FindSymmetryDialog(document, self).exec()
-            self._announce(document)
+        if document is None:
+            return
+        dialog = FindSymmetryDialog(document, self)
+        dialog.exec()
+        self._announce(document)
+        if dialog.re_expressed:
+            self.reset_view()
 
     def set_space_group(self) -> None:
         document = self.current_document()
@@ -1636,21 +1672,60 @@ class MainWindow(QMainWindow):
             if path.is_file():
                 self.open_path(path)
 
+    # -- quitting ------------------------------------------------------
+    #
+    # Three ways in and one question.  The red button and Ctrl-W reach
+    # ``closeEvent``; Quit and the desktop asking us to terminate do
+    # not, and ``confirm_quit`` is what they call instead.  Both end at
+    # ``may_discard_unsaved``, so the question is written once.
+
+    def has_unsaved_work(self) -> bool:
+        """Whether any open document holds edits nobody has saved."""
+        return (not no_confirm_close()
+                and any(d.modified for d in self.documents))
+
+    def may_discard_unsaved(self) -> bool:
+        """Ask, once, whether the unsaved work may be thrown away."""
+        if not self.has_unsaved_work():
+            return True
+        answer = QMessageBox.question(
+            self, "Unsaved changes",
+            "Some structures have unsaved changes. Quit anyway?",
+            QMessageBox.Yes | QMessageBox.No)
+        return answer == QMessageBox.Yes
+
+    def confirm_quit(self) -> bool:
+        """Whether a quit that did not come through this window may go
+        ahead.
+
+        Cmd-Q is delivered to the application and not to the window, so
+        a dialog can be in front of it -- and a dialog is a modal that
+        holds the keyboard, so the question asked from underneath one
+        is a question nobody can answer.  It reads as a quit that never
+        asked, which is how unsaved work was lost.  The dialogs go
+        first, then the question, and the answer is remembered for the
+        close it is about to cause so that nobody is asked twice.
+        """
+        if not self.has_unsaved_work():
+            return True
+        _dismiss_modals()
+        self._quit_confirmed = self.may_discard_unsaved()
+        return self._quit_confirmed
+
+    def request_quit(self) -> None:
+        """*File > Quit*.  Ask first, then close."""
+        if self.confirm_quit():
+            self.close()
+
     def closeEvent(self, event):
         # A module run outlives the window that started it unless it
         # is stopped -- an external process especially, which would go
         # on writing into a run folder nobody is watching.
         self.stop_module()
-        for document in list(self.documents):
-            if document.modified and not no_confirm_close():
-                answer = QMessageBox.question(
-                    self, "Unsaved changes",
-                    "Some structures have unsaved changes. Quit anyway?",
-                    QMessageBox.Yes | QMessageBox.No)
-                if answer != QMessageBox.Yes:
-                    event.ignore()
-                    return
-                break
+        confirmed, self._quit_confirmed = self._quit_confirmed, False
+        if not confirmed and not self.may_discard_unsaved():
+            event.ignore()
+            return
         self.settings.save_window(self)
         self.settings.sync()
         super().closeEvent(event)

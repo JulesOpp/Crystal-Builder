@@ -18,6 +18,15 @@ structure from Finder with the window already up did *nothing at
 all*, which reads as the file association being broken -- and it is
 the first thing anybody tries after installing.
 
+The desktop asks for one other thing this object is the only one to
+hear: **quit**.  Cmd-Q does not travel through the window -- macOS
+sends it here -- so ``MainWindow.closeEvent`` is not where a quit can
+be questioned, and with a dialog open the question about unsaved work
+was raised behind a modal that holds the keyboard.  The application
+asks a guard first: :func:`xtalapp.main.main` hands it the window's
+``confirm_quit`` and a "no" cancels the quit.  Nothing is guarded when
+no guard was set, which is what a bare ``Application`` in a test is.
+
 The ordering is the part worth being careful about, because getting
 it backwards produces a bug that works every time it is tested by
 hand.  **The event can arrive before there is a window.**  A cold
@@ -33,6 +42,13 @@ from __future__ import annotations
 from PySide6.QtCore import QEvent, Signal
 from PySide6.QtWidgets import QApplication
 
+#: What the desktop asking us to quit arrives as.  Two of them because
+#: the answer depends on the Qt version and the platform: a menu Quit
+#: reaches the application as ``Quit``, and macOS's own terminate is
+#: delivered as a ``Close`` on the application object, whose accepted
+#: flag is read as the answer.  Both mean the same thing here.
+QUIT_EVENTS = (QEvent.Type.Quit, QEvent.Type.Close)
+
 
 class Application(QApplication):
     """The application object, with somewhere for a path to land."""
@@ -45,6 +61,7 @@ class Application(QApplication):
         super().__init__(list(argv or []))
         self._pending: list[str] = []
         self._delivering = False
+        self._quit_guard = None
 
     # -- the event ------------------------------------------------------
 
@@ -54,7 +71,29 @@ class Application(QApplication):
             if path:
                 self.open_later(path)
                 return True
+        if event.type() in QUIT_EVENTS and not self.may_quit():
+            # Ignored as well as swallowed: the terminate the Cocoa
+            # plugin sends reads the flag back off the event, so
+            # returning True on its own quits anyway.
+            event.ignore()
+            return True
         return super().event(event)
+
+    # -- quitting -------------------------------------------------------
+
+    def guard_quit(self, guard) -> None:
+        """Ask ``guard()`` before a quit from the desktop goes ahead.
+
+        One guard, set by :func:`xtalapp.main.main` to the window's
+        ``confirm_quit``; a second window would be a second question
+        and there has never been one.
+        """
+        self._quit_guard = guard
+
+    def may_quit(self) -> bool:
+        """Whether the quit the desktop asked for may go ahead."""
+        return True if self._quit_guard is None else bool(
+            self._quit_guard())
 
     @staticmethod
     def _path_of(event) -> str:
@@ -100,6 +139,7 @@ class Application(QApplication):
         """
         self._pending.clear()
         self._delivering = False
+        self._quit_guard = None
 
     def _flush(self) -> None:
         # Popped one at a time rather than iterated over a copy, so

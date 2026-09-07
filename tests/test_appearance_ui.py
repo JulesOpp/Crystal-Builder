@@ -21,6 +21,7 @@ from xtalapp.mainwindow import MainWindow  # noqa: E402
 from xtalapp.settings import AppSettings  # noqa: E402
 from xtalapp.viewport import modes, picking  # noqa: E402
 from xtalapp.viewport.builder import build_scene  # noqa: E402
+from xtalapp.viewport.view_settings import BACKGROUNDS  # noqa: E402
 
 
 @pytest.fixture
@@ -135,6 +136,78 @@ def test_a_cancelled_colour_dialog_changes_nothing(window, rutile_cif,
                         lambda *a, **k: QColor())      # invalid
     window.style_dock._on_element_cell(0, 1)
     assert document.view.element_colors == {}
+
+
+def test_the_style_dock_says_which_background_is_showing(window,
+                                                        rutile_cif):
+    """It said White for all four of them.
+
+    ``QComboBox.findData`` compares through QVariant, which never
+    matches a Python tuple against an equal one -- so a combo whose
+    entries carried colours answered -1 for every background there is,
+    and the panel fell back to its first entry every time it
+    refreshed.  Paper is how it was noticed; black and slate were just
+    as wrong.
+    """
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+
+    for name, color in BACKGROUNDS.items():
+        document.update_view(background=color)
+        assert dock.background.currentData() == name
+        assert dock.background.currentText() == name.capitalize()
+
+
+def test_a_background_chosen_in_the_dock_reaches_the_view(window,
+                                                          rutile_cif):
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+
+    dock.background.setCurrentIndex(dock.background.findData("paper"))
+
+    assert tuple(document.view.background) == BACKGROUNDS["paper"]
+    assert not document.modified
+
+
+def test_a_custom_background_keeps_saying_it_is_custom(
+        window, rutile_cif, monkeypatch):
+    """And can be picked again.
+
+    A colour that is none of the four used to read as White, which is
+    the same bug from the other side.  Now it reads Custom -- and
+    because a combo does not report the entry that is already current
+    being chosen again, choosing it a second time has to go through
+    ``activated`` or there is no way back to the colour dialog.
+    """
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    monkeypatch.setattr(QColorDialog, "getColor",
+                        lambda *a, **k: QColor(12, 34, 56))
+    custom = dock.background.findData("custom")
+
+    dock.background.activated.emit(custom)
+    assert tuple(document.view.background) == (12, 34, 56)
+    assert dock.background.currentData() == "custom"
+
+    monkeypatch.setattr(QColorDialog, "getColor",
+                        lambda *a, **k: QColor(65, 43, 21))
+    dock.background.activated.emit(custom)
+    assert tuple(document.view.background) == (65, 43, 21)
+    assert not document.modified
+
+
+def test_a_cancelled_background_dialog_leaves_the_view_alone(
+        window, rutile_cif, monkeypatch):
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    document.update_view(background=BACKGROUNDS["slate"])
+    monkeypatch.setattr(QColorDialog, "getColor",
+                        lambda *a, **k: QColor())          # invalid
+
+    dock.background.activated.emit(dock.background.findData("custom"))
+
+    assert tuple(document.view.background) == BACKGROUNDS["slate"]
+    assert dock.background.currentData() == "slate"
 
 
 def test_the_view_menu_and_the_style_dock_agree(window, rutile_cif):

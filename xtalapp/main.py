@@ -95,6 +95,10 @@ def main(argv=None) -> int:
     window = MainWindow(paths=paths)
     window.show()
     app.file_opened.connect(window.open_from_desktop)
+    # Cmd-Q is delivered to the application and not to the window, so
+    # the question about unsaved work is asked from here or not at
+    # all.  See :mod:`xtalapp.application`.
+    app.guard_quit(window.confirm_quit)
     app.start_delivering()
 
     # After the queue is released, and only if it left nothing: a

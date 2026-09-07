@@ -50,6 +50,11 @@ class FindSymmetryDialog(QDialog):
         self.setWindowTitle("Find symmetry")
         self.document = document
         self.info = None
+        #: Whether *Adopt* moved the atoms.  The window reads it to
+        #: decide whether the camera still frames the cell: *Adopt*
+        #: and *Label Wyckoff only* both come back Accepted and only
+        #: one of them re-expresses anything.
+        self.re_expressed = False
         self.resize(460, 460)
 
         self.tolerance = QComboBox()
@@ -61,8 +66,15 @@ class FindSymmetryDialog(QDialog):
             "Angstrom")
         self.tolerance.currentTextChanged.connect(self.refresh)
 
+        # Ticked, because the common case is a cell that is not in the
+        # standard setting and adopting the group is what the dialog
+        # was opened to do.  Left unticked it needed a box found and
+        # ticked before *Adopt* would do the thing that was asked for.
+        # The note stays and is what says what re-expressing costs --
+        # it is now the thing happening without being asked for.
         self.standardize = QCheckBox(
             "Re-express the cell in the standard setting first")
+        self.standardize.setChecked(True)
         self.standardize.setToolTip(
             "Needed whenever the cell as given is not already in the "
             "standard setting of the detected group")
@@ -162,9 +174,9 @@ class FindSymmetryDialog(QDialog):
             self.standardize.setEnabled(True)
             self.note.setText(
                 "This cell is not in the standard setting of "
-                f"{self.info.international}. Adopting the group means "
-                "re-expressing the cell, which moves the atoms; tick "
-                "the box above to allow it.")
+                f"{self.info.international}. Adopting the group will "
+                "re-express the cell, which moves the atoms; untick "
+                "the box above to keep the cell as it is.")
             self.note.show()
             return
         self.standardize.setEnabled(True)
@@ -202,12 +214,19 @@ class FindSymmetryDialog(QDialog):
     # -- committing ----------------------------------------------------
 
     def adopt(self) -> None:
-        report = self.document.find_symmetry(
-            self.symprec(), self.standardize.isChecked())
+        standardize = self.standardize.isChecked()
+        report = self.document.find_symmetry(self.symprec(),
+                                             standardize)
         if report is not None and not report.ok:
             self.note.setText(report.message)
             self.note.show()
             return
+        # Only when there was a setting to move out of: adopting in
+        # the standard setting reduces the cell to its asymmetric unit
+        # and leaves the box where it was, and a camera reset there
+        # would be the view jumping for nothing.
+        self.re_expressed = (standardize
+                             and not self.info.is_standard_setting)
         self.accept()
 
     def label_only(self) -> None:

@@ -19,10 +19,10 @@ wants an ``.ico``.
 **Two architectures, never universal2.**  VTK publishes no universal2
 wheel, so ``--target-arch universal2`` cannot work without building
 VTK from source, which this project is not going to do.  CI builds on
-``macos-14`` for arm64 and ``macos-13`` for x86_64 and ships two DMGs.
-Do not ship arm64 only and tell Intel users about Rosetta: Rosetta
-translates x86_64 for Apple silicon, not the other way round, so
-there would simply be nothing for them to run.
+``macos-14`` for arm64 and ``macos-15-intel`` for x86_64 and ships
+two DMGs.  Do not ship arm64 only and tell Intel users about
+Rosetta: Rosetta translates x86_64 for Apple silicon, not the other
+way round, so there would simply be nothing for them to run.
 """
 
 import sys

@@ -10,6 +10,12 @@ jobs:
   test:
     name: ${{ matrix.os }} · py${{ matrix.python }}
     runs-on: ${{ matrix.os }}
+    # A run takes about five minutes.  The cap is here because of the
+    # deadlock in CLAUDE.md -- `worker.finished` freeing a QThread
+    # wrapper inside signal delivery wedges roughly one run in four --
+    # and a wedged job otherwise sits on the six-hour default before
+    # anyone is told the suite hung.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -21,15 +27,18 @@ jobs:
         include:
           - os: macos-14          # Apple silicon
             python: "3.12"
-          - os: macos-13          # Intel
-            python: "3.12"
+          - os: macos-15-intel    # Intel.  Not macos-13: that image
+            python: "3.12"        # was retired on 2025-12-04 and a
+                                  # job asking for it is not refused,
+                                  # it queues for the full 24 h and
+                                  # then fails the run.
           - os: windows-latest
             python: "3.12"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0          # setuptools-scm needs the tags
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python }}
       # PySide6 links these and the runner images do not carry them,
@@ -74,8 +83,8 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       # ruff check only -- the codebase is hand-formatted to 79
@@ -91,6 +100,7 @@ jobs:
   build:
     name: bundle · ${{ matrix.label }}
     needs: test
+    timeout-minutes: 60
     if: >-
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' ||
@@ -103,18 +113,19 @@ jobs:
           - os: macos-14          # Apple silicon
             label: macos-arm64
             spec: packaging/macos.spec
-          - os: macos-13          # Intel.  VTK publishes no
-            label: macos-x86_64   # universal2 wheel, so two builds
-            spec: packaging/macos.spec
+          - os: macos-15-intel    # Intel.  VTK publishes no
+            label: macos-x86_64   # universal2 wheel, so two builds.
+            spec: packaging/macos.spec   # See the note above about
+                                         # macos-13.
           - os: windows-latest
             label: windows-x64
             spec: packaging/windows.spec
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0          # setuptools-scm needs the tags, and
                                   # a shallow clone builds 0.0.dev0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       # `ase` is not optional for a *build*, whatever pyproject calls
@@ -206,7 +217,7 @@ jobs:
           & $iscc.FullName "/DAppVersion=$version" `
             packaging\crystal-builder.iss
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.label }}
           if-no-files-found: ignore
@@ -222,12 +233,12 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
       - name: Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             artifacts/**/*.dmg

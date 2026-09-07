@@ -56,12 +56,25 @@ FLAT_COLORS = [("topology_color", "Net", "The colour of the topology "
                                          "of its own in the Measure "
                                          "dock, and of its normal")]
 
+#: The entry that stands for "none of the four".  A name rather than
+#: ``None``, so that a colour picked through it is a background the
+#: combo can go on showing instead of falling back to the first entry.
+CUSTOM_BACKGROUND = "custom"
+
 LABEL_MODES = [("none", "None"), ("element", "Element"),
                ("label", "Site label"), ("index", "Atom index")]
 ELEMENT_COLUMNS = ["El", "Colour", "Radius"]
 # Sliders are integers; these turn a percentage into a scale factor.
 SCALE_STEPS = 200
 SCALE_MAX = 3.0
+
+
+def _background_name(color) -> str:
+    """Which named background ``color`` is, or ``custom``."""
+    for name, preset in BACKGROUNDS.items():
+        if tuple(preset) == tuple(color):
+            return name
+    return CUSTOM_BACKGROUND
 
 
 class StylePanelDock(QDockWidget):
@@ -130,13 +143,20 @@ class StylePanelDock(QDockWidget):
             lambda: self._set(label_mode=self.labels.currentData()))
         form.addRow("Labels", self.labels)
 
+        # Each entry carries the *name* of a background and not the
+        # colour: QComboBox.findData compares through QVariant, which
+        # never matches a Python tuple against an equal one, so a combo
+        # holding colours answered -1 for every background there is and
+        # ``refresh`` fell back to index 0 -- the panel read White
+        # whatever the picture was.  ``preferences.py`` carries names
+        # for the same reason.
         self.background = QComboBox()
         for name in BACKGROUNDS:
-            self.background.addItem(name.capitalize(),
-                                    BACKGROUNDS[name])
-        self.background.addItem("Custom...", None)
+            self.background.addItem(name.capitalize(), name)
+        self.background.addItem("Custom...", CUSTOM_BACKGROUND)
         self.background.currentIndexChanged.connect(
             self._on_background)
+        self.background.activated.connect(self._on_custom_background)
         form.addRow("Background", self.background)
 
         # Every published ORTEP states its probability level, because
@@ -260,7 +280,7 @@ class StylePanelDock(QDockWidget):
         self.bond_radius.setValue(view.bond_radius)
         self.opacity.setValue(round(view.polyhedron_opacity * 100))
         self._choose(self.labels, view.label_mode)
-        self._choose(self.background, tuple(view.background))
+        self._choose(self.background, _background_name(view.background))
         self._choose(self.ellipsoid_probability,
                      view.ellipsoid_probability)
         ellipsoids = styles.get(view.style).ellipsoids
@@ -330,11 +350,22 @@ class StylePanelDock(QDockWidget):
         self.document.update_view(**values)
 
     def _on_background(self, _index: int) -> None:
-        if self._refreshing or self.document is None:
-            return
-        value = self.background.currentData()
-        if value is not None:
-            self._set(background=tuple(value))
+        """One of the four named backgrounds."""
+        color = BACKGROUNDS.get(self.background.currentData())
+        if color is not None:
+            self._set(background=tuple(color))
+
+    def _on_custom_background(self, index: int) -> None:
+        """*Custom...*, which is a button wearing a combo entry.
+
+        On ``activated`` rather than ``currentIndexChanged`` because
+        the entry now *stays* showing once a colour has been picked
+        through it, and a combo does not report the entry that is
+        already current being chosen again -- so the second visit to
+        the colour dialog would have nothing to open it.
+        """
+        if (self.background.itemData(index) != CUSTOM_BACKGROUND
+                or self._refreshing or self.document is None):
             return
         current = QColor(*self.document.view.background)
         chosen = QColorDialog.getColor(current, self, "Background")

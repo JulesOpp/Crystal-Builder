@@ -99,6 +99,35 @@ def _settings_into_a_scratch_directory() -> None:
 _settings_into_a_scratch_directory()
 
 
+def _menus_out_of_the_system_menu_bar() -> None:
+    """Keep a test window's menus off the machine's menu bar.
+
+    On macOS a ``QMenuBar`` *is* the system menu bar, and Qt installs
+    the one belonging to a window that was never shown just the same.
+    So for the three minutes a full run takes, every shortcut this
+    application has is live on the desktop -- and Qt spells ``Ctrl``
+    as Command there, so a stray Cmd+R typed while the run holds the
+    foreground opens *Display range* on whichever document a widget
+    test is holding.  It arrives as ``DisplayRangeDialog.exec() would
+    wait for a click`` against a test that never went near a dialog,
+    and it lands on a different test each time.  A release build, run
+    while somebody carries on using the machine, is exactly when that
+    happens.
+
+    Set at import because the attribute has to precede the
+    ``QApplication``, which pytest-qt builds from a fixture.
+    """
+    try:
+        from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import QApplication
+    except ImportError:               # the headless half of the suite
+        return
+    QApplication.setAttribute(Qt.AA_DontUseNativeMenuBar, True)
+
+
+_menus_out_of_the_system_menu_bar()
+
+
 #: The probe that decides whether this machine can render offscreen,
 #: run in a process of its own.  A string because the whole point is
 #: that it executes somewhere a crash cannot reach us.

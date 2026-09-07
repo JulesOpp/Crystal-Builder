@@ -1,12 +1,34 @@
 # TODO
 # Creating a file with MOF builder or molecule builder should automatically save the file in the workspace
 # Add more forcefield options to the Forcefield module
-# There is a bug. If the default background is set to paper, the background in the Style tab says White.
-# In the Find Symmetry, the default should be re-express in the standard setting (keep the button checked)
-# In the Find Symmetry, if the cell is re-expressed, then automatically call Reset View
-# When doing command-Q to exit, it doesn't ask you to save if you are in some dialog windows
 # Add platon/checkcif atom style
 # Add cartoon atom style, this one should be easily vectorized for exporting
+# Add click and drag move of atoms and selected groups of atoms, do not change bonding during moving. Add 'Move' to the top bar maybe next to 'Draw Net'
+
+## Phase 6 — force fields *(M)*
+
+* **UFF4MOF** — a parameter-table addition, not an engine.
+  `xtal/ff/uff/params.py`'s own docstring says the type name is data
+  and "adding a type needs no code": 127 records today, and UFF4MOF is
+  more of them for the MOF metal nodes. The work is transcription plus
+  a typer rule where the geometry character is not enough
+  (`xtal/ff/uff/typer.py`), and a validation test against published
+  geometries in the style of `tests/test_uff_validation.py`.
+* **GFN-FF / xTB** — a second `ENGINES.register(Engine(...))`
+  (`xtal/ff/registry.py:128`), following `xtal/ff/dftb/calculator.py:451`
+  exactly: a `Calculator` subclass, a `build(structure, **options)`
+  factory, `provides`, an `options` tuple of `Param`, and a `check`
+  returning `Availability` so the entry greys out naming what is
+  missing. Reached through `tblite` if importable, else the `xtb`
+  binary through `xtal/modules/process.py` with a path in
+  Preferences ▸ External tools (`external.py:83`) — the same seam
+  DFTB+ uses.
+* **The panel needs one change to show them.** `xtalapp/layout.py:86`
+  builds `ForceFieldDock(engines=["uff"])` and the panel hides its
+  combo when only one engine is offered (`ff_panel.py:324`). Listing
+  the new engine there is what makes it appear.
+
+
 
 Work that is wanted but not yet scheduled into a phase.
 [docs/PLAN.md](PLAN.md) holds the roadmap; this file holds everything

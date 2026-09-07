@@ -378,14 +378,25 @@ def test_a_range_box_applies_when_the_focus_leaves_it(qtbot):
     ``editingFinished`` while it calls the text *Intermediate* -- and
     an empty box is intermediate.  So clearing a box did nothing until
     the *other* one was edited, which is the one case the reset rule
-    was added for."""
+    was added for.
+
+    Waiting for the window to become *active* is not ceremony, and
+    ``waitActive`` has to be entered as a context manager -- called
+    bare it returns one and waits for nothing.  ``setFocus`` on a
+    window the desktop has not made key records the focus widget and
+    sends no focus event, so Tab moves nothing, the box never
+    finishes editing, and the axis keeps its old limit.  That is a
+    failure that turns up when the machine is busy with something
+    else while the suite runs, which is every release build.
+    """
     from PySide6.QtCore import Qt
 
     curve = a_pattern()
     window = pattern_window.PatternDialog(curve)
     qtbot.addWidget(window)
-    window.show()
-    qtbot.waitExposed(window)
+    with qtbot.waitActive(window):
+        window.show()
+        window.activateWindow()
 
     window.low.setFocus()
     window.low.selectAll()

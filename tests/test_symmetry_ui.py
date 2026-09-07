@@ -55,6 +55,19 @@ def flat_document(rutile):
     return Document(symmetry.reduce_to_p1(rutile))
 
 
+@pytest.fixture
+def shifted(rutile):
+    """The same coordinates with the origin moved off the standard
+    setting -- the cell the dialog cannot adopt without re-expressing
+    it, and the common case a file from somewhere else arrives in."""
+    out = symmetry.reduce_to_p1(rutile)
+    for site in out.sites:
+        site.frac = np.mod(site.frac + np.array([0.13, 0.07, 0.21]),
+                           1.0)
+    out.touch()
+    return out
+
+
 def n_atoms(document):
     return p1.expand(document.structure).n_atoms
 
@@ -114,6 +127,94 @@ def test_adopting_the_group_reduces_the_cell(qtbot, flat_document):
 
     flat_document.undo()
     assert flat_document.structure.n_sites == 6
+
+
+def test_re_expressing_the_cell_is_offered_ticked(qtbot,
+                                                  flat_document):
+    """The common case is a cell that is not in the standard setting,
+    and *Adopt* refuses outright without this -- so unticked meant a
+    box to find and tick before the dialog would do the thing it was
+    opened for."""
+    dialog = FindSymmetryDialog(flat_document)
+    qtbot.addWidget(dialog)
+    assert dialog.standardize.isChecked()
+
+
+def test_a_cell_in_another_setting_is_adopted_as_it_stands(qtbot,
+                                                           shifted):
+    """Nothing to tick: the origin shift is re-expressed away and the
+    group is adopted in one press."""
+    document = Document(shifted)
+    dialog = FindSymmetryDialog(document)
+    qtbot.addWidget(dialog)
+    dialog.tolerance.setCurrentText("1e-4")
+    assert not dialog.info.is_standard_setting
+
+    dialog.adopt()
+
+    assert dialog.result() == QDialog.Accepted
+    assert document.structure.space_group.number == 136
+    assert document.structure.n_sites == 2
+    assert dialog.re_expressed
+
+
+def test_adopting_in_the_standard_setting_re_expresses_nothing(
+        qtbot, flat_document):
+    """The camera still frames the cell, because the cell has not
+    moved -- only the number of sites inside it has."""
+    dialog = FindSymmetryDialog(flat_document)
+    qtbot.addWidget(dialog)
+    dialog.tolerance.setCurrentText("1e-4")
+    dialog.adopt()
+
+    assert flat_document.structure.n_sites == 2
+    assert not dialog.re_expressed
+
+
+def test_labelling_wyckoff_re_expresses_nothing(qtbot, shifted):
+    """Both buttons come back Accepted and only one of them moves an
+    atom, which is why the dialog has to say which happened."""
+    dialog = FindSymmetryDialog(Document(shifted))
+    qtbot.addWidget(dialog)
+    dialog.label_only()
+
+    assert dialog.result() == QDialog.Accepted
+    assert not dialog.re_expressed
+
+
+def test_finding_symmetry_resets_the_view_when_the_cell_moves(
+        monkeypatch, window, shifted, tmp_path):
+    """The camera belongs to the viewport, so the reset is the
+    window's -- the same split the subgroup descent keeps."""
+    from xtal.io import write_cif
+    path = tmp_path / "shifted.cif"
+    write_cif(shifted, path)
+    window.open_path(path)
+    document = window.current_document()
+    viewport = window.current_viewport()
+    monkeypatch.setattr(FindSymmetryDialog, "exec",
+                        lambda self: self.adopt())
+    before = viewport.resets
+
+    window.actions_["find_symmetry"].trigger()
+
+    assert document.structure.space_group.number == 136
+    assert viewport.resets == before + 1
+
+
+def test_finding_symmetry_leaves_a_settled_camera_alone(
+        monkeypatch, window, rutile_cif):
+    """Labelling Wyckoff letters moves nothing, and a view that jumps
+    for it is a view that jumped for no reason."""
+    window.open_path(rutile_cif)
+    viewport = window.current_viewport()
+    monkeypatch.setattr(FindSymmetryDialog, "exec",
+                        lambda self: self.label_only())
+    before = viewport.resets
+
+    window.actions_["find_symmetry"].trigger()
+
+    assert viewport.resets == before
 
 
 def test_labelling_wyckoff_moves_nothing(qtbot, document):
