@@ -30,7 +30,7 @@ import gemmi
 from xtal.core.lattice import Lattice
 from xtal.core.site import Site
 from xtal.core.spacegroup import SpaceGroup
-from xtal.core.structure import Structure
+from xtal.core.structure import Bond, Structure
 
 
 def read_cif(path) -> Structure:
@@ -136,7 +136,104 @@ def _from_small_structure(small, block, path: Path) -> Structure:
     if warnings:
         structure.meta["warnings"] = warnings
     structure.ensure_labels()
+    read_bonds(block, structure)
     return structure
+
+
+#: The tag that says a ``_geom_bond`` loop is a bond graph rather than
+#: a distance table.  See :func:`read_bonds`.
+KIND_TAG = "_xtal_bond_kind"
+
+_SYMMETRY_CODE = re.compile(r"^(\d+)_(\d)(\d)(\d)$")
+
+
+def read_bonds(block, structure) -> None:
+    """Take the bonds out of a ``_geom_bond`` loop this program wrote.
+
+    **Only one this program wrote**, which is what ``_xtal_bond_kind``
+    is doing here.  Plenty of published CIFs carry a ``_geom_bond``
+    loop and it is nearly always a *distance table* from the
+    refinement -- a selection of contacts somebody chose to tabulate,
+    not the bonding of the crystal.  Reading one of those in as the
+    bond graph would hand the user a structure bonded by whoever
+    prepared the file, silently, on open, which is the one thing
+    `Recalculate Bonds` exists to stay in charge of.
+
+    Everything is taken by label and the row is dropped if anything in
+    it does not read: a bond loop that has drifted out of step with
+    the atom-site loop is a file to open without its bonds, not a file
+    to refuse.
+    """
+    kinds = _column(block, KIND_TAG)
+    if not kinds:
+        return
+    where = {site.label: i for i, site in enumerate(structure.sites)}
+    ones = _column(block, "_geom_bond_atom_site_label_1")
+    twos = _column(block, "_geom_bond_atom_site_label_2")
+    codes = _column(block, "_geom_bond_site_symmetry_2")
+    images = _column(block, "_xtal_bond_image")
+    orders = _column(block, "_xtal_bond_order")
+    stated = _column(block, "_xtal_bond_stated")
+    for n, kind in enumerate(kinds):
+        i = where.get(_at(ones, n))
+        j = where.get(_at(twos, n))
+        if i is None or j is None:
+            continue
+        op, image = _symmetry_of(_at(codes, n))
+        told = _image_of(_at(images, n))
+        try:
+            order = float(_at(orders, n) or 1.0)
+        except ValueError:
+            order = 1.0
+        try:
+            structure.bonds.append(Bond(
+                i=i, j=j, image=told if told is not None else image,
+                order=order, kind=kind or "explicit", op=op,
+                stated=_at(stated, n).lower() in ("yes", "true", "1")))
+        except ValueError:
+            # A bond that cannot exist -- a site to itself in its own
+            # image, an operation index below zero.  A hand-edited
+            # file, and one row of it, not the file.
+            continue
+
+
+def _column(block, tag) -> list[str]:
+    """One column of a loop, unquoted, or ``[]`` if it is not there."""
+    return [gemmi.cif.as_string(v) for v in block.find_loop(tag)]
+
+
+def _at(column, n: int) -> str:
+    return column[n] if n < len(column) else ""
+
+
+def _symmetry_of(code: str) -> tuple[int, tuple[int, int, int]]:
+    """``n_pqr`` back into (operation, lattice translation).
+
+    ``(0, (0, 0, 0))`` -- the identity, in the same cell -- for
+    anything that is not that shape, which is what a bare ``.`` in
+    that column means and is also the safe reading of a code from
+    some other program's conventions.
+    """
+    match = _SYMMETRY_CODE.match(str(code).strip())
+    if not match:
+        return 0, (0, 0, 0)
+    n, p, q, r = match.groups()
+    return int(n) - 1, (int(p) - 5, int(q) - 5, int(r) - 5)
+
+
+def _image_of(text: str) -> tuple[int, int, int] | None:
+    """``1,0,-1`` back into a lattice translation, or ``None``.
+
+    Written for every bond because ``n_pqr`` runs out at four cells,
+    so this is the answer whenever there is one.
+    """
+    parts = str(text).split(",")
+    if len(parts) != 3:
+        return None
+    try:
+        return tuple(int(p) for p in parts)
+    except ValueError:
+        return None
 
 
 def _aniso(site) -> tuple | None:

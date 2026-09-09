@@ -22,6 +22,12 @@ structure to a format with nowhere to put the occupancies should not be
 a silent loss, so the line under the picker is computed from the set:
 "XYZ keeps occupancy; symmetry, bonds and charges are not written."
 
+It says what *this application* drops as well, which is the other
+half of the same question: the workspace copy of a structure carries
+the markers the user placed and the net drawn over a framework, and
+the file somebody else opens carries neither -- see
+:func:`xtal.io.export.for_export`.
+
 **Selection only.**  "Export just this molecule" is the second thing
 anybody wants after "export this".
 """
@@ -46,7 +52,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from xtal.io import FORMATS
+from xtal.io import FORMATS, what_is_dropped
 
 # What a round trip can lose, in the order a chemist would miss it.
 # The registry's ``keeps`` is a set of these names.
@@ -149,6 +155,11 @@ class ExportDialog(QDialog):
         self.setLayout(body)
 
         self._directory = Path(directory or Path.home())
+        # Said in the same place and the same voice as what the
+        # format drops, because from where the user is standing it is
+        # the same question -- the difference is that this half is
+        # this application's doing rather than the file format's.
+        self._cleaned = what_is_dropped(document.structure)
         self.path.setText(str(self._suggested()))
         self._on_format()
 
@@ -169,7 +180,8 @@ class ExportDialog(QDialog):
 
     def _on_format(self) -> None:
         fmt = self.current_format()
-        self.keeps.setText(keeps_text(fmt))
+        self.keeps.setText(
+            "  ".join(x for x in (keeps_text(fmt), self._cleaned) if x))
         self.symmetry_box.setVisible(fmt.name == "cif")
         text = self.path.text().strip()
         if text:

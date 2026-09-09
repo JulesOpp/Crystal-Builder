@@ -58,6 +58,20 @@ def window(qtbot, tmp_path, monkeypatch):
 
 
 @pytest.fixture
+def guarded(qapp, window):
+    """The session's application, guarding *this* window's quit.
+
+    What :func:`xtalapp.main.main` wires up, undone afterwards: the
+    application is one object shared by the whole run and a guard left
+    on it holds a closed window.
+    """
+    qapp.reset()
+    qapp.guard_quit(window.confirm_quit)
+    yield qapp
+    qapp.reset()
+
+
+@pytest.fixture
 def answers(monkeypatch):
     """Record what was asked, and answer it.
 
@@ -161,6 +175,37 @@ def test_the_same_question_is_not_asked_twice(window, rutile_cif,
 
     assert len(answers) == 1
     assert not window.isVisible()
+
+
+def test_one_quit_is_several_events_and_one_question(
+        window, rutile_cif, answers, guarded):
+    """What put the question up twice on the way out.
+
+    A Cmd-Q is the menu action *and* the terminate the desktop sends
+    after it, and the documents are still modified through both -- so
+    an answer worked out afresh each time is a question asked again
+    each time.  The yes is kept instead.
+    """
+    _dirty(window, rutile_cif)
+    answers.answer = QMessageBox.Yes
+
+    window.actions_["quit"].trigger()
+
+    assert guarded.may_quit() is True       # the terminate after it
+    assert guarded.may_quit() is True       # and whatever follows that
+    assert len(answers) == 1
+
+
+def test_a_desktop_quit_asks_once_however_often_it_arrives(
+        window, rutile_cif, answers, guarded):
+    """The same, for the quit that never touches the menu at all."""
+    _dirty(window, rutile_cif)
+    answers.answer = QMessageBox.Yes
+
+    assert guarded.may_quit() is True
+    assert guarded.may_quit() is True
+
+    assert len(answers) == 1
 
 
 def test_a_quit_with_nothing_unsaved_asks_nothing(window, rutile_cif,

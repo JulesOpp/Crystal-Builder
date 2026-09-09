@@ -527,8 +527,16 @@ class Catalog:
         self._failures: list[str] = []
 
     @classmethod
-    def default(cls, topology_dir="", bb_dir="") -> Catalog:
-        """PORMAKE's bundled database, plus the user's own folders."""
+    def default(cls, topology_dir="", bb_dir="",
+                also_blocks=()) -> Catalog:
+        """PORMAKE's bundled database, plus the user's own folders.
+
+        ``also_blocks`` is every other folder of blocks to read -- the
+        open workspace's, in the application -- and comes last for the
+        same reason ``bb_dir`` comes after PORMAKE's: a file in a
+        later directory replaces one of the same name in an earlier
+        one, so a block you drew wins over a block you were shipped.
+        """
         root = database_root()
         topologies = [root / "topologies"] if root else []
         blocks = [root / "bbs"] if root else []
@@ -536,6 +544,7 @@ class Catalog:
             topologies.append(Path(topology_dir).expanduser())
         if bb_dir:
             blocks.append(Path(bb_dir).expanduser())
+        blocks += [Path(p).expanduser() for p in also_blocks if p]
         return cls(tuple(topologies), tuple(blocks))
 
     @property

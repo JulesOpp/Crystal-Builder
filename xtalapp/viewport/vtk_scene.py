@@ -93,6 +93,7 @@ from xtalapp.viewport.scene import (
     HIGHLIGHT_COLOR,
     HIGHLIGHT_GROWTH,
     HIGHLIGHT_OPACITY,
+    OCTANT_DARKEN,
     split_by_order,
 )
 
@@ -124,12 +125,16 @@ OCTANT_ARC_RADIUS = 1.020
 OCTANT_SHADE_RADIUS = 1.012
 OCTANT_SEGMENTS = 48            # per principal section
 OCTANT_SUBDIVISIONS = 10        # of each shaded octant
-#: How far towards black the shading and the arcs are taken from the
-#: atom's own colour.  Dark enough to read as ORTEP ink, still the
-#: element's hue -- a fixed black would lose which atom is which in a
-#: picture whose whole subject is the atoms.
-OCTANT_DARKEN = 0.42
 MAX_LABELS = 400            # beyond this, labels are noise anyway
+
+# A matte surface: the same shading with the highlight taken off and
+# the shadowed side lifted, because a figure that will be printed
+# cannot afford a white hole on every atom -- and because the side of
+# an atom facing away from the light has to keep its colour when the
+# picture is the atoms and nothing else.  VTK's own defaults (ambient
+# 0, diffuse 1) are what "lit" puts back.
+MATTE_AMBIENT = 0.38
+MATTE_DIFFUSE = 0.72
 
 # The element legend, in fractions of the window.
 LEGEND_X = 0.90
@@ -403,6 +408,7 @@ class VtkScene:
         self._label_actors: list[vtkBillboardTextActor3D] = []
         self._legend_actors: list = []
         self._build_atom_actor()
+        self._build_outline_actor()
         self._build_octant_actor()
         self._build_bond_actor()
         self._build_polyhedron_actor()
@@ -443,6 +449,66 @@ class VtkScene:
         self.atom_actor.GetProperty().SetSpecular(0.3)
         self.atom_actor.GetProperty().SetSpecularPower(30)
         self.renderer.AddActor(self.atom_actor)
+
+    def _build_outline_actor(self):
+        """The ink around every atom and bond: two more instanced
+        glyphs, and no per-atom geometry anywhere.
+
+        **An inverted hull.**  There is no per-atom mesh to run a
+        silhouette filter over -- the whole picture is one glyph
+        mapper instancing one sphere -- so the outline is the same
+        glyph grown by the ink width, drawn in the ink colour with the
+        *front* faces culled.  What is left is the inside of the back
+        of a slightly larger atom, which the atom itself covers
+        everywhere except the ring around its silhouette.  It costs
+        one actor for the whole structure, it follows an ellipsoid's
+        three scales and its rotation exactly as the atom does, and it
+        occludes correctly against everything else in the scene
+        because it is real geometry at a real depth.
+
+        The bonds get the same treatment through their own tube: a
+        wider tube behind a narrower one is the same trick, and
+        without it a cartoon picture has outlined atoms floating on
+        unoutlined sticks.
+        """
+        self._outline_poly = vtkPolyData()
+        sphere = vtkSphereSource()
+        sphere.SetRadius(1.0)
+        sphere.SetThetaResolution(SPHERE_RESOLUTION)
+        sphere.SetPhiResolution(SPHERE_RESOLUTION)
+        mapper = vtkGlyph3DMapper()
+        mapper.SetSourceConnection(sphere.GetOutputPort())
+        mapper.SetInputData(self._outline_poly)
+        mapper.SetScalarModeToUsePointFieldData()
+        mapper.SetScaleArray("radii")
+        mapper.SetScaleModeToScaleByMagnitude()
+        mapper.ScalarVisibilityOff()
+        self.outline_mapper = mapper
+        self.outline_actor = vtkActor()
+        self.outline_actor.SetMapper(mapper)
+        self._style_outline(self.outline_actor)
+        self.renderer.AddActor(self.outline_actor)
+
+        self._outline_bond_poly = vtkPolyData()
+        self._outline_tube = vtkTubeFilter()
+        self._outline_tube.SetInputData(self._outline_bond_poly)
+        self._outline_tube.SetNumberOfSides(TUBE_SIDES)
+        self._outline_tube.CappingOn()
+        bond_mapper = vtkPolyDataMapper()
+        bond_mapper.SetInputConnection(self._outline_tube.GetOutputPort())
+        bond_mapper.ScalarVisibilityOff()
+        self.outline_bond_actor = vtkActor()
+        self.outline_bond_actor.SetMapper(bond_mapper)
+        self._style_outline(self.outline_bond_actor)
+        self.renderer.AddActor(self.outline_bond_actor)
+
+    @staticmethod
+    def _style_outline(actor):
+        prop = actor.GetProperty()
+        prop.SetLighting(False)     # ink is ink, wherever the light is
+        prop.FrontfaceCullingOn()
+        prop.BackfaceCullingOff()
+        actor.SetVisibility(False)
 
     def _build_octant_actor(self):
         """ORTEP's octant shading: a second glyph over the same atoms.
@@ -835,6 +901,7 @@ class VtkScene:
         self.renderer.SetBackground(r / 255, g / 255, b / 255)
 
         self._set_atoms(model)
+        self._set_outline(model)
         self._set_octants(model)
         self._set_bonds(model)
         self._set_polyhedra(model)
@@ -878,6 +945,9 @@ class VtkScene:
         if model.n_atoms:
             self._atom_poly.SetPoints(_points(model.positions))
             self._atom_poly.Modified()
+        if model.is_outlined and model.n_atoms:
+            self._outline_poly.SetPoints(_points(model.positions))
+            self._outline_poly.Modified()
         if len(self._octant_rows):
             self._octant_poly.SetPoints(
                 _points(model.positions[self._octant_rows]))
@@ -887,6 +957,10 @@ class VtkScene:
             self._bond_poly.SetPoints(
                 _points(_interleave(solid[0], solid[1])))
             self._bond_poly.Modified()
+            if self.outline_bond_actor.GetVisibility():
+                self._outline_bond_poly.SetPoints(
+                    _points(_interleave(solid[0], solid[1])))
+                self._outline_bond_poly.Modified()
             if len(dashed[0]):
                 self._dash_poly.SetPoints(
                     _points(_interleave(dashed[0], dashed[1])))
@@ -928,6 +1002,8 @@ class VtkScene:
                 and np.array_equal(model.bond_orders,
                                    current.bond_orders)
                 and model.bond_render == current.bond_render
+                and model.shading == current.shading
+                and model.outline == current.outline
                 and model.n_polyhedron_faces
                 == current.n_polyhedron_faces
                 and len(model.polyhedron_points)
@@ -966,6 +1042,7 @@ class VtkScene:
         self._atom_poly = poly
         self._set_glyph_shape(model)
         self.atom_mapper.SetInputData(poly)
+        self._apply_shading(self.atom_actor, model.shading, 0.3)
         self.atom_actor.SetVisibility(model.n_atoms > 0)
 
     def _set_glyph_shape(self, model):
@@ -1005,6 +1082,80 @@ class VtkScene:
         self.octant_mapper.SetInputData(poly)
         self.octant_actor.SetVisibility(True)
 
+    def _set_outline(self, model):
+        """The ink glyphs, grown by the style's outline width.
+
+        Called after :meth:`_set_atoms`, which is where ``_axes`` and
+        ``_quaternions`` are decomposed: an outlined ellipsoid is the
+        same transform as the ellipsoid, scaled, and doing the SVD
+        twice for one picture would be the only expensive thing here.
+        """
+        if not model.is_outlined:
+            self.outline_actor.SetVisibility(False)
+            self.outline_bond_actor.SetVisibility(False)
+            return
+        grow = 1.0 + float(model.outline)
+        ink = [c / 255 for c in model.outline_color]
+        poly = vtkPolyData()
+        if model.n_atoms:
+            poly.SetPoints(_points(model.positions))
+            poly.GetPointData().AddArray(
+                _to_float(np.asarray(model.radii, np.float32) * grow,
+                          "radii"))
+        mapper = self.outline_mapper
+        if model.draws_ellipsoids and model.n_atoms:
+            poly.GetPointData().AddArray(
+                _to_float(self._axes * grow, "axes"))
+            poly.GetPointData().AddArray(
+                _to_float(self._quaternions, "quaternions"))
+            mapper.SetScaleArray("axes")
+            mapper.SetScaleModeToScaleByVectorComponents()
+            mapper.SetOrientationArray("quaternions")
+            mapper.SetOrientationModeToQuaternion()
+            mapper.OrientOn()
+        else:
+            mapper.SetScaleArray("radii")
+            mapper.SetScaleModeToScaleByMagnitude()
+            mapper.OrientOff()
+        self._outline_poly = poly
+        mapper.SetInputData(poly)
+        self.outline_actor.GetProperty().SetColor(*ink)
+        self.outline_actor.SetVisibility(model.n_atoms > 0)
+
+        # Lines have no surface to grow, so a wireframe picture is
+        # outlined at its atoms and nowhere else -- which is the whole
+        # of what a wireframe draws anyway.
+        tubes = bool(model.n_bond_halves) and model.bond_render != "line"
+        if tubes:
+            solid, _dashed = split_by_order(model)
+            self._outline_bond_poly = _line_polydata(*solid)
+            self._outline_tube.SetInputData(self._outline_bond_poly)
+            self._outline_tube.SetRadius(model.bond_radius * grow)
+            self.outline_bond_actor.GetProperty().SetColor(*ink)
+        self.outline_bond_actor.SetVisibility(tubes)
+
+    @staticmethod
+    def _apply_shading(actor, shading: str, specular: float) -> None:
+        """The material ``shading`` names, on one actor.
+
+        ``specular`` is the highlight that actor is drawn with when a
+        style asks for nothing, and is the actor's own: bonds have
+        always carried less of one than atoms.
+        """
+        prop = actor.GetProperty()
+        if shading == "flat":
+            prop.SetLighting(False)
+            return
+        prop.SetLighting(True)
+        if shading == "matte":
+            prop.SetAmbient(MATTE_AMBIENT)
+            prop.SetDiffuse(MATTE_DIFFUSE)
+            prop.SetSpecular(0.0)
+        else:
+            prop.SetAmbient(0.0)
+            prop.SetDiffuse(1.0)
+            prop.SetSpecular(specular)
+
     def _set_bonds(self, model):
         """One line per tube: a double bond arrives here as two.
 
@@ -1019,15 +1170,17 @@ class VtkScene:
         solid, dashed = split_by_order(model)
         poly = _line_polydata(*solid)
         self._bond_poly = poly
+        self._apply_shading(self.bond_actor, model.shading, 0.2)
+        self._apply_shading(self.dash_actor, model.shading, 0.2)
         if model.bond_render == "line":
             self.bond_mapper.SetInputData(poly)
             self.bond_actor.GetProperty().SetLineWidth(2.0)
+            # A line has no surface to light, whatever the style asks.
             self.bond_actor.GetProperty().SetLighting(False)
         else:
             self._tube.SetInputData(poly)
             self._tube.SetRadius(model.bond_radius)
             self.bond_mapper.SetInputConnection(self._tube.GetOutputPort())
-            self.bond_actor.GetProperty().SetLighting(True)
         self.bond_actor.SetVisibility(True)
 
         if len(dashed[0]):
@@ -1294,7 +1447,8 @@ class VtkScene:
 
     def _cued_actors(self):
         return (self.atom_actor, self.octant_actor, self.bond_actor,
-                self.dash_actor, self.polyhedron_actor, self.pie_actor)
+                self.dash_actor, self.polyhedron_actor, self.pie_actor,
+                self.outline_actor, self.outline_bond_actor)
 
     def _watch_camera(self) -> None:
         """Keep the near and far distances, and the scale bar, up to

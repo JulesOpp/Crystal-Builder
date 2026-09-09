@@ -1,8 +1,7 @@
 # TODO
-# Creating a file with MOF builder or molecule builder should automatically save the file in the workspace
+# Depth cuing throws errors with cartoon style
+# Add more options for the depth cuing - i.e., the gradient of the depth
 # Add more forcefield options to the Forcefield module
-# Add platon/checkcif atom style
-# Add cartoon atom style, this one should be easily vectorized for exporting
 # Add click and drag move of atoms and selected groups of atoms, do not change bonding during moving. Add 'Move' to the top bar maybe next to 'Draw Net'
 
 ## Phase 6 — force fields *(M)*

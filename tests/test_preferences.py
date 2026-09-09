@@ -24,8 +24,8 @@ from xtalapp import external, menus, samples  # noqa: E402
 from xtalapp.dialogs.preferences import PreferencesDialog  # noqa: E402
 from xtalapp.mainwindow import MainWindow  # noqa: E402
 from xtalapp.settings import (  # noqa: E402
-    BUILT_IN_WORKSPACE_ROOT,
     AppSettings,
+    built_in_workspace_root,
 )
 
 
@@ -151,7 +151,8 @@ def test_emptying_the_workspace_folder_goes_back_to_the_built_in(
 
     page.workspace_root.setText("")
 
-    assert settings.default_workspace_root == BUILT_IN_WORKSPACE_ROOT
+    assert (settings.default_workspace_root
+            == built_in_workspace_root())
 
 
 def test_clearing_the_recent_files_empties_them_and_says_so(

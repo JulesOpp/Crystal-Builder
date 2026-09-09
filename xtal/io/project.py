@@ -24,11 +24,15 @@ The file is a zip of small, readable parts:
 
 Two decisions are worth stating.  **It is a zip of text, not a pickle**:
 a project should still be openable in five years and diffable today, and
-every part of it can be read with an editor.  And the **bonds are stored
-beside the CIF rather than in it**, because a CIF has nowhere to put
-them -- a bond here is (site, site, symmetry operation, lattice
-translation), which no CIF tag expresses.  Writing them separately keeps
-``structure.cif`` a real CIF that any other program can open.
+every part of it can be read with an editor.  And ``bonds.json`` holds
+what the CIF still cannot: the perceived graph and the bond rules.
+
+The bonds themselves are now in ``structure.cif`` -- ``_geom_bond``
+says (site, site, operation, translation) and always could, which this
+file used to claim it did not.  They are still written to
+``bonds.json`` as well, because a project written by this version has
+to stay readable by the code that reads that part, and
+:func:`_restore_bonds` is still the authority on the way back in.
 """
 
 from __future__ import annotations

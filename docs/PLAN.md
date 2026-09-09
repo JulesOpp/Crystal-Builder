@@ -173,7 +173,7 @@ Crystal-Builder/
 │   │   ├── builder.py        # Structure + ViewSettings → SceneModel
 │   │   ├── vtk_scene.py      # SceneModel → actors; set_positions for a geometry-only change
 │   │   ├── styles.py         # ball-and-stick (plain and occupancy), stick, wireframe, net,
-│   │   │                     #   space-filling, polyhedra, ORTEP
+│   │   │                     #   space-filling, polyhedra, ORTEP, PLATON, cartoon
 │   │   ├── picking.py        # hardware selection → (site, image) ids
 │   │   ├── modes.py          # select / add atom / add bond / measure / move
 │   │   └── view_settings.py  # what is drawn: never on the undo stack, saved with the session
@@ -407,6 +407,10 @@ two half-bonds so each half takes its atom's colour) | cell_edges | labels
   (VESTA's signature style), semi-transparent, colour from centre atom.
 * ORTEP → the octant shading as a second glyph over the same scale and
   orientation arrays, on the atoms refined anisotropically.
+* Outlines (PLATON, cartoon) → a third glyph, grown by the ink width
+  and drawn with the front faces culled: an inverted hull, because
+  there is no per-atom mesh to run a silhouette filter over.  A
+  matching tube does the bonds.
 * Occupancy → a site more than one thing shares, as a sphere cut into
   wedges over the spheres it replaces.
 * Overlays: orientation axes widget, scale bar, element legend, depth
@@ -522,7 +526,7 @@ uncertain.
 small molecules (benzene, water, cyclohexane), a framework lattice
 constant after relaxation, and gradient-vs-finite-difference checks on
 every term. The lattice-constant regression is **MFU-4l**, not
-MOF-5/IRMOF-1 as first written; see [ROADMAP.md](ROADMAP.md) § 8 for
+MOF-5/IRMOF-1 as first written; see [ROADMAP.md](ROADMAP.md) § 7 for
 why. The cross-check against ASE+OpenBabel is not built.
 
 **Extensibility** — everything sits behind `ff/api.py::Calculator`, so

@@ -20,22 +20,19 @@ What follows is everything still owed.
 
 | Phase | Theme | Size |
 |---|---|---|
-| 9 | A builder's output has nowhere to live | S |
 | 10 | Move mode, and what a click means | M |
-| 11 | Two more draw styles | M |
 | 6 | Force fields — UFF4MOF and GFN-FF/xTB | M |
 | V | The engines answer in pictures | L |
 | W | The klassengleiche half | L |
 
 The argument is **wrong before missing, and small before large**.
-Phase 9 is a bug wearing the clothes of a feature — a framework the
-application builds and then forgets — and it is a file or two.  10
-and 11 are the new capability, and 11 waits behind 10 because 10 is the
-one somebody asked for in order to *use* the application rather than to
-photograph it.  6 is data plus a registry entry and can be pulled
-forward whenever a MOF needs typing.  V and W are where an external
-tool and a piece of crystallography most users never reach are owed
-work, and neither blocks anything above it.
+10 is the new capability, and it is the one somebody asked for in
+order to *use* the application rather than to photograph it -- which
+is why it is first now that the two draw styles it was ahead of have
+shipped.  6 is data plus a registry entry and can be pulled forward
+whenever a MOF needs typing.  V and W are where an external tool and
+a piece of crystallography most users never reach are owed work, and
+neither blocks anything above it.
 
 **One cheap win is available at any time**: the `.cgd` writer for
 Systre (Phase V, an afternoon).  It is listed last in priority and is
@@ -43,33 +40,7 @@ also the only way to *doubt* the net the Net panel names.
 
 ---
 
-## 2. Phase 9 — a builder's output has nowhere to live
-
-**Goal:** a framework or a molecule the application builds is in the
-workspace when it opens, not after a trip through *Save As*.
-
-| Item | TODO entry | Size |
-|---|---|---|
-| MOF and molecule builds land in the workspace | header | S |
-
-Both builders are module actions with `needs_structure=False`
-(`xtal/modules/mof.py:297`, `xtal/modules/build.py:148`), so both arrive
-at `ModuleRunner._open_module_structure`, which opens a `Document` with
-no path and says so.  That was right when there was nowhere to put one
-and is wrong now: everything else in the tree got there without being
-asked about, and a build is the case where the file the user would save
-does not exist anywhere else yet.
-
-`Workspace.add_document(name)` was written for this — "an entry for a
-structure that has no file yet" — so the work is to take an entry when
-a workspace is open, write the CIF into it, and `attach_workspace`.
-The rule that survives is `_offer_workspace`'s: **with no workspace
-open, nothing is created behind anybody's back.**  The build opens in a
-tab as it does today and the status bar says why nothing was kept.
-
----
-
-## 3. Phase 10 — Move mode, and what a click means
+## 2. Phase 10 — Move mode, and what a click means
 
 **Goal:** drag an atom or a selection where it should go, and stop a
 click aimed at a net edge from deleting the chemistry under it.
@@ -120,45 +91,7 @@ current behaviour and is to be changed deliberately, not discovered.
 
 ---
 
-## 4. Phase 11 — two more draw styles
-
-**Goal:** the two pictures a paper wants that the application cannot
-draw.
-
-| Item | TODO entry | Size |
-|---|---|---|
-| PLATON / CheckCIF style | header | M |
-| Cartoon style, made to vectorise | header | M |
-
-A style is a record in `viewport/styles.py` and the builder never asks
-which style it is — that is the rule polyhedra were the test of.  These
-two are honestly more than a record, and the cost is worth stating
-before the work starts: **there is no per-atom mesh**, so anything that
-is not a radius, a colour or a flag on `SceneModel` is a second glyph
-or real triangles, the way ORTEP's octants and the occupancy pies are.
-
-* **PLATON/CheckCIF** is a displacement-ellipsoid plot in the
-  convention every structure report is checked in: outlined atoms,
-  thin bonds, no specular highlight, and the ellipsoids the ORTEP style
-  already builds.  Most of it is fields — `ellipsoids=True`, a
-  monochrome-ish palette, the material settings that already exist per
-  actor in `vtk_scene.py`.  The outline is the new part.
-* **The cartoon style is the one with a reason beyond taste**: flat
-  fill plus a dark outline is *fewer* elements than the picture the SVG
-  exporter writes today, which gives every sphere a radial gradient in
-  `<defs>`.  A flat style exports as circles and strokes that
-  Illustrator can recolour by class in one selection.  So this style is
-  finished when `svg_export.py` draws it, not when the viewport does —
-  and the exporter reads flags off `SceneModel` (`bond_render`,
-  `ellipsoid_octants`), which is where the flag goes.
-
-Take PLATON first: it shares everything with a style that already
-works, and it says how much of "outline an instanced glyph" costs
-before the cartoon style is committed to.
-
----
-
-## 5. Phase 6 — force fields
+## 3. Phase 6 — force fields
 
 **Goal:** the force field combo has something in it, and an MOF can be
 typed.
@@ -186,7 +119,7 @@ end of each of them, and it is what makes the phase visible at all.
 
 ---
 
-## 6. Phase V — the engines answer in pictures
+## 4. Phase V — the engines answer in pictures
 
 **Goal:** the half of the external tools that is a drawing rather than
 a number, and the half of DFTB+ its own driver does better.
@@ -234,7 +167,7 @@ folder is a function of the run and not of what the window was showing.
 
 ---
 
-## 7. Phase W — the klassengleiche half
+## 5. Phase W — the klassengleiche half
 
 **Goal:** *Descend to a subgroup* offers the subgroups that split an
 orbit without touching the cell, and then the ones that double it.
@@ -269,7 +202,7 @@ this lands.
 
 ---
 
-## 8. What this plan does not do
+## 6. What this plan does not do
 
 * It does not schedule the **parallel-suite hang**
   ([docs/TODO.md](TODO.md) § Testing).  Serial is the default and the

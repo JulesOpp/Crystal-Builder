@@ -25,9 +25,14 @@ over reading it off ``self``.
 
 from __future__ import annotations
 
+import contextlib
+import shutil
+from pathlib import Path
+
 from PySide6.QtCore import QObject
 
 from xtal.core.structure import Change
+from xtal.io import FORMATS
 from xtal.modules import MODULES, Job, ModuleError
 from xtal.modules import record as module_record
 from xtal.modules.job import restore_dummies, without_dummies
@@ -391,12 +396,118 @@ class ModuleRunner(QObject):
         would have destroyed it and a build with nothing open would
         have silently thrown away what it had just made.
 
-        The document has no path.  It is named after the structure
-        rather than after a file, and File > Save As is what gives it
-        one -- the run folder already holds the CIF it was read back
-        from, so nothing is lost if the tab is closed without saving.
+        **And into the workspace, which is where it now lives.**  The
+        tab used to be the only copy, so closing it threw the
+        framework away and the way to keep one was a trip through
+        Save As.  Now the build gets an entry of its own holding one
+        CIF -- carrying the net, because this application's CIFs carry
+        their bonds -- and the run that made it underneath.
         """
-        document = Document(result.structure)
+        entry, path = self._file_build(worker, result)
+        document = Document(result.structure, path=path)
+        if entry is None:
+            self.window.add_document(document)
+            self.window.show_message(
+                f"{document.title} opened in a new tab -- there is no "
+                f"workspace, so it has not been kept")
+            return
+        document.attach_workspace(entry)
         self.window.add_document(document)
+        self.window.refresh_workspace()
+        self.window.file_dock.tree.select_path(entry.path)
         self.window.show_message(
-            f"{document.title} opened in a new tab")
+            f"{document.title} opened in a new tab, in {entry.name}")
+
+    def _file_build(self, worker, result):
+        """Give a structure built from nothing a folder to live in.
+
+        The entry and the file in it, or ``(None, None)`` when there
+        is no workspace to file it in -- which the application now
+        goes out of its way to prevent (see
+        :meth:`~xtalapp.workspace_shell.WorkspaceShell.restore_workspace`)
+        and cannot promise, because a home directory that cannot be
+        written to is a window that still has to open.
+
+        **One CIF, and it is written from the structure.**  A module
+        that made its structure by writing a file and reading it back
+        -- which is how PORMAKE builds -- has a copy of its own in the
+        run folder, and that copy is the framework as PORMAKE left it:
+        before the net was drawn over it, and so no longer the thing
+        in the tab.  Writing ours and dropping theirs is the only
+        arrangement where the file in the workspace is the document
+        and there is one of it.
+
+        ``new_document`` and not ``add_document``: opening the same
+        file twice is one entry because the file is what is being
+        named, and a build has no file -- what it has is a title that
+        another structure may already be using.  See
+        :meth:`~xtal.workspace.Workspace.new_document`.
+        """
+        workspace = self.window.workspace
+        if workspace is None:
+            return None, None
+        try:
+            # ``new_document`` folds the title into a folder name,
+            # falls back to "structure" for a module that named
+            # nothing, and numbers past a name already in use -- so
+            # there is no second opinion about any of it here.
+            entry = workspace.new_document(
+                str(result.structure.meta.get("title") or ""))
+            path = entry.path / f"{entry.name}.cif"
+            FORMATS.write(result.structure, path)
+            self._drop_the_runs_copy(result)
+            self._move_run_under(worker, entry)
+        except OSError as exc:
+            self.window.show_message(
+                f"could not write into the workspace: {exc}")
+            return None, None
+        return entry, path
+
+    def _drop_the_runs_copy(self, result) -> None:
+        """Remove the structure file the run wrote for itself.
+
+        ``JobResult.artifacts`` is what the module said it wrote worth
+        naming, so this asks the run rather than guessing at its
+        folder.  It is removed rather than kept because the entry now
+        holds the same atoms *and* everything drawn over them: a
+        second, poorer copy under a folder name of its own is a
+        question about which one is real, and the answer is never the
+        one in the run folder.
+
+        Called before the folder is moved, while these paths are still
+        where the module left them.
+        """
+        for artifact in getattr(result, "artifacts", ()) or ():
+            source = Path(artifact)
+            if source.is_file() and source.suffix.lower() == ".cif":
+                source.unlink()
+
+    def _move_run_under(self, worker, entry) -> None:
+        """File the run that built it under the thing it built.
+
+        The run folder is opened before the build starts and a build
+        has no name until it finishes, so it is written under an entry
+        named for the *module* -- which is right for a run that is
+        still going and wrong the moment there is a framework to name
+        it after.  So it is moved, and the placeholder entry is
+        removed when that was the only run in it.
+
+        The log is re-pointed rather than reopened: the bytes are the
+        same bytes, and ``show_file`` would start again from the top
+        and raise the dock over whatever the user is looking at.
+        """
+        job = getattr(worker, "job", None)
+        folder = getattr(job, "folder", None)
+        source = Path(folder.path) if folder is not None else None
+        if source is None or not source.is_dir() \
+                or source.parent == entry.path:
+            return
+        placeholder = source.parent
+        moved = Path(shutil.move(str(source), str(entry.path)))
+        log = self.window.log_dock
+        if log.path is not None and log.path.parent == source:
+            log.relocate(moved / log.path.name)
+        with contextlib.suppress(OSError):
+            # Non-empty means another run of the same module is filed
+            # there, which is a folder to leave alone.
+            placeholder.rmdir()

@@ -23,6 +23,7 @@ from xtal.io.cssr import (
     read_cssr_string,
     write_cssr,
 )
+from xtal.io.export import for_export, what_is_dropped
 from xtal.io.gen import gen_string, read_gen, read_gen_string, write_gen
 from xtal.io.project import (
     is_project,
@@ -110,4 +111,5 @@ __all__ = ["FORMATS", "Format", "FormatRegistry", "read_cif",
            "xyz_string", "read_project", "write_project", "is_project",
            "Frame", "Trajectory", "TrajectoryWriter", "frame_of",
            "read_trajectory", "write_trajectory", "read_xy",
-           "write_xy", "xy_string"]
+           "write_xy", "xy_string", "for_export",
+           "what_is_dropped"]

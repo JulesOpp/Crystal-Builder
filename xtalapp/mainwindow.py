@@ -137,8 +137,9 @@ class MainWindow(QMainWindow):
         # generated once and the window comes back where it was left.
         self._help_window = None
 
-        # An answer to the unsaved-work question that a quit has
-        # already collected, waiting for the close it causes.  See
+        # Whether the unsaved-work question has been asked and
+        # answered yes.  One quit is several events and they all read
+        # it, so it is set once and never cleared -- see
         # ``confirm_quit``.
         self._quit_confirmed = False
 
@@ -1703,9 +1704,18 @@ class MainWindow(QMainWindow):
         holds the keyboard, so the question asked from underneath one
         is a question nobody can answer.  It reads as a quit that never
         asked, which is how unsaved work was lost.  The dialogs go
-        first, then the question, and the answer is remembered for the
-        close it is about to cause so that nobody is asked twice.
+        first, and then the question.
+
+        **A yes is kept**, because one Cmd-Q is more than one event: the
+        menu action and the terminate the desktop sends after it are
+        the same quit, and so is the close that quit causes.  The
+        documents are still modified through all of it, so asking again
+        each time -- which is what recomputing the answer did -- put the
+        question up twice on the way out.  Nothing clears the flag: a
+        quit somebody has agreed to is not a question to reopen.
         """
+        if self._quit_confirmed:
+            return True
         if not self.has_unsaved_work():
             return True
         _dismiss_modals()
@@ -1722,8 +1732,7 @@ class MainWindow(QMainWindow):
         # is stopped -- an external process especially, which would go
         # on writing into a run folder nobody is watching.
         self.stop_module()
-        confirmed, self._quit_confirmed = self._quit_confirmed, False
-        if not confirmed and not self.may_discard_unsaved():
+        if not self._quit_confirmed and not self.may_discard_unsaved():
             event.ignore()
             return
         self.settings.save_window(self)

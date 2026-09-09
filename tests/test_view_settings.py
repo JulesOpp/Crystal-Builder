@@ -147,7 +147,8 @@ def test_style_registry():
     assert set(styles.names()) == {"ball_stick", "ball_stick_occupancy",
                                    "stick", "wireframe", "net",
                                    "spacefill", "polyhedra",
-                                   "polyhedra_stick", "ortep"}
+                                   "polyhedra_stick", "ortep",
+                                   "platon", "cartoon"}
     ball = styles.get("ball_stick")
     assert ball.draw_bonds and ball.bond_render == "tube"
     assert not styles.get("spacefill").draw_bonds
@@ -163,6 +164,11 @@ def test_style_registry():
     assert mixed.draw_polyhedra and mixed.draw_bonds
     assert styles.get("ortep").ellipsoids
     assert not ball.ellipsoids
+    platon = styles.get("platon")
+    assert platon.ellipsoids and platon.outline and platon.tint
+    cartoon = styles.get("cartoon")
+    assert cartoon.shading == "flat" and cartoon.outline
+    assert not ball.outline and ball.shading == "lit"
     with pytest.raises(ValueError):
         styles.get("hologram")
 

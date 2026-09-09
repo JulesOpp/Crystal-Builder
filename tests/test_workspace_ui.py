@@ -20,6 +20,7 @@ from xtal.io.trajectory import (  # noqa: E402
     frame_of,
     write_trajectory,
 )
+from xtal.workspace import Workspace  # noqa: E402
 from xtalapp.docks.workspace import ARTIFACT_ROLE  # noqa: E402
 from xtalapp.document import PlaybackActive  # noqa: E402
 from xtalapp.mainwindow import MainWindow  # noqa: E402
@@ -175,16 +176,49 @@ def test_the_workspace_is_reopened_next_time(tmp_path, settings,
     assert _labels(second.file_dock.tree.model_) == ["rutile"]
 
 
-def test_no_workspace_is_not_an_error(window, rutile, tmp_path):
-    """A structure with no workspace opens, and leaves nothing
-    behind -- which is what this application did before."""
+def test_a_fresh_window_makes_the_workspace_it_needs(window, rutile,
+                                                    tmp_path):
+    """The application does not let anybody work without one.
+
+    A structure opened with no workspace used to open, run and leave
+    nothing behind.  That was a deliberate trade -- a folder created
+    behind somebody's back is one they find later and do not
+    recognise -- and it was the wrong way round: what got lost was the
+    framework somebody had just built and the run they had just
+    watched finish, and the status bar sentence saying so had scrolled
+    past before the tab was closed.
+    """
+    assert window.workspace is not None
+    assert window.workspace.root == tmp_path / "Crystal Builder"
+    assert Workspace.is_workspace(window.workspace.root)
+
     source = tmp_path / "rutile.cif"
     write_cif(rutile, source)
-    document = window.open_path(source)
+    assert window.open_path(source).entry is not None
 
+
+def test_a_workspace_that_cannot_be_made_still_opens_a_window(
+        qtbot, settings, rutile, tmp_path, monkeypatch):
+    """The fallback, and why every ``workspace is None`` branch
+    downstream is still reachable and still means what it said.
+
+    A window that will not open is worse than a window with nowhere to
+    put its runs, so a home folder that cannot be written to is a
+    status bar message and not a refusal to start.
+    """
+    blocked = tmp_path / "blocked"
+    blocked.write_text("a file where the workspace would go")
+    monkeypatch.setenv("XTAL_WORKSPACE_ROOT", str(blocked))
+
+    win = MainWindow(viewport_factory=StubViewport, settings=settings)
+    qtbot.addWidget(win)
+    assert win.workspace is None
+
+    source = tmp_path / "rutile.cif"
+    write_cif(rutile, source)
+    document = win.open_path(source)
     assert document is not None
     assert document.entry is None
-    assert not list(tmp_path.glob("Crystal Builder"))
 
 
 def test_the_browser_is_still_there(window, tmp_path):
@@ -237,6 +271,13 @@ def test_a_single_point_leaves_a_log(opened):
 
 def test_a_document_with_no_workspace_still_runs(window, rutile,
                                                  tmp_path):
+    """The workspace that could not be made, reached the other way.
+
+    A run with nowhere to write is not an error, it is a run that
+    leaves nothing behind -- and the panel must not learn that from a
+    traceback.
+    """
+    window.workspace_shell.workspace = None
     source = tmp_path / "rutile.cif"
     write_cif(rutile, source)
     document = window.open_path(source)

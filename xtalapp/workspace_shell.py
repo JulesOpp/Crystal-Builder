@@ -15,9 +15,12 @@ in; a document is a structure in a tab.  They meet at one call --
 ``place_in_workspace``, when a file is opened -- and that call is a
 better boundary than the blank line that used to separate them.
 
-**A structure with no workspace still opens and still runs**, and
-leaves nothing behind; see :meth:`WorkspaceShell._offer_workspace` for
-why nothing is created behind the user's back.
+**There is always a workspace**, made on a first run if there is not
+one to reopen -- see :meth:`WorkspaceShell.restore_workspace` for why
+that reverses the rule this file used to hold.  A window whose
+workspace could not be created still opens and still runs and leaves
+nothing behind, which is the old behaviour kept as the failure path
+rather than as the default.
 """
 
 from __future__ import annotations
@@ -79,14 +82,13 @@ class WorkspaceShell:
     def _offer_workspace(self, path) -> Workspace | None:
         """What to do for a structure opened with no workspace open.
 
-        Nothing, and say so.  The user picks the workspace and the
-        application never guesses: a folder created behind somebody's
-        back is one they find later and do not recognise, and a dialog
-        on every file open is worse than the problem it solves.  So a
-        structure with no workspace opens, runs, and leaves nothing
-        behind -- which is exactly what this application did before
-        there was anywhere to leave anything -- and the status bar
-        says how to change that.
+        Which now means: opened in a window whose default workspace
+        could not be made, because :meth:`restore_workspace` makes one
+        on a first run.  So this is the failure path rather than the
+        ordinary one, and what it does there is nothing, and says so:
+        a second attempt at a folder the first attempt could not
+        create, on every file the user opens, is a status bar that
+        says nothing else all session.
         """
         if not self.window.settings.auto_workspace:
             self.window.show_message(
@@ -112,12 +114,39 @@ class WorkspaceShell:
         return workspace
 
     def restore_workspace(self) -> None:
-        """Reopen the workspace that was open last, as the last
-        directory is reopened."""
+        """Reopen the workspace that was open last, or make one.
+
+        **The application does not work without a workspace.**  It
+        used to, and the reason was good: a folder created behind
+        somebody's back is one they find later and do not recognise.
+        What that traded away turned out to be worse.  A structure
+        with no workspace opened, ran, and left nothing behind -- so
+        the framework somebody had just built, or the run they had
+        just watched finish, had been kept nowhere at all, and the
+        status bar sentence saying so is not something anybody reads
+        before the tab is closed.
+
+        So a first run *makes* the default workspace, in the folder
+        Preferences names, and says where it put it.  That folder is
+        an ordinary directory in the home folder rather than a hidden
+        one under Application Support precisely so that the thing
+        created behind somebody's back is one they can find.
+
+        It falls back to no workspace when the folder cannot be made,
+        because a window that will not open is worse than a window
+        with nowhere to put its runs -- so every ``workspace is None``
+        branch downstream is still reachable and still means what it
+        said.
+        """
         last = self.window.settings.last_workspace
         if last and Workspace.is_workspace(last):
             self.workspace = Workspace(last)
-        self.refresh_workspace()
+            self.refresh_workspace()
+            return
+        if self.set_workspace(
+                self.window.settings.default_workspace_root,
+                create=True) is None:
+            self.refresh_workspace()
 
     def refresh_workspace(self) -> None:
         self.window.file_dock.set_workspace(

@@ -103,6 +103,17 @@ class SceneModel:
     # glyph source instanced with the arrays above.
     ellipsoid_octants: bool = False
 
+    # How the atoms and the bonds are lit -- "lit", "matte" or "flat"
+    # -- and how much ink goes round them, as a fraction of each
+    # thing's own radius.  Both are carried here rather than left to
+    # the style because everything that draws a scene reads a scene:
+    # the SVG exporter has no style and must not acquire one, and the
+    # offscreen render is the viewport's picture or it is a different
+    # picture.
+    shading: str = "lit"
+    outline: float = 0.0
+    outline_color: tuple = (34, 34, 40)
+
     # bonds, already split in half so each end takes its atom's colour
     bond_starts: np.ndarray = field(default_factory=_empty)    # (K,3)
     bond_ends: np.ndarray = field(default_factory=_empty)      # (K,3)
@@ -317,6 +328,21 @@ class SceneModel:
         return bool(len(self.atom_tensors))
 
     @property
+    def is_outlined(self) -> bool:
+        return self.outline > 0.0
+
+    @property
+    def is_lit(self) -> bool:
+        """Does anything here carry a specular highlight?
+
+        The one question both the renderer and the SVG exporter ask of
+        ``shading``: a highlight is a gradient in the export and a
+        material setting in the viewport, and "matte" and "flat"
+        differ only in what is left underneath it.
+        """
+        return self.shading == "lit"
+
+    @property
     def octant_atoms(self) -> np.ndarray:
         """Which drawn atoms get octant shading: the anisotropic ones.
 
@@ -416,6 +442,15 @@ ORDER_SEPARATION = 2.4
 DASH_RADIUS = 0.45
 DASHES_PER_HALF = 3
 DASH_DUTY = 0.55            # fraction of each dash slot that is drawn
+
+
+#: How far towards black the ORTEP furniture -- the principal
+#: sections, and the shaded octants where they are drawn -- is taken
+#: from the atom's own colour.  Dark enough to read as ink, still the
+#: element's hue: a fixed black would lose which atom is which in a
+#: picture whose whole subject is the atoms.  Shared, because the
+#: viewport and the SVG export have to draw the same figure.
+OCTANT_DARKEN = 0.42
 
 
 # Selection is drawn as a translucent halo around the real geometry

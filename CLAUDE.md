@@ -157,6 +157,7 @@ stress case).
 | `QT_API=pyside6` | Must be set before VTK imports its Qt bridge |
 | `XTAL_NO_CONFIRM_CLOSE=1` | Close windows without the unsaved-changes prompt. **Set this whenever launching the app for a screenshot or a smoke run** — otherwise a modal nobody answers hangs the run. The test suite sets it for itself. |
 | `XTAL_STUB_MODULE=1` | Register a fake calculation module, for module-machinery tests |
+| `XTAL_WORKSPACE_ROOT` | Where the default workspace is made. **The app now makes one on a first run** rather than working without it, so a test that let this answer with the real `~/Crystal Builder` would fill the developer's home folder. `conftest.py` points it at a temp directory per test. |
 | `DFTB_PREFIX` | Where the DFTB+ Slater-Koster parameters live |
 
 ## Invariants — these are product decisions, not implementation details
@@ -191,6 +192,33 @@ stress case).
   an `X`, so everything that holds a marker back at the door already
   holds these back too, and there is no *Unmark*: an `X` does not
   remember what it was, so the way back is Ctrl+Z.
+- **There is always a workspace, and a build is filed in it.** A first
+  run makes the default one (`WorkspaceShell.restore_workspace`)
+  rather than letting anybody work with nowhere for a run to land —
+  this reverses the old "the user picks it and the application never
+  guesses", because what that cost was builds and six-hour runs kept
+  nowhere at all. Every `workspace is None` branch downstream is still
+  reachable and still means what it said: it is the folder-could-not-
+  be-made path now, not the default. A structure a module *builds*
+  gets an entry of its own holding **one** CIF — written from the
+  structure, and the run's own poorer copy dropped — with the run that
+  made it moved in underneath (`ModuleRunner._file_build`).
+- **The CIF carries the bonds; Export cleans.** `_geom_bond` says
+  (site, site, operation, translation) and always could, so the
+  workspace copy of a structure *is* the document: the markers the
+  user placed and the net drawn over a framework are in the file. What
+  a bond means here rides in `_xtal_bond_*` tags in the same loop, and
+  **a foreign `_geom_bond` loop is not read as bonding** — it is
+  nearly always a refinement's distance table, and reading one would
+  bond a structure on open, which is what Recalculate Bonds exists to
+  stay in charge of. `xtal.io.export.for_export` is the one door out:
+  no dummy atoms, no net edges, no suppressions.
+- **A building block drawn in the MOF builder goes to
+  `<workspace>/blocks/`**, which the catalogue reads alongside
+  PORMAKE's — `Workspace.blocks`, `Catalog.default(also_blocks=...)`.
+  It is an ordinary directory of the workspace, so the tree shows it
+  without being taught to; and because there is always a workspace,
+  Draw no longer demands a folder be named before it will save.
 - Structure edits go through `Document.apply(...)` with a `Change`
   flag, so they land as one undo step and refresh only the panels that
   care. Do not mutate a structure behind the Document's back.

@@ -97,6 +97,13 @@ class MofBuildDialog(QDialog):
         self.setWindowTitle(f"{module.label}: "
                             f"{action.label.rstrip('.')}")
         self._settings = getattr(parent, "settings", None)
+        # Where a block drawn on a slot row is written, and one more
+        # folder for the catalogue to read.  A block belongs with the
+        # frameworks it was drawn for; the "Extra building blocks"
+        # folder below is still read, and is still where a collection
+        # somebody curates outside this application lives.
+        self._blocks = getattr(getattr(parent, "workspace", None),
+                               "blocks", None)
         self._rows: list[_SlotRow] = []
         self._topology = None
 
@@ -195,7 +202,23 @@ class MofBuildDialog(QDialog):
 
     def _catalog(self) -> Catalog:
         return Catalog.default(self.topology_dir.text(),
-                               self.bb_dir.text())
+                               self.bb_dir.text(),
+                               also_blocks=(self._blocks,)
+                               if self._blocks else ())
+
+    def _draw_into(self) -> str:
+        """Where the Draw button on a slot row writes.
+
+        The workspace, when there is one -- a block drawn for a
+        framework is part of that framework's making and belongs in
+        the tree beside it, and this is also what lets Draw work at
+        all without first naming a folder somewhere, which is what it
+        used to demand.  The named folder is the fallback and is read
+        either way.
+        """
+        if self._blocks is not None:
+            return str(self._blocks)
+        return self.bb_dir.text()
 
     def _reread(self) -> None:
         """A folder was named, so read everything again.
@@ -275,8 +298,8 @@ class MofBuildDialog(QDialog):
                          f"{exc}")
             return
         for slot in slots:
-            row = _SlotRow(slot, self.catalog, self.bb_dir.text(),
-                          self.slots_box)
+            row = _SlotRow(slot, self.catalog, self._draw_into(),
+                           self.slots_box)
             row.set_composition(self.composition.text())
             row.drawn.connect(self._on_block_drawn)
             self.slots_layout.addWidget(row)
@@ -315,6 +338,13 @@ class MofBuildDialog(QDialog):
             row.refresh(self.catalog)
         if isinstance(sender, _SlotRow):
             sender.set_block(name)
+        # The tree behind this dialog is now out of date, and it will
+        # not be refreshed by the build if the build is cancelled --
+        # which is exactly what somebody who came here to draw a block
+        # is about to do.
+        refresh = getattr(self.parent(), "refresh_workspace", None)
+        if refresh is not None:
+            refresh()
 
     def _describe(self, slots) -> None:
         topology = self._topology

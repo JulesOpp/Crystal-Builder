@@ -104,6 +104,22 @@ class LogDock(QDockWidget):
         self.show()
         self.raise_()
 
+    def relocate(self, path) -> None:
+        """The same log, in a folder that has moved.
+
+        A build's run folder is filed under the module while it is
+        running and under the structure it built once there is one to
+        name it after, which happens with the log open.  The offset is
+        deliberately kept: these are the same bytes, and reopening
+        would print the whole run a second time and raise the dock
+        over whatever is being looked at.
+        """
+        if self.path is None:
+            return
+        self.path = Path(path)
+        self.title.setText(str(self.path))
+        self.title.setToolTip(str(self.path))
+
     def clear(self) -> None:
         self._timer.stop()
         self.path = None

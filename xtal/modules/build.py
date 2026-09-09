@@ -26,10 +26,13 @@ been -- so it is a shell action, ``Structure > Insert molecule...``,
 and it borrows :data:`INSERT` below only to satisfy the dialog
 contract.
 
-**No run folder.**  There is nothing to leave behind: a molecule the
-user asked for is a document, and where it gets saved is theirs to
-choose.  Writing a CIF of it into the workspace under a run heading
-would file it before it has been looked at.
+**No run folder.**  There is nothing to leave behind under a run
+heading: a build reports nothing a log would hold that the molecule
+itself does not say.  What it does get is an *entry* -- the shell
+files what a build returns in the workspace and opens it from there
+(``ModuleRunner._file_build``), so the molecule is a file the moment
+it appears rather than after a trip through Save As, and the run
+folder this action still does not write is beside the point.
 """
 
 from __future__ import annotations

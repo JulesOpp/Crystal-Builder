@@ -39,7 +39,13 @@ from xtal.core import bonding, measure, p1, properties, symmetry
 from xtal.core import selection as sel
 from xtal.core.selection import Selection
 from xtal.core.structure import CHEMISTRY, Change
-from xtal.io import FORMATS, is_project, read_project, write_project
+from xtal.io import (
+    FORMATS,
+    for_export,
+    is_project,
+    read_project,
+    write_project,
+)
 from xtal.io.project import EXTENSION as PROJECT_EXTENSION
 from xtal.workspace import Workspace
 from xtalapp import playback
@@ -256,11 +262,18 @@ class Document(QObject):
         return Path(path)
 
     def exportable(self, selection_only: bool = False) -> Structure:
-        """What an export would write."""
+        """What an export would write.
+
+        Cleaned, which is the other half of the workspace keeping
+        everything in the CIF: the file this document *is* carries the
+        markers the user placed and the net drawn over a framework,
+        and the file somebody else opens carries neither.  See
+        :func:`xtal.io.export.for_export` for why each goes.
+        """
         if not selection_only:
-            return self._structure
-        return sel.substructure(self._structure, self.cell,
-                                self.selection.atoms)
+            return for_export(self._structure)
+        return for_export(sel.substructure(
+            self._structure, self.cell, self.selection.atoms))
 
     # ==================================================================
     #  STRUCTURE

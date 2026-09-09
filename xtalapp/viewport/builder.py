@@ -130,6 +130,13 @@ def build_scene(structure, settings, selection=None,
     (starts, ends, bond_colors, bond_flags, bond_keys,
      bond_orders, bond_offsets) = halves.arrays(drawn, cell, lattice,
                                                 orders, frames)
+    if style.bond_color is not None and len(bond_colors):
+        # A report figure draws its bonds in ink, so the two-tone rule
+        # is overridden here rather than in the halves: they are what
+        # a bond *is*, and both ends still carry their own atom's
+        # provenance and selection flag.
+        bond_colors = np.tile(
+            np.array(style.bond_color, np.uint8), (len(bond_colors), 1))
     flags = _atom_flags(drawn.atom, selection)
 
     cell_starts, cell_ends, cell_colors = (
@@ -168,8 +175,11 @@ def build_scene(structure, settings, selection=None,
         bond_keys=bond_keys,
         bond_orders=bond_orders,
         bond_offsets=bond_offsets,
-        bond_radius=settings.bond_radius,
+        bond_radius=settings.bond_radius * style.bond_factor,
         bond_render=style.bond_render,
+        shading=style.shading,
+        outline=style.outline,
+        outline_color=tuple(style.outline_color),
         polyhedron_points=hulls.points(lattice),
         polyhedron_faces=hulls.faces(),
         polyhedron_colors=hulls.colors(),
@@ -199,7 +209,7 @@ def build_scene(structure, settings, selection=None,
         cell_ends=cell_ends,
         cell_colors=cell_colors,
         labels=_labels(drawn, cell, lattice, settings),
-        legend=_legend(drawn, cell, settings),
+        legend=_legend(drawn, cell, settings, style),
         background=tuple(settings.background),
     )
 
@@ -353,7 +363,7 @@ def _appearance(cell, settings, style):
     radii, colors = {}, {}
     for element in set(cell.elements):
         radii[element] = style.atom_radius(element, settings)
-        colors[element] = settings.color_for(element)
+        colors[element] = style.atom_color(element, settings)
     radius = np.array([radii[e] for e in cell.elements],
                       dtype=np.float32)
     color = np.array([colors[e] for e in cell.elements],
@@ -783,20 +793,23 @@ def _cell_lines(structure, settings):
             np.array(colors, dtype=np.uint8).reshape(-1, 3))
 
 
-def _legend(drawn, cell, settings) -> tuple:
+def _legend(drawn, cell, settings, style) -> tuple:
     """One entry per element actually in the picture, in the order the
     periodic table puts them.
 
     Built from what is *drawn*, not from what the structure contains:
     a legend that lists an element the display range has cut away is
-    telling the reader about a different picture.
+    telling the reader about a different picture.  The swatch is the
+    style's colour and not the palette's for the same reason -- under
+    a style that draws pale atoms, a saturated swatch names a colour
+    that is nowhere on the screen.
     """
     if not settings.show_legend or not drawn.count:
         return ()
     from xtal.core import elements as el
 
     present = {cell.elements[int(k)] for k in drawn.atom}
-    return tuple((symbol, settings.color_for(symbol))
+    return tuple((symbol, style.atom_color(symbol, settings))
                  for symbol in sorted(present, key=el.atomic_number))
 
 

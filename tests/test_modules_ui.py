@@ -461,7 +461,13 @@ def test_a_module_needs_a_structure(window, qtbot, quick):
 def test_a_document_with_no_workspace_still_runs(window, qtbot, quick,
                                                  tmp_path, rutile):
     """It just leaves nothing behind, which is what this application
-    did before there was anywhere to leave anything."""
+    did before there was anywhere to leave anything.
+
+    Reached now only when the default workspace could not be made --
+    the window makes one otherwise -- so the state is set here rather
+    than being what a fresh window is in.
+    """
+    window.workspace_shell.workspace = None
     source = tmp_path / "rutile.cif"
     write_cif(rutile, source)
     document = window.open_path(source)

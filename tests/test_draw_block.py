@@ -11,6 +11,8 @@ second marker below.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 pytest.importorskip("PySide6")
@@ -199,7 +201,57 @@ def test_a_row_asks_the_sketcher_for_its_own_slot(built, tmp_path,
     edge.draw_button.click()
 
     assert seen["slot"] is edge.slot
-    assert seen["folder"] == str(tmp_path)
+    assert seen["folder"] == str(built._blocks)
+
+
+@needs_database
+@needs_rdkit
+def test_a_block_is_drawn_into_the_workspace_and_read_back_from_it(
+        built, window, tmp_path, monkeypatch):
+    """A block drawn for a framework belongs beside that framework.
+
+    And it is read back from there, which is the half that makes it
+    worth writing there: a block that landed somewhere the catalogue
+    does not glob is a file the next build cannot use.
+    """
+    blocks = window.workspace.blocks
+    assert built._blocks == blocks
+    assert blocks not in [e.path for e in window.workspace.entries()]
+
+    def fake_ask(cls, slot, folder, parent=None):
+        path = Path(folder) / "U-drawn.xyz"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("4\n\nX 2 0 0\nC 0.7 0 0\n"
+                        "C -0.7 0 0\nX -2 0 0\n")
+        return path
+
+    monkeypatch.setattr(DrawBlockDialog, "ask", classmethod(fake_ask))
+    built._rows[-1].draw_button.click()
+
+    assert (blocks / "U-drawn.xyz").is_file()
+    assert "U-drawn" in {b.name
+                         for b in built.catalog.building_blocks()}
+    assert blocks in [e.path for e in window.workspace.entries()]
+
+
+@needs_database
+@needs_rdkit
+def test_drawing_needs_no_folder_named_first(qtbot, window,
+                                             monkeypatch):
+    """The Save button used to be dead until a folder was typed.
+
+    There is always a workspace now, so there is always somewhere for
+    a block to go, and the one thing standing between a person and
+    drawing a linker was a text field they had no reason to have
+    filled in.
+    """
+    _module, action = MODULES.find("mof.build")
+    dialog = MofBuildDialog(MODULES.get("mof"), action, window,
+                            {"topology": "pcu"})
+    qtbot.addWidget(dialog)
+
+    assert dialog.bb_dir.text() == ""
+    assert dialog._rows[-1].folder == str(window.workspace.blocks)
 
 
 @needs_database

@@ -18,14 +18,24 @@ A workspace says it, on disk, in a layout anybody can read::
             final.cif              the relaxed structure
         uff-single-point-002/
             run.log
+    <workspace>/pcu-N59-E32/       a structure that was built, not opened
+        pcu-N59-E32.cif            the framework, and the net over it
+        mof-build-001/
+            run.log                the build that made it
+    <workspace>/blocks/            the building blocks drawn here
+        my-paddlewheel.xyz         read back by the MOF builder
 
 Four decisions hold the rest of it up.
 
-**The user picks it, and the application never guesses.**  A scratch
-folder cleaned on exit will one day throw away a six-hour run, and a
-folder chosen under ``~/Library/Application Support`` is one nobody can
-find in Finder.  So a workspace is an ordinary directory the user chose
-and can open, copy, back up and delete like any other.
+**It is an ordinary folder, and it is always there.**  A scratch folder
+cleaned on exit will one day throw away a six-hour run, and a folder
+chosen under ``~/Library/Application Support`` is one nobody can find
+in Finder.  So a workspace is a directory in the home folder that can
+be opened, copied, backed up and deleted like any other -- and the
+application makes the default one on a first run rather than working
+without it, which is a reversal: it used to guess at nothing and the
+price was runs and builds kept nowhere at all.  Where it goes is
+Preferences' answer and the user's to change.
 
 **Nothing in it is hidden, and nothing needs this module to read it.**
 Every artefact is a real file with a real name and a format something
@@ -56,6 +66,10 @@ from pathlib import Path
 
 WORKSPACE_FILE = "workspace.json"
 FORMAT_VERSION = 1
+
+#: The one folder in a workspace that is not a structure --
+#: see :attr:`Workspace.blocks`.
+BLOCKS_DIR = "blocks"
 
 LOG_NAME = "run.log"
 TRAJECTORY_NAME = "trajectory.extxyz"
@@ -380,14 +394,64 @@ class Workspace:
             shutil.copy2(source, target)
         return entry
 
+    @property
+    def blocks(self) -> Path:
+        """Where building blocks drawn in this workspace are kept.
+
+        One folder and not an entry each, because PORMAKE reads blocks
+        by globbing a *directory*: a block per entry would be a
+        directory per block to register, and the catalogue takes a
+        list of folders rather than a list of files.
+
+        It is still an ordinary directory of the workspace, so
+        :meth:`entries` finds it and the tree shows it with every
+        block in it as a node that opens -- which is the whole point
+        of drawing one here rather than into a folder somewhere else.
+
+        Not created here.  A workspace nobody has drawn a block in
+        should not have an empty folder in it explaining that.
+        """
+        return self.root / BLOCKS_DIR
+
     def add_document(self, name: str) -> Entry:
         """An entry for a structure that has no file yet.
 
         A structure built from nothing still has runs to put somewhere.
+
+        The folder of that name if there already is one, which is what
+        a module filing every build under its own label wants.  A
+        *structure* wants :meth:`new_document` instead -- see there
+        for the difference.
         """
         entry = Entry(path=self.root / safe_name(name, "structure"),
                       workspace=self)
         entry.path.mkdir(parents=True, exist_ok=True)
+        return entry
+
+    def new_document(self, name: str) -> Entry:
+        """An entry no other structure is already living in.
+
+        The difference from :meth:`add_document` is the whole point of
+        it being a second method.  Two structures that happen to be
+        called the same are still two structures, and the entry a
+        built one is filed in holds ``<name>.cif`` -- which is the
+        same file ``add_structure`` writes for an opened one.  So a
+        phenol built from SMILES into the folder of a ``phenol.cif``
+        somebody has open would take that crystal's workspace copy
+        and leave the tab open over atoms that are no longer in the
+        file underneath it.
+
+        Numbered rather than refused, because a build has already
+        happened by the time this is asked: there is a structure to
+        put somewhere and no question left to ask about it.
+        """
+        stem = safe_name(name, "structure")
+        candidate, index = stem, 1
+        while (self.root / candidate).exists():
+            index += 1
+            candidate = f"{stem}-{index}"
+        entry = Entry(path=self.root / candidate, workspace=self)
+        entry.path.mkdir(parents=True)
         return entry
 
     # Two Workspace objects are the same workspace when they name the

@@ -10,6 +10,15 @@ it never asks "which style is this?".  Polyhedra were the test of that:
 adding VESTA's signature style was one more entry here plus the
 geometry that fills the polyhedron arrays -- no existing style, and no
 branch in the builder keyed on a style name.
+
+The two report styles at the foot of this file are where that rule
+cost something.  There is no per-atom mesh -- every atom in the
+picture is one instanced glyph -- so an outline around each of them is
+a second glyph and not a property, and it is the renderer and the SVG
+exporter that grew, not this file: what arrives here is still a
+number.  The fields they added (``shading``, ``outline``, ``tint``,
+``bond_factor``, ``bond_color``) are all readable by any style, which
+is the test of whether they were fields or a special case.
 """
 
 from __future__ import annotations
@@ -17,6 +26,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from xtal.core import elements as el
+
+#: The colour an outline is drawn in.  Not black: a pure black rim
+#: against a white page reads as heavier than the ink of a printed
+#: figure, and against a black background it disappears entirely --
+#: this is dark enough to be ink and light enough to be seen.
+INK = (34, 34, 40)
 
 
 @dataclass(frozen=True)
@@ -29,6 +44,14 @@ class DrawStyle:
     radius_factor: float
     draw_bonds: bool = True
     bond_render: str = "tube"       # tube | line
+    #: The bond radius, as a multiple of the one in the settings.  A
+    #: style that draws thin bonds says so here rather than moving the
+    #: user's slider under them.
+    bond_factor: float = 1.0
+    #: One colour for every bond, replacing the rule that each half
+    #: takes its own atom's.  ``None`` leaves the two-tone bonds
+    #: alone, which is what all but the report styles want.
+    bond_color: tuple | None = None
     draw_polyhedra: bool = False
     #: Which atoms get a hull when the user has not named any:
     #: "any" (whatever has enough neighbours) or "metals".
@@ -42,11 +65,41 @@ class DrawStyle:
     #: A field for the same reason ``ellipsoids`` is one: the bonds,
     #: the cell and everything else are unchanged.
     occupancy_pies: bool = False
+    #: How the atoms and the bonds are lit: ``"lit"`` is a shaded
+    #: surface with a highlight on it, ``"matte"`` the same shading
+    #: with the highlight taken off -- a report figure is printed and
+    #: a specular highlight prints as a white hole -- and ``"flat"``
+    #: no lighting at all, one colour per atom edge to edge.
+    shading: str = "lit"
+    #: Ink around every atom and every bond, as a fraction of its own
+    #: radius.  0 draws none, which is every style that came before
+    #: these two.
+    outline: float = 0.0
+    outline_color: tuple = INK
+    #: How far towards white each element's colour is taken before it
+    #: is drawn.  The report styles want pale atoms carrying a dark
+    #: outline; everything else wants the palette as it is.
+    tint: float = 0.0
     description: str = ""
 
     def atom_radius(self, element: str, settings) -> float:
         base = settings.base_radius(element, self.radius_source)
         return base * self.radius_factor * settings.atom_scale
+
+    def atom_color(self, element: str, settings) -> tuple:
+        """The colour this style draws ``element`` in.
+
+        The palette is the user's and the tint is the style's, in that
+        order: an element recoloured in the preferences stays
+        recognisable in a report figure, it is simply drawn paler.
+        Asking the style rather than the settings is what keeps the
+        builder from having to know which style is being drawn.
+        """
+        color = settings.color_for(element)
+        if not self.tint:
+            return tuple(int(c) for c in color)
+        return tuple(int(round(c + (255 - c) * self.tint))
+                     for c in color)
 
     def centres(self, elements, settings) -> frozenset:
         """Which elements get a coordination polyhedron, decided once
@@ -158,4 +211,21 @@ register(DrawStyle(
     draw_bonds=False, draw_polyhedra=True,
     description="Coordination polyhedra as translucent hulls, "
                 "coloured by the atom at the centre",
+))
+register(DrawStyle(
+    name="platon", label="Ellipsoid plot (PLATON)",
+    radius_source="covalent", radius_factor=0.25,
+    ellipsoids=True, shading="matte", outline=0.11, tint=0.70,
+    bond_factor=0.55, bond_color=INK,
+    description="The ellipsoid plot a structure report is checked in: "
+                "pale outlined atoms, thin dark bonds and no "
+                "highlight -- what PLATON and checkCIF draw",
+))
+register(DrawStyle(
+    name="cartoon", label="Cartoon",
+    radius_source="covalent", radius_factor=0.5,
+    shading="flat", outline=0.13,
+    description="Flat colour inside a dark outline, and no shading at "
+                "all -- the one style that exports as plain circles "
+                "and strokes an illustrator can recolour",
 ))

@@ -31,6 +31,16 @@ makes the file editable: Illustrator shows an ``id`` as the object's
 name in the Layers panel, and ``class`` is what "select all the bonds"
 comes down to.  Atoms are named by their crystallographic label when
 the caller passes one.
+
+**A flat style is the file this module exists to write.**  A lit atom
+is a circle filled with a radial gradient, and a gradient is not a
+colour: selecting every carbon and recolouring it means editing one
+``<defs>`` entry per element and hoping nothing else shared it.  The
+cartoon style asks for no gradient at all, so its atoms are circles
+with a solid fill and a stroke -- which is *fewer* elements than the
+lit picture, not more, and one selection to recolour.  What the
+exporter reads to know that is ``shading`` and ``outline`` off the
+scene model; there is no style here and there must not be one.
 """
 
 from __future__ import annotations
@@ -46,6 +56,7 @@ from xtalapp.viewport.scene import (
     HIGHLIGHT_COLOR,
     HIGHLIGHT_GROWTH,
     HIGHLIGHT_OPACITY,
+    OCTANT_DARKEN,
     split_by_order,
 )
 
@@ -229,21 +240,31 @@ def _atom_shapes(model, projection, names, gradients, out) -> None:
     selected = (np.asarray(model.selected, bool)
                 if len(model.selected) == model.n_atoms
                 else np.zeros(model.n_atoms, bool))
+    sections = set(model.octant_atoms.tolist())
     for i in range(model.n_atoms):
         if radii[i] < MIN_RADIUS and tensors is None:
             continue
         name = _atom_name(i, model, names)
-        fill = f'url(#{gradients.for_color(model.colors[i])})'
-        common = (f'class="atom" fill="{fill}" '
-                  f'stroke="{_hex(_mix(model.colors[i], (0, 0, 0), 0.45))}"'
-                  f' stroke-width="{_n(max(radii[i] * 0.06, 0.3))}"')
         if tensors is not None:
-            shape = _ellipse(centres[i], tensors[i], model.positions[i],
-                             projection, name, common)
-            if shape is None:
+            columns = _projected_columns(centres[i], tensors[i],
+                                         model.positions[i], projection)
+            if columns is None:
                 continue
+            rx, ry, angle = _axes_of(columns)
+            if rx < MIN_RADIUS:
+                continue
+            # The ellipse's own size and not the style's radius: an
+            # ellipsoid is as big as the refinement made it, and ink
+            # scaled to the sphere it replaced is a hairline on an
+            # atom drawn ten times that.
+            paint = _atom_paint(model, i, rx, gradients)
+            shape = (f'<ellipse id="{name}" {paint} cx="0" cy="0" '
+                     f'rx="{_n(rx)}" ry="{_n(max(ry, 0.2))}" '
+                     f'transform="translate({_n(centres[i][0])},'
+                     f'{_n(centres[i][1])}) rotate({_n(angle)})"/>')
         else:
-            shape = (f'<circle id="{name}" {common} '
+            paint = _atom_paint(model, i, radii[i], gradients)
+            shape = (f'<circle id="{name}" {paint} '
                      f'cx="{_n(centres[i][0])}" cy="{_n(centres[i][1])}" '
                      f'r="{_n(radii[i])}"/>')
         if selected[i]:
@@ -251,29 +272,92 @@ def _atom_shapes(model, projection, names, gradients, out) -> None:
                 centres[i], radii[i] * HIGHLIGHT_GROWTH,
                 f"halo-{name}")))
         out.append((depth[i], shape))
+        if i in sections:
+            _section_shapes(model, i, centres[i], columns, depth[i],
+                            name, out)
 
 
-def _ellipse(centre, tensor, position, projection, name, common):
-    """One displacement ellipsoid, as the ellipse it projects to.
+def _atom_paint(model, index, radius, gradients) -> str:
+    """How one atom is filled and outlined, in the style's terms.
 
-    The tensor carries a unit sphere onto the ellipsoid, so the three
+    **This is where the cartoon style is really drawn.**  A lit atom
+    takes the radial gradient that fakes a sphere, and a flat one
+    takes its colour and nothing else -- so the file is circles with
+    solid fills and strokes, which is a class Illustrator can
+    recolour in one selection rather than a ``<defs>`` of a hundred
+    gradients that have to be edited one at a time.  The outline is
+    the style's ink where it has some, and otherwise the darkened
+    hairline every other style has always drawn.
+    """
+    color = model.colors[index]
+    fill = (f'url(#{gradients.for_color(color)})' if model.is_lit
+            else _hex(color))
+    if model.is_outlined:
+        ink, width = model.outline_color, radius * model.outline
+    else:
+        ink, width = _mix(color, (0, 0, 0), 0.45), radius * 0.06
+    return (f'class="atom" fill="{fill}" stroke="{_hex(ink)}" '
+            f'stroke-width="{_n(max(width, 0.3))}"')
+
+
+def _projected_columns(centre, tensor, position, projection):
+    """One ellipsoid's transform, as it lands on the picture.
+
+    The tensor carries a unit sphere onto the ellipsoid, so its three
     columns projected into the picture are the 2x3 map whose image of
-    the unit sphere is exactly the silhouette; its singular values are
-    the semi-axes and its left singular vectors the tilt.
+    the unit sphere is exactly the silhouette -- and any two of those
+    columns are the map whose image of a unit circle is one principal
+    section.  Both the outline and ORTEP's furniture come out of this
+    one array.
     """
     tips = np.asarray(position, float)[None, :] + np.asarray(tensor).T
     projected, _ = projection.to_display(tips)
     columns = (projected - np.asarray(centre)[None, :]).T   # (2, 3)
-    if not np.all(np.isfinite(columns)):
-        return None
-    u, singular, _v = np.linalg.svd(columns)
-    if singular[0] < MIN_RADIUS:
-        return None
-    angle = np.degrees(np.arctan2(u[1, 0], u[0, 0]))
-    return (f'<ellipse id="{name}" {common} cx="0" cy="0" '
-            f'rx="{_n(singular[0])}" ry="{_n(max(singular[1], 0.2))}" '
+    return columns if np.all(np.isfinite(columns)) else None
+
+
+def _axes_of(columns):
+    """``(rx, ry, angle)`` of the ellipse a 2xN map draws.
+
+    The singular values are the semi-axes and the left singular
+    vectors the tilt, which holds for the whole 2x3 -- the silhouette
+    -- and for any 2x2 slice of it.
+    """
+    u, singular, _v = np.linalg.svd(np.asarray(columns, float))
+    return (singular[0], singular[1],
+            np.degrees(np.arctan2(u[1, 0], u[0, 0])))
+
+
+def _section_shapes(model, index, centre, columns, depth, name,
+                    out) -> None:
+    """ORTEP's principal sections, as three unfilled ellipses.
+
+    The furniture that tells a sphere from an ellipsoid seen down its
+    long axis, and the reason a report figure is worth exporting at
+    all.  Drawn on the same atoms the viewport draws them on --
+    :attr:`~xtalapp.viewport.scene.SceneModel.octant_atoms`, the ones
+    whose orientation was actually measured -- and in the same ink, so
+    the file is the picture on the screen and not a second opinion
+    about it.
+
+    Three sections and no shaded octant: the octant is a region
+    bounded by three elliptical arcs, and the arcs alone already carry
+    the orientation.  In front of the atom, so the near half of each
+    ring reads; the far half is drawn too, which is what the viewport
+    shows through a translucent-free surface as well.
+    """
+    ink = _hex(_mix(model.colors[index], (0, 0, 0), 1.0 - OCTANT_DARKEN))
+    for k, (u, v) in enumerate(((0, 1), (1, 2), (2, 0))):
+        rx, ry, angle = _axes_of(columns[:, [u, v]])
+        if rx < MIN_RADIUS:
+            continue
+        out.append((
+            depth - 1e-6,
+            f'<ellipse id="section-{name}-{k}" class="ellipsoid-section" '
+            f'cx="0" cy="0" rx="{_n(rx)}" ry="{_n(max(ry, 0.2))}" '
+            f'fill="none" stroke="{ink}" stroke-width="1" '
             f'transform="translate({_n(centre[0])},{_n(centre[1])}) '
-            f'rotate({_n(angle)})"/>')
+            f'rotate({_n(angle)})"/>'))
 
 
 def _halo(centre, radius, name) -> str:
@@ -322,12 +406,25 @@ def _bond_shapes(model, projection, out) -> None:
         widths = (np.full(len(starts), WIREFRAME_WIDTH) if wire else
                   projection.width_at(starts, ends,
                                       model.bond_radius * scale))
+        cap = "round" if wire else "butt"
         for i in range(len(starts)):
+            width = max(widths[i], 0.4)
+            if model.is_outlined and kind == "bond":
+                # Emitted first and at the same depth, so the stable
+                # sort leaves it underneath its own bond: a wider
+                # stroke in the style's ink, showing either side as
+                # the outline.  Two of these under the two halves of
+                # one bond make a single outlined stick, because the
+                # halves are collinear and both butt at the midpoint.
+                out.append((
+                    depth_a[i],
+                    _line(a[i][0], a[i][1], b[i][0], b[i][1],
+                          model.outline_color, width * (1 + model.outline),
+                          f"outline-{kind}-{i}", "outline", cap=cap)))
             out.append((
                 depth_a[i],
                 _line(a[i][0], a[i][1], b[i][0], b[i][1], colors[i],
-                      max(widths[i], 0.4), f"{kind}-{i}", kind,
-                      cap="butt" if not wire else "round")))
+                      width, f"{kind}-{i}", kind, cap=cap)))
     _bond_halos(model, projection, out)
 
 

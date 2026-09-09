@@ -169,7 +169,9 @@ crystal-builder quartz.cif
 Open a CIF from the file tree on the left or by dropping it on the
 window.  Left-drag orbits, the wheel zooms, middle-drag pans.  The
 *View* menu switches between ball-and-stick, stick, wireframe,
-space-filling, polyhedral and thermal-ellipsoid pictures; the toolbar
+space-filling, polyhedral and thermal-ellipsoid pictures -- and two
+made for publishing: an outlined PLATON-style ellipsoid plot, and a
+flat *Cartoon* that exports as plain circles and strokes.  The toolbar
 spinboxes set how many unit cells are drawn.
 
 Click an atom or a bond to select it, shift-click to add to the
@@ -340,22 +342,36 @@ per pair, and a plane is re-fitted from its own atoms whenever they
 move, so an interplanar angle after a relaxation is the angle the
 molecule now has.
 
+**The CIF this program writes carries its bonds.**  A bond here is
+(site, site, symmetry operation, lattice translation), and
+`_geom_bond_site_symmetry_2` is exactly that -- the `n_pqr` code has
+been in the CIF dictionary all along.  So a framework keeps the net
+drawn over it and a molecule keeps the bonds it was built with, in a
+file anything else can still open.  What a bond *means* here -- an
+order, a net edge, a suppression -- rides in `_xtal_bond_*` tags in
+the same loop, which every other reader skips; and a foreign CIF's
+`_geom_bond` loop is **not** read as bonding, because it is nearly
+always a distance table from a refinement rather than a bond graph.
+
 **Save is about the session; Export is about producing a file for
 something else.**  *File → Save* writes a `.xtalproj`: the structure,
 how you were looking at it, what was selected, what you had measured,
 and the calculations run against it.  It is a zip of a CIF and three
-small JSON files, so it stays readable and diffable, and it is the
-only format that keeps the bonds -- both the perceived graph, so a
-structure comes back with the bonds you last recalculated rather than
-whatever its geometry now implies, and the ones you drew by hand,
-which are (site, site, symmetry operation, lattice translation) and
-which no CIF tag expresses.  *File → Export* is one way: it never
-becomes the document's file, and it says what the format drops before
-it writes it ("XYZ keeps occupancy; symmetry, bonds and charges are
-not written").
+small JSON files, so it stays readable and diffable, and what it adds
+over the CIF is the perceived graph and the rules it was perceived
+under -- so a structure comes back with the bonds you last
+recalculated rather than whatever its geometry now implies.  *File →
+Export* is one way: it never becomes the document's file, and it
+**cleans** -- a dummy atom is a marker and not chemistry, a net edge
+is not a bond, and a suppressed bond is the record of one you
+deleted, so none of the three goes in a file for somebody else.  It
+says both that and what the format drops before it writes ("XYZ keeps
+occupancy; symmetry, bonds and charges are not written").
 
-**A workspace is where calculations land.**  Point *File → New
-Workspace* at an ordinary folder and every structure opened gets a
+**A workspace is where calculations land, and there is always one.**
+A first run makes `~/Crystal Builder` and says so; *File → New
+Workspace* points at any other ordinary folder, and Preferences ▸
+General changes which one is made.  Every structure opened gets a
 folder of its own inside it, with a copy of the file so the workspace
 is whole; every run then lands underneath the structure it was run
 against:
@@ -367,6 +383,28 @@ against:
         final.cif              the relaxed structure
         trajectory.extxyz      every step
         run.log                what happened, in order
+
+A structure the application *builds* -- a framework from the MOF
+builder, a molecule from a SMILES string -- gets the same folder, the
+moment it opens rather than after a trip through *Save As*, and the
+build that made it is filed underneath it:
+
+    pcu-N59-E32/
+      pcu-N59-E32.cif          the framework, and the net drawn over it
+      mof-build-001/
+        run.log                the build that made it
+
+One file, and it is the whole of what was built: the net rides in the
+CIF's own bond loop, so opening that node tomorrow gives back the
+picture the builder produced.  Open the same file in anything else and
+it is an ordinary CIF.
+
+**A building block you draw goes there too.**  *Draw...* on a slot row
+of the MOF builder writes into `blocks/` in the workspace, which the
+builder then reads alongside PORMAKE's own 867 -- so a linker you
+sketched is in the tree, is openable, and is in the list the next
+build offers.  It also means Draw works without naming a folder
+first, which it used to refuse to do.
 
 Nothing in it is hidden and nothing needs this application to read it
 -- the trajectory opens in OVITO, VMD and ASE, the log is a text file,

@@ -19,8 +19,13 @@ pytest.importorskip("pytestqt")
 
 from tests.test_app_shell import StubViewport  # noqa: E402
 from xtal.core.lattice import Lattice  # noqa: E402
-from xtal.core.structure import Site, Structure  # noqa: E402
-from xtal.io import write_cif  # noqa: E402
+from xtal.core.structure import (  # noqa: E402
+    TOPOLOGY,
+    Bond,
+    Site,
+    Structure,
+)
+from xtal.io import read_cif, write_cif  # noqa: E402
 from xtal.modules import MODULES  # noqa: E402
 from xtal.modules.job import JobResult  # noqa: E402
 from xtal.modules.registry import (  # noqa: E402
@@ -49,11 +54,46 @@ def made_structure(job) -> JobResult:
     return JobResult(message="built one", structure=built)
 
 
+def written_structure(job) -> JobResult:
+    """A build that makes its structure by writing a file.
+
+    Which is how PORMAKE builds -- it writes a CIF and the module
+    reads it back -- and is the case the shell has to move rather than
+    copy, or the framework is in the workspace twice under two names.
+    """
+    result = made_structure(job)
+    cif = job.folder.path / "made up.cif"
+    write_cif(result.structure, cif)
+    return JobResult(message="wrote one", structure=result.structure,
+                     artifacts=(cif,))
+
+
+def bonded_structure(job) -> JobResult:
+    """A build that draws something over what it made.
+
+    Which is what ``xtal.mof.build.draw_net`` does to a framework: the
+    net is :data:`~xtal.core.structure.TOPOLOGY` bonds, and bonds are
+    the thing a CIF has nowhere to put.
+    """
+    result = made_structure(job)
+    built = result.structure
+    built.sites.append(Site("Si", [0.5, 0.5, 0.5]))
+    built.sites.append(Site("X", [0.25, 0.25, 0.25]))
+    built.bonds.append(Bond(0, 1, (1, 0, 0), kind=TOPOLOGY))
+    return JobResult(message="drew one", structure=built)
+
+
 MAKER = Module(
     name="maker", label="Maker",
     actions=(Action(name="make", label="Make one",
                     needs_structure=False, writes_run_folder=True,
-                    run=made_structure),))
+                    run=made_structure),
+             Action(name="write", label="Write one",
+                    needs_structure=False, writes_run_folder=True,
+                    run=written_structure),
+             Action(name="bonded", label="Draw over one",
+                    needs_structure=False, writes_run_folder=True,
+                    run=bonded_structure)))
 
 
 @pytest.fixture
@@ -107,7 +147,7 @@ def test_a_module_that_builds_a_structure_opens_it_in_a_new_tab(
     assert window.documents == []
     run_and_wait(window, qtbot, "maker", "make")
     assert len(window.documents) == 1
-    assert window.documents[0].title == "made up"
+    assert window.documents[0].structure.meta["title"] == "made up"
 
 
 def test_a_build_leaves_the_document_that_was_in_front_alone(
@@ -133,18 +173,21 @@ def test_a_build_leaves_the_document_that_was_in_front_alone(
 
 def test_a_build_has_no_undo_step_because_it_edited_nothing(
         window, qtbot, quick):
+    """It built rather than changed something, so there is nothing to
+    take back -- and it arrives saved rather than merely unmodified."""
     run_and_wait(window, qtbot, "maker", "make")
     assert not window.documents[0].modified
-    assert window.documents[0].path is None
+    assert not window.documents[0].stack.can_undo
 
 
-def test_a_build_puts_its_run_under_an_entry_of_its_own(
+def test_a_build_files_its_run_under_the_thing_it_built(
         window, qtbot, quick, tmp_path, rutile):
-    """Not under whichever crystal happened to be in front.
+    """Not under whichever crystal happened to be in front, and not
+    under the module either once there is a name for it.
 
-    A framework built from nothing filed in MOF-5's folder is a filing
-    error somebody then has to undo, and ``Workspace.add_document``
-    exists for exactly this.
+    The run folder is opened before the build starts, so it goes under
+    an entry named for the *module* -- which is right while the run is
+    going and wrong the moment there is a framework to name it after.
     """
     source = tmp_path / "rutile.cif"
     write_cif(rutile, source)
@@ -153,18 +196,191 @@ def test_a_build_puts_its_run_under_an_entry_of_its_own(
 
     run_and_wait(window, qtbot, "maker", "make")
     names = {entry.name for entry in window.workspace.entries()}
-    assert "Maker" in names
-    assert document.entry.name in names
-    assert not list((document.entry.path).glob("*maker*"))
+    assert names == {"rutile", "made_up"}
+    assert [run.name for run in
+            window.workspace.entry("made_up").runs()] == \
+        ["maker-make-001"]
+    assert not list(document.entry.path.glob("*maker*"))
+
+
+def test_a_build_lands_in_the_workspace_without_being_asked(
+        window, qtbot, quick, tmp_path):
+    """The tab used to be the only copy of what was just built.
+
+    Everything else in the tree got there without a dialog, and a
+    build is the one case where the file the user would save does not
+    exist anywhere else -- so closing the tab threw the framework
+    away and the only way to keep one was Save As.
+    """
+    window.set_workspace(tmp_path / "ws", create=True)
+    run_and_wait(window, qtbot, "maker", "make")
+
+    entry = window.workspace.entry("made_up")
+    assert entry is not None
+    assert entry.structure_path == entry.path / "made_up.cif"
+    assert not entry.project_path.exists()
+    document = window.documents[0]
+    assert document.path == entry.structure_path
+    assert document.entry.path == entry.path
+    assert not document.modified
+
+
+def test_the_filed_build_is_a_structure_that_reads_back(
+        window, qtbot, quick, tmp_path):
+    """What is kept has to be openable, not just present."""
+    window.set_workspace(tmp_path / "ws", create=True)
+    run_and_wait(window, qtbot, "maker", "make")
+
+    written = read_cif(window.workspace.entry("made_up").structure_path)
+    assert written.n_sites == window.documents[0].structure.n_sites
+
+
+def test_the_node_a_build_wrote_opens_the_tab_it_is_already_in(
+        window, qtbot, quick, tmp_path):
+    """The entry and the document name one file between them.
+
+    Double-clicking the node the build just made must not open a
+    second document over the same atoms -- which is what would happen
+    if the entry were attached and the path left unset, because the
+    duplicate check compares both.
+    """
+    window.set_workspace(tmp_path / "ws", create=True)
+    run_and_wait(window, qtbot, "maker", "make")
+    built = window.documents[0]
+
+    window.open_path(window.workspace.entry("made_up").structure_path)
+    assert window.documents == [built]
+
+
+def test_a_build_never_writes_over_a_structure_already_filed(
+        window, qtbot, quick, tmp_path, rutile):
+    """A title is not a file, and two of them are not one structure.
+
+    An entry holds ``<name>.cif`` whether the structure was opened or
+    built, so a build filed into the folder of a crystal somebody has
+    open would take that crystal's workspace copy and leave the tab
+    over atoms no longer in the file underneath it.
+    """
+    source = tmp_path / "made_up.cif"
+    write_cif(rutile, source)
+    window.set_workspace(tmp_path / "ws", create=True)
+    opened = window.open_path(source)
+    kept = read_cif(opened.entry.structure_path).n_sites
+
+    run_and_wait(window, qtbot, "maker", "make")
+    built = window.documents[1]
+
+    assert built.entry.path != opened.entry.path
+    assert built.entry.name == "made_up-2"
+    assert read_cif(opened.entry.structure_path).n_sites == kept
+
+
+def test_a_build_that_wrote_its_own_file_leaves_only_one_of_it(
+        window, qtbot, quick, tmp_path):
+    """The framework goes in the workspace once.
+
+    A module that builds by writing a file and reading it back already
+    has a CIF in its run folder, so the shell moves that one up rather
+    than writing a second beside it -- two copies of a 3856-atom
+    framework under two folder names is a question about which one is
+    real, not thoroughness.
+    """
+    window.set_workspace(tmp_path / "ws", create=True)
+    run_and_wait(window, qtbot, "maker", "write")
+
+    entry = window.workspace.entry("made_up")
+    assert [p.name for p in sorted(entry.path.rglob("*.cif"))] == \
+        ["made_up.cif"]
+    assert entry.runs()[0].log_path.is_file()
+
+
+def test_the_file_a_build_leaves_is_named_after_its_entry(
+        window, qtbot, quick, tmp_path, rutile):
+    """A numbered entry cannot hold a file the module named.
+
+    ``made up.cif`` written into ``made_up-2`` would be an entry whose
+    folder and whose structure file disagree, which is one nobody
+    finds twice.
+    """
+    source = tmp_path / "ws" / "made_up" / "made_up.cif"
+    source.parent.mkdir(parents=True)
+    write_cif(rutile, source)
+    window.set_workspace(tmp_path / "ws", create=True)
+
+    run_and_wait(window, qtbot, "maker", "write")
+    entry = window.workspace.entry("made_up-2")
+    assert entry.structure_path == entry.path / "made_up-2.cif"
+
+
+def test_the_net_drawn_over_a_build_survives_into_the_workspace(
+        window, qtbot, quick, tmp_path):
+    """What the builder draws is bonds, and now the CIF carries them.
+
+    The MOF builder's whole output is a framework *with its net
+    drawn* -- that is the picture it exists to produce -- so an entry
+    whose CIF gave back a framework with no net would be keeping the
+    wrong half of what was built.
+    """
+    window.set_workspace(tmp_path / "ws", create=True)
+    run_and_wait(window, qtbot, "maker", "bonded")
+
+    entry = window.workspace.entry("made_up")
+    kept = read_cif(entry.structure_path).bonds
+    assert [b.kind for b in kept] == [TOPOLOGY]
+    assert kept[0].image == (1, 0, 0)
+
+
+def test_what_a_build_leaves_is_a_marker_and_a_net_until_it_is_exported(
+        window, qtbot, quick, tmp_path):
+    """The two rules meet here, and they say opposite things on
+    purpose.
+
+    The workspace copy *is* the document, so it keeps the dummy atom
+    the builder placed and the edge hanging off it.  A file for
+    somebody else keeps neither -- a marker is not chemistry and a net
+    edge is not a bond.
+    """
+    window.set_workspace(tmp_path / "ws", create=True)
+    run_and_wait(window, qtbot, "maker", "bonded")
+    entry = window.workspace.entry("made_up")
+
+    kept = read_cif(entry.structure_path)
+    assert [s.element for s in kept.sites] == ["Si", "Si", "X"]
+    assert len(kept.bonds) == 1
+
+    window.documents[0].export(tmp_path / "out.cif")
+    sent = read_cif(tmp_path / "out.cif")
+    assert [s.element for s in sent.sites] == ["Si", "Si"]
+    assert sent.bonds == []
 
 
 def test_a_build_with_no_workspace_still_opens_its_tab(window, qtbot,
                                                        quick):
     """A run with nowhere to write still answers.  The answer is a
-    framework in a tab, and only the CIF is lost."""
-    assert window.workspace is None
+    framework in a tab, and only the file is lost.
+
+    Reached now only when the default workspace could not be made --
+    see ``WorkspaceShell.restore_workspace`` -- which is why the state
+    is set here rather than waited for.
+    """
+    window.workspace_shell.workspace = None
     run_and_wait(window, qtbot, "maker", "make")
     assert len(window.documents) == 1
+
+
+def test_a_build_with_no_workspace_creates_nothing_and_says_so(
+        window, qtbot, quick, tmp_path):
+    """The failure path is a sentence, not a silence.
+
+    A build that could not be kept has to say so where the build was
+    started from, because the tab looks identical either way.
+    """
+    window.workspace_shell.workspace = None
+    run_and_wait(window, qtbot, "maker", "make")
+
+    assert window.documents[0].path is None
+    assert window.documents[0].entry is None
+    assert "no workspace" in window.statusBar().currentMessage()
 
 
 # ---------------------------------------------------- Action.dialog

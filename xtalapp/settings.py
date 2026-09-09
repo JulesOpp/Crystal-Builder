@@ -33,9 +33,25 @@ SETTINGS_DIR_ENV = "XTAL_SETTINGS_DIR"
 DEFAULT_FRACTION = 0.85
 MAX_DEFAULT_SIZE = (1600, 1000)
 
-#: What the New Workspace dialog suggests when Preferences has not
-#: been given somewhere else.
-BUILT_IN_WORKSPACE_ROOT = Path.home() / "Crystal Builder"
+#: Points the default workspace somewhere other than the home folder.
+#: For the test suite, and for the same reason
+#: :data:`SETTINGS_DIR_ENV` exists -- the application now *makes* this
+#: folder on a first run rather than only suggesting it, so a suite
+#: that let it answer with the real one would put a workspace in the
+#: developer's home directory on every run.
+WORKSPACE_ROOT_ENV = "XTAL_WORKSPACE_ROOT"
+
+
+def built_in_workspace_root() -> Path:
+    """Where a workspace goes when Preferences has not said.
+
+    A function and not the constant it used to be, because the
+    environment gets a say and a constant reads the environment once,
+    at import, which is before a test has set anything.
+    """
+    return Path(os.environ.get(WORKSPACE_ROOT_ENV)
+                or Path.home() / "Crystal Builder")
+
 
 #: What the application does with an empty window when it starts, in
 #: the order Preferences offers them.  ``empty`` is the default and is
@@ -269,13 +285,14 @@ class AppSettings:
         """Make a workspace beside a structure that is opened without
         one.
 
-        Off.  A folder created behind somebody's back is one they find
-        later and do not recognise, and the application creating
-        directories next to every file anybody opens is worse than the
-        problem it solves.  With no workspace open a structure still
-        opens and still runs; what it does not do is leave anything
-        behind, and the status bar says so once rather than asking a
-        question the user has to dismiss on every file.
+        Off, and it is now the second answer to a question the
+        startup has usually already settled: a window makes the
+        default workspace on a first run, so a structure is opened
+        into one.  This is what happens when that failed -- and the
+        answer stays no, because creating a directory next to every
+        file anybody opens, having just failed to create one, is worse
+        than the problem it solves.  The structure opens and runs and
+        leaves nothing behind, and the status bar says so once.
         """
         return _as_bool(self._q.value("workspace/auto", False))
 
@@ -294,7 +311,8 @@ class AppSettings:
         survives the session it was given in.
         """
         stored = str(self._q.value("workspace/root", "") or "")
-        return Path(stored) if stored else BUILT_IN_WORKSPACE_ROOT
+        return (Path(stored) if stored
+                else built_in_workspace_root())
 
     @default_workspace_root.setter
     def default_workspace_root(self, value) -> None:

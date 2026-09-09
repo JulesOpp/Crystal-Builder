@@ -3,10 +3,22 @@ xtal.io.cif_writer
 ==================
 Writing CIF files.
 
-The export is deliberately minimal: cell, symmetry, atoms, and a note
-saying which program produced the file.  No refinement history, no
-diffractometer block, no invented uncertainties -- writing tags we did
-not compute would be dressing a built model up as a measurement.
+The export is deliberately minimal: cell, symmetry, atoms, the bonds,
+and a note saying which program produced the file.  No refinement
+history, no diffractometer block, no invented uncertainties -- writing
+tags we did not compute would be dressing a built model up as a
+measurement.
+
+**The bonds go in the file.**  This used to be the one thing a CIF was
+said to have nowhere for, and it was not true: ``_geom_bond`` has been
+in the dictionary all along and its ``site_symmetry_2`` code is
+exactly (operation, lattice translation), which is what a bond here
+is.  So a framework keeps the net drawn over it, a marker keeps the
+edge it was added for, and the file is still a CIF anything else can
+read.  What is left over -- what a bond *means* to this application --
+goes in ``_xtal_bond_*`` tags in the same loop, which every other
+reader skips.  :func:`xtal.io.export.for_export` is what strips both
+back out for a file leaving this application.
 
 Written by hand rather than through gemmi so the output stays exactly
 what we intend it to be, line for line.
@@ -16,6 +28,8 @@ from __future__ import annotations
 
 import datetime
 from pathlib import Path
+
+import numpy as np
 
 from xtal.core.structure import Structure
 
@@ -121,8 +135,87 @@ def cif_string(structure: Structure, expand_to_p1: bool = False,
         lines.append(row)
 
     lines += _aniso_loop(labelled)
+    lines += _bond_loop(labelled)
     lines.append("")
     return "\n".join(lines)
+
+
+def _bond_loop(structure) -> list[str]:
+    """The ``_geom_bond_*`` loop, and what only this program reads.
+
+    ``_geom_bond_site_symmetry_2`` is the ``n_pqr`` code: operation
+    *n* of the symmetry loop written above, then a lattice translation
+    of ``(p - 5, q - 5, r - 5)``.  That is
+    :class:`~xtal.core.structure.Bond`'s ``op`` and ``image`` with
+    nothing left over, so the standard half of this loop is the whole
+    geometry and another program reads the bonds this one drew.
+
+    Three things standard CIF has no vocabulary for follow it: the
+    order, whether the order was *stated* by the user or inferred, and
+    the ``kind`` -- a net edge is not a chemical bond and a
+    suppression is the record of one deliberately deleted.  The image
+    is repeated among them because ``n_pqr`` cannot spell a
+    translation beyond four cells, and a net edge is under no
+    obligation to stay inside one.
+
+    The private tags are also the *signal*: a foreign CIF's
+    ``_geom_bond`` loop is usually a distance table from a refinement
+    rather than a bond graph, so the reader takes this loop only when
+    ``_xtal_bond_kind`` is in it.  See
+    :func:`xtal.io.cif_reader.read_bonds`.
+    """
+    bonds = [b for b in structure.bonds
+             if 0 <= b.i < len(structure.sites)
+             and 0 <= b.j < len(structure.sites)]
+    if not bonds:
+        return []
+    lines = ["", "loop_", "_geom_bond_atom_site_label_1",
+             "_geom_bond_atom_site_label_2",
+             "_geom_bond_site_symmetry_2", "_geom_bond_distance",
+             "_xtal_bond_image", "_xtal_bond_order",
+             "_xtal_bond_kind", "_xtal_bond_stated"]
+    for bond in bonds:
+        one = structure.sites[bond.i].label
+        two = structure.sites[bond.j].label
+        distance = _bond_distance(structure, bond)
+        image = ",".join(str(int(t)) for t in bond.image)
+        lines.append(
+            f"{one:<8s} {two:<8s} {_symmetry_code(bond):<8s} "
+            f"{'?' if distance is None else format(distance, '.4f'):>8s}"
+            f"  {image:<10s} {bond.order:6.3f} "
+            f"{bond.kind:<12s} {'yes' if bond.stated else 'no'}")
+    return lines
+
+
+def _symmetry_code(bond) -> str:
+    """``n_pqr`` for a bond, or ``.`` when it will not fit.
+
+    One digit per axis is the format, so a translation of five cells
+    or more has no spelling here -- ``_xtal_bond_image`` is written
+    for every bond precisely so that the answer never depends on this
+    one fitting.
+    """
+    if max(abs(int(t)) for t in bond.image) > 4:
+        return "."
+    p, q, r = (5 + int(t) for t in bond.image)
+    return f"{bond.op + 1}_{p}{q}{r}"
+
+
+def _bond_distance(structure, bond) -> float | None:
+    """How long the bond is, in angstroms.
+
+    Computed rather than remembered, and ``None`` when the operation
+    it names is not in the group any more -- which is a bond about to
+    be dropped, not a distance worth guessing at.
+    """
+    ops = structure.space_group.operations
+    if not 0 <= bond.op < len(ops):
+        return None
+    target = (ops[bond.op].apply(structure.sites[bond.j].frac)
+              + np.asarray(bond.image, dtype=float))
+    delta = target - np.asarray(structure.sites[bond.i].frac,
+                                dtype=float)
+    return float(np.linalg.norm(structure.lattice.to_cart(delta)))
 
 
 def _aniso_loop(structure) -> list[str]:

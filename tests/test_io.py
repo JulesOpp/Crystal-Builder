@@ -5,13 +5,17 @@ import pytest
 
 from xtal import Lattice, Structure
 from xtal.core import p1, properties, symmetry
+from xtal.core.site import Site
+from xtal.core.structure import TOPOLOGY, Bond
 from xtal.io import (
     FORMATS,
     cif_string,
+    for_export,
     read_cif,
     read_cif_all,
     read_cif_string,
     read_xyz_string,
+    what_is_dropped,
     write_cif,
     write_xyz,
     xyz_string,
@@ -194,6 +198,111 @@ def test_reading_a_file_with_no_structure_raises(tmp_path):
         read_cif(path)
     with pytest.raises(ValueError):
         read_cif_string("data_nothing\n")
+
+
+# ------------------------------------------------- bonds, in the CIF
+
+def test_a_cif_carries_the_bonds_it_was_written_with(rutile, tmp_path):
+    """``_geom_bond_site_symmetry_2`` is ``n_pqr``: operation *n* of
+    the symmetry loop, then a translation of (p-5, q-5, r-5).
+
+    That is exactly what a ``Bond`` is, which is why the standard half
+    of the loop carries the whole geometry -- another program reads
+    the bonds this one drew.
+    """
+    rutile.bonds += [
+        Bond(0, 1, (0, 0, 0), order=2.0, kind="explicit", stated=True),
+        Bond(0, 1, (-1, 0, 0), kind=TOPOLOGY, op=3),
+    ]
+    write_cif(rutile, tmp_path / "bonded.cif")
+    back = read_cif(tmp_path / "bonded.cif")
+
+    assert [(b.i, b.j, b.image, b.order, b.kind, b.op, b.stated)
+            for b in back.bonds] == [
+        (0, 1, (0, 0, 0), 2.0, "explicit", 0, True),
+        (0, 1, (-1, 0, 0), 1.0, TOPOLOGY, 3, False)]
+
+
+def test_a_bond_further_out_than_the_symmetry_code_can_spell(rutile,
+                                                             tmp_path):
+    """``n_pqr`` is one digit per axis, so five cells has no spelling.
+
+    ``_xtal_bond_image`` is written for every bond precisely so the
+    answer never depends on that fitting.
+    """
+    rutile.bonds.append(Bond(0, 1, (0, 0, 7), kind=TOPOLOGY))
+    text = cif_string(rutile)
+
+    assert "  .   " in text or " . " in text
+    assert read_cif_string(text).bonds[0].image == (0, 0, 7)
+
+
+def test_a_foreign_geom_bond_loop_is_not_read_as_the_bonding(tmp_path):
+    """It is nearly always a distance table from a refinement.
+
+    Reading one in as the bond graph would hand the user a structure
+    bonded by whoever prepared the file, silently, on open -- which is
+    the one thing Recalculate Bonds exists to stay in charge of.
+    """
+    text = NO_SYMMETRY_CIF + """
+loop_
+_geom_bond_atom_site_label_1
+_geom_bond_atom_site_label_2
+_geom_bond_distance
+Na1 Na1 4.000
+"""
+    assert read_cif_string(text).bonds == []
+
+
+def test_a_bond_loop_out_of_step_with_the_atoms_is_not_fatal():
+    """A file to open without its bonds, not a file to refuse."""
+    text = NO_SYMMETRY_CIF + """
+loop_
+_geom_bond_atom_site_label_1
+_geom_bond_atom_site_label_2
+_geom_bond_site_symmetry_2
+_xtal_bond_kind
+Na1 nobody 1_555 explicit
+Na1 Na1    1_555 explicit
+Na1 Na1    1_655 explicit
+"""
+    # The first names an atom that is not there, the second is a site
+    # bonded to itself in its own image, which cannot exist.
+    kept = read_cif_string(text).bonds
+    assert [(b.i, b.j, b.image) for b in kept] == [(0, 0, (1, 0, 0))]
+
+
+# ------------------------------------------------- what leaves, clean
+
+def test_an_export_keeps_the_chemistry_and_drops_the_markup(rutile):
+    """A marker is not chemistry and a net edge is not a bond, so
+    neither goes in a file for somebody else."""
+    rutile.sites.append(Site("X", [0.25, 0.25, 0.25]))
+    rutile.bonds += [
+        Bond(0, 1, (0, 0, 0), kind="explicit"),
+        Bond(0, 1, (1, 0, 0), kind=TOPOLOGY),
+        Bond(0, 1, (0, 1, 0), kind="suppressed"),
+        Bond(0, 2, (0, 0, 0), kind="explicit"),
+    ]
+    clean = for_export(rutile)
+
+    assert [s.element for s in clean.sites] == ["Ti", "O"]
+    assert [b.kind for b in clean.bonds] == ["explicit"]
+    assert len(rutile.sites) == 3       # the original is untouched
+
+
+def test_a_structure_with_nothing_to_clean_is_not_copied(rutile):
+    """Every crystal anybody has ever opened, and it should not pay
+    for a copy of itself on the way out."""
+    assert for_export(rutile) is rutile
+
+
+def test_what_is_dropped_says_so_in_one_sentence(rutile):
+    assert what_is_dropped(rutile) == ""
+    rutile.sites.append(Site("X", [0.25, 0.25, 0.25]))
+    rutile.bonds.append(Bond(0, 1, (1, 0, 0), kind=TOPOLOGY))
+    said = what_is_dropped(rutile)
+    assert "1 dummy atom" in said and "1 net edge" in said
 
 
 # ---------------------------------------------------------------- XYZ

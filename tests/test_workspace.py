@@ -91,6 +91,40 @@ def test_opening_the_same_file_twice_is_one_entry(workspace,
     assert len(workspace.entries()) == 1
 
 
+def test_a_built_structure_never_lands_in_a_folder_in_use(
+        workspace, tmp_path, rutile):
+    """``new_document`` is ``add_document`` that will not share.
+
+    Both file a structure at ``<entry>/<name>.cif``, so a build whose
+    title matches an opened file would write over that file's
+    workspace copy -- which is the copy that exists so the workspace
+    is whole.
+    """
+    source = tmp_path / "rutile.cif"
+    write_cif(rutile, source)
+    opened = workspace.add_structure(source)
+
+    first = workspace.new_document("rutile")
+    second = workspace.new_document("rutile")
+
+    assert first.path.name == "rutile-2"
+    assert second.path.name == "rutile-3"
+    assert opened.structure_path == opened.path / "rutile.cif"
+
+
+def test_a_document_entry_is_reused_and_a_built_one_is_not(workspace):
+    """The reason there are two methods.
+
+    A module files every run it makes under its own label and wants
+    the same folder each time; a structure wants one nobody else is
+    in.
+    """
+    assert (workspace.add_document("Maker").path
+            == workspace.add_document("Maker").path)
+    assert (workspace.new_document("Maker").path
+            != workspace.new_document("Maker").path)
+
+
 def test_a_name_that_would_not_survive_a_filesystem(workspace):
     assert safe_name("Fe(bpy)3 2+") == "Fe_bpy_3_2+"
     assert safe_name("///") == "structure"

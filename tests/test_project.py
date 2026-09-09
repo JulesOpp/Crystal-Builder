@@ -45,13 +45,21 @@ def test_a_project_round_trips_the_structure(tmp_path, bonded):
     assert view == {} and "version" in session
 
 
-def test_a_project_keeps_the_bonds_a_cif_would_lose(tmp_path, bonded):
-    """A bond here is (site, site, operation, translation); there is no
-    CIF tag for that, so it is written beside the CIF."""
+def test_a_project_keeps_what_a_cif_still_has_no_tag_for(tmp_path,
+                                                        bonded):
+    """The bonds are in the CIF now -- ``_geom_bond`` says (site,
+    site, operation, translation) and always could.
+
+    What is left over is the *rules* perception ran under and the
+    graph it produced, which are about how the bonds were arrived at
+    rather than what they are, and have no CIF tag at all.
+    """
     from xtal.io import read_cif, write_cif
 
     write_cif(bonded, tmp_path / "plain.cif")
-    assert read_cif(tmp_path / "plain.cif").bonds == []
+    plain = read_cif(tmp_path / "plain.cif")
+    assert {b.kind for b in plain.bonds} == {"explicit", "suppressed"}
+    assert plain.bond_rules == {}
 
     path = write_project(bonded, tmp_path / "demo.xtalproj")
     back, _view, _session = read_project(path)

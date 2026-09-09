@@ -47,6 +47,16 @@ _PACKAGES = tempfile.mkdtemp(prefix="xtal-test-packages-")
 atexit.register(shutil.rmtree, _PACKAGES, ignore_errors=True)
 os.environ.setdefault("XTAL_PACKAGES_DIR", _PACKAGES)
 
+# And the same for the workspace.  The application now *makes* the
+# default workspace on a first run rather than only suggesting it --
+# it does not let anybody work without one -- so a suite that let it
+# answer with the real default would put a folder of runs in the
+# developer's home directory on every run, which is the plists
+# again with bigger files in it.
+_WORKSPACE = tempfile.mkdtemp(prefix="xtal-test-workspace-")
+atexit.register(shutil.rmtree, _WORKSPACE, ignore_errors=True)
+os.environ.setdefault("XTAL_WORKSPACE_ROOT", _WORKSPACE)
+
 
 
 def _settings_into_a_scratch_directory() -> None:
@@ -232,6 +242,26 @@ def _no_blocking_modal(monkeypatch):
 
         monkeypatch.setattr(QMessageBox, name, refuse_static,
                             raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _a_default_workspace_of_this_test_own(monkeypatch, tmp_path):
+    """One default workspace per test, and never the real one.
+
+    The window makes the default workspace when there is none to
+    reopen -- it does not let anybody work without one -- so every
+    window fixture in this suite now creates a workspace on the way
+    up.  Two things go wrong without this.  It would be the
+    developer's own ``~/Crystal Builder``, filled with entries by a
+    test run.  And one directory shared by 2000 tests is a test that
+    counts entries depending on what ran before it, which is the
+    worst kind of failure to read.
+
+    The process-wide ``XTAL_WORKSPACE_ROOT`` set at the top of this
+    file is the safety net under this; this is the isolation.
+    """
+    monkeypatch.setenv("XTAL_WORKSPACE_ROOT",
+                       str(tmp_path / "Crystal Builder"))
 
 
 @pytest.fixture(autouse=True)
