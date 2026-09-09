@@ -34,9 +34,10 @@ from pathlib import Path
 
 from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox
 
+from xtal.core.structure import Structure
 from xtal.io import FORMATS
 from xtalapp import samples
-from xtalapp.document import Document
+from xtalapp.document import PROJECT_EXTENSION, Document
 
 #: The environment variable that turns the unsaved-changes prompt off.
 NO_CONFIRM_CLOSE_ENV = "XTAL_NO_CONFIRM_CLOSE"
@@ -152,11 +153,43 @@ class DocumentSet:
             viewport.modeChanged.connect(self.window.sync_mode_action)
         self.tabs.setCurrentIndex(index)
         self.window._update_ui()
+        self.window.workspace_shell.save_session()
         return index
 
     def new_document(self) -> Document:
-        document = Document()
+        """An empty structure, in a folder of its own, straight away.
+
+        A document with nowhere to be is one whose first run has
+        nowhere to land and whose ``Ctrl+S`` opens a dialog in
+        whichever directory was last used, which is how work made in
+        this application ended up outside it.  So the folder is made
+        now -- ``untitled``, numbered past whatever is already there --
+        and the tab is over a real file from the first keystroke.  The
+        entry is the structure's name here, so renaming is a workspace
+        operation rather than a Save As.
+
+        With no workspace the old pathless document is what opens.
+        That is the folder-could-not-be-made path and nothing else;
+        see :meth:`WorkspaceShell.restore_workspace`.
+        """
+        structure = Structure.empty()
+        entry = path = None
+        workspace = self.window.workspace
+        if workspace is not None:
+            try:
+                entry = workspace.new_document("untitled")
+                path = entry.path / f"{entry.name}.cif"
+                FORMATS.write(structure, path)
+            except (OSError, ValueError) as exc:
+                self.window.show_message(
+                    f"could not file the new structure: {exc}")
+                entry = path = None
+        document = Document(structure, path=path)
         self.add_document(document)
+        if entry is not None:
+            document.attach_workspace(entry)
+            self.window.refresh_workspace()
+            self.window.file_dock.tree.select_path(entry.path)
         return document
 
     def open_dialog(self) -> None:
@@ -168,7 +201,14 @@ class DocumentSet:
         if path:
             self.open_path(path)
 
-    def open_path(self, path) -> Document | None:
+    def open_path(self, path, report: bool = True) -> Document | None:
+        """Open a file, and say so in a dialog when it will not open.
+
+        ``report=False`` is for the files nobody has just asked for --
+        the tabs a workspace is being reopened with.  A launch that
+        begins with a modal about a file the user deleted themselves
+        is a launch that has to be dismissed before it has started.
+        """
         path = Path(path)
         already = self.document_for(path)
         if already is not None:
@@ -190,14 +230,18 @@ class DocumentSet:
         try:
             document = Document.load(path)
         except (ValueError, OSError, KeyError) as exc:
-            QMessageBox.warning(self.window, "Could not open the file",
-                                f"{path.name}\n\n{exc}")
+            if report:
+                QMessageBox.warning(self.window,
+                                    "Could not open the file",
+                                    f"{path.name}\n\n{exc}")
+            else:
+                self.window.show_message(
+                    f"could not reopen {path.name}: {exc}")
             return None
         self.add_document(document)
         self.window.settings.add_recent_file(path)
         self.window.settings.last_directory = str(path.parent)
         self.window._rebuild_recent_menu()
-        self.window.file_dock.set_root(path.parent)
         self.window.place_in_workspace(document, path)
         if document.warnings:
             self.window.statusBar().showMessage(
@@ -207,21 +251,25 @@ class DocumentSet:
     def open_sample(self, name: str) -> Document | None:
         """Open one of the structures that ship with the application.
 
-        As a **new untitled document with no path**, which is the
-        whole difference between this and :meth:`open_path`.  The file
-        lives inside the application's own folder -- a signed bundle
-        on macOS, under ``Program Files`` on Windows -- so a document
-        that adopted it would answer ``Ctrl+S`` by writing there, and
-        the save would either be refused or land somewhere nobody will
-        find it again.  With no path, Save asks.
+        **Copied into the workspace and then opened from there**, like
+        any other file.  The shipped file lives inside the
+        application's own folder -- a signed bundle on macOS, under
+        ``Program Files`` on Windows -- so a document that adopted
+        *that* path would answer ``Ctrl+S`` by writing there and the
+        save would be refused or land somewhere nobody finds again.
+        That is why this used to open a pathless document, and the
+        copy answers it better: the sample becomes an ordinary
+        structure of this workspace, editable, saveable, with runs of
+        its own.
 
-        Nothing else about it is special, and that is deliberate: it
-        does not enter the recent list (there is no file to come back
-        to), it does not move ``last_directory`` into ``resources/``,
-        and it is not placed in the workspace, which copies a file in
-        by path.  Opening the same sample twice gives two documents
-        rather than raising the tab that has one, because two untitled
-        copies cannot overwrite each other.
+        Opening the same sample twice returns to the one entry,
+        because ``add_structure`` compares the bytes.  Opening it
+        again after editing and saving that entry does not: the bytes
+        differ, so a pristine copy is made beside it, and what opens
+        is what was clicked.
+
+        With no workspace it falls back to the pathless document it
+        always was -- the folder-could-not-be-made path.
         """
         sample = samples.get(name)
         path = sample.path
@@ -229,6 +277,15 @@ class DocumentSet:
             QMessageBox.warning(self.window, "No sample structures",
                                 samples.MISSING)
             return None
+        workspace = self.window.workspace
+        if workspace is not None:
+            try:
+                entry = workspace.add_structure(path, name=sample.label)
+            except OSError as exc:
+                self.window.show_message(
+                    f"could not copy the sample in: {exc}")
+            else:
+                return self.open_path(entry.path / path.name)
         try:
             structure = FORMATS.read(path)
         except (ValueError, OSError, KeyError) as exc:   # pragma: no cover
@@ -293,31 +350,88 @@ class DocumentSet:
         entry = getattr(document, "entry", None)
         if entry is not None:
             out.add(_resolved(entry.structure_path))
+        # And the file it was read from, which the tab no longer
+        # points at once the copy has been adopted -- opening that
+        # same file a second time still has to find this tab.
+        source = document.structure.meta.get("source")
+        if source:
+            out.add(_resolved(source))
         out.discard(None)
         return out
 
     def save_document(self) -> None:
-        """Save the session.
+        """Save File: write this document, without asking where.
 
         Save and Save As write a **project**, always.  They used to
         dispatch on the extension the user typed, so the same command
         either kept a whole working session or threw most of it away
         depending on three characters after a dot.  Writing a file for
         another program is Export, which is one way and says so.
+
+        **A document opened as a CIF converts on its first save.**  It
+        gets the project of the same name beside it and becomes that
+        file; the CIF it was read from is left exactly where it is.
+        This is what stops ``Ctrl+S`` opening a dialog on a structure
+        that plainly has somewhere to go -- the entry it is filed in --
+        and it is a conversion rather than an overwrite because a CIF
+        cannot hold a measurement, a plane, or the view it was being
+        looked at in.
+
+        Only a document with **no file at all** still asks, which
+        outside the folder-could-not-be-made path no longer happens.
         """
         document = self.current_document()
         if document is None:
             return
-        if document.path is None or document.path.suffix != ".xtalproj":
+        target = self._save_target(document)
+        if target is None:
             self.save_document_as()
             return
+        if not self._may_overwrite(target):
+            return
         try:
-            document.save()
+            written = document.save(target)
         except (ValueError, OSError) as exc:
             QMessageBox.warning(self.window, "Could not save", str(exc))
             return
-        self.window.show_message(f"saved {document.path.name}")
+        self.window.settings.add_recent_file(written)
+        self.window._rebuild_recent_menu()
+        self.window.show_message(f"saved {written.name}")
         self.window.refresh_workspace()
+
+    def _save_target(self, document) -> Path | None:
+        """The project this document is, or becomes.  ``None`` to ask.
+
+        Beside the file the tab is over rather than at the entry's own
+        name, because those differ: two structures called MFU4l give
+        entries ``MFU4l`` and ``MFU4l-2``, and both hold a file called
+        ``MFU4l.cif``.  Naming the project after the *file* keeps the
+        pair together and keeps a second save from finding a different
+        answer than the first.
+        """
+        if document.path is None:
+            return None
+        return document.path.with_suffix(PROJECT_EXTENSION)
+
+    def _may_overwrite(self, target: Path) -> bool:
+        """Whether Save File may write over a file that is already there.
+
+        Silently by default: the whole point of Save File is that it
+        does not stop to ask where, and a box on every ``Ctrl+S`` is a
+        box nobody reads by the third time.  Preferences turns it on
+        for anybody who wants the pause, and it is only ever asked
+        about a file that **exists** -- a first save is creating
+        something and has nothing to confirm.
+        """
+        if not target.exists():
+            return True
+        if not self.window.settings.confirm_overwrite:
+            return True
+        answer = QMessageBox.question(
+            self.window, "Save File",
+            f"Overwrite {target.name}?\n\nIn: {target.parent}",
+            QMessageBox.Yes | QMessageBox.No)
+        return answer == QMessageBox.Yes
 
     def save_document_as(self) -> None:
         document = self.current_document()
@@ -358,11 +472,18 @@ class DocumentSet:
         upwards rather than by remembering a path that a moved folder
         would falsify.
         """
+        if document.path is not None:
+            # Beside the file the tab is over.  Asked of the entry
+            # instead, this gives a different answer for a numbered
+            # entry -- ``MFU4l-2/MFU4l.cif`` would be offered
+            # ``MFU4l-2.xtalproj`` -- and Save File would then write
+            # somewhere else again.
+            return document.path.with_suffix(PROJECT_EXTENSION)
         if document.entry is not None:
             return document.entry.project_path
-        base = document.path or Path(self.window.settings.last_directory) / \
+        base = Path(self.window.settings.last_directory) / \
             (document.structure.meta.get("title") or "structure")
-        return Path(base).with_suffix(".xtalproj")
+        return Path(base).with_suffix(PROJECT_EXTENSION)
 
     def export_dialog(self) -> None:
         """One dialog for every writable format."""
@@ -432,11 +553,25 @@ class DocumentSet:
         if self.tabs.currentIndex() >= 0:
             self.close_document(self.tabs.currentIndex())
 
-    def close_document(self, index: int) -> None:
+    def close_all(self, force: bool = False) -> bool:
+        """Every tab, from the end.
+
+        ``force`` skips the per-document question because the caller
+        has already asked it once for the whole window -- changing
+        workspace does, and the same question five times is not five
+        questions.  Without it this is Close All and each modified
+        document still gets its say; a refusal stops there and leaves
+        what is left open, which is why this answers.
+        """
+        for index in range(len(self.documents) - 1, -1, -1):
+            self.close_document(index, force=force)
+        return not self.documents
+
+    def close_document(self, index: int, force: bool = False) -> None:
         if not 0 <= index < len(self.documents):
             return
         document = self.documents[index]
-        if document.modified and not no_confirm_close():
+        if document.modified and not force and not no_confirm_close():
             answer = QMessageBox.question(
                 self.window, "Unsaved changes",
                 f"{document.title} has unsaved changes. Close it?",
@@ -448,3 +583,4 @@ class DocumentSet:
         del self.documents[index]
         widget.deleteLater()
         self.window._update_ui()
+        self.window.workspace_shell.save_session()

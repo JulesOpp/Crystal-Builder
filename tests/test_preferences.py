@@ -20,7 +20,7 @@ from PySide6.QtGui import QAction  # noqa: E402
 from PySide6.QtWidgets import QWidget  # noqa: E402
 
 from xtal.core import bonding  # noqa: E402
-from xtalapp import external, menus, samples  # noqa: E402
+from xtalapp import external, menus  # noqa: E402
 from xtalapp.dialogs.preferences import PreferencesDialog  # noqa: E402
 from xtalapp.mainwindow import MainWindow  # noqa: E402
 from xtalapp.settings import (  # noqa: E402
@@ -89,40 +89,24 @@ def test_choosing_a_page_shows_it(dialog):
     assert dialog.current_page() is dialog.page("View defaults")
 
 
+# -- Saving ------------------------------------------------------------
+
+def test_overwriting_without_asking_is_the_default(settings):
+    """A box on every Ctrl+S trains the reflex it was added to
+    interrupt."""
+    assert settings.confirm_overwrite is False
+
+
+def test_the_confirm_checkbox_is_stored_as_it_is_ticked(dialog,
+                                                        settings):
+    page = dialog.page("General")
+
+    page.confirm_overwrite.setChecked(True)
+
+    assert settings.confirm_overwrite is True
+
+
 # -- General -----------------------------------------------------------
-
-def test_what_to_open_with_is_stored_as_it_is_chosen(dialog, settings):
-    page = dialog.page("General")
-
-    page.startup.setCurrentIndex(page.startup.findData("sample"))
-
-    assert settings.startup_action == "sample"
-
-
-def test_the_sample_row_only_matters_for_one_answer(dialog):
-    page = dialog.page("General")
-
-    page.startup.setCurrentIndex(page.startup.findData("empty"))
-    assert not page.sample.isEnabled()
-
-    page.startup.setCurrentIndex(page.startup.findData("sample"))
-    assert page.sample.isEnabled()
-
-
-def test_which_sample_to_open_with_is_stored(dialog, settings):
-    page = dialog.page("General")
-
-    page.sample.setCurrentIndex(page.sample.findData("zif8"))
-
-    assert settings.startup_sample == "zif8"
-
-
-def test_a_sample_that_no_longer_exists_reads_as_the_default(settings):
-    """A name written by another version must not fail the launch."""
-    settings.startup_sample = "a_sample_that_was_renamed"
-
-    assert settings.startup_sample == "mof5"
-
 
 def test_making_a_workspace_automatically_is_finally_reachable(
         dialog, settings):
@@ -456,52 +440,3 @@ def test_resetting_the_layout_is_the_window_s_own_reset(window,
     dialog.page("General").layoutReset.emit()
 
     assert done == [True]
-
-
-# -- what the application opens with ------------------------------------
-
-def test_by_default_it_still_opens_an_empty_window(window):
-    assert window.settings.startup_action == "empty"
-    assert window.open_at_startup() is None
-    assert window.tabs.count() == 0
-
-
-def test_it_can_open_the_file_from_last_time(window, rutile, tmp_path):
-    from xtal.io import write_cif
-    path = tmp_path / "rutile.cif"
-    write_cif(rutile, path)
-    window.settings.add_recent_file(path)
-    window.settings.startup_action = "recent"
-
-    document = window.open_at_startup()
-
-    assert document is not None
-    assert document.path == path
-
-
-def test_a_remembered_file_that_has_gone_opens_nothing(window,
-                                                       tmp_path):
-    """recent_files() filters what is no longer there, and a launch
-    must not begin with a dialog about a file the user deleted."""
-    window.settings.startup_action = "recent"
-
-    assert window.open_at_startup() is None
-    assert window.tabs.count() == 0
-
-
-def test_it_can_open_a_sample_instead(window):
-    """For somebody who has just installed this and owns no CIF."""
-    window.settings.startup_action = "sample"
-    window.settings.startup_sample = "zif8"
-
-    document = window.open_at_startup()
-
-    assert document is not None
-    assert document.title == "ZIF-8"
-    assert document.path is None
-
-
-def test_the_startup_sample_is_one_of_the_ones_that_ship(window):
-    known = [s.name for s in samples.SAMPLES]
-
-    assert window.settings.startup_sample in known

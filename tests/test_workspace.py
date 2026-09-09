@@ -91,6 +91,103 @@ def test_opening_the_same_file_twice_is_one_entry(workspace,
     assert len(workspace.entries()) == 1
 
 
+def test_two_different_files_of_the_same_name_get_two_entries(
+        workspace, tmp_path, rutile, quartz):
+    """Two people's MFU4l.cif are two structures.
+
+    If it regresses, the second one is copied over the first and the
+    workspace keeps one of them without saying anything.
+    """
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    write_cif(rutile, tmp_path / "a" / "same.cif")
+    write_cif(quartz, tmp_path / "b" / "same.cif")
+
+    first = workspace.add_structure(tmp_path / "a" / "same.cif")
+    second = workspace.add_structure(tmp_path / "b" / "same.cif")
+
+    assert first.path != second.path
+    assert len(workspace.entries()) == 2
+    assert read_cif(first.structure_path).n_sites == rutile.n_sites
+    assert read_cif(second.structure_path).n_sites == quartz.n_sites
+
+
+def test_the_same_bytes_under_a_taken_name_still_find_their_entry(
+        workspace, tmp_path, rutile, quartz):
+    """Third time lucky: the file is already in the numbered folder."""
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    write_cif(rutile, tmp_path / "a" / "same.cif")
+    write_cif(quartz, tmp_path / "b" / "same.cif")
+    workspace.add_structure(tmp_path / "a" / "same.cif")
+    second = workspace.add_structure(tmp_path / "b" / "same.cif")
+
+    again = workspace.add_structure(tmp_path / "b" / "same.cif")
+
+    assert again.path == second.path
+    assert len(workspace.entries()) == 2
+
+
+# ------------------------------------------------------- the session
+
+def test_a_workspace_remembers_what_was_open(workspace, entry):
+    workspace.set_session([entry.structure_path], active=0)
+
+    reopened = Workspace.open(workspace.root)
+
+    assert reopened.session["open"] == ["rutile/rutile.cif"]
+    assert reopened.session_paths() == [entry.structure_path]
+
+
+def test_a_remembered_file_that_has_gone_is_skipped(workspace, entry):
+    """A deleted structure must not stop the workspace opening."""
+    workspace.set_session([entry.structure_path])
+    entry.structure_path.unlink()
+
+    assert workspace.session["open"] == ["rutile/rutile.cif"]
+    assert workspace.session_paths() == []
+
+
+def test_a_session_survives_the_workspace_being_moved(workspace, entry,
+                                                      tmp_path):
+    """Relative paths, for the reason `find` walks upwards."""
+    workspace.set_session([entry.structure_path])
+    moved = tmp_path / "somewhere else"
+    workspace.root.rename(moved)
+
+    reopened = Workspace.open(moved)
+
+    assert reopened.session_paths() == [moved / "rutile" / "rutile.cif"]
+
+
+def test_a_marker_nobody_has_written_a_session_into_opens_empty(
+        workspace):
+    assert workspace.session == {"open": [], "active": 0}
+
+
+def test_a_marker_edited_into_nonsense_opens_empty(workspace):
+    """Rather than refusing to open the workspace at all."""
+    (workspace.root / WORKSPACE_FILE).write_text("{not json")
+
+    assert workspace.session == {"open": [], "active": 0}
+
+
+def test_a_path_outside_the_workspace_is_not_remembered(workspace,
+                                                        tmp_path):
+    workspace.set_session([tmp_path / "elsewhere.cif"])
+
+    assert workspace.session["open"] == []
+
+
+def test_recording_a_session_keeps_the_marker_a_marker(workspace,
+                                                       entry):
+    """The format and version have to survive the session write."""
+    workspace.set_session([entry.structure_path])
+
+    assert Workspace.is_workspace(workspace.root)
+    assert Workspace.open(workspace.root).version == 1
+
+
 def test_a_built_structure_never_lands_in_a_folder_in_use(
         workspace, tmp_path, rutile):
     """``new_document`` is ``add_document`` that will not share.

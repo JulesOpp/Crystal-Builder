@@ -46,11 +46,36 @@ SELFTEST = "--selftest"
 SELFTEST_SHOT = "--selftest-image"
 
 
+def choose_workspace(paths, settings, parent=None):
+    """Which workspace this launch is in, or ``None`` to give up.
+
+    A file that is already *inside* a workspace skips the question:
+    double-clicking a structure in a folder this application filled
+    has only one sensible answer, and asking it is a dialog between a
+    double-click and the crystal.  Anything else -- an empty launch, a
+    CIF from a download folder -- is asked.
+
+    ``paths`` has to include what the *desktop* asked for and not only
+    what the command line did.  On macOS a double-click is a
+    ``QFileOpenEvent`` and never an argument, so reading ``argv``
+    alone would skip the question on the one platform where nobody
+    launches this from a shell.
+    """
+    from xtal.workspace import Workspace
+    from xtalapp.dialogs.workspace_chooser import WorkspaceChooser
+    for path in paths:
+        found = Workspace.find(path)
+        if found is not None:
+            return found
+    return WorkspaceChooser.ask(settings, parent)
+
+
 def main(argv=None) -> int:
     from xtal import __version__, plugins
     from xtalapp import applog, extras
     from xtalapp.application import Application
     from xtalapp.mainwindow import APP_NAME, MainWindow
+    from xtalapp.settings import AppSettings
 
     applog.start()
     log = logging.getLogger("xtalapp")
@@ -92,7 +117,17 @@ def main(argv=None) -> int:
     # is anything to open it in -- has already been queued by the
     # time the queue is released below.
     paths = [a for a in argv[1:] if not a.startswith("-")]
-    window = MainWindow(paths=paths)
+    # One spin of the loop first: the FileOpen event a double-click
+    # sends is already on its way and has not been seen yet, and the
+    # question below is about the file it names.
+    app.processEvents()
+    workspace = choose_workspace(paths + list(app.pending),
+                                 AppSettings())
+    if workspace is None:
+        # Quit from the chooser.  There is no window yet and nothing
+        # to close: the launch simply does not happen.
+        return 0
+    window = MainWindow(paths=paths, workspace=workspace)
     window.show()
     app.file_opened.connect(window.open_from_desktop)
     # Cmd-Q is delivered to the application and not to the window, so
@@ -101,13 +136,6 @@ def main(argv=None) -> int:
     app.guard_quit(window.confirm_quit)
     app.start_delivering()
 
-    # After the queue is released, and only if it left nothing: a
-    # launch that named a file wants that file, not the sample or the
-    # last session's structure in front of it.  Preferences > General
-    # owns this, and its default is the empty window this application
-    # has always opened with.
-    if not window.documents:
-        window.open_at_startup()
     return app.exec()
 
 

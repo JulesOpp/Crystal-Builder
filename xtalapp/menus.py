@@ -90,9 +90,10 @@ def build_actions(window):
     add = window.actions_.add
     add("new", "&New", window.new_document, "Ctrl+N")
     add("open", "&Open...", window.open_dialog, "Ctrl+O")
-    add("save", "&Save", window.save_document, "Ctrl+S",
-        tip="Save the session: the structure, the bonds you drew, "
-            "the view, the selection and the measurements")
+    add("save", "&Save File", window.save_document, "Ctrl+S",
+        tip="Save the session -- the structure, the bonds you drew, "
+            "the view, the selection and the measurements -- over "
+            "the file this is, without asking where")
     add("save_as", "Save &As...", window.save_document_as,
         "Ctrl+Shift+S",
         tip="Save the session under another name")
@@ -107,11 +108,14 @@ def build_actions(window):
     add("new_workspace", "&New Workspace...",
         window.new_workspace_dialog)
     add("close_tab", "&Close", window.close_current, "Ctrl+W")
+    add("close_all_tabs", "Close A&ll", window.close_all_documents,
+        "Ctrl+Shift+W",
+        tip="Every open structure.  Each modified one still asks")
     add("preferences", "&Preferences...", window.show_preferences,
         "Ctrl+,", role=QAction.MenuRole.PreferencesRole,
         tip="Everything this application remembers between sessions "
-            "-- what it opens with, where workspaces go, and what a "
-            "newly opened structure is drawn as")
+            "-- where new workspaces go, and what a newly opened "
+            "structure is drawn as")
     # QuitRole and AboutRole, said rather than guessed: macOS moves
     # both of these into the application menu, and left to itself Qt
     # decides which entries those are by reading their English text.
@@ -445,7 +449,7 @@ def build_menus(window):
         None, "export", "export_image",
         "save_building_block",
         None, "new_workspace", "open_workspace",
-        None, "close_tab"])
+        None, "close_tab", "close_all_tabs"])
     file_menu.addSeparator()
     # Both of these are drawn here on Windows and Linux and are moved
     # into the application menu on macOS, by the roles they carry.

@@ -95,6 +95,12 @@ A test that is *about* a prompt opts out with
 `QMessageBox.question` itself — see
 `test_closing_a_modified_document_asks_first`.
 
+**The startup chooser is the one dialog the suite never meets**, and
+that is why it is called from `xtalapp/main.py` rather than from
+`MainWindow.__init__`. `tests/test_workspace_chooser.py` builds the
+widget and calls its methods; it never calls `exec`. Moving the
+chooser into the constructor would fail every widget test at once.
+
 **Settings go to a scratch directory, never to the real ones.**
 `tests/conftest.py` points the INI backend at a temp directory of the
 process's own, at import, before any `AppSettings` exists. On macOS
@@ -157,7 +163,7 @@ stress case).
 | `QT_API=pyside6` | Must be set before VTK imports its Qt bridge |
 | `XTAL_NO_CONFIRM_CLOSE=1` | Close windows without the unsaved-changes prompt. **Set this whenever launching the app for a screenshot or a smoke run** — otherwise a modal nobody answers hangs the run. The test suite sets it for itself. |
 | `XTAL_STUB_MODULE=1` | Register a fake calculation module, for module-machinery tests |
-| `XTAL_WORKSPACE_ROOT` | Where the default workspace is made. **The app now makes one on a first run** rather than working without it, so a test that let this answer with the real `~/Crystal Builder` would fill the developer's home folder. `conftest.py` points it at a temp directory per test. |
+| `XTAL_WORKSPACE_ROOT` | Where the default workspace is made — the row the chooser offers on a first run, and what `restore_workspace` makes when a window is built without one. A test that let this answer with the real `~/Crystal Builder` would fill the developer's home folder, so `conftest.py` points it at a temp directory per test. |
 | `DFTB_PREFIX` | Where the DFTB+ Slater-Koster parameters live |
 
 ## Invariants — these are product decisions, not implementation details
@@ -192,17 +198,67 @@ stress case).
   an `X`, so everything that holds a marker back at the door already
   holds these back too, and there is no *Unmark*: an `X` does not
   remember what it was, so the way back is Ctrl+Z.
-- **There is always a workspace, and a build is filed in it.** A first
-  run makes the default one (`WorkspaceShell.restore_workspace`)
-  rather than letting anybody work with nowhere for a run to land —
-  this reverses the old "the user picks it and the application never
-  guesses", because what that cost was builds and six-hour runs kept
-  nowhere at all. Every `workspace is None` branch downstream is still
-  reachable and still means what it said: it is the folder-could-not-
-  be-made path now, not the default. A structure a module *builds*
-  gets an entry of its own holding **one** CIF — written from the
-  structure, and the run's own poorer copy dropped — with the run that
-  made it moved in underneath (`ModuleRunner._file_build`).
+- **The workspace is asked for before anything opens, and everything
+  lives in it.** `WorkspaceChooser` runs in `xtalapp/main.py` *before*
+  `MainWindow` is built — recent workspaces listed, the last one
+  selected, so Return is the answer for somebody with one. It is not
+  in the constructor and must not move there: every widget test builds
+  a window directly, and `conftest.py` patches `QDialog.exec` to
+  raise. `MainWindow(workspace=...)` is how the answer gets in; with
+  no answer, `restore_workspace` reopens the last one or makes the
+  default, exactly as before. A file launched from Finder that is
+  *already inside* a workspace skips the question (`Workspace.find`).
+- **Every document has an entry, whichever of the four doors it came
+  through.** A file opened from outside is copied in and **the tab
+  follows the copy** (`place_in_workspace` → `Document.adopt`); where
+  it came from stays in `structure.meta["source"]`, which is what
+  still names the tab when that file is opened again
+  (`DocumentSet._paths_naming`). File ▸ New makes `untitled` /
+  `untitled-2` immediately, because a structure with nowhere to be is
+  one whose first run has nowhere to land. Open Sample copies the
+  bundled CIF in and opens the copy — that is what stopped Ctrl+S
+  aiming inside a signed app bundle. A build is filed by
+  `ModuleRunner._file_build`: one entry, **one** CIF written from the
+  structure, the run's poorer copy dropped, the run moved underneath.
+- **`add_structure` de-duplicates by content, never by name.** Two
+  people's `MFU4l.cif` are two structures and get `MFU4l` and
+  `MFU4l-2`. Deciding by name alone silently copied the second over
+  the first. `filecmp.cmp(..., shallow=False)`; these are kilobytes.
+- **Changing workspace closes every tab**, after the whole-window
+  unsaved question asked *once* (`switch_workspace` →
+  `may_discard_unsaved(question)` → `close_all_documents(force=True)`).
+  A tab is a structure *of* the workspace it was opened in — its runs
+  are filed there — so one carried across a switch files its next run
+  into the folder the user walked away from, which was the behaviour
+  and was a bug. The new workspace is opened **first**: a folder that
+  turns out not to be one must not already have cost somebody the tabs
+  they had. `set_workspace` is the swap alone, for construction.
+- **A workspace remembers its own tabs.** `workspace.json` carries a
+  `session` key of paths relative to the root — relative for the same
+  reason `Workspace.find` walks upwards. It is advisory: a file that
+  has gone is skipped in silence. Written whenever the tabs change,
+  not at quit alone, and `WorkspaceShell._holding` is what stops a
+  restore, or the closing half of a switch, recording itself. This
+  replaced `startup_action` / `startup_sample`, which were a second
+  and conflicting answer to "what is open when I start".
+- **Save File converts, and never asks where.** `Ctrl+S` writes the
+  session over the file the tab is. A document opened as a CIF becomes
+  the `.xtalproj` of the same name beside it on its first save and the
+  CIF is left exactly where it is — a conversion, because a CIF cannot
+  hold a measurement, a plane, or the view it was being looked at in.
+  Named after the *file* and not the entry (`_save_target`): two
+  structures called MFU4l give entries `MFU4l` and `MFU4l-2` and both
+  hold an `MFU4l.cif`, so asking the entry would send the second save
+  somewhere the first did not. Overwriting is silent by default;
+  `settings.confirm_overwrite` adds a confirmation, and only ever for
+  a file that already exists. Only a document with no file at all
+  still falls through to Save As, which outside the degraded path no
+  longer happens.
+- **The degraded window survives.** Every `workspace is None` branch
+  downstream is still reachable and still means what it said: it is
+  the folder-could-not-be-made path, not the default. The chooser
+  reports such a failure inline and goes on asking, because there is
+  no window behind it to report into.
 - **The CIF carries the bonds; Export cleans.** `_geom_bond` says
   (site, site, operation, translation) and always could, so the
   workspace copy of a structure *is* the document: the markers the

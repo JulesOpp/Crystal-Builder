@@ -57,6 +57,7 @@ produces the identical layout and opens in the window.
 
 from __future__ import annotations
 
+import filecmp
 import json
 import re
 import shutil
@@ -94,6 +95,20 @@ def safe_name(text: str, fallback: str = "structure") -> str:
     """A file name that keeps its meaning on macOS and on Windows."""
     cleaned = _UNSAFE.sub("_", str(text)).strip("._")
     return cleaned or fallback
+
+
+def _numbered(stem: str):
+    """``stem``, then ``stem-2``, ``stem-3``, without an end.
+
+    Two callers number a folder past a collision and they have to
+    number it the same way, or a structure added twice by two routes
+    lands in two folders that only one of them can find again.
+    """
+    yield stem
+    index = 1
+    while True:
+        index += 1
+        yield f"{stem}-{index}"
 
 
 # ======================================================================
@@ -352,11 +367,20 @@ class Workspace:
         folders and the filesystem is the authority on what is in it --
         an index would be a second answer to the same question and the
         one that goes stale when a user moves a folder in Finder.
+
+        A folder that cannot be read is empty rather than fatal.  On
+        macOS a workspace in Downloads or Documents is behind a TCC
+        prompt that a relaunched application has not been granted yet,
+        and ``iterdir`` raises ``PermissionError`` from inside window
+        construction -- which took the whole launch down, on the one
+        path where there is no window to report it in.
         """
-        if not self.root.is_dir():
+        try:
+            children = sorted(self.root.iterdir())
+        except OSError:
             return []
         return [Entry(path=p, workspace=self)
-                for p in sorted(self.root.iterdir())
+                for p in children
                 if p.is_dir() and not p.name.startswith(".")]
 
     def entry(self, name: str) -> Entry | None:
@@ -384,15 +408,27 @@ class Workspace:
 
         Opening the same file twice gets the same entry rather than a
         second one, because that is what "open MFU4l.cif again" means.
+        Opening two *different* files that happen to share a name gets
+        two, and that is the half this used to get wrong: the name
+        alone decided, so the second copy landed on the first and the
+        workspace kept one of them without saying so.  Two people's
+        MFU4l.cif are two structures.  The bytes are the only thing
+        that can tell them apart and a structure file is kilobytes.
         """
         source = Path(source)
-        entry = Entry(path=self.root / safe_name(
-            name or source.stem, "structure"), workspace=self)
-        entry.path.mkdir(parents=True, exist_ok=True)
-        target = entry.path / source.name
-        if source.resolve() != target.resolve():
-            shutil.copy2(source, target)
-        return entry
+        stem = safe_name(name or source.stem, "structure")
+        for candidate in _numbered(stem):
+            folder = self.root / candidate
+            target = folder / source.name
+            if folder.exists() and target.exists():
+                if filecmp.cmp(source, target, shallow=False):
+                    return Entry(path=folder, workspace=self)
+                # The same name over different bytes.  Try the next.
+                continue
+            folder.mkdir(parents=True, exist_ok=True)
+            if source.resolve() != target.resolve():
+                shutil.copy2(source, target)
+            return Entry(path=folder, workspace=self)
 
     @property
     def blocks(self) -> Path:
@@ -446,13 +482,85 @@ class Workspace:
         put somewhere and no question left to ask about it.
         """
         stem = safe_name(name, "structure")
-        candidate, index = stem, 1
-        while (self.root / candidate).exists():
-            index += 1
-            candidate = f"{stem}-{index}"
+        candidate = next(c for c in _numbered(stem)
+                         if not (self.root / c).exists())
         entry = Entry(path=self.root / candidate, workspace=self)
         entry.path.mkdir(parents=True)
         return entry
+
+    # -- session -------------------------------------------------------
+
+    @property
+    def session(self) -> dict:
+        """What was open in this workspace when it was last left.
+
+        ``{"open": [relative paths], "active": index}``.
+
+        **Advisory, and nothing more.**  A key written by a newer
+        version, a marker somebody edited by hand, a file that is no
+        longer there -- every one of them reads as "nothing was open",
+        because a workspace that will not open until a deleted file is
+        put back is worse than one that opens with no tabs.
+
+        This is not an index of what the workspace *contains*.
+        :meth:`entries` reads the directory and stays the authority on
+        that; this only remembers which of them somebody was looking
+        at.
+        """
+        try:
+            data = json.loads((self.root / WORKSPACE_FILE).read_text())
+            stored = data["session"]
+            paths = [str(p) for p in stored["open"]]
+            active = int(stored.get("active", 0))
+        except (OSError, json.JSONDecodeError, LookupError,
+                TypeError, ValueError):
+            return {"open": [], "active": 0}
+        return {"open": paths, "active": active}
+
+    def session_paths(self) -> list[Path]:
+        """The remembered paths that are still there, in order."""
+        return [path for path in
+                (self.root / name for name in self.session["open"])
+                if path.exists()]
+
+    def set_session(self, open_paths, active: int = 0) -> None:
+        """Record what is open, for the next time this is entered.
+
+        Stored **relative to the root and with forward slashes**, so a
+        workspace that is moved, renamed or carried to another machine
+        still answers -- the same reason :meth:`find` walks upwards
+        rather than storing a root anywhere.  A path from outside the
+        workspace is dropped rather than stored absolute, which is the
+        falsehood this avoids everywhere else.
+
+        A workspace on a disk that has filled or a folder that has gone
+        read-only does not get to make closing a tab raise, so a write
+        that fails is a session that is not remembered and nothing
+        else.
+        """
+        root = self.root.resolve()
+        relative = []
+        for path in open_paths:
+            try:
+                relative.append(
+                    Path(path).resolve().relative_to(root).as_posix())
+            except (ValueError, OSError):
+                continue
+        marker = self.root / WORKSPACE_FILE
+        try:
+            data = json.loads(marker.read_text())
+        except (OSError, json.JSONDecodeError):
+            data = {}
+        if not isinstance(data, dict):
+            data = {}
+        data.setdefault("format", "crystal-builder-workspace")
+        data.setdefault("version", FORMAT_VERSION)
+        data["session"] = {"open": relative,
+                           "active": max(0, int(active))}
+        try:
+            marker.write_text(json.dumps(data, indent=1) + "\n")
+        except OSError:
+            pass
 
     # Two Workspace objects are the same workspace when they name the
     # same directory, whatever route each was reached by -- and on

@@ -195,12 +195,30 @@ def test_a_runs_output_still_earns_a_tab_of_its_own(workspace_window,
     assert window.tabs.count() == 2
 
 
-def test_the_message_names_the_tab_when_it_is_spelled_differently(
+def test_reopening_the_file_it_was_copied_from_finds_the_same_tab(
         workspace_window):
-    """"rutile.cif is already open" over a tab the user opened from
-    somewhere else reads as a bug; saying which tab does not."""
+    """The tab is over the workspace's copy now, so the file the user
+    opened is the one that is spelled differently -- and opening it
+    again must still be that tab and not a second one over the same
+    atoms."""
+    window, document, source = workspace_window
+
+    window.open_path(source)
+
+    assert window.tabs.count() == 1
+    assert window.current_document() is document
+    assert "already open" in window.statusBar().currentMessage()
+
+
+def test_a_project_saved_beside_the_structure_names_the_tab(
+        workspace_window):
+    """"rutile.cif is already open" over a tab called rutile.xtalproj
+    reads as a bug; saying which tab does not."""
     window, document, _source = workspace_window
-    window.open_artifact("structure", str(document.entry.structure_path))
+    document.save(document.entry.project_path)
+
+    window.open_path(document.entry.structure_path)
+
     message = window.statusBar().currentMessage()
     assert "already open, as" in message
     assert document.title in message

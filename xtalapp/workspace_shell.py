@@ -27,9 +27,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtWidgets import QFileDialog
-
 from xtal.workspace import NotAWorkspace, Workspace
+from xtalapp.dialogs.workspace_chooser import (
+    ask_for_existing,
+    ask_for_new,
+)
 
 
 class WorkspaceShell:
@@ -49,6 +51,13 @@ class WorkspaceShell:
     def __init__(self, window):
         self.window = window
         self.workspace: Workspace | None = None
+        # The session is written whenever the tabs change, and there
+        # are two stretches where the tabs change without the user
+        # having changed anything: reopening a workspace's tabs, and
+        # closing them all on the way out of one.  Recorded, the first
+        # writes a session half-restored and the second writes an
+        # empty one over the session it is leaving behind.
+        self._holding = False
 
     def place_in_workspace(self, document, path) -> None:
         """Give a freshly opened structure somewhere to put its runs.
@@ -76,6 +85,11 @@ class WorkspaceShell:
             return
         document.structure.meta.setdefault("source", str(path))
         document.attach_workspace(entry)
+        # The tab follows the copy.  A document still pointing at the
+        # file it was read from is one whose work is only half in the
+        # workspace -- and one the workspace cannot remember, because
+        # what it remembers is paths inside itself.
+        document.adopt(entry.path / path.name)
         self.refresh_workspace()
         self.window.file_dock.tree.select_path(entry.path)
 
@@ -99,19 +113,129 @@ class WorkspaceShell:
                                   create=True)
 
     def set_workspace(self, root, create: bool = False):
-        """Open a workspace and show it in the tree."""
+        """Open a workspace and show it in the tree.
+
+        The swap on its own, closing nothing.  This is the path
+        construction takes, when there are no tabs to close yet.
+        Everything a *user* reaches goes through
+        :meth:`switch_workspace` instead.
+        """
+        workspace = self._open(root, create)
+        if workspace is not None:
+            self._adopt(workspace)
+        return workspace
+
+    def switch_workspace(self, root, create: bool = False):
+        """Leave the workspace that is open, and enter another.
+
+        **Everything open closes.**  A tab is a structure *of* the
+        workspace it was opened in -- its runs are filed in that
+        folder and its session is saved beside it -- so a tab carried
+        across a switch is a document whose entry points into a
+        directory the user has walked away from, and the next run it
+        starts is filed there.  That was the behaviour, and it was a
+        bug rather than a convenience.
+
+        The new workspace is opened **first**.  A folder that turns
+        out not to be one, or that cannot be created, must not already
+        have cost somebody the tabs they had.
+        """
+        workspace = self._open(root, create)
+        if workspace is None:
+            return None
+        if workspace == self.workspace:
+            self.refresh_workspace()
+            return workspace
+        if not self.window.may_discard_unsaved(
+                "Some structures have unsaved changes. Leave this "
+                "workspace anyway?"):
+            return None
+        self.save_session()
+        self._holding = True
         try:
-            workspace = (Workspace.create(root) if create
-                         else Workspace.open(root))
+            self.window.close_all_documents(force=True)
+        finally:
+            self._holding = False
+        self._adopt(workspace)
+        self.restore_session()
+        return workspace
+
+    def _open(self, root, create: bool):
+        try:
+            return (Workspace.create(root) if create
+                    else Workspace.open(root))
         except (NotAWorkspace, OSError) as exc:
             self.window.show_message(f"could not open that workspace: {exc}")
             return None
+
+    def _adopt(self, workspace) -> None:
         self.workspace = workspace
         self.window.settings.last_workspace = str(workspace.root)
         self.window.settings.add_recent_workspace(workspace.root)
         self.refresh_workspace()
+        self.window.refresh_title()
         self.window.show_message(f"workspace: {workspace.root}")
-        return workspace
+
+    # -- the tabs a workspace was left with --------------------------
+
+    def save_session(self) -> None:
+        """Remember what is open, so entering here again brings it back.
+
+        Written whenever the tabs change rather than at quit alone: a
+        crash, a force-quit or a machine that goes to sleep and never
+        comes back are the three ways a session kept only in memory is
+        lost, and it is a few hundred bytes.
+        """
+        if self._holding or self.workspace is None:
+            return
+        documents = self.window.documents
+        paths = [d.path for d in documents if d.path is not None]
+        active, current = 0, self.window.tabs.currentIndex()
+        if 0 <= current < len(documents):
+            path = documents[current].path
+            if path in paths:
+                active = paths.index(path)
+        self.workspace.set_session(paths, active)
+
+    def restore_session(self) -> None:
+        """Reopen the tabs this workspace was last left with.
+
+        A remembered file that has since been deleted is skipped
+        rather than reported: the workspace is being *entered*, and a
+        dialog about a file the user threw away themselves is not the
+        first thing it should say.
+        """
+        if self.workspace is None:
+            return
+        remembered = self.workspace.session_paths()
+        if not remembered:
+            return
+        active = self.workspace.session["active"]
+        self._holding = True
+        try:
+            for path in remembered:
+                self.window.open_path(path, report=False)
+        finally:
+            self._holding = False
+        if 0 <= active < self.window.tabs.count():
+            self.window.tabs.setCurrentIndex(active)
+        self.save_session()
+
+    def enter_workspace(self, workspace=None) -> None:
+        """The workspace this window opens in, at construction.
+
+        With one already chosen -- the chooser in
+        :func:`xtalapp.main.main` -- it is simply adopted, and the
+        tabs it was left with come back.  With none, the last one is
+        reopened or the default is made, which is what this did
+        before anybody was asked and is still what a window built by
+        hand does.
+        """
+        if workspace is None:
+            self.restore_workspace()
+            return
+        self._adopt(workspace)
+        self.restore_session()
 
     def restore_workspace(self) -> None:
         """Reopen the workspace that was open last, or make one.
@@ -142,30 +266,29 @@ class WorkspaceShell:
         if last and Workspace.is_workspace(last):
             self.workspace = Workspace(last)
             self.refresh_workspace()
+            self.window.refresh_title()
+            self.restore_session()
             return
         if self.set_workspace(
                 self.window.settings.default_workspace_root,
                 create=True) is None:
             self.refresh_workspace()
+        else:
+            self.restore_session()
 
     def refresh_workspace(self) -> None:
         self.window.file_dock.set_workspace(
             self.workspace, self.window.settings.recent_workspaces())
 
     def open_workspace_dialog(self) -> None:
-        chosen = QFileDialog.getExistingDirectory(
-            self.window, "Open workspace",
-            self.window.settings.last_workspace or
-            str(self.window.settings.default_workspace_root.parent))
+        chosen = ask_for_existing(self.window, self.window.settings)
         if chosen:
-            self.set_workspace(chosen)
+            self.switch_workspace(chosen)
 
     def new_workspace_dialog(self) -> None:
-        chosen = QFileDialog.getSaveFileName(
-            self.window, "New workspace",
-            str(self.window.settings.default_workspace_root))[0]
+        chosen = ask_for_new(self.window, self.window.settings)
         if chosen:
-            self.set_workspace(chosen, create=True)
+            self.switch_workspace(chosen, create=True)
 
     def _on_workspace_requested(self, what: str) -> None:
         """The tree's own switcher: open, new, or one of the recent."""
@@ -174,7 +297,7 @@ class WorkspaceShell:
         elif what == "new":
             self.new_workspace_dialog()
         else:
-            self.set_workspace(what)
+            self.switch_workspace(what)
 
     def _on_run_started(self, path: str) -> None:
         self.refresh_workspace()

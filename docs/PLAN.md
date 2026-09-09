@@ -157,7 +157,8 @@ Crystal-Builder/
 │   │                         #   forcefield.py dftb.py zeopp.py stub.py
 │   ├── analysis/porosity.py  # Zeo++ output parsed into results
 │   ├── analysis/pxrd.py     # powder pattern: structure factors, LP, profiles
-│   ├── workspace.py          # the directory a structure and its runs live in
+│   ├── workspace.py          # the folder all the work is in: an entry per structure,
+│                             # its runs, and the tabs it was last left with
 │   ├── params.py             # Param and Availability, shared by modules and engines
 │   ├── plugins.py            # entry-point discovery + in-tree registration
 │   └── cli.py                # headless: convert, symmetry, supercell, optimize, modules, run

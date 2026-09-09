@@ -99,7 +99,7 @@ class MainWindow(QMainWindow):
     information on the right."""
 
     def __init__(self, paths=None, viewport_factory=None,
-                 settings=None):
+                 settings=None, workspace=None):
         super().__init__()
         self.setWindowTitle(APP_NAME)
         # Sized against the screen rather than to a fixed number of
@@ -163,7 +163,12 @@ class MainWindow(QMainWindow):
         self.statusBar().addPermanentWidget(self.selection_label)
 
         self.settings.restore_window(self)
-        self.workspace_shell.restore_workspace()
+        # The chooser has already asked, on the one path that has one:
+        # `xtalapp.main`.  Everything else -- a test, a window built by
+        # hand -- reopens the last workspace as it always did, which is
+        # also why the chooser is not in here.  See
+        # :mod:`xtalapp.dialogs.workspace_chooser`.
+        self.workspace_shell.enter_workspace(workspace)
         self._update_ui()
 
         for path in paths or []:
@@ -248,8 +253,8 @@ class MainWindow(QMainWindow):
     def open_dialog(self) -> None:
         self.document_set.open_dialog()
 
-    def open_path(self, path) -> Document | None:
-        return self.document_set.open_path(path)
+    def open_path(self, path, report: bool = True) -> Document | None:
+        return self.document_set.open_path(path, report=report)
 
     def document_for(self, path) -> Document | None:
         return self.document_set.document_for(path)
@@ -347,6 +352,24 @@ class MainWindow(QMainWindow):
 
     def close_document(self, index: int) -> None:
         self.document_set.close_document(index)
+
+    def close_all_documents(self, force: bool = False) -> bool:
+        return self.document_set.close_all(force=force)
+
+    def refresh_title(self) -> None:
+        """The document, the workspace, and the application.
+
+        The workspace is in the title because it is otherwise only
+        legible from the header of one dock: it decides where a run is
+        filed and what Save offers, and "which one am I in" is a
+        question a title bar should not make anybody go looking for.
+        """
+        document = self.current_document()
+        workspace = self.workspace
+        parts = [document.title if document is not None else "",
+                 workspace.root.name if workspace is not None else "",
+                 APP_NAME]
+        self.setWindowTitle(" — ".join(p for p in parts if p))
 
     # ==================================================================
     #  VIEW COMMANDS
@@ -1308,6 +1331,7 @@ class MainWindow(QMainWindow):
 
     def _on_tab_changed(self, _index: int) -> None:
         self._update_ui()
+        self.workspace_shell.save_session()
 
     def _on_title_changed(self, document, title: str) -> None:
         if document in self.documents:
@@ -1413,7 +1437,8 @@ class MainWindow(QMainWindow):
         has_document = document is not None
         self.actions_.set_enabled(
             ["save", "save_as", "export", "export_image",
-             "close_tab", "reset_view", "view_a", "view_b", "view_c"],
+             "close_tab", "close_all_tabs", "reset_view", "view_a",
+             "view_b", "view_c"],
             has_document)
         self._update_history_actions()
         self.actions_.set_enabled(
@@ -1443,7 +1468,7 @@ class MainWindow(QMainWindow):
             self._refresh_plane_actions()
             self.status_label.setText("No structure open")
             self.selection_label.setText("")
-            self.setWindowTitle(APP_NAME)
+            self.refresh_title()
             return
         self.selection_label.setText(document.selection_summary())
         has_selection = bool(document.selection.atoms)
@@ -1468,7 +1493,7 @@ class MainWindow(QMainWindow):
         self._sync_bond_type_actions(document)
         self._refresh_plane_actions()
         self.status_label.setText(document.status_text())
-        self.setWindowTitle(f"{document.title} — {APP_NAME}")
+        self.refresh_title()
         name = f"style_{document.view.style}"
         if name in self.actions_:
             self.actions_[name].setChecked(True)
@@ -1559,26 +1584,6 @@ class MainWindow(QMainWindow):
                 "nothing is being logged to a file.")
             return
         applog.reveal()
-
-    def open_at_startup(self) -> Document | None:
-        """What Preferences > General says to open with.
-
-        Called by :func:`xtalapp.main.main` once, and only when
-        nothing else has been opened: a launch that named a file --
-        on the command line, or by double-clicking one in Finder --
-        gets that file and is not also handed a sample.
-
-        An empty window is the default and is what this application
-        has always started as.
-        """
-        action = self.settings.startup_action
-        if action == "recent":
-            for path in self.settings.recent_files():
-                return self.open_path(path)
-            return None
-        if action == "sample":
-            return self.open_sample(self.settings.startup_sample)
-        return None
 
     def preferences_dialog(self):
         """The Preferences window, wired to this one.
@@ -1685,13 +1690,21 @@ class MainWindow(QMainWindow):
         return (not no_confirm_close()
                 and any(d.modified for d in self.documents))
 
-    def may_discard_unsaved(self) -> bool:
-        """Ask, once, whether the unsaved work may be thrown away."""
+    def may_discard_unsaved(self, question: str = "") -> bool:
+        """Ask, once, whether the unsaved work may be thrown away.
+
+        The question is a parameter because there are two of them and
+        the difference matters to whoever is answering: quitting and
+        leaving a workspace throw away the same work for different
+        reasons, and "Quit anyway?" in front of a workspace switch is
+        a dialog about something that is not happening.
+        """
         if not self.has_unsaved_work():
             return True
         answer = QMessageBox.question(
             self, "Unsaved changes",
-            "Some structures have unsaved changes. Quit anyway?",
+            question or "Some structures have unsaved changes. "
+                        "Quit anyway?",
             QMessageBox.Yes | QMessageBox.No)
         return answer == QMessageBox.Yes
 
@@ -1735,6 +1748,7 @@ class MainWindow(QMainWindow):
         if not self._quit_confirmed and not self.may_discard_unsaved():
             event.ignore()
             return
+        self.workspace_shell.save_session()
         self.settings.save_window(self)
         self.settings.sync()
         super().closeEvent(event)

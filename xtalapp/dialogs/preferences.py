@@ -55,19 +55,11 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.core import bonding
-from xtalapp import external, extras, samples
+from xtalapp import external, extras
 from xtalapp.dialogs.bond_rules import BondRulesDialog
 from xtalapp.docks.ff_panel import REDRAW_RATES
 from xtalapp.viewport import styles
 from xtalapp.viewport.view_settings import BACKGROUNDS
-
-#: The three answers to "what should be on screen when this opens",
-#: with the stored value each one is.
-STARTUP_CHOICES = (
-    ("An empty window", "empty"),
-    ("The file I had open last", "recent"),
-    ("A sample structure", "sample"),
-)
 
 
 def _hint(text: str) -> QLabel:
@@ -106,38 +98,29 @@ class GeneralPage(QWidget):
         super().__init__(parent)
         self.settings = settings
         layout = QVBoxLayout(self)
-        layout.addWidget(self._launch_box())
+        layout.addWidget(self._saving_box())
         layout.addWidget(self._workspace_box())
         layout.addWidget(self._forget_box())
         layout.addStretch(1)
 
     # -- the boxes -----------------------------------------------------
 
-    def _launch_box(self) -> QGroupBox:
-        box = QGroupBox("On launch")
-        form = QFormLayout(box)
-        self.startup = QComboBox()
-        for label, value in STARTUP_CHOICES:
-            self.startup.addItem(label, value)
-        self.startup.setCurrentIndex(
-            max(0, self.startup.findData(self.settings.startup_action)))
-
-        self.sample = QComboBox()
-        for sample in samples.SAMPLES:
-            self.sample.addItem(sample.label, sample.name)
-        self.sample.setCurrentIndex(
-            max(0, self.sample.findData(self.settings.startup_sample)))
-
-        form.addRow("Open", self.startup)
-        form.addRow("Sample", self.sample)
-        form.addRow(_hint(
-            "A file opened from the command line or from Finder is "
-            "shown instead of this."))
-        self._sync_sample_row()
-        self.startup.currentIndexChanged.connect(self._startup_chosen)
-        self.sample.currentIndexChanged.connect(
-            lambda _i: setattr(self.settings, "startup_sample",
-                               self.sample.currentData()))
+    def _saving_box(self) -> QGroupBox:
+        box = QGroupBox("Saving")
+        outer = QVBoxLayout(box)
+        self.confirm_overwrite = QCheckBox(
+            "Ask before Save File writes over an existing file")
+        self.confirm_overwrite.setChecked(
+            self.settings.confirm_overwrite)
+        self.confirm_overwrite.toggled.connect(
+            lambda on: setattr(self.settings, "confirm_overwrite", on))
+        outer.addWidget(self.confirm_overwrite)
+        outer.addWidget(_hint(
+            "Off by default: Save File writes the session over the "
+            "file the tab is, and a box on every Ctrl+S is one "
+            "nobody reads by the third time.  A structure opened as "
+            "a CIF becomes the project beside it on its first save, "
+            "and that CIF is left where it is."))
         return box
 
     def _workspace_box(self) -> QGroupBox:
@@ -196,14 +179,6 @@ class GeneralPage(QWidget):
         return box
 
     # -- what the controls do ------------------------------------------
-
-    def _startup_chosen(self, _index: int) -> None:
-        self.settings.startup_action = self.startup.currentData()
-        self._sync_sample_row()
-
-    def _sync_sample_row(self) -> None:
-        """The sample chooser only means anything for one answer."""
-        self.sample.setEnabled(self.startup.currentData() == "sample")
 
     def _root_typed(self, text: str) -> None:
         self.settings.default_workspace_root = text

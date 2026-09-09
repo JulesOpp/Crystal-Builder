@@ -18,7 +18,9 @@ import pytest
 pytest.importorskip("PySide6")
 pytest.importorskip("pytestqt")
 
-from PySide6.QtWidgets import QPushButton  # noqa: E402
+from PySide6.QtCore import QEvent, Qt  # noqa: E402
+from PySide6.QtGui import QFocusEvent  # noqa: E402
+from PySide6.QtWidgets import QApplication, QPushButton  # noqa: E402
 
 from xtal.io.xy import read_xy, write_xy  # noqa: E402
 from xtal.modules.report import Curve, Report  # noqa: E402
@@ -372,6 +374,29 @@ def test_an_emptied_box_means_all_of_that_end(qtbot):
     assert float(window.low.text()) == pytest.approx(float(curve.x[0]))
 
 
+def _tab_out_of(entry) -> None:
+    """Leave a box the way tabbing out of it does.
+
+    The focus *event*, and not the Tab key, because Tab only moves
+    anything in a window the desktop has made key -- and a test run
+    that is not the frontmost application never gets one.  On macOS
+    two processes showing a window at the same time is enough: the
+    one that loses never activates, ``waitActive`` spends its five
+    seconds waiting for something that was never going to happen, and
+    the test fails on the timeout rather than on either assertion
+    below.  Which is the whole of why this used to fail one run in
+    three, and why waiting harder is not the fix.
+
+    Nothing is weakened by sending the event: ``QLineEdit`` emits
+    ``editingFinished`` from ``focusOutEvent`` and only if
+    ``hasAcceptableInput``, which is the gate a validator closes over
+    an empty box.  Put a ``QDoubleValidator`` back on the boxes and
+    the second assertion below still fails.
+    """
+    QApplication.sendEvent(
+        entry, QFocusEvent(QEvent.FocusOut, Qt.TabFocusReason))
+
+
 @needs_matplotlib
 def test_a_range_box_applies_when_the_focus_leaves_it(qtbot):
     """It had a ``QDoubleValidator``, which suppresses
@@ -380,45 +405,31 @@ def test_a_range_box_applies_when_the_focus_leaves_it(qtbot):
     the *other* one was edited, which is the one case the reset rule
     was added for.
 
-    Waiting for the window to become *active* is not ceremony, and
-    ``waitActive`` has to be entered as a context manager -- called
-    bare it returns one and waits for nothing.  ``setFocus`` on a
-    window the desktop has not made key records the focus widget and
-    sends no focus event, so Tab moves nothing, the box never
-    finishes editing, and the axis keeps its old limit.  That is a
-    failure that turns up when the machine is busy with something
-    else while the suite runs, which is every release build.
+    Driven with a focus-out event rather than with a Tab key and a
+    wait for the window to be activated -- see :func:`_tab_out_of`.
     """
-    from PySide6.QtCore import Qt
-
     curve = a_pattern()
     window = pattern_window.PatternDialog(curve)
     qtbot.addWidget(window)
-    with qtbot.waitActive(window):
-        window.show()
-        window.activateWindow()
 
     window.low.setFocus()
     window.low.selectAll()
     qtbot.keyClicks(window.low, "18")
-    qtbot.keyClick(window.low, Qt.Key_Tab)      # tab out of it
+    _tab_out_of(window.low)
     assert window.axes.get_xlim()[0] == pytest.approx(18.0)
 
     window.low.setFocus()
     window.low.selectAll()
     qtbot.keyClick(window.low, Qt.Key_Backspace)
-    qtbot.keyClick(window.low, Qt.Key_Tab)
+    _tab_out_of(window.low)
 
     assert window.axes.get_xlim()[0] == pytest.approx(float(curve.x[0]))
-    window.close()
 
 
 @needs_matplotlib
 def test_clicking_the_plot_applies_the_box_too(qtbot):
     """Clicking away from a box has to count as leaving it, so the
     canvas takes the focus."""
-    from PySide6.QtCore import Qt
-
     window = pattern_window.PatternDialog(a_pattern())
     qtbot.addWidget(window)
 

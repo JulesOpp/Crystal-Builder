@@ -71,6 +71,19 @@ def _unquote_ints(block):
     return block
 
 
+def _declares_sites(block) -> bool:
+    """Whether this block says it holds atoms, however many it holds.
+
+    A block with no site loop is metadata -- a journal reference, a
+    publication table -- and is skipped.  A block with the loop and no
+    rows in it is a crystal with no atoms yet, which is exactly what
+    *File > New* writes into a workspace, and refusing to read one
+    back meant the application could not open a file it had written
+    itself.
+    """
+    return bool(block.find_loop("_atom_site_label"))
+
+
 def read_cif_all(path) -> list[Structure]:
     """Read every data block that contains a structure."""
     path = Path(path)
@@ -79,7 +92,9 @@ def read_cif_all(path) -> list[Structure]:
     for block in doc:
         small = gemmi.make_small_structure_from_block(
             _unquote_ints(block))
-        if not small.sites or small.cell.volume <= 0:
+        if small.cell.volume <= 0:
+            continue
+        if not small.sites and not _declares_sites(block):
             continue                    # a metadata-only block
         out.append(_from_small_structure(small, block, path))
     return out

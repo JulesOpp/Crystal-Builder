@@ -197,6 +197,241 @@ def test_a_fresh_window_makes_the_workspace_it_needs(window, rutile,
     assert window.open_path(source).entry is not None
 
 
+def test_switching_workspace_closes_the_tabs_of_the_old_one(
+        opened, tmp_path):
+    """A tab is a structure *of* the workspace it was opened in."""
+    window, _document = opened
+    assert window.tabs.count() == 1
+
+    window.workspace_shell.switch_workspace(tmp_path / "other",
+                                            create=True)
+
+    assert window.workspace.root == tmp_path / "other"
+    assert window.tabs.count() == 0
+    assert window.documents == []
+
+
+def test_a_run_after_switching_is_filed_in_the_new_workspace(
+        opened, tmp_path, rutile):
+    """The bug this closes: a document carried across a switch kept
+    the entry it was given, so its next run was filed in the folder
+    the user had walked away from."""
+    window, _document = opened
+    source = tmp_path / "rutile.cif"
+
+    window.workspace_shell.switch_workspace(tmp_path / "other",
+                                            create=True)
+    document = window.open_path(source)
+
+    assert document.entry is not None
+    assert document.entry.path.parent == tmp_path / "other"
+
+
+def test_a_workspace_that_will_not_open_costs_nobody_their_tabs(
+        opened, tmp_path):
+    """Opened first, closed second: a folder that is not a workspace
+    must not already have thrown the work away."""
+    window, _document = opened
+    (tmp_path / "not a workspace").mkdir()
+
+    assert window.workspace_shell.switch_workspace(
+        tmp_path / "not a workspace") is None
+    assert window.workspace.root == tmp_path / "ws"
+    assert window.tabs.count() == 1
+
+
+def test_switching_to_the_workspace_already_open_changes_nothing(
+        opened, tmp_path):
+    window, document = opened
+
+    window.workspace_shell.switch_workspace(tmp_path / "ws")
+
+    assert window.tabs.count() == 1
+    assert window.current_document() is document
+
+
+def test_a_new_document_gets_a_folder_of_its_own(window):
+    """Not untitled and nowhere: a structure with nowhere to be is one
+    whose first run has nowhere to land."""
+    first = window.new_document()
+    second = window.new_document()
+
+    assert first.entry.name == "untitled"
+    assert second.entry.name == "untitled-2"
+    assert first.path == first.entry.path / "untitled.cif"
+    assert first.path.is_file()
+
+
+def test_reopening_a_workspace_reopens_its_tabs(tmp_path, settings,
+                                                qtbot, rutile):
+    """The workspace is the session -- there is no preference for it
+    any more, and entering one is where the tabs come back."""
+    source = tmp_path / "rutile.cif"
+    write_cif(rutile, source)
+    first = MainWindow(viewport_factory=StubViewport,
+                       settings=settings)
+    qtbot.addWidget(first)
+    first.set_workspace(tmp_path / "ws", create=True)
+    document = first.open_path(source)
+    first.close()
+
+    second = MainWindow(viewport_factory=StubViewport,
+                        settings=settings)
+    qtbot.addWidget(second)
+
+    assert second.tabs.count() == 1
+    assert second.current_document().path == document.path
+
+
+def test_switching_back_brings_the_first_workspace_tabs_back(
+        opened, tmp_path):
+    window, document = opened
+
+    window.workspace_shell.switch_workspace(tmp_path / "other",
+                                            create=True)
+    assert window.tabs.count() == 0
+    window.workspace_shell.switch_workspace(tmp_path / "ws")
+
+    assert window.tabs.count() == 1
+    assert window.current_document().path == document.path
+
+
+def test_a_remembered_tab_whose_file_has_gone_is_skipped(opened,
+                                                         tmp_path):
+    """A workspace must still open when a structure was deleted from
+    underneath it."""
+    window, document = opened
+    entry = document.entry
+    window.workspace_shell.switch_workspace(tmp_path / "other",
+                                            create=True)
+    for path in entry.path.iterdir():
+        path.unlink()
+
+    window.workspace_shell.switch_workspace(tmp_path / "ws")
+
+    assert window.tabs.count() == 0
+
+
+# -- Save File ----------------------------------------------------------
+
+def test_save_file_converts_a_structure_to_the_project_beside_it(
+        opened):
+    """A CIF cannot hold a measurement, a plane or the view it was
+    being looked at in, so the first save is a conversion: the tab
+    becomes the project, and the CIF it was read from is left alone.
+    Nothing is asked, because there is nowhere else it could go."""
+    window, document = opened
+    cif = document.path
+    before = cif.read_text()
+
+    window.save_document()
+
+    assert document.path == cif.with_suffix(".xtalproj")
+    assert document.path.is_file()
+    assert cif.is_file() and cif.read_text() == before
+    assert not document.modified
+    assert document.path.parent == document.entry.path
+
+
+def test_saving_again_writes_the_same_file_without_asking(opened):
+    """The autouse guard raises on any modal, so reaching one here is
+    the failure -- Save File never stops to ask where."""
+    window, document = opened
+    window.save_document()
+    target = document.path
+
+    window.save_document()
+
+    assert document.path == target
+
+
+def test_the_confirm_preference_asks_before_writing_over(opened,
+                                                         monkeypatch):
+    """Only over a file that is already there: the first save is
+    creating something and has nothing to confirm."""
+    from PySide6.QtWidgets import QMessageBox
+    window, document = opened
+    window.settings.confirm_overwrite = True
+    asked = []
+    monkeypatch.setattr(
+        QMessageBox, "question",
+        lambda *a, **k: asked.append(a[2]) or QMessageBox.Yes)
+
+    window.save_document()
+    assert asked == []                     # created, not overwritten
+
+    window.save_document()
+    assert len(asked) == 1
+    assert document.path.name in asked[0]
+
+
+def test_answering_no_leaves_the_file_as_it_was(opened, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+    window, document = opened
+    window.save_document()
+    written = document.path.read_bytes()
+    window.settings.confirm_overwrite = True
+    monkeypatch.setattr(QMessageBox, "question",
+                        lambda *a, **k: QMessageBox.No)
+
+    window.save_document()
+
+    assert document.path.read_bytes() == written
+
+
+def test_a_numbered_entry_saves_beside_its_own_file(window, tmp_path,
+                                                    rutile, quartz):
+    """Two structures called rutile give entries rutile and rutile-2,
+    and both hold a file called rutile.cif.  The project is named
+    after the *file*, so a second save finds the first one again."""
+    window.set_workspace(tmp_path / "ws", create=True)
+    for folder, structure in (("a", rutile), ("b", quartz)):
+        (tmp_path / folder).mkdir()
+        write_cif(structure, tmp_path / folder / "rutile.cif")
+    window.open_path(tmp_path / "a" / "rutile.cif")
+    second = window.open_path(tmp_path / "b" / "rutile.cif")
+
+    window.save_document()
+
+    assert second.entry.name == "rutile-2"
+    assert second.path == second.entry.path / "rutile.xtalproj"
+    assert second.path.is_file()
+
+
+def test_a_saved_project_is_the_tab_the_workspace_reopens(opened,
+                                                          tmp_path):
+    """The session records the file the tab is, so the view and the
+    measurements come back rather than the bare crystal."""
+    window, document = opened
+    window.save_document()
+    saved = document.path
+
+    window.workspace_shell.switch_workspace(tmp_path / "other",
+                                            create=True)
+    window.workspace_shell.switch_workspace(tmp_path / "ws")
+
+    assert window.tabs.count() == 1
+    assert window.current_document().path == saved
+
+
+def test_the_title_says_which_workspace_this_is(opened):
+    window, _document = opened
+
+    assert "ws" in window.windowTitle()
+
+
+def test_close_all_closes_every_tab(opened, tmp_path, quartz):
+    window, _document = opened
+    other = tmp_path / "quartz.cif"
+    write_cif(quartz, other)
+    window.open_path(other)
+    assert window.tabs.count() == 2
+
+    window.close_all_documents()
+
+    assert window.tabs.count() == 0
+
+
 def test_a_workspace_that_cannot_be_made_still_opens_a_window(
         qtbot, settings, rutile, tmp_path, monkeypatch):
     """The fallback, and why every ``workspace is None`` branch

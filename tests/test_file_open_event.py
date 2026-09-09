@@ -149,7 +149,12 @@ def test_everything_queued_is_opened_in_order(app, window, deliver,
         QCoreApplication.sendEvent(app, QFileOpenEvent(str(path)))
     deliver(window)
 
-    assert [str(d.path) for d in window.documents] == paths
+    # By the entry, not by the path: a file opened from outside is
+    # copied into the workspace and the tab follows the copy.  Where
+    # each came from is what the order is being checked against.
+    assert [d.entry.name for d in window.documents] == ["a", "b"]
+    assert [d.structure.meta["source"]
+            for d in window.documents] == paths
 
 
 def test_a_file_arriving_during_delivery_is_delivered_too(

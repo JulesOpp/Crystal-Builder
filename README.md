@@ -354,9 +354,15 @@ the same loop, which every other reader skips; and a foreign CIF's
 always a distance table from a refinement rather than a bond graph.
 
 **Save is about the session; Export is about producing a file for
-something else.**  *File → Save* writes a `.xtalproj`: the structure,
-how you were looking at it, what was selected, what you had measured,
-and the calculations run against it.  It is a zip of a CIF and three
+something else.**  *File → Save File* (`Ctrl+S`) writes a `.xtalproj`
+over the file the tab is, without asking where: the structure, how you
+were looking at it, what was selected, what you had measured, and the
+calculations run against it.  A structure opened as a CIF becomes the
+project of the same name beside it on its first save, and that CIF is
+left exactly where it is -- a conversion rather than an overwrite,
+because a CIF cannot hold a measurement, a plane, or a camera.
+Overwriting after that is silent; Preferences ▸ General will make it
+confirm first.  It is a zip of a CIF and three
 small JSON files, so it stays readable and diffable, and what it adds
 over the CIF is the perceived graph and the rules it was perceived
 under -- so a structure comes back with the bonds you last
@@ -368,13 +374,20 @@ deleted, so none of the three goes in a file for somebody else.  It
 says both that and what the format drops before it writes ("XYZ keeps
 occupancy; symmetry, bonds and charges are not written").
 
-**A workspace is where calculations land, and there is always one.**
-A first run makes `~/Crystal Builder` and says so; *File → New
-Workspace* points at any other ordinary folder, and Preferences ▸
-General changes which one is made.  Every structure opened gets a
-folder of its own inside it, with a copy of the file so the workspace
-is whole; every run then lands underneath the structure it was run
-against:
+**All the work is in a workspace, and it asks which one.**  The
+application opens on a list of recent workspaces with the last one
+already selected, so Return is the whole answer for somebody who has
+one; *New Workspace...* and *Open Other...* are beside it, and a
+first run is offered `~/Crystal Builder`.  Changing workspace closes
+everything open -- a tab belongs to the folder its runs are filed in
+-- and entering a workspace brings back the tabs it was left with.
+
+Every structure gets a folder of its own inside it whichever way it
+arrived: opened from disk (copied in, and the tab follows the copy),
+started empty from *File → New*, or opened from *Open Sample*.  Two
+different files that happen to share a name get two folders rather
+than one of them quietly winning.  Every run then lands underneath
+the structure it was run against:
 
     MFU4l/
       MFU4l.cif                a copy, so the workspace is whole

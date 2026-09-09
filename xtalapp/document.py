@@ -161,6 +161,25 @@ class Document(QObject):
         self.workspaceChanged.emit()
         return self.entry
 
+    def adopt(self, path) -> None:
+        """Point this document at the file it now lives in.
+
+        A structure opened from outside is *copied* into the workspace
+        and the tab has to follow the copy: the original belongs to
+        whoever the user got it from, and editing it in place is not
+        what opening it here meant.  Where it came from is kept in
+        ``structure.meta["source"]``, and that is what still names
+        this document if the same file is opened again.
+
+        Not :meth:`save` -- nothing has been written and nothing is
+        clean.  Only the file this document *is* has changed.
+        """
+        path = Path(path)
+        if self._path == path:
+            return
+        self._path = path
+        self.titleChanged.emit(self.title)
+
     def write_project(self, path) -> Path:
         """Write the structure, the view and the session as one file,
         without adopting the path.  :meth:`save` is the one that
