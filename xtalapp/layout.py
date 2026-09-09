@@ -85,7 +85,7 @@ def build_docks(window):
 
     window.ff_dock = ForceFieldDock(window, title="Force Field",
                                     object_name="ForceFieldDock",
-                                    engines=["uff"])
+                                    engines=["uff", "xtb"])
     window.dftb_dock = ForceFieldDock(window, title="DFTB+",
                                       object_name="DFTBDock",
                                       engines=["dftb"])

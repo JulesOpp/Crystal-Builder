@@ -115,6 +115,15 @@ class ViewSettings:
     # it would be showing something nobody asked for.
     depth_cue: bool = False
     depth_cue_strength: float = 0.7         # 0 = none, 1 = to nothing
+    #: Where the fade begins, as a fraction of the picture's own depth
+    #: -- 0 at the front face of the structure.  Moving it back is how
+    #: a slab is left crisp in front and lost behind, which is the
+    #: whole reason to reach for the effect on a thick cell.
+    depth_cue_start: float = 0.0
+    #: The exponent on the ramp between the two.  1 is the straight
+    #: line; above it the picture stays clear and then falls away,
+    #: below it fades at once and levels off.
+    depth_cue_gradient: float = 1.0
 
     # The probability an ORTEP ellipsoid encloses.  A view setting and
     # not structure data: the same refinement drawn at 50% and at 90%
@@ -245,6 +254,8 @@ class ViewSettings:
             "show_scale_bar": self.show_scale_bar,
             "depth_cue": self.depth_cue,
             "depth_cue_strength": self.depth_cue_strength,
+            "depth_cue_start": self.depth_cue_start,
+            "depth_cue_gradient": self.depth_cue_gradient,
             "ellipsoid_probability": self.ellipsoid_probability,
             "ellipsoid_octants": self.ellipsoid_octants,
             "label_mode": self.label_mode,
@@ -270,7 +281,8 @@ class ViewSettings:
                     "show_bonds", "show_cell", "show_axes",
                     "show_bond_orders", "show_topology",
                     "show_planes", "show_scale_bar", "depth_cue",
-                    "depth_cue_strength", "ellipsoid_probability",
+                    "depth_cue_strength", "depth_cue_start",
+                    "depth_cue_gradient", "ellipsoid_probability",
                     "ellipsoid_octants",
                     "label_mode", "boundary", "projection",
                     "show_legend", "polyhedron_opacity",

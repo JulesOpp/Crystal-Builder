@@ -183,6 +183,12 @@ class ForceFieldDock(QDockWidget):
         self.engine_forms = {
             engine.name: ParamForm(engine.options)
             for engine in self.engines if engine.options}
+        for form in self.engine_forms.values():
+            # An engine whose availability depends on what the form
+            # says -- xTB's does, per method -- has to be re-asked
+            # when the form changes, or the Run button stays enabled
+            # for a method this machine has no binary for.
+            form.changed.connect(self._show_engine)
         self.engine_note = QLabel("")
         self.engine_note.setWordWrap(True)
         self.engine_note.setStyleSheet("color: palette(mid);")

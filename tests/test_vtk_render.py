@@ -278,11 +278,14 @@ def _receding_atoms(n=10, box=60.0):
         lattice, ["C"] * n, (cart + box / 2) / box, space_group="P1")
 
 
-def _brightness_by_depth(structure, cue: bool, strength=0.85):
+def _brightness_by_depth(structure, cue: bool, strength=0.85,
+                         **fade):
     """(distance from the eye, mean pixel value) for each atom."""
     settings = ViewSettings(style="spacefill", show_cell=False)
     settings.depth_cue = cue
     settings.depth_cue_strength = strength
+    for key, value in fade.items():
+        setattr(settings, key, value)
     model = build_scene(structure, settings)
 
     from vtkmodules.util.numpy_support import vtk_to_numpy
@@ -365,6 +368,86 @@ def test_the_fade_goes_to_the_background_colour():
     plain = vtk_scene.render_to_array(
         build_scene(structure, settings), SIZE, direction=(0.0, 0.0, 1.0))
     assert lit.mean() < plain.mean()
+
+
+def test_the_fade_starts_where_it_is_told_to():
+    """The front of the picture is left alone and the fade is spent on
+    the back of it -- which is the setting somebody reaches for on a
+    slab three cells deep, where fading from the front face washes out
+    the half they are looking at."""
+    structure = _receding_atoms()
+    plain = [b for _d, b in _brightness_by_depth(structure, cue=False)]
+    late = [b for _d, b in _brightness_by_depth(structure, cue=True,
+                                                depth_cue_start=0.5)]
+    half = len(plain) // 3
+    # the near third untouched, the far end still going
+    assert max(abs(a - b) for a, b
+               in zip(plain[:half], late[:half], strict=True)) < 20
+    assert late[-1] > plain[-1] + 30
+
+
+def test_the_gradient_bends_the_fade_it_does_not_move_its_end():
+    """Above 1 the picture stays clear and then falls away, so the
+    middle of the run is less faded -- and the back of it is not, or
+    the control would just be the strength slider again."""
+    structure = _receding_atoms()
+    straight = [b for _d, b in _brightness_by_depth(structure, True)]
+    steep = [b for _d, b in
+             _brightness_by_depth(structure, True,
+                                  depth_cue_gradient=3.0)]
+    middle = len(straight) // 2
+    assert steep[middle] < straight[middle] - 20
+    assert abs(steep[-1] - straight[-1]) < 20
+
+
+def test_a_flat_style_still_draws_when_the_fade_is_on():
+    """The regression, and it was total: turning lighting off to draw
+    a flat style takes ``vertexVCVSOutput`` out of the fragment shader
+    with it, the fade's shader replacement then fails to compile, and
+    the actor draws nothing at all.  Every style has to survive the
+    switch being flipped."""
+    from xtal import Lattice, Structure
+    from xtal.core.site import Site
+    structure = Structure(
+        lattice=Lattice.cubic(20.0),
+        sites=[Site("C", [0.5, 0.5, 0.2 + 0.08 * k]) for k in range(6)],
+        space_group="P1")
+    for style in ("cartoon", "wireframe", "platon", "ball_stick"):
+        settings = ViewSettings(style=style, show_cell=False)
+        drawn = []
+        for cue in (False, True):
+            settings.depth_cue = cue
+            image = vtk_scene.render_to_array(
+                build_scene(structure, settings), SIZE,
+                direction=(0.0, 0.0, -1.0))
+            drawn.append(fraction_of(image, lambda i: ~is_background(i)))
+        assert drawn[1] > 0.5 * drawn[0], f"{style} vanished"
+
+
+def test_the_line_style_fades_even_though_it_has_no_shader():
+    """A wide line goes through a geometry shader, which does not
+    carry the position the fade measures -- so the line-drawn bonds
+    are faded by recolouring them instead.  The picture has to recede
+    all the same."""
+    from xtal import Lattice, Structure
+    from xtal.core.site import Site
+    structure = Structure(
+        lattice=Lattice.cubic(20.0),
+        sites=[Site("C", [0.5, 0.5, 0.15 + 0.07 * k]) for k in range(8)],
+        space_group="P1")
+    settings = ViewSettings(style="wireframe", show_cell=False)
+
+    def ink(cue):
+        settings.depth_cue = cue
+        image = vtk_scene.render_to_array(
+            build_scene(structure, settings), (400, 400),
+            direction=(0.0, 0.0, -1.0))
+        return fraction_of(image, lambda i: i.sum(axis=2) < 600)
+
+    assert ink(False) > 0.0
+    # Faded lines are paler, so fewer of their pixels are still dark;
+    # a wireframe that had vanished would answer 0.
+    assert 0.0 < ink(True) < ink(False)
 
 
 def test_depth_cueing_is_off_unless_it_is_asked_for():

@@ -1,33 +1,4 @@
 # TODO
-# Depth cuing throws errors with cartoon style
-# Add more options for the depth cuing - i.e., the gradient of the depth
-# Add more forcefield options to the Forcefield module
-# Add click and drag move of atoms and selected groups of atoms, do not change bonding during moving. Add 'Move' to the top bar maybe next to 'Draw Net'
-
-## Phase 6 — force fields *(M)*
-
-* **UFF4MOF** — a parameter-table addition, not an engine.
-  `xtal/ff/uff/params.py`'s own docstring says the type name is data
-  and "adding a type needs no code": 127 records today, and UFF4MOF is
-  more of them for the MOF metal nodes. The work is transcription plus
-  a typer rule where the geometry character is not enough
-  (`xtal/ff/uff/typer.py`), and a validation test against published
-  geometries in the style of `tests/test_uff_validation.py`.
-* **GFN-FF / xTB** — a second `ENGINES.register(Engine(...))`
-  (`xtal/ff/registry.py:128`), following `xtal/ff/dftb/calculator.py:451`
-  exactly: a `Calculator` subclass, a `build(structure, **options)`
-  factory, `provides`, an `options` tuple of `Param`, and a `check`
-  returning `Availability` so the entry greys out naming what is
-  missing. Reached through `tblite` if importable, else the `xtb`
-  binary through `xtal/modules/process.py` with a path in
-  Preferences ▸ External tools (`external.py:83`) — the same seam
-  DFTB+ uses.
-* **The panel needs one change to show them.** `xtalapp/layout.py:86`
-  builds `ForceFieldDock(engines=["uff"])` and the panel hides its
-  combo when only one engine is offered (`ff_panel.py:324`). Listing
-  the new engine there is what makes it appear.
-
-
 
 Work that is wanted but not yet scheduled into a phase.
 [docs/PLAN.md](PLAN.md) holds the roadmap; this file holds everything
@@ -41,6 +12,24 @@ exist before it.
 ---
 
 ## Symmetry
+
+### Merge duplicates cannot see a site duplicated by its own group
+
+`symmetry.duplicate_groups` compares a site against *other* sites'
+images and never against its own, so a site far enough off a special
+position for the group to generate two of it is invisible to Merge
+Duplicates at any tolerance.  Raising `p1.SPECIAL_POSITION_TOL` to
+0.05 A closed this at the tolerance the dialog opens on -- the
+expansion now collapses anything the default merge would have wanted
+to -- but a user who drags the tolerance to 0.2 A can still be told
+"no duplicates" about images 0.1 A apart.
+
+It is a *reporting* gap rather than a merging one: merging drops whole
+sites and a site's own orbit cannot be half-dropped, so the honest fix
+is for the preview to say "Zn1 is 0.06 A off its mirror and the group
+is making three of it" and point at Standardize, not to offer a merge
+that cannot happen.  Wanted with whatever finally reports a site
+sitting just off a special position, which nothing does today.
 
 ### Descend to a klassengleiche subgroup
 
@@ -82,6 +71,88 @@ are nothing like each other in difficulty.
   implying the earlier versions do it: the dialog currently says
   "translationengleiche" and no cell is doubled, which stays true
   until this lands.
+
+## Force fields
+
+### UFF4MOF's O_2_z has no rule behind it
+
+The type is in the table and is reachable only through the per-atom
+override.  The obvious reading of it -- the carboxylate oxygen on a
+framework metal -- was tried and measured: relaxing MOF-5 with it puts
+Zn-O(carboxylate) at 1.810 A against an experimental 1.941, where
+leaving those oxygens as `O_3` gives 1.866.  It makes the one number
+it is supposed to fix worse, so `xtal/ff/uff/typer.py`'s `_oxygen`
+deliberately does not assign it and says so.
+
+What is wanted is the environment the 2014 paper actually fitted it
+for.  Its parameters are an sp2 oxygen with `O_3_z`'s shortened radius,
+which is a clue and not an answer.
+
+### Neither tblite nor xtb gives a stress this application can use
+
+`xtal/ff/xtb/calculator.py` sets `provides_stress = False` and pays
+`numeric_stress`'s twelve evaluations a step, which is the same price
+DFTB+ pays and for a better-measured reason: tblite writes a virial,
+and dividing it by the cell volume disagrees with a numeric stress by
+ten per cent on quartz under GFN1-xTB -- 0.874 against 0.972
+kcal/mol/A^3 on the two equal diagonal components, with the numeric
+one stable to four decimals from a 1e-3 strain down to 1e-5.
+
+Ten per cent is not noise and not a sign convention.  Finding the
+normalisation makes variable-cell relaxation twelve times cheaper for
+both external engines.  The measurement above is the whole method:
+build the engine over quartz, compare `Result.stress` against
+`Calculator.numeric_stress`, and vary the strain to show which of the
+two is the unreliable one.  `tests/test_xtb.py` asserts only that no
+stress is claimed, which is today's behaviour and not the wanted one.
+
+### The GFN methods are one binary each, and it is not by choice
+
+`xtal/ff/xtb/calculator.py`'s `METHODS` routes GFN1 and GFN2 to tblite
+and GFN-FF to xtb, and offers no control over it, because measurement
+left nothing to choose:
+
+| | tblite 0.3.0 | tblite 0.6.0 | xtb 6.7.1 |
+|---|---|---|---|
+| GFN2, periodic | works | **SIGSEGV** | refuses: "Multipoles not available with PBC" |
+| GFN1, periodic | works | works | **SIGSEGV** |
+| GFN-FF, periodic | — | — | works |
+
+Both crashes are the program's and not this application's.  tblite
+0.6.0 segfaults on a two-atom silicon cell as readily as on MOF-5's
+424, right after printing its repulsion energy; xtb's periodic GFN1
+fails to diagonalise the silicon cell and segfaults on MOF-5 *after*
+reporting its own SCC converged, with or without `--grad` and with
+none of our flags involved.
+
+So GFN2 needs a tblite that works, and this application cannot tell
+which one it has been pointed at short of running it.  What would help
+is a cheap self-test -- a two-atom cell through the chosen binary,
+once, when the path preference changes -- which is the same shape as
+the Slater-Koster check DFTB+ does before it launches.
+
+### A single evaluation still cannot be interrupted
+
+`ExternalProcess.run` takes a `cancel` token and kills the process
+group with it (`xtal/modules/process.py:445`), and neither external
+engine passes one: `xtal/ff/dftb/calculator.py:339` and
+`xtal/ff/xtb/calculator.py`'s `_launch` both call `run()` bare.  So
+Stop is honoured between optimiser steps, and on a slow SCC cycle or
+a large GFN2 cell that means Stop takes until the end of the current
+evaluation.
+
+`optimize.run` would have to carry the token down to `compute`, which
+is a change to the `Calculator` interface and is why it has not been
+made in passing.
+
+### UFF4MOF-II redefines Pt4+2 and the table does not
+
+The machine-readable UFF4MOF table carries a second `Pt4+2` with
+`r1 = 1.125` where Rappe's is 1.364, under the same name -- so it is a
+replacement and not an addition, and there is no way to hold both.
+`xtal/ff/uff/params.py` keeps Rappe's and skips it, because changing a
+row the 1992 paper prints is a different decision from adding ninety-one
+new ones, and `tests/test_uff_params.py` asserts the published value.
 
 ## Modules
 
@@ -165,35 +236,6 @@ independent check.
 Small: the format is one `CRYSTAL` block with `NAME`, `GROUP P1`,
 `CELL` and one `NODE` per vertex with an `EDGE` per edge, and the net
 is already in exactly that shape.
-
-## Building
-
-### A net edge under a bond cannot be clicked
-
-Selecting a net edge works where the edge crosses open space and not
-where a bond or an atom is in front of it: on Fm-3m MOF-5 with an edge
-drawn between C1 and C97, clicking the midpoint of each of the 96
-edges reaches the edge 56 times, the chemistry 40.
-
-* That is deliberate as far as it goes.  An edge is drawn *over* the
-  bonds and is thicker than they are, so if it competed on depth there
-  would be no way to select the bond underneath -- which is why
-  `picking.pick` takes one only when the ray reached nothing else.
-* But **the failure is worse than not selecting anything**: the click
-  lands on the chemical bond instead, and `Del` then suppresses that
-  bond and its whole symmetry orbit.  A user aiming at a net edge and
-  pressing Del can delete 96 chemical bonds and see the net still
-  there.  Whatever the rule becomes, that outcome is the one to
-  remove first.
-* The shape of an answer is probably **the distance to the edge's
-  axis** rather than depth: a click within a fraction of the drawn
-  radius of the axis means the edge even when a bond is nearer the
-  camera, and a click out towards the tube's edge means whatever is
-  behind it.  A modifier, or a "select nets" toggle in the View menu,
-  is the cheaper version and is honest about being a mode.
-* `tests/test_topology.py::test_an_edge_never_wins_a_click_from_the_bond_under_it`
-  pins the current rule, and is the test to change deliberately rather
-  than to discover.
 
 ## Testing
 

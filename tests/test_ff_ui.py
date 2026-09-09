@@ -16,8 +16,11 @@ import pytest
 pytest.importorskip("PySide6")
 pytest.importorskip("pytestqt")
 
+from dataclasses import replace  # noqa: E402
+
 from tests.conftest_ff import water  # noqa: E402
 from tests.test_app_shell import StubViewport  # noqa: E402
+from xtal.ff.xtb import calculator as xtb  # noqa: E402
 from xtalapp.docks.ff_panel import COLUMNS  # noqa: E402
 from xtalapp.document import Document  # noqa: E402
 from xtalapp.mainwindow import MainWindow  # noqa: E402
@@ -512,3 +515,57 @@ def test_the_plot_survives_a_flat_trace(qtbot):
     plot.resize(300, 200)
     plot.set_history([(0, 1.0, 0.5), (1, 1.0, 0.5)])
     plot.grab()
+
+
+# ------------------------------------------------- more than one engine
+
+def test_the_chooser_appears_once_there_is_something_to_choose(opened):
+    """The dock hides its chooser when it is given one engine, which
+    is what it was given until xTB was registered.  A second entry is
+    the whole visible outcome of adding an engine, so it is worth a
+    test of its own rather than being assumed from the layout."""
+    window, _ = opened
+    dock = window.ff_dock
+    # isHidden rather than isVisible: nothing in a widget test is
+    # shown, so isVisible is False for every widget in the window.
+    assert not dock.engine.isHidden()
+    assert [dock.engine.itemData(i) for i in range(dock.engine.count())] \
+        == ["uff", "xtb"]
+
+
+def test_choosing_xtb_hides_the_controls_that_are_uffs(opened):
+    window, _ = opened
+    dock = window.ff_dock
+    dock.engine.setCurrentIndex(dock.engine.findData("xtb"))
+    assert dock.coulomb.isHidden()
+    assert not dock.engine_forms["xtb"].isHidden()
+
+
+def test_a_method_the_machine_cannot_run_greys_out_as_it_is_chosen(
+        opened, monkeypatch):
+    """The availability of this engine is a function of what the form
+    says: GFN-FF needs xtb and the other two do not, so the answer
+    changes as the Method combo does.
+
+    The panel used to re-ask only when the *engine* changed, which
+    left Run enabled for a method with no binary behind it until
+    something else happened to refresh the dock -- and then the
+    failure arrived as a subprocess error after the button.
+    """
+    monkeypatch.setenv("XTAL_XTB", "/nowhere/xtb")
+    monkeypatch.setattr(xtb, "PROGRAMS", tuple(
+        replace(p, name=f"{p.name}-not-installed")
+        if p is xtb.XTB else p for p in xtb.PROGRAMS))
+
+    window, _ = opened
+    dock = window.ff_dock
+    dock.engine.setCurrentIndex(dock.engine.findData("xtb"))
+    method = dock.engine_forms["xtb"].widgets["method"]
+
+    method.setCurrentIndex(method.findData("gfnff"))
+    assert not dock.run_button.isEnabled()
+    assert "xtb" in dock.engine_note.text().lower()
+
+    method.setCurrentIndex(method.findData("gfn2"))
+    assert dock.run_button.isEnabled()
+    assert dock.engine_note.text() == ""

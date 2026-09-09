@@ -4,9 +4,12 @@ xtal.ff.uff.params
 The UFF parameter table -- Rappe, Casewit, Colwell, Goddard and Skiff,
 *J. Am. Chem. Soc.* **1992**, 114, 10024, Table 1.
 
-One frozen record per atom type, 126 of them, covering the whole
-periodic table up to lawrencium.  Nothing here is computed; every
-number is transcribed from the paper.  The formulas that consume them
+One frozen record per atom type, 218 of them.  The first 127 are
+Rappe's, covering the whole periodic table up to lawrencium; the rest
+are UFF4MOF and UFF4MOF-II, which refit the metals and two of the
+oxygens for the nodes of a framework -- the environments UFF was
+never given and gets visibly wrong.  Nothing here is computed; every
+number is transcribed from a paper.  The formulas that consume them
 live in :mod:`xtal.ff.uff.terms`, and which type an atom gets is
 :mod:`xtal.ff.uff.typer`'s decision.
 
@@ -29,13 +32,20 @@ from dataclasses import dataclass
 # Geometry character -> the coordination number it describes.  ``R``
 # (resonant) and ``_`` (no geometry given, e.g. ``H_``, ``Cl``) carry
 # no coordination of their own and are handled by the typer.
+#
+# ``1`` is a shape and not a count: a linear centre has *two*
+# neighbours, which is what ``Ag1+1`` and ``Hg1+2`` are.  It read as
+# one here until UFF4MOF-II arrived with seven more linear metals and
+# made the difference reachable -- an element with a hand-written rule
+# never asks this, so nothing had noticed.
 GEOMETRY_COORDINATION = {
-    "1": 1,      # linear / terminal
+    "1": 2,      # linear -- two neighbours, not one
     "2": 3,      # trigonal planar
     "3": 4,      # tetrahedral
     "4": 4,      # square planar
     "5": 5,      # trigonal bipyramidal
     "6": 6,      # octahedral
+    "8": 8,      # cubic / square antiprismatic
 }
 
 # The same character, in words.  This is what the five-character name
@@ -43,6 +53,7 @@ GEOMETRY_COORDINATION = {
 # ``6`` of ``Fe6+2`` is another one.
 GEOMETRY_WORDS = {
     "1": "linear",
+    "8": "cubic",
     "2": "trigonal planar",
     "3": "tetrahedral",
     "4": "square planar",
@@ -70,7 +81,17 @@ HYBRIDISATION_WORDS = {
 # fitted to the Si-O-Si of a zeolite and not an ordinary ether oxygen.
 QUALIFIERS = {
     "O_3_z": "zeolitic",
+    "O_3_f": "framework oxide",
+    "O_2_z": "framework carboxylate",
+    "S_3_f": "framework sulfide",
 }
+
+# What UFF4MOF's ``f`` says, in the one slot UFF spells the sign of
+# the oxidation state in: this row was fitted to a metal node rather
+# than taken from Rappe's periodic trends.  Without it ``Zn3f2`` and
+# ``Zn3+2`` both describe themselves as "tetrahedral Zn(II)" and the
+# override dropdown offers the same sentence twice.
+FITTED = "framework-fitted"
 
 # The 1992 paper spells lawrencium ``Lw``; the periodic table this
 # application ships calls it ``Lr``.
@@ -123,11 +144,28 @@ class UFFParams:
         return GEOMETRY_COORDINATION.get(self.geometry)
 
     @property
+    def is_fitted(self) -> bool:
+        """Whether UFF4MOF fitted this row to a framework node.
+
+        Such a row writes ``f`` where UFF writes the sign of the
+        oxidation state -- ``Zn3f2`` beside Rappe's ``Zn3+2`` -- which
+        is the only thing in the name that tells the two apart.
+        """
+        return len(self.name) > 3 and self.name[3] == "f"
+
+    @property
     def oxidation_state(self) -> int | None:
-        """The formal charge in the name, e.g. ``+2`` in ``Fe6+2``."""
+        """The formal charge in the name, e.g. ``+2`` in ``Fe6+2``.
+
+        A fitted type spells the same number with an ``f`` and no sign
+        (``Cr6f3``); it is a formal charge either way, and reading it
+        is what keeps the two descriptions from diverging.
+        """
         tail = self.name[3:]
         if tail[:1] in "+-" and tail[1:].isdigit():
             return int(tail[0] + tail[1:])
+        if tail[:1] == "f" and tail[1:].isdigit():
+            return int(tail[1:])
         return None
 
     @property
@@ -185,11 +223,13 @@ class UFFParams:
         parts = [w for w in (self.shape, noun) if w]
         out = " ".join(parts)
         qualifier = QUALIFIERS.get(self.name)
+        if qualifier is None and self.is_fitted:
+            qualifier = FITTED
         return f"{out}, {qualifier}" if qualifier else out
 
 
 def _rows() -> list[UFFParams]:
-    """Table 1, in the paper's order.
+    """Table 1 in the paper's order, and the MOF extension after it.
 
     Written out rather than shipped as a data file: it is the module's
     subject, it never changes, and a reader looking for the number that
@@ -325,8 +365,114 @@ def _rows() -> list[UFFParams]:
     No6+3  1.679   90.00  3.248  0.011  12.000  3.900  0.000  0.000   3.4750   3.1750  1.900
     Lw6+3  1.698   90.00  3.236  0.011  12.000  3.900  0.000  0.000   3.5000   3.2000  1.900
     """
+    # UFF4MOF -- Addicoat, Vankova, Akter and Heine, *JCTC* 2014, 10,
+    # 880 -- and UFF4MOF-II -- Coupry, Addicoat and Heine, *JCTC*
+    # 2016, 12, 5215.  The same eleven columns, fitted to the metal
+    # nodes UFF was never given: the first eighteen rows are the 2014
+    # set and the rest the 2016 one.  Either may spell a row with an
+    # ``f`` where UFF writes the sign of the oxidation state, and that
+    # is the only mark a name carries to say it was fitted rather than
+    # taken from Rappe's periodic trends.
+    #
+    # It is second and it stays second.  ``BY_ELEMENT`` keeps table
+    # order and the typer walks that order, so an element UFF already
+    # covered keeps its own type first and a fitted one is reached
+    # only where a rule in the typer asks for it.
+    mof = """
+    O_3_f  0.634  109.47  3.500  0.060  14.085  2.300  0.018  2.000   8.7410   6.6820  0.669
+    O_2_z  0.528  120.00  3.500  0.060  14.085  2.300  0.000  2.000   8.7410   6.6820  0.669
+    Al6+3  1.220   90.00  4.499  0.505  11.278  1.792  0.000  1.250   4.0600   3.5900  1.201
+    Sc6+3  1.440   90.00  3.295  0.019  12.000  2.595  0.000  0.700   3.3950   3.0800  1.750
+    Ti4+2  1.380   90.00  3.175  0.017  12.000  2.659  0.000  0.700   3.4700   3.3800  1.607
+    V_4+2  1.180   90.00  3.144  0.016  12.000  2.679  0.000  0.700   3.6500   3.4100  1.470
+    V_6+3  1.300   90.00  3.144  0.016  12.000  2.679  0.000  0.700   3.6500   3.4100  1.470
+    Cr4+2  1.100   90.00  3.023  0.015  12.000  2.463  0.000  0.700   3.4150   3.8650  1.402
+    Cr6f3  1.280   90.00  3.023  0.015  12.000  2.463  0.000  0.700   3.4150   3.8650  1.402
+    Mn6+3  1.340   90.00  2.961  0.013  12.000  2.430  0.000  0.700   3.3250   4.1050  1.533
+    Mn4+2  1.260   90.00  2.961  0.013  12.000  2.430  0.000  0.700   3.3250   4.1050  1.533
+    Fe6+3  1.320   90.00  2.912  0.013  12.000  2.430  0.000  0.700   3.7600   4.1400  1.393
+    Fe4+2  1.100   90.00  2.912  0.013  12.000  2.430  0.000  0.700   3.7600   4.1400  1.393
+    Co3+2  1.240  109.47  2.872  0.014  12.000  1.308  0.000  0.700   4.1050   4.1750  1.406
+    Co4+2  1.160   90.00  2.872  0.014  12.000  1.308  0.000  0.700   4.1050   4.1750  1.406
+    Cu4+2  1.280   90.00  3.495  0.005  12.000  2.430  0.000  0.700   4.2000   4.2200  1.434
+    Zn4+2  1.340   90.00  2.763  0.124  12.000  1.308  0.000  0.700   5.1060   4.2850  1.400
+    Zn3f2  1.240  109.47  2.763  0.124  12.000  1.308  0.000  0.700   5.1060   4.2850  1.400
+    Li3f2  1.280  109.47  2.451  0.025  12.000  1.026  0.000  2.000   3.0060   2.3860  1.557
+    Na3f2  1.623  109.47  2.983  0.030  12.000  1.081  0.000  1.250   2.8430   2.2960  2.085
+    Na4f2  1.790   90.00  2.983  0.030  12.000  1.081  0.000  1.250   2.8430   2.2960  2.085
+    Mg6f3  1.525   90.00  3.021  0.111  12.000  1.787  0.000  1.250   3.9510   3.6930  1.500
+    Al3f2  1.280  109.47  4.499  0.505  11.278  1.792  0.000  1.250   4.0600   3.5900  1.201
+    K_3f2  2.380  109.47  3.812  0.035  12.000  1.165  0.000  0.700   2.4210   1.9200  2.586
+    K_4f2  2.010   90.00  3.812  0.035  12.000  1.165  0.000  0.700   2.4210   1.9200  2.586
+    Ca3f2  1.705  109.47  3.399  0.238  12.000  2.141  0.000  0.700   3.2310   2.8800  2.000
+    V_3f2  1.120  109.47  3.144  0.016  12.000  2.679  0.000  0.700   3.6500   3.4100  1.470
+    Mn1f1  1.380  180.00  2.961  0.013  12.000  2.430  0.000  0.700   3.3250   4.1050  1.533
+    Mn3f2  1.180  109.47  2.961  0.013  12.000  2.430  0.000  0.700   3.3250   4.1050  1.533
+    Mn8f4  1.520  109.47  2.961  0.013  12.000  2.430  0.000  0.700   3.3250   4.1050  1.533
+    Co1f1  1.280  180.00  2.872  0.014  12.000  2.430  0.000  0.700   4.1050   4.1750  1.406
+    Cu1f1  1.240  180.00  3.495  0.005  12.000  1.756  0.000  0.700   4.2000   4.2200  1.434
+    Cu2f2  1.110  120.00  3.495  0.005  12.000  1.756  0.000  0.700   4.2000   4.2200  1.434
+    Cu3f2  1.190  109.47  3.495  0.005  12.000  1.756  0.000  0.700   4.2000   4.2200  1.434
+    Zn1f1  1.300  180.00  2.763  0.124  12.000  1.308  0.000  0.700   5.1060   4.2850  1.400
+    Zn2f2  1.300  120.00  2.763  0.124  12.000  1.308  0.000  0.700   5.1060   4.2850  1.400
+    Ga3f2  1.150  109.47  4.383  0.415  11.000  1.821  0.000  0.700   3.6410   3.1600  1.211
+    Ga6f3  1.480   90.00  4.383  0.415  11.000  1.821  0.000  0.700   3.6410   3.1600  1.211
+    Sr8f4  1.820  109.47  3.641  0.235  12.000  2.449  0.000  0.200   3.0240   2.4400  2.415
+    Y_6f3  1.600   90.00  3.345  0.072  12.000  3.257  0.000  0.200   3.8300   2.8100  1.998
+    Y_8f4  1.680  109.47  3.345  0.072  12.000  3.257  0.000  0.200   3.8300   2.8100  1.998
+    Zr8f4  1.680  109.47  3.124  0.069  12.000  3.667  0.000  0.200   3.4000   3.5500  1.758
+    Nb8f4  1.370  109.47  3.165  0.059  12.000  3.618  0.000  0.200   3.5500   3.3800  1.603
+    Mo3f2  1.240  109.47  3.052  0.056  12.000  3.400  0.000  0.200   3.4650   3.7550  1.530
+    Mo4f2  1.400   90.00  3.052  0.056  12.000  3.400  0.000  0.200   3.4650   3.7550  1.530
+    Mo8f4  1.280  109.47  3.052  0.056  12.000  3.400  0.000  0.200   3.4650   3.7550  1.530
+    Tc4f2  1.320   90.00  2.998  0.048  12.000  3.400  0.000  0.200   3.2900   3.9900  1.500
+    Ru4f2  1.320   90.00  2.963  0.056  12.000  3.400  0.000  0.200   3.5750   4.0150  1.500
+    Pd6f3  1.190   90.00  2.899  0.048  12.000  3.210  0.000  0.200   4.3200   4.0000  1.544
+    Ag1f1  1.220  180.00  3.148  0.036  12.000  1.956  0.000  0.200   4.4360   3.1340  1.622
+    Ag2f2  1.340  120.00  3.148  0.036  12.000  1.956  0.000  0.200   4.4360   3.1340  1.622
+    Ag3f2  1.480  109.47  3.148  0.036  12.000  1.956  0.000  0.200   4.4360   3.1340  1.622
+    Ag4f2  1.510   90.00  3.148  0.036  12.000  1.956  0.000  0.200   4.4360   3.1340  1.622
+    Cd1f1  1.400  180.00  2.848  0.228  12.000  1.650  0.000  0.200   5.0340   3.9570  1.600
+    Cd3f2  1.290  109.47  2.848  0.228  12.000  1.650  0.000  0.200   5.0340   3.9570  1.600
+    Cd4f2  1.460   90.00  2.848  0.228  12.000  1.650  0.000  0.200   5.0340   3.9570  1.600
+    Cd8f4  1.640  109.47  2.848  0.228  12.000  1.650  0.000  0.200   5.0340   3.9570  1.600
+    In3f2  1.330  109.47  4.463  0.599  11.000  2.070  0.000  0.200   3.5060   2.8960  1.404
+    In6f3  1.530   90.00  4.463  0.599  11.000  2.070  0.000  0.200   3.5060   2.8960  1.404
+    In8f4  1.530  109.47  4.463  0.599  11.000  2.070  0.000  0.200   3.5060   2.8960  1.404
+    Ba3f2  2.040  109.47  3.703  0.364  12.000  2.727  0.000  0.100   2.8140   2.3960  2.442
+    La8f4  1.660  109.47  3.522  0.017  12.000  3.300  0.000  0.100   2.8355   2.7415  2.071
+    Ce8f4  1.760  109.47  3.556  0.013  12.000  3.300  0.000  0.100   2.7740   2.6920  1.925
+    Pr8f4  1.830  109.47  3.606  0.010  12.000  3.300  0.000  0.100   2.8580   2.5640  2.007
+    Nd8f4  1.780  109.47  3.575  0.010  12.000  3.300  0.000  0.100   2.8685   2.6205  2.007
+    Sm8f4  1.780  109.47  3.520  0.008  12.000  3.300  0.000  0.100   2.9115   2.7195  1.978
+    Eu6f3  1.600   90.00  3.493  0.008  12.000  3.300  0.000  0.100   2.8785   2.7875  2.227
+    Eu8f4  1.740  109.47  3.493  0.008  12.000  3.300  0.000  0.100   2.8785   2.7875  2.227
+    Gd6f3  1.550   90.00  3.368  0.009  12.000  3.300  0.000  0.100   3.1665   2.9745  1.968
+    Gd8f4  1.700  109.47  3.368  0.009  12.000  3.300  0.000  0.100   3.1665   2.9745  1.968
+    Tb8f4  1.640  109.47  3.451  0.007  12.000  3.300  0.000  0.100   3.0180   2.8340  1.954
+    Dy6f3  1.580   90.00  3.428  0.007  12.000  3.300  0.000  0.100   3.0555   2.8715  1.934
+    Dy8f4  1.700  109.47  3.428  0.007  12.000  3.300  0.000  0.100   3.0555   2.8715  1.934
+    Ho8f4  1.700  109.47  3.409  0.007  12.000  3.416  0.000  0.100   3.1270   2.8910  1.925
+    Er8f4  1.640  109.47  3.391  0.007  12.000  3.300  0.000  0.100   3.1865   2.9145  1.915
+    Tm8f4  1.670  109.47  3.374  0.006  12.000  3.300  0.000  0.100   3.2514   2.9329  2.000
+    Yb6f3  1.450   90.00  3.355  0.228  12.000  2.618  0.000  0.100   3.2889   2.9650  2.158
+    Yb8f4  1.620  109.47  3.355  0.228  12.000  2.618  0.000  0.100   3.2889   2.9650  2.158
+    Lu8f4  1.660  109.47  3.640  0.041  12.000  3.271  0.000  0.100   2.9629   2.4629  1.896
+    Hf8f4  1.460  109.47  3.141  0.072  12.000  3.921  0.000  0.100   3.7000   3.4000  1.759
+    W_3f2  1.160  109.47  3.069  0.067  12.000  3.700  0.000  0.100   4.6300   3.3100  1.538
+    W_4f2  1.345   90.00  3.069  0.067  12.000  3.700  0.000  0.100   4.6300   3.3100  1.538
+    W_8f4  1.270  109.47  3.069  0.067  12.000  3.700  0.000  0.100   4.6300   3.3100  1.538
+    Re6f3  1.230   90.00  2.954  0.066  12.000  3.700  0.000  0.100   3.9600   3.9200  1.600
+    Os4f2  1.240   90.00  3.120  0.037  12.000  3.700  0.000  0.100   5.1400   3.6300  1.700
+    Au1f1  1.110  180.00  3.293  0.039  12.000  2.625  0.000  0.100   4.8940   2.5860  1.618
+    Hg3f2  1.248  109.47  2.705  0.385  12.000  1.750  0.000  0.100   6.2700   4.1600  1.600
+    Pb4f2  1.670   90.00  4.297  0.663  12.000  2.846  0.100  0.100   3.9000   3.5300  1.444
+    U_6f3  1.650   90.00  3.395  0.022  12.000  3.900  0.000  0.000   3.3410   2.8530  1.713
+    U_8f4  1.730  109.47  3.395  0.022  12.000  3.900  0.000  0.000   3.3410   2.8530  1.713
+    S_3_f  0.854  109.47  4.035  0.274  13.969  2.703  0.484  1.250   6.9280   4.4860  1.047
+    """
     out = []
-    for line in raw.strip().splitlines():
+    for line in (raw.strip() + "\n" + mof.strip()).splitlines():
         name, *numbers = line.split()
         out.append(UFFParams(name, *(float(v) for v in numbers)))
     return out

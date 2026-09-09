@@ -219,8 +219,19 @@ class SceneModel:
     # the camera.  Carried on the model like the background and the
     # polyhedron opacity, so everything the renderer needs arrives in
     # one object and an offscreen render behaves like the viewport.
+    #
+    # Three numbers and not one, because a fade has a shape as well as
+    # a depth: ``strength`` is how far the back of the picture goes,
+    # ``start`` is where along the scene the fade begins -- 0 at the
+    # front face of the structure, so a slab can be left crisp in
+    # front and lost behind -- and ``gradient`` is the exponent on the
+    # ramp between them: 1 is a straight line, above it holds the
+    # picture clear and then falls away, below it fades at once and
+    # levels off.
     depth_cue: bool = False
     depth_cue_strength: float = 0.7
+    depth_cue_start: float = 0.0
+    depth_cue_gradient: float = 1.0
 
     labels: tuple = ()                  # ((x, y, z), "text"), ...
     legend: tuple = ()                  # (("Fe", (r, g, b)), ...)
@@ -442,6 +453,47 @@ ORDER_SEPARATION = 2.4
 DASH_RADIUS = 0.45
 DASHES_PER_HALF = 3
 DASH_DUTY = 0.55            # fraction of each dash slot that is drawn
+
+
+#: How far back into the scene the fade may be asked to start.  Not
+#: 1.0: at the very back the ramp has no length left and every point
+#: lands past the end of it, so "start the fade as late as possible"
+#: would fade the whole picture at once -- the opposite of what the
+#: control says.
+CUE_START_MAX = 0.95
+#: The exponent on the ramp.  A quarter and four, either side of the
+#: straight line: beyond those the fade is either a step or nothing.
+CUE_GRADIENT_MIN = 0.25
+CUE_GRADIENT_MAX = 4.0
+
+
+def cue_fraction(distances, near, far, strength, gradient=1.0):
+    """How far towards the background each distance is faded, 0 to 1.
+
+    **This is the arithmetic in** :data:`~xtalapp.viewport.vtk_scene.
+    DEPTH_CUE_SHADER`, written once more in numpy -- and it is here,
+    not there, because the two have to agree and one of them is a
+    string of GLSL that nothing can test.  The renderer needs the
+    numpy one for the actor a shader cannot reach: a wide line is
+    drawn through a geometry shader, which does not carry the
+    view-space position the fade measures.
+
+    ``near`` is where the fade begins and ``far`` where it reaches
+    full ``strength``; anything in front of ``near`` comes back 0.
+    """
+    span = max(float(far) - float(near), 1e-6)
+    t = np.clip((np.asarray(distances, float) - float(near)) / span,
+                0.0, 1.0)
+    return np.power(t, max(float(gradient), 1e-3)) * float(strength)
+
+
+def fade_towards(colors, background, fraction) -> np.ndarray:
+    """``colors`` moved ``fraction`` of the way to ``background``."""
+    base = np.asarray(colors, float).reshape(-1, 3)
+    ground = np.asarray(background, float).reshape(1, 3)
+    amount = np.asarray(fraction, float).reshape(-1, 1)
+    return np.clip(base + (ground - base) * amount,
+                   0, 255).astype(np.uint8)
 
 
 #: How far towards black the ORTEP furniture -- the principal

@@ -294,6 +294,68 @@ class MoveSites(Command):
             np.asarray(delta, dtype=float).reshape(3))
         return cls.by_delta(structure, indices, frac_delta, label)
 
+    @classmethod
+    def by_image_delta(cls, structure, cell, atoms, delta,
+                       label: str = "Move atoms") -> MoveSites:
+        """Move sites so that the *drawn atoms* named move by ``delta``.
+
+        The delta is cartesian, and it is a displacement of the images
+        rather than of their parents.  Those are the same thing only in
+        P1: an image is ``R x + t``, so a site whose image is rotated
+        has to move by ``R^-1 d`` for the copy on screen to move by
+        ``d``.  Handing the parent ``d`` instead -- which is what
+        :meth:`by_cartesian_delta` does, correctly, for a typed-in
+        translation -- makes the atom being dragged slide off sideways
+        from the cursor in every group but P1.
+
+        One image names its site, and the rest of the orbit follows on
+        the next expansion.  Where a selection holds two images of the
+        same site the first wins, because they cannot both be granted
+        the same cartesian displacement and picking one is the only
+        answer that keeps the drag rigid.
+        """
+        frac_delta = structure.lattice.to_frac(
+            np.asarray(delta, dtype=float).reshape(3))
+        targets: dict = {}
+        for atom in sorted({int(a) for a in atoms}):
+            site = int(cell.site_idx[atom])
+            if site in targets:
+                continue
+            targets[site] = p1.parent_coordinates(
+                structure, cell, atom, cell.frac[atom] + frac_delta)
+        return cls(targets, label)
+
+    @classmethod
+    def by_image_rotation(cls, structure, cell, atoms, axis,
+                          angle_degrees: float, centre,
+                          label: str = "Rotate atoms") -> MoveSites:
+        """Turn the *drawn atoms* named about ``centre``.
+
+        The image half of :meth:`TransformSites.rotation`, and here for
+        the same reason as :meth:`by_image_delta`: what the user has
+        hold of is a copy, and a rotation of the parents is a different
+        rotation of every image but the ones the identity generated.
+
+        Cartesian, because a rotation is only rigid in cartesian space
+        -- rotating fractional coordinates in a non-orthogonal cell
+        shears the fragment instead of turning it.  ``centre`` is
+        cartesian too, and is the caller's: it has to stay where it was
+        when the gesture started, or a fragment turned through 90
+        degrees walks away from the pivot it started at.
+        """
+        matrix = rotation_matrix(axis, angle_degrees)
+        centre = np.asarray(centre, dtype=float).reshape(3)
+        targets: dict = {}
+        for atom in sorted({int(a) for a in atoms}):
+            site = int(cell.site_idx[atom])
+            if site in targets:
+                continue
+            moved = centre + matrix @ (cell.cart[atom] - centre)
+            targets[site] = p1.parent_coordinates(
+                structure, cell, atom,
+                structure.lattice.to_frac(moved))
+        return cls(targets, label)
+
     def do(self, host) -> None:
         structure = host.structure
         if not self._old:
@@ -315,6 +377,27 @@ class MoveSites(Command):
             self.targets = dict(other.targets)
             return True
         return False
+
+
+def rotation_matrix(axis, angle_degrees: float) -> np.ndarray:
+    """The cartesian rotation of ``angle_degrees`` about ``axis``.
+
+    Shared by the two commands that turn atoms -- the typed-in one
+    over the parent sites and the dragged one over their images -- so
+    that a rotation means the same thing whichever door it came
+    through.
+    """
+    axis = np.asarray(axis, dtype=float).reshape(3)
+    norm = np.linalg.norm(axis)
+    if norm < 1e-12:
+        raise ValueError("rotation axis must be non-zero")
+    axis = axis / norm
+    theta = np.radians(float(angle_degrees))
+    cross = np.array([[0.0, -axis[2], axis[1]],
+                      [axis[2], 0.0, -axis[0]],
+                      [-axis[1], axis[0], 0.0]])
+    return (np.eye(3) + np.sin(theta) * cross
+            + (1 - np.cos(theta)) * (cross @ cross))
 
 
 class TransformSites(Command):
@@ -345,18 +428,8 @@ class TransformSites(Command):
     @classmethod
     def rotation(cls, indices, axis, angle_degrees, centre=None,
                  label=None) -> TransformSites:
-        axis = np.asarray(axis, dtype=float).reshape(3)
-        norm = np.linalg.norm(axis)
-        if norm < 1e-12:
-            raise ValueError("rotation axis must be non-zero")
-        axis = axis / norm
-        theta = np.radians(float(angle_degrees))
-        cross = np.array([[0.0, -axis[2], axis[1]],
-                          [axis[2], 0.0, -axis[0]],
-                          [-axis[1], axis[0], 0.0]])
-        matrix = (np.eye(3) + np.sin(theta) * cross
-                  + (1 - np.cos(theta)) * (cross @ cross))
-        return cls(indices, matrix, centre,
+        return cls(indices, rotation_matrix(axis, angle_degrees),
+                   centre,
                    label or f"Rotate {angle_degrees:g} degrees")
 
     @classmethod

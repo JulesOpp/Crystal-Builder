@@ -18,6 +18,8 @@ why changing a colour cannot corrupt a structure.
 
 from __future__ import annotations
 
+import math
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
@@ -42,6 +44,7 @@ from PySide6.QtWidgets import (
 from xtal.core import elements as el
 from xtal.core.transforms import ELLIPSOID_LEVELS
 from xtalapp.viewport import styles
+from xtalapp.viewport.scene import CUE_GRADIENT_MAX, CUE_START_MAX
 from xtalapp.viewport.view_settings import BACKGROUNDS
 
 #: The two flat colours that belong to no element: the net a chemist
@@ -67,6 +70,23 @@ ELEMENT_COLUMNS = ["El", "Colour", "Radius"]
 # Sliders are integers; these turn a percentage into a scale factor.
 SCALE_STEPS = 200
 SCALE_MAX = 3.0
+
+
+def _gradient_of(position: int) -> float:
+    """The fade exponent a slider at ``position`` (0-100) asks for.
+
+    Geometric and not linear, because the exponent is a ratio: half
+    the travel either side of the straight line has to mean the same
+    amount of curve in both directions, and linear steps from 0.25 to
+    4 would spend three quarters of the slider above 1.
+    """
+    return float(CUE_GRADIENT_MAX ** ((position - 50) / 50.0))
+
+
+def _gradient_position(gradient: float) -> int:
+    gradient = max(1e-6, float(gradient))
+    return int(round(50 + 50 * math.log(gradient)
+                     / math.log(CUE_GRADIENT_MAX)))
 
 
 def _background_name(color) -> str:
@@ -209,6 +229,30 @@ class StylePanelDock(QDockWidget):
         depth.addWidget(self.depth_cue_strength, 1)
         form.addRow(depth)
 
+        # Where the fade starts and how it ramps.  Two more sliders
+        # rather than two more presets, because the answer depends on
+        # how deep the picture is: the same setting that separates the
+        # layers of a three-cell slab washes a single molecule out.
+        self.depth_cue_start = QSlider(Qt.Horizontal)
+        self.depth_cue_start.setRange(0, int(CUE_START_MAX * 100))
+        self.depth_cue_start.setToolTip(
+            "How far into the picture the fade begins -- at 0 the "
+            "front face of the structure already fades, further along "
+            "it stays crisp and only the back goes")
+        self.depth_cue_start.valueChanged.connect(
+            lambda v: self._set(depth_cue_start=v / 100.0))
+        form.addRow("Fade from", self.depth_cue_start)
+
+        self.depth_cue_gradient = QSlider(Qt.Horizontal)
+        self.depth_cue_gradient.setRange(0, 100)
+        self.depth_cue_gradient.setToolTip(
+            "The shape of the fade: in the middle it is a straight "
+            "line, to the right the picture stays clear and then "
+            "falls away, to the left it fades at once and levels off")
+        self.depth_cue_gradient.valueChanged.connect(
+            lambda v: self._set(depth_cue_gradient=_gradient_of(v)))
+        form.addRow("Fade gradient", self.depth_cue_gradient)
+
         # A swatch button each, not a combo: there is no shortlist of
         # sensible net colours the way there is of backgrounds, and the
         # only question worth asking is "which one".
@@ -290,7 +334,12 @@ class StylePanelDock(QDockWidget):
         self.depth_cue.setChecked(view.depth_cue)
         self.depth_cue_strength.setValue(
             round(view.depth_cue_strength * 100))
-        self.depth_cue_strength.setEnabled(view.depth_cue)
+        self.depth_cue_start.setValue(round(view.depth_cue_start * 100))
+        self.depth_cue_gradient.setValue(
+            _gradient_position(view.depth_cue_gradient))
+        for slider in (self.depth_cue_strength, self.depth_cue_start,
+                       self.depth_cue_gradient):
+            slider.setEnabled(view.depth_cue)
         for field, button in self.flat.items():
             self._paint(button, getattr(view, field))
         self.legend.setChecked(view.show_legend)

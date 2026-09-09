@@ -26,6 +26,13 @@ and the event filter withholds the left button from VTK while they are
 active; pan and zoom keep working throughout, so the view is never
 stuck.
 
+A ``wants_drag`` mode says which of the two drags it means.  A band
+mode draws a rubber band here and is told about it once, at the
+release.  A ``"ray"`` mode is asked at the press whether it takes the
+gesture at all -- Move takes an atom and declines the background, so
+the left button is withheld only while something is being dragged --
+and is then sent every intermediate position as a ray into the scene.
+
 Two things happen between the clicks.  The cursor's position goes to
 whoever wants it -- a mode marked ``wants_move`` may hand back a ghost,
 the atom a click would place, drawn over the scene and never part of
@@ -157,6 +164,7 @@ class ViewportWidget(QWidget):
         self._press_button = None
         self._band = None
         self._band_origin = None
+        self._ray_drag = False
         self._ghost = None
         # Whether the tooltip carries the force field's reading of the
         # atom.  Set by the shell when the Force Field dock opens or
@@ -239,6 +247,7 @@ class ViewportWidget(QWidget):
         if self._band is not None:
             self._band.hide()
         self._band_origin = None
+        self._ray_drag = False
         # What the mode makes of the state it is entering, and the
         # plain hint when it makes nothing of it: Add atom with one
         # atom already selected starts halfway through its own
@@ -351,9 +360,16 @@ class ViewportWidget(QWidget):
                 self._press_position = event.position().toPoint()
                 self._press_button = event.button()
                 if self._takes_drag(event):
+                    if getattr(self.mode, "drag_style", "") == "ray":
+                        # The mode may decline, and then the press is
+                        # the camera's after all.
+                        return self._begin_ray_drag(event)
                     self._begin_band(self._press_position)
                     return True         # VTK never starts a rotation
             elif event.type() == QEvent.MouseMove:
+                if self._ray_drag:
+                    self._drag_ray(event)
+                    return True
                 if self._band_origin is not None:
                     self._drag_band(event.position().toPoint())
                     return True
@@ -361,6 +377,9 @@ class ViewportWidget(QWidget):
             elif event.type() == QEvent.Leave:
                 self.set_ghost(None)
             elif event.type() == QEvent.MouseButtonRelease:
+                if self._ray_drag:
+                    self._finish_ray_drag(event)
+                    return True
                 if self._band_origin is not None:
                     self._finish_band(event)
                     return True
@@ -369,8 +388,14 @@ class ViewportWidget(QWidget):
             elif event.type() == QEvent.MouseButtonDblClick:
                 self._press_position = event.position().toPoint()
                 self._press_button = event.button()
-                if self._takes_drag(event):
+                if (self._takes_drag(event)
+                        and getattr(self.mode, "drag_style", "")
+                        != "ray"):
                     return True
+                # A ray mode keeps the double click: it is the second
+                # half of the same gesture -- double-click a molecule
+                # and drag it -- and swallowing it would make Move the
+                # one mode where a fragment cannot be grabbed.
                 self._maybe_pick(event, double=True)
             elif event.type() in (QEvent.KeyPress, QEvent.KeyRelease):
                 # Only when the viewport has the focus, which it
@@ -432,6 +457,62 @@ class ViewportWidget(QWidget):
 
     def _project(self, points):
         return picking.project_to_display(self.scene.renderer, points)
+
+    # -- a drag that means something in the scene -----------------------
+
+    def _begin_ray_drag(self, event) -> bool:
+        """Offer the press to the mode.  Whether it took it is whether
+        VTK sees the event: a mode that declines leaves the button to
+        the camera, which is how Move can be a mode and still let the
+        crystal be turned."""
+        if self.document is None or self.model is None:
+            return False
+        self._ray_drag = bool(self.mode.on_drag_start(
+            self.document, self.model, self._ray_event(event)))
+        return self._ray_drag
+
+    def _drag_ray(self, event) -> None:
+        message = self.mode.on_drag_move(self.document, self.model,
+                                         self._ray_event(event))
+        if message:
+            self.statusMessage.emit(message)
+
+    def _finish_ray_drag(self, event) -> None:
+        self._ray_drag = False
+        self._press_position = None
+        message = self.mode.on_drag_end(self.document, self.model,
+                                        self._ray_event(event))
+        if message:
+            self.statusMessage.emit(message)
+
+    def _ray_event(self, event):
+        """The cursor as a ray, with what the camera makes of it.
+
+        The camera's own up and view direction rather than anything
+        derived from the ray: a perspective ray through a corner of
+        the window is not the view axis, and a drag that used it would
+        move an atom further the further from the middle it was
+        grabbed.
+        """
+        origin, direction = self._ray_at(event.position().toPoint())
+        camera = self.scene.renderer.GetActiveCamera()
+        modifiers = event.modifiers()
+        # Alt claims the gesture, and shift is then read as a
+        # sub-modifier of it rather than as "extend the selection":
+        # alt turns, shift-alt moves in depth, and neither is a
+        # gesture in which adding an atom to the selection means
+        # anything.
+        alt = bool(modifiers & Qt.AltModifier)
+        shift = bool(modifiers & Qt.ShiftModifier)
+        extend = bool(modifiers & (Qt.ShiftModifier
+                                   | Qt.ControlModifier
+                                   | Qt.MetaModifier))
+        return modes.DragRayEvent(
+            origin, direction, tuple(camera.GetFocalPoint()),
+            tuple(camera.GetViewUp()),
+            additive=extend and not alt,
+            rotate=alt and not shift,
+            depth=alt and shift)
 
     def _maybe_pick(self, event, double: bool) -> None:
         if (self._press_position is None

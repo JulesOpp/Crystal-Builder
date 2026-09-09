@@ -253,18 +253,24 @@ def test_a_site_written_as_a_symmetry_image_is_a_duplicate(quartz):
 
 def test_the_more_special_site_is_the_one_kept(quartz):
     """Keeping the site written first changes the multiplicity, and
-    therefore the formula, when the other one sits on an axis."""
+    therefore the formula, when the other one sits on an axis.
+
+    The general site has to be further off the axis than
+    ``p1.SPECIAL_POSITION_TOL`` or it is not a general site at all --
+    0.098 A here -- so the merge has to be asked for at a tolerance
+    that reaches it.
+    """
     s = Structure.from_arrays(
         quartz.lattice,
         ["Si", "Si", "O"],
-        [[0.4697, 0.001, 2 / 3],        # general, written first
+        [[0.4697, 0.02, 2 / 3],         # general, written first
          [0.4697, 0.0, 2 / 3],          # on the 3a axis
          [0.4135, 0.2669, 0.7857]],
         space_group="P3221")
     cell = p1.expand(s)
     assert (cell.multiplicity(0), cell.multiplicity(1)) == (6, 3)
 
-    merged, report = symmetry.merge_duplicates(s, tol=0.05)
+    merged, report = symmetry.merge_duplicates(s, tol=0.15)
     assert report.merged == 1
     assert merged.sites[0].frac[1] == 0.0
     assert p1.expand(merged).n_atoms == p1.expand(quartz).n_atoms

@@ -25,7 +25,7 @@ from xtal import Lattice, Structure
 from xtal.core import bonding
 from xtal.core.structure import TOPOLOGY, Bond
 from xtalapp.document import Document
-from xtalapp.viewport import modes
+from xtalapp.viewport import modes, picking
 from xtalapp.viewport.builder import build_scene, selection_flags
 from xtalapp.viewport.view_settings import ViewSettings
 
@@ -479,21 +479,49 @@ def test_select_mode_can_pick_a_net_edge():
     assert "removed 1 net edge" in document.delete_selected_topology()
 
 
-def test_an_edge_never_wins_a_click_from_the_bond_under_it():
-    """The edge is drawn over the bonds and is thicker, so if it
-    competed on depth there would be no way to reach the bond
-    underneath.  It is a last resort and not a preference."""
+def _with_a_bond_under_the_edge():
+    """pcu with a real bond running along a, under the net edge that
+    is already there -- the collinear worst case."""
     structure = pcu()
-    # A real bond along a, under the net edge that is already there.
     structure.bonds.append(Bond(0, 0, (1, 0, 0), kind="single"))
     structure.touch()
-    document = Document(structure)
+    return Document(structure)
+
+
+def test_a_click_on_an_edge_is_the_edge_and_not_the_chemistry():
+    """Deliberately changed: this click used to select the bond.
+
+    Aiming at a net edge and pressing Del suppressed the bond under it
+    and its whole orbit -- on MOF-5, 96 chemical bonds deleted by a
+    click on the net, with the net still on screen afterwards.  Inside
+    the core of the drawn edge, the edge is what was pointed at.
+    """
+    document = _with_a_bond_under_the_edge()
     model = build_scene(document.structure, document.view)
     mode = modes.get("select")
 
     a = document.structure.lattice.lengths[0]
     message = mode.on_click(document, model, modes.ClickEvent(
         (a / 2, 0.0, -20.0), (0.0, 0.0, 1.0)))
+
+    assert message == "net edge selected -- Del removes it"
+    assert len(document.selection.topology) == 1
+    assert not document.selection.bonds
+
+
+def test_the_bond_under_an_edge_is_still_reachable():
+    """The edge does not own the whole tube.  Out past its core the
+    bond wins as it always did, which is what stops the net making the
+    chemistry under it unselectable."""
+    document = _with_a_bond_under_the_edge()
+    model = build_scene(document.structure, document.view)
+    mode = modes.get("select")
+
+    core = model.topology_radius * picking.TOPOLOGY_CORE_FRACTION
+    reach = model.bond_radius * picking.BOND_PICK_SLACK
+    a = document.structure.lattice.lengths[0]
+    message = mode.on_click(document, model, modes.ClickEvent(
+        (a / 2, (core + reach) / 2, -20.0), (0.0, 0.0, 1.0)))
 
     assert message == "bond selected"
     assert len(document.selection.bonds) == 1

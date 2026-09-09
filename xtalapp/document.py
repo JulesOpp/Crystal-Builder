@@ -812,6 +812,64 @@ class Document(QObject):
         self.run(maker(self._structure, sites, delta))
         return f"moved {len(sites)} site(s)"
 
+    def drag_selection(self, delta) -> str:
+        """Move the selection by a cartesian delta, as the *drawn*
+        atoms see it.
+
+        What a drag means: the copy under the cursor follows the
+        cursor, and its symmetry mates follow the operation that made
+        them.  :meth:`move_selection` displaces the parent sites
+        instead, which is right for a number typed into the Move dock
+        and wrong for a hand on an atom -- see
+        :meth:`~xtal.commands.atoms.MoveSites.by_image_delta`.
+
+        Nothing here touches the bonding: a moved atom keeps the bonds
+        it had, whatever the new distances say, until Recalculate
+        Bonds is asked for.
+        """
+        atoms = sorted(self.selection.atoms)
+        if not atoms:
+            return "nothing selected"
+        command = atom_commands.MoveSites.by_image_delta(
+            self._structure, self.cell, atoms, delta)
+        self.run(command)
+        return f"moved {len(command.targets)} site(s)"
+
+    def drag_rotation(self, axis, angle_degrees: float, centre) -> str:
+        """Turn the selection about ``centre``, as the drawn atoms see
+        it.
+
+        The rotating half of :meth:`drag_selection`, and the same
+        distinction: the images are what turn, and the sites follow.
+        ``centre`` is cartesian and comes from the caller because it
+        has to be the pivot the gesture started at -- recomputing the
+        centroid while the atoms move drags the fragment away from it.
+        """
+        atoms = sorted(self.selection.atoms)
+        if not atoms:
+            return "nothing selected"
+        command = atom_commands.MoveSites.by_image_rotation(
+            self._structure, self.cell, atoms, axis, angle_degrees,
+            centre)
+        self.run(command)
+        return f"turned {len(command.targets)} site(s)"
+
+    def selection_pivot(self):
+        """``(centre, radius)`` of the selected atoms as they are drawn
+        -- the middle of what is being turned, and how big it is.
+
+        The P1 cell rather than the scene: a selected atom drawn in
+        nine cells at once would otherwise pull the centroid towards
+        whichever corner of the display range it was repeated into.
+        """
+        atoms = sorted(self.selection.atoms)
+        if not atoms:
+            return None, 0.0
+        points = self.cell.cart[atoms]
+        centre = points.mean(axis=0)
+        radius = float(np.linalg.norm(points - centre, axis=1).max())
+        return centre, radius
+
     def rotate_selection(self, axis, angle_degrees: float,
                          centre=None) -> str:
         sites = sorted(self.selected_sites())

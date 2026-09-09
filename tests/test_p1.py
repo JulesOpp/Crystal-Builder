@@ -182,3 +182,42 @@ def test_expansion_keeps_the_first_operation_that_reaches_a_point(
         parent = quartz.sites[int(cell.site_idx[atom])]
         assert np.allclose(op.apply(parent.frac) + cell.tau[atom],
                            cell.frac[atom], atol=1e-9)
+
+
+def test_a_site_nudged_off_a_special_position_keeps_its_multiplicity(
+        quartz):
+    """Si in quartz is on a 2-fold axis and generates three atoms.
+
+    Moving it a hundredth of an Angstrom is not leaving the axis --
+    published coordinates are not that precise and an optimiser step is
+    not that small -- and if the expansion says otherwise the cell
+    quietly holds six Si where it holds three, with the formula and the
+    density wrong and nothing on screen saying so.
+    """
+    s = quartz.copy()
+    s.sites[0].frac = s.sites[0].frac + [0.0, 0.002, 0.0]   # 0.01 A
+    s.touch()
+    cell = p1.expand(s)
+    assert cell.multiplicity(0) == 3
+    assert cell.n_atoms == 9
+
+
+def test_reduce_to_p1_adds_no_atoms_that_were_not_in_the_cell(quartz):
+    """Reduce to P1 draws the cell; it does not make one.
+
+    The failure this guards was reported as "P1 duplicates the atoms":
+    a site slightly off a special position was expanded by every
+    operation that should have mapped it onto itself, so the cell was
+    already several times over-counted and P1 was merely the first
+    thing that showed it as separate sites.
+    """
+    from xtal.core import symmetry
+
+    s = quartz.copy()
+    s.sites[0].frac = s.sites[0].frac + [0.0, 0.002, 0.0]
+    s.touch()
+    before = p1.expand(s)
+    flat = symmetry.reduce_to_p1(s)
+    assert flat.n_sites == before.n_atoms
+    assert (symmetry.preview_merge(flat).merged
+            == symmetry.preview_merge(s).merged == 0)

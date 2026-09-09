@@ -22,7 +22,9 @@ from xtal.ff.dftb.calculator import DFTBCalculator, DFTBOptions
 from xtal.ff.registry import ENGINES, Engine, EngineRegistry
 from xtal.ff.uff.calculator import UFFCalculator, UFFOptions
 from xtal.ff.uff.typer import Typing, TypingError
+from xtal.ff.xtb.calculator import XTBCalculator, XTBOptions
 
 __all__ = ["Calculator", "CalculatorError", "Result", "ENGINES",
            "Engine", "EngineRegistry", "UFFCalculator", "UFFOptions",
-           "DFTBCalculator", "DFTBOptions", "Typing", "TypingError"]
+           "DFTBCalculator", "DFTBOptions", "XTBCalculator", "XTBOptions",
+           "Typing", "TypingError"]

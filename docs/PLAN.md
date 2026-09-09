@@ -415,7 +415,8 @@ two half-bonds so each half takes its atom's colour) | cell_edges | labels
 * Occupancy → a site more than one thing shares, as a sphere cut into
   wedges over the spheres it replaces.
 * Overlays: orientation axes widget, scale bar, element legend, depth
-  cueing/fog toggle, perspective ⇄ orthographic, user-set clipping slab.
+  cueing/fog (strength, start and gradient), perspective ⇄
+  orthographic, user-set clipping slab.
 * Picking uses `vtkHardwareSelector` on the glyph mapper and maps the
   returned point ids through `instance_id` → `(site_idx, image, cell)`.
 

@@ -295,7 +295,10 @@ at 50%, 90% or 99% probability; an atom refined only isotropically is
 a sphere and one with no displacement parameters at all is a small
 sphere that does not grow with the level, so the picture never claims
 a measurement nobody made.  **Depth cueing** fades the back of a thick
-slab towards the background.
+slab towards the background, with three controls over the fade: how
+far the back goes, where along the picture the fade begins -- so the
+front face can be left crisp -- and the shape of the ramp between
+them.
 
 Double and triple bonds are drawn as two and three tubes, and an
 aromatic bond as a tube with a dashed line inside the ring -- inferred

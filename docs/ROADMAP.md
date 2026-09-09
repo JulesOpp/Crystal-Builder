@@ -20,19 +20,21 @@ What follows is everything still owed.
 
 | Phase | Theme | Size |
 |---|---|---|
-| 10 | Move mode, and what a click means | M |
-| 6 | Force fields — UFF4MOF and GFN-FF/xTB | M |
 | V | The engines answer in pictures | L |
 | W | The klassengleiche half | L |
 
 The argument is **wrong before missing, and small before large**.
-10 is the new capability, and it is the one somebody asked for in
-order to *use* the application rather than to photograph it -- which
-is why it is first now that the two draw styles it was ahead of have
-shipped.  6 is data plus a registry entry and can be pulled forward
-whenever a MOF needs typing.  V and W are where an external tool and
-a piece of crystallography most users never reach are owed work, and
-neither blocks anything above it.
+V and W are where an external tool and a piece of crystallography most
+users never reach are owed work, and neither blocks the other.
+
+Phase 6 has shipped: the UFF parameter table carries UFF4MOF and
+UFF4MOF-II, the typer chooses between Rappe's rows and the fitted ones
+by measuring the coordination shape and asking whether the metal is
+held by an organic linker, and the Force Field dock offers a second
+engine — GFN1-xTB, GFN2-xTB and GFN-FF through the tblite and xtb
+binaries.  What it did *not* deliver is in [docs/TODO.md](TODO.md)
+§ Force fields, and the largest of those is that neither program's
+stress could be made to agree with a numeric one.
 
 **One cheap win is available at any time**: the `.cgd` writer for
 Systre (Phase V, an afternoon).  It is listed last in priority and is
@@ -40,86 +42,7 @@ also the only way to *doubt* the net the Net panel names.
 
 ---
 
-## 2. Phase 10 — Move mode, and what a click means
-
-**Goal:** drag an atom or a selection where it should go, and stop a
-click aimed at a net edge from deleting the chemistry under it.
-
-| Item | TODO entry | Size |
-|---|---|---|
-| Click-and-drag move, bonding unchanged | header | M |
-| A net edge under a bond cannot be clicked | Building | M |
-
-**A mode, not a tool.**  `modes.register(MoveMode())` puts *Move* in
-`Structure ▸ Mouse mode` and on the toolbar with no further change —
-`menus.py:270` and `menus.py:669` both generate from `modes.names()` —
-and its place beside *Draw net* is its place in the registration list
-at the foot of `modes.py`.
-
-The two pieces that do not already exist:
-
-* **A drag that reports while it is happening.**  `DragEvent` is a
-  press and a release with nothing in between, because the only mode
-  that wanted one was the rubber band, and the viewport hard-wires
-  press-drag-release to `_begin_band` / `_drag_band` / `_finish_band`.
-  A mode has to be able to say what a drag *is* for it — the way
-  `wants_move` was added so only the modes that need a ray pay for one
-  — and get the intermediate positions.
-* **A world position for a screen movement**, which is the same
-  question `AddAtomMode` answers with `point_on_sphere`: a drag has no
-  depth of its own, so the atom moves in the plane through it facing
-  the camera unless a modifier says otherwise.
-
-Everything downstream is built.  `MoveSites` merges while a gesture
-continues and closes its window when the button comes up
-(`docks/move.py`, `commands/atoms.py:265`), so forty frames of drag are
-one Ctrl+Z — and a move that changes no bonding is what every command
-in that file already does, so the invariant costs nothing here.
-
-**The net-edge click rides in this phase** because it is the same file
-and the same question.  Today an edge is taken only when the ray
-reached nothing else, so a click on an edge crossing a bond lands on
-the *bond* — and `Del` then suppresses that bond and its whole orbit:
-aiming at one net edge on MOF-5 and pressing Del deletes 96 chemical
-bonds and leaves the net on screen.  **Remove that outcome first**, and
-it is separable from whatever the picking rule becomes.  The rule
-worth trying is distance to the edge's axis rather than depth: inside a
-fraction of the drawn radius means the edge even when a bond is nearer
-the camera, outside means whatever is behind it.
-`test_an_edge_never_wins_a_click_from_the_bond_under_it` pins the
-current behaviour and is to be changed deliberately, not discovered.
-
----
-
-## 3. Phase 6 — force fields
-
-**Goal:** the force field combo has something in it, and an MOF can be
-typed.
-
-| Item | TODO entry | Size |
-|---|---|---|
-| UFF4MOF | Phase 6 | M |
-| GFN-FF / xTB | Phase 6 | M |
-| Show the engines in the panel | Phase 6 | S |
-
-Kept in [docs/TODO.md](TODO.md) with its file references; the schedule
-is that **UFF4MOF goes first** because it is data.  `params.py`'s own
-docstring says a type name is a record and adding one needs no code, so
-the work is transcription, a typer rule where the geometry character is
-not enough, and a validation test against published geometries.  It
-makes a real MOF typable, which is the application's own stress case.
-
-GFN-FF/xTB is a second `ENGINES.register(Engine(...))` following
-`ff/dftb/calculator.py:451` exactly, including a `check` returning
-`Availability` so the entry greys out naming what is missing.
-
-Neither appears until `layout.py:86` lists it — `ForceFieldDock` hides
-its combo when it is given one engine — so that one-line change is the
-end of each of them, and it is what makes the phase visible at all.
-
----
-
-## 4. Phase V — the engines answer in pictures
+## 2. Phase V — the engines answer in pictures
 
 **Goal:** the half of the external tools that is a drawing rather than
 a number, and the half of DFTB+ its own driver does better.
@@ -167,7 +90,7 @@ folder is a function of the run and not of what the window was showing.
 
 ---
 
-## 5. Phase W — the klassengleiche half
+## 3. Phase W — the klassengleiche half
 
 **Goal:** *Descend to a subgroup* offers the subgroups that split an
 orbit without touching the cell, and then the ones that double it.
@@ -202,7 +125,7 @@ this lands.
 
 ---
 
-## 6. What this plan does not do
+## 4. What this plan does not do
 
 * It does not schedule the **parallel-suite hang**
   ([docs/TODO.md](TODO.md) § Testing).  Serial is the default and the

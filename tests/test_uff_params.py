@@ -28,10 +28,31 @@ KNOWN_BOND_LENGTHS = [
 KNOWN_FORCE_CONSTANTS = [("C_3", "C_3", 699.6)]
 
 
-def test_the_table_has_every_type_the_paper_lists():
-    assert len(params.PARAMS) == 127
+def test_the_table_has_every_type_the_papers_list():
+    """127 rows of Rappe's table and 91 of the MOF extension.
+
+    A hard count, because the failure it catches is a row lost or
+    duplicated in a block of two hundred that nothing else would
+    notice.
+    """
+    assert len(params.PARAMS) == 218
     assert "C_3" in params.PARAMS
     assert "Lw6+3" in params.PARAMS      # lawrencium, in 1992 spelling
+    assert "Zn4+2" in params.PARAMS      # UFF4MOF, 2014
+    assert "Zn3f2" in params.PARAMS      # UFF4MOF-II, 2016
+    assert len([p for p in params.PARAMS.values() if p.is_fitted]) == 74
+
+
+def test_rappes_own_rows_come_first_and_stay_first():
+    """``BY_ELEMENT`` keeps table order and the typer walks it in that
+    order, so an element UFF already covered must offer its original
+    type before any refit of it.  Sort the table and zinc quietly
+    starts answering ``Zn3f2`` everywhere."""
+    for element, rows in params.BY_ELEMENT.items():
+        fitted = [i for i, p in enumerate(rows) if p.is_fitted]
+        original = [i for i, p in enumerate(rows) if not p.is_fitted]
+        if fitted and original:
+            assert max(original) < min(fitted), element
 
 
 def test_every_row_parsed_into_finite_numbers():
@@ -106,11 +127,18 @@ def test_a_main_group_oxidation_state_is_kept_and_written_in_roman():
 
 
 def test_every_type_in_the_table_can_be_described():
-    """Built from the parts, not from a table of 126 strings -- so a
-    type added to params.py is readable the moment it exists."""
+    """Built from the parts, not from a table of strings -- so a type
+    added to params.py is readable the moment it exists.
+
+    Distinctly, too: the override dropdown lists the description, and
+    ``Zn3+2`` and ``Zn3f2`` are both a tetrahedral Zn(II) until the
+    fitted one says so."""
+    seen = {}
     for name, row in params.PARAMS.items():
         assert row.description, name
         assert row.description != name, name
+        assert row.description not in seen, (name, seen.get(row.description))
+        seen[row.description] = name
 
 
 def test_lawrencium_is_described_under_its_modern_symbol():

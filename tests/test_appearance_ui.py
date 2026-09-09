@@ -129,6 +129,43 @@ def test_the_octant_switch_only_applies_where_there_are_ellipsoids(
     assert not document.modified
 
 
+def test_the_fade_sliders_are_dead_until_the_fade_is_on(window,
+                                                       rutile_cif):
+    """The panel's own rule, extended to the two new ones: a control
+    that does nothing is indistinguishable from a broken one, and all
+    three of these do nothing until the checkbox is ticked."""
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    sliders = (dock.depth_cue_strength, dock.depth_cue_start,
+               dock.depth_cue_gradient)
+    assert not any(s.isEnabled() for s in sliders)
+
+    dock.depth_cue.setChecked(True)
+    assert document.view.depth_cue
+    assert all(s.isEnabled() for s in sliders)
+
+
+def test_where_the_fade_starts_and_how_it_ramps_reach_the_view(
+        window, rutile_cif):
+    """A fade has a shape as well as a depth.  The gradient slider is
+    geometric -- the middle is the straight line, and the two halves
+    have to mean the same amount of curve in either direction."""
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    dock.depth_cue.setChecked(True)
+
+    dock.depth_cue_start.setValue(40)
+    assert document.view.depth_cue_start == pytest.approx(0.40)
+
+    dock.depth_cue_gradient.setValue(50)
+    assert document.view.depth_cue_gradient == pytest.approx(1.0)
+    dock.depth_cue_gradient.setValue(100)
+    steep = document.view.depth_cue_gradient
+    dock.depth_cue_gradient.setValue(0)
+    assert document.view.depth_cue_gradient == pytest.approx(1 / steep)
+    assert not document.modified
+
+
 def test_a_cancelled_colour_dialog_changes_nothing(window, rutile_cif,
                                                    monkeypatch):
     document = window.open_path(rutile_cif)

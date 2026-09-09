@@ -14,10 +14,19 @@ mode and slot in here without the viewport changing.
 
 Most modes want a click; box select wants a press, a drag and a
 release, so a mode may declare ``wants_drag`` and receive a
-:class:`DragEvent` instead.  That one flag is the only thing the
-viewport has to know about it: it stops handing the left button to
-VTK's trackball while such a mode is active, because a rubber band and
-a camera rotation are the same gesture and cannot both have it.
+:class:`DragEvent` instead.  That flag is what stops the left button
+being handed to VTK's trackball while such a mode is active, because a
+rubber band and a camera rotation are the same gesture and cannot both
+have it.
+
+A drag is two different gestures, and ``drag_style`` says which this
+mode means.  ``"band"`` is a rectangle on the screen, reported once
+when the button comes up, which is all a rubber band can be.
+``"ray"`` is a gesture *in the scene*: the mode is asked at the press
+whether it takes the drag at all -- Move takes it over an atom and
+leaves it to the camera over the background -- and then gets every
+intermediate position as a :class:`DragRayEvent`, because moving an
+atom that only arrives where it was let go is not a drag.
 
 Modes read what was clicked from the scene model's provenance arrays,
 never from the geometry: a drawn atom knows which atom of the P1 cell
@@ -120,6 +129,32 @@ class DragEvent:
         return (x0, y0), (x1, y1)
 
 
+@dataclass
+class DragRayEvent(RayEvent):
+    """One step of a drag that means something in the scene.
+
+    Rays rather than the display coordinates a :class:`DragEvent`
+    carries, and for the opposite reason: a rubber band is a rectangle
+    on the screen and must have no depth, while moving an atom is
+    entirely a question of where a screen movement lands in the world,
+    which only a ray can answer.
+
+    ``up`` is the camera's, and is here for the two things a plane
+    facing the camera cannot express on its own: with ``depth`` set the
+    movement means towards or away from the viewer instead of across
+    the picture, and with ``rotate`` set it means a turn, for which the
+    screen's own two axes are what the cursor is moving along.
+    """
+
+    origin: tuple
+    direction: tuple
+    focal: tuple = (0.0, 0.0, 0.0)
+    up: tuple = (0.0, 1.0, 0.0)
+    additive: bool = False   # shift / cmd held: extend the selection
+    rotate: bool = False     # alt: turn what is held, do not move it
+    depth: bool = False      # shift-alt: along the view axis instead
+
+
 class Mode:
     """Base class: a mode may ignore any event it does not use."""
 
@@ -128,8 +163,13 @@ class Mode:
     hint = ""
     #: Does this mode want press-drag-release rather than a click?  The
     #: viewport withholds the left button from VTK's camera while a
-    #: mode that does is active.
+    #: mode that does is active -- for a ``"ray"`` drag, only for as
+    #: long as the mode says it has hold of something.
     wants_drag = False
+    #: ``"band"`` for a rubber band reported at the release, ``"ray"``
+    #: for a gesture in the scene reported as it happens.  Read only
+    #: when ``wants_drag`` is set.
+    drag_style = "band"
     #: Does this mode want to know where the cursor is between clicks?
     #: Casting a ray per mouse move for the modes that would ignore it
     #: is a cost with nothing on the other side of it, so they ask.
@@ -150,6 +190,26 @@ class Mode:
         return ""
 
     def on_drag(self, document, model, event: DragEvent) -> str:
+        return ""
+
+    def on_drag_start(self, document, model,
+                      event: DragRayEvent) -> bool:
+        """The button went down: does this mode take the drag?
+
+        ``False`` hands the gesture back to the camera, which is what
+        makes a scene drag a mode rather than a cage -- Move takes a
+        press on an atom and leaves a press on the background to the
+        trackball, so the crystal can still be turned while the mode
+        is active.
+        """
+        return False
+
+    def on_drag_move(self, document, model,
+                     event: DragRayEvent) -> str:
+        return ""
+
+    def on_drag_end(self, document, model,
+                    event: DragRayEvent) -> str:
         return ""
 
     def on_move(self, document, model, event: MoveEvent):
@@ -710,6 +770,229 @@ class DrawTopologyMode(Mode):
         return message
 
 
+def point_on_plane(origin, direction, point, normal):
+    """Where a ray meets the plane through ``point`` with ``normal``.
+
+    ``point`` itself when the ray runs along the plane, which happens
+    only if the camera has been turned exactly edge-on to it during
+    the gesture; refusing would mean the drag stopped following the
+    cursor instead of standing still.
+    """
+    origin = np.asarray(origin, dtype=float)
+    direction = np.asarray(direction, dtype=float)
+    point = np.asarray(point, dtype=float)
+    normal = np.asarray(normal, dtype=float)
+    denominator = float(direction @ normal)
+    if abs(denominator) < 1e-9:                     # pragma: no cover
+        return point
+    return origin + direction * (float((point - origin) @ normal)
+                                 / denominator)
+
+
+class MoveMode(Mode):
+    """Drag an atom, or the selection, to where it should be.
+
+    **In the plane facing the camera.**  A drag has no depth of its
+    own -- the cursor is a ray, not a point -- so the atom moves in the
+    plane through where it was picked up, facing the viewer, which is
+    the only plane a screen movement means without being asked twice.
+    ``Shift-Alt`` says otherwise: the movement is then read as towards
+    and away from the viewer along the view axis, which is the half of
+    the placement a plane cannot reach, and turning the crystal first
+    is the other way to get it.
+
+    **Alt turns what is held instead of moving it.**  Placing a
+    fragment is two questions -- where, and which way round -- and the
+    second one has no answer in a translation: a linker dropped in
+    backwards has to be turned, and doing it from the Move dock means
+    naming an axis and an angle for something the user can see.  So an
+    alt-drag is a trackball over the selection: across the picture
+    turns it about the camera's up axis, up and down about the
+    camera's right, and one radius of travel is one radian.  Scaling by
+    the selection's *own* size is what makes it feel the same on a
+    linker and on a framework, without the mode having to know how big
+    the window is.
+
+    The pivot is the middle of the selection as it is drawn, taken
+    once when the button goes down and held for the gesture: a centroid
+    recomputed while the atoms move walks the fragment away from where
+    the user grabbed it.  A single atom has no orientation, so an
+    alt-drag on one says so rather than doing nothing quietly.
+
+    **A press on an atom moves it; a press on the background turns the
+    crystal.**  The mode takes the left button only for as long as it
+    has hold of something, so the view is never stuck -- which is what
+    makes this liveable as a mode rather than a tool that has to be put
+    down again.
+
+    **What is dragged is the selection when the atom is in it.**  Pick
+    a fragment, then drag any atom of it and the whole fragment goes;
+    drag an atom that is not selected and it becomes the selection,
+    alone.  Shift adds the atom to the selection and drags them
+    together.
+
+    **The bonding does not change.**  Not the graph, not the bond
+    types, not the perception: atoms that end up on top of each other
+    are not bonded and a bond stretched to 4 A is still a bond, until
+    Recalculate Bonds is asked for.  The whole gesture is one undo
+    step, because ``MoveSites`` merges while the button is down.
+
+    The drag moves *sites*, so an atom on a special position takes its
+    orbit with it and the copy under the cursor is the one that follows
+    the cursor exactly -- see
+    :meth:`~xtal.commands.atoms.MoveSites.by_image_delta`.
+    """
+
+    name = "move"
+    label = "Move"
+    hint = ("drag an atom to move it, or any atom of the selection to "
+            "move all of it - alt-drag turns the selection - "
+            "shift-alt-drag moves it in depth - the background still "
+            "turns the crystal")
+    wants_drag = True
+    drag_style = "ray"
+
+    def __init__(self):
+        # Where the gesture is happening: a point on the plane the
+        # atom moves in and its normal, and the last place the cursor
+        # was on it.  None between drags.
+        self.plane: tuple | None = None
+        self._last = None
+        self._travelled = 0.0
+        self._sites = 0
+        # The pivot an alt-drag turns about, and the size it scales
+        # its angles by.  Taken at the press and held: see the class
+        # docstring.
+        self._pivot = None
+        self._radius = 1.0
+        self._turned = 0.0
+
+    def on_deactivate(self, document) -> None:
+        self.plane = None
+        self._last = None
+        self._pivot = None
+
+    def on_click(self, document, model, event: ClickEvent) -> str:
+        """A press that took nothing is still a click.
+
+        The background is where a click means "select nothing", and
+        the drag never started there -- so without this, clearing the
+        selection would need a different mode.
+        """
+        return SelectMode().on_click(document, model, event)
+
+    def on_drag_start(self, document, model,
+                      event: DragRayEvent) -> bool:
+        if document is None or model is None:
+            return False
+        kind, index = picking.pick(model, event.origin, event.direction)
+        if kind != "atom":
+            return False            # the camera keeps the background
+        atom, _cell, position = instance_at(model, index)
+        if atom not in document.selection.atoms:
+            document.select([atom], "add" if event.additive else "set")
+        self.plane = (position, _unit(event.direction))
+        self._last = point_on_plane(event.origin, event.direction,
+                                    *self.plane)
+        self._travelled = 0.0
+        self._turned = 0.0
+        self._sites = len(document.selected_sites())
+        self._pivot, extent = document.selection_pivot()
+        # A floor, not a fudge: two atoms half an Angstrom apart would
+        # otherwise turn a whole revolution for a nudge of the mouse.
+        self._radius = max(float(extent), 1.0)
+        return True
+
+    def on_drag_move(self, document, model,
+                     event: DragRayEvent) -> str:
+        travel = self._travel(event)
+        if travel is None:
+            return ""
+        if event.rotate:
+            return self._turn(document, travel, event)
+        delta = travel
+        if event.depth:
+            # Up the screen is away from the viewer.  The plane's
+            # normal is the ray that grabbed the atom, which points
+            # into the scene, so the sign needs no thought beyond this
+            # sentence.
+            delta = self.plane[1] * float(travel @ _unit(event.up))
+        if float(np.linalg.norm(delta)) < 1e-9:
+            return ""
+        self._travelled += float(np.linalg.norm(delta))
+        document.drag_selection(delta)
+        return f"moved by {self._travelled:.3f} A"
+
+    def on_drag_end(self, document, model,
+                    event: DragRayEvent) -> str:
+        """The button came up: the gesture is over and so is the undo
+        step it merged into.
+
+        The whole gesture is reported rather than its last step, which
+        is usually a fraction of a pixel and says nothing: what the
+        user wants to read afterwards is how far the atom went.
+        """
+        message = self.on_drag_move(document, model, event)
+        travelled, turned, sites = (self._travelled, self._turned,
+                                    self._sites)
+        self.plane = None
+        self._last = None
+        self._pivot = None
+        if document is not None:
+            document.break_merge()
+        if turned:
+            return f"turned {sites} site(s) by {abs(turned):.1f} deg"
+        if travelled <= 0.0:
+            # Nothing happened: either a press that did not travel, or
+            # a gesture the mode refused -- and the refusal is the half
+            # worth repeating once the button is up.
+            return message
+        return f"moved {sites} site(s) by {travelled:.3f} A"
+
+    def _travel(self, event: DragRayEvent):
+        """Where the cursor went since the last step, in the plane the
+        gesture is happening in."""
+        if self.plane is None:
+            return None
+        point = point_on_plane(event.origin, event.direction,
+                               *self.plane)
+        travel, self._last = point - self._last, point
+        return travel
+
+    def _turn(self, document, travel, event) -> str:
+        """One step of an alt-drag: a trackball over the selection.
+
+        Across the picture turns about the camera's up axis and up the
+        picture about its right, which is the gesture every molecular
+        viewer uses for an orientation -- here applied to what is held
+        rather than to the camera.
+        """
+        if self._pivot is None or self._sites < 2:
+            return ("one site has no orientation -- select more of "
+                    "the fragment to turn it")
+        up = _unit(event.up)
+        right = _unit(np.cross(self.plane[1], up))
+        # Right-hand rule, worked out against the near face: dragging
+        # right swings the front of the selection right (about +up),
+        # dragging up tips the front upwards (about -right).
+        omega = ((float(travel @ right) * up
+                  - float(travel @ up) * right) / self._radius)
+        angle = float(np.degrees(np.linalg.norm(omega)))
+        if angle < 1e-9:
+            return ""
+        self._turned += angle
+        document.drag_rotation(omega, angle, self._pivot)
+        return f"turned by {self._turned:.1f} deg"
+
+
+def _unit(vector):
+    vector = np.asarray(vector, dtype=float)
+    length = float(np.linalg.norm(vector))
+    if length < 1e-12:                              # pragma: no cover
+        return np.array([0.0, 0.0, 1.0])
+    return vector / length
+
+
 class MeasureMode(Mode):
     """Click atoms to measure between them.
 
@@ -807,4 +1090,5 @@ register(BoxSelectMode())
 register(AddAtomMode())
 register(AddBondMode())
 register(DrawTopologyMode())
+register(MoveMode())
 register(MeasureMode())

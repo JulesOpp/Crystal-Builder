@@ -103,13 +103,38 @@ def net(diatomic):
     return build_scene(diatomic, ViewSettings(show_cell=False))
 
 
-def test_a_ray_through_a_net_edge_hits_the_edge_when_asked(net):
-    """A net edge is drawn over the bond it covers, so in the topology
-    mode -- and only there -- it is what a click in the middle of it
-    means."""
+def test_a_click_down_the_axis_of_an_edge_means_the_edge(net):
+    """A net edge is drawn over the bond it covers, and a click near
+    its axis means the edge in every mode -- not only in Draw net,
+    where it is preferred outright.
+
+    Deliberately changed.  Depth alone gave the bond underneath, and
+    Del then suppressed that bond and its whole orbit: a click aimed
+    at the net, deleting the chemistry and leaving the net on screen.
+    """
     assert picking.pick(net, [2.75, 5, -10], [0, 0, 1],
                         prefer_topology=True) == ("topology", 0)
-    assert picking.pick(net, [2.75, 5, -10], [0, 0, 1])[0] == "bond"
+    assert picking.pick(net, [2.75, 5, -10], [0, 0, 1]) == ("topology", 0)
+
+
+def test_a_click_out_at_the_rim_of_an_edge_takes_what_is_under_it(net):
+    """The other half of the rule, and what keeps a bond that runs
+    under an edge selectable: outside the core, whatever is behind the
+    edge wins as it always did."""
+    core = net.topology_radius * picking.TOPOLOGY_CORE_FRACTION
+    reach = net.bond_radius * picking.BOND_PICK_SLACK
+    assert core < reach                 # there is a ring to aim at
+
+    inside_the_bond = (core + reach) / 2
+    assert picking.pick(net, [2.75, 5 + inside_the_bond, -10],
+                        [0, 0, 1])[0] == "bond"
+
+    # Further out the bond is gone as well, and the edge is all that
+    # is left -- the last resort that makes the span of an edge
+    # selectable where it crosses open space.
+    past_the_bond = (reach + net.topology_radius) / 2
+    assert picking.pick(net, [2.75, 5 + past_the_bond, -10],
+                        [0, 0, 1])[0] == "topology"
 
 
 def test_an_atom_with_a_net_edge_on_it_is_still_an_atom(net):

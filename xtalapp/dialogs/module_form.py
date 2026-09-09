@@ -29,10 +29,18 @@ There is no layout language, no conditional enabling and no validation
 beyond the parameter's own range.  Three modules is not enough to know
 what the fourth needs, and each of those is cheap to add later against
 a module that actually strains the form.
+
+What has been added, against an engine that strained it: a
+:attr:`ParamForm.changed` signal.  The xTB engine can run three
+methods through two binaries, and which of them are installed is a
+different answer for each -- so its availability is a function of what
+the form says, and a panel that only re-asked when the *engine* changed
+offered a Run button for a method the machine cannot run.
 """
 
 from __future__ import annotations
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -54,6 +62,11 @@ from PySide6.QtWidgets import (
 class ParamForm(QWidget):
     """The widgets for one action's parameters, and their values."""
 
+    #: Emitted whenever any widget in the form is touched, by the user
+    #: or by :meth:`set_values`.  Carries nothing: a listener that
+    #: cares reads :meth:`values`.
+    changed = Signal()
+
     def __init__(self, params, parent=None):
         super().__init__(parent)
         self.params = tuple(params)
@@ -63,6 +76,7 @@ class ParamForm(QWidget):
         for param in self.params:
             widget = self._widget(param)
             self.widgets[param.name] = widget
+            _on_change(widget, self.changed.emit)
             if param.help:
                 widget.setToolTip(param.help)
             # A checkbox carries its own label; giving it a second one
@@ -171,6 +185,37 @@ class _PathEdit(QWidget):
     def setToolTip(self, text: str) -> None:        # noqa: N802
         super().setToolTip(text)
         self.edit.setToolTip(text)
+
+
+def _on_change(widget, slot) -> None:
+    """Call *slot* whenever this widget's value changes.
+
+    One place, so that a widget kind added to :meth:`ParamForm._widget`
+    and not here is a control that silently stops telling anyone -- the
+    same reason :func:`_value_of` is one place.
+
+    The argument each of these signals carries -- a bool, an index, a
+    string -- is dropped: what changed is the form, and a listener
+    that cares which value reads it back.
+    """
+    def fired(*_args):
+        slot()
+
+    if isinstance(widget, QCheckBox):
+        signal = widget.toggled
+    elif isinstance(widget, QSpinBox | QDoubleSpinBox):
+        signal = widget.valueChanged
+    elif isinstance(widget, QComboBox):
+        signal = widget.currentIndexChanged
+    elif isinstance(widget, _PathEdit):
+        signal = widget.edit.textChanged
+    else:
+        signal = widget.textChanged
+    signal.connect(fired)
+    # The closure is the only reference Qt keeps, and Qt does not
+    # keep it: hung off the widget, it lives exactly as long as the
+    # thing whose changes it reports.
+    widget._on_change_slot = fired
 
 
 def _value_of(widget):

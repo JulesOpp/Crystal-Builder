@@ -24,6 +24,12 @@ import numpy as np
 
 BOND_PICK_SLACK = 1.4       # bonds are easier to hit than they look
 
+# How near the axis of a net edge a click has to land to be a click on
+# the edge rather than on whatever it is drawn over, as a fraction of
+# the drawn radius: the inner half of the tube is the edge, the outer
+# half is what is behind it.  See :func:`pick`.
+TOPOLOGY_CORE_FRACTION = 0.5
+
 
 def ray_from_display(renderer, x: float, y: float):
     """(origin, unit direction) of the ray under a display pixel.
@@ -136,6 +142,20 @@ def topology_hit(model, origin, direction):
                         direction)
 
 
+def topology_core_hit(model, origin, direction):
+    """The same, but only the inner core of the tube.
+
+    A narrower radius rather than a distance returned alongside the
+    hit: the arithmetic is the same test with a smaller number in it,
+    and the caller wants to know whether the click was near the axis,
+    not how near.
+    """
+    return _segment_hit(model.topology_starts, model.topology_ends,
+                        float(model.topology_radius)
+                        * TOPOLOGY_CORE_FRACTION,
+                        origin, direction)
+
+
 def _segment_hit(starts, ends, radius, origin, direction):
     if len(starts) == 0:
         return None
@@ -192,27 +212,42 @@ def pick(model, origin, direction, prefer_topology: bool = False):
     A net edge is drawn *over* the bonds and is thicker than they are,
     so on depth alone it would win every click near a framework edge
     and there would be no way to select the bond underneath.  So it
-    never competes on depth: it is taken first only when it is asked
-    for -- which is what the topology mode does -- and otherwise only
-    when the ray reached nothing else at all.
+    never competes on depth.  It is taken first when it is asked for --
+    which is what the topology mode does -- and otherwise on **where in
+    the tube the click landed** rather than on how far away it is: a
+    click within :data:`TOPOLOGY_CORE_FRACTION` of the axis means the
+    edge even when a bond is nearer the camera, and one out towards the
+    rim means whatever is behind it.
+
+    **Depth alone was worse than picking nothing.**  A click aimed at
+    an edge landed on the chemical bond crossing under it, and ``Del``
+    then suppressed that bond and its whole orbit -- on MOF-5, ninety-
+    six chemical bonds deleted by a click on the net, with the net
+    still on screen afterwards.  The core rule removes that outcome:
+    what the user was pointing at is what gets selected.  A bond that
+    runs directly under an edge is still reachable in the ring outside
+    the core, and everywhere along its length the edge does not cover.
 
     **That last resort is what makes an edge selectable outside Draw
     net.**  Without it a click on the span of an edge, where it crosses
     the gap a linker leaves, hit nothing and cleared the selection
     instead -- so a net edge could not be picked in Select mode, and
-    Del had nothing to act on.  Where the edge lies over a bond or an
-    atom, that bond or atom still wins, which is the property the
-    paragraph above is about.
+    Del had nothing to act on.
 
-    **An edge does not hide its own ends.**  A net edge runs centre to
-    centre, so the two atoms it joins are inside it -- and an edge that
-    won every click would swallow them both, which means the second
-    edge of a net could never be started from where the first one
-    ended.  Draw net stopped after one edge.  So an endpoint in front
-    of its own edge is picked as the atom it is; every other atom the
-    edge covers, a linker's among them, still belongs to the edge,
-    because running straight through those atoms is what a net edge is
-    for.
+    **An atom still wins outright.**  A net edge runs centre to centre,
+    so its own ends -- and a linker's atoms along the way -- are inside
+    the core, and an edge that beat them would make the atoms of a
+    framework with a net drawn over it unpickable.  The core rule is
+    about the bond under the edge, which is the click that did damage.
+
+    **In Draw net an edge does not hide its own ends.**  There the edge
+    is preferred outright, so the two atoms it joins would be swallowed
+    with it -- and the second edge of a net could never be started from
+    where the first one ended.  Draw net stopped after one edge.  So an
+    endpoint in front of its own edge is picked as the atom it is;
+    every other atom the edge covers, a linker's among them, still
+    belongs to the edge there, because running straight through those
+    atoms is what a net edge is for.
     """
     candidates = [("atom", atom_hit(model, origin, direction)),
                   ("bond", bond_hit(model, origin, direction))]
@@ -233,4 +268,8 @@ def pick(model, origin, direction, prefer_topology: bool = False):
             else (None, None)
     kind, hit = min(live, key=lambda pair: (
         pair[1][1] + (0.0 if pair[0] == "atom" else 1e-9)))
+    if kind == "bond":
+        core = topology_core_hit(model, origin, direction)
+        if core is not None:
+            return "topology", core[0]
     return kind, hit[0]

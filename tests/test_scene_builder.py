@@ -622,3 +622,58 @@ def test_the_other_two_boundaries_draw_no_stubs(rutile):
         for k in range(0, scene.n_bond_halves, 2):
             assert np.allclose(scene.bond_ends[k],
                                scene.bond_ends[k + 1])
+
+
+# ======================================================== the depth fade
+#
+# The arithmetic only.  What it looks like on screen is in
+# tests/test_vtk_render.py, which needs a GL driver; this is the same
+# function the shader is a transcription of, and it needs nothing.
+
+def test_the_fade_is_nothing_in_front_and_everything_behind():
+    from xtalapp.viewport.scene import cue_fraction
+    at = cue_fraction([0.0, 5.0, 10.0], near=0.0, far=10.0,
+                      strength=1.0)
+    assert at[0] == pytest.approx(0.0)
+    assert at[1] == pytest.approx(0.5)
+    assert at[2] == pytest.approx(1.0)
+
+
+def test_nothing_nearer_than_the_start_fades_at_all():
+    """What the start control buys: the front of a slab stays crisp
+    and the fade is spent on the back of it."""
+    from xtalapp.viewport.scene import cue_fraction
+    at = cue_fraction([0.0, 4.0, 5.0, 10.0], near=5.0, far=10.0,
+                      strength=1.0)
+    assert list(at[:3]) == [0.0, 0.0, 0.0]
+    assert at[3] == pytest.approx(1.0)
+
+
+def test_the_gradient_bends_the_ramp_without_moving_its_ends():
+    """A gradient above 1 holds the picture clear and then drops it;
+    below 1 it fades at once and levels off.  Both have to leave the
+    two ends where a straight line put them, or the control is a
+    strength control wearing a different name."""
+    from xtalapp.viewport.scene import cue_fraction
+    args = dict(near=0.0, far=10.0, strength=1.0)
+    middle = [5.0]
+    straight = cue_fraction(middle, gradient=1.0, **args)[0]
+    steep = cue_fraction(middle, gradient=3.0, **args)[0]
+    soft = cue_fraction(middle, gradient=1 / 3, **args)[0]
+    assert steep < straight < soft
+    for gradient in (0.25, 1.0, 4.0):
+        ends = cue_fraction([0.0, 10.0], gradient=gradient, **args)
+        assert ends[0] == pytest.approx(0.0)
+        assert ends[1] == pytest.approx(1.0)
+
+
+def test_a_fade_goes_towards_the_background_it_is_given():
+    """Towards *the background*, not towards white: on a black one a
+    distant atom gets darker."""
+    from xtalapp.viewport.scene import fade_towards
+    colors = np.array([[200, 100, 50]] * 3, np.uint8)
+    pale = fade_towards(colors, (255, 255, 255), [0.0, 0.5, 1.0])
+    assert list(pale[0]) == [200, 100, 50]
+    assert list(pale[2]) == [255, 255, 255]
+    dark = fade_towards(colors, (0, 0, 0), [0.0, 1.0, 1.0])
+    assert list(dark[1]) == [0, 0, 0]

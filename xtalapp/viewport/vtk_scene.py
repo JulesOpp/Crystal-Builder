@@ -87,7 +87,11 @@ from vtkmodules.vtkRenderingCore import (
     vtkWindowToImageFilter,
 )
 
+from xtalapp.viewport import scene as scene_model
 from xtalapp.viewport.scene import (
+    CUE_GRADIENT_MAX,
+    CUE_GRADIENT_MIN,
+    CUE_START_MAX,
     DASH_RADIUS,
     HIGHLIGHT_BOND_GROWTH,
     HIGHLIGHT_COLOR,
@@ -136,6 +140,22 @@ MAX_LABELS = 400            # beyond this, labels are noise anyway
 MATTE_AMBIENT = 0.38
 MATTE_DIFFUSE = 0.72
 
+# A flat surface: all ambient and no diffuse, which is one colour edge
+# to edge because an ambient term is unshaded.
+#
+# **Not ``SetLighting(False)``, and that distinction is a bug fixed
+# rather than a preference.**  With lighting switched off VTK stops
+# declaring ``vertexVCVSOutput`` in the fragment shader -- there is no
+# lighting left to need a view-space position -- and the depth-cue
+# replacement below is written in terms of exactly that.  The shader
+# then fails to compile and the actor draws *nothing*: turning the
+# fade on made a cartoon picture, and a wireframe before it, vanish
+# into the background.  Ambient-only is the same picture and keeps the
+# varying, so the fade has something to measure.
+FLAT_AMBIENT = 1.0
+FLAT_DIFFUSE = 0.0
+
+
 # The element legend, in fractions of the window.
 LEGEND_X = 0.90
 LEGEND_TOP = 0.94
@@ -179,13 +199,20 @@ GHOST_OPACITY = 0.45
 # The near and far distances are uniforms rather than constants because
 # they are the scene's own bounds along the view direction, and they
 # change whenever the camera moves or the display range grows -- see
-# :meth:`VtkScene._refresh_depth_cue`.
+# :meth:`VtkScene._refresh_depth_cue`.  ``cueNear`` is where the fade
+# *begins* and not where the structure does: the start control moves
+# it back into the scene, which is the whole of leaving the front of a
+# slab crisp.  ``cueGradient`` is the exponent on the ramp.
+#
+# The same arithmetic lives in
+# :func:`~xtalapp.viewport.scene.cue_fraction`, in numpy, for the one
+# actor this replacement cannot reach.
 DEPTH_CUE_SHADER = """//VTK::Light::Impl
   float cueDistance = -vertexVCVSOutput.z;
   float cueT = clamp((cueDistance - cueNear)
                      / max(cueFar - cueNear, 1e-6), 0.0, 1.0);
   gl_FragData[0].rgb = mix(gl_FragData[0].rgb, cueColor,
-                           cueT * cueStrength);
+                           pow(cueT, cueGradient) * cueStrength);
 """
 
 
@@ -256,6 +283,17 @@ def _triangle_polydata(points, faces, colors) -> vtkPolyData:
     poly.SetPolys(cells)
     poly.GetCellData().SetScalars(_to_uchar(colors, "colors"))
     return poly
+
+
+def _flat(prop) -> None:
+    """Draw with this property's colour and no shading on it.
+
+    See :data:`FLAT_AMBIENT`: ambient-only rather than lighting off,
+    because lighting off takes the depth cue's shader with it.
+    """
+    prop.SetAmbient(FLAT_AMBIENT)
+    prop.SetDiffuse(FLAT_DIFFUSE)
+    prop.SetSpecular(0.0)
 
 
 def _darken(colors, amount: float) -> np.ndarray:
@@ -420,7 +458,15 @@ class VtkScene:
         self._build_ghost_actors()
         self._build_scale_bar()
         self._cue_on = False
+        self._cue_strength = 0.7
+        self._cue_start = 0.0
+        self._cue_gradient = 1.0
         self._cue_observer = None
+        # The line-drawn bonds' own colours, kept so the fade that
+        # recolours them has something to fade *from*.
+        self._line_colors = None
+        self._line_middles = np.zeros((0, 3), np.float32)
+        self._line_cue_state = None
         self._bar_on = False
         self._bar_observer = None
         self._pies_on = False
@@ -505,7 +551,7 @@ class VtkScene:
     @staticmethod
     def _style_outline(actor):
         prop = actor.GetProperty()
-        prop.SetLighting(False)     # ink is ink, wherever the light is
+        _flat(prop)                 # ink is ink, wherever the light is
         prop.FrontfaceCullingOn()
         prop.BackfaceCullingOff()
         actor.SetVisibility(False)
@@ -912,7 +958,9 @@ class VtkScene:
         self._set_labels(model)
         self._set_legend(model)
         self._set_highlight(model)
-        self.set_depth_cue(model.depth_cue, model.depth_cue_strength)
+        self.set_depth_cue(model.depth_cue, model.depth_cue_strength,
+                           model.depth_cue_start,
+                           model.depth_cue_gradient)
         self.set_scale_bar(model.scale_bar)
 
     def set_positions(self, model) -> None:
@@ -957,6 +1005,12 @@ class VtkScene:
             self._bond_poly.SetPoints(
                 _points(_interleave(solid[0], solid[1])))
             self._bond_poly.Modified()
+            if self._line_colors is not None:
+                # The bonds moved, so the distances the fade is a
+                # function of did too.
+                self._line_middles = 0.5 * (np.asarray(solid[0], float)
+                                            + np.asarray(solid[1], float))
+                self._line_cue_state = None
             if self.outline_bond_actor.GetVisibility():
                 self._outline_bond_poly.SetPoints(
                     _points(_interleave(solid[0], solid[1])))
@@ -1144,10 +1198,8 @@ class VtkScene:
         """
         prop = actor.GetProperty()
         if shading == "flat":
-            prop.SetLighting(False)
-            return
-        prop.SetLighting(True)
-        if shading == "matte":
+            _flat(prop)
+        elif shading == "matte":
             prop.SetAmbient(MATTE_AMBIENT)
             prop.SetDiffuse(MATTE_DIFFUSE)
             prop.SetSpecular(0.0)
@@ -1166,17 +1218,27 @@ class VtkScene:
         if not model.n_bond_halves:
             self.bond_actor.SetVisibility(False)
             self.dash_actor.SetVisibility(False)
+            self._line_colors = None
             return
         solid, dashed = split_by_order(model)
         poly = _line_polydata(*solid)
         self._bond_poly = poly
+        # Kept only for the style that draws lines, which is the one
+        # whose fade is a recolour rather than a shader.
+        if model.bond_render == "line":
+            self._line_colors = np.asarray(solid[2], np.uint8)
+            self._line_middles = 0.5 * (np.asarray(solid[0], float)
+                                        + np.asarray(solid[1], float))
+        else:
+            self._line_colors = None
+        self._line_cue_state = None
         self._apply_shading(self.bond_actor, model.shading, 0.2)
         self._apply_shading(self.dash_actor, model.shading, 0.2)
         if model.bond_render == "line":
             self.bond_mapper.SetInputData(poly)
             self.bond_actor.GetProperty().SetLineWidth(2.0)
             # A line has no surface to light, whatever the style asks.
-            self.bond_actor.GetProperty().SetLighting(False)
+            _flat(self.bond_actor.GetProperty())
         else:
             self._tube.SetInputData(poly)
             self._tube.SetRadius(model.bond_radius)
@@ -1421,8 +1483,9 @@ class VtkScene:
 
     # -- depth cueing --------------------------------------------------
 
-    def set_depth_cue(self, enabled: bool,
-                      strength: float = 0.7) -> None:
+    def set_depth_cue(self, enabled: bool, strength: float = 0.7,
+                      start: float = 0.0,
+                      gradient: float = 1.0) -> None:
         """Fade the structure towards the background with distance.
 
         Applied to the atoms, the bonds and the polyhedra, and
@@ -1430,25 +1493,61 @@ class VtkScene:
         the cell box is the frame the reader measures against and the
         halo is the answer to "what did I just click", and neither is
         improved by being harder to see at the back.
+
+        ``strength`` is how far the back of the picture goes towards
+        the background, ``start`` where along the scene's own depth
+        the fade begins, and ``gradient`` the exponent on the ramp
+        between them.  All three are held here rather than read back
+        off the model, because the camera observer refreshes the fade
+        long after the model was set.
         """
         self._cue_on = bool(enabled)
-        for actor in self._cued_actors():
+        self._cue_strength = float(max(0.0, min(1.0, strength)))
+        self._cue_start = float(max(0.0, min(CUE_START_MAX, start)))
+        self._cue_gradient = float(max(CUE_GRADIENT_MIN,
+                                       min(CUE_GRADIENT_MAX, gradient)))
+        shaded = self._cued_actors()
+        # Cleared on every actor and added back only to those, because
+        # the bond actor moves in and out of that set as the style
+        # changes and a replacement left on it would be the same blank
+        # picture one style later.
+        for actor in self._cueable_actors():
             shader = actor.GetShaderProperty()
             shader.ClearFragmentShaderReplacement("//VTK::Light::Impl",
                                                   True)
-            if self._cue_on:
+            if self._cue_on and actor in shaded:
                 shader.AddFragmentShaderReplacement(
                     "//VTK::Light::Impl", True, DEPTH_CUE_SHADER, False)
             uniforms = shader.GetFragmentCustomUniforms()
-            uniforms.SetUniformf("cueStrength",
-                                 float(max(0.0, min(1.0, strength))))
+            uniforms.SetUniformf("cueStrength", self._cue_strength)
+            uniforms.SetUniformf("cueGradient", self._cue_gradient)
         self._watch_camera()
-        self._refresh_depth_cue()
+        self._refresh_cue()
 
     def _cued_actors(self):
+        """The actors the fade is a shader on.
+
+        **The bond actor is here only while it draws tubes.**  A wide
+        line is drawn through a geometry shader, and VTK renames the
+        view-space position it passes to the fragment stage when there
+        is one -- so the replacement above does not compile, and the
+        actor silently draws nothing at all.  That is what happened to
+        the wireframe style for as long as the fade has existed.  It
+        is faded in :meth:`_refresh_line_cue` instead, by colour, on
+        the CPU.
+        """
+        return tuple(a for a in self._cueable_actors()
+                     if a is not self.bond_actor or not self._draws_lines())
+
+    def _cueable_actors(self):
         return (self.atom_actor, self.octant_actor, self.bond_actor,
                 self.dash_actor, self.polyhedron_actor, self.pie_actor,
                 self.outline_actor, self.outline_bond_actor)
+
+    def _draws_lines(self) -> bool:
+        return (self.model is not None
+                and self.model.bond_render == "line"
+                and bool(self.model.n_bond_halves))
 
     def _watch_camera(self) -> None:
         """Keep the near and far distances, and the scale bar, up to
@@ -1464,7 +1563,7 @@ class VtkScene:
         the scene draws during camera drags.
         """
         for on, name, refresh in (
-                (self._cue_on, "_cue_observer", self._refresh_depth_cue),
+                (self._cue_on, "_cue_observer", self._refresh_cue),
                 (self._bar_on, "_bar_observer", self._refresh_scale_bar),
                 (self._pies_on, "_pie_observer", self._refresh_pies)):
             observer = getattr(self, name)
@@ -1475,12 +1574,18 @@ class VtkScene:
                 self.renderer.RemoveObserver(observer)
                 setattr(self, name, None)
 
+    def _refresh_cue(self) -> None:
+        """Both halves of the fade: the uniforms the shader reads,
+        and the colours of the actor that has no shader."""
+        self._refresh_depth_cue()
+        self._refresh_line_cue()
+
     def _refresh_depth_cue(self) -> None:
         """Near and far, from the scene's own extent along the view
         direction."""
         if not self._cue_on or self.model is None:
             return
-        near, far = self._depth_range()
+        near, far = self._cue_range()
         background = np.array(self.model.background, dtype=float) / 255
         for actor in self._cued_actors():
             uniforms = actor.GetShaderProperty() \
@@ -1490,6 +1595,62 @@ class VtkScene:
             uniforms.SetUniform3f("cueColor",
                                   [float(c) for c in background])
 
+    def _cue_range(self) -> tuple[float, float]:
+        """Where the fade begins and where it is complete.
+
+        The start control is spent here rather than in the shader: it
+        is a fraction of the scene's own depth, and moving the near
+        distance back by that much *is* "the fade begins here" -- the
+        clamp in front of it already leaves everything nearer
+        untouched.
+        """
+        near, far = self._depth_range()
+        return near + (far - near) * self._cue_start, far
+
+    def _refresh_line_cue(self) -> None:
+        """Fade the line-drawn bonds by recolouring them.
+
+        The actor a shader cannot reach -- see :meth:`_cued_actors`.
+        One colour per segment, from its own midpoint's distance,
+        which is the granularity cell data gives and is enough for a
+        fade.
+
+        Guarded on where the camera is, like :meth:`_refresh_pies` and
+        for the same reason: this runs before every render, including
+        every frame of a drag, and a wireframe of a supercell is a lot
+        of segments to recolour for a camera that has not moved.
+        """
+        if self._line_colors is None:
+            return
+        colors = self._line_colors
+        state = None
+        if self._cue_on and self.model is not None:
+            eye, direction = self._eye_and_direction()
+            near, far = self._cue_range()
+            state = (eye, direction, near, far, self._cue_strength,
+                     self._cue_gradient)
+            if (self._line_cue_state is not None
+                    and all(np.allclose(a, b, atol=1e-9) for a, b
+                            in zip(state, self._line_cue_state,
+                                   strict=True))):
+                return
+            colors = scene_model.fade_towards(
+                colors, self.model.background,
+                scene_model.cue_fraction(
+                    (self._line_middles - eye) @ direction, near, far,
+                    self._cue_strength, self._cue_gradient))
+        elif self._line_cue_state is None:
+            return                      # already showing its own colours
+        self._line_cue_state = state
+        self._bond_poly.GetCellData().SetScalars(
+            _to_uchar(colors, "colors"))
+        self._bond_poly.Modified()
+
+    def _eye_and_direction(self):
+        camera = self.renderer.GetActiveCamera()
+        return (np.array(camera.GetPosition(), dtype=float),
+                np.array(camera.GetDirectionOfProjection(), dtype=float))
+
     def _depth_range(self) -> tuple[float, float]:
         low, high = self.model.bounds()
         corners = np.array(
@@ -1497,10 +1658,7 @@ class VtkScene:
               [low[1], high[1]][(k >> 1) & 1],
               [low[2], high[2]][k & 1]] for k in range(8)],
             dtype=float)
-        camera = self.renderer.GetActiveCamera()
-        eye = np.array(camera.GetPosition(), dtype=float)
-        direction = np.array(camera.GetDirectionOfProjection(),
-                             dtype=float)
+        eye, direction = self._eye_and_direction()
         along = (corners - eye) @ direction
         near, far = float(along.min()), float(along.max())
         if far - near < 1e-6:               # a flat scene, or one atom

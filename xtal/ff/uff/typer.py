@@ -43,7 +43,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from xtal.core import bonding, p1
+from xtal.core import bonding, elements, p1
 from xtal.core.structure import CHEMISTRY, Change
 from xtal.ff import markers
 from xtal.ff.uff import params
@@ -56,14 +56,24 @@ Geometry = bonding.Geometry
 
 # The type given to each element that has exactly one sensible answer
 # regardless of what it is bonded to.
+#
+# Li, Na, K, Al and Pb used to be here and are not any more: UFF4MOF
+# gives each of them a second type, so the reason this table gives --
+# "the only type UFF gives this element" -- stopped being true for
+# them, and saying it anyway would have pinned them to the first row
+# where the coordination should decide.  Nothing would have failed.
 SIMPLE_TYPES = {
-    "Li": "Li", "Na": "Na", "K": "K_", "Rb": "Rb", "Cs": "Cs",
-    "Fr": "Fr",
+    "Rb": "Rb", "Cs": "Cs", "Fr": "Fr",
     "F": "F_", "Cl": "Cl", "Br": "Br", "I": "I_", "At": "At",
-    "Al": "Al3", "Si": "Si3", "Ge": "Ge3", "Sn": "Sn3", "Pb": "Pb3",
+    "Si": "Si3", "Ge": "Ge3", "Sn": "Sn3",
     "He": "He4+4", "Ne": "Ne4+4", "Ar": "Ar4+4", "Kr": "Kr4+4",
     "Xe": "Xe4+4", "Rn": "Rn4+4",
 }
+
+# Above this, the widest angle at a four-coordinate atom says square
+# planar rather than tetrahedral: the two ideals are 180 and 109.47
+# degrees and there is nothing between them to confuse it with.
+SQUARE_PLANAR_ANGLE = 145.0
 
 # Elements whose oxide bridges get UFF's zeolite oxygen.
 ZEOLITE_FORMERS = frozenset({"Si", "Al", "P", "Ge", "B"})
@@ -382,11 +392,36 @@ def _nitrogen(i, cell, geo, aromatic) -> AtomType:
     return AtomType("N_3", UNCERTAIN, "no neighbours")
 
 
+def _bridges_framework_metals(i, cell, geo) -> bool:
+    """Whether every neighbour is a metal and at least one of them is
+    a framework node.
+
+    The distinction this draws is between the oxygen at the centre of
+    a Zn4O node -- four zincs, each held by carboxylates -- and the
+    oxygen of an ordinary oxide, which is also surrounded by nothing
+    but metal and is not a framework at all.  Rutile is the case to
+    have in mind: its oxygen bridges three titaniums and must keep
+    ``O_3``, because UFF4MOF's shortened radius would pull a rutile
+    cell in on itself.
+    """
+    partners = geo.partners(i)
+    if not partners:
+        return False
+    if not all(_is_metal(cell.elements[j]) for j in partners):
+        return False
+    return any(_framework_node(j, cell, geo) for j in partners)
+
+
 def _oxygen(i, cell, geo, aromatic) -> AtomType:
     n = geo.coordination(i)
     if aromatic:
         return AtomType("O_R", CERTAIN, "in a flat aromatic ring")
     if n >= 3:
+        if _bridges_framework_metals(i, cell, geo):
+            return AtomType(
+                "O_3_f", CERTAIN,
+                f"bridges {n} framework metals -- the oxide at the "
+                f"centre of a node")
         return AtomType("O_3", LIKELY,
                         f"{n} neighbours; bridging or over-bonded")
     if n == 2:
@@ -398,6 +433,14 @@ def _oxygen(i, cell, geo, aromatic) -> AtomType:
                 "O_3_z", CERTAIN,
                 f"bridges {neighbours[0]} and {neighbours[1]} at "
                 f"{angle:.0f} -- a framework oxygen")
+        # UFF4MOF's O_2_z is *not* claimed here.  The obvious
+        # reading of it -- the carboxylate oxygen on a framework
+        # metal -- was tried and measured: relaxing MOF-5 with it
+        # puts Zn-O(carboxylate) at 1.810 A against an experimental
+        # 1.941, where leaving those oxygens alone gives 1.866.  It
+        # makes the one number it is supposed to fix worse, so which
+        # environment it was fitted for is something this code does
+        # not know, and the type stays reachable by override only.
         return AtomType("O_3", CERTAIN, f"two neighbours at "
                                         f"{angle:.0f}")
     if n == 1:
@@ -450,6 +493,71 @@ _RULES = {
 }
 
 
+def _is_metal(symbol: str) -> bool:
+    try:
+        return elements.element(symbol).is_metal
+    except ValueError:                              # pragma: no cover
+        return False
+
+
+def _framework_node(i: int, cell, geo) -> bool:
+    """Whether this atom is a metal held by an organic linker.
+
+    UFF4MOF's fitted rows were made for one situation and are wrong
+    outside it: a metal in the node of a framework, coordinated by the
+    oxygens of a carboxylate or the nitrogens of an azolate.  Nothing
+    in a five-character name says so, and nothing geometric does
+    either -- ``Zn3+2`` and ``Zn3f2`` are both a tetrahedral Zn(II)
+    and differ only in which paper fitted them.  So the choice has to
+    be made from the chemistry around the atom, and this is it.
+
+    The three conditions each rule out a real case that would
+    otherwise take framework parameters:
+
+    * every neighbour a non-metal -- rutile's titanium is octahedral
+      and bridged by oxygen, and is an oxide and not a framework;
+    * at least one neighbour an O or an N that is itself bonded to a
+      carbon -- which is what *metal-organic* means, and is what
+      separates a linker from an aquo ligand or a plain hydroxide;
+    * two neighbours at least, because one is a terminal ligand and
+      no node at all.
+
+    It is deliberately a question about the immediate neighbourhood.
+    A framework is a statement about connectivity across the whole
+    cell, which would be both expensive to ask and no more right: the
+    parameters were fitted to the node, and the node is what is here.
+    """
+    if not _is_metal(cell.elements[i]):
+        return False
+    partners = geo.partners(i)
+    if len(partners) < 2:
+        return False
+    if any(_is_metal(cell.elements[j]) for j in partners):
+        return False
+    for j in partners:
+        if cell.elements[j] not in ("O", "N"):
+            continue
+        if any(cell.elements[k] == "C" for k in geo.partners(j)):
+            return True
+    return False
+
+
+def _shape_character(geo, i: int) -> str:
+    """The geometry character the neighbours actually describe, for
+    the one coordination where two characters share a number.
+
+    ``GEOMETRY_COORDINATION`` says four for both ``3`` (tetrahedral)
+    and ``4`` (square planar), so coordination alone cannot tell
+    ``Zn3+2`` from UFF4MOF's ``Zn4+2`` -- and picking by table order
+    would hand a paddlewheel copper the parameters of a tetrahedral
+    one.  Every other coordination number names exactly one shape and
+    needs no measuring.
+    """
+    if geo.coordination(i) != 4:
+        return ""
+    return "4" if geo.max_angle(i) > SQUARE_PLANAR_ANGLE else "3"
+
+
 def _by_coordination(i: int, cell, geo) -> AtomType:
     """The general rule: let the type table decide.
 
@@ -458,6 +566,14 @@ def _by_coordination(i: int, cell, geo) -> AtomType:
     actually has needs no per-element code -- and gets Fe6+2 for
     octahedral iron and Fe3+2 for tetrahedral iron without either being
     written down anywhere.
+
+    Two things narrow the field before that: an atom that is not a
+    framework node never sees UFF4MOF's fitted rows at all, and where
+    a coordination number names two shapes the angles decide which.
+    What survives both and is still ambiguous is reported uncertain
+    rather than resolved by table order -- table order is not a fact
+    about the chemistry, and an atom the table cannot decide is one
+    the user should look at.
 
     When nothing matches, the first type in the table is used and the
     assignment is marked uncertain.  That is the case UFF is least
@@ -468,6 +584,11 @@ def _by_coordination(i: int, cell, geo) -> AtomType:
     element = cell.elements[i]
     candidates = params.BY_ELEMENT[element]
     n = geo.coordination(i)
+
+    if not _framework_node(i, cell, geo):
+        plain = [p for p in candidates if not p.is_fitted]
+        if plain:
+            candidates = plain
 
     if len(candidates) == 1:
         only = candidates[0]
@@ -485,12 +606,28 @@ def _by_coordination(i: int, cell, geo) -> AtomType:
 
     exact = [p for p in candidates if p.coordination == n]
     if exact:
+        shape = _shape_character(geo, i)
+        shaped = [p for p in exact if p.geometry == shape]
+        if shaped:
+            exact = shaped
+        fitted = [p for p in exact if p.is_fitted]
+        if fitted and len(exact) > 1:
+            # Only reachable for a framework node -- everything else
+            # had the fitted rows taken away above.
+            exact = fitted
         best = exact[0]
-        note = ("" if len(exact) == 1 else
-                f"; {len(exact)} {element} types share that "
-                f"coordination and {best.name} is the first")
-        return AtomType(best.name, LIKELY,
-                        f"{n} neighbours{note}")
+        if len(exact) == 1:
+            reason = f"{n} neighbours"
+            if shape:
+                reason += f", {best.shape}"
+            if best.is_fitted:
+                reason += ", in a framework node"
+            return AtomType(best.name, LIKELY, reason)
+        rest = ", ".join(p.name for p in exact[1:])
+        return AtomType(
+            best.name, UNCERTAIN,
+            f"{n} neighbours, and {element} has more than one type "
+            f"fitted for that: {best.name} was taken over {rest}")
 
     best = min(candidates,
                key=lambda p: abs((p.coordination or 0) - n))

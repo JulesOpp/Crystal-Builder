@@ -296,6 +296,28 @@ def test_a_saved_value_for_a_parameter_that_is_gone_is_ignored(qtbot):
     assert form.values() == {"n": 4}
 
 
+def test_the_form_says_when_any_of_its_widgets_is_touched(qtbot):
+    """One signal for the whole form, because what wants it is a
+    listener asking a question of *all* the values -- the xTB engine's
+    availability, which is a different answer per method.
+
+    Every widget kind is covered here rather than one of them,
+    because the connection is made per kind and a kind that was
+    missed is a control that silently stops telling anyone.
+    """
+    form = ParamForm((Param("b", kind="bool"),
+                      Param("n", kind="int", default=1),
+                      Param("x", kind="float", default=1.0),
+                      Param("m", kind="choice",
+                            choices=(("a", "A"), ("b", "B"))),
+                      Param("t", kind="text", default="one")))
+    qtbot.addWidget(form)
+    for name, value in (("b", True), ("n", 5), ("x", 2.5),
+                        ("m", "b"), ("t", "two")):
+        with qtbot.waitSignal(form.changed, timeout=1000):
+            form.set_values({name: value})
+
+
 def test_an_action_with_no_parameters_gets_no_dialog(qtbot):
     action = Action(name="go", label="Go", run=lambda job: None)
     module = Module(name="m", label="M", actions=(action,))

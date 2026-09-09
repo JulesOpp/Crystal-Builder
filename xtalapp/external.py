@@ -40,12 +40,12 @@ from pathlib import Path
 
 from xtal.ff.dftb import calculator as dftb
 from xtal.ff.dftb import hsd
+from xtal.ff.xtb import calculator as xtb
 from xtal.modules import process, zeopp
 
-#: The programs whose location is a preference.  Two, because those
-#: are the two binaries this application runs; the list is read from
-#: the modules themselves so that ``setting`` is written once.
-PROGRAMS = (zeopp.PROGRAM, dftb.PROGRAM)
+#: The programs whose location is a preference.  The list is read
+#: from the modules themselves so that ``setting`` is written once.
+PROGRAMS = (zeopp.PROGRAM, dftb.PROGRAM, *xtb.PROGRAMS)
 
 #: Where the Slater-Koster parameter directory is remembered.  Not a
 #: :class:`~xtal.modules.process.Program` -- it is a folder of ``.skf``
@@ -87,6 +87,13 @@ TOOLS = (
     Tool("tools/dftb", "DFTB+ (dftb+)", "file",
          "The tight-binding engine, for energies and geometries a "
          "force field cannot reach."),
+    Tool("tools/tblite", "tblite", "file",
+         "GFN1-xTB and GFN2-xTB, in one small binary.  The xTB engine "
+         "prefers it wherever it can, and GFN2 under a periodic cell "
+         "is its alone."),
+    Tool("tools/xtb", "xTB (xtb)", "file",
+         "The whole GFN family.  Needed for GFN-FF, which tblite does "
+         "not implement."),
     Tool(SLATER_KOSTER, "Slater-Koster parameters", "folder",
          "The folder of .skf files DFTB+ needs -- a separate download "
          "from dftb.org.  This is the starting value of the run "
