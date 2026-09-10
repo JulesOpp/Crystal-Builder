@@ -467,6 +467,10 @@ class VtkScene:
         self._line_colors = None
         self._line_middles = np.zeros((0, 3), np.float32)
         self._line_cue_state = None
+        # The ORTEP furniture's own colours, kept for the same reason.
+        self._octant_colors = None
+        self._octant_points = np.zeros((0, 3), float)
+        self._octant_cue_state = None
         self._bar_on = False
         self._bar_observer = None
         self._pies_on = False
@@ -997,9 +1001,11 @@ class VtkScene:
             self._outline_poly.SetPoints(_points(model.positions))
             self._outline_poly.Modified()
         if len(self._octant_rows):
-            self._octant_poly.SetPoints(
-                _points(model.positions[self._octant_rows]))
+            self._octant_points = np.asarray(
+                model.positions[self._octant_rows], float)
+            self._octant_poly.SetPoints(_points(self._octant_points))
             self._octant_poly.Modified()
+            self._octant_cue_state = None
         if model.n_bond_halves:
             solid, dashed = split_by_order(model)
             self._bond_poly.SetPoints(
@@ -1121,8 +1127,10 @@ class VtkScene:
         """
         rows = model.octant_atoms
         self._octant_rows = rows
+        self._octant_cue_state = None
         if not len(rows):
             self.octant_actor.SetVisibility(False)
+            self._octant_colors = None
             return
         poly = vtkPolyData()
         poly.SetPoints(_points(model.positions[rows]))
@@ -1130,8 +1138,11 @@ class VtkScene:
         data.AddArray(_to_float(self._axes[rows], "axes"))
         data.AddArray(_to_float(self._quaternions[rows],
                                 "quaternions"))
-        data.AddArray(_to_uchar(
-            _darken(model.colors[rows], OCTANT_DARKEN), "colors"))
+        # Kept, like the line-drawn bonds' colours, because this
+        # actor's fade is a recolour rather than a shader.
+        self._octant_colors = _darken(model.colors[rows], OCTANT_DARKEN)
+        self._octant_points = np.asarray(model.positions[rows], float)
+        data.AddArray(_to_uchar(self._octant_colors, "colors"))
         self._octant_poly = poly
         self.octant_mapper.SetInputData(poly)
         self.octant_actor.SetVisibility(True)
@@ -1527,17 +1538,27 @@ class VtkScene:
     def _cued_actors(self):
         """The actors the fade is a shader on.
 
-        **The bond actor is here only while it draws tubes.**  A wide
-        line is drawn through a geometry shader, and VTK renames the
-        view-space position it passes to the fragment stage when there
-        is one -- so the replacement above does not compile, and the
-        actor silently draws nothing at all.  That is what happened to
-        the wireframe style for as long as the fade has existed.  It
-        is faded in :meth:`_refresh_line_cue` instead, by colour, on
-        the CPU.
+        **Nothing that draws lines is.**  A line has no surface to
+        light, so VTK declares no view-space position in its fragment
+        shader -- and with a wide line, which goes through a geometry
+        shader, it renames the one it would have declared as well.
+        Either way the replacement above does not compile and the
+        primitive silently draws nothing at all.  That is what
+        happened to the wireframe style for as long as the fade has
+        existed, and to ORTEP's principal sections: on CFA1 with the
+        fade on, every arc vanished and the terminal filled with
+        ``Use of undeclared identifier 'vertexVCGSOutput'``.
+
+        So the bond actor is here only while it draws tubes, and the
+        octant actor -- whose source is arcs and shaded octants
+        together -- never is.  Both are faded by colour instead, on
+        the CPU, in :meth:`_refresh_line_cue` and
+        :meth:`_refresh_octant_cue`.
         """
-        return tuple(a for a in self._cueable_actors()
-                     if a is not self.bond_actor or not self._draws_lines())
+        return tuple(
+            a for a in self._cueable_actors()
+            if a is not self.octant_actor
+            and (a is not self.bond_actor or not self._draws_lines()))
 
     def _cueable_actors(self):
         return (self.atom_actor, self.octant_actor, self.bond_actor,
@@ -1579,6 +1600,7 @@ class VtkScene:
         and the colours of the actor that has no shader."""
         self._refresh_depth_cue()
         self._refresh_line_cue()
+        self._refresh_octant_cue()
 
     def _refresh_depth_cue(self) -> None:
         """Near and far, from the scene's own extent along the view
@@ -1607,44 +1629,75 @@ class VtkScene:
         near, far = self._depth_range()
         return near + (far - near) * self._cue_start, far
 
-    def _refresh_line_cue(self) -> None:
-        """Fade the line-drawn bonds by recolouring them.
+    def _cue_recolour(self, colors, points, previous):
+        """``(colors, state)`` for a fade done on the CPU, or ``None``
+        when what is drawn already shows it.
 
-        The actor a shader cannot reach -- see :meth:`_cued_actors`.
-        One colour per segment, from its own midpoint's distance,
-        which is the granularity cell data gives and is enough for a
-        fade.
+        ``points`` is one position per colour -- a bond's midpoint, an
+        ellipsoid's centre -- and the fade is that point's distance
+        along the view direction, which is the granularity a colour
+        array gives and is enough for a fade.
 
         Guarded on where the camera is, like :meth:`_refresh_pies` and
         for the same reason: this runs before every render, including
         every frame of a drag, and a wireframe of a supercell is a lot
         of segments to recolour for a camera that has not moved.
         """
+        if not self._cue_on or self.model is None:
+            # Its own colours, once, and then nothing to do.
+            return None if previous is None else (colors, None)
+        eye, direction = self._eye_and_direction()
+        near, far = self._cue_range()
+        state = (eye, direction, near, far, self._cue_strength,
+                 self._cue_gradient)
+        if (previous is not None
+                and all(np.allclose(a, b, atol=1e-9) for a, b
+                        in zip(state, previous, strict=True))):
+            return None
+        faded = scene_model.fade_towards(
+            colors, self.model.background,
+            scene_model.cue_fraction(
+                (np.asarray(points, float) - eye) @ direction,
+                near, far, self._cue_strength, self._cue_gradient))
+        return faded, state
+
+    def _refresh_line_cue(self) -> None:
+        """Fade the line-drawn bonds by recolouring them.
+
+        One of the two actors a shader cannot reach -- see
+        :meth:`_cued_actors`.
+        """
         if self._line_colors is None:
             return
-        colors = self._line_colors
-        state = None
-        if self._cue_on and self.model is not None:
-            eye, direction = self._eye_and_direction()
-            near, far = self._cue_range()
-            state = (eye, direction, near, far, self._cue_strength,
-                     self._cue_gradient)
-            if (self._line_cue_state is not None
-                    and all(np.allclose(a, b, atol=1e-9) for a, b
-                            in zip(state, self._line_cue_state,
-                                   strict=True))):
-                return
-            colors = scene_model.fade_towards(
-                colors, self.model.background,
-                scene_model.cue_fraction(
-                    (self._line_middles - eye) @ direction, near, far,
-                    self._cue_strength, self._cue_gradient))
-        elif self._line_cue_state is None:
-            return                      # already showing its own colours
-        self._line_cue_state = state
+        faded = self._cue_recolour(self._line_colors, self._line_middles,
+                                   self._line_cue_state)
+        if faded is None:
+            return
+        colors, self._line_cue_state = faded
         self._bond_poly.GetCellData().SetScalars(
             _to_uchar(colors, "colors"))
         self._bond_poly.Modified()
+
+    def _refresh_octant_cue(self) -> None:
+        """Fade ORTEP's furniture by recolouring it.
+
+        The other one, and it is the whole actor rather than half of
+        it: the arcs and the shaded octants are one glyph source, so
+        the shading follows the sections that forced the recolour.
+        One colour per atom, which on furniture drawn the width of an
+        ellipsoid is as fine as it needs to be.
+        """
+        if self._octant_colors is None:
+            return
+        faded = self._cue_recolour(self._octant_colors,
+                                   self._octant_points,
+                                   self._octant_cue_state)
+        if faded is None:
+            return
+        colors, self._octant_cue_state = faded
+        self._octant_poly.GetPointData().AddArray(
+            _to_uchar(colors, "colors"))
+        self._octant_poly.Modified()
 
     def _eye_and_direction(self):
         camera = self.renderer.GetActiveCamera()

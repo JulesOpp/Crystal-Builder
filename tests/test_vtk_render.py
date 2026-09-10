@@ -523,6 +523,34 @@ def test_octant_shading_darkens_the_ellipsoid_it_is_drawn_on():
     assert dark(True) > 3 * dark(False)
 
 
+def test_the_ellipsoid_arcs_survive_the_depth_cue():
+    """The regression, seen first on CFA1 in the PLATON style: a line
+    has no surface to light, so its fragment shader carries no
+    view-space position, so the fade's shader replacement does not
+    compile -- and the principal sections drew nothing at all, behind
+    a terminal full of ``Use of undeclared identifier``.  They are
+    recoloured on the CPU instead, so they still have to change the
+    picture with the fade on."""
+    structure = _one_atom_with((0.09, 0.02, 0.01, 0.01, 0.0, 0.0))
+    settings = ViewSettings(style="platon", show_cell=False)
+    settings.depth_cue_strength = 0.9
+
+    def arcs_change_the_picture(cue):
+        settings.depth_cue = cue
+        drawn = []
+        for octants in (False, True):
+            settings.ellipsoid_octants = octants
+            drawn.append(vtk_scene.render_to_array(
+                build_scene(structure, settings), (400, 400),
+                direction=(0.0, 0.0, -1.0)).astype(int))
+        return fraction_of(drawn[0], lambda _i: np.any(
+            np.abs(drawn[0] - drawn[1]) > 20, axis=2))
+
+    plain = arcs_change_the_picture(cue=False)
+    assert plain > 0.01
+    assert arcs_change_the_picture(cue=True) > 0.5 * plain
+
+
 def test_the_octant_glyph_covers_only_the_measured_atoms():
     """One extra actor over a subset of the same points, so the count
     in its polydata is the whole of the claim."""
