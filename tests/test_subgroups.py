@@ -24,17 +24,19 @@ from xtal.core.spacegroup import SpaceGroup
 #           shown to a user collapses them.
 EXPECTED = {
     "P4_2/mnm": (7, [2] * 7),
-    "P3221": (4, [2, 3, 3, 3]),
+    "P3221": (7, [2, 2, 2, 3, 3, 3, 3]),
     "Pa-3": (6, [2, 3, 4, 4, 4, 4]),
-    "Fm-3m": (10, [2, 2, 2, 3, 3, 3, 4, 4, 4, 4]),
+    "Fm-3m": (18, [2, 2, 2, 3, 3, 3] + [4] * 12),
 }
 
 # ... and how many rows those become once conjugates share one.
 EXPECTED_CLASSES = {
     "P4_2/mnm": 7,          # all of them normal: index 2 always is
-    "P3221": 2,             # P3_2, and the three C2 as one
+    "P3221": 5,             # P3_2, the three C2 as one, and three
+                            # more that double or triple the cell
     "Pa-3": 3,              # P2_13, Pbca, and the four R-3 as one
-    "Fm-3m": 5,             # three at index 2, one I4/mmm, one R-3m
+    "Fm-3m": 7,             # three at index 2, one I4/mmm, one R-3m,
+                            # and the two that drop the F centring
 }
 
 
@@ -109,7 +111,7 @@ def test_conjugates_give_the_same_crystal(quartz):
 
     results = []
     for indices in twofolds:
-        ops = subgroups._expand(indices, reps, centrings)
+        ops = subgroups._ops_from_full(indices, reps, centrings)
         child_group, p_matrix, p_shift = subgroups._name(lattice, ops)
         basis = subgroups._tidy(np.linalg.inv(p_matrix).T)
         shift = np.mod(subgroups._tidy(
@@ -144,13 +146,14 @@ def test_every_subgroup_is_offered_not_only_the_maximal_ones():
     by hand."""
     everything = subgroups.subgroups_of("Fm-3m")
     maximal = subgroups.maximal_subgroups("Fm-3m")
-    assert len(everything) == 32
-    assert len(maximal) == 5
+    assert len(everything) == 237
+    assert len(maximal) == 7
     assert all(s.maximal for s in maximal)
     assert {s.symbol for s in maximal} <= {s.symbol for s in everything}
-    # the deepest descent of all: keep the lattice, drop every rotation
+    # the deepest descent of all: drop every rotation *and* the whole
+    # centring, which is P1 in the parent's own cubic cell
     assert min(s.index for s in everything) == 2
-    assert max(s.index for s in everything) == 48
+    assert max(s.index for s in everything) == 192
 
 
 def test_a_non_maximal_subgroup_still_descends(quartz):
@@ -180,21 +183,33 @@ def test_every_subgroup_is_named(name):
 def test_subgroup_order_matches_its_index(name):
     parent = SpaceGroup.from_name(name)
     for sub in subgroups.maximal_subgroups(name):
-        assert len(sub.ops) * sub.index == parent.order
+        if sub.sublattice is None:
+            assert len(sub.ops) * sub.index == parent.order
+        else:
+            # Counted in the larger cell instead, where the parent has
+            # its own operations again for every translation it is
+            # about to lose.  The point group is kept whole, so what is
+            # left of the index is all translations.
+            assert sub.t_index == 1
+            assert sub.k_index == sub.index
+            assert len(sub.ops) * len(_centrings_of(parent)) \
+                == parent.order
         # The name and the transformation have to agree.  A group's
         # operation count belongs to its *conventional* cell, so the
-        # count found in the parent's cell only matches after the
-        # change of cell is allowed for: rutile's Cmmm has eight
-        # operations in rutile's cell and sixteen in the doubled one it
-        # is named in.
+        # count found in the cell the operations are held in only
+        # matches after the change of cell is allowed for: rutile's
+        # Cmmm has eight operations in rutile's cell and sixteen in the
+        # doubled one it is named in.
         assert sub.group.order == pytest.approx(
-            len(sub.ops) * sub.volume_ratio)
+            len(sub.ops) * sub.cell_ratio)
 
 
 def test_subgroups_are_proper_subsets_of_the_parent():
     parent = SpaceGroup.from_name("P4_2/mnm")
     parent_ops = {op.triplet for op in parent.operations}
     for sub in subgroups.maximal_subgroups(parent):
+        if sub.sublattice is not None:
+            continue          # written in its own cell, not this one
         found = {op.triplet for op in sub.ops}
         assert found < parent_ops
 
@@ -217,6 +232,257 @@ def test_subgroups_are_closed_under_composition():
 def _key(rot, trans):
     return (tuple(np.round(np.asarray(rot).reshape(9)).astype(int)),
             tuple(np.round(np.mod(trans, 1.0) * 24).astype(int) % 24))
+
+
+# ======================================================================
+#  GIVING UP THE CENTRING
+# ======================================================================
+#
+#  The klassengleiche half, in the same cell.  A subgroup here keeps
+#  rotations and drops translations rather than the other way round,
+#  and the translations it can drop are the centring ones -- which is
+#  why every one of these tests is about a centred group and why the
+#  primitive fixtures must come out of this change untouched.
+
+
+@pytest.mark.parametrize("name", ["P4_2/mnm", "P3221", "Pa-3"])
+def test_a_primitive_group_has_nothing_to_give_up_but_rotations(name):
+    """A same-cell klassengleiche descent gives up part of the
+    centring, and a primitive group has no centring to give up.  Its
+    list is therefore exactly the list it always was, which is the
+    guard that says the reduction is still in place."""
+    found = [s for s in subgroups.subgroups_of(name)
+             if s.sublattice is None]
+    assert found
+    assert all(s.k_index == 1 and s.kind == "t" for s in found)
+
+
+def test_fm3m_contains_pm3m_in_the_same_cell():
+    """The descent that was missing.  Index 4, not one rotation lost,
+    the whole F centring given up, and no cell transformation at all --
+    which is what makes it cost nothing to apply."""
+    pm3m = next(s for s in subgroups.maximal_subgroups("Fm-3m")
+                if s.symbol == "Pm-3m")
+    assert (pm3m.index, pm3m.k_index, pm3m.t_index) == (4, 4, 1)
+    assert pm3m.kind == "k"
+    assert pm3m.keeps_the_cell
+    assert subgroups.basis_description(pm3m) == "same axes, same origin"
+
+
+def test_fm3m_has_exactly_two_maximal_klassengleiche_subgroups():
+    """International Tables gives Fm-3m two of them, Pm-3m and Pn-3m,
+    and not the other two primitive m-3m groups: Pm-3n and Pn-3n need
+    glides a symmorphic parent does not contain.  Four here would mean
+    the lift is being offered without being closed."""
+    maximal = subgroups.maximal_subgroups("Fm-3m")
+    lost_centring = [s for s in maximal if s.kind == "k"]
+    assert {s.symbol for s in lost_centring} == {"Pm-3m", "Pn-3m"}
+    assert all(s.index == 4 for s in lost_centring)
+
+
+def test_a_lifted_subgroup_is_closed_under_composition():
+    """A klassengleiche subgroup is assembled by choosing, for each
+    generator of the point group, which of the centring translations to
+    keep it with.  Most choices do not close, and one offered without
+    that check is a list of operations rather than a symmetry."""
+    for sub in subgroups.maximal_subgroups("Fm-3m"):
+        ops = list(sub.ops)
+        keys = {_key(op.rot, op.trans) for op in ops}
+        for a in ops:
+            for b in ops:
+                assert _key(a.rot @ b.rot,
+                            a.rot @ b.trans + a.trans) in keys
+
+
+def test_the_index_is_the_two_halves_multiplied():
+    """``index`` is the whole descent and ``k_index`` the part of it
+    that is translations.  Both are shown, and a row whose numbers do
+    not multiply out is a row nobody can read."""
+    for sub in subgroups.subgroups_of("Fm-3m"):
+        assert sub.t_index * sub.k_index == sub.index
+        assert sub.kind == ("t" if sub.k_index == 1 else
+                            "k" if sub.t_index == 1 else "t + k")
+
+
+def test_rock_salt_splits_only_once_the_centring_goes(halite):
+    """Halite was the one fixture where no descent split anything, and
+    the reason was that the half of the subgroup lattice that splits it
+    was not offered.  Fm-3m to Pm-3m puts sodium on 1a and 3c and
+    chlorine on 1b and 3d, which is the cation-ordering model."""
+    for sub in subgroups.maximal_subgroups(halite.space_group):
+        if sub.kind == "t":
+            assert not subgroups.describe_split(halite, sub).splits
+
+    split = subgroups.describe_split(halite, _find(halite, "Pm-3m"))
+    assert (split.before, split.after) == (2, 4)
+    assert [pieces for _l, _e, _m, pieces in split.per_site] == [2, 2]
+
+
+def test_a_lost_centring_moves_no_atom(halite):
+    """The cheapest descent there is: same lattice, same coordinates,
+    fewer operations.  An atom that moves means the lift was named in a
+    setting it is not actually in."""
+    pm3m = _find(halite, "Pm-3m")
+    child, report = subgroups.descend(halite, pm3m)
+    assert report.ok
+    assert child.lattice.almost_equal(halite.lattice)
+    assert np.allclose(np.sort(p1.expand(halite).frac, axis=0),
+                       np.sort(p1.expand(child).frac, axis=0))
+
+
+def test_the_deepest_descent_of_a_centred_group_keeps_its_cell(halite):
+    """Dropping every rotation but keeping the centring is P1 in the
+    *primitive* cell, with two atoms.  Dropping the centring as well is
+    P1 in the cubic cell the structure was written in, with all eight
+    atoms independent -- and it is the deeper of the two."""
+    found = subgroups.subgroups_of(halite.space_group)
+    deepest = max(found, key=lambda s: s.index)
+    assert (deepest.symbol, deepest.index, deepest.k_index) == \
+        ("P1", 192, 4)
+    child, report = subgroups.descend(halite, deepest)
+    assert report.ok
+    assert child.n_sites == 8
+    assert child.lattice.almost_equal(halite.lattice)
+
+
+def test_a_descent_in_the_same_cell_still_has_the_parents_symmetry(
+        halite):
+    """Nothing moved, so Find symmetry must still answer Fm-3m.  This
+    is the strongest check available that a lift closed into a real
+    group: a set of operations that merely looks like one produces a
+    child whose expansion is not the crystal."""
+    from xtal.core import symmetry
+    for sub in subgroups.maximal_subgroups(halite.space_group):
+        child, report = subgroups.descend(halite, sub)
+        assert report.ok
+        assert symmetry.detect(child).space_group.short_name == "Fm-3m"
+
+
+# ======================================================================
+#  A LARGER CELL
+# ======================================================================
+#
+#  The klassengleiche subgroups that do not fit in the parent's cell.
+#  These are the superstructures, and the counts below are what
+#  International Tables lists for the groups they name.
+
+
+def test_pm3m_doubles_its_cell_the_way_the_tables_say():
+    """P m -3 m's maximal subgroups on a larger cell: Fm-3m and Fm-3c
+    at index 2 and Im-3m at index 4, all on the doubled cubic cell.
+    This is the one place the answers can be checked against a table
+    rather than against the code that produced them."""
+    bigger = [s for s in subgroups.maximal_subgroups("Pm-3m")
+              if s.enlarges_the_lattice]
+    assert {(s.symbol, s.index) for s in bigger} == {
+        ("Fm-3m", 2), ("Fm-3c", 2), ("Im-3m", 4)}
+    for sub in bigger:
+        assert subgroups.basis_description(sub).startswith(
+            "a' = 2a, b' = 2b, c' = 2c")
+        assert sub.volume_ratio == pytest.approx(8.0)
+
+
+def test_p4mmm_gives_the_tables_eight_superstructures():
+    """P4/mmm's are the textbook list: the c-doubling ones, the
+    root-two ones in the plane, and the two body-centred ones that do
+    both."""
+    bigger = {s.symbol for s in subgroups.maximal_subgroups("P4/mmm")
+              if s.enlarges_the_lattice}
+    assert bigger == {"P4/mcc", "P4/nbm", "P4/mbm", "P4/nmm",
+                      "P42/mmc", "P42/mcm", "I4/mmm", "I4/mcm"}
+
+
+def test_the_isomorphic_superstructures_are_not_offered():
+    """A subgroup of the same group on a larger cell exists at every
+    prime index for most lattices, so the family is infinite and
+    cannot be a list.  P1 is the whole family and nothing else, which
+    is why P1 still has no subgroups at all."""
+    assert subgroups.subgroups_of("P1") == []
+    for name in ("P3221", "Pm-3m", "P4/mmm", "Cmcm"):
+        parent = SpaceGroup.from_name(name)
+        for sub in subgroups.subgroups_of(name):
+            if sub.enlarges_the_lattice:
+                assert sub.group.number != parent.number
+
+
+def test_a_superstructure_keeps_the_whole_point_group():
+    """Enlarging the cell is the klassengleiche half in its pure form:
+    every rotation survives and the translations are what is lost.  A
+    row here with a t index above one would mean the two kinds had been
+    mixed up in one pass."""
+    for name in ("P3221", "Pm-3m", "P4/mmm", "P6_3/mmc"):
+        for sub in subgroups.subgroups_of(name):
+            if sub.enlarges_the_lattice:
+                assert sub.t_index == 1
+                assert sub.k_index == sub.index
+                assert sub.kind == "k"
+                assert not sub.keeps_the_cell
+
+
+def test_a_superstructure_descent_conserves_the_crystal():
+    """The cell grows by the index and so does the atom count, every
+    atom keeps its place, and the symmetry that is still there is the
+    parent's -- because nothing moved.  That round trip is the only
+    check here that does not come from the code being tested."""
+    from xtal import Lattice, Structure
+    from xtal.core import properties, symmetry
+
+    perovskite = Structure.from_arrays(
+        Lattice.cubic(3.905), ["Sr", "Ti", "O"],
+        [[0, 0, 0], [.5, .5, .5], [.5, .5, 0]], space_group="Pm-3m")
+    before = p1.expand(perovskite).n_atoms
+    bigger = [s for s in subgroups.subgroups_of("Pm-3m")
+              if s.enlarges_the_lattice]
+    assert bigger
+    for sub in bigger:
+        child, report = subgroups.descend(perovskite, sub)
+        assert report.ok, f"{sub}: {report.message}"
+        assert p1.expand(child).n_atoms == round(
+            before * sub.volume_ratio)
+        assert properties.density(child) == pytest.approx(
+            properties.density(perovskite))
+        assert symmetry.detect(child).space_group.short_name == "Pm-3m"
+
+
+def test_ordering_the_b_site_of_a_perovskite():
+    """What the half is for.  SrTiO3 in Pm-3m has one titanium; on the
+    doubled cell in Fm-3m it has two, which is the rock-salt ordering
+    a double perovskite needs and which no descent in the parent's own
+    cell can produce."""
+    from xtal import Lattice, Structure
+
+    perovskite = Structure.from_arrays(
+        Lattice.cubic(3.905), ["Sr", "Ti", "O"],
+        [[0, 0, 0], [.5, .5, .5], [.5, .5, 0]], space_group="Pm-3m")
+    ordering = [s for s in subgroups.subgroups_of("Pm-3m")
+                if s.symbol == "Fm-3m"]
+    splits = [subgroups.describe_split(perovskite, s) for s in ordering]
+    assert any(pieces > 1 for split in splits
+               for label, _el, _mult, pieces in split.per_site
+               if label == "Ti")
+    child, report = subgroups.descend(perovskite, ordering[0])
+    assert report.ok
+    assert child.lattice.lengths == pytest.approx((7.81, 7.81, 7.81))
+
+
+def test_one_atom_of_the_parent_is_several_of_a_larger_child():
+    """The split count has to be worked out over the *whole* child
+    cell.  A parent atom of multiplicity one is eight atoms of a cell
+    eight times the size, and matching only the copy the parent cell
+    holds finds one of them and reports that nothing split -- which
+    made every superstructure look like it did nothing."""
+    from xtal import Lattice, Structure
+
+    perovskite = Structure.from_arrays(
+        Lattice.cubic(3.905), ["Sr", "Ti", "O"],
+        [[0, 0, 0], [.5, .5, .5], [.5, .5, 0]], space_group="Pm-3m")
+    for sub in subgroups.subgroups_of("Pm-3m"):
+        if not sub.enlarges_the_lattice:
+            continue
+        split = subgroups.describe_split(perovskite, sub)
+        assert split.after == sum(
+            1 for _l, _e, _m, pieces in split.per_site for _ in
+            range(pieces)), subgroups.basis_description(sub)
 
 
 # ======================================================================
@@ -351,6 +617,10 @@ def test_distinct_rows_are_distinguishable():
     described = {(s.symbol, s.index,
                   subgroups.basis_description(s)) for s in rows}
     assert len(described) == len(rows)
+
+
+def _centrings_of(group):
+    return subgroups._reduced(group)[1]
 
 
 def _find(structure, symbol):

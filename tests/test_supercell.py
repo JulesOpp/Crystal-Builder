@@ -63,6 +63,64 @@ def test_transformation_rejects_bad_matrices(rutile):
         supercell.transform_cell(rutile, np.eye(2))         # wrong shape
 
 
+# ---- change_setting: the general, rational, origin-moving form
+
+
+def test_a_smaller_setting_holds_fewer_atoms_at_the_same_density(
+        halite):
+    """Halite's F-centred cube described on its own primitive vectors.
+
+    A quarter of the volume and a quarter of the atoms, and the same
+    crystal: this is the shrinking direction, which is what a descent
+    to a subgroup named in a primitive setting asks for.
+    """
+    prim = supercell.change_setting(
+        halite, [[0, .5, .5], [.5, 0, .5], [.5, .5, 0]])
+    assert prim.n_sites == 2
+    assert prim.lattice.volume == pytest.approx(
+        halite.lattice.volume / 4)
+    assert properties.density(prim) == pytest.approx(
+        properties.density(halite))
+
+
+def test_a_larger_setting_holds_more_atoms_at_the_same_density(rutile):
+    """The doubling direction, which is what a klassengleiche descent
+    onto a sublattice needs.  ``transform_cell`` can do this one too;
+    ``change_setting`` is the form that may also move the origin."""
+    big = supercell.change_setting(rutile, np.diag([1.0, 1.0, 2.0]))
+    assert big.n_sites == 2 * p1.expand(rutile).n_atoms
+    assert big.lattice.lengths == pytest.approx(
+        (4.5940, 4.5940, 2 * 2.9590))
+    assert properties.density(big) == pytest.approx(
+        properties.density(rutile))
+
+
+def test_the_origin_moves_without_the_basis(rutile):
+    """An identity basis and a shift is a pure change of origin, and
+    the shift is subtracted from every coordinate rather than added --
+    which is the sign the subgroup transformation depends on."""
+    out = supercell.change_setting(rutile, np.eye(3), [0.25, 0.0, 0.0])
+    assert out.n_sites == p1.expand(rutile).n_atoms
+    assert out.sites[0].frac == pytest.approx([0.75, 0.0, 0.0])
+    assert out.lattice.almost_equal(rutile.lattice)
+
+
+def test_a_basis_that_is_not_of_this_lattice_is_refused(rutile):
+    """A third of the c axis is not a period of rutile, so the cell
+    cannot be filled at the volume ratio the determinant claims.  The
+    count is the only thing that notices, and it must raise rather than
+    hand back a structure with three times the density it should have.
+    """
+    with pytest.raises(ValueError, match="expected"):
+        supercell.change_setting(rutile, np.diag([1.0, 1.0, 1 / 3]))
+
+
+@pytest.mark.parametrize("bad", [np.zeros((3, 3)), -np.eye(3)])
+def test_a_singular_or_left_handed_basis_is_refused(rutile, bad):
+    with pytest.raises(ValueError, match="determinant"):
+        supercell.change_setting(rutile, bad)
+
+
 def test_niggli_reduction_shortens_the_basis():
     """A deliberately skewed description of a cubic lattice reduces
     back to the cube."""

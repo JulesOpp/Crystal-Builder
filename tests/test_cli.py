@@ -38,7 +38,8 @@ def test_symmetry_reports_the_hand(quartz_cif, capsys):
 def test_symmetry_lists_the_subgroups(quartz_cif, capsys):
     assert main(["symmetry", quartz_cif, "--subgroups"]) == 0
     out = capsys.readouterr().out
-    assert "subgroups (3, translationengleiche, 2 maximal" in out
+    assert ("subgroups (6, 3 giving up translations, 3 on a "
+            "larger cell, 5 maximal") in out
     assert "P 32" in out
     assert "2 -> 3 sites" in out            # the oxygen splits
     assert "same axes, same origin" in out

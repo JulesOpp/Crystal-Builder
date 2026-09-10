@@ -232,24 +232,28 @@ def test_its_lattice_constant_relaxes_and_stays_cubic(mfu4l):
 #  the fixtures counts them as different atoms.  That is the difference
 #  between the two, and it is why this test is here and not there.
 
+@pytest.mark.slow
 def test_descending_works_on_a_deposited_structure(mfu4l):
     """Every maximal subgroup of Fm-3m, applied to a real framework.
 
     Each one has to come out with the atom count its cell demands: the
     tetragonal descents halve the cell and so halve the atoms, the
-    rhombohedral ones take three quarters of it.  Getting this wrong
-    does not look like a wrong answer, it looks like the operation
-    refusing -- which is what it did.
+    rhombohedral ones take three quarters of it, and the ones that give
+    up the F centring keep every atom and the cell it is in.  Getting
+    this wrong does not look like a wrong answer, it looks like the
+    operation refusing -- which is what it did.
     """
     from xtal.core import subgroups
 
     before = p1.expand(mfu4l).n_atoms
     assert before == 648
     found = subgroups.subgroups_of(mfu4l.space_group)
-    # Fm-3m's 97 proper subgroups, as the 32 conjugacy classes the
-    # dialog offers, of which 5 are maximal.
-    assert len(found) == 32
-    assert sum(1 for s in found if s.maximal) == 5
+    # Every subgroup of Fm-3m that needs no new cell, as the conjugacy
+    # classes the dialog offers, of which 7 are maximal -- five
+    # translationengleiche and the two that drop the centring.
+    assert len(found) == 237
+    assert sum(1 for s in found if s.maximal) == 7
+    assert sum(1 for s in found if s.k_index > 1) == 205
     for sub in found:
         child, report = subgroups.descend(mfu4l, sub)
         assert report.ok, f"{sub}: {report.message}"
@@ -257,6 +261,7 @@ def test_descending_works_on_a_deposited_structure(mfu4l):
                 == round(before * sub.volume_ratio)), str(sub)
 
 
+@pytest.mark.slow
 def test_descending_a_real_framework_is_quick_enough_to_watch(mfu4l):
     """The dialog computes the split for the row you select, on the UI
     thread, so this is the number that decides whether the window
@@ -273,12 +278,12 @@ def test_descending_a_real_framework_is_quick_enough_to_watch(mfu4l):
     for sub in found:
         assert subgroups.describe_split(mfu4l, sub).ok
     elapsed = time.perf_counter() - started
-    # Thirty-two subgroups, a couple of seconds between them on a
-    # laptop; the bound is loose because this is a guard against the
-    # quadratic coming back, not a benchmark.  The dialog only computes
-    # the row you select, so what a user waits for is a thirty-second
-    # of this.
-    assert elapsed < 30.0, f"{len(found)} splits took {elapsed:.1f} s"
+    # Every row of the list, tens of milliseconds apiece on a laptop;
+    # the bound is loose because this is a guard against the quadratic
+    # coming back, not a benchmark.  The dialog only computes the row
+    # you select, so what a user waits for is one two-hundredth of
+    # this.
+    assert elapsed < 40.0, f"{len(found)} splits took {elapsed:.1f} s"
 
 
 def test_a_tetragonal_descent_splits_the_linker(mfu4l):

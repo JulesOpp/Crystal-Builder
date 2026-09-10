@@ -1326,9 +1326,9 @@ class Document(QObject):
         return hand_description(self._structure.space_group)
 
     def subgroups(self):
-        """The translationengleiche subgroups of the current group, one
-        per conjugacy class.  Cached on the group, so a dialog may ask
-        freely."""
+        """The subgroups of the current group that need no new cell,
+        one per conjugacy class.  Cached on the group, so a dialog may
+        ask freely."""
         from xtal.core import subgroups
         return subgroups.subgroups_of(self._structure.space_group)
 

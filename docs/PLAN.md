@@ -122,7 +122,7 @@ Crystal-Builder/
 │   │   ├── p1.py             # P1Cell: expanded atoms with provenance (site_idx, op_idx, tau)
 │   │   ├── symmetry.py       # spglib detect/refine/standardise; set_space_group / reduce_to_p1 /
 │   │   │                     #   asymmetrise / Wyckoff / merge_duplicates
-│   │   ├── subgroups.py      # maximal translationengleiche subgroups, named in a standard setting
+│   │   ├── subgroups.py      # translationengleiche and klassengleiche subgroups, named in a standard setting
 │   │   ├── neighbors.py      # periodic neighbour lists (cKDTree over padded images), cutoff maps
 │   │   ├── bonding.py        # perception, per-pair rules, explicit/suppressed/topology bonds,
 │   │   │                     #   bond orders, fragments, coordination sequence and point symbol

@@ -27,7 +27,11 @@ from xtalapp.dialogs.merge_duplicates import (  # noqa: E402
     MergeDuplicatesDialog,
 )
 from xtalapp.dialogs.spacegroup import SpaceGroupDialog  # noqa: E402
-from xtalapp.dialogs.subgroup import SubgroupDialog  # noqa: E402
+from xtalapp.dialogs.subgroup import (  # noqa: E402
+    DETAIL_HEIGHT,
+    SPLIT_COLUMN_MAX,
+    SubgroupDialog,
+)
 from xtalapp.dialogs.supercell import SupercellDialog  # noqa: E402
 from xtalapp.document import Document  # noqa: E402
 from xtalapp.mainwindow import MainWindow  # noqa: E402
@@ -533,7 +537,8 @@ def quartz_document(quartz):
 
 
 def test_subgroup_dialog_lists_the_subgroups(qtbot, quartz_document):
-    """P3_2, one row for the three conjugate C2, and P1 at the bottom.
+    """P3_2, one row for the three conjugate C2, P1 at the bottom, and
+    the three that need a larger cell.
 
     P1 belongs in the list: dropping every rotation and keeping the
     lattice is a descent like any other, and reaching it from here
@@ -542,11 +547,153 @@ def test_subgroup_dialog_lists_the_subgroups(qtbot, quartz_document):
     """
     dialog = SubgroupDialog(quartz_document)
     qtbot.addWidget(dialog)
-    assert dialog.table.rowCount() == 3
+    assert dialog.table.rowCount() == 6
     assert "P 32 2 1" in dialog.heading.text()
     symbols = {dialog.table.item(row, 0).text()
                for row in range(dialog.table.rowCount())}
-    assert symbols == {"P 32", "C 1 2 1", "P 1"}
+    assert symbols == {"P 32", "C 1 2 1", "P 1", "P 31 2 1", "P 32 1 2"}
+
+
+@pytest.fixture
+def halite_document(halite):
+    return Document(halite)
+
+
+def test_the_dialog_says_which_kind_of_descent_a_row_is(
+        qtbot, halite_document):
+    """A group can appear twice at two different indices, once having
+    lost rotations and once having lost the centring, so the kind is
+    what makes the two rows different rows.  Fm-3m to Pm-3m is the
+    second sort and is the descent that splits rock salt."""
+    dialog = SubgroupDialog(halite_document)
+    qtbot.addWidget(dialog)
+    row = next(r for r in range(dialog.table.rowCount())
+               if dialog.table.item(r, 0).text() == "P m -3 m")
+    assert dialog.table.item(row, 2).text() == "4"
+    assert dialog.table.item(row, 3).text() == "k"
+    dialog.table.setCurrentCell(row, 0)
+    assert "2 -> 4 sites" in dialog.table.item(row, 6).text()
+    assert "Translations are given up" in dialog.detail.text()
+    assert "not a superstructure" in dialog.detail.text()
+
+
+def test_choosing_a_row_moves_nothing(qtbot, halite_document):
+    """The split summary arrives one row at a time, as rows are picked,
+    and a table sized to its contents therefore resized itself -- and
+    the window with it -- every time the selection moved.  Reading down
+    the list is the whole use of this dialog, and it cannot be done
+    while the thing being read shifts under the cursor.
+    """
+    dialog = SubgroupDialog(halite_document)
+    qtbot.addWidget(dialog)
+    widths = [dialog.table.columnWidth(c) for c in range(8)]
+    hint = dialog.sizeHint()
+    for row in range(min(8, dialog.table.rowCount())):
+        dialog.table.setCurrentCell(row, 0)
+    assert [dialog.table.columnWidth(c) for c in range(8)] == widths
+    assert dialog.sizeHint() == hint
+
+
+def test_the_detail_pane_scrolls_rather_than_grows(qtbot,
+                                                   halite_document):
+    """What it says is one line for a descent that splits nothing and
+    one line per site for a descent that splits everything.  A pane
+    that takes its height from that grows the window by a hundred
+    pixels when a row like Pm-3m is chosen."""
+    dialog = SubgroupDialog(halite_document)
+    qtbot.addWidget(dialog)
+    assert dialog.detail_area.minimumHeight() == DETAIL_HEIGHT
+    assert dialog.detail_area.maximumHeight() == DETAIL_HEIGHT
+    row = next(r for r in range(dialog.table.rowCount())
+               if dialog.table.item(r, 0).text() == "P m -3 m")
+    dialog.table.setCurrentCell(row, 0)
+    assert dialog.detail.text().count("\n") >= 2
+    assert dialog.detail_area.height() == DETAIL_HEIGHT
+
+
+def test_the_split_column_keeps_the_axes_column_on_screen(
+        qtbot, halite_document):
+    """A descent that gives up the centring can split every site there
+    is, and its summary sized to contents takes the whole table --
+    carrying off the right-hand edge the axes column, which is the one
+    thing telling two rows of the same group at the same index apart.
+    """
+    dialog = SubgroupDialog(halite_document)
+    qtbot.addWidget(dialog)
+    assert dialog.table.columnWidth(6) == SPLIT_COLUMN_MAX
+    assert dialog.table.columnWidth(7) > 0
+
+
+def test_the_kind_filter_narrows_the_list(qtbot, halite_document):
+    """Fm-3m has 237 rows and two of them give up the centring without
+    giving up a rotation.  Finding those two by reading is the thing
+    the filter exists to save."""
+    dialog = SubgroupDialog(halite_document)
+    qtbot.addWidget(dialog)
+    everything = dialog.table.rowCount()
+    assert dialog.kind_row.isVisibleTo(dialog)
+    assert dialog.kinds.itemText(0) == f"All ({everything})"
+
+    dialog.kinds.setCurrentIndex(dialog.kinds.findData("k"))
+    kinds = {dialog.table.item(r, 3).text()
+             for r in range(dialog.table.rowCount())}
+    assert kinds == {"k"}
+    assert 0 < dialog.table.rowCount() < everything
+
+    dialog.kinds.setCurrentIndex(dialog.kinds.findData(None))
+    assert dialog.table.rowCount() == everything
+
+
+def test_a_filtered_row_still_descends_to_what_it_says(
+        qtbot, halite_document):
+    """The rows are renumbered by the filter, so a dialog that answers
+    with the row number rather than the subgroup would descend to
+    whatever happened to be in that position unfiltered."""
+    dialog = SubgroupDialog(halite_document)
+    qtbot.addWidget(dialog)
+    dialog.kinds.setCurrentIndex(dialog.kinds.findData("k"))
+    row = next(r for r in range(dialog.table.rowCount())
+               if dialog.table.item(r, 0).text() == "P m -3 m")
+    dialog.table.setCurrentCell(row, 0)
+    assert dialog.subgroup().symbol == "Pm-3m"
+    assert dialog.subgroup().kind == "k"
+
+
+def test_a_split_survives_a_change_of_filter(qtbot, halite_document):
+    """Working one out costs an expansion of the cell, so it is
+    remembered against the subgroup and not against the row it was in
+    when the filter last changed."""
+    dialog = SubgroupDialog(halite_document)
+    qtbot.addWidget(dialog)
+    row = next(r for r in range(dialog.table.rowCount())
+               if dialog.table.item(r, 0).text() == "P m -3 m")
+    dialog.table.setCurrentCell(row, 0)
+    summary = dialog.table.item(row, 6).text()
+    assert "2 -> 4 sites" in summary
+
+    dialog.kinds.setCurrentIndex(dialog.kinds.findData("k"))
+    moved = next(r for r in range(dialog.table.rowCount())
+                 if dialog.table.item(r, 0).text() == "P m -3 m")
+    assert dialog.table.item(moved, 6).text() == summary
+
+
+def test_the_filter_is_hidden_when_there_is_only_one_kind(qtbot,
+                                                          document):
+    """Rutile is primitive, so every descent it has is a t.  A filter
+    whose only choice is the one already showing is furniture."""
+    dialog = SubgroupDialog(document)
+    qtbot.addWidget(dialog)
+    assert not dialog.kind_row.isVisibleTo(dialog)
+
+
+def test_a_primitive_group_offers_only_t_descents(qtbot, document):
+    """Rutile has no centring to give up, so every row is a ``t`` and
+    the list is the one it always was."""
+    dialog = SubgroupDialog(document)
+    qtbot.addWidget(dialog)
+    kinds = {dialog.table.item(row, 3).text()
+             for row in range(dialog.table.rowCount())}
+    assert kinds == {"t"}
 
 
 def test_subgroup_dialog_offers_more_than_the_maximal_ones(qtbot,
@@ -557,7 +704,7 @@ def test_subgroup_dialog_offers_more_than_the_maximal_ones(qtbot,
     dialog = SubgroupDialog(document)
     qtbot.addWidget(dialog)
     assert dialog.table.rowCount() == 26
-    marks = [dialog.table.item(row, 3).text()
+    marks = [dialog.table.item(row, 4).text()
              for row in range(dialog.table.rowCount())]
     assert marks.count("maximal") == 7
     indices = {int(dialog.table.item(row, 2).text())
@@ -572,7 +719,7 @@ def test_conjugate_subgroups_are_one_row_that_says_so(qtbot,
     qtbot.addWidget(dialog)
     row = next(r for r in range(dialog.table.rowCount())
                if dialog.table.item(r, 0).text() == "C 1 2 1")
-    assert dialog.table.item(row, 4).text() == "1 of 3"
+    assert dialog.table.item(row, 5).text() == "1 of 3"
     dialog.table.setCurrentCell(row, 0)
     assert "conjugate under the parent" in dialog.detail.text()
 
@@ -585,7 +732,7 @@ def test_subgroup_dialog_says_what_splits(qtbot, quartz_document):
     row = next(r for r in range(dialog.table.rowCount())
                if dialog.table.item(r, 0).text() == "P 32")
     dialog.table.setCurrentCell(row, 0)
-    assert "2 -> 3 sites" in dialog.table.item(row, 5).text()
+    assert "2 -> 3 sites" in dialog.table.item(row, 6).text()
     assert "independent sites" in dialog.detail.text()
 
 
@@ -597,7 +744,7 @@ def test_subgroup_dialog_says_when_nothing_splits(qtbot, document):
     unsplit = None
     for row in range(dialog.table.rowCount()):
         dialog.table.setCurrentCell(row, 0)
-        if "none split" in dialog.table.item(row, 5).text():
+        if "none split" in dialog.table.item(row, 6).text():
             unsplit = row
             break
     assert unsplit is not None
@@ -611,7 +758,7 @@ def test_every_row_is_tellable_apart(qtbot, document):
     qtbot.addWidget(dialog)
     rows = {(dialog.table.item(r, 0).text(),
              dialog.table.item(r, 2).text(),
-             dialog.table.item(r, 6).text())
+             dialog.table.item(r, 7).text())
             for r in range(dialog.table.rowCount())}
     assert len(rows) == dialog.table.rowCount()
 
@@ -661,7 +808,7 @@ def test_the_view_resets_after_a_descent_that_moves_the_cell(
     document = window.current_document()
     viewport = window.current_viewport()
     subgroup = next(s for s in document.subgroups()
-                    if not s.keeps_the_cell)
+                    if not s.keeps_the_cell and s.symbol == "C2")
     monkeypatch.setattr(SubgroupDialog, "ask",
                         staticmethod(
                             lambda doc, parent=None:

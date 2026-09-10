@@ -62,11 +62,14 @@ def cmd_info(args) -> int:
 
 
 def _print_subgroups(structure) -> None:
-    """The maximal subgroups of the group the structure is in, with
-    what each descent would cost.
+    """The subgroups of the group the structure is in, with what each
+    descent would cost.
 
     The split is the column worth having: most descents split nothing,
-    and a list that does not say so reads as if it were broken.
+    and a list that does not say so reads as if it were broken.  The
+    kind is the column after it: a group can appear twice at two
+    different indices, once having lost rotations and once having lost
+    the centring, and the two are not the same descent.
     """
     from xtal.core import subgroups
 
@@ -76,15 +79,19 @@ def _print_subgroups(structure) -> None:
               "group there is")
         return
     n_maximal = sum(1 for s in found if s.maximal)
-    print(f"\nsubgroups ({len(found)}, translationengleiche, "
-          f"{n_maximal} maximal; conjugates share a row)")
-    print(f"{'group':<14s} {'no.':>4s} {'idx':>4s} {'max':>4s} "
-          f"{'same':>5s}  {'splits':<24s} axes and origin")
+    n_k = sum(1 for s in found if s.k_index > 1)
+    n_big = sum(1 for s in found if s.enlarges_the_lattice)
+    print(f"\nsubgroups ({len(found)}, {n_k} giving up translations, "
+          f"{n_big} on a larger cell, {n_maximal} maximal; conjugates "
+          f"share a row)")
+    print(f"{'group':<14s} {'no.':>4s} {'idx':>4s} {'kind':>5s} "
+          f"{'max':>4s} {'same':>5s}  {'splits':<24s} axes and origin")
     for sub in found:
         split = subgroups.describe_split(structure, sub)
         print(f"{sub.group.hm if sub.group else 'unnamed':<14s} "
               f"{sub.group.number if sub.group else '':>4} "
-              f"{sub.index:>4} {'yes' if sub.maximal else '':>4} "
+              f"{sub.index:>4} {sub.kind:>5s} "
+              f"{'yes' if sub.maximal else '':>4} "
               f"{('' if sub.n_conjugates == 1 else f'x{sub.n_conjugates}'):>5}"
               f"  {split.summary():<24s} "
               f"{subgroups.basis_description(sub)}")
@@ -517,8 +524,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--wyckoff", action="store_true",
                    help="list Wyckoff letters and site symmetries")
     p.add_argument("--subgroups", action="store_true",
-                   help="list the translationengleiche subgroups of "
-                        "the current group and what descending to each "
+                   help="list the subgroups of the current group that "
+                        "need no new cell -- translationengleiche and "
+                        "klassengleiche -- and what descending to each "
                         "would split")
     p.add_argument("-o", "--output",
                    help="write the symmetrised structure here")

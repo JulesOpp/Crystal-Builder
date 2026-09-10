@@ -165,8 +165,12 @@ class Invert(StructureOperation):
 
 
 class DescendToSubgroup(StructureOperation):
-    """Drop into one of the maximal subgroups of the current group, so
-    that an orbit splits and the atoms in it become independent.
+    """Drop into one of the subgroups of the current group, so that an
+    orbit splits and the atoms in it become independent.
+
+    Two kinds reach here and the cell is the same cell for both: giving
+    up rotations, and giving up part of the centring.  The second is
+    the one that splits rock salt.
 
     Going the other way is :class:`FindSymmetry`, and the two are not a
     matched pair: raising the symmetry is a measurement of the
@@ -189,6 +193,7 @@ class DescendToSubgroup(StructureOperation):
             report.message = (
                 f"{structure.space_group.short_name} -> "
                 f"{self.subgroup.symbol} at index {self.subgroup.index}"
+                f" ({self.subgroup.kind})"
                 f": {structure.n_sites} -> {out.n_sites} independent "
                 f"sites")
             if not self.subgroup.keeps_the_cell:
