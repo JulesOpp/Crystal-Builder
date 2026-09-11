@@ -98,6 +98,17 @@ def embed(smiles: str, seed: int = 0xf00d, optimise: bool = True):
     text = str(smiles).strip()
     if not text:
         raise BuildError("no SMILES string to build from")
+    if _looks_like_xyz(text):
+        # What a Copy from this application puts on the clipboard, in
+        # the box that wants a SMILES string.  Quoted back as "not a
+        # SMILES string RDKit can read" it is three lines of XYZ and no
+        # advice; the two ways of turning atoms into a block are worth
+        # naming instead, because the user already has the atoms.
+        raise BuildError(
+            "those are atoms copied from a structure, not a SMILES "
+            "string -- draw the block here, or open the atoms in a "
+            "tab, mark their connection points and use Save as a "
+            "building block")
 
     # RDKit reports why a string failed to its own log and returns
     # None, so the reason has to be captured or the user is told only
@@ -125,6 +136,36 @@ def embed(smiles: str, seed: int = 0xf00d, optimise: bool = True):
     connections = tuple(dummies)
     return (tuple(symbols), pull_in(cart, bonds, connections), bonds,
             connections)
+
+
+def _looks_like_xyz(text: str) -> bool:
+    """Whether this is atoms rather than a string.
+
+    An XYZ fragment starts with an atom count, and the box it gets
+    pasted into is a single line -- which flattens the newlines, so the
+    count, the comment and the first atom all arrive together.  Both
+    forms answer to the same test: a leading whole number, and three
+    numbers in a row somewhere after it.  No SMILES begins with a bare
+    number, so this cannot swallow one.
+    """
+    tokens = text.split()
+    if len(tokens) < 2:
+        return False
+    try:
+        int(tokens[0])
+    except ValueError:
+        return False
+    run = 0
+    for token in tokens[1:]:
+        try:
+            float(token)
+        except ValueError:
+            run = 0
+            continue
+        run += 1
+        if run >= 3:
+            return True
+    return False
 
 
 def _dummies(mol) -> list[int]:

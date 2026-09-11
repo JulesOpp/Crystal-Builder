@@ -12,6 +12,8 @@ The **dialog** is the builder's, and it is skipped when PORMAKE's
 database is not there because there is nothing for it to show.
 """
 
+from types import SimpleNamespace
+
 import pytest
 
 pytest.importorskip("PySide6")
@@ -452,6 +454,40 @@ def dialog(qtbot, window):
 def test_the_dialog_asks_about_every_slot_the_topology_has(dialog):
     assert [row.slot.token for row in dialog._rows] == ["0", "0-0"]
     assert dialog.values()["topology"] == "pcu"
+
+
+@needs_database
+def test_a_block_drawn_on_a_row_is_what_the_build_builds_with(
+        dialog, window, tmp_path):
+    """Draw wrote the block into the workspace, the row selected it,
+    and then the build could not find it: the run read the two named
+    folders and not the one the block was certain to be in."""
+    from xtal.modules.job import Job
+    from xtal.modules.mof import catalog_for
+
+    window.set_workspace(tmp_path / "ws", create=True)
+    blocks = window.workspace.blocks
+    blocks.mkdir(parents=True, exist_ok=True)
+    (blocks / "drawn6.xyz").write_text(
+        "6\n0 1 2 3 4 5\n"
+        "X  1.5  0.0  0.0\nX -1.5  0.0  0.0\n"
+        "X  0.0  1.5  0.0\nX  0.0 -1.5  0.0\n"
+        "X  0.0  0.0  1.5\nX  0.0  0.0 -1.5\n")
+
+    node = next(row for row in dialog._rows if not row.slot.is_edge)
+    dialog._blocks = blocks
+    # Through the row's own signal, which is what the Draw dialog
+    # returning a path does: the handler selects the block on whichever
+    # row asked for it, and that row is the sender.
+    node.drawn.emit("drawn6")
+    assert node.block() == "drawn6"
+
+    entry = window.workspace.add_document("framework")
+    run = entry.path / "runs" / "mof-build-001"
+    run.mkdir(parents=True)
+    job = Job(params=dialog.values(),
+              folder=SimpleNamespace(path=run))
+    assert catalog_for(job).building_block("drawn6").n_connections == 6
 
 
 @needs_database

@@ -47,6 +47,7 @@ what was picked, and it appears in the report.
 
 from __future__ import annotations
 
+import tempfile
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
@@ -104,6 +105,10 @@ class MofBuildDialog(QDialog):
         # somebody curates outside this application lives.
         self._blocks = getattr(getattr(parent, "workspace", None),
                                "blocks", None)
+        #: Where a drawn block goes when there is nowhere else -- see
+        #: :meth:`_draw_into`.  Made on demand, so a dialog nobody
+        #: draws in leaves no directory behind.
+        self._scratch: str | None = None
         self._rows: list[_SlotRow] = []
         self._topology = None
 
@@ -215,10 +220,23 @@ class MofBuildDialog(QDialog):
         all without first naming a folder somewhere, which is what it
         used to demand.  The named folder is the fallback and is read
         either way.
+
+        **There is always somewhere**, which is the last way Draw
+        could refuse to save what somebody had just drawn.  With no
+        workspace -- the folder-could-not-be-made path -- and no
+        folder named, the block goes into a directory of this
+        dialog's own, which :meth:`values` then hands the run as its
+        extra blocks folder.  It lasts as long as the dialog, which is
+        as long as it needs to: the build that reads it is started
+        from here.
         """
         if self._blocks is not None:
             return str(self._blocks)
-        return self.bb_dir.text()
+        if self.bb_dir.text().strip():
+            return self.bb_dir.text()
+        if self._scratch is None:
+            self._scratch = tempfile.mkdtemp(prefix="xtal-blocks-")
+        return self._scratch
 
     def _reread(self) -> None:
         """A folder was named, so read everything again.
@@ -400,7 +418,11 @@ class MofBuildDialog(QDialog):
             "nodes": ",".join(nodes),
             "edges": ",".join(edges),
             "topology_dir": self.topology_dir.text(),
-            "bb_dir": self.bb_dir.text(),
+            # The scratch folder only ever exists when there was no
+            # workspace and no folder named, which is exactly when the
+            # run would otherwise have nowhere to read a drawn block
+            # from.  It never overwrites a folder the user typed.
+            "bb_dir": self.bb_dir.text() or (self._scratch or ""),
         })
 
     def accept(self) -> None:

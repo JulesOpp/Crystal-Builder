@@ -102,7 +102,12 @@ class DrawBlockDialog(QDialog):
         buttons = QDialogButtonBox(QDialogButtonBox.Ok |
                                    QDialogButtonBox.Cancel)
         self.save_button = buttons.button(QDialogButtonBox.Ok)
-        self.save_button.setText("Save")
+        # "Save and use", because those are one action here and were
+        # being read as two: the block is written, the row that asked
+        # selects it, and Build then builds with it.  A button marked
+        # "Save" invites somebody to look for a second one that uses
+        # what was saved.
+        self.save_button.setText("Save and use")
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
 

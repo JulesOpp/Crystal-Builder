@@ -232,6 +232,10 @@ class BuildOutcome:
     max_rmsd: float = 0.0
     mean_rmsd: float = 0.0
     objective: float = 0.0
+    #: How many node-to-linker and node-to-node joins arrived bonded.
+    #: See :func:`bond_joints`: a joint can be longer than any distance
+    #: criterion, so it is stored rather than left to perception.
+    joints: int = 0
     #: What the RCSR calls the net that was drawn on the framework.
     identified: object = None
     #: The topology's own name, as PORMAKE's database spells it.
@@ -300,6 +304,8 @@ def build(request: BuildRequest, directory, catalog: Catalog | None
         max_rmsd=float(framework.info.get("max_rmsd", 0.0) or 0.0),
         mean_rmsd=float(framework.info.get("mean_rmsd", 0.0) or 0.0),
         objective=float(framework.info.get("relax_obj", 0.0) or 0.0))
+    outcome.joints = bond_joints(structure, framework)
+    _say(log, f"bonded {outcome.joints} joint(s) between blocks")
     drawn = draw_net(structure, framework)
     # Said before rather than after, because it is not free: naming a
     # net walks ten shells of an infinite graph and looks for the
@@ -515,6 +521,129 @@ def draw_net(structure, framework) -> int:
     return drawn
 
 
+def bond_joints(structure, framework) -> int:
+    """Bond the joints PORMAKE made between one block and the next.
+
+    A framework is blocks placed on a net and then *joined*: the
+    connection points are fused and the bond that replaces them is the
+    node-to-linker or node-to-node join.  Every bond inside a block
+    arrives at a chemical length and perception finds it; a joint does
+    not have to.  A carboxylate onto a metal, a nitrogen onto a zinc,
+    a block whose connection points were written a little long -- the
+    join can be well past any distance criterion, and the framework
+    then opens with the linker floating unbonded beside the node it was
+    built onto, which is the one bond in the structure that nobody
+    would think to draw by hand.
+
+    So the joints are stored as the user's own bonds, from what the
+    builder did rather than from a distance: PORMAKE knows exactly
+    which pairs it fused, and a bond that is *explicit* survives
+    Recalculate Bonds and never has to answer for its length.
+
+    **A joint is a bond the joining step made, not a bond between two
+    blocks**, and the difference is a whole class of framework.  A net
+    with one node slot and no linker -- pcu on N59 -- joins every node
+    to *its own periodic image*, so both ends of the join are the same
+    block and an inter-block test finds nothing to bond.  What
+    separates a join from chemistry is that the blocks' own bond lists
+    do not contain it, which is true in both cases and is what this
+    subtracts.
+
+    Returns how many were added.
+    """
+    blocks = framework.info["located_bbs"]
+    inside = _intra_block_bonds(blocks)
+    known = _block_of_atoms(blocks)
+    labels = {site.label: index
+              for index, site in enumerate(structure.sites)}
+    frac = np.asarray(structure.frac, dtype=float)
+    symbols = framework.atoms.symbols
+    fresh, seen = [], {b.key(structure.space_group)
+                       for b in structure.bonds}
+    for i, j in framework.bonds:
+        i, j = int(i), int(j)
+        if i not in known or j not in known:        # pragma: no cover
+            continue
+        if (min(i, j), max(i, j)) in inside:
+            continue
+        # By label rather than by position.  The CIF is written in the
+        # framework's own atom order and read back in it, and the
+        # labels say so -- but the mapping is what this depends on, and
+        # a reader that ever reorders should fail to find an atom
+        # rather than bond the wrong one.
+        ends = (labels.get(f"{symbols[i]}{i}"),
+                labels.get(f"{symbols[j]}{j}"))
+        if None in ends:                            # pragma: no cover
+            continue
+        a, b = ends
+        image = tuple(int(v) for v in np.round(frac[a] - frac[b]))
+        bond = Bond(a, b, image)
+        if bond.key(structure.space_group) in seen:
+            continue
+        seen.add(bond.key(structure.space_group))
+        fresh.append(bond)
+    if fresh:
+        # One change and not one per bond: every add drops the P1
+        # expansion, and a framework re-expanded once per joint is the
+        # stall that `set_bonds` exists to avoid.
+        structure.set_bonds(list(structure.bonds) + fresh)
+    return len(fresh)
+
+
+def _intra_block_bonds(blocks) -> set[tuple[int, int]]:
+    """Every bond a placed block brought with it, in framework indices.
+
+    A block's own bond list is in its own atom numbering and includes
+    its connection points; the framework's is the blocks concatenated
+    with those points taken out.  So each block's bonds are carried
+    over by the same walk :func:`_block_of_atoms` makes -- position
+    among the kept atoms, plus where the block starts -- and the bonds
+    that touched an ``X`` are dropped, because the atom on that end is
+    not in the framework to name.
+
+    What is left over when these are subtracted from the framework's
+    bonds is exactly what the joining step added.  See
+    :func:`bond_joints`.
+    """
+    out: set[tuple[int, int]] = set()
+    offset = 0
+    for block in blocks:
+        if block is None:
+            continue
+        moved: dict[int, int] = {}
+        for local, symbol in enumerate(
+                block.atoms.get_chemical_symbols()):
+            if symbol != CONNECTION:
+                moved[local] = offset + len(moved)
+        for u, v in np.asarray(block.bonds, dtype=int).reshape(-1, 2):
+            a, b = moved.get(int(u)), moved.get(int(v))
+            if a is not None and b is not None:
+                out.add((min(a, b), max(a, b)))
+        offset += len(moved)
+    return out
+
+
+def _block_of_atoms(blocks) -> dict[int, int]:
+    """Framework atom index -> the slot whose block it came from.
+
+    The framework's atoms are the located blocks concatenated in slot
+    order with the connection points removed, so this is arithmetic
+    rather than a search -- the same ordering :func:`_representatives`
+    relies on, shared so that the two cannot drift apart.
+    """
+    out: dict[int, int] = {}
+    offset = 0
+    for slot, block in enumerate(blocks):
+        if block is None:
+            continue
+        kept = sum(1 for symbol in block.atoms.get_chemical_symbols()
+                   if symbol != CONNECTION)
+        for k in range(kept):
+            out[offset + k] = slot
+        offset += kept
+    return out
+
+
 def _representatives(topology, blocks) -> dict[int, int]:
     """Node slot -> the index, in the framework, of its vertex atom.
 
@@ -534,21 +663,24 @@ def _representatives(topology, blocks) -> dict[int, int]:
     linker has had them consumed by the bonds between the nodes.
     """
     out: dict[int, int] = {}
-    offset = 0
     slots = np.asarray(topology.atoms.get_positions(), dtype=float)
     nodes = {int(s) for s in topology.node_indices}
+    owner = _block_of_atoms(blocks)
+    starts: dict[int, int] = {}
+    for atom in sorted(owner):
+        starts.setdefault(owner[atom], atom)
     for slot, block in enumerate(blocks):
-        if block is None:
+        if block is None or slot not in nodes:
             continue
         kept = [i for i, symbol in
                 enumerate(block.atoms.get_chemical_symbols())
                 if symbol != CONNECTION]
-        if slot in nodes and kept:
-            positions = block.atoms.get_positions()[kept]
-            nearest = int(np.argmin(
-                ((positions - slots[slot]) ** 2).sum(axis=1)))
-            out[slot] = offset + nearest
-        offset += len(kept)
+        if not kept:                                # pragma: no cover
+            continue
+        positions = block.atoms.get_positions()[kept]
+        nearest = int(np.argmin(
+            ((positions - slots[slot]) ** 2).sum(axis=1)))
+        out[slot] = starts[slot] + nearest
     return out
 
 

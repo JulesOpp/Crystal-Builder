@@ -140,9 +140,29 @@ def catalog_for(job) -> Catalog:
     The two folders are parameters rather than a constant so that the
     same run is reproducible from a command line, and so that a saved
     parameter set records which blocks it was built from.
+
+    **The workspace's own blocks are read as well, and that is not a
+    convenience.**  A block drawn on a slot row is written into
+    ``<workspace>/blocks/`` -- see
+    :meth:`xtalapp.dialogs.mof_build.MofBuildDialog._draw_into` -- and
+    the dialog reads it there, offers it and selects it.  The run did
+    not, so pressing Build on the block you had just drawn failed with
+    "no building block called ...": the one folder the answer was
+    certain to be in was the one nobody looked in.  It is found by
+    walking up from the run folder rather than passed in, so ``xtal
+    run`` inside a workspace builds with the same blocks the window
+    does, and a run with no workspace still has none to find.
     """
+    blocks = []
+    if job.folder is not None:
+        from xtal.workspace import Workspace
+
+        workspace = Workspace.find(job.folder.path)
+        if workspace is not None:
+            blocks.append(workspace.blocks)
     return Catalog.default(str(job.param("topology_dir", "") or ""),
-                           str(job.param("bb_dir", "") or ""))
+                           str(job.param("bb_dir", "") or ""),
+                           also_blocks=tuple(blocks))
 
 
 # ======================================================================
@@ -223,6 +243,10 @@ def _report(outcome) -> Report:
             Row("Node blocks", nodes or "none"),
             Row("Linkers", edges or "none -- nodes joined directly"),
             Row("Atoms", str(outcome.n_atoms)),
+            Row("Joints bonded", str(outcome.joints), "",
+                "the node-to-linker and node-to-node joins, stored as "
+                "bonds -- a join can be longer than any distance "
+                "criterion would draw"),
             Row("Cell", f"{a:.3f} x {b:.3f} x {c:.3f} A",
                 "", f"{alpha:.2f}, {beta:.2f}, {gamma:.2f} deg"),
         ))

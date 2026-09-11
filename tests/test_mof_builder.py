@@ -14,6 +14,7 @@ the vendored copy is diffed against a real upstream one.
 """
 
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -46,6 +47,56 @@ def catalog():
     if database_root() is None:
         pytest.skip("the vendored PORMAKE database is missing")
     return Catalog.default()
+
+
+# ------------------------------------------- what a run can build with
+
+@needs_database
+def test_a_block_in_the_workspace_is_what_the_run_builds_with(tmp_path):
+    """A block drawn on a slot row is written into the workspace, and
+    the run has to read it there.  It did not, so Build on the block
+    you had just drawn failed with "no building block called ..." --
+    the one folder the answer was certain to be in."""
+    from xtal.modules.job import Job
+    from xtal.modules.mof import catalog_for
+    from xtal.workspace import Workspace
+
+    workspace = Workspace.create(tmp_path / "ws")
+    workspace.blocks.mkdir(parents=True)
+    (workspace.blocks / "mine.xyz").write_text(
+        "2\n0 1\nX 0.0 0.0 0.0\nX 1.5 0.0 0.0\n")
+    entry = workspace.add_document("framework")
+    run = tmp_path / "ws" / entry.path.name / "runs" / "mof-build-001"
+    run.mkdir(parents=True)
+    job = Job(params={}, folder=SimpleNamespace(path=run))
+    assert catalog_for(job).building_block("mine").n_connections == 2
+
+
+def test_a_run_outside_a_workspace_still_has_a_catalogue():
+    """The no-workspace path is reachable and must not look upwards
+    from a folder that is not there."""
+    from xtal.modules.job import Job
+    from xtal.modules.mof import catalog_for
+
+    assert catalog_for(Job(params={})) is not None
+
+
+def test_atoms_copied_from_a_structure_are_not_read_as_a_smiles():
+    """The clipboard's XYZ in the SMILES box was quoted back as "not a
+    SMILES string RDKit can read" -- three lines of atoms and no
+    advice, when the user already has the atoms."""
+    from xtal.build import BuildError, installed
+    from xtal.build.molecule import from_smiles
+
+    if not installed():
+        pytest.skip("the molecule builder needs rdkit")
+    pasted = ("1\ncopied from Crystal Builder UIO66\n"
+              "O        0.000000     0.000000     0.000000\n")
+    for text in (pasted, " ".join(pasted.split())):
+        with pytest.raises(BuildError) as raised:
+            from_smiles(text)
+        assert "copied from a structure" in str(raised.value)
+        assert "building block" in str(raised.value)
 
 
 # ----------------------------------------------------- the catalogue
@@ -335,6 +386,54 @@ def test_a_build_produces_the_net_it_was_asked_for(tmp_path, catalog):
 
 
 @needs_builder
+@needs_builder
+@pytest.mark.slow
+def test_every_joint_the_builder_made_arrives_bonded(tmp_path,
+                                                     catalog):
+    """The bonds inside a block arrive at a chemical length and
+    perception finds them; the joins between blocks do not have to, and
+    a framework whose linkers float unbonded beside their nodes is one
+    nobody would think to draw the missing bond in by hand.
+
+    pcu has three edges in its cell, so a linker on each is six joins
+    and a bare node-to-node net is three -- and those three are a node
+    to its own periodic image, which is why they cannot be found by
+    looking for bonds between two different blocks."""
+    outcome = build(BuildRequest.parse("pcu", "N59", "E32"), tmp_path,
+                    catalog)
+    explicit = [b for b in outcome.structure.bonds
+                if b.kind == "explicit"]
+    assert outcome.joints == 6
+    assert len(explicit) == 6
+    assert any(b.image != (0, 0, 0) for b in explicit)
+
+    bare = build(BuildRequest.parse("pcu", "N59", ""), tmp_path,
+                 catalog)
+    assert bare.joints == 3
+    assert len([b for b in bare.structure.bonds
+                if b.kind == "explicit"]) == 3
+
+
+@needs_builder
+@pytest.mark.slow
+def test_a_joint_stays_bonded_however_long_it_is(tmp_path, catalog):
+    """The point of storing them.  A joint is the user's own bond, so
+    it is drawn whatever the distance criteria would have said -- which
+    is what a carboxylate onto a metal, or a block written a little
+    long, needs."""
+    from xtal.core import bonding
+
+    outcome = build(BuildRequest.parse("pcu", "N59", "E32"), tmp_path,
+                    catalog)
+    structure = outcome.structure
+    joints = {tuple(sorted((b.i, b.j)))
+              for b in structure.bonds if b.kind == "explicit"}
+    # Criteria that bond nothing at all: the joints are still there.
+    drawn = bonding.perceive(structure,
+                             bonding.BondRules(scale=0.1))
+    assert joints <= {tuple(sorted((b.i, b.j))) for b in drawn}
+
+
 @pytest.mark.slow
 def test_the_framework_arrives_with_its_net_already_drawn(tmp_path,
                                                           catalog):
