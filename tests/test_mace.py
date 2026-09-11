@@ -195,9 +195,96 @@ def test_the_stress_it_claims_agrees_with_a_numeric_one():
     from xtal.core import p1
 
     structure = water()
-    engine = mace.MACECalculator(structure)
+    # The smallest model, explicitly, and on the CPU.  What this test
+    # is about is our own factor of 23.06 and the strain ASE is handed
+    # -- neither improves with a better model, and the default is a
+    # 76 MB download where this is 31.
+    engine = mace.MACECalculator(structure, mace.MACEOptions(
+        model="small", device="cpu", double_precision=True))
     cell = p1.expand(structure)
     matrix = np.asarray(structure.lattice.matrix, dtype=float)
     claimed = engine.compute(cell.cart, matrix).stress
     numeric = engine.numeric_stress(cell.cart, matrix, strain=1e-4)
     assert claimed == pytest.approx(numeric, abs=2e-3)
+
+
+def test_a_model_with_no_stress_still_gives_an_energy_and_forces(
+        monkeypatch):
+    """A model that reports no stress must cost the stress and nothing
+    else.
+
+    ``compute`` used to fetch energy, forces and stress inside one
+    ``except``, so a model with no stress -- which a fitted file of
+    somebody's own is allowed to be -- failed every evaluation with
+    "MACE could not compute this structure".  The energy and forces it
+    would have given perfectly well went with it, and a fixed-cell
+    optimisation that never wanted a stress could not run at all.
+    """
+    from ase.calculators.lj import LennardJones
+
+    class NoStress(LennardJones):
+        implemented_properties = ["energy", "forces"]
+
+    monkeypatch.setattr(mace, "_load_model",
+                        lambda options: NoStress(rc=6.0))
+    monkeypatch.setattr(mace, "_device", lambda wanted: "cpu")
+    mace.forget_models()
+    from xtal.core import p1
+
+    structure = water()
+    engine = mace.MACECalculator(structure)
+    cell = p1.expand(structure)
+    result = engine.compute(cell.cart, structure.lattice.matrix)
+
+    assert not engine.provides_stress
+    assert result.stress is None
+    assert np.isfinite(result.energy)
+    assert result.forces.shape == (cell.n_atoms, 3)
+    # Said rather than discovered: relaxing the cell still works, by
+    # twelve evaluations a step instead of one.
+    assert any("no stress" in w for w in engine.warnings)
+    assert np.isfinite(engine.numeric_stress(
+        cell.cart, structure.lattice.matrix)).all()
+
+
+def test_the_default_model_is_the_one_mace_itself_defaults_to():
+    """MACE-MPA-0, not MACE-MP-0a medium.
+
+    mace-torch changed its own default at 0.3.10 and asking for
+    ``medium`` now gets the older generation -- mace prints a line
+    saying so.  A chooser whose first entry was ``medium`` handed
+    everybody the previous default while looking like the current one,
+    which is the kind of wrong nobody reads an error message about.
+    """
+    assert mace.DEFAULT_MODEL == "medium-mpa-0"
+    assert mace.MACEOptions().model == mace.DEFAULT_MODEL
+    param = next(p for p in mace.OPTIONS if p.name == "model")
+    assert param.default == mace.DEFAULT_MODEL
+    assert mace.MODEL_CHOICES[0][0] == mace.DEFAULT_MODEL
+
+
+def test_a_licence_restricted_model_says_so_before_it_is_chosen():
+    """MACE prints "you accept the terms of the license" as it
+    downloads; this application is the thing doing the downloading, so
+    the licence is in the label the user picks from and in what
+    ``available`` records."""
+    offered = [name for name, _label in mace.MODEL_CHOICES]
+    restricted = [n for n in offered if n in mace.ASL_MODELS]
+    assert restricted, "the point of the test is that some are"
+    for name, label in mace.MODEL_CHOICES:
+        assert ("ASL" in label) == (name in mace.ASL_MODELS)
+    assert "Academic Software License" in mace.available(
+        model=restricted[0]).reason
+
+
+def test_every_model_offered_is_a_name_mace_knows():
+    """A name mace_mp cannot resolve fails at *download*, minutes into
+    a run and after the model list looked fine.  Checked against
+    mace's own table rather than against a copy of it."""
+    pytest.importorskip("mace")
+    from mace.calculators.foundations_models import mace_mp_urls
+
+    for name, _label in mace.MODEL_CHOICES:
+        if name == "custom":
+            continue
+        assert name in mace_mp_urls, name

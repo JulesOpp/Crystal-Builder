@@ -44,6 +44,12 @@ against :meth:`~xtal.ff.api.Calculator.numeric_stress`, and the
 conversion below is one factor with no normalisation guessed at,
 because ASE's stress is already ``(1/V) dE/de`` in eV/A^3, which is
 what ``numeric_stress`` computes in kcal/mol/A^3.
+
+It is claimed **per model** and not per engine, which matters only for
+a model file of somebody's own: every foundation model here reports a
+stress and a dipole-only model reports none, and asking one that has
+none used to fail the whole evaluation rather than the part that was
+missing.  See :func:`implements_stress`.
 """
 
 from __future__ import annotations
@@ -68,16 +74,60 @@ KCAL_PER_EV = 23.060547830619026
 PACKAGE = "mace"
 INSTALL = "pip install 'crystal-builder[mace]'"
 
-#: The foundation models, by the name ``mace_mp`` knows them, with the
-#: size of the download beside each.  Three rather than all of them
-#: because these are the three that differ in the only way that
-#: matters to somebody choosing: how long an evaluation takes.
+#: The foundation models this offers, newest first, by the name
+#: ``mace_mp`` knows them.  Not all seventeen: these are the ones whose
+#: training set, level of theory or licence makes them a *different
+#: answer* to "which model for this framework", and a chooser of
+#: seventeen is one nobody reads to the bottom of.
+#:
+#: **Every description is the upstream table's own** -- training set,
+#: level of theory, licence -- and deliberately not a characterisation
+#: of our own.  Inventing one is how a user comes to quote r2SCAN
+#: numbers off a PBE+U model.
+#:
+#: The MP-0a three are kept below the newer ones rather than dropped.
+#: They were this engine's only choices, they are what a run recorded
+#: before today names, and a parameter set that outlives the catalogue
+#: it was chosen from is the same promise ``mof_build`` makes.
 MODEL_CHOICES = (
-    ("small", "MACE-MP small -- fastest"),
-    ("medium", "MACE-MP medium -- the usual choice"),
-    ("large", "MACE-MP large -- slowest and most accurate"),
+    ("medium-mpa-0",
+     "MACE-MPA-0 -- MPtrj + sAlex, PBE+U (recommended)"),
+    ("medium-0b3",
+     "MACE-MP-0b3 -- MPtrj, PBE+U, steadier under pressure"),
+    ("medium-omat-0",
+     "MACE-OMAT-0 -- OMat, PBE+U [ASL licence]"),
+    ("mace-matpes-r2scan-0",
+     "MACE-MATPES-r2SCAN-0 -- r2SCAN, no +U [ASL licence]"),
+    ("mh-1",
+     "MACE-MH-1 -- crystals, molecules and surfaces [ASL licence]"),
+    ("medium", "MACE-MP-0a medium -- the default before mace 0.3.10"),
+    ("small", "MACE-MP-0a small -- fastest"),
+    ("large", "MACE-MP-0a large"),
     (CUSTOM := "custom", "A model file of my own"),
 )
+
+#: The default, and it is ``mace_mp``'s own: from mace-torch 0.3.10 the
+#: package stopped defaulting to ``medium`` and started defaulting to
+#: this, which is the same model fitted over MPtrj *and* sAlex.  Asking
+#: for ``medium`` explicitly now gets the older generation -- mace
+#: prints a line saying exactly that -- so a chooser whose first entry
+#: was ``medium`` handed everybody the previous default while looking
+#: like the current one.
+DEFAULT_MODEL = "medium-mpa-0"
+
+#: The models under the Academic Software License rather than MIT, by
+#: the licence column of MACE's own table.
+#:
+#: The label says so *before* the choice is made, and that is the whole
+#: point: MACE ``print``s "you accept the terms of the license" as it
+#: downloads, which is a poor moment to find out, and this application
+#: is the thing doing the downloading.  Naming the licence in the combo
+#: keeps the acceptance the user's.  (MACE's own notice covers four of
+#: these; its table marks all six.)
+ASL_MODELS = frozenset({
+    "small-omat-0", "medium-omat-0", "mace-matpes-pbe-0",
+    "mace-matpes-r2scan-0", "mh-0", "mh-1",
+})
 
 DEVICE_CHOICES = (
     ("auto", "Whatever is fastest here"),
@@ -101,7 +151,7 @@ def installed() -> bool:
         return False
 
 
-def available(model: str = "medium", model_path: str = "",
+def available(model: str = DEFAULT_MODEL, model_path: str = "",
               **_rest) -> Availability:
     """Installed, and with a model this option set can actually load.
 
@@ -122,16 +172,19 @@ def available(model: str = "medium", model_path: str = "",
             return Availability(
                 False, f"there is no model file at {model_path}")
         return Availability(True, str(Path(model_path).expanduser()))
+    licence = (" -- under the Academic Software License, which "
+               "using it accepts (https://github.com/gabor1/ASL)"
+               if model in ASL_MODELS else "")
     return Availability(
-        True, f"MACE-MP {model} -- downloaded to the MACE cache the "
-              f"first time it is used")
+        True, f"{model} -- downloaded to the MACE cache the first "
+              f"time it is used{licence}")
 
 
 @dataclass(frozen=True)
 class MACEOptions:
     """Everything about the calculation that is not the structure."""
 
-    model: str = "medium"
+    model: str = DEFAULT_MODEL
     model_path: str = ""
     device: str = "auto"
     #: float64 rather than float32, and not for accuracy of the energy
@@ -144,7 +197,7 @@ class MACEOptions:
 
 OPTIONS = (
     Param("model", "Model", kind="choice", choices=MODEL_CHOICES,
-          default="medium",
+          default=DEFAULT_MODEL,
           help="The MACE-MP foundation models are fitted over the "
                "Materials Project and need nothing assigning -- they "
                "answer for a framework whose metal node UFF has no "
@@ -244,6 +297,37 @@ def _load_model(options: MACEOptions):
         return model
 
 
+def implements_stress(model) -> bool:
+    """Whether this loaded model will answer for a stress at all.
+
+    MACE computes one by differentiating the energy with respect to a
+    displacement, and does it for the model types that have the
+    machinery -- ``MACE``, ``EnergyDipoleMACE``, ``PolarMACE`` -- which
+    is every foundation model in :data:`MODEL_CHOICES`.  A **model file
+    of somebody's own** need not be one of those: a dipole-only model
+    reports an energy and forces and no stress, and ASE says which
+    through ``implemented_properties``.
+
+    Asking anyway is not a smaller bug than it looks.  ``compute``
+    fetched the stress unconditionally inside one ``except``, so a
+    model with no stress failed *every* evaluation with "MACE could
+    not compute this structure" -- the energy and the forces it would
+    have given perfectly well, thrown away with the stress it never
+    had.  Answered here instead, the optimiser falls back to
+    :meth:`~xtal.ff.api.Calculator.numeric_stress` on its own (see
+    ``optimize.py``, where a ``None`` stress is already the signal),
+    and a fixed-cell run never needed one.
+
+    A model that does not say is taken at its word and asked: that is
+    ASE's older convention, and being wrong here costs the message
+    above rather than a silent number.
+    """
+    properties = getattr(model, "implemented_properties", None)
+    if properties is None:
+        return True
+    return "stress" in properties
+
+
 def forget_models() -> None:
     """Drop the loaded models.  For the tests, and for a user who has
     just refitted the file they pointed at."""
@@ -264,6 +348,11 @@ class MACECalculator(Calculator):
     #: ASE reports ``(1/V) dE/de`` in eV/A^3, which is what
     #: ``numeric_stress`` computes in kcal/mol/A^3 -- one factor, no
     #: normalisation guessed at, and checked against it in the tests.
+    #:
+    #: True on the class and **answered again per instance** in
+    #: ``__init__``: every foundation model has a stress and a model
+    #: file of somebody's own need not.  See
+    #: :func:`implements_stress`.
     provides_stress = True
 
     def __init__(self, structure, options: MACEOptions | None = None):
@@ -277,6 +366,12 @@ class MACECalculator(Calculator):
         self.warnings: list[str] = []
         self.calls = 0
         self._model = _load_model(self.options)
+        self.provides_stress = implements_stress(self._model)
+        if not self.provides_stress:
+            self.warnings.append(
+                "this model reports no stress, so relaxing the cell "
+                "will differentiate the energy numerically -- twelve "
+                "evaluations a step instead of one")
         self._atoms = self._make_atoms()
 
     def _make_atoms(self):
@@ -333,8 +428,9 @@ class MACECalculator(Calculator):
         try:
             energy = float(self._atoms.get_potential_energy())
             forces = np.asarray(self._atoms.get_forces(), dtype=float)
-            stress = np.asarray(self._atoms.get_stress(voigt=False),
-                                dtype=float)
+            stress = (np.asarray(self._atoms.get_stress(voigt=False),
+                                 dtype=float)
+                      if self.provides_stress else None)
         except CalculatorError:                     # pragma: no cover
             raise
         except Exception as exc:                    # noqa: BLE001
@@ -345,7 +441,8 @@ class MACECalculator(Calculator):
         return Result(energy=energy * KCAL_PER_EV,
                       forces=forces * KCAL_PER_EV,
                       terms={"mace": energy * KCAL_PER_EV},
-                      stress=stress * KCAL_PER_EV)
+                      stress=(None if stress is None
+                              else stress * KCAL_PER_EV))
 
 
 # ======================================================================

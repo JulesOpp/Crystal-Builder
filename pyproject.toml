@@ -100,7 +100,11 @@ pxrd = ["matplotlib>=3.7"]
 # them run without it.  Without it the Force Field panel lists MACE
 # and greys it out naming this extra, exactly as DFTB+ does for a
 # missing binary.
-mace = ["mace-torch>=0.3.10", "ase>=3.22"]
+# 0.3.14 rather than 0.3.10 because of the models offered:
+# MACE-MH-1 is only known to mace_mp from 0.3.14, and a
+# chooser whose entries the installed package cannot resolve
+# is one where picking the newest model fails at load.
+mace = ["mace-torch>=0.3.14", "ase>=3.22"]
 # pytest-qt belongs here and not in [dev]: without it every widget
 # test skips itself, and CI installs [gui,test] -- so the GUI half of
 # the suite was passing by not running.
@@ -195,9 +199,25 @@ addopts = ["-n0"]
 # below 2.5 for everybody, or vendoring ase as well.  It is scoped to
 # that one message in that one module so a new deprecation anywhere
 # else still fails the run.
+# The second of the same kind, and the same argument.  MACE is built
+# on ``torch.jit`` -- ``e3nn`` scripts its modules and a checkpoint is
+# loaded with ``torch.jit.load`` -- and torch 2.11 deprecates that
+# whole interface in favour of ``torch.export``.  The warnings are
+# raised inside torch on the way past, so with deprecations as errors
+# the model would not even load: the download succeeded and the load
+# came back as "the MACE model could not be loaded".
+#
+# Scoped to the ``torch.jit`` family rather than to each message,
+# because they arrive one per entry point (``script`` on import,
+# ``load`` on first use) and a filter naming one leaves the next to be
+# found by a red suite.  Not scoped to a module either: what raises
+# them is torch's and what calls them is e3nn's and MACE's, and
+# pinning either is a guess that goes stale silently.  Every other
+# torch deprecation still fails the run, as does every one of ours.
 filterwarnings = [
     "error::DeprecationWarning",
     'ignore:Setting the shape on a NumPy array:DeprecationWarning:ase\.atoms',
+    'ignore:`torch\.jit\.:DeprecationWarning',
 ]
 markers = [
     # Seconds rather than milliseconds, and worth it: a variable-cell

@@ -6,6 +6,8 @@ family -- as an engine.
 """
 
 from xtal.ff.mace.calculator import (
+    ASL_MODELS,
+    DEFAULT_MODEL,
     DEVICE_CHOICES,
     KCAL_PER_EV,
     MODEL_CHOICES,
@@ -15,9 +17,11 @@ from xtal.ff.mace.calculator import (
     available,
     build,
     forget_models,
+    implements_stress,
     installed,
 )
 
-__all__ = ["DEVICE_CHOICES", "KCAL_PER_EV", "MODEL_CHOICES",
-           "OPTIONS", "MACECalculator", "MACEOptions", "available",
-           "build", "forget_models", "installed"]
+__all__ = ["ASL_MODELS", "DEFAULT_MODEL", "DEVICE_CHOICES",
+           "KCAL_PER_EV", "MODEL_CHOICES", "OPTIONS",
+           "MACECalculator", "MACEOptions", "available", "build",
+           "forget_models", "implements_stress", "installed"]
