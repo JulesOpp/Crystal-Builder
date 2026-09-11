@@ -530,7 +530,7 @@ def test_the_chooser_appears_once_there_is_something_to_choose(opened):
     # shown, so isVisible is False for every widget in the window.
     assert not dock.engine.isHidden()
     assert [dock.engine.itemData(i) for i in range(dock.engine.count())] \
-        == ["uff", "xtb"]
+        == ["uff", "xtb", "mace"]
 
 
 def test_choosing_xtb_hides_the_controls_that_are_uffs(opened):
@@ -569,3 +569,25 @@ def test_a_method_the_machine_cannot_run_greys_out_as_it_is_chosen(
     method.setCurrentIndex(method.findData("gfn2"))
     assert dock.run_button.isEnabled()
     assert dock.engine_note.text() == ""
+
+
+def test_every_engine_that_is_registered_can_be_chosen(window):
+    """An engine the registry knows and no dock offers.
+
+    MACE shipped like that: registered, tested, importable, and
+    reachable from nowhere in the window, because the Force Field
+    dock is handed a hand-written list of engine names and the new
+    one was not added to it.  Nothing failed -- the panel drew two
+    entries where there should have been three, and the only way to
+    find out was to go looking for the third.
+
+    Asserted as a partition rather than "mace is in ff_dock" so that
+    the next engine cannot repeat it: every registered engine is
+    offered by exactly one of the two docks.
+    """
+    from xtal.ff import ENGINES
+
+    docks = (window.ff_dock, window.dftb_dock)
+    offered = [engine.name for dock in docks for engine in dock.engines]
+    assert sorted(offered) == sorted(ENGINES.names())
+    assert len(offered) == len(set(offered))
