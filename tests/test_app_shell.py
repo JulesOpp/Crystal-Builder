@@ -295,6 +295,17 @@ def test_cell_spinboxes_change_the_display_range(window, rutile_cif):
     assert doc.view.range_a == (0.0, 3.0)
 
 
+def test_a_cell_spinbox_takes_half_a_cell(window, rutile_cif):
+    """The boxes were whole numbers, so the one range people asked for
+    -- 1.5 x 1 x 1 to see what a pore connects to -- could only be had
+    through the Display range dialog."""
+    doc = window.open_path(rutile_cif)
+    window.cell_spins[0].setValue(1.5)
+    assert doc.view.range_a == (0.0, 1.5)
+    assert doc.view.cells == (1.5, 1, 1)
+    assert window.cell_spins[0].value() == 1.5
+
+
 def test_the_menu_bar_ends_with_window_and_help(window):
     """Window used to be after Help, because build_docks added a menu
     of its own after build_menus had finished -- so the order was a

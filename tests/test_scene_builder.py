@@ -39,6 +39,31 @@ def test_cell_box_is_twelve_lines_per_cell(rutile):
     assert build_scene(rutile, settings).n_cell_lines == 48
 
 
+def test_half_a_cell_more_draws_more_atoms_than_one_and_fewer_than_two(
+        rutile):
+    """What a fractional count is for: a picture between the two whole
+    ones, rather than eight times the atoms to see one more pore."""
+    settings = ViewSettings()
+    one = build_scene(rutile, settings).n_atoms
+    settings.set_cells(1.5, 1, 1)
+    half = build_scene(rutile, settings).n_atoms
+    settings.set_cells(2, 1, 1)
+    assert one < half < build_scene(rutile, settings).n_atoms
+
+
+def test_the_cell_outline_stops_where_the_range_does(rutile):
+    """A whole box drawn round 1.5 cells claims half a cell of crystal
+    that is not on screen."""
+    settings = ViewSettings()
+    settings.set_cells(1.5, 1, 1)
+    scene = build_scene(rutile, settings)
+    assert scene.n_cell_lines == 24             # one whole box, one half
+    frac = rutile.lattice.to_frac(
+        np.vstack([scene.cell_starts, scene.cell_ends]))
+    assert frac[:, 0].max() == pytest.approx(1.5)
+    assert frac[:, 1].max() == pytest.approx(1.0)
+
+
 def test_the_three_origin_edges_are_the_axis_colours(rutile):
     scene = build_scene(rutile, ViewSettings())
     colors = {tuple(c) for c in scene.cell_colors}

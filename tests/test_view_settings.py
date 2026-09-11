@@ -45,6 +45,19 @@ def test_set_cells_updates_the_range():
         s.set_cells(0, 1, 1)
 
 
+def test_a_fractional_cell_count_is_a_fractional_range():
+    """Half a cell more is a picture somebody asks for -- it is how you
+    see what a pore connects to without eight times the atoms.  The
+    count comes back as it was asked for, or the toolbar's box and the
+    picture disagree about what is on screen."""
+    s = ViewSettings()
+    s.set_cells(1.5, 1, 1)
+    assert s.ranges == ((0.0, 1.5), (0.0, 1.0), (0.0, 1.0))
+    assert s.cells == (1.5, 1.0, 1.0)
+    with pytest.raises(ValueError):
+        s.set_cells(0.0, 1, 1)
+
+
 def test_copy_is_deep():
     s = ViewSettings()
     s.element_colors["O"] = (1, 2, 3)

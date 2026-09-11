@@ -210,23 +210,31 @@ class ViewSettings:
     def ranges(self) -> tuple[tuple[float, float], ...]:
         return (self.range_a, self.range_b, self.range_c)
 
-    def set_cells(self, na: int, nb: int, nc: int) -> None:
-        """Show na x nb x nc whole cells starting at the origin."""
+    def set_cells(self, na: float, nb: float, nc: float) -> None:
+        """Show na x nb x nc cells starting at the origin.
+
+        Fractional counts are the point of taking floats: 1.5 x 1 x 1
+        is half a cell more of a framework, which is how you see what a
+        pore connects to without the eight-fold picture a whole extra
+        cell in every direction gives.  Whole numbers are what the
+        toolbar usually sends and mean exactly what they did.
+        """
         for n in (na, nb, nc):
-            if int(n) < 1:
-                raise ValueError("cell counts must be >= 1")
+            if float(n) <= 0.0:
+                raise ValueError("cell counts must be more than 0")
         self.range_a = (0.0, float(na))
         self.range_b = (0.0, float(nb))
         self.range_c = (0.0, float(nc))
 
     @property
-    def cells(self) -> tuple[int, int, int]:
-        """The whole-cell counts, when the range is a whole number of
-        cells starting at the origin."""
-        out = []
-        for lo, hi in self.ranges:
-            out.append(max(1, int(round(hi - lo))))
-        return tuple(out)
+    def cells(self) -> tuple[float, float, float]:
+        """How many cells the range spans along each axis.
+
+        Not rounded to whole cells: the number it hands back is what
+        the toolbar's boxes show, and rounding 1.5 to 2 there would
+        make the picture and the control disagree about what is drawn.
+        """
+        return tuple(max(hi - lo, 0.0) for lo, hi in self.ranges)
 
     # -- housekeeping --------------------------------------------------
 

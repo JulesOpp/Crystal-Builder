@@ -770,9 +770,19 @@ _CUBE_EDGES = [(i, j) for i in range(8) for j in range(i + 1, 8)
 
 
 def _cell_lines(structure, settings):
-    """One box per whole cell in the display range, with the three
-    edges at the origin coloured a, b, c."""
+    """One box per cell the display range reaches, clipped to it, with
+    the three edges at the origin coloured a, b, c.
+
+    **Clipped rather than rounded up.**  The range is a fractional
+    number of cells -- 1.5 x 1 x 1 from the toolbar, a half cell or a
+    slab from the Display range dialog -- and a whole box drawn round
+    it claims a cell of crystal that is not on screen.  The clipped
+    face is where the picture ends, which is what it is there to say.
+    A range of whole cells is unaffected: every box is a whole one.
+    """
     lattice = structure.lattice
+    lo_range = np.array([r[0] for r in settings.ranges])
+    hi_range = np.array([r[1] for r in settings.ranges])
     starts, ends, colors = [], [], []
     spans = []
     for lo, hi in settings.ranges:
@@ -780,16 +790,24 @@ def _cell_lines(structure, settings):
             int(np.floor(lo)) + 1, int(np.ceil(hi)))))
     for shift in itertools.product(*spans):
         origin = np.array(shift, dtype=float)
-        corners = _CUBE_CORNERS + origin
+        low = np.maximum(origin, lo_range)
+        high = np.minimum(origin + 1.0, hi_range)
+        if np.any(high - low <= RANGE_TOL):
+            continue            # the range only grazes this cell
+        corners = low + _CUBE_CORNERS * (high - low)
         for i, j in _CUBE_EDGES:
             a, b = corners[i], corners[j]
             color = CELL_COLOR
-            if np.allclose(a, origin) and shift == (0, 0, 0):
+            if np.allclose(a, low) and shift == (0, 0, 0):
                 axis = int(np.argmax(np.abs(b - a)))
                 color = AXIS_COLORS[axis]
             starts.append(a)
             ends.append(b)
             colors.append(color)
+    if not starts:              # a range of no thickness at all
+        return (np.zeros((0, 3), np.float32),
+                np.zeros((0, 3), np.float32),
+                np.zeros((0, 3), np.uint8))
     return (lattice.to_cart(np.array(starts)).astype(np.float32),
             lattice.to_cart(np.array(ends)).astype(np.float32),
             np.array(colors, dtype=np.uint8).reshape(-1, 3))

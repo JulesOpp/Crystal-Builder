@@ -1794,7 +1794,7 @@ class Document(QObject):
             setattr(self.view, key, value)
         self.viewChanged.emit()
 
-    def set_cells(self, na: int, nb: int, nc: int) -> None:
+    def set_cells(self, na: float, nb: float, nc: float) -> None:
         self.view.set_cells(na, nb, nc)
         self.viewChanged.emit()
 

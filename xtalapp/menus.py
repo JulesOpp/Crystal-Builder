@@ -34,9 +34,9 @@ from __future__ import annotations
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QComboBox,
+    QDoubleSpinBox,
     QLabel,
     QMenu,
-    QSpinBox,
     QToolBar,
 )
 
@@ -683,10 +683,20 @@ def build_toolbar(window):
     bar.addWidget(QLabel("  cells "))
     window.cell_spins = []
     for axis in "abc":
-        spin = QSpinBox()
-        spin.setRange(1, 20)
-        spin.setValue(1)
-        spin.setToolTip(f"Unit cells shown along {axis}")
+        # Fractional, because half a cell more of a framework is a
+        # picture people ask for and a whole cell more is eight times
+        # the atoms.  The Display range dialog could always say 1.5;
+        # this is the same range from the box beside the view.
+        spin = QDoubleSpinBox()
+        spin.setRange(0.1, 20.0)
+        spin.setDecimals(2)
+        spin.setSingleStep(0.5)
+        spin.setValue(1.0)
+        # Typing "1.5" passes through 1 and 15 on the way, and every
+        # one of those would rebuild the scene and reframe the camera.
+        spin.setKeyboardTracking(False)
+        spin.setToolTip(f"Unit cells shown along {axis} -- "
+                        f"fractions allowed, such as 1.5")
         spin.valueChanged.connect(window._on_cells_changed)
         # The axis letter is a label beside the box, not the
         # spinbox's prefix.  A prefix is drawn *inside* the field, so
