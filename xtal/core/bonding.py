@@ -340,6 +340,55 @@ def prepare_hold(structure, rules: BondRules | None = None) -> None:
         perceive(structure, rules)
 
 
+def hold_through_removal(structure, before, removed) -> bool:
+    """Carry the stored perception onto a cell that has just had sites
+    taken out of it.  Says whether it could.
+
+    The removal half of :func:`hold_perception`, and there for a
+    sharper reason.  Atoms *appended* to a cell leave the stored graph
+    a prefix of it, which :func:`_by_distance` grows; atoms *removed*
+    leave it describing a cell that no longer exists, which that
+    function can only throw away -- so deleting one atom re-perceived
+    every bond in the crystal, at whatever geometry the rest of it had
+    drifted to.  A user who had recalculated their bonds, or optimised
+    and kept them, lost that answer to a single Delete; and undoing
+    the Delete threw it away a second time rather than putting it
+    back.  Bonds change when the user asks -- see
+    :data:`xtal.core.structure.CHEMISTRY`.
+
+    ``before`` is the P1 cell as it was *before* the sites went, which
+    the caller has to capture: it is the only thing that says which
+    atoms the stored bonds were about.  Dropping the atoms of the
+    removed sites and renumbering the survivors is then arithmetic,
+    because the expansion is site-major -- the same property
+    :class:`xtal.commands.atoms.AddBondedSite` relies on.
+    """
+    stored = structure.perceived
+    if stored is None:
+        return False
+    if stored.elements != tuple(before.elements):
+        return False
+    dropped = {int(i) for i in removed}
+    keep = np.array([int(site) not in dropped
+                     for site in before.site_idx], dtype=bool)
+    cell = p1.expand(structure)
+    if int(keep.sum()) != cell.n_atoms:
+        # The removal did not simply take whole orbits out: a site on
+        # a special position can merge or split its neighbours' images
+        # as it goes.  The graph cannot be renumbered onto a cell it
+        # does not match, and a wrong renumbering draws bonds between
+        # atoms that were never near each other.
+        return False
+    index = np.cumsum(keep) - 1
+    kept = [CellBond(int(index[bond.i]), int(index[bond.j]),
+                     bond.image, bond.distance, bond.explicit,
+                     bond.order, bond.stated)
+            for bond in stored.bonds if keep[bond.i] and keep[bond.j]]
+    structure.set_perceived(rebase(kept, stored.tau[keep], cell.tau),
+                            stored.signature, cell)
+    return True
+
+
 def _appended_to(before, after) -> bool:
     return (len(after) > len(before)
             and after[:len(before)] == tuple(before))

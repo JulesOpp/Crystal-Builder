@@ -170,6 +170,18 @@ class DeleteSites(Command):
 
     The saved bond list matters: removing a site renumbers every bond
     after it, so restoring the sites is not enough on its own.
+
+    The saved *perception* matters for the same reason and is less
+    obvious.  A stored graph describes the cell it was perceived over,
+    and taking atoms out of that cell leaves it describing one that is
+    gone -- so the read after a Delete perceived the whole crystal
+    again, from scratch, at whatever geometry it had reached.  The
+    bonds a user had recalculated or optimised and kept were the cost,
+    and undoing the Delete paid it twice.  Going forward the graph is
+    carried onto the smaller cell
+    (:func:`xtal.core.bonding.hold_through_removal`) and coming back it
+    is simply put back, which is what makes Delete and Ctrl+Z leave the
+    bonding exactly as it was found.
     """
 
     change = Change.TOPOLOGY
@@ -181,13 +193,19 @@ class DeleteSites(Command):
             else f"Delete {len(self.indices)} sites")
         self._removed: list = []
         self._bonds: list = []
+        self._perceived = None          # see AddSites._perceived
 
     def do(self, host) -> None:
         structure = host.structure
         self._bonds = list(structure.bonds)
+        self._perceived = structure.perceived
         self._removed = [(i, structure.sites[i].copy())
                          for i in self.indices]
+        # Captured before the removal, because it is the only record of
+        # which atoms the stored bonds are about.
+        before = p1.expand(structure)
         structure.remove_sites(self.indices)
+        bonding.hold_through_removal(structure, before, self.indices)
 
     def undo(self, host) -> None:
         structure = host.structure
@@ -195,6 +213,7 @@ class DeleteSites(Command):
             structure.sites.insert(index, site.copy())
         structure.bonds = list(self._bonds)
         structure.touch(Change.TOPOLOGY)
+        structure.perceived = self._perceived
 
 
 class SetElement(Command):

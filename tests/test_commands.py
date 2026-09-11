@@ -143,6 +143,68 @@ def test_delete_sites_restores_bonds_too(host, stack):
     assert len(host.structure.bonds) == 1
 
 
+def _held_graph(structure):
+    """A stored perception a fresh distance search would not give.
+
+    What a user has after Recalculate Bonds under other criteria, or
+    after deleting bonds one at a time, or after an optimisation moved
+    the atoms under a graph that was kept.  Half the bonds is the
+    cheapest way to write "not what the distances say" down.
+    """
+    from xtal.core import bonding
+
+    bonding.perceive(structure)
+    structure.perceived.bonds = structure.perceived.bonds[::2]
+    structure.drop_cache("bonds:")
+    return [bond.key() for bond in bonding.perceive(structure)]
+
+
+@pytest.mark.parametrize("victim", [0, 1])
+def test_deleting_an_atom_does_not_reperceive_the_rest_of_the_cell(
+        quartz, victim):
+    """The bonds a Delete did not touch are the user's answer, and
+    re-deriving them at whatever geometry the crystal has drifted to is
+    what Recalculate Bonds exists to stay in charge of."""
+    from xtal.core import bonding
+
+    host = Host(quartz.copy())
+    held = _held_graph(host.structure)
+    gone = set(p1.expand(host.structure).indices_of_site(victim)
+               .tolist())
+    expected = [key for key in held
+                if key[0] not in gone and key[1] not in gone]
+    atom_commands.DeleteSites([victim]).do(host)
+    assert len(bonding.perceive(host.structure)) == len(expected)
+
+
+def test_undoing_a_delete_restores_the_bonds_the_user_had(quartz,
+                                                          stack):
+    """Ctrl+Z put the atoms back and then perceived the cell from
+    scratch, so an undone Delete left the bonding changed."""
+    from xtal.core import bonding
+
+    host = Host(quartz.copy())
+    held = _held_graph(host.structure)
+    stack.push(atom_commands.DeleteSites([1]), host)
+    stack.undo(host)
+    assert [b.key() for b in bonding.perceive(host.structure)] == held
+
+
+def test_redoing_a_delete_gives_the_bonds_the_delete_gave(quartz,
+                                                          stack):
+    """Undo and redo are one round trip: the second Delete has to leave
+    the same graph as the first."""
+    from xtal.core import bonding
+
+    host = Host(quartz.copy())
+    _held_graph(host.structure)
+    stack.push(atom_commands.DeleteSites([1]), host)
+    after = [b.key() for b in bonding.perceive(host.structure)]
+    stack.undo(host)
+    stack.redo(host)
+    assert [b.key() for b in bonding.perceive(host.structure)] == after
+
+
 def test_move_sites_by_delta_and_cartesian(host, stack):
     start = host.structure.sites[1].frac.copy()
     stack.push(atom_commands.MoveSites.by_delta(
