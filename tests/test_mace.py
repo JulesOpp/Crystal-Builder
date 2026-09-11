@@ -1,0 +1,203 @@
+"""The MACE engine: the arithmetic around the model, and the model.
+
+**Nearly everything here runs without mace installed**, and that is
+the point rather than a convenience.  What can be got wrong in this
+engine is this application's half -- the eV to kcal/mol conversion, the
+P1 atom ordering the optimiser maps forces back through, whether the
+cell handed in is the cell evaluated -- and none of that is MACE's.  So
+the model loader is replaced with a cheap ASE calculator and the
+arithmetic is checked against it.
+
+One test needs the real thing, and it is the one that has to: whether
+the stress the engine claims agrees with a numeric one.  See
+``xtal/ff/xtb/calculator.py`` for what claiming a wrong stress costs.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+import pytest
+
+from tests.conftest_ff import water
+from xtal.ff import ENGINES
+from xtal.ff.api import CalculatorError
+from xtal.ff.mace import calculator as mace
+from xtal.params import Availability
+
+ase = pytest.importorskip("ase")
+
+
+@pytest.fixture
+def stand_in(monkeypatch):
+    """A Lennard-Jones ASE calculator where the model would be.
+
+    Cheap, analytic, and it has an energy, forces and a stress -- which
+    is every part of the interface this engine reads.
+    """
+    from ase.calculators.lj import LennardJones
+
+    made = []
+
+    def load(options):
+        made.append(options)
+        return LennardJones(rc=6.0)
+
+    monkeypatch.setattr(mace, "_load_model", load)
+    monkeypatch.setattr(mace, "_device", lambda wanted: "cpu")
+    mace.forget_models()
+    return made
+
+
+# ------------------------------------------------------ the arithmetic
+
+def test_the_energy_and_forces_come_back_in_kcal(stand_in):
+    """Everything above this interface is kcal/mol and kcal/mol/A; ASE
+    is eV.  One factor, and it has to be applied to both."""
+    from ase.calculators.lj import LennardJones
+
+    structure = water()
+    engine = mace.MACECalculator(structure)
+    cell = engine.cell
+    result = engine.compute(cell.cart, structure.lattice.matrix)
+
+    atoms = ase.Atoms(symbols=list(cell.elements),
+                      positions=np.asarray(cell.cart),
+                      cell=np.asarray(structure.lattice.matrix),
+                      pbc=True)
+    atoms.calc = LennardJones(rc=6.0)
+    assert result.energy == pytest.approx(
+        atoms.get_potential_energy() * mace.KCAL_PER_EV)
+    assert result.forces == pytest.approx(
+        np.asarray(atoms.get_forces()) * mace.KCAL_PER_EV)
+    assert mace.KCAL_PER_EV == pytest.approx(23.0605, abs=1e-3)
+
+
+def test_the_forces_are_in_p1_atom_order(stand_in):
+    """The optimiser maps a force back onto the site it came from by
+    index, so an atom container that reordered anything would put a
+    force on the wrong atom."""
+    structure = water()
+    engine = mace.MACECalculator(structure)
+    assert engine.symbols == tuple(engine.cell.elements)
+    assert engine.symbols[0] == "O"
+    result = engine.compute(engine.cell.cart, structure.lattice.matrix)
+    assert len(result.forces) == engine.n_atoms == 3
+
+
+def test_the_cell_it_is_given_is_the_cell_it_evaluates(stand_in):
+    """A variable-cell relaxation hands in a strained lattice, and the
+    positions with it.  Letting ASE carry the atoms along with the cell
+    would apply the strain twice."""
+    structure = water()
+    engine = mace.MACECalculator(structure)
+    matrix = np.asarray(structure.lattice.matrix, dtype=float)
+    engine.compute(engine.cell.cart, matrix)
+    first = np.array(engine._atoms.get_positions())
+    engine.compute(engine.cell.cart, matrix * 1.2)
+    assert np.allclose(engine._atoms.get_positions(), first)
+    assert np.allclose(engine._atoms.cell, matrix * 1.2)
+
+
+def test_positions_that_are_not_the_cell_are_refused(stand_in):
+    engine = mace.MACECalculator(water())
+    with pytest.raises(CalculatorError):
+        engine.compute(np.zeros((2, 3)),
+                       engine.structure.lattice.matrix)
+
+
+def test_a_structure_with_no_atoms_is_a_sentence(stand_in):
+    from xtal import Lattice, Structure
+
+    with pytest.raises(CalculatorError):
+        mace.MACECalculator(Structure(Lattice.cubic(10.0)))
+
+
+def test_the_model_is_loaded_once_for_all_the_evaluations(stand_in):
+    """A load is seconds and an optimisation is hundreds of
+    evaluations."""
+    engine = mace.MACECalculator(water())
+    for _ in range(3):
+        engine.compute(engine.cell.cart,
+                       engine.structure.lattice.matrix)
+    assert len(stand_in) == 1
+    assert engine.calls == 3
+
+
+# ------------------------------------------------------- availability
+
+def test_a_missing_package_names_the_extra_to_install(monkeypatch):
+    monkeypatch.setattr(mace, "installed", lambda: False)
+    answer = mace.available()
+    assert not answer.ok
+    assert "crystal-builder[mace]" in answer.reason
+
+
+def test_a_foundation_model_says_it_will_be_downloaded(monkeypatch):
+    """It is a download this application did not start, so it is said
+    before anything runs rather than discovered as a pause."""
+    monkeypatch.setattr(mace, "installed", lambda: True)
+    answer = mace.available(model="medium")
+    assert answer.ok
+    assert "download" in answer.reason.lower()
+
+
+def test_a_model_file_that_is_not_there_is_refused(monkeypatch,
+                                                  tmp_path):
+    monkeypatch.setattr(mace, "installed", lambda: True)
+    missing = mace.available(model="custom",
+                             model_path=str(tmp_path / "nope.model"))
+    assert not missing.ok and "no model file" in missing.reason
+
+    unnamed = mace.available(model="custom", model_path="")
+    assert not unnamed.ok and "name the model file" in unnamed.reason
+
+    real = tmp_path / "mine.model"
+    real.write_bytes(b"weights")
+    assert mace.available(model="custom",
+                          model_path=str(real)).ok
+
+
+def test_the_engine_is_in_the_registry_with_what_it_provides():
+    engine = ENGINES.get("mace")
+    assert "forces" in engine.provides and "stress" in engine.provides
+    assert "periodic" in engine.provides
+    assert [p.name for p in engine.options] == [
+        "model", "model_path", "device", "double_precision"]
+    assert isinstance(engine.availability(), Availability)
+
+
+def test_the_registry_builds_it_with_markers_held_back(stand_in):
+    """A centroid is a marker and not chemistry, so the engine is
+    built over a cell with none -- which the registry does for every
+    engine and is why this one does not do it itself."""
+    from xtal.commands.atoms import new_site
+
+    structure = water()
+    structure.add_site(new_site("X", [0.4, 0.4, 0.4]))
+    calculator = ENGINES.build("mace", structure)
+    assert calculator.n_atoms == 4          # the marker is presented
+    result = calculator.compute(
+        np.asarray(__import__("xtal.core.p1", fromlist=["p1"])
+                   .expand(structure).cart),
+        structure.lattice.matrix)
+    assert result.forces.shape == (4, 3)
+    assert np.allclose(result.forces[3], 0.0)   # no force on a marker
+
+
+# ------------------------------------------------------- the real model
+
+@pytest.mark.slow
+def test_the_stress_it_claims_agrees_with_a_numeric_one():
+    """The one test that needs mace, and the one that has to have it: a
+    stress that is quietly wrong relaxes a cell to the wrong volume and
+    reports converging while it does it."""
+    pytest.importorskip("mace")
+    from xtal.core import p1
+
+    structure = water()
+    engine = mace.MACECalculator(structure)
+    cell = p1.expand(structure)
+    matrix = np.asarray(structure.lattice.matrix, dtype=float)
+    claimed = engine.compute(cell.cart, matrix).stress
+    numeric = engine.numeric_stress(cell.cart, matrix, strain=1e-4)
+    assert claimed == pytest.approx(numeric, abs=2e-3)

@@ -90,6 +90,17 @@ sketch = ["rdeditor>=0.5"]
 # module runs, the panel draws the pattern and the .xy is written, and
 # only the plot window is greyed out naming this extra.
 pxrd = ["matplotlib>=3.7"]
+# The MACE engine, and the heaviest thing this project can be asked to
+# install: mace-torch brings torch, which is gigabytes of wheel and
+# platform-specific about how it wants to arrive (CPU, CUDA, mps).
+# That is the whole reason it is an extra and is deliberately *not* in
+# `dev`: a contributor running the suite should not be made to
+# download a deep learning framework, and the engine's own tests are
+# written against a stand-in ASE calculator so that all but one of
+# them run without it.  Without it the Force Field panel lists MACE
+# and greys it out naming this extra, exactly as DFTB+ does for a
+# missing binary.
+mace = ["mace-torch>=0.3.10", "ase>=3.22"]
 # pytest-qt belongs here and not in [dev]: without it every widget
 # test skips itself, and CI installs [gui,test] -- so the GUI half of
 # the suite was passing by not running.
@@ -106,7 +117,13 @@ Repository = "https://github.com/JulesOpp/Crystal-Builder"
 
 [tool.setuptools]
 packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
-            "xtal.ff.uff", "xtal.modules", "xtal.analysis", "xtal.mof",
+            # Every engine's package, and all of them rather than the
+            # one that used to be here: `xtal.ff` imports each
+            # calculator at import, so a wheel missing one of these
+            # cannot import `xtal.ff` at all.
+            "xtal.ff.uff", "xtal.ff.dftb", "xtal.ff.xtb",
+            "xtal.ff.mace",
+            "xtal.modules", "xtal.analysis", "xtal.mof",
             "xtal.mof.pormake",
             "xtal.build", "xtal.build.data",
             "xtalapp", "xtalapp.viewport", "xtalapp.docks",
