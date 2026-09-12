@@ -250,18 +250,14 @@ class SceneModel:
     # polyhedron opacity, so everything the renderer needs arrives in
     # one object and an offscreen render behaves like the viewport.
     #
-    # Three numbers and not one, because a fade has a shape as well as
-    # a depth: ``strength`` is how far the back of the picture goes,
-    # ``start`` is where along the scene the fade begins -- 0 at the
-    # front face of the structure, so a slab can be left crisp in
-    # front and lost behind -- and ``gradient`` is the exponent on the
-    # ramp between them: 1 is a straight line, above it holds the
-    # picture clear and then falls away, below it fades at once and
-    # levels off.
+    # ``start`` and ``end`` are where the fade begins and where it is
+    # complete, as fractions of the atoms' own depth along the view --
+    # see :func:`cue_depth_range` -- and ``strength`` is how far into
+    # the background it goes by the end.
     depth_cue: bool = False
     depth_cue_strength: float = 0.7
-    depth_cue_start: float = 0.0
-    depth_cue_gradient: float = 1.0
+    depth_cue_start: float = 0.3
+    depth_cue_end: float = 1.0
 
     labels: tuple = ()                  # ((x, y, z), "text"), ...
     legend: tuple = ()                  # (("Fe", (r, g, b)), ...)
@@ -514,19 +510,49 @@ DASHES_PER_HALF = 3
 DASH_DUTY = 0.55            # fraction of each dash slot that is drawn
 
 
-#: How far back into the scene the fade may be asked to start.  Not
-#: 1.0: at the very back the ramp has no length left and every point
-#: lands past the end of it, so "start the fade as late as possible"
-#: would fade the whole picture at once -- the opposite of what the
-#: control says.
-CUE_START_MAX = 0.95
-#: The exponent on the ramp.  A quarter and four, either side of the
-#: straight line: beyond those the fade is either a step or nothing.
-CUE_GRADIENT_MIN = 0.25
-CUE_GRADIENT_MAX = 4.0
+#: The shortest a fade may be, as a fraction of the depth.  A start
+#: and an end allowed to meet would be a step with no length, which
+#: the smoothstep below cannot evaluate and nobody asks for on purpose
+#: -- the two controls push each other apart by this much instead.
+CUE_MIN_SPAN = 0.05
 
 
-def cue_fraction(distances, near, far, strength, gradient=1.0):
+def cue_ends(start: float, end: float) -> tuple[float, float]:
+    """``(start, end)`` clamped to the depth and at least
+    :data:`CUE_MIN_SPAN` apart, the start giving way to the end."""
+    end = float(min(1.0, max(CUE_MIN_SPAN, end)))
+    start = float(min(end - CUE_MIN_SPAN, max(0.0, start)))
+    return start, end
+
+
+def cue_depth_range(positions, radii, eye, direction,
+                    start: float, end: float) -> tuple[float, float]:
+    """The view distances the fade begins and ends at.
+
+    Measured over the **atoms** -- the nearest one's front surface is
+    0 and the farthest one's back is 1 -- and not over everything
+    drawn.  It was the bounding box of the whole scene: its corners,
+    projected, stuck out past the atoms in any turned view, the cell
+    box and a pore surface stretched it further, and so the same
+    "fade from 30%" started somewhere different every time the camera
+    moved.  ``None`` positions, or none at all, fall back to a unit
+    depth in front of the camera.
+    """
+    points = np.asarray(positions, float).reshape(-1, 3)
+    if not len(points):
+        return 0.0, 1.0
+    along = (points - np.asarray(eye, float)) @ np.asarray(direction,
+                                                             float)
+    pad = float(np.max(radii)) if len(radii) else 0.0
+    front, back = float(along.min()) - pad, float(along.max()) + pad
+    if back - front < 1e-6:                 # one atom, or a flat layer
+        back = front + 1.0
+    start, end = cue_ends(start, end)
+    depth = back - front
+    return front + depth * start, front + depth * end
+
+
+def cue_fraction(distances, near, far, strength):
     """How far towards the background each distance is faded, 0 to 1.
 
     **This is the arithmetic in** :data:`~xtalapp.viewport.vtk_scene.
@@ -538,12 +564,14 @@ def cue_fraction(distances, near, far, strength, gradient=1.0):
     view-space position the fade measures.
 
     ``near`` is where the fade begins and ``far`` where it reaches
-    full ``strength``; anything in front of ``near`` comes back 0.
+    full ``strength``; anything in front of ``near`` comes back 0 and
+    anything behind ``far`` the whole strength.  In between it is a
+    smoothstep, so neither end of the fade is a visible edge.
     """
     span = max(float(far) - float(near), 1e-6)
     t = np.clip((np.asarray(distances, float) - float(near)) / span,
                 0.0, 1.0)
-    return np.power(t, max(float(gradient), 1e-3)) * float(strength)
+    return t * t * (3.0 - 2.0 * t) * float(strength)
 
 
 def fade_towards(colors, background, fraction) -> np.ndarray:

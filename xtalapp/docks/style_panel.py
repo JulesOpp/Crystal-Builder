@@ -18,10 +18,9 @@ why changing a colour cannot corrupt a structure.
 
 from __future__ import annotations
 
-import math
-
+import numpy as np
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -35,6 +34,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSlider,
+    QSpinBox,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -44,7 +44,7 @@ from PySide6.QtWidgets import (
 from xtal.core import elements as el
 from xtal.core.transforms import ELLIPSOID_LEVELS
 from xtalapp.viewport import styles
-from xtalapp.viewport.scene import CUE_GRADIENT_MAX, CUE_START_MAX
+from xtalapp.viewport.scene import CUE_MIN_SPAN, cue_fraction
 from xtalapp.viewport.view_settings import BACKGROUNDS
 
 #: The flat colours that belong to no element: the net a chemist drew
@@ -75,21 +75,85 @@ SCALE_STEPS = 200
 SCALE_MAX = 3.0
 
 
-def _gradient_of(position: int) -> float:
-    """The fade exponent a slider at ``position`` (0-100) asks for.
+class PercentControl(QWidget):
+    """A slider with its value beside it, in percent.
 
-    Geometric and not linear, because the exponent is a ratio: half
-    the travel either side of the straight line has to mean the same
-    amount of curve in both directions, and linear steps from 0.25 to
-    4 would spend three quarters of the slider above 1.
+    The three fade sliders had no readout between them, and one had no
+    label either: dragging one changed the picture by an amount nobody
+    could read back or type again.  ``valueChanged`` is the slider's,
+    so both halves move together and the signal is emitted once.
     """
-    return float(CUE_GRADIENT_MAX ** ((position - 50) / 50.0))
+
+    def __init__(self, tip: str, parent=None):
+        super().__init__(parent)
+        self.slider = QSlider(Qt.Horizontal)
+        self.slider.setRange(0, 100)
+        self.spin = QSpinBox()
+        self.spin.setRange(0, 100)
+        self.spin.setSuffix(" %")
+        self.slider.valueChanged.connect(self.spin.setValue)
+        self.spin.valueChanged.connect(self.slider.setValue)
+        for widget in (self, self.slider, self.spin):
+            widget.setToolTip(tip)
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.addWidget(self.slider, 1)
+        row.addWidget(self.spin)
+        self.valueChanged = self.slider.valueChanged
+
+    def value(self) -> int:
+        return self.slider.value()
+
+    def setValue(self, value: int) -> None:
+        self.slider.setValue(int(value))
 
 
-def _gradient_position(gradient: float) -> int:
-    gradient = max(1e-6, float(gradient))
-    return int(round(50 + 50 * math.log(gradient)
-                     / math.log(CUE_GRADIENT_MAX)))
+class CuePreview(QWidget):
+    """The fade drawn as a strip, front of the structure on the left
+    and back on the right, against the background it fades to.
+
+    What a start, an end and an amount *mean* is easiest to read off a
+    picture of them, and this is the same arithmetic the renderer
+    uses -- :func:`~xtalapp.viewport.scene.cue_fraction` -- so the
+    strip cannot promise a fade the viewport does not draw.
+    """
+
+    ATOM = (110, 110, 120)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMinimumHeight(14)
+        self.setMaximumHeight(14)
+        self.setToolTip("Front of the structure on the left, back on "
+                        "the right")
+        self.start, self.end, self.strength = 0.3, 1.0, 0.7
+        self.background = (255, 255, 255)
+        self.enabled = False
+
+    def show_fade(self, enabled, start, end, strength,
+                  background) -> None:
+        self.enabled = bool(enabled)
+        self.start, self.end = float(start), float(end)
+        self.strength = float(strength)
+        self.background = tuple(background)
+        self.update()
+
+    def fractions(self, n: int) -> np.ndarray:
+        depth = (np.arange(n) + 0.5) / max(n, 1)
+        if not self.enabled:
+            return np.zeros(n)
+        return cue_fraction(depth, self.start, self.end, self.strength)
+
+    def paintEvent(self, _event) -> None:
+        painter = QPainter(self)
+        width, height = self.width(), self.height()
+        atom = np.array(self.ATOM, float)
+        ground = np.array(self.background, float)
+        for x, amount in enumerate(self.fractions(width)):
+            r, g, b = (atom + (ground - atom) * amount).astype(int)
+            painter.setPen(QColor(int(r), int(g), int(b)))
+            painter.drawLine(x, 0, x, height)
+        painter.end()
 
 
 def _background_name(color) -> str:
@@ -220,51 +284,43 @@ class StylePanelDock(QDockWidget):
         ellipsoids.addWidget(self.octants)
         form.addRow("Ellipsoids", ellipsoids)
 
-        # The slider is the control and the checkbox is the switch,
-        # because a fade with no strength behind it is indistinguishable
-        # from a bug: the user turns it on, nothing visible happens, and
-        # there is nothing on screen to say why.
+        # A switch, then three numbers that each say what they are
+        # and show their value, then a picture of the result.  It was
+        # one unlabelled slider beside the checkbox, "Fade from" as a
+        # fraction of a bounding box, and an exponent called a
+        # gradient -- and nobody could say what any of them would do
+        # before dragging it.
         self.depth_cue = QCheckBox("Depth cue")
         self.depth_cue.setToolTip(
             "Fade distant atoms towards the background, so a thick "
             "slab reads as having depth")
         self.depth_cue.toggled.connect(
             lambda v: self._set(depth_cue=v))
-        self.depth_cue_strength = QSlider(Qt.Horizontal)
-        self.depth_cue_strength.setRange(0, 100)
-        self.depth_cue_strength.setToolTip("How far into the "
-                                           "background the back of "
-                                           "the picture goes")
+        form.addRow(self.depth_cue)
+
+        # Percent of the atoms' depth, front to back: 0% is the
+        # nearest atom and 100% the farthest, whichever way the
+        # structure is turned.
+        self.depth_cue_start = PercentControl(
+            "Atoms nearer than this are not faded at all.  0% is the "
+            "front of the nearest atom, 100% the back of the farthest")
+        self.depth_cue_start.valueChanged.connect(self._on_cue_start)
+        form.addRow("Fade starts at", self.depth_cue_start)
+
+        self.depth_cue_end = PercentControl(
+            "Atoms farther than this are faded by the whole amount")
+        self.depth_cue_end.valueChanged.connect(self._on_cue_end)
+        form.addRow("Fully faded at", self.depth_cue_end)
+
+        self.depth_cue_strength = PercentControl(
+            "How far into the background the fade goes: at 100% the "
+            "farthest atoms disappear into it")
         self.depth_cue_strength.valueChanged.connect(
             lambda v: self._set(depth_cue_strength=v / 100.0))
-        depth = QHBoxLayout()
-        depth.addWidget(self.depth_cue)
-        depth.addWidget(self.depth_cue_strength, 1)
-        form.addRow(depth)
+        form.addRow("Amount", self.depth_cue_strength)
 
-        # Where the fade starts and how it ramps.  Two more sliders
-        # rather than two more presets, because the answer depends on
-        # how deep the picture is: the same setting that separates the
-        # layers of a three-cell slab washes a single molecule out.
-        self.depth_cue_start = QSlider(Qt.Horizontal)
-        self.depth_cue_start.setRange(0, int(CUE_START_MAX * 100))
-        self.depth_cue_start.setToolTip(
-            "How far into the picture the fade begins -- at 0 the "
-            "front face of the structure already fades, further along "
-            "it stays crisp and only the back goes")
-        self.depth_cue_start.valueChanged.connect(
-            lambda v: self._set(depth_cue_start=v / 100.0))
-        form.addRow("Fade from", self.depth_cue_start)
-
-        self.depth_cue_gradient = QSlider(Qt.Horizontal)
-        self.depth_cue_gradient.setRange(0, 100)
-        self.depth_cue_gradient.setToolTip(
-            "The shape of the fade: in the middle it is a straight "
-            "line, to the right the picture stays clear and then "
-            "falls away, to the left it fades at once and levels off")
-        self.depth_cue_gradient.valueChanged.connect(
-            lambda v: self._set(depth_cue_gradient=_gradient_of(v)))
-        form.addRow("Fade gradient", self.depth_cue_gradient)
+        self.depth_cue_preview = CuePreview()
+        form.addRow("", self.depth_cue_preview)
 
         # A swatch button each, not a combo: there is no shortlist of
         # sensible net colours the way there is of backgrounds, and the
@@ -286,6 +342,21 @@ class StylePanelDock(QDockWidget):
             lambda v: self._set(show_legend=v))
         self.cell_box = QCheckBox("Unit cell")
         self.cell_box.toggled.connect(lambda v: self._set(show_cell=v))
+        self.cell_axes = QCheckBox("Cell axes")
+        self.cell_axes.setToolTip(
+            "The a, b, c triad in the corner of the view")
+        self.cell_axes.toggled.connect(lambda v: self._set(show_axes=v))
+        # The same switch as View > Show > Net.  Here as well because
+        # the net is drawn over the chemistry, and the moment somebody
+        # wants the atoms underneath it back they are already in this
+        # dock choosing its colour.
+        self.topology = QCheckBox("Net (topology bonds)")
+        self.topology.setToolTip(
+            "Draw the net edges laid over the framework.  Hidden, they "
+            "are not picked either, so a click reaches the bond "
+            "underneath")
+        self.topology.toggled.connect(
+            lambda v: self._set(show_topology=v))
         # Every accessible Voronoi node rather than only the widest.
         # Off, and here rather than in the View menu, because it is a
         # question about how much of a measurement to draw and not
@@ -297,9 +368,13 @@ class StylePanelDock(QDockWidget):
             "of only at the widest one.  Hundreds of them in a cell")
         self.pore_nodes.toggled.connect(
             lambda v: self._set(pore_all_nodes=v))
+        shown = QHBoxLayout()
+        shown.addWidget(self.cell_box)
+        shown.addWidget(self.cell_axes)
+        shown.addWidget(self.topology)
+        form.addRow("Show", shown)
         toggles = QHBoxLayout()
         toggles.addWidget(self.legend)
-        toggles.addWidget(self.cell_box)
         toggles.addWidget(self.pore_nodes)
         form.addRow(toggles)
         return form
@@ -360,16 +435,20 @@ class StylePanelDock(QDockWidget):
         self.depth_cue_strength.setValue(
             round(view.depth_cue_strength * 100))
         self.depth_cue_start.setValue(round(view.depth_cue_start * 100))
-        self.depth_cue_gradient.setValue(
-            _gradient_position(view.depth_cue_gradient))
-        for slider in (self.depth_cue_strength, self.depth_cue_start,
-                       self.depth_cue_gradient):
-            slider.setEnabled(view.depth_cue)
+        self.depth_cue_end.setValue(round(view.depth_cue_end * 100))
+        for control in (self.depth_cue_strength, self.depth_cue_start,
+                        self.depth_cue_end):
+            control.setEnabled(view.depth_cue)
+        self.depth_cue_preview.show_fade(
+            view.depth_cue, view.depth_cue_start, view.depth_cue_end,
+            view.depth_cue_strength, view.background)
         for field, button in self.flat.items():
             self._paint(button, getattr(view, field))
         self.pore_opacity.setValue(round(view.pore_opacity * 100))
         self.legend.setChecked(view.show_legend)
         self.cell_box.setChecked(view.show_cell)
+        self.cell_axes.setChecked(view.show_axes)
+        self.topology.setChecked(view.show_topology)
         self.pore_nodes.setChecked(view.pore_all_nodes)
         self._refreshing = False
         self._fill_elements()
@@ -424,6 +503,28 @@ class StylePanelDock(QDockWidget):
         if self._refreshing or self.document is None:
             return
         self.document.update_view(**values)
+
+    def _on_cue_start(self, value: int) -> None:
+        """A start dragged past the end pushes the end along, rather
+        than the slider refusing to move -- which reads as broken."""
+        gap = round(CUE_MIN_SPAN * 100)
+        if not self._refreshing and value > self.depth_cue_end.value() \
+                - gap:
+            end = min(100, value + gap)
+            self._set(depth_cue_start=(end - gap) / 100.0,
+                      depth_cue_end=end / 100.0)
+            return
+        self._set(depth_cue_start=value / 100.0)
+
+    def _on_cue_end(self, value: int) -> None:
+        gap = round(CUE_MIN_SPAN * 100)
+        if not self._refreshing and value < \
+                self.depth_cue_start.value() + gap:
+            start = max(0, value - gap)
+            self._set(depth_cue_start=start / 100.0,
+                      depth_cue_end=(start + gap) / 100.0)
+            return
+        self._set(depth_cue_end=value / 100.0)
 
     def _on_background(self, _index: int) -> None:
         """One of the four named backgrounds."""

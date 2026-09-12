@@ -64,15 +64,17 @@ from vtkmodules.vtkCommonCore import (
     vtkUnsignedCharArray,
 )
 from vtkmodules.vtkCommonDataModel import vtkCellArray, vtkPolyData
+from vtkmodules.vtkCommonTransforms import vtkTransform
 from vtkmodules.vtkFiltersCore import vtkTubeFilter
-from vtkmodules.vtkFiltersSources import vtkSphereSource
+from vtkmodules.vtkFiltersGeneral import vtkTransformPolyDataFilter
+from vtkmodules.vtkFiltersSources import vtkArrowSource, vtkSphereSource
 from vtkmodules.vtkInteractionWidgets import vtkOrientationMarkerWidget
 from vtkmodules.vtkIOImage import (
     vtkJPEGWriter,
     vtkPNGWriter,
     vtkTIFFWriter,
 )
-from vtkmodules.vtkRenderingAnnotation import vtkAxesActor
+from vtkmodules.vtkRenderingAnnotation import vtkCaptionActor2D
 from vtkmodules.vtkRenderingCore import (
     vtkActor,
     vtkActor2D,
@@ -81,6 +83,7 @@ from vtkmodules.vtkRenderingCore import (
     vtkGlyph3DMapper,
     vtkPolyDataMapper,
     vtkPolyDataMapper2D,
+    vtkPropAssembly,
     vtkRenderer,
     vtkRenderWindow,
     vtkTextActor,
@@ -88,10 +91,8 @@ from vtkmodules.vtkRenderingCore import (
 )
 
 from xtalapp.viewport import scene as scene_model
+from xtalapp.viewport.builder import AXIS_COLORS
 from xtalapp.viewport.scene import (
-    CUE_GRADIENT_MAX,
-    CUE_GRADIENT_MIN,
-    CUE_START_MAX,
     DASH_RADIUS,
     HIGHLIGHT_BOND_GROWTH,
     HIGHLIGHT_COLOR,
@@ -197,12 +198,11 @@ GHOST_OPACITY = 0.45
 # nothing in between.
 #
 # The near and far distances are uniforms rather than constants because
-# they are the scene's own bounds along the view direction, and they
-# change whenever the camera moves or the display range grows -- see
-# :meth:`VtkScene._refresh_depth_cue`.  ``cueNear`` is where the fade
-# *begins* and not where the structure does: the start control moves
-# it back into the scene, which is the whole of leaving the front of a
-# slab crisp.  ``cueGradient`` is the exponent on the ramp.
+# they are where the fade begins and ends along the view direction,
+# measured over the atoms, and they change whenever the camera moves --
+# see :func:`~xtalapp.viewport.scene.cue_depth_range`.  The ramp
+# between them is a smoothstep, guarded because GLSL leaves one whose
+# edges meet undefined.
 #
 # The same arithmetic lives in
 # :func:`~xtalapp.viewport.scene.cue_fraction`, in numpy, for the one
@@ -212,7 +212,8 @@ DEPTH_CUE_SHADER = """//VTK::Light::Impl
   float cueT = clamp((cueDistance - cueNear)
                      / max(cueFar - cueNear, 1e-6), 0.0, 1.0);
   gl_FragData[0].rgb = mix(gl_FragData[0].rgb, cueColor,
-                           pow(cueT, cueGradient) * cueStrength);
+                           cueT * cueT * (3.0 - 2.0 * cueT)
+                           * cueStrength);
 """
 
 
@@ -460,8 +461,8 @@ class VtkScene:
         self._build_scale_bar()
         self._cue_on = False
         self._cue_strength = 0.7
-        self._cue_start = 0.0
-        self._cue_gradient = 1.0
+        self._cue_start = 0.3
+        self._cue_end = 1.0
         self._cue_observer = None
         # The line-drawn bonds' own colours, kept so the fade that
         # recolours them has something to fade *from*.
@@ -1073,8 +1074,7 @@ class VtkScene:
         self._set_legend(model)
         self._set_highlight(model)
         self.set_depth_cue(model.depth_cue, model.depth_cue_strength,
-                           model.depth_cue_start,
-                           model.depth_cue_gradient)
+                           model.depth_cue_start, model.depth_cue_end)
         self.set_scale_bar(model.scale_bar)
 
     def set_positions(self, model) -> None:
@@ -1605,8 +1605,7 @@ class VtkScene:
     # -- depth cueing --------------------------------------------------
 
     def set_depth_cue(self, enabled: bool, strength: float = 0.7,
-                      start: float = 0.0,
-                      gradient: float = 1.0) -> None:
+                      start: float = 0.3, end: float = 1.0) -> None:
         """Fade the structure towards the background with distance.
 
         Applied to the atoms, the bonds and the polyhedra, and
@@ -1615,18 +1614,15 @@ class VtkScene:
         halo is the answer to "what did I just click", and neither is
         improved by being harder to see at the back.
 
-        ``strength`` is how far the back of the picture goes towards
-        the background, ``start`` where along the scene's own depth
-        the fade begins, and ``gradient`` the exponent on the ramp
-        between them.  All three are held here rather than read back
-        off the model, because the camera observer refreshes the fade
-        long after the model was set.
+        ``strength`` is how far towards the background the fade goes,
+        and ``start`` and ``end`` where along the atoms' depth it
+        begins and is complete.  All three are held here rather than
+        read back off the model, because the camera observer refreshes
+        the fade long after the model was set.
         """
         self._cue_on = bool(enabled)
         self._cue_strength = float(max(0.0, min(1.0, strength)))
-        self._cue_start = float(max(0.0, min(CUE_START_MAX, start)))
-        self._cue_gradient = float(max(CUE_GRADIENT_MIN,
-                                       min(CUE_GRADIENT_MAX, gradient)))
+        self._cue_start, self._cue_end = scene_model.cue_ends(start, end)
         shaded = self._cued_actors()
         # Cleared on every actor and added back only to those, because
         # the bond actor moves in and out of that set as the style
@@ -1641,7 +1637,6 @@ class VtkScene:
                     "//VTK::Light::Impl", True, DEPTH_CUE_SHADER, False)
             uniforms = shader.GetFragmentCustomUniforms()
             uniforms.SetUniformf("cueStrength", self._cue_strength)
-            uniforms.SetUniformf("cueGradient", self._cue_gradient)
         self._watch_camera()
         self._refresh_cue()
 
@@ -1728,16 +1723,18 @@ class VtkScene:
                                   [float(c) for c in background])
 
     def _cue_range(self) -> tuple[float, float]:
-        """Where the fade begins and where it is complete.
-
-        The start control is spent here rather than in the shader: it
-        is a fraction of the scene's own depth, and moving the near
-        distance back by that much *is* "the fade begins here" -- the
-        clamp in front of it already leaves everything nearer
-        untouched.
-        """
+        """Where the fade begins and where it is complete, along the
+        view -- over the atoms, see
+        :func:`~xtalapp.viewport.scene.cue_depth_range`.  A scene
+        with no atoms in it fades over whatever it does draw."""
+        eye, direction = self._eye_and_direction()
+        if self.model.n_atoms:
+            return scene_model.cue_depth_range(
+                self.model.positions, self.model.radii, eye, direction,
+                self._cue_start, self._cue_end)
         near, far = self._depth_range()
-        return near + (far - near) * self._cue_start, far
+        start, end = scene_model.cue_ends(self._cue_start, self._cue_end)
+        return near + (far - near) * start, near + (far - near) * end
 
     def _cue_recolour(self, colors, points, previous):
         """``(colors, state)`` for a fade done on the CPU, or ``None``
@@ -1758,8 +1755,7 @@ class VtkScene:
             return None if previous is None else (colors, None)
         eye, direction = self._eye_and_direction()
         near, far = self._cue_range()
-        state = (eye, direction, near, far, self._cue_strength,
-                 self._cue_gradient)
+        state = (eye, direction, near, far, self._cue_strength)
         if (previous is not None
                 and all(np.allclose(a, b, atol=1e-9) for a, b
                         in zip(state, previous, strict=True))):
@@ -1768,7 +1764,7 @@ class VtkScene:
             colors, self.model.background,
             scene_model.cue_fraction(
                 (np.asarray(points, float) - eye) @ direction,
-                near, far, self._cue_strength, self._cue_gradient))
+                near, far, self._cue_strength))
         return faded, state
 
     def _refresh_line_cue(self) -> None:
@@ -1857,13 +1853,107 @@ class VtkScene:
         self.renderer.ResetCameraClippingRange()
 
 
-def orientation_marker(interactor) -> vtkOrientationMarkerWidget:
-    """The little axes gizmo in the corner."""
-    axes = vtkAxesActor()
+def lattice_triad(matrix) -> np.ndarray:
+    """The unit directions of a, b and c, one per row.
+
+    Unit length because the triad says which way the axes point and
+    nothing about how long they are: a 30 A c beside a 4 A a would put
+    two of the arrows out of sight.
+    """
+    matrix = np.asarray(matrix, dtype=float).reshape(3, 3)
+    lengths = np.linalg.norm(matrix, axis=1)
+    lengths[lengths < 1e-12] = 1.0
+    return matrix / lengths[:, None]
+
+
+def _arrow_along(direction, color) -> vtkActor:
+    """One arrow from the origin, rotated rather than sheared.
+
+    Mapping x, y, z onto a, b, c with one matrix would be a single
+    transform for all three, and in a hexagonal or triclinic cell it
+    skews the shafts and flattens the cones.  Each arrow gets a pure
+    rotation of its own instead.
+    """
+    x = np.array([1.0, 0.0, 0.0])
+    axis = np.cross(x, direction)
+    sine = float(np.linalg.norm(axis))
+    transform = vtkTransform()
+    if sine > 1e-9:
+        angle = np.degrees(np.arctan2(sine, float(np.dot(x, direction))))
+        transform.RotateWXYZ(angle, *(axis / sine))
+    elif np.dot(x, direction) < 0:
+        transform.RotateWXYZ(180.0, 0.0, 0.0, 1.0)
+    source = vtkArrowSource()
+    source.SetShaftRadius(0.04)
+    source.SetTipRadius(0.1)
+    source.SetTipLength(0.25)
+    moved = vtkTransformPolyDataFilter()
+    moved.SetInputConnection(source.GetOutputPort())
+    moved.SetTransform(transform)
+    mapper = vtkPolyDataMapper()
+    mapper.SetInputConnection(moved.GetOutputPort())
+    actor = vtkActor()
+    actor.SetMapper(mapper)
+    actor.GetProperty().SetColor(*(np.asarray(color) / 255.0))
+    return actor
+
+
+def cell_axes(matrix) -> vtkPropAssembly:
+    """Arrows along a, b and c, labelled and coloured like the edges
+    of the cell they belong to.
+
+    A prop *assembly* and not a vtkAssembly: an assembly draws its
+    parts through its own matrix, and a text actor inside one is drawn
+    at the origin whatever position it was given.  Captions carry a
+    world attachment point and survive it.
+    """
+    parts = vtkPropAssembly()
+    # The marker widget frames what it is given by its bounds, and the
+    # arrows alone put every label outside them: turned, the a or the
+    # b was cut in half at the edge of the corner.  An invisible
+    # sphere round the whole triad makes room for the labels.
+    room = vtkSphereSource()
+    room.SetRadius(1.3)
+    room_mapper = vtkPolyDataMapper()
+    room_mapper.SetInputConnection(room.GetOutputPort())
+    padding = vtkActor()
+    padding.SetMapper(room_mapper)
+    padding.GetProperty().SetOpacity(0.0)
+    padding.PickableOff()
+    parts.AddPart(padding)
+    for direction, color, name in zip(lattice_triad(matrix),
+                                      AXIS_COLORS, "abc", strict=True):
+        parts.AddPart(_arrow_along(direction, color))
+        caption = vtkCaptionActor2D()
+        caption.SetCaption(name)
+        caption.SetAttachmentPoint(*(direction * 1.2))
+        caption.BorderOff()
+        caption.LeaderOff()
+        caption.SetPosition(-6, -6)
+        caption.SetWidth(0.06)
+        caption.SetHeight(0.06)
+        text = caption.GetCaptionTextProperty()
+        text.SetColor(*(np.asarray(color) / 255.0))
+        text.BoldOn()
+        text.ItalicOn()
+        text.ShadowOff()
+        parts.AddPart(caption)
+    return parts
+
+
+def orientation_marker(interactor, matrix=None
+                       ) -> vtkOrientationMarkerWidget:
+    """The a, b, c triad in the corner.
+
+    It was a Cartesian X, Y, Z, which is the one frame nobody working
+    in a crystal thinks in, and says nothing about which way c is in
+    a monoclinic cell.  Without a lattice it is drawn for a cube.
+    """
     widget = vtkOrientationMarkerWidget()
-    widget.SetOrientationMarker(axes)
+    widget.SetOrientationMarker(
+        cell_axes(np.eye(3) if matrix is None else matrix))
     widget.SetInteractor(interactor)
-    widget.SetViewport(0.0, 0.0, 0.16, 0.22)
+    widget.SetViewport(0.0, 0.0, 0.18, 0.24)
     widget.SetEnabled(1)
     widget.InteractiveOff()
     return widget

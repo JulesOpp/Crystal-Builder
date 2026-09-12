@@ -74,6 +74,7 @@ from xtalapp.viewport.builder import (  # noqa: E402
 from xtalapp.viewport.svg_export import write_svg  # noqa: E402
 from xtalapp.viewport.vtk_scene import (  # noqa: E402
     VtkScene,
+    cell_axes,
     orientation_marker,
     projection_for,
     write_image,
@@ -159,6 +160,7 @@ class ViewportWidget(QWidget):
         self.document = None
         self._initialised = False
         self._marker = None
+        self._marker_matrix = None
         self.mode = modes.get("select")
         self._press_position = None
         self._press_button = None
@@ -352,9 +354,31 @@ class ViewportWidget(QWidget):
         # would be about somebody else's atom.
         self._tooltip_atom = None
         self.setToolTip("")
+        self._refresh_marker()
         if reset_camera:
             self.scene.reset_camera()
         self._safe_render()
+
+    def _refresh_marker(self) -> None:
+        """Point the corner triad along this cell, and show it or not.
+
+        Rebuilt only when the lattice has changed: this runs on every
+        view change, and a slider dragged in the Style dock must not
+        rebuild three arrows per pixel.
+        """
+        if self._marker is None or self.document is None:
+            return
+        matrix = np.asarray(self.document.structure.lattice.matrix,
+                            dtype=float)
+        if (self._marker_matrix is None
+                or not np.allclose(matrix, self._marker_matrix)):
+            self._marker.SetOrientationMarker(cell_axes(matrix))
+            self._marker_matrix = matrix.copy()
+        shown = bool(self.document.view.show_axes)
+        if bool(self._marker.GetEnabled()) != shown:
+            self._marker.SetEnabled(int(shown))
+            if shown:
+                self._marker.InteractiveOff()
 
     # -- picking -------------------------------------------------------
 

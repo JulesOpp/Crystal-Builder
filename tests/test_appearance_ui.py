@@ -137,7 +137,7 @@ def test_the_fade_sliders_are_dead_until_the_fade_is_on(window,
     document = window.open_path(rutile_cif)
     dock = window.style_dock
     sliders = (dock.depth_cue_strength, dock.depth_cue_start,
-               dock.depth_cue_gradient)
+               dock.depth_cue_end)
     assert not any(s.isEnabled() for s in sliders)
 
     dock.depth_cue.setChecked(True)
@@ -145,25 +145,59 @@ def test_the_fade_sliders_are_dead_until_the_fade_is_on(window,
     assert all(s.isEnabled() for s in sliders)
 
 
-def test_where_the_fade_starts_and_how_it_ramps_reach_the_view(
-        window, rutile_cif):
-    """A fade has a shape as well as a depth.  The gradient slider is
-    geometric -- the middle is the straight line, and the two halves
-    have to mean the same amount of curve in either direction."""
+def test_where_the_fade_starts_and_ends_reach_the_view(window,
+                                                        rutile_cif):
+    """Each control shows its number, and the number is the setting:
+    typing 40 in the box is the same as dragging to 40."""
     document = window.open_path(rutile_cif)
     dock = window.style_dock
     dock.depth_cue.setChecked(True)
 
-    dock.depth_cue_start.setValue(40)
+    dock.depth_cue_start.spin.setValue(40)
     assert document.view.depth_cue_start == pytest.approx(0.40)
-
-    dock.depth_cue_gradient.setValue(50)
-    assert document.view.depth_cue_gradient == pytest.approx(1.0)
-    dock.depth_cue_gradient.setValue(100)
-    steep = document.view.depth_cue_gradient
-    dock.depth_cue_gradient.setValue(0)
-    assert document.view.depth_cue_gradient == pytest.approx(1 / steep)
+    assert dock.depth_cue_start.slider.value() == 40
+    dock.depth_cue_end.setValue(80)
+    assert document.view.depth_cue_end == pytest.approx(0.80)
+    dock.depth_cue_strength.setValue(55)
+    assert document.view.depth_cue_strength == pytest.approx(0.55)
     assert not document.modified
+
+
+def test_dragging_the_start_past_the_end_pushes_the_end_along(
+        window, rutile_cif):
+    """A slider that refuses to move reads as broken; one that lets
+    the start overtake the end draws a fade of no length."""
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    dock.depth_cue.setChecked(True)
+    dock.depth_cue_end.setValue(50)
+
+    dock.depth_cue_start.setValue(70)
+    view = document.view
+    assert view.depth_cue_start < view.depth_cue_end
+    assert view.depth_cue_end == pytest.approx(0.75)
+    assert dock.depth_cue_end.value() == 75
+
+    dock.depth_cue_end.setValue(10)
+    assert view.depth_cue_start < view.depth_cue_end
+    assert view.depth_cue_start == pytest.approx(0.05)
+
+
+def test_the_preview_strip_is_the_fade_the_viewport_draws(window,
+                                                          rutile_cif):
+    """Clear in front of the start, fully faded behind the end, and
+    nothing at all with the switch off."""
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    preview = dock.depth_cue_preview
+    assert not preview.fractions(100).any()
+
+    dock.depth_cue.setChecked(True)
+    document.update_view(depth_cue_start=0.2, depth_cue_end=0.6,
+                         depth_cue_strength=0.8)
+    strip = preview.fractions(100)
+    assert not strip[:19].any()
+    assert strip[61:] == pytest.approx(0.8)
 
 
 def test_a_cancelled_colour_dialog_changes_nothing(window, rutile_cif,
@@ -256,6 +290,41 @@ def test_the_view_menu_and_the_style_dock_agree(window, rutile_cif):
     window.style_dock.cell_box.setChecked(False)
     assert not document.view.show_cell
     assert not window.actions_["show_cell"].isChecked()
+
+
+def test_the_cell_axes_are_one_switch_in_the_dock_and_the_menu(
+        window, rutile_cif):
+    """``show_axes`` was saved and loaded for years and read by
+    nothing; the triad it now switches is only worth having if the
+    dock and View > Show agree about it."""
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    assert dock.cell_axes.isChecked()
+
+    dock.cell_axes.setChecked(False)
+    assert not document.view.show_axes
+    assert not window.actions_["show_axes"].isChecked()
+
+    window.actions_["show_axes"].trigger()
+    assert document.view.show_axes and dock.cell_axes.isChecked()
+    assert not document.modified
+
+
+def test_the_net_can_be_hidden_from_the_style_dock(window, rutile_cif):
+    """The checkbox and View > Show > Net are one switch; if they
+    drift, the dock says the net is hidden while it is drawn."""
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    assert dock.topology.isChecked()
+
+    dock.topology.setChecked(False)
+    assert not document.view.show_topology
+    assert not window.actions_["show_topology"].isChecked()
+
+    window.actions_["show_topology"].trigger()
+    assert document.view.show_topology
+    assert dock.topology.isChecked()
+    assert not document.modified
 
 
 # ------------------------------------------------------- measurements

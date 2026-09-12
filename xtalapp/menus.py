@@ -152,6 +152,11 @@ def build_actions(window):
     add("show_cell", "Unit cell",
         lambda v: window.set_view(show_cell=v), checkable=True,
         checked=True)
+    add("show_axes", "Cell axes (a, b, c)",
+        lambda v: window.set_view(show_axes=v), checkable=True,
+        checked=True,
+        tip="The triad in the corner of the view: which way a, b "
+            "and c point as the structure turns")
     add("show_legend", "Element legend",
         lambda v: window.set_view(show_legend=v), checkable=True)
     add("show_bond_orders", "Bond orders",
@@ -518,7 +523,8 @@ def build_menus(window):
     show_menu = view_menu.addMenu("&Show")
     window.actions_.fill_menu(
         show_menu, ["show_atoms", "show_bonds", "show_bond_orders",
-                    "show_topology", "show_cell", "show_planes",
+                    "show_topology", "show_cell", "show_axes",
+                    "show_planes",
                     "show_pores", "labels", "show_legend",
                     "show_scale_bar"])
     view_menu.addSeparator()

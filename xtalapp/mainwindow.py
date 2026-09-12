@@ -1502,6 +1502,7 @@ class MainWindow(QMainWindow):
                               ("show_bond_orders",
                                document.view.show_bond_orders),
                               ("show_cell", document.view.show_cell),
+                              ("show_axes", document.view.show_axes),
                               ("show_legend",
                                document.view.show_legend),
                               ("show_topology",

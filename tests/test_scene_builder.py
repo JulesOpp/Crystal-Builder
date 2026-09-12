@@ -674,22 +674,46 @@ def test_nothing_nearer_than_the_start_fades_at_all():
     assert at[3] == pytest.approx(1.0)
 
 
-def test_the_gradient_bends_the_ramp_without_moving_its_ends():
-    """A gradient above 1 holds the picture clear and then drops it;
-    below 1 it fades at once and levels off.  Both have to leave the
-    two ends where a straight line put them, or the control is a
-    strength control wearing a different name."""
+def test_everything_behind_the_end_is_faded_by_the_whole_amount():
+    """The end is a second place a person can point at: past it the
+    picture is as far gone as the amount says, and no further."""
     from xtalapp.viewport.scene import cue_fraction
-    args = dict(near=0.0, far=10.0, strength=1.0)
-    middle = [5.0]
-    straight = cue_fraction(middle, gradient=1.0, **args)[0]
-    steep = cue_fraction(middle, gradient=3.0, **args)[0]
-    soft = cue_fraction(middle, gradient=1 / 3, **args)[0]
-    assert steep < straight < soft
-    for gradient in (0.25, 1.0, 4.0):
-        ends = cue_fraction([0.0, 10.0], gradient=gradient, **args)
-        assert ends[0] == pytest.approx(0.0)
-        assert ends[1] == pytest.approx(1.0)
+    at = cue_fraction([6.0, 7.0, 50.0], near=2.0, far=6.0, strength=0.6)
+    assert list(at) == pytest.approx([0.6, 0.6, 0.6])
+
+
+def test_the_fade_eases_in_and_out_rather_than_starting_at_an_edge():
+    """A straight ramp begins with a kink a reader sees as a line
+    across the structure.  The smoothstep starts flat, is half way at
+    the middle, and ends flat."""
+    from xtalapp.viewport.scene import cue_fraction
+    near = cue_fraction([0.1, 9.9], near=0.0, far=10.0, strength=1.0)
+    assert near[0] < 0.01 and near[1] > 0.99
+
+
+def test_a_start_and_an_end_cannot_cross():
+    """Dragged into each other they stay a fade and not a step of no
+    length, which the ramp cannot evaluate."""
+    from xtalapp.viewport.scene import CUE_MIN_SPAN, cue_ends
+    start, end = cue_ends(0.9, 0.4)
+    assert end - start == pytest.approx(CUE_MIN_SPAN)
+    assert cue_ends(-1.0, 2.0) == (0.0, 1.0)
+
+
+def test_the_depth_is_the_atoms_and_not_the_box_round_them():
+    """0% is the front of the nearest atom and 100% the back of the
+    farthest, whatever else is drawn.  It was the scene's bounding
+    box, whose corners in a turned view -- and whose cell lines and
+    pore surface -- put 0% somewhere in front of every atom."""
+    from xtalapp.viewport.scene import cue_depth_range
+    positions = [[0.0, 0.0, 10.0], [0.0, 0.0, 20.0]]
+    near, far = cue_depth_range(positions, [1.0, 1.0], eye=[0, 0, 0],
+                                direction=[0, 0, 1], start=0.0, end=1.0)
+    assert (near, far) == pytest.approx((9.0, 21.0))
+    near, far = cue_depth_range(positions, [1.0, 1.0], eye=[0, 0, 0],
+                                direction=[0, 0, 1], start=0.25,
+                                end=0.75)
+    assert (near, far) == pytest.approx((12.0, 18.0))
 
 
 def test_a_fade_goes_towards_the_background_it_is_given():

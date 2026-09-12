@@ -335,7 +335,7 @@ def test_depth_cueing_fades_the_far_atoms_and_not_the_near_ones():
     which is what "fade" means and what a shader that compiled but did
     nothing would fail."""
     structure = _receding_atoms()
-    cued = _brightness_by_depth(structure, cue=True)
+    cued = _brightness_by_depth(structure, cue=True, depth_cue_start=0.0)
     values = [brightness for _depth, brightness in cued]
     assert len(values) >= 8
     assert values[-1] > values[0] + 30      # the back really recedes
@@ -386,18 +386,17 @@ def test_the_fade_starts_where_it_is_told_to():
     assert late[-1] > plain[-1] + 30
 
 
-def test_the_gradient_bends_the_fade_it_does_not_move_its_end():
-    """Above 1 the picture stays clear and then falls away, so the
-    middle of the run is less faded -- and the back of it is not, or
-    the control would just be the strength slider again."""
+def test_the_fade_is_complete_where_it_is_told_to_end():
+    """Past the end every atom is as faded as the amount says, so the
+    back half of the line is one flat pale level -- and a fade that
+    ignored the end would still be climbing there."""
     structure = _receding_atoms()
-    straight = [b for _d, b in _brightness_by_depth(structure, True)]
-    steep = [b for _d, b in
-             _brightness_by_depth(structure, True,
-                                  depth_cue_gradient=3.0)]
-    middle = len(straight) // 2
-    assert steep[middle] < straight[middle] - 20
-    assert abs(steep[-1] - straight[-1]) < 20
+    plain = [b for _d, b in _brightness_by_depth(structure, cue=False)]
+    early = [b for _d, b in _brightness_by_depth(
+        structure, cue=True, depth_cue_start=0.0, depth_cue_end=0.5)]
+    back = early[len(early) * 2 // 3:]
+    assert max(back) - min(back) < 12
+    assert min(back) > plain[-1] + 30
 
 
 def test_a_flat_style_still_draws_when_the_fade_is_on():
@@ -732,3 +731,40 @@ def test_the_bar_stands_still_while_the_cell_contracts():
     assert scene.bar_label.GetInput() == before
     assert np.allclose(
         np.array(scene._bar_poly.GetPoints().GetData()), before_points)
+
+
+# ------------------------------------------------------ the cell axes
+
+def test_the_corner_triad_points_along_the_lattice_and_not_xyz(quartz):
+    """Quartz is hexagonal: b is 120 degrees from a, which a Cartesian
+    gizmo put at 90 and so said nothing true about the cell."""
+    triad = vtk_scene.lattice_triad(quartz.lattice.matrix)
+    assert np.allclose(np.linalg.norm(triad, axis=1), 1.0)
+    angle = np.degrees(np.arccos(np.dot(triad[0], triad[1])))
+    assert angle == pytest.approx(120.0)
+    assert np.allclose(triad[2], [0.0, 0.0, 1.0])
+
+
+def test_every_arrow_of_the_triad_ends_where_its_axis_points(quartz):
+    """Each arrow is rotated on its own rather than one matrix shearing
+    all three, so an arrow's far end is on its own axis at unit
+    length -- a sheared one ends off it."""
+    parts = vtk_scene.cell_axes(quartz.lattice.matrix).GetParts()
+    triad = vtk_scene.lattice_triad(quartz.lattice.matrix)
+    arrows = [parts.GetItemAsObject(i)
+              for i in range(parts.GetNumberOfItems())
+              if isinstance(parts.GetItemAsObject(i),
+                            vtk_scene.vtkActor)
+              and parts.GetItemAsObject(i).GetProperty().GetOpacity()]
+    captions = [parts.GetItemAsObject(i)
+                for i in range(parts.GetNumberOfItems())
+                if isinstance(parts.GetItemAsObject(i),
+                              vtk_scene.vtkCaptionActor2D)]
+    assert [c.GetCaption() for c in captions] == ["a", "b", "c"]
+    for arrow, direction in zip(arrows, triad, strict=True):
+        mapper = arrow.GetMapper()
+        mapper.Update()
+        points = np.array([mapper.GetInput().GetPoint(i) for i in range(
+            mapper.GetInput().GetNumberOfPoints())])
+        tip = points[np.argmax(points @ direction)]
+        assert np.allclose(tip, direction, atol=1e-6)
