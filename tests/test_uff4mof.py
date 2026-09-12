@@ -235,6 +235,28 @@ def relaxed(structure):
     return zinc_oxygen(structure, result.frac)
 
 
+def test_a_relaxed_carboxylate_keeps_its_one_and_a_half_bonds():
+    """With the carboxylate's C-O bonds perceived single, UFF relaxed
+    them to 1.371 A -- an ether's length, in a framework whose crystal
+    structure says 1.273.  Read as the 1.5 they are, 1.303."""
+    structure = sample("MOF-5")
+    cell = p1.expand(structure)
+    graph = bonding.graph(structure)
+    calculator = ENGINES.build("uff", structure)
+    result = optimize.run(calculator, structure, max_steps=200,
+                          force_tolerance=1e-3)
+    moved = structure.copy()
+    for site, frac in zip(moved.sites, result.frac, strict=True):
+        site.frac = frac
+    moved.touch()
+    cart = p1.expand(moved).cart
+    lengths = [np.linalg.norm(cart[b.j] + np.asarray(b.image)
+                              @ structure.lattice.matrix - cart[b.i])
+               for b in graph.bonds
+               if {cell.elements[b.i], cell.elements[b.j]} == {"C", "O"}]
+    assert np.mean(lengths) < 1.32
+
+
 def test_the_node_comes_out_closer_than_uff_alone(monkeypatch):
     """The claim the whole phase rests on, measured rather than
     assumed.

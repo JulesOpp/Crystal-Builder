@@ -1060,6 +1060,59 @@ def stated_resonant(graph) -> set[int]:
             for atom in (bond.i, bond.j)}
 
 
+def _carboxylates(cell, geo, bonds, free, aromatic) -> list:
+    """``(bond, bond)`` -- the two C-O bonds -- for every carboxylate
+    carbon.
+
+    A carboxylate's two C-O bonds are one bond and a half each: the
+    charge and the pi bond are shared between the oxygens, and the
+    lengths say so -- 1.26 A twice, not a 1.21 and a 1.34.  Counting pi
+    bonds cannot see it.  An oxygen held by a metal has two neighbours
+    and is given no pi bond to place, so MOF-5's carboxylates came out
+    single at both ends and the carbon's own pi bond went nowhere;
+    and a free one would be split double-and-single by whichever bond
+    happened to be shorter.  PORMAKE's 867 blocks settle what the
+    answer is: a metal-bound carboxylate is aromatic at both ends in
+    1579 of them and single at both in none.
+
+    The carbon is flat with three neighbours, two of them oxygens, and
+    each oxygen has nothing else but metals -- or nothing else at all.
+    An oxygen with a hydrogen or a carbon on it is an acid or an
+    ester, whose bonds really are one double and one single, and it is
+    left to the counting below.
+    """
+    by_pair: dict[tuple[int, int], list[int]] = {}
+    for k in free:
+        bond = bonds[k]
+        by_pair.setdefault((min(bond.i, bond.j), max(bond.i, bond.j)),
+                           []).append(k)
+    out = []
+    for carbon in range(cell.n_atoms):
+        if (cell.elements[carbon] != "C" or carbon in aromatic
+                or geo.coordination(carbon) != 3
+                or geo.angle_sum(carbon) < PLANAR_ANGLE_SUM):
+            continue
+        # Two *distinct* oxygens: in a small cell one oxygen can be a
+        # partner twice, through two images, and that is not this.
+        oxygens = [j for j in geo.partners(carbon)
+                   if cell.elements[j] == "O"]
+        if len(oxygens) != 2 or len(set(oxygens)) != 2:
+            continue
+        if not all(_carboxylate_oxygen(o, carbon, cell, geo)
+                   for o in oxygens):
+            continue
+        pair = [by_pair.get((min(carbon, o), max(carbon, o)), [])
+                for o in oxygens]
+        if all(len(ks) == 1 for ks in pair):
+            out.append((pair[0][0], pair[1][0]))
+    return out
+
+
+def _carboxylate_oxygen(oxygen, carbon, cell, geo) -> bool:
+    others = [j for j in geo.partners(oxygen) if j != carbon]
+    return all(el.element(cell.elements[j]).is_metal for j in others)
+
+
 def _infer_orders(structure, rules) -> np.ndarray:
     cell = p1.expand(structure)
     bonds = graph(structure, rules).bonds
@@ -1093,6 +1146,11 @@ def _infer_orders(structure, rules) -> np.ndarray:
         if bond.i in aromatic and bond.j in aromatic:
             out[k] = AROMATIC_ORDER
             spare[bond.i] = spare[bond.j] = 0
+
+    for pair in _carboxylates(cell, geo, bonds, free, aromatic):
+        for k in pair:
+            out[k] = AROMATIC_ORDER
+            spare[bonds[k].i] = spare[bonds[k].j] = 0
 
     candidates = sorted((bonds[k].distance, k) for k in free
                         if out[k] == 1.0)

@@ -458,8 +458,9 @@ def _oxygen(i, cell, geo, aromatic) -> AtomType:
         # UFF4MOF's O_2_z is *not* claimed here.  The obvious
         # reading of it -- the carboxylate oxygen on a framework
         # metal -- was tried and measured: relaxing MOF-5 with it
-        # puts Zn-O(carboxylate) at 1.810 A against an experimental
-        # 1.941, where leaving those oxygens alone gives 1.866.  It
+        # puts Zn-O(carboxylate) at 1.834 A against an experimental
+        # 1.941, where leaving those oxygens alone gives 1.891 (both
+        # with the carboxylate's C-O bonds at order 1.5).  It
         # makes the one number it is supposed to fix worse, so which
         # environment it was fitted for is something this code does
         # not know, and the type stays reachable by override only.

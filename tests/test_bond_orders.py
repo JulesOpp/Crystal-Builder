@@ -48,6 +48,69 @@ def test_carbon_dioxide_is_doubly_bonded_at_both_ends():
     assert sorted(bonding.orders(carbon_dioxide())) == [2.0, 2.0]
 
 
+def _carboxyl(tail):
+    """A flat carboxyl carbon on a methyl, with ``tail`` saying what
+    else each oxygen holds: nothing, a metal, or a hydrogen on one."""
+    c0, c1 = [0.0, 0.0, 0.0], [1.50, 0.0, 0.0]
+    o1 = [1.50 + 1.26 * math.cos(math.radians(60)),
+          1.26 * math.sin(math.radians(60)), 0.0]
+    o2 = [1.50 + 1.26 * math.cos(math.radians(-60)),
+          1.26 * math.sin(math.radians(-60)), 0.0]
+    symbols, positions = ["C", "C", "O", "O"], [c0, c1, o1, o2]
+    for oxygen, element in zip((o1, o2), tail, strict=True):
+        if element is None:
+            continue
+        reach = 0.97 if element == "H" else 1.95
+        direction = np.array(oxygen) - np.array(c1)
+        direction /= np.linalg.norm(direction)
+        symbols.append(element)
+        positions.append(list(np.array(oxygen) + reach * direction))
+    return isolated(symbols, positions)
+
+
+def test_a_carboxylate_shares_its_double_bond_between_both_oxygens():
+    """Acetate: the charge and the pi bond belong to both oxygens,
+    and splitting them double-and-single by whichever bond came out a
+    thousandth shorter is a resonance form, not the molecule."""
+    orders = orders_by_pair(_carboxyl((None, None)))
+    assert orders[(1, 2)] == bonding.AROMATIC_ORDER
+    assert orders[(1, 3)] == bonding.AROMATIC_ORDER
+    assert orders[(0, 1)] == 1.0
+
+
+def test_a_carboxylate_on_metals_is_aromatic_and_not_single():
+    """The MOF-5 case.  An oxygen held by a zinc has two neighbours
+    and was given no pi bond to place, so both C-O bonds came out
+    single and the carbon's pi bond went nowhere at all."""
+    orders = orders_by_pair(_carboxyl(("Zn", "Zn")))
+    assert orders[(1, 2)] == bonding.AROMATIC_ORDER
+    assert orders[(1, 3)] == bonding.AROMATIC_ORDER
+
+
+def test_a_carboxylic_acid_keeps_one_double_and_one_single_bond():
+    """The hydrogen fixes which oxygen is which: the O-H bond is a
+    single bond to carbon, and the other is a carbonyl."""
+    orders = orders_by_pair(_carboxyl((None, "H")))
+    assert orders[(1, 2)] == 2.0
+    assert orders[(1, 3)] == 1.0
+
+
+def test_every_mof5_carboxylate_is_aromatic_at_both_ends():
+    """PORMAKE's shipped blocks write a metal-bound carboxylate A/A in
+    1579 cases and S/S in none; this application wrote S/S."""
+    from xtal.io import read_cif
+    structure = read_cif("resources/samples/MOF-5.cif")
+    cell = p1.expand(structure)
+    graph = bonding.graph(structure)
+    orders = bonding.orders(structure)
+    carbon_oxygen = [float(order) for bond, order
+                     in zip(graph.bonds, orders, strict=True)
+                     if {cell.elements[bond.i],
+                         cell.elements[bond.j]} == {"C", "O"}]
+    assert len(carbon_oxygen) == 96
+    assert set(carbon_oxygen) == {bonding.AROMATIC_ORDER}
+
+
 def test_butadiene_puts_the_double_bonds_on_the_outside():
     """All four carbons are sp2, so the assignment comes from the
     lengths: the short bonds are the double ones.  The two terminal

@@ -3,7 +3,6 @@
 # In resources/ there is a python script called pdb_to_printable_stl.py, this script will use Blender to convert a .pdb file to a .stl file. Let's implement a similar code in the app, given as an option as File->Export as .stl. Here convert truncate the structure to a single non-periodic unit cell, and keep all of the bonding information during the export to .pdb, then convert to .stl using Blender. We need to as Blender as an External Tool in Preferences. My Blender is pathed to /Applications/Blender.app/Contents/MacOS/Blender
 # One potential use case of the software is to fill a MOF pore with solvent molecules. Can we think of a way to choose one file (say a MOF) and fill it with the chemicals from another file (a solvent molecule that a user has drawn, note that this will be defined in a periodic cell, but we just want the molecule itself). We want to give an option to say how many solvent to add. Once the molecules are added, do not automatically recalculate the bonds.
 # Is there a better optimiser besides FIRE and L-BFGS that we can add. Can we check that Relax the cell as well works properly? It seems like I have to optimise several times iteratively when I use relax the cell as well.
-# For MOF-5.cif, Reset bonds to automatic sets both C-O bonds as Single bonds. Is this proper or should they be set to Aromatic? If they should be set to Aromatic, let's fix the command.
 
 Work that is wanted but not yet scheduled into a phase.
 [docs/PLAN.md](PLAN.md) holds the roadmap; this file holds everything
@@ -43,8 +42,8 @@ sitting just off a special position, which nothing does today.
 The type is in the table and is reachable only through the per-atom
 override.  The obvious reading of it -- the carboxylate oxygen on a
 framework metal -- was tried and measured: relaxing MOF-5 with it puts
-Zn-O(carboxylate) at 1.810 A against an experimental 1.941, where
-leaving those oxygens as `O_3` gives 1.866.  It makes the one number
+Zn-O(carboxylate) at 1.834 A against an experimental 1.941, where
+leaving those oxygens as `O_3` gives 1.891.  It makes the one number
 it is supposed to fix worse, so `xtal/ff/uff/typer.py`'s `_oxygen`
 deliberately does not assign it and says so.
 
