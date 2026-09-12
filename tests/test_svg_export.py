@@ -270,3 +270,21 @@ def _fitted(model) -> Projection:
     matrix = np.diag([2.0 / span, 2.0 / span, -2.0 / span, 1.0])
     return Projection(matrix=matrix, right=np.array([1.0, 0.0, 0.0]),
                       size=SIZE, direction=np.array([0.0, 0.0, -1.0]))
+
+
+def test_the_pores_are_circles_and_lines(rutile):
+    """A flat circle and not the atoms' radial gradient: a pore is a
+    hole, and a shaded ball reads as one more atom."""
+    from xtal.analysis.porosity import PoreNetwork
+    nodes = np.array([[0.5, 0.5, 0.5], [0.25, 0.5, 0.5]])
+    network = PoreNetwork(nodes=nodes, radii=np.array([3.0, 1.0]),
+                          edge_starts=nodes[:1], edge_ends=nodes[1:],
+                          probe=1.86)
+    model = build_scene(rutile, ViewSettings(), pores=network)
+    root = parse(render_svg(model, _fitted(model)))
+
+    circles = by_class(root, "pore")
+    assert len(circles) == 1
+    assert circles[0].get("fill-opacity")
+    assert "url(" not in circles[0].get("fill")
+    assert len(by_class(root, "pore-edge")) == 1

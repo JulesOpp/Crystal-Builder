@@ -238,6 +238,22 @@ class JobResult:
     #: ``None`` from a module whose whole answer is its message, which
     #: is most of them.
     report: Any = None
+    #: A result that is a *picture* rather than a number -- the second
+    #: thing besides :attr:`structure` that a run can change about
+    #: what is on screen, and the only one that is not the crystal.
+    #:
+    #: Zeo++'s pore network is the first: where the pores are is an
+    #: answer no table can give, and it is not an edit to the
+    #: structure, does not belong on the undo stack and must not mark
+    #: the document modified.  It goes onto the document beside the
+    #: planes and the measurements, which are the other things drawn
+    #: over a crystal that are not part of it.
+    #:
+    #: Deliberately untyped here: :mod:`xtal.modules` knows nothing
+    #: about the viewport, and a module that later wants to draw
+    #: something else should not have to widen a porosity-shaped
+    #: field to do it.
+    overlay: Any = None
 
     @classmethod
     def stopped(cls, message: str = "stopped") -> JobResult:

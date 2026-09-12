@@ -469,6 +469,44 @@ def _topology_shapes(model, projection, out) -> None:
                           opacity=model.topology_opacity)))
 
 
+def _pore_shapes(model, projection, out) -> None:
+    """The pore spheres as circles and the skeleton as lines.
+
+    Flat circles and not the atoms' radial gradient: a pore is a hole,
+    and a shaded ball reads as one more atom in a colour nobody's
+    element is.  The framework has to show through it, so the opacity
+    is the one the picture is drawn at rather than 1.
+    """
+    if model.n_pore_edges:
+        starts = np.asarray(model.pore_edge_starts, float)
+        ends = np.asarray(model.pore_edge_ends, float)
+        a, depth_a = projection.to_display(starts)
+        b, depth_b = projection.to_display(ends)
+        widths = projection.width_at(starts, ends,
+                                     model.pore_edge_radius)
+        for i in range(len(starts)):
+            color = tuple(model.pore_edge_colors[i])
+            out.append((0.5 * (depth_a[i] + depth_b[i]),
+                        _line(a[i][0], a[i][1], b[i][0], b[i][1],
+                              color, max(widths[i], 0.3),
+                              f"pore-edge-{i}", "pore-edge",
+                              opacity=model.pore_opacity)))
+    if not model.n_pore_spheres:
+        return
+    centres, depth = projection.to_display(model.pore_centres)
+    radii = projection.radii_at(model.pore_centres, model.pore_radii)
+    for i in range(model.n_pore_spheres):
+        if radii[i] < MIN_RADIUS:
+            continue
+        color = _hex(tuple(model.pore_colors[i]))
+        out.append((depth[i],
+                    f'<circle id="pore-{i}" class="pore" '
+                    f'cx="{_n(centres[i][0])}" '
+                    f'cy="{_n(centres[i][1])}" r="{_n(radii[i])}" '
+                    f'fill="{color}" '
+                    f'fill-opacity="{_n(model.pore_opacity)}"/>'))
+
+
 #: How dark a face turned edge-on to the camera goes.  The renderer
 #: lights the hulls, and a set of faces all at one colour reads as a
 #: flat blob rather than as a solid -- so each face is shaded by how
@@ -613,6 +651,7 @@ def render_svg(model, projection, names=None,
     _normal_shapes(model, projection, shapes)
     _cell_shapes(model, projection, shapes)
     _topology_shapes(model, projection, shapes)
+    _pore_shapes(model, projection, shapes)
     _bond_shapes(model, projection, shapes)
     _atom_shapes(model, projection, names, gradients, shapes)
     _label_shapes(model, projection, shapes)

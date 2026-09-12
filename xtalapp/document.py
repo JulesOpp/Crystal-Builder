@@ -27,7 +27,7 @@ import numpy as np
 from PySide6.QtCore import QObject, Signal
 
 from xtal import Structure
-from xtal.analysis import rcsr, topology
+from xtal.analysis import porosity, rcsr, topology
 from xtal.commands import CommandStack, ReplaceStructure, SnapshotEdit
 from xtal.commands import atoms as atom_commands
 from xtal.commands import bonds as bond_commands
@@ -64,6 +64,7 @@ class Document(QObject):
     selectionChanged = Signal()
     measurementsChanged = Signal()
     planesChanged = Signal()            # a plane defined or dropped
+    poresChanged = Signal()             # a pore network drawn or dropped
     viewChanged = Signal()
     historyChanged = Signal()
     modifiedChanged = Signal(bool)
@@ -94,6 +95,12 @@ class Document(QObject):
         # is a thing other measurements are taken *between*, so it is
         # kept in its own list and named.
         self.planes: list = []
+        # The pore network a porosity run came back with, or None.
+        # Neither structure nor note: it is a *measurement of* the
+        # crystal made by an external program, so it is not undoable,
+        # does not mark the document modified, and is thrown away the
+        # moment the crystal it describes is replaced.
+        self.pores = None
         # Which rows of that list the picture draws, or () for all of
         # them.  View state and not a note: it follows what is
         # selected in the Planes list, it is not written into the
@@ -203,6 +210,8 @@ class Document(QObject):
                       for k in sorted(self.selection.bonds)],
             "measurements": [m.to_dict() for m in self.measurements],
             "planes": [p.to_dict() for p in self.planes],
+            **({"pores": self.pores.to_dict()}
+               if self.pores is not None else {}),
         }
 
     def _restore_session(self, session: dict) -> None:
@@ -244,6 +253,16 @@ class Document(QObject):
                         saved, cell, self._structure.lattice))
             except (KeyError, TypeError, ValueError):
                 continue
+        # The pore network needs no check against the structure: it is
+        # stored in fractional coordinates of the cell it was measured
+        # in, and it names no atoms, so nothing in it can point at one
+        # that has gone.
+        if session.get("pores"):
+            try:
+                self.pores = porosity.PoreNetwork.from_dict(
+                    session["pores"])
+            except (KeyError, TypeError, ValueError):
+                self.pores = None
 
     def save(self, path=None) -> Path:
         """Save the session.  Always a project, never an export.
@@ -320,6 +339,7 @@ class Document(QObject):
         self.measurements = []
         self.planes = []
         self.shown_planes = ()
+        self.pores = None
         self.stack.clear()
         if not modified:
             self.stack.mark_clean()
@@ -509,9 +529,31 @@ class Document(QObject):
                 self.selection.prune(n_atoms)
                 self.selectionChanged.emit()
             self._remeasure()
+        self._stale_pores(change)
         self._announce_modified()
         self.structureChanged.emit(int(change))
         self.historyChanged.emit()
+
+    def _stale_pores(self, change: Change) -> None:
+        """Drop the pore network when the crystal it measured changes.
+
+        Not pruned and not refitted, because there is nothing to fit
+        it to: unlike a plane, which is defined by atoms and can be
+        put back through them, this is a Voronoi decomposition of a
+        particular arrangement of a particular set of atoms.  Move one
+        and it is a picture of where the channels *were* -- which is
+        the worst kind of wrong, because it still looks like an
+        answer.  Zeo++ is a second away; guessing is not.
+
+        A change that is only how the crystal is *drawn* or *named*
+        leaves it alone, which is why this reads the flags rather than
+        dropping on every signal.
+        """
+        if self.pores is None or not change & (CHEMISTRY
+                                               | Change.POSITIONS):
+            return
+        self.pores = None
+        self.poresChanged.emit()
 
     def _announce_modified(self) -> None:
         now = self.modified
@@ -1661,6 +1703,27 @@ class Document(QObject):
             return list(self.planes)
         return [self.planes[r] for r in self.shown_planes
                 if 0 <= r < len(self.planes)]
+
+    # -- the pore network ---------------------------------------------
+    #
+    # What a porosity run came back with, drawn over the crystal the
+    # way a plane is.  Unlike a plane it is not something the user
+    # defined and not something this application worked out: it is an
+    # external program's measurement of a particular arrangement of a
+    # particular set of atoms.  So there is nothing to edit -- it is
+    # put there by a run, hidden with View > Pore network, and dropped
+    # by ``_stale_pores`` the moment that arrangement changes.
+
+    def set_pores(self, network) -> None:
+        """Draw this pore network over the crystal.
+
+        Not a command and not an edit.  Where the pores are is a fact
+        about the structure that was already there -- finding it out
+        changes nothing, so it must not land on the undo stack and
+        must not mark the document modified.
+        """
+        self.pores = network
+        self.poresChanged.emit()
 
     def measure_plane_angles(self, indices=None) -> str:
         """The angle between planes -- every pair of them.

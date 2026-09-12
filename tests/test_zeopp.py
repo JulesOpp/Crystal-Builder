@@ -15,7 +15,7 @@ there.
 import pytest
 
 from tests.conftest_program import write_program
-from tests.conftest_zeo import write_fake_network
+from tests.conftest_zeo import CHAN, RES, write_fake_network
 from xtal.analysis import porosity
 from xtal.modules import MODULES, Job, zeopp
 from xtal.modules.registry import ModuleRegistry
@@ -174,6 +174,63 @@ def test_several_channels_each_get_a_row():
     rows = report.tables[1].rows
     assert len(rows) == 2
     assert "1D" in rows[0].texts[1] and "3D" in rows[1].texts[1]
+
+
+def test_the_run_comes_back_with_something_to_draw(
+        fake_network, rutile, workspace):
+    """The whole point of the entry: where the pores are is an answer
+    no table can give."""
+    result, folder = run("diameters", rutile, workspace)
+    assert "-visVoro" in argv_of(folder)
+    network = result.overlay
+    assert network is not None
+    assert network.n_nodes == 6
+    assert network.n_edges == 3
+    node, radius = network.largest()
+    assert 2 * radius == pytest.approx(18.742, abs=0.01)
+    assert len(node) == 3
+
+
+def test_the_drawing_can_be_turned_off(fake_network, rutile,
+                                       workspace):
+    """-visVoro writes six files and reads the whole Voronoi network
+    back; somebody who only wants the three numbers should not pay
+    for it."""
+    result, folder = run("diameters", rutile, workspace, draw=False)
+    assert "-visVoro" not in argv_of(folder)
+    assert result.overlay is None
+    assert result.ok
+
+
+def test_the_network_carries_the_channels_it_belongs_to(
+        fake_network, rutile, workspace):
+    """One record, so a picture can never be shown beside somebody
+    else's dimensionality."""
+    result, _folder = run("diameters", rutile, workspace)
+    assert result.overlay.channels[0].dimensionality == 3
+    assert result.overlay.probe == pytest.approx(1.86)
+
+
+def test_a_run_that_could_not_be_drawn_still_answers(
+        rutile, workspace, tmp_path, monkeypatch):
+    """The three diameters are already read and correct.  Refusing the
+    whole answer because the drawing is missing would be the tail
+    wagging the dog."""
+    script = write_program(tmp_path, "network", (
+        "import sys, pathlib\n"
+        "argv = sys.argv[1:]\n"
+        'pathlib.Path("argv.txt").write_text("\\n".join(argv))\n'
+        f"pathlib.Path(argv[argv.index('-res') + 1])"
+        f".write_text({RES!r})\n"
+        f"pathlib.Path(argv[argv.index('-chan') + 2])"
+        f".write_text({CHAN!r})\n"))
+    monkeypatch.setenv("XTAL_ZEOPP", str(script))
+
+    result, folder = run("diameters", rutile, workspace)
+    assert result.ok
+    assert result.overlay is None
+    assert "D_f" in result.message
+    assert "nothing to draw" in folder.run.log_path.read_text()
 
 
 def test_it_writes_the_whole_cell_as_cssr(fake_network, rutile,

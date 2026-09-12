@@ -58,6 +58,16 @@ TOPOLOGY_COLOR = (124, 96, 200)
 #: same reason.
 PLANE_COLOR = (232, 168, 60)
 
+#: The pore network is neither.  A cool blue, chosen to be nobody's
+#: element and to read as *empty space* beside the warm oranges and
+#: greys a framework is usually drawn in -- what is being shown is the
+#: hole, not a new atom.
+PORE_COLOR = (64, 156, 220)
+
+#: The skeleton, a shade darker than the sphere so the two are
+#: distinguishable where a channel runs into the cavity it feeds.
+PORE_EDGE_COLOR = (40, 112, 168)
+
 #: How far towards black a plane's normal is taken from the plane's
 #: own colour.  Derived rather than settable: two controls for one
 #: object is two chances to make it unreadable.
@@ -151,6 +161,23 @@ class ViewSettings:
     #: rather than in a colour of its own: a normal is the plane's
     #: arrow and reading as a separate object is what it must not do.
     plane_color: tuple[int, int, int] = PLANE_COLOR
+    # The pore network a porosity run came back with.  On, because the
+    # run that produced it was asked for and the whole reason it draws
+    # anything is that a table cannot say *where*.  Nothing is drawn
+    # until a run has answered, so a structure nobody has measured is
+    # unaffected by the default.
+    show_pores: bool = True
+    #: One sphere, at the widest node, or one at every node.  Off: a
+    #: framework's accessible network is hundreds of nodes in a cell
+    #: and thousands across a display range, and a translucent ball at
+    #: each is a fog over the crystal it is about.
+    pore_all_nodes: bool = False
+    pore_color: tuple[int, int, int] = PORE_COLOR
+    pore_edge_color: tuple[int, int, int] = PORE_EDGE_COLOR
+    #: Fainter than a polyhedron and for the same reason a plane is:
+    #: the framework has to stay readable *through* the cavity, which
+    #: is the whole point of drawing the cavity there.
+    pore_opacity: float = 0.35
     # A ruler in the corner, in Angstrom.  Off by default, like depth
     # cueing: it is what you reach for when the size is the question,
     # and a documentation image that quietly acquired one would be
@@ -259,6 +286,11 @@ class ViewSettings:
             "topology_color": list(self.topology_color),
             "show_planes": self.show_planes,
             "plane_color": list(self.plane_color),
+            "show_pores": self.show_pores,
+            "pore_all_nodes": self.pore_all_nodes,
+            "pore_color": list(self.pore_color),
+            "pore_edge_color": list(self.pore_edge_color),
+            "pore_opacity": self.pore_opacity,
             "show_scale_bar": self.show_scale_bar,
             "depth_cue": self.depth_cue,
             "depth_cue_strength": self.depth_cue_strength,
@@ -288,7 +320,8 @@ class ViewSettings:
         for key in ("style", "atom_scale", "bond_radius", "show_atoms",
                     "show_bonds", "show_cell", "show_axes",
                     "show_bond_orders", "show_topology",
-                    "show_planes", "show_scale_bar", "depth_cue",
+                    "show_planes", "show_pores", "pore_all_nodes",
+                    "pore_opacity", "show_scale_bar", "depth_cue",
                     "depth_cue_strength", "depth_cue_start",
                     "depth_cue_gradient", "ellipsoid_probability",
                     "ellipsoid_octants",
@@ -304,7 +337,8 @@ class ViewSettings:
         for key in ("range_a", "range_b", "range_c"):
             if key in d:
                 setattr(s, key, tuple(d[key]))
-        for key in ("background", "topology_color", "plane_color"):
+        for key in ("background", "topology_color", "plane_color",
+                    "pore_color", "pore_edge_color"):
             if key in d:
                 setattr(s, key, tuple(d[key]))
         s.element_colors = {k: tuple(v) for k, v in

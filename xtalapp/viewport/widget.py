@@ -228,6 +228,7 @@ class ViewportWidget(QWidget):
             self.document.viewChanged.disconnect(self._on_view)
             self.document.selectionChanged.disconnect(self._on_selection)
             self.document.planesChanged.disconnect(self._on_view)
+            self.document.poresChanged.disconnect(self._on_view)
         self.document = document
         document.structureChanged.connect(self._on_structure)
         document.previewChanged.connect(self._on_preview)
@@ -237,6 +238,10 @@ class ViewportWidget(QWidget):
         # defining one, dropping one or choosing a different row in
         # the list all change the picture and nothing else says so.
         document.planesChanged.connect(self._on_view)
+        # And so is a pore network: a porosity run that came back with
+        # one has changed the picture without touching the crystal, so
+        # no structure signal is going to say it.
+        document.poresChanged.connect(self._on_view)
         self.rebuild(reset_camera=True)
 
     def set_mode(self, name: str) -> None:
@@ -303,7 +308,8 @@ class ViewportWidget(QWidget):
                             self.document.view,
                             selection=self.document.selection,
                             view_direction=self.camera_direction(),
-                            planes=self.document.planes_to_draw())
+                            planes=self.document.planes_to_draw(),
+                            pores=self.document.pores)
         self.model = model
         self.scene.set_positions(model)
         self._safe_render()
@@ -335,7 +341,8 @@ class ViewportWidget(QWidget):
                             self.document.view,
                             selection=self.document.selection,
                             view_direction=self.camera_direction(),
-                            planes=self.document.planes_to_draw())
+                            planes=self.document.planes_to_draw(),
+                            pores=self.document.pores)
         self.model = model
         self.scene.set_model(model)
         self.scene.set_projection(self.document.view.projection)

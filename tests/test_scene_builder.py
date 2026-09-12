@@ -702,3 +702,92 @@ def test_a_fade_goes_towards_the_background_it_is_given():
     assert list(pale[2]) == [255, 255, 255]
     dark = fade_towards(colors, (0, 0, 0), [0.0, 1.0, 1.0])
     assert list(dark[1]) == [0, 0, 0]
+
+
+# ------------------------------------------------------- the pore network
+
+def _network(nodes=((0.5, 0.5, 0.5), (0.25, 0.5, 0.5)),
+             radii=(4.0, 1.5), edges=True):
+    """A pore network shaped like what Zeo++ hands back."""
+    from xtal.analysis.porosity import Channel, PoreNetwork
+    nodes = np.array(nodes, float)
+    kwargs = {}
+    if edges:
+        kwargs = {"edge_starts": nodes[:1], "edge_ends": nodes[1:2]}
+    return PoreNetwork(nodes=nodes, radii=np.array(radii, float),
+                       probe=1.86,
+                       channels=(Channel(0, 3, 8.0, 3.0, 8.0),),
+                       **kwargs)
+
+
+def test_one_sphere_is_drawn_at_the_widest_node(rutile):
+    """Not one at every node.  A framework's accessible network is
+    hundreds of nodes and a translucent ball at each is a fog over the
+    crystal it is about."""
+    scene = build_scene(rutile, ViewSettings(), pores=_network())
+    assert scene.n_pore_spheres == 1
+    # The widest of the two, and a little under its own radius so the
+    # ball sits inside the pore rather than touching the framework.
+    assert scene.pore_radii[0] < 4.0
+    assert scene.pore_radii[0] > 3.5
+
+
+def test_every_node_is_drawn_when_that_is_asked_for(rutile):
+    settings = ViewSettings()
+    settings.pore_all_nodes = True
+    scene = build_scene(rutile, settings, pores=_network())
+    assert scene.n_pore_spheres == 2
+
+
+def test_the_channel_skeleton_is_drawn_as_segments(rutile):
+    scene = build_scene(rutile, ViewSettings(), pores=_network())
+    assert scene.n_pore_edges == 1
+    assert scene.pore_edge_radius > 0
+
+
+def test_nothing_is_drawn_without_a_run(rutile):
+    """A structure nobody has measured is unaffected by the default
+    being on."""
+    scene = build_scene(rutile, ViewSettings(), pores=None)
+    assert scene.n_pore_spheres == 0
+    assert scene.n_pore_edges == 0
+
+
+def test_the_pores_can_be_turned_off(rutile):
+    settings = ViewSettings()
+    settings.show_pores = False
+    scene = build_scene(rutile, settings, pores=_network())
+    assert scene.n_pore_spheres == 0
+    assert scene.n_pore_edges == 0
+
+
+def test_a_pore_is_repeated_once_per_cell_of_the_range(rutile):
+    """Once per cell and not once per face.  An atom at x = 0 is drawn
+    again at x = 1 because that completes the cell face; a cavity
+    18 A across drawn at both ends of all three axes is the same
+    cavity four times over, covering the framework."""
+    settings = ViewSettings()
+    settings.range_a = (0.0, 2.0)
+    scene = build_scene(rutile, settings, pores=_network())
+    assert scene.n_pore_spheres == 2
+    assert scene.n_pore_edges == 2
+
+
+def test_a_pore_on_a_cell_face_is_drawn_once(rutile):
+    """The case the half-open range exists for: a node at zero would
+    otherwise be drawn at zero and at one along every axis it sits
+    on."""
+    scene = build_scene(rutile, ViewSettings(),
+                        pores=_network(nodes=((0.5, 0.0, 0.0),),
+                                       radii=(4.0,), edges=False))
+    assert scene.n_pore_spheres == 1
+
+
+def test_the_pores_are_inside_the_camera_bounds(rutile):
+    """A sphere the camera does not know about is one the reset frames
+    the crystal without."""
+    network = _network(nodes=((0.5, 0.5, 0.5),), radii=(6.0,),
+                       edges=False)
+    with_pore = build_scene(rutile, ViewSettings(), pores=network)
+    without = build_scene(rutile, ViewSettings())
+    assert (with_pore.bounds()[1] > without.bounds()[1]).any()

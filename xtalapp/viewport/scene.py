@@ -183,6 +183,27 @@ class SceneModel:
     pie_colors: np.ndarray = field(
         default_factory=lambda: _empty(3, np.uint8))            # (F,3)
 
+    # the pore network: where an external porosity run says the pores
+    # are.  Spheres glyphed like atoms and a skeleton tubed like net
+    # edges, because that is exactly what they are -- and because
+    # borrowing both means the renderer, the SVG export and the depth
+    # cue all already know how to draw them.
+    #
+    # Translucent and well under an atom's opacity: the picture is
+    # "this cavity, in this framework", and a solid ball is a picture
+    # of a ball.
+    pore_centres: np.ndarray = field(default_factory=_empty)    # (N,3)
+    pore_radii: np.ndarray = field(
+        default_factory=lambda: np.zeros(0, np.float32))        # (N,)
+    pore_colors: np.ndarray = field(
+        default_factory=lambda: _empty(3, np.uint8))            # (N,3)
+    pore_opacity: float = 0.35
+    pore_edge_starts: np.ndarray = field(default_factory=_empty)
+    pore_edge_ends: np.ndarray = field(default_factory=_empty)
+    pore_edge_colors: np.ndarray = field(
+        default_factory=lambda: _empty(3, np.uint8))
+    pore_edge_radius: float = 0.12
+
     # planes: the geometry the user defined on top of the crystal.
     # Triangles like a polyhedron, because a quad is two of them, plus
     # one line per plane along its normal -- two nearly parallel
@@ -293,6 +314,14 @@ class SceneModel:
                 self.pie_normals @ basis.T)
 
     @property
+    def n_pore_spheres(self) -> int:
+        return len(self.pore_centres)
+
+    @property
+    def n_pore_edges(self) -> int:
+        return len(self.pore_edge_starts)
+
+    @property
     def n_plane_faces(self) -> int:
         return len(self.plane_faces)
 
@@ -314,13 +343,29 @@ class SceneModel:
                               self.cell_ends, self.polyhedron_points,
                               self.topology_starts,
                               self.topology_ends, self.plane_points,
-                              self.normal_ends)
+                              self.normal_ends,
+                              self.pore_edge_starts,
+                              self.pore_edge_ends,
+                              *self._pore_extent())
                   if len(c)]
         if not chunks:
             return np.zeros(3), np.zeros(3)
         stacked = np.vstack(chunks)
         pad = float(self.radii.max()) if len(self.radii) else 0.0
         return stacked.min(axis=0) - pad, stacked.max(axis=0) + pad
+
+    def _pore_extent(self):
+        """A pore sphere's own corners, for :meth:`bounds`.
+
+        Its centre is not enough and the atoms' padding does not
+        cover it: the largest cavity in a framework is tens of
+        Angstrom across where an atom is one, so a camera framed on
+        the centres cuts the ball the picture is about in half.
+        """
+        if not len(self.pore_centres):
+            return ()
+        radii = np.asarray(self.pore_radii, float).reshape(-1, 1)
+        return (self.pore_centres - radii, self.pore_centres + radii)
 
     def center(self) -> np.ndarray:
         lo, hi = self.bounds()

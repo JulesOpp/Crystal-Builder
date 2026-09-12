@@ -283,6 +283,49 @@ def _probes_of(job) -> tuple[float, float, str]:
     return probe, channel, porosity.probe_label(gas, custom)
 
 
+#: What ``-visVoro`` writes.  It is the one flag in this module whose
+#: output name is not ours to choose: it takes no filename and names
+#: six files after the *input* stem, so these follow INPUT_NAME.
+VORO_NAMES = (f"{Path(INPUT_NAME).stem}_voro_accessible.xyz",
+              f"{Path(INPUT_NAME).stem}_voro_accessible.vtk")
+
+
+def _read_network(job, directory: Path, channels, probe: float):
+    """The accessible pore network, as something the viewport can draw.
+
+    Only the *accessible* half is read.  ``-visVoro`` also writes the
+    whole Voronoi diagram and the non-accessible pockets, and neither
+    is what the question was: a node a probe cannot reach is not a
+    pore, and drawing the full diagram over a framework is a picture
+    of the algorithm rather than of the crystal.
+
+    A run that could not be drawn is not a run that failed.  The three
+    diameters are already read and correct, and refusing the whole
+    answer because the drawing is missing would be the tail wagging
+    the dog -- so this says so in the log and hands back ``None``.
+    """
+    nodes, edges = (directory / n for n in VORO_NAMES)
+    if not nodes.is_file():
+        job.note(f"Zeo++ wrote no {nodes.name}, so there is nothing "
+                 f"to draw -- the numbers above are unaffected")
+        return None
+    lattice = job.structure.lattice
+    frac, radii = porosity.parse_voro_nodes(nodes.read_text(), lattice)
+    # The skeleton is optional in a way the nodes are not: without it
+    # the largest pore is still drawn where it sits, which is most of
+    # the answer.
+    segments = {}
+    if edges.is_file():
+        starts, ends = porosity.parse_voro_edges(edges.read_text(),
+                                                 lattice)
+        segments = {"edge_starts": starts, "edge_ends": ends}
+    network = porosity.PoreNetwork(
+        nodes=frac, radii=radii, probe=float(probe),
+        channels=tuple(channels), **segments)
+    job.note(network.summary())
+    return network
+
+
 def _failed(result) -> JobResult | None:
     if result.cancelled:
         return JobResult.stopped(result.message())
@@ -308,7 +351,8 @@ def _keep(directory: Path, job, *names) -> tuple:
                  if (directory / n).is_file())
 
 
-def _answer(job, message: str, report, artifacts) -> JobResult:
+def _answer(job, message: str, report, artifacts,
+            overlay=None) -> JobResult:
     """One result, with the report also written into the log.
 
     The log is what is left after the window has been closed, and a
@@ -318,7 +362,7 @@ def _answer(job, message: str, report, artifacts) -> JobResult:
     job.note("")
     job.note(report.as_text())
     return JobResult(message=message, report=report,
-                     artifacts=artifacts)
+                     artifacts=artifacts, overlay=overlay)
 
 
 # ======================================================================
@@ -342,9 +386,12 @@ def pore_diameters(job) -> JobResult:
         _probe_radius, reach, gas = _probes_of(job)
         job.say(f"Zeo++: pore diameters and channels to {gas}, {said}")
         output, chan = "diameters.res", "channels.chan"
-        result = _run(job, directory, _argv(
-            job, directory, radii,
-            [["-res", output], ["-chan", reach, chan]]))
+        drawing = bool(job.param("draw", True))
+        commands = [["-res", output], ["-chan", reach, chan]]
+        if drawing:
+            commands.append(["-visVoro", reach])
+        result = _run(job, directory,
+                      _argv(job, directory, radii, commands))
         stopped = _failed(result)
         if stopped is not None:
             return stopped
@@ -352,12 +399,16 @@ def pore_diameters(job) -> JobResult:
             _read(directory / output, "diameter"))
         channels = porosity.parse_chan(
             _read(directory / chan, "channel"))
+        network = (_read_network(job, directory, channels, reach)
+                   if drawing else None)
         return _answer(
             job,
             f"{found.summary()}; "
             f"{porosity.dimensionality(channels)}",
             _diameter_report(found, channels, gas, said),
-            _keep(directory, job, output, chan, INPUT_NAME))
+            _keep(directory, job, output, chan, *VORO_NAMES,
+                  INPUT_NAME),
+            overlay=network)
     finally:
         if holder is not None:
             holder.cleanup()
@@ -566,6 +617,14 @@ ZEOPP = Module(
                                "The three diameters do not depend on "
                                "it; the number of channels and their "
                                "dimensionality do."),
+                       Param("draw", "Draw the pore network",
+                             kind="bool", default=True,
+                             help="Put the largest pore and the "
+                                  "channels it belongs to into the "
+                                  "3D view, as well as into the "
+                                  "table.  Zeo++'s -visVoro, over "
+                                  "the decomposition this run has "
+                                  "already paid for."),
                        *_shared()),
                run=pore_diameters),
         Action(name="surface-area", label="Surface area...",

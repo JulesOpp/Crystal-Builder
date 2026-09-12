@@ -73,6 +73,10 @@ class ModuleRunner(QObject):
         # be put back into a geometry it hands over.  See
         # `xtal.modules.job.without_dummies`.
         self._held_dummies = None
+        # The document the run in progress was started from.  Only an
+        # overlay uses it -- see `_draw_module_overlay` for why that
+        # one cannot take the tab that happens to be in front.
+        self._module_document = None
 
     def run_module_action(self, module_name: str,
                           action_name: str) -> None:
@@ -187,6 +191,7 @@ class ModuleRunner(QObject):
         structure, self._held_dummies = (
             without_dummies(document.structure.copy())
             if document is not None else (None, None))
+        self._module_document = document
         job = Job(structure=structure,
                   params=values, folder=folder,
                   label=f"{module.name}.{action.name}")
@@ -252,6 +257,13 @@ class ModuleRunner(QObject):
         self._save_report_images(job, result)
         module_record.close_run(job.folder if job else None, result)
         self._show_report(worker, result)
+        if result.overlay is not None:
+            self._draw_module_overlay(result)
+        # Let go of it here and not in ``_finish_module``, which runs
+        # before the overlay is placed -- and let go at all because it
+        # is a whole Document, and a run against a tab the user then
+        # closes must not keep that tab's structure alive.
+        self._module_document = None
         if result.structure is not None:
             self._adopt_module_structure(worker, result)
         self.window.run_progress.finish()
@@ -270,6 +282,7 @@ class ModuleRunner(QObject):
         to be dismissed before the log can be read.
         """
         _worker, job = self._finish_module()
+        self._module_document = None
         module_record.close_run(job.folder if job else None,
                                 error=message)
         # The previous run's numbers must not sit there under this
@@ -350,6 +363,30 @@ class ModuleRunner(QObject):
             self.window.refresh_workspace()
             self.window.log_dock.poll()
         self.window.modules_dock.refresh()
+
+    def _draw_module_overlay(self, result) -> None:
+        """Draw what the run found, over the structure it ran against.
+
+        **Not the tab that happens to be in front**, which is the rule
+        :meth:`_adopt_module_structure` follows and the one thing an
+        overlay must not.  A structure that is adopted into the wrong
+        document is visibly the wrong crystal; a pore network drawn
+        over the wrong one is a plausible-looking picture of channels
+        that are not there, and nothing on screen says so.  So it goes
+        to the document the run was started from, or nowhere.
+
+        Phase I's redraw rule in the other direction: what is drawn is
+        a function of the run, not of what the window was showing when
+        it finished.
+        """
+        document = self._module_document
+        if document is None or document not in self.window.documents:
+            self.window.show_message(
+                "the run found where the pores are, and there is no "
+                "longer a tab of the structure it measured to draw "
+                "them over")
+            return
+        document.set_pores(result.overlay)
 
     def _adopt_module_structure(self, worker, result) -> None:
         """Take a geometry a module produced, as one undoable edit.

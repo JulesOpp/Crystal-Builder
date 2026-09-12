@@ -196,6 +196,12 @@ def build_actions(window):
         tip="Draw a translucent quad at every plane in the Measure "
             "panel, with its normal on it -- choose rows in that "
             "list to draw only those")
+    add("show_pores", "Pore network",
+        lambda v: window.set_view(show_pores=v), checkable=True,
+        checked=True,
+        tip="Draw what a porosity run found: the largest pore where "
+            "it sits, and the channels it belongs to.  Nothing is "
+            "drawn until Modules > Zeo++ has answered")
     add("show_scale_bar", "Scale bar",
         lambda v: window.set_view(show_scale_bar=v), checkable=True,
         tip="A ruler in the corner, in Angstrom.  It measures the "
@@ -513,7 +519,8 @@ def build_menus(window):
     window.actions_.fill_menu(
         show_menu, ["show_atoms", "show_bonds", "show_bond_orders",
                     "show_topology", "show_cell", "show_planes",
-                    "labels", "show_legend", "show_scale_bar"])
+                    "show_pores", "labels", "show_legend",
+                    "show_scale_bar"])
     view_menu.addSeparator()
     background_menu = view_menu.addMenu("&Background")
     for name in BACKGROUNDS:

@@ -59,6 +59,13 @@ CELL_COLOR = (120, 120, 130)
 TOPOLOGY_RADIUS_FACTOR = 2.4
 TOPOLOGY_OPACITY = 0.55
 
+#: The channel skeleton, relative to a bond.  Thinner than a bond and
+#: much thinner than a net edge: it runs through the empty space
+#: *between* the atoms, so anything stout enough to be mistaken for
+#: chemistry is drawing the wrong thing.  There are also thousands of
+#: segments in a framework where a net has tens.
+PORE_EDGE_FACTOR = 0.7
+
 #: The empty part of a partly occupied site.  A neutral grey and not
 #: the background: a vacancy is something the refinement measured, and
 #: a wedge the colour of the paper reads as a hole in the picture.
@@ -77,7 +84,7 @@ OCCUPANCY_TOL = 1e-3
 
 def build_scene(structure, settings, selection=None,
                 bond_rules=None, view_direction=None,
-                planes=()) -> SceneModel:
+                planes=(), pores=None) -> SceneModel:
     """Build the render model for one structure.
 
     ``selection`` is a :class:`xtal.core.selection.Selection` over P1
@@ -91,6 +98,11 @@ def build_scene(structure, settings, selection=None,
     made about the crystal, it lives on the document beside the
     measurements, and which of them are being shown is the user's
     choice made in the Planes list.
+
+    ``pores`` is a
+    :class:`xtal.analysis.porosity.PoreNetwork` -- what a porosity run
+    found -- and is passed in for the same reason.  It is an external
+    program's measurement *of* the structure, not part of it.
 
     ``view_direction`` is the camera's direction of projection, and is
     used for one thing only: laying the second tube of a bond that has
@@ -150,6 +162,8 @@ def build_scene(structure, settings, selection=None,
            else _Segments().arrays())
     faces = (_emit_planes(planes, cell, lattice, settings)
              if settings.show_planes else _no_planes())
+    pore = (_emit_pores(pores, lattice, settings)
+            if settings.show_pores else _no_pores())
 
     show_atoms = settings.show_atoms and style.radius_factor > 0
     pies = (_emit_pies(cell, drawn, cart)
@@ -200,6 +214,14 @@ def build_scene(structure, settings, selection=None,
         topology_radius=settings.bond_radius * TOPOLOGY_RADIUS_FACTOR,
         topology_color=tuple(settings.topology_color),
         topology_opacity=TOPOLOGY_OPACITY,
+        pore_centres=pore[0],
+        pore_radii=pore[1],
+        pore_colors=pore[2],
+        pore_opacity=settings.pore_opacity,
+        pore_edge_starts=pore[3],
+        pore_edge_ends=pore[4],
+        pore_edge_colors=pore[5],
+        pore_edge_radius=settings.bond_radius * PORE_EDGE_FACTOR,
         plane_points=faces[0],
         plane_faces=faces[1],
         plane_colors=faces[2],
@@ -1173,6 +1195,128 @@ def _emit_topology(structure, cell, drawn, lattice, settings,
                 elif whole:
                     segments.add(start, end, key, selected)
     return segments.arrays(drawn, lattice)
+
+
+# ======================================================================
+#  THE PORE NETWORK
+# ======================================================================
+
+#: How much of a Voronoi node's radius the drawn sphere takes.  A
+#: little under one, so the ball sits *inside* the pore it measures
+#: rather than touching the atoms that bound it -- at exactly the
+#: radius it is tangent to the framework everywhere and reads as a
+#: solid plug rather than as a sphere in a cage.
+PORE_SPHERE_SHRINK = 0.94
+
+
+def _no_pores():
+    return (np.zeros((0, 3), np.float32),
+            np.zeros(0, np.float32),
+            np.zeros((0, 3), np.uint8),
+            np.zeros((0, 3), np.float32),
+            np.zeros((0, 3), np.float32),
+            np.zeros((0, 3), np.uint8))
+
+
+def _emit_pores(network, lattice, settings):
+    """Where the pores are: a sphere at the widest node, and the
+    channel network as a skeleton.
+
+    **One sphere by default and not every node.**  A framework's
+    accessible Voronoi network is hundreds of nodes in one cell and
+    thousands across a display range, and a translucent ball at each
+    of them is a fog that hides the crystal it is about.  The one that
+    is worth drawing is the widest -- twice its radius is D_i, the
+    number in the table beside it -- and the rest of the pore space is
+    said by the skeleton, which is thin enough to see through.
+    ``settings.pore_all_nodes`` draws them all for somebody who wants
+    the fog.
+
+    **The largest *free* sphere is not drawn and cannot be.**  D_f is
+    the width of a bottleneck along an edge, and Zeo++ reports no edge
+    radii, so the honest picture is the largest *included* sphere at
+    its node and the path the free sphere travels along.  See
+    :class:`xtal.analysis.porosity.PoreNetwork`.
+    """
+    if network is None or not network.n_nodes:
+        return _no_pores()
+    shifts = _translations(settings)
+    if not len(shifts):
+        return _no_pores()
+
+    color = np.array(settings.pore_color, np.uint8)
+    if settings.pore_all_nodes:
+        frac, radii = np.asarray(network.nodes), np.asarray(network.radii)
+    else:
+        largest = network.largest()
+        frac = np.asarray(largest[0], float).reshape(1, 3)
+        radii = np.array([largest[1]], float)
+
+    centres, sizes = _repeat_nodes(frac, radii, lattice, settings,
+                                   shifts)
+    starts, ends = _repeat_edges(network, lattice, settings, shifts)
+    return (centres, sizes,
+            np.tile(color, (len(centres), 1)),
+            starts, ends,
+            np.tile(np.array(settings.pore_edge_color, np.uint8),
+                    (len(starts), 1)))
+
+
+def _repeat_nodes(frac, radii, lattice, settings, shifts):
+    """Every node at every translation that puts it in the range.
+
+    The same rule the atoms follow (:func:`_emit_atoms`), because a
+    pore drawn in one cell of a picture showing eight is a picture of
+    a crystal with one pore in it -- with one difference, and it is
+    the difference between a readable picture and a blue fog.
+
+    **The range is half open here and inclusive there.**  An atom at
+    x = 0 is drawn again at x = 1 because that completes the cell
+    face, which is what VESTA does and what a crystallographer
+    expects.  A pore is not a point on a face, it is a *volume*: the
+    largest cavity in MFU-4l is 18.7 A across in a 31 A cell, so a
+    node on a cell edge drawn at both ends of all three axes is the
+    same cavity drawn four times, each copy mostly outside the box and
+    together covering the framework the picture is about.  One image
+    per cell is the whole of what the inclusive rule would have said.
+    """
+    placed = frac[None, :, :] + shifts[:, None, :].astype(float)
+    lo = np.array([r[0] for r in settings.ranges]) - RANGE_TOL
+    hi = np.array([r[1] for r in settings.ranges]) - RANGE_TOL
+    inside = np.all((placed >= lo) & (placed < hi), axis=2)
+    where, node = np.nonzero(inside)
+    if not len(node):
+        return (np.zeros((0, 3), np.float32),
+                np.zeros(0, np.float32))
+    return (lattice.to_cart(placed[where, node]).astype(np.float32),
+            (radii[node] * PORE_SPHERE_SHRINK).astype(np.float32))
+
+
+def _repeat_edges(network, lattice, settings, shifts):
+    """Every segment whose *midpoint* is in the range.
+
+    The midpoint and not both ends, deliberately: a channel is a chain
+    of short segments, and dropping the ones that straddle the
+    boundary would open a gap in the skeleton exactly where the
+    picture is cut, which reads as a channel that stops.
+    """
+    if not network.n_edges:
+        return (np.zeros((0, 3), np.float32),
+                np.zeros((0, 3), np.float32))
+    starts = np.asarray(network.edge_starts, float)
+    ends = np.asarray(network.edge_ends, float)
+    middles = (starts + ends) / 2.0
+    placed = middles[None, :, :] + shifts[:, None, :].astype(float)
+    lo = np.array([r[0] for r in settings.ranges]) - RANGE_TOL
+    hi = np.array([r[1] for r in settings.ranges]) - RANGE_TOL
+    inside = np.all((placed >= lo) & (placed < hi), axis=2)
+    where, edge = np.nonzero(inside)
+    if not len(edge):
+        return (np.zeros((0, 3), np.float32),
+                np.zeros((0, 3), np.float32))
+    offset = shifts[where].astype(float)
+    return (lattice.to_cart(starts[edge] + offset).astype(np.float32),
+            lattice.to_cart(ends[edge] + offset).astype(np.float32))
 
 
 # ======================================================================

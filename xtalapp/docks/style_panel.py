@@ -47,17 +47,20 @@ from xtalapp.viewport import styles
 from xtalapp.viewport.scene import CUE_GRADIENT_MAX, CUE_START_MAX
 from xtalapp.viewport.view_settings import BACKGROUNDS
 
-#: The two flat colours that belong to no element: the net a chemist
-#: drew over the framework, and the planes the user defined.  They are
-#: side by side here because they are the same kind of thing -- a note
-#: about the crystal rather than part of it -- and because the picture
-#: they are chosen against is the same picture.
+#: The flat colours that belong to no element: the net a chemist drew
+#: over the framework, the planes the user defined, and the pore
+#: network a porosity run found.  They are side by side here because
+#: they are the same kind of thing -- a note about the crystal rather
+#: than part of it -- and because the picture they are chosen against
+#: is the same picture.
 FLAT_COLORS = [("topology_color", "Net", "The colour of the topology "
                                          "net drawn over the bonds"),
                ("plane_color", "Planes", "The colour of every plane "
                                          "that has not been given one "
                                          "of its own in the Measure "
-                                         "dock, and of its normal")]
+                                         "dock, and of its normal"),
+               ("pore_color", "Pores", "The colour of the pore "
+                                       "spheres a porosity run drew")]
 
 #: The entry that stands for "none of the four".  A name rather than
 #: ``None``, so that a colour picked through it is a background the
@@ -155,6 +158,16 @@ class StylePanelDock(QDockWidget):
         self.opacity.valueChanged.connect(
             lambda v: self._set(polyhedron_opacity=v / 100.0))
         form.addRow("Polyhedra", self.opacity)
+
+        self.pore_opacity = QSlider(Qt.Horizontal)
+        self.pore_opacity.setRange(5, 100)
+        self.pore_opacity.setToolTip(
+            "How solid the pore spheres and the channel skeleton are "
+            "drawn.  The framework has to stay readable through the "
+            "cavity, which is the point of drawing it there")
+        self.pore_opacity.valueChanged.connect(
+            lambda v: self._set(pore_opacity=v / 100.0))
+        form.addRow("Pores", self.pore_opacity)
 
         self.labels = QComboBox()
         for value, label in LABEL_MODES:
@@ -273,9 +286,21 @@ class StylePanelDock(QDockWidget):
             lambda v: self._set(show_legend=v))
         self.cell_box = QCheckBox("Unit cell")
         self.cell_box.toggled.connect(lambda v: self._set(show_cell=v))
+        # Every accessible Voronoi node rather than only the widest.
+        # Off, and here rather than in the View menu, because it is a
+        # question about how much of a measurement to draw and not
+        # about whether to draw it -- and because what it does to a
+        # framework has to be looked at to be believed.
+        self.pore_nodes = QCheckBox("All pore nodes")
+        self.pore_nodes.setToolTip(
+            "Draw a sphere at every accessible Voronoi node instead "
+            "of only at the widest one.  Hundreds of them in a cell")
+        self.pore_nodes.toggled.connect(
+            lambda v: self._set(pore_all_nodes=v))
         toggles = QHBoxLayout()
         toggles.addWidget(self.legend)
         toggles.addWidget(self.cell_box)
+        toggles.addWidget(self.pore_nodes)
         form.addRow(toggles)
         return form
 
@@ -342,8 +367,10 @@ class StylePanelDock(QDockWidget):
             slider.setEnabled(view.depth_cue)
         for field, button in self.flat.items():
             self._paint(button, getattr(view, field))
+        self.pore_opacity.setValue(round(view.pore_opacity * 100))
         self.legend.setChecked(view.show_legend)
         self.cell_box.setChecked(view.show_cell)
+        self.pore_nodes.setChecked(view.pore_all_nodes)
         self._refreshing = False
         self._fill_elements()
 

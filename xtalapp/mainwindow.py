@@ -1508,6 +1508,8 @@ class MainWindow(QMainWindow):
                                document.view.show_topology),
                               ("show_planes",
                                document.view.show_planes),
+                              ("show_pores",
+                               document.view.show_pores),
                               ("show_scale_bar",
                                document.view.show_scale_bar),
                               ("depth_cue", document.view.depth_cue)):

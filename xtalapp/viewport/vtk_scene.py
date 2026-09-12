@@ -452,6 +452,7 @@ class VtkScene:
         self._build_polyhedron_actor()
         self._build_pie_actor()
         self._build_topology_actor()
+        self._build_pore_actors()
         self._build_plane_actors()
         self._build_cell_actor()
         self._build_highlight_actors()
@@ -767,6 +768,90 @@ class VtkScene:
             float(model.topology_opacity))
         self.topology_actor.SetVisibility(True)
 
+    def _build_pore_actors(self):
+        """Where the pores are: a glyphed sphere and a tube.
+
+        Both borrowed wholesale -- the sphere mapper is the atom
+        actor's and the tube is the net's -- because that is what a
+        pore network is shaped like, and because borrowing means the
+        SVG export already knows how to draw it.
+
+        Their own actors all the same, for the reason the planes have
+        theirs: a pore is an external program's *measurement* of the
+        crystal, not part of it, and sharing an actor would put it
+        under the atom style, the outline and the element colours,
+        none of which it has any business following.
+
+        ``BackfaceCullingOff`` on the sphere: it is translucent and
+        the framework runs through the middle of it, so the inside of
+        the far wall is part of the picture.
+        """
+        self._pore_poly = vtkPolyData()
+        sphere = vtkSphereSource()
+        sphere.SetRadius(1.0)
+        sphere.SetThetaResolution(SPHERE_RESOLUTION)
+        sphere.SetPhiResolution(SPHERE_RESOLUTION)
+        mapper = vtkGlyph3DMapper()
+        mapper.SetSourceConnection(sphere.GetOutputPort())
+        mapper.SetInputData(self._pore_poly)
+        mapper.SetScalarModeToUsePointFieldData()
+        mapper.SetScaleArray("radii")
+        mapper.SetScaleModeToScaleByMagnitude()
+        mapper.SelectColorArray("colors")
+        mapper.SetColorModeToDirectScalars()
+        mapper.ScalarVisibilityOn()
+        self.pore_mapper = mapper
+        self.pore_actor = vtkActor()
+        self.pore_actor.SetMapper(mapper)
+        self.pore_actor.GetProperty().SetSpecular(0.2)
+        self.pore_actor.GetProperty().SetSpecularPower(20)
+        self.pore_actor.GetProperty().BackfaceCullingOff()
+        self.pore_actor.SetVisibility(False)
+        self.renderer.AddActor(self.pore_actor)
+
+        self._pore_edge_poly = vtkPolyData()
+        self._pore_edge_tube = vtkTubeFilter()
+        self._pore_edge_tube.SetInputData(self._pore_edge_poly)
+        self._pore_edge_tube.SetNumberOfSides(TUBE_SIDES)
+        self._pore_edge_tube.CappingOn()
+        edge_mapper = vtkPolyDataMapper()
+        edge_mapper.SetScalarModeToUseCellData()
+        edge_mapper.SetColorModeToDirectScalars()
+        edge_mapper.SetInputConnection(
+            self._pore_edge_tube.GetOutputPort())
+        self.pore_edge_mapper = edge_mapper
+        self.pore_edge_actor = vtkActor()
+        self.pore_edge_actor.SetMapper(edge_mapper)
+        self.pore_edge_actor.GetProperty().SetSpecular(0.1)
+        self.pore_edge_actor.SetVisibility(False)
+        self.renderer.AddActor(self.pore_edge_actor)
+
+    def _set_pores(self, model):
+        poly = vtkPolyData()
+        if model.n_pore_spheres:
+            poly.SetPoints(_points(model.pore_centres))
+            poly.GetPointData().AddArray(
+                _to_float(model.pore_radii, "radii"))
+            poly.GetPointData().AddArray(
+                _to_uchar(model.pore_colors, "colors"))
+        self._pore_poly = poly
+        self.pore_mapper.SetInputData(poly)
+        self.pore_actor.GetProperty().SetOpacity(
+            float(model.pore_opacity))
+        self.pore_actor.SetVisibility(model.n_pore_spheres > 0)
+
+        if not model.n_pore_edges:
+            self.pore_edge_actor.SetVisibility(False)
+            return
+        self._pore_edge_poly = _line_polydata(model.pore_edge_starts,
+                                              model.pore_edge_ends,
+                                              model.pore_edge_colors)
+        self._pore_edge_tube.SetInputData(self._pore_edge_poly)
+        self._pore_edge_tube.SetRadius(float(model.pore_edge_radius))
+        self.pore_edge_actor.GetProperty().SetOpacity(
+            float(model.pore_opacity))
+        self.pore_edge_actor.SetVisibility(True)
+
     def _build_plane_actors(self):
         """The planes the user defined, and their normals.
 
@@ -957,6 +1042,7 @@ class VtkScene:
         self._set_polyhedra(model)
         self._set_pies(model)
         self._set_topology(model)
+        self._set_pores(model)
         self._set_planes(model)
         self._set_cell(model)
         self._set_labels(model)

@@ -216,3 +216,96 @@ def test_a_png_is_its_own_kind_of_artefact():
     it."""
     assert classify("pore-size-distribution.png") == "image"
     assert classify("run.log") == "log"
+
+
+# ------------------------------------------------- the drawn answer
+
+def test_a_run_draws_what_it_found_over_the_structure_it_measured(
+        window, fake_network, rutile_cif, qtbot, default_answers):
+    """The whole reason the entry exists: where the pores are is an
+    answer no table can give."""
+    document = window.open_path(rutile_cif)
+
+    window.run_module_action("zeopp", "diameters")
+    qtbot.waitUntil(lambda: window.module_worker is None, timeout=20000)
+
+    assert document.pores is not None
+    assert document.pores.n_nodes == 6
+    assert "3D" in document.pores.summary()
+
+
+def test_it_is_not_drawn_over_whichever_tab_is_in_front(
+        window, fake_network, rutile_cif, quartz_cif, qtbot,
+        default_answers):
+    """A structure adopted into the wrong document is visibly the
+    wrong crystal.  A pore network drawn over the wrong one is a
+    plausible-looking picture of channels that are not there, and
+    nothing on screen says so."""
+    measured = window.open_path(rutile_cif)
+    window.run_module_action("zeopp", "diameters")
+    other = window.open_path(quartz_cif)
+    assert window.current_document() is other
+
+    qtbot.waitUntil(lambda: window.module_worker is None, timeout=20000)
+    assert measured.pores is not None
+    assert other.pores is None
+
+
+def test_the_drawing_is_not_an_edit(window, fake_network, rutile_cif,
+                                    qtbot, default_answers):
+    """Finding out where the pores are changes nothing about the
+    crystal, so it must not land on the undo stack and must not mark
+    the document modified."""
+    document = window.open_path(rutile_cif)
+
+    window.run_module_action("zeopp", "diameters")
+    qtbot.waitUntil(lambda: window.module_worker is None, timeout=20000)
+
+    assert not document.modified
+    assert not document.stack.can_undo
+
+
+def test_a_pore_network_survives_a_save_and_reopen(
+        window, fake_network, rutile_cif, qtbot, tmp_path,
+        default_answers):
+    """It is written into the project's session, beside the planes."""
+    from xtalapp.document import Document
+
+    document = window.open_path(rutile_cif)
+    window.run_module_action("zeopp", "diameters")
+    qtbot.waitUntil(lambda: window.module_worker is None, timeout=20000)
+    path = document.save(tmp_path / "rutile.xtalproj")
+
+    reopened = Document.load(path)
+    assert reopened.pores is not None
+    assert reopened.pores.n_nodes == document.pores.n_nodes
+    assert reopened.pores.channels[0].dimensionality == 3
+
+
+def test_replacing_the_crystal_drops_the_pores(
+        window, fake_network, rutile_cif, qtbot, default_answers):
+    """A pore network drawn over a different crystal is a lie about
+    where its channels are."""
+    document = window.open_path(rutile_cif)
+    window.run_module_action("zeopp", "diameters")
+    qtbot.waitUntil(lambda: window.module_worker is None, timeout=20000)
+    assert document.pores is not None
+
+    document.set_structure(document.structure.copy())
+    assert document.pores is None
+
+
+def test_editing_the_crystal_drops_the_pores(
+        window, fake_network, rutile_cif, qtbot, default_answers):
+    """A Voronoi decomposition of a particular arrangement of a
+    particular set of atoms is, after one of them moves, a picture of
+    where the channels *were* -- which is the worst kind of wrong,
+    because it still looks like an answer."""
+    document = window.open_path(rutile_cif)
+    window.run_module_action("zeopp", "diameters")
+    qtbot.waitUntil(lambda: window.module_worker is None, timeout=20000)
+    assert document.pores is not None
+
+    document.select([0])
+    document.delete_selection()
+    assert document.pores is None
