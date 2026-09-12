@@ -89,6 +89,20 @@ def test_find_symmetry_dialog_detects_and_tabulates(qtbot,
     assert letters == {"2a", "4f"}
 
 
+def test_find_symmetry_opens_at_a_tenth_of_an_angstrom(
+        qtbot, rutile):
+    """A structure a few hundredths off its group -- anything a force
+    field or a drag has touched -- is found without opening the
+    tolerance box.  At the old 1e-3 this came back Pm."""
+    nudged = symmetry.reduce_to_p1(rutile)
+    nudged.sites[3].frac = nudged.sites[3].frac + [0.004, 0.0, 0.0]
+    nudged.touch()
+    dialog = FindSymmetryDialog(Document(nudged))
+    qtbot.addWidget(dialog)
+    assert dialog.tolerance.currentText() == "0.1"
+    assert dialog.info.number == 136
+
+
 def test_find_symmetry_dialog_follows_the_tolerance(qtbot, rutile):
     """The whole point of the control: change it and the answer
     changes."""

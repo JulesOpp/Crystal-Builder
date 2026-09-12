@@ -37,7 +37,14 @@ from PySide6.QtWidgets import (
 # published CIF resolves at 10^-5, anything that has been through an
 # optimiser needs 10^-3 or looser.
 TOLERANCES = ["1e-5", "1e-4", "1e-3", "1e-2", "0.05", "0.1"]
-DEFAULT_TOLERANCE = "1e-3"
+# The loose end, because the structures this dialog is opened on are
+# rarely refined ones: a framework drawn by hand, dragged, or relaxed
+# by a force field sits a few hundredths of an Angstrom off its group,
+# and at 1e-3 it came back as a subgroup and needed the box opened
+# every time.
+# A published CIF still finds its group here; it is the tighter
+# presets that exist to tell two close groups apart.
+DEFAULT_TOLERANCE = "0.1"
 
 COLUMNS = ["Site", "El", "Wyckoff", "Site symmetry", "Mult"]
 
