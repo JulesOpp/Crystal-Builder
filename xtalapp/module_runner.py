@@ -110,6 +110,8 @@ class ModuleRunner(QObject):
                 "a module is already running -- stop it first")
             return
         available = module.availability()
+        if available:
+            available = action.availability()
         if not available:
             self.window.show_message(available.reason)
             return
@@ -331,8 +333,12 @@ class ModuleRunner(QObject):
         if job is None or job.folder is None or not report:
             return
         written = []
+        from xtalapp.bands import save_bands
+        from xtalapp.widgets.brillouin import save_zone
         plots = ([(h, save_histogram) for h in report.histograms]
-                 + [(c, save_curve) for c in report.curves])
+                 + [(c, save_curve) for c in report.curves]
+                 + [(b, save_bands) for b in report.bands]
+                 + [(z, save_zone) for z in report.zones])
         for index, (block, draw) in enumerate(plots):
             name = safe_name(block.title or f"plot-{index + 1}",
                              f"plot-{index + 1}").lower()

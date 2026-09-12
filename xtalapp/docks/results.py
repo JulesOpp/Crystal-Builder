@@ -48,7 +48,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from xtal.modules.report import Curve, Histogram, Table, is_number
+from xtal.modules.report import (
+    Bands,
+    Curve,
+    Histogram,
+    Table,
+    Zone,
+    is_number,
+)
 from xtalapp.curve import CurvePlot
 from xtalapp.dialogs import pattern as pattern_window
 from xtalapp.histogram import HistogramPlot
@@ -214,6 +221,10 @@ class ResultsDock(QDockWidget):
             return _histogram_widget(block)
         if isinstance(block, Curve):
             return _curve_widget(block, self)
+        if isinstance(block, Bands):
+            return _bands_widget(block)
+        if isinstance(block, Zone):
+            return _zone_widget(block)
         return None                                 # pragma: no cover
 
     def _drop_blocks(self) -> None:
@@ -516,3 +527,91 @@ def _open_pattern(curve: Curve, dock) -> None:
     window.setModal(False)
     window.show()
     window.raise_()
+
+
+def _bands_widget(bands: Bands) -> QWidget:
+    """The band structure, the energy window, and the export.
+
+    The window is two spinboxes rather than a zoom: what a reader
+    changes is which few eV around the gap are shown, and a number
+    typed is a number that can be quoted in a caption.
+    """
+    from PySide6.QtWidgets import QDoubleSpinBox
+
+    from xtalapp.bands import BandsPlot
+
+    box = QWidget()
+    layout = QVBoxLayout(box)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(3)
+    if bands.title:
+        layout.addWidget(QLabel(bands.title))
+    plot = BandsPlot()
+    plot.set_bands(bands)
+    layout.addWidget(plot)
+
+    low, high = QDoubleSpinBox(), QDoubleSpinBox()
+    for spin, value in ((low, bands.window[0]), (high, bands.window[1])):
+        spin.setRange(-200.0, 200.0)
+        spin.setDecimals(1)
+        spin.setSingleStep(0.5)
+        spin.setSuffix(" eV")
+        spin.setValue(value)
+        spin.valueChanged.connect(
+            lambda _v: plot.set_window(low.value(), high.value()))
+    low.setToolTip("Lowest energy shown, relative to the Fermi level")
+    high.setToolTip("Highest energy shown, relative to the Fermi level")
+    export = QPushButton("Export band structure...")
+    export.setToolTip("The numbers as .dat or .csv, or the figure as "
+                      "PNG, SVG or PDF")
+    export.clicked.connect(
+        lambda: _export_bands(bands, plot.energy_window, box))
+    row = QHBoxLayout()
+    row.addWidget(QLabel("From"))
+    row.addWidget(low)
+    row.addWidget(QLabel("to"))
+    row.addWidget(high)
+    row.addStretch(1)
+    row.addWidget(export)
+    layout.addLayout(row)
+    # Held on the box so a test -- and nothing else -- can reach them.
+    box.plot, box.low, box.high, box.export = plot, low, high, export
+    if bands.note:
+        note = QLabel(bands.note)
+        note.setWordWrap(True)
+        note.setStyleSheet("color: palette(mid);")
+        layout.addWidget(note)
+    return box
+
+
+def _export_bands(bands: Bands, window, parent) -> None:
+    from xtalapp.bands import export_figure, figure_formats
+
+    path, chosen = QFileDialog.getSaveFileName(
+        parent, "Export the band structure", "bands.png",
+        figure_formats())
+    if not path:
+        return
+    try:
+        export_figure(bands, path, window)
+    except (OSError, ValueError, ImportError) as exc:
+        QMessageBox.warning(parent, "Export the band structure",
+                            str(exc))
+
+
+def _zone_widget(zone: Zone) -> QWidget:
+    from xtalapp.widgets.brillouin import BrillouinView
+
+    box = QWidget()
+    layout = QVBoxLayout(box)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(3)
+    if zone.title:
+        layout.addWidget(QLabel(zone.title))
+    view = BrillouinView()
+    view.set_lattice(zone.lattice)
+    view.set_path(dict(zone.points), zone.runs)
+    view.setMinimumHeight(260)
+    layout.addWidget(view)
+    box.view = view
+    return box

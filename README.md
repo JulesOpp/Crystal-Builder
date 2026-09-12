@@ -606,6 +606,23 @@ dftb.org, and every element pair present is checked against them
 *before* anything is launched — a missing pair is named here rather
 than several seconds into a subprocess.
 
+What DFTB+ does natively is under *Modules ▸ DFTB+* as well, run in
+one invocation in the run folder with the DFTB+ panel's Hamiltonian.
+*Band structure* converges the charges on a mesh, then asks for the
+eigenvalues along a path through the Brillouin zone.  The path is
+ASE's recommended one for the cell's Bravais lattice, written in *this*
+cell's reciprocal basis, so it needs the `ase` extra.  The dialog
+draws the zone with the path through it and b1 b2 b3 and a b c on it;
+the letters can be edited and the picture follows.  Results shows the
+bands relative to the Fermi level, with an energy window and the gap.
+*Export band structure...* writes `.dat`/`.csv`, or a PNG, SVG or PDF
+figure through matplotlib.  `bands.dat`, `bands.csv` and both pictures
+are also left in the run folder.
+
+```bash
+xtal run dftb.band-structure Si.cif -p path=LGXUG
+```
+
 `xtal run` writes the same run folder the window does, which is what
 makes a run started from a script one the window opens.
 

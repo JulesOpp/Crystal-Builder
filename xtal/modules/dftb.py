@@ -22,7 +22,39 @@ module's docstring for why ``Action.shell`` exists at all.
 
 from __future__ import annotations
 
-from xtal.modules.registry import MODULES, Action, Availability, Module
+from xtal.modules.registry import (
+    MODULES,
+    Action,
+    Availability,
+    Module,
+    Param,
+)
+
+#: The runs themselves import the DFTB+ engine, and the engine imports
+#: this package on its way in -- so they are reached through these
+#: functions at run time, and this module declares their parameters
+#: without importing them.
+
+BAND_PARAMS = (
+    Param("path", "Path", kind="text", default="",
+          help="The corners to visit, as ASE names them: "
+               "'GXWKGLUWLK,UX'.  A comma is a jump.  Empty is ASE's "
+               "recommended path for this cell"),
+    Param("density", "Points per 1/A", kind="float", default=40.0,
+          minimum=2.0, maximum=500.0, step=5.0, decimals=0,
+          help="How finely each segment is sampled"),
+)
+
+
+def _ase() -> Availability:
+    from xtal.analysis import kpath
+    return Availability(kpath.installed(),
+                        "" if kpath.installed() else kpath.MISSING)
+
+
+def _band_structure(job):
+    from xtal.modules.dftb_runs import bands
+    return bands.band_structure(job)
 
 
 def _available() -> Availability:
@@ -57,6 +89,11 @@ DFTB = Module(
         Action(name="optimise", label="Optimise geometry",
                tip="Relax the structure within its space group",
                shell="dftb_optimize", kind="optimise"),
+        Action(name="band-structure", label="Band structure...",
+               tip="Eigenvalues along a path through the Brillouin "
+                   "zone, from charges converged on a mesh",
+               params=BAND_PARAMS, run=_band_structure,
+               dialog="band-structure", kind="bands", check=_ase),
     ),
 )
 

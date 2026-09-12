@@ -661,7 +661,8 @@ def module_action(window, module, action):
     if action.shell and action.shell in window.actions_:
         return window.actions_[action.shell]
     name = f"module.{module.name}.{action.name}"
-    window._module_actions.append((name, action.needs_structure))
+    window._module_actions.append((name, action.needs_structure,
+                                   action))
     if name not in window.actions_:
         window.actions_.add(
             name, action.label,

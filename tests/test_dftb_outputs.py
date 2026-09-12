@@ -209,3 +209,13 @@ def test_a_cube_is_read_first_axis_slowest_in_angstrom():
     assert list(cube.numbers) == [14, 14]
     assert cube.points()[-1] == pytest.approx(
         [outputs.BOHR, 2 * outputs.BOHR, 2 * outputs.BOHR])
+
+
+def test_dftb3_names_every_element_under_hubbard_derivs():
+    """DFTB+ halts on a HubbardDerivs block missing an element present,
+    so one 3ob publishes nothing for is written as zero -- second
+    order, which is what the calculator's warning says it gets."""
+    text = hsd.hsd_string(["Si", "O"], DFTBOptions(method="dftb3"))
+    block = text.split("HubbardDerivs {")[1].split("}")[0]
+    assert "O = -0.1575" in block
+    assert "Si = 0.0" in block

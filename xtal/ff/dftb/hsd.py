@@ -232,9 +232,13 @@ def _hamiltonian(symbols, options, prefix, read_charges, k_points,
         out += ["  ThirdOrderFull = Yes",
                 "  HubbardDerivs {"]
         for symbol in sorted(set(symbols)):
-            value = params.HUBBARD_DERIVS.get(symbol)
-            if value is not None:
-                out.append(f"    {symbol} = {value}")
+            # Zero for an element 3ob publishes no derivative for, which
+            # is what treating it at second order means -- and what the
+            # calculator's warning says happens.  Leaving the element
+            # out is not the same thing: DFTB+ halts on the missing
+            # child before it reads anything else.
+            value = params.HUBBARD_DERIVS.get(symbol, 0.0)
+            out.append(f"    {symbol} = {value}")
         out += ["  }",
                 "  HCorrection = Damping { Exponent = 4.05 }"]
     if options.charge:

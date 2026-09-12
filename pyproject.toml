@@ -127,8 +127,8 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
             # cannot import `xtal.ff` at all.
             "xtal.ff.uff", "xtal.ff.dftb", "xtal.ff.xtb",
             "xtal.ff.mace",
-            "xtal.modules", "xtal.analysis", "xtal.mof",
-            "xtal.mof.pormake",
+            "xtal.modules", "xtal.modules.dftb_runs", "xtal.analysis",
+            "xtal.mof", "xtal.mof.pormake",
             "xtal.build", "xtal.build.data",
             "xtalapp", "xtalapp.viewport", "xtalapp.docks",
             "xtalapp.dialogs", "xtalapp.widgets"]

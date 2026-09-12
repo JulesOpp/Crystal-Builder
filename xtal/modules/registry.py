@@ -137,6 +137,21 @@ class Action:
     #: STL is the one, and :func:`xtal.core.cellcut.cut_cell` is where
     #: the markers are left out.
     keeps_markers: bool = False
+    #: Whether *this entry* can run, over and above its module --
+    #: for an entry that needs an extra the rest of the module does
+    #: not.  A band structure needs ASE to know where the special
+    #: points are; DFTB+'s single point does not, and greying the
+    #: whole module for it would hide what works.  ``find_spec``, not
+    #: an import: it is asked every time the menu is refreshed.
+    check: Callable[[], Availability] | None = None
+
+    def availability(self) -> Availability:
+        if self.check is None:
+            return Availability(True)
+        try:
+            return self.check()
+        except Exception as exc:                    # noqa: BLE001
+            return Availability(False, str(exc))
 
     def __post_init__(self):
         if self.run is None and not self.shell:

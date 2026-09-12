@@ -1568,9 +1568,15 @@ class MainWindow(QMainWindow):
         asks which.
         """
         idle = self.module_worker is None
-        for name, needs_structure in self._module_actions:
+        for name, needs_structure, action in self._module_actions:
+            available = action.availability()
             self.actions_.set_enabled(
-                [name], idle and (editable or not needs_structure))
+                [name], idle and bool(available)
+                and (editable or not needs_structure))
+            if not available:
+                self.actions_[name].setToolTip(available.reason)
+            elif action.tip:
+                self.actions_[name].setToolTip(action.tip)
         self.actions_.set_enabled(["export_stl"], idle and editable)
 
     def _rebuild_recent_menu(self) -> None:

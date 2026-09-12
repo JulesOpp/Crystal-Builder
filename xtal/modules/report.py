@@ -329,11 +329,119 @@ class Curve:
 
 
 @dataclass(frozen=True)
+class Bands:
+    """A band structure: energies along a path through the zone.
+
+    The fourth block, earned by DFTB+.  Not a curve with many series:
+    its x axis is a distance along a path with named corners, the
+    energies are relative to a Fermi level that has to be drawn, and
+    which window of energy is worth looking at is the reader's choice
+    rather than the data's -- a hundred bands of which eight are near
+    the gap.
+
+    ``energies[spin, k, band]`` in eV relative to ``fermi``'s own zero,
+    so ``fermi`` records where zero was and the plot draws its line at
+    zero.  ``ticks`` are ``(x, label)`` at the named points.
+    """
+
+    title: str = ""
+    x: np.ndarray = field(default_factory=lambda: np.zeros(0))
+    energies: np.ndarray = field(
+        default_factory=lambda: np.zeros((1, 0, 0)))
+    ticks: tuple = ()
+    fermi: float = 0.0
+    window: tuple = (-6.0, 6.0)
+    note: str = ""
+    #: Fractional k per point, for the exported table.
+    kpoints: np.ndarray | None = None
+
+    def gap(self) -> tuple[float, float] | None:
+        """``(highest occupied, lowest empty)`` in eV relative to the
+        Fermi level, or ``None`` when a band crosses it -- a metal."""
+        below = self.energies[self.energies <= 0.0]
+        above = self.energies[self.energies > 0.0]
+        if not len(below) or not len(above):
+            return None
+        top, bottom = float(below.max()), float(above.min())
+        crossing = np.any((self.energies.min(axis=1) < 0.0)
+                          & (self.energies.max(axis=1) > 0.0))
+        return None if crossing else (top, bottom)
+
+    def as_text(self) -> str:
+        spins, n_k, n_bands = self.energies.shape
+        lines = [self.title] if self.title else []
+        lines.append(f"{n_bands} bands at {n_k} k-points"
+                     + (f", {spins} spins" if spins > 1 else "")
+                     + f"; Fermi level {self.fermi:.3f} eV")
+        gap = self.gap()
+        lines.append("no gap: a band crosses the Fermi level"
+                     if gap is None
+                     else f"gap {gap[1] - gap[0]:.3f} eV")
+        lines.append("path " + " ".join(label for _x, label
+                                        in self.ticks))
+        return "\n".join(lines)
+
+    def as_dat(self) -> str:
+        """``x  k1 k2 k3  E1 ... En`` per k-point, per spin block."""
+        rows = []
+        head = "# x(1/A)" + ("  k1 k2 k3" if self.kpoints is not None
+                             else "") + "  energies (eV, E_F = 0)"
+        rows.append(head)
+        rows.append("# ticks: " + "  ".join(
+            f"{x:.5f}={label}" for x, label in self.ticks))
+        for spin in range(self.energies.shape[0]):
+            if spin:
+                rows.append("")
+            for k, x in enumerate(self.x):
+                parts = [f"{x:.6f}"]
+                if self.kpoints is not None:
+                    parts += [f"{v:.6f}" for v in self.kpoints[k]]
+                parts += [f"{e:.5f}" for e in self.energies[spin, k]]
+                rows.append("  ".join(parts))
+        return "\n".join(rows) + "\n"
+
+    def as_csv(self) -> str:
+        out = io.StringIO()
+        writer = csv.writer(out, lineterminator="\n")
+        n_bands = self.energies.shape[2]
+        writer.writerow(["spin", "x"] + [f"band{b + 1}"
+                                         for b in range(n_bands)])
+        for spin in range(self.energies.shape[0]):
+            for k, x in enumerate(self.x):
+                writer.writerow([spin + 1, f"{x:.6f}"]
+                                + [f"{e:.5f}"
+                                   for e in self.energies[spin, k]])
+        return out.getvalue()
+
+
+@dataclass(frozen=True)
+class Zone:
+    """The first Brillouin zone of a cell, with a path through it.
+
+    Drawn so that the letters on a band structure's axis mean
+    something: which corner Gamma, X and L are, and which way the path
+    runs.  ``lattice`` is the real-space matrix, from which the panel
+    works out the zone (:func:`xtal.analysis.kpath.brillouin_zone`) --
+    the block holds what was run, not a picture of it.
+    """
+
+    title: str = ""
+    lattice: np.ndarray = field(default_factory=lambda: np.eye(3))
+    points: tuple = ()              # (label, (k1, k2, k3)) fractional
+    runs: tuple = ()                # runs of labels, as a BandPath
+
+    def as_text(self) -> str:
+        path = ",".join("".join(run) for run in self.runs)
+        return f"{self.title}\npath {path}" if self.title \
+            else f"path {path}"
+
+
+@dataclass(frozen=True)
 class Report:
     """Everything one run is worth showing, in the order to show it."""
 
     title: str = ""
-    blocks: tuple = ()              # Table | Histogram | Curve
+    blocks: tuple = ()      # Table | Histogram | Curve | Bands | Zone
     note: str = ""
 
     @property
@@ -347,6 +455,14 @@ class Report:
     @property
     def curves(self) -> list[Curve]:
         return [b for b in self.blocks if isinstance(b, Curve)]
+
+    @property
+    def bands(self) -> list[Bands]:
+        return [b for b in self.blocks if isinstance(b, Bands)]
+
+    @property
+    def zones(self) -> list[Zone]:
+        return [b for b in self.blocks if isinstance(b, Zone)]
 
     def __bool__(self) -> bool:
         return bool(self.blocks)
