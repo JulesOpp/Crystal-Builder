@@ -162,6 +162,11 @@ class _PathEdit(QWidget):
     def __init__(self, param, parent=None):
         super().__init__(parent)
         self.param = param
+        #: Browse asks for a file to *write* rather than one to read.
+        #: A dialog that owns the form sets it; the declaration cannot,
+        #: because a path is a path to :mod:`xtal.params`.
+        self.save = False
+        self.filter = ""
         self.edit = QLineEdit(str(param.default_value()))
         button = QPushButton("Browse...")
         button.clicked.connect(self._browse)
@@ -171,8 +176,10 @@ class _PathEdit(QWidget):
         layout.addWidget(button)
 
     def _browse(self) -> None:                      # pragma: no cover
-        chosen = QFileDialog.getOpenFileName(
-            self, self.param.title, self.edit.text())[0]
+        ask = (QFileDialog.getSaveFileName if self.save
+               else QFileDialog.getOpenFileName)
+        chosen = ask(self, self.param.title, self.edit.text(),
+                     self.filter)[0]
         if chosen:
             self.edit.setText(chosen)
 
@@ -262,6 +269,7 @@ class ModuleDialog(QDialog):
         # does and the difference matters when the thing it starts
         # takes an hour.
         buttons.button(QDialogButtonBox.Ok).setText("Run")
+        self.buttons = buttons
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
 

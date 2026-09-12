@@ -84,7 +84,7 @@ rather than something two files happen to produce.
 
 | # | Menu | What is in it |
 |---|---|---|
-| 1 | File | new/open/samples, save file, export, workspaces, close, close all, recent, preferences, quit |
+| 1 | File | new/open/samples, save file, export, export as STL, workspaces, close, close all, recent, preferences, quit |
 | 2 | Edit | undo/redo, clipboard, delete, change element |
 | 3 | Select | all/none/invert, same element, by element, grow |
 | 4 | Structure | add atom/centroid/hydrogens/molecule, fill pores, mark connection points, bonds, bond type, **and the six mouse modes** |

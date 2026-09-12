@@ -348,6 +348,11 @@ class MainWindow(QMainWindow):
     def export_image(self) -> None:
         self.document_set.export_image()
 
+    def export_stl(self) -> None:
+        """A module run, reached from File because that is where an
+        export is looked for.  See :mod:`xtal.modules.blender`."""
+        self.run_module_action("blender", "export-stl")
+
     def close_current(self) -> None:
         self.document_set.close_current()
 
@@ -1566,6 +1571,7 @@ class MainWindow(QMainWindow):
         for name, needs_structure in self._module_actions:
             self.actions_.set_enabled(
                 [name], idle and (editable or not needs_structure))
+        self.actions_.set_enabled(["export_stl"], idle and editable)
 
     def _rebuild_recent_menu(self) -> None:
         self.recent_menu.clear()

@@ -141,6 +141,11 @@ class Program:
     env_var: str = ""               # "XTAL_DFTB"
     url: str = ""                   # where to get it
     setting: str = ""               # the preference that names a path
+    #: Where an ordinary install puts it, tried after PATH.  Blender on
+    #: macOS is an application bundle whose binary is on nobody's
+    #: PATH, and a program that is installed and cannot be found is
+    #: the state a user is least able to diagnose.
+    known: tuple = ()
 
     @property
     def title(self) -> str:
@@ -172,6 +177,7 @@ class Program:
         if self.env_var and os.environ.get(self.env_var):
             yield os.environ[self.env_var]
         yield self.name
+        yield from self.known
 
     def search(self, hint=None) -> tuple:
         """Every place that would be looked, and what is there.
@@ -194,6 +200,8 @@ class Program:
             out.append((self.env_var, value,
                         _executable(value) if value else None))
         out.append(("PATH", self.name, _executable(self.name)))
+        for candidate in self.known:
+            out.append(("known", candidate, _executable(candidate)))
         return tuple(out)
 
     def resolve(self, hint=None) -> Path:

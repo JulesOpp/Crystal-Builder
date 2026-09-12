@@ -1,6 +1,5 @@
 # TODO
 # In the DFTB+ module, add options to calculate band structures, plot them, and export the band structures. Present me some options for other functionality of DFTB+ that we can wrap into this app. I want to also show the unit cell so the user knows what the gamma point, x point, etc are.
-# In resources/ there is a python script called pdb_to_printable_stl.py, this script will use Blender to convert a .pdb file to a .stl file. Let's implement a similar code in the app, given as an option as File->Export as .stl. Here convert truncate the structure to a single non-periodic unit cell, and keep all of the bonding information during the export to .pdb, then convert to .stl using Blender. We need to as Blender as an External Tool in Preferences. My Blender is pathed to /Applications/Blender.app/Contents/MacOS/Blender
 
 Work that is wanted but not yet scheduled into a phase.
 [docs/PLAN.md](PLAN.md) holds the roadmap; this file holds everything

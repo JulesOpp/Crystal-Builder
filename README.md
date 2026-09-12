@@ -391,6 +391,22 @@ deleted, so none of the three goes in a file for somebody else.  It
 says both that and what the format drops before it writes ("XYZ keeps
 occupancy; symmetry, bonds and charges are not written").
 
+*File → Export as STL* makes a 3D-printable model of one unit cell.
+The cell is cut out with its face and corner atoms and the bonds the
+document has -- suppressed bonds stay gone, markers and net edges are
+left out -- and, if you ask, the atom at the far end of every bond
+that leaves the cell is brought in so a linker prints with both ends.
+Blender does the meshing: the cut goes to it as a PDB with a CONECT
+record per bond, the Atomic Blender add-on imports balls and sticks,
+and a voxel remesh welds them into one watertight solid.  Point
+*Preferences ▸ External tools ▸ Blender* at the binary if it is not
+on PATH (`/Applications/Blender.app` is looked in on its own).  The
+dialog has the ball, hydrogen and stick sizes, the voxel size and
+triangle budget of the remesh, and the size of the longest side in
+millimetres; it runs like any module, with its PDB, log and STL in a
+run folder and a Stop that reaches Blender.  MOF-5 takes about eight
+seconds.
+
 **All the work is in a workspace, and it asks which one.**  The
 application opens on a list of recent workspaces with the last one
 already selected, so Return is the whole answer for somebody who has

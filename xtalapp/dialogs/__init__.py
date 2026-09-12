@@ -36,6 +36,7 @@ _BY_NAME = {
     "build-insert": ("xtalapp.dialogs.build_molecule",
                      "BuildMoleculeDialog"),
     "net-draw": ("xtalapp.dialogs.net_draw", "NetDrawDialog"),
+    "stl-export": ("xtalapp.dialogs.stl_export", "StlExportDialog"),
 }
 
 

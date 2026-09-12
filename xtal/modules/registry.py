@@ -127,6 +127,16 @@ class Action:
     #: Whether it needs a structure open.  Everything does today; a
     #: module that fetches or builds one would not.
     needs_structure: bool = True
+    #: Whether the dummy atoms are handed over with the structure.  No,
+    #: for everything that reasons chemically -- see
+    #: :func:`xtal.modules.job.without_dummies`.  Yes for an action
+    #: that only *reads the bonding* and drops the markers itself:
+    #: taking marker sites out renumbers the stored bonds and
+    #: invalidates the perceived graph, so what it read would be the
+    #: bonding perceived afresh rather than the document's.  Export as
+    #: STL is the one, and :func:`xtal.core.cellcut.cut_cell` is where
+    #: the markers are left out.
+    keeps_markers: bool = False
 
     def __post_init__(self):
         if self.run is None and not self.shell:

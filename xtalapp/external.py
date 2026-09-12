@@ -41,11 +41,12 @@ from pathlib import Path
 from xtal.ff.dftb import calculator as dftb
 from xtal.ff.dftb import hsd
 from xtal.ff.xtb import calculator as xtb
-from xtal.modules import process, zeopp
+from xtal.modules import blender, process, zeopp
 
 #: The programs whose location is a preference.  The list is read
 #: from the modules themselves so that ``setting`` is written once.
-PROGRAMS = (zeopp.PROGRAM, dftb.PROGRAM, *xtb.PROGRAMS)
+PROGRAMS = (zeopp.PROGRAM, dftb.PROGRAM, *xtb.PROGRAMS,
+            blender.PROGRAM)
 
 #: Where the Slater-Koster parameter directory is remembered.  Not a
 #: :class:`~xtal.modules.process.Program` -- it is a folder of ``.skf``
@@ -94,6 +95,10 @@ TOOLS = (
     Tool("tools/xtb", "xTB (xtb)", "file",
          "The whole GFN family.  Needed for GFN-FF, which tblite does "
          "not implement."),
+    Tool("tools/blender", "Blender", "file",
+         "File > Export as STL, which turns one cell into a printable "
+         "mesh.  It needs the Atomic Blender add-on: Blender 3.x ships "
+         "it, 4.2 and later offer it under Get Extensions."),
     Tool(SLATER_KOSTER, "Slater-Koster parameters", "folder",
          "The folder of .skf files DFTB+ needs -- a separate download "
          "from dftb.org.  This is the starting value of the run "
@@ -166,6 +171,8 @@ def _source(source: str) -> str:
         return "the path set here"
     if source == "PATH":
         return "on PATH"
+    if source == "known":
+        return "where it is usually installed"
     return f"named by {source}"
 
 
@@ -174,6 +181,8 @@ def _missing(source: str, candidate: str) -> str:
         return f"at {candidate}, which is set here"
     if source == "PATH":
         return "on PATH"
+    if source == "known":
+        return f"at {candidate}"
     return (f"at {source}, which is not set" if not candidate
             else f"at {source} ({candidate})")
 

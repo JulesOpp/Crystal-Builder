@@ -188,9 +188,14 @@ class ModuleRunner(QObject):
         # force-field type and no radius a porosity code knows, and
         # one in the cell is enough to fail a Zeo++ run outright.
         # They are put back if the module hands a geometry back.
-        structure, self._held_dummies = (
-            without_dummies(document.structure.copy())
-            if document is not None else (None, None))
+        if document is None:
+            structure, self._held_dummies = None, None
+        elif action.keeps_markers:
+            structure, self._held_dummies = \
+                document.structure.copy(), None
+        else:
+            structure, self._held_dummies = without_dummies(
+                document.structure.copy())
         self._module_document = document
         job = Job(structure=structure,
                   params=values, folder=folder,

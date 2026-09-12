@@ -147,6 +147,9 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
 # and read through importlib.resources so a wheel and a source
 # checkout are the same case.
 "xtal.build.data" = ["*.json"]
+# The script Blender runs for Export as STL.  Handed to Blender by
+# path, so it has to be a file on disk in the installed package.
+"xtal.modules" = ["data/*.py"]
 # PORMAKE's nets and building blocks, vendored with it.  Not optional
 # by the same argument: a topology picker with nothing in it is not a
 # smaller MOF builder, it is a broken one, and there is no second
@@ -244,7 +247,11 @@ line-length = 79
 # numbers `xtal/build/topology.py` inherited from it (scale 8, eight
 # beads, occupancy 0.1), and reformatting a record is how it stops
 # being one.  Nothing imports it and nothing runs it.
-extend-exclude = ["xtal/mof/pormake", "resources/topo/Top2Cif.py"]
+# Blender's side of Export as STL, which Blender runs and nothing here
+# imports: the author's own tool, shipped unchanged so that it stays
+# the same script they maintain -- `xtal/modules/blender.py`.
+extend-exclude = ["xtal/mof/pormake", "resources/topo/Top2Cif.py",
+                  "xtal/modules/data/pdb_to_printable_stl.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]

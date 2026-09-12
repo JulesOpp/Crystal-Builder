@@ -101,6 +101,10 @@ def build_actions(window):
         tip="Write a file for something else to read -- a CIF, an "
             "XYZ.  One way: it never becomes this document's file")
     add("export_image", "Export &Image...", window.export_image)
+    add("export_stl", "Export as S&TL...", window.export_stl,
+        tip="One unit cell with its bonds, as a mesh a 3D printer can "
+            "take.  Blender does the meshing, so it has to be "
+            "installed -- see Preferences > External tools")
     add("open_workspace", "&Open Workspace...",
         window.open_workspace_dialog,
         tip="A folder that structures and their calculations live "
@@ -463,7 +467,7 @@ def build_menus(window):
     build_sample_menu(window)
     window.actions_.fill_menu(file_menu, [
         None, "save", "save_as",
-        None, "export", "export_image",
+        None, "export", "export_image", "export_stl",
         "save_building_block",
         None, "new_workspace", "open_workspace",
         None, "close_tab", "close_all_tabs"])
