@@ -104,6 +104,40 @@ def test_mof5_gets_the_node_uff4mof_was_written_for():
     assert "O_3_f" in types["O"]
 
 
+def test_plain_uff_types_mof5_without_a_single_uff4mof_row():
+    """The parameter set is how somebody checks a UFF4MOF number
+    against the field it extends.  If one fitted row slipped through
+    -- the node oxide, which a hand-written rule and not the table
+    hands out, is the likely one -- the comparison would be between
+    two answers that are both UFF4MOF."""
+    structure = sample("MOF-5")
+    names = set(typer.assign(structure, parameter_set="uff").names)
+    assert not names & params.UFF4MOF_TYPES
+    cell = p1.expand(structure)
+    zinc = {n for e, n in zip(cell.elements, typer.assign(
+        structure, parameter_set="uff").names, strict=True) if e == "Zn"}
+    assert zinc == {"Zn3+2"}
+
+
+def test_plain_uff_costs_a_paddlewheel_its_square_planar_copper():
+    """``Cu4+2`` has no ``f`` in its name and is UFF4MOF's all the
+    same, so a filter on ``is_fitted`` alone would have kept it."""
+    structure = sample("HKUST1")
+    cell = p1.expand(structure)
+    names = typer.assign(structure, parameter_set="uff").names
+    assert {n for e, n in zip(cell.elements, names, strict=True)
+            if e == "Cu"} == {"Cu3+1"}
+
+
+def test_the_calculator_types_with_the_set_it_was_given():
+    from xtal.ff.uff.calculator import UFFCalculator, UFFOptions
+    structure = sample("MOF-5")
+    plain = UFFCalculator(structure, UFFOptions(parameter_set="uff"))
+    assert "Zn3f2" not in plain.types
+    assert "Zn3f2" in UFFCalculator(structure).types
+    assert plain.options.to_dict()["parameter_set"] == "uff"
+
+
 def test_the_hkust1_paddlewheel_copper_is_square_planar():
     """UFF gives copper one type, ``Cu3+1``, and it is tetrahedral.
     The paddlewheel is not, and taking the tetrahedral row for it is

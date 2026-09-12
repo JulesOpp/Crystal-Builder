@@ -1420,23 +1420,25 @@ class Document(QObject):
     # every one of these is callable with no window, which is what
     # keeps the Force Field panel a set of widgets and nothing more.
 
-    def atom_types(self):
+    def atom_types(self, parameter_set: str | None = None):
         """The force field's reading of every atom, with reasons.
 
         Memoised on the structure, so the panel may call it whenever it
         redraws.
         """
-        from xtal.ff.uff import typer
-        return typer.assign(self._structure)
+        from xtal.ff.uff import params, typer
+        return typer.assign(
+            self._structure,
+            parameter_set=parameter_set or params.DEFAULT_PARAMETER_SET)
 
-    def site_types(self) -> list:
+    def site_types(self, parameter_set: str | None = None) -> list:
         """One ``(site index, AtomType, multiplicity)`` per site.
 
         The table shows sites rather than cell atoms because an
         override is stored on a site and applies to its whole orbit --
         a per-atom table would offer edits it could not honour.
         """
-        typing = self.atom_types()
+        typing = self.atom_types(parameter_set)
         cell = self.cell
         out = []
         for index in range(self._structure.n_sites):

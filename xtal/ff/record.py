@@ -86,7 +86,9 @@ class RunRecorder:
 
         log = self.log
         try:
-            typing = typer.assign(self.structure)
+            typing = typer.assign(
+                self.structure, parameter_set=self.options.get(
+                    "parameter_set", typer.params.DEFAULT_PARAMETER_SET))
         except Exception as exc:                    # noqa: BLE001
             log.write(f"atom types: could not be assigned ({exc})")
             log.blank()

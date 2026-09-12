@@ -415,6 +415,21 @@ CIF's own bond loop, so opening that node tomorrow gives back the
 picture the builder produced.  Open the same file in anything else and
 it is an ordinary CIF.
 
+**Mark connection points** (Structure menu) is how a molecule becomes
+a building block.  A PORMAKE block is joined to its neighbours at
+dummy `X` atoms that sit 0.75 A from the atom they hang off -- the
+median over the 867 blocks PORMAKE ships, and not a bond length.  So:
+build or insert the linker, select the atoms that stand where the next
+block will attach (each must have exactly one bond, which is what says
+which way the joint points -- usually a terminal H, or the O of a
+carboxylic acid), and *Mark connection points* turns each into an `X`
+pulled in to 0.75 A along that bond, the whole symmetry orbit at once,
+as one undo step.  There is no un-mark: an `X` does not remember what
+it was, so the way back is `Ctrl+Z`.  *Save as a building block...*
+then writes the `.xyz` PORMAKE reads, and the MOF builder offers it.
+Force fields, Add hydrogens and module runs all set the `X` atoms
+aside, as they do any other marker.
+
 **A building block you draw goes there too.**  *Draw...* on a slot row
 of the MOF builder writes into `blocks/` in the workspace, which the
 builder then reads alongside PORMAKE's own 867 -- so a linker you
@@ -472,6 +487,14 @@ typer was, and the sentence explaining why it chose that one --
 framework oxygen", "6 neighbours, which no Zn type in UFF was fitted
 for".  Any of them can be overridden from a drop-down of that
 element's types, and the override travels with the structure.
+
+*Parameters* chooses between **UFF4MOF**, the default, and plain
+**UFF**.  UFF4MOF (Addicoat et al. 2014, and UFF4MOF-II, 2016) adds
+ninety-one rows fitted to the metal nodes of frameworks -- a
+square-planar paddlewheel copper, the Zn4O node of MOF-5 -- and types
+everything that is not such a node exactly as UFF does.  Its rows are
+marked "(UFF4MOF)" in the table.  Plain UFF never hands one out, which
+is how to see what they change.
 
 *Single point* gives the energy broken down by term, which is what
 tells a strained crystal from a mistyped atom.  *Optimise* relaxes the

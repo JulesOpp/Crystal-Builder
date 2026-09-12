@@ -54,11 +54,13 @@ class UFFOptions:
     vdw_cutoff: float = DEFAULT_VDW_CUTOFF
     skin: float = DEFAULT_SKIN
     ewald_accuracy: float = ewald.DEFAULT_ACCURACY
+    parameter_set: str = params.DEFAULT_PARAMETER_SET
 
     def to_dict(self) -> dict:
         return {"coulomb": self.coulomb, "charges": self.charges,
                 "dielectric": self.dielectric, "vdw": self.vdw,
-                "vdw_cutoff": self.vdw_cutoff}
+                "vdw_cutoff": self.vdw_cutoff,
+                "parameter_set": self.parameter_set}
 
 
 @dataclass
@@ -102,7 +104,8 @@ class UFFCalculator(Calculator):
             raise CalculatorError(
                 "there are no atoms to compute an energy for")
         self.graph = bonding.graph(structure, rules)
-        self.typing = typer.assign(structure, rules)
+        self.typing = typer.assign(structure, rules,
+                                   self.options.parameter_set)
         self.warnings: list[str] = []
 
         self._adjacency = _adjacency(self.graph)

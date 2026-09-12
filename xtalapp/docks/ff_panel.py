@@ -120,11 +120,18 @@ REDRAW_RATES = (
 
 
 def _describe(name: str) -> str:
-    """The type in words, or nothing if it is not a type we know."""
+    """The type in words, or nothing if it is not a type we know.
+
+    A UFF4MOF row says so, because ``Cu4+2`` and ``O_3_f`` carry no
+    ``f`` in the name and would otherwise read as Rappe's own.
+    """
     try:
-        return params.get(name).description
+        description = params.get(name).description
     except KeyError:                                # pragma: no cover
         return ""
+    if name in params.UFF4MOF_TYPES:
+        description += " (UFF4MOF)"
+    return description
 
 
 def _offer(name: str) -> str:
@@ -193,6 +200,18 @@ class ForceFieldDock(QDockWidget):
         self.engine_note.setWordWrap(True)
         self.engine_note.setStyleSheet("color: palette(mid);")
 
+        # UFF4MOF was always on and nothing said so.  Offered so a
+        # number can be checked against the field it extends, and so
+        # the table's "framework-fitted" is visibly a choice.
+        self.parameter_set = QComboBox()
+        for value, label in params.PARAMETER_SETS:
+            self.parameter_set.addItem(label, value)
+        self.parameter_set.setToolTip(
+            "UFF4MOF adds rows fitted to metal nodes in frameworks and "
+            "types everything else exactly as UFF does.  Plain UFF "
+            "never uses them, which is how to see what they change")
+        self.parameter_set.currentIndexChanged.connect(
+            lambda _index: self.refresh())
         self.coulomb = QCheckBox("Include electrostatics")
         self.coulomb.setToolTip(
             "Off by default, as in UFF itself: the published "
@@ -321,12 +340,13 @@ class ForceFieldDock(QDockWidget):
         setup = QFormLayout()
         setup.setContentsMargins(0, 0, 0, 0)
         setup.addRow("Force field", self.engine)
+        setup.addRow("Parameters", self.parameter_set)
         setup.addRow(self.coulomb)
         setup.addRow("Charges", self.charges)
         setup.addRow("van der Waals cutoff", self.vdw_cutoff)
         setup.addRow("Pair list skin", self.skin)
-        self.uff_rows = (self.coulomb, self.charges, self.vdw_cutoff,
-                         self.skin)
+        self.uff_rows = (self.parameter_set, self.coulomb, self.charges,
+                         self.vdw_cutoff, self.skin)
         if len(self.engines) <= 1:
             # Nothing to choose between, so the row that would do the
             # choosing is one more thing standing between opening the
@@ -462,7 +482,8 @@ class ForceFieldDock(QDockWidget):
             self._say("")
             return
         try:
-            rows = self.document.site_types()
+            rows = self.document.site_types(
+                self.parameter_set.currentData())
         except Exception as exc:                    # noqa: BLE001
             self.table.setRowCount(0)
             self._say(str(exc))
@@ -602,7 +623,8 @@ class ForceFieldDock(QDockWidget):
         form = self.engine_forms.get(self.engine_name())
         if form is not None:
             return form.values()
-        return {"coulomb": self.coulomb.isChecked(),
+        return {"parameter_set": self.parameter_set.currentData(),
+                "coulomb": self.coulomb.isChecked(),
                 "charges": self.charges.currentData(),
                 "vdw_cutoff": self.vdw_cutoff.value(),
                 "skin": self.skin.value()}
@@ -808,7 +830,8 @@ class ForceFieldDock(QDockWidget):
         self.run_button.setText("Stop" if running else "Optimise")
         self.pause_button.setEnabled(running)
         self.pause_button.setText("Pause")
-        for widget in (self.energy_button, self.engine, self.coulomb,
+        for widget in (self.energy_button, self.engine,
+                       self.parameter_set, self.coulomb,
                        self.charges, self.vdw_cutoff, self.skin,
                        self.method, self.max_steps,
                        self.tolerance, self.freeze, self.relax_cell,

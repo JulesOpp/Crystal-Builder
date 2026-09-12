@@ -152,21 +152,30 @@ class Typing:
 #  ENTRY POINT
 # ======================================================================
 
-def assign(structure, rules: bonding.BondRules | None = None) -> Typing:
+def assign(structure, rules: bonding.BondRules | None = None,
+           parameter_set: str = params.DEFAULT_PARAMETER_SET) -> Typing:
     """Type every atom of ``structure``'s P1 cell.
 
     Memoised with the structure, so the panel that draws the table and
     the calculator that consumes it do the work once between edits.
+
+    ``parameter_set`` is ``"uff4mof"`` or ``"uff"``; the second never
+    hands out a row UFF4MOF added, whatever the atom looks like.  A
+    type set by hand is kept either way -- it was asked for by name.
     """
-    key = f"uff-typing:{rules.signature() if rules else ''}"
+    if parameter_set not in dict(params.PARAMETER_SETS):
+        raise ValueError(f"unknown UFF parameter set {parameter_set!r}")
+    key = (f"uff-typing:{parameter_set}:"
+           f"{rules.signature() if rules else ''}")
     # Chemistry, plus METADATA: a hand-set type is stored in
     # ``Site.props`` and setting one is a metadata change, so the memo
     # has to notice it.  Atoms moving is what it deliberately ignores.
-    return structure.cached(key, lambda: _assign(structure, rules),
-                            invalidated_by=CHEMISTRY | Change.METADATA)
+    return structure.cached(
+        key, lambda: _assign(structure, rules, parameter_set),
+        invalidated_by=CHEMISTRY | Change.METADATA)
 
 
-def _assign(structure, rules) -> Typing:
+def _assign(structure, rules, parameter_set) -> Typing:
     cell = p1.expand(structure)
     graph = bonding.graph(structure, rules)
     if cell.n_atoms == 0:
@@ -174,7 +183,7 @@ def _assign(structure, rules) -> Typing:
     clean, kept = markers.hold_back(structure)
     if kept is not None:
         return _around_the_markers(structure, cell, graph, clean,
-                                   kept, rules)
+                                   kept, rules, parameter_set)
 
     _refuse_unknown_elements(cell)
     geometry = Geometry(cell, graph)
@@ -190,7 +199,8 @@ def _assign(structure, rules) -> Typing:
                                   "set by hand", overridden=True))
         else:
             types.append(_type_of(i, cell, graph, geometry,
-                                  i in aromatic))
+                                  i in aromatic,
+                                  uff_only=parameter_set == "uff"))
     _refine_terminal(types, cell, geometry)
     _apply_stated_orders(types, cell, graph, geometry)
     # The orders are the core's -- counting pi bonds is chemistry, and
@@ -215,7 +225,7 @@ MARKER_REASON = ("a marker and not chemistry, so the force field "
 
 
 def _around_the_markers(structure, cell, graph, clean, kept,
-                        rules) -> Typing:
+                        rules, parameter_set) -> Typing:
     """Type the structure's real atoms and put the markers back.
 
     The typing is done over a cell with no markers in it at all,
@@ -232,7 +242,7 @@ def _around_the_markers(structure, cell, graph, clean, kept,
     the only honest number for an edge the force field is not adding
     up.
     """
-    inner = _assign(clean, rules)
+    inner = _assign(clean, rules, parameter_set)
     marker = AtomType(MARKER_TYPE, CERTAIN, MARKER_REASON)
     types = [marker] * cell.n_atoms
     for position, atom in enumerate(kept):
@@ -303,15 +313,27 @@ def _overrides(structure, cell) -> dict[int, str]:
 #  THE RULES
 # ======================================================================
 
-def _type_of(i: int, cell, graph, geo, aromatic: bool) -> AtomType:
+def _type_of(i: int, cell, graph, geo, aromatic: bool,
+             uff_only: bool = False) -> AtomType:
     element = cell.elements[i]
     rule = _RULES.get(element)
     if rule is not None:
-        return rule(i, cell, geo, aromatic)
+        atom = rule(i, cell, geo, aromatic)
+        if uff_only and atom.name in UFF_EQUIVALENT:
+            return AtomType(UFF_EQUIVALENT[atom.name], LIKELY,
+                            f"{atom.reason}; {atom.name} is UFF4MOF's "
+                            f"and plain UFF was asked for")
+        return atom
     if element in SIMPLE_TYPES:
         return AtomType(SIMPLE_TYPES[element], CERTAIN,
                         "the only type UFF gives this element")
-    return _by_coordination(i, cell, geo)
+    return _by_coordination(i, cell, geo, uff_only)
+
+
+#: What a hand-written rule's UFF4MOF answer becomes under plain UFF.
+#: Only the rules that can return one are here; the metals go through
+#: :func:`_by_coordination`, which filters its candidates instead.
+UFF_EQUIVALENT = {"O_3_f": "O_3", "O_2_z": "O_2", "S_3_f": "S_3+2"}
 
 
 def _hydrogen(i, cell, geo, _aromatic) -> AtomType:
@@ -558,7 +580,8 @@ def _shape_character(geo, i: int) -> str:
     return "4" if geo.max_angle(i) > SQUARE_PLANAR_ANGLE else "3"
 
 
-def _by_coordination(i: int, cell, geo) -> AtomType:
+def _by_coordination(i: int, cell, geo,
+                     uff_only: bool = False) -> AtomType:
     """The general rule: let the type table decide.
 
     A UFF type name states the coordination it was fitted for, so
@@ -585,7 +608,12 @@ def _by_coordination(i: int, cell, geo) -> AtomType:
     candidates = params.BY_ELEMENT[element]
     n = geo.coordination(i)
 
-    if not _framework_node(i, cell, geo):
+    if uff_only:
+        plain = [p for p in candidates
+                 if p.name not in params.UFF4MOF_TYPES]
+        if plain:
+            candidates = plain
+    elif not _framework_node(i, cell, geo):
         plain = [p for p in candidates if not p.is_fitted]
         if plain:
             candidates = plain

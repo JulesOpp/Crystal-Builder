@@ -228,7 +228,7 @@ class UFFParams:
         return f"{out}, {qualifier}" if qualifier else out
 
 
-def _rows() -> list[UFFParams]:
+def _rows() -> tuple[list[UFFParams], list[UFFParams]]:
     """Table 1 in the paper's order, and the MOF extension after it.
 
     Written out rather than shipped as a data file: it is the module's
@@ -471,14 +471,33 @@ def _rows() -> list[UFFParams]:
     U_8f4  1.730  109.47  3.395  0.022  12.000  3.900  0.000  0.000   3.3410   2.8530  1.713
     S_3_f  0.854  109.47  4.035  0.274  13.969  2.703  0.484  1.250   6.9280   4.4860  1.047
     """
+    return _parse(raw), _parse(mof)
+
+
+def _parse(text: str) -> list[UFFParams]:
     out = []
-    for line in (raw.strip() + "\n" + mof.strip()).splitlines():
+    for line in text.strip().splitlines():
         name, *numbers = line.split()
         out.append(UFFParams(name, *(float(v) for v in numbers)))
     return out
 
 
-PARAMS: dict[str, UFFParams] = {p.name: p for p in _rows()}
+_RAPPE, _MOF = _rows()
+PARAMS: dict[str, UFFParams] = {p.name: p for p in _RAPPE + _MOF}
+
+#: The rows UFF4MOF and UFF4MOF-II added -- not only the ``f`` ones:
+#: ``Cu4+2`` and ``O_3_f`` are theirs too, and spell nothing in the
+#: name to say so.  What the "UFF only" parameter set takes away.
+UFF4MOF_TYPES: frozenset[str] = frozenset(p.name for p in _MOF)
+
+#: The parameter sets a UFF calculation can be asked for.  UFF4MOF is
+#: the default because it is a superset: every structure UFF types, it
+#: types the same way, and a framework node gets the row fitted to it.
+#: Plain UFF is there to compare against, which is the question
+#: somebody asks the day a UFF4MOF number looks wrong.
+PARAMETER_SETS = (("uff4mof", "UFF4MOF (UFF plus framework nodes)"),
+                  ("uff", "UFF (Rappe 1992 only)"))
+DEFAULT_PARAMETER_SET = "uff4mof"
 
 # Element -> its types, in table order.  The typer walks this when it
 # has no hand-written rule for an element, which is most of the

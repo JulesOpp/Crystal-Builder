@@ -130,6 +130,29 @@ def test_the_type_is_shown_in_words_beside_its_name(opened):
     assert dock.table.item(1, MEANS).text() == "sp3 oxygen"
 
 
+def test_the_parameter_set_retypes_the_table_and_reaches_the_run(
+        window, qtbot):
+    """UFF4MOF was always on and invisible.  Choosing plain UFF has to
+    change both what the table says and what the calculator is built
+    with, or the table describes a run that is not the one made."""
+    from xtal.io import read_cif
+    document = Document(read_cif("resources/samples/MOF-5.cif"))
+    window.add_document(document)
+    dock = window.ff_dock
+    types = {dock.table.item(r, TYPE).text()
+             for r in range(dock.table.rowCount())}
+    assert "Zn3f2" in types
+    assert any("(UFF4MOF)" in dock.table.item(r, MEANS).text()
+               for r in range(dock.table.rowCount()))
+
+    dock.parameter_set.setCurrentIndex(
+        dock.parameter_set.findData("uff"))
+    types = {dock.table.item(r, TYPE).text()
+             for r in range(dock.table.rowCount())}
+    assert "Zn3f2" not in types and "Zn3+2" in types
+    assert dock.options()["parameter_set"] == "uff"
+
+
 def test_the_panel_shows_sites_and_not_cell_atoms(opened):
     """An override is stored on a site and applies to its whole orbit,
     so a per-atom table would offer edits it could not honour."""
