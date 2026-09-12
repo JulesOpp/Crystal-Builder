@@ -30,6 +30,14 @@ line format: ``@ name Key: value Key: value ...``, split into channels
 1.86 A, half the 3.72 A kinetic diameter -- is what a BET measurement
 sees, which is why it is the default and why the probe radius is
 carried in the result: an area quoted without one is meaningless.
+The volume file has two spellings and they are not interchangeable --
+see :class:`Volume`.
+
+**The channel network** (``.chan`` and ``-visVoro``'s pair of files)
+is the half of a Zeo++ answer that is a picture: which pores a probe
+can reach, how far they run, and where the widest of them sits.  See
+:class:`PoreNetwork`, and the paragraph in it about the one thing no
+Zeo++ output says.
 
 **The pore size distribution** (``.psd_histo``) is a thousand bins of
 0.1 A, nearly all of them empty.  The interesting part is a window a
@@ -263,7 +271,22 @@ class SurfaceArea:
 
 @dataclass(frozen=True)
 class Volume:
-    """``.vol``: the pore volume a probe of that size can occupy."""
+    """``.vol``: the pore volume a probe of that size can occupy.
+
+    **Two files, two spellings, one record.**  ``-vol`` reports the
+    volume the probe's *centre* can reach and writes ``AV_*``;
+    ``-volpo`` reports the volume the probe *occupies* and writes
+    ``POAV_*``.  The second is always the larger and is what a paper
+    means by pore volume.  Reading only the first spelling -- which is
+    what this did -- gives a confident 0.000 cm^3/g for a framework
+    that is two thirds empty, because none of the keys it looked for
+    are in the file.  So both are read, and :attr:`occupiable` says
+    which the numbers are.
+
+    ``-volpo`` writes no channel and pocket counts, so those are zero
+    from it and :attr:`counted` is how a caller tells "none" from "not
+    reported".
+    """
 
     accessible_per_gram: float = 0.0        # cm^3/g
     accessible_fraction: float = 0.0
@@ -271,6 +294,8 @@ class Volume:
     inaccessible_per_gram: float = 0.0      # cm^3/g
     channels: int = 0
     pockets: int = 0
+    counted: bool = False
+    occupiable: bool = False
     volume: float = 0.0                     # A^3
     density: float = 0.0                    # g/cm^3
     probe: float = 0.0
@@ -280,13 +305,19 @@ class Volume:
     def parse(cls, text: str, probe: float = 0.0) -> Volume:
         found = parse_summary(text)
         return cls(
-            accessible_per_gram=found.get("AV_cm^3/g", default=0.0),
-            accessible_fraction=found.get("AV_Volume_fraction",
+            accessible_per_gram=found.get("POAV_cm^3/g", "AV_cm^3/g",
                                           default=0.0),
-            accessible_volume=found.get("AV_A^3", default=0.0),
-            inaccessible_per_gram=found.get("NAV_cm^3/g", default=0.0),
+            accessible_fraction=found.get("POAV_Volume_fraction",
+                                          "AV_Volume_fraction",
+                                          default=0.0),
+            accessible_volume=found.get("POAV_A^3", "AV_A^3",
+                                        default=0.0),
+            inaccessible_per_gram=found.get("PONAV_cm^3/g",
+                                            "NAV_cm^3/g", default=0.0),
             channels=int(found.get("Number_of_channels", default=0)),
             pockets=int(found.get("Number_of_pockets", default=0)),
+            counted="Number_of_channels" in found,
+            occupiable="POAV_A^3" in found,
             volume=found.get("Unitcell_volume", default=0.0),
             density=found.get("Density", default=0.0),
             probe=float(probe), summary_=found)

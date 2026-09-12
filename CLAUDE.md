@@ -301,6 +301,22 @@ stress case).
   the folder-could-not-be-made path, not the default. The chooser
   reports such a failure inline and goes on asking, because there is
   no window behind it to report into.
+- **A porosity run draws where the pores are, and does not pretend
+  to know where D_f is.** Zeo++'s `-visVoro` gives every accessible
+  Voronoi node with the radius that fits at it, so the largest
+  *included* sphere is drawn at its node exactly — twice that radius
+  is the D_i in the table beside it. D_f is the width of a bottleneck
+  on an *edge* and no Zeo++ output carries edge radii, so what is
+  drawn for it is the path it travels along and the report says so.
+  The network lives on the Document beside the planes: put there by a
+  run (`JobResult.overlay`), not an edit, not on the undo stack, not a
+  reason to mark the file modified, saved into the project's session,
+  and **dropped the moment the arrangement it measured changes** —
+  there is nothing to refit a Voronoi decomposition to. It goes to the
+  document the run was *started from*, never the tab in front: a
+  structure adopted into the wrong document is visibly the wrong
+  crystal, and a pore network over the wrong one is a plausible
+  picture of channels that are not there.
 - **The CIF carries the bonds; Export cleans.** `_geom_bond` says
   (site, site, operation, translation) and always could, so the
   workspace copy of a structure *is* the document: the markers the

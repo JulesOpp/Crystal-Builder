@@ -52,10 +52,10 @@ def argv_of(folder):
 
 # ------------------------------------------------------- the declaration
 
-def test_it_registers_three_entries():
+def test_it_registers_four_entries():
     module = MODULES.get("zeopp")
     assert [a.name for a in module.actions] == [
-        "diameters", "surface-area", "psd"]
+        "diameters", "surface-area", "volume", "psd"]
 
 
 def test_registering_touches_no_existing_file():
@@ -419,3 +419,50 @@ def test_the_real_binary_reads_what_we_write(quartz, workspace,
     # Quartz is dense: nothing of any size gets through it.
     assert 0.0 <= found.free < found.included
     assert "D_f" in result.message
+
+
+# --------------------------------------------------------------- volume
+
+def test_the_volume_comes_back_as_a_report(fake_network, rutile,
+                                           workspace):
+    result, _folder = run("volume", rutile, workspace)
+    assert result.ok
+    assert "cm^3/g" in result.message
+    labels = [r.label for r in result.report.tables[0].rows]
+    assert "Accessible volume" in labels
+
+
+def test_the_pore_volume_is_the_occupiable_one_by_default(
+        fake_network, rutile, workspace):
+    """-vol reports the volume the probe's centre can reach and
+    -volpo the volume it occupies.  The second is always the larger
+    and is what a paper means by pore volume, so quoting one for the
+    other is the mistake this defaults away from."""
+    _r, folder = run("volume", rutile, workspace)
+    assert "-volpo" in argv_of(folder)
+
+    _r, other = run("volume", rutile, workspace, occupiable=False)
+    argv = argv_of(other)
+    assert "-vol" in argv and "-volpo" not in argv
+
+
+def test_the_occupiable_volume_is_actually_read(fake_network, rutile,
+                                                workspace):
+    """-volpo spells every key POAV_* and the default runs it, so a
+    parser that only knew AV_* would answer a confident zero."""
+    result, _folder = run("volume", rutile, workspace)
+    assert "0.000 cm^3/g" not in result.message
+    rows = {r.label: r.value for r in result.report.tables[0].rows}
+    assert rows["Accessible volume"] == "1.3250"
+    # -volpo writes no counts, so no row claims there are none.
+    assert "Channels" not in rows
+
+
+def test_the_row_says_which_of_the_two_was_measured(fake_network,
+                                                    rutile, workspace):
+    result, _folder = run("volume", rutile, workspace)
+    note = result.report.tables[0].rows[0].note
+    assert "occupies" in note
+
+    other, _f = run("volume", rutile, workspace, occupiable=False)
+    assert "centre" in other.report.tables[0].rows[0].note

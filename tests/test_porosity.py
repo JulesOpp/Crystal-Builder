@@ -17,6 +17,7 @@ from tests.conftest_zeo import (
     RES,
     SA,
     VOL,
+    VOLPO,
     VORO_EDGES,
     VORO_NODES,
     psd_text,
@@ -299,3 +300,32 @@ def test_a_pore_network_round_trips_through_a_dict():
 def test_an_empty_pore_network_has_no_largest_sphere():
     assert porosity.PoreNetwork().largest() is None
     assert porosity.PoreNetwork().n_nodes == 0
+
+
+# ------------------------------------------------------ the two volumes
+
+def test_the_probe_occupiable_volume_spells_every_key_differently():
+    """-volpo writes POAV_* where -vol writes AV_*.  A parser that
+    reads only the first spelling answers a confident 0.000 cm^3/g for
+    a framework that is three quarters empty."""
+    found = porosity.Volume.parse(VOLPO, probe=1.86)
+    assert found.accessible_per_gram == pytest.approx(1.32503)
+    assert found.accessible_fraction == pytest.approx(0.7412)
+    assert found.accessible_volume == pytest.approx(22202.9)
+    assert found.occupiable
+
+
+def test_the_occupiable_volume_is_the_larger_of_the_two():
+    """Always, and it is why quoting one for the other matters."""
+    centre = porosity.Volume.parse(VOL, probe=1.86)
+    occupied = porosity.Volume.parse(VOLPO, probe=1.86)
+    assert occupied.accessible_per_gram > centre.accessible_per_gram
+    assert not centre.occupiable
+
+
+def test_volpo_reports_no_counts_and_says_so():
+    """Zero channels and "not reported" are different answers, and a
+    row saying the first over a framework with one is worse than no
+    row."""
+    assert porosity.Volume.parse(VOL).counted
+    assert not porosity.Volume.parse(VOLPO).counted

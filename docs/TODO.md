@@ -150,30 +150,53 @@ DFTB+'s internal driver does better.
   `xtal/modules/process.py` runs, streams and cancels it.  What is new
   is a `Driver` block and the parsing of a multi-step output.
 
-### Zeo++: draw the answer, do not only print it
+### The accessible volume as an isosurface
 
-The three diameters, the surface area and the pore size distribution
-are numbers in a table, and the table is right.  What is missing is the
-half of the TODO entry that made this worth building for a
-porous-materials application rather than a spreadsheet:
+The pore network ships: `-chan` says how many channels there are and
+in how many dimensions they run, `-visVoro` puts the largest included
+sphere in the viewport where it sits with the channel skeleton through
+it, and `-vol`/`-volpo` has an entry of its own.  What is left is the
+picture a paper figure actually wants -- the accessible volume as a
+surface rather than as a ball and a skeleton.
 
-* **The largest free sphere where it actually sits**, as a translucent
-  ball in the viewport.  `-res` gives its *diameter* and not its
-  position, so this needs `-chan` (which writes the channel network) or
-  `-visVoro` (which writes the accessible Voronoi nodes as xyz), and a
-  new actor beside `VtkScene._set_polyhedra` -- which is already the
-  machinery for putting generated geometry into the scene.
-* **The accessible volume as an isosurface**, from `-vol`'s sampling or
-  from `-gridBOV`'s distance grid.  Bigger, and the thing a paper
-  figure actually wants.
-* `-vol` and `-volpo` are parsed already
-  (`xtal.analysis.porosity.Volume`) and have no entry of their own,
-  because nothing yet asked for one.  A fourth action is eight lines
-  the day somebody does.
-* **Channel dimensionality** -- whether the pores form a 1D, 2D or 3D
-  network -- is in `-chan`'s output and is one of the numbers a paper
-  reports.  It comes free with whatever reads `-chan` for the sphere
-  above.
+**Not from Zeo++.**  Both of its grid writers were measured against
+`resources/samples/MFU4l.cif`, the same input every other flag handles
+in a second, and neither can be used:
+
+```
+network -gridGAI 1.86 out.cube structure.cssr
+  -> Resample flag is raised.  Need to resample in grid calc. Abort.
+     exit 1, no .cube written
+network -gridG out.cube structure.cssr
+  -> still running after six minutes, nothing written
+```
+
+So the grid has to be ours: the distance from a grid point to the
+nearest atom surface is one `scipy.spatial.cKDTree` query over the P1
+cell and its periodic images, and `scipy` is already a core
+dependency.  That is the better route anyway -- the grid becomes a
+function of *our* radii table, the one the rest of the module is
+already honest about, and the surface at `level = probe` is the same
+accessible surface `-sa` measures.
+
+Then `xtal/analysis/isosurface.py`: marching cubes over `(grid,
+lattice, level)` to points and triangles, in `xtal/` rather than in
+the VTK layer, so the SVG export and the headless tests keep working.
+The triangles go into the existing `polyhedron_points/faces/colors`
+shape as an `iso_*` group and reuse the translucent-actor pattern
+whole.
+
+**This is the first volumetric data in the application** --
+[docs/PLAN.md](PLAN.md) § 12 territory -- and it is a phase rather
+than an afternoon.
+
+**One thing no Zeo++ output can give, and it is worth not
+rediscovering**: where the largest *free* sphere sits.  D_f is the
+width of a bottleneck on a Voronoi *edge*, and no file Zeo++ writes
+carries edge radii -- `_voro_accessible.vtk` has the segments and not
+their widths.  What is drawn is D_i's sphere at its node, which is
+exact, and the path D_f travels along.  Anything else is a ball put
+somewhere plausible.
 
 ## Topology
 

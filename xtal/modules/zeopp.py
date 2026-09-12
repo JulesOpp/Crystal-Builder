@@ -3,13 +3,14 @@ xtal.modules.zeopp
 ==================
 Zeo++, as a registry entry.
 
-Three entries, which are the three questions asked of a porous
-crystal: how big are the pores (``-res`` and ``-chan``), how much
-surface does a gas molecule see (``-sa``), and what is the spread of
-pore sizes (``-psd``).  Everything about launching, streaming, cancelling and
-recording is :mod:`xtal.modules.process` and
-:mod:`xtal.modules.record`, written once in Phase D; what is here is
-only what is true of Zeo++ in particular.
+Four entries, which are the four questions asked of a porous crystal:
+how big are the pores (``-res`` and ``-chan``), how much surface does
+a gas molecule see (``-sa``), how much room is there for it
+(``-vol``), and what is the spread of pore sizes (``-psd``).
+Everything about launching, streaming, cancelling and recording is
+:mod:`xtal.modules.process` and :mod:`xtal.modules.record`, written
+once in Phase D; what is here is only what is true of Zeo++ in
+particular.
 
 Four things are, and each of them is a decision rather than a detail.
 
@@ -440,6 +441,45 @@ def surface_area(job) -> JobResult:
             holder.cleanup()
 
 
+def accessible_volume(job) -> JobResult:
+    """``-vol``: the volume a probe of that size can occupy.
+
+    ``-volpo`` is the same measurement asked a different way, and it
+    is a checkbox rather than a fourth entry because the difference is
+    one word: ``-vol`` reports the volume the probe's *centre* can
+    reach, which is what a simulation samples over; ``-volpo`` reports
+    the volume it *occupies*, which is the pore volume a paper quotes
+    and is always the larger of the two.  Quoting one for the other is
+    the mistake this parameter exists to make impossible, so the row
+    says which was measured.
+    """
+    directory, holder = _prepare(job)
+    try:
+        _write_input(job, directory)
+        radii, said = _write_radii(job, directory)
+        probe, channel, gas = _probes_of(job)
+        samples = int(job.param("samples", 50000))
+        occupiable = bool(job.param("occupiable", True))
+        flag = "-volpo" if occupiable else "-vol"
+        job.say(f"Zeo++: accessible volume to {gas}, {said}")
+        output = "volume.vol"
+        result = _run(job, directory, _argv(
+            job, directory, radii,
+            [[flag, channel, probe, samples, output]]))
+        stopped = _failed(result)
+        if stopped is not None:
+            return stopped
+        found = porosity.Volume.parse(
+            _read(directory / output, "volume"), probe)
+        return _answer(job, f"{found.summary()} to {gas}",
+                       _volume_report(found, gas, probe, samples,
+                                      occupiable, said),
+                       _keep(directory, job, output, INPUT_NAME))
+    finally:
+        if holder is not None:
+            holder.cleanup()
+
+
 def pore_size_distribution(job) -> JobResult:
     """``-psd``: how much of the pore space sits at each diameter."""
     directory, holder = _prepare(job)
@@ -556,6 +596,52 @@ def _area_report(found, gas: str, probe: float, samples: int,
         note=said)
 
 
+def _volume_report(found, gas: str, probe: float, samples: int,
+                   occupiable: bool, said: str) -> Report:
+    measured = ("the volume the probe occupies -- the pore volume a "
+                "paper quotes" if occupiable else
+                "the volume the probe's centre can reach -- what a "
+                "simulation samples over")
+    # The symbol follows which was measured: POAV and AV are the two
+    # Zeo++ spellings and a paper quoting one of them means that one.
+    symbol = "POAV" if found.occupiable else "AV"
+    rows = [
+        Row.number("Accessible volume", found.accessible_per_gram,
+                   "cm^3/g", measured, symbol, decimals=4),
+        Row.number("Accessible fraction of the cell",
+                   found.accessible_fraction * 100, "%", "", "",
+                   decimals=2),
+        Row.number("Accessible volume in the cell",
+                   found.accessible_volume, "A^3", "", "", decimals=1),
+        Row.number("Non-accessible volume",
+                   found.inaccessible_per_gram, "cm^3/g",
+                   "pockets a probe cannot reach from outside",
+                   f"N{symbol}" if not found.occupiable else "PONAV",
+                   decimals=4),
+    ]
+    if found.counted:
+        # -volpo writes no counts at all, and a row saying "0
+        # channels" over a framework with one is worse than no row.
+        rows += [
+            Row("Channels", str(found.channels), "",
+                "connected to the outside"),
+            Row("Pockets", str(found.pockets), "", "closed voids"),
+        ]
+    rows += [
+        Row.number("Density", found.density, "g/cm^3", "", "",
+                   decimals=4),
+        Row.number("Cell volume", found.volume, "A^3", "", "",
+                   decimals=1),
+    ]
+    return Report(
+        title=f"Accessible volume to {gas}",
+        blocks=(Table(rows=tuple(rows),
+                      note=f"{samples} Monte Carlo samples across the "
+                           f"cell, at a probe radius of "
+                           f"{probe:.2f} A."),),
+        note=said)
+
+
 def _psd_report(found, gas: str, probe: float, said: str) -> Report:
     window = found.window()
     table = Table(rows=(
@@ -642,6 +728,28 @@ ZEOPP = Module(
                                   "the usual choice."),
                        *_shared()),
                run=surface_area),
+        Action(name="volume", label="Accessible volume...",
+               tip="How much of the cell a gas molecule can occupy, "
+                   "which is the pore volume a paper quotes",
+               kind="volume",
+               params=(*_probe(porosity.DEFAULT_PROBE, 1.86,
+                               "Nitrogen is what a pore volume is "
+                               "usually quoted to."),
+                       Param("occupiable", "Probe-occupiable volume",
+                             kind="bool", default=True,
+                             help="Zeo++'s -volpo: the volume the "
+                                  "probe occupies rather than the "
+                                  "volume its centre can reach.  The "
+                                  "larger of the two, and the one a "
+                                  "paper means by pore volume."),
+                       Param("samples", "Samples", kind="int",
+                             default=50000, minimum=1000,
+                             maximum=1000000,
+                             help="Monte Carlo points across the "
+                                  "whole cell.  50000 is what the "
+                                  "published figures use."),
+                       *_shared()),
+               run=accessible_volume),
         Action(name="psd", label="Pore size distribution...",
                tip="How much of the pore space sits at each diameter, "
                    "as a histogram",

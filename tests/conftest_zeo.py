@@ -35,6 +35,22 @@ VOL = (
     "Number_of_channels: 1 Channel_volume_A^3: 13827.4  \n"
     "Number_of_pockets: 0 Pocket_volume_A^3: \n")
 
+#: ``-volpo`` is the same measurement asked a different way and it
+#: spells every key differently: ``POAV_*`` where ``-vol`` writes
+#: ``AV_*``, and no channel or pocket counts at all.  Captured because
+#: a parser that reads only the first spelling answers a confident
+#: 0.000 cm^3/g for a framework that is three quarters empty.
+VOLPO = (
+    "@ MFU4l.vol Unitcell_volume: 29955.3   Density: 0.559382   "
+    "POAV_A^3: 22202.9 POAV_Volume_fraction: 0.7412 "
+    "POAV_cm^3/g: 1.32503 PONAV_A^3: 0 PONAV_Volume_fraction: 0 "
+    "PONAV_cm^3/g: 0\n"
+    "PROBE_OCCUPIABLE_VOL_CALC: filename| density(g/cm3)| probe rad| "
+    "N points| probe ctr A fract| probe ctr NA fract| A fract| "
+    "NA fract| narrow fract |ovlp fract.\n"
+    "PROBE_OCCUPIABLE___RESULT: MFU4l.vol\t0.559382\t1.86\t5000\t"
+    "0.4616\t0\t0.7412\t0\t0.0776\t0.1812\n")
+
 #: ``-chan``: one line naming every channel's dimensionality, then the
 #: three diameters of each.  MFU-4l is one 3D channel.
 CHAN = (
@@ -117,6 +133,8 @@ _WRITERS = {
     "-sa": 'pathlib.Path(argv[argv.index("-sa") + 4]).write_text(SA)',
     "-psd": 'pathlib.Path(argv[argv.index("-psd") + 4]).write_text(PSD)',
     "-vol": 'pathlib.Path(argv[argv.index("-vol") + 4]).write_text(VOL)',
+    "-volpo": ('pathlib.Path(argv[argv.index("-volpo") + 4])'
+               '.write_text(VOLPO)'),
     "-chan": 'pathlib.Path(argv[argv.index("-chan") + 2]).write_text(CHAN)',
     # -visVoro is the one flag whose output name is not ours to
     # choose: it names its six files after the input stem.
@@ -132,6 +150,7 @@ def write_fake_network(directory) -> Path:
     """A stand-in for ``network`` that answers every flag we pass."""
     body = "\n".join([
         f"RES = {RES!r}", f"SA = {SA!r}", f"VOL = {VOL!r}",
+        f"VOLPO = {VOLPO!r}",
         f"PSD = {psd_text()!r}", f"CHAN = {CHAN!r}",
         f"NODES = {VORO_NODES!r}", f"EDGES = {VORO_EDGES!r}",
         # Indented under the `if`, so a multi-line writer works.

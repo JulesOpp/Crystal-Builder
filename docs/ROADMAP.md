@@ -70,7 +70,7 @@ a number, and the half of DFTB+ its own driver does better.
 | Item | TODO entry | Size |
 |---|---|---|
 | Export a net as `.cgd` for Systre | Topology | S |
-| Zeo++: draw the answer, do not only print it | Modules | M |
+| The accessible volume as an isosurface | Modules | L |
 | DFTB+'s own driver | Modules | L |
 
 **The `.cgd` writer is an afternoon.**  The Net panel says **pcu** and
@@ -82,12 +82,27 @@ that produced the first.  One `CRYSTAL` block with `NAME`, `GROUP P1`,
 `CELL`, and a `NODE` per vertex with an `EDGE` per edge — the net is
 already in that shape.
 
-**Zeo++ is the reason this phase exists.**  A porous-materials
-application that can only *print* 9.18 Å is a spreadsheet.  `-res`
-gives the diameter and not the position, so the largest free sphere
-drawn where it sits needs `-chan` or `-visVoro` and a new actor beside
-`_set_polyhedra`.  Channel dimensionality falls out of `-chan` for
-free, and `-vol` is parsed already and wants an action of its own.
+**Zeo++ was the reason this phase exists, and most of it has
+shipped.**  A porous-materials application that can only *print*
+9.18 Å is a spreadsheet, and it no longer only prints: `-chan` gives
+the number of channels and the dimensionality they run in, `-visVoro`
+puts
+the largest included sphere in the viewport where it actually sits
+with the channel skeleton through it, and `-vol`/`-volpo` has an entry
+of its own.  One `network` invocation does all of that over one
+Voronoi decomposition, which is a second on MFU-4l.
+
+What is left is the **isosurface**, and it turned out not to be a
+Zeo++ job at all: both of its grid writers fail on this application's
+own stress case, so the distance grid has to be built here.  That
+makes it the first volumetric data in the application rather than an
+afternoon over an existing file, which is why it is listed at L.
+[docs/TODO.md](TODO.md) § Modules has the measurements.
+
+The one thing that cannot be drawn is where D_f *sits*: it is the
+width of a bottleneck on a Voronoi edge, and no Zeo++ output carries
+edge radii.  The table says so in words rather than putting a ball
+somewhere plausible.
 
 **DFTB+'s own driver is a module, not an engine** — and per the note in
 [docs/TODO.md](TODO.md), a wrapper over what DFTB+ already does rather
