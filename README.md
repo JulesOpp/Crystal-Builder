@@ -225,6 +225,20 @@ says nothing about the total -- and a statement that contradicts the
 coordination, four neighbours and a double bond, is left where it
 belongs.
 
+*Structure → Fill pores with molecules* puts solvent into a framework.
+Draw the molecule in a tab of its own -- or have it in any file -- and
+choose it as the source: only the molecule is taken, not the cell it
+was drawn in, and a molecule lying across that cell's face comes out in
+one piece.  Say how many; the dialog quotes the most the free volume
+could hold, and each copy is dropped in at random with a random
+orientation and kept only where no atom of it is closer to anything
+than the overlap scale (0.8 by default) times the sum of the two van
+der Waals radii.  Fewer are placed when there is no room, and it says
+so.  A host with symmetry is reduced to P1 first, in the same undo
+step, so each molecule is placed once rather than multiplied by the
+group.  Each guest keeps its own bonds and gains none: bonds are not
+recalculated.
+
 Bonds do not change when atoms move -- not while you drag one, and not
 during a relaxation.  *Structure → Recalculate bonds* (`Ctrl+B`) is
 what changes them, and *Structure → Bond rules* is where the criteria

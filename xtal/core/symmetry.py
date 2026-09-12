@@ -40,7 +40,7 @@ from xtal.core import p1
 from xtal.core.lattice import Lattice
 from xtal.core.site import Site
 from xtal.core.spacegroup import SpaceGroup
-from xtal.core.structure import Structure
+from xtal.core.structure import Bond, Structure
 
 DEFAULT_SYMPREC = 1e-5          # Angstrom-ish; spglib's own default
 DEFAULT_ANGLE_TOLERANCE = -1.0  # negative = derive from symprec
@@ -207,9 +207,17 @@ def assign_wyckoff(structure: Structure,
 def reduce_to_p1(structure: Structure) -> Structure:
     """Expand every orbit into explicit sites and drop the group.
 
-    Bonds are dropped: their site indices refer to the asymmetric unit
-    and no longer mean anything.  Bond perception re-runs on the result.
+    **The bonding comes too.**  Every stored bond -- drawn, suppressed,
+    a net edge, a type the user set -- is expanded the way it is drawn
+    and written down again between the new sites, and the perceived
+    graph is carried over rather than perceived afresh.  Dropping them,
+    which is what this did, re-perceived the whole crystal from the
+    geometry: a framework somebody had recalculated, typed and drawn a
+    net over came back from Reduce to P1 -- or from filling its pores,
+    which reduces first -- with none of it.  Bonds change when the
+    user asks.
     """
+    from xtal.core import bonding
     cell = p1.expand(structure)
     sites = []
     for k in range(cell.n_atoms):
@@ -227,6 +235,21 @@ def reduce_to_p1(structure: Structure) -> Structure:
         bond_rules=dict(structure.bond_rules),
     )
     out.ensure_labels()
+    # The new sites are the cell's atoms in the cell's order, already
+    # wrapped, so a P1 bond between atoms a and b is a bond between
+    # sites a and b with the same image.
+    for bond in structure.bonds:
+        for mapped in bonding.map_explicit_bond(structure, cell, bond):
+            out.add_bond(Bond(mapped.i, mapped.j, mapped.image,
+                              bond.order, bond.kind, 0, bond.stated))
+    stored = structure.perceived
+    if stored is not None and stored.elements == tuple(cell.elements):
+        # Read against the original's wrap as it is now, which is where
+        # the new sites are; their own wrap is then zero.
+        flat = p1.expand(out)
+        out.set_perceived(bonding.rebase(stored.bonds, stored.tau,
+                                         cell.tau),
+                          stored.signature, flat)
     return out
 
 

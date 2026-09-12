@@ -655,6 +655,49 @@ class BondGraph:
                                 {a: tuple(offsets[a]) for a in members}))
         return out
 
+    def unwrap(self, atoms) -> dict[int, np.ndarray]:
+        """A lattice translation for each of ``atoms`` that puts it
+        beside the atoms of the set it is bonded to.
+
+        The cell wraps every atom into it, so a molecule lying across a
+        face is two pieces a cell apart, and anything that lifts it out
+        -- a copy, a guest for filling a pore -- carries a methyl group
+        to the far side of the crystal unless the translations are put
+        back.  Walked over bonds *within* the set only: a bond out of it
+        says nothing about where the copy should be, and following one
+        would unwrap onto whatever the selection happened to be bonded
+        to.  Each disconnected piece keeps its own atom's wrap.
+
+        A periodic set has no consistent answer -- it closes onto its
+        own image -- and gets a spanning tree's; the bonds that close
+        it are the ones :meth:`consistent` refuses.
+        """
+        members = {int(a) for a in atoms}
+        offsets: dict[int, np.ndarray] = {}
+        for start in sorted(members):
+            if start in offsets:
+                continue
+            offsets[start] = np.zeros(3, dtype=int)
+            queue = deque([start])
+            while queue:
+                a = queue.popleft()
+                for b, t, _k in self._adj[a]:
+                    if b in members and b not in offsets:
+                        offsets[b] = offsets[a] + t
+                        queue.append(b)
+        return offsets
+
+    @staticmethod
+    def consistent(bond, offsets) -> bool:
+        """Whether ``bond`` joins its atoms as :meth:`unwrap` put them.
+
+        The one that does not is the bond closing a ring through the
+        periodic boundary, and written between the unwrapped atoms it
+        would stretch the whole way across the cell.
+        """
+        return bool(np.array_equal(offsets[bond.j] - offsets[bond.i],
+                                   np.asarray(bond.image, dtype=int)))
+
     def fragment_containing(self, atom: int) -> Fragment:
         for frag in self.fragments():
             if atom in frag.atoms:

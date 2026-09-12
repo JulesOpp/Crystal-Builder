@@ -191,3 +191,25 @@ def test_undoing_a_paste_leaves_the_bonds_that_were_there(dry_ice):
 
     assert host.structure.perceived is perceived
     assert len(bonding.graph(host.structure).bonds) == before
+
+
+def test_a_molecule_across_a_face_copies_in_one_piece(dry_ice):
+    """Every CO2 in dry ice has an oxygen wrapped to the far side of
+    the cell.  Copied as drawn, it pasted with an oxygen five
+    Angstrom from its carbon and a bond stretched between them."""
+    graph = bonding.graph(dry_ice)
+    for part in graph.fragments():
+        fragment = fragment_of(dry_ice, part.atoms)
+        for i, j, _order in fragment.bonds:
+            assert np.linalg.norm(fragment.cart[i] - fragment.cart[j]) \
+                == pytest.approx(1.149, abs=1e-2)
+
+
+def test_a_bond_closing_a_framework_is_not_copied(rutile):
+    """Rutile is one framework: a selection of all of it has bonds
+    that close onto the next cell, and pasted between atoms of one
+    copy they would reach across the whole cell."""
+    cell = p1.expand(rutile)
+    fragment = fragment_of(rutile, range(cell.n_atoms))
+    for i, j, _order in fragment.bonds:
+        assert np.linalg.norm(fragment.cart[i] - fragment.cart[j]) < 2.2

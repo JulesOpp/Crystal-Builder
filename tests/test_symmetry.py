@@ -391,3 +391,53 @@ def test_hand_description_covers_the_three_answers(rutile, quartz):
         "chiral, enantiomorph P3121"
     assert "achiral" in symmetry.hand_description(
         SpaceGroup.from_name("P4mm"))
+
+
+def test_reduce_to_p1_keeps_the_bonds_the_user_made(quartz):
+    """A type set, a bond suppressed and a net edge drawn in P3_221 are
+    all still there in P1, on every copy the group made of them.
+    Dropping them re-perceived the crystal from its geometry."""
+    from xtal.commands import CommandStack, Host
+    from xtal.commands.bonds import (
+        AddTopologyBond,
+        SetBondType,
+        SuppressBond,
+    )
+    from xtal.core import bonding
+    host = Host(quartz)
+    stack = CommandStack()
+    cell = p1.expand(quartz)
+    first, second = bonding.graph(quartz).bonds[:2]
+    stack.push(SetBondType.between_atoms(
+        quartz, cell, first.i, first.j, 2.0, image_b=first.image), host)
+    stack.push(SuppressBond.between_atoms(
+        quartz, cell, second.i, second.j, image_b=second.image), host)
+    silicon = [k for k, e in enumerate(cell.elements) if e == "Si"]
+    stack.push(AddTopologyBond.between_atoms(
+        quartz, cell, silicon[0], silicon[1]), host)
+    drawn = {(b.i, b.j, b.image): (b.order, b.stated)
+             for b in bonding.graph(quartz).bonds}
+    net = {(b.i, b.j, b.image)
+           for b in bonding.topology_graph(quartz).bonds}
+
+    flat = symmetry.reduce_to_p1(quartz)
+    kept = {(b.i, b.j, b.image): (b.order, b.stated)
+            for b in bonding.graph(flat).bonds}
+    assert kept == drawn
+    assert any(stated for _order, stated in kept.values())
+    assert (second.i, second.j, second.image) not in kept
+    assert net and {(b.i, b.j, b.image)
+                    for b in bonding.topology_graph(flat).bonds} == net
+
+
+def test_reduce_to_p1_does_not_perceive_again(quartz):
+    """Bonds were worked out, then an atom moved: the reduction keeps
+    the bonds that were there, not the ones the new geometry would
+    give."""
+    from xtal.core import bonding
+    before = {(b.i, b.j, b.image) for b in bonding.graph(quartz).bonds}
+    quartz.sites[1].frac = quartz.sites[1].frac + [0.05, 0.0, 0.0]
+    quartz.touch()
+    flat = symmetry.reduce_to_p1(quartz)
+    assert {(b.i, b.j, b.image)
+            for b in bonding.graph(flat).bonds} == before

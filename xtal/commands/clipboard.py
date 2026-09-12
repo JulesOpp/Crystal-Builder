@@ -39,6 +39,11 @@ class Fragment:
     labels: tuple = ()
     bonds: tuple = ()                   # (i, j, order) within the set
     source: str = ""
+    #: Indices into ``bonds`` whose order the user *set* -- see
+    #: :attr:`xtal.core.structure.Bond.stated`.  Apart from ``bonds``
+    #: rather than a fourth member of each, because every molecule
+    #: builder writes three.
+    stated: frozenset = frozenset()
 
     @property
     def n_atoms(self) -> int:
@@ -72,21 +77,35 @@ class Fragment:
         Coordinates are recentred on the selection's centroid, so a
         paste lands where it is put rather than where the original
         happened to sit.
+
+        Unwrapped over the bonds first (:meth:`BondGraph.unwrap
+        <xtal.core.bonding.BondGraph.unwrap>`).  Taken from the cell as
+        it is drawn, a molecule lying across a face came out in two
+        pieces a cell apart, and pasted with its bonds stretched the
+        whole way between them.
         """
         chosen = sorted(int(a) for a in atoms)
         if not chosen:
             return cls()
-        cart = structure.lattice.to_cart(cell.frac[chosen])
+        offsets = (graph.unwrap(chosen) if graph is not None
+                   else {a: np.zeros(3, dtype=int) for a in chosen})
+        frac = cell.frac[chosen] + np.array([offsets[a] for a in chosen])
+        cart = structure.lattice.to_cart(frac)
         cart = cart - cart.mean(axis=0)
         position = {atom: i for i, atom in enumerate(chosen)}
-        bonds = []
+        bonds, stated = [], set()
         if graph is not None:
             for bond in graph.bonds:
-                if bond.i in position and bond.j in position:
-                    # Perceived bonds carry no bond order -- we do not
-                    # guess one from geometry -- so they copy as single.
-                    bonds.append((position[bond.i], position[bond.j],
-                                  getattr(bond, "order", 1.0)))
+                if not (bond.i in position and bond.j in position):
+                    continue
+                if not graph.consistent(bond, offsets):
+                    continue
+                if bond.stated:
+                    stated.add(len(bonds))
+                # Perceived bonds carry no bond order -- we do not
+                # guess one from geometry -- so they copy as single.
+                bonds.append((position[bond.i], position[bond.j],
+                              getattr(bond, "order", 1.0)))
         return cls(
             elements=tuple(cell.elements[a] for a in chosen),
             cart=cart,
@@ -95,7 +114,35 @@ class Fragment:
             labels=tuple(cell.labels[a] for a in chosen),
             bonds=tuple(bonds),
             source=str(structure.meta.get("title", "")),
+            stated=frozenset(stated),
         )
+
+    def without_dummies(self) -> Fragment:
+        """The same fragment with its markers taken out.
+
+        What goes into a pore is chemistry, and a centroid somebody
+        placed on the solvent they drew is not -- see
+        :data:`xtal.core.elements.DUMMY_ELEMENTS`.
+        """
+        keep = [k for k, symbol in enumerate(self.elements)
+                if not el.is_dummy(symbol)]
+        if len(keep) == self.n_atoms:
+            return self
+        position = {old: new for new, old in enumerate(keep)}
+        bonds, stated = [], set()
+        for k, (i, j, order) in enumerate(self.bonds):
+            if i in position and j in position:
+                if k in self.stated:
+                    stated.add(len(bonds))
+                bonds.append((position[i], position[j], order))
+        cart = self.cart[keep] if keep else np.zeros((0, 3))
+        return Fragment(
+            elements=tuple(self.elements[k] for k in keep),
+            cart=cart - cart.mean(axis=0) if keep else cart,
+            occupancies=tuple(self.occupancies[k] for k in keep),
+            labels=tuple(self.labels[k] for k in keep),
+            bonds=tuple(bonds), source=self.source,
+            stated=frozenset(stated))
 
     def to_sites(self, lattice, offset=None) -> list[Site]:
         """Convert to sites of a cell, centred on ``offset``
@@ -184,24 +231,113 @@ class PasteFragment(Command):
         """
         structure = host.structure
         self._perceived = structure.perceived
-        bonding.prepare_hold(structure)
         sites = self.fragment.to_sites(structure.lattice, self.offset)
-        for site in sites:
-            site.label = structure.suggest_label(site.element)
-        self.indices = structure.add_sites(sites)
-        bonding.hold_perception(structure)
-        self._bonds = []
-        for i, j, order in self.fragment.bonds:
-            bond = Bond(self.indices[i], self.indices[j], (0, 0, 0),
-                        order)
-            if structure.add_bond(bond):
-                self._bonds.append(bond)
+        self.indices, self._bonds = _add_copies(
+            structure, self.fragment, [sites])
 
     def undo(self, host) -> None:
+        _remove_copies(host.structure, self.indices, self._bonds)
+        host.structure.perceived = self._perceived
+
+
+def _add_copies(structure, fragment, copies) -> tuple[list, list]:
+    """Append each copy's sites with the fragment's own bonds and no
+    others, in one expansion.  ``(site indices, bonds added)``.
+
+    One expansion is the point of taking a list.  Holding perception
+    expands the cell, and forty guests added one at a time into a
+    framework is forty expansions of a cell that grows each time --
+    the atom-by-atom pattern that made Select All -> Set Bond Type
+    stall on MFU-4l.
+    """
+    bonding.prepare_hold(structure)
+    fresh = []
+    taken: list[str] = []
+    for sites in copies:
+        for site in sites:
+            site.label = structure.suggest_label(site.element,
+                                                 taken=taken)
+            taken.append(site.label)
+            fresh.append(site)
+    indices = structure.add_sites(fresh)
+    bonding.hold_perception(structure)
+    bonds = []
+    n = fragment.n_atoms
+    for copy in range(len(copies)):
+        first = indices[copy * n:(copy + 1) * n]
+        for k, (i, j, order) in enumerate(fragment.bonds):
+            bond = Bond(first[i], first[j], (0, 0, 0), order,
+                        stated=k in fragment.stated)
+            if structure.add_bond(bond):
+                bonds.append(bond)
+    return indices, bonds
+
+
+def _remove_copies(structure, indices, bonds) -> None:
+    # The bonds first: removing the sites renumbers everything after
+    # them, and these name the atoms being taken out.
+    for bond in bonds:
+        structure.remove_bond(bond)
+    structure.remove_sites(indices)
+
+
+class InsertMolecules(Command):
+    """Many copies of one molecule, each where it was put, as one edit.
+
+    What filling a pore with solvent commits -- the placing is
+    :func:`xtal.build.fill.place`, and this is only the part that can
+    be undone.  Each copy arrives with the molecule's own bonds and no
+    others: forty solvent molecules a van der Waals contact from a
+    framework are forty molecules a bond criterion could be persuaded
+    to join to it, and bonds change when the user asks.
+
+    **A host with symmetry is reduced to P1 first, in the same step.**
+    A guest added to an asymmetric unit is multiplied by the group,
+    and every overlap test that placed it was made against one copy --
+    the group's other forty-seven would land on top of the framework
+    and of each other.  One Ctrl+Z takes the guests and the reduction
+    back together, because a user who undoes the fill did not ask to
+    be left holding a P1 cell.
+    """
+
+    def __init__(self, fragment: Fragment, positions,
+                 label: str | None = None):
+        self.fragment = fragment
+        self.positions = [np.asarray(p, dtype=float).reshape(-1, 3)
+                          for p in positions]
+        self.label = label or (f"Fill pores with {len(self.positions)} "
+                               f"{fragment.formula}")
+        self.indices: list[int] = []
+        self._bonds: list[Bond] = []
+        self._perceived = None
+        self._reduce = None
+
+    @property
+    def change(self) -> Change:
+        if self._reduce is not None:
+            return Change.SYMMETRY | Change.TOPOLOGY
+        return Change.TOPOLOGY
+
+    def do(self, host) -> None:
+        from xtal.commands.symmetry import ReduceToP1
+        self._reduce = None
+        if not host.structure.space_group.is_p1:
+            self._reduce = ReduceToP1()
+            self._reduce.do(host)
         structure = host.structure
-        # The bonds first: removing the sites renumbers everything
-        # after them, and these name the atoms being taken out.
-        for bond in self._bonds:
-            structure.remove_bond(bond)
-        structure.remove_sites(self.indices)
-        structure.perceived = self._perceived
+        self._perceived = structure.perceived
+        lattice = structure.lattice
+        copies = [
+            [Site(symbol, frac, occupancy=occupancy)
+             for symbol, frac, occupancy
+             in zip(self.fragment.elements, lattice.to_frac(cart),
+                    self.fragment.occupancies, strict=True)]
+            for cart in self.positions]
+        self.indices, self._bonds = _add_copies(structure,
+                                                self.fragment, copies)
+
+    def undo(self, host) -> None:
+        _remove_copies(host.structure, self.indices, self._bonds)
+        host.structure.perceived = self._perceived
+        if self._reduce is not None:
+            self._reduce.undo(host)

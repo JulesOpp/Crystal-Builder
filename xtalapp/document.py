@@ -28,13 +28,18 @@ from PySide6.QtCore import QObject, Signal
 
 from xtal import Structure
 from xtal.analysis import porosity, rcsr, topology
+from xtal.build import fill
 from xtal.commands import CommandStack, ReplaceStructure, SnapshotEdit
 from xtal.commands import atoms as atom_commands
 from xtal.commands import bonds as bond_commands
 from xtal.commands import cell as cell_commands
 from xtal.commands import connections as connection_commands
 from xtal.commands import symmetry as symmetry_commands
-from xtal.commands.clipboard import Fragment, PasteFragment
+from xtal.commands.clipboard import (
+    Fragment,
+    InsertMolecules,
+    PasteFragment,
+)
 from xtal.core import bonding, measure, p1, properties, symmetry
 from xtal.core import selection as sel
 from xtal.core.selection import Selection
@@ -1849,6 +1854,27 @@ class Document(QObject):
         self.run(command)
         self.select(_atoms_of_sites(self.cell, command.indices))
         return message
+
+    def fill_pores(self, guest: Fragment, count: int,
+                   overlap_scale: float = fill.DEFAULT_OVERLAP_SCALE,
+                   seed: int | None = None) -> str:
+        """Put up to ``count`` copies of ``guest`` into the empty space.
+
+        One undo step, the reduction to P1 a symmetric host needs
+        included, and the new molecules left selected so that what
+        arrived can be seen.  Nothing placed is nothing pushed: an
+        empty entry on the stack makes Ctrl+Z lie.  Bonds are not
+        recalculated -- see :class:`InsertMolecules`.
+        """
+        placement = fill.place(self._structure, guest, count,
+                               overlap_scale=overlap_scale, seed=seed)
+        if not placement.placed:
+            return (f"no room was found for {guest.formula}"
+                    if count else "nothing to place")
+        command = InsertMolecules(guest, placement.positions)
+        self.run(command)
+        self.select(_atoms_of_sites(self.cell, command.indices))
+        return placement.message()
 
     def duplicate_selection(self, offset=None) -> str:
         fragment = self.copy_selection()

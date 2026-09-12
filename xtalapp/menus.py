@@ -230,6 +230,12 @@ def build_actions(window):
         window.add_hydrogens_dialog,
         tip="Complete every main-group coordination with the "
             "hydrogens an X-ray structure never had")
+    add("fill_pores", "&Fill pores with molecules...",
+        window.fill_pores_dialog,
+        tip="Put copies of a molecule -- from another tab or a file "
+            "-- into the empty space of this structure, each where it "
+            "touches nothing.  A host with symmetry is reduced to P1 "
+            "first, and bonds are not recalculated")
     add("insert_molecule", "&Insert molecule...",
         window.insert_molecule_dialog, tip=INSERT_MOLECULE_TIP)
     add("save_building_block", "Save as a &building block...",
@@ -485,7 +491,8 @@ def build_menus(window):
     structure_menu = bar.addMenu("S&tructure")
     window.actions_.fill_menu(structure_menu, [
         "add_atom_dialog", "add_centroid", "add_hydrogens",
-        "insert_molecule", "mark_connection_points", None,
+        "insert_molecule", "fill_pores", "mark_connection_points",
+        None,
         "bond_rules", "recompute_bonds", "reset_bonds",
         "bonds_follow"])
     window.bond_type_menu = add_bond_type_menu(window,

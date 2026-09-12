@@ -87,7 +87,7 @@ rather than something two files happen to produce.
 | 1 | File | new/open/samples, save file, export, workspaces, close, close all, recent, preferences, quit |
 | 2 | Edit | undo/redo, clipboard, delete, change element |
 | 3 | Select | all/none/invert, same element, by element, grow |
-| 4 | Structure | add atom/centroid/hydrogens/molecule, mark connection points, bonds, bond type, **and the six mouse modes** |
+| 4 | Structure | add atom/centroid/hydrogens/molecule, fill pores, mark connection points, bonds, bond type, **and the six mouse modes** |
 | 5 | Measure | measure selection, planes |
 | 6 | Symmetry | find, set group, subgroup, standardise, primitive, Wyckoff, merge, invert, P1 |
 | 7 | Cell | edit cell, supercell, Niggli, Delaunay, wrap |
