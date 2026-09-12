@@ -150,53 +150,28 @@ DFTB+'s internal driver does better.
   `xtal/modules/process.py` runs, streams and cancels it.  What is new
   is a `Driver` block and the parsing of a multi-step output.
 
-### The accessible volume as an isosurface
+### The pore surface is not a contour of anything but distance
 
-The pore network ships: `-chan` says how many channels there are and
-in how many dimensions they run, `-visVoro` puts the largest included
-sphere in the viewport where it sits with the channel skeleton through
-it, and `-vol`/`-volpo` has an entry of its own.  What is left is the
-picture a paper figure actually wants -- the accessible volume as a
-surface rather than as a ball and a skeleton.
+The accessible surface ships: `xtal/analysis/grid.py` samples the
+distance to the nearest atom surface over the cell and its periodic
+images, `xtal/analysis/isosurface.py` marches it, and the
+accessible-volume run draws the boundary of the volume it just
+reported.  Two things it does not do, and neither blocks anything:
 
-**Not from Zeo++.**  Both of its grid writers were measured against
-`resources/samples/MFU4l.cif`, the same input every other flag handles
-in a second, and neither can be used:
-
-```
-network -gridGAI 1.86 out.cube structure.cssr
-  -> Resample flag is raised.  Need to resample in grid calc. Abort.
-     exit 1, no .cube written
-network -gridG out.cube structure.cssr
-  -> still running after six minutes, nothing written
-```
-
-So the grid has to be ours: the distance from a grid point to the
-nearest atom surface is one `scipy.spatial.cKDTree` query over the P1
-cell and its periodic images, and `scipy` is already a core
-dependency.  That is the better route anyway -- the grid becomes a
-function of *our* radii table, the one the rest of the module is
-already honest about, and the surface at `level = probe` is the same
-accessible surface `-sa` measures.
-
-Then `xtal/analysis/isosurface.py`: marching cubes over `(grid,
-lattice, level)` to points and triangles, in `xtal/` rather than in
-the VTK layer, so the SVG export and the headless tests keep working.
-The triangles go into the existing `polyhedron_points/faces/colors`
-shape as an `iso_*` group and reuse the translucent-actor pattern
-whole.
-
-**This is the first volumetric data in the application** --
-[docs/PLAN.md](PLAN.md) § 12 territory -- and it is a phase rather
-than an afternoon.
-
-**One thing no Zeo++ output can give, and it is worth not
-rediscovering**: where the largest *free* sphere sits.  D_f is the
-width of a bottleneck on a Voronoi *edge*, and no file Zeo++ writes
-carries edge radii -- `_voro_accessible.vtk` has the segments and not
-their widths.  What is drawn is D_i's sphere at its node, which is
-exact, and the path D_f travels along.  Anything else is a ball put
-somewhere plausible.
+* **Pockets are drawn with the channels.**  Zeo++ splits its numbers
+  into AV and NAV -- what a probe can reach from outside, and closed
+  voids it cannot -- and the surface makes no such distinction, so a
+  framework with sealed cavities draws them alongside its channels.
+  Telling them apart means a connected-component pass over the grid
+  with a union-find that carries periodic offsets, which is the same
+  algorithm `CHANNEL::findChannels` is, and it would also give the
+  surface a per-component colour.
+* **Nothing welds the vertices.**  Marching tetrahedra emits six per
+  cut cell and shares none between them, so MFU-4l's surface is
+  567 000 points for 189 000 triangles.  It renders, and the mesh is
+  thrown away on the next run, so this is only worth doing if the
+  surface ever needs to be *written* -- an STL for a figure, or the
+  project file it is deliberately kept out of.
 
 ## Topology
 

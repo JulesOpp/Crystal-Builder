@@ -458,6 +458,68 @@ def test_the_occupiable_volume_is_actually_read(fake_network, rutile,
     assert "Channels" not in rows
 
 
+def test_the_volume_run_draws_the_surface_of_what_it_measured(
+        fake_network, rutile, workspace):
+    """Zeo++ cannot supply it -- both its grid writers fail -- so the
+    surface is marched here, at the run's own probe and radii, and it
+    is the boundary of the volume in the table."""
+    result, _folder = run("volume", rutile, workspace, spacing=0.15,
+                          gas="custom", probe_radius=0.05)
+    network = result.overlay
+    assert network is not None
+    assert network.n_surface_faces > 100
+    assert network.probe == pytest.approx(0.05)
+    assert "surface" in network.summary()
+
+
+def test_the_surface_can_be_turned_off(fake_network, rutile,
+                                       workspace):
+    result, _folder = run("volume", rutile, workspace, draw=False,
+                          gas="custom", probe_radius=0.05)
+    assert result.overlay is None
+    assert result.ok
+
+
+def test_the_surface_uses_the_radii_the_run_used(fake_network, rutile,
+                                                 workspace):
+    """A picture drawn from a different table beside a number measured
+    with this one is the disagreement the whole module avoids."""
+    assert zeopp._radius_function(
+        Job(structure=rutile, params={"radii": "builtin"}))[0] \
+        is porosity.zeo_radius
+
+    from xtal.core import elements
+    assert zeopp._radius_function(
+        Job(structure=rutile, params={"radii": "vdw"}))[0] \
+        is elements.vdw_radius
+
+
+def test_a_radii_file_gets_no_surface_and_says_why(fake_network,
+                                                   rutile, workspace,
+                                                   tmp_path):
+    """The one case that cannot be matched: we do not read the user's
+    table, so a surface from ours would not be the volume above."""
+    table = tmp_path / "mine.rad"
+    table.write_text("Ti 1.0\nO 1.0\n")
+    result, folder = run("volume", rutile, workspace,
+                         gas="custom", probe_radius=0.05,
+                         radii_file=str(table))
+    assert result.ok
+    assert result.overlay is None
+    assert "radii file of its own" in folder.run.log_path.read_text()
+
+
+def test_a_dense_solid_gets_no_surface_and_that_is_an_answer(
+        fake_network, rutile, workspace):
+    """Nothing in rutile is anything like 1.86 A from an atom, so
+    there is nothing to draw -- and the volume in the table is still
+    right.  A probe that fits nowhere is an answer, not a failure."""
+    result, folder = run("volume", rutile, workspace, spacing=0.4)
+    assert result.ok
+    assert result.overlay is None
+    assert "nothing to draw" in folder.run.log_path.read_text()
+
+
 def test_the_row_says_which_of_the_two_was_measured(fake_network,
                                                     rutile, workspace):
     result, _folder = run("volume", rutile, workspace)

@@ -317,6 +317,19 @@ stress case).
   structure adopted into the wrong document is visibly the wrong
   crystal, and a pore network over the wrong one is a plausible
   picture of channels that are not there.
+- **The pore surface is ours, and it is one measurement with the
+  number beside it.** Zeo++ 0.3 cannot supply a distance grid —
+  `-gridGAI` aborts on MFU-4l and `-gridG` runs for minutes writing
+  nothing — so `xtal/analysis/grid.py` builds it by KD-tree over the
+  cell and its 26 neighbours, and `xtal/analysis/isosurface.py`
+  marches it (**tetrahedra, not cubes**: a cube has fourteen ambiguous
+  sign patterns and a tetrahedron has none). The radii are whichever
+  the run was given — `porosity.ZEO_RADII` is Zeo++'s own table,
+  transcribed, because it is compiled into the binary and written
+  nowhere it could be read back, and a test checks the transcription
+  against the vendored source. **The surface is not written into the
+  project**: MFU-4l's is 190 000 triangles and 59 MB of JSON against
+  three seconds to compute it again.
 - **The CIF carries the bonds; Export cleans.** `_geom_bond` says
   (site, site, operation, translation) and always could, so the
   workspace copy of a structure *is* the document: the markers the

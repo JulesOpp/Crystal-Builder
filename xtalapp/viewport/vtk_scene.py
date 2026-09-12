@@ -809,6 +809,19 @@ class VtkScene:
         self.pore_actor.SetVisibility(False)
         self.renderer.AddActor(self.pore_actor)
 
+        self._pore_surface_poly = vtkPolyData()
+        surface_mapper = vtkPolyDataMapper()
+        surface_mapper.SetScalarModeToUseCellData()
+        surface_mapper.SetColorModeToDirectScalars()
+        self.pore_surface_mapper = surface_mapper
+        self.pore_surface_actor = vtkActor()
+        self.pore_surface_actor.SetMapper(surface_mapper)
+        self.pore_surface_actor.GetProperty().SetSpecular(0.2)
+        self.pore_surface_actor.GetProperty().SetSpecularPower(20)
+        self.pore_surface_actor.GetProperty().BackfaceCullingOff()
+        self.pore_surface_actor.SetVisibility(False)
+        self.renderer.AddActor(self.pore_surface_actor)
+
         self._pore_edge_poly = vtkPolyData()
         self._pore_edge_tube = vtkTubeFilter()
         self._pore_edge_tube.SetInputData(self._pore_edge_poly)
@@ -839,6 +852,17 @@ class VtkScene:
         self.pore_actor.GetProperty().SetOpacity(
             float(model.pore_opacity))
         self.pore_actor.SetVisibility(model.n_pore_spheres > 0)
+
+        if model.n_pore_surface_faces:
+            self._pore_surface_poly = _triangle_polydata(
+                model.pore_surface_points, model.pore_surface_faces,
+                model.pore_surface_colors)
+            self.pore_surface_mapper.SetInputData(
+                self._pore_surface_poly)
+            self.pore_surface_actor.GetProperty().SetOpacity(
+                float(model.pore_opacity))
+        self.pore_surface_actor.SetVisibility(
+            model.n_pore_surface_faces > 0)
 
         if not model.n_pore_edges:
             self.pore_edge_actor.SetVisibility(False)

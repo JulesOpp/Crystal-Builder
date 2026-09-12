@@ -91,6 +91,47 @@ def probe_label(name: str, custom: float = 0.0) -> str:
     return f"a {float(custom):.2f} A probe"
 
 
+#: Zeo++'s own radii table, transcribed from ``initializeRadTable`` in
+#: its ``networkinfo.cc`` (BSD-3; the source is vendored at
+#: ``resources/zeo++-0.3`` and carries the notice).
+#:
+#: Here because the *picture* of a porosity run has to be drawn with
+#: the radii the *numbers* were computed with, and this table is
+#: compiled into the binary rather than written anywhere it could be
+#: read back.  A surface drawn with this application's van der Waals
+#: radii beside a volume measured with these would be the quiet
+#: disagreement the rest of this module exists to prevent.
+#: ``tests/test_porosity.py`` checks the transcription against the
+#: vendored source, so a Zeo++ upgrade that changes a radius fails
+#: rather than drifting.
+ZEO_RADII = {
+    "H": 1.09, "D": 1.09, "He": 1.4, "Li": 1.82, "Be": 2, "B": 2,
+    "C": 1.7, "N": 1.55, "O": 1.52, "F": 1.47, "Ne": 1.54, "Na": 2.27,
+    "Mg": 1.73, "Al": 2, "Si": 2.1, "P": 1.8, "S": 1.8, "Cl": 1.75,
+    "Ar": 1.88, "K": 2.75, "Ca": 2, "Sc": 2, "Ti": 2, "V": 2, "Cr": 2,
+    "Mn": 2, "Fe": 2, "Co": 2, "Ni": 1.63, "Cu": 1.4, "Zn": 1.39,
+    "Ga": 1.87, "Ge": 2, "As": 1.85, "Se": 1.9, "Br": 1.85, "Kr": 2.02,
+    "Rb": 2, "Sr": 2, "Y": 2, "Zr": 2, "Nb": 2, "Mo": 2, "Tc": 2,
+    "Ru": 2, "Rh": 2, "Pd": 1.63, "Ag": 1.72, "Cd": 1.58, "In": 1.93,
+    "Sn": 2.17, "Sb": 2, "Te": 2.06, "I": 1.98, "Xe": 2.16, "Cs": 2,
+    "Ba": 2, "La": 2, "Ce": 2, "Pr": 2, "Nd": 2, "Pm": 2, "Sm": 2,
+    "Eu": 2, "Gd": 2, "Tb": 2, "Dy": 2, "Ho": 2, "Er": 2, "Tm": 2,
+    "Yb": 2, "Lu": 2, "Hf": 2, "Ta": 2, "W": 2, "Re": 2, "Os": 2,
+    "Ir": 2, "Pt": 1.72, "Au": 1.66, "Hg": 1.55, "Tl": 1.96,
+    "Pb": 2.02, "Bi": 2, "Po": 2, "At": 2, "Rn": 2, "Fr": 2, "Ra": 2,
+    "Ac": 2, "Th": 2, "Pa": 2, "U": 1.86, "Np": 2, "Pu": 2, "Am": 2,
+    "Cm": 2, "Bk": 2, "Cf": 2, "Es": 2, "Fm": 2, "Md": 2, "No": 2,
+    "Lr": 2, "Rf": 2, "Db": 2, "Sg": 2, "Bh": 2, "Hs": 2, "Mt": 2,
+    "Ds": 2,
+}
+
+
+def zeo_radius(symbol: str, default: float = 1.7) -> float:
+    """Zeo++'s radius for an element, or ``default`` for one it has
+    never heard of -- which is what Zeo++ itself does."""
+    return ZEO_RADII.get(str(symbol).capitalize(), float(default))
+
+
 class ZeoOutputError(ValueError):
     """Zeo++ wrote something this cannot read.
 
@@ -670,6 +711,15 @@ class PoreNetwork:
         default_factory=lambda: np.zeros((0, 3)))   # (E,3) fractional
     edge_ends: np.ndarray = field(
         default_factory=lambda: np.zeros((0, 3)))   # (E,3) fractional
+    #: The accessible surface, when one was asked for: triangles over
+    #: a shared vertex list, fractional like everything else here.
+    #: Not from Zeo++ -- see :mod:`xtal.analysis.grid` for why it
+    #: cannot be -- but at the same probe and the same radii, so it is
+    #: the boundary of the volume the run reported.
+    surface_points: np.ndarray = field(
+        default_factory=lambda: np.zeros((0, 3)))   # (P,3) fractional
+    surface_faces: np.ndarray = field(
+        default_factory=lambda: np.zeros((0, 3), int))
     probe: float = 0.0
     channels: tuple = ()
 
@@ -680,6 +730,10 @@ class PoreNetwork:
     @property
     def n_edges(self) -> int:
         return len(self.edge_starts)
+
+    @property
+    def n_surface_faces(self) -> int:
+        return len(self.surface_faces)
 
     def largest(self):
         """``(frac, radius)`` of the widest node, or ``None``.
@@ -693,11 +747,27 @@ class PoreNetwork:
         return self.nodes[best], float(self.radii[best])
 
     def summary(self) -> str:
-        return (f"{self.n_nodes} accessible node(s) in "
+        if self.n_surface_faces and not self.n_nodes:
+            return (f"an accessible surface of "
+                    f"{self.n_surface_faces} triangles at a "
+                    f"{self.probe:.2f} A probe")
+        said = (f"{self.n_nodes} accessible node(s) in "
                 f"{len(self.channels)} channel(s), "
                 f"{dimensionality(self.channels)}")
+        if self.n_surface_faces:
+            said += f", and a surface of {self.n_surface_faces} triangles"
+        return said
 
     def to_dict(self) -> dict:
+        """Small enough to live in a project's session file.
+
+        **The surface is deliberately not in here.**  MFU-4l's is
+        190 000 triangles, which is 59 MB of JSON -- against three
+        seconds to compute it again from the structure that is in the
+        same file.  Every other field is kilobytes and is kept: the
+        nodes and the channels came out of a binary the reader may not
+        have, and the surface did not.
+        """
         return {
             "nodes": np.asarray(self.nodes).tolist(),
             "radii": np.asarray(self.radii).tolist(),
@@ -713,13 +783,15 @@ class PoreNetwork:
 
     @classmethod
     def from_dict(cls, data: dict) -> PoreNetwork:
-        def array(key, width):
-            values = np.array(data.get(key) or [], dtype=float)
+        def array(key, width, dtype=float):
+            values = np.array(data.get(key) or [], dtype=dtype)
             return values.reshape(-1, width) if width else values
         return cls(
             nodes=array("nodes", 3), radii=array("radii", 0),
             edge_starts=array("edge_starts", 3),
             edge_ends=array("edge_ends", 3),
+            surface_points=array("surface_points", 3),
+            surface_faces=array("surface_faces", 3, int),
             probe=float(data.get("probe", 0.0)),
             channels=tuple(Channel(**row)
                            for row in data.get("channels", ())))

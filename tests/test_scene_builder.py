@@ -791,3 +791,53 @@ def test_the_pores_are_inside_the_camera_bounds(rutile):
     with_pore = build_scene(rutile, ViewSettings(), pores=network)
     without = build_scene(rutile, ViewSettings())
     assert (with_pore.bounds()[1] > without.bounds()[1]).any()
+
+
+def _surface(shift=(0.0, 0.0, 0.0)):
+    """A pore network that is a surface and nothing else -- what the
+    accessible-volume run produces."""
+    from xtal.analysis.porosity import PoreNetwork
+    points = np.array([[0.2, 0.2, 0.2], [0.8, 0.2, 0.2],
+                       [0.5, 0.8, 0.2], [0.5, 0.5, 0.8]]) + shift
+    faces = np.array([[0, 1, 2], [0, 1, 3], [1, 2, 3], [0, 2, 3]])
+    return PoreNetwork(surface_points=points, surface_faces=faces,
+                       probe=1.86)
+
+
+def test_a_surface_only_network_draws_no_sphere(rutile):
+    """The volume run reports where the pore space is and not which
+    node is widest, so there is nothing to put a ball at."""
+    scene = build_scene(rutile, ViewSettings(), pores=_surface())
+    assert scene.n_pore_surface_faces == 4
+    assert scene.n_pore_spheres == 0
+    assert scene.n_pore_edges == 0
+
+
+def test_the_surface_is_repeated_whole_per_cell(rutile):
+    """Whole copies rather than a clipped one: a surface is hundreds
+    of thousands of triangles and testing each against the box would
+    cost more than drawing it."""
+    settings = ViewSettings()
+    settings.range_a = (0.0, 2.0)
+    scene = build_scene(rutile, settings, pores=_surface())
+    assert scene.n_pore_surface_faces == 8
+    # The second copy indexes its own vertices, not the first's.
+    assert scene.pore_surface_faces.max() == 7
+
+
+def test_one_cell_of_range_is_one_copy_of_the_surface(rutile):
+    scene = build_scene(rutile, ViewSettings(), pores=_surface())
+    assert scene.n_pore_surface_faces == 4
+
+
+def test_the_surface_can_be_turned_off_with_the_rest(rutile):
+    settings = ViewSettings()
+    settings.show_pores = False
+    scene = build_scene(rutile, settings, pores=_surface())
+    assert scene.n_pore_surface_faces == 0
+
+
+def test_the_surface_is_inside_the_camera_bounds(rutile):
+    with_surface = build_scene(rutile, ViewSettings(), pores=_surface())
+    plain = build_scene(rutile, ViewSettings())
+    assert (with_surface.bounds()[1] >= plain.bounds()[1]).all()

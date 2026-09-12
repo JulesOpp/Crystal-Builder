@@ -203,6 +203,15 @@ class SceneModel:
     pore_edge_colors: np.ndarray = field(
         default_factory=lambda: _empty(3, np.uint8))
     pore_edge_radius: float = 0.12
+    # The accessible surface, as triangles over a shared vertex list --
+    # the polyhedron shape exactly, so the renderer, the SVG export
+    # and the translucent-actor pattern all already know what to do
+    # with it.
+    pore_surface_points: np.ndarray = field(default_factory=_empty)
+    pore_surface_faces: np.ndarray = field(
+        default_factory=lambda: np.zeros((0, 3), int))
+    pore_surface_colors: np.ndarray = field(
+        default_factory=lambda: _empty(3, np.uint8))
 
     # planes: the geometry the user defined on top of the crystal.
     # Triangles like a polyhedron, because a quad is two of them, plus
@@ -322,6 +331,10 @@ class SceneModel:
         return len(self.pore_edge_starts)
 
     @property
+    def n_pore_surface_faces(self) -> int:
+        return len(self.pore_surface_faces)
+
+    @property
     def n_plane_faces(self) -> int:
         return len(self.plane_faces)
 
@@ -346,6 +359,7 @@ class SceneModel:
                               self.normal_ends,
                               self.pore_edge_starts,
                               self.pore_edge_ends,
+                              self.pore_surface_points,
                               *self._pore_extent())
                   if len(c)]
         if not chunks:

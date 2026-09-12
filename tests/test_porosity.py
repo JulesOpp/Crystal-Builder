@@ -329,3 +329,37 @@ def test_volpo_reports_no_counts_and_says_so():
     row."""
     assert porosity.Volume.parse(VOL).counted
     assert not porosity.Volume.parse(VOLPO).counted
+
+
+# ------------------------------------------------------------ the radii
+
+def test_the_transcribed_radii_still_match_the_vendored_source():
+    """``ZEO_RADII`` is typed out of Zeo++'s ``networkinfo.cc``,
+    because the table is compiled into the binary and written nowhere
+    it could be read back -- and the *picture* of a run has to be
+    drawn with the radii its *numbers* were computed with.  So a Zeo++
+    upgrade that changes a radius fails here rather than quietly
+    moving a surface off the volume beside it."""
+    import re
+    from pathlib import Path
+
+    source = Path(__file__).resolve().parent.parent.joinpath(
+        "resources", "zeo++-0.3", "networkinfo.cc")
+    if not source.is_file():
+        pytest.skip("the vendored Zeo++ source is not in this checkout")
+    text = source.read_text()
+    block = text[text.index("void initializeRadTable()"):]
+    theirs = {symbol: float(radius) for symbol, radius in re.findall(
+        r'radTable\.insert\(pair <string,double> '
+        r'\("([A-Za-z]+)",\s*([0-9.]+)\)\)',
+        block[:block.index("}")])}
+
+    assert theirs
+    assert porosity.ZEO_RADII == theirs
+
+
+def test_an_element_zeo_has_never_heard_of_gets_a_default():
+    assert porosity.zeo_radius("Zn") == pytest.approx(1.39)
+    assert porosity.zeo_radius("Uuo") == pytest.approx(1.7)
+    # Whatever case the caller spells it in.
+    assert porosity.zeo_radius("zn") == porosity.zeo_radius("Zn")

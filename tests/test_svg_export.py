@@ -288,3 +288,17 @@ def test_the_pores_are_circles_and_lines(rutile):
     assert circles[0].get("fill-opacity")
     assert "url(" not in circles[0].get("fill")
     assert len(by_class(root, "pore-edge")) == 1
+
+
+def test_the_pore_surface_is_exported_as_faces(rutile):
+    """The same triangles-with-a-colour-per-face path the polyhedra
+    take, which is the whole reason the surface is shaped like one."""
+    from xtal.analysis.porosity import PoreNetwork
+    points = np.array([[0.2, 0.2, 0.2], [0.8, 0.2, 0.2],
+                       [0.5, 0.8, 0.2], [0.5, 0.5, 0.8]])
+    network = PoreNetwork(
+        surface_points=points,
+        surface_faces=np.array([[0, 1, 2], [1, 2, 3]]), probe=1.86)
+    model = build_scene(rutile, ViewSettings(), pores=network)
+    root = parse(render_svg(model, _fitted(model)))
+    assert len(by_class(root, "pore-surface")) == 2

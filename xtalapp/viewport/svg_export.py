@@ -651,6 +651,9 @@ def render_svg(model, projection, names=None,
     _normal_shapes(model, projection, shapes)
     _cell_shapes(model, projection, shapes)
     _topology_shapes(model, projection, shapes)
+    _face_shapes(model.pore_surface_points, model.pore_surface_faces,
+                 model.pore_surface_colors, model.pore_opacity,
+                 projection, "pore-surface", shapes)
     _pore_shapes(model, projection, shapes)
     _bond_shapes(model, projection, shapes)
     _atom_shapes(model, projection, names, gradients, shapes)

@@ -309,3 +309,51 @@ def test_editing_the_crystal_drops_the_pores(
     document.select([0])
     document.delete_selection()
     assert document.pores is None
+
+
+def test_the_volume_run_draws_its_surface_too(window, fake_network,
+                                              rutile_cif, qtbot,
+                                              monkeypatch):
+    """The second kind of overlay, through the same seam: a result
+    that is a picture rather than a number, on the document the run
+    was started from."""
+    monkeypatch.setattr(
+        ModuleDialog, "ask",
+        staticmethod(lambda module, action, parent=None, initial=None:
+                     {**{p.name: p.default for p in action.params},
+                      "gas": "custom", "probe_radius": 0.05,
+                      "spacing": 0.15}))
+    document = window.open_path(rutile_cif)
+
+    window.run_module_action("zeopp", "volume")
+    qtbot.waitUntil(lambda: window.module_worker is None, timeout=30000)
+
+    assert document.pores is not None
+    assert document.pores.n_surface_faces > 100
+    assert not document.modified
+
+
+def test_the_surface_is_not_written_into_the_project(
+        window, fake_network, rutile_cif, qtbot, tmp_path, monkeypatch):
+    """MFU-4l's surface is 190 000 triangles, which is 59 MB of JSON,
+    against three seconds to compute it again from the structure in
+    the same file."""
+    from xtalapp.document import Document
+
+    monkeypatch.setattr(
+        ModuleDialog, "ask",
+        staticmethod(lambda module, action, parent=None, initial=None:
+                     {**{p.name: p.default for p in action.params},
+                      "gas": "custom", "probe_radius": 0.05,
+                      "spacing": 0.15}))
+    document = window.open_path(rutile_cif)
+    window.run_module_action("zeopp", "volume")
+    qtbot.waitUntil(lambda: window.module_worker is None, timeout=30000)
+
+    path = document.save(tmp_path / "rutile.xtalproj")
+    assert path.stat().st_size < 200_000
+
+    reopened = Document.load(path)
+    assert reopened.pores is not None
+    assert reopened.pores.n_surface_faces == 0
+    assert reopened.pores.probe == document.pores.probe

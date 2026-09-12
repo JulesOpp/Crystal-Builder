@@ -70,7 +70,6 @@ a number, and the half of DFTB+ its own driver does better.
 | Item | TODO entry | Size |
 |---|---|---|
 | Export a net as `.cgd` for Systre | Topology | S |
-| The accessible volume as an isosurface | Modules | L |
 | DFTB+'s own driver | Modules | L |
 
 **The `.cgd` writer is an afternoon.**  The Net panel says **pcu** and
@@ -82,27 +81,27 @@ that produced the first.  One `CRYSTAL` block with `NAME`, `GROUP P1`,
 `CELL`, and a `NODE` per vertex with an `EDGE` per edge — the net is
 already in that shape.
 
-**Zeo++ was the reason this phase exists, and most of it has
-shipped.**  A porous-materials application that can only *print*
-9.18 Å is a spreadsheet, and it no longer only prints: `-chan` gives
-the number of channels and the dimensionality they run in, `-visVoro`
-puts
-the largest included sphere in the viewport where it actually sits
-with the channel skeleton through it, and `-vol`/`-volpo` has an entry
-of its own.  One `network` invocation does all of that over one
-Voronoi decomposition, which is a second on MFU-4l.
+**Zeo++ has shipped.**  A porous-materials application that can only
+*print* 9.18 Å is a spreadsheet, and it no longer only prints:
+`-chan` gives the number of channels and the dimensionality they run
+in, `-visVoro` puts the largest included sphere in the viewport where
+it actually sits with the channel skeleton through it, `-vol`/`-volpo`
+has an entry of its own, and that entry draws the accessible surface
+of the volume it measured.
 
-What is left is the **isosurface**, and it turned out not to be a
-Zeo++ job at all: both of its grid writers fail on this application's
-own stress case, so the distance grid has to be built here.  That
-makes it the first volumetric data in the application rather than an
-afternoon over an existing file, which is why it is listed at L.
-[docs/TODO.md](TODO.md) § Modules has the measurements.
+The surface turned out not to be a Zeo++ job at all -- both of its
+grid writers fail on this application's own stress case -- so the
+distance grid is built here, by KD-tree, with the radii the run was
+given.  That is the better answer anyway: the picture and the number
+are one measurement, and the grid's accessible fraction agrees with
+Zeo++'s Monte Carlo one to within its own spacing, which is a check
+neither half could make alone.
 
 The one thing that cannot be drawn is where D_f *sits*: it is the
 width of a bottleneck on a Voronoi edge, and no Zeo++ output carries
 edge radii.  The table says so in words rather than putting a ball
-somewhere plausible.
+somewhere plausible.  What is left over is in
+[docs/TODO.md](TODO.md) § Modules and is small.
 
 **DFTB+'s own driver is a module, not an engine** — and per the note in
 [docs/TODO.md](TODO.md), a wrapper over what DFTB+ already does rather

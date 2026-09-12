@@ -291,6 +291,69 @@ VORO_NAMES = (f"{Path(INPUT_NAME).stem}_voro_accessible.xyz",
               f"{Path(INPUT_NAME).stem}_voro_accessible.vtk")
 
 
+def _accessible_surface(job, probe: float):
+    """The boundary of the volume this run just measured.
+
+    **Computed here rather than read from Zeo++**, because Zeo++ 0.3
+    cannot supply it: ``-gridGAI`` aborts on MFU-4l and ``-gridG`` ran
+    for six minutes on the same file without writing anything.  See
+    :mod:`xtal.analysis.grid`.
+
+    Which makes the radii the thing to get right, and they are: the
+    grid is built with Zeo++'s own table when that is what the run
+    used, and with whichever of ours was chosen otherwise, so the
+    drawn surface and the quoted volume are one measurement.  A run
+    given a radii *file* is the one case that cannot be matched, and
+    it says so rather than drawing a surface off somebody else's
+    table.
+
+    A surface that could not be built is not a failed run -- the
+    volume is already read and correct.
+    """
+    from xtal.analysis import grid as grids
+    from xtal.analysis import isosurface as iso
+
+    radius_of, why = _radius_function(job)
+    if radius_of is None:
+        job.note(f"no surface drawn: {why}")
+        return None
+    spacing = float(job.param("spacing", grids.DEFAULT_SPACING))
+    field = grids.distance_grid(job.structure, radius_of,
+                                spacing=spacing)
+    points, faces = iso.isosurface(field, job.structure.lattice, probe)
+    if not len(faces):
+        job.note("nothing to draw: no point in the cell is further "
+                 "than the probe radius from an atom")
+        return None
+    network = porosity.PoreNetwork(surface_points=points,
+                                   surface_faces=faces,
+                                   probe=float(probe))
+    job.note(f"{network.summary()}, on a "
+             f"{'x'.join(str(n) for n in field.shape)} grid")
+    return network
+
+
+def _radius_function(job):
+    """``(radius_of, why not)`` for the grid the surface is marched on.
+
+    The same choice the run was given, so that the picture and the
+    number cannot be drawn from different tables -- which is the
+    disagreement the whole module is written to avoid.
+    """
+    if str(job.param("radii_file", "") or "").strip():
+        return None, ("this run used a radii file of its own, and a "
+                      "surface drawn from a different table would "
+                      "not be the volume above")
+    source = str(job.param("radii", "builtin"))
+    if source == "builtin":
+        return porosity.zeo_radius, ""
+
+    from xtal.core import elements
+    if source == "vdw":
+        return elements.vdw_radius, ""
+    return elements.covalent_radius, ""
+
+
 def _read_network(job, directory: Path, channels, probe: float):
     """The accessible pore network, as something the viewport can draw.
 
@@ -471,10 +534,13 @@ def accessible_volume(job) -> JobResult:
             return stopped
         found = porosity.Volume.parse(
             _read(directory / output, "volume"), probe)
+        surface = (_accessible_surface(job, probe)
+                   if job.param("draw", True) else None)
         return _answer(job, f"{found.summary()} to {gas}",
                        _volume_report(found, gas, probe, samples,
                                       occupiable, said),
-                       _keep(directory, job, output, INPUT_NAME))
+                       _keep(directory, job, output, INPUT_NAME),
+                       overlay=surface)
     finally:
         if holder is not None:
             holder.cleanup()
@@ -748,6 +814,22 @@ ZEOPP = Module(
                              help="Monte Carlo points across the "
                                   "whole cell.  50000 is what the "
                                   "published figures use."),
+                       Param("draw", "Draw the accessible surface",
+                             kind="bool", default=True,
+                             help="Put the boundary of that volume "
+                                  "into the 3D view: the surface a "
+                                  "probe of this radius can push its "
+                                  "centre up to.  Computed here and "
+                                  "not by Zeo++, at the same probe "
+                                  "and the same radii."),
+                       Param("spacing", "Surface detail", kind="float",
+                             default=0.5, minimum=0.2, maximum=2.0,
+                             step=0.1, decimals=2, suffix=" A",
+                             help="Grid spacing for the surface.  "
+                                  "Smaller is finer and slower: 0.5 A "
+                                  "is a second and 190 000 triangles "
+                                  "on MFU-4l, 0.3 A is eight times "
+                                  "that."),
                        *_shared()),
                run=accessible_volume),
         Action(name="psd", label="Pore size distribution...",

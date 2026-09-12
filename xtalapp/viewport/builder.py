@@ -222,6 +222,9 @@ def build_scene(structure, settings, selection=None,
         pore_edge_ends=pore[4],
         pore_edge_colors=pore[5],
         pore_edge_radius=settings.bond_radius * PORE_EDGE_FACTOR,
+        pore_surface_points=pore[6],
+        pore_surface_faces=pore[7],
+        pore_surface_colors=pore[8],
         plane_points=faces[0],
         plane_faces=faces[1],
         plane_colors=faces[2],
@@ -1215,6 +1218,9 @@ def _no_pores():
             np.zeros((0, 3), np.uint8),
             np.zeros((0, 3), np.float32),
             np.zeros((0, 3), np.float32),
+            np.zeros((0, 3), np.uint8),
+            np.zeros((0, 3), np.float32),
+            np.zeros((0, 3), int),
             np.zeros((0, 3), np.uint8))
 
 
@@ -1238,28 +1244,37 @@ def _emit_pores(network, lattice, settings):
     its node and the path the free sphere travels along.  See
     :class:`xtal.analysis.porosity.PoreNetwork`.
     """
-    if network is None or not network.n_nodes:
+    if network is None or not (network.n_nodes
+                               or network.n_surface_faces):
         return _no_pores()
     shifts = _translations(settings)
     if not len(shifts):
         return _no_pores()
 
     color = np.array(settings.pore_color, np.uint8)
+    largest = network.largest()
     if settings.pore_all_nodes:
-        frac, radii = np.asarray(network.nodes), np.asarray(network.radii)
+        frac = np.asarray(network.nodes)
+        radii = np.asarray(network.radii)
+    elif largest is None:
+        # A surface-only network -- what the volume run produces.
+        frac = np.zeros((0, 3))
+        radii = np.zeros(0)
     else:
-        largest = network.largest()
         frac = np.asarray(largest[0], float).reshape(1, 3)
         radii = np.array([largest[1]], float)
 
     centres, sizes = _repeat_nodes(frac, radii, lattice, settings,
                                    shifts)
     starts, ends = _repeat_edges(network, lattice, settings, shifts)
+    points, faces = _repeat_surface(network, lattice, settings, shifts)
     return (centres, sizes,
             np.tile(color, (len(centres), 1)),
             starts, ends,
             np.tile(np.array(settings.pore_edge_color, np.uint8),
-                    (len(starts), 1)))
+                    (len(starts), 1)),
+            points, faces,
+            np.tile(color, (len(faces), 1)))
 
 
 def _repeat_nodes(frac, radii, lattice, settings, shifts):
@@ -1290,6 +1305,35 @@ def _repeat_nodes(frac, radii, lattice, settings, shifts):
                 np.zeros(0, np.float32))
     return (lattice.to_cart(placed[where, node]).astype(np.float32),
             (radii[node] * PORE_SPHERE_SHRINK).astype(np.float32))
+
+
+def _repeat_surface(network, lattice, settings, shifts):
+    """The accessible surface, at every translation in the range.
+
+    Whole copies rather than a clipped one.  A surface is hundreds of
+    thousands of triangles and testing each against the box would cost
+    more than drawing it; a copy whose *origin* is in the range is
+    drawn entire and the ones that would not show are never made.
+    That leaves a picture of two cells overhanging by rather more than
+    a half bond does, which is the same bargain the whole display
+    range is.
+    """
+    if not network.n_surface_faces:
+        return np.zeros((0, 3), np.float32), np.zeros((0, 3), int)
+    # The whole cells the range covers, and the tolerance goes the
+    # other way here: a range of (0, 1) is one cell and not two, so
+    # the floor must not be nudged off the bottom of it.
+    lo = np.array([r[0] for r in settings.ranges]) + RANGE_TOL
+    hi = np.array([r[1] for r in settings.ranges]) - RANGE_TOL
+    keep = shifts[np.all((shifts >= np.floor(lo))
+                         & (shifts <= np.floor(hi)), axis=1)]
+    if not len(keep):
+        return np.zeros((0, 3), np.float32), np.zeros((0, 3), int)
+    frac = np.asarray(network.surface_points, float)
+    faces = np.asarray(network.surface_faces, int)
+    points = np.vstack([frac + s.astype(float) for s in keep])
+    grown = np.vstack([faces + i * len(frac) for i in range(len(keep))])
+    return lattice.to_cart(points).astype(np.float32), grown
 
 
 def _repeat_edges(network, lattice, settings, shifts):
