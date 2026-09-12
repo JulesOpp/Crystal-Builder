@@ -35,6 +35,47 @@ VOL = (
     "Number_of_channels: 1 Channel_volume_A^3: 13827.4  \n"
     "Number_of_pockets: 0 Pocket_volume_A^3: \n")
 
+#: ``-chan``: one line naming every channel's dimensionality, then the
+#: three diameters of each.  MFU-4l is one 3D channel.
+CHAN = (
+    "channels.chan   1 channels identified of dimensionality 3 \n"
+    "Channel  0  18.7273  9.18228  18.7225\n"
+    "channels.chan summary(Max_of_columns_above)   18.7273 "
+    "9.18228  18.7225  probe_rad: 1.2  probe_diam: 2.4\n")
+
+#: ``-visVoro``'s accessible nodes, trimmed to six of the 912 a real
+#: run writes.  Cartesian Angstrom, and the **fifth column is a
+#: radius** -- the widest node here is the one whose 9.371 A doubles
+#: to the 18.74 A D_i the .chan file above reports.
+VORO_NODES = (
+    "6\n"
+    "Voronoi accessible diagram for structure with probe radius 1.200\n"
+    "Ac 7.782 3.983 3.983 1.629\n"
+    "Ac 7.741 3.962 3.962 1.601\n"
+    "Ac 3.962 7.740 3.962 1.601\n"
+    "Ac 15.528 0.000 0.000 9.371\n"
+    "Ac 6.580 6.580 6.580 1.660\n"
+    "Ac 0.000 15.528 0.000 5.010\n")
+
+#: ``-visVoro``'s accessible edges.  Its POINTS block is every node
+#: followed by a second copy of the accessible ones, and its LINES
+#: index into that combined list -- which is why the parser carries
+#: coordinates out rather than indices.
+VORO_EDGES = (
+    "# vtk DataFile Version 2.0\n"
+    "vtk data for file structure\n"
+    "ASCII\n"
+    "DATASET POLYDATA\n"
+    "POINTS 4 double\n"
+    "7.782 3.983 3.983\n"
+    "7.741 3.962 3.962\n"
+    "15.528 0.000 0.000\n"
+    "6.580 6.580 6.580\n"
+    "LINES 3 9\n"
+    "2 0 1\n"
+    "2 1 2\n"
+    "2 2 3\n")
+
 
 def psd_text(counts=((11.5, 40), (18.7, 900))) -> str:
     """A histogram of a thousand bins with a few of them filled --
@@ -75,14 +116,27 @@ _WRITERS = {
     "-res": 'pathlib.Path(argv[argv.index("-res") + 1]).write_text(RES)',
     "-sa": 'pathlib.Path(argv[argv.index("-sa") + 4]).write_text(SA)',
     "-psd": 'pathlib.Path(argv[argv.index("-psd") + 4]).write_text(PSD)',
+    "-vol": 'pathlib.Path(argv[argv.index("-vol") + 4]).write_text(VOL)',
+    "-chan": 'pathlib.Path(argv[argv.index("-chan") + 2]).write_text(CHAN)',
+    # -visVoro is the one flag whose output name is not ours to
+    # choose: it names its six files after the input stem.
+    "-visVoro": ('stem = pathlib.Path(argv[-1]).stem\n'
+                 'pathlib.Path(stem + "_voro_accessible.xyz")'
+                 '.write_text(NODES)\n'
+                 'pathlib.Path(stem + "_voro_accessible.vtk")'
+                 '.write_text(EDGES)'),
 }
 
 
 def write_fake_network(directory) -> Path:
     """A stand-in for ``network`` that answers every flag we pass."""
     body = "\n".join([
-        f"RES = {RES!r}", f"SA = {SA!r}", f"PSD = {psd_text()!r}",
-        *(f'if "{flag}" in argv: {writer}'
+        f"RES = {RES!r}", f"SA = {SA!r}", f"VOL = {VOL!r}",
+        f"PSD = {psd_text()!r}", f"CHAN = {CHAN!r}",
+        f"NODES = {VORO_NODES!r}", f"EDGES = {VORO_EDGES!r}",
+        # Indented under the `if`, so a multi-line writer works.
+        *(f'if "{flag}" in argv:\n'
+          + "\n".join(f"    {row}" for row in writer.splitlines())
           for flag, writer in _WRITERS.items()),
     ])
     return write_program(directory, "network",

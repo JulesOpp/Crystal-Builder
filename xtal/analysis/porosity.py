@@ -435,6 +435,266 @@ def _number(text, default: float) -> float:
 
 
 # ======================================================================
+#  THE CHANNEL NETWORK
+# ======================================================================
+
+@dataclass(frozen=True)
+class Channel:
+    """One row of a ``.chan`` file: a pore, and how far it runs.
+
+    ``dimensionality`` is the number a paper reports and the one no
+    other Zeo++ output carries: 1 means a channel that runs along one
+    axis, 2 a layer of them, 3 a network a probe can cross in any
+    direction.  Zero is a pocket, and ``-chan`` does not write those.
+    """
+
+    index: int
+    dimensionality: int
+    included: float                 # D_i of this channel
+    free: float                     # D_f of this channel
+    included_along_free: float      # D_if of this channel
+
+    #: How to say the dimensionality in a table cell.
+    NAMES = {1: "1D, along one axis",
+             2: "2D, a layer of channels",
+             3: "3D, crossable in any direction"}
+
+    def label(self) -> str:
+        return self.NAMES.get(self.dimensionality,
+                              f"{self.dimensionality}D")
+
+
+def dimensionality(channels) -> str:
+    """The one sentence that summarises a whole ``.chan`` file.
+
+    A framework with several channels usually has them all of the same
+    dimensionality, and saying "3D" once is what the reader wants.
+    Where they differ, every one is named -- averaging them would
+    invent a number that describes none of the channels there are.
+    """
+    if not channels:
+        return "no channels: nothing this probe can pass through"
+    kinds = sorted({c.dimensionality for c in channels})
+    if len(kinds) == 1:
+        return channels[0].label()
+    return ", ".join(f"{n}D x {sum(1 for c in channels
+                                   if c.dimensionality == n)}"
+                     for n in kinds)
+
+
+def parse_chan(text: str) -> tuple[Channel, ...]:
+    """Read a ``.chan`` file.
+
+    Two shapes in one file: a first line naming every channel's
+    dimensionality in order, and a ``Channel i D_i D_f D_if`` line
+    each.  They are paired by position, which is how Zeo++ writes
+    them.  A structure with no channels gets the first line and no
+    others, and that is an answer rather than an error -- a dense
+    solid has no pores and the table should say so.
+    """
+    dims: list[int] = []
+    rows: dict[int, tuple[float, float, float]] = {}
+    # Whether the header was there at all, which is what tells "this
+    # crystal has no channels" -- a real answer for a dense solid --
+    # from "this file is not a .chan file", which is a failed run.
+    said = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if "dimensionality" in stripped:
+            said = True
+            _head, _sep, tail = stripped.partition("dimensionality")
+            dims = [int(v) for v in tail.split() if _is_int(v)]
+            continue
+        parts = stripped.split()
+        if len(parts) >= 5 and parts[0] == "Channel":
+            try:
+                rows[int(parts[1])] = tuple(
+                    float(v) for v in parts[2:5])
+            except ValueError:                      # pragma: no cover
+                continue
+    if not said:
+        raise ZeoOutputError(
+            "no channels in the Zeo++ .chan file -- the run did not "
+            "get as far as writing them, so the log is where the "
+            "reason is")
+    count = max(len(dims), max(rows) + 1 if rows else 0)
+    return tuple(
+        Channel(index=i,
+                dimensionality=dims[i] if i < len(dims) else 0,
+                included=rows.get(i, _NO_SIZES)[0],
+                free=rows.get(i, _NO_SIZES)[1],
+                included_along_free=rows.get(i, _NO_SIZES)[2])
+        for i in range(count))
+
+
+_NO_SIZES = (0.0, 0.0, 0.0)
+
+
+def _is_int(text: str) -> bool:
+    try:
+        int(text)
+    except ValueError:
+        return False
+    return True
+
+
+def parse_voro_nodes(text: str, lattice) -> tuple:
+    """Read ``<name>_voro_accessible.xyz``: ``(frac, radii)``.
+
+    **Not** :func:`xtal.io.xyz.read_xyz`, and the difference matters:
+    the fifth column here is the radius of the sphere that fits at
+    that node, and that reader takes a fifth column as an occupancy.
+    The positions are cartesian in the file and fractional in the
+    record, because the display range draws this in more than one cell
+    and a cartesian point cannot be repeated.
+    """
+    cart, radii = [], []
+    for line in text.splitlines()[2:]:
+        parts = line.split()
+        if len(parts) < 5:
+            continue
+        try:
+            values = [float(v) for v in parts[1:5]]
+        except ValueError:                          # pragma: no cover
+            continue
+        cart.append(values[:3])
+        radii.append(values[3])
+    if not cart:
+        return np.zeros((0, 3)), np.zeros(0)
+    return (lattice.to_frac(np.array(cart, dtype=float)),
+            np.array(radii, dtype=float))
+
+
+def parse_voro_edges(text: str, lattice) -> tuple:
+    """Read ``<name>_voro_accessible.vtk``: ``(starts, ends)``, fractional.
+
+    Endpoints and not indices, deliberately.  That file's ``POINTS``
+    block is every Voronoi node *followed by a second copy of the
+    accessible ones*, and its ``LINES`` index into the combined list --
+    which is a different list from the one
+    :func:`parse_voro_nodes` reads.  Carrying coordinates instead of
+    indices means the two files never have to be reconciled, and the
+    scene wants segment endpoints anyway.
+
+    Only ``POINTS`` and ``LINES`` are read; the rest of the VTK legacy
+    format is not something this needs to understand.
+    """
+    lines = text.splitlines()
+    points: list[list[float]] = []
+    edges: list[tuple[int, int]] = []
+    index = 0
+    while index < len(lines):
+        parts = lines[index].split()
+        index += 1
+        if not parts:
+            continue
+        if parts[0] == "POINTS":
+            count = int(parts[1])
+            while len(points) < count and index < len(lines):
+                row = lines[index].split()
+                index += 1
+                if len(row) >= 3:
+                    points.append([float(v) for v in row[:3]])
+        elif parts[0] == "LINES":
+            count = int(parts[1])
+            while len(edges) < count and index < len(lines):
+                row = lines[index].split()
+                index += 1
+                if len(row) >= 3 and row[0] == "2":
+                    edges.append((int(row[1]), int(row[2])))
+    if not points or not edges:
+        return np.zeros((0, 3)), np.zeros((0, 3))
+    cart = np.array(points, dtype=float)
+    pairs = np.array(edges, dtype=int)
+    # An index past the end is a truncated file, not a segment.
+    pairs = pairs[(pairs < len(cart)).all(axis=1)]
+    return (lattice.to_frac(cart[pairs[:, 0]]),
+            lattice.to_frac(cart[pairs[:, 1]]))
+
+
+@dataclass(frozen=True)
+class PoreNetwork:
+    """Where the pores are, as something that can be drawn.
+
+    The accessible Voronoi nodes with the radius that fits at each,
+    the segments joining them, and the channels they belong to.  This
+    is the half of a Zeo++ answer that is a picture rather than a
+    number, and it is here rather than in the viewport for the same
+    reason every parser in this module is: it has to be readable on a
+    machine with no display and no ``network`` on its PATH.
+
+    **The largest *free* sphere is not in here and cannot be.**  D_f is
+    the width of a bottleneck *on an edge*, and Zeo++ writes no edge
+    radii in any output -- so what this can say is where the largest
+    *included* sphere sits, which is exact, and which path the free
+    sphere travels along.  Drawing a ball at a plausible-looking
+    constriction would be inventing a measurement.
+    """
+
+    nodes: np.ndarray = field(
+        default_factory=lambda: np.zeros((0, 3)))   # (N,3) fractional
+    radii: np.ndarray = field(
+        default_factory=lambda: np.zeros(0))        # (N,) Angstrom
+    edge_starts: np.ndarray = field(
+        default_factory=lambda: np.zeros((0, 3)))   # (E,3) fractional
+    edge_ends: np.ndarray = field(
+        default_factory=lambda: np.zeros((0, 3)))   # (E,3) fractional
+    probe: float = 0.0
+    channels: tuple = ()
+
+    @property
+    def n_nodes(self) -> int:
+        return len(self.nodes)
+
+    @property
+    def n_edges(self) -> int:
+        return len(self.edge_starts)
+
+    def largest(self):
+        """``(frac, radius)`` of the widest node, or ``None``.
+
+        Twice that radius is D_i, which is how the picture and the
+        table are checked against each other.
+        """
+        if not len(self.radii):
+            return None
+        best = int(np.argmax(self.radii))
+        return self.nodes[best], float(self.radii[best])
+
+    def summary(self) -> str:
+        return (f"{self.n_nodes} accessible node(s) in "
+                f"{len(self.channels)} channel(s), "
+                f"{dimensionality(self.channels)}")
+
+    def to_dict(self) -> dict:
+        return {
+            "nodes": np.asarray(self.nodes).tolist(),
+            "radii": np.asarray(self.radii).tolist(),
+            "edge_starts": np.asarray(self.edge_starts).tolist(),
+            "edge_ends": np.asarray(self.edge_ends).tolist(),
+            "probe": float(self.probe),
+            "channels": [
+                {"index": c.index, "dimensionality": c.dimensionality,
+                 "included": c.included, "free": c.free,
+                 "included_along_free": c.included_along_free}
+                for c in self.channels],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> PoreNetwork:
+        def array(key, width):
+            values = np.array(data.get(key) or [], dtype=float)
+            return values.reshape(-1, width) if width else values
+        return cls(
+            nodes=array("nodes", 3), radii=array("radii", 0),
+            edge_starts=array("edge_starts", 3),
+            edge_ends=array("edge_ends", 3),
+            probe=float(data.get("probe", 0.0)),
+            channels=tuple(Channel(**row)
+                           for row in data.get("channels", ())))
+
+
+# ======================================================================
 #  WHAT ZEO++ MAY NOT BE ASKED
 # ======================================================================
 

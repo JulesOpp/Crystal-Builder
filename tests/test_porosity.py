@@ -12,7 +12,15 @@ module that can be tested anywhere.
 import numpy as np
 import pytest
 
-from tests.conftest_zeo import RES, SA, VOL, psd_text
+from tests.conftest_zeo import (
+    CHAN,
+    RES,
+    SA,
+    VOL,
+    VORO_EDGES,
+    VORO_NODES,
+    psd_text,
+)
 from xtal.analysis import porosity
 
 # --------------------------------------------------------- the diameters
@@ -175,3 +183,119 @@ def test_the_histogram_columns_are_arrays():
                    found.derivative):
         assert isinstance(column, np.ndarray)
         assert len(column) == found.n_bins
+
+
+# ----------------------------------------------------- the channel network
+
+def _cell():
+    """MFU-4l's cell, which is what the captured node files are in."""
+    from xtal.core.lattice import Lattice
+    return Lattice.cubic(31.0569)
+
+
+def test_a_channel_carries_its_dimensionality():
+    """The one number no other Zeo++ output has, and the reason
+    ``-chan`` is run at all."""
+    channels = porosity.parse_chan(CHAN)
+    assert len(channels) == 1
+    assert channels[0].dimensionality == 3
+    assert channels[0].included == pytest.approx(18.7273)
+    assert channels[0].free == pytest.approx(9.18228)
+
+
+def test_the_channel_diameters_match_the_res_file():
+    """Two flags of one run describing one crystal.  If these ever
+    disagree the module has paired a picture with somebody else's
+    numbers."""
+    channel = porosity.parse_chan(CHAN)[0]
+    res = porosity.parse_res(RES)
+    assert channel.included == pytest.approx(res.included, abs=0.01)
+    assert channel.free == pytest.approx(res.free, abs=0.01)
+
+
+def test_dimensionality_is_said_once_when_they_agree():
+    channels = porosity.parse_chan(CHAN)
+    assert porosity.dimensionality(channels).startswith("3D")
+
+
+def test_dimensionality_names_every_kind_when_they_differ():
+    """Averaging two channels' dimensionality would invent a number
+    that describes neither of them."""
+    channels = (porosity.Channel(0, 1, 6.0, 5.0, 6.0),
+                porosity.Channel(1, 3, 9.0, 8.0, 9.0))
+    said = porosity.dimensionality(channels)
+    assert "1D" in said and "3D" in said
+
+
+def test_a_dense_solid_has_no_channels_and_that_is_an_answer():
+    text = "out.chan   0 channels identified of dimensionality \n"
+    channels = porosity.parse_chan(text)
+    assert channels == ()
+    assert "no channels" in porosity.dimensionality(channels)
+
+
+def test_a_truncated_chan_file_says_the_run_failed():
+    with pytest.raises(porosity.ZeoOutputError):
+        porosity.parse_chan("")
+
+
+def test_the_fifth_column_of_a_voronoi_file_is_a_radius():
+    """``read_xyz`` would take it for an occupancy, which is why this
+    file has a parser of its own."""
+    _frac, radii = porosity.parse_voro_nodes(VORO_NODES, _cell())
+    assert len(radii) == 6
+    assert radii.max() == pytest.approx(9.371)
+
+
+def test_the_widest_node_is_where_the_largest_sphere_sits():
+    """Twice its radius is D_i, which is how the picture and the table
+    are checked against each other."""
+    frac, radii = porosity.parse_voro_nodes(VORO_NODES, _cell())
+    net = porosity.PoreNetwork(nodes=frac, radii=radii)
+    node, radius = net.largest()
+    assert 2 * radius == pytest.approx(18.742, abs=0.01)
+    assert _cell().to_cart(node) == pytest.approx([15.528, 0.0, 0.0])
+
+
+def test_voronoi_nodes_are_stored_fractional():
+    """The display range draws this in more than one cell, and a
+    cartesian point cannot be repeated."""
+    frac, _radii = porosity.parse_voro_nodes(VORO_NODES, _cell())
+    assert frac.max() <= 1.0
+
+
+def test_the_edges_come_back_as_endpoints_not_indices():
+    """That file's POINTS block is every node followed by a second
+    copy of the accessible ones, and its LINES index into the
+    combination -- a different list from the node file's."""
+    starts, ends = porosity.parse_voro_edges(VORO_EDGES, _cell())
+    assert starts.shape == (3, 3) and ends.shape == (3, 3)
+    assert _cell().to_cart(starts[0]) == pytest.approx(
+        [7.782, 3.983, 3.983])
+
+
+def test_an_index_past_the_end_is_a_truncated_file_not_a_segment():
+    text = VORO_EDGES.replace("2 2 3", "2 2 99")
+    starts, _ends = porosity.parse_voro_edges(text, _cell())
+    assert len(starts) == 2
+
+
+def test_a_pore_network_round_trips_through_a_dict():
+    """It is written into the project's session, so it has to come
+    back as what it went in as."""
+    frac, radii = porosity.parse_voro_nodes(VORO_NODES, _cell())
+    starts, ends = porosity.parse_voro_edges(VORO_EDGES, _cell())
+    net = porosity.PoreNetwork(
+        nodes=frac, radii=radii, edge_starts=starts, edge_ends=ends,
+        probe=1.2, channels=porosity.parse_chan(CHAN))
+    back = porosity.PoreNetwork.from_dict(net.to_dict())
+    assert np.allclose(back.nodes, net.nodes)
+    assert np.allclose(back.radii, net.radii)
+    assert np.allclose(back.edge_ends, net.edge_ends)
+    assert back.channels == net.channels
+    assert back.probe == 1.2
+
+
+def test_an_empty_pore_network_has_no_largest_sphere():
+    assert porosity.PoreNetwork().largest() is None
+    assert porosity.PoreNetwork().n_nodes == 0

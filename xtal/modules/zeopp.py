@@ -4,9 +4,9 @@ xtal.modules.zeopp
 Zeo++, as a registry entry.
 
 Three entries, which are the three questions asked of a porous
-crystal: how big are the pores (``-res``), how much surface does a gas
-molecule see (``-sa``), and what is the spread of pore sizes
-(``-psd``).  Everything about launching, streaming, cancelling and
+crystal: how big are the pores (``-res`` and ``-chan``), how much
+surface does a gas molecule see (``-sa``), and what is the spread of
+pore sizes (``-psd``).  Everything about launching, streaming, cancelling and
 recording is :mod:`xtal.modules.process` and
 :mod:`xtal.modules.record`, written once in Phase D; what is here is
 only what is true of Zeo++ in particular.
@@ -220,7 +220,19 @@ def _write_radii(job, directory: Path) -> tuple[Path | None, str]:
                   f"written to {path.name}")
 
 
-def _argv(job, directory: Path, radii: Path | None, tail) -> list:
+def _argv(job, directory: Path, radii: Path | None,
+          commands) -> list:
+    """One argv, from a list of command groups.
+
+    **Several commands in one invocation, deliberately.**  Zeo++ reads
+    the structure and builds the Voronoi decomposition once and then
+    runs every command over it, and that decomposition is the whole
+    cost of a run -- ``-res -chan -visVoro`` together take a second on
+    MFU-4l where the same structure with ``-ha`` takes minutes.  So a
+    picture and the numbers beside it come out of one run, which is
+    also what makes it impossible for them to disagree about the
+    radii.
+    """
     found = binary()
     if found is None:
         raise MissingProgram(PROGRAM.title, searched=(PROGRAM.name,),
@@ -230,7 +242,8 @@ def _argv(job, directory: Path, radii: Path | None, tail) -> list:
         argv.append("-ha")
     if radii is not None:
         argv += ["-r", str(radii)]
-    argv += [str(t) for t in tail]
+    for command in commands:
+        argv += [str(t) for t in command]
     argv.append(INPUT_NAME)
     return argv
 
@@ -313,23 +326,38 @@ def _answer(job, message: str, report, artifacts) -> JobResult:
 # ======================================================================
 
 def pore_diameters(job) -> JobResult:
-    """``-res``: the largest included and free spheres."""
+    """``-res``: the largest included and free spheres, and ``-chan``:
+    the channels they run through.
+
+    ``-chan`` is run every time and is not a choice.  The
+    decomposition is already paid for by ``-res``, and channel
+    dimensionality -- whether a probe can cross the crystal in one
+    direction, in a plane, or in any -- is a number every porous
+    materials paper reports and the one no other Zeo++ output carries.
+    """
     directory, holder = _prepare(job)
     try:
         _write_input(job, directory)
         radii, said = _write_radii(job, directory)
-        job.say(f"Zeo++: pore diameters, {said}")
-        output = "diameters.res"
-        result = _run(job, directory,
-                      _argv(job, directory, radii, ["-res", output]))
+        _probe_radius, reach, gas = _probes_of(job)
+        job.say(f"Zeo++: pore diameters and channels to {gas}, {said}")
+        output, chan = "diameters.res", "channels.chan"
+        result = _run(job, directory, _argv(
+            job, directory, radii,
+            [["-res", output], ["-chan", reach, chan]]))
         stopped = _failed(result)
         if stopped is not None:
             return stopped
         found = porosity.parse_res(
             _read(directory / output, "diameter"))
-        return _answer(job, found.summary(),
-                       _diameter_report(found, said),
-                       _keep(directory, job, output, INPUT_NAME))
+        channels = porosity.parse_chan(
+            _read(directory / chan, "channel"))
+        return _answer(
+            job,
+            f"{found.summary()}; "
+            f"{porosity.dimensionality(channels)}",
+            _diameter_report(found, channels, gas, said),
+            _keep(directory, job, output, chan, INPUT_NAME))
     finally:
         if holder is not None:
             holder.cleanup()
@@ -347,7 +375,7 @@ def surface_area(job) -> JobResult:
         output = "surface.sa"
         result = _run(job, directory, _argv(
             job, directory, radii,
-            ["-sa", channel, probe, samples, output]))
+            [["-sa", channel, probe, samples, output]]))
         stopped = _failed(result)
         if stopped is not None:
             return stopped
@@ -374,7 +402,7 @@ def pore_size_distribution(job) -> JobResult:
         output = "distribution.psd_histo"
         result = _run(job, directory, _argv(
             job, directory, radii,
-            ["-psd", channel, probe, samples, output]))
+            [["-psd", channel, probe, samples, output]]))
         stopped = _failed(result)
         if stopped is not None:
             return stopped
@@ -392,17 +420,55 @@ def pore_size_distribution(job) -> JobResult:
 #  WHAT COMES BACK
 # ======================================================================
 
-def _diameter_report(found, said: str) -> Report:
-    return Report(
-        title="Pore diameters",
-        blocks=(Table(
-            title="",
-            rows=tuple(
-                Row.number(label, value, "A", meaning, symbol)
-                for label, value, symbol, meaning in found.rows()),
-            note="D_f is the one that decides what the framework will "
-                 "admit, and it is always the smallest of the three."),),
-        note=said)
+def _diameter_report(found, channels, gas: str,
+                     said: str) -> Report:
+    """The three diameters, and what they run through.
+
+    The diameters themselves do not depend on the probe -- ``-res``
+    measures the crystal.  Which channels *count* does, so the probe
+    is named on the rows it decides and nowhere else.
+    """
+    rows = [Row.number(label, value, "A", meaning, symbol)
+            for label, value, symbol, meaning in found.rows()]
+    rows += [
+        Row("Channels", str(len(channels)), "",
+            f"pore networks a {gas} probe can reach from outside"),
+        Row("Dimensionality", porosity.dimensionality(channels), "",
+            "whether that probe can cross the crystal along one "
+            "axis, within a plane, or in any direction"),
+    ]
+    blocks = [Table(
+        rows=tuple(rows),
+        note="D_f is the one that decides what the framework will "
+             "admit, and it is always the smallest of the three.  "
+             "Where D_f sits is not something Zeo++ reports: it is "
+             "the width of a bottleneck along a channel, and no "
+             "output carries it.")]
+    if len(channels) > 1:
+        blocks.append(_channel_table(channels))
+    return Report(title="Pore diameters and channels",
+                  blocks=tuple(blocks), note=said)
+
+
+def _channel_table(channels) -> Table:
+    """One row per channel, when there is more than one.
+
+    A single channel is already described by the rows above it, and a
+    second table saying the same three numbers again would be noise.
+    Several are not: a framework with a wide 1D channel and a narrow
+    3D one is two different materials to a gas, and the maximum over
+    them -- which is all the .res file reports -- describes neither.
+    """
+    return Table(
+        title="Channels",
+        columns=("Channel", "Runs", "D_i (A)", "D_f (A)",
+                 "D_if (A)"),
+        rows=tuple(
+            Row.of(channel.index, channel.label(),
+                   f"{channel.included:.3f}",
+                   f"{channel.free:.3f}",
+                   f"{channel.included_along_free:.3f}")
+            for channel in channels))
 
 
 def _area_report(found, gas: str, probe: float, samples: int,
@@ -490,11 +556,18 @@ ZEOPP = Module(
     check=available,
     provides=frozenset({"porosity", "table", "histogram"}),
     actions=(
-        Action(name="diameters", label="Pore diameters...",
+        Action(name="diameters",
+               label="Pore diameters and channels...",
                tip="The largest included and free spheres -- D_i, D_f "
-                   "and D_if",
+                   "and D_if -- and the channels they run through",
                kind="diameters",
-               params=_shared(), run=pore_diameters),
+               params=(*_probe(porosity.DEFAULT_PROBE, 1.86,
+                               "Which channels count as reachable.  "
+                               "The three diameters do not depend on "
+                               "it; the number of channels and their "
+                               "dimensionality do."),
+                       *_shared()),
+               run=pore_diameters),
         Action(name="surface-area", label="Surface area...",
                tip="The area a gas molecule can touch, which is what "
                    "a BET measurement sees",

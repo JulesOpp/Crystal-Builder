@@ -105,6 +105,77 @@ def test_the_diameters_come_back_as_a_report(fake_network, rutile,
     assert "Largest free sphere" in labels
 
 
+def test_the_channels_are_asked_for_in_the_same_run(
+        fake_network, rutile, workspace):
+    """One Voronoi decomposition, two commands over it.  Zeo++ builds
+    the decomposition once per invocation and it is the whole cost of
+    a run, so a second invocation for -chan would double a run to
+    learn one number."""
+    _result, folder = run("diameters", rutile, workspace)
+    argv = argv_of(folder)
+    assert "-res" in argv and "-chan" in argv
+    assert argv.count(str(zeopp.binary() or argv[0])) <= 1
+
+
+def test_the_dimensionality_reaches_the_table(fake_network, rutile,
+                                              workspace):
+    """The number every porous-materials paper reports and the one no
+    other Zeo++ output carries."""
+    result, _folder = run("diameters", rutile, workspace)
+    rows = {r.label: r.value for r in result.report.tables[0].rows}
+    assert rows["Dimensionality"].startswith("3D")
+    assert rows["Channels"] == "1"
+    assert "3D" in result.message
+
+
+def test_the_probe_decides_which_channels_count(fake_network, rutile,
+                                                workspace):
+    """The three diameters measure the crystal and ignore the probe;
+    -chan does not, so the radius it is given has to be the one the
+    user chose."""
+    _r, folder = run("diameters", rutile, workspace, gas="he")
+    argv = argv_of(folder)
+    assert argv[argv.index("-chan") + 1] == "1.3"
+
+
+def test_a_channel_radius_of_its_own_overrides_the_probe(
+        fake_network, rutile, workspace):
+    _r, folder = run("diameters", rutile, workspace, gas="he",
+                     channel_radius=2.5)
+    argv = argv_of(folder)
+    assert argv[argv.index("-chan") + 1] == "2.5"
+
+
+def test_the_channel_file_is_kept_beside_the_diameters(
+        fake_network, rutile, workspace):
+    result, folder = run("diameters", rutile, workspace)
+    kept = {p.name for p in result.artifacts}
+    assert {"diameters.res", "channels.chan"} <= kept
+
+
+def test_one_channel_gets_no_second_table(fake_network, rutile,
+                                          workspace):
+    """A single channel is already described by the rows above it, and
+    repeating its three numbers underneath would be noise."""
+    result, _folder = run("diameters", rutile, workspace)
+    assert len(result.report.tables) == 1
+
+
+def test_several_channels_each_get_a_row():
+    """A framework with a wide 1D channel and a narrow 3D one is two
+    materials to a gas, and the maximum over them -- which is all the
+    .res file reports -- describes neither."""
+    channels = (porosity.Channel(0, 1, 12.0, 11.0, 12.0),
+                porosity.Channel(1, 3, 6.0, 4.0, 5.5))
+    report = zeopp._diameter_report(
+        porosity.parse_res("out.res 12.0 4.0 12.0"), channels,
+        "Nitrogen (1.86 A)", "radii from Zeo++'s own table")
+    assert len(report.tables) == 2
+    rows = report.tables[1].rows
+    assert len(rows) == 2
+    assert "1D" in rows[0].texts[1] and "3D" in rows[1].texts[1]
+
+
 def test_it_writes_the_whole_cell_as_cssr(fake_network, rutile,
                                           workspace):
     _result, folder = run("diameters", rutile, workspace)
