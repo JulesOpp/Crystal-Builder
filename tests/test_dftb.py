@@ -377,6 +377,40 @@ def test_an_unconverged_scc_is_named_as_one(two_atoms, parameters,
         engine.compute(engine.cell.cart, two_atoms.lattice.matrix)
 
 
+def test_stop_kills_an_evaluation_instead_of_waiting_for_it(
+        two_atoms, parameters, tmp_path, monkeypatch):
+    """Stop used to be noticed between optimiser steps only, which on a
+    slow SCC cycle meant pressing it and waiting for the cycle to end.
+    The calculator now hands the same token to the program it runs."""
+    import threading
+    import time
+
+    from xtal.ff.api import CalculatorStopped
+    from xtal.modules.job import Cancellation
+
+    slow = write_program(tmp_path, "dftb+",
+                         "import time\ntime.sleep(60)\n")
+    monkeypatch.setenv("XTAL_DFTB", str(slow))
+    engine = build(two_atoms, parameters)
+    cancel = Cancellation()
+    engine.stop_with(cancel)
+    threading.Timer(0.5, cancel.cancel).start()
+
+    started = time.monotonic()
+    with pytest.raises(CalculatorStopped):
+        engine.compute(engine.cell.cart, two_atoms.lattice.matrix)
+    assert time.monotonic() - started < 20
+
+
+def test_the_options_record_every_field_they_were_built_with():
+    """The run log is written from ``to_dict``; a field it leaves out
+    is a run nobody can repeat from its log."""
+    from dataclasses import fields
+    options = dftb.DFTBOptions(parameter_directory="/sk", max_scc=7,
+                               angular_momentum="Zn=d")
+    assert set(options.to_dict()) == {f.name for f in fields(options)}
+
+
 def test_a_failing_binary_quotes_what_it_said(two_atoms, parameters,
                                               tmp_path, monkeypatch):
     broken = write_program(

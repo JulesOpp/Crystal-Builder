@@ -41,7 +41,7 @@ what is wanted but not yet scheduled.
       commands/ undoable mutations: the stack, atom/bond/cell/
                 symmetry commands, the clipboard fragment
       ff/       the Calculator API and engine registry, Ewald
-                sums, FIRE and L-BFGS optimisers
+                sums, and the optimisers
         uff/    UFF: parameter table, atom typer, energy terms,
                 calculator, QEq charges
         dftb/   DFTB+: HSD input, Slater-Koster check, calculator
@@ -510,11 +510,23 @@ special position stays on it: rutile's titanium does not move at all,
 and its oxygen relaxes along the [110] direction it is free in and
 nowhere else. To relax every atom independently, *Reduce to P1* first.
 
+*Optimiser* offers L-BFGS and FIRE and Materials Studio's set beside
+them: steepest descent, conjugate gradient, quasi-Newton (BFGS),
+ABNR, and *Smart*, which runs steepest descent while the forces are
+large, ABNR through the middle and quasi-Newton to finish.  Every one
+of them moves only the variables the space group allows.  A run that
+ends without converging says which half -- the forces or the cell --
+is still above its tolerance, and a line search with nowhere downhill
+to go says that rather than looking like the step limit.  Stop kills a
+DFTB+ or xTB evaluation in progress instead of waiting for it.
+
 *Relax the cell as well* adds the lattice to the variables, under a
 strain the space group allows -- so a cubic cell comes back cubic and
 a hexagonal one hexagonal, exactly, because there is no variable that
 could take them anywhere else.  An external pressure is a `P V` term
-beside it, in GPa.  What comes out is a UFF cell: for a framework it
+beside it, in GPa, and *Stress below* is the cell's own convergence
+criterion: the run is not finished while the stress the cell can
+still relax is above it.  What comes out is a UFF cell: for a framework it
 is routinely a few percent out (MFU-4l relaxes from 31.06 A to 30.30),
 which is a starting geometry and not a measured lattice constant, and
 the panel says so.

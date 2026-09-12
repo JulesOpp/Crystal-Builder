@@ -1502,7 +1502,7 @@ class Document(QObject):
         """The sites the selection says to hold still."""
         return self.selected_sites()
 
-    def preview_positions(self, frac) -> None:
+    def preview_positions(self, frac, matrix=None) -> None:
         """Show a geometry without committing to it.
 
         The optimiser produces two hundred of these and only the last
@@ -1520,11 +1520,23 @@ class Document(QObject):
         than the optimisation they were previewing.  ``previewChanged``
         reaches the viewport, which is the only thing that has
         something new to draw.
+
+        ``matrix`` is the cell at this step of a variable-cell run.
+        Without it the atoms of a shrinking cell were drawn contracting
+        inside the box they started in, and the fractional coordinates
+        -- which a strain leaves alone -- showed no relaxation at all.
         """
         for site, coordinates in zip(self._structure.sites, frac,
                                      strict=True):
             site.frac = np.array(coordinates, dtype=float)
-        self._structure.touch(Change.POSITIONS)
+        change = Change.POSITIONS
+        if matrix is not None and not np.array_equal(
+                matrix, self._structure.lattice.matrix):
+            from xtal.core.lattice import Lattice
+            self._structure.lattice = Lattice(
+                np.asarray(matrix, dtype=float))
+            change |= Change.CELL
+        self._structure.touch(change)
         self._remeasure()
         self.previewChanged.emit()
 

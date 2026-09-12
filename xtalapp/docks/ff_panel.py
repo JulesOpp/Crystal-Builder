@@ -74,7 +74,9 @@ from xtal.ff import ENGINES
 from xtal.ff.optimize import (
     DEFAULT_FORCE_TOLERANCE,
     DEFAULT_MAX_STEPS,
+    DEFAULT_STRESS_TOLERANCE,
     METHODS,
+    unconverged,
 )
 from xtal.ff.uff import calculator as uff_calculator
 from xtal.ff.uff import params
@@ -97,8 +99,15 @@ CHARGE_SOURCES = [
     ("Equilibrate (QEq)", "qeq"),
     ("All zero", "zero"),
 ]
-METHOD_LABELS = {"lbfgs": "L-BFGS (fast near a minimum)",
-                 "fire": "FIRE (robust far from one)"}
+METHOD_LABELS = {
+    "lbfgs": "L-BFGS (fast near a minimum)",
+    "fire": "FIRE (robust far from one)",
+    "smart": "Smart (descent, then ABNR, then quasi-Newton)",
+    "steepest_descent": "Steepest descent",
+    "conjugate_gradient": "Conjugate gradient",
+    "quasi_newton": "Quasi-Newton (BFGS)",
+    "abnr": "ABNR (adopted-basis Newton-Raphson)",
+}
 
 #: Said whenever the cell is a variable, before and after.  A lattice
 #: constant is the number people most want out of this and the one UFF
@@ -170,6 +179,7 @@ class ForceFieldDock(QDockWidget):
         self.worker: OptimizationWorker | None = None
         self._thread = None
         self._before: np.ndarray | None = None
+        self._before_matrix: np.ndarray | None = None
         self._recorder = None
 
         self.engines = (list(ENGINES) if engines is None
@@ -277,6 +287,20 @@ class ForceFieldDock(QDockWidget):
             "Costs twelve extra energy evaluations a step, because "
             "UFF has no analytic stress.")
         self.relax_cell.toggled.connect(self._on_relax_cell)
+        # Its own tolerance, in the units a cell is talked about in.
+        # The per-atom strain gradient that was the whole of the cell's
+        # criterion let a framework call itself relaxed under a fifth
+        # of a GPa.
+        self.stress_tolerance = QDoubleSpinBox()
+        self.stress_tolerance.setDecimals(3)
+        self.stress_tolerance.setRange(0.001, 10.0)
+        self.stress_tolerance.setSingleStep(0.01)
+        self.stress_tolerance.setValue(DEFAULT_STRESS_TOLERANCE)
+        self.stress_tolerance.setSuffix(" GPa")
+        self.stress_tolerance.setEnabled(False)
+        self.stress_tolerance.setToolTip(
+            "With the cell relaxing, the run is converged only when "
+            "the stress the cell can still relax is below this as well")
         self.pressure = QDoubleSpinBox()
         self.pressure.setDecimals(3)
         self.pressure.setRange(-100.0, 1000.0)
@@ -374,6 +398,7 @@ class ForceFieldDock(QDockWidget):
         run.addRow("Converge below", self.tolerance)
         run.addRow(self.freeze)
         run.addRow(self.relax_cell)
+        run.addRow("Stress below", self.stress_tolerance)
         run.addRow("Pressure", self.pressure)
         run.addRow("Redraw", self.redraw)
         run_box = QGroupBox("Optimisation")
@@ -599,6 +624,7 @@ class ForceFieldDock(QDockWidget):
 
     def _on_relax_cell(self, on: bool) -> None:
         self.pressure.setEnabled(on)
+        self.stress_tolerance.setEnabled(on)
         if on:
             self._say(CELL_WARNING)
         else:
@@ -770,6 +796,7 @@ class ForceFieldDock(QDockWidget):
             return
 
         self._before = document.structure.frac.copy()
+        self._before_matrix = document.structure.lattice.matrix.copy()
         frozen = document.frozen_sites() if self.freeze.isChecked() \
             else ()
         if self.freeze.isChecked() and \
@@ -788,11 +815,15 @@ class ForceFieldDock(QDockWidget):
                 f"optimiser      {self.method.currentData()}, "
                 f"max {self.max_steps.value()} steps, converge below "
                 f"{self.tolerance.value()} kcal/mol/A")
+            self._recorder.log.write(
+                f"               "
+                f"{METHOD_LABELS.get(self.method.currentData(), '')}")
             if self.relax_cell.isChecked():
                 self._recorder.log.write(
                     f"cell           relaxed under a "
                     f"symmetry-adapted strain at "
-                    f"{self.pressure.value():g} GPa")
+                    f"{self.pressure.value():g} GPa, converged below "
+                    f"{self.stress_tolerance.value():g} GPa")
             if frozen:
                 self._recorder.log.write(
                     f"frozen         {len(frozen)} site(s)")
@@ -802,6 +833,7 @@ class ForceFieldDock(QDockWidget):
             calculator, working, method=self.method.currentData(),
             frozen=frozen, max_steps=self.max_steps.value(),
             force_tolerance=self.tolerance.value(),
+            stress_tolerance=self.stress_tolerance.value(),
             relax_cell=self.relax_cell.isChecked(),
             pressure=self.pressure.value(),
             recorder=self._recorder)
@@ -845,6 +877,8 @@ class ForceFieldDock(QDockWidget):
         if not running:
             self.charges.setEnabled(self.coulomb.isChecked())
             self.pressure.setEnabled(self.relax_cell.isChecked())
+            self.stress_tolerance.setEnabled(
+                self.relax_cell.isChecked())
             # And an engine that cannot run stays unable to, which
             # _set_running would otherwise have just undone.
             self._show_engine()
@@ -854,7 +888,7 @@ class ForceFieldDock(QDockWidget):
     def _on_step(self, step) -> None:
         self.plot.append(step.iteration, step.energy, step.max_force)
         if self.document is not None:
-            self.document.preview_positions(step.frac)
+            self.document.preview_positions(step.frac, step.matrix)
         self.statusMessage.emit(step.line())
 
     def _on_finished(self, result) -> None:
@@ -865,7 +899,8 @@ class ForceFieldDock(QDockWidget):
         if self._before is not None:
             # Undo the preview before committing, so the one command
             # that lands carries the whole run as its undo data.
-            document.preview_positions(self._before)
+            document.preview_positions(self._before,
+                                       self._before_matrix)
         message = document.apply_optimization(result,
                                               before=self._before)
         self.plot.set_history(result.history)
@@ -884,10 +919,21 @@ class ForceFieldDock(QDockWidget):
         if getattr(result, "matrix", None) is not None:
             self._say(CELL_WARNING + " " + self.notes.text())
         if not result.converged:
+            short = unconverged(result, self.tolerance.value(),
+                                self.stress_tolerance.value())
+            # A run that ended for a reason of its own -- a line search
+            # with nowhere downhill to go -- says so; one that ran out
+            # of steps or was stopped has nothing to add.
+            why = (f"It ended because {result.message}. "
+                   if result.message.startswith("the line search")
+                   else "")
             self._say(
-                "The optimiser stopped before converging, so this "
-                "geometry is where it got to and not a minimum. Run "
-                "it again to carry on. " + self.notes.text())
+                "The optimiser stopped before converging"
+                + (f" -- {short} still above the tolerance" if short
+                   else "")
+                + ", so this geometry is where it got to and not a "
+                "minimum. " + why + "Run it again to carry on. "
+                + self.notes.text())
 
     def _close_run(self, result, final) -> None:
         """Finish the log and say where it went.
@@ -919,7 +965,8 @@ class ForceFieldDock(QDockWidget):
     def _on_failed(self, message: str) -> None:
         self._set_running(False)
         if self.document is not None and self._before is not None:
-            self.document.preview_positions(self._before)
+            self.document.preview_positions(self._before,
+                                            self._before_matrix)
         self.report.setPlainText(f"the optimisation failed: {message}")
         self.statusMessage.emit(f"optimisation failed: {message}")
         if self._recorder is not None:

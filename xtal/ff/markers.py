@@ -135,6 +135,9 @@ class WithoutMarkers(Calculator):
     def warnings(self) -> list:
         return self._inner.warnings
 
+    def stop_with(self, cancel) -> None:
+        self._inner.stop_with(cancel)
+
     def summary(self) -> str:
         held = self._n_atoms - len(self._kept)
         note = (f"; {held} dummy atom{'' if held == 1 else 's'} left "

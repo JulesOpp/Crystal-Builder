@@ -57,6 +57,10 @@ class EwaldSetup:
     k_vectors: np.ndarray       # (K,3) cartesian, 2 pi / Angstrom
     k_factor: np.ndarray        # (K,) exp(-k^2/4 alpha^2) / k^2
     volume: float
+    #: The cell the k-vectors were built for, so :func:`strained` can
+    #: carry them to another one.  ``None`` only for a setup made by
+    #: hand.
+    matrix: np.ndarray | None = None
 
     @property
     def n_k(self) -> int:
@@ -95,7 +99,31 @@ def setup(matrix, real_cutoff: float = DEFAULT_REAL_CUTOFF,
     vectors, k2 = vectors[keep], k2[keep]
     factor = np.exp(-k2 / (4.0 * alpha ** 2)) / k2
     return EwaldSetup(float(alpha), float(real_cutoff), vectors,
-                      factor, volume)
+                      factor, volume, matrix.copy())
+
+
+def strained(conf: EwaldSetup, matrix) -> EwaldSetup:
+    """The same split carried onto a deformed cell.
+
+    The reciprocal vectors and the volume belong to the cell, so a
+    setup kept while the cell relaxes describes the cell it started
+    from -- and the reciprocal energy, and the stress read off it, are
+    then those of a crystal that is not there.  Choosing afresh would
+    fix that and break something else: a k-vector that crosses the
+    cutoff between two strains of 1e-4 is a step in the energy the
+    numeric stress divides by 1e-4.  So the *set* of vectors is kept,
+    by their integer indices, and only where they point is recomputed.
+    """
+    matrix = np.asarray(matrix, dtype=float)
+    if conf.matrix is None or np.array_equal(conf.matrix, matrix):
+        return conf
+    indices = np.rint(conf.k_vectors @ conf.matrix.T / (2.0 * np.pi))
+    vectors = indices @ (2.0 * np.pi * np.linalg.inv(matrix)).T
+    k2 = np.einsum("ij,ij->i", vectors, vectors)
+    factor = np.exp(-k2 / (4.0 * conf.alpha ** 2)) / k2
+    volume = abs(float(np.linalg.det(matrix)))
+    return EwaldSetup(conf.alpha, conf.real_cutoff, vectors, factor,
+                      volume, matrix.copy())
 
 
 def energy_and_gradient(positions, matrix, charges, pairs,

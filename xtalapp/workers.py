@@ -37,6 +37,7 @@ import threading
 from PySide6.QtCore import QObject, QThread, Signal
 
 from xtal.ff import optimize
+from xtal.ff.api import CalculatorStopped
 
 
 class OptimizationWorker(QObject):
@@ -66,6 +67,11 @@ class OptimizationWorker(QObject):
         self.recording_failed = ""
         self.options = options
         self._cancel = threading.Event()
+        # The same Stop, for the engine: DFTB+ and xTB kill their
+        # program with it rather than finishing an SCC cycle nobody is
+        # waiting for.
+        from xtal.modules.job import Cancellation
+        self._stop = Cancellation()
         self._resume = threading.Event()
         self._resume.set()
         self._running = False
@@ -75,6 +81,7 @@ class OptimizationWorker(QObject):
     def cancel(self) -> None:
         self._cancel.set()
         self._resume.set()           # a paused run must be able to stop
+        self._stop.cancel()
 
     def pause(self) -> None:
         self._resume.clear()
@@ -105,19 +112,27 @@ class OptimizationWorker(QObject):
         first = last = None
         try:
             self._record(lambda r: r.begin_steps())
-            for step in optimize.steps(
-                    self.calculator, self.structure, self.method,
-                    self.frozen, **self.options):
-                if first is None:
-                    first = step
-                last = step
-                history.append((step.iteration, step.energy,
-                                step.max_force))
-                self._record(lambda r, s=step: r.step(s))
-                self.stepped.emit(step)
-                self._resume.wait()
-                if self._cancel.is_set():
-                    break
+            try:
+                for step in optimize.steps(
+                        self.calculator, self.structure, self.method,
+                        self.frozen, cancel=self._stop, **self.options):
+                    if first is None:
+                        first = step
+                    last = step
+                    history.append((step.iteration, step.energy,
+                                    step.max_force))
+                    self._record(lambda r, s=step: r.step(s))
+                    self.stepped.emit(step)
+                    self._resume.wait()
+                    if self._cancel.is_set():
+                        break
+            except CalculatorStopped:
+                # Killed in the middle of an evaluation.  The last step
+                # that finished is the result, exactly as if Stop had
+                # landed between two -- and a run stopped before its
+                # first step has nothing to keep, which is a failure.
+                if last is None:
+                    raise
             if last is None:                        # pragma: no cover
                 raise RuntimeError(
                     "the optimiser produced no steps")
@@ -133,9 +148,10 @@ class OptimizationWorker(QObject):
                 matrix=last.matrix,
                 initial_matrix=(None if last.matrix is None else
                                 self.structure.lattice.matrix),
+                stress=last.stress,
                 message=("stopped at step "
                          f"{last.iteration}" if self._cancel.is_set()
-                         else last.line()),
+                         else last.reason or last.line()),
             ))
         except Exception as exc:                    # noqa: BLE001
             self.failed.emit(str(exc))

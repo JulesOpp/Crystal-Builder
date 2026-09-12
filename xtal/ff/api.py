@@ -37,6 +37,12 @@ class CalculatorError(RuntimeError):
     field has no parameters for, a missing charge, an empty cell."""
 
 
+class CalculatorStopped(CalculatorError):
+    """Stop was pressed during an evaluation, and the engine was
+    killed rather than waited for.  Not a failure: whoever is running
+    the optimisation keeps the last step it had."""
+
+
 @dataclass(frozen=True)
 class Result:
     """One energy evaluation."""
@@ -76,6 +82,15 @@ class Calculator(ABC):
     label = "Calculator"
     provides_forces = True
     provides_stress = False
+    #: A :class:`~xtal.modules.job.Cancellation`, or ``None``.  An
+    #: engine that runs a program passes it to the program, so Stop
+    #: kills a slow SCC cycle instead of waiting for it to end; one
+    #: that computes in-process has nothing to kill and ignores it.
+    cancel = None
+
+    def stop_with(self, cancel) -> None:
+        """Be stoppable by ``cancel`` from now on."""
+        self.cancel = cancel
 
     @property
     @abstractmethod

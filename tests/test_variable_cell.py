@@ -207,6 +207,67 @@ def test_at_the_relaxed_cell_the_internal_stress_balances_the_applied():
     assert mean == pytest.approx(-pressure, abs=0.2)
 
 
+def test_a_converged_cell_is_one_whose_stress_is_below_the_tolerance():
+    """The cell's half of convergence is the residual stress, in GPa.
+    It was the strain gradient per atom, which let a framework call
+    itself relaxed under a fifth of a GPa."""
+    result = relaxed(salt(), max_steps=80, stress_tolerance=0.01)
+    assert result.converged
+    assert 0.0 < result.stress <= 0.01 or result.stress == 0.0
+
+
+def test_a_tight_stress_tolerance_keeps_a_run_going():
+    """Same forces, same cell -- only the stress tolerance differs, and
+    the run that asks for less stress takes more steps."""
+    loose = relaxed(salt(), max_steps=200, stress_tolerance=1.0)
+    tight = relaxed(salt(), max_steps=200, stress_tolerance=1e-4)
+    assert tight.steps >= loose.steps
+    assert tight.stress <= loose.stress + 1e-12
+
+
+def test_a_run_that_stopped_says_which_half_is_not_relaxed():
+    result = relaxed(salt(), max_steps=1, force_tolerance=1e-9,
+                     stress_tolerance=1e-9)
+    assert not result.converged
+    phrase = optimize.unconverged(result, 1e-9, 1e-9)
+    assert "the cell" in phrase
+
+
+def test_the_ewald_sum_follows_a_cell_the_pair_list_was_not_built_for():
+    """The reciprocal vectors and the volume belong to the cell.  They
+    were chosen once, at the first pair list, and a strain too small to
+    rebuild it left the Coulomb energy that of the cell the run
+    started from -- a numeric stress then differentiated the wrong
+    function."""
+    from xtal.ff.uff.calculator import UFFCalculator, UFFOptions
+    structure = salt()
+    cell = p1.expand(structure)
+    matrix = structure.lattice.matrix
+    options = UFFOptions(coulomb=True, charges="site")
+    kept = UFFCalculator(structure, options)
+    kept.compute(cell.cart, matrix)
+    strain = np.eye(3) * 1.02
+    fresh = UFFCalculator(structure, options)
+    assert kept.compute(cell.cart @ strain, matrix @ strain).energy \
+        == pytest.approx(fresh.compute(cell.cart @ strain,
+                                       matrix @ strain).energy,
+                         abs=1e-4)
+
+
+def test_a_strained_ewald_setup_keeps_its_vectors_and_moves_them():
+    """The same k-vectors, carried -- a vector that crossed the cutoff
+    between two strains of 1e-4 would be a step in the energy a
+    numeric stress divides by 1e-4."""
+    from xtal.ff import ewald
+    matrix = salt().lattice.matrix
+    conf = ewald.setup(matrix)
+    moved = ewald.strained(conf, matrix * 1.03)
+    assert moved.n_k == conf.n_k
+    assert moved.volume == pytest.approx(conf.volume * 1.03 ** 3)
+    assert np.allclose(moved.k_vectors, conf.k_vectors / 1.03)
+    assert ewald.strained(conf, matrix) is conf
+
+
 def test_pressure_does_nothing_when_the_cell_is_fixed():
     """It is a term in the cell's energy and there is no cell
     variable, so a pressure with no ``relax_cell`` must not quietly

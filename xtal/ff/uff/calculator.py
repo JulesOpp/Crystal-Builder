@@ -93,7 +93,9 @@ class UFFCalculator(Calculator):
     name = "uff"
     label = "UFF"
     provides_forces = True
-    provides_stress = True
+    # Not yet: nothing here returns a stress, so the optimiser takes a
+    # numeric one.  Claiming it said otherwise to anything that asked.
+    provides_stress = False
 
     def __init__(self, structure, options: UFFOptions | None = None,
                  rules: bonding.BondRules | None = None):
@@ -113,6 +115,7 @@ class UFFCalculator(Calculator):
         self.topology = self._build_topology()
         self.charges = self._charges()
         self._pairs_built_at: np.ndarray | None = None
+        self._matrix_built: np.ndarray | None = None
         self._vdw: terms.VanDerWaalsTerm | None = None
         self._coulomb_pairs = None
         self._coulomb_excluded = None
@@ -407,6 +410,7 @@ class UFFCalculator(Calculator):
 
         if self.options.coulomb and np.any(self.charges):
             self._refresh_pairs(positions, matrix)
+            self._ewald = ewald.strained(self._ewald, matrix)
             energy, g = ewald.energy_and_gradient(
                 positions, matrix, self.charges, self._coulomb_pairs,
                 excluded=self._coulomb_excluded, setup_=self._ewald,
@@ -428,9 +432,30 @@ class UFFCalculator(Calculator):
         if self._pairs_built_at is not None:
             moved = np.linalg.norm(positions - self._pairs_built_at,
                                    axis=1).max()
-            if moved < 0.5 * self.options.skin:
+            drift = self._image_drift(matrix)
+            if moved + drift < 0.5 * self.options.skin:
                 return
         self._build_pairs(positions, matrix)
+
+    def _image_drift(self, matrix) -> float:
+        """How far a strain has moved the periodic images a pair was
+        listed with.
+
+        A pair is an atom and an image of another, ``r_j + n M``, and a
+        relaxing cell moves the ``n M`` half without moving any atom:
+        watching positions alone would keep a list built for a cell
+        that is no longer there.  Bounded by the largest translation
+        the list could hold times how far the matrix has come.
+        """
+        built = self._matrix_built
+        if built is None or np.array_equal(built, matrix):
+            return 0.0
+        from xtal.core.lattice import Lattice
+        radius = self.options.vdw_cutoff + self.options.skin
+        widths = neighbors.perpendicular_widths(Lattice(built))
+        reach = float(np.ceil(radius / max(float(np.min(widths)),
+                                            1e-9))) + 1.0
+        return reach * float(np.linalg.norm(matrix - built, ord=2))
 
     def _build_pairs(self, positions, matrix) -> None:
         from xtal.core.lattice import Lattice
@@ -463,6 +488,7 @@ class UFFCalculator(Calculator):
                 matrix, real_cutoff=self.options.vdw_cutoff,
                 accuracy=self.options.ewald_accuracy)
         self._pairs_built_at = positions.copy()
+        self._matrix_built = np.asarray(matrix, dtype=float).copy()
 
     def _excluded_pairs(self, pairs, keep):
         drop = ~keep

@@ -20,6 +20,7 @@ from dataclasses import replace  # noqa: E402
 
 from tests.conftest_ff import water  # noqa: E402
 from tests.test_app_shell import StubViewport  # noqa: E402
+from xtal.ff import optimize  # noqa: E402
 from xtal.ff.xtb import calculator as xtb  # noqa: E402
 from xtalapp.docks.ff_panel import COLUMNS  # noqa: E402
 from xtalapp.document import Document  # noqa: E402
@@ -302,6 +303,26 @@ def test_relaxing_the_cell_changes_the_lattice_in_the_same_command(
     assert not np.allclose(document.structure.lattice.matrix, before)
     document.undo()
     assert np.allclose(document.structure.lattice.matrix, before)
+
+
+def test_every_optimiser_is_offered_by_name(opened):
+    window, _document = opened
+    dock = window.ff_dock
+    offered = {dock.method.itemData(i)
+               for i in range(dock.method.count())}
+    assert offered == set(optimize.METHODS)
+    assert all("_" not in dock.method.itemText(i)
+               for i in range(dock.method.count()))
+
+
+def test_the_stress_tolerance_follows_the_cell_checkbox(opened):
+    window, _document = opened
+    dock = window.ff_dock
+    assert not dock.stress_tolerance.isEnabled()
+    dock.relax_cell.setChecked(True)
+    assert dock.stress_tolerance.isEnabled()
+    dock.relax_cell.setChecked(False)
+    assert not dock.stress_tolerance.isEnabled()
 
 
 def test_the_pressure_box_follows_the_cell_checkbox(opened):

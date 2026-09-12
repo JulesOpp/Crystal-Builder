@@ -64,6 +64,91 @@ def test_water_relaxes_to_the_geometry_uff_asks_for(method):
     assert angle == pytest.approx(UFF_HOH, abs=0.05)
 
 
+EVERY_METHOD = sorted(optimize.METHODS)
+
+
+@pytest.mark.parametrize("method", EVERY_METHOD)
+def test_every_optimiser_reaches_the_same_water(method):
+    """Materials Studio's set -- steepest descent, conjugate gradient,
+    quasi-Newton, ABNR, and the cascade through them -- is offered
+    beside FIRE and L-BFGS.  An optimiser that stopped somewhere
+    convenient would come out a different molecule."""
+    result = relax(water(oh=1.10, angle=88.0), method=method,
+                   max_steps=3000, force_tolerance=1e-3)
+    assert result.converged, result.message
+    cart = geometry(water(), result)
+    oh = np.linalg.norm(cart[1] - cart[0])
+    assert oh == pytest.approx(UFF_OH, abs=2e-3)
+
+
+@pytest.mark.parametrize("method", EVERY_METHOD)
+def test_every_optimiser_keeps_rutile_on_its_special_positions(method,
+                                                               rutile):
+    """The projection is applied to the gradient, and every direction
+    here is built out of gradients -- so a method that mixed in a
+    vector from anywhere else would walk titanium off the origin."""
+    result = relax(rutile, method=method, max_steps=300,
+                   force_tolerance=1e-3)
+    assert np.allclose(result.frac[0], [0.0, 0.0, 0.0], atol=1e-12)
+    x, y, z = result.frac[1]
+    assert x == pytest.approx(y, abs=1e-12)
+    assert z == pytest.approx(0.0, abs=1e-12)
+
+
+@pytest.mark.parametrize("method", EVERY_METHOD)
+def test_every_optimiser_leaves_a_frozen_site_alone(method):
+    structure = water(oh=1.15, angle=95.0)
+    result = relax(structure, method=method, frozen=[0], max_steps=50,
+                   force_tolerance=1e-4)
+    assert np.allclose(result.frac[0], structure.sites[0].frac,
+                       atol=1e-12)
+
+
+def test_the_cascade_goes_through_its_stages_in_order():
+    """Steepest descent while the forces are large, ABNR through the
+    middle, quasi-Newton to finish -- and never back."""
+    structure = water(oh=0.75, angle=80.0)
+    calculator = ENGINES.build("uff", structure)
+    stages = [step.method for step in optimize.steps(
+        calculator, structure, "smart", max_steps=500,
+        force_tolerance=1e-4)]
+    order = [s for k, s in enumerate(stages)
+             if k == 0 or s != stages[k - 1]]
+    assert order == ["steepest descent", "ABNR", "quasi-Newton"]
+
+
+def test_quasi_newton_refuses_a_matrix_it_should_not_hold():
+    from xtal.ff.api import CalculatorError
+    with pytest.raises(CalculatorError, match="L-BFGS"):
+        optimize._QuasiNewton(optimize.QUASI_NEWTON_MAX_VARIABLES + 1)
+
+
+def test_a_line_search_with_nowhere_to_go_says_so():
+    """L-BFGS used to return silently when its search gave up, which
+    the panel reported as a run that had simply stopped -- and the
+    only advice it had was to run it again, which gave up again."""
+    from xtal.ff.api import Calculator, Result
+
+    class Stuck(Calculator):
+        """A gradient that points somewhere the energy never falls."""
+        name = "stuck"
+        provides_forces = True
+
+        @property
+        def n_atoms(self):
+            return 3
+
+        def compute(self, positions, matrix):
+            forces = np.ones_like(positions)
+            return Result(0.0, forces, {})
+
+    structure = water()
+    result = optimize.run(Stuck(), structure, "lbfgs", max_steps=10,
+                          force_tolerance=1e-6)
+    assert not result.converged
+    assert result.message.startswith("the line search")
+
+
 def test_the_energy_falls_and_the_force_with_it():
     result = relax(water(oh=1.15, angle=95.0))
     assert result.energy < result.initial_energy

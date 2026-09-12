@@ -322,6 +322,7 @@ def cmd_optimize(args) -> int:
     result = optimize.run(
         calculator, structure, method=args.method,
         max_steps=args.max_steps, force_tolerance=args.tolerance,
+        stress_tolerance=args.stress_tolerance,
         relax_cell=args.relax_cell, pressure=args.pressure,
         callback=trace)
 
@@ -583,8 +584,9 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument("-o", "--output",
                            help="write the relaxed structure here")
             p.add_argument("--method", default="lbfgs",
-                           choices=["lbfgs", "fire"])
-            p.add_argument("--max-steps", type=int, default=200,
+                           choices=optimize_methods())
+            p.add_argument("--max-steps", type=int,
+                           default=optimize_default_max_steps(),
                            dest="max_steps")
             p.add_argument("--tolerance", type=float,
                            default=optimize_default_tolerance(),
@@ -595,6 +597,12 @@ def build_parser() -> argparse.ArgumentParser:
                            dest="relax_cell",
                            help="relax the lattice as well, under a "
                                 "symmetry-adapted strain")
+            p.add_argument("--stress-tolerance", type=float,
+                           default=optimize_default_stress_tolerance(),
+                           dest="stress_tolerance",
+                           help="with --relax-cell, also stop only "
+                                "when the residual stress is below "
+                                "this, in GPa (default: %(default)g)")
             p.add_argument("--pressure", type=float, default=0.0,
                            help="external pressure in GPa, as a P V "
                                 "term; needs --relax-cell to have any "
@@ -644,6 +652,21 @@ def _engine_names() -> list[str]:
 def optimize_default_tolerance() -> float:
     from xtal.ff.optimize import DEFAULT_FORCE_TOLERANCE
     return DEFAULT_FORCE_TOLERANCE
+
+
+def optimize_default_stress_tolerance() -> float:
+    from xtal.ff.optimize import DEFAULT_STRESS_TOLERANCE
+    return DEFAULT_STRESS_TOLERANCE
+
+
+def optimize_default_max_steps() -> int:
+    from xtal.ff.optimize import DEFAULT_MAX_STEPS
+    return DEFAULT_MAX_STEPS
+
+
+def optimize_methods() -> list[str]:
+    from xtal.ff.optimize import METHODS
+    return list(METHODS)
 
 
 def main(argv=None) -> int:

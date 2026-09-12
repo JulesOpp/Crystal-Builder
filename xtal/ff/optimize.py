@@ -42,7 +42,7 @@ the answer.
 from __future__ import annotations
 
 from collections.abc import Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 
@@ -53,7 +53,17 @@ from xtal.ff.api import CalculatorError
 # Loose enough to reach on a framework, tight enough that the geometry
 # has stopped moving visibly.
 DEFAULT_FORCE_TOLERANCE = 0.05
-DEFAULT_MAX_STEPS = 200
+# Five hundred, not two hundred.  Two hundred stopped every
+# variable-cell relaxation of UiO-66 and ZIF-8 short with the atoms
+# still moving, and "run it again" then restarted the optimiser's
+# history from nothing -- which is why a cell took three runs.
+DEFAULT_MAX_STEPS = 500
+# The residual stress a relaxed cell may keep, in GPa, over the strains
+# the space group allows.  Its own number and not the force tolerance
+# rescaled: the per-atom strain gradient that was the only criterion
+# let MOF-5 call itself converged under about 0.2 GPa, which is a
+# percent of its volume.
+DEFAULT_STRESS_TOLERANCE = 0.05
 # No single step moves an atom further than this, whatever the
 # optimiser asks for.  A bad first guess -- two atoms almost on top of
 # each other, which happens whenever someone builds by hand -- gives a
@@ -87,10 +97,19 @@ class Step:
     # this is added.
     matrix: np.ndarray | None = None
     cell_force: float = 0.0         # the strain gradient, per atom
+    #: The largest residual stress the space group lets the cell feel,
+    #: pressure included, in GPa; 0 when the cell is fixed.
+    stress: float = 0.0
+    #: Why the run ended here without converging, when it did -- a
+    #: line search that could not go downhill.  Empty otherwise.
+    reason: str = ""
+    #: Which algorithm took this step.  Only the cascade says anything
+    #: different from the one asked for.
+    method: str = ""
 
     def line(self) -> str:
         cell = ("" if self.matrix is None else
-                f"  |dE/de| = {self.cell_force:9.5f}")
+                f"  |sigma| = {self.stress:8.4f} GPa")
         return (f"{self.iteration:5d}  E = {self.energy:14.5f}  "
                 f"|F|max = {self.max_force:10.5f}{cell}")
 
@@ -110,6 +129,7 @@ class OptimizationResult:
     message: str = ""
     matrix: np.ndarray | None = None        # the relaxed cell, or None
     initial_matrix: np.ndarray | None = None
+    stress: float = 0.0                     # GPa, the last step's
 
     @property
     def energy_change(self) -> float:
@@ -281,6 +301,20 @@ class SymmetryDOF:
             return self.matrix
         return self.matrix @ self.deformation(x)
 
+    def residual_stress(self, stress) -> float:
+        """The largest stress the cell can still relax, in GPa.
+
+        The external pressure is added first -- a cell at 5 GPa is
+        relaxed when its own stress balances it, not when it is zero
+        -- and the part the space group forbids is projected away,
+        because no allowed strain can remove it and a criterion on it
+        could never be met.
+        """
+        total = np.asarray(stress, dtype=float)
+        if self.pressure:
+            total = total + self.pressure * GPA * np.eye(3)
+        return float(np.abs(self.project_strain(total)).max()) / GPA
+
     def pressure_energy(self, x) -> float:
         """``P V`` in kcal/mol, so that "what does this do at 5 GPa" is
         a number in the panel rather than a separate script."""
@@ -372,6 +406,22 @@ class SymmetryDOF:
         return (_to_voigt(gradient).reshape(2, 3)
                 / self.cell_scale)
 
+    def project(self, direction) -> np.ndarray:
+        """A step direction with nothing in it the variables may not do.
+
+        The gradient is projected already, so a direction made of
+        gradients is too -- to within rounding.  One made of a
+        subspace solve is not even that, and a frozen atom or a site
+        on a mirror that drifts 1e-12 a step is visibly elsewhere after
+        a few hundred.  The strain rows need nothing: :meth:`strain`
+        projects them wherever they are.
+        """
+        out = np.array(direction, dtype=float, copy=True)
+        sites = out[:self.n_sites]
+        sites[:] = np.einsum("sj,sji->si", sites, self.projectors)
+        sites[~self.free] = 0.0
+        return out
+
     def to_frac(self, x) -> np.ndarray:
         """Fractional coordinates of the sites.
 
@@ -427,6 +477,7 @@ class _Problem:
         self.dof = dof
         self.evaluations = 0
         self.terms: dict = {}
+        self.stress = 0.0
 
     def __call__(self, x):
         self.evaluations += 1
@@ -445,6 +496,7 @@ class _Problem:
         stress = result.stress
         if stress is None:
             stress = self.calculator.numeric_stress(positions, matrix)
+        self.stress = self.dof.residual_stress(stress)
         energy = result.energy + self.dof.pressure_energy(x)
         return energy, self.dof.gradient(-result.forces, x=x,
                                          stress=stress)
@@ -480,23 +532,46 @@ class _Problem:
 
 
 def _step(iteration: int, energy: float, gradient, x, dof, problem,
-          force_tolerance: float) -> Step:
+          force_tolerance: float,
+          stress_tolerance: float = DEFAULT_STRESS_TOLERANCE,
+          method: str = "") -> Step:
     """One iteration, packaged for the caller.
 
     Convergence is both halves when both are variables: a cell still
     under a stress is not a relaxed structure, however still its atoms
-    are.
+    are.  The cell's half is the residual stress in GPa, which is the
+    number that says whether the lattice constant is still moving.
     """
     peak, rms = problem.forces(gradient)
     cell = problem.cell_force(gradient)
+    stress = problem.stress if dof.relax_cell else 0.0
+    converged = peak <= force_tolerance
+    if dof.relax_cell:
+        converged = converged and stress <= stress_tolerance
     return Step(
         iteration, energy, peak, rms, dof.to_frac(x),
         dict(problem.terms),
-        converged=(peak <= force_tolerance
-                   and cell <= force_tolerance),
+        converged=converged,
         matrix=(dof.matrix_of(x) if dof.relax_cell else None),
         cell_force=cell,
+        stress=stress,
+        method=method,
     )
+
+
+def unconverged(step, force_tolerance: float,
+                stress_tolerance: float = DEFAULT_STRESS_TOLERANCE
+                ) -> str:
+    """What is still short of the tolerance, as a phrase: "the
+    forces", "the cell", or both -- so a run that stopped says which
+    half to look at.  ``step`` is a :class:`Step` or an
+    :class:`OptimizationResult`; both carry the three numbers."""
+    parts = []
+    if step.max_force > force_tolerance:
+        parts.append(f"the forces ({step.max_force:.3g} kcal/mol/A)")
+    if step.matrix is not None and step.stress > stress_tolerance:
+        parts.append(f"the cell ({step.stress:.3g} GPa)")
+    return " and ".join(parts)
 
 
 def _capped(step, limit: float) -> np.ndarray:
@@ -509,6 +584,7 @@ def _capped(step, limit: float) -> np.ndarray:
 
 def fire(calculator, structure, dof=None, max_steps=DEFAULT_MAX_STEPS,
          force_tolerance=DEFAULT_FORCE_TOLERANCE,
+         stress_tolerance=DEFAULT_STRESS_TOLERANCE,
          max_step=DEFAULT_MAX_STEP, dt=0.1, dt_max=1.0, n_min=5,
          f_inc=1.1, f_dec=0.5, alpha_start=0.1,
          f_alpha=0.99) -> Iterator[Step]:
@@ -530,7 +606,8 @@ def fire(calculator, structure, dof=None, max_steps=DEFAULT_MAX_STEPS,
     energy, gradient = problem(x)
     for iteration in range(max_steps + 1):
         yield (step := _step(iteration, energy, gradient, x, dof,
-                             problem, force_tolerance))
+                             problem, force_tolerance,
+                             stress_tolerance, "fire"))
         if step.converged or iteration == max_steps:
             return
 
@@ -557,62 +634,455 @@ def fire(calculator, structure, dof=None, max_steps=DEFAULT_MAX_STEPS,
         energy, gradient = problem(x)
 
 
-def lbfgs(calculator, structure, dof=None,
-          max_steps=DEFAULT_MAX_STEPS,
-          force_tolerance=DEFAULT_FORCE_TOLERANCE,
-          max_step=DEFAULT_MAX_STEP, memory=10,
-          c1=1e-4) -> Iterator[Step]:
-    """L-BFGS with a backtracking line search.
+# ----------------------------------------------------------------------
+#  The line-search family
+# ----------------------------------------------------------------------
+#
+# Steepest descent, conjugate gradient, quasi-Newton, ABNR and L-BFGS
+# differ only in which way they point.  Everything else -- the step
+# cap, the search along the direction, what to do when it fails, when
+# to stop -- is one loop, and a direction is a small object that is
+# asked for one and told what the step it chose did.
 
-    The inverse Hessian is never formed; the last ``memory`` pairs of
-    (step, change in gradient) stand in for it through the two-loop
-    recursion.  Curvature pairs that fail the ``s . y > 0`` test are
-    dropped rather than stored: keeping one makes the approximation
-    indefinite, and the next direction points uphill.
+class _Direction:
+    """Which way to go, and what to learn from having gone."""
+
+    name = ""
+
+    def direction(self, x, gradient) -> np.ndarray:
+        raise NotImplementedError
+
+    def learn(self, x, gradient, new_x, new_gradient,
+              length: float) -> None:
+        """A step was accepted."""
+
+    def reset(self) -> None:
+        """Forget everything: the last direction led nowhere."""
+
+    def first_length(self) -> float:
+        """The length the search tries first, before the cap."""
+        return 1.0
+
+
+class _SteepestDescent(_Direction):
+    """Straight down the gradient, with a length that remembers.
+
+    The gradient has the wrong units for a step, so the length that
+    worked last time is where the next search starts -- grown a
+    little, because a search that always accepts its first try is
+    being too timid.
+    """
+
+    name = "steepest descent"
+
+    def __init__(self):
+        self.length = 1.0
+
+    def direction(self, x, gradient):
+        return -gradient
+
+    def learn(self, x, gradient, new_x, new_gradient, length):
+        self.length = length * 1.2
+
+    def reset(self):
+        self.length = 1.0
+
+    def first_length(self):
+        return self.length
+
+
+class _ConjugateGradient(_SteepestDescent):
+    """Polak-Ribiere with the non-negative restart (PR+).
+
+    Each direction is the new gradient plus a share of the last
+    direction, which is what stops steepest descent zig-zagging down a
+    long valley.  The share is clipped at zero, and the whole history
+    is dropped every ``n`` steps or whenever the result stops pointing
+    downhill -- the two conditions under which the conjugacy it relies
+    on no longer holds.
+    """
+
+    name = "conjugate gradient"
+
+    def __init__(self, n_variables: int):
+        super().__init__()
+        self.restart_every = max(int(n_variables), 1)
+        self.previous = None
+        self.previous_gradient = None
+        self.count = 0
+
+    def direction(self, x, gradient):
+        if (self.previous is None
+                or self.count >= self.restart_every):
+            self.count = 0
+            return -gradient
+        old = self.previous_gradient
+        beta = max(0.0, float(np.sum(gradient * (gradient - old)))
+                   / max(float(np.sum(old * old)), 1e-300))
+        direction = -gradient + beta * self.previous
+        if float(np.sum(direction * gradient)) >= 0.0:
+            self.count = 0
+            return -gradient
+        return direction
+
+    def learn(self, x, gradient, new_x, new_gradient, length):
+        super().learn(x, gradient, new_x, new_gradient, length)
+        self.previous = (new_x - x) / max(length, 1e-300)
+        self.previous_gradient = gradient
+        self.count += 1
+
+    def reset(self):
+        super().reset()
+        self.previous = self.previous_gradient = None
+        self.count = 0
+
+
+#: Above this many variables the quasi-Newton inverse Hessian -- the
+#: square of it, in doubles -- stops being worth holding: 6000 is
+#: 290 MB, and L-BFGS reaches the same minimum in the same number of
+#: steps near it without the matrix.
+QUASI_NEWTON_MAX_VARIABLES = 6000
+
+
+class _QuasiNewton(_Direction):
+    """BFGS: the whole inverse Hessian, built up one step at a time.
+
+    What Materials Studio calls quasi-Newton.  Over the
+    symmetry-reduced variables that is small for most crystals -- MOF-5
+    in Fm-3m is seven sites and two strain rows -- and holding all of
+    it is what makes it faster than L-BFGS once it is near a minimum.
+    """
+
+    name = "quasi-Newton"
+
+    def __init__(self, n_variables: int):
+        self.check(n_variables)
+        self.n = int(n_variables)
+        self.inverse = None
+
+    @staticmethod
+    def check(n_variables: int) -> None:
+        if n_variables > QUASI_NEWTON_MAX_VARIABLES:
+            raise CalculatorError(
+                f"quasi-Newton would hold a {n_variables} x "
+                f"{n_variables} matrix; above "
+                f"{QUASI_NEWTON_MAX_VARIABLES} variables use L-BFGS, "
+                f"which reaches the same minimum without it")
+
+    def direction(self, x, gradient):
+        flat = gradient.reshape(-1)
+        if self.inverse is None:
+            return -gradient
+        return -(self.inverse @ flat).reshape(gradient.shape)
+
+    def learn(self, x, gradient, new_x, new_gradient, length):
+        s = (new_x - x).reshape(-1)
+        y = (new_gradient - gradient).reshape(-1)
+        sy = float(s @ y)
+        if sy <= 1e-12:
+            return                  # would make the matrix indefinite
+        if self.inverse is None:
+            # Scaled so the first quasi-Newton step has the length the
+            # curvature just measured asks for, not the gradient's.
+            self.inverse = np.eye(self.n) * (sy / float(y @ y))
+        rho = 1.0 / sy
+        hy = self.inverse @ y
+        self.inverse += (rho * rho * float(y @ hy) + rho) \
+            * np.outer(s, s) - rho * (np.outer(hy, s) + np.outer(s, hy))
+
+    def reset(self):
+        self.inverse = None
+
+
+class _LBFGS(_Direction):
+    """L-BFGS: the last ``memory`` steps stand in for the Hessian.
+
+    The inverse Hessian is never formed; the two-loop recursion applies
+    it.  Curvature pairs that fail the ``s . y > 0`` test are dropped
+    rather than stored: keeping one makes the approximation indefinite,
+    and the next direction points uphill.
+    """
+
+    name = "L-BFGS"
+
+    def __init__(self, memory: int = 10):
+        self.memory = memory
+        self.history: list[tuple[np.ndarray, np.ndarray, float]] = []
+
+    def direction(self, x, gradient):
+        return -_two_loop(gradient, self.history)
+
+    def learn(self, x, gradient, new_x, new_gradient, length):
+        s = new_x - x
+        y = new_gradient - gradient
+        curvature = float(np.sum(s * y))
+        if curvature > 1e-12:
+            self.history.append((s, y, 1.0 / curvature))
+            if len(self.history) > self.memory:
+                self.history.pop(0)
+
+    def reset(self):
+        self.history.clear()
+
+
+class _ABNR(_Direction):
+    """Adopted-basis Newton-Raphson, after CHARMM's (Brooks et al.,
+    *J. Comput. Chem.* **1983**, 4, 187).
+
+    A Newton step taken in the small space the last few steps span,
+    where the Hessian can be measured from how the gradient changed
+    along them, plus a steepest-descent step for the part of the
+    gradient that space does not reach.  Cheap per step like steepest
+    descent, and converging like Newton along the directions that
+    matter -- which is why Materials Studio hands it the middle of a
+    minimisation.
+
+    A subspace Hessian with a non-positive curvature is not a Newton
+    step to anywhere; its eigenvalues are taken in magnitude, floored,
+    so the step still goes downhill.
+    """
+
+    name = "ABNR"
+
+    def __init__(self, basis: int = 5):
+        self.basis = basis
+        self.points: list[tuple[np.ndarray, np.ndarray]] = []
+
+    def direction(self, x, gradient):
+        if len(self.points) < 2:
+            return -gradient
+        flat_g = gradient.reshape(-1)
+        flat_x = x.reshape(-1)
+        s = np.array([p.reshape(-1) - flat_x for p, _g in self.points]).T
+        y = np.array([g.reshape(-1) - flat_g for _p, g in self.points]).T
+        # An SVD and not a QR: the last few steps are often nearly
+        # parallel, and a QR of a rank-deficient set hands back basis
+        # vectors pointing anywhere -- into a frozen atom, or off a
+        # special position.  The singular vectors that are kept lie in
+        # the span of the steps and nowhere else.
+        u, sizes, vt = np.linalg.svd(s, full_matrices=False)
+        keep = sizes > 1e-8 * max(float(sizes.max()), 1e-300)
+        if not keep.any():
+            return -gradient
+        q = u[:, keep]
+        coordinates = sizes[keep, None] * vt[keep]
+        # y = H s and s = q c, so q^T y = (q^T H q) c.
+        hessian = (q.T @ y) @ np.linalg.pinv(coordinates)
+        hessian = 0.5 * (hessian + hessian.T)
+        values, vectors = np.linalg.eigh(hessian)
+        values = np.maximum(np.abs(values),
+                            1e-6 * max(np.abs(values).max(), 1e-12))
+        inside = q.T @ flat_g
+        newton = -(vectors @ ((vectors.T @ inside) / values))
+        outside = flat_g - q @ inside
+        descent = -outside / float(np.mean(values))
+        return (q @ newton + descent).reshape(gradient.shape)
+
+    def learn(self, x, gradient, new_x, new_gradient, length):
+        self.points.append((x.copy(), gradient.copy()))
+        if len(self.points) > self.basis:
+            self.points.pop(0)
+
+    def reset(self):
+        self.points.clear()
+
+
+def _line_search(problem, x, energy, gradient, direction, max_step,
+                 first_length=1.0, c1=1e-4, attempts=20):
+    """Backtrack along ``direction`` until the energy has gone down
+    enough, or give up and return ``None``.
+
+    The cut is a quadratic through the two energies and the slope
+    rather than a halving, kept between a tenth and a half of the last
+    try: halving wastes evaluations when the first try overshot by a
+    long way, which the first steepest-descent step always does.
+    """
+    slope = float(np.sum(gradient * direction))
+    length = float(first_length)
+    longest = float(np.linalg.norm(direction, axis=1).max()) \
+        if len(direction) else 0.0
+    if longest * length > max_step:
+        length = max_step / longest
+    for _attempt in range(attempts):
+        trial = x + length * direction
+        new_energy, new_gradient = problem(trial)
+        if new_energy <= energy + c1 * length * slope:
+            return trial, new_energy, new_gradient, length
+        curvature = (new_energy - energy - slope * length) \
+            / (length * length)
+        guess = (-slope / (2.0 * curvature) if curvature > 0
+                 else 0.5 * length)
+        length = min(max(guess, 0.1 * length), 0.5 * length)
+    return None
+
+
+def _descend(calculator, structure, dof, rule_for, max_steps,
+             force_tolerance, stress_tolerance,
+             max_step) -> Iterator[Step]:
+    """The loop every line-search method shares.
+
+    ``rule_for(step, n_variables)`` returns the direction rule to use
+    for the next step -- the same one every time, except for the
+    cascade, which changes rule as the forces fall.
+
+    **A search that fails is not the end of the run.**  The rule's
+    memory is dropped and steepest descent is tried once from the same
+    point; only if that cannot go downhill either does the run stop,
+    and then it says so on the last step.  L-BFGS used to return
+    silently here, which looked exactly like the step limit.
     """
     dof = dof or SymmetryDOF(structure)
     problem = _Problem(calculator, dof)
     x = dof.start.copy()
+    n_variables = x.size
     energy, gradient = problem(x)
-    history: list[tuple[np.ndarray, np.ndarray, float]] = []
-
+    rule = None
     for iteration in range(max_steps + 1):
-        yield (step := _step(iteration, energy, gradient, x, dof,
-                             problem, force_tolerance))
+        step = _step(iteration, energy, gradient, x, dof, problem,
+                     force_tolerance, stress_tolerance,
+                     rule.name if rule is not None else "")
+        chosen = rule_for(step, n_variables)
+        if chosen is not rule:
+            rule = chosen
+            step = replace(step, method=rule.name)
+        yield step
         if step.converged or iteration == max_steps:
             return
 
-        direction = -_two_loop(gradient, history)
-        slope = float(np.sum(gradient * direction))
-        if slope >= 0.0:
-            # The approximation has gone bad -- start again from
-            # steepest descent rather than walking uphill.
-            history.clear()
-            direction = -gradient
-            slope = float(np.sum(gradient * direction))
+        found = _line_search(problem, x, energy, gradient,
+                             dof.project(rule.direction(x, gradient)),
+                             max_step, rule.first_length())
+        if found is None:
+            rule.reset()
+            found = _line_search(problem, x, energy, gradient,
+                                 -gradient, max_step)
+        if found is None:
+            problem(x)          # the terms and stress of where it is
+            yield replace(step, reason=(
+                "the line search could not lower the energy from "
+                "here, even straight down the gradient -- the forces "
+                "are finer than the energy can resolve, or the "
+                "tolerance is tighter than this engine can reach"))
+            return
+        new_x, new_energy, new_gradient, length = found
+        rule.learn(x, gradient, new_x, new_gradient, length)
+        x, energy, gradient = new_x, new_energy, new_gradient
 
-        length = 1.0
-        longest = np.linalg.norm(direction, axis=1).max()
-        if longest > max_step:
-            length = max_step / longest
 
-        for _attempt in range(20):
-            trial = x + length * direction
-            new_energy, new_gradient = problem(trial)
-            if new_energy <= energy + c1 * length * slope:
-                break
-            length *= 0.5
-        else:
-            return                          # the line search gave up
+def _fixed(make):
+    """A ``rule_for`` that builds its rule once and keeps it."""
+    held = {}
 
-        s = trial - x
-        y = new_gradient - gradient
-        curvature = float(np.sum(s * y))
-        if curvature > 1e-12:
-            history.append((s, y, 1.0 / curvature))
-            if len(history) > memory:
-                history.pop(0)
-        x, energy, gradient = trial, new_energy, new_gradient
+    def rule_for(_step, n_variables):
+        if "rule" not in held:
+            held["rule"] = make(n_variables)
+        return held["rule"]
+    return rule_for
+
+
+def steepest_descent(calculator, structure, dof=None,
+                     max_steps=DEFAULT_MAX_STEPS,
+                     force_tolerance=DEFAULT_FORCE_TOLERANCE,
+                     stress_tolerance=DEFAULT_STRESS_TOLERANCE,
+                     max_step=DEFAULT_MAX_STEP) -> Iterator[Step]:
+    """Down the gradient, searched.  The slowest near a minimum and the
+    safest far from one."""
+    return _descend(calculator, structure, dof,
+                    _fixed(lambda n: _SteepestDescent()), max_steps,
+                    force_tolerance, stress_tolerance, max_step)
+
+
+def conjugate_gradient(calculator, structure, dof=None,
+                       max_steps=DEFAULT_MAX_STEPS,
+                       force_tolerance=DEFAULT_FORCE_TOLERANCE,
+                       stress_tolerance=DEFAULT_STRESS_TOLERANCE,
+                       max_step=DEFAULT_MAX_STEP) -> Iterator[Step]:
+    """Polak-Ribiere conjugate gradient; see :class:`_ConjugateGradient`."""
+    return _descend(calculator, structure, dof,
+                    _fixed(_ConjugateGradient), max_steps,
+                    force_tolerance, stress_tolerance, max_step)
+
+
+def quasi_newton(calculator, structure, dof=None,
+                 max_steps=DEFAULT_MAX_STEPS,
+                 force_tolerance=DEFAULT_FORCE_TOLERANCE,
+                 stress_tolerance=DEFAULT_STRESS_TOLERANCE,
+                 max_step=DEFAULT_MAX_STEP) -> Iterator[Step]:
+    """BFGS with a line search; see :class:`_QuasiNewton`."""
+    dof = dof or SymmetryDOF(structure)
+    # Refused now rather than at the first step, so a caller asking
+    # for it on a structure too big hears so before a run begins.
+    _QuasiNewton.check(dof.start.size)
+    return _descend(calculator, structure, dof, _fixed(_QuasiNewton),
+                    max_steps, force_tolerance, stress_tolerance,
+                    max_step)
+
+
+def abnr(calculator, structure, dof=None, max_steps=DEFAULT_MAX_STEPS,
+         force_tolerance=DEFAULT_FORCE_TOLERANCE,
+         stress_tolerance=DEFAULT_STRESS_TOLERANCE,
+         max_step=DEFAULT_MAX_STEP) -> Iterator[Step]:
+    """Adopted-basis Newton-Raphson; see :class:`_ABNR`."""
+    return _descend(calculator, structure, dof,
+                    _fixed(lambda n: _ABNR()), max_steps,
+                    force_tolerance, stress_tolerance, max_step)
+
+
+def lbfgs(calculator, structure, dof=None,
+          max_steps=DEFAULT_MAX_STEPS,
+          force_tolerance=DEFAULT_FORCE_TOLERANCE,
+          stress_tolerance=DEFAULT_STRESS_TOLERANCE,
+          max_step=DEFAULT_MAX_STEP, memory=10) -> Iterator[Step]:
+    """L-BFGS with a line search; see :class:`_LBFGS`."""
+    return _descend(calculator, structure, dof,
+                    _fixed(lambda n: _LBFGS(memory)), max_steps,
+                    force_tolerance, stress_tolerance, max_step)
+
+
+#: Where the cascade hands over, as the largest force per atom in
+#: kcal/mol/A.  Materials Studio's Smart does the same three stages in
+#: the same order and does not say where it switches; these are where
+#: each one stops paying on the frameworks in ``resources/samples``.
+SMART_DESCENT_UNTIL = 10.0
+SMART_ABNR_UNTIL = 1.0
+
+
+def smart(calculator, structure, dof=None, max_steps=DEFAULT_MAX_STEPS,
+          force_tolerance=DEFAULT_FORCE_TOLERANCE,
+          stress_tolerance=DEFAULT_STRESS_TOLERANCE,
+          max_step=DEFAULT_MAX_STEP) -> Iterator[Step]:
+    """Steepest descent, then ABNR, then quasi-Newton, as the forces
+    fall -- each where it is best.
+
+    Steepest descent survives a structure with two atoms on top of
+    each other that would send a Newton step anywhere; ABNR is quick
+    through the middle; quasi-Newton finishes.  It never goes back a
+    stage: a force that rises again on the way down is a line search
+    overshooting, not a structure that has become hand-built.  Where
+    there are too many variables for quasi-Newton, L-BFGS finishes.
+    """
+    rules: dict = {}
+
+    def rule_for(step, n_variables):
+        stage = rules.get("stage", 0)
+        if stage == 0 and step.max_force <= SMART_DESCENT_UNTIL:
+            stage = 1
+        if stage == 1 and step.max_force <= SMART_ABNR_UNTIL:
+            stage = 2
+        if stage != rules.get("stage"):
+            rules["stage"] = stage
+            if stage == 0:
+                rules["rule"] = _SteepestDescent()
+            elif stage == 1:
+                rules["rule"] = _ABNR()
+            elif n_variables <= QUASI_NEWTON_MAX_VARIABLES:
+                rules["rule"] = _QuasiNewton(n_variables)
+            else:
+                rules["rule"] = _LBFGS()
+        return rules["rule"]
+
+    return _descend(calculator, structure, dof, rule_for, max_steps,
+                    force_tolerance, stress_tolerance, max_step)
 
 
 def _two_loop(gradient, history) -> np.ndarray:
@@ -635,7 +1105,12 @@ def _two_loop(gradient, history) -> np.ndarray:
     return q
 
 
-METHODS = {"fire": fire, "lbfgs": lbfgs}
+#: Every optimiser, in the order the panel offers them: the two that
+#: were here first, then Materials Studio's set.
+METHODS = {"lbfgs": lbfgs, "fire": fire, "smart": smart,
+           "steepest_descent": steepest_descent,
+           "conjugate_gradient": conjugate_gradient,
+           "quasi_newton": quasi_newton, "abnr": abnr}
 
 
 # ======================================================================
@@ -644,13 +1119,19 @@ METHODS = {"fire": fire, "lbfgs": lbfgs}
 
 def steps(calculator, structure, method: str = "lbfgs",
           frozen=(), relax_cell: bool = False, pressure: float = 0.0,
-          **kwargs) -> Iterator[Step]:
+          cancel=None, **kwargs) -> Iterator[Step]:
     """The chosen optimiser, as a generator of steps.
 
     ``relax_cell`` adds the six symmetry-adapted strain components to
     the variables; ``pressure`` is in GPa and is applied only when the
-    cell can respond to it.
+    cell can respond to it.  ``cancel`` is handed to the calculator,
+    so an engine that runs a program can be stopped in the middle of
+    an evaluation and not only between steps.
     """
+    if cancel is not None and hasattr(calculator, "stop_with"):
+        # Anything with ``compute`` can be optimised; only a
+        # Calculator knows how to be stopped mid-evaluation.
+        calculator.stop_with(cancel)
     try:
         optimizer = METHODS[method]
     except KeyError:
@@ -685,7 +1166,7 @@ def run(calculator, structure, method: str = "lbfgs", frozen=(),
 
     if last is None:                                # pragma: no cover
         raise CalculatorError("the optimiser produced no steps")
-    message = last.line()
+    message = last.reason or last.line()
     if stopped:
         message = f"stopped by the caller at step {last.iteration}"
     return OptimizationResult(
@@ -701,4 +1182,5 @@ def run(calculator, structure, method: str = "lbfgs", frozen=(),
         matrix=last.matrix,
         initial_matrix=(None if last.matrix is None
                         else structure.lattice.matrix),
+        stress=last.stress,
     )

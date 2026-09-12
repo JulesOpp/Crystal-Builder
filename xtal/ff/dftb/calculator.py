@@ -53,7 +53,12 @@ from pathlib import Path
 import numpy as np
 
 from xtal.core import p1
-from xtal.ff.api import Calculator, CalculatorError, Result
+from xtal.ff.api import (
+    Calculator,
+    CalculatorError,
+    CalculatorStopped,
+    Result,
+)
 from xtal.ff.dftb import hsd, params
 from xtal.ff.registry import ENGINES, Engine
 from xtal.io.gen import gen_string
@@ -135,11 +140,14 @@ class DFTBOptions:
 
     def to_dict(self) -> dict:
         return {"method": self.method,
+                "parameter_directory": self.parameter_directory,
                 "dispersion": self.dispersion,
                 "charge": self.charge,
                 "scc_tolerance": self.scc_tolerance,
+                "max_scc": self.max_scc,
                 "temperature": self.temperature,
-                "k_spacing": self.k_spacing}
+                "k_spacing": self.k_spacing,
+                "angular_momentum": self.angular_momentum}
 
 
 #: The same options as a declaration, for the generated form.  Written
@@ -338,10 +346,12 @@ class DFTBCalculator(Calculator):
         log = _Log(self.directory / LOG_NAME)
         process = ExternalProcess([self.binary], cwd=self.directory,
                                   log=log)
-        outcome = process.run()
+        outcome = process.run(cancel=self.cancel)
         self.calls += 1
         self.seconds += outcome.seconds
         log.close()
+        if outcome.cancelled:
+            raise CalculatorStopped("stopped during an evaluation")
         if not outcome.ok:
             raise CalculatorError(_why(outcome, self.directory))
         return outcome
