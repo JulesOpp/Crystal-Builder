@@ -1,0 +1,44 @@
+|===============================================================================
+|
+|  DFTB+ (MODES 0.03)
+|
+|  Copyright (C) 2006 - 2024  DFTB+ developers group
+|
+|===============================================================================
+|
+|  When publishing results obtained with DFTB+, please cite the following
+|  reference:
+|
+|  * DFTB+, a software package for efficient approximate density functional
+|    theory based atomistic simulations, J. Chem. Phys. 152, 124101 (2020).
+|    [doi: 10.1063/1.5143190]
+|
+|  You should also cite additional publications crediting the parametrization
+|  data you use. Please consult the documentation of the SK-files for the
+|  references.
+|
+|===============================================================================
+
+Interpreting input file 'modes_in.hsd'
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+
+Starting main program
+
+ Writing eigenmodes to vibrations.tag
+ Plotting eigenmodes:
+    1    2    3    4    5    6    7    8    9
+ Vibrational modes
+      freq.
+Mode  cm-1
+    1 -354.89
+    2 -354.89
+    3 -312.32
+    4 -312.32
+    5  -40.98
+    6   -0.37
+    7   -0.37
+    8 1674.13
+    9 3129.08
+

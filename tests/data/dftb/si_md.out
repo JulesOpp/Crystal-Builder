@@ -1,0 +1,57 @@
+MD step: 0
+Forces (au)
+          0.86933645E-02          0.86933645E-02          0.86933645E-02
+         -0.86933645E-02         -0.86933645E-02         -0.86933645E-02
+Total stress (au)
+          0.80846188E-04         -0.17324882E-03         -0.17533492E-03
+         -0.17324882E-03          0.90537612E-04         -0.17536144E-03
+         -0.17533492E-03         -0.17536144E-03          0.80419046E-04
+Volume:                              0.270256E+03 au^3   0.400479E+02 A^3
+Pressure:                            0.839343E-04 au     0.246943E+10 Pa
+Gibbs free energy:                  -2.5466889276 H          -69.2989 eV
+Gibbs free energy including KE:     -2.5452638607 H          -69.2602 eV
+Potential Energy:                   -2.5466889276 H          -69.2989 eV
+MD Kinetic Energy:                   0.0014250669 H            0.0388 eV
+Total MD Energy:                    -2.5452638607 H          -69.2602 eV
+MD Temperature:                      0.0009500446 au         300.0000 K
+Warning: dipole moment is not defined absolutely!
+Dipole moment:    0.00000000    0.00000000    0.00000000 au
+Dipole moment:    0.00000000    0.00000000    0.00000000 Debye
+MD step: 5
+Forces (au)
+          0.68569896E-02          0.24457377E-02          0.85204406E-02
+         -0.68569896E-02         -0.24457377E-02         -0.85204406E-02
+Total stress (au)
+          0.83983181E-04         -0.17008406E-03         -0.13640568E-03
+         -0.17008406E-03          0.96603927E-04         -0.16020790E-03
+         -0.13640568E-03         -0.16020789E-03          0.82116677E-04
+Volume:                              0.270256E+03 au^3   0.400479E+02 A^3
+Pressure:                            0.875679E-04 au     0.257634E+10 Pa
+Gibbs free energy:                  -2.5473524115 H          -69.3170 eV
+Gibbs free energy including KE:     -2.5452663442 H          -69.2602 eV
+Potential Energy:                   -2.5473524115 H          -69.3170 eV
+MD Kinetic Energy:                   0.0020860674 H            0.0568 eV
+Total MD Energy:                    -2.5452663442 H          -69.2602 eV
+MD Temperature:                      0.0013907116 au         439.1515 K
+Warning: dipole moment is not defined absolutely!
+Dipole moment:    0.00000000    0.00000000    0.00000000 au
+Dipole moment:    0.00000000    0.00000000    0.00000000 Debye
+MD step: 10
+Forces (au)
+          0.48257559E-02         -0.33384047E-02          0.68713386E-02
+         -0.48257559E-02          0.33384047E-02         -0.68713386E-02
+Total stress (au)
+          0.92658243E-04         -0.15964360E-03         -0.10208848E-03
+         -0.15964361E-03          0.10153081E-03         -0.14834051E-03
+         -0.10208848E-03         -0.14834051E-03          0.90036131E-04
+Volume:                              0.270256E+03 au^3   0.400479E+02 A^3
+Pressure:                            0.947417E-04 au     0.278740E+10 Pa
+Gibbs free energy:                  -2.5476900506 H          -69.3262 eV
+Gibbs free energy including KE:     -2.5452661676 H          -69.2602 eV
+Potential Energy:                   -2.5476900506 H          -69.3262 eV
+MD Kinetic Energy:                   0.0024238830 H            0.0660 eV
+Total MD Energy:                    -2.5452661676 H          -69.2602 eV
+MD Temperature:                      0.0016159220 au         510.2672 K
+Warning: dipole moment is not defined absolutely!
+Dipole moment:    0.00000000    0.00000000    0.00000000 au
+Dipole moment:    0.00000000    0.00000000    0.00000000 Debye

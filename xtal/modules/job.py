@@ -254,6 +254,13 @@ class JobResult:
     #: something else should not have to widen a porosity-shaped
     #: field to do it.
     overlay: Any = None
+    #: Frames to play back -- an :class:`xtal.io.trajectory.Trajectory`
+    #: of the P1 cell, the shape the Force Field panel records.  A
+    #: molecular dynamics run's answer is its frames, and a vibrational
+    #: mode is best shown as one; both go to the transport bar rather
+    #: than into the undo stack, against the document the run was
+    #: started from.
+    trajectory: Any = None
 
     @classmethod
     def stopped(cls, message: str = "stopped") -> JobResult:

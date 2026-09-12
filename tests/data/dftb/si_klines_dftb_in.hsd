@@ -1,0 +1,33 @@
+Geometry = GenFormat {
+  <<< "geo.gen"
+}
+
+Hamiltonian = DFTB {
+  Scc = Yes
+  SccTolerance = 1e-05
+  MaxSccIterations = 1
+  ReadInitialCharges = Yes
+  SlaterKosterFiles = Type2FileNames {
+    Prefix = "/Users/julesoppenheim/GitHub/Crystal-Builder/resources/PTBP/"
+    Separator = "-"
+    Suffix = ".skf"
+  }
+  MaxAngularMomentum {
+    Si = "d"
+  }
+  KPointsAndWeights = Klines {
+    1 0.50000000 0.50000000 0.50000000
+    4 0.00000000 0.00000000 0.00000000
+    5 0.50000000 0.00000000 0.50000000
+  }
+}
+
+Analysis {
+  PrintForces = No
+}
+
+Options {
+  WriteChargesAsText = No
+}
+
+ParserOptions { ParserVersion = 14 }

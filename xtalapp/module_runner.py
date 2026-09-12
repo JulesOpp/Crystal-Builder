@@ -264,6 +264,8 @@ class ModuleRunner(QObject):
         self._show_report(worker, result)
         if result.overlay is not None:
             self._draw_module_overlay(result)
+        if getattr(result, "trajectory", None) is not None:
+            self._play_module_trajectory(result)
         # Let go of it here and not in ``_finish_module``, which runs
         # before the overlay is placed -- and let go at all because it
         # is a whole Document, and a run against a tab the user then
@@ -392,6 +394,29 @@ class ModuleRunner(QObject):
                 "them over")
             return
         document.set_pores(result.overlay)
+
+    def _play_module_trajectory(self, result) -> None:
+        """Open a run's frames in the transport bar.
+
+        Against the document the run was started from, for the reason
+        :meth:`_draw_module_overlay` gives -- and only while it is the
+        one in front, because the transport bar plays against the tab
+        in front and a trajectory of one crystal opened over another
+        is refused by the playback anyway, with a message about atom
+        counts that would explain nothing.
+        """
+        document = self._module_document
+        if document is None or document not in self.window.documents:
+            self.window.show_message(
+                "the run wrote frames, and the tab they are of has been "
+                "closed -- they are in the run folder")
+            return
+        if document is not self.window.current_document():
+            self.window.show_message(
+                f"the run wrote frames of {document.title}; switch to "
+                f"that tab and open them from the run folder")
+            return
+        self.window.trajectory_dock.open_trajectory(result.trajectory)
 
     def _adopt_module_structure(self, worker, result) -> None:
         """Take a geometry a module produced, as one undoable edit.
