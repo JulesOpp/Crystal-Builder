@@ -29,10 +29,10 @@ from PySide6.QtWidgets import (
     QDockWidget,
     QDoubleSpinBox,
     QFormLayout,
+    QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QPushButton,
-    QScrollArea,
     QSlider,
     QSpinBox,
     QTableWidget,
@@ -43,6 +43,8 @@ from PySide6.QtWidgets import (
 
 from xtal.core import elements as el
 from xtal.core.transforms import ELLIPSOID_LEVELS
+from xtalapp import docks
+from xtalapp.docks.columns import Collapsible, ReflowColumns
 from xtalapp.viewport import styles
 from xtalapp.viewport.scene import CUE_MIN_SPAN, cue_fraction
 from xtalapp.viewport.view_settings import BACKGROUNDS
@@ -70,6 +72,13 @@ CUSTOM_BACKGROUND = "custom"
 LABEL_MODES = [("none", "None"), ("element", "Element"),
                ("label", "Site label"), ("index", "Atom index")]
 ELEMENT_COLUMNS = ["El", "Colour", "Radius"]
+#: Inside each group box.  macOS's own are about twenty pixels a side,
+#: which is forty a group can never give back when the column narrows.
+GROUP_MARGINS = (8, 6, 8, 8)
+#: The narrowest a colour swatch button may be made.
+SWATCH_WIDTH = 44
+#: How many elements the table shows before it scrolls.
+ELEMENT_ROWS = 8
 # Sliders are integers; these turn a percentage into a scale factor.
 SCALE_STEPS = 200
 SCALE_MAX = 3.0
@@ -176,25 +185,58 @@ class StylePanelDock(QDockWidget):
         body = QVBoxLayout()
         body.setContentsMargins(8, 8, 8, 8)
         body.setSpacing(8)
-        body.addLayout(self._build_global())
-        body.addWidget(self._build_elements(), 1)
+        self.columns = self._build_global()
+        body.addWidget(self.columns)
+        # Full width and below both columns: a table is the one thing
+        # here that is as wide as it is given.
+        body.addWidget(self._build_elements())
+        body.addStretch(1)
 
         inner = QWidget()
         inner.setLayout(body)
-        scroll = QScrollArea()
-        scroll.setWidget(inner)
-        scroll.setWidgetResizable(True)
-        self.setWidget(scroll)
+        self.setWidget(docks.scrolling(inner))
         self.set_document(None)
 
     # -- construction --------------------------------------------------
 
-    def _build_global(self) -> QFormLayout:
-        form = QFormLayout()
+    def _build_global(self) -> ReflowColumns:
+        """The six groups, in the order one column reads them.
+
+        Two columns put Drawing, Transparency and Scene -- how the
+        atoms are drawn -- on the left, and what else is drawn with
+        them on the right.  One column was 747 px of controls with no
+        heading anywhere, and the thing somebody came to change was
+        always below the fold.
+        """
+        self.groups = [self._drawing_group(), self._transparency_group(),
+                       self._scene_group(), self._show_group(),
+                       self._colours_group(), self._depth_cue_group()]
+        return ReflowColumns(self.groups, split=3)
+
+    @staticmethod
+    def _form(title: str) -> tuple[QGroupBox, QFormLayout]:
+        box = QGroupBox(title)
+        form = QFormLayout(box)
+        form.setContentsMargins(*GROUP_MARGINS)
+        # A label above its field once the pair no longer fits beside
+        # it, which is what lets one column go narrower than a label
+        # and a combo side by side.
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+        form.setFieldGrowthPolicy(
+            QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        return box, form
+
+    def _drawing_group(self) -> QGroupBox:
+        box, form = self._form("Drawing")
 
         self.style = QComboBox()
         for name in styles.names():
             self.style.addItem(styles.get(name).label, name)
+        # Sized to its longest style it was the widest control in the
+        # panel, and the width one column could not narrow past.
+        self.style.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.style.setMinimumContentsLength(8)
         self.style.currentIndexChanged.connect(
             lambda: self._set(style=self.style.currentData()))
         form.addRow("Style", self.style)
@@ -215,6 +257,41 @@ class StylePanelDock(QDockWidget):
             lambda v: self._set(bond_radius=v))
         form.addRow("Bond radius", self.bond_radius)
 
+        # Every published ORTEP states its probability level, because
+        # the same refinement at 50% and at 90% looks like two
+        # different crystals.  A combo of the levels people actually
+        # use rather than a free number: 50 and 90 are conventions, and
+        # a picture drawn at 63% invites the question of why.
+        self.ellipsoid_probability = QComboBox()
+        for level in ELLIPSOID_LEVELS:
+            self.ellipsoid_probability.addItem(
+                f"{level * 100:g}%", level)
+        self.ellipsoid_probability.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.ellipsoid_probability.setMinimumContentsLength(3)
+        self.ellipsoid_probability.setToolTip(
+            "How much of each atom's displacement its ellipsoid "
+            "encloses")
+        self.ellipsoid_probability.currentIndexChanged.connect(
+            lambda: self._set(ellipsoid_probability=(
+                self.ellipsoid_probability.currentData())))
+        # The level and the shading answer the same question -- what
+        # this ellipsoid claims -- so they sit together, the shading
+        # under the level: side by side they were the widest row in
+        # the panel.
+        self.octants = QCheckBox("Octants")
+        self.octants.setToolTip(
+            "ORTEP's principal sections and octant shading, drawn on "
+            "the atoms refined anisotropically")
+        self.octants.toggled.connect(
+            lambda v: self._set(ellipsoid_octants=v))
+        form.addRow("Ellipsoids", self.ellipsoid_probability)
+        form.addRow("", self.octants)
+        return box
+
+    def _transparency_group(self) -> QGroupBox:
+        box, form = self._form("Transparency")
+
         self.opacity = QSlider(Qt.Horizontal)
         self.opacity.setRange(5, 100)
         self.opacity.setToolTip(
@@ -232,13 +309,10 @@ class StylePanelDock(QDockWidget):
         self.pore_opacity.valueChanged.connect(
             lambda v: self._set(pore_opacity=v / 100.0))
         form.addRow("Pores", self.pore_opacity)
+        return box
 
-        self.labels = QComboBox()
-        for value, label in LABEL_MODES:
-            self.labels.addItem(label, value)
-        self.labels.currentIndexChanged.connect(
-            lambda: self._set(label_mode=self.labels.currentData()))
-        form.addRow("Labels", self.labels)
+    def _scene_group(self) -> QGroupBox:
+        box, form = self._form("Scene")
 
         # Each entry carries the *name* of a background and not the
         # colour: QComboBox.findData compares through QVariant, which
@@ -256,90 +330,24 @@ class StylePanelDock(QDockWidget):
         self.background.activated.connect(self._on_custom_background)
         form.addRow("Background", self.background)
 
-        # Every published ORTEP states its probability level, because
-        # the same refinement at 50% and at 90% looks like two
-        # different crystals.  A combo of the levels people actually
-        # use rather than a free number: 50 and 90 are conventions, and
-        # a picture drawn at 63% invites the question of why.
-        self.ellipsoid_probability = QComboBox()
-        for level in ELLIPSOID_LEVELS:
-            self.ellipsoid_probability.addItem(
-                f"{level * 100:g}%", level)
-        self.ellipsoid_probability.setToolTip(
-            "How much of each atom's displacement its ellipsoid "
-            "encloses")
-        self.ellipsoid_probability.currentIndexChanged.connect(
-            lambda: self._set(ellipsoid_probability=(
-                self.ellipsoid_probability.currentData())))
-        # The level and the shading answer the same question -- what
-        # this ellipsoid claims -- so they share a row.
-        self.octants = QCheckBox("Octants")
-        self.octants.setToolTip(
-            "ORTEP's principal sections and octant shading, drawn on "
-            "the atoms refined anisotropically")
-        self.octants.toggled.connect(
-            lambda v: self._set(ellipsoid_octants=v))
-        ellipsoids = QHBoxLayout()
-        ellipsoids.addWidget(self.ellipsoid_probability, 1)
-        ellipsoids.addWidget(self.octants)
-        form.addRow("Ellipsoids", ellipsoids)
-
-        # A switch, then three numbers that each say what they are
-        # and show their value, then a picture of the result.  It was
-        # one unlabelled slider beside the checkbox, "Fade from" as a
-        # fraction of a bounding box, and an exponent called a
-        # gradient -- and nobody could say what any of them would do
-        # before dragging it.
-        self.depth_cue = QCheckBox("Depth cue")
-        self.depth_cue.setToolTip(
-            "Fade distant atoms towards the background, so a thick "
-            "slab reads as having depth")
-        self.depth_cue.toggled.connect(
-            lambda v: self._set(depth_cue=v))
-        form.addRow(self.depth_cue)
-
-        # Percent of the atoms' depth, front to back: 0% is the
-        # nearest atom and 100% the farthest, whichever way the
-        # structure is turned.
-        self.depth_cue_start = PercentControl(
-            "Atoms nearer than this are not faded at all.  0% is the "
-            "front of the nearest atom, 100% the back of the farthest")
-        self.depth_cue_start.valueChanged.connect(self._on_cue_start)
-        form.addRow("Fade starts at", self.depth_cue_start)
-
-        self.depth_cue_end = PercentControl(
-            "Atoms farther than this are faded by the whole amount")
-        self.depth_cue_end.valueChanged.connect(self._on_cue_end)
-        form.addRow("Fully faded at", self.depth_cue_end)
-
-        self.depth_cue_strength = PercentControl(
-            "How far into the background the fade goes: at 100% the "
-            "farthest atoms disappear into it")
-        self.depth_cue_strength.valueChanged.connect(
-            lambda v: self._set(depth_cue_strength=v / 100.0))
-        form.addRow("Amount", self.depth_cue_strength)
-
-        self.depth_cue_preview = CuePreview()
-        form.addRow("", self.depth_cue_preview)
-
-        # A swatch button each, not a combo: there is no shortlist of
-        # sensible net colours the way there is of backgrounds, and the
-        # only question worth asking is "which one".
-        self.flat = {}
-        swatches = QHBoxLayout()
-        for field, label, tip in FLAT_COLORS:
-            button = QPushButton(label)
-            button.setToolTip(tip)
-            button.clicked.connect(
-                lambda _checked=False, f=field, t=label:
-                self._choose_flat(f, t))
-            self.flat[field] = button
-            swatches.addWidget(button)
-        form.addRow("Colours", swatches)
+        self.labels = QComboBox()
+        for value, label in LABEL_MODES:
+            self.labels.addItem(label, value)
+        self.labels.currentIndexChanged.connect(
+            lambda: self._set(label_mode=self.labels.currentData()))
+        form.addRow("Labels", self.labels)
 
         self.legend = QCheckBox("Element legend")
         self.legend.toggled.connect(
             lambda v: self._set(show_legend=v))
+        form.addRow(self.legend)
+        return box
+
+    def _show_group(self) -> QGroupBox:
+        box = QGroupBox("Show")
+        column = QVBoxLayout(box)
+        column.setContentsMargins(*GROUP_MARGINS)
+
         self.cell_box = QCheckBox("Unit cell")
         self.cell_box.toggled.connect(lambda v: self._set(show_cell=v))
         self.cell_axes = QCheckBox("Cell axes")
@@ -368,16 +376,91 @@ class StylePanelDock(QDockWidget):
             "of only at the widest one.  Hundreds of them in a cell")
         self.pore_nodes.toggled.connect(
             lambda v: self._set(pore_all_nodes=v))
-        shown = QHBoxLayout()
-        shown.addWidget(self.cell_box)
-        shown.addWidget(self.cell_axes)
-        shown.addWidget(self.topology)
-        form.addRow("Show", shown)
-        toggles = QHBoxLayout()
-        toggles.addWidget(self.legend)
-        toggles.addWidget(self.pore_nodes)
-        form.addRow(toggles)
-        return form
+        for check in (self.cell_box, self.cell_axes, self.topology,
+                      self.pore_nodes):
+            column.addWidget(check)
+        return box
+
+    def _colours_group(self) -> QGroupBox:
+        box = QGroupBox("Colours")
+        row = QHBoxLayout(box)
+        row.setContentsMargins(*GROUP_MARGINS)
+        # A swatch button each, not a combo: there is no shortlist of
+        # sensible net colours the way there is of backgrounds, and the
+        # only question worth asking is "which one".
+        self.flat = {}
+        for field, label, tip in FLAT_COLORS:
+            button = QPushButton(label)
+            button.setToolTip(tip)
+            button.clicked.connect(
+                lambda _checked=False, f=field, t=label:
+                self._choose_flat(f, t))
+            # macOS gives a push button 75 px whatever it says, which
+            # three abreast made the widest row in the panel.  The
+            # stylesheet swatch has no bezel to need the room.
+            button.setMinimumWidth(SWATCH_WIDTH)
+            self.flat[field] = button
+            row.addWidget(button)
+        return box
+
+    def _depth_cue_group(self) -> QGroupBox:
+        """Folded unless the document has it on: three sliders and a
+        strip are the tallest group here, and for the structures that
+        do not fade -- most of them -- they are the ones in the way.
+        The switch stays in the header, so on or off reads without
+        opening it."""
+        box = QGroupBox("Depth cue")
+        body = QWidget()
+        form = QFormLayout(body)
+        form.setContentsMargins(0, 0, 0, 0)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+        form.setFieldGrowthPolicy(
+            QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+
+        # A switch, then three numbers that each say what they are
+        # and show their value, then a picture of the result.  It was
+        # one unlabelled slider beside the checkbox, "Fade from" as a
+        # fraction of a bounding box, and an exponent called a
+        # gradient -- and nobody could say what any of them would do
+        # before dragging it.
+        # "On" rather than the group's name again: it sits under the
+        # heading that already says what it turns on.
+        self.depth_cue = QCheckBox("On")
+        self.depth_cue.setToolTip(
+            "Fade distant atoms towards the background, so a thick "
+            "slab reads as having depth")
+        self.depth_cue.toggled.connect(self._on_depth_cue)
+
+        # Percent of the atoms' depth, front to back: 0% is the
+        # nearest atom and 100% the farthest, whichever way the
+        # structure is turned.
+        self.depth_cue_start = PercentControl(
+            "Atoms nearer than this are not faded at all.  0% is the "
+            "front of the nearest atom, 100% the back of the farthest")
+        self.depth_cue_start.valueChanged.connect(self._on_cue_start)
+        form.addRow("Fade starts at", self.depth_cue_start)
+
+        self.depth_cue_end = PercentControl(
+            "Atoms farther than this are faded by the whole amount")
+        self.depth_cue_end.valueChanged.connect(self._on_cue_end)
+        form.addRow("Fully faded at", self.depth_cue_end)
+
+        self.depth_cue_strength = PercentControl(
+            "How far into the background the fade goes: at 100% the "
+            "farthest atoms disappear into it")
+        self.depth_cue_strength.valueChanged.connect(
+            lambda v: self._set(depth_cue_strength=v / 100.0))
+        form.addRow("Amount", self.depth_cue_strength)
+
+        self.depth_cue_preview = CuePreview()
+        form.addRow(self.depth_cue_preview)
+
+        self.depth_cue_fold = Collapsible("Depth cue", body,
+                                          switch=self.depth_cue)
+        inner = QVBoxLayout(box)
+        inner.setContentsMargins(*GROUP_MARGINS)
+        inner.addWidget(self.depth_cue_fold)
+        return box
 
     def _build_elements(self) -> QWidget:
         self.elements = QTableWidget(0, len(ELEMENT_COLUMNS))
@@ -389,6 +472,13 @@ class StylePanelDock(QDockWidget):
         self.elements.horizontalHeader().setSectionResizeMode(
             QHeaderView.Stretch)
         self.elements.cellDoubleClicked.connect(self._on_element_cell)
+        # A set number of rows that scroll inside the table.  Stretched
+        # to fill the panel it was 4 rows of MOF-5 and 400 px of white,
+        # and it pushed everything above it apart as the column grew.
+        header = self.elements.horizontalHeader().sizeHint().height()
+        row = self.elements.verticalHeader().defaultSectionSize()
+        frame = 2 * self.elements.frameWidth()
+        self.elements.setFixedHeight(header + ELEMENT_ROWS * row + frame)
 
         reset = QPushButton("Reset colours and radii")
         reset.setToolTip(
@@ -397,7 +487,7 @@ class StylePanelDock(QDockWidget):
 
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.elements, 1)
+        layout.addWidget(self.elements)
         layout.addWidget(reset)
         page = QWidget()
         page.setLayout(layout)
@@ -406,8 +496,15 @@ class StylePanelDock(QDockWidget):
     # -- binding -------------------------------------------------------
 
     def set_document(self, document) -> None:
+        changed = document is not self.document
         self.document = document
         self.refresh()
+        # Open for a document that fades, folded for one that does not
+        # -- and only when the document changes, so a fold somebody
+        # opened by hand stays open while they work in it.
+        if changed:
+            self.depth_cue_fold.set_open(
+                document is not None and document.view.depth_cue)
 
     def refresh(self) -> None:
         document = self.document
@@ -503,6 +600,13 @@ class StylePanelDock(QDockWidget):
         if self._refreshing or self.document is None:
             return
         self.document.update_view(**values)
+
+    def _on_depth_cue(self, on: bool) -> None:
+        # Turned on with its settings folded away, the next thing
+        # anybody wants is those settings.
+        if on and not self._refreshing:
+            self.depth_cue_fold.set_open(True)
+        self._set(depth_cue=on)
 
     def _on_cue_start(self, value: int) -> None:
         """A start dragged past the end pushes the end along, rather

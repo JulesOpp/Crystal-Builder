@@ -383,7 +383,9 @@ stress case).
   bars scroll rather than widen (`layout._ScrollingDockTabs`), and
   panels are not native windows (`keep_siblings_non_native`, called
   wherever a `QApplication` is made). `test_window_layout.py` holds
-  all three.
+  all three. A panel of groups reflows rather than scrolling sideways:
+  `xtalapp.docks.columns.ReflowColumns` puts them in two columns once
+  no form row would wrap, and in one below that (the Style panel).
 - A long operation over a whole selection is applied **in one batch**,
   not atom-by-atom with a redraw between — that is what made Select
   All → Set Bond Type stall on MFU-4l.

@@ -129,6 +129,113 @@ def test_the_octant_switch_only_applies_where_there_are_ellipsoids(
     assert not document.modified
 
 
+def _laid_out_at(qtbot, dock, width):
+    """The dock floated at ``width`` and shown, so its layouts have
+    placed everything: a hidden widget has no geometry to assert on."""
+    dock.setFloating(True)
+    dock.resize(width, 900)
+    dock.show()
+    qtbot.waitExposed(dock)
+    qtbot.wait(20)
+    return dock.columns
+
+
+def test_the_style_panel_is_headed_groups_in_the_agreed_order(window):
+    """Breaks when a control drifts out of its group, or a group moves:
+    the order is what one column reads, and the manual photographs it."""
+    dock = window.style_dock
+    assert [group.title() for group in dock.groups] == [
+        "Drawing", "Transparency", "Scene", "Show", "Colours",
+        "Depth cue"]
+    homes = {"Drawing": (dock.style, dock.atom_scale, dock.bond_radius,
+                         dock.ellipsoid_probability, dock.octants),
+             "Transparency": (dock.opacity, dock.pore_opacity),
+             "Scene": (dock.background, dock.labels, dock.legend),
+             "Show": (dock.cell_box, dock.cell_axes, dock.topology,
+                      dock.pore_nodes),
+             "Colours": tuple(dock.flat.values()),
+             "Depth cue": (dock.depth_cue, dock.depth_cue_start,
+                           dock.depth_cue_end, dock.depth_cue_strength,
+                           dock.depth_cue_preview)}
+    for group in dock.groups:
+        for control in homes[group.title()]:
+            assert group.isAncestorOf(control), (group.title(), control)
+    # The element table is below the groups, not in either column.
+    body = dock.widget().widget().layout()
+    assert body.indexOf(dock.columns) < body.indexOf(
+        dock.elements.parentWidget())
+
+
+def test_a_wide_style_panel_puts_its_groups_side_by_side(qtbot, window,
+                                                         rutile_cif):
+    window.open_path(rutile_cif)
+    dock = window.style_dock
+    columns = _laid_out_at(qtbot, dock, 520)
+    drawing, show = dock.groups[0], dock.groups[3]
+    assert columns.two_columns()
+    assert drawing.y() == show.y()
+    assert show.x() > drawing.x() + drawing.width()
+
+
+def test_a_narrow_style_panel_stacks_its_groups_instead_of_scrolling_sideways(
+        qtbot, window, rutile_cif):
+    """A panel read by scrolling sideways is one whose right-hand half
+    nobody finds, and 220 px is the column dragged nearly shut."""
+    window.open_path(rutile_cif)
+    dock = window.style_dock
+    columns = _laid_out_at(qtbot, dock, 220)
+    assert not columns.two_columns()
+    xs = {group.x() for group in dock.groups}
+    assert len(xs) == 1
+    assert [g.y() for g in dock.groups] == sorted(
+        g.y() for g in dock.groups)
+    assert not dock.widget().horizontalScrollBar().isVisible()
+
+
+def test_depth_cue_opens_itself_for_a_document_that_has_it_on(
+        window, rutile_cif, quartz_cif):
+    first = window.open_path(rutile_cif)
+    first.update_view(depth_cue=True)
+    window.open_path(quartz_cif)
+    fold = window.style_dock.depth_cue_fold
+    assert not fold.is_open()
+
+    window.tabs.setCurrentIndex(window.documents.index(first))
+    assert fold.is_open()
+
+
+def test_depth_cue_stays_closed_for_one_that_does_not(window,
+                                                       rutile_cif):
+    window.open_path(rutile_cif)
+    fold = window.style_dock.depth_cue_fold
+    assert not fold.is_open()
+    assert fold.body.isHidden()
+
+
+def test_a_fold_opened_by_hand_stays_open_while_the_document_does(
+        window, rutile_cif):
+    """A refresh follows every view change; if it re-decided the fold,
+    dragging a slider inside it would fold it shut under the cursor."""
+    document = window.open_path(rutile_cif)
+    fold = window.style_dock.depth_cue_fold
+    fold.arrow.click()
+    document.update_view(style="spacefill")
+    window._update_ui()
+    assert fold.is_open()
+
+
+def test_the_element_table_keeps_its_height_when_the_panel_grows(
+        qtbot, window, rutile_cif):
+    """Stretched, it was four rows of MOF-5 and 400 px of white."""
+    window.open_path(rutile_cif)
+    dock = window.style_dock
+    _laid_out_at(qtbot, dock, 520)
+    before = dock.elements.height()
+    dock.resize(520, 1600)
+    qtbot.wait(20)
+    assert dock.elements.height() == before
+
+
 def test_the_fade_sliders_are_dead_until_the_fade_is_on(window,
                                                        rutile_cif):
     """The panel's own rule, extended to the two new ones: a control
