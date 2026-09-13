@@ -61,6 +61,7 @@ class DftbRunDialog(ModuleDialog):
     def values(self) -> dict:
         values = super().values()
         values["hamiltonian"] = dict(self.hamiltonian)
+        values["frozen"] = frozen_labels(self.parent())
         return values
 
     @classmethod
@@ -134,6 +135,22 @@ class BandStructureDialog(DftbRunDialog):
             for name, k in sorted(path.points.items()))
         self.status.setText(f"Points of this cell: {names}")
         ok.setEnabled(True)
+
+
+def frozen_labels(window) -> list[str]:
+    """The labels of the frozen sites of the tab in front.
+
+    Labels and not indices: the run is handed the structure with its
+    markers taken out, and an index from the document names a
+    different site in that one.
+    """
+    document = window.current_document() if window is not None and \
+        hasattr(window, "current_document") else None
+    if document is None:
+        return []
+    sites = document.structure.sites
+    return sorted(sites[i].label for i in document.frozen_sites()
+                  if i < len(sites))
 
 
 def _lattice_of(window):

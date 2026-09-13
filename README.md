@@ -626,9 +626,25 @@ can resolve s, p and d.  DFTB+ does not broaden, so the Gaussian width
 is a field in the dialog; the curve counts both spins per cell and
 integrates to the electron count up to the Fermi level.
 
+*Optimise with DFTB+'s driver* hands the whole relaxation to DFTB+ in
+one process, the cell too when asked (`LatticeOpt`, against its
+analytic stress, at a pressure you give).  The panel's *Optimise*
+keeps the space group exactly, one DFTB+ launch a step; this is faster
+and moves a P1 cell.  So the answer is mapped back onto the sites, and
+the report says how far the group puts any atom from where DFTB+ left
+it.  A relaxation that leaves the group is not adopted: its orbits
+would split and add atoms.  `geo_end.gen` stays in the run folder, and
+the message says to Reduce to P1 and run again.  Frozen sites are left
+out of `MovedAtoms`; bonds are untouched.  *Molecular dynamics* is
+velocity Verlet with no thermostat, Berendsen or Nosé–Hoover.  Its
+frames open in the transport bar, and temperature and total energy are
+plotted in Results.
+
 ```bash
 xtal run dftb.band-structure Si.cif -p path=LGXUG
 xtal run dftb.dos Si.cif -p spacing=0.08 -p shells=true
+xtal run dftb.relax rutile.cif -p lattice=true
+xtal run dftb.md CO2.cif -p steps=2000 -p time_step=0.5
 ```
 
 `xtal run` writes the same run folder the window does, which is what

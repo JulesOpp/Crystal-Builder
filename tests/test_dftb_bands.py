@@ -236,6 +236,9 @@ def test_the_results_show_the_bands_and_the_zone_and_save_both(
         monkeypatch):
     from xtalapp.dialogs.dftb_run import BandStructureDialog
 
+    # The module is offered only where a parameter set is found, and a
+    # checkout without resources/PTBP -- CI's -- has none of its own.
+    monkeypatch.setenv("DFTB_PREFIX", str(parameters))
     document = window.new_document()
     document.set_structure(silicon, modified=False)
 

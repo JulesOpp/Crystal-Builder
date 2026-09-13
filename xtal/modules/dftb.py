@@ -67,6 +67,69 @@ DOS_PARAMS = (
 )
 
 
+FREEZE = Param("freeze", "Hold the frozen sites still", kind="bool",
+               default=True,
+               help="The sites frozen in the structure are left out of "
+                    "DFTB+'s MovedAtoms")
+
+RELAX_PARAMS = (
+    Param("lattice", "Relax the cell as well", kind="bool",
+          default=False,
+          help="DFTB+'s LatticeOpt, against its analytic stress"),
+    Param("pressure", "External pressure", kind="float", default=0.0,
+          minimum=-100.0, maximum=1000.0, step=0.1, decimals=3,
+          suffix=" GPa"),
+    Param("optimiser", "Optimiser", kind="choice", default="lbfgs",
+          choices=(("lbfgs", "L-BFGS"),
+                   ("cg", "Conjugate gradient"))),
+    Param("max_force", "Largest force", kind="float", default=1e-4,
+          minimum=1e-7, maximum=1e-1, step=1e-4, decimals=7,
+          suffix=" Ha/Bohr",
+          help="Converged when no force component is larger"),
+    Param("max_steps", "Step limit", kind="int", default=200,
+          minimum=1, maximum=100000),
+    FREEZE,
+)
+
+MD_PARAMS = (
+    Param("steps", "Steps", kind="int", default=500, minimum=1,
+          maximum=10000000),
+    Param("time_step", "Time step", kind="float", default=1.0,
+          minimum=0.01, maximum=10.0, step=0.1, decimals=2,
+          suffix=" fs",
+          help="Half a femtosecond or less with hydrogen in the "
+               "structure"),
+    Param("thermostat", "Thermostat", kind="choice",
+          default="nose-hoover",
+          choices=(("none", "None (constant energy)"),
+                   ("berendsen", "Berendsen"),
+                   ("nose-hoover", "Nose-Hoover"))),
+    Param("temperature", "Temperature", kind="float", default=300.0,
+          minimum=0.0, maximum=10000.0, step=50.0, decimals=1,
+          suffix=" K",
+          help="The thermostat's, or the starting temperature with "
+               "none"),
+    Param("coupling", "Coupling", kind="float", default=3200.0,
+          minimum=1e-6, maximum=100000.0, decimals=4,
+          help="Nose-Hoover's in cm^-1; Berendsen's is a fraction "
+               "between 0 and 1"),
+    Param("write_every", "Write every", kind="int", default=10,
+          minimum=1, maximum=100000, suffix=" steps",
+          help="A frame for the transport bar, and a line of md.out"),
+    FREEZE,
+)
+
+
+def _relax(job):
+    from xtal.modules.dftb_runs import driver
+    return driver.relax(job)
+
+
+def _dynamics(job):
+    from xtal.modules.dftb_runs import driver
+    return driver.dynamics(job)
+
+
 def _dos(job):
     from xtal.modules.dftb_runs import dos
     return dos.density_of_states(job)
@@ -125,6 +188,17 @@ DFTB = Module(
                    "mesh",
                params=DOS_PARAMS, run=_dos, dialog="dftb-run",
                kind="dos"),
+        Action(name="relax", label="Optimise with DFTB+'s driver...",
+               tip="One DFTB+ run relaxes the atoms, and the cell if "
+                   "asked; the answer is mapped back onto the space "
+                   "group",
+               params=RELAX_PARAMS, run=_relax, dialog="dftb-run",
+               kind="relax"),
+        Action(name="md", label="Molecular dynamics...",
+               tip="Velocity Verlet, with a thermostat; the frames go "
+                   "to the transport bar",
+               params=MD_PARAMS, run=_dynamics, dialog="dftb-run",
+               kind="md"),
     ),
 )
 
