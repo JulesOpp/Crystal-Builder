@@ -222,9 +222,13 @@ class DocumentSet:
             # was clicked is -- the workspace's copy of a structure,
             # or a session saved beside it.  "MOF-5.cif is already
             # open" over a tab called MOF-5.xtalproj reads as a bug.
-            same = _resolved(already.path) == _resolved(path)
+            # Compared by the name shown and not by path: the tab
+            # follows the workspace's copy, so reopening the original
+            # is a different path under the same name, and "already
+            # open, as MOF-5.cif" read as though it were not.
             self.window.show_message(
-                f"{path.name} is already open" if same else
+                f"{path.name} is already open"
+                if already.title == path.name else
                 f"{path.name} is already open, as {already.title}")
             return already
         try:

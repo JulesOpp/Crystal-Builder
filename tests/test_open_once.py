@@ -222,3 +222,17 @@ def test_a_project_saved_beside_the_structure_names_the_tab(
     message = window.statusBar().currentMessage()
     assert "already open, as" in message
     assert document.title in message
+
+
+def test_reopening_a_file_does_not_name_a_tab_spelled_the_same(
+        workspace_window):
+    """The tab is over the workspace's copy, a different path with the
+    same name, and the message said "rutile.cif is already open, as
+    rutile.cif" -- which reads as though it were not the same file."""
+    window, document, source = workspace_window
+    assert document.title == source.name
+
+    window.open_path(source)
+
+    assert window.statusBar().currentMessage() == (
+        "rutile.cif is already open")

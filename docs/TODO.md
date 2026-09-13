@@ -21,15 +21,6 @@ the user's.  If a drag still misbehaves -- especially one that ends
 over the 3D view, which is still a native window -- that is the next
 place to look.
 
-### A status message is drawn over the structure summary
-
-After *MOF-5.cif is already open* the status bar shows the message and
-the permanent formula / space group / volume summary on top of each
-other at the left.  A temporary message should replace the left-hand
-text or sit beside it, not overprint it.  Seen in
-`run-app --shot` output; `MainWindow.show_status` and
-`show_message` are where both are written.
-
 ### The net in the MOF builder cannot be turned
 
 `NetPreview` in `xtalapp/dialogs/mof_preview.py` draws the chosen net
