@@ -92,7 +92,7 @@ rather than something two files happen to produce.
 | 6 | Symmetry | find, set group, subgroup, standardise, primitive, Wyckoff, merge, invert, P1 |
 | 7 | Cell | edit cell, supercell, Niggli, Delaunay, wrap |
 | 8 | Modules | one submenu per registered module |
-| 9 | View | style, show, background, display range, boundary, projection, axis views |
+| 9 | View | style, show, clear charges and orbital, background, display range, boundary, projection, axis views |
 | 10 | Help | log, about |
 | 11 | Window | one toggle per dock, reset layout |
 

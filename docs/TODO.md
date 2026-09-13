@@ -1,5 +1,5 @@
 # TODO
-# In the DFTB+ module, add options to calculate band structures, plot them, and export the band structures. Present me some options for other functionality of DFTB+ that we can wrap into this app. I want to also show the unit cell so the user knows what the gamma point, x point, etc are.
+# Add an option below "Add centroid..." called "Merge atoms" that will take selected atoms, add a centroid between them, and delete the original selected atoms
 
 Work that is wanted but not yet scheduled into a phase.
 [docs/PLAN.md](PLAN.md) holds the roadmap; this file holds everything
@@ -101,41 +101,6 @@ row the 1992 paper prints is a different decision from adding ninety-one
 new ones, and `tests/test_uff_params.py` asserts the published value.
 
 ## Modules
-
-### DFTB+'s own driver
-
-Jules note that overrides anything below: We want to use all of the 
-Native features of DFTB+. Do not rewrite anything that already exists
-Within DFTB+ natively. We just need to make a wrapper for it.
-
-DFTB+ is here as an *engine*: a `Calculator` in `ENGINES`, so the
-optimiser already in this application drives it with the symmetry
-projection intact and the panel, the plot, the trajectory and Stop all
-work unchanged.  That is the right way in for a single point and for a
-geometry optimisation, and it is the wrong way in for two things
-DFTB+'s internal driver does better.
-
-* **Lattice relaxation.**  Ours costs twelve extra energy evaluations
-  a step because no analytic stress is claimed -- DFTB+ prints one and
-  its sign and volume conventions were not worth guessing at, since a
-  stress read the wrong way round relaxes a cell in the wrong
-  direction and reports converging while it does it.  DFTB+'s own
-  `Driver = ConjugateGradient { MovedAtoms ... LatticeOpt = Yes }`
-  uses it directly.  Either that, or read the block and *check* it
-  against a numeric stress on a structure with a known answer, which
-  is the cheaper of the two and would let the engine claim it.
-* **Molecular dynamics**, which has no route through `Calculator` at
-  all: it is a trajectory DFTB+ produces, not a sequence of energies
-  we ask for.
-* As a **module** rather than an engine, then: one entry per driver,
-  the run folder holding `dftb_in.hsd`, `detailed.out`, `geo_end.gen`
-  and `md.out`, and the trajectory read back into the transport bar --
-  which already plays anything `xtal/io/trajectory.py` can read.
-* The parts that would be reused rather than rewritten are most of it:
-  `xtal/ff/dftb/hsd.py` writes the input and checks the parameter set,
-  `xtal/io/gen.py` reads the geometry back, and
-  `xtal/modules/process.py` runs, streams and cancels it.  What is new
-  is a `Driver` block and the parsing of a multi-step output.
 
 ### The pore surface is not a contour of anything but distance
 

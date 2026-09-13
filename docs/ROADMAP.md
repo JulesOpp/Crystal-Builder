@@ -20,7 +20,7 @@ What follows is everything still owed.
 
 | Phase | Theme | Size |
 |---|---|---|
-| V | The engines answer in pictures | L |
+| V | The engines answer in pictures | S |
 
 The argument is **wrong before missing, and small before large**.
 
@@ -65,12 +65,11 @@ also the only way to *doubt* the net the Net panel names.
 ## 2. Phase V — the engines answer in pictures
 
 **Goal:** the half of the external tools that is a drawing rather than
-a number, and the half of DFTB+ its own driver does better.
+a number.
 
 | Item | TODO entry | Size |
 |---|---|---|
 | Export a net as `.cgd` for Systre | Topology | S |
-| DFTB+'s own driver | Modules | L |
 
 **The `.cgd` writer is an afternoon.**  The Net panel says **pcu** and
 the canonical key makes that a decision rather than a match, and there
@@ -103,24 +102,22 @@ edge radii.  The table says so in words rather than putting a ball
 somewhere plausible.  What is left over is in
 [docs/TODO.md](TODO.md) § Modules and is small.
 
-**DFTB+'s own driver is a module, not an engine** — and per the note in
-[docs/TODO.md](TODO.md), a wrapper over what DFTB+ already does rather
-than a reimplementation of any of it.  As an engine it does a single
-point and a geometry optimisation with the symmetry projection intact;
-what the internal driver does better is **lattice relaxation** (ours
-costs twelve extra energy evaluations a step because no analytic stress
-is claimed) and **molecular dynamics**, which has no route through
-`Calculator` at all.  `ff/dftb/hsd.py` writes the input, `io/gen.py`
-reads the geometry back and `modules/process.py` runs, streams and
-cancels it; what is new is a `Driver` block, a multi-step output parser
-and the trajectory read into the transport bar.
+**DFTB+'s native runs have shipped**, as entries of the DFTB+ module
+that write the input, run DFTB+ (and `waveplot` or `modes`) in the run
+folder, and read the answer -- nothing DFTB+ does natively is done
+again here.  Band structure along ASE's path with the Brillouin zone
+drawn, the density of states projected per element beside it, Mulliken
+charges colouring the atoms, an orbital's two lobes, DFTB+'s own
+relaxation with the cell (mapped back onto the space group, and refused
+when it would split an orbit), molecular dynamics into the transport
+bar, and vibrational modes that animate there.
 
-**The cheaper half of the stress question comes first**: read DFTB+'s
-printed stress tensor and *check* it against `numeric_stress` on a
-structure with a known answer.  If it agrees, the engine claims it and
-variable-cell relaxation gets twelve times cheaper with no driver
-written.  Phase I's redraw rule applies in full — what lands in the run
-folder is a function of the run and not of what the window was showing.
+What that did not do is the stress question for the *engine*: the
+DFTB+ panel's own variable-cell relaxation still takes a numeric stress
+because DFTB+'s printed tensor was never checked against one.  The
+native driver sidesteps it -- LatticeOpt uses DFTB+'s stress inside
+DFTB+ -- and the engine can claim it once somebody has made that
+check on a structure with a known answer.
 
 ---
 

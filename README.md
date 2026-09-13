@@ -652,11 +652,20 @@ they go when the atoms move, and *View ▸ Clear charges and orbital*
 takes them off.  Charges are saved with the project; an orbital is
 not.
 
+*Vibrational modes...* takes the Hessian by finite differences (six
+evaluations per free atom, frozen sites held) and has `modes`
+diagonalise it.  Results lists the frequencies, with imaginary ones
+below −50 cm⁻¹ flagged: a structure that was not relaxed first has
+them, and the message says so.  Choose a mode and *Animate mode* plays
+it in the transport bar at the amplitude you set; `modes.dat` holds the
+eigenvectors.
+
 ```bash
 xtal run dftb.band-structure Si.cif -p path=LGXUG
 xtal run dftb.dos Si.cif -p spacing=0.08 -p shells=true
 xtal run dftb.relax rutile.cif -p lattice=true
 xtal run dftb.md CO2.cif -p steps=2000 -p time_step=0.5
+xtal run dftb.modes CO2.cif
 ```
 
 `xtal run` writes the same run folder the window does, which is what

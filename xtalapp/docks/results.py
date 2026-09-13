@@ -53,6 +53,7 @@ from xtal.modules.report import (
     Curve,
     Dos,
     Histogram,
+    Modes,
     Table,
     Zone,
     is_number,
@@ -232,6 +233,8 @@ class ResultsDock(QDockWidget):
             return _bands_widget(block, getattr(self, "_beside", None))
         if isinstance(block, Dos):
             return _dos_widget(block)
+        if isinstance(block, Modes):
+            return _modes_widget(block, self)
         if isinstance(block, Zone):
             return _zone_widget(block)
         return None                                 # pragma: no cover
@@ -689,3 +692,79 @@ def _zone_widget(zone: Zone) -> QWidget:
     layout.addWidget(view)
     box.view = view
     return box
+
+
+def _modes_widget(modes: Modes, dock) -> QWidget:
+    """The frequencies, and the button that plays one.
+
+    Animate hands a loop of frames to the transport bar through the
+    window the dock belongs to, so a mode is watched the way a
+    relaxation is -- scrubbed, looped, and closed without anything
+    having been edited.
+    """
+    from PySide6.QtWidgets import QDoubleSpinBox
+
+    from xtal.modules.report import Row
+
+    rows = tuple(Row.of(n + 1, f"{f:.2f}",
+                        "imaginary" if modes.is_imaginary(f) else "")
+                 for n, f in enumerate(modes.frequencies))
+    box = _table_widget(Table(
+        modes.title, rows, columns=("Mode", "cm-1", "")))
+    view = box.findChild(QTableView)
+    amplitude = QDoubleSpinBox()
+    amplitude.setRange(0.01, 2.0)
+    amplitude.setSingleStep(0.05)
+    amplitude.setValue(0.3)
+    amplitude.setSuffix(" A")
+    amplitude.setToolTip("How far the atom that moves most travels")
+    animate = QPushButton("Animate mode")
+    animate.setToolTip("Play the selected mode in the transport bar")
+    animate.clicked.connect(
+        lambda: _animate_mode(modes, view, amplitude.value(), dock))
+    export = QPushButton("Export modes...")
+    export.clicked.connect(lambda: _export_modes(modes, box))
+    row = QHBoxLayout()
+    row.addWidget(QLabel("Amplitude"))
+    row.addWidget(amplitude)
+    row.addWidget(animate)
+    row.addStretch(1)
+    row.addWidget(export)
+    box.layout().addLayout(row)
+    box.view, box.amplitude, box.animate = view, amplitude, animate
+    if len(rows):
+        # The highest mode is the one anybody checks first, and it is
+        # never one of a molecule's near-zero translations.
+        view.selectRow(len(rows) - 1)
+    if modes.note:
+        note = QLabel(modes.note)
+        note.setWordWrap(True)
+        note.setStyleSheet("color: palette(mid);")
+        box.layout().addWidget(note)
+    return box
+
+
+def _animate_mode(modes: Modes, view, amplitude: float, dock) -> bool:
+    from xtal.modules.dftb_runs.modes import mode_trajectory
+
+    selected = view.selectionModel().selectedRows()
+    if not selected:
+        return False
+    window = dock.parent()
+    trajectories = getattr(window, "trajectory_dock", None)
+    if trajectories is None:
+        return False
+    return trajectories.open_trajectory(
+        mode_trajectory(modes, selected[0].row(), amplitude))
+
+
+def _export_modes(modes: Modes, parent) -> None:
+    path, _chosen = QFileDialog.getSaveFileName(
+        parent, "Export the modes", "modes.dat",
+        "Modes table (*.dat);;All files (*)")
+    if not path:
+        return
+    try:
+        Path(path).write_text(modes.as_dat(), encoding="utf-8")
+    except OSError as exc:
+        QMessageBox.warning(parent, "Export the modes", str(exc))

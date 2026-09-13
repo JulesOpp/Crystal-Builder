@@ -156,6 +156,25 @@ def _orbital(job):
     return electronic.orbital(job)
 
 
+MODES_PARAMS = (
+    Param("delta", "Displacement", kind="float", default=1e-4,
+          minimum=1e-6, maximum=1e-2, step=1e-4, decimals=6,
+          suffix=" Bohr",
+          help="How far each atom is moved each way along each axis"),
+    FREEZE,
+)
+
+
+def _modes_available() -> Availability:
+    from xtal.modules.dftb_runs import modes
+    return modes.MODES.availability()
+
+
+def _modes(job):
+    from xtal.modules.dftb_runs import modes
+    return modes.vibrational_modes(job)
+
+
 def _relax(job):
     from xtal.modules.dftb_runs import driver
     return driver.relax(job)
@@ -239,6 +258,13 @@ DFTB = Module(
                    "group",
                params=RELAX_PARAMS, run=_relax, dialog="dftb-run",
                kind="relax"),
+        Action(name="modes", label="Vibrational modes...",
+               tip="The Hessian by finite differences and its modes.  "
+                   "It costs six evaluations per free atom, and a "
+                   "structure that has not been relaxed first gives "
+                   "imaginary modes that mean nothing",
+               params=MODES_PARAMS, run=_modes, dialog="dftb-run",
+               kind="modes", check=_modes_available),
         Action(name="md", label="Molecular dynamics...",
                tip="Velocity Verlet, with a thermostat; the frames go "
                    "to the transport bar",

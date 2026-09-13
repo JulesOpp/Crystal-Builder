@@ -455,6 +455,64 @@ class Dos:
 
 
 @dataclass(frozen=True)
+class Modes:
+    """Vibrational modes: a frequency each, and how each atom moves.
+
+    Carries the geometry it was computed at -- ``elements`` and
+    ``cart`` of the P1 cell, and the ``lattice`` -- because what is
+    worth doing with a mode is watching it, and a mode's displacements
+    mean nothing without the positions they are displacements of.
+    ``displacements[mode, atom, 3]`` is normalised to a largest atom
+    displacement of one; negative frequencies are imaginary.
+    """
+
+    title: str = ""
+    frequencies: np.ndarray = field(default_factory=lambda: np.zeros(0))
+    displacements: np.ndarray = field(
+        default_factory=lambda: np.zeros((0, 0, 3)))
+    elements: tuple = ()
+    cart: np.ndarray = field(default_factory=lambda: np.zeros((0, 3)))
+    lattice: np.ndarray | None = None
+    note: str = ""
+
+    @property
+    def n_modes(self) -> int:
+        return len(self.frequencies)
+
+    #: How far below zero a frequency has to be to be called imaginary.
+    #: A free molecule's rotations and translations are zero in
+    #: principle and come out tens of cm^-1 either side of it from
+    #: finite differences -- relaxed CO2 gave -39 -- and a table that
+    #: flagged those would tell somebody to relax a structure that is
+    #: relaxed.
+    IMAGINARY_BELOW = -50.0
+
+    def is_imaginary(self, frequency: float) -> bool:
+        return float(frequency) < self.IMAGINARY_BELOW
+
+    @property
+    def n_imaginary(self) -> int:
+        return int(np.count_nonzero(
+            np.asarray(self.frequencies) < self.IMAGINARY_BELOW))
+
+    def as_text(self) -> str:
+        lines = [self.title] if self.title else []
+        lines.append(f"{self.n_modes} modes, {self.n_imaginary} "
+                     f"imaginary")
+        lines += [f"{n + 1:5d}  {f:10.2f} cm-1"
+                  + ("  imaginary" if self.is_imaginary(f) else "")
+                  for n, f in enumerate(self.frequencies)]
+        return "\n".join(lines)
+
+    def as_dat(self) -> str:
+        rows = ["# mode  frequency(cm-1)  then dx dy dz per atom"]
+        for n, frequency in enumerate(self.frequencies):
+            rows.append(f"{n + 1:5d}  {frequency:12.4f}  " + "  ".join(
+                f"{v: .6f}" for v in self.displacements[n].ravel()))
+        return "\n".join(rows) + "\n"
+
+
+@dataclass(frozen=True)
 class Zone:
     """The first Brillouin zone of a cell, with a path through it.
 
@@ -503,6 +561,10 @@ class Report:
     @property
     def doses(self) -> list[Dos]:
         return [b for b in self.blocks if isinstance(b, Dos)]
+
+    @property
+    def modes(self) -> list[Modes]:
+        return [b for b in self.blocks if isinstance(b, Modes)]
 
     @property
     def zones(self) -> list[Zone]:
