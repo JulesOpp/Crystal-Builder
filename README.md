@@ -619,8 +619,16 @@ bands relative to the Fermi level, with an energy window and the gap.
 figure through matplotlib.  `bands.dat`, `bands.csv` and both pictures
 are also left in the run folder.
 
+The density of states projected onto each element is drawn beside
+the bands, on the same energy axis, from the mesh run that converged
+the charges.  *Density of states* runs it alone on a denser mesh, and
+can resolve s, p and d.  DFTB+ does not broaden, so the Gaussian width
+is a field in the dialog; the curve counts both spins per cell and
+integrates to the electron count up to the Fermi level.
+
 ```bash
 xtal run dftb.band-structure Si.cif -p path=LGXUG
+xtal run dftb.dos Si.cif -p spacing=0.08 -p shells=true
 ```
 
 `xtal run` writes the same run folder the window does, which is what

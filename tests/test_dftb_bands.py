@@ -48,6 +48,9 @@ if "Klines" in text:
     pathlib.Path("band.out").write_text("\n".join(out))
 else:
     pathlib.Path("charges.bin").write_bytes(b"charges")
+    for label in re.findall(r'Label = "([^"]+)"', text):
+        pathlib.Path(f"{label}.out").write_text(
+            " KPT 1 SPIN 1 KWEIGHT 1.0\n  -4.0  1.0\n  -2.5  1.0\n")
     pathlib.Path("detailed.out").write_text(
         "Fermi level:  -0.1250000000 H  -3.4014 eV\n")
 print("DFTB+ done", flush=True)

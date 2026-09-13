@@ -132,6 +132,119 @@ class BandsPlot(QWidget):
                          Qt.AlignRight | Qt.AlignTop, "eV")
 
 
+#: One per projection; the total is the palette's text colour.
+PARTIAL_COLORS = (QColor(58, 122, 200), QColor(206, 110, 40),
+                  QColor(96, 158, 96), QColor(150, 96, 178),
+                  QColor(190, 70, 70), QColor(70, 160, 170))
+
+
+class DosPlot(QWidget):
+    """A density of states with energy up the page, so that it can
+    stand beside a band structure on the same energy axis."""
+
+    def __init__(self, parent=None, axis: bool = True):
+        super().__init__(parent)
+        self.dos = None
+        self.axis = axis
+        self.energy_window = (-6.0, 6.0)
+        self.setMinimumSize(120, 260)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+
+    def set_dos(self, dos) -> None:
+        self.dos = dos
+        self.energy_window = tuple(dos.window)
+        self.update()
+
+    def set_window(self, low: float, high: float) -> None:
+        if high > low:
+            self.energy_window = (float(low), float(high))
+            self.update()
+
+    def paintEvent(self, _event) -> None:           # noqa: N802
+        painter = QPainter(self)
+        try:
+            self.paint(painter, QRectF(self.rect()))
+        finally:
+            painter.end()
+
+    def paint(self, painter, rect) -> None:
+        palette = self.palette()
+        painter.fillRect(rect, palette.base())
+        dos = self.dos
+        if dos is None or not len(dos.energies):
+            return
+        left = LEFT if self.axis else 4
+        plot = QRectF(rect.left() + left, rect.top() + TOP,
+                      rect.width() - left - RIGHT,
+                      rect.height() - TOP - BOTTOM)
+        low, high = self.energy_window
+        shown = (dos.energies >= low) & (dos.energies <= high)
+        top = float(dos.total[shown].max()) if shown.any() else 1.0
+        top = top or 1.0
+
+        def py(e):
+            return plot.bottom() - (e - low) / (high - low) \
+                * plot.height()
+
+        def px(value):
+            return plot.left() + value / top * plot.width()
+
+        text = palette.text().color()
+        painter.setPen(QPen(text, 1))
+        painter.drawRect(plot)
+        if self.axis:
+            for value in _ticks(low, high, 6):
+                y = py(value)
+                painter.drawLine(QLineF(plot.left() - 4, y, plot.left(),
+                                        y))
+                painter.drawText(QRectF(rect.left(), y - 8, LEFT - 6, 16),
+                                 Qt.AlignRight | Qt.AlignVCenter,
+                                 _tick(value))
+        painter.drawText(QRectF(plot.left(), plot.bottom() + 4,
+                                plot.width(), 18),
+                         Qt.AlignHCenter | Qt.AlignTop, "DOS")
+        painter.setPen(QPen(text, 1, Qt.DashLine))
+        if low < 0.0 < high:
+            painter.drawLine(QLineF(plot.left(), py(0.0), plot.right(),
+                                    py(0.0)))
+        painter.save()
+        painter.setClipRect(plot)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        energies = dos.energies
+        traces = [("total", dos.total, text)] + [
+            (label, y, PARTIAL_COLORS[n % len(PARTIAL_COLORS)])
+            for n, (label, y) in enumerate(dos.partial)]
+        for _label, values, color in traces:
+            painter.setPen(QPen(color, 1))
+            painter.drawPolyline(QPolygonF(
+                [QPointF(px(float(v)), py(float(e)))
+                 for e, v in zip(energies, values, strict=True)]))
+        painter.restore()
+        y = plot.top() + 4
+        for label, _values, color in traces:
+            painter.setPen(QPen(color, 1))
+            painter.drawText(QRectF(plot.left() + 4, y, plot.width() - 8,
+                                    14),
+                             Qt.AlignRight | Qt.AlignTop, label)
+            y += 14
+
+
+def save_dos(dos, path, size=(360, 520), scale: int = 2) -> Path:
+    from PySide6.QtGui import QPixmap
+    width, height = int(size[0]), int(size[1])
+    plot = DosPlot()
+    plot.set_dos(dos)
+    plot.resize(width, height)
+    picture = QPixmap(width * scale, height * scale)
+    picture.setDevicePixelRatio(scale)
+    painter = QPainter(picture)
+    plot.paint(painter, QRectF(0, 0, width, height))
+    painter.end()
+    path = Path(path)
+    picture.save(str(path))
+    return path
+
+
 def save_bands(bands, path, size=SAVE_SIZE, scale: int = 2) -> Path:
     """The panel's picture as a PNG, for the run folder."""
     from PySide6.QtGui import QPixmap
@@ -149,9 +262,10 @@ def save_bands(bands, path, size=SAVE_SIZE, scale: int = 2) -> Path:
     return path
 
 
-def export_figure(bands, path, window=None) -> Path:
+def export_figure(bands, path, window=None, dos=None) -> Path:
     """A publication figure through matplotlib -- PNG, SVG or PDF by
-    the suffix -- or the numbers, for ``.dat`` and ``.csv``."""
+    the suffix -- or the numbers, for ``.dat`` and ``.csv``.  With a
+    ``dos`` the figure has it beside the bands, on the same axis."""
     path = Path(path)
     suffix = path.suffix.lower()
     if suffix == ".dat":
@@ -165,8 +279,21 @@ def export_figure(bands, path, window=None) -> Path:
     from matplotlib.figure import Figure
 
     low, high = window or bands.window
-    figure = Figure(figsize=(4.5, 4.0), dpi=150)
-    axes = figure.add_subplot()
+    figure = Figure(figsize=(6.0 if dos is not None else 4.5, 4.0),
+                    dpi=150)
+    if dos is not None:
+        axes, side = figure.subplots(
+            1, 2, sharey=True, gridspec_kw={"width_ratios": (3, 1)})
+        side.plot(dos.total, dos.energies, color="0.2", linewidth=1.0,
+                  label="total")
+        for label, values in dos.partial:
+            side.plot(values, dos.energies, linewidth=0.8, label=label)
+        side.axhline(0.0, color="0.3", linewidth=0.8, linestyle="--")
+        side.set_xlabel("DOS (states/eV)")
+        side.set_xlim(left=0)
+        side.legend(fontsize="x-small", frameon=False)
+    else:
+        axes = figure.add_subplot()
     colors = ("tab:blue", "tab:orange")
     for spin in range(bands.energies.shape[0]):
         axes.plot(bands.x, bands.energies[spin], color=colors[spin % 2],

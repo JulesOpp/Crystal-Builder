@@ -415,6 +415,46 @@ class Bands:
 
 
 @dataclass(frozen=True)
+class Dos:
+    """A density of states, total and projected, against energy.
+
+    Energies in eV relative to the Fermi level, like :class:`Bands`,
+    and drawn with energy up the page so that when a run has both the
+    two share an axis side by side -- which is how a band structure
+    and its density of states are read.  ``partial`` is ``(label, y)``
+    per element, or per element and shell; ``total`` is their sum.
+    """
+
+    title: str = ""
+    energies: np.ndarray = field(default_factory=lambda: np.zeros(0))
+    total: np.ndarray = field(default_factory=lambda: np.zeros(0))
+    partial: tuple = ()
+    fermi: float = 0.0
+    sigma: float = 0.1
+    window: tuple = (-6.0, 6.0)
+    note: str = ""
+
+    def as_text(self) -> str:
+        lines = [self.title] if self.title else []
+        lines.append(f"{len(self.energies)} points, Gaussian "
+                     f"broadening {self.sigma:g} eV, Fermi level "
+                     f"{self.fermi:.3f} eV")
+        lines.append("projected onto " + ", ".join(
+            label for label, _y in self.partial))
+        return "\n".join(lines)
+
+    def as_dat(self) -> str:
+        head = ["E-E_F(eV)", "total"] + [label.replace(" ", "_")
+                                         for label, _y in self.partial]
+        rows = ["# " + "  ".join(head)]
+        for i, energy in enumerate(self.energies):
+            rows.append("  ".join(
+                [f"{energy:.4f}", f"{self.total[i]:.6f}"]
+                + [f"{y[i]:.6f}" for _label, y in self.partial]))
+        return "\n".join(rows) + "\n"
+
+
+@dataclass(frozen=True)
 class Zone:
     """The first Brillouin zone of a cell, with a path through it.
 
@@ -441,7 +481,7 @@ class Report:
     """Everything one run is worth showing, in the order to show it."""
 
     title: str = ""
-    blocks: tuple = ()      # Table | Histogram | Curve | Bands | Zone
+    blocks: tuple = ()  # Table | Histogram | Curve | Bands | Dos | Zone
     note: str = ""
 
     @property
@@ -459,6 +499,10 @@ class Report:
     @property
     def bands(self) -> list[Bands]:
         return [b for b in self.blocks if isinstance(b, Bands)]
+
+    @property
+    def doses(self) -> list[Dos]:
+        return [b for b in self.blocks if isinstance(b, Dos)]
 
     @property
     def zones(self) -> list[Zone]:

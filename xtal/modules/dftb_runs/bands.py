@@ -29,7 +29,7 @@ import numpy as np
 
 from xtal.analysis import kpath
 from xtal.ff.dftb import hsd, outputs
-from xtal.modules.dftb_runs import common
+from xtal.modules.dftb_runs import common, dos
 from xtal.modules.job import JobResult
 from xtal.modules.report import Bands, Report, Row, Table, Zone
 
@@ -53,17 +53,24 @@ def band_structure(job) -> JobResult:
     scc = options.method != "non-scc"
 
     with common.folder(job) as directory:
-        fermi = 0.0
+        fermi, density = 0.0, None
         if scc:
             job.say("converging the charges on a mesh")
             mesh = common.mesh(structure, options)
+            regions = tuple(symbols) if job.param("dos", True) else ()
             common.invoke(job, directory / "scc", structure,
                           hsd.hsd_string(symbols, options,
                                          k_points=mesh,
                                          analysis=hsd.Analysis(
-                                             forces=False)))
+                                             forces=False,
+                                             regions=regions)))
             fermi = outputs.fermi_level(
                 common.read(directory / "scc", "detailed.out")) or 0.0
+            if regions:
+                density = dos.projected(
+                    directory / "scc", symbols, fermi,
+                    float(job.param("sigma", 0.1)))
+                (directory / "dos.dat").write_text(density.as_dat())
             (directory / "bands").mkdir(exist_ok=True)
             shutil.copy(directory / "scc" / "charges.bin",
                         directory / "bands" / "charges.bin")
@@ -104,7 +111,8 @@ def band_structure(job) -> JobResult:
                + (f"gap {gap[1] - gap[0]:.3f} eV" if gap else "no gap"))
     return JobResult(message=message, report=Report(
         title="DFTB+ band structure",
-        blocks=(Table("Summary", tuple(rows)), block, zone)))
+        blocks=(Table("Summary", tuple(rows)), block)
+        + ((density,) if density is not None else ()) + (zone,)))
 
 
 def _kpoints(lines) -> np.ndarray:

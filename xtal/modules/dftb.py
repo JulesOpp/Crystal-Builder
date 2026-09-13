@@ -43,7 +43,33 @@ BAND_PARAMS = (
     Param("density", "Points per 1/A", kind="float", default=40.0,
           minimum=2.0, maximum=500.0, step=5.0, decimals=0,
           help="How finely each segment is sampled"),
+    Param("dos", "Density of states beside it", kind="bool",
+          default=True,
+          help="Projected onto each element, from the run on the mesh "
+               "that converges the charges -- no extra invocation, and "
+               "as fine as that mesh"),
+    Param("sigma", "DOS broadening", kind="float", default=0.1,
+          minimum=0.005, maximum=2.0, step=0.05, decimals=3,
+          suffix=" eV"),
 )
+
+DOS_PARAMS = (
+    Param("spacing", "K-point spacing", kind="float", default=0.1,
+          minimum=0.01, maximum=1.0, step=0.02, decimals=3,
+          suffix=" 1/A",
+          help="Denser than the charges need: a density of states is "
+               "an integral over the zone"),
+    Param("sigma", "Broadening", kind="float", default=0.1,
+          minimum=0.005, maximum=2.0, step=0.05, decimals=3,
+          suffix=" eV",
+          help="DFTB+ does not broaden; this Gaussian width is ours"),
+    Param("shells", "Resolve s, p and d", kind="bool", default=False),
+)
+
+
+def _dos(job):
+    from xtal.modules.dftb_runs import dos
+    return dos.density_of_states(job)
 
 
 def _ase() -> Availability:
@@ -94,6 +120,11 @@ DFTB = Module(
                    "zone, from charges converged on a mesh",
                params=BAND_PARAMS, run=_band_structure,
                dialog="band-structure", kind="bands", check=_ase),
+        Action(name="dos", label="Density of states...",
+               tip="Total and projected onto each element, on a dense "
+                   "mesh",
+               params=DOS_PARAMS, run=_dos, dialog="dftb-run",
+               kind="dos"),
     ),
 )
 
