@@ -294,6 +294,9 @@ def check_window(report, shot: Path | None) -> None:
     if sample.path is None:
         raise AssertionError(f"{sample.file} is not in this build")
 
+    from xtalapp.application import keep_siblings_non_native
+
+    keep_siblings_non_native()
     app = QApplication.instance() or QApplication([sys.argv[0]])
     app.setApplicationName(APP_NAME)
     app.setOrganizationName("CrystalBuilder")

@@ -308,6 +308,18 @@ def test_a_cell_spinbox_takes_half_a_cell(window, rutile_cif):
     assert window.cell_spins[0].value() == 1.5
 
 
+def test_the_cell_arrows_step_a_whole_cell(window, rutile_cif):
+    """The arrows stepped by half a cell, so 3 x 3 x 3 was twelve
+    clicks away and every other click landed on a fraction nobody had
+    asked for."""
+    doc = window.open_path(rutile_cif)
+    window.cell_spins[0].stepBy(1)
+    assert doc.view.cells == (2, 1, 1)
+    window.cell_spins[0].setValue(1.5)
+    window.cell_spins[0].stepBy(-1)
+    assert window.cell_spins[0].value() == 0.5
+
+
 def test_the_menu_bar_ends_with_window_and_help(window):
     """Window used to be after Help, because build_docks added a menu
     of its own after build_menus had finished -- so the order was a

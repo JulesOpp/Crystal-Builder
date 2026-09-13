@@ -20,9 +20,9 @@ bonding, run force field / DFTB+ / Zeo++ calculations on the result.
 ## Commands
 
 ```bash
-python -m pytest -q                    # full suite, serial, ~173 s
+python -m pytest -q                    # full suite, serial, 4-6 min
 python -m pytest -q tests/test_bonding.py    # while iterating
-python -m pytest -q -m "not slow"      # ~149 s; skips the 38 slow ones
+python -m pytest -q -m "not slow"      # skips the ones marked slow
 python -m pytest -q --durations=20     # what the run is actually spending
 ruff check .                           # lint (check only — see below)
 crystal-builder                        # launch the GUI
@@ -41,19 +41,26 @@ assume it. Two tests have been fixed rather than tolerated — the RCSR
 expansion (45 s → 9 s, `_Sites` in `analysis/rcsr.py`) and the MFU-4l
 cell relaxation (16 s → 6 s, `_scatter` in `ff/uff/terms.py`) — and
 both fixes made the application faster by the same factor, which is
-the only kind of test-speed fix worth making. The slowest test left is
-about nine seconds.
+the only kind of test-speed fix worth making. A third is the net
+reader: `read_cgd`'s overlap check was ase's neighbour list, 3.9 s of
+the 4.0 s `naz-x` took, and is now a KD-tree (see
+`xtal/mof/pormake/PROVENANCE.md`), which took `test_mof_vendored.py`
+from 42 s to 11 s and every MOF build with it. The slowest tests left
+are about eleven seconds: the RCSR coordination sweep and descending
+MFU-4l through all 237 of its subgroups.
 
-The suite's own 173 s is the price of running serially, not of any one
+The suite's time is the price of running serially, not of any one
 test; getting it back means fixing the deadlock, not trimming tests.
+It crept from about three minutes to eight or nine, and is 235-330 s
+after the fixes below -- the spread is the machine's memory pressure,
+not the code.
 
-It was 92 s before the MOF builder was vendored. Most of the increase
-is that the builds in `tests/test_mof_builder.py` and
-`tests/test_mof_vendored.py` now *run* — they used to skip on a
-machine without PORMAKE and be ten seconds of import on one with it.
-The slowest single test is the expansion-speed comparison in
-`tests/test_mof_vendored.py`, at about 10 s, and it is 10 s because it
-reads two large nets twice — once through the real PORMAKE.
+**Upstream PORMAKE and MACE never load into the test process.** The
+comparison against the real PORMAKE reads a recording,
+`tests/data/pormake_upstream.json`, written by the script beside it;
+one slow test re-derives a sample in a subprocess. The two MACE tests
+that need mace run it in a fresh interpreter. Keep it that way: see
+"Aborted runs" below for what loading them mid-run costs.
 
 ## Conventions
 
@@ -109,6 +116,25 @@ each naming its domain after `tmp_path` -- leaves a permanent plist in
 the developer's own ~/Library/Preferences. The suite had left 278 of
 them behind before anybody noticed. Do not give a window test a real
 preferences domain.
+
+**A test's windows are deleted when it ends** (`pytest_runtest_teardown`
+in `conftest.py`). pytest-qt closes each registered widget and calls
+`deleteLater`, but `processEvents` does not deliver a deferred delete
+outside a running event loop, so no window was ever freed: 74 live
+`MainWindow`s, 68 000 widgets, 86 threads and 1.2 GB a third of the way
+through. Do not remove it.
+
+**Aborted runs** (`Fatal Python error: Aborted` or `Segmentation
+fault` with a stack ending in `dlopen`, and no pytest failure line)
+are macOS 13.2's dynamic loader failing under memory pressure — the
+crash report's `ktriageinfo` says "pmap_enter retried due to resource
+shortage". They happened when a heavy stack (mace's 227 libraries,
+upstream PORMAKE's pymatgen and jax) was loaded half way through a
+process already holding ~750, on a machine with 10 GB of its 11 GB
+swap in use. Reports are in `~/Library/Logs/DiagnosticReports`. The
+cure is to load less in the test process, not to retry: run a test that
+needs a large optional stack in a subprocess, as `test_mace.py` does.
+Check `sysctl vm.swapusage` before trusting a run's timing.
 
 **A full run wedges roughly one time in four, and it is a real
 application bug rather than a test one.** `xtalapp/workers.py`
@@ -349,6 +375,15 @@ stress case).
 - Structure edits go through `Document.apply(...)` with a `Change`
   flag, so they land as one undo step and refresh only the panels that
   care. Do not mutate a structure behind the Document's back.
+- **A panel never holds its column open.** A dock area is as wide as
+  the largest minimum of any dock shown in it, tabbed behind or not,
+  so no dock may need more than `xtalapp.docks.MAXIMUM_MINIMUM`
+  (200 px) either way: set no `setMinimumWidth` on dock contents, and
+  put a tall or wide form inside `xtalapp.docks.scrolling`. Dock tab
+  bars scroll rather than widen (`layout._ScrollingDockTabs`), and
+  panels are not native windows (`keep_siblings_non_native`, called
+  wherever a `QApplication` is made). `test_window_layout.py` holds
+  all three.
 - A long operation over a whole selection is applied **in one batch**,
   not atom-by-atom with a redraw between — that is what made Select
   All → Set Bond Type stall on MFU-4l.

@@ -27,6 +27,8 @@ except Exception as e:
     from ase.neighborlist import natural_cutoffs
 
 from xtal.analysis.rcsr import space_group_operations
+from xtal.core.lattice import Lattice
+from xtal.core.neighbors import neighbor_pairs
 
 from .log import logger
 
@@ -431,10 +433,17 @@ def read_cgd(filename, node_symbol="C", edge_center_symbol="O"):
         info=info,
     )
 
-    # Remove overlap
-    I, J, D = ase.neighborlist.neighbor_list("ijd", atoms, cutoff=0.1)
+    # Remove overlap.  A KD-tree over the cell and its neighbouring
+    # images, not ase's neighbor_list: a 0.1 cutoff on a net cell whose
+    # edges are about one unit long makes ase bin the cell into a
+    # hundred thousand boxes and resize its arrays per box -- 3.9 s of
+    # the 4.0 s naz-x took to read, on the path a build waits on.  The
+    # pairs are the same (each once, i < j, overlaps at zero distance
+    # included), which the comparison in PROVENANCE.md measured.
+    pairs = neighbor_pairs(all_coords, Lattice(np.asarray(cell)), 0.1,
+                           min_distance=0.0)
     # Remove higher index.
-    J = J[J > I]
+    J = pairs.j[pairs.j > pairs.i]
     if len(J) > 0:
         # Save original size of atoms.
         n = len(atoms)

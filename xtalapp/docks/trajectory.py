@@ -40,6 +40,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.io.trajectory import read_trajectory
+from xtalapp.docks import scrolling
 from xtalapp.playback import IncompatibleTrajectory
 
 #: Label -> milliseconds between frames.
@@ -108,7 +109,10 @@ class TrajectoryDock(QDockWidget):
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._advance)
 
-        self.setWidget(self._build())
+        # Scrolls rather than holding the window open: the transport
+        # bar is 554 px of buttons in one row.  See
+        # xtalapp.docks.scrolling.
+        self.setWidget(scrolling(self._build()))
         self.set_document(None)
 
     def _build(self) -> QWidget:

@@ -746,14 +746,17 @@ def build_toolbar(window):
     bar.addWidget(QLabel("  cells "))
     window.cell_spins = []
     for axis in "abc":
-        # Fractional, because half a cell more of a framework is a
-        # picture people ask for and a whole cell more is eight times
-        # the atoms.  The Display range dialog could always say 1.5;
-        # this is the same range from the box beside the view.
+        # Fractional when typed, because half a cell more of a
+        # framework is a picture people ask for and a whole cell more
+        # is eight times the atoms.  The Display range dialog could
+        # always say 1.5; this is the same range from the box beside
+        # the view.  The arrows step whole cells: stepping by halves
+        # made reaching 3 x 3 x 3 twelve clicks, and a fraction is a
+        # deliberate choice that is typed rather than clicked past.
         spin = QDoubleSpinBox()
         spin.setRange(0.1, 20.0)
         spin.setDecimals(2)
-        spin.setSingleStep(0.5)
+        spin.setSingleStep(1.0)
         spin.setValue(1.0)
         # Typing "1.5" passes through 1 and 15 on the way, and every
         # one of those would rebuild the scene and reframe the camera.

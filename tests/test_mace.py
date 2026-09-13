@@ -11,9 +11,22 @@ arithmetic is checked against it.
 One test needs the real thing, and it is the one that has to: whether
 the stress the engine claims agrees with a numeric one.  See
 ``xtal/ff/xtb/calculator.py`` for what claiming a wrong stress costs.
+
+**The two that import mace do it in a fresh interpreter.**  mace brings
+torch's model code, e3nn, pandas, h5py and pyarrow: 227 shared
+libraries on top of the seven hundred the rest of the suite has already
+loaded.  That load, half way through a long run, is where full runs on
+macOS 13.2 were aborting inside the dynamic loader -- and nothing these
+tests assert needs mace in the same process as the rest of the suite.
 """
 
 from __future__ import annotations
+
+import importlib.util
+import json
+import subprocess
+import sys
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -25,6 +38,24 @@ from xtal.ff.mace import calculator as mace
 from xtal.params import Availability
 
 ase = pytest.importorskip("ase")
+
+needs_mace = pytest.mark.skipif(
+    importlib.util.find_spec("mace") is None,
+    reason="mace is not installed -- pip install 'crystal-builder[mace]'")
+
+
+def in_a_fresh_interpreter(program: str):
+    """Run *program* in a new Python and return the JSON it prints last.
+
+    See the module docstring for why: mace is imported there and never
+    here.
+    """
+    done = subprocess.run(
+        [sys.executable, "-c", program],
+        cwd=Path(__file__).resolve().parents[1],
+        capture_output=True, text=True, timeout=900)
+    assert done.returncode == 0, done.stderr[-3000:]
+    return json.loads(done.stdout.strip().splitlines()[-1])
 
 
 @pytest.fixture
@@ -187,25 +218,33 @@ def test_the_registry_builds_it_with_markers_held_back(stand_in):
 # ------------------------------------------------------- the real model
 
 @pytest.mark.slow
+@needs_mace
+@pytest.mark.slow
 def test_the_stress_it_claims_agrees_with_a_numeric_one():
     """The one test that needs mace, and the one that has to have it: a
     stress that is quietly wrong relaxes a cell to the wrong volume and
     reports converging while it does it."""
-    pytest.importorskip("mace")
-    from xtal.core import p1
-
-    structure = water()
     # The smallest model, explicitly, and on the CPU.  What this test
     # is about is our own factor of 23.06 and the strain ASE is handed
     # -- neither improves with a better model, and the default is a
     # 76 MB download where this is 31.
-    engine = mace.MACECalculator(structure, mace.MACEOptions(
-        model="small", device="cpu", double_precision=True))
-    cell = p1.expand(structure)
-    matrix = np.asarray(structure.lattice.matrix, dtype=float)
-    claimed = engine.compute(cell.cart, matrix).stress
-    numeric = engine.numeric_stress(cell.cart, matrix, strain=1e-4)
-    assert claimed == pytest.approx(numeric, abs=2e-3)
+    answer = in_a_fresh_interpreter(
+        "import json\n"
+        "import numpy as np\n"
+        "from tests.conftest_ff import water\n"
+        "from xtal.core import p1\n"
+        "from xtal.ff.mace import calculator as mace\n"
+        "structure = water()\n"
+        "engine = mace.MACECalculator(structure, mace.MACEOptions(\n"
+        "    model='small', device='cpu', double_precision=True))\n"
+        "cell = p1.expand(structure)\n"
+        "matrix = np.asarray(structure.lattice.matrix, dtype=float)\n"
+        "claimed = engine.compute(cell.cart, matrix).stress\n"
+        "numeric = engine.numeric_stress(cell.cart, matrix, strain=1e-4)\n"
+        "print(json.dumps({'claimed': np.asarray(claimed).tolist(),\n"
+        "                  'numeric': np.asarray(numeric).tolist()}))\n")
+    assert np.asarray(answer["claimed"]) == pytest.approx(
+        np.asarray(answer["numeric"]), abs=2e-3)
 
 
 def test_a_model_with_no_stress_still_gives_an_energy_and_forces(
@@ -283,12 +322,16 @@ def test_a_licence_restricted_model_says_so_before_it_is_chosen(
         model=restricted[0]).reason
 
 
+@needs_mace
+@pytest.mark.slow
 def test_every_model_offered_is_a_name_mace_knows():
     """A name mace_mp cannot resolve fails at *download*, minutes into
     a run and after the model list looked fine.  Checked against
     mace's own table rather than against a copy of it."""
-    pytest.importorskip("mace")
-    from mace.calculators.foundations_models import mace_mp_urls
+    mace_mp_urls = in_a_fresh_interpreter(
+        "import json\n"
+        "from mace.calculators.foundations_models import mace_mp_urls\n"
+        "print(json.dumps(sorted(mace_mp_urls)))\n")
 
     for name, _label in mace.MODEL_CHOICES:
         if name == "custom":

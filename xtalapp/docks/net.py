@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.core.structure import CHEMISTRY
+from xtalapp.docks import scrolling
 
 #: What the panel says before anything has been drawn.  It names the
 #: mode rather than the absence, because "nothing here" is a dead end
@@ -78,7 +79,9 @@ class NetDock(QDockWidget):
         mono.setStyleHint(QFont.Monospace)
         mono.setPointSize(11)
         self.text.setFont(mono)
-        self.text.setMinimumWidth(380)
+        # No minimum width, for the reason in xtalapp/docks/info.py: it
+        # held the whole right-hand column at 380 px once this panel
+        # had been opened.  The text scrolls sideways instead.
 
         self.copy = QPushButton("Copy")
         self.copy.setToolTip("Copy the identification to the clipboard")
@@ -104,7 +107,9 @@ class NetDock(QDockWidget):
 
         container = QWidget()
         container.setLayout(layout)
-        self.setWidget(container)
+        # The two buttons side by side are 226 px; scrolled rather than
+        # holding the column at that -- see xtalapp.docks.scrolling.
+        self.setWidget(scrolling(container))
         self.show_document(None)
 
     # ------------------------------------------------------------ wiring

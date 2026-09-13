@@ -39,7 +39,7 @@ queue is released once something is listening.
 
 from __future__ import annotations
 
-from PySide6.QtCore import QEvent, Signal
+from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtWidgets import QApplication
 
 #: What the desktop asking us to quit arrives as.  Two of them because
@@ -50,6 +50,28 @@ from PySide6.QtWidgets import QApplication
 QUIT_EVENTS = (QEvent.Type.Quit, QEvent.Type.Close)
 
 
+def keep_siblings_non_native() -> None:
+    """Stop the 3D viewport making every panel a native window.
+
+    VTK draws into a native window of its own, and by default Qt makes
+    every *sibling* of a native widget native too, and their siblings,
+    so that stacking order is right.  With the viewport inside the
+    main window that meant all fourteen docks were native windows of
+    their own.  A panel tabbed behind another was one parked at
+    (-1015, -863), which is the "Window position ... outside any known
+    screen" printed on every launch, and every drag of a divider or of
+    a panel moved native views rather than ordinary widgets -- the
+    arrangement Qt's documentation warns can misbehave, and not one
+    anything here needs.
+
+    Only the viewport needs to be native.  Called before the
+    ``QApplication`` exists, wherever one is made: here, the self-test,
+    the run-app driver, and ``tests/conftest.py``, so the suite runs
+    the arrangement that ships.
+    """
+    QApplication.setAttribute(Qt.AA_DontCreateNativeWidgetSiblings, True)
+
+
 class Application(QApplication):
     """The application object, with somewhere for a path to land."""
 
@@ -58,6 +80,7 @@ class Application(QApplication):
     file_opened = Signal(str)
 
     def __init__(self, argv=None):
+        keep_siblings_non_native()
         super().__init__(list(argv or []))
         self._pending: list[str] = []
         self._delivering = False

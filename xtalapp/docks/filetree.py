@@ -69,6 +69,11 @@ class FileBrowser(QWidget):
 
         self.path_label = QLabel()
         self.path_label.setWordWrap(True)
+        # A path has no spaces to wrap at, so a wrapped label is as wide
+        # as the whole path -- and that was the narrowest the Workspace
+        # panel, and the column it sits in, could be dragged.  Clipped
+        # instead, with the path in full as the tooltip.
+        self.path_label.setMinimumWidth(1)
         browse = QPushButton("Browse...")
         browse.clicked.connect(self.choose_directory)
 
@@ -93,6 +98,7 @@ class FileBrowser(QWidget):
         self.model.setRootPath(str(path))
         self.tree.setRootIndex(self.model.index(str(path)))
         self.path_label.setText(str(path))
+        self.path_label.setToolTip(str(path))
         self._root = path
 
     @property

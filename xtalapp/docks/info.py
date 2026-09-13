@@ -34,9 +34,11 @@ class InfoDock(QDockWidget):
         # The panel is a monospace table; wrapping it turns the
         # coordinate columns into mush.
         self.text.setLineWrapMode(QPlainTextEdit.NoWrap)
-        # wide enough for the longest line the panel writes, so the
-        # default layout does not clip the cell parameters
-        self.text.setMinimumWidth(380)
+        # No minimum width.  It was 380 px, the longest line the panel
+        # writes, and a minimum here is a minimum for the whole left
+        # column: the divider would not drag past it.  The first-run
+        # width is set by ``layout.apply_default_layout`` instead, and a
+        # narrower panel scrolls its text sideways.
         font = QFont("Menlo")
         font.setStyleHint(QFont.Monospace)
         font.setPointSize(11)

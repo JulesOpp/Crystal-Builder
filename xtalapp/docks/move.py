@@ -39,6 +39,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from xtalapp.docks import scrolling
+
 # A held arrow repeats at this rate, after this delay.  Slow enough
 # that one press is one step, fast enough that holding it reads as a
 # slide rather than a stutter.
@@ -81,7 +83,9 @@ class MoveDock(QDockWidget):
 
         container = QWidget()
         container.setLayout(layout)
-        self.setWidget(container)
+        # Scrolls rather than holding the column open -- see
+        # xtalapp.docks.scrolling.
+        self.setWidget(scrolling(container))
         self.set_document(None)
 
     # -- construction --------------------------------------------------

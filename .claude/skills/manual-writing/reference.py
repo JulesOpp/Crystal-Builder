@@ -71,7 +71,10 @@ def _window():
             super().__init__(parent)
             self.document = document
 
+    from xtalapp.application import keep_siblings_non_native
+
     plugins.load()
+    keep_siblings_non_native()
     app = QApplication.instance() or QApplication([sys.argv[0]])
     return app, MainWindow(viewport_factory=_Stub)
 

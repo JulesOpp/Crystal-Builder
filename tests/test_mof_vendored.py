@@ -17,13 +17,19 @@ builds the same framework"**.
   unit.  It is now gemmi, through the same helper
   :mod:`xtal.analysis.rcsr` expands RCSR entries with.
 
-So the tests come in three kinds, and only the first needs upstream:
+So the tests come in three kinds:
 
-**Against the real PORMAKE**, when one is installed beside this
-checkout -- the expansion site for site, and a whole build compared by
-composition, RMSD and net.  Skipped when it is not, because a user, a
-packaged build and CI all have no reason to carry the thing that was
-just removed.
+**Against the real PORMAKE's answers**, recorded once in
+``tests/data/pormake_upstream.json`` by the script beside it -- the
+expansion site for site, a spread of slot counts, and whole builds
+compared by composition and RMSD.  Upstream is a pinned release and the
+vendored tree is ours, so neither side moves by accident, and recording
+means the comparison runs everywhere, CI included, instead of only
+where upstream happens to be installed.  It also keeps upstream out of
+this process: pymatgen, jax, h5py and pandas were several hundred
+shared libraries loaded half way through a long run, and on macOS 13.2
+that load is where every aborted run died.  One slow test re-derives a
+sample of the recording, in a subprocess, when upstream is installed.
 
 **Against arithmetic**, which needs nothing: the gradient against
 finite differences.  This is the one that would catch a wrong
@@ -34,11 +40,12 @@ packages that were taken out.  Cheap, and it is what fails if somebody
 reintroduces an import while fixing something else.
 """
 
-import logging
+import importlib.util
+import json
 import pathlib
 import subprocess
 import sys
-import tempfile
+from collections import Counter
 
 import numpy as np
 import pytest
@@ -46,77 +53,19 @@ import pytest
 from xtal.mof import Catalog, database_root, installed
 from xtal.mof.build import BuildRequest, build
 
+HERE = pathlib.Path(__file__).resolve().parent
+RECORDER = HERE / "data" / "record_pormake_upstream.py"
+RECORDING = HERE / "data" / "pormake_upstream.json"
+
 #: Nets chosen to spread the expansion over real cases rather than
 #: over one: cubic, rhombohedral and hexagonal settings, one and two
 #: node types, and four that the first pass of this comparison flagged
 #: as disagreeing -- they did not, the comparison was wrong, and they
 #: stay because that is exactly the shape of mistake worth pinning.
+#: The recorder keeps its own copy of this list; the recording is keyed
+#: by it, and a name missing from it fails loudly below.
 TOPOLOGIES = ("pcu", "tbo", "dia", "srs", "nbo", "bcu", "soc", "rht",
               "acs-f", "act-a", "ahq-a", "ahr-a")
-
-
-#: Holds the temporary directory upstream's log is diverted into for
-#: the length of this session.  Module-level so it outlives the import.
-_HOLDER = None
-
-
-def _upstream():
-    """The real PORMAKE, or ``None`` -- imported without litter.
-
-    **Upstream opens ``runtime.log`` in the current directory, mode
-    "w", at import time**, which when the suite runs is the root of
-    this checkout.  Vendoring fixed that where it happens, in
-    ``xtal/mof/pormake/log.py``, and the fix does upstream no good at
-    all: these tests import the real thing, so without this they put
-    the file back -- and ``tests/test_mof_builder.py`` has a test
-    asserting it is not there.
-
-    So the file handler is contained for the length of the import and
-    then taken off upstream's logger, which is what
-    ``xtal.mof.build.import_pormake`` used to have to do for every
-    build.
-
-    Called once at module scope, to decide the skip, so the
-    containment is in place before any test can import it a second
-    way.
-    """
-    global _HOLDER
-
-    if "pormake" in sys.modules:
-        return sys.modules["pormake"]
-
-    _HOLDER = tempfile.TemporaryDirectory(prefix="upstream-pormake-")
-    original = logging.FileHandler
-
-    class _Contained(original):             # type: ignore[misc]
-        def __init__(self, filename, *args, **kwargs):
-            given = pathlib.Path(filename)
-            if not given.is_absolute():
-                filename = pathlib.Path(_HOLDER.name) / given.name
-            super().__init__(filename, *args, **kwargs)
-
-    logging.FileHandler = _Contained
-    try:
-        import pormake
-    except Exception:                       # pragma: no cover
-        return None
-    finally:
-        logging.FileHandler = original
-
-    # A file handler holds its file open, and on Windows an open file
-    # cannot be removed -- so the directory could not be cleaned up.
-    from pormake.log import logger as upstream_logger
-    for handler in list(upstream_logger.handlers):
-        if isinstance(handler, logging.FileHandler):
-            upstream_logger.removeHandler(handler)
-            handler.close()
-    return pormake
-
-
-needs_upstream = pytest.mark.skipif(
-    _upstream() is None,
-    reason="the real PORMAKE is not installed, so there is nothing "
-           "to diff the vendored one against")
 
 needs_database = pytest.mark.skipif(
     database_root() is None,
@@ -129,14 +78,15 @@ needs_builder = pytest.mark.skipif(
     reason="the MOF builder needs ase -- pip install "
            "'crystal-builder[ase]'")
 
+needs_upstream = pytest.mark.skipif(
+    importlib.util.find_spec("pormake") is None,
+    reason="the real PORMAKE is not installed, so the recording cannot "
+           "be checked against it")
 
-#: Upstream's ``Scaler`` still passes scipy's deprecated ``disp``
-#: option, and the global ignore for it is gone from ``pyproject.toml``
-#: because the vendored copy no longer does.  Any test that runs the
-#: *real* PORMAKE has to tolerate it locally -- which is a much better
-#: place for it than a rule covering the whole suite.
-tolerates_upstream_scipy = pytest.mark.filterwarnings(
-    "ignore:scipy.optimize:DeprecationWarning")
+
+@pytest.fixture(scope="module")
+def recorded():
+    return json.loads(RECORDING.read_text())
 
 
 @pytest.fixture(scope="module")
@@ -172,10 +122,8 @@ def _same_sites(mine, theirs, tol=1e-4):
 
 
 @needs_builder
-@needs_upstream
-@pytest.mark.slow
 @pytest.mark.parametrize("name", TOPOLOGIES)
-def test_a_net_expands_to_the_same_slots_pymatgen_gave(name):
+def test_a_net_expands_to_the_same_slots_pymatgen_gave(name, recorded):
     """The trap the pymatgen substitution had to avoid, stated exactly.
 
     The expansion does not merely have to produce the same *set* of
@@ -194,8 +142,8 @@ def test_a_net_expands_to_the_same_slots_pymatgen_gave(name):
     What has to hold, and does, is the invariant that actually carries
     the indices:
 
-    * the same number of slots -- checked here and, over all 2404
-      nets, by the test below;
+    * the same number of slots -- checked here and, over a stride of
+      the database, by the test below;
     * **the same tag on the same slot**, so the block a user asked for
       on node type 0 goes on node type 0;
     * per tag, the same set of positions.
@@ -205,22 +153,20 @@ def test_a_net_expands_to_the_same_slots_pymatgen_gave(name):
     comes out the same -- and that is not argued here, it is measured
     by the build comparisons further down.
     """
-    import pormake.utils as upstream_utils
-
     import xtal.mof.pormake.utils as ours
 
-    path = str(database_root() / "topologies" / f"{name}.cgd")
-    theirs = upstream_utils.read_cgd(filename=path)
-    mine = ours.read_cgd(filename=path)
+    theirs = recorded["expansions"][name]
+    mine = ours.read_cgd(
+        filename=str(database_root() / "topologies" / f"{name}.cgd"))
 
-    assert len(mine) == len(theirs)
-    assert list(mine.get_tags()) == list(theirs.get_tags())
-    assert mine.info["cn"] == theirs.info["cn"]
-    assert mine.get_chemical_symbols() == theirs.get_chemical_symbols()
+    assert len(mine) == len(theirs["tags"])
+    assert [int(t) for t in mine.get_tags()] == theirs["tags"]
+    assert [int(c) for c in mine.info["cn"]] == theirs["cn"]
+    assert mine.get_chemical_symbols() == theirs["symbols"]
 
     tags = np.asarray(mine.get_tags())
     ours_frac = mine.get_scaled_positions()
-    theirs_frac = theirs.get_scaled_positions()
+    theirs_frac = np.asarray(theirs["frac"])
     for tag in sorted(set(tags.tolist())):
         assert _same_sites(ours_frac[tags == tag],
                            theirs_frac[tags == tag]), \
@@ -228,47 +174,43 @@ def test_a_net_expands_to_the_same_slots_pymatgen_gave(name):
 
 
 @needs_builder
-@needs_upstream
-@pytest.mark.slow
-def test_a_spread_of_the_database_expands_to_the_same_slot_counts():
+def test_a_spread_of_the_database_expands_to_the_same_slot_counts(
+        recorded):
     """Not just the twelve named above, and not all 2404 either.
 
     A space group symbol the new expansion read differently would show
     up as a net with the wrong number of slots, and one net in 2404 is
     enough to build somebody a wrong framework.  So this walks a
     deterministic stride through the database rather than a chosen
-    handful.
+    handful, against what upstream gave for the same files.
 
     **The whole database was compared once, off-suite, and agreed on
     every one of the 2404 nets** -- same slot count, same tags, and
     nothing our reader refused that upstream accepted.  It is not done
-    here because it is thirty minutes, essentially all of it inside
-    pymatgen: ``read_cgd`` is about 0.2 s a net upstream and rather
-    less vendored, and there are 2404 of them.  A test nobody will
-    wait for is a test that gets deselected.
+    here because it was thirty minutes, essentially all of it inside
+    pymatgen.
     """
-    import pormake.utils as upstream_utils
-
     import xtal.mof.pormake.utils as ours
 
     files = sorted((database_root() / "topologies").glob("*.cgd"))
-    assert len(files) > 2000
+    assert len(files) == recorded["of"]
+    stride = files[::recorded["stride"]]
+    assert [p.stem for p in stride] == list(recorded["slots"])
 
     disagreed = []
-    for path in files[::120]:
-        try:
-            theirs = upstream_utils.read_cgd(filename=str(path))
-        except Exception:
-            continue            # unreadable either way; not our news
+    for path in stride:
+        theirs = recorded["slots"][path.stem]
+        if theirs is None:
+            continue            # unreadable upstream; not our news
         try:
             mine = ours.read_cgd(filename=str(path))
         except Exception as exc:                # pragma: no cover
             disagreed.append(f"{path.stem}: ours raised {exc!r}")
             continue
-        if len(mine) != len(theirs):
-            disagreed.append(
-                f"{path.stem}: {len(mine)} slots against {len(theirs)}")
-        elif list(mine.get_tags()) != list(theirs.get_tags()):
+        if len(mine) != theirs["slots"]:
+            disagreed.append(f"{path.stem}: {len(mine)} slots against "
+                             f"{theirs['slots']}")
+        elif [int(t) for t in mine.get_tags()] != theirs["tags"]:
             disagreed.append(f"{path.stem}: tags differ")
 
     assert not disagreed, disagreed[:20]
@@ -277,69 +219,55 @@ def test_a_spread_of_the_database_expands_to_the_same_slot_counts():
 @needs_builder
 @needs_upstream
 @pytest.mark.slow
-def test_the_new_expansion_is_not_slower_than_the_one_it_replaced():
-    """gemmi in place of pymatgen had to not cost anything.
+def test_the_recording_is_what_upstream_says(tmp_path):
+    """The recorded answers came from the real PORMAKE, and still do.
 
-    Reading a net is on the path a user waits on: it happens once per
-    build, on the worker thread, before anything else can start.  The
-    nets below are the four slowest in the database -- ``nzn`` is 832
-    slots and about ten seconds *in both* -- so if the substitution
-    had made expansion quadratic in the wrong place, it would show
-    here and nowhere else.
+    A sample -- three slot counts, two expansions, one build -- asked
+    for again by the recorder's ``--check``.  **In a subprocess**, so
+    that upstream never enters this process, and **in a temporary
+    directory**, because upstream opens ``runtime.log`` in the current
+    one at import and the suite's is the root of this checkout.  That
+    stray file is checked for here too: it is otherwise a file nobody
+    connects to a test run.
+    """
+    checkout = HERE.parent
+    before = (checkout / "runtime.log").exists()
+    done = subprocess.run([sys.executable, str(RECORDER), "--check"],
+                          cwd=tmp_path, capture_output=True, text=True)
+    assert done.returncode == 0, done.stdout + done.stderr[-2000:]
+    assert "recording matches upstream" in done.stdout
+    assert (checkout / "runtime.log").exists() == before
 
-    Measured over the whole database: 574 s for 2404 nets, 0.24 s
-    each, and within a few per cent of upstream at every size.  A
-    generous bound, because this is a wall clock on a shared machine
-    and the claim is "no worse", not a benchmark.
+
+@needs_builder
+def test_the_largest_nets_are_read_in_well_under_a_second():
+    """Reading a net is on the path a user waits on.
+
+    It happens once per build, on the worker thread, before anything
+    else can start.  These are the slowest nets in the database: with
+    pymatgen's expansion and ase's neighbour list, ``nzn`` (832 slots)
+    took about ten seconds upstream and ``naz-x`` 4.4.  Both expansions
+    are now gemmi and the overlap check is a KD-tree, and each reads in
+    a few hundredths of a second -- so a bound of one second is generous
+    on a loaded machine and still catches a return to a quadratic
+    search.  It used to be measured against upstream, which was the
+    only bound that meant anything while the two were equally slow.
     """
     import time
 
-    import pormake.utils as upstream_utils
-
     import xtal.mof.pormake.utils as ours
 
-    for name in ("naz-x", "mjt"):
+    for name in ("nzn", "naz-x", "mjt"):
         path = str(database_root() / "topologies" / f"{name}.cgd")
-
-        started = time.perf_counter()
-        upstream_utils.read_cgd(filename=path)
-        theirs = time.perf_counter() - started
-
         started = time.perf_counter()
         ours.read_cgd(filename=path)
-        mine = time.perf_counter() - started
-
-        assert mine < 2.0 * theirs + 1.0, (
-            f"{name}: {mine:.1f}s against upstream's {theirs:.1f}s")
+        took = time.perf_counter() - started
+        assert took < 1.0, f"{name}: {took:.2f} s"
 
 
 # ----------------------------------------------- a whole build, compared
 
-def _build_upstream(name, nodes, edge, directory):
-    """The same framework, built by the real PORMAKE.
-
-    Given our database files, so the topology and the blocks are
-    identical and the only variable is whose code placed them.
-    """
-    import pormake
-
-    root = database_root()
-    topology = pormake.Topology(str(root / "topologies" / f"{name}.cgd"))
-    node_bbs = {
-        int(k): pormake.BuildingBlock(str(root / "bbs" / f"{v}.xyz"))
-        for k, v in nodes.items()}
-    edge_bbs = (
-        {tuple(sorted(t)): pormake.BuildingBlock(
-            str(root / "bbs" / f"{edge}.xyz"))
-         for t in topology.unique_edge_types}
-        if edge else None)
-    return pormake.Builder().build_by_type(
-        topology=topology, node_bbs=node_bbs, edge_bbs=edge_bbs)
-
-
 @needs_builder
-@needs_upstream
-@tolerates_upstream_scipy
 @pytest.mark.slow
 @pytest.mark.parametrize("name,nodes,edge", [
     ("pcu", {0: "N59"}, "E32"),
@@ -347,7 +275,7 @@ def _build_upstream(name, nodes, edge, directory):
     ("dia", {0: "N12"}, "E32"),
 ])
 def test_a_vendored_build_is_the_framework_upstream_builds(
-        name, nodes, edge, tmp_path, catalog):
+        name, nodes, edge, tmp_path, catalog, recorded):
     """The gate this whole change stands or falls on.
 
     Not bit-identical, and it cannot be: jax runs in float32 by
@@ -360,24 +288,22 @@ def test_a_vendored_build_is_the_framework_upstream_builds(
     spelled = ",".join(f"{k}={v}" for k, v in nodes.items())
     ours = build(BuildRequest.parse(name, spelled, edge), tmp_path,
                  catalog)
-    theirs = _build_upstream(name, nodes, edge, tmp_path)
+    theirs = recorded["builds"][f"{name}|{spelled}|{edge}"]
 
-    assert ours.n_atoms == len(theirs.atoms)
-    assert (sorted(s.element for s in ours.structure.sites)
-            == sorted(theirs.atoms.get_chemical_symbols()))
+    assert ours.n_atoms == theirs["n_atoms"]
+    assert (dict(sorted(Counter(
+        s.element for s in ours.structure.sites).items()))
+        == theirs["elements"])
 
     # The locator's fit, which is what says the blocks were placed on
     # the slots rather than merely near them.  Ours is computed from a
     # cell the more accurate gradient relaxed, so it is allowed to
     # differ -- but only in the fourth decimal of an Angstrom.
-    assert ours.max_rmsd == pytest.approx(
-        theirs.info["max_rmsd"], abs=5e-3)
-    assert ours.mean_rmsd == pytest.approx(
-        theirs.info["mean_rmsd"], abs=5e-3)
+    assert ours.max_rmsd == pytest.approx(theirs["max_rmsd"], abs=5e-3)
+    assert ours.mean_rmsd == pytest.approx(theirs["mean_rmsd"], abs=5e-3)
 
 
 @needs_builder
-@needs_upstream
 @pytest.mark.slow
 def test_a_two_node_build_still_identifies_as_the_net_asked_for():
     """**tbo**, and the loudest signal the trim broke something.
@@ -483,22 +409,6 @@ def test_a_build_imports_none_of_the_three_packages_that_were_removed():
     out = subprocess.run([sys.executable, "-c", program],
                          capture_output=True, text=True, check=True)
     assert out.stdout.strip() == "none", out.stdout
-
-
-@needs_upstream
-def test_importing_the_real_pormake_here_leaves_no_runtime_log():
-    """These tests must not put back the litter vendoring removed.
-
-    Upstream opens ``runtime.log`` in the current directory at import
-    time, and when the suite runs that is the root of this checkout.
-    ``_upstream`` contains it; this is what notices if that stops
-    working, because the symptom is otherwise a stray file nobody
-    connects to a test run.
-    """
-    assert "pormake" in sys.modules, "the containment never ran"
-    assert not pathlib.Path("runtime.log").exists()
-    assert not (pathlib.Path(__file__).resolve().parent.parent
-                / "runtime.log").exists()
 
 
 @needs_builder

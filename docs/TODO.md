@@ -10,30 +10,25 @@ gets deleted when it ships, not ticked.
 
 ## Interface
 
-### Window and dock resizing does not work consistently
+### Dragging a panel has not been tried with a real mouse
 
-Dragging a dock's edge, or the splitter between a dock area and the
-viewport, sometimes does nothing and sometimes stops short.  Not yet
-reproduced on purpose; three suspects, each checkable on its own:
+The dividers were measured through `QMainWindow.resizeDocks`, which is
+what a drag ends up calling, and the causes found that way are fixed:
+per-panel minimums, the tab bar's width, and every dock being a native
+window (`xtalapp.application.keep_siblings_non_native`).  Nothing has
+driven an actual pointer, because run-app cannot without taking over
+the user's.  If a drag still misbehaves -- especially one that ends
+over the 3D view, which is still a native window -- that is the next
+place to look.
 
-* **Hard minimum widths.**  `InfoDock` and `NetDock` set
-  `setMinimumWidth(380)` on their text (`xtalapp/docks/info.py`,
-  `xtalapp/docks/net.py`), and `TrajectoryDock` 220 on its frame label.
-  A tabbed dock area cannot be narrower than the widest minimum of
-  *any* of its tabs, shown or not, so the right-hand column stops at a
-  width set by a panel the user is not looking at.
-* **Panels wider than their column.**  The Force Field and DFTB+ docks
-  already need a horizontal scroll bar at 420 px -- the DFTB+ buttons
-  are cut off at *Pause* -- and their size hints feed the same minimum.
-* **Floating docks restored off-screen.**  A launch prints
-  `Window position QRect(-1015,-863 515x363) outside any known screen`
-  several times: `AppSettings.restore_window` restores dock geometry
-  saved on a different screen arrangement, and `fit_to_screen` fits the
-  main window and not its floating docks.
+### A status message is drawn over the structure summary
 
-Start by driving it: `run-app` with `--eval` calling
-`win.resizeDocks([...], [...], Qt.Horizontal)` on the right column
-and printing `dock.minimumSizeHint()` for each tab.
+After *MOF-5.cif is already open* the status bar shows the message and
+the permanent formula / space group / volume summary on top of each
+other at the left.  A temporary message should replace the left-hand
+text or sit beside it, not overprint it.  Seen in
+`run-app --shot` output; `MainWindow.show_status` and
+`show_message` are where both are written.
 
 ### The net in the MOF builder cannot be turned
 
@@ -45,17 +40,6 @@ the way the viewport does, and a reset.  It should stay a `QPainter`
 widget -- the module docstring's reason for not using the viewport
 still holds -- so this is a rotation matrix updated on mouse drag and
 applied before the projection, not a GL context.
-
-### The cell spin boxes step by half a cell
-
-The toolbar's `cells a b c` boxes (`build_toolbar` in
-`xtalapp/menus.py`) use `setSingleStep(0.5)`.  The arrows should step
-by 1; typing 1.5 should still work, because the box stays a
-`QDoubleSpinBox`.  The comment above it argues for fractions, which
-is still right for *typing*, and should be reworded to say so.
-`test_a_cell_spinbox_takes_half_a_cell` in `tests/test_app_shell.py`
-sets 1.5 directly and keeps passing; the new test is that
-`stepBy(1)` from 1 gives 2.
 
 ## Symmetry
 

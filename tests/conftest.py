@@ -133,6 +133,10 @@ def _menus_out_of_the_system_menu_bar() -> None:
     except ImportError:               # the headless half of the suite
         return
     QApplication.setAttribute(Qt.AA_DontUseNativeMenuBar, True)
+    # The one the application sets too, so widget tests run with the
+    # docks as the shipped window has them: not native windows.  See
+    # xtalapp.application.keep_siblings_non_native.
+    QApplication.setAttribute(Qt.AA_DontCreateNativeWidgetSiblings, True)
 
 
 _menus_out_of_the_system_menu_bar()
@@ -186,6 +190,36 @@ def offscreen_gl_works() -> bool:
 needs_offscreen_gl = pytest.mark.skipif(
     not offscreen_gl_works(),
     reason="offscreen OpenGL is not available here")
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_teardown(item):
+    """Actually delete the windows a test built, before the next one.
+
+    pytest-qt closes every widget a test registered and calls
+    ``deleteLater`` on it, then ``processEvents`` -- and a deferred
+    delete posted outside a running event loop is not delivered by
+    ``processEvents``.  So no window was ever deleted.  They piled up
+    until some later test happened to spin a real loop: 74 live
+    ``MainWindow`` objects, 68 000 widgets, 86 threads (a file
+    browser's ``QFileInfoGatherer`` per window) and 1.2 GB after a
+    third of the suite.  The whole run got slower as every
+    ``processEvents`` walked the heap of dead windows, and twice it
+    aborted: dyld asserted while loading h5py for MACE, with the kernel
+    reporting "pmap_enter retried due to resource shortage".
+
+    This wraps pytest-qt's own teardown, so it runs after that has
+    closed the widgets and the fixtures are finalised.
+    """
+    result = yield
+    try:
+        from PySide6.QtCore import QCoreApplication, QEvent
+    except ImportError:               # the headless half of the suite
+        return result
+    if QCoreApplication.instance() is not None:
+        QCoreApplication.sendPostedEvents(None,
+                                          QEvent.Type.DeferredDelete)
+    return result
 
 
 @pytest.fixture(scope="session")

@@ -158,6 +158,9 @@ def main(argv=None) -> int:
         print(f"warning: plugin {name} failed to load: {message}",
               file=sys.stderr)
 
+    from xtalapp.application import keep_siblings_non_native
+
+    keep_siblings_non_native()          # as the shipped app does
     app = QApplication([sys.argv[0]])
     app.setApplicationName(APP_NAME)
     app.setOrganizationName("CrystalBuilder")

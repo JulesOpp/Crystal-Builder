@@ -151,6 +151,14 @@ All four are deleted, along with their imports.
   `error::DeprecationWarning` every build test failed on a *missing
   CIF* rather than on the deprecation. The `filterwarnings` entry that
   suppressed it is gone too.
+- **`read_cgd`'s overlap removal uses `xtal.core.neighbors`, not
+  `ase.neighborlist.neighbor_list`.** A 0.1 cutoff over a net cell
+  whose edges are about one unit long made ase bin the cell into a
+  vast grid and resize arrays per bin: 3.9 s of the 4.0 s `naz-x`
+  took to read, on the path every build waits on. Measured over 417
+  nets (every sixth in the database, plus the ones the tests name):
+  the same sites removed in every one of them, 50 of which have
+  overlaps, and 103 s down to 0.8 s for the step.
 - **Nothing else is reformatted.** The tree is excluded from `ruff` in
   `pyproject.toml` for exactly that reason: it fails this project's
   lint in twenty places, all of them upstream's own style, and

@@ -199,3 +199,87 @@ def test_reset_layout_forgets_the_saved_geometry(window, settings):
     assert settings._q.value("geometry") is not None
     window.reset_layout()
     assert settings._q.value("geometry") is None
+
+
+# ------------------------------------------------------------ resizing
+
+def test_no_panel_insists_on_more_room_than_a_column_can_spare(window):
+    """A dock area is as wide as the widest minimum of any dock shown
+    in it.  The Measure panel's was 419 px, Net's and Structure's 380,
+    Move's 566 px of height, so a column with one of them open would
+    not drag narrower however small the panel in front was.  A panel
+    that needs more room scrolls instead."""
+    from xtalapp.docks import MAXIMUM_MINIMUM
+
+    too_big = {d.windowTitle(): (d.minimumSizeHint().width(),
+                                 d.minimumSizeHint().height())
+               for d in window.docks
+               if max(d.minimumSizeHint().width(),
+                      d.minimumSizeHint().height()) > MAXIMUM_MINIMUM}
+    assert too_big == {}
+
+
+def test_opening_every_panel_leaves_the_column_free_to_narrow(
+        qtbot, window):
+    """Which panels had been opened decided whether dragging the
+    divider did anything, so it seemed to work only sometimes.  With
+    all eight right-hand panels open the column stopped at 397 px --
+    the tab bar, eight elided titles wide -- before a single panel's
+    own minimum was reached."""
+    from xtalapp.docks import MAXIMUM_MINIMUM
+
+    window.show()
+    qtbot.waitExposed(window)
+    for dock in window.right_docks:
+        dock.show()
+    window.sites_dock.raise_()
+    window.resizeDocks([window.sites_dock], [100], Qt.Horizontal)
+    qtbot.wait(50)
+    assert window.sites_dock.width() <= MAXIMUM_MINIMUM
+
+
+def test_tabbed_panels_scroll_their_tabs_rather_than_widen(qtbot,
+                                                           window):
+    """Qt makes a new tab bar whenever docks are tabbed together --
+    the default layout, a restored one, a panel dropped on another --
+    so each has to arrive with scroll arrows, not only the first."""
+    from PySide6.QtWidgets import QTabBar
+
+    window.show()
+    qtbot.waitExposed(window)
+    window.tabifyDockWidget(window.info_dock, window.modules_dock)
+    window.modules_dock.show()
+    qtbot.wait(50)
+    bars = [b for b in window.findChildren(QTabBar)
+            if b.parent() is window]
+    assert bars
+    assert all(b.usesScrollButtons() for b in bars)
+
+
+def test_the_viewport_does_not_make_the_panels_native_windows(qtbot,
+                                                              window):
+    """VTK draws into a native window, and by default Qt makes every
+    sibling of one native too: all fourteen docks were separate macOS
+    views, the ones tabbed out of sight parked off every screen, and
+    dragging and resizing them was unreliable."""
+    from xtalapp.application import keep_siblings_non_native
+
+    keep_siblings_non_native()
+    native = QWidget(window.tabs)
+    native.winId()
+    window.show()
+    qtbot.waitExposed(window)
+    assert not [d.windowTitle() for d in window.docks
+                if d.testAttribute(Qt.WA_NativeWindow)]
+
+
+def test_the_left_column_still_starts_wide_enough_for_structure(
+        qtbot, window):
+    """Structure's 380 px was a minimum, and it set the first-run width
+    as a side effect.  It is a starting width now, so the cell
+    parameters are not clipped when the window first opens."""
+    from xtalapp.layout import DEFAULT_LEFT_WIDTH
+
+    window.show()
+    qtbot.waitExposed(window)
+    assert window.info_dock.width() >= DEFAULT_LEFT_WIDTH - 10

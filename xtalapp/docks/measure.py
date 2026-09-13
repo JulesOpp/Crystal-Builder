@@ -45,6 +45,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.core.measure import KINDS
+from xtalapp.docks import scrolling
 
 #: The swatch beside each plane in the list, in pixels.
 SWATCH = 12
@@ -114,7 +115,9 @@ class MeasureDock(QDockWidget):
 
         container = QWidget()
         container.setLayout(layout)
-        self.setWidget(container)
+        # Scrolls rather than holding the column open -- see
+        # xtalapp.docks.scrolling.
+        self.setWidget(scrolling(container))
         self.set_document(None)
 
     def _build_planes(self) -> QGroupBox:

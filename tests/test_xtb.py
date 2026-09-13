@@ -320,10 +320,16 @@ def test_a_crash_is_told_apart_from_a_refusal(tmp_path, monkeypatch):
 
     tblite 0.6.0 does exactly this on a periodic GFN2 cell, on two
     atoms as readily as on four hundred.
+
+    The stand-in dies of SIGKILL rather than the SIGSEGV tblite gives:
+    a real segmentation fault makes macOS write a crash report and put
+    a "Python quit unexpectedly" window in front of whoever ran the
+    suite, every run.  The path through ``_how_it_died`` is the same
+    for any signal, and the SIGSEGV spelling is checked directly below.
     """
     script = write_program(
         tmp_path, "tblite",
-        "import os, signal\nos.kill(os.getpid(), signal.SIGSEGV)\n")
+        "import os, signal\nos.kill(os.getpid(), signal.SIGKILL)\n")
     monkeypatch.setenv("XTAL_TBLITE", str(script))
     from xtal.core.lattice import Lattice
     from xtal.core.site import Site
@@ -333,8 +339,16 @@ def test_a_crash_is_told_apart_from_a_refusal(tmp_path, monkeypatch):
         lattice=Lattice.from_parameters(9.0, 9.0, 9.0, 90.0, 90.0, 90.0),
         sites=[Site("O", (0.0, 0.0, 0.0))],
         space_group=SpaceGroup.p1())
-    with pytest.raises(CalculatorError, match="killed by SIGSEGV"):
+    with pytest.raises(CalculatorError, match="killed by SIGKILL"):
         run(structure, method="gfn2")
+
+
+def test_a_segmentation_fault_is_named_as_one():
+    """-11 is what Python reports for the SIGSEGV tblite 0.6.0 dies of;
+    the sentence has to say so without a real crash to produce it."""
+    from xtal.ff.xtb.calculator import _how_it_died
+    assert _how_it_died(-11) == "was killed by SIGSEGV"
+    assert _how_it_died(1) == "exited with status 1"
 
 
 # --------------------------------------------------------- the registry

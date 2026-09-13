@@ -236,6 +236,10 @@ class WorkspaceDock(QDockWidget):
 
         self.name_label = QLabel("No workspace")
         self.name_label.setWordWrap(True)
+        # A one-word folder name cannot wrap, so a long one held the
+        # left column at its width.  Clipped instead; the tooltip
+        # already carries the full path.
+        self.name_label.setMinimumWidth(1)
 
         self.switcher = QToolButton()
         self.switcher.setText("Workspace")

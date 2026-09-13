@@ -24,7 +24,8 @@ there is one function and not two descriptions of the same thing.
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, QObject, Qt
+from PySide6.QtWidgets import QTabBar
 
 from xtal.modules import MODULES
 from xtalapp import external
@@ -45,7 +46,33 @@ from xtalapp.docks.workspace import WorkspaceDock
 from xtalapp.settings import default_size, fit_to_screen
 
 
+class _ScrollingDockTabs(QObject):
+    """Give every tab bar of tabbed docks scroll arrows.
+
+    A dock area is at least as wide as the tab bar under it, and a tab
+    bar without scroll buttons is as wide as all of its tabs, elided.
+    Eight panels tabbed on the right came to 397 px, so with them open
+    the column would not drag narrower than that -- and which panels
+    were open decided it, which is why the divider seemed to work only
+    some of the time.  With scroll arrows the bar needs about 130 px.
+
+    The bars are Qt's own, made and remade whenever docks are tabbed
+    together -- by the default layout, by restoring a saved one, or by
+    the user dropping one dock onto another -- so they are caught as
+    they are polished rather than set once.
+    """
+
+    def eventFilter(self, watched, event):
+        if event.type() == QEvent.Type.ChildPolished:
+            child = event.child()
+            if isinstance(child, QTabBar) and not child.usesScrollButtons():
+                child.setUsesScrollButtons(True)
+        return False
+
+
 def build_docks(window):
+    window._dock_tabs = _ScrollingDockTabs(window)
+    window.installEventFilter(window._dock_tabs)
     window.file_dock = WorkspaceDock(window.settings.last_directory,
                                      window)
     window.file_dock.fileActivated.connect(window.open_path)
@@ -179,6 +206,10 @@ def build_docks(window):
 #: take, between them, the width the viewport is there to use.
 DEFAULT_VISIBLE = ("info_dock", "file_dock", "sites_dock")
 
+#: The left column on a first run: wide enough for the longest line
+#: the Structure panel writes, so the cell parameters are not clipped.
+DEFAULT_LEFT_WIDTH = 380
+
 
 def apply_default_layout(window) -> None:
     """Put every dock back where it starts: Structure over the two
@@ -218,6 +249,11 @@ def apply_default_layout(window) -> None:
     # Sites, and not whatever is first in the tuple: the asymmetric
     # unit is what the right-hand column is open for.
     window.sites_dock.raise_()
+    # A starting width and nothing more.  It used to be each panel's
+    # *minimum* -- 380 px on the Structure text -- which is also the
+    # narrowest the column could ever be dragged.
+    window.resizeDocks([window.info_dock], [DEFAULT_LEFT_WIDTH],
+                       Qt.Horizontal)
 
 
 def reset_layout(window) -> None:

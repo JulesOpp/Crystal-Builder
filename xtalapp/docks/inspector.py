@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (
 
 from xtal.core import elements as el
 from xtal.core import neighbors
+from xtalapp.docks import scrolling
 
 COMMON_ELEMENTS = ["H", "C", "N", "O", "F", "Na", "Mg", "Al", "Si",
                    "P", "S", "Cl", "K", "Ca", "Ti", "Cr", "Mn", "Fe",
@@ -169,7 +170,9 @@ class InspectorDock(QDockWidget):
 
         container = QWidget()
         container.setLayout(layout)
-        self.setWidget(container)
+        # Scrolls rather than holding the column open -- see
+        # xtalapp.docks.scrolling.
+        self.setWidget(scrolling(container))
         self.set_document(None)
 
     # -- binding -------------------------------------------------------
