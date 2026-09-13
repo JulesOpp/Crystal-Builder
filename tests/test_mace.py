@@ -263,11 +263,17 @@ def test_the_default_model_is_the_one_mace_itself_defaults_to():
     assert mace.MODEL_CHOICES[0][0] == mace.DEFAULT_MODEL
 
 
-def test_a_licence_restricted_model_says_so_before_it_is_chosen():
+def test_a_licence_restricted_model_says_so_before_it_is_chosen(
+        monkeypatch):
     """MACE prints "you accept the terms of the license" as it
     downloads; this application is the thing doing the downloading, so
     the licence is in the label the user picks from and in what
-    ``available`` records."""
+    ``available`` records.
+
+    Installed is patched in because "not installed" is answered first,
+    and the build venv has no mace extra: without it this checks the
+    install message on a release machine and the licence nowhere."""
+    monkeypatch.setattr(mace, "installed", lambda: True)
     offered = [name for name, _label in mace.MODEL_CHOICES]
     restricted = [n for n in offered if n in mace.ASL_MODELS]
     assert restricted, "the point of the test is that some are"

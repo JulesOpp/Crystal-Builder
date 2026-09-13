@@ -66,7 +66,7 @@ from vtkmodules.vtkCommonCore import (
 from vtkmodules.vtkCommonDataModel import vtkCellArray, vtkPolyData
 from vtkmodules.vtkCommonTransforms import vtkTransform
 from vtkmodules.vtkFiltersCore import vtkTubeFilter
-from vtkmodules.vtkFiltersGeneral import vtkTransformPolyDataFilter
+from vtkmodules.vtkFiltersGeneral import vtkTransformFilter
 from vtkmodules.vtkFiltersSources import vtkArrowSource, vtkSphereSource
 from vtkmodules.vtkInteractionWidgets import vtkOrientationMarkerWidget
 from vtkmodules.vtkIOImage import (
@@ -1887,7 +1887,7 @@ def _arrow_along(direction, color) -> vtkActor:
     source.SetShaftRadius(0.04)
     source.SetTipRadius(0.1)
     source.SetTipLength(0.25)
-    moved = vtkTransformPolyDataFilter()
+    moved = vtkTransformFilter()
     moved.SetInputConnection(source.GetOutputPort())
     moved.SetTransform(transform)
     mapper = vtkPolyDataMapper()
