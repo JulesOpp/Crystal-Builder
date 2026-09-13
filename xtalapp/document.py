@@ -27,7 +27,7 @@ import numpy as np
 from PySide6.QtCore import QObject, Signal
 
 from xtal import Structure
-from xtal.analysis import porosity, rcsr, topology
+from xtal.analysis import overlays, porosity, rcsr, topology
 from xtal.build import fill
 from xtal.commands import CommandStack, ReplaceStructure, SnapshotEdit
 from xtal.commands import atoms as atom_commands
@@ -70,6 +70,7 @@ class Document(QObject):
     measurementsChanged = Signal()
     planesChanged = Signal()            # a plane defined or dropped
     poresChanged = Signal()             # a pore network drawn or dropped
+    overlayChanged = Signal()           # charges or an orbital, likewise
     viewChanged = Signal()
     historyChanged = Signal()
     modifiedChanged = Signal(bool)
@@ -106,6 +107,10 @@ class Document(QObject):
         # does not mark the document modified, and is thrown away the
         # moment the crystal it describes is replaced.
         self.pores = None
+        # The other two things a run can draw over the crystal -- see
+        # `xtal.analysis.overlays` -- under the same rules as the pores.
+        self.charges = None
+        self.orbital = None
         # Which rows of that list the picture draws, or () for all of
         # them.  View state and not a note: it follows what is
         # selected in the Planes list, it is not written into the
@@ -217,6 +222,8 @@ class Document(QObject):
             "planes": [p.to_dict() for p in self.planes],
             **({"pores": self.pores.to_dict()}
                if self.pores is not None else {}),
+            **({"charges": self.charges.to_dict()}
+               if self.charges is not None else {}),
         }
 
     def _restore_session(self, session: dict) -> None:
@@ -268,6 +275,12 @@ class Document(QObject):
                     session["pores"])
             except (KeyError, TypeError, ValueError):
                 self.pores = None
+        if session.get("charges"):
+            charges = overlays.AtomCharges.from_dict(session["charges"])
+            # A charge per atom of a cell that no longer has that many
+            # atoms is a charge on somebody else's atom.
+            self.charges = (charges if charges.n_atoms == self.cell.n_atoms
+                            else None)
 
     def save(self, path=None) -> Path:
         """Save the session.  Always a project, never an export.
@@ -345,6 +358,8 @@ class Document(QObject):
         self.planes = []
         self.shown_planes = ()
         self.pores = None
+        self.charges = None
+        self.orbital = None
         self.stack.clear()
         if not modified:
             self.stack.mark_clean()
@@ -554,11 +569,14 @@ class Document(QObject):
         leaves it alone, which is why this reads the flags rather than
         dropping on every signal.
         """
-        if self.pores is None or not change & (CHEMISTRY
-                                               | Change.POSITIONS):
+        if not change & (CHEMISTRY | Change.POSITIONS):
             return
-        self.pores = None
-        self.poresChanged.emit()
+        if self.pores is not None:
+            self.pores = None
+            self.poresChanged.emit()
+        if self.charges is not None or self.orbital is not None:
+            self.charges = self.orbital = None
+            self.overlayChanged.emit()
 
     def _announce_modified(self) -> None:
         now = self.modified
@@ -1732,6 +1750,25 @@ class Document(QObject):
     # particular set of atoms.  So there is nothing to edit -- it is
     # put there by a run, hidden with View > Pore network, and dropped
     # by ``_stale_pores`` the moment that arrangement changes.
+
+    def set_overlay(self, overlay) -> None:
+        """Draw whatever a run found: a pore network, charges, or an
+        orbital.  Each replaces its own kind and leaves the others."""
+        if isinstance(overlay, overlays.AtomCharges):
+            self.charges = overlay
+            self.overlayChanged.emit()
+        elif isinstance(overlay, overlays.OrbitalSurface):
+            self.orbital = overlay
+            self.overlayChanged.emit()
+        else:
+            self.set_pores(overlay)
+
+    def clear_overlays(self) -> None:
+        """Take the charges and the orbital off the picture."""
+        if self.charges is None and self.orbital is None:
+            return
+        self.charges = self.orbital = None
+        self.overlayChanged.emit()
 
     def set_pores(self, network) -> None:
         """Draw this pore network over the crystal.

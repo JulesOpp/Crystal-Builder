@@ -348,6 +348,11 @@ class MainWindow(QMainWindow):
     def export_image(self) -> None:
         self.document_set.export_image()
 
+    def clear_overlays(self) -> None:
+        document = self.current_document()
+        if document is not None:
+            document.clear_overlays()
+
     def export_stl(self) -> None:
         """A module run, reached from File because that is where an
         export is looked for.  See :mod:`xtal.modules.blender`."""
@@ -1455,6 +1460,7 @@ class MainWindow(QMainWindow):
         has_document = document is not None
         self.actions_.set_enabled(
             ["save", "save_as", "export", "export_image",
+             "clear_overlays",
              "close_tab", "close_all_tabs", "reset_view", "view_a",
              "view_b", "view_c"],
             has_document)

@@ -231,6 +231,7 @@ class ViewportWidget(QWidget):
             self.document.selectionChanged.disconnect(self._on_selection)
             self.document.planesChanged.disconnect(self._on_view)
             self.document.poresChanged.disconnect(self._on_view)
+            self.document.overlayChanged.disconnect(self._on_view)
         self.document = document
         document.structureChanged.connect(self._on_structure)
         document.previewChanged.connect(self._on_preview)
@@ -244,6 +245,7 @@ class ViewportWidget(QWidget):
         # one has changed the picture without touching the crystal, so
         # no structure signal is going to say it.
         document.poresChanged.connect(self._on_view)
+        document.overlayChanged.connect(self._on_view)
         self.rebuild(reset_camera=True)
 
     def set_mode(self, name: str) -> None:
@@ -311,7 +313,9 @@ class ViewportWidget(QWidget):
                             selection=self.document.selection,
                             view_direction=self.camera_direction(),
                             planes=self.document.planes_to_draw(),
-                            pores=self.document.pores)
+                            pores=self.document.pores,
+                            charges=self.document.charges,
+                            orbital=self.document.orbital)
         self.model = model
         self.scene.set_positions(model)
         self._safe_render()
@@ -344,7 +348,9 @@ class ViewportWidget(QWidget):
                             selection=self.document.selection,
                             view_direction=self.camera_direction(),
                             planes=self.document.planes_to_draw(),
-                            pores=self.document.pores)
+                            pores=self.document.pores,
+                            charges=self.document.charges,
+                            orbital=self.document.orbital)
         self.model = model
         self.scene.set_model(model)
         self.scene.set_projection(self.document.view.projection)

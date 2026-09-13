@@ -211,6 +211,10 @@ def build_actions(window):
         tip="Draw what a porosity run found: the largest pore where "
             "it sits, and the channels it belongs to.  Nothing is "
             "drawn until Modules > Zeo++ has answered")
+    add("clear_overlays", "Clear c&harges and orbital",
+        window.clear_overlays,
+        tip="Take a DFTB+ run's atom colouring and orbital lobes off "
+            "the picture.  They go by themselves when the atoms move")
     add("show_scale_bar", "Scale bar",
         lambda v: window.set_view(show_scale_bar=v), checkable=True,
         tip="A ruler in the corner, in Angstrom.  It measures the "
@@ -538,6 +542,7 @@ def build_menus(window):
                     "show_planes",
                     "show_pores", "labels", "show_legend",
                     "show_scale_bar"])
+    window.actions_.fill_menu(view_menu, ["clear_overlays"])
     view_menu.addSeparator()
     background_menu = view_menu.addMenu("&Background")
     for name in BACKGROUNDS:

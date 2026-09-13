@@ -84,7 +84,8 @@ OCCUPANCY_TOL = 1e-3
 
 def build_scene(structure, settings, selection=None,
                 bond_rules=None, view_direction=None,
-                planes=(), pores=None) -> SceneModel:
+                planes=(), pores=None, charges=None,
+                orbital=None) -> SceneModel:
     """Build the render model for one structure.
 
     ``selection`` is a :class:`xtal.core.selection.Selection` over P1
@@ -103,6 +104,13 @@ def build_scene(structure, settings, selection=None,
     :class:`xtal.analysis.porosity.PoreNetwork` -- what a porosity run
     found -- and is passed in for the same reason.  It is an external
     program's measurement *of* the structure, not part of it.
+
+    ``charges`` (:class:`xtal.analysis.overlays.AtomCharges`) colours
+    every atom by its charge in place of its element, and ``orbital``
+    (:class:`~xtal.analysis.overlays.OrbitalSurface`) adds its two
+    lobes to the surface the pore network draws into -- one surface
+    actor, because both are translucent sheets over the crystal and
+    two would have to be depth-sorted against each other.
 
     ``view_direction`` is the camera's direction of projection, and is
     used for one thing only: laying the second tube of a bond that has
@@ -136,6 +144,9 @@ def build_scene(structure, settings, selection=None,
                 frames = _bond_frames(graph, cell, orders,
                                       view_direction)
     drawn.finish()
+    if charges is not None and charges.n_atoms == cell.n_atoms \
+            and drawn.count:
+        drawn.color = charges.colors()[drawn.atom]
 
     cart = (lattice.to_cart(drawn.frac).astype(np.float32)
             if drawn.count else np.zeros((0, 3), np.float32))
@@ -164,6 +175,8 @@ def build_scene(structure, settings, selection=None,
              if settings.show_planes else _no_planes())
     pore = (_emit_pores(pores, lattice, settings)
             if settings.show_pores else _no_pores())
+    if orbital is not None and orbital.n_faces:
+        pore = _with_orbital(pore, orbital, lattice)
 
     show_atoms = settings.show_atoms and style.radius_factor > 0
     pies = (_emit_pies(cell, drawn, cart)
@@ -1210,6 +1223,17 @@ def _emit_topology(structure, cell, drawn, lattice, settings,
 #: radius it is tangent to the framework everywhere and reads as a
 #: solid plug rather than as a sphere in a cage.
 PORE_SPHERE_SHRINK = 0.94
+
+
+def _with_orbital(pore, orbital, lattice):
+    """The pore tuple with an orbital's lobes appended to its surface."""
+    pore = list(pore)
+    points, faces, colors = pore[6], pore[7], pore[8]
+    extra = lattice.to_cart(orbital.points).astype(np.float32)
+    pore[6] = np.vstack([points, extra]).astype(np.float32)
+    pore[7] = np.vstack([faces, orbital.faces + len(points)]).astype(int)
+    pore[8] = np.vstack([colors, orbital.colors()]).astype(np.uint8)
+    return tuple(pore)
 
 
 def _no_pores():

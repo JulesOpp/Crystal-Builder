@@ -640,6 +640,18 @@ velocity Verlet with no thermostat, Berendsen or Nosé–Hoover.  Its
 frames open in the transport bar, and temperature and total energy are
 plotted in Results.
 
+*Mulliken charges* is one SCC run.  It gives a charge per site, and
+shows the spread when an orbit's atoms disagree, and it colours every
+atom blue to white to red by its charge.  *Orbital...* draws one state,
+HOMO − n, LUMO + n or by index, as its positive and negative lobes: DFTB+
+writes the eigenvectors, `waveplot` puts the state on a grid over the
+cell, and the cube is marched at ± the isovalue.  `waveplot` needs the
+parameter set's `wfc.*.hsd`; the bundled PTBP has none, and the run
+says so before it starts.  Both overlays are measurements, not edits:
+they go when the atoms move, and *View ▸ Clear charges and orbital*
+takes them off.  Charges are saved with the project; an orbital is
+not.
+
 ```bash
 xtal run dftb.band-structure Si.cif -p path=LGXUG
 xtal run dftb.dos Si.cif -p spacing=0.08 -p shells=true

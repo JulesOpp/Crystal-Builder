@@ -396,11 +396,11 @@ class ModuleRunner(QObject):
         document = self._module_document
         if document is None or document not in self.window.documents:
             self.window.show_message(
-                "the run found where the pores are, and there is no "
-                "longer a tab of the structure it measured to draw "
-                "them over")
+                "the run found something to draw, and there is no "
+                "longer a tab of the structure it measured to draw it "
+                "over")
             return
-        document.set_pores(result.overlay)
+        document.set_overlay(result.overlay)
 
     def _play_module_trajectory(self, result) -> None:
         """Open a run's frames in the transport bar.

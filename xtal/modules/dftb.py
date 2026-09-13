@@ -120,6 +120,42 @@ MD_PARAMS = (
 )
 
 
+ORBITAL_PARAMS = (
+    Param("state", "State", kind="choice", default="homo",
+          choices=(("homo", "Highest occupied (HOMO - n)"),
+                   ("lumo", "Lowest empty (LUMO + n)"),
+                   ("index", "By index"))),
+    Param("offset", "n", kind="int", default=0, minimum=0,
+          maximum=1000,
+          help="How many states below the HOMO, or above the LUMO"),
+    Param("index", "Index", kind="int", default=1, minimum=1,
+          maximum=1000000, help="The state, counting from 1"),
+    Param("kpoint", "k-point", kind="int", default=1, minimum=1,
+          maximum=100000),
+    Param("spin", "Spin", kind="int", default=1, minimum=1, maximum=2),
+    Param("isovalue", "Isovalue", kind="float", default=0.02,
+          minimum=1e-5, maximum=10.0, step=0.005, decimals=4,
+          help="Drawn at plus and minus this"),
+    Param("resolution", "Grid points per A", kind="float", default=4.0,
+          minimum=1.0, maximum=20.0, step=0.5, decimals=1),
+)
+
+
+def _waveplot() -> Availability:
+    from xtal.modules.dftb_runs import electronic
+    return electronic.WAVEPLOT.availability()
+
+
+def _charges(job):
+    from xtal.modules.dftb_runs import electronic
+    return electronic.charges(job)
+
+
+def _orbital(job):
+    from xtal.modules.dftb_runs import electronic
+    return electronic.orbital(job)
+
+
 def _relax(job):
     from xtal.modules.dftb_runs import driver
     return driver.relax(job)
@@ -188,6 +224,15 @@ DFTB = Module(
                    "mesh",
                params=DOS_PARAMS, run=_dos, dialog="dftb-run",
                kind="dos"),
+        Action(name="charges", label="Mulliken charges",
+               tip="A charge on every atom, and the atoms coloured by "
+                   "it",
+               run=_charges, dialog="dftb-run", kind="charges"),
+        Action(name="orbital", label="Orbital...",
+               tip="One state as its two lobes, through waveplot; "
+                   "needs the parameter set's wfc.*.hsd",
+               params=ORBITAL_PARAMS, run=_orbital, dialog="dftb-run",
+               kind="orbital", check=_waveplot),
         Action(name="relax", label="Optimise with DFTB+'s driver...",
                tip="One DFTB+ run relaxes the atoms, and the cell if "
                    "asked; the answer is mapped back onto the space "

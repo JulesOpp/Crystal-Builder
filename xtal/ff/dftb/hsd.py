@@ -23,7 +23,7 @@ the 3ob set and point at it" and "Error: could not open Zn-N.skf".
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from itertools import product
 from pathlib import Path
 
@@ -169,6 +169,10 @@ def hsd_string(symbols, options, geometry: str = "geo.gen",
     directory = slater_koster_directory(options.parameter_directory)
     prefix = f"{directory}{os.sep}" if directory is not None else ""
     analysis = analysis if analysis is not None else Analysis()
+    if eigenvectors:
+        # Under Analysis and not Options, where DFTB+ 24.1 reports it
+        # as an ignored node and halts.
+        analysis = replace(analysis, eigenvectors=True)
     lines = [
         "Geometry = GenFormat {",
         f'  <<< "{geometry}"',
@@ -185,8 +189,6 @@ def hsd_string(symbols, options, geometry: str = "geo.gen",
     lines += ["Options {", "  WriteChargesAsText = No"]
     if detailed_xml:
         lines.append("  WriteDetailedXML = Yes")
-    if eigenvectors:
-        lines.append("  WriteEigenvectors = Yes")
     lines += [
         "}",
         "",
@@ -346,11 +348,14 @@ class Analysis:
     mulliken: bool = False
     regions: tuple = ()
     shell_resolved: bool = False
+    eigenvectors: bool = False
 
     def lines(self) -> list[str]:
         out = ["Analysis {", f"  {forces_keyword()} = {_yes(self.forces)}"]
         if self.mulliken:
             out.append("  MullikenAnalysis = Yes")
+        if self.eigenvectors:
+            out.append("  WriteEigenvectors = Yes")
         if self.regions:
             out.append("  ProjectStates {")
             for symbol in self.regions:

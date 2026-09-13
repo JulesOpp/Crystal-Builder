@@ -42,11 +42,12 @@ from xtal.ff.dftb import calculator as dftb
 from xtal.ff.dftb import hsd
 from xtal.ff.xtb import calculator as xtb
 from xtal.modules import blender, process, zeopp
+from xtal.modules.dftb_runs import electronic
 
 #: The programs whose location is a preference.  The list is read
 #: from the modules themselves so that ``setting`` is written once.
 PROGRAMS = (zeopp.PROGRAM, dftb.PROGRAM, *xtb.PROGRAMS,
-            blender.PROGRAM)
+            blender.PROGRAM, electronic.WAVEPLOT)
 
 #: Where the Slater-Koster parameter directory is remembered.  Not a
 #: :class:`~xtal.modules.process.Program` -- it is a folder of ``.skf``
@@ -99,6 +100,9 @@ TOOLS = (
          "File > Export as STL, which turns one cell into a printable "
          "mesh.  It needs the Atomic Blender add-on: Blender 3.x ships "
          "it, 4.2 and later offer it under Get Extensions."),
+    Tool("tools/waveplot", "waveplot", "file",
+         "DFTB+'s orbital plotter, for Modules > DFTB+ > Orbital.  It "
+         "ships with DFTB+."),
     Tool(SLATER_KOSTER, "Slater-Koster parameters", "folder",
          "The folder of .skf files DFTB+ needs -- a separate download "
          "from dftb.org.  This is the starting value of the run "
