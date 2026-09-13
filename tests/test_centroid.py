@@ -102,6 +102,66 @@ def test_a_centroid_is_one_undo_step(square):
     assert square.structure.n_sites == 4
 
 
+# ------------------------------------------------------------ merging
+
+def test_merging_replaces_the_selection_with_its_middle(square):
+    square.select([0, 1, 2, 3])
+    assert "merged 4 atoms" in square.merge_atoms()
+    assert square.structure.n_sites == 1
+    placed = square.structure.sites[0]
+    assert np.allclose(placed.frac, [0.5, 0.5, 0.5])
+    assert sorted(square.selection.atoms) == [0]
+
+
+def test_merging_one_element_keeps_it(square):
+    """Two half-occupied carbons collapsed into one are a carbon, and
+    a dummy in its place would drop it out of every force field run."""
+    square.select([0, 1])
+    square.merge_atoms()
+    assert [s.element for s in square.structure.sites] == ["C"] * 3
+
+
+def test_merging_different_elements_makes_a_dummy(square):
+    """A carbon and an oxygen averaged are neither, and guessing one
+    would quietly change what the crystal means."""
+    square.select([1])
+    square.set_selection_element("O")
+    square.select([0, 1])
+    square.merge_atoms()
+    assert square.structure.sites[-1].element == "X"
+
+
+def test_merging_leaves_the_atoms_it_was_not_given(square):
+    """The add goes before the delete so that the sites the delete
+    names are still the ones selected; the other order would renumber
+    them under it."""
+    labels = [s.label for s in square.structure.sites]
+    square.select([1, 2])
+    square.merge_atoms()
+    kept = [s.label for s in square.structure.sites[:-1]]
+    assert kept == [labels[0], labels[3]]
+
+
+def test_merging_fewer_than_two_atoms_does_nothing(square):
+    square.select([0])
+    assert "at least two" in square.merge_atoms()
+    assert square.structure.n_sites == 4
+    assert square.undo_label != "Merge atoms"
+
+
+def test_a_merge_is_one_undo_step(square):
+    """The add and the delete are one gesture; undoing only the delete
+    would leave the originals and the merged atom on top of them."""
+    before = [s.frac.copy() for s in square.structure.sites]
+    square.select([0, 1, 2, 3])
+    square.merge_atoms()
+    assert square.undo() == "Merge atoms"
+    assert [s.element for s in square.structure.sites] == ["C"] * 4
+    assert all(np.allclose(a, s.frac)
+               for a, s in zip(before, square.structure.sites,
+                                   strict=True))
+
+
 # ------------------------------------------------------- dummy atoms
 
 def test_a_dummy_atom_bonds_to_nothing(square):
@@ -251,12 +311,31 @@ def test_the_action_needs_more_than_one_atom(qtbot, tmp_path,
     window.open_path(rutile_cif)
     document = window.current_document()
 
-    document.select_none()
-    assert not window.actions_["add_centroid"].isEnabled()
-    document.select([0])
-    assert not window.actions_["add_centroid"].isEnabled()
-    document.select([0, 1])
-    assert window.actions_["add_centroid"].isEnabled()
+    for name in ("add_centroid", "merge_atoms"):
+        document.select_none()
+        assert not window.actions_[name].isEnabled()
+        document.select([0])
+        assert not window.actions_[name].isEnabled()
+        document.select([0, 1])
+        assert window.actions_[name].isEnabled()
+
+
+def test_merge_atoms_sits_below_add_centroid(qtbot, tmp_path):
+    pytest.importorskip("pytestqt")
+    from tests.test_app_shell import StubViewport
+    from xtalapp.mainwindow import MainWindow
+    from xtalapp.settings import AppSettings
+
+    settings = AppSettings("CrystalBuilderTest", f"Merge{tmp_path.name}")
+    window = MainWindow(viewport_factory=StubViewport,
+                        settings=settings)
+    qtbot.addWidget(window)
+    menu = next(a.menu() for a in window.menuBar().actions()
+                if a.text() == "S&tructure")
+    entries = [a for a in menu.actions() if not a.isSeparator()]
+    names = [a.text() for a in entries]
+    at = names.index("Add &centroid...")
+    assert entries[at + 1] is window.actions_["merge_atoms"]
 
 
 def test_the_dialog_offers_a_dummy_first(qtbot):

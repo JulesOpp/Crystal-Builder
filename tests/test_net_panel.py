@@ -195,3 +195,90 @@ def test_the_report_reaches_the_document_as_a_sentence(rcsr_catalogue):
     assert "6-coordinated" in report
     assert "6, 18, 38, 66" in report
     assert "4^12.6^3" in report
+
+
+# ==================================================== asking Systre
+
+def test_the_export_button_is_only_offered_for_a_net(dock,
+                                                      rcsr_catalogue):
+    plain = Structure.from_arrays(Lattice.cubic(5.0), ["Zn"],
+                                  [[0.0, 0.0, 0.0]], space_group="P1")
+    dock.set_document(Document(plain))
+    assert not dock.export.isEnabled()
+    dock.set_document(pcu_document())
+    assert dock.export.isEnabled()
+
+
+def test_the_export_action_follows_the_net_being_drawn(window):
+    """Greyed out until there is a net, and live the moment one edge
+    is drawn -- not only when the tab changes."""
+    plain = Structure.from_arrays(Lattice.cubic(5.0), ["Zn"],
+                                  [[0.0, 0.0, 0.0]], space_group="P1")
+    document = Document(plain)
+    window.add_document(document)
+    assert not window.actions_["export_net"].isEnabled()
+    document.add_topology_bond_between(0, 0, image_b=(1, 0, 0))
+    assert window.actions_["export_net"].isEnabled()
+
+
+def test_exporting_writes_a_net_systre_can_read(window, tmp_path,
+                                                monkeypatch):
+    """What reaches the file is the net the panel named, under the
+    name the user gave the file -- the one word Systre prints back."""
+    from PySide6.QtWidgets import QFileDialog
+
+    from xtal.analysis import rcsr
+    from xtal.io.cgd import read_cgd
+
+    document = pcu_document()
+    window.add_document(document)
+    asked = []
+    monkeypatch.setattr(
+        QFileDialog, "getSaveFileName",
+        lambda *args, **kw: (asked.append(args[2]),
+                             (str(tmp_path / "mine"), ""))[1])
+    window.actions_["export_net"].trigger()
+
+    assert asked and asked[0].endswith(".cgd")
+    written = tmp_path / "mine.cgd"
+    entry = read_cgd(written)["mine"]
+    assert rcsr.expand(entry).key() == document.net().key()
+    assert not document.modified
+
+
+def test_the_panel_button_is_the_same_export(window, tmp_path,
+                                             monkeypatch):
+    from PySide6.QtWidgets import QFileDialog
+
+    window.add_document(pcu_document())
+    window.net_dock.set_document(window.current_document())
+    monkeypatch.setattr(
+        QFileDialog, "getSaveFileName",
+        lambda *args, **kw: (str(tmp_path / "net.cgd"), ""))
+    window.net_dock.export.setEnabled(True)
+    window.net_dock.export.click()
+    assert (tmp_path / "net.cgd").exists()
+
+
+def test_a_net_that_cannot_be_written_says_why(window, tmp_path,
+                                               monkeypatch):
+    """Two vertices in one place would make the file a guess, and the
+    refusal has to reach the person rather than a log."""
+    from PySide6.QtWidgets import QFileDialog, QMessageBox
+
+    structure = Structure.from_arrays(
+        Lattice.cubic(5.0), ["Zn", "X"],
+        [[0.0, 0.0, 0.0], [0.9985, 0.0, 0.0]], space_group="P1")
+    structure.bonds.append(Bond(0, 0, (1, 0, 0), kind=TOPOLOGY))
+    structure.bonds.append(Bond(1, 1, (0, 1, 0), kind=TOPOLOGY))
+    structure.touch()
+    window.add_document(Document(structure))
+    monkeypatch.setattr(
+        QFileDialog, "getSaveFileName",
+        lambda *args, **kw: (str(tmp_path / "net.cgd"), ""))
+    warned = []
+    monkeypatch.setattr(QMessageBox, "warning",
+                        lambda parent, title, text: warned.append(text))
+    window.export_net()
+    assert warned and "same place" in warned[0]
+    assert not (tmp_path / "net.cgd").exists()

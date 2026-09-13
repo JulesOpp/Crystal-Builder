@@ -65,10 +65,24 @@ def _parse(argv):
     p.add_argument("--viewport-shot", action=_Step, metavar="PATH",
                    help="PNG of the 3D view via VTK, which the window "
                         "grab cannot capture")
+    p.add_argument("--grab", action=_Step, nargs="+",
+                   metavar="EXPR PATH [WxH]",
+                   help="PNG of one dock or dialog: EXPR is a dock's "
+                        "attribute name (style_dock) or a Python "
+                        "expression for a widget, in the --eval scope. "
+                        "A dock is floated for the shot and put back; "
+                        "a dialog is shown modelessly and closed")
     p.add_argument("--settle", action=_Step, metavar="MS", type=int,
                    help="pump the event loop for this many milliseconds")
     p.add_argument("--list-actions", action=_Step, nargs=0,
                    help="print every action name and its menu text")
+    p.add_argument("--list-docks", action=_Step, nargs=0,
+                   help="print every dock's attribute name and title")
+    p.add_argument("--scratch", metavar="DIR",
+                   help="preferences and the default workspace in DIR "
+                        "instead of the real ones: a clean first-run "
+                        "window, and nothing recorded in the user's "
+                        "recent files, layout or last workspace")
     p.add_argument("--keep", action="store_true",
                    help="hand the running window to the user instead of "
                         "quitting (blocks; dialogs are left working)")
@@ -118,6 +132,18 @@ def _settle(app, ms=250):
 
 def main(argv=None) -> int:
     args = _parse(sys.argv[1:] if argv is None else argv)
+    for step, value in args.steps:
+        if step == "grab" and len(value) not in (2, 3):
+            raise SystemExit("--grab takes EXPR PATH and an optional WxH")
+
+    if args.scratch:
+        # Before xtalapp is imported: AppSettings reads the variable
+        # when it opens its store, and the workspace root is asked for
+        # when the window is built.  The same two the suite sets.
+        scratch = Path(args.scratch).resolve()
+        (scratch / "settings").mkdir(parents=True, exist_ok=True)
+        os.environ["XTAL_SETTINGS_DIR"] = str(scratch / "settings")
+        os.environ["XTAL_WORKSPACE_ROOT"] = str(scratch / "workspace")
 
     from PySide6.QtWidgets import QApplication
 
@@ -180,10 +206,7 @@ def _run(step, value, win, app) -> None:
         print(f"triggered {value!r} ({action.text()})")
 
     elif step in ("eval", "script"):
-        scope = {"win": win, "app": app, "tabs": win.tabs,
-                 "doc": win.current_document(),
-                 "viewport": win.current_viewport(),
-                 "settle": lambda ms=250: _settle(app, ms)}
+        scope = _scope(win, app)
         if step == "script":
             path = Path(value).resolve()
             code = compile(path.read_text(), str(path), "exec")
@@ -216,6 +239,9 @@ def _run(step, value, win, app) -> None:
         viewport.save_image(str(path))
         print(f"wrote {path}  (3D view)")
 
+    elif step == "grab":
+        _grab(win, app, *value)
+
     elif step == "settle":
         _settle(app, value)
         print(f"settled {value} ms")
@@ -225,6 +251,77 @@ def _run(step, value, win, app) -> None:
             action = win.actions_[name]
             state = "" if action.isEnabled() else "   [disabled]"
             print(f"  {name:<28} {action.text()}{state}")
+
+    elif step == "list_docks":
+        for dock in win.docks:
+            name = next(n for n, v in vars(win).items() if v is dock)
+            state = "shown" if dock.isVisible() else "hidden"
+            print(f"  {name:<18} {dock.windowTitle():<14} {state}")
+
+
+def _scope(win, app) -> dict:
+    """What --eval, --script and --grab can name."""
+    import importlib
+
+    def imp(dotted):
+        """``imp("xtalapp.dialogs.preferences.PreferencesDialog")``."""
+        module, _, attr = dotted.rpartition(".")
+        return getattr(importlib.import_module(module), attr)
+
+    return {"win": win, "app": app, "tabs": win.tabs,
+            "doc": win.current_document(),
+            "viewport": win.current_viewport(),
+            "settle": lambda ms=250: _settle(app, ms),
+            "imp": imp}
+
+
+def _grab(win, app, expr, path, size=None) -> None:
+    """One widget to a PNG, left as it was found.
+
+    A dock tabbed behind another is not drawn, and one squeezed into
+    the right-hand column is drawn at the column's width, so it is
+    floated at the requested size for the shot and docked again.  A
+    dialog built by the expression is shown without ``exec`` -- which
+    would wait for a click -- and closed afterwards.
+    """
+    from PySide6.QtCore import QPoint
+    from PySide6.QtWidgets import QDockWidget
+
+    widget = getattr(win, expr, None) if expr.isidentifier() else None
+    if widget is None:
+        widget = eval(expr, _scope(win, app))
+    out = Path(path).resolve()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    width, height = (int(n) for n in size.lower().split("x")) \
+        if size else (None, None)
+
+    if isinstance(widget, QDockWidget):
+        floating, visible = widget.isFloating(), widget.isVisible()
+        widget.setFloating(True)
+        widget.show()
+        widget.raise_()
+        # On the window's own screen: a floating dock restored from a
+        # layout saved on another monitor lands off every screen.
+        widget.move(win.geometry().topLeft() + QPoint(60, 60))
+        if width:
+            widget.resize(width, height)
+        _settle(app, 400)
+        ok = widget.grab().save(str(out))
+        widget.setFloating(floating)
+        widget.setVisible(visible)
+    else:
+        opened = not widget.isVisible()
+        if opened:
+            widget.show()
+        if width:
+            widget.resize(width, height)
+        _settle(app, 400)
+        ok = widget.grab().save(str(out))
+        if opened:
+            widget.close()
+    if not ok:
+        raise SystemExit(f"could not write {out}")
+    print(f"wrote {out}  ({type(widget).__name__})")
 
 
 if __name__ == "__main__":

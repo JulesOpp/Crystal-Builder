@@ -348,6 +348,9 @@ class MainWindow(QMainWindow):
     def export_image(self) -> None:
         self.document_set.export_image()
 
+    def export_net(self) -> None:
+        self.document_set.export_net()
+
     def clear_overlays(self) -> None:
         document = self.current_document()
         if document is not None:
@@ -618,6 +621,11 @@ class MainWindow(QMainWindow):
         if values is None:
             return
         self.show_status(document.add_centroid(**values))
+
+    def merge_atoms(self) -> None:
+        document = self.current_document()
+        if document is not None:
+            self.show_status(document.merge_atoms())
 
     def set_preview_interval(self, milliseconds: int) -> None:
         """How often a running calculation redraws the viewport.
@@ -1256,7 +1264,8 @@ class MainWindow(QMainWindow):
             bool(document.selection.atoms))
         # A centroid needs a middle, and one atom has none.
         self.actions_.set_enabled(
-            ["add_centroid"], len(document.selection.atoms) > 1)
+            ["add_centroid", "merge_atoms"],
+            len(document.selection.atoms) > 1)
 
     def _sync_bond_type_actions(self, document) -> None:
         """Enable the bond types, and tick what the selection already
@@ -1486,6 +1495,10 @@ class MainWindow(QMainWindow):
              "single_point", "optimize", "dftb_single_point",
              "dftb_optimize", "recompute_bonds", "reset_bonds"],
             editable)
+        # Reading a net is not editing one, so a trajectory playing
+        # does not take this away.
+        self.actions_.set_enabled(
+            ["export_net"], has_document and document.has_net())
         if document is None:
             self._refresh_module_actions(False)
             self._refresh_insert_molecule(False)
@@ -1507,7 +1520,7 @@ class MainWindow(QMainWindow):
             has_selection and editable)
         # A centroid needs a middle, and one atom has none.
         self.actions_.set_enabled(
-            ["add_centroid"],
+            ["add_centroid", "merge_atoms"],
             len(document.selection.atoms) > 1 and editable)
         # Anything selected, not just atoms -- see _on_selection_changed.
         self.actions_.set_enabled(

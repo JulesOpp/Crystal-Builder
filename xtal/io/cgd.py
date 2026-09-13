@@ -55,6 +55,17 @@ was designed for in advance:
   raising on the first one -- a file of 2929 nets that cannot be
   opened because one of them is broken is worse than 2928 nets and a
   sentence saying which one is missing and why.
+
+**It writes as well, for Systre.**  The Net panel's name comes from a
+canonical key that is checked against a supercell of itself and
+against the catalogue this module reads, and neither of those is a
+check made by anybody else.  :func:`entry_of` puts the drawn net into
+one block and :func:`write_cgd` saves it, so that Systre -- the
+reference implementation -- can be asked the same question.  Only the
+common dialect is written, in ``GROUP P1`` over the expanded cell:
+the space group would have to be spelled in a setting Systre agrees
+with, and the whole point is to leave nothing of this application's
+between the net and the second opinion.
 """
 
 from __future__ import annotations
@@ -267,3 +278,112 @@ def _edges(raw, nodes, dimension: int, name: str, start: int):
 def _label(value: float) -> str:
     """A node index read as a float, back to the text the node used."""
     return str(int(value))
+
+
+# ======================================================================
+#  WRITING
+# ======================================================================
+
+#: Decimal places a coordinate is written to.  Six is a thousand times
+#: finer than any tolerance an endpoint is matched to a node at, so an
+#: edge written here lands on the node it came from in every reader.
+PLACES = 6
+
+
+def write_cgd(path, entries) -> Path:
+    """Write ``entries`` to ``path`` as ``.cgd``; returns the path."""
+    path = Path(path)
+    path.write_text(write_cgd_string(entries))
+    return path
+
+
+def write_cgd_string(entries) -> str:
+    """The text of a ``.cgd`` file holding ``entries``, in order."""
+    return "".join(_block(entry) for entry in entries)
+
+
+def _block(entry: CgdEntry) -> str:
+    if not entry.name or any(c.isspace() for c in entry.name):
+        # A name is one token to every reader, this one included, and
+        # a space would silently cut it short on the way back in.
+        raise CgdError(f"cannot write a net named {entry.name!r}")
+    lines = ["CRYSTAL", f"  NAME {entry.name}",
+             f"  GROUP {entry.group or 'P1'}"]
+    if entry.cell:
+        lines.append("  CELL " + " ".join(f"{v:.{PLACES}f}"
+                                          for v in entry.cell))
+    for node in entry.nodes:
+        lines.append(f"  NODE {node.label} {node.coordination} "
+                     f"{_point(node.frac)}")
+    for first, second in entry.edges:
+        lines.append(f"  EDGE {_point(first)}   {_point(second)}")
+    lines.append("END")
+    return "\n".join(lines) + "\n\n"
+
+
+def _point(values) -> str:
+    # ``+ 0.0`` so that a coordinate rounding to zero from below is not
+    # written as ``-0.000000``, which is correct and looks like a bug.
+    return " ".join(f"{round(float(v), PLACES) + 0.0:.{PLACES}f}"
+                    for v in values)
+
+
+def entry_of(structure, name: str | None = None) -> CgdEntry:
+    """The net drawn on ``structure``, as one block Systre can read.
+
+    Every vertex of the expanded cell is a node and every edge a pair
+    of points, in P1 -- the net exactly as :func:`~xtal.analysis.
+    topology.net_of` sees it, and nothing a reader has to take on
+    trust.  A node's coordination is counted from the edges written,
+    ends and not neighbours, so an edge from a vertex to its own image
+    counts twice at it: that is what a reader expanding the file finds
+    there, and a declared number it does not find is a refusal.
+
+    Raises :class:`CgdError` when there is nothing to write, or when
+    two vertices sit so close that an endpoint could be matched to
+    either -- the format finds an edge's ends *by position*, and a
+    file that joins the wrong one describes a different net.
+    """
+    from xtal.analysis.rcsr import TOLERANCE
+    from xtal.core import bonding, p1
+
+    cell = p1.expand(structure)
+    bonds = bonding.topology_graph(structure).bonds
+    if not bonds:
+        raise CgdError("no net has been drawn")
+    vertices = sorted({b.i for b in bonds} | {b.j for b in bonds})
+    ends = dict.fromkeys(vertices, 0)
+    for bond in bonds:
+        ends[bond.i] += 1
+        ends[bond.j] += 1
+    number = {v: str(k) for k, v in enumerate(vertices, start=1)}
+    _refuse_coincident(cell, vertices, TOLERANCE)
+
+    nodes = tuple(CgdNode(number[v], ends[v],
+                          tuple(float(x) for x in cell.frac[v]))
+                  for v in vertices)
+    edges = tuple((tuple(float(x) for x in cell.frac[b.i]),
+                   tuple(float(x) + t for x, t in
+                         zip(cell.frac[b.j], b.image, strict=True)))
+                  for b in bonds)
+    title = name or str(structure.meta.get("title") or "net")
+    return CgdEntry("_".join(title.split()) or "net", "P1", nodes,
+                    edges, tuple(structure.lattice.parameters))
+
+
+def _refuse_coincident(cell, vertices, tolerance: float) -> None:
+    import numpy as np
+
+    points = np.asarray(cell.frac[vertices], dtype=float)
+    for k in range(1, len(points)):
+        delta = points[:k] - points[k]
+        delta -= np.round(delta)
+        close = np.flatnonzero(np.linalg.norm(delta, axis=1)
+                               < tolerance)
+        if len(close):
+            other = vertices[int(close[0])]
+            raise CgdError(
+                f"{cell.labels[other] or cell.elements[other]} and "
+                f"{cell.labels[vertices[k]] or cell.elements[vertices[k]]}"
+                f" are net vertices in the same place, and a .cgd file "
+                f"finds an edge's ends by position")

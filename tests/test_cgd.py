@@ -242,3 +242,187 @@ def test_the_reader_does_not_need_a_cgd_error_to_be_caught(rcsr_path):
         read_cgd(rcsr_path)
     except CgdError as exc:                 # pragma: no cover
         pytest.fail(f"the reader raised instead of collecting: {exc}")
+
+
+# ============================================================ writing
+
+def _pcu(a=5.0):
+    from xtal import Lattice, Structure
+    from xtal.core.structure import TOPOLOGY, Bond
+
+    structure = Structure.from_arrays(Lattice.cubic(a), ["Zn"],
+                                      [[0.0, 0.0, 0.0]],
+                                      space_group="P1")
+    for image in ((1, 0, 0), (0, 1, 0), (0, 0, 1)):
+        structure.bonds.append(Bond(0, 0, image, kind=TOPOLOGY))
+    structure.touch()
+    return structure
+
+
+def _net_from_bonds(structure):
+    """Every perceived bond as a net edge, so that the edges come from
+    the geometry rather than from anything the writer was told."""
+    from dataclasses import replace
+
+    from xtal.core import bonding, p1
+    from xtal.core.structure import TOPOLOGY
+
+    cell = p1.expand(structure)
+    for bond in bonding.graph(structure).bonds:
+        record = bonding.bond_between(structure, cell, bond.i, bond.j,
+                                      image_b=bond.image)
+        structure.bonds.append(replace(record, kind=TOPOLOGY))
+    structure.touch()
+    return structure
+
+
+def _written_and_read_back(structure, name="net"):
+    from xtal.io.cgd import entry_of, write_cgd_string
+
+    text = write_cgd_string([entry_of(structure, name)])
+    read = read_cgd_string(text)
+    assert not read.problems, read.problems
+    return read[name]
+
+
+def test_a_drawn_net_is_written_as_one_p1_block():
+    entry = _written_and_read_back(_pcu(), "pcu")
+    assert entry.group == "P1"
+    assert len(entry.nodes) == 1
+    assert len(entry.edges) == 3
+    assert entry.cell == pytest.approx((5.0, 5.0, 5.0, 90.0, 90.0, 90.0))
+
+
+def test_an_edge_to_its_own_image_counts_twice_at_the_vertex():
+    """pcu has one vertex and three edges and is six-coordinated.
+    Declaring three would be refused by every reader that expands the
+    file and counts, Systre and this application's own among them."""
+    entry = _written_and_read_back(_pcu())
+    assert entry.nodes[0].coordination == 6
+
+
+@pytest.mark.parametrize("which", ["pcu", "diamond", "rutile"])
+def test_a_written_net_reads_back_as_the_same_net(which, rutile):
+    """The whole point of the file: what Systre reads is the net the
+    Net panel named.  Compared by canonical key, which is equal if and
+    only if the nets are -- so an edge landing on the wrong vertex, a
+    lost lattice image or a miscounted coordination all fail here.
+    Rutile is drawn over a space group, so the expansion is tested
+    and not only a net that was already in P1."""
+    from xtal import Lattice, Structure
+    from xtal.analysis import rcsr
+    from xtal.analysis.topology import net_of
+
+    if which == "pcu":
+        structure = _pcu()
+    elif which == "diamond":
+        corners = [[0.0, 0.0, 0.0], [0.0, 0.5, 0.5],
+                   [0.5, 0.0, 0.5], [0.5, 0.5, 0.0]]
+        frac = corners + [[c + 0.25 for c in p] for p in corners]
+        structure = _net_from_bonds(Structure.from_arrays(
+            Lattice.cubic(3.567), ["C"] * 8, frac, space_group="P1"))
+    else:
+        structure = _net_from_bonds(rutile)
+
+    drawn = net_of(structure)
+    read = rcsr.expand(_written_and_read_back(structure))
+    assert read.n_vertices == drawn.n_vertices
+    assert len(read.edges) == len(drawn.edges)
+    assert read.key() == drawn.key()
+
+
+def test_an_edge_across_a_cell_face_is_written_at_its_real_length():
+    """The second endpoint carries the lattice image.  Written without
+    it, every edge that crosses a face runs back across the whole
+    cell, which is still a valid file and is a different net."""
+    import numpy as np
+
+    from xtal import Lattice, Structure
+
+    corners = [[0.0, 0.0, 0.0], [0.0, 0.5, 0.5],
+               [0.5, 0.0, 0.5], [0.5, 0.5, 0.0]]
+    frac = corners + [[c + 0.25 for c in p] for p in corners]
+    lattice = Lattice.cubic(3.567)
+    structure = _net_from_bonds(Structure.from_arrays(
+        lattice, ["C"] * 8, frac, space_group="P1"))
+    entry = _written_and_read_back(structure)
+    lengths = [np.linalg.norm(lattice.to_cart(np.subtract(b, a)))
+               for a, b in entry.edges]
+    assert lengths == pytest.approx([3.567 * 3 ** 0.5 / 4] * 16)
+
+
+def test_a_net_over_a_linker_writes_only_the_nodes():
+    """The linker's atoms are not vertices of anything, and a file
+    that listed them would give Systre isolated points to refuse."""
+    from xtal import Lattice, Structure
+    from xtal.core.structure import TOPOLOGY, Bond
+    from xtal.io.cgd import entry_of
+
+    elements, frac = ["Zn"], [[0.0, 0.0, 0.0]]
+    for axis in range(3):
+        for t in (0.25, 0.5, 0.75):
+            point = [0.0, 0.0, 0.0]
+            point[axis] = t
+            elements.append("C" if t == 0.5 else "O")
+            frac.append(point)
+    structure = Structure.from_arrays(Lattice.cubic(8.0), elements,
+                                      frac, space_group="P1")
+    for image in ((1, 0, 0), (0, 1, 0), (0, 0, 1)):
+        structure.bonds.append(Bond(0, 0, image, kind=TOPOLOGY))
+    structure.touch()
+    assert len(entry_of(structure).nodes) == 1
+
+
+def test_nothing_drawn_is_refused_rather_than_written_empty():
+    from xtal import Lattice, Structure
+    from xtal.io.cgd import entry_of
+
+    structure = Structure.from_arrays(Lattice.cubic(5.0), ["Zn"],
+                                      [[0.0, 0.0, 0.0]],
+                                      space_group="P1")
+    with pytest.raises(CgdError, match="no net"):
+        entry_of(structure)
+
+
+def test_two_vertices_in_one_place_are_refused():
+    """An endpoint is matched to a node by position, so two nodes a
+    hair apart make every edge at either of them a guess -- and the
+    file would describe whichever net the guess made."""
+    from xtal import Lattice, Structure
+    from xtal.core.structure import TOPOLOGY, Bond
+    from xtal.io.cgd import entry_of
+
+    structure = Structure.from_arrays(
+        Lattice.cubic(5.0), ["Zn", "X"],
+        [[0.0, 0.0, 0.0], [0.9985, 0.0, 0.0]], space_group="P1")
+    structure.bonds.append(Bond(0, 0, (1, 0, 0), kind=TOPOLOGY))
+    structure.bonds.append(Bond(1, 1, (0, 1, 0), kind=TOPOLOGY))
+    structure.touch()
+    with pytest.raises(CgdError, match="same place"):
+        entry_of(structure)
+
+
+def test_a_title_with_spaces_is_written_as_one_word():
+    """A name is one token to every reader; ``MOF 5`` would come back
+    as ``MOF``."""
+    structure = _pcu()
+    structure.meta["title"] = "MOF 5 net"
+    from xtal.io.cgd import entry_of, write_cgd_string
+
+    text = write_cgd_string([entry_of(structure)])
+    assert read_cgd_string(text).entries[0].name == "MOF_5_net"
+
+
+def test_a_coordinate_just_below_zero_is_not_written_negative():
+    from xtal.io.cgd import CgdEntry, CgdNode, write_cgd_string
+
+    entry = CgdEntry("x", "P1", (CgdNode("1", 2, (-1e-9, 0.0, 0.5)),),
+                     (((0.0, 0.0, 0.5), (1.0, 0.0, 0.5)),))
+    assert "-0.000000" not in write_cgd_string([entry])
+
+
+def test_the_writer_saves_to_a_file(tmp_path):
+    from xtal.io.cgd import entry_of, write_cgd
+
+    written = write_cgd(tmp_path / "pcu.cgd", [entry_of(_pcu(), "pcu")])
+    assert len(read_cgd(written)["pcu"].edges) == 3

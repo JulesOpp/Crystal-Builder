@@ -125,6 +125,10 @@ def build_actions(window):
         tip="Write a file for something else to read -- a CIF, an "
             "XYZ.  One way: it never becomes this document's file")
     add("export_image", "Export &Image...", window.export_image)
+    add("export_net", "Export &Net for Systre...", window.export_net,
+        tip="The net drawn on this structure as a .cgd file, for "
+            "Systre to name -- a second opinion on the Net panel that "
+            "does not come from the code that gave the first")
     add("export_stl", "Export as S&TL...", window.export_stl,
         tip="One unit cell with its bonds, as a mesh a 3D printer can "
             "take.  Blender does the meshing, so it has to be "
@@ -258,6 +262,11 @@ def build_actions(window):
         tip="Put an atom at the middle of the selected atoms -- a "
             "dummy atom, which bonds to nothing and is what net "
             "edges and measurements are drawn to, or an element")
+    add("merge_atoms", "Mer&ge atoms", window.merge_atoms,
+        tip="Replace the selected atoms with one at their middle -- "
+            "of their element when they share one, a dummy atom when "
+            "they do not.  Whole orbits go, as with Delete, and the "
+            "new atom is bonded to nothing")
     add("add_hydrogens", "Add &hydrogens...",
         window.add_hydrogens_dialog,
         tip="Complete every main-group coordination with the "
@@ -495,7 +504,7 @@ def build_menus(window):
     build_sample_menu(window)
     window.actions_.fill_menu(file_menu, [
         None, "save", "save_as",
-        None, "export", "export_image", "export_stl",
+        None, "export", "export_image", "export_stl", "export_net",
         "save_building_block",
         None, "new_workspace", "open_workspace",
         None, "close_tab", "close_all_tabs"])
@@ -522,9 +531,9 @@ def build_menus(window):
 
     structure_menu = submenu(bar, "S&tructure")
     window.actions_.fill_menu(structure_menu, [
-        "add_atom_dialog", "add_centroid", "add_hydrogens",
-        "insert_molecule", "fill_pores", "mark_connection_points",
-        None,
+        "add_atom_dialog", "add_centroid", "merge_atoms",
+        "add_hydrogens", "insert_molecule", "fill_pores",
+        "mark_connection_points", None,
         "bond_rules", "recompute_bonds", "reset_bonds",
         "bonds_follow"])
     window.bond_type_menu = add_bond_type_menu(window,

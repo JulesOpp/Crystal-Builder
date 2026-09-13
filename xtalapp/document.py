@@ -43,7 +43,7 @@ from xtal.commands.clipboard import (
 from xtal.core import bonding, measure, p1, properties, symmetry
 from xtal.core import selection as sel
 from xtal.core.selection import Selection
-from xtal.core.structure import CHEMISTRY, Change
+from xtal.core.structure import CHEMISTRY, TOPOLOGY, Change
 from xtal.io import (
     FORMATS,
     for_export,
@@ -827,6 +827,42 @@ class Document(QObject):
         return (f"centroid of {len(atoms)} atoms added as "
                 f"{self._structure.sites[placed].label}")
 
+    def merge_atoms(self) -> str:
+        """Replace the selected atoms with one at their middle.
+
+        What two half-occupied positions of a disordered atom, or a
+        cluster somebody wants reduced to a node, are collapsed into.
+        The merged atom keeps the element when every atom going into it
+        shares one, and is a dummy otherwise: a carbon and an oxygen
+        averaged are not either of them, and guessing would quietly
+        change what the crystal means.
+
+        One undo step, and the add goes first.  A site appended last
+        renumbers nothing, so the delete that follows still names the
+        sites it was asked to; the other way round, the centroid would
+        have to be measured over atoms that are already gone.  Like
+        Delete it removes whole orbits, and like Add centroid the new
+        atom is bonded to nothing and left selected.
+        """
+        atoms = sorted(self.selection.atoms)
+        if len(atoms) < 2:
+            return "select at least two atoms to merge"
+        symbols = {self.cell.elements[a] for a in atoms}
+        element = symbols.pop() if len(symbols) == 1 else "X"
+        point = measure.centroid(self.cell, self._structure.lattice,
+                                 atoms)
+        frac = self._structure.lattice.to_frac(point)
+        sites = sorted(self.selected_sites())
+        with self.transaction("Merge atoms"):
+            self.run(atom_commands.AddSites(
+                [atom_commands.new_site(element, frac)],
+                label="Merge atoms", perceive=False))
+            self.run(atom_commands.DeleteSites(sites))
+        placed = self._structure.n_sites - 1
+        self.select(self.cell.indices_of_site(placed).tolist())
+        return (f"merged {len(atoms)} atoms into "
+                f"{self._structure.sites[placed].label}")
+
     def delete_selection(self) -> str:
         """Delete the sites behind the selected atoms.  Symmetry ties
         images together, so this removes whole orbits."""
@@ -1176,6 +1212,27 @@ class Document(QObject):
         """
         del atom                        # the net is not an atom's
         return self.net_identification().sentence()
+
+    def has_net(self) -> bool:
+        """Whether anything has been drawn, without drawing it.
+
+        Asked on every refresh of the shell, a drag included, so it
+        reads the stored records rather than expanding the net.
+        """
+        return any(b.kind == TOPOLOGY for b in self._structure.bonds)
+
+    def export_net(self, path) -> Path:
+        """Write the drawn net as ``.cgd``, for Systre to name.
+
+        The block is named after the file, because the name is the
+        one thing Systre prints back and the file is what the user
+        chose to call it.  One way, like :meth:`export`: nothing about
+        the document changes.
+        """
+        from xtal.io.cgd import entry_of, write_cgd
+
+        path = Path(path)
+        return write_cgd(path, [entry_of(self._structure, path.stem)])
 
     def delete_selected_bonds(self) -> str:
         """Suppress every selected bond, as one undo step.

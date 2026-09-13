@@ -549,6 +549,44 @@ class DocumentSet:
         self.window.settings.last_directory = str(written.parent)
         self.window.show_message(f"wrote {written.name}")
 
+    def export_net(self) -> None:
+        """The drawn net as ``.cgd``, for Systre to name.
+
+        A plain save dialog rather than the Export one: the file holds
+        a net and no structure, so none of that dialog's choices --
+        format, selection only, what to clean -- mean anything for it.
+        """
+        document = self.current_document()
+        if document is None:
+            return
+        if not document.has_net():
+            self.window.show_message("no net has been drawn")
+            return
+        stem = (document.path.stem if document.path is not None
+                else str(document.structure.meta.get("title") or "net"))
+        suggested = Path(self.window.settings.last_directory) / \
+            f"{stem}.cgd"
+        chosen, _ = QFileDialog.getSaveFileName(
+            self.window, "Export net for Systre", str(suggested),
+            "Systre net (*.cgd)")
+        if not chosen:
+            return
+        target = Path(chosen)
+        if target.suffix.lower() != ".cgd":
+            target = target.with_name(target.name + ".cgd")
+        from xtal.io.cgd import CgdError
+        try:
+            written = document.export_net(target)
+        except (CgdError, OSError) as exc:
+            QMessageBox.warning(self.window, "Could not export net",
+                                str(exc))
+            return
+        self.window.settings.last_directory = str(written.parent)
+        self.window.show_message(
+            f"wrote {written.name} -- run Systre on it for a second "
+            f"opinion on the name")
+        self.window.refresh_workspace()
+
     def close_current(self) -> None:
         if self.tabs.currentIndex() >= 0:
             self.close_document(self.tabs.currentIndex())

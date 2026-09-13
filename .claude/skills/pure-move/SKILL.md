@@ -5,7 +5,7 @@ description: Move code between modules without changing behaviour - splitting ma
 
 # Moving code, and only moving code
 
-`mainwindow.py` is ~2400 lines and nearly every change touches it, so
+`mainwindow.py` is ~1800 lines and nearly every change touches it, so
 a split is worth doing — and is the change most likely to be smuggled
 in alongside a bug fix, after which neither can be reviewed. The rule
 is the whole skill: **a pure move changes no behaviour.**
@@ -43,9 +43,14 @@ python -m pytest -q
 
 Green before the commit, not once at the end. The suite is the only
 thing standing between a pure move and a silent behaviour change, and
-it is worth its 35 seconds here even though it is the wrong habit
-while iterating. A test that needed editing to keep passing means the
-move was not pure — say so rather than editing the test.
+it is worth its three minutes (serial; see CLAUDE.md) here even though
+it is the wrong habit while iterating. Run it in the background and
+read the result when it lands. A test that needed editing to keep
+passing means the move was not pure — say so rather than editing the
+test.
+
+Find the seams by outline, not by reading the file:
+`python .claude/skills/code-map/outline.py xtalapp/mainwindow.py`.
 
 Add the new module to `packages` in `pyproject.toml` if it is a new
 package rather than a module in an existing one.

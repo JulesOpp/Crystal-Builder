@@ -355,7 +355,7 @@ stress case).
 
 ## Working in `mainwindow.py`
 
-It is ~2400 lines and is touched by nearly every change. When editing
+It is ~1800 lines and is touched by nearly every change. When editing
 it, read the specific method rather than the whole file, and prefer a
 targeted `Edit` over rewriting the file.
 
@@ -370,13 +370,32 @@ structure loses interactivity.
 
 `.claude/skills/` holds the workflows that are worth not re-deriving:
 
-- **run-app** — launch the real window and drive it.
-  `python .claude/skills/run-app/drive.py --open FILE --action NAME
-  --viewport-shot OUT.png`. The suite stubs the viewport and cannot
-  press a button; this can. Use it whenever "it works" needs looking
-  at, and `--list-actions` to find an action's registry name.
-- **pure-move** — moving code between modules without changing
+- **code-map**: outline a file (line, signature, first docstring
+  sentence) or `--find` a definition, instead of reading the file.
+  `python .claude/skills/code-map/outline.py xtalapp/document.py`.
+  Use it before opening anything large.
+- **plan-feature**: the shape a plan takes here: measure first, name
+  the invariants, phases with files and test names, a run-app check,
+  the docs to update. Planning only.
+- **add-action**: a menu, toolbar or context-menu command, from
+  `build_actions` to `Document` verb, enabling rules and tests.
+- **add-module**: a calculation: a `MODULES` entry (runs and leaves a
+  folder) or an `ENGINES` entry (energy and forces), with binaries,
+  extras, dialogs, packaging and tests.
+- **run-app**: launch the real window and drive it.
+  `python .claude/skills/run-app/drive.py --scratch DIR --open FILE
+  --action NAME --viewport-shot OUT.png`. The suite stubs the viewport
+  and cannot press a button; this can. `--grab` screenshots one dock
+  or dialog, `--list-actions` / `--list-docks` name things, and
+  `--scratch` keeps your real preferences and workspaces out of it.
+- **pure-move**: moving code between modules without changing
   behaviour. One seam per commit, green suite between steps.
+- **ui-text**: every user-visible string out to a CSV for the user to
+  reword, and applied back re-wrapped, with the tests that quote the
+  old wording listed.
+- **manual-writing**: the user manual in `docs/manual` (Sphinx +
+  MyST): generated reference pages, scripted screenshots, one chapter
+  per session.
 
 ## Planning documents
 

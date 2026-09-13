@@ -26,6 +26,7 @@ from PySide6.QtCore import Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QDockWidget,
+    QHBoxLayout,
     QLabel,
     QPlainTextEdit,
     QPushButton,
@@ -48,6 +49,9 @@ class NetDock(QDockWidget):
     """The identification of the net in the active document."""
 
     statusMessage = Signal(str)
+    #: Export the net for Systre.  The window owns the save dialog and
+    #: the workspace refresh, so the panel only asks.
+    exportRequested = Signal()
 
     def __init__(self, parent=None):
         super().__init__("Net", parent)
@@ -80,12 +84,23 @@ class NetDock(QDockWidget):
         self.copy.setToolTip("Copy the identification to the clipboard")
         self.copy.clicked.connect(self._on_copy)
 
+        # Beside the name it doubts: the reason to write the file is
+        # to check this panel's answer against Systre's.
+        self.export = QPushButton("Export for Systre...")
+        self.export.setToolTip(
+            "Save the net as a .cgd file that Systre can name, for a "
+            "second opinion that does not come from this panel")
+        self.export.clicked.connect(self.exportRequested)
+
         layout = QVBoxLayout()
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(6)
         layout.addWidget(self.name)
         layout.addWidget(self.text, 1)
-        layout.addWidget(self.copy)
+        buttons = QHBoxLayout()
+        buttons.addWidget(self.copy)
+        buttons.addWidget(self.export)
+        layout.addLayout(buttons)
 
         container = QWidget()
         container.setLayout(layout)
@@ -126,18 +141,21 @@ class NetDock(QDockWidget):
             self.name.setText("")
             self.text.setPlainText("No structure open.")
             self.copy.setEnabled(False)
+            self.export.setEnabled(False)
             return
         net = document.net()
         if net.is_empty():
             self.name.setText("")
             self.text.setPlainText(EMPTY)
             self.copy.setEnabled(False)
+            self.export.setEnabled(False)
             return
         report = document.net_identification()
         self.name.setText(report.headline())
         self.text.setPlainText("\n".join(
             report.lines()[1:] + ["", _drawn(net)]).strip())
         self.copy.setEnabled(True)
+        self.export.setEnabled(True)
 
     def _on_copy(self) -> None:
         from PySide6.QtWidgets import QApplication

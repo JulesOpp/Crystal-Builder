@@ -1,16 +1,61 @@
 # TODO
-# Add an option below "Add centroid..." called "Merge atoms" that will take selected atoms, add a centroid between them, and delete the original selected atoms
 
 Work that is wanted but not yet scheduled into a phase.
-[docs/PLAN.md](PLAN.md) holds the roadmap; this file holds everything
-that came up while using the application and does not belong to a phase
-yet.  An entry gets deleted when it ships, not ticked.
-
-[docs/ROADMAP.md](ROADMAP.md) is the delivery plan for what is in
-here: which phase each entry belongs to, in what order, and what has to
-exist before it.
+[docs/PLAN.md](PLAN.md) holds the architecture;
+[docs/ROADMAP.md](ROADMAP.md) schedules what is in here.  This file
+holds everything that came up while using the application.  An entry
+gets deleted when it ships, not ticked.
 
 ---
+
+## Interface
+
+### Window and dock resizing does not work consistently
+
+Dragging a dock's edge, or the splitter between a dock area and the
+viewport, sometimes does nothing and sometimes stops short.  Not yet
+reproduced on purpose; three suspects, each checkable on its own:
+
+* **Hard minimum widths.**  `InfoDock` and `NetDock` set
+  `setMinimumWidth(380)` on their text (`xtalapp/docks/info.py`,
+  `xtalapp/docks/net.py`), and `TrajectoryDock` 220 on its frame label.
+  A tabbed dock area cannot be narrower than the widest minimum of
+  *any* of its tabs, shown or not, so the right-hand column stops at a
+  width set by a panel the user is not looking at.
+* **Panels wider than their column.**  The Force Field and DFTB+ docks
+  already need a horizontal scroll bar at 420 px -- the DFTB+ buttons
+  are cut off at *Pause* -- and their size hints feed the same minimum.
+* **Floating docks restored off-screen.**  A launch prints
+  `Window position QRect(-1015,-863 515x363) outside any known screen`
+  several times: `AppSettings.restore_window` restores dock geometry
+  saved on a different screen arrangement, and `fit_to_screen` fits the
+  main window and not its floating docks.
+
+Start by driving it: `run-app` with `--eval` calling
+`win.resizeDocks([...], [...], Qt.Horizontal)` on the right column
+and printing `dock.minimumSizeHint()` for each tab.
+
+### The net in the MOF builder cannot be turned
+
+`NetPreview` in `xtalapp/dialogs/mof_preview.py` draws the chosen net
+as a fixed orthographic projection with `QPainter`.  Recognising a
+net from one angle works for `pcu` and fails for anything whose
+defining feature is edge-on from that angle.  Wanted: drag to rotate,
+the way the viewport does, and a reset.  It should stay a `QPainter`
+widget -- the module docstring's reason for not using the viewport
+still holds -- so this is a rotation matrix updated on mouse drag and
+applied before the projection, not a GL context.
+
+### The cell spin boxes step by half a cell
+
+The toolbar's `cells a b c` boxes (`build_toolbar` in
+`xtalapp/menus.py`) use `setSingleStep(0.5)`.  The arrows should step
+by 1; typing 1.5 should still work, because the box stays a
+`QDoubleSpinBox`.  The comment above it argues for fractions, which
+is still right for *typing*, and should be reworded to say so.
+`test_a_cell_spinbox_takes_half_a_cell` in `tests/test_app_shell.py`
+sets 1.5 directly and keeps passing; the new test is that
+`stepBy(1)` from 1 gives 2.
 
 ## Symmetry
 
@@ -65,6 +110,12 @@ build the engine over quartz, compare `Result.stress` against
 `Calculator.numeric_stress`, and vary the strain to show which of the
 two is the unreliable one.  `tests/test_xtb.py` asserts only that no
 stress is claimed, which is today's behaviour and not the wanted one.
+
+The DFTB+ panel's own variable-cell relaxation has the same gap:
+DFTB+'s printed stress tensor has never been checked against a numeric
+one, so the panel pays for a numeric stress.  The native driver
+(*Optimise with DFTB+'s driver*) sidesteps it, because LatticeOpt uses
+DFTB+'s stress inside DFTB+.
 
 ### The GFN methods are one binary each, and it is not by choice
 
@@ -125,56 +176,25 @@ reported.  Two things it does not do, and neither blocks anything:
   surface ever needs to be *written* -- an STL for a figure, or the
   project file it is deliberately kept out of.
 
-## Topology
+### The .cgd writer has never met Systre
 
-### Nothing can export a net for Systre to check
+File ▸ Export Net for Systre is checked by reading the file back
+through this application's own expansion, which is not an independent
+check.  Run Systre on MOF-5's and rutile's exported nets once and keep
+the output beside the tests.  Java 8 is installed; Systre is not.
 
-The naming itself has shipped: the Net panel says **pcu**, the
-invariants it rests on are underneath it, and the canonical key of
-[docs/TOPOLOGY.md](TOPOLOGY.md) § 5 makes that a decision rather than a
-match.  What is missing is the way to doubt it.
+## Testing and threads
 
-`xtal/io/cgd.py` reads `.cgd` and does not write it.  A writer, and an
-action that saves the drawn net through it, is the only way to put a
-net in front of **Systre** -- the reference implementation, in Java --
-and get a second opinion that does not come from the same code that
-produced the first.  The key checks itself against a supercell of
-itself and against 2929 catalogued nets, and neither of those is an
-independent check.
+### A finished worker thread can deadlock the application
 
-Small: the format is one `CRYSTAL` block with `NAME`, `GROUP P1`,
-`CELL` and one `NODE` per vertex with an `EDGE` per edge, and the net
-is already in exactly that shape.
+This is an application bug that shows up as a test hang, and
+[CLAUDE.md](../CLAUDE.md) § Testing the GUI has the diagnosis.
+`xtalapp/workers.py` connects `worker.finished` to `thread.quit`;
+PySide6 can free the `QThread` wrapper *inside* signal delivery while
+Qt holds the connection mutex, and a thread holding the GIL that then
+asks Qt to connect anything waits forever.  The same race can hang the
+shipped application when a module run finishes.
 
-## Testing
-
-### The parallel suite hangs about one run in ten
-
-`python -m pytest -q` finishes in 40-55 s almost every time, and
-roughly once in ten it stops at about 96% and never returns.  Serial
-(`-n0`) has never done it in 1563 tests, and the GUI files on their own
-have never done it either -- it takes the whole suite under `-n auto`.
-
-* **Nothing is computing when it happens.**  Sampling the processes at
-  the stall shows the controller *and* all eight workers parked in
-  `lock_PyThread_acquire_lock`, with the receiver threads blocked
-  reading their pipes: everyone is waiting to be told what to do next.
-  It is xdist losing a unit of work, not a test looping.
-* **The test left unfinished is a different one each time**, and it has
-  always so far been one that builds the `window` fixture and starts a
-  worker thread -- `test_the_pressure_box_follows_the_cell_checkbox`,
-  `test_freezing_everything_refuses_instead_of_running`,
-  `test_the_parameters_are_offered_again_next_time`.  Each of them
-  passes on its own and passes with the other GUI files, repeatedly.
-* The suspicion worth starting from is a worker thread outliving the
-  window that parented it -- `start_in_thread(worker, window)` in
-  `xtalapp/workers.py` -- and the report for that test never being
-  sent, rather than anything in the test itself.
-* **It predates the shell split.**  Measured against
-  `xtalapp/layout.py`'s commit: HEAD 8 runs clean, the branch 10 clean
-  and 1 hung, which is the same rate either side.
-* Until it is found: a hang is not a failed run, it is *this*.  Kill it
-  and run again, and clear the orphans first --- `pkill -f pytest;
-  pkill -9 -f "stdin.readline"` --- because a killed run leaves workers
-  that wedge every later one, which is how this gets mistaken for a
-  regression in whatever was being worked on at the time.
+Holding the pair alive from Python is the obvious remedy and is not
+enough on its own: it broke `test_modules_ui` outright.  Fixing this is
+also what gives back `-n auto` -- 25 s instead of about 173 s serial.

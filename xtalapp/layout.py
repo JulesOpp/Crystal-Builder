@@ -74,6 +74,7 @@ def build_docks(window):
     # one after the other.
     window.net_dock = NetDock(window)
     window.net_dock.statusMessage.connect(window.show_status)
+    window.net_dock.exportRequested.connect(window.export_net)
     window.sites_dock = SitesDock(window)
     window.move_dock = MoveDock(window)
     window.move_dock.statusMessage.connect(window.show_status)
