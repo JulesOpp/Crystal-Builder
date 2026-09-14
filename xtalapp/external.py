@@ -72,7 +72,7 @@ def apply_hints(settings) -> None:
 
 @dataclass(frozen=True)
 class Tool:
-    """One row of Preferences > External tools."""
+    """One row of Preferences > Engines."""
 
     key: str                    # the preference that stores the path
     label: str
@@ -145,6 +145,23 @@ def status(settings, tool: Tool) -> tuple[bool, str]:
     if tool.key == SLATER_KOSTER:
         return _parameters_status(settings.path_setting(tool.key))
     return _blocks_status(tool, settings.path_setting(tool.key))
+
+
+def locate(settings, tool: Tool) -> Path | None:
+    """The file a Test button runs: the one :func:`status` reports.
+
+    Found the same way, in the same order, so that a row that says
+    "Found at X" never tests a Y.
+    """
+    program = program_for(tool.key)
+    if program is None:
+        return None
+    for _source, _candidate, found in program.search(
+            settings.path_setting(tool.key)):
+        if found is not None:
+            return Path(found)
+    bundled = _BUNDLED.get(tool.key)
+    return bundled() if bundled is not None else None
 
 
 # -- one program -------------------------------------------------------

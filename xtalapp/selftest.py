@@ -26,7 +26,7 @@ It checks the five things that break in a bundle and nowhere else:
 4. **The bundled extras.**  RDKit and rdeditor are collected whole
    and RDKit carries data directories, so an import can succeed
    against a build whose parameter files did not come along.
-   *Preferences > Optional features* promises both work; in a bundle
+   *Preferences > Engines* promises both work; in a bundle
    the user cannot check that, so this does.
 5. **The VTK OpenGL context.**  Rendering is the single largest thing
    in the bundle and the most likely to have been pruned too hard.
@@ -148,7 +148,7 @@ def check_samples(report) -> None:
 def check_extras(report) -> None:
     """The optional packages a packaged build promises are there.
 
-    *Preferences > Optional features* tells the user that RDKit and
+    *Preferences > Engines* tells the user that RDKit and
     rdeditor are included and working.  In a bundle the user cannot
     check that, so this does.  The MOF builder used to be the third
     row and the one that said "not included"; it is vendored now and
@@ -333,6 +333,30 @@ def check_window(report, shot: Path | None) -> None:
                    f"({shot.stat().st_size} bytes)")
     finally:
         window.close()
+
+
+def import_one(package: str, out=None) -> int:
+    """Import one package and print its name and version; 0 if it
+    imported.
+
+    The Test button on Preferences > Engines asks a source checkout
+    with ``python -c "import rdkit"``.  A frozen build has no
+    ``python`` to ask -- ``sys.executable`` is the application -- so
+    it is asked through this, in a process of its own, for the same
+    reason: a package whose compiled half is broken can abort whatever
+    imports it, and that must not be the window somebody is using.
+    """
+    import importlib
+
+    out = sys.stdout if out is None else out
+    try:
+        module = importlib.import_module(package)
+    except Exception as exc:                        # noqa: BLE001
+        print(f"{type(exc).__name__}: {exc}", file=out, flush=True)
+        return 1
+    print(package, getattr(module, "__version__", ""), file=out,
+          flush=True)
+    return 0
 
 
 def run(shot: Path | None = None, out=None) -> int:

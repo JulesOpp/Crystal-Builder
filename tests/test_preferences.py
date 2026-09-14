@@ -20,7 +20,7 @@ from PySide6.QtGui import QAction  # noqa: E402
 from PySide6.QtWidgets import QWidget  # noqa: E402
 
 from xtal.core import bonding  # noqa: E402
-from xtalapp import external, menus  # noqa: E402
+from xtalapp import external, extras, menus  # noqa: E402
 from xtalapp.dialogs.preferences import PreferencesDialog  # noqa: E402
 from xtalapp.mainwindow import MainWindow  # noqa: E402
 from xtalapp.settings import (  # noqa: E402
@@ -78,8 +78,7 @@ def test_the_pages_are_a_list_and_a_stack(dialog):
     titles = [dialog.list.item(i).text()
               for i in range(dialog.list.count())]
 
-    assert titles == ["General", "View defaults", "Bonding",
-                      "External tools", "Optional features"]
+    assert titles == ["General", "View defaults", "Bonding", "Engines"]
     assert dialog.stack.count() == len(titles)
 
 
@@ -305,7 +304,7 @@ def test_bonds_following_the_geometry_is_the_menu_s_own_setting(
     assert document.bonds_follow_geometry is True
 
 
-# -- External tools ----------------------------------------------------
+# -- Engines -----------------------------------------------------------
 
 def _fake_binary(directory, name="network"):
     """Something shutil.which will say yes to."""
@@ -321,7 +320,7 @@ def _fake_binary(directory, name="network"):
 def test_a_path_typed_here_is_stored_and_reported(dialog, settings,
                                                   tmp_path):
     binary = _fake_binary(tmp_path)
-    page = dialog.page("External tools")
+    page = dialog.page("Engines")
 
     page.fields["tools/zeopp"].setText(str(binary))
 
@@ -340,7 +339,7 @@ def test_naming_a_binary_lights_up_its_module_without_a_restart(
     assert not window._module_submenus["zeopp"].isEnabled()
     dialog = window.preferences_dialog()
 
-    dialog.page("External tools").fields["tools/zeopp"].setText(
+    dialog.page("Engines").fields["tools/zeopp"].setText(
         str(_fake_binary(tmp_path)))
 
     assert window._module_submenus["zeopp"].isEnabled()
@@ -351,7 +350,7 @@ def test_a_path_that_is_wrong_is_named_rather_than_reddened(
     from xtal.modules import zeopp
     monkeypatch.setattr(zeopp, "bundled", lambda: None)
     monkeypatch.delenv(zeopp.PROGRAM.env_var, raising=False)
-    page = dialog.page("External tools")
+    page = dialog.page("Engines")
 
     page.fields["tools/zeopp"].setText(str(tmp_path / "typo"))
 
@@ -365,7 +364,7 @@ def test_the_parameter_folder_becomes_the_run_form_s_default(
     field only: what somebody typed for this run is this run's."""
     dialog = window.preferences_dialog()
 
-    dialog.page("External tools").fields[
+    dialog.page("Engines").fields[
         external.SLATER_KOSTER].setText(str(tmp_path))
 
     form = window.dftb_dock.engine_forms["dftb"]
@@ -378,10 +377,88 @@ def test_a_directory_typed_for_this_run_is_not_overwritten(window,
     form.set_values({"parameter_directory": "/typed/for/this/run"})
     dialog = window.preferences_dialog()
 
-    dialog.page("External tools").fields[
+    dialog.page("Engines").fields[
         external.SLATER_KOSTER].setText(str(tmp_path))
 
     assert form.values()["parameter_directory"] == "/typed/for/this/run"
+
+
+def test_every_tool_and_extra_has_a_row_on_the_engines_page(dialog):
+    """One page for "why is this greyed out", so nothing that can grey
+    an entry out may be missing from it -- and every program on it can
+    be run from it."""
+    page = dialog.page("Engines")
+
+    assert set(page.fields) == {tool.key for tool in external.TOOLS}
+    assert set(page.rows) == {extra.package for extra in extras.EXTRAS}
+    assert set(page.tests) == (
+        {p.setting for p in external.PROGRAMS}
+        | {extra.package for extra in extras.EXTRAS})
+
+
+def _answering(page, monkeypatch, argv, **kwargs):
+    from xtal.modules import probe
+    asked = probe.Probe(tuple(argv), **kwargs)
+    monkeypatch.setattr(page, "_probe", lambda _key: asked)
+    return asked
+
+
+def test_a_test_button_reports_what_the_program_printed(
+        qtbot, dialog, monkeypatch):
+    page = dialog.page("Engines")
+    _answering(page, monkeypatch, ["/bin/echo", "DFTB+ release 24.1"])
+
+    page.tests["tools/dftb"].click()
+
+    result = page.results["tools/dftb"]
+    qtbot.waitUntil(lambda: not page.is_testing("tools/dftb"),
+                    timeout=5000)
+    assert result.text() == "DFTB+ release 24.1"
+    assert not result.isHidden()
+    assert page.tests["tools/dftb"].isEnabled()
+
+
+def test_a_test_button_is_disabled_while_its_probe_runs(
+        qtbot, dialog, monkeypatch):
+    """Blender takes three seconds to say its version, and a second
+    press in that time would start a second Blender."""
+    page = dialog.page("Engines")
+    _answering(page, monkeypatch, ["/bin/sleep", "5"])
+
+    page.test("tools/blender")
+
+    assert page.is_testing("tools/blender")
+    assert not page.tests["tools/blender"].isEnabled()
+    assert page.tests["tools/zeopp"].isEnabled()
+    dialog.done(0)
+    assert not page.is_testing("tools/blender")
+    assert page.tests["tools/blender"].isEnabled()
+
+
+def test_a_probe_that_does_not_answer_is_stopped_and_says_so(
+        qtbot, dialog, monkeypatch):
+    page = dialog.page("Engines")
+    _answering(page, monkeypatch, ["/bin/sleep", "5"], timeout=0.2)
+
+    page.test("tools/xtb")
+
+    qtbot.waitUntil(lambda: not page.is_testing("tools/xtb"),
+                    timeout=5000)
+    assert "did not answer within 0.2 s" in page.results[
+        "tools/xtb"].text()
+
+
+def test_a_program_that_is_not_there_is_not_run(dialog, settings,
+                                                tmp_path, monkeypatch):
+    from xtal.ff.xtb import calculator as xtb
+    monkeypatch.setenv("PATH", str(tmp_path))
+    monkeypatch.delenv(xtb.XTB.env_var, raising=False)
+    page = dialog.page("Engines")
+
+    page.test("tools/xtb")
+
+    assert not page.is_testing("tools/xtb")
+    assert "nothing to run" in page.results["tools/xtb"].text()
 
 
 # -- what has to reach further than the next session --------------------

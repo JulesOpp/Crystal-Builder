@@ -48,7 +48,7 @@ def page(dialog):
     one: a page whose dialog has been collected is a deleted C++
     object, and the test that finds out says so in a traceback with no
     Python in it."""
-    return dialog.page("Optional features")
+    return dialog.page("Engines")
 
 
 def extra(package):

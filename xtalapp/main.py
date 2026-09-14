@@ -23,7 +23,8 @@ rather than a plain ``QApplication``, so that a file the desktop
 hands over has somewhere to land -- see that module for why the
 order below matters.
 
-``--selftest`` is the one flag this entry point takes, and it is here
+``--selftest`` is the one flag this entry point takes (with
+``--selftest-import``, its one-package cousin), and it is here
 rather than in a script beside it because the only place it is useful
 is *inside a frozen build*, where there is nothing beside it.  See
 :mod:`xtalapp.selftest`.
@@ -44,6 +45,8 @@ os.environ.setdefault("QT_API", "pyside6")
 #: ``-h`` in a windowed build that has no console to answer it into.
 SELFTEST = "--selftest"
 SELFTEST_SHOT = "--selftest-image"
+#: One import, for Preferences > Engines in a frozen build.
+IMPORT_FLAG = "--selftest-import"
 
 
 def choose_workspace(paths, settings, parent=None):
@@ -97,6 +100,15 @@ def main(argv=None) -> int:
         log.warning("plugin %s failed to load: %s", name, message)
 
     argv = list(sys.argv if argv is None else argv)
+
+    if IMPORT_FLAG in argv:
+        # After the packages folder went on the path, so that a package
+        # somebody added to this copy is one the Test button can see.
+        from xtalapp import selftest
+
+        index = argv.index(IMPORT_FLAG) + 1
+        return selftest.import_one(argv[index] if index < len(argv)
+                                   else "")
 
     if SELFTEST in argv:
         from pathlib import Path

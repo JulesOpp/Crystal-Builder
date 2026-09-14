@@ -66,7 +66,7 @@ about 889 MB — `jax` and `pymatgen` among them — which is larger than
 the rest of the application put together. The entry greys out saying
 so. Net identification, the RCSR index and the `.cgd` reader are this
 project's own code and keep working; only the builder dialog is
-affected. *Preferences → Optional features* explains the two routes to
+affected. *Preferences → Engines* explains the two routes to
 having it, and recommends running from Python:
 
 ```bash
@@ -77,13 +77,13 @@ crystal-builder
 **Zeo++ and DFTB+ are found, never carried.** They have their own
 licences and citation terms, and DFTB+ is a conda package. Install
 either one however you normally would and point at it in
-*Preferences → External tools*, which says what it looked for and
+*Preferences → Engines*, which says what it looked for and
 where. `XTAL_ZEOPP`, `DFTB_PREFIX` and `PATH` all still work.
 
 **Plugins installed with `pip` do not load in a packaged build.** A
 frozen application has no `pip` and nowhere to install one to, so the
-shipped build runs in-tree modules only. *Preferences → Optional
-features* offers a folder that is added to the import path at
+shipped build runs in-tree modules only. *Preferences → Engines*
+offers a folder that is added to the import path at
 start-up, which works for pure-Python packages. Run from Python if you
 need more than that.
 

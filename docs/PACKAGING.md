@@ -211,7 +211,7 @@ because the reversal is only legible against it:
 "Repeat `pip install 'crystal-builder[mof]'` in a nicer dialog" is not
 an answer in a bundle, because there is no environment to install
 into: the bundled interpreter is not on the user's PATH and has no
-`pip`.  That is why *Preferences → Optional features* knows which
+`pip`.  That is why *Preferences → Engines* knows which
 build it is in and says different things.
 
 ### The reversal, which is the interesting part
@@ -245,8 +245,8 @@ what make `pip install crystal-builder` usable on a cluster node, and
 `xtal.modules.mof.available` greys the entry out naming
 `crystal-builder[ase]` when it is missing.  The build jobs install it.
 
-**Preferences → Optional features no longer lists the MOF builder at
-all**, because a page listing a feature that ships as optional is the
+**Preferences → Engines (then Optional features) no longer lists the
+MOF builder at all**, because a page listing a feature that ships as optional is the
 untrue thing that page exists to avoid.  What is left of that box is
 the folder on `sys.path`, which was always the general mechanism and
 is now described as one.

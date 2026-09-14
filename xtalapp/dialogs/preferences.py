@@ -32,7 +32,10 @@ has to reach the Modules menu and the run panels.
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+import shutil
+import tempfile
+
+from PySide6.QtCore import QProcess, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -54,6 +57,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.core import bonding
+from xtal.modules import probe as probes
 from xtalapp import external, extras
 from xtalapp.dialogs.bond_rules import BondRulesDialog
 from xtalapp.viewport import styles
@@ -375,22 +379,86 @@ def describe_rules(stored: dict) -> str:
     return ", ".join(parts) + "."
 
 
-class ExternalToolsPage(QWidget):
-    """Where the programs this application shells out to are.
+class _Command(QWidget):
+    """A command to type, and the button that saves typing it.
 
-    The page a packaged build exists for.  Zeo++, DFTB+ and the
-    Slater-Koster sets are found through ``XTAL_ZEOPP``,
-    ``XTAL_DFTB`` and ``DFTB_PREFIX``, which is right in a terminal
-    and useless in a double-clicked application: there is no shell to
-    export one in.
-
-    Every row carries a status line, and that line is the feature.  A
-    path field that turns red says nothing anybody can act on; "Not
-    found.  Looked at XTAL_ZEOPP, which is not set, and on PATH" is
-    the sentence that saves an afternoon.  See :mod:`xtalapp.external`.
+    A line of shell in a dialog is a thing somebody has to retype by
+    hand into a terminal, and mistyping a quoted extra is the most
+    likely way to end up believing the advice was wrong.
     """
 
-    TITLE = "External tools"
+    def __init__(self, command: str, parent=None):
+        super().__init__(parent)
+        self.field = QLineEdit(command)
+        self.field.setReadOnly(True)
+        self.field.setCursorPosition(0)
+        self.copy = QPushButton("Copy")
+        self.copy.clicked.connect(self._copy)
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.addWidget(self.field, 1)
+        row.addWidget(self.copy)
+
+    def text(self) -> str:
+        return self.field.text()
+
+    def _copy(self) -> None:
+        from PySide6.QtWidgets import QApplication
+        QApplication.clipboard().setText(self.field.text())
+        self.copy.setText("Copied")
+
+
+#: The programs, in the order the page lists them.  DFTB+'s two tools
+#: and its parameters sit under it, indented, because none of them
+#: means anything without it.
+_PROGRAM_ROWS = ("tools/zeopp", "tools/dftb", "tools/tblite",
+                 "tools/xtb", "tools/blender")
+_UNDER = {"tools/dftb": ("tools/waveplot", "tools/modes",
+                         external.SLATER_KOSTER)}
+#: Not engines: data a program reads.  Their own group, last.
+_OWN_DATA = ("mof/topology_dir", "mof/bb_dir")
+
+
+def _heading(text: str) -> QLabel:
+    label = QLabel(text)
+    font = label.font()
+    font.setBold(True)
+    font.setPointSizeF(font.pointSizeF() * 1.15)
+    label.setFont(font)
+    return label
+
+
+class EnginesPage(QWidget):
+    """Every program and package a feature runs on, whether it is
+    here, and a button that finds out whether it *works*.
+
+    This was two pages, External tools and Optional features, and they
+    answered one question -- "why is this greyed out" -- in two places.
+    One page now, in three groups: the programs this application shells
+    out to, the Python packages it imports, and the folders of nets and
+    blocks a user adds to PORMAKE's, which are not engines but are
+    still paths somebody has to be able to set.
+
+    **Every row carries a status line, and that line is the feature.**
+    A path field that turns red says nothing anybody can act on; "Not
+    found.  Looked at XTAL_ZEOPP, which is not set, and on PATH" is the
+    sentence that saves an afternoon.  See :mod:`xtalapp.external`.
+
+    **Test runs the program.**  Found is not the same as working -- a
+    binary for the other architecture is found -- so the button starts
+    it for a moment and shows what it printed.  Through ``QProcess``,
+    never a worker thread: a probe is a child process with nothing to
+    compute in Python, and a ``QThread`` would put the button on the
+    path of the deadlock described in ``CLAUDE.md``.  How each program
+    is asked is :mod:`xtal.modules.probe`.
+
+    **A packaged build says different things.**  There is no
+    environment to install into, and advice to install something is a
+    polished way of saying something untrue; the wording, and the
+    decision behind it, are :mod:`xtalapp.extras`.
+    """
+
+    TITLE = "Engines"
 
     #: A path was changed.  The window pushes the new one into
     #: :mod:`xtal`'s lookup and asks the Modules menu again, which is
@@ -400,14 +468,47 @@ class ExternalToolsPage(QWidget):
     def __init__(self, settings, parent=None):
         super().__init__(parent)
         self.settings = settings
+        #: Path fields and status lines, by preference key.
         self.fields: dict = {}
         self.status: dict = {}
+        #: Status lines of the packages, by package name.
+        self.rows: dict = {}
+        #: Test buttons and what they last reported, by preference key
+        #: for a program and by package name for a package.
+        self.tests: dict = {}
+        self.results: dict = {}
+        self._running: dict = {}
+        tools = {tool.key: tool for tool in external.TOOLS}
+
         layout = QVBoxLayout(self)
-        for tool in external.TOOLS:
-            layout.addWidget(self._row(tool))
+        layout.addWidget(_heading("Programs"))
+        for key in _PROGRAM_ROWS:
+            layout.addWidget(self._tool_row(tools[key]))
+            for under in _UNDER.get(key, ()):
+                indented = QWidget()
+                inner = QVBoxLayout(indented)
+                inner.setContentsMargins(24, 0, 0, 0)
+                inner.addWidget(self._tool_row(tools[under]))
+                layout.addWidget(indented)
+
+        layout.addWidget(_heading("Python packages"))
+        layout.addWidget(_hint(
+            "This is a packaged build: the Python inside it is not "
+            "yours and has no pip." if extras.frozen() else
+            "Running from a source checkout, so these commands are "
+            "for the environment it is running in."))
+        for extra in extras.EXTRAS:
+            layout.addWidget(self._extra_row(extra))
+        layout.addWidget(self._packages_box())
+
+        layout.addWidget(_heading("Your own nets and blocks"))
+        for key in _OWN_DATA:
+            layout.addWidget(self._tool_row(tools[key]))
         layout.addStretch(1)
 
-    def _row(self, tool) -> QGroupBox:
+    # -- the rows ------------------------------------------------------
+
+    def _tool_row(self, tool) -> QGroupBox:
         box = QGroupBox(tool.label)
         inner = QVBoxLayout(box)
         inner.addWidget(_hint(tool.hint))
@@ -422,6 +523,8 @@ class ExternalToolsPage(QWidget):
         row = QHBoxLayout()
         row.addWidget(field, 1)
         row.addWidget(browse)
+        if external.program_for(tool.key) is not None:
+            row.addWidget(self._test_button(tool.key))
         inner.addLayout(row)
 
         status = QLabel()
@@ -430,6 +533,68 @@ class ExternalToolsPage(QWidget):
         self.fields[tool.key] = field
         self.status[tool.key] = status
         self._show_status(tool)
+        if tool.key in self.tests:
+            inner.addWidget(self.results[tool.key])
+        return box
+
+    def _extra_row(self, extra) -> QGroupBox:
+        ok, sentence = extras.status(extra)
+        box = QGroupBox(f"{extra.label} ({extra.package})")
+        inner = QVBoxLayout(box)
+        inner.addWidget(_hint(extra.powers))
+        state = QLabel(sentence)
+        state.setWordWrap(True)
+        state.setStyleSheet("" if ok else "color: #8a5a00;")
+        row = QHBoxLayout()
+        row.addWidget(state, 1)
+        row.addWidget(self._test_button(extra.package), 0, Qt.AlignTop)
+        inner.addLayout(row)
+        if not ok and not extras.frozen():
+            inner.addWidget(_Command(extra.command()))
+        inner.addWidget(self.results[extra.package])
+        self.rows[extra.package] = state
+        return box
+
+    def _test_button(self, key: str) -> QPushButton:
+        button = QPushButton("Test")
+        button.setToolTip("Run it for a moment and show what it says")
+        button.setAutoDefault(False)
+        button.clicked.connect(lambda _c=False, k=key: self.test(k))
+        result = QLabel()
+        result.setWordWrap(True)
+        result.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse)
+        result.hide()
+        self.tests[key] = button
+        self.results[key] = result
+        return button
+
+    def _packages_box(self) -> QGroupBox:
+        """The folder a frozen build can have a package added to.
+
+        This used to be "Having the MOF builder anyway", offering two
+        routes to a PORMAKE that was not in the bundle.  PORMAKE is
+        vendored now, so the box is what it always really was: the one
+        mechanism a build with no pip has for adding a package at all.
+        The caveat in ``extras.TARGET_WARNING`` is unchanged and was
+        never specific to PORMAKE.
+        """
+        box = QGroupBox("Adding a package to this copy")
+        inner = QVBoxLayout(box)
+        inner.addWidget(_hint(extras.PACKAGES_REASON))
+
+        self.target_command = _Command(extras.target_command())
+        inner.addWidget(self.target_command)
+        warning = QLabel(extras.TARGET_WARNING)
+        warning.setWordWrap(True)
+        warning.setStyleSheet("color: #8a5a00;")
+        inner.addWidget(warning)
+        self.reveal = QPushButton("Show the folder")
+        self.reveal.clicked.connect(lambda: extras.reveal())
+        row = QHBoxLayout()
+        row.addWidget(self.reveal)
+        row.addStretch(1)
+        inner.addLayout(row)
         return box
 
     # -- what the controls do ------------------------------------------
@@ -460,110 +625,102 @@ class ExternalToolsPage(QWidget):
         # grey, and the answer must not read as more of the blurb.
         label.setStyleSheet("" if ok else "color: #8a5a00;")
 
+    # -- Test ----------------------------------------------------------
 
-class _Command(QWidget):
-    """A command to type, and the button that saves typing it.
+    def _probe(self, key: str):
+        """How to ask the program or package ``key``, or the sentence
+        saying there is nothing to ask."""
+        if key in {extra.package for extra in extras.EXTRAS}:
+            return probes.probe_for_package(key, frozen=extras.frozen())
+        tool = next(t for t in external.TOOLS if t.key == key)
+        path = external.locate(self.settings, tool)
+        if path is None:
+            return "Not found, so there is nothing to run."
+        return probes.probe_for(key, path)
 
-    A line of shell in a dialog is a thing somebody has to retype by
-    hand into a terminal, and mistyping a quoted extra is the most
-    likely way to end up believing the advice was wrong.
-    """
+    def is_testing(self, key: str) -> bool:
+        return key in self._running
 
-    def __init__(self, command: str, parent=None):
-        super().__init__(parent)
-        self.field = QLineEdit(command)
-        self.field.setReadOnly(True)
-        self.field.setCursorPosition(0)
-        self.copy = QPushButton("Copy")
-        self.copy.clicked.connect(self._copy)
-        row = QHBoxLayout(self)
-        row.setContentsMargins(0, 0, 0, 0)
-        row.addWidget(self.field, 1)
-        row.addWidget(self.copy)
+    def test(self, key: str) -> None:
+        """Run the probe for ``key`` without waiting for it."""
+        if key in self._running:
+            return
+        probe = self._probe(key)
+        if isinstance(probe, str):
+            self._report(key, False, probe)
+            return
 
-    def text(self) -> str:
-        return self.field.text()
+        process = QProcess(self)
+        process.setProcessChannelMode(
+            QProcess.ProcessChannelMode.MergedChannels)
+        empty = None
+        if probe.empty_cwd:
+            empty = tempfile.mkdtemp(prefix="xtal-probe-")
+            process.setWorkingDirectory(empty)
+        timer = QTimer(self)
+        timer.setSingleShot(True)
+        state = {"timed_out": False}
 
-    def _copy(self) -> None:
-        from PySide6.QtWidgets import QApplication
-        QApplication.clipboard().setText(self.field.text())
-        self.copy.setText("Copied")
+        def timed_out():
+            state["timed_out"] = True
+            process.kill()
 
+        def finished(code, _status):
+            output = process.readAll().data().decode(
+                "utf-8", errors="replace")
+            self._done(key, *probes.summarise(
+                probe, code, output, timed_out=state["timed_out"]))
 
-class OptionalFeaturesPage(QWidget):
-    """What is optional, whether it is here, and how to get it.
+        def failed(error):
+            if error == QProcess.ProcessError.FailedToStart:
+                self._done(key, *probes.summarise(
+                    probe, None, "", error=process.errorString()))
 
-    The page that replaces "run pip install", and the one that has to
-    say a different thing in a packaged build than on a checkout --
-    where there is no environment to install into, advice to install
-    something is a polished way of saying something untrue.  The
-    wording, and the decision behind it, are :mod:`xtalapp.extras`.
-    """
+        timer.timeout.connect(timed_out)
+        process.finished.connect(finished)
+        process.errorOccurred.connect(failed)
+        self._running[key] = (process, timer, empty)
+        self.tests[key].setEnabled(False)
+        self._report(key, None, "Running...")
+        timer.start(int(probe.timeout * 1000))
+        process.start(str(probe.argv[0]),
+                      [str(a) for a in probe.argv[1:]])
+        process.closeWriteChannel()
 
-    TITLE = "Optional features"
+    def _done(self, key: str, ok: bool, sentence: str) -> None:
+        running = self._running.pop(key, None)
+        if running is None:
+            return
+        process, timer, empty = running
+        timer.stop()
+        process.deleteLater()
+        timer.deleteLater()
+        if empty is not None:
+            shutil.rmtree(empty, ignore_errors=True)
+        self.tests[key].setEnabled(True)
+        self._report(key, ok, sentence)
 
-    def __init__(self, settings, parent=None):
-        super().__init__(parent)
-        self.settings = settings
-        self.rows: dict = {}
-        layout = QVBoxLayout(self)
-        layout.addWidget(_hint(
-            "This is a packaged build: the Python inside it is not "
-            "yours and has no pip." if extras.frozen() else
-            "Running from a source checkout, so these commands are "
-            "for the environment it is running in."))
-        for extra in extras.EXTRAS:
-            layout.addWidget(self._row(extra))
-        layout.addWidget(self._packages_box())
-        layout.addStretch(1)
+    def _report(self, key: str, ok, sentence: str) -> None:
+        label = self.results[key]
+        label.setText(sentence)
+        label.setStyleSheet(
+            "color: #8a5a00;" if ok is False else "")
+        label.show()
 
-    def _row(self, extra) -> QGroupBox:
-        ok, sentence = extras.status(extra)
-        box = QGroupBox(f"{extra.label} ({extra.package})")
-        inner = QVBoxLayout(box)
-        inner.addWidget(_hint(extra.powers))
-        state = QLabel(sentence)
-        state.setWordWrap(True)
-        state.setStyleSheet("" if ok else "color: #8a5a00;")
-        inner.addWidget(state)
-        if not ok and not extras.frozen():
-            inner.addWidget(_Command(extra.command()))
-        self.rows[extra.package] = state
-        return box
-
-    def _packages_box(self) -> QGroupBox:
-        """The folder a frozen build can have a package added to.
-
-        This used to be "Having the MOF builder anyway", offering two
-        routes to a PORMAKE that was not in the bundle.  PORMAKE is
-        vendored now, so the box is what it always really was: the one
-        mechanism a build with no pip has for adding a package at all.
-        The caveat in ``extras.TARGET_WARNING`` is unchanged and was
-        never specific to PORMAKE.
-        """
-        box = QGroupBox("Adding a package to this copy")
-        inner = QVBoxLayout(box)
-        inner.addWidget(_hint(extras.PACKAGES_REASON))
-
-        self.target_command = _Command(extras.target_command())
-        inner.addWidget(self.target_command)
-        warning = QLabel(extras.TARGET_WARNING)
-        warning.setWordWrap(True)
-        warning.setStyleSheet("color: #8a5a00;")
-        inner.addWidget(warning)
-        self.reveal = QPushButton("Show the folder")
-        self.reveal.clicked.connect(lambda: extras.reveal())
-        row = QHBoxLayout()
-        row.addWidget(self.reveal)
-        row.addStretch(1)
-        inner.addLayout(row)
-        return box
+    def stop_tests(self) -> None:
+        """Kill whatever is still running: a dialog closed on a
+        three-second Blender must not leave it behind."""
+        for key in list(self._running):
+            process, _timer, _empty = self._running[key]
+            process.finished.disconnect()
+            process.errorOccurred.disconnect()
+            process.kill()
+            process.waitForFinished(1000)
+            self._done(key, False, "Stopped.")
 
 
-#: The pages, in the order the list shows them.  Steps 6 to 8 of
-#: SHELL.md add Bonding, External tools and Optional features here.
-PAGES = (GeneralPage, ViewDefaultsPage, BondingPage,
-         ExternalToolsPage, OptionalFeaturesPage)
+#: The pages, in the order the list shows them.
+PAGES = (GeneralPage, ViewDefaultsPage, BondingPage, EnginesPage)
 
 
 class PreferencesDialog(QDialog):
@@ -617,6 +774,13 @@ class PreferencesDialog(QDialog):
         layout.addLayout(body, 1)
         layout.addWidget(buttons)
         self.resize(680, 620)
+
+    def done(self, result: int) -> None:
+        for page in self.pages:
+            stop = getattr(page, "stop_tests", None)
+            if stop is not None:
+                stop()
+        super().done(result)
 
     def page(self, title: str) -> QWidget:
         """The page of that name, for tests and for ``show_page``."""

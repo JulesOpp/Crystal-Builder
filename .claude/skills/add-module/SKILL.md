@@ -101,9 +101,12 @@ PROGRAM = Program(name="network", label="Zeo++", env_var="XTAL_ZEOPP",
   `.run(cancel=job.cancel, program=PROGRAM)`; read outputs from the run
   folder. **Do not reimplement what the program does natively.**
 - Add a `Tool("tools/<name>", "Label (binary)", "file", "what it is
-  for")` to `TOOLS` in `xtalapp/external.py`; Preferences ▸ External
-  tools is built from that list and the path reaches `Program` through
-  `apply_hints`.
+  for")` to `TOOLS` in `xtalapp/external.py`; Preferences ▸ Engines
+  is built from that list and the path reaches `Program` through
+  `apply_hints`. Put the key in `_PROGRAM_ROWS` in
+  `xtalapp/dialogs/preferences.py`, and teach `xtal/modules/probe.py`
+  how the program is asked whether it runs (`probe_for`) -- measure
+  what it prints and its exit code first; DFTB+ exits 1 when it works.
 - Never bundle the binary (licences, citations): `packaging/bundle.py`
   `binaries()` says why.
 - Tests use a fake program: `write_program(tmp_path, "network", body)`
@@ -117,7 +120,7 @@ PROGRAM = Program(name="network", label="Zeo++", env_var="XTAL_ZEOPP",
 - The check is **`importlib.util.find_spec`, never an import**, and
   the reason names the extra:
   `Availability(False, "needs RDKit: pip install 'crystal-builder[build]'")`.
-- If Preferences ▸ Optional features should list it, add an `Extra` to
+- If Preferences ▸ Engines should list it, add an `Extra` to
   `EXTRAS` in `xtalapp/extras.py`.
 - If a frozen build should carry it, add it to `COLLECT` in
   `packaging/bundle.py`, and say in the plan what it adds to the size.

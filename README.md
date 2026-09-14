@@ -107,7 +107,7 @@ PySide6 and VTK.
 
 Three features are gated on a package the core does not install.  Each
 greys its own menu entry out and names the extra, and
-*Preferences ▸ Optional features* lists all three with what they power
+*Preferences ▸ Engines* lists all three with what they power
 and what to type:
 
 | Extra | Package | What it buys |
@@ -399,7 +399,7 @@ that leaves the cell is brought in so a linker prints with both ends.
 Blender does the meshing: the cut goes to it as a PDB with a CONECT
 record per bond, the Atomic Blender add-on imports balls and sticks,
 and a voxel remesh welds them into one watertight solid.  Point
-*Preferences ▸ External tools ▸ Blender* at the binary if it is not
+*Preferences ▸ Engines ▸ Blender* at the binary if it is not
 on PATH (`/Applications/Blender.app` is looked in on its own).  The
 dialog has the ball, hydrogen and stick sizes, the voxel size and
 triangle budget of the remesh, and the size of the longest side in

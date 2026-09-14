@@ -67,7 +67,7 @@ OMITTED = {
     "resources/PTBP":
         "Somebody else's Slater-Koster parameters, with their own "
         "licence and citation terms.  Gitignored, so CI could not "
-        "bundle them anyway.  Preferences > External tools is how a "
+        "bundle them anyway.  Preferences > Engines is how a "
         "user points at their own.",
     "resources/zeo++-0.3":
         "78 MB of somebody else's source and a binary built from it, "

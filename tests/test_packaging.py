@@ -255,7 +255,7 @@ def test_no_third_party_binary_is_carried(destinations):
 
     They carry their own licences and citation obligations, they are
     gitignored so CI could not bundle them even if we wanted to, and
-    Preferences > External tools plus the environment variables give
+    Preferences > Engines plus the environment variables give
     three ways to point at a local copy.
     """
     from xtal.ff.dftb import hsd
@@ -330,7 +330,7 @@ def test_the_windows_version_is_four_integers():
 
 
 def test_the_bundled_extras_are_the_ones_the_extras_page_promises():
-    """Preferences > Optional features tells the user which extras a
+    """Preferences > Engines tells the user which extras a
     packaged build includes.
 
     If that page and the spec disagree, the page is lying to somebody

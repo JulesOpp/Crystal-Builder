@@ -132,7 +132,7 @@ def build_actions(window):
     add("export_stl", "Export as S&TL...", window.export_stl,
         tip="One unit cell with its bonds, as a mesh a 3D printer can "
             "take.  Blender does the meshing, so it has to be "
-            "installed -- see Preferences > External tools")
+            "installed -- see Preferences > Engines")
     add("open_workspace", "&Open Workspace...",
         window.open_workspace_dialog,
         tip="A folder that structures and their calculations live "

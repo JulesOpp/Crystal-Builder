@@ -1656,7 +1656,7 @@ class MainWindow(QMainWindow):
         return dialog
 
     def _tool_paths_changed(self) -> None:
-        """A program was named in Preferences > External tools.
+        """A program was named in Preferences > Engines.
 
         Everything that says whether a tool can run is asked again,
         here and now: the Modules menu greys its entries from the same
