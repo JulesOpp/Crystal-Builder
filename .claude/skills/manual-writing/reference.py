@@ -249,6 +249,10 @@ def main(argv=None) -> int:
     params = [f"{m['name']}.{a['name']}.{q['name']}"
               for m in modules for a in m["actions"]
               for q in a["params"] if not q["help"]]
+    # An engine's options are the Force Field panel's form and print
+    # in the same tables, so they are short of help in the same way.
+    params += [f"engine.{e['name']}.{q['name']}" for e in engines
+               for q in e["options"] if not q["help"]]
     print(f"wrote {len(commands)} commands, "
           f"{sum(len(m['actions']) for m in modules)} module entries, "
           f"{len(engines)} engines, {len(panels)} panels to {out}")

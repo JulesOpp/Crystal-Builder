@@ -17,7 +17,7 @@ python .claude/skills/ui-text/uitext.py extract            # -> build/ui-text.cs
 python .claude/skills/ui-text/uitext.py extract -o build/ui-text-2026-09.csv
 ```
 
-About 1,260 strings from about 80 files (`/build/` is gitignored). It
+About 1,320 strings from about 80 files (`/build/` is gitignored). It
 parses the source and never imports it. Columns:
 
 | Column | For the person | Notes |
@@ -28,6 +28,18 @@ parses the source and never imports it. Columns:
 | `text` | ✓ | the current wording |
 | `new_text` | **edit this** | leave empty to keep |
 | `col`, `end_line`, `end_col`, `fstring`, `source` | ✗ | used by apply; **do not edit** |
+
+**Missing rows come first.** A registry `add(...)` in `menus.py` with
+no `tip=` gets a row of kind `tip= (missing)`, and a `Param(...)` with
+no `help=` (a module's or an engine's) one of kind `help= (missing)`:
+commands, then settings, then everything else in file order. Their
+`text` is empty and `where` names the thing instead -- the registry
+key and its label (`select_same (Select same &element)`), or the
+table and the setting (`ORBITAL_PARAMS.kpoint (k-point)`). The row
+spans the whole call; apply inserts `tip="..."` / `help="..."` on a
+line of its own at the arguments' column. `reference.py` (the
+manual-writing skill) prints the same two lists, and both reaching 0
+is how to know every command and setting is described.
 
 Tell the user, with the sheet:
 
@@ -45,6 +57,8 @@ Tell the user, with the sheet:
 - `kind = constant` rows are table entries (optimiser names, column
   headers, choices). A few tables may be *matched against* rather than
   shown; if unsure, ask before changing one.
+- The rows at the top are text that does not exist yet; a blank
+  `new_text` there leaves the command or setting undescribed.
 - Very short rows (`OK`, `Add`) and `help=`/`tip=` rows are the ones
   worth the most attention: the tips are the Help page and the future
   manual's reference chapters.
@@ -112,3 +126,9 @@ are already modified.
 
 One commit per batch, message naming the area: *Reword the Preferences
 dialog*.
+
+## Changing the script
+
+Its tests live beside it, outside the suite's `testpaths`, and build a
+small tree of their own rather than touching the app:
+`python -m pytest -q .claude/skills/ui-text/test_uitext.py`.

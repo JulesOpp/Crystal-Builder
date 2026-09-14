@@ -71,6 +71,14 @@ ACTION_ADD = ("xtalapp/menus.py", "add", 1)
 NOT_TEXT = {"_NOISE", "STYLE"}
 #: Methods whose returned strings are status-bar sentences.
 STATUS_FILES = ("xtalapp/document.py", "xtalapp/documents.py")
+#: Text that should exist and does not: a command with no ``tip=`` and
+#: a setting with no ``help=`` are what the Help page and the manual's
+#: reference print as "no description", and a string that is not
+#: there has no row unless it is given one.  ``(callable, keyword,
+#: its positional index or None)``; a ``Param``'s ``help`` is its
+#: eleventh field.
+MISSING = {"add": ("tip", None), "Param": ("help", 10)}
+MISSING_SUFFIX = " (missing)"
 
 COLUMNS = ["id", "file", "line", "where", "kind", "text", "new_text",
            "col", "end_line", "end_col", "fstring", "source"]
@@ -164,6 +172,7 @@ class _Walker(ast.NodeVisitor):
         self.lines = text.splitlines()
         self.stack: list[str] = []
         self.found: dict[tuple, Found] = {}
+        self.assigning: str | None = None
 
     def _take(self, node, kind):
         for leaf in ([node.body, node.orelse]
@@ -201,6 +210,9 @@ class _Walker(ast.NodeVisitor):
         if (self.rel, name) == ACTION_ADD[:2] and \
                 len(node.args) > ACTION_ADD[2]:
             self._take(node.args[ACTION_ADD[2]], "menu entry")
+            self._missing(node, name)
+        elif name == "Param" and node.args:
+            self._missing(node, name)
         positions = POSITIONS.get(name, (0,) if name in FIRST_ARG
                                   else ())
         for i in positions:
@@ -211,6 +223,36 @@ class _Walker(ast.NodeVisitor):
                 self._take(kw.value, f"{kw.arg}=")
         self.generic_visit(node)
 
+    def _missing(self, node, name):
+        """A row for the ``tip=`` or ``help=`` this call does not have.
+
+        The row spans the whole call, so ``apply`` can check it is
+        still there and find it by content if it has moved; its text is
+        empty, and ``where`` names the command or the setting, since
+        nothing else in the row says which one it is.
+        """
+        keyword, position = MISSING[name]
+        if any(kw.arg == keyword for kw in node.keywords) or \
+                any(kw.arg is None for kw in node.keywords) or \
+                (position is not None and len(node.args) > position):
+            return
+        key = _display(node.args[0], self.text) or \
+            ast.unparse(node.args[0])
+        label = _display(node.args[1], self.text) \
+            if len(node.args) > 1 else None
+        scope = self.stack + ([self.assigning] if self.assigning and
+                              name == "Param" else [])
+        where = ".".join(scope + [key]) if name == "Param" else key
+        if label:
+            where += f" ({label})"
+        self.found[("missing", node.lineno, node.col_offset)] = Found(
+            self.rel, node.lineno,
+            _char_col(self.lines, node.lineno, node.col_offset),
+            node.end_lineno,
+            _char_col(self.lines, node.end_lineno, node.end_col_offset),
+            where, keyword + "=" + MISSING_SUFFIX, "", False,
+            ast.get_source_segment(self.text, node))
+
     def visit_Assign(self, node):
         # ``METHOD_LABELS = {"lbfgs": "L-BFGS (fast near a minimum)"}``
         # and the tuples of (label, value) pairs beside it: a table of
@@ -220,7 +262,9 @@ class _Walker(ast.NodeVisitor):
         if len(self.stack) <= 1 and named and all(
                 n.isupper() and n not in NOT_TEXT for n in named):
             self._constants(node.value)
+        self.assigning = named[0] if len(named) == 1 else None
         self.generic_visit(node)
+        self.assigning = None
 
     def _constants(self, value):
         if isinstance(value, ast.Dict):
@@ -248,6 +292,11 @@ def extract(out: Path) -> int:
         walker.visit(ast.parse(text, rel))
         rows += sorted(walker.found.values(), key=lambda f: (f.line,
                                                              f.col))
+    # The text that is not there yet goes first -- commands, then
+    # settings -- because it is what the Help page is short of; the
+    # sort is stable, so everything else keeps its file order.
+    order = {"tip=" + MISSING_SUFFIX: 0, "help=" + MISSING_SUFFIX: 1}
+    rows.sort(key=lambda f: order.get(f.kind, len(order)))
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", newline="") as handle:
         writer = csv.writer(handle)
@@ -258,6 +307,9 @@ def extract(out: Path) -> int:
                              int(f.fstring), f.source])
     files = len({f.file for f in rows})
     print(f"wrote {len(rows)} strings from {files} files to {out}")
+    for kind in order:
+        count = sum(f.kind == kind for f in rows)
+        print(f"  {count} rows are {kind}")
     return 0
 
 
@@ -355,6 +407,42 @@ def _offset(lines, line, col):
     return sum(len(x) for x in lines[:line - 1]) + col
 
 
+def _is_missing(row) -> bool:
+    return row["kind"].endswith(MISSING_SUFFIX)
+
+
+def _insert_keyword(src: str, start: int, end: int, row) -> str:
+    """*src* with ``tip="..."`` added to the call at ``src[start:end]``.
+
+    On a line of its own at the column of the call's first argument --
+    how every ``tip=`` and ``help=`` already in the code is written --
+    and wrapped under its own opening quote.
+    """
+    keyword = row["kind"][:-len(MISSING_SUFFIX)]       # "tip="
+    call = ast.parse(src[start:end], mode="eval").body
+    first = call.args[0]
+    seg_lines = src[start:end].splitlines()
+    col = _char_col(seg_lines, first.lineno, first.col_offset)
+    if first.lineno == 1:
+        col += start - (src.rfind("\n", 0, start) + 1)
+    paren = end - 1
+    before = src[:paren].rstrip()
+    line_end = src.find("\n", end)
+    if before.endswith(","):
+        # A trailing comma, and the paren on a line of its own.
+        tail = 1
+    else:
+        tail = len(src[paren:line_end if line_end >= 0 else None]
+                   .rstrip())
+    literal = literal_for(row["new_text"], False, col + len(keyword),
+                          tail)
+    if before.endswith(","):
+        return (before + "\n" + " " * col + keyword + literal + ","
+                + src[len(before):])
+    return (before + ",\n" + " " * col + keyword + literal
+            + src[paren:])
+
+
 def apply(sheet: Path, dry_run: bool) -> int:
     with sheet.open(newline="") as handle:
         rows = [r for r in csv.DictReader(handle)
@@ -387,7 +475,15 @@ def apply(sheet: Path, dry_run: bool) -> int:
                     continue
                 start, end = hits[0], hits[0] + len(row["source"])
             placed.append((start, end, row))
-        for start, end, row in sorted(placed, key=lambda p: -p[0]):
+        # Back to front, so an edit never moves one still to be made.
+        # A missing keyword goes in at its call's closing paren, which
+        # is after any label inside the same call.
+        for start, end, row in sorted(placed, key=lambda p: -(
+                p[1] - 1 if _is_missing(p[2]) else p[0])):
+            if _is_missing(row):
+                src = _insert_keyword(src, start, end, row)
+                done.append(row)
+                continue
             line_start = src.rfind("\n", 0, start) + 1
             col = start - line_start
             line_end = src.find("\n", end)
