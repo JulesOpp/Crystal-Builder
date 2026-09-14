@@ -78,6 +78,7 @@ from xtalapp.dialogs.mof_preview import (
     ORBIT_COLORS,
     BlockPreview,
     NetPreview,
+    reset_view_row,
 )
 
 #: What an edge slot offers instead of a linker.  A net has edges
@@ -155,6 +156,7 @@ class MofBuildDialog(QDialog):
         column = QVBoxLayout(right)
         column.setContentsMargins(0, 0, 0, 0)
         column.addWidget(self.net_preview, 1)
+        column.addLayout(reset_view_row(self.net_preview))
         column.addWidget(self.details)
 
         top = QSplitter(Qt.Horizontal, self)

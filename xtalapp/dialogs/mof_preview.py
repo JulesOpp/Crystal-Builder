@@ -18,10 +18,14 @@ those.
 
 **Both are projections and neither is a structure.**  The point of
 each picture is recognition -- is that the linear linker or the bent
-one, is that net a cube or a diamond -- and recognition survives a
-fixed viewing angle and an orthographic projection.  Anything more
-would be the viewport, and the viewport is one click away once the
-framework has been built.
+one, is that net a cube or a diamond -- and recognition survives an
+orthographic projection.  It does not always survive a *fixed* angle:
+a block is flattened onto its own widest plane, which shows what it
+is, but a net whose defining feature is edge-on from the one
+direction chosen for it is a picture of a different net.  So the net
+turns under a drag, the way the viewport does, and a double-click puts
+it back.  It is still painted: a rotation matrix before the
+projection, not a GL context.
 """
 
 from __future__ import annotations
@@ -29,7 +33,7 @@ from __future__ import annotations
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QPainter, QPen
-from PySide6.QtWidgets import QSizePolicy, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QPushButton, QSizePolicy, QWidget
 
 from xtal.core import elements as el
 
@@ -49,12 +53,44 @@ MIN_RADIUS = 2.2
 MAX_RADIUS = 6.5
 
 
-def _project(points: np.ndarray) -> np.ndarray:
-    """Cartesian points to the plane of the page."""
+#: :data:`_VIEW` as a whole rotation, its third row the direction
+#: towards the viewer.  Where a net picture starts and goes back to.
+DEFAULT_ROTATION = np.vstack([_VIEW, np.cross(_VIEW[0], _VIEW[1])])
+
+
+def _project(points: np.ndarray, view=_VIEW) -> np.ndarray:
+    """Cartesian points to the plane of the page, seen through
+    ``view`` -- its first two rows are the page's x and y."""
     points = np.asarray(points, dtype=float).reshape(-1, 3)
     if not len(points):
         return np.zeros((0, 2))
-    return points @ _VIEW.T
+    return points @ np.asarray(view, dtype=float)[:2].T
+
+
+def _turned(rotation: np.ndarray, dx: float, dy: float,
+            radius: float) -> np.ndarray:
+    """``rotation`` after a drag of ``(dx, dy)`` screen pixels.
+
+    A trackball at the rate Move's alt-drag uses, one radius of travel
+    to the radian: across the picture turns about the page's up axis,
+    down it about the page's right, and the front of the net follows
+    the pointer both ways.  Applied in the page's own frame, so it
+    turns the way the picture looks and not the way the cell is.
+    """
+    travel = float(np.hypot(dx, dy))
+    if travel < 1e-9 or radius <= 0:
+        return rotation
+    # Screen y grows downwards; the page's y upwards.  A drag right is
+    # a turn about +y, which carries +z (towards the viewer) to +x; a
+    # drag down is a turn about +x, which carries +z to -y.
+    axis = np.array([dy, dx, 0.0]) / travel
+    angle = travel / radius
+    k = np.array([[0.0, -axis[2], axis[1]],
+                  [axis[2], 0.0, -axis[0]],
+                  [-axis[1], axis[0], 0.0]])
+    turn = (np.eye(3) + np.sin(angle) * k
+            + (1 - np.cos(angle)) * (k @ k))
+    return turn @ rotation
 
 
 def _fit(flat: np.ndarray, rect: QRectF, pad: float):
@@ -287,10 +323,18 @@ class NetPreview(_Preview):
         super().__init__(parent, minimum)
         self._topology = None
         self._drawing = None
+        self._rotation = DEFAULT_ROTATION.copy()
+        self._pressed = None
+        self.setToolTip("Drag to turn the net; double-click to put it "
+                        "back")
+        self.setCursor(Qt.CursorShape.OpenHandCursor)
 
     def set_topology(self, topology) -> None:
         self._topology = topology
         self._drawing = None
+        # A new net starts where every net starts, so that two nets
+        # can be compared by clicking between them.
+        self._rotation = DEFAULT_ROTATION.copy()
         self._caption = topology.name if topology is not None else ""
         if topology is not None:
             try:
@@ -303,14 +347,76 @@ class NetPreview(_Preview):
                 self._caption = f"{topology.name}  ·  no picture"
         self.update()
 
+    # -- turning -------------------------------------------------------
+
+    @property
+    def rotation(self) -> np.ndarray:
+        return self._rotation.copy()
+
+    def turn_by(self, dx: float, dy: float) -> None:
+        """Turn as a drag of ``(dx, dy)`` pixels would."""
+        radius = min(self.width(), self.height()) / 2
+        self._rotation = _turned(self._rotation, dx, dy, radius)
+        self.update()
+
+    def reset_view(self) -> None:
+        self._rotation = DEFAULT_ROTATION.copy()
+        self.update()
+
+    def mousePressEvent(self, event) -> None:       # noqa: N802
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._pressed = event.position()
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:        # noqa: N802
+        if self._pressed is not None and \
+                event.buttons() & Qt.MouseButton.LeftButton:
+            here = event.position()
+            self.turn_by(here.x() - self._pressed.x(),
+                         here.y() - self._pressed.y())
+            self._pressed = here
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:     # noqa: N802
+        self._pressed = None
+        self.setCursor(Qt.CursorShape.OpenHandCursor)
+        super().mouseReleaseEvent(event)
+
+    def mouseDoubleClickEvent(self, event) -> None:  # noqa: N802
+        self.reset_view()
+        super().mouseDoubleClickEvent(event)
+
+    # -- drawing -------------------------------------------------------
+
+    def screen_points(self, rect: QRectF):
+        """``(vertices, edge ends)`` as screen points in ``rect``.
+
+        Fitted to the net's **bounding sphere** rather than to the box
+        its projection happens to fill: a box fit rescales at every
+        step of a turn, and a picture that breathes while it turns is
+        one whose shape cannot be read off it.  The sphere holds every
+        view, so nothing leaves the box at any angle either.
+        """
+        cart, _orbits, lines = self._drawing
+        everything = np.vstack([cart, lines.reshape(-1, 3)]) \
+            if len(lines) else cart
+        centre = (everything.min(axis=0) + everything.max(axis=0)) / 2
+        radius = max(float(np.max(np.linalg.norm(everything - centre,
+                                                 axis=1))), 1e-6)
+        pad = 6
+        usable = min(rect.width(), rect.height()) - 2 * pad
+        scale = max(usable, 1.0) / (2 * radius)
+        flat = _project(everything - centre, self._rotation) * scale
+        flat[:, 1] *= -1                    # screen y grows downwards
+        flat += np.array([rect.center().x(), rect.center().y()])
+        return flat[:len(cart)], flat[len(cart):].reshape(-1, 2, 2)
+
     def _draw(self, painter, rect) -> bool:
         if self._drawing is None:
             return False
-        cart, orbits, lines = self._drawing
-        flat = _project(np.vstack([cart, lines.reshape(-1, 3)])
-                        if len(lines) else cart)
-        points, _scale = _placed(flat, rect, 6)
-        ends = points[len(cart):].reshape(-1, 2, 2)
+        cart, orbits, _lines = self._drawing
+        points, ends = self.screen_points(rect)
         painter.setPen(QPen(self.palette().color(
             self.palette().ColorRole.Mid), 1.3))
         for start, stop in ends:
@@ -397,3 +503,23 @@ def _padded(frac: np.ndarray) -> np.ndarray:
     if frac.shape[1] == 3:
         return frac
     return np.column_stack([frac, np.zeros(len(frac))])
+
+
+def reset_view_row(preview) -> QHBoxLayout:
+    """A Reset view button, right-aligned under a net picture.
+
+    A double-click puts the net back as well, but a double-click is a
+    gesture nobody finds by looking; a button is.  Not auto-default: a
+    dialog's push buttons take Return unless told otherwise, and
+    Return belongs to the button that builds.
+    """
+    button = QPushButton("Reset view")
+    button.setAutoDefault(False)
+    button.setToolTip("Put the net back to the angle it opened at")
+    button.clicked.connect(preview.reset_view)
+    preview.reset_button = button
+    row = QHBoxLayout()
+    row.setContentsMargins(0, 0, 0, 0)
+    row.addStretch(1)
+    row.addWidget(button)
+    return row

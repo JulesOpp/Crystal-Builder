@@ -46,7 +46,7 @@ from PySide6.QtWidgets import (
 
 from xtal.analysis import rcsr
 from xtal.core.lattice import Lattice
-from xtalapp.dialogs.mof_preview import NetPreview
+from xtalapp.dialogs.mof_preview import NetPreview, reset_view_row
 
 #: The parameter the list answers, and so the one the form must not
 #: also ask about.  Everything else in ``PARAMS`` is a number and goes
@@ -127,6 +127,7 @@ class NetDrawDialog(QDialog):
         column = QVBoxLayout(right)
         column.setContentsMargins(0, 0, 0, 0)
         column.addWidget(self.preview, 1)
+        column.addLayout(reset_view_row(self.preview))
         column.addWidget(self.details)
 
         split = QSplitter(Qt.Horizontal, self)

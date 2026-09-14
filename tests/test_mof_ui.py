@@ -634,3 +634,123 @@ def test_the_net_picture_survives_one_it_cannot_draw(dialog):
     dialog._select("bcu-b")
     assert dialog.net_preview._drawing is None
     dialog.net_preview.grab()               # must not raise
+
+
+# ------------------------------------------------- turning the net picture
+
+def _mouse(widget, kind, x, y, button, buttons):
+    from PySide6.QtCore import QEvent, QPointF, Qt
+    from PySide6.QtGui import QMouseEvent
+    from PySide6.QtWidgets import QApplication
+
+    kinds = {"press": QEvent.MouseButtonPress,
+             "move": QEvent.MouseMove,
+             "release": QEvent.MouseButtonRelease,
+             "double": QEvent.MouseButtonDblClick}
+    local = QPointF(x, y)
+    event = QMouseEvent(kinds[kind], local, widget.mapToGlobal(local),
+                        button, buttons, Qt.NoModifier)
+    QApplication.sendEvent(widget, event)
+
+
+def _drag(widget, dx, dy, steps=6):
+    from PySide6.QtCore import Qt
+
+    x, y = widget.width() / 2, widget.height() / 2
+    _mouse(widget, "press", x, y, Qt.LeftButton, Qt.LeftButton)
+    for step in range(1, steps + 1):
+        _mouse(widget, "move", x + dx * step / steps,
+               y + dy * step / steps, Qt.NoButton, Qt.LeftButton)
+    _mouse(widget, "release", x + dx, y + dy, Qt.LeftButton,
+           Qt.NoButton)
+
+
+@pytest.fixture
+def net_picture(qtbot, dialog):
+    dialog.show()
+    qtbot.waitExposed(dialog)
+    return dialog.net_preview
+
+
+def _points(preview):
+    from PySide6.QtCore import QRectF
+    return preview.screen_points(QRectF(preview.rect()))
+
+
+@needs_database
+def test_dragging_the_net_preview_turns_it(net_picture):
+    """A net whose defining feature is edge-on from the one angle it
+    was drawn at could not be recognised; now it can be turned until
+    it is."""
+    import numpy as np
+
+    vertices, edges = _points(net_picture)
+    _drag(net_picture, 60, 25)
+    turned, turned_edges = _points(net_picture)
+
+    assert turned.shape == vertices.shape
+    assert turned_edges.shape == edges.shape
+    assert not np.allclose(turned, vertices, atol=1.0)
+
+
+@needs_database
+def test_double_clicking_the_net_preview_puts_it_back(net_picture):
+    import numpy as np
+    from PySide6.QtCore import Qt
+
+    from xtalapp.dialogs.mof_preview import DEFAULT_ROTATION
+
+    _drag(net_picture, 80, -40)
+    assert not np.allclose(net_picture.rotation, DEFAULT_ROTATION)
+    middle = (net_picture.width() / 2, net_picture.height() / 2)
+    _mouse(net_picture, "double", *middle, Qt.LeftButton, Qt.LeftButton)
+
+    assert np.allclose(net_picture.rotation, DEFAULT_ROTATION)
+
+
+@needs_database
+def test_the_reset_view_button_puts_the_net_back(net_picture):
+    import numpy as np
+
+    from xtalapp.dialogs.mof_preview import DEFAULT_ROTATION
+
+    net_picture.turn_by(90, 30)
+    net_picture.reset_button.click()
+
+    assert np.allclose(net_picture.rotation, DEFAULT_ROTATION)
+    assert not net_picture.reset_button.autoDefault()
+
+
+@needs_database
+def test_turning_the_net_does_not_rescale_it(net_picture):
+    """Fitted to the bounding sphere, so it neither breathes while it
+    turns nor pushes a vertex out of the box at some angle."""
+    import numpy as np
+
+    rect = net_picture.rect()
+    spans = []
+    for _step in range(12):
+        net_picture.turn_by(37, 23)
+        vertices, edges = _points(net_picture)
+        everything = np.vstack([vertices, edges.reshape(-1, 2)])
+        assert everything[:, 0].min() >= rect.left()
+        assert everything[:, 0].max() <= rect.right()
+        assert everything[:, 1].min() >= rect.top()
+        assert everything[:, 1].max() <= rect.bottom()
+        centre = everything.mean(axis=0)
+        spans.append(np.linalg.norm(everything - centre, axis=1).max())
+    # A rigid turn: the farthest point from the middle is as far away
+    # at every angle, give or take which point that is.
+    assert max(spans) < 1.8 * min(spans)
+
+
+@needs_database
+def test_a_new_topology_starts_from_the_default_view(dialog):
+    import numpy as np
+
+    from xtalapp.dialogs.mof_preview import DEFAULT_ROTATION
+
+    dialog.net_preview.turn_by(120, 45)
+    assert dialog._select("dia")
+
+    assert np.allclose(dialog.net_preview.rotation, DEFAULT_ROTATION)

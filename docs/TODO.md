@@ -21,17 +21,6 @@ the user's.  If a drag still misbehaves -- especially one that ends
 over the 3D view, which is still a native window -- that is the next
 place to look.
 
-### The net in the MOF builder cannot be turned
-
-`NetPreview` in `xtalapp/dialogs/mof_preview.py` draws the chosen net
-as a fixed orthographic projection with `QPainter`.  Recognising a
-net from one angle works for `pcu` and fails for anything whose
-defining feature is edge-on from that angle.  Wanted: drag to rotate,
-the way the viewport does, and a reset.  It should stay a `QPainter`
-widget -- the module docstring's reason for not using the viewport
-still holds -- so this is a rotation matrix updated on mouse drag and
-applied before the projection, not a GL context.
-
 ## Symmetry
 
 ### Merge duplicates cannot see a site duplicated by its own group
