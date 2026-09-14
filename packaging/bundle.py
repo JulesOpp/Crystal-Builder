@@ -44,14 +44,18 @@ ROOT = HERE.parent
 ICONS = HERE / "icons"
 
 #: Subtrees of ``resources/`` that travel with the application, as
-#: (relative path, why).  One entry, and it is load-bearing: File >
-#: Open Sample builds its seven entries from
-#: :func:`xtalapp.samples.installed`, so without this the menu greys
-#: out with a sentence about source checkouts, and ``--selftest`` has
-#: nothing to open.
+#: (relative path, why).  Both are load-bearing: File > Open Sample
+#: builds its seven entries from :func:`xtalapp.samples.installed`, so
+#: without the samples the menu greys out with a sentence about source
+#: checkouts and ``--selftest`` has nothing to open; and the workspace
+#: chooser, the first thing a launch shows, draws its side panel from
+#: ``resources/chooser``.
 RESOURCES = {
     "resources/samples":
         "File > Open Sample, and what --selftest opens.  164 KB.",
+    "resources/chooser":
+        "The workspace chooser's icon and framework picture, made by "
+        "packaging/render_chooser_art.py.  150 KB.",
 }
 
 #: Subtrees of ``resources/`` that deliberately do **not** travel, and

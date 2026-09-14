@@ -276,6 +276,9 @@ stress case).
   no answer, `restore_workspace` reopens the last one or makes the
   default, exactly as before. A file launched from Finder that is
   *already inside* a workspace skips the question (`Workspace.find`).
+  Open Sample on the chooser answers through `ask` too -- it returns
+  `(workspace, sample)` and `main.open_window` opens the sample once
+  the window exists, never the constructor.
 - **Every document has an entry, whichever of the four doors it came
   through.** A file opened from outside is copied in and **the tab
   follows the copy** (`place_in_workspace` → `Document.adopt`); where

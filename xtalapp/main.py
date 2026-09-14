@@ -50,7 +50,9 @@ IMPORT_FLAG = "--selftest-import"
 
 
 def choose_workspace(paths, settings, parent=None):
-    """Which workspace this launch is in, or ``None`` to give up.
+    """``(workspace, sample)``: which workspace this launch is in, and
+    the sample the chooser was asked to open in it.  A workspace of
+    ``None`` is giving up.
 
     A file that is already *inside* a workspace skips the question:
     double-clicking a structure in a folder this application filled
@@ -69,15 +71,33 @@ def choose_workspace(paths, settings, parent=None):
     for path in paths:
         found = Workspace.find(path)
         if found is not None:
-            return found
+            return found, None
     return WorkspaceChooser.ask(settings, parent)
+
+
+def open_window(workspace, sample=None, paths=(), **window_options):
+    """The window, in ``workspace``, with ``sample`` opened in it.
+
+    The sample is opened here, once the window exists, and not by the
+    chooser: the chooser runs before there is anything to open it in,
+    and it must stay out of ``MainWindow.__init__`` -- see
+    :mod:`xtalapp.dialogs.workspace_chooser`.  ``window_options`` is
+    for a test's viewport and settings.
+    """
+    from xtalapp.mainwindow import MainWindow
+
+    window = MainWindow(paths=list(paths), workspace=workspace,
+                        **window_options)
+    if sample:
+        window.open_sample(sample)
+    return window
 
 
 def main(argv=None) -> int:
     from xtal import __version__, plugins
     from xtalapp import applog, extras
     from xtalapp.application import Application
-    from xtalapp.mainwindow import APP_NAME, MainWindow
+    from xtalapp.mainwindow import APP_NAME
     from xtalapp.settings import AppSettings
 
     applog.start()
@@ -133,13 +153,13 @@ def main(argv=None) -> int:
     # sends is already on its way and has not been seen yet, and the
     # question below is about the file it names.
     app.processEvents()
-    workspace = choose_workspace(paths + list(app.pending),
-                                 AppSettings())
+    workspace, sample = choose_workspace(paths + list(app.pending),
+                                         AppSettings())
     if workspace is None:
         # Quit from the chooser.  There is no window yet and nothing
         # to close: the launch simply does not happen.
         return 0
-    window = MainWindow(paths=paths, workspace=workspace)
+    window = open_window(workspace, sample, paths)
     window.show()
     app.file_opened.connect(window.open_from_desktop)
     # Cmd-Q is delivered to the application and not to the window, so

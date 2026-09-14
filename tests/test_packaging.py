@@ -86,6 +86,18 @@ def test_the_samples_land_where_the_application_looks_for_them(
     assert set(destinations.values()) >= {relative.as_posix()}
 
 
+def test_the_chooser_art_travels_with_the_application(destinations):
+    """The chooser is the first thing a launch shows, and it is drawn
+    from files: without them a bundle opens on a side panel with a
+    name and nothing above or below it."""
+    from xtalapp.dialogs import workspace_chooser
+
+    for name in ("app.svg", "framework.png"):
+        path = workspace_chooser.ART / name
+        assert path.is_file(), name
+        assert destinations[path] == "resources/chooser"
+
+
 def test_the_rcsr_index_is_collected(destinations):
     """Without it the net panel cannot name a single topology.
 

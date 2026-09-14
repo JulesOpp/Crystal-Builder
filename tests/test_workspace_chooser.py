@@ -19,6 +19,8 @@ from PySide6.QtWidgets import QDialog  # noqa: E402
 
 from xtal.workspace import Workspace  # noqa: E402
 from xtalapp.dialogs.workspace_chooser import (  # noqa: E402
+    _DETAIL,
+    _NAME,
     _PATH,
     WorkspaceChooser,
 )
@@ -156,6 +158,98 @@ def test_a_row_says_where_the_folder_is_without_the_home_path(
     assert "~/work" in chooser().list.item(0).text()
 
 
+def test_a_recent_workspace_is_one_line_with_its_name_first(
+        chooser, settings, tmp_path):
+    """Two lines a row made the list half as long as the dialog could
+    show; the name is what a row is recognised by, so it leads."""
+    Workspace.create(tmp_path / "thesis")
+    settings.add_recent_workspace(tmp_path / "thesis")
+    dialog = chooser()
+    item = dialog.list.item(0)
+
+    assert "\n" not in item.text()
+    assert item.text().startswith("thesis")
+    assert item.data(_NAME) == "thesis"
+    assert "just now" in item.data(_DETAIL)
+    assert dialog.list.visualItemRect(item).height() < (
+        2 * dialog.fontMetrics().height())
+
+
+def test_the_chooser_shows_the_version_it_will_open(chooser):
+    """"Is this the build I just installed" is asked at this dialog,
+    and About is a window further in."""
+    import xtal
+
+    dialog = chooser()
+
+    # A development version's local part is on a line of its own.
+    shown = dialog.version.text().replace("\n", "")
+    assert xtal.__version__ in shown
+
+
+def test_the_chooser_draws_the_art_that_ships_with_it():
+    """``resources/chooser`` holds a copy of the application icon,
+    because ``packaging/`` does not travel with a bundle; a copy is
+    something that drifts, so this is what notices."""
+    from xtalapp.dialogs.workspace_chooser import ART
+    root = ART.parents[1]
+
+    assert (ART / "app.svg").read_bytes() == (
+        root / "packaging" / "icons" / "app.svg").read_bytes()
+    assert (ART / "framework.png").stat().st_size > 10_000
+
+
+def test_open_sample_opens_the_selected_workspace_and_names_the_sample(
+        chooser, settings, tmp_path):
+    for name in ("one", "two"):
+        Workspace.create(tmp_path / name)
+        settings.add_recent_workspace(tmp_path / name)
+    dialog = chooser()
+    dialog.list.setCurrentRow(_rows(dialog).index(str(tmp_path / "one")))
+
+    dialog.choose_sample("mof5")
+
+    assert dialog.result() == QDialog.Accepted
+    assert dialog.workspace.root == tmp_path / "one"
+    assert dialog.sample == "mof5"
+
+
+def test_open_sample_offers_every_sample_that_is_installed(chooser):
+    from xtalapp import samples
+
+    menu = chooser().sample_button.menu()
+
+    assert [a.text() for a in menu.actions()] == [
+        s.label for s in samples.installed()]
+
+
+def test_open_sample_on_a_folder_that_cannot_be_made_keeps_asking(
+        chooser, tmp_path):
+    (tmp_path / "Crystal Builder").write_text("in the way\n")
+    dialog = chooser()
+
+    dialog.choose_sample("mof5")
+
+    assert dialog.workspace is None
+    assert not dialog.result()
+    assert not dialog.error.isHidden()
+    # Continue after that is Continue, not a sample asked for once.
+    assert dialog.sample is None
+
+
+def test_open_sample_is_disabled_without_the_samples(chooser,
+                                                     monkeypatch):
+    """A wheel installed with pip has no resources/ folder, and seven
+    menu entries that do nothing are worse than one sentence."""
+    from xtalapp import samples
+    monkeypatch.setattr(samples, "installed", lambda: ())
+
+    button = chooser().sample_button
+
+    assert not button.isEnabled()
+    assert button.toolTip() == samples.MISSING
+
+
 # -- the launch ---------------------------------------------------------
 
 def test_a_file_inside_a_workspace_is_not_asked_about(settings,
@@ -174,7 +268,7 @@ def test_a_file_inside_a_workspace_is_not_asked_about(settings,
 
     chosen = entry.choose_workspace([str(structure)], settings)
 
-    assert chosen == workspace
+    assert chosen == (workspace, None)
 
 
 def test_a_file_from_anywhere_else_is_asked_about(settings, tmp_path,
@@ -207,12 +301,38 @@ def test_a_file_the_desktop_sent_counts_as_much_as_an_argument(
     # What main() passes: the command line, then the queue.
     chosen = entry.choose_workspace([] + [str(structure)], settings)
 
-    assert chosen == workspace
+    assert chosen == (workspace, None)
 
 
 def test_quitting_from_the_chooser_opens_no_window(settings,
                                                    monkeypatch):
     from xtalapp import main as entry
-    monkeypatch.setattr(WorkspaceChooser, "ask", lambda *a, **k: None)
+    monkeypatch.setattr(WorkspaceChooser, "ask",
+                        lambda *a, **k: (None, None))
 
-    assert entry.choose_workspace([], settings) is None
+    workspace, _sample = entry.choose_workspace([], settings)
+    assert workspace is None
+
+
+def test_main_opens_the_sample_the_chooser_returned(qtbot, settings,
+                                                    tmp_path,
+                                                    monkeypatch):
+    """The chooser only names the sample; the window opens it, once it
+    exists, through Open Sample -- so it is copied into the workspace
+    like any other file."""
+    from tests.test_app_shell import StubViewport
+    from xtalapp import main as entry
+    workspace = Workspace.create(tmp_path / "ws")
+    monkeypatch.setattr(WorkspaceChooser, "ask",
+                        lambda *a, **k: (workspace, "mof5"))
+
+    chosen, sample = entry.choose_workspace([], settings)
+    window = entry.open_window(chosen, sample,
+                               viewport_factory=StubViewport,
+                               settings=settings)
+    qtbot.addWidget(window)
+
+    document = window.current_document()
+    assert document is not None
+    assert document.path.is_relative_to(workspace.root)
+    assert document.path.name == "MOF-5.cif"
