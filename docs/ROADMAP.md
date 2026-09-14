@@ -49,25 +49,24 @@ The user rewrites the text; this phase is the plumbing either side.
 strings -- the Style groups, the Engines page, the chooser -- are in
 the sheet.
 
-1. **Missing text gets rows.**  The reference generator reports **33
-   commands with no tip** and **12 settings with no help** (11 DFTB+,
-   one Blender), and a tip that does not exist has no row in the sheet.
-   `uitext.py extract` emits `tip= (missing)` for a registry `add(...)`
-   with no `tip=` and `help= (missing)` for a `Param` with no `help=`,
-   sorted to the top; `apply` inserts the keyword.  Tests beside the
-   skill: `test_a_command_without_a_tip_gets_a_missing_row`,
-   `test_applying_a_missing_tip_inserts_the_keyword`,
-   `test_missing_rows_come_first`.
-2. **Hand over the sheet**
-   (`uitext.py extract -o build/ui-text-2026-09.csv`) with the skill's
-   instructions and a batch order: missing tips and help; menus and
-   toolbar; Preferences; Style; chooser; each dock; dialogs; module and
-   engine settings; status and error sentences.
+1. ~~Missing text gets rows~~ -- done 2026-09-14 (c90c6ea).  The
+   sheet has **33** `tip= (missing)` and **17** `help= (missing)`
+   rows at the top: the 12 module settings planned, plus five engine
+   options (xTB and DFTB+ charge and iteration limits), which
+   `reference.py` now counts too.  `where` names them as
+   `key (label)` or `TABLE.param (label)`, not `module.action.param`,
+   because extract never imports.
+2. ~~Hand over the sheet~~ -- `build/ui-text-2026-09.csv`, 1316 rows,
+   given to the user 2026-09-14 with the batch order: missing tips and
+   help; menus and toolbar; Preferences; Style; chooser; each dock;
+   dialogs; module and engine settings; status and error sentences.
+   **Waiting on the user's first batch.**
 3. **Apply each batch as it comes back**: `--dry-run`, apply, fix the
    tests that quote old wording in the same commit, grab the windows
    touched and report anything clipped or newly scrolling, commit as
    *Reword the <window>*, re-extract.
-4. **Close**: `reference.py` reports 0 missing; `docs/MENUS.md`
+4. **Close**: `reference.py` reports 0 commands and 0 settings
+   missing; `docs/MENUS.md`
    updated; full suite once.
 
 Registry keys and `Param` names never change: phase 3's anchors are
