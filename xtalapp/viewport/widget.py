@@ -274,6 +274,12 @@ class ViewportWidget(QWidget):
         Ignoring the hint -- which is what this used to do -- makes
         dragging one atom cost the same as loading a new crystal.
         """
+        if self.mode is not None:
+            message = self.mode.on_structure_changed(self.document,
+                                                     change)
+            if message:
+                self.set_ghost(None)
+                self.statusMessage.emit(message)
         if change and not (change & ~int(Change.POSITIONS)):
             self.update_positions()
         else:

@@ -42,6 +42,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from xtal.core import elements as el
+from xtal.core.structure import CHEMISTRY
 from xtalapp.viewport import picking, styles
 from xtalapp.viewport.scene import Ghost
 
@@ -227,6 +228,25 @@ class Mode:
         """
         self.on_deactivate(document)
         return ""
+
+    def on_structure_changed(self, document, change: int) -> str:
+        """The structure changed between two clicks of a gesture.
+
+        What a mode holds between clicks -- the first end of a bond,
+        the first vertex of a net edge, the atoms gathered for a
+        measurement, an add-atom anchor -- is P1 atom indices, and an
+        edit that adds or removes sites renumbers the cell under them.
+        Delete the atom a Draw net gesture had started from and the
+        next click asked for atom 102 of 99; delete a different one and
+        the index is still in range and names somebody else, which
+        bonds the wrong pair without a word.  So the gesture is put
+        down, as Escape would put it down.  A move keeps the numbering
+        and keeps the gesture.  A mode's own edit lands here too, which
+        is harmless: each one sets its state again after the edit.
+        """
+        if change and not (change & int(CHEMISTRY)):
+            return ""
+        return self.on_cancel(document)
 
     def on_deactivate(self, document) -> None:
         pass

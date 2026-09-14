@@ -361,6 +361,107 @@ def test_a_second_edge_can_start_where_the_first_one_ended():
     assert len(bonding.topology_graph(document.structure).bonds) == 2
 
 
+class _Viewport:
+    """What ``ViewportWidget._on_structure`` touches, and nothing that
+    needs a GL context -- so the shipped method, not a copy of it, is
+    what carries the change to the mode."""
+
+    def __init__(self, document, mode):
+        self.document = document
+        self.mode = mode
+        self.messages = []
+        self.statusMessage = type("Signal", (), {
+            "emit": staticmethod(self.messages.append)})()
+
+    def set_ghost(self, ghost):
+        pass
+
+    def rebuild(self, reset_camera):
+        pass
+
+    def update_positions(self):
+        pass
+
+
+def _three_zinc_in_a_row():
+    return Document(Structure.from_arrays(
+        Lattice.cubic(8.0), ["Zn", "Zn", "Zn"],
+        [[0.1, 0.1, 0.1], [0.4, 0.1, 0.1], [0.7, 0.1, 0.1]],
+        space_group="P1"))
+
+
+def _click(document, mode, atom):
+    model = build_scene(document.structure, document.view)
+    point = document.structure.lattice.to_cart(
+        document.structure.sites[atom].frac)
+    return mode.on_click(document, model, modes.ClickEvent(
+        (point[0], point[1], -20.0), (0.0, 0.0, 1.0)))
+
+
+@pytest.mark.parametrize("name", ["topology", "add_bond"])
+def test_deleting_the_first_vertex_puts_the_gesture_down(name):
+    """The first click selects its atom, so ``Del`` deletes exactly
+    the atom the gesture is waiting on.
+
+    The mode kept its P1 index, and the next click asked a 99-atom
+    cell for atom 102: an ``IndexError`` out of ``bond_between``.
+    """
+    from xtalapp.viewport.widget import ViewportWidget
+
+    document = _three_zinc_in_a_row()
+    mode = modes.get(name)
+    mode.pending = None
+    viewport = _Viewport(document, mode)
+    document.structureChanged.connect(
+        lambda change: ViewportWidget._on_structure(viewport, change))
+
+    _click(document, mode, 2)
+    assert mode.pending is not None
+    document.delete_selection()
+    assert mode.pending is None
+    assert viewport.messages
+
+    assert "second" in _click(document, mode, 0)
+    message = _click(document, mode, 1)
+    assert "added" in message or "net edge" in message
+
+
+def test_a_deleted_atom_elsewhere_does_not_bond_the_wrong_pair():
+    """Worse than the crash: delete an atom *before* the pending one
+    and its index still fits the cell, one atom along from the atom
+    that was clicked.  The edge would join 0 to 1, a pair nobody
+    picked."""
+    from xtalapp.viewport.widget import ViewportWidget
+
+    document = _three_zinc_in_a_row()
+    mode = modes.get("topology")
+    mode.pending = None
+    viewport = _Viewport(document, mode)
+    document.structureChanged.connect(
+        lambda change: ViewportWidget._on_structure(viewport, change))
+
+    _click(document, mode, 1)
+    document.select([0])
+    document.delete_selection()
+    assert mode.pending is None
+    assert bonding.topology_graph(document.structure).bonds == []
+
+
+def test_a_move_keeps_the_gesture():
+    """Moving atoms does not renumber them, and a drag in another
+    panel between the two clicks is no reason to start again."""
+    from xtal.core.structure import Change
+
+    document = _three_zinc_in_a_row()
+    mode = modes.get("topology")
+    mode.pending = None
+    _click(document, mode, 0)
+    assert mode.on_structure_changed(document, int(Change.POSITIONS)) \
+        == ""
+    assert mode.pending is not None
+    mode.pending = None
+
+
 def test_deleting_a_selected_edge_removes_it_and_undoes():
     document = Document(pcu())
     model = build_scene(document.structure, document.view)

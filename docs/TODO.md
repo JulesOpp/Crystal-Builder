@@ -1,4 +1,6 @@
 # TODO
+# In preferences add an option for dark mode
+
 
 Work that is wanted but not yet scheduled into a phase.
 [docs/PLAN.md](PLAN.md) holds the architecture;
