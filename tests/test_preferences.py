@@ -108,17 +108,6 @@ def test_the_confirm_checkbox_is_stored_as_it_is_ticked(dialog,
 
 # -- General -----------------------------------------------------------
 
-def test_making_a_workspace_automatically_is_finally_reachable(
-        dialog, settings):
-    """It is read on every file that is opened and had no control at
-    all."""
-    page = dialog.page("General")
-
-    page.auto_workspace.setChecked(True)
-
-    assert settings.auto_workspace is True
-
-
 def test_the_default_workspace_folder_is_no_longer_hard_coded(
         dialog, settings, tmp_path):
     page = dialog.page("General")
@@ -399,17 +388,34 @@ def test_a_directory_typed_for_this_run_is_not_overwritten(window,
 
 def test_a_new_redraw_rate_reaches_the_documents_already_open(
         window, rutile, tmp_path):
+    """From the run panel, which is now the only control: the rate
+    has to reach every open viewport and the other panel's combo."""
     from xtal.io import write_cif
     path = tmp_path / "rutile.cif"
     write_cif(rutile, path)
     window.open_path(path)
-    dialog = window.preferences_dialog()
-    page = dialog.page("View defaults")
+    combo = window.ff_dock.redraw
 
-    page.redraw.setCurrentIndex(page.redraw.findData(200))
+    combo.setCurrentIndex(combo.findData(200))
 
     assert window.settings.preview_interval == 200
     assert window.current_viewport().preview_interval_ms == 200
+    assert window.dftb_dock.redraw.currentData() == 200
+
+
+def test_preferences_has_no_second_redraw_control(dialog):
+    """Two controls for one setting, one of them in a window nobody
+    has open while a run is going."""
+    from PySide6.QtWidgets import QComboBox
+
+    from xtalapp.docks.ff_panel import REDRAW_RATES
+    labels = {label for label, _value in REDRAW_RATES}
+    for page in dialog.pages:
+        assert not hasattr(page, "redraw")
+        for combo in page.findChildren(QComboBox):
+            entries = {combo.itemText(i) for i in range(combo.count())}
+            assert not entries & labels, page.TITLE
+    assert not hasattr(dialog, "previewIntervalChanged")
 
 
 def test_clearing_the_recent_files_rebuilds_the_menu(window, tmp_path,

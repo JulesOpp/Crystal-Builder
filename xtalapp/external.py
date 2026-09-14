@@ -114,8 +114,10 @@ TOOLS = (
          "Your own .cgd nets, read alongside the 2399 PORMAKE "
          "ships."),
     Tool("mof/bb_dir", "PORMAKE building blocks", "folder",
-         "Your own .xyz blocks, read alongside PORMAKE's 867.  It is "
-         "where Save as a building block writes."),
+         "Your own .xyz blocks, read alongside PORMAKE's 867.  Save "
+         "as a building block starts in this folder; a block drawn in "
+         "the MOF builder goes to the workspace's blocks folder, which "
+         "is read as well."),
 )
 
 

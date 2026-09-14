@@ -1639,8 +1639,8 @@ class MainWindow(QMainWindow):
         Built here rather than in the dialog, because these three are
         the whole of what a preference has to reach outside itself:
         the recent list is drawn in the File menu, the layout is this
-        window's own, and a redraw interval has to reach the viewports
-        of documents that are already open.  Everything else on those
+        window's own, and a program's path has to reach the Modules
+        menu and the run panels.  Everything else on those
         pages is a QSettings write and is read the next time something
         asks.
 
@@ -1651,7 +1651,6 @@ class MainWindow(QMainWindow):
         dialog = PreferencesDialog(self.settings, self)
         dialog.recentCleared.connect(self._rebuild_recent_menu)
         dialog.layoutReset.connect(self.reset_layout)
-        dialog.previewIntervalChanged.connect(self.set_preview_interval)
         dialog.followGeometryChanged.connect(self._follow_geometry_set)
         dialog.toolPathsChanged.connect(self._tool_paths_changed)
         return dialog

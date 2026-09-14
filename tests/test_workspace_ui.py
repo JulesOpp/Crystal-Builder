@@ -456,6 +456,28 @@ def test_a_workspace_that_cannot_be_made_still_opens_a_window(
     assert document.entry is None
 
 
+def test_a_structure_opened_with_no_workspace_says_so_and_makes_none(
+        qtbot, settings, rutile, tmp_path, monkeypatch):
+    """The degraded window makes no folder beside the file -- there was
+    a preference for that, and it is gone -- and says, once, that the
+    runs will not be kept."""
+    blocked = tmp_path / "blocked"
+    blocked.write_text("a file where the workspace would go")
+    monkeypatch.setenv("XTAL_WORKSPACE_ROOT", str(blocked))
+    win = MainWindow(viewport_factory=StubViewport, settings=settings)
+    qtbot.addWidget(win)
+    folder = tmp_path / "structures"
+    folder.mkdir()
+    source = folder / "rutile.cif"
+    write_cif(rutile, source)
+
+    win.open_path(source)
+
+    assert win.workspace is None
+    assert sorted(p.name for p in folder.iterdir()) == ["rutile.cif"]
+    assert "no workspace open" in win.statusBar().currentMessage()
+
+
 def test_the_browser_is_still_there(window, tmp_path):
     """Opening a file from somewhere else is how everything starts."""
     window.file_dock.set_browsing(True)

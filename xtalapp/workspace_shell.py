@@ -103,14 +103,15 @@ class WorkspaceShell:
         a second attempt at a folder the first attempt could not
         create, on every file the user opens, is a status bar that
         says nothing else all session.
+
+        There was a preference to make one beside the file instead.
+        It was off by default and reachable only here, on the path
+        where making a folder had just failed, and it is gone.
         """
-        if not self.window.settings.auto_workspace:
-            self.window.show_message(
-                "no workspace open, so runs will not be kept -- "
-                "File > New Workspace... gives them somewhere to go")
-            return None
-        return self.set_workspace(Path(path).parent / "Crystal Builder",
-                                  create=True)
+        self.window.show_message(
+            "no workspace open, so runs will not be kept -- "
+            "File > New Workspace... gives them somewhere to go")
+        return None
 
     def set_workspace(self, root, create: bool = False):
         """Open a workspace and show it in the tree.

@@ -3,14 +3,13 @@ xtalapp.dialogs.preferences
 ===========================
 Everything the application remembers between sessions, in one window.
 
-Four of the settings this application already has could be reached
-from nowhere at all: ``workspace/auto`` is read on every file that is
-opened and has never had a control, the default workspace folder was
-hard-coded, and the default bond rules could only be set from a dialog
-that needs a structure open.  A preference nobody can find is a
-constant with extra steps.  In a packaged build it is worse than that:
-there is no shell to export an environment variable in, so for the
-external tools (a later page) this dialog is the only way in at all.
+Settings this application already had could be reached from nowhere
+at all: the default workspace folder was hard-coded, and the default
+bond rules could only be set from a dialog that needs a structure
+open.  A preference nobody can find is a constant with extra steps.
+In a packaged build it is worse than that: there is no shell to export
+an environment variable in, so for the external tools (a later page)
+this dialog is the only way in at all.
 
 **A list and a stack, not tabs.**  Five pages is where a tab bar
 starts eliding its own labels; a list grows to a sixth without a
@@ -27,8 +26,8 @@ else**, injected the way every other dialog takes what it works on, so
 a test hands it a scratch domain instead of the developer's real
 preferences.  The three settings that have to reach further than the
 next session leave as signals -- the recent list has to be rebuilt in
-the File menu, the layout is the window's own, and a redraw interval
-has to reach the viewports of documents that are already open.
+the File menu, the layout is the window's own, and a program's path
+has to reach the Modules menu and the run panels.
 """
 
 from __future__ import annotations
@@ -57,7 +56,6 @@ from PySide6.QtWidgets import (
 from xtal.core import bonding
 from xtalapp import external, extras
 from xtalapp.dialogs.bond_rules import BondRulesDialog
-from xtalapp.docks.ff_panel import REDRAW_RATES
 from xtalapp.viewport import styles
 from xtalapp.viewport.view_settings import BACKGROUNDS
 
@@ -126,16 +124,6 @@ class GeneralPage(QWidget):
     def _workspace_box(self) -> QGroupBox:
         box = QGroupBox("Workspaces")
         outer = QVBoxLayout(box)
-        self.auto_workspace = QCheckBox(
-            "Make a workspace beside a structure opened without one")
-        self.auto_workspace.setChecked(self.settings.auto_workspace)
-        self.auto_workspace.toggled.connect(
-            lambda on: setattr(self.settings, "auto_workspace", on))
-        outer.addWidget(self.auto_workspace)
-        outer.addWidget(_hint(
-            "Off by default: a folder created behind somebody's back "
-            "is one they find later and do not recognise."))
-
         row = QHBoxLayout()
         self.workspace_root = QLineEdit(
             str(self.settings.default_workspace_root))
@@ -220,11 +208,6 @@ class ViewDefaultsPage(QWidget):
 
     TITLE = "View defaults"
 
-    #: Milliseconds between redraws during a run.  Reaches the
-    #: viewports of documents that are already open, which is why it
-    #: leaves the dialog rather than only being stored.
-    previewIntervalChanged = Signal(int)
-
     def __init__(self, settings, parent=None):
         super().__init__(parent)
         self.settings = settings
@@ -272,23 +255,9 @@ class ViewDefaultsPage(QWidget):
             "The View menu changes the document you are looking at "
             "and nothing else.  A project keeps the view it was saved "
             "with."))
-        layout.addWidget(box)
-
-        box = QGroupBox("While a calculation runs")
-        form = QFormLayout(box)
-        self.redraw = QComboBox()
-        for label, value in REDRAW_RATES:
-            self.redraw.addItem(label, value)
-        self.redraw.setCurrentIndex(
-            max(0, self.redraw.findData(settings.preview_interval)))
-        self.redraw.currentIndexChanged.connect(
-            lambda _i: self.previewIntervalChanged.emit(
-                int(self.redraw.currentData())))
-        form.addRow("Redraw the structure", self.redraw)
-        form.addRow(_hint(
-            "Every step is reported whatever this says.  It is how "
-            "often the picture is repainted, which on a large cell "
-            "is the most expensive thing happening."))
+        # No redraw rate here: the Force Field and DFTB+ panels each
+        # have one beside the run it governs, and a second copy on this
+        # page was the same setting in a place nobody looks mid-run.
         layout.addWidget(box)
         layout.addStretch(1)
 
@@ -602,7 +571,6 @@ class PreferencesDialog(QDialog):
 
     recentCleared = Signal()
     layoutReset = Signal()
-    previewIntervalChanged = Signal(int)
     followGeometryChanged = Signal(bool)
     toolPathsChanged = Signal()
 
@@ -630,7 +598,6 @@ class PreferencesDialog(QDialog):
             area.setWidget(page)
             self.stack.addWidget(area)
             for name in ("recentCleared", "layoutReset",
-                         "previewIntervalChanged",
                          "followGeometryChanged", "toolPathsChanged"):
                 signal = getattr(page, name, None)
                 if signal is not None:

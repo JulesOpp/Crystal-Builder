@@ -270,26 +270,6 @@ class AppSettings:
         paths.insert(0, path)
         self._q.setValue("workspace/recent", paths[:MAX_RECENT])
 
-    @property
-    def auto_workspace(self) -> bool:
-        """Make a workspace beside a structure that is opened without
-        one.
-
-        Off, and it is now the second answer to a question the
-        startup has usually already settled: a window makes the
-        default workspace on a first run, so a structure is opened
-        into one.  This is what happens when that failed -- and the
-        answer stays no, because creating a directory next to every
-        file anybody opens, having just failed to create one, is worse
-        than the problem it solves.  The structure opens and runs and
-        leaves nothing behind, and the status bar says so once.
-        """
-        return _as_bool(self._q.value("workspace/auto", False))
-
-    @auto_workspace.setter
-    def auto_workspace(self, value) -> None:
-        self._q.setValue("workspace/auto", bool(value))
-
     # -- saving ---------------------------------------------------------
 
     @property
