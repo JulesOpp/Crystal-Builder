@@ -193,13 +193,19 @@ class ForceFieldDock(QDockWidget):
         self.engine.currentIndexChanged.connect(self._on_engine)
 
         # An engine that declares its options gets a generated form,
-        # one per engine, built once and shown when it is chosen.  UFF
-        # declares none and keeps the two controls below, which
-        # predate the mechanism -- the same asymmetry, and the same
-        # honesty about it, as ``Action.shell``.
+        # one per engine, built once and shown when it is chosen.
+        #
+        # UFF is the exception and is named rather than detected.  It
+        # declares its options too now, so that a dialog elsewhere can
+        # offer "UFF or UFF4MOF" without reaching in here -- but the
+        # controls below stay, because two of them drive each other
+        # (ticking electrostatics is what enables the charge chooser)
+        # and a generated form has no way to say that.  Same asymmetry
+        # as ``Action.shell``, and the same honesty about it.
         self.engine_forms = {
             engine.name: ParamForm(engine.options)
-            for engine in self.engines if engine.options}
+            for engine in self.engines
+            if engine.options and engine.name != "uff"}
         for form in self.engine_forms.values():
             # An engine whose availability depends on what the form
             # says -- xTB's does, per method -- has to be re-asked

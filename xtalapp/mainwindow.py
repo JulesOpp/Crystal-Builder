@@ -24,6 +24,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QGuiApplication
 from PySide6.QtWidgets import (
     QApplication,
@@ -148,6 +149,17 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.tabs.setTabsClosable(True)
         self.tabs.setDocumentMode(True)
+        # Scroll arrows, for the same reason the dock tab bars have
+        # them (``layout._ScrollingDockTabs``) and measured the same
+        # way.  A tab bar without them is as wide as all of its tabs:
+        # twenty-four open structures came to 1824 px on a 1512 px
+        # screen, so the last ones simply could not be reached.  With
+        # arrows the bar asks for 127 px and elides the rest.  Off by
+        # default on macOS, which is why this is set rather than left
+        # alone.
+        self.tabs.tabBar().setUsesScrollButtons(True)
+        self.tabs.tabBar().setElideMode(Qt.ElideRight)
+        self.tabs.setMovable(True)
         self.tabs.tabCloseRequested.connect(self.close_document)
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self.setCentralWidget(self.tabs)

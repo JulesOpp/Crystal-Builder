@@ -174,10 +174,16 @@ class LandscapeDialog(QDialog):
         pattern has -- and it keeps the contour count, the fill and the
         branch from having to be undone one at a time.
         """
-        self.axes.clear()
-        if self._bar is not None:
-            self._bar.remove()
-            self._bar = None
+        # The whole figure, not ``axes.clear()`` and a colour bar
+        # taken off afterwards.  Clearing the axes detaches the
+        # mappable the bar was made from, and ``Colorbar.remove`` then
+        # fails restoring a subplotspec that is no longer there --
+        # which is what unticking Fill used to do.  A landscape is
+        # tens of points, so building the figure again costs nothing
+        # and there is no teardown order left to get wrong.
+        self.figure.clear()
+        self.axes = self.figure.add_subplot(111)
+        self._bar = None
         surface = self.surface
         values = self.values()
         if values.size < 4:

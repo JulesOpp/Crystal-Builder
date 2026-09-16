@@ -13,6 +13,7 @@ import numpy as np
 import pytest
 
 from xtal.core import p1
+from xtal.ff.registry import ENGINES
 from xtal.io import write_cif
 from xtal.modules import scan as module
 from xtal.modules.job import Cancellation, Job
@@ -228,13 +229,71 @@ def test_the_surface_carries_the_file_behind_each_cell(quartz,
     assert surface.path_at(0, 0).endswith("forward-00-00.cif")
 
 
-def test_both_directions_come_back_as_two_sheets(quartz):
-    """Kept apart rather than averaged: where they differ is the
-    hysteresis."""
+def test_the_landscape_shown_first_is_the_lower_of_the_branches(
+        quartz):
+    """Neither branch alone is the landscape: each is the energy of
+    whichever basin that direction of travel arrived in, so drawing
+    one of them makes half the picture an artefact of the direction.
+
+    The branches are still there, one click away, because their
+    difference is the hysteresis -- but that is the second question.
+    """
     result = module.run_scan(_cell_scan(quartz, direction="both"))
     surface = result.report.surfaces[0]
-    assert [label for label, _z in surface.all_sheets()][1] == \
-        "reverse"
+    labels = [label for label, _z in surface.all_sheets()]
+    assert labels[0].endswith("lowest of both")
+    assert "forward" in labels and "reverse" in labels
+    assert any("-" in label for label in labels[1:])
+
+
+def test_the_first_sheet_is_no_higher_than_either_branch(quartz):
+    """What "lowest of both" has to mean, asserted rather than
+    assumed."""
+    result = module.run_scan(_cell_scan(quartz, direction="both"))
+    surface = result.report.surfaces[0]
+    sheets = dict(surface.all_sheets())
+    for name in ("forward", "reverse"):
+        assert np.all(np.nan_to_num(surface.z, nan=np.inf)
+                      <= np.nan_to_num(sheets[name], nan=np.inf)
+                      + 1e-9)
+
+
+def test_one_direction_still_draws_that_direction(quartz):
+    """The envelope only means anything when there are two branches
+    to take it of."""
+    result = module.run_scan(_cell_scan(quartz, direction="forward"))
+    surface = result.report.surfaces[0]
+    assert surface.z_label.endswith("forward")
+    assert len(surface.all_sheets()) == 1
+
+
+def test_a_cell_opens_the_branch_that_gave_its_energy(quartz,
+                                                      folder):
+    """With the envelope on screen, clicking a cell has to open the
+    structure that *made* that number -- not the forward one
+    regardless, which would show a crystal whose energy is not the
+    one under the cursor.
+
+    Checked against the CSV, which records every point of both
+    branches: for each cell, the file the surface points at must be
+    the one whose row has the lower energy.
+    """
+    result = module.run_scan(_cell_scan(quartz, folder,
+                                        direction="both"))
+    surface = result.report.surfaces[0]
+    import csv as _csv
+    rows = list(_csv.DictReader(
+        (folder.path / "scan.csv").open(encoding="utf-8")))
+    xs = list(surface.x)
+    ys = list(surface.y)
+    for row in range(len(ys)):
+        for column in range(len(xs)):
+            here = [r for r in rows
+                    if float(r["a target"]) == pytest.approx(ys[row])
+                    and float(r["c target"]) == pytest.approx(
+                        xs[column])]
+            best = min(here, key=lambda r: float(r["energy (kcal/mol)"]))
+            assert surface.path_at(row, column).endswith(best["file"])
 
 
 def test_the_report_says_what_was_held(quartz):
@@ -277,6 +336,112 @@ def test_the_energies_on_the_surface_are_relative_to_the_lowest(
 # ----------------------------------------------------------------------
 #  The registry
 # ----------------------------------------------------------------------
+
+def test_the_bonding_is_the_same_at_every_point(quartz):
+    """A scan must not re-perceive bonds as the cell opens.
+
+    Distance perception is re-run on any structure that has none
+    stored, and a scan hands the engine a new cell at every point, so
+    without holding it the framework quietly comes apart: on
+    MIL53.cif, stretching a by 15% loses 24 of its 126 bonds and by
+    30% loses 78.  The landscape then has a cliff in it that is a
+    change of topology rather than anything about the material.
+    """
+    from xtal.core import bonding
+
+    a, _b, _c = quartz.lattice.parameters[:3]
+    seen = []
+    job = _job(quartz, axis1="a", axis1_start=a * 0.80,
+               axis1_stop=a * 1.30, axis1_steps=4, max_steps=5)
+
+    real = ENGINES.build
+
+    def spy(name, structure, **options):
+        seen.append(len(bonding.graph(structure).bonds))
+        return real(name, structure, **options)
+
+    ENGINES.build = spy
+    try:
+        module.run_scan(job)
+    finally:
+        ENGINES.build = real
+    assert len(set(seen)) == 1
+
+
+def test_a_bond_set_by_hand_survives_the_whole_scan(quartz):
+    """Explicit bonds ride on top of the held perception, which is
+    how a bond type set before the scan is still set at the last
+    point."""
+    from xtal.core.structure import Bond
+
+    structure = quartz.copy()
+    before = len(structure.bonds)
+    structure.bonds.append(Bond(0, 1, (0, 0, 0), order=2.0,
+                                kind="explicit"))
+    a, _b, _c = structure.lattice.parameters[:3]
+    seen = []
+    real = ENGINES.build
+
+    def spy(name, st, **options):
+        seen.append([(b.i, b.j, b.order) for b in st.bonds])
+        return real(name, st, **options)
+
+    ENGINES.build = spy
+    try:
+        module.run_scan(_job(structure, axis1="a",
+                             axis1_start=a * 0.9, axis1_stop=a * 1.2,
+                             axis1_steps=3, max_steps=5))
+    finally:
+        ENGINES.build = real
+    assert all(len(bonds) == before + 1 for bonds in seen)
+    assert all((0, 1, 2.0) in bonds for bonds in seen)
+
+
+def test_the_engine_is_built_with_the_options_it_was_given(quartz):
+    """They were collected by the dialog and then dropped on the
+    floor, so a scan set up with plain UFF ran UFF4MOF."""
+    seen = []
+    real = ENGINES.build
+
+    def spy(name, structure, **options):
+        seen.append(options)
+        return real(name, structure, **options)
+
+    a, _b, _c = quartz.lattice.parameters[:3]
+    ENGINES.build = spy
+    try:
+        module.run_scan(_job(
+            quartz, axis1="a", axis1_start=a, axis1_stop=a * 1.02,
+            axis1_steps=2, max_steps=3,
+            engine_options={"parameter_set": "uff"}))
+    finally:
+        ENGINES.build = real
+    assert seen and all(o["parameter_set"] == "uff" for o in seen)
+
+
+def test_missing_engine_options_fall_back_to_the_defaults(quartz):
+    """A command line that names one option must not have to name all
+    five."""
+    settings = module.engine_settings(
+        _job(quartz, engine_options={"parameter_set": "uff"}), "uff")
+    assert settings["parameter_set"] == "uff"
+    assert settings["vdw_cutoff"] == 12.0
+
+
+def test_the_report_names_the_parameter_set_it_used(quartz):
+    """"UFF" and "UFF4MOF" are different numbers and the report has
+    to say which."""
+    said = module.run_scan(_cell_scan(
+        quartz, engine_options={"parameter_set": "uff"})).report.note
+    assert "(uff)" in said
+
+
+def test_the_default_optimiser_is_smart_at_five_hundred_steps():
+    _module_found, action = MODULES.find("scan.run")
+    defaults = dict(action.defaults())
+    assert defaults["method"] == "smart"
+    assert defaults["max_steps"] == 500
+
 
 def test_the_scan_is_registered_as_a_module():
     module_found, action = MODULES.find("scan.run")

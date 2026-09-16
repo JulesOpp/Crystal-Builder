@@ -149,10 +149,17 @@ PARAMS = (
                    ("reverse", "Backwards only")),
           help="Walking the grid both ways and drawing both is how "
                "hysteresis shows up instead of hiding in one curve."),
-    Param("method", "Optimiser", "choice", default="lbfgs",
-          choices=tuple(sorted(METHODS))),
-    Param("max_steps", "Steps per point", "int", default=200,
-          minimum=1, maximum=100000),
+    Param("method", "Optimiser", "choice", default="smart",
+          choices=tuple(sorted(METHODS)),
+          help="Smart descends steeply at first and changes rule as "
+               "the forces fall, which is what a scan wants: every "
+               "point after the first starts near a minimum, but the "
+               "first one may not."),
+    Param("max_steps", "Steps per point", "int", default=500,
+          minimum=1, maximum=100000,
+          help="A point that stops at the limit is reported as not "
+               "converged and drawn apart, so this is a ceiling "
+               "rather than a target."),
     Param("tolerance", "Force tolerance", "float", default=0.05,
           minimum=1e-6, decimals=4, suffix=" kcal/mol/A"),
 )
@@ -172,16 +179,18 @@ def run_scan(job) -> JobResult:
                        direction=direction)
     engine = str(job.param("engine", "uff"))
 
-    job.say(f"{plan.n_points} points on {ENGINES.get(engine).label}")
+    settings = engine_settings(job, engine)
+
+    job.say(f"{plan.n_points} points on {_engine_said(engine, settings)}")
     job.note(plan.describe())
 
     writer = _Files(job, plan)
     points: list[driver.ScanPoint] = []
     iterator = driver.scan(
-        lambda s: ENGINES.build(engine, s), structure, axes,
+        lambda s: ENGINES.build(engine, s, **settings), structure, axes,
         seed=seed, direction=direction, cancel=job.cancel,
-        method=str(job.param("method", "lbfgs")),
-        max_steps=int(job.param("max_steps", 200)),
+        method=str(job.param("method", "smart")),
+        max_steps=int(job.param("max_steps", 500)),
         force_tolerance=float(job.param("tolerance", 0.05)))
     for point in iterator:
         points.append(point)
@@ -200,8 +209,35 @@ def run_scan(job) -> JobResult:
     return JobResult(
         message=message,
         cancelled=bool(job.cancelled),
-        report=_report(plan, result, engine, writer.paths),
+        report=_report(plan, result, engine, writer.paths, settings),
         artifacts=writer.artifacts)
+
+
+def engine_settings(job, engine: str) -> dict:
+    """The engine's own options, coerced, defaults filled in.
+
+    They arrive under one key rather than spread through the job's
+    parameters, because a scan already has ten of its own and an
+    engine has up to nine more -- and because which nine depends on
+    the engine, which a flat parameter list cannot say.  Coerced
+    through the registry so that a command line handing in strings
+    gets the same answer a dialog does.
+    """
+    given = job.param("engine_options", None) or {}
+    entry = ENGINES.get(engine)
+    values = dict(entry.defaults())
+    values.update({k: v for k, v in dict(given).items()
+                   if k in values})
+    return entry.coerce(values)
+
+
+def _engine_said(engine: str, settings) -> str:
+    """The engine and the one setting worth naming in a log line."""
+    label = ENGINES.get(engine).label
+    for key in ("parameter_set", "model", "method"):
+        if key in settings and settings[key]:
+            return f"{label} ({settings[key]})"
+    return label
 
 
 def _shortfall(result) -> str:
@@ -304,7 +340,8 @@ class _Files:
 #  WHAT COMES BACK
 # ======================================================================
 
-def _report(plan, result, engine, paths=None) -> Report:
+def _report(plan, result, engine, paths=None, settings=None
+            ) -> Report:
     blocks: list = [_table(plan, result)]
     if len(plan.axes) == 2:
         blocks.append(_surface(plan, result, paths or {}))
@@ -316,11 +353,12 @@ def _report(plan, result, engine, paths=None) -> Report:
         # The plan is said once, on the block that draws it, rather
         # than here as well: a report is read top to bottom and the
         # same paragraph twice reads as a mistake.
-        note=(f"Energies from {ENGINES.get(engine).label}, in "
-              f"kcal/mol for the whole cell.  This is a landscape at "
-              f"zero kelvin: it is an energy, not a free energy, and "
-              f"for a flexible framework the two can order the "
-              f"phases differently."))
+        note=(f"Energies from "
+              f"{_engine_said(engine, settings or {})}, in kcal/mol "
+              f"for the whole cell.  This is a landscape at zero "
+              f"kelvin: it is an energy, not a free energy, and for "
+              f"a flexible framework the two can order the phases "
+              f"differently."))
 
 
 def _table(plan, result) -> Table:
@@ -361,22 +399,66 @@ def _surface(plan, result, paths) -> Surface:
     """
     first, second = plan.axes
     branches = plan.directions
-    lowest = result.minimum()
-    base = lowest.energy if lowest is not None else 0.0
+    base = result.base()
+    both = len(branches) > 1
+
+    # With two branches the sheet shown *first* is the lower of them,
+    # not the forward one.  Neither branch alone is the landscape --
+    # each is the energy of whichever basin that direction of travel
+    # arrived in -- and drawing one of them means half the picture is
+    # an artefact of the direction.  The branches stay, and so does
+    # their difference, because that difference is the hysteresis and
+    # is the whole point of walking both ways; but it is the second
+    # question, and the lower envelope is the first.
+    primary = result.best() - base if both else \
+        result.relative(branches[0])
+    label = "lowest of both" if both else branches[0]
+    sheets = []
+    if both:
+        sheets.extend((name, result.grid(name) - base)
+                      for name in branches)
+        difference = result.hysteresis()
+        if difference is not None:
+            sheets.append(
+                (f"{branches[0]} - {branches[1]}", difference))
+
+    chosen = result.best_points() if both else None
+    converged = (_converged_of(chosen, plan.shape) if both
+                 else result.converged(branches[0]))
     return Surface(
         title="Energy landscape",
         x=np.array(second.values), y=np.array(first.values),
-        z=result.relative(branches[0]),
+        z=primary,
         x_label=_axis_label(second), y_label=_axis_label(first),
-        z_label=f"E - E(min) (kcal/mol), {branches[0]}",
-        converged=result.converged(branches[0]),
+        z_label=f"E - E(min) (kcal/mol), {label}",
+        converged=converged,
         paths=tuple(
-            tuple(paths.get((branches[0], (row, column)), "")
+            tuple(_path_for(paths, chosen, branches[0], (row, column))
                   for column in range(len(second)))
             for row in range(len(first))),
-        sheets=tuple((name, result.grid(name) - base)
-                     for name in branches[1:]),
+        sheets=tuple(sheets),
         note=plan.describe())
+
+
+def _converged_of(chosen, shape) -> np.ndarray:
+    out = np.zeros(shape, dtype=bool)
+    for index, point in chosen.items():
+        out[index] = point.converged
+    return out
+
+
+def _path_for(paths, chosen, fallback, index) -> str:
+    """The file behind a cell -- of whichever branch is being drawn.
+
+    With the lower envelope on screen, clicking a cell has to open the
+    structure that *gave* that energy.  Opening the forward one
+    regardless would show a crystal whose energy is not the number
+    under the cursor, which is the kind of quiet mismatch the rest of
+    this feature is built to avoid.
+    """
+    if chosen is not None and index in chosen:
+        return paths.get((chosen[index].branch, index), "")
+    return paths.get((fallback, index), "")
 
 
 def _axis_label(axis) -> str:

@@ -43,6 +43,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from xtal.core import bonding
 from xtal.core.lattice import PARAMETER_NAMES, Lattice
 from xtal.ff import coordinates as co
 from xtal.ff import optimize
@@ -372,6 +373,7 @@ def scan(build, structure, axes, *, seed: str = "previous",
     """
     shape = tuple(len(a) for a in axes)
     prepared = plan(structure, axes, seed=seed, direction=direction)
+    hold_bonding(structure)
     for branch in prepared.directions:
         done: dict[tuple[int, ...], object] = {}
         for index in raster(shape, reverse=(branch == "reverse")):
@@ -389,6 +391,32 @@ def scan(build, structure, axes, *, seed: str = "previous",
             if on_point is not None:
                 on_point(point)
             yield point
+
+
+def hold_bonding(structure) -> None:
+    """Perceive once, here, so that every point is the same molecule.
+
+    Distance perception is re-run on any structure that has none
+    stored, and a scan hands the engine a new cell at every point --
+    so without this the framework is re-perceived at each one and
+    quietly comes apart as it opens.  Measured on ``MIL53.cif``:
+    stretching *a* by 15% loses 24 of its 126 bonds and by 30% loses
+    78, and *c* by 20% loses 36.  The landscape then has a cliff in it
+    that is a change of topology rather than anything about the
+    material, and nothing says so.
+
+    Perceiving once writes the graph onto the structure, where
+    ``copy`` carries it and a cell change does not disturb it, so
+    every point is scored over the bonds the user had when they
+    started.  Explicit bonds ride on top of it as they always do,
+    which is how a bond type set by hand survives the whole scan.
+
+    This is :data:`xtal.core.structure.CHEMISTRY`'s rule kept rather
+    than bent: bonds change when the user asks them to, and a scan is
+    not asking.
+    """
+    if structure.perceived is None:
+        bonding.perceive(structure)
 
 
 def _rebuilt(structure, point):
@@ -518,9 +546,54 @@ class ScanResult:
 
     def relative(self, branch: str = "forward") -> np.ndarray:
         """The same, measured from the lowest finished point."""
+        return self.grid(branch) - self.base()
+
+    def base(self) -> float:
         lowest = self.minimum()
-        base = lowest.energy if lowest is not None else 0.0
-        return self.grid(branch) - base
+        return lowest.energy if lowest is not None else 0.0
+
+    def best(self) -> np.ndarray:
+        """The lower of the branches at every point of the grid.
+
+        The landscape somebody actually wants to look at.  A scan
+        walked both ways gives two energies per cell, and neither
+        alone is the answer: each is the energy of the basin that
+        branch happened to arrive in, and the lower of the two is the
+        better estimate of the ground state there.  Drawing one branch
+        and calling it the landscape means half the picture is an
+        artefact of the direction of travel.
+
+        The two are still kept, because their *difference* is the
+        hysteresis and that is the physics of a flexible framework --
+        but it is a second question, and this is the first.
+        """
+        grids = [self.grid(name) for name in
+                 dict.fromkeys(p.branch for p in self.points)]
+        if not grids:
+            return np.full(self.plan.shape, np.nan)   # pragma: no cover
+        return np.fmin.reduce(grids)
+
+    def hysteresis(self) -> np.ndarray | None:
+        """Forward minus reverse, where a scan was walked both ways.
+
+        ``None`` for one direction, because a difference of one thing
+        is not a number anybody should be shown.
+        """
+        names = list(dict.fromkeys(p.branch for p in self.points))
+        if len(names) < 2:
+            return None
+        return self.grid(names[0]) - self.grid(names[1])
+
+    def best_points(self) -> dict:
+        """The point that gave the lower energy at each index."""
+        out: dict = {}
+        for point in self.points:
+            if not point.finished:
+                continue
+            held = out.get(point.index)
+            if held is None or point.energy < held.energy:
+                out[point.index] = point
+        return out
 
     def converged(self, branch: str = "forward") -> np.ndarray:
         out = np.zeros(self.plan.shape, dtype=bool)

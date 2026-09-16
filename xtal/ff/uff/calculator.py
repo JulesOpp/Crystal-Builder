@@ -38,6 +38,7 @@ from xtal.ff import ewald
 from xtal.ff.api import Calculator, CalculatorError, Result
 from xtal.ff.registry import ENGINES, Engine
 from xtal.ff.uff import params, terms, typer
+from xtal.params import Param
 
 DEFAULT_VDW_CUTOFF = 12.0
 DEFAULT_SKIN = 2.0
@@ -620,12 +621,50 @@ def build(structure, **options) -> UFFCalculator:
     return UFFCalculator(structure, UFFOptions(**options), rules)
 
 
+#: What UFF can be asked, declared the way every other engine
+#: declares it.
+#:
+#: These were the panel's own widgets and nothing else could see them,
+#: which was fine while the panel was the only caller and stopped
+#: being fine the moment a second one -- the relaxed scan -- had to
+#: offer "UFF or UFF4MOF" in a dialog of its own.  The panel keeps its
+#: hand-built controls, because two of them drive each other and a
+#: generated form cannot; everything else reads these.
+OPTIONS = (
+    Param("parameter_set", "Parameters", "choice",
+          default=params.DEFAULT_PARAMETER_SET,
+          choices=params.PARAMETER_SETS,
+          help="UFF4MOF adds rows fitted to metal nodes in "
+               "frameworks and types everything else exactly as UFF "
+               "does.  Plain UFF never uses them, which is how to "
+               "see what they change."),
+    Param("coulomb", "Include electrostatics", "bool", default=False,
+          help="Off by default, as in UFF itself: the published "
+               "parameters were fitted without a Coulomb term."),
+    Param("charges", "Charges from", "choice", default="site",
+          choices=(("site", "The sites"), ("qeq", "Equilibrate (QEq)"),
+                   ("zero", "All zero")),
+          help="Only used when electrostatics are on."),
+    Param("vdw_cutoff", "van der Waals cutoff", "float",
+          default=DEFAULT_VDW_CUTOFF, minimum=4.0, maximum=30.0,
+          step=1.0, decimals=1, suffix=" A",
+          help="The pair count goes as the cube of this: 10 A is 42% "
+               "fewer pairs than 12 A, for an LJ tail worth about a "
+               "thousandth of a kcal/mol per pair."),
+    Param("skin", "Neighbour list skin", "float",
+          default=DEFAULT_SKIN, minimum=0.0, maximum=10.0, step=0.5,
+          decimals=1, suffix=" A",
+          help="How far an atom may move before the pair list is "
+               "rebuilt."),
+)
+
 ENGINES.register(Engine(
     name="uff",
     label="UFF",
     description="Universal Force Field (Rappe et al. 1992) -- covers "
                 "the whole periodic table, native and in-process",
     build=build,
+    options=OPTIONS,
     order=10,
     provides=frozenset({"forces", "stress", "charges", "periodic",
                         "types"}),

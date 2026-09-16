@@ -283,3 +283,26 @@ def test_the_left_column_still_starts_wide_enough_for_structure(
     window.show()
     qtbot.waitExposed(window)
     assert window.info_dock.width() >= DEFAULT_LEFT_WIDTH - 10
+
+
+def test_many_open_tabs_do_not_widen_the_tab_bar_past_the_screen(
+        qtbot, window, tmp_path, rutile):
+    """A tab bar without scroll arrows is as wide as all of its tabs.
+
+    Twenty-four open structures came to 1824 px on a 1512 px screen,
+    so the last of them could not be reached at all.  With the arrows
+    the bar asks for about 130 px and elides the rest -- the same fix,
+    and the same numbers, as ``layout._ScrollingDockTabs`` made for
+    the dock tab bars.  Off by default on macOS, which is why it is
+    set rather than left alone.
+    """
+    from xtal.io import write_cif
+
+    for index in range(24):
+        path = tmp_path / f"AVeryLongStructureName{index:02d}.cif"
+        write_cif(rutile, path)
+        window.open_path(path)
+    assert window.tabs.count() == 24
+    bar = window.tabs.tabBar()
+    assert bar.usesScrollButtons()
+    assert bar.minimumSizeHint().width() < 300

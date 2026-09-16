@@ -43,6 +43,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QSpinBox,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -53,6 +54,7 @@ from xtal.ff import scan as driver
 from xtal.ff.optimize import METHODS
 from xtal.ff.registry import ENGINES
 from xtal.modules import scan as scan_module
+from xtalapp.dialogs.module_form import ParamForm
 from xtalapp.docks import scrolling
 
 #: Roughly how long one optimiser step takes, per atom of the P1 cell,
@@ -84,9 +86,22 @@ def panel_engine(window) -> str:
 
 
 def panel_options(window, engine: str) -> dict:
-    """That engine's own options, as the panel has them set."""
+    """That engine's own options, as the Force Field panel has them.
+
+    Used to *open* this dialog's form on what the user last set up
+    rather than on the registry defaults, which is the difference
+    between "the scan runs UFF4MOF because that is what I have been
+    using" and "the scan runs whatever it felt like".  The form is
+    still the dialog's own: an engine chosen here that the panel is
+    not on has nothing to inherit, and gets its defaults.
+    """
     for name in ("ff_dock", "dftb_dock"):
         dock = getattr(window, name, None)
+        if dock is None:
+            continue
+        chosen = getattr(dock, "engine_name", None)
+        if callable(chosen) and str(chosen()) == engine:
+            return dict(dock.options())
         forms = getattr(dock, "engine_forms", {}) or {}
         form = forms.get(engine)
         if form is not None:
@@ -320,6 +335,28 @@ class ScanDialog(QDialog):
             self.engine.addItem(engine.label, engine.name)
         self._select(self.engine, panel_engine(parent))
 
+        # One generated form per engine, built from what the registry
+        # says that engine can be asked -- so UFF4MOF, the MACE model,
+        # xTB's GFN level and DFTB+'s Hamiltonian are all chosen here
+        # rather than only in the panel.  Each opens on whatever the
+        # panel has set for it, and only the chosen one is shown.
+        self.engine_forms = {}
+        self.engine_stack = QStackedWidget()
+        self.engine_pages = {}
+        for engine in ENGINES:
+            form = ParamForm(engine.options) if engine.options else None
+            if form is not None:
+                form.set_values(panel_options(parent, engine.name))
+                self.engine_forms[engine.name] = form
+            page = form if form is not None else QWidget()
+            self.engine_pages[engine.name] = \
+                self.engine_stack.addWidget(page)
+        self.engine.currentIndexChanged.connect(self._engine_changed)
+
+        self.availability = QLabel("")
+        self.availability.setWordWrap(True)
+        self.availability.setStyleSheet("color: palette(mid);")
+
         self.first = AxisBox("First axis", self.structure, parent)
         self.second = AxisBox("Second axis", self.structure, parent,
                               optional=True)
@@ -343,10 +380,17 @@ class ScanDialog(QDialog):
 
         self.method = QComboBox()
         self.method.addItems(sorted(METHODS))
-        self._select(self.method, "lbfgs")
+        self._select(self.method, "smart")
+        self.method.setToolTip(
+            "Smart descends steeply at first and changes rule as the "
+            "forces fall.  Every point after the first starts near a "
+            "minimum; the first one may not.")
         self.max_steps = QSpinBox()
         self.max_steps.setRange(1, 100000)
-        self.max_steps.setValue(200)
+        self.max_steps.setValue(500)
+        self.max_steps.setToolTip(
+            "A ceiling, not a target: a point that stops here is "
+            "reported as not converged and drawn apart.")
         self.tolerance = QDoubleSpinBox()
         self.tolerance.setDecimals(4)
         self.tolerance.setRange(1e-4, 100.0)
@@ -364,6 +408,9 @@ class ScanDialog(QDialog):
         buttons.rejected.connect(self.reject)
 
         self._build()
+        self._engine_changed()
+        for form in self.engine_forms.values():
+            form.changed.connect(self._engine_changed)
         for box in (self.first, self.second):
             box.kind.currentIndexChanged.connect(self.refresh)
             box.atoms.textChanged.connect(self.refresh)
@@ -379,10 +426,9 @@ class ScanDialog(QDialog):
         engine = QFormLayout()
         engine.addRow("Engine", self.engine)
         note = QLabel(
-            "The engine's own settings come from the Force Field "
-            "panel.  For a flexible framework a machine-learned "
-            "potential is the better choice: UFF4MOF was never "
-            "fitted to reproduce a breathing double well.")
+            "For a flexible framework a machine-learned potential is "
+            "the better choice: UFF4MOF was never fitted to "
+            "reproduce a breathing double well.")
         note.setWordWrap(True)
         note.setStyleSheet("color: palette(mid);")
 
@@ -395,6 +441,8 @@ class ScanDialog(QDialog):
 
         inner = QVBoxLayout()
         inner.addLayout(engine)
+        inner.addWidget(self.engine_stack)
+        inner.addWidget(self.availability)
         inner.addWidget(note)
         inner.addWidget(self.first)
         inner.addWidget(self.second)
@@ -407,6 +455,28 @@ class ScanDialog(QDialog):
         layout.addWidget(self.summary)
         layout.addWidget(self.buttons)
         self.resize(560, 660)
+
+    def _engine_changed(self) -> None:
+        """Show the chosen engine's form, and whether it can run.
+
+        An engine that is not installed -- MACE without its extra,
+        DFTB+ without a binary -- has to say so here rather than
+        after a scan has been started and the first point has failed
+        a hundred times over.
+        """
+        name = str(self.engine.currentData())
+        self.engine_stack.setCurrentIndex(
+            self.engine_pages.get(name, 0))
+        entry = ENGINES.get(name)
+        ready = entry.availability(**self.engine_values())
+        self.availability.setText(
+            "" if ready.ok else str(ready.reason or
+                                    f"{entry.label} is not available"))
+        self.refresh()
+
+    def engine_values(self) -> dict:
+        form = self.engine_forms.get(str(self.engine.currentData()))
+        return dict(form.values()) if form is not None else {}
 
     @staticmethod
     def _select(combo, value) -> None:
@@ -474,9 +544,7 @@ class ScanDialog(QDialog):
             "max_steps": self.max_steps.value(),
             "tolerance": self.tolerance.value(),
         }
-        options = panel_options(self.window, engine)
-        if options:
-            out["engine_options"] = options
+        out["engine_options"] = self.engine_values()
         return out
 
     def set_values(self, values) -> None:
