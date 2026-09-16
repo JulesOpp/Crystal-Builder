@@ -535,11 +535,154 @@ class Zone:
 
 
 @dataclass(frozen=True)
+class Surface:
+    """A quantity over a grid of two axes, and the files behind it.
+
+    The sixth block, earned by the relaxed scan, which is the rule
+    this file set itself: the second module needing something the
+    existing blocks cannot say gets to add one, against a real use.
+    An energy landscape is not a :class:`Curve` with many series.  Its
+    second axis is continuous rather than a list of labels, the
+    quantity lives in colour rather than in height, each cell carries
+    whether it converged, and behind each is a structure somebody will
+    want to open.
+
+    ``z`` is NaN wherever a point did not finish, and that is load
+    bearing.  A hole plotted as a zero is the deepest point of every
+    landscape it appears in, so the renderer has to be handed
+    something it cannot mistake for a number.
+
+    ``paths`` is a file per cell -- the relaxed structure at that
+    point -- or an empty string where there is none.  It is what makes
+    the picture clickable, and it is in the block rather than
+    reconstructed by the panel because only the run knew where it
+    wrote them.
+
+    ``note`` says what was held fixed while the landscape was taken.
+    A profile that does not say that cannot be read, and half the
+    confusion in the literature this was built for comes from plots
+    that leave it out.
+    """
+
+    title: str = ""
+    x: np.ndarray = field(default_factory=lambda: np.zeros(0))
+    y: np.ndarray = field(default_factory=lambda: np.zeros(0))
+    #: ``(len(y), len(x))`` -- row major, y down the rows, as an
+    #: image is indexed and as ``numpy`` would have it anyway.
+    z: np.ndarray = field(default_factory=lambda: np.zeros((0, 0)))
+    x_label: str = ""
+    y_label: str = ""
+    z_label: str = ""
+    #: ``(len(y), len(x))`` of bool; False is drawn apart rather than
+    #: coloured, because an unconverged point is not a measurement.
+    converged: np.ndarray | None = None
+    #: ``(len(y), len(x))`` of str.
+    paths: tuple[tuple[str, ...], ...] = ()
+    #: Further sheets of the same grid: ``(label, z)``.  A scan walked
+    #: in both directions is two, and they are kept apart because
+    #: where they differ is the hysteresis.
+    sheets: tuple[tuple[str, np.ndarray], ...] = ()
+    note: str = ""
+
+    @property
+    def shape(self) -> tuple[int, int]:
+        return (len(self.y), len(self.x))
+
+    @property
+    def n_points(self) -> int:
+        return int(np.size(self.z))
+
+    @property
+    def n_finished(self) -> int:
+        return int(np.count_nonzero(np.isfinite(self.z)))
+
+    def all_sheets(self) -> list[tuple[str, np.ndarray]]:
+        """Every sheet including the first, labelled."""
+        first = [(self.z_label or self.title or "z", self.z)]
+        return first + [(label, values) for label, values
+                        in self.sheets]
+
+    def path_at(self, row: int, column: int) -> str:
+        """The file behind one cell, or ``""``.
+
+        Bounds-checked rather than indexed, because a landscape is
+        drawn from one array and clicked through another and a scan
+        that was stopped has fewer of the second.
+        """
+        if row < 0 or column < 0 or row >= len(self.paths):
+            return ""
+        line = self.paths[row]
+        return line[column] if column < len(line) else ""
+
+    def as_text(self, width: int = 9) -> str:
+        """The grid as characters, for a log and for a CLI.
+
+        The numbers themselves rather than a picture of them: a
+        landscape is usually a handful of points across, they matter
+        individually, and a reader in a terminal wants to see which
+        cell is lowest and which never finished.
+        """
+        if not self.n_points:
+            return f"{self.title}: nothing to plot"
+        lines = [self.title] if self.title else []
+        if self.y_label or self.x_label:
+            lines.append(f"{self.y_label} down, {self.x_label} across")
+        header = " " * width + "".join(
+            f"{v:>{width}.4g}" for v in self.x)
+        lines.append(header)
+        for row, down in enumerate(self.y):
+            cells = []
+            for column in range(len(self.x)):
+                value = self.z[row, column]
+                if not np.isfinite(value):
+                    cells.append(f"{'--':>{width}}")
+                    continue
+                mark = ""
+                if (self.converged is not None
+                        and not self.converged[row, column]):
+                    mark = "?"
+                cells.append(f"{f'{value:.4g}{mark}':>{width}}")
+            lines.append(f"{down:>{width}.4g}" + "".join(cells))
+        if self.converged is not None and not np.all(self.converged):
+            lines.append("? did not reach the tolerance;  "
+                         "-- did not finish")
+        if self.note:
+            lines.append(self.note)
+        return "\n".join(lines)
+
+    def as_csv(self) -> str:
+        """One row per cell, which is what a spreadsheet wants.
+
+        Not the grid as a matrix: a matrix loses which axis is which
+        the moment it is pasted anywhere, and the cell's file has
+        nowhere to go in it.
+        """
+        out = io.StringIO()
+        writer = csv.writer(out)
+        labels = [label for label, _values in self.all_sheets()]
+        writer.writerow([self.x_label or "x", self.y_label or "y",
+                         *labels, "converged", "file"])
+        for row in range(len(self.y)):
+            for column in range(len(self.x)):
+                values = [f"{values[row, column]:.10g}"
+                          for _label, values in self.all_sheets()]
+                converged = ("" if self.converged is None
+                             else str(bool(
+                                 self.converged[row, column])))
+                writer.writerow([
+                    f"{self.x[column]:.10g}", f"{self.y[row]:.10g}",
+                    *values, converged, self.path_at(row, column)])
+        return out.getvalue()
+
+
+@dataclass(frozen=True)
 class Report:
     """Everything one run is worth showing, in the order to show it."""
 
     title: str = ""
-    blocks: tuple = ()  # Table | Histogram | Curve | Bands | Dos | Zone
+    #: Table | Histogram | Curve | Bands | Dos | Modes | Zone
+    #: | Surface
+    blocks: tuple = ()
     note: str = ""
 
     @property
@@ -569,6 +712,10 @@ class Report:
     @property
     def zones(self) -> list[Zone]:
         return [b for b in self.blocks if isinstance(b, Zone)]
+
+    @property
+    def surfaces(self) -> list[Surface]:
+        return [b for b in self.blocks if isinstance(b, Surface)]
 
     def __bool__(self) -> bool:
         return bool(self.blocks)
