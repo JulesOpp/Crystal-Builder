@@ -392,6 +392,50 @@ stress case).
 - A long operation over a whole selection is applied **in one batch**,
   not atom-by-atom with a redraw between — that is what made Select
   All → Set Bond Type stall on MFU-4l.
+- **A scan holds a coordinate; it does not freeze the atoms that
+  define it.** Freezing four atoms to hold one dihedral removes twelve
+  degrees of freedom to constrain one, and the profile that comes back
+  is the constraint's rather than the material's. `xtal/ff/
+  constraints.py` projects the search direction off the coordinate's
+  gradient and restores the point onto it by Newton — inside the line
+  search, so the search walks *along* the constraint and the energy it
+  compares belongs to a point that satisfies it. The projector is
+  applied **after** the site-symmetry projectors and the frozen mask,
+  so a constraint can only ever take freedom away: a site on a mirror
+  stays on it, a frozen site stays frozen. A coordinate nothing may
+  move — one the group ties, like every Na–Cl distance in Fm-3m — is
+  refused before the first step, not discovered on the hundredth.
+- **A held cell quantity is a strain subspace, not a check.**
+  `CellFreedom` (`xtal/ff/optimize.py`) intersects the space group's
+  allowed strains with the null space of whatever is held, in a
+  metric-normalised coordinate — the shears scaled by √2, because only
+  there is the group's average an orthogonal projector and only there
+  does intersecting subspaces give the right subspace. Holding the
+  **volume** with the shape free is the scan the flexible-framework
+  literature actually runs; a profile at a frozen cell *shape* is a
+  measurement of the shape that was frozen.
+- **A scan point is written the moment it finishes.** Not gathered up
+  and saved at the end. A scan is an overnight job — 0.44 s a step on
+  Ni2Cl2BTDD's 1152 atoms under UFF, so a 12×12 grid is ~2.6 hours —
+  and Stop, a crash or a full disk has to leave a landscape behind
+  rather than lose one. It runs in **one job on one thread**, never
+  one per point: `xtalapp/workers.py` has an unfixed teardown race
+  (see § Testing and threads in `docs/TODO.md`) and multiplying it by
+  144 would make an overnight scan a coin toss.
+- **An unconverged scan point is not a number.** NaN, hatched on the
+  heat map, outside the colour scale, crossed out in the contour
+  window, `--` in the log. A hole plotted as a zero is the deepest
+  point of every landscape it appears in, and a false minimum looks
+  exactly like a real one. Measured: the same target cell relaxed from
+  a neighbour and from the input differed by 2.60 kcal/mol at 300
+  unconverged steps, which is why both scan directions are walked by
+  default and drawn apart rather than averaged.
+- **A scan reads the engine; it does not configure one.** The Force
+  Field panel is where an engine is set up, and
+  `xtalapp/dialogs/scan.py` reads it — the same bargain
+  `xtalapp/dialogs/dftb_run.py` strikes with the Hamiltonian. A scan
+  returns **no structure**: the tab it ran on is the crystal the
+  landscape is *of*, and the points are files to open.
 
 ## Working in `mainwindow.py`
 

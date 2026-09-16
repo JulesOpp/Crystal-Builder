@@ -21,6 +21,10 @@ of reading it whole: `xtal/modules/net.py` (102 lines, no binary, no
 extra) is the smallest complete module; `xtal/modules/pxrd.py` shows a
 report; `xtal/modules/zeopp.py` an external program; `xtal/ff/xtb/`
 an external engine; `xtal/ff/mace/` an in-process one.
+`xtal/modules/scan.py` is the one that runs for hours: it writes many
+structures and returns **none**, streams a file per point as each
+finishes rather than saving at the end, and stays in one job on one
+thread deliberately -- copy it for anything long.
 
 ---
 

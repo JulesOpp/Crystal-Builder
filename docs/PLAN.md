@@ -514,9 +514,18 @@ against finite differences):
   charge equilibration; Ewald summation under PBC.
 
 **Optimisation** — FIRE (robust, cheap) and L-BFGS; constraints: freeze
-selected atoms, freeze cell, fix a lattice parameter, **preserve space
-group** (project forces onto the symmetry-allowed subspace); optional
-variable-cell relaxation via numeric stress first, analytic later.
+selected atoms, freeze cell, **preserve space group** (project forces
+onto the symmetry-allowed subspace); optional variable-cell relaxation
+via numeric stress first, analytic later.
+
+*Fixing a lattice parameter* has shipped, as `CellFreedom`
+(`xtal/ff/optimize.py`) — it also holds the **volume** with the cell
+shape free, which is the constraint the flexible-framework literature
+actually uses. A space group forbids most strains and a held quantity
+forbids more; both are linear subspaces of the same six-dimensional
+space, and the projector onto their intersection is the whole of it.
+Holding a coordinate — a distance, an angle, a dihedral, a plane angle
+— shipped beside it as `xtal/ff/constraints.py`; see § 12a.
 
 **UI/UX** — runs in a `QThread` worker: live geometry updates in the
 viewport, live energy/max-force plot, pause/cancel, then one undoable
@@ -536,6 +545,37 @@ LAMMPS, GULP, xTB or an MLIP (MACE/CHGNet) drop in later as alternative
 engines with no GUI changes.
 
 ---
+
+## 12a. Relaxed scans and the energy landscape
+
+Walk one or two coordinates and relax everything else at each point.
+`xtal/ff/scan.py` is the driver, `xtal/modules/scan.py` the module,
+`xtalapp/heatmap.py` the clickable landscape.
+
+Three decisions, each with a reason that is not obvious:
+
+* **Scan the volume, not a lattice parameter, when the question is
+  "how flexible is this framework".** A profile taken at a frozen cell
+  *shape* depends on which shape was frozen — the answer is a
+  measurement of the constraint (Rogge *et al.*, *JCTC* **2018**,
+  *14*, 1186). A 2D scan over two parameters is defensible where the
+  material genuinely has two soft directions, which is the
+  wine-rack/hexagonal case and is what the feature was asked for.
+* **Hold the coordinate; do not freeze the atoms that define it.**
+  Freezing four atoms to hold one dihedral removes twelve degrees of
+  freedom to constrain one, and biases the profile upward.
+* **It is an energy, not a free energy.** At 0 K. For MIL-53(Al) the
+  lp–cp difference runs 18.67 / 9.74 / −0.67 kJ/mol at 100 / 300 /
+  500 K (Demuynck *et al.*, *JCTC* **2017**, *13*, 5861) — entropy
+  flips which phase is stable, and a scan cannot see it. The report
+  says so.
+
+Deliberately not built: umbrella sampling, metadynamics and
+thermodynamic integration (multi-nanosecond PLUMED workflows), and
+variable-cell NEB (the real transition nucleates and propagates rather
+than happening concertedly in one cell). The cheapest honest route
+from *E(V)* to *F(V)*, if it is ever wanted, is quasi-harmonic
+*F(V,T)* from phonons at each scanned volume.
 
 ## 12. Extra features worth building (VESTA/Materials Studio parity)
 

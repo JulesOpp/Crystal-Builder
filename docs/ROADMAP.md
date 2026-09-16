@@ -140,7 +140,7 @@ so ask in M6 whether GFN-FF gets figures.
 | M6 | Modules ▸ Force field (UFF/UFF4MOF, xTB, MACE) |
 | M7 | Modules ▸ Zeo++, PXRD |
 | M8 | Modules ▸ MOF builder, Molecule builder, Net builder |
-| M9 | Modules ▸ Blender export; Quickstart ▸ Recommendations, Troubleshooting |
+| M9 | Modules ▸ Energy scan (landscapes, held coordinates, reading a heat map), Blender export; Quickstart ▸ Recommendations, Troubleshooting |
 | M10 | Front matter, Glossary, Bibliography, Index, PDF |
 | M11 | Modules ▸ DFTB+ -- only after the postponed DFTB+ phase (§ 2) |
 
@@ -158,6 +158,10 @@ reports its word count and open `TODO-cite`s.
 * It does not schedule volumetric data, SHELX round-trips or Rietveld.
   Those are [docs/PLAN.md](PLAN.md) § 12 and stay there until they are
   asked for.
+* It does not schedule the relaxed scan: that was asked for and built
+  on 2026-09-15, outside this plan, and is
+  [docs/PLAN.md](PLAN.md) § 12a.  What it left undone is in
+  [docs/TODO.md](TODO.md) § Scans, and M9 now has a chapter for it.
 * It postpones **DFTB+ — split, then merge**; it is not dropped.  The
   manual's DFTB+ chapter (M11) waits for it, because writing it first
   would photograph panels that phase changes.

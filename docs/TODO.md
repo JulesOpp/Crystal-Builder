@@ -1,7 +1,6 @@
 # TODO
 # In preferences add an option for dark mode
 
-
 Work that is wanted but not yet scheduled into a phase.
 [docs/PLAN.md](PLAN.md) holds the architecture;
 [docs/ROADMAP.md](ROADMAP.md) schedules what is in here.  This file
@@ -148,6 +147,44 @@ File ▸ Export Net for Systre is checked by reading the file back
 through this application's own expansion, which is not an independent
 check.  Run Systre on MOF-5's and rutile's exported nets once and keep
 the output beside the tests.  Java 8 is installed; Systre is not.
+
+## Scans
+
+The relaxed scan shipped on 2026-09-15
+([docs/PLAN.md](PLAN.md) § 12a).  What it deliberately left out:
+
+### A stopped scan cannot be carried on
+
+`scan.csv` is written a row at a time and already holds everything
+needed -- the targets, what was achieved, the branch, and the file each
+point left behind -- so a run that was stopped at point 60 of 144 could
+be resumed rather than restarted.  It is not, and on an overnight job
+that is the difference between losing an evening and losing nothing.
+The shape is a `--resume` that reads the CSV, drops the finished
+indices from the raster, and seeds the first new point from the last
+finished one.
+
+### E(V) is not F(V)
+
+A scan is at zero kelvin and the report says so, but for the flexible
+frameworks it was built for that is the whole question: MIL-53(Al)'s
+large- and narrow-pore difference runs 18.67 / 9.74 / -0.67 kJ/mol at
+100 / 300 / 500 K, so entropy decides which phase is stable and the
+landscape cannot see it.  The cheapest honest route is **quasi-harmonic
+F(V,T)**: phonons at each scanned volume, which is what Cockayne did
+for MIL-53(Cr) (*J. Phys. Chem. C* **2017**, *121*, 4312).  Affordable
+with MACE, where the Hessians are seconds rather than hours.  It needs
+a phonon calculation this application does not have.
+
+### The scan has never been run on a real framework end to end
+
+Every test is on quartz, zinc acetate or a fixture, because the point
+was the machinery.  Ni2Cl2BTDD is the structure it was asked for -- H-3m,
+a and c its only free parameters, 1152 atoms, 0.44 s an optimiser step
+under UFF -- and a 7x7 grid of it is about two and a half hours.  Run
+one overnight with MACE and keep the landscape beside the tests; UFF4MOF
+was never fitted to reproduce a breathing double well, and whether it
+shows one at all is unknown.
 
 ## Testing and threads
 
