@@ -34,6 +34,7 @@ from pathlib import Path
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
     QComboBox,
     QDockWidget,
     QFileDialog,
@@ -563,6 +564,21 @@ def _surface_widget(surface: Surface, dock) -> QWidget:
 
     sheets = surface.all_sheets()
     row = QHBoxLayout()
+
+    # A landscape's interesting part is the basin, which is the bottom
+    # of its range; on by default for that reason, and a toggle rather
+    # than a fixed choice because comparing two runs by eye wants the
+    # plain scale.
+    stretch = QCheckBox("Stretch the low end")
+    stretch.setChecked(True)
+    stretch.setToolTip(
+        "Spend more of the colour range on the low energies, where "
+        "the basin and the wall around it are.  Monotonic and not a "
+        "clip -- nothing is hidden, and the colour bar's ticks show "
+        "the stretch.")
+    stretch.toggled.connect(plot.set_compressed)
+    row.addWidget(stretch)
+
     if len(sheets) > 1:
         # Two directions are two sheets and the reader wants to see
         # each: where they differ is the hysteresis, which is the

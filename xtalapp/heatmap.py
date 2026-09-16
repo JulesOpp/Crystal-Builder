@@ -104,6 +104,7 @@ class HeatmapPlot(QWidget):
         super().__init__(parent)
         self.surface = None
         self.sheet = 0
+        self.compressed = True
         self.marker: tuple[int, int] | None = None
         self._hover: tuple[int, int] | None = None
         self._grid: tuple | None = None
@@ -114,6 +115,36 @@ class HeatmapPlot(QWidget):
         # so a panel that asked for room here would widen the whole
         # column for every other panel too.
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+    def set_compressed(self, compressed: bool) -> None:
+        """Whether to spend colour on the low end.  See
+        :meth:`shade`."""
+        if bool(compressed) != self.compressed:
+            self.compressed = bool(compressed)
+            self.update()
+
+    def shade(self, value, low, high) -> float:
+        """Where a value sits on the ramp, in ``[0, 1]``.
+
+        Not linearly, by default.  A landscape's interesting part is
+        the basin and the wall around it, and that is the bottom of
+        the range: on an 11x11 scan of MIL-53 the lowest 100 kcal/mol
+        held 13 of 121 cells while one blown-up corner reached 4151,
+        so a linear ramp spent nine tenths of its colour on ground
+        nobody is looking at and drew the basin as one flat navy
+        rectangle.
+
+        The square root is the smallest fix that is not a lie.  It is
+        monotonic, so no cell overtakes another and nothing is hidden;
+        it is not a clip, so the corner is still the top of the scale
+        rather than being quietly thrown away; and the colour bar is
+        drawn with its ticks in the same mapping, so the stretch is
+        visible rather than implied.  The same argument
+        :mod:`xtalapp.plot` makes for putting force on a log axis.
+        """
+        span = (high - low) or 1.0
+        fraction = min(max((float(value) - low) / span, 0.0), 1.0)
+        return math.sqrt(fraction) if self.compressed else fraction
 
     def set_surface(self, surface, sheet: int = 0) -> None:
         self.surface = surface
@@ -245,7 +276,6 @@ class HeatmapPlot(QWidget):
     def _cells(self, painter, values, low, high) -> None:
         left, top, width, height, rows, columns = self._grid
         surface = self.surface
-        span = (high - low) or 1.0
         for row in range(rows):
             for column in range(columns):
                 box = QRectF(
@@ -256,7 +286,8 @@ class HeatmapPlot(QWidget):
                 if not np.isfinite(value):
                     self._hatch(painter, box)
                     continue
-                painter.fillRect(box, ramp((value - low) / span))
+                painter.fillRect(box, ramp(
+                    self.shade(value, low, high)))
                 if (surface.converged is not None
                         and not surface.converged[row, column]):
                     self._doubt(painter, box)
@@ -362,12 +393,38 @@ class HeatmapPlot(QWidget):
         painter.drawRect(QRectF(x, top, BAR, height))
         painter.setPen(palette.color(palette.ColorRole.Text))
         metrics = painter.fontMetrics()
-        for fraction, value in ((0.0, high), (1.0, low)):
+        # Labelled at even *energies* and placed through the same
+        # mapping the cells went through, so an uneven ladder of ticks
+        # is exactly what says the scale is stretched.  A bar with two
+        # labels could not say it at all.
+        for value in self._bar_ticks(low, high):
+            fraction = 1.0 - self.shade(value, low, high)
+            painter.drawLine(
+                QPointF(x, top + fraction * height),
+                QPointF(x + BAR, top + fraction * height))
             painter.drawText(
                 QRectF(x + BAR + 3, top + fraction * height
                        - metrics.height() / 2, RIGHT - BAR - GAP - 3,
                        metrics.height()),
                 Qt.AlignLeft | Qt.AlignVCenter, _tick(value))
+
+    def _bar_ticks(self, low, high) -> list:
+        """Round energies across the range, and always both ends."""
+        span = high - low
+        if span <= 0:
+            return [low]                            # pragma: no cover
+        step = 10.0 ** math.floor(math.log10(span))
+        while span / step > 6:
+            step *= 2.0
+        while span / step < 3:
+            step /= 2.0
+        out = [low, high]
+        value = math.ceil(low / step) * step
+        while value < high:
+            if value > low + 0.06 * span and value < high - 0.06 * span:
+                out.append(value)
+            value += step
+        return sorted(out)
 
     def _readout(self, painter, palette) -> None:
         text = self.readout(self._hover)

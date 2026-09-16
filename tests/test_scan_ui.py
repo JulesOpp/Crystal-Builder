@@ -102,6 +102,62 @@ def test_an_empty_plot_says_so_rather_than_painting_nothing(qtbot):
     assert widget.limits() == (0.0, 1.0)
 
 
+def test_the_low_end_of_the_scale_gets_more_colour(plot):
+    """A landscape's interesting part is the basin, which is the
+    bottom of its range.
+
+    On an 11x11 scan of MIL-53 the lowest 100 kcal/mol held 13 of 121
+    cells while one blown-up corner reached 4151, so a linear ramp
+    spent nine tenths of its colour on ground nobody is looking at and
+    drew the basin as one flat navy rectangle.
+    """
+    low, high = 0.0, 100.0
+    plot.set_compressed(True)
+    assert plot.shade(10.0, low, high) > 0.25
+    plot.set_compressed(False)
+    assert plot.shade(10.0, low, high) == pytest.approx(0.1)
+
+
+def test_the_stretch_is_monotonic_and_keeps_both_ends(plot):
+    """It is a stretch and not a clip: no cell overtakes another,
+    nothing is hidden, and the blown-up corner is still the top of
+    the scale rather than quietly thrown away."""
+    plot.set_compressed(True)
+    shades = [plot.shade(v, 0.0, 100.0)
+              for v in (0.0, 1.0, 10.0, 50.0, 99.0, 100.0)]
+    assert shades == sorted(shades)
+    assert shades[0] == pytest.approx(0.0)
+    assert shades[-1] == pytest.approx(1.0)
+
+
+def test_a_value_past_the_ends_is_held_at_them(plot):
+    assert plot.shade(-5.0, 0.0, 10.0) == pytest.approx(0.0)
+    assert plot.shade(50.0, 0.0, 10.0) == pytest.approx(1.0)
+
+
+def test_the_colour_bar_is_labelled_at_round_energies(plot):
+    """Placed through the same mapping the cells went through, so the
+    uneven ladder of ticks is what says the scale is stretched.  Two
+    labels could not say it at all."""
+    ticks = plot._bar_ticks(0.0, 4151.0)
+    assert ticks[0] == pytest.approx(0.0)
+    assert ticks[-1] == pytest.approx(4151.0)
+    assert len(ticks) >= 4
+    assert all(round(v) % 500 == 0 for v in ticks[1:-1])
+
+
+def test_the_panel_offers_the_stretch_and_starts_with_it_on(
+        window, surface):
+    from PySide6.QtWidgets import QCheckBox
+
+    window.results_dock.show_report(Report(blocks=(surface,)), "Scan")
+    boxes = [b for b in window.results_dock.findChildren(QCheckBox)
+             if "low end" in b.text()]
+    assert boxes and boxes[0].isChecked()
+    boxes[0].setChecked(False)
+    assert not _plot_in(window.results_dock).compressed
+
+
 def test_a_click_lands_on_the_cell_under_it(plot):
     """The grid is laid out at paint time and read back at click
     time; if the two disagree, every click opens the wrong
