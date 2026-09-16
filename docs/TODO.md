@@ -201,3 +201,14 @@ shipped application when a module run finishes.
 Holding the pair alive from Python is the obvious remedy and is not
 enough on its own: it broke `test_modules_ui` outright.  Fixing this is
 also what gives back `-n auto` -- 25 s instead of about 173 s serial.
+
+**Seen in the shipped application, 2026-09-15.**  A 3x3 relaxed scan
+of `Ni2Cl2BTDD.cif` driven through the real window finished correctly
+-- nine points, nine CIFs, `scan.csv`, `energy_landscape.png`, the log
+closed -- and then the window hung.  `sample` put the main thread in
+`PyGILState_Ensure` -> `take_gil` -> `_pthread_cond_wait`, inside a
+`QObjectWrapper::eventFilter` during `sendPostedEvents`, which is this
+race and not a new one.  It raises the priority: a scan is an
+overnight job, so losing the window *after* the work is done costs
+more here than anywhere else it can happen.  What survives is the run
+folder, which is why every point is written as it finishes.
