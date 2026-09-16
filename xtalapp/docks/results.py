@@ -34,6 +34,7 @@ from pathlib import Path
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QComboBox,
     QDockWidget,
     QFileDialog,
     QHBoxLayout,
@@ -54,12 +55,15 @@ from xtal.modules.report import (
     Dos,
     Histogram,
     Modes,
+    Surface,
     Table,
     Zone,
     is_number,
 )
 from xtalapp.curve import CurvePlot
+from xtalapp.dialogs import landscape as landscape_window
 from xtalapp.dialogs import pattern as pattern_window
+from xtalapp.heatmap import HeatmapPlot
 from xtalapp.histogram import HistogramPlot
 
 #: The fewest rows a table is ever squeezed to.  Below this it stops
@@ -237,6 +241,8 @@ class ResultsDock(QDockWidget):
             return _modes_widget(block, self)
         if isinstance(block, Zone):
             return _zone_widget(block)
+        if isinstance(block, Surface):
+            return _surface_widget(block, self)
         return None                                 # pragma: no cover
 
     def _drop_blocks(self) -> None:
@@ -525,6 +531,90 @@ def _curve_widget(curve: Curve, dock) -> QWidget:
         note.setStyleSheet("color: palette(mid);")
         layout.addWidget(note)
     return box
+
+
+def _surface_widget(surface: Surface, dock) -> QWidget:
+    """An energy landscape, and the way into the structures behind it.
+
+    Clicking a cell opens that point as a tab.  The grid and the
+    hundred CIFs beside it are the same scan seen two ways, and "what
+    does the crystal look like *there*" is a question asked at a
+    minimum or a ridge -- which makes the picture the fastest way to
+    reach the geometry that made it.  The same argument
+    :class:`xtalapp.plot.TracePlot` makes about a step of a run.
+
+    A cell whose point never finished has no file, and clicking it
+    says so rather than doing nothing: a control that ignores a click
+    is indistinguishable from one that is broken.
+    """
+    box = QWidget()
+    layout = QVBoxLayout(box)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(3)
+    if surface.title:
+        layout.addWidget(QLabel(surface.title))
+
+    plot = HeatmapPlot()
+    plot.set_surface(surface)
+    plot.cellClicked.connect(
+        lambda row, column: _open_point(surface, plot, dock,
+                                        row, column))
+    layout.addWidget(plot)
+
+    sheets = surface.all_sheets()
+    row = QHBoxLayout()
+    if len(sheets) > 1:
+        # Two directions are two sheets and the reader wants to see
+        # each: where they differ is the hysteresis, which is the
+        # whole reason a scan is walked both ways.
+        chooser = QComboBox()
+        chooser.addItems([label for label, _z in sheets])
+        chooser.currentIndexChanged.connect(
+            lambda index: plot.set_surface(surface, index))
+        row.addWidget(QLabel("Branch:"))
+        row.addWidget(chooser)
+
+    open_plot = QPushButton("Plot with contours...")
+    open_plot.setEnabled(landscape_window.installed())
+    open_plot.setToolTip(
+        "Contour the landscape, zoom into it, and export a figure"
+        if landscape_window.installed() else landscape_window.MISSING)
+    open_plot.clicked.connect(lambda: _open_landscape(surface, dock))
+    row.addWidget(open_plot)
+    row.addStretch(1)
+    layout.addLayout(row)
+
+    if surface.note:
+        note = QLabel(surface.note)
+        note.setWordWrap(True)
+        note.setStyleSheet("color: palette(mid);")
+        layout.addWidget(note)
+    return box
+
+
+def _open_point(surface, plot, dock, row: int, column: int) -> None:
+    """Open the structure behind one cell of a landscape."""
+    path = surface.path_at(row, column)
+    window = dock.window()
+    if not path or not Path(path).exists():
+        if hasattr(window, "show_message"):
+            window.show_message(
+                "that point left no structure behind -- it did not "
+                "finish" if not path else
+                f"{Path(path).name} is no longer there")
+        return
+    plot.set_marker((row, column))
+    if hasattr(window, "open_path"):
+        window.open_path(path)
+
+
+def _open_landscape(surface: Surface, dock) -> None:
+    """Open the matplotlib window, modelessly, as a pattern does."""
+    window = landscape_window.LandscapeDialog(surface, dock)
+    window.setAttribute(Qt.WA_DeleteOnClose)
+    window.setModal(False)
+    window.show()
+    window.raise_()
 
 
 def _open_pattern(curve: Curve, dock) -> None:
