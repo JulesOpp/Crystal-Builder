@@ -47,6 +47,7 @@ from dataclasses import dataclass, field, replace
 import numpy as np
 
 from xtal.core import p1
+from xtal.core.lattice import PARAMETER_NAMES
 from xtal.ff.api import CalculatorError
 
 # Convergence: the largest force on any atom, in kcal/mol/Angstrom.
@@ -156,6 +157,146 @@ class OptimizationResult:
 
 
 # ======================================================================
+#  WHICH STRAINS THE CELL MAY STILL USE
+# ======================================================================
+#
+# A strain is six numbers and a space group already forbids most of
+# them.  A relaxed scan forbids more: it holds a lattice parameter, or
+# the volume, and asks the cell to relax in whatever is left.  Both
+# restrictions are linear subspaces of the same six-dimensional space,
+# so the answer is their intersection and the tool is a projector onto
+# it.
+#
+# The strains are handled in a metric-normalised coordinate -- the
+# shears scaled by root two -- because only there is the tensor inner
+# product the ordinary dot product, and only there is the space
+# group's average an *orthogonal* projector.  Intersecting subspaces
+# with a skew metric silently gives the wrong subspace.
+
+
+def _w_of(tensor) -> np.ndarray:
+    """A symmetric tensor as six numbers with a Euclidean norm."""
+    t = np.asarray(tensor, dtype=float)
+    root = np.sqrt(2.0)
+    return np.array([t[0, 0], t[1, 1], t[2, 2],
+                     root * t[1, 2], root * t[0, 2],
+                     root * t[0, 1]])
+
+
+def _tensor_of(w) -> np.ndarray:
+    a, b, c, d, e, f = (float(v) / np.sqrt(2.0) for v in w)
+    a, b, c = a * np.sqrt(2.0), b * np.sqrt(2.0), c * np.sqrt(2.0)
+    return np.array([[a, f, e], [f, b, d], [e, d, c]])
+
+
+def _reading(lattice, name):
+    """A cell quantity as a function of the lattice, by name."""
+    if name == "volume":
+        return abs(float(np.linalg.det(lattice.matrix)))
+    return float(lattice.parameters[PARAMETER_NAMES.index(name)])
+
+
+@dataclass(frozen=True)
+class CellFreedom:
+    """Which cell quantities a relaxation must leave where they are.
+
+    ``held`` names them: any of a, b, c, alpha, beta, gamma, or
+    ``"volume"``.  Nothing held is the ordinary variable cell, and the
+    projector is then the space group's own.
+
+    Holding the volume while the *shape* relaxes is the scan the
+    literature on flexible frameworks actually runs, and is the reason
+    this is not simply a list of lattice parameters: a profile taken
+    at a frozen cell shape depends on which shape was frozen, which
+    makes it a measurement of the constraint rather than of the
+    material.
+    """
+
+    held: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        for name in self.held:
+            if name != "volume" and name not in PARAMETER_NAMES:
+                raise ValueError(
+                    f"{name!r} is not a cell quantity; expected "
+                    f"'volume' or one of "
+                    f"{', '.join(PARAMETER_NAMES)}")
+
+    def __bool__(self) -> bool:
+        return bool(self.held)
+
+    @classmethod
+    def free(cls) -> CellFreedom:
+        return cls()
+
+    @classmethod
+    def constant_volume(cls) -> CellFreedom:
+        return cls(("volume",))
+
+    @classmethod
+    def fixing(cls, names) -> CellFreedom:
+        return cls(tuple(names))
+
+    def describe(self) -> str:
+        if not self.held:
+            return "the cell relaxes freely"
+        return "holding " + ", ".join(self.held)
+
+    def rows(self, lattice, step: float = 1e-6) -> np.ndarray:
+        """``d(held quantity)/d(strain)``, one row each.
+
+        Central differences, for the same reason the constraint
+        matrix uses them: this differentiates arithmetic rather than
+        an energy, it is built once, and writing the derivative of an
+        angle between two lattice rows by hand is three chances to put
+        a factor of two in the wrong place.
+        """
+        matrix = lattice.matrix
+        out = np.zeros((len(self.held), 6))
+        for column in range(6):
+            basis = np.zeros(6)
+            basis[column] = step
+            high = type(lattice)(matrix @ (np.eye(3)
+                                           + _tensor_of(basis)))
+            low = type(lattice)(matrix @ (np.eye(3)
+                                          - _tensor_of(basis)))
+            for row, name in enumerate(self.held):
+                out[row, column] = (
+                    (_reading(high, name) - _reading(low, name))
+                    / (2.0 * step))
+        return out
+
+    def projector(self, lattice, symmetry) -> np.ndarray:
+        """The 6x6 projector onto the strains still allowed.
+
+        ``symmetry`` is the space group's own projector in the same
+        coordinate.  The answer is the intersection of its image with
+        the null space of :meth:`rows`, and it subsumes ``symmetry``
+        rather than composing with it: every strain it permits was
+        already one the group permits.
+        """
+        left, values, _right = np.linalg.svd(symmetry)
+        allowed = left[:, values > 0.5]
+        if not self.held:
+            return allowed @ allowed.T
+        if allowed.shape[1] == 0:       # pragma: no cover
+            return np.zeros((6, 6))
+        restricted = self.rows(lattice) @ allowed
+        _u, singular, right = np.linalg.svd(restricted)
+        rank = int(np.sum(singular > 1e-8 * max(
+            float(singular.max()) if singular.size else 0.0, 1e-30)))
+        null = right[rank:].T
+        if null.shape[1] == 0:
+            raise CalculatorError(
+                f"{self.describe()} leaves the cell nothing to relax "
+                f"in this space group -- every strain it allows would "
+                f"change something being held.  Relax the atoms alone "
+                f"instead.")
+        basis = allowed @ null
+        return basis @ basis.T
+
+
+# ======================================================================
 #  DEGREES OF FREEDOM
 # ======================================================================
 
@@ -202,9 +343,11 @@ class SymmetryDOF:
     """
 
     def __init__(self, structure, frozen=(), relax_cell: bool = False,
-                 pressure: float = 0.0, constraints=None):
+                 pressure: float = 0.0, constraints=None,
+                 freedom=None):
         self.structure = structure
         self.constraints = constraints or None
+        self.freedom = freedom or CellFreedom.free()
         self.cell = p1.expand(structure)
         self.matrix = structure.lattice.matrix
         self.inverse = np.linalg.inv(self.matrix)
@@ -236,6 +379,13 @@ class SymmetryDOF:
             [self.inverse @ op.rot.T @ self.matrix for op in ops])
 
         self._at = None
+        # Built once, from the point group and whatever the scan is
+        # holding.  ``None`` while it is being built, because
+        # :meth:`project_strain` is what builds it.
+        self.strain_mask = None
+        if self.relax_cell:
+            self.strain_mask = self.freedom.projector(
+                structure.lattice, self._symmetry_strains())
         self.free = np.array([i not in self.frozen
                               for i in range(self.n_sites)])
         if not self.free.any():
@@ -283,6 +433,12 @@ class SymmetryDOF:
         why a cubic cell relaxed here stays cubic -- not because
         anything checks that it did.
         """
+        averaged = self._average_strain(tensor)
+        if self.strain_mask is None:
+            return averaged
+        return _tensor_of(self.strain_mask @ _w_of(averaged))
+
+    def _average_strain(self, tensor) -> np.ndarray:
         tensor = np.asarray(tensor, dtype=float)
         tensor = 0.5 * (tensor + tensor.T)
         if not len(self.point_group):                # pragma: no cover
@@ -291,6 +447,21 @@ class SymmetryDOF:
                              tensor, self.point_group)
         averaged /= len(self.point_group)
         return 0.5 * (averaged + averaged.T)
+
+    def _symmetry_strains(self) -> np.ndarray:
+        """The space group's own strain projector, as a 6x6.
+
+        Read off the operator rather than derived a second way, so
+        that the mask is intersected with exactly the subspace the
+        rest of this class works in.
+        """
+        out = np.zeros((6, 6))
+        for column in range(6):
+            basis = np.zeros(6)
+            basis[column] = 1.0
+            out[:, column] = _w_of(
+                self._average_strain(_tensor_of(basis)))
+        return out
 
     def deformation(self, x) -> np.ndarray:
         """``F = I + e``: what the cell and every atom are multiplied
@@ -1174,7 +1345,8 @@ METHODS = {"lbfgs": lbfgs, "fire": fire, "smart": smart,
 
 def steps(calculator, structure, method: str = "lbfgs",
           frozen=(), relax_cell: bool = False, pressure: float = 0.0,
-          cancel=None, constraints=None, **kwargs) -> Iterator[Step]:
+          cancel=None, constraints=None, freedom=None,
+          **kwargs) -> Iterator[Step]:
     """The chosen optimiser, as a generator of steps.
 
     ``relax_cell`` adds the six symmetry-adapted strain components to
@@ -1187,6 +1359,11 @@ def steps(calculator, structure, method: str = "lbfgs",
     coordinates a relaxed scan holds while the rest of the crystal
     relaxes around them.  They are checked before the first step
     rather than discovered to be impossible on the hundredth.
+
+    ``freedom`` is a :class:`CellFreedom`: which cell quantities the
+    relaxation must leave alone.  It only means anything with
+    ``relax_cell``, because with a fixed cell there is nothing to
+    hold back.
     """
     if cancel is not None and hasattr(calculator, "stop_with"):
         # Anything with ``compute`` can be optimised; only a
@@ -1199,7 +1376,8 @@ def steps(calculator, structure, method: str = "lbfgs",
             f"unknown optimiser {method!r}; "
             f"have {', '.join(sorted(METHODS))}") from None
     dof = SymmetryDOF(structure, frozen, relax_cell=relax_cell,
-                      pressure=pressure, constraints=constraints)
+                      pressure=pressure, constraints=constraints,
+                      freedom=freedom)
     if constraints:
         constraints.check(dof, dof.start)
     return optimizer(calculator, structure, dof=dof, **kwargs)
