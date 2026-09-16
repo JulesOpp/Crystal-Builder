@@ -40,6 +40,7 @@ _BY_NAME = {
     "band-structure": ("xtalapp.dialogs.dftb_run",
                        "BandStructureDialog"),
     "dftb-run": ("xtalapp.dialogs.dftb_run", "DftbRunDialog"),
+    "scan": ("xtalapp.dialogs.scan", "ScanDialog"),
 }
 
 

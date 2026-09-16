@@ -436,7 +436,7 @@ SCAN = Module(
         Action(name="run", label="Relaxed scan...",
                tip="Map the energy landscape over one or two "
                    "coordinates",
-               kind="scan",
+               kind="scan", dialog="scan",
                params=PARAMS,
                run=run_scan),
     ),
