@@ -202,6 +202,17 @@ class Coordinate(ABC):
     units = ""
 
     @property
+    def tolerance(self) -> float:
+        """How close to its target the coordinate has to be held.
+
+        In the coordinate's own units, and looser for an angle than a
+        length because a degree is a smaller thing than an Angstrom
+        over the arm it turns: a thousandth of a degree at the end of
+        a five-Angstrom linker is a ten-thousandth of an Angstrom.
+        """
+        return 1e-5 if self.units == "deg" else 1e-7
+
+    @property
     @abstractmethod
     def label(self) -> str:
         """How the axis is named in a report and a dialog."""

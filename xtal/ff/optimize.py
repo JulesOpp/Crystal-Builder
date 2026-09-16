@@ -202,8 +202,9 @@ class SymmetryDOF:
     """
 
     def __init__(self, structure, frozen=(), relax_cell: bool = False,
-                 pressure: float = 0.0):
+                 pressure: float = 0.0, constraints=None):
         self.structure = structure
+        self.constraints = constraints or None
         self.cell = p1.expand(structure)
         self.matrix = structure.lattice.matrix
         self.inverse = np.linalg.inv(self.matrix)
@@ -234,6 +235,7 @@ class SymmetryDOF:
         self.point_group = np.array(
             [self.inverse @ op.rot.T @ self.matrix for op in ops])
 
+        self._at = None
         self.free = np.array([i not in self.frozen
                               for i in range(self.n_sites)])
         if not self.free.any():
@@ -367,19 +369,41 @@ class SymmetryDOF:
         ``x F``), and the strain gradient is read off the **stress**,
         which is what a stress is: ``dE/de = V sigma``.
         """
-        deformation = (self.deformation(x) if self.relax_cell
-                       else None)
-        if deformation is not None:
-            cell_gradient = cell_gradient @ deformation.T
+        out = self.carry(cell_gradient, x)
+        if self.relax_cell:
+            out = np.vstack([out, self.strain_gradient(x, stress)])
+        if self.constraints is not None and x is not None:
+            # Projected *after* everything else, so that a held
+            # coordinate can only take freedom away.  What is left is
+            # the residual force in the directions still open, which
+            # is what "this point is relaxed" has to mean under a
+            # constraint -- measuring the whole gradient would leave
+            # the component the constraint is holding in it, and no
+            # constrained point would ever converge.
+            out = self.constraints.project(self, out, x)
+        return out
+
+    def carry(self, cell_gradient, x=None) -> np.ndarray:
+        """A P1 gradient on the *site* variables, whatever it is of.
+
+        The energy's own gradient is the first caller and a held
+        coordinate's is the second: both are functions of where the
+        atoms of the cell are, and both reach the variables by the
+        same three steps -- out of the deformed frame, summed over
+        each orbit, projected onto what site symmetry and the frozen
+        set allow.  Only the strain rows differ, because a stress is
+        not the sum of position-times-force over a periodic cell and a
+        constraint's dependence on the cell is not a stress.
+        """
+        if self.relax_cell:
+            cell_gradient = cell_gradient @ self.deformation(x).T
         per_atom = np.einsum("kj,kij->ki", cell_gradient,
                              self.rotations)
         out = np.zeros((self.n_sites, 3))
         np.add.at(out, self.parent, per_atom)
         out = np.einsum("sj,sji->si", out, self.projectors)
         out[~self.free] = 0.0
-        if not self.relax_cell:
-            return out
-        return np.vstack([out, self.strain_gradient(x, stress)])
+        return out
 
     def strain_gradient(self, x, stress) -> np.ndarray:
         """``dE/de``, projected, in Voigt order and in the variable's
@@ -420,7 +444,26 @@ class SymmetryDOF:
         sites = out[:self.n_sites]
         sites[:] = np.einsum("sj,sji->si", sites, self.projectors)
         sites[~self.free] = 0.0
+        if self.constraints is not None and self._at is not None:
+            out = self.constraints.project(self, out, self._at)
         return out
+
+    def restore(self, x) -> np.ndarray:
+        """``x`` put back on any held coordinates; itself when there
+        are none."""
+        if self.constraints is None:
+            return x
+        return self.constraints.restore(self, x)
+
+    def hold_at(self, x) -> None:
+        """Where to linearise a constraint for the next projection.
+
+        :meth:`project` is handed a direction and nothing else -- the
+        line-search rules have no notion of where they are -- but a
+        constraint is only linear near a point.  The loop says where
+        it is before it asks.
+        """
+        self._at = None if x is None else np.array(x, dtype=float)
 
     def to_frac(self, x) -> np.ndarray:
         """Fractional coordinates of the sites.
@@ -598,11 +641,12 @@ def fire(calculator, structure, dof=None, max_steps=DEFAULT_MAX_STEPS,
     """
     dof = dof or SymmetryDOF(structure)
     problem = _Problem(calculator, dof)
-    x = dof.start.copy()
+    x = dof.restore(dof.start.copy())
     velocity = np.zeros_like(x)
     alpha = alpha_start
     since_uphill = 0
 
+    dof.hold_at(x)
     energy, gradient = problem(x)
     for iteration in range(max_steps + 1):
         yield (step := _step(iteration, energy, gradient, x, dof,
@@ -630,7 +674,10 @@ def fire(calculator, structure, dof=None, max_steps=DEFAULT_MAX_STEPS,
             alpha = alpha_start
 
         velocity = velocity + dt * force
-        x = x + _capped(dt * velocity, max_step)
+        dof.hold_at(x)
+        x = dof.restore(x + dof.project(
+            _capped(dt * velocity, max_step)))
+        dof.hold_at(x)
         energy, gradient = problem(x)
 
 
@@ -904,7 +951,13 @@ def _line_search(problem, x, energy, gradient, direction, max_step,
     if longest * length > max_step:
         length = max_step / longest
     for _attempt in range(attempts):
-        trial = x + length * direction
+        # Restored before it is evaluated, not after it is accepted.
+        # The search then walks along the constraint instead of along
+        # the tangent to it, and the energy it compares is the energy
+        # of a point that really satisfies the coordinate -- which
+        # also costs nothing, where restoring afterwards would need
+        # the whole step evaluated a second time.
+        trial = problem.dof.restore(x + length * direction)
         new_energy, new_gradient = problem(trial)
         if new_energy <= energy + c1 * length * slope:
             return trial, new_energy, new_gradient, length
@@ -933,8 +986,9 @@ def _descend(calculator, structure, dof, rule_for, max_steps,
     """
     dof = dof or SymmetryDOF(structure)
     problem = _Problem(calculator, dof)
-    x = dof.start.copy()
+    x = dof.restore(dof.start.copy())
     n_variables = x.size
+    dof.hold_at(x)
     energy, gradient = problem(x)
     rule = None
     for iteration in range(max_steps + 1):
@@ -949,13 +1003,14 @@ def _descend(calculator, structure, dof, rule_for, max_steps,
         if step.converged or iteration == max_steps:
             return
 
+        dof.hold_at(x)
         found = _line_search(problem, x, energy, gradient,
                              dof.project(rule.direction(x, gradient)),
                              max_step, rule.first_length())
         if found is None:
             rule.reset()
             found = _line_search(problem, x, energy, gradient,
-                                 -gradient, max_step)
+                                 dof.project(-gradient), max_step)
         if found is None:
             problem(x)          # the terms and stress of where it is
             yield replace(step, reason=(
@@ -1119,7 +1174,7 @@ METHODS = {"lbfgs": lbfgs, "fire": fire, "smart": smart,
 
 def steps(calculator, structure, method: str = "lbfgs",
           frozen=(), relax_cell: bool = False, pressure: float = 0.0,
-          cancel=None, **kwargs) -> Iterator[Step]:
+          cancel=None, constraints=None, **kwargs) -> Iterator[Step]:
     """The chosen optimiser, as a generator of steps.
 
     ``relax_cell`` adds the six symmetry-adapted strain components to
@@ -1127,6 +1182,11 @@ def steps(calculator, structure, method: str = "lbfgs",
     cell can respond to it.  ``cancel`` is handed to the calculator,
     so an engine that runs a program can be stopped in the middle of
     an evaluation and not only between steps.
+
+    ``constraints`` is a :class:`xtal.ff.constraints.Holonomic`: the
+    coordinates a relaxed scan holds while the rest of the crystal
+    relaxes around them.  They are checked before the first step
+    rather than discovered to be impossible on the hundredth.
     """
     if cancel is not None and hasattr(calculator, "stop_with"):
         # Anything with ``compute`` can be optimised; only a
@@ -1139,7 +1199,9 @@ def steps(calculator, structure, method: str = "lbfgs",
             f"unknown optimiser {method!r}; "
             f"have {', '.join(sorted(METHODS))}") from None
     dof = SymmetryDOF(structure, frozen, relax_cell=relax_cell,
-                      pressure=pressure)
+                      pressure=pressure, constraints=constraints)
+    if constraints:
+        constraints.check(dof, dof.start)
     return optimizer(calculator, structure, dof=dof, **kwargs)
 
 
