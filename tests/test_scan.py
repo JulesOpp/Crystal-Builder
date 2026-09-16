@@ -156,6 +156,58 @@ def test_both_directions_give_two_branches(quartz, cell_axes):
     assert len(result.branch("reverse")) == 9
 
 
+def test_the_way_back_starts_where_the_way_out_finished(quartz,
+                                                        cell_axes):
+    """A hysteresis loop is one continuous path out and back.
+
+    Started from the input instead, the return branch's first point is
+    a jump the whole width of the scan: on a volume scan of MIL-53
+    that left the reverse branch 606 kcal/mol above the forward one at
+    the same volume, for three points, before it found its way back.
+    Only the *first* point is borrowed -- two branches sharing
+    geometries the whole way along would have no hysteresis left to
+    measure.
+    """
+    seen = []
+
+    def spy(structure):
+        seen.append(structure.frac.copy())
+        return _build(structure)
+
+    used = sc.plan(quartz, cell_axes, direction="both")
+    points = list(sc.scan(spy, quartz, cell_axes, direction="both",
+                          method="lbfgs", max_steps=20))
+    sc.collect(iter(points), used)
+    half = len(points) // 2
+    # The reverse branch opens on the geometry the forward branch left
+    # at that same cell, not on the structure the scan was given.
+    assert not np.allclose(seen[half], quartz.frac)
+
+
+def test_the_return_branch_opens_on_the_last_point_of_the_first(
+        quartz, cell_axes):
+    """The loop closed, asserted on the one geometry that says so.
+
+    The reverse raster begins at the cell the forward raster ended on,
+    so its first point must open on the geometry that point left --
+    not on the structure the scan was handed.
+    """
+    seen = []
+
+    def spy(structure):
+        seen.append(structure.frac.copy())
+        return _build(structure)
+
+    used = sc.plan(quartz, cell_axes, direction="both")
+    result = sc.collect(
+        sc.scan(spy, quartz, cell_axes, direction="both",
+                method="lbfgs", max_steps=30), used)
+    forward = result.branch("forward")
+    half = len(seen) // 2
+    assert np.allclose(seen[half], forward[-1].frac)
+    assert not np.allclose(seen[half], quartz.frac)
+
+
 def test_a_point_starts_from_the_relaxed_geometry_of_its_neighbour(
         quartz, cell_axes):
     """Seeding is what makes a scan of a real framework affordable.

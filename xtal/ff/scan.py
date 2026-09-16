@@ -374,20 +374,34 @@ def scan(build, structure, axes, *, seed: str = "previous",
     shape = tuple(len(a) for a in axes)
     prepared = plan(structure, axes, seed=seed, direction=direction)
     hold_bonding(structure)
+    # A sweep back down starts where the sweep up finished, which is
+    # what a hysteresis loop *is*: one continuous path out and back.
+    # Started from the input instead, the return branch's first point
+    # is a jump the whole width of the scan -- on MIL-53 that put the
+    # reverse branch 606 kcal/mol above the forward one at the same
+    # volume, for two or three points, until it found its way back.
+    # Only the first point is borrowed; after that each branch is on
+    # its own, because two branches sharing geometries all the way
+    # along would have no hysteresis left to measure.
+    ending: object = None
     for branch in prepared.directions:
         done: dict[tuple[int, ...], object] = {}
+        first = True
         for index in raster(shape, reverse=(branch == "reverse")):
             if cancel is not None and cancel.requested:
                 return
             targets = tuple(prepared.axes[k].values[i]
                             for k, i in enumerate(index))
+            opening = ending if (first and ending is not None)\
+                else structure
+            first = False
             start = (structure if prepared.seed == "input"
-                     else _seeded_from(done, index, structure))
+                     else _seeded_from(done, index, opening))
             point = _one_point(build, structure, start, prepared,
                                index, targets, branch, cancel,
                                optimiser)
             if point.finished:
-                done[index] = _rebuilt(structure, point)
+                done[index] = ending = _rebuilt(structure, point)
             if on_point is not None:
                 on_point(point)
             yield point

@@ -164,6 +164,25 @@ The shape is a `--resume` that reads the CSV, drops the finished
 indices from the raster, and seeds the first new point from the last
 finished one.
 
+### A sweep still starts at the end of its range, not at the crystal
+
+The two branches of a scan now form a loop -- the way back starts
+where the way out finished -- but the loop's *first* point is still
+reached from the input structure by one jump, and that jump can be the
+whole width of the scan.  Measured on `MIL53.cif`, a volume scan from
+50% to 120% of the deposited cell: the forward branch opens at 1511
+A^3 having been handed a geometry relaxed at 3023, lands in a poor
+basin, and stays 318-435 kcal/mol above the reverse branch for three
+points before it recovers.  The lower envelope hides it, which is why
+this is not urgent, but the numbers on that branch are still wrong.
+
+The fix is to sweep *outward from the crystal*: begin at the grid
+point nearest the structure's own value for that axis, walk to one
+end, then return to the start and walk to the other, so no point is
+ever seeded by more than one step.  It changes what "forward" and
+"reverse" traverse, which is why it is written down rather than done
+in passing.
+
 ### E(V) is not F(V)
 
 A scan is at zero kelvin and the report says so, but for the flexible
