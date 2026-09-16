@@ -167,7 +167,7 @@ class ScanPlan:
                     if self.freedom else "the cell relaxed freely")
         else:
             cell = "the cell held fixed at each point"
-        branches = (" walked in both directions"
+        branches = (", walked in both directions"
                     if len(self.directions) > 1 else "")
         return (f"Relaxed scan holding {held}, with {cell}, "
                 f"seeded from the {self.seed} point{branches}.")

@@ -35,6 +35,7 @@ from xtal.modules import (
     mof,
     net,
     pxrd,
+    scan,
     zeopp,
 )
 from xtal.modules.job import Cancellation, Cancelled, Job, JobResult
@@ -61,6 +62,7 @@ mof.register()
 build.register()
 net.register()
 pxrd.register()
+scan.register()
 blender.register()
 
 if os.environ.get("XTAL_STUB_MODULE", "").strip().lower() not in (
