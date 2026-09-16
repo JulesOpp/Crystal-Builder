@@ -170,11 +170,11 @@ class AxisBox(QGroupBox):
         range_row.addWidget(self.steps)
         range_row.addWidget(QLabel("points"))
 
-        form = QFormLayout(self)
-        form.addRow("Coordinate", self.kind)
-        form.addRow("Atoms", atoms_row)
-        form.addRow("Range", range_row)
-        form.addRow("", self.status)
+        self.form = QFormLayout(self)
+        self.form.addRow("Coordinate", self.kind)
+        self.form.addRow("Atoms", atoms_row)
+        self.form.addRow("Range", range_row)
+        self.form.addRow("", self.status)
 
         self.kind.currentIndexChanged.connect(self._kind_changed)
         self.atoms.textChanged.connect(self.refresh)
@@ -223,6 +223,11 @@ class AxisBox(QGroupBox):
 
     def _kind_changed(self) -> None:
         internal = self.is_internal
+        # Hidden rather than greyed out.  A lattice parameter has no
+        # atoms and never will, so the row is not a control that is
+        # unavailable, it is a control that does not apply -- and two
+        # dead rows per axis is what pushed Direction below the fold.
+        self.form.setRowVisible(1, internal)
         self.atoms.setEnabled(internal)
         self.from_selection.setEnabled(internal)
         if not internal and self.chosen:
