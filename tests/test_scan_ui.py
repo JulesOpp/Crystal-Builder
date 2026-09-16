@@ -340,3 +340,52 @@ def test_the_contour_window_marks_the_points_that_did_not_finish(
     dialog = landscape.LandscapeDialog(surface)
     qtbot.addWidget(dialog)
     assert dialog.axes.get_legend() is not None
+
+
+def test_the_contour_window_stretches_the_low_end_too(qtbot,
+                                                      surface):
+    """Matched to the panel on purpose: a landscape that reads in the
+    dock and goes flat in the window would look like a different
+    scan."""
+    from xtalapp.dialogs import landscape
+
+    if not landscape.installed():
+        pytest.skip("matplotlib is not installed")
+    dialog = landscape.LandscapeDialog(surface)
+    qtbot.addWidget(dialog)
+    assert dialog.stretch.isChecked()
+    grid = np.ma.masked_invalid(dialog.values())
+    assert dialog._norm(grid) is not None
+    dialog.stretch.setChecked(False)
+    assert dialog._norm(grid) is None
+
+
+def test_the_contour_levels_follow_the_stretch(qtbot, surface):
+    """Evenly spaced levels under a stretched colour map put almost
+    every line in the flat part and none around the basin, which is
+    the opposite of what the stretch was for."""
+    from xtalapp.dialogs import landscape
+
+    if not landscape.installed():
+        pytest.skip("matplotlib is not installed")
+    dialog = landscape.LandscapeDialog(surface)
+    qtbot.addWidget(dialog)
+    levels = dialog._levels(np.ma.masked_invalid(dialog.values()))
+    gaps = np.diff(np.asarray(levels))
+    assert gaps[0] < gaps[-1]
+
+
+def test_unticking_fill_does_not_raise(qtbot, surface):
+    """``axes.clear()`` detaches the mappable and ``Colorbar.remove``
+    then fails restoring a subplotspec that is gone.  The figure is
+    rebuilt instead."""
+    from xtalapp.dialogs import landscape
+
+    if not landscape.installed():
+        pytest.skip("matplotlib is not installed")
+    dialog = landscape.LandscapeDialog(surface)
+    qtbot.addWidget(dialog)
+    for _ in range(3):
+        dialog.filled.setChecked(False)
+        dialog.filled.setChecked(True)
+    assert dialog.axes.get_xlabel() == "c (A)"

@@ -116,6 +116,18 @@ class LandscapeDialog(QDialog):
             "Colour between the contours as well as drawing them")
         self.filled.toggled.connect(self.draw)
 
+        # The same stretch the panel applies, and matched to it on
+        # purpose: a landscape that reads in the dock and goes flat in
+        # the window would make the two look like different scans.
+        # ``PowerNorm(0.5)`` is the square root -- monotonic, not a
+        # clip, and the colour bar's own ticks show it.
+        self.stretch = QCheckBox("Stretch the low end")
+        self.stretch.setChecked(True)
+        self.stretch.setToolTip(
+            "Spend more of the colour range on the low energies, "
+            "where the basin and the wall around it are.")
+        self.stretch.toggled.connect(self.draw)
+
         self.branch = QComboBox()
         self.branch.addItems(
             [label for label, _z in surface.all_sheets()])
@@ -145,6 +157,7 @@ class LandscapeDialog(QDialog):
         controls.addWidget(QLabel("Contours:"))
         controls.addWidget(self.levels)
         controls.addWidget(self.filled)
+        controls.addWidget(self.stretch)
         controls.addStretch(1)
 
         layout = QVBoxLayout(self)
@@ -198,10 +211,11 @@ class LandscapeDialog(QDialog):
         # to come from the finished points alone or a single hole
         # takes the whole scale with it.
         grid = np.ma.masked_invalid(values)
-        levels = int(self.levels.value())
+        levels = self._levels(grid)
+        shared = {"cmap": COLORMAP, "norm": self._norm(grid)}
         if self.filled.isChecked():
             drawn = self.axes.contourf(surface.x, surface.y, grid,
-                                       levels=levels, cmap=COLORMAP)
+                                       levels=levels, **shared)
             self._bar = self.figure.colorbar(drawn, ax=self.axes)
             self._bar.set_label(surface.z_label or "")
             self.axes.contour(surface.x, surface.y, grid,
@@ -209,7 +223,7 @@ class LandscapeDialog(QDialog):
                               linewidths=0.4, alpha=0.5)
         else:
             drawn = self.axes.contour(surface.x, surface.y, grid,
-                                      levels=levels, cmap=COLORMAP)
+                                      levels=levels, **shared)
             self.axes.clabel(drawn, inline=True, fontsize=7)
 
         self._mark_minimum(grid)
@@ -220,6 +234,38 @@ class LandscapeDialog(QDialog):
         self.figure.tight_layout()
         self.canvas.draw_idle()
         self.status.setText(surface.note or "")
+
+    def _norm(self, grid):
+        """How a value is mapped onto the colour map.
+
+        Square root by default, for the reason
+        :meth:`xtalapp.heatmap.HeatmapPlot.shade` gives at length: a
+        landscape's interesting part is its basin, which is the bottom
+        of its range, and a linear map spends almost all of its colour
+        elsewhere.
+        """
+        if not self.stretch.isChecked() or grid.count() == 0:
+            return None
+        import matplotlib.colors as colors
+
+        return colors.PowerNorm(
+            gamma=0.5, vmin=float(grid.min()), vmax=float(grid.max()))
+
+    def _levels(self, grid):
+        """Contour levels, placed the way the colours are.
+
+        Evenly spaced levels under a stretched colour map put almost
+        every line in the flat part of the landscape and none around
+        the basin, which is the opposite of what the stretch was for.
+        """
+        count = int(self.levels.value())
+        if not self.stretch.isChecked() or grid.count() == 0:
+            return count
+        low, high = float(grid.min()), float(grid.max())
+        if high <= low:
+            return count                            # pragma: no cover
+        fractions = np.linspace(0.0, 1.0, count + 1)
+        return low + (high - low) * fractions ** 2
 
     def _mark_minimum(self, grid) -> None:
         if grid.count() == 0:                       # pragma: no cover
