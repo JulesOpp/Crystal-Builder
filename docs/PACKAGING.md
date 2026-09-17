@@ -334,9 +334,11 @@ something load-bearing.
   Accelerate beside an OpenBLAS one tagged 12.0 whose extensions say
   12.3; pip on a macOS 14 runner takes the first, and that bundle
   dies importing numpy on macOS 13 while passing its selftest on the
-  runner.  CI reinstalls the older wheels, and `postbuild.py` refuses
-  to sign a bundle holding any binary newer than
-  `LSMinimumSystemVersion`.
+  runner.  CI reinstalls the older wheels, compiles anything with no
+  wheel at `MACOSX_DEPLOYMENT_TARGET=12.3` (spglib has none for
+  Intel, and built on macos-15-intel it needed macOS 15), and
+  `postbuild.py` refuses to sign a bundle holding any binary newer
+  than `LSMinimumSystemVersion`.
 * **DMG**: `packaging/makedmg.py`, with the `.app` and a symlink to
   `/Applications`.  `hdiutil` and **not** `create-dmg`, which was
   tried first: it positions the mounted window's icons by driving

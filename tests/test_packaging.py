@@ -381,8 +381,9 @@ def test_the_macos_floor_is_the_one_ci_installs_wheels_for():
     macOS the bundle declares; the macOS 14 builds pip picks on its
     own die at import on 13 with a selftest that passed on the runner.
 
-    The wheel tag CI asks for and the Info.plist floor are written in
-    two files, so this is what keeps them the same major version.
+    The wheel tag CI asks for, the deployment target anything it
+    compiles is built for, and the Info.plist floor are written in two
+    files, so this is what keeps them the same.
     """
     spec = (ROOT / "packaging" / "macos.spec").read_text(encoding="utf-8")
     workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(
@@ -390,3 +391,4 @@ def test_the_macos_floor_is_the_one_ci_installs_wheels_for():
     floor = spec.split('"LSMinimumSystemVersion": "')[1].split('"')[0]
 
     assert f"macosx_{floor.split('.')[0]}_0_" in workflow
+    assert f'MACOSX_DEPLOYMENT_TARGET: "{floor}"' in workflow

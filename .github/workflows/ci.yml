@@ -136,7 +136,15 @@ jobs:
       # a bundle without ase ships it greyed out saying "pip install
       # crystal-builder[ase]" to somebody who double-clicked a DMG --
       # which is the exact failure vendoring PORMAKE was done to end.
+      #
+      # The deployment target is for whatever pip compiles rather than
+      # downloads, which otherwise targets the runner's own macOS:
+      # spglib 2.7.0 has no Intel wheel, and the sdist built on
+      # macos-15-intel needed macOS 15.  It is the
+      # LSMinimumSystemVersion in macos.spec; Windows ignores it.
       - name: Install
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "12.3"
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[gui,build,sketch,ase]" pyinstaller
