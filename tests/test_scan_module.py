@@ -305,7 +305,11 @@ def test_a_cell_opens_the_branch_that_gave_its_energy(quartz,
 
     Checked against the CSV, which records every point of both
     branches: for each cell, the file the surface points at must be
-    the one whose row has the lower energy.
+    the one whose row has the lower energy.  Or either, where the two
+    rows print the same energy: the corner the reverse walk starts
+    from is the forward walk's last point relaxed again, and which of
+    two equal energies is lower below the CSV's ten figures is
+    rounding, and differs between machines.
     """
     result = module.run_scan(_cell_scan(quartz, folder,
                                         direction="both"))
@@ -321,8 +325,11 @@ def test_a_cell_opens_the_branch_that_gave_its_energy(quartz,
                     if float(r["a target"]) == pytest.approx(ys[row])
                     and float(r["c target"]) == pytest.approx(
                         xs[column])]
-            best = min(here, key=lambda r: float(r["energy (kcal/mol)"]))
-            assert surface.path_at(row, column).endswith(best["file"])
+            lowest = min(float(r["energy (kcal/mol)"]) for r in here)
+            best = [r["file"] for r in here
+                    if float(r["energy (kcal/mol)"]) == lowest]
+            opened = surface.path_at(row, column)
+            assert any(opened.endswith(name) for name in best)
 
 
 def test_the_report_says_what_was_held(quartz):

@@ -58,6 +58,17 @@ def small_screen(monkeypatch):
     return area
 
 
+@pytest.fixture
+def laptop_screen(monkeypatch):
+    """A 1512x982 MacBook, minus a menu bar.  Offscreen Qt -- which CI
+    runs -- has an 800 px screen, and a window that fits one has no
+    380 px to give its left column."""
+    area = QRect(0, 38, 1512, 944)
+    monkeypatch.setattr(app_settings, "screen_area",
+                        lambda window=None: area)
+    return area
+
+
 # --------------------------------------------------------------- keys
 
 def test_key_sequences_takes_one_or_many():
@@ -274,12 +285,14 @@ def test_the_viewport_does_not_make_the_panels_native_windows(qtbot,
 
 
 def test_the_left_column_still_starts_wide_enough_for_structure(
-        qtbot, window):
+        qtbot, laptop_screen, settings):
     """Structure's 380 px was a minimum, and it set the first-run width
     as a side effect.  It is a starting width now, so the cell
     parameters are not clipped when the window first opens."""
     from xtalapp.layout import DEFAULT_LEFT_WIDTH
 
+    window = MainWindow(viewport_factory=StubViewport, settings=settings)
+    qtbot.addWidget(window)
     window.show()
     qtbot.waitExposed(window)
     assert window.info_dock.width() >= DEFAULT_LEFT_WIDTH - 10

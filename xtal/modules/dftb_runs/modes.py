@@ -112,7 +112,8 @@ def vibrational_modes(job) -> JobResult:
                       note="Choose a mode and press Animate to watch "
                            "it in the transport bar.  Negative "
                            "frequencies are imaginary.")
-        (directory / "modes.dat").write_text(block.as_dat())
+        (directory / "modes.dat").write_text(block.as_dat(),
+                                             encoding="utf-8")
 
     rows = [Row("Modes", str(block.n_modes)),
             Row("Imaginary", str(block.n_imaginary),

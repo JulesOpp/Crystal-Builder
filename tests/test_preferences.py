@@ -11,6 +11,8 @@ not what any of this is about.  ``MainWindow.preferences_dialog``
 exists so the wiring can be had without the loop.
 """
 
+import sys
+
 import pytest
 
 pytest.importorskip("PySide6")
@@ -396,6 +398,11 @@ def test_every_tool_and_extra_has_a_row_on_the_engines_page(dialog):
         | {extra.package for extra in extras.EXTRAS})
 
 
+#: A program that takes longer to answer than the test waits.  This
+#: interpreter rather than /bin/sleep, which Windows does not have.
+SLEEPS = [sys.executable, "-c", "import time; time.sleep(5)"]
+
+
 def _answering(page, monkeypatch, argv, **kwargs):
     from xtal.modules import probe
     asked = probe.Probe(tuple(argv), **kwargs)
@@ -406,7 +413,8 @@ def _answering(page, monkeypatch, argv, **kwargs):
 def test_a_test_button_reports_what_the_program_printed(
         qtbot, dialog, monkeypatch):
     page = dialog.page("Engines")
-    _answering(page, monkeypatch, ["/bin/echo", "DFTB+ release 24.1"])
+    _answering(page, monkeypatch,
+               [sys.executable, "-c", "print('DFTB+ release 24.1')"])
 
     page.tests["tools/dftb"].click()
 
@@ -423,7 +431,7 @@ def test_a_test_button_is_disabled_while_its_probe_runs(
     """Blender takes three seconds to say its version, and a second
     press in that time would start a second Blender."""
     page = dialog.page("Engines")
-    _answering(page, monkeypatch, ["/bin/sleep", "5"])
+    _answering(page, monkeypatch, SLEEPS)
 
     page.test("tools/blender")
 
@@ -438,7 +446,7 @@ def test_a_test_button_is_disabled_while_its_probe_runs(
 def test_a_probe_that_does_not_answer_is_stopped_and_says_so(
         qtbot, dialog, monkeypatch):
     page = dialog.page("Engines")
-    _answering(page, monkeypatch, ["/bin/sleep", "5"], timeout=0.2)
+    _answering(page, monkeypatch, SLEEPS, timeout=0.2)
 
     page.test("tools/xtb")
 

@@ -71,7 +71,8 @@ def write_cif(structure: Structure, path, expand_to_p1: bool = False,
     path = Path(path)
     path.write_text(cif_string(structure, expand_to_p1=expand_to_p1,
                                title=title or path.stem,
-                               perception=perception))
+                               perception=perception),
+                    encoding="utf-8")
     return path
 
 

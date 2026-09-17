@@ -70,7 +70,8 @@ def band_structure(job) -> JobResult:
                 density = dos.projected(
                     directory / "scc", symbols, fermi,
                     float(job.param("sigma", 0.1)))
-                (directory / "dos.dat").write_text(density.as_dat())
+                (directory / "dos.dat").write_text(density.as_dat(),
+                                                   encoding="utf-8")
             (directory / "bands").mkdir(exist_ok=True)
             shutil.copy(directory / "scc" / "charges.bin",
                         directory / "bands" / "charges.bin")
@@ -93,8 +94,12 @@ def band_structure(job) -> JobResult:
             fermi=fermi, kpoints=_kpoints(lines),
             note="Energies relative to the Fermi level of the run on "
                  "the mesh.")
-        (directory / "bands.dat").write_text(block.as_dat())
-        (directory / "bands.csv").write_text(block.as_csv())
+        # UTF-8 by name: the tick labels carry a Gamma, and Windows
+        # would otherwise write in a code page that has none.
+        (directory / "bands.dat").write_text(block.as_dat(),
+                                             encoding="utf-8")
+        (directory / "bands.csv").write_text(block.as_csv(),
+                                             encoding="utf-8")
 
     gap = block.gap()
     rows = [Row.number("Fermi level", fermi, "eV"),

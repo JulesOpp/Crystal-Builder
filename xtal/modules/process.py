@@ -500,7 +500,7 @@ def _isolation() -> dict:
 
 def _terminate(process) -> None:
     if WINDOWS:                                     # pragma: no cover
-        _quietly(process.terminate)
+        _end_tree(process)
         return
     _quietly(lambda: os.killpg(os.getpgid(process.pid),
                                signal.SIGTERM))
@@ -508,10 +508,33 @@ def _terminate(process) -> None:
 
 def _kill(process) -> None:
     if WINDOWS:                                     # pragma: no cover
-        _quietly(process.kill)
+        _end_tree(process)
         return
     _quietly(lambda: os.killpg(os.getpgid(process.pid),
                               signal.SIGKILL))
+
+
+def _end_tree(process) -> None:                     # pragma: no cover
+    """End a Windows process and everything it started.
+
+    ``TerminateProcess`` ends the one process it is given, and a
+    process group is only a target for Ctrl+Break, which a program
+    need not answer.  So a ``.bat`` wrapper died and the program it
+    had started ran on, holding the output pipe open -- and Stop
+    waited for it to finish.  ``taskkill /T`` walks the tree from the
+    parent, so it has to run while the parent is still there.  Forced,
+    because a console program has no window to be asked to close, and
+    ``TerminateProcess`` was never anything gentler.
+    """
+    try:
+        subprocess.run(
+            ["taskkill", "/F", "/T", "/PID", str(process.pid)],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL, timeout=GRACE_SECONDS,
+            check=False, creationflags=subprocess.CREATE_NO_WINDOW)
+    except (OSError, subprocess.SubprocessError):
+        pass
+    _quietly(process.kill)
 
 
 def _quietly(action) -> None:

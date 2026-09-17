@@ -166,11 +166,22 @@ def test_the_style_panel_is_headed_groups_in_the_agreed_order(window):
         dock.elements.parentWidget())
 
 
+def _frame(dock) -> int:
+    """What the dock takes off the width before its groups get any."""
+    return dock.width() - dock.columns.width()
+
+
 def test_a_wide_style_panel_puts_its_groups_side_by_side(qtbot, window,
                                                          rutile_cif):
+    """520 px on macOS.  Where the font is larger -- Windows -- the
+    groups are too, and wide means what the panel says two columns
+    need rather than a number measured in another typeface."""
     window.open_path(rutile_cif)
     dock = window.style_dock
     columns = _laid_out_at(qtbot, dock, 520)
+    needed = columns.layout().two_column_width() + _frame(dock)
+    if needed > 520:
+        columns = _laid_out_at(qtbot, dock, needed)
     drawing, show = dock.groups[0], dock.groups[3]
     assert columns.two_columns()
     assert drawing.y() == show.y()
@@ -180,10 +191,18 @@ def test_a_wide_style_panel_puts_its_groups_side_by_side(qtbot, window,
 def test_a_narrow_style_panel_stacks_its_groups_instead_of_scrolling_sideways(
         qtbot, window, rutile_cif):
     """A panel read by scrolling sideways is one whose right-hand half
-    nobody finds, and 220 px is the column dragged nearly shut."""
+    nobody finds, and 220 px is the column dragged nearly shut -- on
+    macOS.  In a larger font one stacked column is itself wider than
+    that, so there the test takes the narrowest the panel says it can
+    be, which is the claim: stacked, it needs no more."""
     window.open_path(rutile_cif)
     dock = window.style_dock
     columns = _laid_out_at(qtbot, dock, 220)
+    scroll = dock.widget()
+    needed = (scroll.widget().minimumSizeHint().width()
+              + dock.width() - scroll.viewport().width())
+    if needed > 220:
+        columns = _laid_out_at(qtbot, dock, needed)
     assert not columns.two_columns()
     xs = {group.x() for group in dock.groups}
     assert len(xs) == 1

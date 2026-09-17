@@ -269,10 +269,10 @@ def export_figure(bands, path, window=None, dos=None) -> Path:
     path = Path(path)
     suffix = path.suffix.lower()
     if suffix == ".dat":
-        path.write_text(bands.as_dat())
+        path.write_text(bands.as_dat(), encoding="utf-8")
         return path
     if suffix == ".csv":
-        path.write_text(bands.as_csv())
+        path.write_text(bands.as_csv(), encoding="utf-8")
         return path
     # A bare Figure, not pyplot: pyplot would choose a backend for the
     # whole process, and the pattern window has already chosen Qt's.

@@ -305,6 +305,11 @@ class WorkspaceDock(QDockWidget):
         self.stack = QStackedWidget()
         self.stack.addWidget(self.tree)
         self.stack.addWidget(self.browser)
+        # Both pages scroll, so the stack need not insist on the
+        # browser's header-plus-tree: that alone put the panel's
+        # minimum height at 196 px of the 200 a dock may ask for, and
+        # over it wherever the font is larger.
+        self.stack.setMinimumHeight(60)
 
         self.name_label = QLabel("No workspace")
         self.name_label.setWordWrap(True)

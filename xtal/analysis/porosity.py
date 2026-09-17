@@ -49,6 +49,7 @@ the reader has to.
 from __future__ import annotations
 
 import re
+from collections import Counter
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -549,9 +550,8 @@ def dimensionality(channels) -> str:
     kinds = sorted({c.dimensionality for c in channels})
     if len(kinds) == 1:
         return channels[0].label()
-    return ", ".join(f"{n}D x {sum(1 for c in channels
-                                   if c.dimensionality == n)}"
-                     for n in kinds)
+    counts = Counter(c.dimensionality for c in channels)
+    return ", ".join(f"{n}D x {counts[n]}" for n in kinds)
 
 
 def parse_chan(text: str) -> tuple[Channel, ...]:

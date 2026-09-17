@@ -121,7 +121,8 @@ def test_charges_on_a_mesh_then_eigenvalues_along_the_path(
     assert len(bands.x) == bands.energies.shape[1]
     assert [label for _x, label in bands.ticks][0] == "Γ"
     assert bands.gap() == pytest.approx((-0.5986, 0.9014), abs=1e-4)
-    assert (run / "bands.dat").read_text().startswith("# x(1/A)")
+    assert (run / "bands.dat").read_text(
+        encoding="utf-8").startswith("# x(1/A)")
     assert (run / "bands.csv").is_file()
     assert result.report.zones[0].runs == \
         kpath.band_path(silicon.lattice).runs
@@ -269,9 +270,9 @@ def test_the_band_structure_exports_as_numbers_and_as_a_figure(
     bands = Bands(x=np.linspace(0, 1, 5),
                   energies=np.array([[[-1.0, 1.0]] * 5]),
                   ticks=((0.0, "Γ"), (1.0, "X")))
-    assert export_figure(bands, tmp_path / "b.dat").read_text() \
-        .count("\n") == 7
+    assert export_figure(bands, tmp_path / "b.dat").read_text(
+        encoding="utf-8").count("\n") == 7
     assert export_figure(bands, tmp_path / "b.csv").is_file()
     pytest.importorskip("matplotlib")
     figure = export_figure(bands, tmp_path / "b.svg", (-2.0, 2.0))
-    assert "<svg" in figure.read_text()
+    assert "<svg" in figure.read_text(encoding="utf-8")

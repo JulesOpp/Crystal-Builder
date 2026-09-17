@@ -21,6 +21,7 @@ is written and the process launched.
 """
 
 import json
+import sys
 from dataclasses import fields, replace
 
 import numpy as np
@@ -311,6 +312,8 @@ def test_a_real_run_accepts_the_command_line_we_send(method, program,
     assert np.allclose(result.forces[0], -result.forces[1], atol=1e-6)
 
 
+@pytest.mark.skipif(sys.platform == "win32",
+                    reason="Windows has no signals to die of")
 def test_a_crash_is_told_apart_from_a_refusal(tmp_path, monkeypatch):
     """"exited with status -11" is a sentence only somebody who
     already knows Python's signal convention can read, and the

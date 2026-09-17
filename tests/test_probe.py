@@ -1,33 +1,31 @@
 """Asking a program whether it runs -- the half of the Test button
 that needs no window.
 
-The programs themselves are stood in for by shell scripts that print
-what the real ones were measured printing, so that these run on a
-machine with none of them installed.
+The programs themselves are stood in for by small Python programs
+that print what the real ones were measured printing, so that these
+run on a machine with none of them installed -- Windows included,
+which is why they are not shell scripts.
 """
 
-import stat
 import sys
 
+from tests.conftest_program import write_program
 from xtal.modules import probe
 
 
 def _script(directory, name, body):
-    path = directory / name
-    path.write_text("#!/bin/sh\n" + body)
-    path.chmod(path.stat().st_mode | stat.S_IEXEC)
-    return path
+    return write_program(directory, name, "import sys\n" + body)
 
 
 DFTB_BANNER = """\
-echo '|==============================================================='
-echo '|'
-echo '|  DFTB+ release 24.1'
-echo '|'
-echo '|  Copyright (C) 2006 - 2024  DFTB+ developers group'
-echo 'ERROR!'
-echo '-> No input file found'
-exit 1
+print('|===============================================================')
+print('|')
+print('|  DFTB+ release 24.1')
+print('|')
+print('|  Copyright (C) 2006 - 2024  DFTB+ developers group')
+print('ERROR!')
+print('-> No input file found')
+sys.exit(1)
 """
 
 
@@ -50,7 +48,7 @@ def test_waveplot_and_modes_name_themselves_in_the_banner(tmp_path):
                             ("tools/modes", "modes",
                              "DFTB+ (MODES 0.03)")):
         tool = _script(tmp_path, name,
-                       f"echo '|  {line}'\nexit 1\n")
+                       f"print('|  {line}')\nsys.exit(1)\n")
         assert probe.run(probe.probe_for(key, tool)) == (True, line)
 
 
@@ -61,7 +59,10 @@ def test_a_dftb_probe_runs_where_no_input_file_can_be(tmp_path,
     monkeypatch.chdir(tmp_path)
     (tmp_path / "dftb_in.hsd").write_text("Geometry = {}")
     dftb = _script(tmp_path, "dftb+",
-                   "ls dftb_in.hsd 2>/dev/null && exit 0\n" + DFTB_BANNER)
+                   "import os\n"
+                   "if os.path.exists('dftb_in.hsd'):\n"
+                   "    print('dftb_in.hsd')\n"
+                   "    sys.exit(0)\n" + DFTB_BANNER)
 
     ok, sentence = probe.run(probe.probe_for("tools/dftb", dftb))
 
@@ -70,8 +71,9 @@ def test_a_dftb_probe_runs_where_no_input_file_can_be(tmp_path,
 
 def test_tblite_is_asked_its_version(tmp_path):
     tblite = _script(tmp_path, "tblite",
-                     '[ "$1" = "--version" ] || exit 2\n'
-                     "echo 'tblite version 0.3.0'\n")
+                     "if sys.argv[1:] != ['--version']:\n"
+                     "    sys.exit(2)\n"
+                     "print('tblite version 0.3.0')\n")
 
     found = probe.probe_for("tools/tblite", tblite)
 
@@ -81,8 +83,8 @@ def test_tblite_is_asked_its_version(tmp_path):
 
 def test_zeopp_is_found_by_its_usage_message(tmp_path):
     network = _script(tmp_path, "network",
-                      "echo 'Network commandline invocation syntax:'\n"
-                      "echo ''\necho './network [-cssr]'\n")
+                      "print('Network commandline invocation syntax:')\n"
+                      "print('')\nprint('./network [-cssr]')\n")
 
     ok, sentence = probe.run(probe.probe_for("tools/zeopp", network))
 
@@ -93,8 +95,8 @@ def test_zeopp_is_found_by_its_usage_message(tmp_path):
 
 def test_a_program_that_answers_wrongly_says_what_it_printed(tmp_path):
     broken = _script(tmp_path, "tblite",
-                     "echo 'dyld: Library not loaded: libgfortran.5'\n"
-                     "exit 134\n")
+                     "print('dyld: Library not loaded: libgfortran.5')\n"
+                     "sys.exit(134)\n")
 
     ok, sentence = probe.run(probe.probe_for("tools/tblite", broken))
 
@@ -104,7 +106,7 @@ def test_a_program_that_answers_wrongly_says_what_it_printed(tmp_path):
 
 
 def test_a_probe_that_times_out_says_so_rather_than_found(tmp_path):
-    slow = _script(tmp_path, "blender", "sleep 5\n")
+    slow = _script(tmp_path, "blender", "import time\ntime.sleep(5)\n")
     asked = probe.Probe((str(slow), "--version"), timeout=0.3)
 
     ok, sentence = probe.run(asked)

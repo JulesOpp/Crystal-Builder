@@ -19,6 +19,7 @@ pytest.importorskip("pytestqt")
 from dataclasses import replace  # noqa: E402
 
 from tests.conftest_ff import water  # noqa: E402
+from tests.conftest_program import write_program  # noqa: E402
 from tests.test_app_shell import StubViewport  # noqa: E402
 from xtal.ff import optimize  # noqa: E402
 from xtal.ff.xtb import calculator as xtb  # noqa: E402
@@ -586,7 +587,7 @@ def test_choosing_xtb_hides_the_controls_that_are_uffs(opened):
 
 
 def test_a_method_the_machine_cannot_run_greys_out_as_it_is_chosen(
-        opened, monkeypatch):
+        opened, monkeypatch, tmp_path):
     """The availability of this engine is a function of what the form
     says: GFN-FF needs xtb and the other two do not, so the answer
     changes as the Method combo does.
@@ -595,7 +596,12 @@ def test_a_method_the_machine_cannot_run_greys_out_as_it_is_chosen(
     left Run enabled for a method with no binary behind it until
     something else happened to refresh the dock -- and then the
     failure arrived as a subprocess error after the button.
+
+    tblite is a stand-in: the test is about the combo, and a runner
+    without tblite installed otherwise greys GFN2 out as well.
     """
+    monkeypatch.setenv("XTAL_TBLITE", str(
+        write_program(tmp_path, "tblite", "raise SystemExit(0)\n")))
     monkeypatch.setenv("XTAL_XTB", "/nowhere/xtb")
     monkeypatch.setattr(xtb, "PROGRAMS", tuple(
         replace(p, name=f"{p.name}-not-installed")

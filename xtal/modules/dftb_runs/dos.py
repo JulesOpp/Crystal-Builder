@@ -56,7 +56,8 @@ def density_of_states(job) -> JobResult:
         fermi = outputs.fermi_level(common.read(directory,
                                                 "detailed.out")) or 0.0
         block = projected(directory, symbols, fermi, sigma, shells)
-        (directory / "dos.dat").write_text(block.as_dat())
+        (directory / "dos.dat").write_text(block.as_dat(),
+                                           encoding="utf-8")
 
     rows = [Row.number("Fermi level", fermi, "eV"),
             Row("k-point mesh", "x".join(str(n) for n in mesh)),
