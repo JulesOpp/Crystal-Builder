@@ -329,6 +329,14 @@ something load-bearing.
   `Crystal-Builder-<version>-arm64.dmg` and `-x86_64.dmg` and let the
   download page name them.  Do not ship arm64 only and tell Intel
   users about Rosetta — Rosetta cannot help, the app is not there.
+* **Minimum macOS is 12.3**, and it is set by scipy, not by us.
+  numpy and scipy publish a macOS 14 arm64 wheel on the new
+  Accelerate beside an OpenBLAS one tagged 12.0 whose extensions say
+  12.3; pip on a macOS 14 runner takes the first, and that bundle
+  dies importing numpy on macOS 13 while passing its selftest on the
+  runner.  CI reinstalls the older wheels, and `postbuild.py` refuses
+  to sign a bundle holding any binary newer than
+  `LSMinimumSystemVersion`.
 * **DMG**: `packaging/makedmg.py`, with the `.app` and a symlink to
   `/Applications`.  `hdiutil` and **not** `create-dmg`, which was
   tried first: it positions the mounted window's icons by driving

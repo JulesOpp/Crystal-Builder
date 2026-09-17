@@ -141,6 +141,24 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[gui,build,sketch,ase]" pyinstaller
 
+      # numpy and scipy each publish a macOS 14 wheel on the new
+      # Accelerate beside a macOS 12 one on OpenBLAS, and pip on a
+      # macOS 14 runner takes the first -- a bundle that passes its
+      # selftest here and dies importing numpy on macOS 13.  Swap in
+      # the macOS 12 builds of the same versions.  pip matches wheel
+      # tags, which say 12_0; the binaries inside say 12.3, which is
+      # why that is the LSMinimumSystemVersion in macos.spec, and
+      # postbuild.py fails the job if anything is newer than it.
+      - name: Wheels for the oldest supported macOS
+        if: runner.os == 'macOS'
+        run: |
+          pip download --no-deps --only-binary=:all: \
+              --python-version 3.12 \
+              --platform "macosx_12_0_$(uname -m)" -d floor-wheels \
+              "numpy==$(python -c 'import numpy; print(numpy.__version__)')" \
+              "scipy==$(python -c 'import scipy; print(scipy.__version__)')"
+          pip install --force-reinstall --no-deps floor-wheels/*.whl
+
       - name: Build
         env:
           QT_API: pyside6

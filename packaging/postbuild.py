@@ -35,6 +35,7 @@ separate decision recorded in the release notes.
 
 from __future__ import annotations
 
+import plistlib
 import shutil
 import subprocess
 import sys
@@ -223,7 +224,75 @@ def remove_unused(root: Path) -> int:
         shutil.rmtree(framework)
         print(f"  removed {name}.framework, which nothing reaches")
 
+    dangling = drop_dangling_links(root)
+    if dangling:
+        print(f"  removed {dangling} links to what was removed")
     return removed
+
+
+def drop_dangling_links(root: Path) -> int:
+    """Remove every symlink whose target is gone.  Returns the count.
+
+    PyInstaller links each framework into ``Contents/Frameworks`` and
+    ``Contents/Resources`` by its short name, so deleting a framework
+    leaves two links to nothing.  ``codesign --verify --strict`` then
+    fails with a bare "No such file or directory" naming the bundle,
+    not the link, and ``spctl`` rejects the application.
+    """
+    count = 0
+    for path in sorted(root.rglob("*")):
+        if path.is_symlink() and not path.exists():
+            path.unlink()
+            count += 1
+    return count
+
+
+def declared_minimum(bundle: Path) -> tuple[int, ...]:
+    """``LSMinimumSystemVersion`` from the bundle's Info.plist."""
+    with (bundle / "Contents" / "Info.plist").open("rb") as handle:
+        version = plistlib.load(handle)["LSMinimumSystemVersion"]
+    return version_tuple(version)
+
+
+def version_tuple(text: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in text.split("."))
+
+
+def required_minimum(path: Path) -> tuple[int, ...] | None:
+    """The oldest macOS a Mach-O file says it loads on.
+
+    ``minos`` in ``LC_BUILD_VERSION``, or ``version`` in the older
+    ``LC_VERSION_MIN_MACOSX``; the highest of them in a fat file.
+    """
+    listed = subprocess.run(
+        ["otool", "-l", str(path)], capture_output=True, text=True)
+    found = []
+    command = None
+    for line in listed.stdout.splitlines():
+        words = line.split()
+        if words[:1] == ["cmd"]:
+            command = words[1]
+        elif (command == "LC_BUILD_VERSION" and words[:1] == ["minos"]
+              or command == "LC_VERSION_MIN_MACOSX"
+              and words[:1] == ["version"]):
+            found.append(version_tuple(words[1]))
+    return max(found) if found else None
+
+
+def too_new(bundle: Path) -> list[tuple[Path, tuple[int, ...]]]:
+    """Every binary that needs a newer macOS than the bundle declares.
+
+    **This is the check that the selftest cannot be.**  numpy and
+    scipy publish two arm64 wheels, one for macOS 14 linked against
+    the new Accelerate and one for macOS 12 on OpenBLAS, and pip
+    takes the one that suits the machine it runs on.  A macOS 14
+    runner therefore builds a bundle that dies importing numpy on
+    macOS 13 (``Symbol not found: _cblas_caxpy$NEWLAPACK$ILP64``),
+    and passes its own selftest, because the runner is macOS 14.
+    """
+    floor = declared_minimum(bundle)
+    return [(path, needed) for path in mach_o(bundle)
+            if (needed := required_minimum(path)) and needed > floor]
 
 
 def sign(bundle: Path) -> None:
@@ -237,8 +306,8 @@ def sign(bundle: Path) -> None:
         ["codesign", "--force", "--deep", "--sign", "-", str(bundle)],
         check=True, capture_output=True, text=True)
     subprocess.run(
-        ["codesign", "--verify", "--deep", str(bundle)], check=True,
-        capture_output=True, text=True)
+        ["codesign", "--verify", "--deep", "--strict", str(bundle)],
+        check=True, capture_output=True, text=True)
 
 
 def main(argv=None) -> int:
@@ -260,6 +329,16 @@ def main(argv=None) -> int:
 
     dropped = remove_unused(bundle)
     print(f"removed {dropped / 1e6:.0f} MB of unused Qt")
+
+    offenders = too_new(bundle)
+    if offenders:
+        floor = ".".join(map(str, declared_minimum(bundle)))
+        print(f"{len(offenders)} binaries need a newer macOS than the "
+              f"{floor} Info.plist declares:", file=sys.stderr)
+        for path, needed in offenders[:20]:
+            print(f"  {'.'.join(map(str, needed))}  "
+                  f"{path.relative_to(bundle)}", file=sys.stderr)
+        return 1
 
     sign(bundle)
     after = total(bundle)

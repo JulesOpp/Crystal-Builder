@@ -357,3 +357,36 @@ def test_the_bundled_extras_are_the_ones_the_extras_page_promises():
 
     assert promised <= set(bundle.COLLECT)
     assert refused <= set(bundle.EXCLUDES)
+
+
+def test_a_link_to_a_removed_framework_is_removed_with_it(tmp_path):
+    """PyInstaller links every framework in by its short name, and
+    postbuild deletes the unused Qt ones.  A link left pointing at
+    nothing fails ``codesign --verify --strict`` with a message that
+    names only the bundle, and ``spctl`` rejects the application.
+    """
+    import postbuild
+
+    (tmp_path / "QtGui.framework").mkdir()
+    (tmp_path / "QtGui").symlink_to("QtGui.framework")
+    (tmp_path / "QtQuick").symlink_to("QtQuick.framework")
+
+    assert postbuild.drop_dangling_links(tmp_path) == 1
+    assert (tmp_path / "QtGui").is_symlink()
+    assert not (tmp_path / "QtQuick").is_symlink()
+
+
+def test_the_macos_floor_is_the_one_ci_installs_wheels_for():
+    """CI swaps numpy and scipy for the builds that run on the oldest
+    macOS the bundle declares; the macOS 14 builds pip picks on its
+    own die at import on 13 with a selftest that passed on the runner.
+
+    The wheel tag CI asks for and the Info.plist floor are written in
+    two files, so this is what keeps them the same major version.
+    """
+    spec = (ROOT / "packaging" / "macos.spec").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8")
+    floor = spec.split('"LSMinimumSystemVersion": "')[1].split('"')[0]
+
+    assert f"macosx_{floor.split('.')[0]}_0_" in workflow

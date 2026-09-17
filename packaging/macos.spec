@@ -110,7 +110,10 @@ app = BUNDLE(
         # this, macOS forces it into light appearance and the dark
         # theme it draws is never seen.
         "NSRequiresAquaSystemAppearance": False,
-        "LSMinimumSystemVersion": "11.0",
+        # scipy's oldest arm64 wheel is tagged 12.0 and its extension
+        # modules say 12.3, which is the one that counts;
+        # packaging/postbuild.py refuses any binary newer than this.
+        "LSMinimumSystemVersion": "12.3",
         "LSApplicationCategoryType": "public.app-category.education",
         "NSHumanReadableCopyright": "MIT licence",
         # Double-clicking a file is delivered two different ways and
