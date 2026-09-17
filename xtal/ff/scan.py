@@ -33,12 +33,21 @@ one curve.  The hysteresis is the interesting part.
 **A point that did not finish is not a number.**  Its energy is NaN,
 it does not seed its neighbour, and whatever draws the landscape has
 to decide what to do about it rather than plotting a hole as a zero.
+
+**A point may be pre-relaxed by a cheaper engine.**  A volume step
+scales every coordinate with the cell, so each point starts a long
+way from its minimum, and a machine-learned potential pays for all of
+that walk at its own price.  :class:`Prerelax` spends the first
+stretch of it on something like UFF4MOF, under the same held
+coordinates, and the engine the landscape is *of* finishes from
+there.  Only the second engine's energy is reported: the first is a
+way of getting somewhere, not a measurement.
 """
 
 from __future__ import annotations
 
 import math
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -59,6 +68,30 @@ SEEDS = ("previous", "input")
 #: Which way the grid is walked.  "both" walks it forwards and then
 #: backwards and keeps the two as separate branches.
 DIRECTIONS = ("forward", "reverse", "both")
+
+
+@dataclass(frozen=True)
+class Prerelax:
+    """A cheaper relaxation run at every point before the real one.
+
+    ``build(structure)`` makes its calculator, as :func:`scan`'s own
+    does.  ``method`` of ``None`` borrows the scan's optimiser.  The
+    tolerance is loose by default because converging the wrong
+    engine tightly buys nothing: its minimum is not the one wanted.
+    """
+
+    build: Callable
+    max_steps: int = 500
+    force_tolerance: float = 0.5
+    method: str | None = None
+
+    def options(self, optimiser: dict) -> dict:
+        out = dict(optimiser)
+        out["max_steps"] = int(self.max_steps)
+        out["force_tolerance"] = float(self.force_tolerance)
+        if self.method:
+            out["method"] = self.method
+        return out
 
 
 class ScanError(CalculatorError):
@@ -111,6 +144,10 @@ class ScanPoint:
     parameters: tuple[float, ...]
     branch: str = "forward"
     message: str = ""
+    #: Steps the :class:`Prerelax` engine took first; 0 with none.
+    pre_steps: int = 0
+    #: Why the pre-relaxation was skipped, when it was.
+    pre_skipped: str = ""
 
     @property
     def finished(self) -> bool:
@@ -234,8 +271,38 @@ def plan(structure, axes, *, seed: str = "previous",
 
     directions = (("forward", "reverse") if direction == "both"
                   else (direction,))
-    return ScanPlan(axes, relax_cell, freedom, cell_axes,
-                    internal_axes, directions, seed)
+    prepared = ScanPlan(axes, relax_cell, freedom, cell_axes,
+                        internal_axes, directions, seed)
+    _check_holdable(structure, prepared)
+    return prepared
+
+
+def _check_holdable(structure, prepared) -> None:
+    """Refuse, before the first point, a coordinate nothing can move.
+
+    The optimiser would refuse it too, but once per point: a grid of
+    144 holes each with the same message, after the dialog had
+    already said the scan was fine.  Asked here, the dialog says why
+    before Run is pressed.  What the variables are is the whole
+    question -- the asymmetric unit, each site confined to what its
+    site symmetry allows -- so a distance between two atoms the group
+    holds apart is refused, and one between two chlorides that may
+    slide along their three-fold axes is not.
+    """
+    if not prepared.internal_axes:
+        return
+    first = tuple(axis.values[0] for axis in prepared.axes)
+    held = _held(structure, prepared, first)
+    try:
+        dof = optimize.SymmetryDOF(
+            structure, relax_cell=prepared.relax_cell,
+            constraints=held, freedom=prepared.freedom)
+    except CalculatorError:
+        return                                  # pragma: no cover
+    try:
+        held.check(dof, dof.start)
+    except CalculatorError as error:
+        raise ScanError(str(error)) from error
 
 
 # ======================================================================
@@ -356,6 +423,7 @@ def _kind_of(coordinate) -> str:
 
 def scan(build, structure, axes, *, seed: str = "previous",
          direction: str = "both", cancel=None, on_point=None,
+         prerelax: Prerelax | None = None,
          **optimiser) -> Iterator[ScanPoint]:
     """Relax the structure at every point of the grid.
 
@@ -363,7 +431,8 @@ def scan(build, structure, axes, *, seed: str = "previous",
     made per point because an engine is built over a particular cell.
     ``cancel`` is a :class:`xtal.modules.job.Cancellation`, checked
     between points and handed to the optimiser so that an engine
-    running a program can be stopped mid-evaluation.
+    running a program can be stopped mid-evaluation.  ``prerelax``,
+    when given, runs first at every point; see :class:`Prerelax`.
 
     Points come out as they finish, so that whatever is driving this
     can write each one to disk before the next begins.  A scan is an
@@ -399,7 +468,7 @@ def scan(build, structure, axes, *, seed: str = "previous",
                      else _seeded_from(done, index, opening))
             point = _one_point(build, structure, start, prepared,
                                index, targets, branch, cancel,
-                               optimiser)
+                               optimiser, prerelax)
             if point.finished:
                 done[index] = ending = _rebuilt(structure, point)
             if on_point is not None:
@@ -442,7 +511,7 @@ def _rebuilt(structure, point):
 
 
 def _one_point(build, original, start, prepared, index, targets,
-               branch, cancel, optimiser) -> ScanPoint:
+               branch, cancel, optimiser, prerelax=None) -> ScanPoint:
     """One relaxation, with whatever failed it turned into a message.
 
     A point that raises does not stop the scan.  One bad cell in a
@@ -453,6 +522,20 @@ def _one_point(build, original, start, prepared, index, targets,
                if prepared.cell_axes else start.lattice)
     at = _with_cell(start, lattice)
     blank = np.full(len(original.sites), np.nan)
+    pre_steps = 0
+    skipped = ""
+    if prerelax is not None:
+        try:
+            at, pre_steps = _prerelaxed(prerelax, at, prepared,
+                                        targets, cancel, optimiser)
+        except CalculatorStopped:
+            return _failed(index, targets, branch, at, blank,
+                           "stopped")
+        except (CalculatorError, ValueError) as error:
+            # The pre-relaxation is a shortcut, not the measurement:
+            # when it fails the point is still worth relaxing the
+            # long way, and the log says the shortcut was not taken.
+            skipped = str(error)
     try:
         held = _held(at, prepared, targets)
         result = optimize.run(
@@ -469,6 +552,9 @@ def _one_point(build, original, start, prepared, index, targets,
     matrix = (result.matrix if result.matrix is not None
               else at.lattice.matrix)
     relaxed = Lattice(matrix)
+    broken = _symmetry_broken(original, result.frac, relaxed)
+    if broken:
+        return _failed(index, targets, branch, at, blank, broken)
     achieved = _achieved(original, prepared, result.frac, matrix,
                          relaxed)
     return ScanPoint(
@@ -477,7 +563,61 @@ def _one_point(build, original, start, prepared, index, targets,
         steps=int(result.steps), max_force=float(result.max_force),
         frac=result.frac, matrix=matrix,
         parameters=tuple(float(v) for v in relaxed.parameters),
-        branch=branch, message=result.message)
+        branch=branch, message=result.message,
+        pre_steps=pre_steps, pre_skipped=skipped)
+
+
+def _prerelaxed(prerelax, at, prepared, targets, cancel, optimiser):
+    """``at`` relaxed by the cheaper engine, and the steps it took.
+
+    Under the same held coordinates and the same cell freedom as the
+    real relaxation, so that what it hands on is already a point of
+    this grid: a held volume is still that volume, a held torsion
+    still that angle.  Whether it converged does not matter; it
+    stops at its step limit and the real engine carries on.
+    """
+    held = _held(at, prepared, targets)
+    result = optimize.run(
+        prerelax.build(at), at, cancel=cancel,
+        relax_cell=prepared.relax_cell, freedom=prepared.freedom,
+        constraints=held, **prerelax.options(optimiser))
+    out = at.copy()
+    for site, row in zip(out.sites, result.frac, strict=True):
+        site.frac = row
+    if result.matrix is not None:
+        out.set_lattice(Lattice(result.matrix))
+    return out, int(result.steps)
+
+
+def _symmetry_broken(original, frac, lattice) -> str:
+    """Why this relaxed point is not the crystal it started as, or
+    ``""`` when it is.
+
+    The optimiser keeps every site where its site symmetry allows,
+    so this is not expected to fire -- it is what makes a failure of
+    that promise a hole in the landscape with a reason beside it,
+    rather than a point whose cell quietly holds more atoms than the
+    one it was scanned from.  That is what a held Cl-Cl distance in
+    MFU-4l once did: the chlorides left their three-fold axis, the
+    cell went from 648 atoms to 776, and the energy, the achieved
+    distance and the file written for the point all described a
+    different crystal.
+    """
+    from xtal.core import p1
+    moved = original.copy()
+    for site, row in zip(moved.sites, frac, strict=True):
+        site.frac = row
+    moved.set_lattice(lattice)
+    before = p1.expand(original).n_atoms
+    after = p1.expand(moved).n_atoms
+    if before == after:
+        return ""
+    return (f"the relaxation moved a site off its special position, "
+            f"and the cell went from {before} atoms to {after}.  "
+            f"Holding this coordinate in "
+            f"{original.space_group} needs a freedom the symmetry "
+            f"does not give; reduce to P1 to scan it with the "
+            f"symmetry broken.")
 
 
 def _failed(index, targets, branch, at, blank, message) -> ScanPoint:
@@ -647,12 +787,15 @@ def collect(iterator, plan_used) -> ScanResult:
 
 
 def estimate(plan_used, seconds_per_step: float,
-             steps: int) -> float:
+             steps: int, pre_steps: int = 0) -> float:
     """Roughly how long this scan will take, in seconds.
 
     Shown before the click rather than discovered after it: a twelve
     by twelve grid of a real framework is hours, and that is a thing
-    to find out from a dialog.
+    to find out from a dialog.  Pre-relaxation steps are counted at
+    the same price, which overstates a UFF step and is the safe side
+    to be wrong on.
     """
-    return float(plan_used.n_points) * float(steps) * float(
+    total = float(steps) + float(pre_steps)
+    return float(plan_used.n_points) * total * float(
         seconds_per_step) if not math.isnan(seconds_per_step) else 0.0

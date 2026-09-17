@@ -127,7 +127,8 @@ class Artifact:
     """
 
     kind: str               # "structure" | "trajectory" | "log" |
-                            # "final" | "project" | "image" | "file"
+                            # "final" | "project" | "image" |
+                            # "report" | "file"
     path: Path
     label: str = ""
 
@@ -146,6 +147,10 @@ def classify(path) -> str:
     suffix = path.suffix.lower()
     if path.name == LOG_NAME or suffix == ".log":
         return "log"
+    if path.name == "report.json":
+        # What the Results panel showed, kept so that it can show it
+        # again: see xtal.modules.report.save.
+        return "report"
     if suffix in (".extxyz", ".traj"):
         return "trajectory"
     if suffix == ".xtalproj":

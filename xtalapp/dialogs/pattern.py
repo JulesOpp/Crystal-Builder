@@ -89,6 +89,9 @@ FIGURE_FILTERS = ";;".join((
 
 RASTER_DPI = 300
 
+#: Filters for a two-column file that is not a diffraction pattern.
+DATA_FILTER = "Two-column data (*.xy *.dat *.txt);;All files (*)"
+
 #: Where the tick combs are drawn, in percent of the tallest peak.
 #: Below the traces rather than over them, one row per set: the rows
 #: are what tell an unexpected peak sitting over a *forbidden*
@@ -142,6 +145,10 @@ class PatternDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(curve.title or "Pattern")
         self.curve = curve
+        # A scan's profile arrives here too, and every word below that
+        # says "pattern" or "2-theta" is wrong for it -- the axis is a
+        # volume or a distance, and the traces are not scaled.
+        self.pattern = bool(curve.normalised)
         self.directory = str(directory or "")
         #: What has been laid over the calculation: ``(label, x, y)``.
         self.overlays: list[tuple[str, np.ndarray, np.ndarray]] = []
@@ -165,7 +172,8 @@ class PatternDialog(QDialog):
             "Overlay data...", QDialogButtonBox.ActionRole)
         self.overlay_button.setToolTip(
             "Read a measured pattern from a two-column .xy file and "
-            "draw it over the calculation")
+            "draw it over the calculation" if self.pattern else
+            "Read a two-column file and draw it over this curve")
         self.overlay_button.clicked.connect(self.add_overlay)
         self.figure_button = buttons.addButton(
             "Save figure...", QDialogButtonBox.ActionRole)
@@ -174,23 +182,30 @@ class PatternDialog(QDialog):
             "editor; PNG and TIFF are raster")
         self.figure_button.clicked.connect(self.save_figure)
         self.data_button = buttons.addButton(
-            "Save pattern...", QDialogButtonBox.ActionRole)
+            "Save pattern..." if self.pattern else "Save data...",
+            QDialogButtonBox.ActionRole)
         self.data_button.setToolTip(
-            "Write the calculated pattern as a two-column .xy file")
+            "Write the calculated pattern as a two-column .xy file"
+            if self.pattern else
+            "Write this curve as a two-column .xy file")
         self.data_button.clicked.connect(self.save_pattern)
         buttons.rejected.connect(self.reject)
 
+        units = "degrees" if self.pattern else _units(curve.x_label)
+        within = f", in {units}" if units else ""
         self.low = _range_entry(
-            "The left-hand end of the axis, in degrees")
+            f"The left-hand end of the axis{within}")
         self.high = _range_entry(
-            "The right-hand end of the axis, in degrees")
+            f"The right-hand end of the axis{within}")
         for entry in (self.low, self.high):
             entry.editingFinished.connect(self._on_range)
             entry.returnPressed.connect(self._on_range)
 
         top = QHBoxLayout()
         top.addWidget(self.toolbar, 1)
-        top.addWidget(QLabel("2-theta"))
+        top.addWidget(QLabel(
+            "2-theta" if self.pattern
+            else _quantity(curve.x_label) or "x"))
         top.addWidget(self.low)
         top.addWidget(QLabel("to"))
         top.addWidget(self.high)
@@ -224,14 +239,22 @@ class PatternDialog(QDialog):
             values = np.asarray(values, dtype=float)
             if len(values) != len(x):               # pragma: no cover
                 continue
-            self.axes.plot(x, _percent(values), lw=1.2, label=label)
+            self.axes.plot(x, self._scaled(values), lw=1.2,
+                           label=label,
+                           marker="" if self.pattern else "o",
+                           markersize=3)
         for label, other_x, other_y in self.overlays:
-            self.axes.plot(other_x, _percent(other_y), lw=1.0,
+            self.axes.plot(other_x, self._scaled(other_y), lw=1.0,
                            label=label)
 
         self._draw_ticks()
-        self.axes.set_xlabel(curve.x_label or r"2$\theta$ (degrees)")
-        self.axes.set_ylabel("intensity (% of maximum)")
+        if self.pattern:
+            self.axes.set_xlabel(curve.x_label
+                                 or r"2$\theta$ (degrees)")
+            self.axes.set_ylabel("intensity (% of maximum)")
+        else:
+            self.axes.set_xlabel(curve.x_label or "x")
+            self.axes.set_ylabel(curve.y_label or "y")
         if curve.title:
             self.axes.set_title(curve.title)
         self.axes.legend(loc="upper right", frameon=False, fontsize=9)
@@ -244,6 +267,11 @@ class PatternDialog(QDialog):
         self.status.setText(self._sentence())
         if hasattr(self, "low"):
             self._show_range()
+
+    def _scaled(self, values) -> np.ndarray:
+        """A pattern's trace in percent; anything else as it is."""
+        return _percent(values) if self.pattern \
+            else np.asarray(values, dtype=float)
 
     def _draw_ticks(self) -> None:
         """The reflection positions, as combs below the traces.
@@ -270,6 +298,10 @@ class PatternDialog(QDialog):
                            105.0)
 
     def _sentence(self) -> str:
+        if not self.pattern:
+            return (self.curve.note if not self.overlays else
+                    f"{len(self.overlays)} file(s) overlaid, on the "
+                    f"same scale as the curve.")
         if not self.overlays:
             return (self.curve.note or
                     "Overlay a measured .xy file to compare it with "
@@ -278,7 +310,7 @@ class PatternDialog(QDialog):
                 "Each trace is scaled to its own maximum, so the "
                 "heights are comparable and the counts are not.")
 
-    # -- the 2-theta range ---------------------------------------------
+    # -- the axis range ------------------------------------------------
 
     def _show_range(self) -> None:
         """Put the axis's own limits into the boxes.
@@ -295,7 +327,7 @@ class PatternDialog(QDialog):
             entry.blockSignals(blocked)
 
     def limits(self) -> tuple[float, float]:
-        """The full extent of everything plotted, in 2-theta.
+        """The full extent of everything plotted, along x.
 
         The calculation and every measurement laid over it, because a
         measured pattern can run past the range the calculation was
@@ -341,8 +373,10 @@ class PatternDialog(QDialog):
     def add_overlay(self) -> None:
         """Read a measured pattern and draw it on top."""
         path, _filter = QFileDialog.getOpenFileName(
-            self, "Overlay a measured pattern", self.directory,
-            "Diffraction pattern (*.xy *.xye *.dat);;All files (*)")
+            self, "Overlay a measured pattern" if self.pattern
+            else "Overlay data", self.directory,
+            "Diffraction pattern (*.xy *.xye *.dat);;All files (*)"
+            if self.pattern else DATA_FILTER)
         if not path:
             return
         try:
@@ -380,17 +414,19 @@ class PatternDialog(QDialog):
 
     def save_pattern(self) -> None:
         """Write the calculated trace as two columns."""
+        noun = "pattern" if self.pattern else "data"
         path, _filter = QFileDialog.getSaveFileName(
-            self, "Save the pattern",
+            self, f"Save the {noun}",
             str(Path(self.directory) / f"{_stem(self.curve)}.xy"),
-            "Diffraction pattern (*.xy)")
+            "Diffraction pattern (*.xy)" if self.pattern
+            else "Two-column data (*.xy)")
         if not path:
             return
         try:
             write_xy(self.curve.x, self.curve.y, path,
                      header=f"{self.curve.title}\n{self.curve.note}")
         except OSError as exc:                      # pragma: no cover
-            QMessageBox.warning(self, "Save the pattern", str(exc))
+            QMessageBox.warning(self, f"Save the {noun}", str(exc))
             return
         self.directory = str(Path(path).parent)
         self.status.setText(f"Wrote {Path(path).name}")
@@ -403,6 +439,20 @@ def _percent(values) -> np.ndarray:
     return 100.0 * values / top if top > 0 else values
 
 
+def _quantity(label: str) -> str:
+    """``"volume"`` from ``"volume (A^3)"``: the name, for the range
+    box's caption, which has no room for the units as well."""
+    return (label or "").split(" (")[0].strip()
+
+
+def _units(label: str) -> str:
+    """``"A^3"`` from ``"volume (A^3)"``, or ``""``."""
+    label = label or ""
+    if "(" in label and label.endswith(")"):
+        return label[label.rindex("(") + 1:-1]
+    return ""
+
+
 def _stem(curve) -> str:
     """A filename from the block's title, without inventing one."""
     from xtal.workspace import safe_name
@@ -411,7 +461,7 @@ def _stem(curve) -> str:
 
 
 def _range_entry(tip: str) -> QLineEdit:
-    """One end of the 2-theta axis, as a box to type in.
+    """One end of the x axis, as a box to type in.
 
     A line edit and not a spin box: a range is two numbers somebody
     reads off a paper and types, and a spin box's arrows invite

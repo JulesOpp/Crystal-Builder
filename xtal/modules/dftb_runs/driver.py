@@ -130,9 +130,11 @@ def relax(job) -> JobResult:
     blocks = [Table("Relaxation", tuple(rows))]
     if len(steps) > 1:
         blocks.append(Curve(title="Energy", x=steps, y=energies,
-                            x_label="step", y_label="kcal/mol"))
+                            x_label="step", y_label="kcal/mol",
+                            normalised=False))
         blocks.append(Curve(title="Largest force", x=steps, y=forces,
-                            x_label="step", y_label="kcal/mol/A"))
+                            x_label="step", y_label="kcal/mol/A",
+                            normalised=False))
     message = (f"DFTB+ relaxed the {'cell and ' if lattice else ''}"
                f"atoms in {len(reader.steps)} steps"
                + ("" if converged else " without converging")
@@ -245,9 +247,10 @@ def dynamics(job) -> JobResult:
                        "K", decimals=1)]
     blocks = (Table("Molecular dynamics", tuple(rows)),
               Curve(title="Temperature", x=log.steps, y=log.temperature,
-                    x_label="time (fs)", y_label="K"),
+                    x_label="time (fs)", y_label="K", normalised=False),
               Curve(title="Total energy", x=log.steps, y=log.total,
                     x_label="time (fs)", y_label="kcal/mol",
+                    normalised=False,
                     note="Kinetic plus potential.  With no thermostat "
                          "it is conserved, and its drift is the time "
                          "step's error."))

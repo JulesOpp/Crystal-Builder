@@ -49,7 +49,6 @@ from __future__ import annotations
 import numpy as np
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QAbstractItemView,
     QCheckBox,
     QComboBox,
     QDockWidget,
@@ -57,15 +56,12 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
     QSpinBox,
     QSplitter,
-    QTableWidget,
-    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -82,18 +78,14 @@ from xtal.ff.uff import calculator as uff_calculator
 from xtal.ff.uff import params
 from xtalapp.dialogs.module_form import ParamForm
 from xtalapp.plot import TracePlot
+from xtalapp.widgets.atom_types import (
+    COLUMNS,  # noqa: F401
+    AtomTypeTable,
+    warnings_text,
+)
+from xtalapp.widgets.atom_types import HEADING as TYPES_HEADING
 from xtalapp.workers import OptimizationWorker, start_in_thread
 
-# The type name and the type in words, side by side and never one
-# without the other.  ``Zn3+2`` is what Rappe's Table 1 is indexed by,
-# what an override is stored as and what anybody cross-checking
-# against another program needs; "tetrahedral Zn(II)" is the only one
-# of the two that can be checked by reading it.
-COLUMNS = ["Site", "Type", "What it means", "Sure?", "Why"]
-# Rows sampled when sizing a column to its contents, as in the
-# sites dock: every row of a P1 framework is thousands of
-# measurements for a width the first few already settle.
-RESIZE_SAMPLE_ROWS = 30
 CHARGE_SOURCES = [
     ("From the sites", "site"),
     ("Equilibrate (QEq)", "qeq"),
@@ -126,33 +118,6 @@ REDRAW_RATES = (
     ("5 times a second", 200),
     ("Not while it runs", -1),
 )
-
-
-def _describe(name: str) -> str:
-    """The type in words, or nothing if it is not a type we know.
-
-    A UFF4MOF row says so, because ``Cu4+2`` and ``O_3_f`` carry no
-    ``f`` in the name and would otherwise read as Rappe's own.
-    """
-    try:
-        description = params.get(name).description
-    except KeyError:                                # pragma: no cover
-        return ""
-    if name in params.UFF4MOF_TYPES:
-        description += " (UFF4MOF)"
-    return description
-
-
-def _offer(name: str) -> str:
-    """One line of the override dialog: the name, then the meaning.
-
-    Offered ``Fe3+2`` and ``Fe6+2``, the user is being asked to choose
-    between two strings; offered "tetrahedral Fe(II)" and "octahedral
-    Fe(II)" they are being asked a question about their crystal, which
-    they can answer.
-    """
-    description = _describe(name)
-    return f"{name}  --  {description}" if description else name
 
 
 class ForceFieldDock(QDockWidget):
@@ -335,17 +300,8 @@ class ForceFieldDock(QDockWidget):
             lambda _i: self.previewIntervalChanged.emit(
                 int(self.redraw.currentData())))
 
-        self.table = QTableWidget(0, len(COLUMNS))
-        self.table.setHorizontalHeaderLabels(COLUMNS)
-        self.table.verticalHeader().setVisible(False)
-        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(
-            COLUMNS.index("Why"), QHeaderView.Stretch)
-        self.table.horizontalHeader().setResizeContentsPrecision(
-            RESIZE_SAMPLE_ROWS)
+        self.table = AtomTypeTable()
+        self.table.statusMessage.connect(self.statusMessage)
 
         self.energy_button = QPushButton("Single point")
         self.energy_button.clicked.connect(self.single_point)
@@ -419,8 +375,7 @@ class ForceFieldDock(QDockWidget):
         top.setContentsMargins(8, 8, 8, 4)
         top.setSpacing(6)
         top.addWidget(setup_box)
-        self.table_heading = QLabel(
-            "Atom types (double-click to override)")
+        self.table_heading = QLabel(TYPES_HEADING)
         top.addWidget(self.table_heading)
         top.addWidget(self.table, 1)
         top_widget = QWidget()
@@ -442,7 +397,6 @@ class ForceFieldDock(QDockWidget):
         splitter.addWidget(bottom_widget)
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 1)
-        self.table.cellDoubleClicked.connect(self._edit_type)
 
         # A QSplitter's own minimum size is the sum of what its
         # children need, so DFTB+'s generated form -- eight fields on
@@ -508,67 +462,17 @@ class ForceFieldDock(QDockWidget):
             return
         self.table.setVisible(True)
         self.table_heading.setVisible(True)
-        if not enabled or self.document.structure.n_sites == 0:
+        if not enabled:
             self.table.setRowCount(0)
             self._say("")
             return
         try:
-            rows = self.document.site_types(
-                self.parameter_set.currentData())
+            rows = self.table.fill(self.document,
+                                   self.parameter_set.currentData())
         except Exception as exc:                    # noqa: BLE001
-            self.table.setRowCount(0)
             self._say(str(exc))
             return
-
-        self.table.setRowCount(len(rows))
-        structure = self.document.structure
-        # Every setItem emits dataChanged, and the view answers each
-        # one by asking the header where the row is -- which re-sizes
-        # the sized-to-contents columns, which measures and shapes the
-        # text of every sampled row again.  Two thousand cells on a P1
-        # framework is twenty seconds of font shaping, and because Qt
-        # replays those signals from the event loop it is spent
-        # *after* the optimisation has finished: the run is instant
-        # and then the window stops answering.  Fill the table
-        # silently and tell the view once, at the end.
-        model = self.table.model()
-        model.blockSignals(True)
-        try:
-            for row, (index, atom, multiplicity) in enumerate(rows):
-                site = structure.sites[index]
-                name = site.label or f"{site.element}{index}"
-                if multiplicity > 1:
-                    name += f"  (x{multiplicity})"
-                sure = "set" if atom.overridden else atom.confidence
-                for column, text in enumerate(
-                        (name, atom.name, _describe(atom.name), sure,
-                         atom.reason)):
-                    item = QTableWidgetItem(text)
-                    item.setData(Qt.UserRole, index)
-                    if column == 3 and sure == "uncertain":
-                        item.setForeground(Qt.red)
-                    if atom.overridden:
-                        font = item.font()
-                        font.setItalic(True)
-                        item.setFont(font)
-                    self.table.setItem(row, column, item)
-        finally:
-            model.blockSignals(False)
-            model.layoutChanged.emit()
-        self._say(self._warnings_text(rows))
-
-    def _warnings_text(self, rows) -> str:
-        unsure = [r for r in rows
-                  if r[1].confidence == "uncertain"
-                  and not r[1].overridden]
-        if not unsure:
-            return ""
-        names = ", ".join(r[1].name for r in unsure[:4])
-        more = "" if len(unsure) <= 4 else f" and {len(unsure) - 4} more"
-        return (f"{len(unsure)} site(s) have a type the typer is not "
-                f"sure of ({names}{more}). Check them before trusting "
-                f"the energy -- a wrong type gives a plausible number, "
-                f"not an obvious error.")
+        self._say(warnings_text(rows))
 
     def _say(self, text: str) -> None:
         self.notes.setText(text)
@@ -668,42 +572,15 @@ class ForceFieldDock(QDockWidget):
     #  OVERRIDING A TYPE
     # ==================================================================
 
-    def _edit_type(self, row: int, _column: int) -> None:
-        """Offer the types UFF has for that element, and nothing else.
+    def _edit_type(self, row: int, _column: int = 0) -> None:
+        """Override one row's type.
 
-        Restricting the list to the element's own types is what makes
-        the override safe: there is no way to ask for a carbon
-        parameter on an oxygen, which would not be a bold modelling
-        choice but a silent nonsense.
+        See :meth:`xtalapp.widgets.atom_types.AtomTypeTable.
+        override_type`.
         """
         if self.document is None or self.is_running:
             return
-        item = self.table.item(row, 0)
-        if item is None:                            # pragma: no cover
-            return
-        index = int(item.data(Qt.UserRole))
-        site = self.document.structure.sites[index]
-        choices = params.types_for(site.element)
-        if not choices:                             # pragma: no cover
-            return
-        current = self.table.item(row, COLUMNS.index("Type")).text()
-        options = ["(let the force field decide)",
-                   *(_offer(c) for c in choices)]
-        from PySide6.QtWidgets import QInputDialog
-
-        start = (choices.index(current) + 1 if current in choices
-                 else 0)
-        chosen, ok = QInputDialog.getItem(
-            self, "Atom type",
-            f"UFF type for {site.label or site.element} "
-            f"(and its whole symmetry orbit):",
-            options, start, False)
-        if not ok:
-            return
-        name = (None if chosen == options[0]
-                else chosen.split("  --  ")[0])
-        self.statusMessage.emit(
-            self.document.set_atom_type([index], name))
+        self.table.override_type(row)
 
     # ==================================================================
     #  RUNNING

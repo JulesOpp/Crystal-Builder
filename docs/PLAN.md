@@ -570,6 +570,21 @@ Three decisions, each with a reason that is not obvious:
   flips which phase is stable, and a scan cannot see it. The report
   says so.
 
+* **The group is kept, not dropped.** A held coordinate is projected
+  inside the asymmetric unit, so the chlorides of MFU-4l slide along
+  their three-fold axes and the cell stays Fm-3m. A coordinate the
+  group fixes is refused up front; breaking the symmetry to scan it is
+  Reduce to P1, done by the user.
+* **A point may be pre-relaxed by a cheaper engine, and only the
+  main engine's energy is kept.** A volume step moves every atom with
+  the cell, so each point starts far from its minimum and an MLIP pays
+  for the whole walk. `Prerelax` runs UFF4MOF (say) first under the
+  same held coordinates and cell freedom, to a loose tolerance, and
+  the main engine finishes from there. A pre-relaxation that fails is
+  skipped with a note in the log, not a hole: it is a shortcut, not
+  the measurement. On MIL-53 it took two MACE volume points from
+  467 s to 196 s.
+
 Deliberately not built: umbrella sampling, metadynamics and
 thermodynamic integration (multi-nanosecond PLUMED workflows), and
 variable-cell NEB (the real transition nucleates and propagates rather

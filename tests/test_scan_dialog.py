@@ -66,6 +66,14 @@ def triclinic(qtbot, window, tmp_path, quartz):
     return _dialog(qtbot, window, path)
 
 
+@pytest.fixture
+def cubic(qtbot, window, tmp_path, halite):
+    from xtal.io import write_cif
+    path = tmp_path / "halite.cif"
+    write_cif(halite, path)
+    return _dialog(qtbot, window, path)
+
+
 def _offered(dialog):
     box = dialog.first.kind
     return [box.itemData(i) for i in range(box.count())]
@@ -92,7 +100,50 @@ def test_a_tied_parameter_is_named_beside_the_one_it_follows(
     than in a tooltip."""
     box = hexagonal.first.kind
     label = box.itemText(box.findData("a"))
-    assert "b follows it" in label
+    assert "(b follows)" in label
+
+
+def test_a_cubic_cell_offers_a_alone_and_says_b_and_c_follow(cubic):
+    """A cubic c is tied to b, which is tied to a, and the label read
+    "b follows it" -- as though scanning a left c where it was."""
+    offered = _offered(cubic)
+    assert "a" in offered
+    assert not {"b", "c", "alpha", "beta", "gamma"} & set(offered)
+    box = cubic.first.kind
+    assert box.itemText(box.findData("a")).endswith(
+        "(b and c follow)")
+    assert "cubic" in box.toolTip()
+
+
+def test_a_rhombohedral_cell_offers_a_length_and_an_angle(
+        qtbot, window, tmp_path):
+    from xtal import Lattice, Structure
+    from xtal.io import write_cif
+    path = tmp_path / "corundum.cif"
+    write_cif(Structure.from_arrays(
+        Lattice.from_parameters(5.13, 5.13, 5.13, 55.3, 55.3, 55.3),
+        ["Al"], [[0.35, 0.35, 0.35]], space_group="R-3c:R"), path)
+    dialog = _dialog(qtbot, window, path)
+    box = dialog.first.kind
+    assert box.itemText(box.findData("a")).endswith(
+        "(b and c follow)")
+    assert box.itemText(box.findData("alpha")) == (
+        "Cell angle alpha  (beta and gamma follow)")
+
+
+def test_a_distance_the_group_holds_is_refused_in_the_dialog(cubic):
+    """Every Na-Cl distance in Fm-3m is fixed.  Said before Run, not
+    as a landscape of holes after it."""
+    from PySide6.QtWidgets import QDialogButtonBox
+
+    cubic.first.kind.setCurrentIndex(
+        cubic.first.kind.findData("distance"))
+    cubic.first.atoms.setText("0, 4")
+    cubic.first.start.setValue(2.5)
+    cubic.first.stop.setValue(3.0)
+    cubic.refresh()
+    assert "space group" in cubic.summary.text()
+    assert not cubic.buttons.button(QDialogButtonBox.Ok).isEnabled()
 
 
 def test_the_volume_and_every_internal_coordinate_are_always_offered(
@@ -195,7 +246,8 @@ def test_a_finished_coordinate_reports_its_value(hexagonal):
     assert "distance 0-1 is" in hexagonal.first.status.text()
 
 
-def test_the_selection_fills_an_anchor(hexagonal, window):
+def test_more_atoms_than_a_coordinate_needs_become_one_centroid(
+        hexagonal, window):
     """A group of several atoms is their centroid, which is how "the
     middle of that ring" is said."""
     document = window.current_document()
@@ -203,7 +255,7 @@ def test_the_selection_fills_an_anchor(hexagonal, window):
     hexagonal.first.kind.setCurrentIndex(
         hexagonal.first.kind.findData("distance"))
     hexagonal.first.from_selection.click()
-    assert hexagonal.first.atoms.text() == "4,5,6"
+    assert hexagonal.first.atoms.text() == "4+5+6"
 
 
 def test_two_selections_make_two_anchors(hexagonal, window):
@@ -214,8 +266,42 @@ def test_two_selections_make_two_anchors(hexagonal, window):
     hexagonal.first.from_selection.click()
     document.selection.set_atoms([9])
     hexagonal.first.from_selection.click()
-    assert hexagonal.first.spec() == "distance 4,5,6 9"
-    assert "distance {4,5,6}-9 is" in hexagonal.first.status.text()
+    assert hexagonal.first.spec() == "distance 4+5+6, 9"
+    assert "distance {4+5+6}-9 is" in hexagonal.first.status.text()
+
+
+def test_two_selected_atoms_are_the_two_ends_of_a_distance(
+        hexagonal, window):
+    """Two chlorides picked and added were written "32,33" -- one
+    centroid, for a coordinate that needs two ends -- and the dialog
+    refused its own text."""
+    window.current_document().selection.set_atoms([32, 33])
+    hexagonal.first.kind.setCurrentIndex(
+        hexagonal.first.kind.findData("distance"))
+    hexagonal.first.from_selection.click()
+    assert hexagonal.first.atoms.text() == "32, 33"
+    assert "distance 32-33 is" in hexagonal.first.status.text()
+
+
+def test_the_atoms_of_a_torsion_are_added_in_the_order_picked(
+        hexagonal, window):
+    """B-A-C-D is a different dihedral over the same four atoms."""
+    window.current_document().selection.set_atoms([9, 4, 5, 6])
+    hexagonal.first.kind.setCurrentIndex(
+        hexagonal.first.kind.findData("torsion"))
+    hexagonal.first.from_selection.click()
+    assert hexagonal.first.atoms.text() == "9, 4, 5, 6"
+
+
+def test_a_selection_added_to_a_plane_is_one_plane(hexagonal, window):
+    """One atom is not a plane, so however few the coordinate still
+    needs, a selection is a group."""
+    document = window.current_document()
+    hexagonal.first.kind.setCurrentIndex(
+        hexagonal.first.kind.findData("plane"))
+    document.selection.set_atoms([0, 1])
+    hexagonal.first.from_selection.click()
+    assert hexagonal.first.atoms.text() == "0+1"
 
 
 def test_adding_nothing_says_nothing_is_selected(hexagonal, window):
@@ -271,3 +357,150 @@ def test_the_dialog_is_what_the_action_asks_for():
     assert "xtalapp.dialogs.scan" in dialog_modules()
     _module, action = MODULES.find("scan.run")
     assert action.dialog == "scan"
+
+
+# ----------------------------------------------------------------------
+#  Pre-relaxation
+# ----------------------------------------------------------------------
+
+def _pre(dialog, engine="uff"):
+    dialog.pre_engine.setCurrentIndex(
+        dialog.pre_engine.findData(engine))
+
+
+def test_there_is_no_pre_relaxation_until_one_is_chosen(hexagonal):
+    """The dialog of somebody who never wants one is no longer for
+    it, and the values say so."""
+    assert hexagonal.pre_stack.isHidden()
+    assert hexagonal.pre_limits.isHidden()
+    assert hexagonal.values()["pre_engine"] == ""
+
+
+def test_a_chosen_pre_relaxation_goes_into_the_values(hexagonal):
+    _pre(hexagonal)
+    hexagonal.pre_forms["uff"].set_values({"parameter_set": "uff4mof"})
+    hexagonal.pre_max_steps.setValue(200)
+    assert not hexagonal.pre_limits.isHidden()
+    values = hexagonal.values()
+    assert values["pre_engine"] == "uff"
+    assert values["pre_max_steps"] == 200
+    assert values["pre_engine_options"]["parameter_set"] == "uff4mof"
+
+
+def test_the_pre_relaxation_has_its_own_engine_options(hexagonal):
+    """UFF4MOF ahead of MACE: the cheap engine's parameter set is
+    chosen here even while the main one is something else."""
+    _pre(hexagonal)
+    hexagonal.pre_forms["uff"].set_values({"parameter_set": "uff"})
+    hexagonal.engine_forms["uff"].set_values(
+        {"parameter_set": "uff4mof"})
+    values = hexagonal.values()
+    assert values["pre_engine_options"]["parameter_set"] == "uff"
+    assert values["engine_options"]["parameter_set"] == "uff4mof"
+
+
+def test_the_estimate_includes_the_pre_relaxation(hexagonal):
+    """Its steps are counted at the main engine's price, which is the
+    safe side to be wrong on."""
+    hexagonal.max_steps.setValue(100000)
+    before = hexagonal.summary.text()
+    _pre(hexagonal)
+    hexagonal.pre_max_steps.setValue(100000)
+    assert hexagonal.summary.text() != before
+
+
+def test_a_pre_relaxation_is_restored_from_the_values(hexagonal,
+                                                      qtbot, window):
+    """So a scan re-run from its log comes back as it was."""
+    _pre(hexagonal)
+    hexagonal.pre_max_steps.setValue(123)
+    hexagonal.pre_tolerance.setValue(0.25)
+    given = hexagonal.values()
+    module, action = MODULES.find("scan.run")
+    again = ScanDialog(module, action, window, initial=given)
+    qtbot.addWidget(again)
+    assert again.values()["pre_engine"] == "uff"
+    assert again.values()["pre_max_steps"] == 123
+    assert again.values()["pre_tolerance"] == pytest.approx(0.25)
+
+
+# ----------------------------------------------------------------------
+#  Atom types
+# ----------------------------------------------------------------------
+
+def _uff(dialog):
+    dialog.engine.setCurrentIndex(dialog.engine.findData("uff"))
+
+
+def _types(dialog):
+    from xtalapp.widgets.atom_types import COLUMNS
+    column = COLUMNS.index("Type")
+    return [dialog.types.item(row, column).text()
+            for row in range(dialog.types.rowCount())]
+
+
+@pytest.fixture
+def paddlewheel(qtbot, window):
+    return _dialog(qtbot, window, "resources/samples/HKUST1.cif")
+
+
+def test_the_dialog_shows_the_atom_types_the_scan_will_run(
+        paddlewheel, window):
+    """The same table as the Force Field panel: a scan runs the
+    engine for hours on these types, and a wrong one gives a
+    plausible landscape rather than an obvious error."""
+    _uff(paddlewheel)
+    assert not paddlewheel.types.isHidden()
+    assert paddlewheel.types.rowCount() == \
+        window.current_document().structure.n_sites
+    assert "Cu4+2" in _types(paddlewheel)
+
+
+def test_the_types_follow_the_parameter_set_chosen_here(paddlewheel):
+    """UFF4MOF types a paddlewheel copper as Cu4+2 and UFF as Cu3+1;
+    the table shows what this scan will use, not the panel."""
+    _uff(paddlewheel)
+    paddlewheel.engine_forms["uff"].set_values(
+        {"parameter_set": "uff"})
+    assert "Cu3+1" in _types(paddlewheel)
+    assert "Cu4+2" not in _types(paddlewheel)
+
+
+def test_an_engine_without_atom_types_shows_no_table(paddlewheel):
+    """MACE sees elements.  An empty table under the heading would
+    read as a failure to type them."""
+    paddlewheel.engine.setCurrentIndex(
+        paddlewheel.engine.findData("mace"))
+    assert paddlewheel.types.isHidden()
+    assert paddlewheel.types_heading.isHidden()
+
+
+def test_a_type_overridden_in_the_dialog_is_the_documents(
+        paddlewheel, window, monkeypatch):
+    """One override, made in either place, is the same undoable edit
+    and is what the scan and the panel both use next."""
+    from PySide6.QtWidgets import QInputDialog
+
+    _uff(paddlewheel)
+    row = _types(paddlewheel).index("Cu4+2")
+    monkeypatch.setattr(
+        QInputDialog, "getItem",
+        staticmethod(lambda *a, **k: ("Cu3+1  --  x", True)))
+    paddlewheel.types.override_type(row)
+    assert _types(paddlewheel)[row] == "Cu3+1"
+    document = window.current_document()
+    assert window.ff_dock.table.item(row, 1).text() == "Cu3+1"
+    document.undo()
+    paddlewheel.refresh_types()
+    assert _types(paddlewheel)[row] == "Cu4+2"
+
+
+def test_typing_in_the_types_table_does_not_raise(paddlewheel, qtbot):
+    """Qt answers a key press in a view by calling its virtual
+    ``edit(index, trigger, event)``; a method of that name taking a
+    row would turn every keystroke into a TypeError."""
+    from PySide6.QtCore import Qt
+    _uff(paddlewheel)
+    paddlewheel.types.setCurrentCell(0, 0)
+    qtbot.keyClick(paddlewheel.types, Qt.Key_A)
+    qtbot.keyClick(paddlewheel.types, Qt.Key_F2)

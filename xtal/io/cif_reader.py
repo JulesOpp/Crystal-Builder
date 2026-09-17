@@ -26,11 +26,12 @@ import re
 from pathlib import Path
 
 import gemmi
+import numpy as np
 
 from xtal.core.lattice import Lattice
 from xtal.core.site import Site
 from xtal.core.spacegroup import SpaceGroup
-from xtal.core.structure import Bond, Structure
+from xtal.core.structure import Bond, CellBond, Structure
 
 
 def read_cif(path) -> Structure:
@@ -152,6 +153,7 @@ def _from_small_structure(small, block, path: Path) -> Structure:
         structure.meta["warnings"] = warnings
     structure.ensure_labels()
     read_bonds(block, structure)
+    read_perception(block, structure)
     return structure
 
 
@@ -210,6 +212,60 @@ def read_bonds(block, structure) -> None:
             # image, an operation index below zero.  A hand-edited
             # file, and one row of it, not the file.
             continue
+
+
+#: How far a stored bond's length may be from the one its atoms give
+#: before the stored graph is taken to describe some other cell.
+PERCEIVED_SLACK = 0.01
+
+
+def read_perception(block, structure) -> None:
+    """Take back a perceived bond graph this program wrote.
+
+    See :func:`xtal.io.cif_writer._perception_loop`.  It is the
+    answer perception gave, not a request to perceive, so it is
+    stored exactly as a project file would store it and Recalculate
+    Bonds is still what replaces it.
+
+    The rows index P1 atoms, so the graph is taken only when the
+    expansion here is the one it was written over -- the same count,
+    and every bond the length it was written at.  A file edited by
+    hand fails that and is opened the old way, perceived afresh,
+    rather than bonded to atoms that are not the ones meant.
+    """
+    from xtal.core import p1
+    from xtal.core.bonding import BondRules
+    from xtal.io.cif_writer import PERCEIVED_COUNT, PERCEIVED_TAGS
+
+    ones = _column(block, PERCEIVED_TAGS[0])
+    if not ones:
+        return
+    cell = p1.expand(structure)
+    try:
+        if int(gemmi.cif.as_string(
+                block.find_value(PERCEIVED_COUNT) or "")) \
+                != cell.n_atoms:
+            return
+        twos, images, lengths = (_column(block, tag)
+                                 for tag in PERCEIVED_TAGS[1:])
+        matrix = structure.lattice.matrix
+        bonds = []
+        for n, one in enumerate(ones):
+            i, j = int(one), int(_at(twos, n))
+            image = _image_of(_at(images, n))
+            length = float(_at(lengths, n))
+            if image is None or not (0 <= i < cell.n_atoms
+                                     and 0 <= j < cell.n_atoms):
+                return
+            actual = float(np.linalg.norm(
+                (cell.frac[j] + image - cell.frac[i]) @ matrix))
+            if abs(actual - length) > PERCEIVED_SLACK:
+                return
+            bonds.append(CellBond(i, j, image, actual))
+    except (TypeError, ValueError):
+        return
+    rules = BondRules.from_dict(structure.bond_rules)
+    structure.set_perceived(bonds, rules.signature(), cell)
 
 
 def _column(block, tag) -> list[str]:

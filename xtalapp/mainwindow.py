@@ -1376,10 +1376,15 @@ class MainWindow(QMainWindow):
     def _on_tab_changed(self, _index: int) -> None:
         self._update_ui()
         self.workspace_shell.save_session()
+        self.workspace_shell.show_open_document()
 
     def _on_title_changed(self, document, title: str) -> None:
         if document in self.documents:
             self.tabs.setTabText(self.documents.index(document), title)
+        # A title changes with the file -- a first save, an adoption
+        # -- and the tree marks the file.
+        if document is self.current_document():
+            self.workspace_shell.show_open_document()
 
     def _on_structure_changed(self, change: int = 0) -> None:
         """The crystal changed: the panels that show it must catch up.

@@ -70,6 +70,7 @@ KIND_LABELS = {
     "trajectory": "trajectory",
     "log": "log",
     "image": "plot",
+    "report": "results",
     "project": "session",
     "file": "",
 }
@@ -83,6 +84,8 @@ class WorkspaceTree(QTreeView):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.workspace: Workspace | None = None
+        #: The file the current tab is, drawn bold.
+        self.open_path: Path | None = None
         self.model_ = QStandardItemModel(self)
         self.setModel(self.model_)
         self.setHeaderHidden(True)
@@ -98,9 +101,14 @@ class WorkspaceTree(QTreeView):
         """Read the workspace again and rebuild.
 
         Expansion is preserved by path, so a run folder the user opened
-        does not fold itself back up every time a run finishes.
+        does not fold itself back up every time a run finishes.  So are
+        the selection and the scroll position: opening a file from the
+        tree rebuilds it, and a cleared model puts the view back at the
+        top -- away from the row that was just double-clicked.
         """
         expanded = self._expanded_paths()
+        scroll = self.verticalScrollBar().value()
+        current = self._payload(self.currentIndex())
         self.model_.clear()
         root = self.model_.invisibleRootItem()
         if self.workspace is None:
@@ -114,6 +122,15 @@ class WorkspaceTree(QTreeView):
         for entry in entries:
             root.appendRow(self._entry_item(entry))
         self._restore_expanded(expanded or self._default_expanded())
+        self._mark_open()
+        if current is not None:
+            found = self._find(current[1])
+            if found is not None:
+                self.setCurrentIndex(found)
+        # The scroll range is laid out lazily; without this the value
+        # is clamped to the empty model's range of nothing.
+        self.doItemsLayout()
+        self.verticalScrollBar().setValue(scroll)
 
     def _entry_item(self, entry) -> QStandardItem:
         item = _row(entry.name, "entry", entry.path)[0]
@@ -168,16 +185,62 @@ class WorkspaceTree(QTreeView):
             if payload and str(payload[1]) in paths:
                 self.setExpanded(index, True)
 
-    def select_path(self, path) -> None:
-        """Highlight a path, if it is in the tree."""
+    def _payload(self, index):
+        item = self.model_.itemFromIndex(index) if index.isValid() \
+            else None
+        return item.data(ARTIFACT_ROLE) if item is not None else None
+
+    def _find(self, path):
         wanted = str(path)
         for index in self._walk():
-            payload = self.model_.itemFromIndex(index).data(
-                ARTIFACT_ROLE)
+            payload = self._payload(index)
             if payload and str(payload[1]) == wanted:
-                self.setCurrentIndex(index)
-                self.scrollTo(index)
-                return
+                return index
+        return None
+
+    def select_path(self, path) -> None:
+        """Highlight a path, if it is in the tree."""
+        index = self._find(path)
+        if index is not None:
+            self.setCurrentIndex(index)
+            self.scrollTo(index)
+
+    def set_open_path(self, path) -> None:
+        """Mark the file the current tab is, and select it.
+
+        Bold rather than only selected, because a selection is the
+        user's to move and the question "which of these is the one I
+        am looking at" should still have an answer after they have.
+        The entry above it is bold too, so the answer survives the
+        entry being folded.
+        """
+        self.open_path = _resolved(path)
+        found = self._mark_open()
+        if found is not None:
+            self.setCurrentIndex(found)
+            self.scrollTo(found)
+
+    def _mark_open(self):
+        """Embolden the open file and its entry; the row, or None."""
+        found = None
+        for index in self._walk():
+            payload = self._payload(index)
+            if (self.open_path is not None and payload
+                    and payload[0] not in ("entry", "run")
+                    and _resolved(payload[1]) == self.open_path):
+                found = index
+        # The file itself, and the top-level entry it sits under.
+        top = found
+        while top is not None and top.parent().isValid():
+            top = top.parent()
+        for index in self._walk():
+            item = self.model_.itemFromIndex(index)
+            wanted = found is not None and index in (found, top)
+            font = item.font()
+            if font.bold() != wanted:
+                font.setBold(wanted)
+                item.setFont(font)
+        return found
 
     # -- activation ----------------------------------------------------
 
@@ -191,6 +254,15 @@ class WorkspaceTree(QTreeView):
             self.setExpanded(index, not self.isExpanded(index))
             return
         self.artifactActivated.emit(str(kind), str(path))
+
+
+def _resolved(path) -> Path | None:
+    if not path:
+        return None
+    try:
+        return Path(path).resolve()
+    except OSError:                                 # pragma: no cover
+        return Path(path)
 
 
 def _label(artifact) -> str:

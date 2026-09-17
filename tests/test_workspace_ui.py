@@ -12,6 +12,8 @@ import pytest
 pytest.importorskip("PySide6")
 pytest.importorskip("pytestqt")
 
+from PySide6.QtCore import QPoint, Qt  # noqa: E402
+from PySide6.QtTest import QTest  # noqa: E402
 from PySide6.QtWidgets import QDialog  # noqa: E402
 
 from tests.test_app_shell import StubViewport  # noqa: E402
@@ -127,6 +129,73 @@ def test_the_tree_says_what_a_node_is_not_what_it_is_called(opened):
             kinds[Path(payload[1]).name] = payload[0]
     assert kinds["rutile.cif"] == "structure"
     assert kinds["final.cif"] == "final"
+
+
+def _bold(tree):
+    return [tree.model_.itemFromIndex(i).text() for i in tree._walk()
+            if tree.model_.itemFromIndex(i).font().bold()]
+
+
+def test_the_file_of_the_current_tab_is_marked_in_the_tree(opened):
+    """Bold, with its entry, so the tab in front can be found in a
+    workspace of fifty structures."""
+    window, document = opened
+    tree = window.file_dock.tree
+    assert sorted(_bold(tree)) == ["rutile", "rutile.cif"]
+    payload = tree._payload(tree.currentIndex())
+    assert Path(payload[1]).resolve() == document.path.resolve()
+
+
+def test_the_mark_follows_the_tab_in_front(opened, tmp_path, quartz):
+    window, _document = opened
+    source = tmp_path / "quartz.cif"
+    write_cif(quartz, source)
+    window.open_path(source)
+    tree = window.file_dock.tree
+    assert sorted(_bold(tree)) == ["quartz", "quartz.cif"]
+    window.tabs.setCurrentIndex(0)
+    assert sorted(_bold(tree)) == ["rutile", "rutile.cif"]
+
+
+def test_opening_a_file_from_the_tree_keeps_the_tree_where_it_was(
+        window, tmp_path, rutile, qtbot):
+    """Opening rebuilds the tree, and a rebuilt model put the view back
+    at the top -- away from the row somebody had just double-clicked
+    half way down a long workspace."""
+    window.set_workspace(tmp_path / "ws", create=True)
+    for number in range(30):
+        source = tmp_path / f"s{number:02d}.cif"
+        write_cif(rutile, source)
+        source.write_text(source.read_text() + f"\n# {number}\n")
+        window.workspace.add_structure(source)
+    window.refresh_workspace()
+    window.resize(900, 500)
+    window.show()
+    qtbot.waitExposed(window)
+    tree = window.file_dock.tree
+    bar = tree.verticalScrollBar()
+    bar.setValue(bar.maximum() // 2)
+    scrolled = bar.value()
+    assert scrolled > 0
+    # A file wholly in view, so nothing has any reason to scroll.
+    height = tree.viewport().height()
+    for y in range(height // 3, height, 5):
+        payload = tree._payload(tree.indexAt(QPoint(40, y)))
+        if payload and payload[0] == "structure":
+            break
+    else:
+        raise AssertionError("no file in view")
+    # The whole of a double-click, as a mouse delivers it: emitting
+    # ``activated`` alone rebuilt the tree without moving the view.
+    viewport = tree.viewport()
+    QTest.mouseClick(viewport, Qt.LeftButton, Qt.NoModifier,
+                     QPoint(40, y))
+    QTest.mouseDClick(viewport, Qt.LeftButton, Qt.NoModifier,
+                      QPoint(40, y))
+    QTest.mouseRelease(viewport, Qt.LeftButton, Qt.NoModifier,
+                       QPoint(40, y))
+    assert window.tabs.count() == 1
+    assert bar.value() == scrolled
 
 
 def test_a_project_written_and_reread_gives_the_identical_tree(

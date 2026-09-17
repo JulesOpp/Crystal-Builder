@@ -16,6 +16,7 @@ from tests.conftest_ff import benzene, ethane, water
 from xtal import Structure
 from xtal.core import p1, symmetry
 from xtal.ff import ENGINES, optimize
+from xtal.io import read_cif
 
 # UFF's own equilibrium water: the geometry it must relax to, whatever
 # it starts from.
@@ -216,6 +217,23 @@ def test_quartz_keeps_the_freedom_of_its_special_position(quartz):
     assert symmetry.detect(moved(quartz, result),
                            symprec=1e-6).space_group.short_name \
         == "P3221"
+
+
+def test_a_site_written_a_rounding_place_off_its_axis_keeps_the_axis():
+    """MFU-4l writes Cl1 at z = 0.143819, 0.0006 A off the three-fold
+    axis (x, x, 1/2 - x).  The expansion puts it on the axis, to
+    SPECIAL_POSITION_TOL; a stabiliser taken to 1e-6 gave it only the
+    mirror, and a held Cl-Cl distance then walked it off the axis and
+    tripled the chlorides.  Its projector is the axis alone."""
+    mfu4l = read_cif("resources/samples/MFU4l.cif")
+    chlorine = next(i for i, site in enumerate(mfu4l.sites)
+                    if site.element == "Cl")
+    dof = optimize.SymmetryDOF(mfu4l)
+    projector = dof.projectors[chlorine]
+    assert np.linalg.matrix_rank(projector, tol=1e-8) == 1
+    axis = np.array([1.0, 1.0, -1.0]) @ mfu4l.lattice.matrix
+    moved_along = axis @ projector
+    assert np.allclose(moved_along, axis, atol=1e-8)
 
 
 def test_the_cell_keeps_the_same_number_of_atoms(halite):

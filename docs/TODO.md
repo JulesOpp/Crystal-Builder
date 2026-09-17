@@ -205,6 +205,13 @@ one overnight with MACE and keep the landscape beside the tests; UFF4MOF
 was never fitted to reproduce a breathing double well, and whether it
 shows one at all is unknown.
 
+Pre-relaxation has been measured once, small: `MIL53.cif` (104 atoms),
+volume at 90% and 80%, MACE-MPA-0 to 0.1 kcal/mol/A, forward only.
+MACE alone took 467 s; UFF4MOF first (80 and 73 steps) then MACE took
+196 s, and landed 0.02 and 0.08 kcal/mol lower.  Whether that holds on
+a 7x7 grid of a 1152-atom framework, where the neighbour it starts from
+is already close, is the thing the overnight run should also answer.
+
 ## Testing and threads
 
 ### A finished worker thread can deadlock the application

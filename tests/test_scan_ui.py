@@ -255,6 +255,58 @@ def test_clicking_a_cell_whose_file_has_gone_says_so(window, surface,
     assert window.tabs.count() == 0
 
 
+def test_a_saved_landscape_opens_from_the_workspace(window, surface,
+                                                    tmp_path):
+    """Double-clicking a run's report puts the landscape back, and
+    its cells still open their structures -- after the panel was
+    closed, or the application was."""
+    from xtal.modules.report import save
+    run = tmp_path / "scan-scan-003"
+    run.mkdir()
+    path = save(Report(title="Relaxed scan", blocks=(surface,)),
+                run / "report.json")
+    window.results_dock.clear()
+    window.open_artifact("report", str(path))
+    assert not window.results_dock.isHidden()
+    plot = _plot_in(window.results_dock)
+    plot.cellClicked.emit(0, 1)
+    assert str(window.documents[0].path).endswith("p01.cif")
+
+
+def test_a_report_that_does_not_read_says_so(window, tmp_path):
+    path = tmp_path / "report.json"
+    path.write_text("not json")
+    window.open_artifact("report", str(path))
+    assert not window.results_dock.findChildren(HeatmapPlot)
+
+
+def test_the_workspace_tree_names_a_report_as_results(window,
+                                                     tmp_path):
+    from xtalapp.docks.workspace import KIND_LABELS
+    assert KIND_LABELS["report"] == "results"
+
+
+def test_a_point_opened_in_the_window_keeps_the_bonds_it_was_written_with(
+        window, tmp_path):
+    """The file carries the graph the scan held; the tab has to show
+    that graph, not perceive a new one at the stretched cell."""
+    from xtal.core import bonding
+    from xtal.core.lattice import Lattice
+    from xtal.io import read_cif
+
+    mil53 = read_cif("resources/samples/MIL53.cif")
+    held = {b.key() for b in bonding.perceive(mil53)}
+    parameters = list(mil53.lattice.parameters)
+    parameters[0] *= 1.15
+    mil53.set_lattice(Lattice.from_parameters(
+        *mil53.space_group.cell_constraint.apply(parameters)))
+    path = write_cif(mil53, tmp_path / "forward-00.cif",
+                     perception=True)
+    window.open_path(path)
+    structure = window.current_document().structure
+    assert {b.key() for b in bonding.perceive(structure)} == held
+
+
 def _plot_in(dock):
     for widget in dock.findChildren(HeatmapPlot):
         return widget
@@ -389,3 +441,109 @@ def test_unticking_fill_does_not_raise(qtbot, surface):
         dialog.filled.setChecked(False)
         dialog.filled.setChecked(True)
     assert dialog.axes.get_xlabel() == "c (A)"
+
+
+# ----------------------------------------------------------------------
+#  A one-axis scan: the profile
+# ----------------------------------------------------------------------
+
+@pytest.fixture
+def profile(points):
+    from xtal.modules.report import Curve
+    return Curve(
+        title="Energy profile",
+        x=np.array([900.0, 950.0, 1000.0]),
+        y=np.array([3.0, 0.0, np.nan]),
+        x_label="volume (A^3)", y_label="E - E(min) (kcal/mol)",
+        series=(("backward", np.array([2.5, -1.0, 4.0])),),
+        normalised=False,
+        paths=((points[0], points[1], ""), tuple(points)))
+
+
+def _curve_in(dock):
+    from xtalapp.curve import CurvePlot
+    for widget in dock.findChildren(CurvePlot):
+        return widget
+    raise AssertionError("the report drew no curve")
+
+
+def test_clicking_a_point_of_a_profile_opens_that_structure(
+        window, profile):
+    """The one-axis scan is as much a way into its structures as the
+    landscape is; a profile that only draws them left a folder of
+    CIFs to hunt through."""
+    window.results_dock.show_report(Report(blocks=(profile,)), "Scan")
+    plot = _curve_in(window.results_dock)
+    plot.pointClicked.emit(1, 2)
+    assert str(window.documents[0].path).endswith("p02.cif")
+    assert plot.marker == (1, 2)
+
+
+def test_a_point_of_a_profile_that_did_not_finish_opens_nothing(
+        window, profile):
+    window.results_dock.show_report(Report(blocks=(profile,)), "Scan")
+    plot = _curve_in(window.results_dock)
+    plot.pointClicked.emit(0, 2)
+    assert window.tabs.count() == 0
+    assert plot.marker is None
+
+
+def test_a_click_lands_on_the_nearest_point_of_a_profile(qtbot,
+                                                         profile):
+    """And not on a hole: the unfinished point has no place on the
+    axis to be near."""
+    from xtalapp.curve import CurvePlot
+    plot = CurvePlot()
+    plot.set_curve(profile)
+    plot.resize(500, 300)
+    qtbot.addWidget(plot)
+    plot.grab()
+    across, up = plot._geometry(plot._box)[4][1]
+    assert plot.point_at(across[1] + 2, up[1] - 2) == (1, 1)
+    assert plot.point_at(across[1], up[1] - 100) is None
+
+
+def test_a_profile_below_zero_is_drawn_on_its_own_numbers(qtbot,
+                                                          profile):
+    """Scaled to its maximum, a trace that is negative has none, and
+    the panel drew nothing -- which is every DFTB+ energy."""
+    from xtalapp.curve import CurvePlot
+    plot = CurvePlot()
+    plot.set_curve(profile)
+    low, high = plot.limits()
+    assert low < -1.0 and high > 4.0
+
+
+def test_a_saved_profile_still_opens_its_points(window, profile,
+                                                tmp_path):
+    from xtal.modules.report import load, save
+    run = tmp_path / "scan-scan-004"
+    run.mkdir()
+    path = save(Report(title="Relaxed scan", blocks=(profile,)),
+                run / "report.json")
+    curve, = load(path).curves
+    assert curve.path_at(1, 2) == profile.path_at(1, 2)
+    assert not curve.normalised
+
+
+def test_the_plot_window_names_the_profile_axis_not_2_theta(
+        qtbot, profile):
+    """The pattern window serves a scan's profile too, and every word
+    in it said diffraction."""
+    from PySide6.QtWidgets import QLabel
+
+    from xtalapp.dialogs import pattern
+
+    if not pattern.installed():
+        pytest.skip("matplotlib is not installed")
+    window = pattern.PatternDialog(profile)
+    qtbot.addWidget(window)
+    labels = [label.text() for label in window.findChildren(QLabel)]
+    assert "volume" in labels and "2-theta" not in labels
+    assert window.axes.get_xlabel() == "volume (A^3)"
+    assert window.axes.get_ylabel() == "E - E(min) (kcal/mol)"
+    assert window.data_button.text() == "Save data..."
+    assert "A^3" in window.low.toolTip()
+    # Not scaled: the lowest drawn value is the energy itself.
+    assert min(np.nanmin(line.get_ydata())
+               for line in window.axes.lines) == -1.0

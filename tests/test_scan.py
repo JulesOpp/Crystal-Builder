@@ -422,3 +422,173 @@ def test_a_cell_scan_of_a_real_framework_runs(tmp_path):
     assert len(result.finished()) == 3
     assert all(Lattice(p.matrix).volume == pytest.approx(
         p.targets[0], rel=1e-3) for p in result.points)
+
+
+def _mfu4l_chlorides():
+    from xtal.io import read_cif
+    mfu4l = read_cif("resources/samples/MFU4l.cif")
+    cell = p1.expand(mfu4l)
+    distance = co.internal(mfu4l, cell, "distance", [(32,), (33,)])
+    matrix = mfu4l.lattice.matrix
+    now = distance.value(cell.frac @ matrix, matrix)
+    return mfu4l, cell, distance, now
+
+
+def test_a_held_chloride_distance_keeps_mfu4l_in_its_group():
+    """Cl 32 and 33 each sit on a three-fold axis, and the distance
+    between them can change only by each sliding along its own.
+    The scan used to walk them off the axes: 648 atoms became 776,
+    and the achieved distance, the energy and the file all described
+    a different crystal.  Held properly, the cell keeps its atoms,
+    the chloride stays on (x, x, 1/2 - x), and the distance is the
+    one asked for."""
+    mfu4l, cell, distance, now = _mfu4l_chlorides()
+    assert cell.elements[32] == cell.elements[33] == "Cl"
+    axes = [sc.Axis.over(distance, now * 0.97, now * 0.97, 1)]
+    (point,) = _run(mfu4l, axes, max_steps=6).points
+    assert point.finished, point.message
+    assert point.achieved[0] == pytest.approx(now * 0.97, abs=1e-3)
+    moved = mfu4l.copy()
+    for site, row in zip(moved.sites, point.frac, strict=True):
+        site.frac = row
+    assert p1.expand(moved).n_atoms == cell.n_atoms
+    chlorine = next(i for i, site in enumerate(mfu4l.sites)
+                    if site.element == "Cl")
+    shift = point.frac[chlorine] - mfu4l.sites[chlorine].frac
+    assert np.linalg.norm(shift) > 1e-4
+    assert shift[0] == pytest.approx(shift[1], abs=1e-9)
+    assert shift[2] == pytest.approx(-shift[0], abs=1e-9)
+
+
+def test_a_point_that_leaves_the_group_is_a_hole_with_a_reason(
+        monkeypatch):
+    """Not expected -- the optimiser keeps every site where its site
+    symmetry allows -- but if that promise fails, the landscape gets a
+    hole that says why rather than a number for another crystal."""
+    from xtal.ff import optimize
+
+    mfu4l, _cell, distance, now = _mfu4l_chlorides()
+    chlorine = next(i for i, site in enumerate(mfu4l.sites)
+                    if site.element == "Cl")
+    real = optimize.run
+
+    def astray(calculator, structure, **kwargs):
+        result = real(calculator, structure, max_steps=1,
+                      **{k: v for k, v in kwargs.items()
+                         if k != "max_steps"})
+        result.frac[chlorine] += [0.01, 0.0, 0.0]
+        return result
+
+    monkeypatch.setattr(optimize, "run", astray)
+    axes = [sc.Axis.over(distance, now, now, 1)]
+    (point,) = _run(mfu4l, axes).points
+    assert not point.finished
+    assert "special position" in point.message
+    assert "P1" in point.message
+
+
+def test_a_coordinate_the_group_holds_is_refused_by_the_plan(halite):
+    """Before the first point, so the dialog can say so."""
+    cell = p1.expand(halite)
+    distance = co.internal(halite, cell, "distance", [(0,), (4,)])
+    with pytest.raises(sc.ScanError, match="Reduce to P1"):
+        sc.plan(halite, [sc.Axis.over(distance, 2.5, 3.0, 3)])
+
+
+# ----------------------------------------------------------------------
+#  Pre-relaxation
+# ----------------------------------------------------------------------
+
+class _Shifted:
+    """A UFF calculator whose energies are all ten thousand too high,
+    so that a number that came from it cannot pass for UFF's own."""
+
+    def __init__(self, inner):
+        self._inner = inner
+
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
+
+    def compute(self, positions, matrix):
+        import dataclasses
+        result = self._inner.compute(positions, matrix)
+        return dataclasses.replace(result, energy=result.energy + 1e4)
+
+
+def test_every_point_is_pre_relaxed_before_it_is_relaxed(
+        quartz, cell_axes):
+    """The cheap engine first, then the one the landscape is of, at
+    every point -- not once for the scan."""
+    built = []
+
+    def cheap(structure):
+        built.append("pre")
+        return _build(structure)
+
+    def main(structure):
+        built.append("main")
+        return _build(structure)
+
+    used = sc.plan(quartz, cell_axes, direction="forward")
+    result = sc.collect(sc.scan(
+        main, quartz, cell_axes, direction="forward",
+        method="lbfgs", max_steps=5,
+        prerelax=sc.Prerelax(cheap, max_steps=5)), used)
+    assert built == ["pre", "main"] * used.n_points
+    assert all(0 < p.pre_steps <= 5 for p in result.points)
+
+
+def test_only_the_main_engines_energy_is_reported(quartz, cell_axes):
+    """The pre-relaxation is a way of getting somewhere, not a
+    measurement.  Its energies in the landscape would put a cliff of
+    ten thousand kcal/mol wherever it happened to be the last word."""
+    result = _run(quartz, cell_axes, max_steps=5,
+                  prerelax=sc.Prerelax(
+                      lambda s: _Shifted(_build(s)), max_steps=5))
+    assert all(p.finished and abs(p.energy) < 5e3
+               for p in result.points)
+
+
+def test_a_pre_relaxation_keeps_the_held_volume(quartz):
+    """What it hands on has to be a point of this grid already: the
+    main engine must start at the volume the axis asked for, not at
+    wherever the cheap engine would rather the cell were."""
+    volume = quartz.lattice.volume
+    axes = [sc.Axis.over(co.CellVolume(), volume * 1.05,
+                         volume * 1.05, 1)]
+    seen = []
+
+    def main(structure):
+        seen.append(structure.lattice.volume)
+        return _build(structure)
+
+    used = sc.plan(quartz, axes, direction="forward")
+    sc.collect(sc.scan(main, quartz, axes, direction="forward",
+                       method="lbfgs", max_steps=3,
+                       prerelax=sc.Prerelax(_build, max_steps=10)),
+               used)
+    assert seen == [pytest.approx(volume * 1.05, rel=1e-3)]
+
+
+def test_a_failed_pre_relaxation_still_relaxes_the_point(
+        quartz, cell_axes):
+    """It is a shortcut.  When it cannot be taken the point is still
+    worth relaxing the long way, and the log says so."""
+    from xtal.ff.api import CalculatorError
+
+    def broken(structure):
+        raise CalculatorError("no parameters for this")
+
+    result = _run(quartz, cell_axes, max_steps=5,
+                  prerelax=sc.Prerelax(broken))
+    assert all(p.finished for p in result.points)
+    assert all("no parameters" in p.pre_skipped
+               for p in result.points)
+    assert all(p.pre_steps == 0 for p in result.points)
+
+
+def test_the_estimate_counts_the_pre_relaxation_steps(quartz,
+                                                      cell_axes):
+    used = sc.plan(quartz, cell_axes, direction="forward")
+    assert sc.estimate(used, 1.0, 500, 500) == pytest.approx(
+        2 * sc.estimate(used, 1.0, 500))

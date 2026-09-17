@@ -284,6 +284,27 @@ class CellConstraint:
         tie = self.ties[index]
         return tie if isinstance(tie, int) else None
 
+    def root(self, index: int) -> int:
+        """The free parameter this one ends up equal to, or itself.
+
+        A tie points at *an* earlier parameter, not necessarily a free
+        one: a cubic cell says ``b = a`` and ``c = b``, so asking
+        :meth:`follows` alone of ``c`` answers ``b`` and a dialog
+        listing what follows ``a`` left ``c`` out.
+        """
+        seen = set()
+        while (tie := self.follows(index)) is not None \
+                and index not in seen:
+            seen.add(index)
+            index = tie
+        return index
+
+    def followers(self, index: int) -> tuple[int, ...]:
+        """Every parameter that moves when this free one does."""
+        return tuple(i for i in range(6) if i != index
+                     and self.follows(i) is not None
+                     and self.root(i) == index)
+
     def fixed_at(self, index: int) -> float | None:
         tie = self.ties[index]
         return float(tie) if isinstance(tie, float) else None
@@ -315,7 +336,8 @@ class CellConstraint:
         for index, tie in enumerate(self.ties):
             name = PARAMETER_NAMES[index]
             if isinstance(tie, int):
-                parts.append(f"{name} = {PARAMETER_NAMES[tie]}")
+                parts.append(
+                    f"{name} = {PARAMETER_NAMES[self.root(index)]}")
             elif isinstance(tie, float):
                 parts.append(f"{name} = {tie:g}")
         return ", ".join(parts) if parts else "all six are free"

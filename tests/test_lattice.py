@@ -184,6 +184,22 @@ def test_the_trigonal_axis_choice_changes_the_constraint():
     assert rhombohedral.follows(5) == 3              # gamma = alpha
 
 
+def test_a_cubic_cell_says_both_b_and_c_follow_a():
+    """The ties chain -- b = a, c = b -- and asking only the nearest
+    link left c out of what a scan of a moves."""
+    from xtal.core.spacegroup import SpaceGroup
+
+    cubic = SpaceGroup.from_any("Fm-3m").cell_constraint
+    assert cubic.root(2) == 0
+    assert cubic.followers(0) == (1, 2)
+    assert "c = a" in cubic.describe()
+    rhombohedral = SpaceGroup.from_any("R-3c:R").cell_constraint
+    assert rhombohedral.followers(3) == (4, 5)
+    tetragonal = SpaceGroup.from_any("P4/mmm").cell_constraint
+    assert tetragonal.followers(0) == (1,)
+    assert tetragonal.followers(2) == ()
+
+
 def test_a_constraint_conforms_a_cell_and_recognises_one():
     from xtal.core.spacegroup import SpaceGroup
 

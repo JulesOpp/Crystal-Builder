@@ -68,6 +68,15 @@ pattern is in electrons squared and a measured one is in counts, and
 drawing them on one absolute axis puts one of them in the bottom pixel
 row.  The y axis is therefore labelled as a percentage and says so,
 which is what every published overlay does.
+
+**Unless the curve says otherwise.**  An energy profile is not a
+pattern: its numbers are the answer, the traces share a unit, and a
+profile that sits below zero has no maximum to scale to -- which drew
+nothing at all.  A curve with ``normalised`` off is drawn on one
+axis with real numbers on it, and a NaN is a gap in the line rather
+than a point, for the reason :class:`xtal.modules.report.Surface`
+gives.  Such a curve can carry a file per point, and clicking near a
+point emits :attr:`CurvePlot.pointClicked` so the panel can open it.
 """
 
 from __future__ import annotations
@@ -75,7 +84,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
-from PySide6.QtCore import QLineF, QPointF, QRectF, Qt
+from PySide6.QtCore import QLineF, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPen, QPolygonF
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
@@ -120,19 +129,36 @@ BOTTOM = 32 + COMB
 
 SAVE_SIZE = (760, 320)
 
+#: How near a click has to land to a point to mean it, in pixels.
+PICK_RADIUS = 14
+#: Below this many points a trace is drawn with its points marked,
+#: which is what says they can be clicked.
+DOTTED = 200
+MARKER = QColor(230, 60, 60)
+
 
 class CurvePlot(QWidget):
-    """One :class:`xtal.modules.report.Curve`, drawn."""
+    """One :class:`xtal.modules.report.Curve`, drawn.
+
+    A click near a point emits :attr:`pointClicked` with ``(series,
+    index)`` into the curve's own indexing -- the shape
+    :class:`xtalapp.heatmap.HeatmapPlot` uses for a cell.
+    """
+
+    pointClicked = Signal(int, int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.curve = None
+        self.marker: tuple[int, int] | None = None
         self._cache: dict = {}
+        self._box: QRectF | None = None
         self.setMinimumHeight(200)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
     def set_curve(self, curve) -> None:
         self.curve = curve
+        self.marker = None
         self._cache = {}
         self.setToolTip(curve.note if curve is not None and curve.note
                         else "")
@@ -140,6 +166,60 @@ class CurvePlot(QWidget):
 
     def clear(self) -> None:
         self.set_curve(None)
+
+    def set_marker(self, point) -> None:
+        """Ring the point whose structure is open."""
+        if point != self.marker:
+            self.marker = point
+            self.update()
+
+    def limits(self) -> tuple[float, float]:
+        """The vertical range of an absolute curve, over finite values.
+
+        A NaN takes no part in it, for the reason
+        :meth:`xtalapp.heatmap.HeatmapPlot.limits` gives, and a flat
+        trace gets a unit of room so it is drawn rather than divided
+        by zero.
+        """
+        finite = [np.asarray(v, dtype=float)
+                  for _label, v in self.curve.all_series()]
+        finite = np.concatenate([v[np.isfinite(v)] for v in finite]) \
+            if finite else np.zeros(0)
+        if not finite.size:
+            return 0.0, 1.0
+        low, high = float(finite.min()), float(finite.max())
+        if high <= low:
+            return low - 0.5, high + 0.5
+        pad = 0.05 * (high - low)
+        return low - pad, high + pad
+
+    def point_at(self, x: float, y: float):
+        """The ``(series, index)`` nearest a spot, or ``None``.
+
+        Only within :data:`PICK_RADIUS`, and only for a point that has
+        a number: a click in empty plot is not a request for whichever
+        point happens to be least far away.
+        """
+        if self.curve is None or self._box is None:
+            return None
+        found = self._geometry(self._box)[4]
+        best, where = PICK_RADIUS ** 2, None
+        for series, (across, up) in enumerate(found):
+            if not len(across):
+                continue
+            distance = (across - x) ** 2 + (up - y) ** 2
+            distance[~np.isfinite(distance)] = np.inf
+            index = int(np.argmin(distance))
+            if distance[index] <= best:
+                best, where = float(distance[index]), (series, index)
+        return where
+
+    def mousePressEvent(self, event) -> None:
+        point = self.point_at(event.position().x(),
+                              event.position().y())
+        if point is not None:
+            self.pointClicked.emit(int(point[0]), int(point[1]))
+        super().mousePressEvent(event)
 
     # -- the cached geometry -------------------------------------------
 
@@ -165,16 +245,31 @@ class CurvePlot(QWidget):
         span = max(float(x[-1]) - first, 1e-9)
         across = box.left() + box.width() * (x - first) / span
 
-        polylines = []
-        for label, values in curve.all_series():
+        polylines, pixels = [], []
+        if not curve.normalised:
+            low, high = self.limits()
+        for _label, values in curve.all_series():
             values = np.asarray(values, dtype=float)
             if len(values) != len(x) or not len(values):
+                pixels.append((np.zeros(0), np.zeros(0)))
                 continue                            # pragma: no cover
-            top = float(np.max(values))
-            if not np.isfinite(top) or top <= 0:
-                continue
-            up = box.bottom() - box.height() * values / top
-            polylines.append((label, _points(across, up)))
+            if curve.normalised:
+                top = float(np.max(values))
+                if not np.isfinite(top) or top <= 0:
+                    pixels.append((np.zeros(0), np.zeros(0)))
+                    continue
+                up = box.bottom() - box.height() * values / top
+            else:
+                up = box.bottom() - box.height() * (values - low) \
+                    / (high - low)
+            pixels.append((across, up))
+            # A hole is a gap: each finite run is its own polyline.
+            finite = np.isfinite(up)
+            edges = np.flatnonzero(np.diff(finite.astype(np.int8)))
+            for run in np.split(np.arange(len(up)), edges + 1):
+                if len(run) and finite[run[0]]:
+                    polylines.append((len(pixels) - 1,
+                                      _points(across[run], up[run])))
 
         combs = []
         for index, (label, positions) in enumerate(curve.tick_sets):
@@ -187,7 +282,7 @@ class CurvePlot(QWidget):
                 QLineF(float(v), high, float(v), high + COMB_ROW - 3)
                 for v in at]))
 
-        found = (polylines, combs, first, span)
+        found = (polylines, combs, first, span, pixels)
         self._cache = {key: found}
         return found
 
@@ -209,11 +304,13 @@ class CurvePlot(QWidget):
         if box.width() < 20 or box.height() < 20:   # pragma: no cover
             return
 
-        polylines, combs, first, span = self._geometry(box)
+        self._box = box
+        polylines, combs, first, span, pixels = self._geometry(box)
         x = np.asarray(curve.x, dtype=float)
 
         self._frame(painter, box, palette)
         self._series(painter, polylines)
+        self._dots(painter, pixels)
         self._combs(painter, combs)
         self._axis_labels(painter, box, curve, first,
                           float(x[-1]), palette)
@@ -229,13 +326,38 @@ class CurvePlot(QWidget):
         """Each trace, scaled to its own maximum -- see the module
         docstring for why they cannot share one, and for why the pen
         is a hairline."""
-        for index, (_label, polygon) in enumerate(polylines):
+        for index, polygon in polylines:
             pen = QPen(SERIES_COLORS[index % len(SERIES_COLORS)])
             # One pixel, always -- see the module docstring.  A wider
             # pen is forty times slower to stroke and buys nothing.
             pen.setWidth(1)
             painter.setPen(pen)
             painter.drawPolyline(polygon)
+
+    def _dots(self, painter, pixels) -> None:
+        """The points themselves, where there are few enough to see,
+        and the ring round the one that is open."""
+        for index, (across, up) in enumerate(pixels):
+            if not 0 < len(across) <= DOTTED:
+                continue
+            color = SERIES_COLORS[index % len(SERIES_COLORS)]
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(color)
+            for a, b in zip(across, up, strict=True):
+                if np.isfinite(b):
+                    painter.drawEllipse(QPointF(float(a), float(b)),
+                                        2.5, 2.5)
+        painter.setBrush(Qt.NoBrush)
+        if self.marker is None:
+            return
+        series, index = self.marker
+        if series < len(pixels) and index < len(pixels[series][0]):
+            b = float(pixels[series][1][index])
+            if np.isfinite(b):
+                painter.setPen(QPen(MARKER, 2))
+                painter.drawEllipse(
+                    QPointF(float(pixels[series][0][index]), b),
+                    5.5, 5.5)
 
     def _combs(self, painter, combs) -> None:
         """The tick rows, stacked under the axis in their own colours.
@@ -260,11 +382,23 @@ class CurvePlot(QWidget):
         font = painter.font()
         font.setPointSizeF(max(7.0, font.pointSizeF() - 2))
         painter.setFont(font)
-        # Every series is scaled to its own maximum, so the only two
-        # numbers the vertical axis can honestly carry are the ends.
-        for value, align in ((100.0, Qt.AlignTop), (0.0, Qt.AlignBottom)):
-            painter.drawText(QRectF(0, box.top(), LEFT - 6, box.height()),
-                             align | Qt.AlignRight, _tick(value))
+        if curve.normalised:
+            # Every series is scaled to its own maximum, so the only
+            # two numbers the vertical axis can honestly carry are
+            # the ends.
+            for value, align in ((100.0, Qt.AlignTop),
+                                 (0.0, Qt.AlignBottom)):
+                painter.drawText(
+                    QRectF(0, box.top(), LEFT - 6, box.height()),
+                    align | Qt.AlignRight, _tick(value))
+        else:
+            low, high = self.limits()
+            for value in _ticks(low, high, wanted=5):
+                at = box.bottom() - box.height() * (value - low) \
+                    / (high - low)
+                painter.drawText(QRectF(0, at - 7, LEFT - 6, 14),
+                                 Qt.AlignVCenter | Qt.AlignRight,
+                                 _tick(value))
         span = max(last - first, 1e-9)
         grid = QPen(palette.color(palette.ColorRole.Mid))
         grid.setWidth(1)

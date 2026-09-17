@@ -42,6 +42,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QSizePolicy,
     QSpinBox,
     QStackedWidget,
     QVBoxLayout,
@@ -56,6 +57,8 @@ from xtal.ff.registry import ENGINES
 from xtal.modules import scan as scan_module
 from xtalapp.dialogs.module_form import ParamForm
 from xtalapp.docks import scrolling
+from xtalapp.widgets.atom_types import HEADING as TYPES_HEADING
+from xtalapp.widgets.atom_types import AtomTypeTable, warnings_text
 
 #: Roughly how long one optimiser step takes, per atom of the P1 cell,
 #: in seconds.  Measured under UFF: 0.44 s for the 1152 atoms of
@@ -110,17 +113,52 @@ def panel_options(window, engine: str) -> dict:
 
 
 def selected_atoms(window) -> list[int]:
-    """The P1 atoms selected in the tab in front."""
+    """The P1 atoms selected in the tab in front, in the order they
+    were picked -- which is the order of a torsion's four atoms."""
     document = _document(window)
     if document is None:
         return []
-    return sorted(int(a) for a in document.selection.atoms)
+    selection = document.selection
+    order = [int(a) for a in getattr(selection, "order", ())]
+    if sorted(order) == sorted(int(a) for a in selection.atoms):
+        return order
+    return sorted(int(a) for a in selection.atoms)
 
 
 def _document(window):
     if window is None or not hasattr(window, "current_document"):
         return None
     return window.current_document()
+
+
+def cell_choices(structure) -> list[tuple[str, str]]:
+    """``(label, parameter)`` for every cell parameter a scan may set.
+
+    What the list holds is the crystal system's: a cubic cell offers
+    *a* alone, a hexagonal one *a* and *c*, a monoclinic one the three
+    lengths and beta.  What moves with each is spelled out, and all of
+    it -- a cubic *c* is tied to *b*, which is tied to *a*, and
+    "b follows it" alone read as though *c* stayed where it was.
+    """
+    constraint = structure.space_group.cell_constraint
+    out = []
+    for index, name in enumerate(PARAMETER_NAMES):
+        if not constraint.is_free(index):
+            continue
+        # Spelled out, because "scanning a also moves b" is the whole
+        # difference between a trigonal crystal and a structure its
+        # own operations no longer fit.
+        followers = [PARAMETER_NAMES[i]
+                     for i in constraint.followers(index)]
+        label = (f"Lattice {name}" if index < 3
+                 else f"Cell angle {name}")
+        if len(followers) == 1:
+            label += f"  ({followers[0]} follows)"
+        elif followers:
+            label += (f"  ({', '.join(followers[:-1])} and "
+                      f"{followers[-1]} follow)")
+        out.append((label, name))
+    return out
 
 
 class AxisBox(QGroupBox):
@@ -138,31 +176,26 @@ class AxisBox(QGroupBox):
         self.kind = QComboBox()
         if optional:
             self.kind.addItem("None", "")
-        constraint = structure.space_group.cell_constraint
-        for name in PARAMETER_NAMES:
-            if not constraint.is_free(PARAMETER_NAMES.index(name)):
-                continue
-            followers = [PARAMETER_NAMES[i] for i in range(6)
-                         if constraint.follows(i)
-                         == PARAMETER_NAMES.index(name)]
-            label = f"Lattice {name}"
-            if followers:
-                # Spelled out, because "scanning a also moves b" is
-                # the whole difference between a trigonal crystal and
-                # a structure its own operations no longer fit.
-                label += f"  ({', '.join(followers)} follows it)"
+        for label, name in cell_choices(structure):
             self.kind.addItem(label, name)
+        constraint = structure.space_group.cell_constraint
+        self.kind.setToolTip(
+            f"A {constraint.system} cell: "
+            f"{constraint.describe()}.  Only the parameters it "
+            f"leaves free can be scanned.")
         self.kind.addItem("Cell volume (shape relaxes)", "volume")
         for name, label, _anchors in INTERNAL:
             self.kind.addItem(label, name)
 
         self.atoms = QLineEdit()
         self.atoms.setPlaceholderText(
-            "atom indices, e.g. 0 1 2 3  (commas join a centroid)")
+            "atom indices, e.g. 0, 1, 2, 3  (+ joins a centroid)")
         self.from_selection = QPushButton("Add the selection")
         self.from_selection.setToolTip(
-            "Append the selected atoms as one anchor.  Several atoms "
-            "become their centroid, and it follows them.")
+            "Append the selected atoms, in the order they were "
+            "picked.  More atoms than the coordinate still needs -- "
+            "or any selection, for a plane -- become one centroid, "
+            "written 4+5+6, and it follows them.")
 
         self.start = _number("From")
         self.stop = _number("To")
@@ -254,9 +287,24 @@ class AxisBox(QGroupBox):
         if not chosen:
             self.status.setText("nothing is selected")
             return
-        joined = ",".join(str(a) for a in chosen)
-        text = self.atoms.text().strip()
-        self.atoms.setText(f"{text} {joined}".strip())
+        text = self.atoms.text().strip().rstrip(",").strip()
+        try:
+            have = len(scan_module.read_anchors(text, text))
+        except Exception:                           # noqa: BLE001
+            have = 0
+        wanted = dict((name, anchors) for name, _label, anchors
+                      in INTERNAL).get(self.chosen, 0)
+        # Separate atoms when they fit what the coordinate still
+        # needs -- two chlorides picked for a distance are its two
+        # ends -- and one centroid when they do not, which is how "the
+        # middle of that ring" is said.  A plane is always a group:
+        # one atom is not a plane.
+        if self.chosen != "plane" and len(chosen) <= wanted - have:
+            groups = [[a] for a in chosen]
+        else:
+            groups = [chosen]
+        added = scan_module.spell_anchors(groups)
+        self.atoms.setText(f"{text}, {added}" if text else added)
 
     def _centre_on_current(self) -> None:
         """Open a cell axis on a range around where the crystal is.
@@ -340,22 +388,23 @@ class ScanDialog(QDialog):
         # xTB's GFN level and DFTB+'s Hamiltonian are all chosen here
         # rather than only in the panel.  Each opens on whatever the
         # panel has set for it, and only the chosen one is shown.
-        self.engine_forms = {}
-        self.engine_stack = QStackedWidget()
-        self.engine_pages = {}
-        for engine in ENGINES:
-            form = ParamForm(engine.options) if engine.options else None
-            if form is not None:
-                form.set_values(panel_options(parent, engine.name))
-                self.engine_forms[engine.name] = form
-            page = form if form is not None else QWidget()
-            self.engine_pages[engine.name] = \
-                self.engine_stack.addWidget(page)
+        self.engine_forms, self.engine_stack, self.engine_pages = \
+            _engine_forms(parent)
         self.engine.currentIndexChanged.connect(self._engine_changed)
 
         self.availability = QLabel("")
         self.availability.setWordWrap(True)
         self.availability.setStyleSheet("color: palette(mid);")
+
+        # The same table the Force Field panel shows, over the same
+        # document: a scan runs the engine for hours on these types,
+        # which makes this the place a wrong one costs most.
+        self.types_heading = QLabel(TYPES_HEADING)
+        self.types = AtomTypeTable()
+        self.types.statusMessage.connect(self._type_overridden)
+        self.types_note = QLabel("")
+        self.types_note.setWordWrap(True)
+        self.types_note.setStyleSheet("color: palette(mid);")
 
         self.first = AxisBox("First axis", self.structure, parent)
         self.second = AxisBox("Second axis", self.structure, parent,
@@ -397,6 +446,37 @@ class ScanDialog(QDialog):
         self.tolerance.setValue(0.05)
         self.tolerance.setSuffix(" kcal/mol/A")
 
+        # A second, cheaper engine run first at every point.  Its own
+        # forms, because "UFF4MOF ahead of MACE" needs UFF's parameter
+        # set chosen here even while the panel is set up for MACE.
+        self.pre_engine = QComboBox()
+        self.pre_engine.addItem("Nothing", "")
+        for engine in ENGINES:
+            self.pre_engine.addItem(engine.label, engine.name)
+        self.pre_engine.setToolTip(
+            "A cheaper engine run at every point before the one the "
+            "landscape is of.  A volume step moves every atom with "
+            "the cell, and this spends the long walk back at the "
+            "cheap price.  Only the main engine's energy is "
+            "reported.")
+        self.pre_forms, self.pre_stack, self.pre_pages = \
+            _engine_forms(parent)
+        self.pre_availability = QLabel("")
+        self.pre_availability.setWordWrap(True)
+        self.pre_availability.setStyleSheet("color: palette(mid);")
+        self.pre_max_steps = QSpinBox()
+        self.pre_max_steps.setRange(1, 100000)
+        self.pre_max_steps.setValue(500)
+        self.pre_tolerance = QDoubleSpinBox()
+        self.pre_tolerance.setDecimals(4)
+        self.pre_tolerance.setRange(1e-4, 100.0)
+        self.pre_tolerance.setValue(0.5)
+        self.pre_tolerance.setSuffix(" kcal/mol/A")
+        self.pre_tolerance.setToolTip(
+            "Loose on purpose: the cheap engine's minimum is not the "
+            "one wanted, so converging to it tightly buys nothing.")
+        self.pre_engine.currentIndexChanged.connect(self._pre_changed)
+
         self.summary = QLabel("")
         self.summary.setWordWrap(True)
 
@@ -409,8 +489,12 @@ class ScanDialog(QDialog):
 
         self._build()
         self._engine_changed()
+        self._pre_changed()
         for form in self.engine_forms.values():
             form.changed.connect(self._engine_changed)
+        for form in self.pre_forms.values():
+            form.changed.connect(self._pre_changed)
+        self.pre_max_steps.valueChanged.connect(self.refresh)
         for box in (self.first, self.second):
             box.kind.currentIndexChanged.connect(self.refresh)
             box.atoms.textChanged.connect(self.refresh)
@@ -439,14 +523,38 @@ class ScanDialog(QDialog):
         how.addRow("Steps per point", self.max_steps)
         how.addRow("Force tolerance", self.tolerance)
 
+        # Not a group box: its frame's margins pushed the wider engine
+        # forms past the dialog's width and grew a sideways scroll.
+        self.pre_box = QWidget()
+        pre = QVBoxLayout(self.pre_box)
+        pre.setContentsMargins(0, 0, 0, 0)
+        heading = QLabel("Pre-relaxation")
+        heading.setStyleSheet("font-weight: bold;")
+        pre.addWidget(heading)
+        chooser = QFormLayout()
+        chooser.addRow("Pre-relax with", self.pre_engine)
+        pre.addLayout(chooser)
+        pre.addWidget(self.pre_stack)
+        pre.addWidget(self.pre_availability)
+        self.pre_limits = QWidget()
+        limits = QFormLayout(self.pre_limits)
+        limits.setContentsMargins(0, 0, 0, 0)
+        limits.addRow("Steps per point", self.pre_max_steps)
+        limits.addRow("Force tolerance", self.pre_tolerance)
+        pre.addWidget(self.pre_limits)
+
         inner = QVBoxLayout()
         inner.addLayout(engine)
         inner.addWidget(self.engine_stack)
         inner.addWidget(self.availability)
+        inner.addWidget(self.types_heading)
+        inner.addWidget(self.types)
+        inner.addWidget(self.types_note)
         inner.addWidget(note)
         inner.addWidget(self.first)
         inner.addWidget(self.second)
         inner.addLayout(how)
+        inner.addWidget(self.pre_box)
         inner.addStretch(1)
         body = _wrapped(inner)
 
@@ -457,25 +565,72 @@ class ScanDialog(QDialog):
         self.resize(560, 660)
 
     def _engine_changed(self) -> None:
-        """Show the chosen engine's form, and whether it can run.
-
-        An engine that is not installed -- MACE without its extra,
-        DFTB+ without a binary -- has to say so here rather than
-        after a scan has been started and the first point has failed
-        a hundred times over.
-        """
+        """Show the chosen engine's form, and whether it can run."""
         name = str(self.engine.currentData())
-        self.engine_stack.setCurrentIndex(
-            self.engine_pages.get(name, 0))
-        entry = ENGINES.get(name)
-        ready = entry.availability(**self.engine_values())
+        _show_page(self.engine_stack, self.engine_pages.get(name, 0))
         self.availability.setText(
-            "" if ready.ok else str(ready.reason or
-                                    f"{entry.label} is not available"))
+            _unavailable(name, self.engine_values()))
+        self.refresh_types()
         self.refresh()
+
+    def _pre_changed(self) -> None:
+        """Show the pre-relaxation engine's form, or nothing at all.
+
+        Its forms and limits are hidden while it is off, so that the
+        dialog of somebody who never wants one is no longer for it.
+        """
+        name = str(self.pre_engine.currentData() or "")
+        self.pre_stack.setVisible(bool(name))
+        self.pre_limits.setVisible(bool(name))
+        if name:
+            _show_page(self.pre_stack, self.pre_pages.get(name, 0))
+        self.pre_availability.setText(
+            _unavailable(name, self.pre_values()) if name else "")
+        self.pre_availability.setVisible(
+            bool(self.pre_availability.text()))
+        self.refresh()
+
+    def refresh_types(self) -> None:
+        """Type the structure as the chosen engine will, and show it.
+
+        Only for an engine that has atom types.  DFTB+, xTB and MACE
+        have none -- a tight-binding Hamiltonian or a learned
+        potential sees elements -- and an empty table under the
+        heading would read as a failure to type them.  The parameter
+        set is the one chosen *here*: UFF4MOF types a paddlewheel
+        copper differently, and the table has to show what the scan
+        will run.
+        """
+        entry = ENGINES.get(str(self.engine.currentData()))
+        shown = "types" in entry.provides
+        for widget in (self.types_heading, self.types):
+            widget.setVisible(shown)
+        if not shown:
+            self.types_note.setText("")
+            self.types_note.setVisible(False)
+            return
+        try:
+            rows = self.types.fill(
+                _document(self.window),
+                self.engine_values().get("parameter_set"))
+            said = warnings_text(rows)
+        except Exception as error:                  # noqa: BLE001
+            said = str(error)
+        self.types.fit_rows()
+        self.types_note.setText(said)
+        self.types_note.setVisible(bool(said))
+
+    def _type_overridden(self, message: str) -> None:
+        if hasattr(self.window, "show_message"):
+            self.window.show_message(message)
+        self.refresh_types()
 
     def engine_values(self) -> dict:
         form = self.engine_forms.get(str(self.engine.currentData()))
+        return dict(form.values()) if form is not None else {}
+
+    def pre_values(self) -> dict:
+        form = self.pre_forms.get(str(self.pre_engine.currentData()))
         return dict(form.values()) if form is not None else {}
 
     @staticmethod
@@ -515,9 +670,11 @@ class ScanDialog(QDialog):
             ok.setEnabled(False)
             return
         atoms = p1.expand(self.structure).n_atoms
+        pre_steps = (self.pre_max_steps.value()
+                     if self.pre_engine.currentData() else 0)
         seconds = driver.estimate(
             plan, SECONDS_PER_ATOM_STEP * atoms,
-            self.max_steps.value())
+            self.max_steps.value(), pre_steps)
         self.summary.setText(
             f"{plan.n_points} points, up to about {_spell(seconds)}.  "
             f"{plan.describe()}")
@@ -545,12 +702,25 @@ class ScanDialog(QDialog):
             "tolerance": self.tolerance.value(),
         }
         out["engine_options"] = self.engine_values()
+        out["pre_engine"] = str(self.pre_engine.currentData() or "")
+        out["pre_engine_options"] = self.pre_values()
+        out["pre_max_steps"] = self.pre_max_steps.value()
+        out["pre_tolerance"] = self.pre_tolerance.value()
         return out
 
     def set_values(self, values) -> None:
         values = dict(values or {})
         if "engine" in values:
             self._select(self.engine, values["engine"])
+        if "pre_engine" in values:
+            self._select(self.pre_engine, values["pre_engine"] or "")
+        form = self.pre_forms.get(str(self.pre_engine.currentData()))
+        if form is not None and values.get("pre_engine_options"):
+            form.set_values(values["pre_engine_options"])
+        if "pre_max_steps" in values:
+            self.pre_max_steps.setValue(int(values["pre_max_steps"]))
+        if "pre_tolerance" in values:
+            self.pre_tolerance.setValue(float(values["pre_tolerance"]))
         for number, box in ((1, self.first), (2, self.second)):
             spec = str(values.get(f"axis{number}", "") or "")
             if spec:
@@ -573,6 +743,49 @@ class ScanDialog(QDialog):
         if dialog.exec() != QDialog.Accepted:
             return None
         return dialog.values()
+
+
+def _engine_forms(window):
+    """One generated form per engine, each opened on what the panel
+    has set for it; ``(forms, stack, pages)``."""
+    forms = {}
+    stack = QStackedWidget()
+    pages = {}
+    for engine in ENGINES:
+        form = ParamForm(engine.options) if engine.options else None
+        if form is not None:
+            form.set_values(panel_options(window, engine.name))
+            forms[engine.name] = form
+        page = form if form is not None else QWidget()
+        pages[engine.name] = stack.addWidget(page)
+    return forms, stack, pages
+
+
+def _show_page(stack, current: int) -> None:
+    # A stack is as tall as its tallest page, so UFF's four rows sat
+    # above DFTB+'s ten rows of empty space.  Only the page on show
+    # gets a say in the height.
+    for page in range(stack.count()):
+        stack.widget(page).setSizePolicy(
+            QSizePolicy.Preferred,
+            QSizePolicy.Preferred if page == current
+            else QSizePolicy.Ignored)
+    stack.setCurrentIndex(current)
+    stack.adjustSize()
+
+
+def _unavailable(name: str, values: dict) -> str:
+    """Why this engine cannot run, or ``""`` when it can.
+
+    An engine that is not installed -- MACE without its extra, DFTB+
+    without a binary -- has to say so in the dialog rather than after
+    a scan has started and the first point has failed a hundred
+    times over.
+    """
+    entry = ENGINES.get(name)
+    ready = entry.availability(**values)
+    return "" if ready.ok else str(
+        ready.reason or f"{entry.label} is not available")
 
 
 def _spell(seconds: float) -> str:

@@ -214,7 +214,10 @@ stress case).
   merging compares a site against *other* sites' images and never
   against its own, so Merge Duplicates said "no duplicates" and
   **Reduce to P1 was the first thing that drew them** — and got the
-  blame. The count is flat from 0.01 A to 0.2 A on every structure in
+  blame. The optimiser's site projectors (`SymmetryDOF._projectors`)
+  use the same tolerance: at 1e-6, MFU-4l's Cl1, written 0.0006 A off
+  its three-fold axis, got only the mirror, and a held Cl–Cl distance
+  walked it off the axis and tripled the chlorides. The count is flat from 0.01 A to 0.2 A on every structure in
   `resources/samples`, and no two real atoms are that close. Where the
   atom *goes* is unchanged: the first operation to reach a point still
   wins, which near a special position is the identity. Snapping a site
@@ -368,7 +371,13 @@ stress case).
   nearly always a refinement's distance table, and reading one would
   bond a structure on open, which is what Recalculate Bonds exists to
   stay in charge of. `xtal.io.export.for_export` is the one door out:
-  no dummy atoms, no net edges, no suppressions.
+  no dummy atoms, no net edges, no suppressions. **A scan point's CIF
+  also carries the perceived graph** (`write_cif(perception=True)`,
+  an `_xtal_perceived_bond_*` loop of P1 bonds), because its cell is
+  not the one the bonds were perceived at and opening it would
+  otherwise perceive again — MFU-4l at +15% on *a* opens with 560 of
+  its 848 bonds. The reader takes it only if every bond is still the
+  length it was written at; ordinary saves do not write it.
 - **A building block drawn in the MOF builder goes to
   `<workspace>/blocks/`**, which the catalogue reads alongside
   PORMAKE's — `Workspace.blocks`, `Catalog.default(also_blocks=...)`.
@@ -430,6 +439,25 @@ stress case).
   a neighbour and from the input differed by 2.60 kcal/mol at 300
   unconverged steps, which is why both scan directions are walked by
   default and drawn apart rather than averaged.
+- **A scan refuses what it cannot hold, before the first point.**
+  `scan.plan` runs the constraint check against the asymmetric unit,
+  so a distance the group fixes is a message in the dialog, not a
+  grid of holes. A point whose relaxed cell expands to a different
+  atom count is a hole with the reason beside it, never a number for
+  another crystal. Scanning with the symmetry broken is Reduce to P1
+  first — the scan never drops the group on its own.
+- **An axis is written `distance 32, 33`**: commas or spaces between
+  anchors, `+` inside a centroid (`plane 0+1+2, 6+7+8`). The older
+  `0,1,2 6,7,8` still parses when the new reading gives the wrong
+  count, so old logs re-run.
+- **A scan leaves `report.json`**, and double-clicking it in the
+  workspace puts the landscape back in the Results panel
+  (`xtal.modules.report.save` / `load`, surface paths relative to the
+  run). Only modules whose report is small write one.
+- **The atom types table is one widget** (`xtalapp/widgets/
+  atom_types.py`), shown by the Force Field panel and by the scan
+  dialog for any engine that `provides` types. An override made in
+  either is `Document.set_atom_type` — one undoable edit both show.
 - **A scan reads the engine; it does not configure one.** The Force
   Field panel is where an engine is set up, and
   `xtalapp/dialogs/scan.py` reads it — the same bargain

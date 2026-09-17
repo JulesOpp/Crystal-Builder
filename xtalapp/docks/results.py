@@ -513,12 +513,21 @@ def _curve_widget(curve: Curve, dock) -> QWidget:
 
     plot = CurvePlot()
     plot.set_curve(curve)
+    if curve.paths:
+        # A scan's profile: each point is a structure, as each cell of
+        # a landscape is -- see _surface_widget.
+        plot.pointClicked.connect(
+            lambda series, index: _open_file(
+                curve.path_at(series, index), plot, dock,
+                (series, index)))
     layout.addWidget(plot)
 
     open_plot = QPushButton("Plot and overlay data...")
     open_plot.setEnabled(pattern_window.installed())
     open_plot.setToolTip(
-        "Zoom, overlay a measured .xy pattern, and export a figure"
+        ("Zoom, overlay a measured .xy pattern, and export a figure"
+         if curve.normalised else
+         "Zoom, overlay a two-column file, and export a figure")
         if pattern_window.installed() else pattern_window.MISSING)
     open_plot.clicked.connect(lambda: _open_pattern(curve, dock))
     row = QHBoxLayout()
@@ -558,8 +567,8 @@ def _surface_widget(surface: Surface, dock) -> QWidget:
     plot = HeatmapPlot()
     plot.set_surface(surface)
     plot.cellClicked.connect(
-        lambda row, column: _open_point(surface, plot, dock,
-                                        row, column))
+        lambda row, column: _open_file(
+            surface.path_at(row, column), plot, dock, (row, column)))
     layout.addWidget(plot)
 
     sheets = surface.all_sheets()
@@ -608,9 +617,8 @@ def _surface_widget(surface: Surface, dock) -> QWidget:
     return box
 
 
-def _open_point(surface, plot, dock, row: int, column: int) -> None:
-    """Open the structure behind one cell of a landscape."""
-    path = surface.path_at(row, column)
+def _open_file(path: str, plot, dock, where) -> None:
+    """Open the structure behind one cell or point of a scan."""
     window = dock.window()
     if not path or not Path(path).exists():
         if hasattr(window, "show_message"):
@@ -619,7 +627,7 @@ def _open_point(surface, plot, dock, row: int, column: int) -> None:
                 "finish" if not path else
                 f"{Path(path).name} is no longer there")
         return
-    plot.set_marker((row, column))
+    plot.set_marker(where)
     if hasattr(window, "open_path"):
         window.open_path(path)
 

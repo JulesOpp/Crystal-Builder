@@ -263,7 +263,7 @@ class _Between(Coordinate):
         parts = []
         for anchor in self.anchors:
             parts.append(str(anchor.atoms[0]) if anchor.is_atom
-                         else "{" + ",".join(
+                         else "{" + "+".join(
                              str(a) for a in anchor.atoms) + "}")
         return "-".join(parts)
 

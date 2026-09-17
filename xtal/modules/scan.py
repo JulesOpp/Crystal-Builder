@@ -40,7 +40,15 @@ from xtal.ff.optimize import METHODS
 from xtal.ff.registry import ENGINES
 from xtal.modules.job import JobResult
 from xtal.modules.registry import MODULES, Action, Module
-from xtal.modules.report import Curve, Report, Row, Surface, Table
+from xtal.modules.report import (
+    REPORT_NAME,
+    Curve,
+    Report,
+    Row,
+    Surface,
+    Table,
+)
+from xtal.modules.report import save as save_report
 from xtal.params import Param, ParamError
 
 #: How an axis is written down in a parameter, a command line and the
@@ -49,9 +57,9 @@ from xtal.params import Param, ParamError
 #: line printed in its own log.
 AXIS_HELP = (
     "A cell parameter (a, b, c, alpha, beta, gamma), 'volume', or an "
-    "internal coordinate over groups of P1 atom indices: "
-    "'distance 0 5', 'angle 0 1 2', 'torsion 0 1 2 3', "
-    "'plane 0,1,2 6,7,8'.  A group of several atoms is their "
+    "internal coordinate over P1 atom indices: "
+    "'distance 0, 5', 'angle 0, 1, 2', 'torsion 0, 1, 2, 3', "
+    "'plane 0+1+2, 6+7+8'.  Atoms joined by '+' are their "
     "centroid, and it follows them.")
 
 _INTERNAL = {"distance": 2, "angle": 3, "torsion": 4, "plane": 2}
@@ -76,24 +84,53 @@ def parse_axis(structure, cell, spec: str):
     if head not in _INTERNAL:
         raise ParamError(
             f"{spec!r} is not a coordinate.  " + AXIS_HELP)
-    # Space separates the anchors and a comma joins one.  "0 1 2" is
-    # three atoms and "0,1,2" is the centroid of three, and nothing
-    # but the punctuation can say which was meant.
+    wanted = _INTERNAL[head]
+    text = " ".join(words[1:])
+    groups = read_anchors(text, spec)
+    if len(groups) != wanted and "+" not in text:
+        # The first grammar: space between anchors, comma inside one.
+        # Every scan run before '+' existed printed its axis that way,
+        # and a log line has to stay something that can be re-run.
+        older = read_anchors(text, spec, legacy=True)
+        if len(older) == wanted:
+            groups = older
+    if len(groups) != wanted:
+        raise ParamError(
+            f"a {head} takes {wanted} anchors, not {len(groups)}: "
+            f"{spec!r}")
+    return co.internal(structure, cell, _KINDS[head], groups)
+
+
+def read_anchors(text: str, spec: str, legacy: bool = False):
+    """Groups of atom indices, one per anchor.
+
+    Commas or spaces separate the anchors and '+' joins atoms into
+    one, so "32, 33" -- what a person writes, and what Add the
+    selection writes -- is two atoms.  It used to be one centroid of
+    two, because a comma was the joiner, and a distance over the two
+    chlorides somebody had selected was refused for having one
+    anchor.
+    """
+    tokens = (text.split() if legacy
+              else text.replace(",", " ").split())
+    joiner = "," if legacy else "+"
     groups = []
-    for token in words[1:]:
-        parts = [part for part in token.split(",") if part]
+    for token in tokens:
+        parts = [part.strip() for part in token.split(joiner)]
+        parts = [part for part in parts if part]
         for part in parts:
             if not part.isdigit():
                 raise ParamError(
                     f"{part!r} is not an atom index in {spec!r}")
         if parts:
             groups.append([int(part) for part in parts])
-    wanted = _INTERNAL[head]
-    if len(groups) != wanted:
-        raise ParamError(
-            f"a {head} takes {wanted} anchors, not {len(groups)}: "
-            f"{spec!r}")
-    return co.internal(structure, cell, _KINDS[head], groups)
+    return groups
+
+
+def spell_anchors(groups) -> str:
+    """The text :func:`parse_axis` reads back as these anchors."""
+    return ", ".join("+".join(str(int(a)) for a in group)
+                     for group in groups)
 
 
 def axes_from(job, structure):
@@ -162,6 +199,22 @@ PARAMS = (
                "rather than a target."),
     Param("tolerance", "Force tolerance", "float", default=0.05,
           minimum=1e-6, decimals=4, suffix=" kcal/mol/A"),
+    Param("pre_engine", "Pre-relax with", "choice", default="",
+          choices=(("", "Nothing"),
+                   *((e.name, e.label) for e in ENGINES)),
+          help="A cheaper engine run at every point before the one "
+               "the landscape is of -- UFF4MOF ahead of MACE, say.  "
+               "A volume step moves every atom with the cell, and "
+               "this spends the long walk back at the cheap price.  "
+               "Only the main engine's energy is reported."),
+    Param("pre_max_steps", "Pre-relaxation steps", "int",
+          default=500, minimum=1, maximum=100000),
+    Param("pre_tolerance", "Pre-relaxation tolerance", "float",
+          default=0.5, minimum=1e-6, decimals=4,
+          suffix=" kcal/mol/A",
+          help="Loose on purpose: the cheap engine's minimum is not "
+               "the one wanted, so converging to it tightly buys "
+               "nothing."),
 )
 
 
@@ -180,8 +233,11 @@ def run_scan(job) -> JobResult:
     engine = str(job.param("engine", "uff"))
 
     settings = engine_settings(job, engine)
+    prerelax, pre_said = _prerelax(job)
 
-    job.say(f"{plan.n_points} points on {_engine_said(engine, settings)}")
+    job.say(f"{plan.n_points} points on {_engine_said(engine, settings)}"
+            + (f", each pre-relaxed with {pre_said}" if pre_said
+               else ""))
     job.note(plan.describe())
 
     writer = _Files(job, plan)
@@ -189,6 +245,7 @@ def run_scan(job) -> JobResult:
     iterator = driver.scan(
         lambda s: ENGINES.build(engine, s, **settings), structure, axes,
         seed=seed, direction=direction, cancel=job.cancel,
+        prerelax=prerelax,
         method=str(job.param("method", "smart")),
         max_steps=int(job.param("max_steps", 500)),
         force_tolerance=float(job.param("tolerance", 0.05)))
@@ -199,6 +256,9 @@ def run_scan(job) -> JobResult:
     writer.close()
 
     result = driver.ScanResult(plan, points)
+    report = _report(plan, result, engine, writer.paths, settings,
+                     pre_said)
+    writer.keep(report)
     finished = len(result.finished())
     if job.cancelled and finished < plan.n_points:
         message = (f"Stopped after {finished} of {plan.n_points} "
@@ -209,11 +269,28 @@ def run_scan(job) -> JobResult:
     return JobResult(
         message=message,
         cancelled=bool(job.cancelled),
-        report=_report(plan, result, engine, writer.paths, settings),
+        report=report,
         artifacts=writer.artifacts)
 
 
-def engine_settings(job, engine: str) -> dict:
+def _prerelax(job):
+    """The :class:`driver.Prerelax` this job asks for, and how to
+    name it in a log line -- ``(None, "")`` when it asks for none."""
+    engine = str(job.param("pre_engine", "") or "")
+    if not engine:
+        return None, ""
+    settings = engine_settings(job, engine, key="pre_engine_options")
+    steps = int(job.param("pre_max_steps", 500))
+    prerelax = driver.Prerelax(
+        build=lambda s: ENGINES.build(engine, s, **settings),
+        max_steps=steps,
+        force_tolerance=float(job.param("pre_tolerance", 0.5)))
+    return prerelax, (f"{_engine_said(engine, settings)} for up to "
+                      f"{steps} steps")
+
+
+def engine_settings(job, engine: str,
+                    key: str = "engine_options") -> dict:
     """The engine's own options, coerced, defaults filled in.
 
     They arrive under one key rather than spread through the job's
@@ -223,7 +300,7 @@ def engine_settings(job, engine: str) -> dict:
     through the registry so that a command line handing in strings
     gets the same answer a dialog does.
     """
-    given = job.param("engine_options", None) or {}
+    given = job.param(key, None) or {}
     entry = ENGINES.get(engine)
     values = dict(entry.defaults())
     values.update({k: v for k, v in dict(given).items()
@@ -256,8 +333,12 @@ def _said(plan, point, number) -> str:
     if not point.finished:
         return f"[{number}/{plan.n_points}] {where}: {point.message}"
     mark = "" if point.converged else " (not converged)"
+    pre = (f" after {point.pre_steps} pre-relaxation steps"
+           if point.pre_steps else "")
+    if point.pre_skipped:
+        pre = f"; pre-relaxation skipped: {point.pre_skipped}"
     return (f"[{number}/{plan.n_points}] {where}: "
-            f"{point.energy:.4f} kcal/mol{mark}")
+            f"{point.energy:.4f} kcal/mol{mark}{pre}")
 
 
 # ======================================================================
@@ -292,8 +373,8 @@ class _Files:
             [*(f"{a.label} target" for a in plan.axes),
              *(f"{a.label} achieved" for a in plan.axes),
              "branch", "energy (kcal/mol)", "converged", "steps",
-             "|F|max", "a", "b", "c", "alpha", "beta", "gamma",
-             "file"])
+             "pre-relaxation steps", "|F|max",
+             "a", "b", "c", "alpha", "beta", "gamma", "file"])
 
     def wrote(self, point, structure) -> None:
         name = self._name(point)
@@ -304,6 +385,7 @@ class _Files:
                 point.branch,
                 "" if not point.finished else f"{point.energy:.10g}",
                 str(bool(point.converged)), point.steps,
+                point.pre_steps,
                 "" if not point.finished else f"{point.max_force:.6g}",
                 *(f"{v:.6f}" for v in point.parameters),
                 name])
@@ -321,13 +403,32 @@ class _Files:
             site.frac = row
         out.set_lattice(Lattice(point.matrix))
         path = self.job.file(name)
-        FORMATS.write(out, path)
+        # With the bonds the scan held, not only the ones the user
+        # drew: opened on its own, a stretched point would otherwise
+        # be perceived again at the stretched geometry, and the
+        # crystal behind a cell of the landscape would not be the
+        # molecule its energy was scored over.
+        FORMATS.write(out, path, perception=True)
         self.artifacts.append(path)
         return str(path)
 
     def _name(self, point) -> str:
         index = "-".join(f"{i:02d}" for i in point.index)
         return f"{point.branch}-{index}.cif"
+
+    def keep(self, report) -> None:
+        """Write the report beside the points, to be opened again.
+
+        Double-clicking it in the workspace puts the landscape back in
+        the Results panel -- after the panel was closed, or the
+        application was, which for an overnight run is the usual
+        case rather than the odd one.
+        """
+        if self.job.folder is None:
+            return
+        path = self.job.file(REPORT_NAME)
+        save_report(report, path)
+        self.artifacts.insert(0, path)
 
     def close(self) -> None:
         if self._csv is not None:
@@ -340,13 +441,13 @@ class _Files:
 #  WHAT COMES BACK
 # ======================================================================
 
-def _report(plan, result, engine, paths=None, settings=None
-            ) -> Report:
+def _report(plan, result, engine, paths=None, settings=None,
+            pre_said="") -> Report:
     blocks: list = [_table(plan, result)]
     if len(plan.axes) == 2:
         blocks.append(_surface(plan, result, paths or {}))
     else:
-        blocks.extend(_curves(plan, result))
+        blocks.extend(_curves(plan, result, paths))
     return Report(
         title="Relaxed scan",
         blocks=tuple(blocks),
@@ -355,10 +456,14 @@ def _report(plan, result, engine, paths=None, settings=None
         # same paragraph twice reads as a mistake.
         note=(f"Energies from "
               f"{_engine_said(engine, settings or {})}, in kcal/mol "
-              f"for the whole cell.  This is a landscape at zero "
-              f"kelvin: it is an energy, not a free energy, and for "
-              f"a flexible framework the two can order the phases "
-              f"differently."))
+              f"for the whole cell"
+              + (f"; each point was first pre-relaxed with "
+                 f"{pre_said}, whose energies are not shown"
+                 if pre_said else "")
+              + ".  This is a landscape at zero "
+              "kelvin: it is an energy, not a free energy, and for "
+              "a flexible framework the two can order the phases "
+              "differently."))
 
 
 def _table(plan, result) -> Table:
@@ -465,32 +570,38 @@ def _axis_label(axis) -> str:
     return f"{axis.label} ({axis.units})" if axis.units else axis.label
 
 
-def _curves(plan, result) -> list[Curve]:
+def _curves(plan, result, paths=None) -> list[Curve]:
     axis = plan.axes[0]
     lowest = result.minimum()
     base = lowest.energy if lowest is not None else 0.0
-    forward = sorted(result.branch(plan.directions[0]),
-                     key=lambda p: p.targets[0])
+    paths = paths or {}
+    branches = [sorted(result.branch(name), key=lambda p: p.targets[0])
+                for name in plan.directions]
+    forward = branches[0]
     if not forward:
         return []
     x = np.array([p.targets[0] for p in forward])
     y = np.array([p.energy - base for p in forward])
-    series = []
-    for name in plan.directions[1:]:
-        other = sorted(result.branch(name),
-                       key=lambda p: p.targets[0])
-        series.append((name, np.array(
-            [p.energy - base for p in other])))
+    series = tuple(
+        (name, np.array([p.energy - base for p in points]))
+        for name, points in zip(plan.directions[1:], branches[1:],
+                                strict=True))
     out = [Curve(title="Energy profile", x=x, y=y,
                  x_label=_axis_label(axis),
                  y_label="E - E(min) (kcal/mol)",
-                 series=tuple(series), note=plan.describe())]
+                 series=series, note=plan.describe(),
+                 normalised=False,
+                 paths=tuple(
+                     tuple(paths.get((p.branch, p.index), "")
+                           for p in points)
+                     for points in branches))]
     pressure = result.pressure(plan.directions[0])
     if pressure is not None:
         volume, values = pressure
         out.append(Curve(
             title="Pressure", x=volume, y=values,
             x_label="volume (A^3)", y_label="P = -dE/dV (GPa)",
+            normalised=False,
             note="Where this rises with volume the cell is not "
                  "mechanically stable, which is where a breathing "
                  "framework's hysteresis comes from."))

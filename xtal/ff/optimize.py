@@ -394,13 +394,26 @@ class SymmetryDOF:
 
     def _projectors(self, ops) -> np.ndarray:
         """One (3,3) projector per site: what its site symmetry lets it
-        do."""
+        do.
+
+        "Maps the site onto itself" is decided by
+        :data:`xtal.core.p1.SPECIAL_POSITION_TOL`, the rule the
+        expansion uses, and not by rounding slack.  MFU-4l writes its
+        chloride 0.0006 A off the three-fold axis; the expansion puts
+        it on the axis and so did the cell, but a stabiliser taken to
+        1e-6 left it only the mirror.  The energy's gradient is
+        symmetric and never noticed, but a held Cl-Cl distance is one
+        pair's gradient and is not: it walked the chloride off the
+        axis, and past 0.05 A the cell had three times the chlorides.
+        """
         out = np.zeros((self.n_sites, 3, 3))
+        tol = p1.SPECIAL_POSITION_TOL
         for index, site in enumerate(self.structure.sites):
             stabiliser = []
             for op in ops:
                 shift = op.apply(site.frac) - site.frac
-                if np.allclose(shift, np.round(shift), atol=1e-6):
+                shift = (shift - np.round(shift)) @ self.matrix
+                if float(np.linalg.norm(shift)) < tol:
                     stabiliser.append(
                         self.inverse @ op.rot.T @ self.matrix)
             out[index] = (np.mean(stabiliser, axis=0) if stabiliser

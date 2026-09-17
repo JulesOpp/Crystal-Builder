@@ -189,7 +189,6 @@ class DocumentSet:
         if entry is not None:
             document.attach_workspace(entry)
             self.window.refresh_workspace()
-            self.window.file_dock.tree.select_path(entry.path)
         return document
 
     def open_dialog(self) -> None:

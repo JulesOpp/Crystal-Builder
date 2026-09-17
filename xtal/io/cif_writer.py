@@ -58,21 +58,26 @@ def _quote(value: str) -> str:
 
 
 def write_cif(structure: Structure, path, expand_to_p1: bool = False,
-              title: str | None = None) -> Path:
+              title: str | None = None,
+              perception: bool = False) -> Path:
     """Write ``structure`` to ``path``.
 
     ``expand_to_p1`` writes every atom of the cell in P1 instead of the
     asymmetric unit plus its symmetry -- useful for programs that do
-    not apply symmetry operations themselves.
+    not apply symmetry operations themselves.  ``perception`` writes
+    the stored distance-perceived graph as well; see
+    :func:`_perception_loop`.
     """
     path = Path(path)
     path.write_text(cif_string(structure, expand_to_p1=expand_to_p1,
-                               title=title or path.stem))
+                               title=title or path.stem,
+                               perception=perception))
     return path
 
 
 def cif_string(structure: Structure, expand_to_p1: bool = False,
-               title: str | None = None) -> str:
+               title: str | None = None,
+               perception: bool = False) -> str:
     """The CIF text for a structure (what the clipboard gets too)."""
     from xtal.core.symmetry import reduce_to_p1
 
@@ -136,6 +141,8 @@ def cif_string(structure: Structure, expand_to_p1: bool = False,
 
     lines += _aniso_loop(labelled)
     lines += _bond_loop(labelled)
+    if perception and not expand_to_p1:
+        lines += _perception_loop(source)
     lines.append("")
     return "\n".join(lines)
 
@@ -184,6 +191,61 @@ def _bond_loop(structure) -> list[str]:
             f"{'?' if distance is None else format(distance, '.4f'):>8s}"
             f"  {image:<10s} {bond.order:6.3f} "
             f"{bond.kind:<12s} {'yes' if bond.stated else 'no'}")
+    return lines
+
+
+#: The loop holding a stored perception, one P1 bond a row.
+PERCEIVED_TAGS = ("_xtal_perceived_bond_atom_1",
+                  "_xtal_perceived_bond_atom_2",
+                  "_xtal_perceived_bond_image",
+                  "_xtal_perceived_bond_distance")
+#: How many atoms the cell those rows index had.
+PERCEIVED_COUNT = "_xtal_perceived_cell_atoms"
+
+
+def _perception_loop(structure) -> list[str]:
+    """The distance-perceived graph, as it is stored, P1 bond by bond.
+
+    For a file whose geometry is not the one its bonds were perceived
+    at -- a point of a relaxed scan, whose cell is 15% wider than the
+    crystal the scan held the bonding of.  Without this the file holds
+    only the bonds the user drew, and opening it perceives afresh at
+    the stretched geometry: MIL-53 loses 24 of its 126 bonds at +15%
+    on *a*, and the structure behind a cell of the landscape is not
+    the molecule the landscape was scored over.
+
+    Written against the coordinates *as printed*, six decimals, since
+    that is the cell the reader will expand: an atom a rounding place
+    inside a face is outside it once read back, and every image it is
+    in moves by one.  Nothing when there is no stored graph -- this
+    records an answer, it does not compute one.
+    """
+    from xtal.core import bonding, p1
+
+    if structure.perceived is None:
+        return []
+    cell = p1.expand(structure)
+    bonds = bonding.perceive(structure, include_explicit=False)
+    printed = structure.copy()
+    for site in printed.sites:
+        site.frac = [float(f"{v:.6f}") for v in site.frac]
+    read_back = p1.expand(printed)
+    if read_back.elements != cell.elements:
+        return []                               # pragma: no cover
+    bonds = bonding.rebase(bonds, cell.tau, read_back.tau)
+    lines = ["", f"{PERCEIVED_COUNT} {read_back.n_atoms}",
+             "", "loop_", *PERCEIVED_TAGS]
+    # The length now, not the one stored: the graph was perceived at
+    # some other geometry, and the reader checks each bond against
+    # the cell it has in front of it.
+    matrix = printed.lattice.matrix
+    for bond in bonds:
+        image = ",".join(str(int(t)) for t in bond.image)
+        length = np.linalg.norm(
+            (read_back.frac[bond.j] + np.asarray(bond.image)
+             - read_back.frac[bond.i]) @ matrix)
+        lines.append(f"{bond.i:6d} {bond.j:6d} {image:<10s} "
+                     f"{length:.4f}")
     return lines
 
 

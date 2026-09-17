@@ -296,6 +296,7 @@ def test_what_each_file_is_is_not_its_extension(entry):
     assert classify(entry.path / "MFU4l.cif") == "structure"
     assert classify(entry.path / "trajectory.extxyz") == "trajectory"
     assert classify(entry.path / "MFU4l.xtalproj") == "project"
+    assert classify(entry.path / "report.json") == "report"
     assert classify(entry.path / "notes.txt") == "file"
 
 

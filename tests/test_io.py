@@ -272,6 +272,68 @@ Na1 Na1    1_655 explicit
     assert [(b.i, b.j, b.image) for b in kept] == [(0, 0, (1, 0, 0))]
 
 
+def _stretched_mil53():
+    from xtal.core import bonding
+
+    mil53 = read_cif("resources/samples/MIL53.cif")
+    held = len(bonding.perceive(mil53))
+    parameters = list(mil53.lattice.parameters)
+    parameters[0] *= 1.15
+    mil53.set_lattice(Lattice.from_parameters(
+        *mil53.space_group.cell_constraint.apply(parameters)))
+    return mil53, held
+
+
+def test_a_stored_perception_can_be_written_and_read_back(tmp_path):
+    """A scan point's cell is wider than the one its bonds were
+    perceived at.  Written without them, MIL-53 at +15% on *a* opens
+    with 24 of its 126 bonds gone."""
+    from xtal.core import bonding
+
+    mil53, held = _stretched_mil53()
+    assert len(bonding.perceive(mil53)) == held
+    kept = read_cif(write_cif(mil53, tmp_path / "kept.cif",
+                              perception=True))
+    plain = read_cif(write_cif(mil53, tmp_path / "plain.cif"))
+    assert len(bonding.perceive(kept)) == held
+    assert len(bonding.perceive(plain)) < held
+
+
+def test_a_perception_is_not_written_unless_asked_for(tmp_path):
+    """Every other CIF this program writes is unchanged by it."""
+    from xtal.core import bonding
+
+    mil53, _held = _stretched_mil53()
+    bonding.perceive(mil53)
+    assert "_xtal_perceived" not in cif_string(mil53)
+
+
+def test_a_read_perception_is_still_replaced_by_recalculating(tmp_path):
+    """It is the answer perception gave, not a new rule about bonds:
+    Recalculate Bonds still perceives at the geometry in front of it."""
+    from xtal.core import bonding
+
+    mil53, held = _stretched_mil53()
+    kept = read_cif(write_cif(mil53, tmp_path / "kept.cif",
+                              perception=True))
+    kept.clear_perceived()
+    assert len(bonding.perceive(kept)) < held
+
+
+def test_a_perception_that_does_not_fit_the_atoms_is_ignored(tmp_path):
+    """A file edited by hand opens the old way, perceived afresh,
+    rather than bonded to atoms that are not the ones meant."""
+    mil53, _held = _stretched_mil53()
+    text = cif_string(mil53, perception=True)
+    lines = text.splitlines()
+    first = next(n for n, line in enumerate(lines)
+                 if line.startswith("_xtal_perceived_bond_distance"))
+    parts = lines[first + 1].split()
+    parts[-1] = "9.9999"
+    lines[first + 1] = " ".join(parts)
+    assert read_cif_string("\n".join(lines)).perceived is None
+
+
 # ------------------------------------------------- what leaves, clean
 
 def test_an_export_keeps_the_chemistry_and_drops_the_markup(rutile):

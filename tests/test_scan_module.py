@@ -67,12 +67,41 @@ def test_an_internal_coordinate_is_written_as_its_atoms(quartz):
     assert torsion.label == "torsion 0-1-2-3"
 
 
-def test_a_group_of_atoms_is_written_with_commas(quartz):
+def test_a_group_of_atoms_is_written_with_pluses(quartz):
     """Which is how "the centroid of these three" is said in one word
     on a command line and in a log."""
     cell = p1.expand(quartz)
-    distance = module.parse_axis(quartz, cell, "distance 0,1,2 3,4,5")
-    assert distance.label == "distance {0,1,2}-{3,4,5}"
+    distance = module.parse_axis(quartz, cell,
+                                 "distance 0+1+2, 3+4+5")
+    assert distance.label == "distance {0+1+2}-{3+4+5}"
+
+
+def test_a_comma_separates_two_atoms(quartz):
+    """"32, 33" is what a person writes for the two ends of a
+    distance, and what Add the selection writes."""
+    cell = p1.expand(quartz)
+    for spec in ("distance 0, 3", "distance 0,3", "distance 0 3"):
+        distance = module.parse_axis(quartz, cell, spec)
+        assert [a.atoms for a in distance.anchors] == [(0,), (3,)]
+
+
+def test_an_axis_written_in_the_first_grammar_still_reads(quartz):
+    """A log line printed before '+' existed is still something a
+    scan can be re-run from."""
+    cell = p1.expand(quartz)
+    plane = module.parse_axis(quartz, cell, "plane 0,1,2 3,4,5")
+    assert [a.atoms for a in plane.anchors] == [(0, 1, 2), (3, 4, 5)]
+    distance = module.parse_axis(quartz, cell, "distance 0,1,2 3")
+    assert [a.atoms for a in distance.anchors] == [(0, 1, 2), (3,)]
+
+
+def test_the_spelling_of_anchors_reads_back_as_them(quartz):
+    cell = p1.expand(quartz)
+    groups = [[0, 1, 2], [3]]
+    text = module.spell_anchors(groups)
+    assert text == "0+1+2, 3"
+    distance = module.parse_axis(quartz, cell, f"distance {text}")
+    assert [list(a.atoms) for a in distance.anchors] == groups
 
 
 def test_the_grammar_is_the_same_everywhere(quartz):
@@ -80,7 +109,7 @@ def test_the_grammar_is_the_same_everywhere(quartz):
     the log, so a scan can be re-run from the line it printed."""
     cell = p1.expand(quartz)
     for spec in ("a", "volume", "distance 0 3", "angle 0 1 2",
-                 "torsion 0 1 2 3", "plane 0,1,2 3,4,5"):
+                 "torsion 0, 1, 2, 3", "plane 0+1+2, 3+4+5"):
         assert module.parse_axis(quartz, cell, spec) is not None
 
 
@@ -368,6 +397,63 @@ def test_the_bonding_is_the_same_at_every_point(quartz):
     assert len(set(seen)) == 1
 
 
+def test_a_stretched_point_opens_with_the_bonds_the_scan_held(
+        tmp_path):
+    """Clicking a cell of the landscape opened a structure bonded
+    afresh at the stretched geometry, because the file held only the
+    bonds the user drew.  MIL-53 at +15% on *a* loses 24 of its 126
+    bonds that way, and the crystal on screen was not the molecule
+    the energy was scored over."""
+    from xtal.core import bonding
+    from xtal.io import FORMATS, read_cif
+
+    source = "resources/samples/MIL53.cif"
+    mil53 = read_cif(source)
+    held = {b.key() for b in bonding.perceive(mil53)}
+    entry = Workspace.create(tmp_path / "ws").add_structure(source)
+    folder = entry.next_run("scan", "scan")
+    a = mil53.lattice.parameters[0]
+    job = _job(mil53, folder, axis1="a", axis1_start=a * 1.15,
+               axis1_stop=a * 1.15, axis1_steps=1, max_steps=2)
+    result = module.run_scan(job)
+    point = next(p for p in result.artifacts if p.suffix == ".cif")
+    opened = FORMATS.read(point)
+    assert opened.perceived is not None     # from the file, not asked
+    assert {b.key() for b in bonding.perceive(opened)} == held
+
+
+def test_a_scan_leaves_a_report_that_opens_again(quartz, folder):
+    """Close the panel, or the application, and an overnight scan was
+    a folder of CSV with no way back to its landscape."""
+    from xtal.modules.report import REPORT_NAME, load
+
+    result = module.run_scan(_cell_scan(quartz, folder, max_steps=3))
+    path = folder.path / REPORT_NAME
+    assert path in result.artifacts
+    again = load(path)
+    (surface,) = again.surfaces
+    (shown,) = result.report.surfaces
+    np.testing.assert_allclose(surface.z, shown.z)
+    assert surface.paths == shown.paths
+    assert again.tables[0].rows == result.report.tables[0].rows
+
+
+def test_a_distance_the_group_holds_is_refused_before_any_point(
+        halite):
+    """Every Na-Cl distance in Fm-3m is fixed by the group.  Refused
+    once, up front, where the dialog can say so -- not as a grid of
+    holes each carrying the same message."""
+    from xtal.ff.scan import ScanError, plan
+
+    cell = p1.expand(halite)
+    axis = module.axes_from(_job(halite, axis1="distance 0, 4",
+                                 axis1_start=2.5, axis1_stop=3.0),
+                            halite)
+    assert cell.elements[0] != cell.elements[4]
+    with pytest.raises(ScanError, match="space group"):
+        plan(halite, axis)
+
+
 def test_a_bond_set_by_hand_survives_the_whole_scan(quartz):
     """Explicit bonds ride on top of the held perception, which is
     how a bond type set before the scan is still set at the last
@@ -441,6 +527,74 @@ def test_the_default_optimiser_is_smart_at_five_hundred_steps():
     defaults = dict(action.defaults())
     assert defaults["method"] == "smart"
     assert defaults["max_steps"] == 500
+
+
+def test_a_scan_pre_relaxes_with_the_engine_it_was_given(quartz):
+    """UFF ahead of MACE is two engines with two sets of options, and
+    the cheap one's must not be taken from the main one's."""
+    seen = []
+    real = ENGINES.build
+
+    def spy(name, structure, **options):
+        seen.append(options["parameter_set"])
+        return real(name, structure, **options)
+
+    a, _b, _c = quartz.lattice.parameters[:3]
+    ENGINES.build = spy
+    try:
+        module.run_scan(_job(
+            quartz, axis1="a", axis1_start=a, axis1_stop=a * 1.02,
+            axis1_steps=2, max_steps=3,
+            engine_options={"parameter_set": "uff"},
+            pre_engine="uff", pre_max_steps=3,
+            pre_engine_options={"parameter_set": "uff4mof"}))
+    finally:
+        ENGINES.build = real
+    assert seen == ["uff4mof", "uff"] * 2
+
+
+def test_a_scan_is_not_pre_relaxed_unless_asked(quartz):
+    """An overnight job does not grow a second engine by default."""
+    _module_found, action = MODULES.find("scan.run")
+    assert dict(action.defaults())["pre_engine"] == ""
+    assert module._prerelax(_job(quartz)) == (None, "")
+
+
+def test_the_report_says_what_pre_relaxed_it(quartz):
+    """Two engines touched every point, and a reader has to know
+    which one the energies are from."""
+    result = module.run_scan(_cell_scan(
+        quartz, max_steps=3, pre_engine="uff", pre_max_steps=3,
+        pre_engine_options={"parameter_set": "uff"}))
+    assert "pre-relaxed with UFF (uff) for up to 3 steps" \
+        in result.report.note
+
+
+def test_the_csv_counts_the_pre_relaxation_steps(quartz, folder):
+    import csv as _csv
+    module.run_scan(_cell_scan(quartz, folder, max_steps=3,
+                               pre_engine="uff", pre_max_steps=2))
+    rows = list(_csv.DictReader(
+        (folder.path / "scan.csv").open(encoding="utf-8")))
+    assert rows and all(
+        0 < int(r["pre-relaxation steps"]) <= 2 for r in rows)
+
+
+def test_a_skipped_pre_relaxation_is_said_in_the_log(quartz):
+    """A finished point's line shows no message of its own, so a
+    shortcut not taken would otherwise go unmentioned all night."""
+    from xtal.ff import scan as driver
+    a = quartz.lattice.parameters[0]
+    plan = driver.plan(quartz, [driver.Axis.over(
+        module.parse_axis(quartz, p1.expand(quartz), "a"), a, a, 1)])
+    point = driver.ScanPoint(
+        index=(0,), targets=(a,), achieved=(a,), energy=-1.0,
+        converged=True, steps=3, max_force=0.0,
+        frac=quartz.frac, matrix=quartz.lattice.matrix,
+        parameters=tuple(quartz.lattice.parameters),
+        pre_skipped="no parameters for Xe")
+    assert "pre-relaxation skipped: no parameters for Xe" in \
+        module._said(plan, point, 1)
 
 
 def test_the_scan_is_registered_as_a_module():

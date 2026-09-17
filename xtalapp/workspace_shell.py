@@ -90,8 +90,8 @@ class WorkspaceShell:
         # workspace -- and one the workspace cannot remember, because
         # what it remembers is paths inside itself.
         document.adopt(entry.path / path.name)
+        # The refresh selects the file itself, which is what the tab is.
         self.refresh_workspace()
-        self.window.file_dock.tree.select_path(entry.path)
 
     def _offer_workspace(self, path) -> Workspace | None:
         """What to do for a structure opened with no workspace open.
@@ -280,6 +280,13 @@ class WorkspaceShell:
     def refresh_workspace(self) -> None:
         self.window.file_dock.set_workspace(
             self.workspace, self.window.settings.recent_workspaces())
+        self.show_open_document()
+
+    def show_open_document(self) -> None:
+        """Mark the current tab's file in the tree."""
+        document = self.window.current_document()
+        self.window.file_dock.tree.set_open_path(
+            document.path if document is not None else None)
 
     def open_workspace_dialog(self) -> None:
         chosen = ask_for_existing(self.window, self.window.settings)
@@ -348,5 +355,29 @@ class WorkspaceShell:
                     QUrl.fromLocalFile(str(target))):
                 self.window.show_message(                  # pragma: no cover
                     f"could not open {target.name}")
+        elif kind == "report":
+            self.open_report(target)
         elif kind in ("structure", "final", "project", "file"):
             self.window.open_path(target)
+
+    def open_report(self, target: Path) -> None:
+        """Put a run's saved report back in the Results panel.
+
+        Headed by the run it came from, which is what the panel says
+        after a run finishes too -- a landscape with no name on it is
+        one nobody can tell from the next.
+        """
+        from xtal.modules.report import load
+        from xtal.workspace import Run
+
+        try:
+            report = load(target)
+        except ValueError as error:
+            self.window.show_message(str(error))
+            return
+        run = Run.at(target.parent)
+        dock = self.window.results_dock
+        title = run.label if run else target.parent.name
+        dock.show_report(report, title)
+        dock.show()
+        dock.raise_()

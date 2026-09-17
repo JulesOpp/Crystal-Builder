@@ -33,8 +33,11 @@ which is the same rule the parameter registry was built under.
 from __future__ import annotations
 
 import csv
+import dataclasses
 import io
+import json
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import numpy as np
 
@@ -285,6 +288,16 @@ class Curve:
     #: Combs under the trace: ``(label, positions)``.
     tick_sets: tuple[tuple[str, np.ndarray], ...] = ()
     note: str = ""
+    #: Whether each trace is drawn against its own maximum.  Right for
+    #: a pattern, whose calculated and measured traces are in units
+    #: that cannot share an axis; wrong for an energy, where the
+    #: number *is* the answer and a profile below zero has no maximum
+    #: to scale to.
+    normalised: bool = True
+    #: A file per point, one row per trace in :meth:`all_series`
+    #: order, ``""`` where there is none.  What makes a scan's profile
+    #: clickable, for the reason :class:`Surface` gives.
+    paths: tuple[tuple[str, ...], ...] = ()
 
     @property
     def n_points(self) -> int:
@@ -303,6 +316,13 @@ class Curve:
         """
         first = [(self.y_label or self.title or "y", self.y)]
         return first + [(label, values) for label, values in self.series]
+
+    def path_at(self, series: int, index: int) -> str:
+        """The file behind one point of one trace, or ``""``."""
+        if series < 0 or index < 0 or series >= len(self.paths):
+            return ""
+        line = self.paths[series]
+        return line[index] if index < len(line) else ""
 
     def as_text(self, rows: int = 20, width: int = 44) -> str:
         """The trace as characters, for a log and for a CLI.
@@ -726,3 +746,116 @@ class Report:
         if self.note:
             parts.append(self.note)
         return "\n\n".join(p for p in parts if p)
+
+
+# ======================================================================
+#  ON DISK
+# ======================================================================
+
+#: What a run folder calls the report it can be reopened from.
+REPORT_NAME = "report.json"
+
+_BLOCKS = {cls.__name__: cls for cls in
+           (Row, Table, Histogram, Curve, Bands, Dos, Modes, Zone,
+            Surface, Report)}
+
+
+def save(report: Report, path) -> Path:
+    """Write ``report`` where :func:`load` can put it back on screen.
+
+    A report is presentation, but a scan's is also the only place the
+    landscape exists as a picture somebody can click through: close
+    the panel, or the application, and an overnight run was a folder
+    of CSV and CIFs with no way back to it.  So a module whose report
+    is worth reopening writes it into its run folder.  Not every
+    module does -- a block of vibrational modes of MFU-4l is tens of
+    megabytes of numbers already on disk in their own format.
+
+    The files a surface or a profile points at are written relative
+    to the folder, so a workspace that has been moved still opens
+    them.
+    """
+    path = Path(path)
+    folder = path.parent.resolve()
+    blocks = tuple(_relative(block, folder) for block in report.blocks)
+    encoded = _encode(dataclasses.replace(report, blocks=blocks))
+    path.write_text(json.dumps({"version": 1, "report": encoded}),
+                    encoding="utf-8")
+    return path
+
+
+def load(path) -> Report:
+    """A report written by :func:`save`.
+
+    Raises ``ValueError`` for a file that is not one, which is the
+    only failure a caller has to say anything about.
+    """
+    path = Path(path)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        report = _decode(data["report"])
+    except (OSError, KeyError, TypeError, json.JSONDecodeError) as error:
+        raise ValueError(
+            f"{path.name} is not a report this program wrote: "
+            f"{error}") from error
+    if not isinstance(report, Report):
+        raise ValueError(f"{path.name} does not hold a report")
+    folder = path.parent.resolve()
+    return dataclasses.replace(report, blocks=tuple(
+        _absolute(block, folder) for block in report.blocks))
+
+
+def _relative(block, folder: Path):
+    if not isinstance(block, Surface | Curve):
+        return block
+
+    def inside(text):
+        if not text:
+            return text
+        try:
+            return Path(text).resolve().relative_to(folder).as_posix()
+        except ValueError:
+            return text
+    return dataclasses.replace(block, paths=tuple(
+        tuple(inside(p) for p in row) for row in block.paths))
+
+
+def _absolute(block, folder: Path):
+    if not isinstance(block, Surface | Curve):
+        return block
+    return dataclasses.replace(block, paths=tuple(
+        tuple(str(folder / p) if p and not Path(p).is_absolute()
+              else p for p in row) for row in block.paths))
+
+
+def _encode(value):
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        return {"block": type(value).__name__,
+                "fields": {f.name: _encode(getattr(value, f.name))
+                           for f in dataclasses.fields(value)}}
+    if isinstance(value, np.ndarray):
+        return {"array": value.tolist(), "dtype": str(value.dtype)}
+    if isinstance(value, tuple):
+        return {"tuple": [_encode(v) for v in value]}
+    if isinstance(value, list):
+        return [_encode(v) for v in value]
+    if isinstance(value, np.generic):
+        return value.item()
+    return value
+
+
+def _decode(value):
+    if isinstance(value, list):
+        return [_decode(v) for v in value]
+    if not isinstance(value, dict):
+        return value
+    if "array" in value:
+        return np.array(value["array"], dtype=value.get("dtype"))
+    if "tuple" in value:
+        return tuple(_decode(v) for v in value["tuple"])
+    cls = _BLOCKS.get(value.get("block"))
+    if cls is None:
+        raise TypeError(f"unknown block {value.get('block')!r}")
+    known = {f.name for f in dataclasses.fields(cls)}
+    return cls(**{name: _decode(v) for name, v
+                  in value.get("fields", {}).items() if name in known})
