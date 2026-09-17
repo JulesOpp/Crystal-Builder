@@ -4,6 +4,14 @@ Build, manipulate, analyse and export crystal structures. Read and
 write CIF, edit symmetry and bonding, run a force field, DFTB+ or
 Zeo++ on the result.
 
+## Fixed in 0.2.1
+
+- **The Mac downloads of 0.2.0 did not open on macOS 13 or older.**
+  They were built with numpy, scipy and (on Intel) spglib compiled for
+  macOS 14 and 15, and quit before showing a window. 0.2.1 is built
+  for the macOS it says it needs, and the build now refuses to package
+  anything newer.
+
 ## New since 0.1.0
 
 - **Relaxed energy scans** over any coordinate, lattice parameter or
@@ -33,6 +41,8 @@ Zeo++ on the result.
 | A Mac with Apple silicon (M1 and later) | `Crystal-Builder-<version>-arm64.dmg` |
 | A Mac with an Intel processor | `Crystal-Builder-<version>-x86_64.dmg` |
 | Windows, 64-bit | `Crystal-Builder-<version>-setup.exe` |
+
+The Mac builds need **macOS 12.3 (Monterey) or later**.
 
 There is no universal Mac build, and that is not an oversight: VTK
 publishes no universal2 wheel, so the two have to be built separately.
