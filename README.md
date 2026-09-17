@@ -1,21 +1,9 @@
 # Crystal Builder
 
 A desktop application for building, manipulating, analysing and
-exporting crystal structures.  The visual and interaction model follows
-**VESTA**; the symmetry and force-field capability follows **Materials
+exporting crystal structures.  The visual and interaction model take some inspiration
+from **VESTA**; the symmetry and force-field capability take inspiration from **Materials
 Studio**.  Python throughout, shipped to macOS and Windows.
-
-Status: **phase 7 complete** — the core, the headless CLI, and an
-application you can build structures in: click to place atoms and draw
-bonds, move and rotate the selection, copy and paste, find the symmetry
-at a tolerance you choose, change the space group, build supercells and
-edit the cell, draw coordination polyhedra, measure distances, angles,
-torsions and the angle between least-squares planes, set a bond's type
-by hand, save the whole session as a project, and now put a
-**UFF** energy on a structure and relax it without leaving its space
-group.  Next up is packaging.  See [docs/PLAN.md](docs/PLAN.md) for the
-full architecture and roadmap, and [docs/TODO.md](docs/TODO.md) for
-what is wanted but not yet scheduled.
 
 ---
 
