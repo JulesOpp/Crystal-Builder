@@ -83,8 +83,9 @@ def invoke(job, directory: Path, structure, text: str,
     """Write ``geo.gen`` and ``dftb_in.hsd`` into ``directory`` and run
     DFTB+ there.  Raises :class:`RunFailed` when it did not finish."""
     directory.mkdir(parents=True, exist_ok=True)
-    (directory / GEOMETRY_NAME).write_text(gen_string(structure))
-    (directory / INPUT_NAME).write_text(text)
+    (directory / GEOMETRY_NAME).write_text(gen_string(structure),
+                                           encoding="utf-8")
+    (directory / INPUT_NAME).write_text(text, encoding="utf-8")
     process = ExternalProcess([PROGRAM.name], cwd=directory,
                               log=job.log, on_line=on_line)
     result = process.run(cancel=job.cancel, program=PROGRAM)
@@ -101,7 +102,7 @@ def read(directory: Path, name: str) -> str:
     if not path.is_file():
         raise RunFailed(JobResult.failure(
             f"DFTB+ finished without writing {name}"))
-    return path.read_text()
+    return path.read_text(encoding="utf-8", errors="replace")
 
 
 def guarded(run):

@@ -73,7 +73,8 @@ def charges(job) -> JobResult:
             "# atom  element  site  charge(e)\n" + "".join(
                 f"{k + 1:6d}  {cell.elements[k]:<3s}  "
                 f"{structure.sites[int(cell.site_idx[k])].label:<8s}  "
-                f"{values[k]: .5f}\n" for k in range(cell.n_atoms)))
+                f"{values[k]: .5f}\n" for k in range(cell.n_atoms)),
+            encoding="utf-8")
 
     table = _site_table(structure, cell, values)
     overlay = overlays.AtomCharges(np.asarray(values, float))
@@ -176,7 +177,7 @@ def orbital(job) -> JobResult:
                        float(job.param("resolution",
                                        DEFAULT_RESOLUTION)))
         (directory / WAVEPLOT_INPUT).write_text(waveplot_input(
-            level, kpoint, spin, points, basis))
+            level, kpoint, spin, points, basis), encoding="utf-8")
         job.say(f"state {level} on a "
                 f"{'x'.join(str(n) for n in points)} grid")
         process = ExternalProcess([WAVEPLOT.name], cwd=directory,
@@ -252,7 +253,8 @@ def _energy(directory, kpoint, spin, level) -> float | None:
     path = directory / "band.out"
     if not path.is_file():
         return None
-    bands = outputs.read_bands(path.read_text())
+    bands = outputs.read_bands(path.read_text(
+        encoding="utf-8", errors="replace"))
     try:
         return float(bands.energies[spin - 1, kpoint - 1, level - 1])
     except IndexError:

@@ -85,7 +85,8 @@ def vibrational_modes(job) -> JobResult:
                 delta=float(job.param("delta", 1e-4)), moved=moved),
             analysis=hsd.Analysis(forces=False)))
         common.read(directory, "hessian.out")
-        (directory / MODES_INPUT).write_text(modes_input(moved))
+        (directory / MODES_INPUT).write_text(modes_input(moved),
+                                             encoding="utf-8")
         process = ExternalProcess([MODES.name], cwd=directory,
                                   log=job.log)
         result = process.run(cancel=job.cancel, program=MODES)

@@ -88,7 +88,8 @@ def projected(directory, symbols, fermi: float, sigma: float,
                 name = SHELLS[shell - 1] if shell <= len(SHELLS) \
                     else str(shell)
                 states.append((f"{symbol} {name}",
-                               *outputs.read_dos(path.read_text())))
+                               *outputs.read_dos(path.read_text(
+                                   encoding="utf-8", errors="replace"))))
         else:
             path = directory / f"{label}.out"
             states.append((symbol, *outputs.read_dos(

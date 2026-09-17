@@ -256,7 +256,7 @@ def read_building_block(path) -> BuildingBlock:
     whichever example they found.
     """
     path = Path(path)
-    lines = path.read_text().splitlines()
+    lines = path.read_text(encoding="utf-8").splitlines()
     if not lines:
         raise CatalogError(f"{path.name} is empty")
     try:
@@ -453,7 +453,7 @@ class Topology:
 
 
 def _entry_of(path: Path) -> CgdEntry:
-    read = read_cgd_string(Path(path).read_text())
+    read = read_cgd_string(Path(path).read_text(encoding="utf-8"))
     if not read.entries:
         raise CgdError(read.problems[0] if read.problems
                        else f"{Path(path).name} holds no net")
@@ -477,7 +477,7 @@ def read_topology(path) -> Topology:
 def _header(path: Path) -> tuple[str, str, tuple[int, ...]]:
     name = group = ""
     coordinations: list[int] = []
-    for raw in path.read_text().splitlines():
+    for raw in path.read_text(encoding="utf-8").splitlines():
         line = raw.split("#")[0].strip()
         if not line:
             continue

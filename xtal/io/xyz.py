@@ -34,7 +34,7 @@ _LATTICE_RE = re.compile(r'Lattice\s*=\s*"([^"]*)"')
 
 def write_xyz(structure: Structure, path, comment: str = "") -> Path:
     path = Path(path)
-    path.write_text(xyz_string(structure, comment))
+    path.write_text(xyz_string(structure, comment), encoding="utf-8")
     return path
 
 
@@ -57,7 +57,8 @@ def xyz_string(structure: Structure, comment: str = "") -> str:
 
 
 def read_xyz(path) -> Structure:
-    return read_xyz_string(Path(path).read_text(), name=str(path))
+    return read_xyz_string(Path(path).read_text(encoding="utf-8"),
+                           name=str(path))
 
 
 def read_xyz_all(path) -> list[Structure]:
@@ -74,7 +75,8 @@ def read_xyz_all(path) -> list[Structure]:
 
     path = Path(path)
     out = []
-    for index, frame in enumerate(read_frames(path.read_text())):
+    frames = read_frames(path.read_text(encoding="utf-8"))
+    for index, frame in enumerate(frames):
         if frame.lattice is not None:
             structure = frame.to_structure()
         else:

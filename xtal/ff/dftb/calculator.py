@@ -332,10 +332,12 @@ class DFTBCalculator(Calculator):
                    in zip(self.symbols, frac, strict=True)],
             space_group=SpaceGroup.p1())
 
-        (self.directory / GEOMETRY_NAME).write_text(gen_string(moved))
+        (self.directory / GEOMETRY_NAME).write_text(gen_string(moved),
+                                                    encoding="utf-8")
         (self.directory / INPUT_NAME).write_text(hsd.hsd_string(
             self.symbols, self.options, GEOMETRY_NAME,
-            read_charges=self._have_charges, k_points=self.k_points))
+            read_charges=self._have_charges, k_points=self.k_points),
+            encoding="utf-8")
         result = self._launch()
         energy, forces = self._read(result)
         self._have_charges = self.options.method != "non-scc"
@@ -362,7 +364,7 @@ class DFTBCalculator(Calculator):
             raise CalculatorError(
                 f"DFTB+ exited without writing {OUTPUT_NAME}.  Its "
                 f"own output is in {self.directory / LOG_NAME}.")
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8", errors="replace")
         energy = parse_energy(text)
         if energy is None:
             raise CalculatorError(
@@ -436,7 +438,7 @@ class _Log:
 
     def __init__(self, path):
         self.path = Path(path)
-        self._handle = self.path.open("w")
+        self._handle = self.path.open("w", encoding="utf-8")
 
     def write(self, text: str) -> None:
         self._handle.write(f"{text}\n")

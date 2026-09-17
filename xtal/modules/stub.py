@@ -134,7 +134,7 @@ def _write_output(job, steps: int):
         return None
     path = job.file(OUTPUT_NAME)
     path.write_text("\n".join(f"{n}" for n in range(1, steps + 1))
-                    + "\n")
+                    + "\n", encoding="utf-8")
     job.note(f"wrote {path.name}")
     return path
 

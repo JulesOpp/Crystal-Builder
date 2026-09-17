@@ -321,7 +321,8 @@ class Workspace:
         if not marker.exists():
             marker.write_text(json.dumps(
                 {"format": "crystal-builder-workspace",
-                 "version": FORMAT_VERSION}, indent=1) + "\n")
+                 "version": FORMAT_VERSION}, indent=1) + "\n",
+                encoding="utf-8")
         return cls(root)
 
     @classmethod
@@ -358,7 +359,7 @@ class Workspace:
     def version(self) -> int:
         try:
             data = json.loads(
-                (self.root / WORKSPACE_FILE).read_text())
+                (self.root / WORKSPACE_FILE).read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return 0
         return int(data.get("version", 0))
@@ -513,7 +514,8 @@ class Workspace:
         at.
         """
         try:
-            data = json.loads((self.root / WORKSPACE_FILE).read_text())
+            data = json.loads((self.root / WORKSPACE_FILE).read_text(
+                encoding="utf-8"))
             stored = data["session"]
             paths = [str(p) for p in stored["open"]]
             active = int(stored.get("active", 0))
@@ -553,7 +555,7 @@ class Workspace:
                 continue
         marker = self.root / WORKSPACE_FILE
         try:
-            data = json.loads(marker.read_text())
+            data = json.loads(marker.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             data = {}
         if not isinstance(data, dict):
@@ -563,7 +565,8 @@ class Workspace:
         data["session"] = {"open": relative,
                            "active": max(0, int(active))}
         try:
-            marker.write_text(json.dumps(data, indent=1) + "\n")
+            marker.write_text(json.dumps(data, indent=1) + "\n",
+                              encoding="utf-8")
         except OSError:
             pass
 

@@ -321,7 +321,8 @@ class XTBCalculator(Calculator):
                    in zip(self.symbols, frac, strict=True)],
             space_group=SpaceGroup.p1())
 
-        (self.directory / GEOMETRY_NAME).write_text(gen_string(moved))
+        (self.directory / GEOMETRY_NAME).write_text(gen_string(moved),
+                                                    encoding="utf-8")
         self._launch()
         energy, gradient = self._read()
         return Result(energy=energy * HARTREE,
@@ -370,7 +371,7 @@ def read_tblite_json(path, n_atoms: int):
             f"only does when the run itself failed.  Its own output "
             f"is in {path.parent / LOG_NAME}.")
     try:
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
     except ValueError as exc:
         raise CalculatorError(
             f"tblite wrote a {path.name} that is not JSON: {exc}"
@@ -406,7 +407,8 @@ def read_engrad(path, n_atoms: int):
             f"xtb exited without writing {path.name}.  Its own "
             f"output is in {path.parent / LOG_NAME}.")
     numbers = []
-    for line in path.read_text().splitlines():
+    text = path.read_text(encoding="utf-8", errors="replace")
+    for line in text.splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
             continue
@@ -501,7 +503,7 @@ class _Log:
 
     def __init__(self, path):
         self.path = Path(path)
-        self._handle = self.path.open("w")
+        self._handle = self.path.open("w", encoding="utf-8")
 
     def write(self, text: str) -> None:
         self._handle.write(f"{text}\n")

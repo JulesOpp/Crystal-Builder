@@ -215,7 +215,8 @@ def _write_radii(job, directory: Path) -> tuple[Path | None, str]:
               else elements.covalent_radius)
     symbols = sorted({site.element for site in job.structure.sites})
     path = directory / RADII_NAME
-    path.write_text("".join(f"{s} {radius(s):.3f}\n" for s in symbols))
+    path.write_text("".join(f"{s} {radius(s):.3f}\n" for s in symbols),
+                    encoding="utf-8")
     kind = "van der Waals" if source == "vdw" else "covalent"
     return path, (f"radii from this application's {kind} table, "
                   f"written to {path.name}")
@@ -374,14 +375,15 @@ def _read_network(job, directory: Path, channels, probe: float):
                  f"to draw -- the numbers above are unaffected")
         return None
     lattice = job.structure.lattice
-    frac, radii = porosity.parse_voro_nodes(nodes.read_text(), lattice)
+    frac, radii = porosity.parse_voro_nodes(
+        nodes.read_text(encoding="utf-8", errors="replace"), lattice)
     # The skeleton is optional in a way the nodes are not: without it
     # the largest pore is still drawn where it sits, which is most of
     # the answer.
     segments = {}
     if edges.is_file():
-        starts, ends = porosity.parse_voro_edges(edges.read_text(),
-                                                 lattice)
+        starts, ends = porosity.parse_voro_edges(
+            edges.read_text(encoding="utf-8", errors="replace"), lattice)
         segments = {"edge_starts": starts, "edge_ends": ends}
     network = porosity.PoreNetwork(
         nodes=frac, radii=radii, probe=float(probe),
@@ -404,7 +406,7 @@ def _read(path: Path, what: str) -> str:
         raise ValueError(
             f"Zeo++ finished without writing {path.name}, so there "
             f"is no {what} to read -- the log says why")
-    return path.read_text()
+    return path.read_text(encoding="utf-8", errors="replace")
 
 
 def _keep(directory: Path, job, *names) -> tuple:

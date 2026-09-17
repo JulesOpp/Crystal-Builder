@@ -158,7 +158,7 @@ class CgdFile:
 
 def read_cgd(path) -> CgdFile:
     """Every net in a ``.cgd`` file, in the order it appears."""
-    return read_cgd_string(Path(path).read_text())
+    return read_cgd_string(Path(path).read_text(encoding="utf-8"))
 
 
 def read_cgd_string(text: str) -> CgdFile:
@@ -293,7 +293,7 @@ PLACES = 6
 def write_cgd(path, entries) -> Path:
     """Write ``entries`` to ``path`` as ``.cgd``; returns the path."""
     path = Path(path)
-    path.write_text(write_cgd_string(entries))
+    path.write_text(write_cgd_string(entries), encoding="utf-8")
     return path
 
 

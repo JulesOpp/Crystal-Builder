@@ -193,5 +193,5 @@ def write_building_block(structure, path) -> Path:
     """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(block_string(structure))
+    path.write_text(block_string(structure), encoding="utf-8")
     return path

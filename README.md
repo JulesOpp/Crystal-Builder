@@ -93,39 +93,40 @@ PySide6 and VTK.
 
 ## Optional features
 
-Three features are gated on a package the core does not install.  Each
-greys its own menu entry out and names the extra, and
-*Preferences ▸ Engines* lists all three with what they power
-and what to type:
+Several features are gated on a package the core does not install.
+Each greys its own menu entry out and names the extra, and
+*Preferences ▸ Engines* lists them with what they power and what to
+type:
 
 | Extra | Package | What it buys |
 |---|---|---|
+| `ase` | ASE | The MOF builder: a framework from a net, a node and a linker. PORMAKE itself is vendored; ASE is what it is written over |
 | `build` | RDKit | *Insert molecule* — build from a SMILES string, and the fragment library |
 | `sketch` | rdeditor | Draw the molecule instead of typing it |
-| `mof` | PORMAKE | The MOF builder: a framework from a net, a node and a linker |
+| `pxrd` | matplotlib | The PXRD pattern window: zoom, overlay a measured pattern, vector export |
+| `mace` | mace-torch | The MACE engine in the Force Field panel. Brings PyTorch |
 
 ```bash
-pip install 'crystal-builder[gui,build,sketch]'
-pip install 'crystal-builder[gui,mof]'      # the MOF builder as well
+pip install 'crystal-builder[gui,ase,build,sketch,pxrd]'
+pip install 'crystal-builder[gui,mace]'     # MACE as well
 ```
 
-`mof` is its own line because it is not a small ask: `pip install
-pormake` pulls in 44 packages and about 889 MB — jax and pymatgen
-among them — against the four the core installs.  Net identification
-and the `.cgd` reader are this project's own and work without it.
+`mace` is its own line because it is not a small ask: PyTorch is
+gigabytes of wheel, against the four packages the core installs.
 
 ### In a packaged build
 
 A frozen `.app` or `.exe` has no environment to install into: the
 Python inside it is not on your PATH and has no pip.  So the build
-carries RDKit and rdeditor — both features work with nothing to do —
-and **does not carry PORMAKE**, which is larger than the rest of the
-application put together.
+carries everything above except MACE — the MOF builder, RDKit,
+rdeditor and matplotlib all work with nothing to do — and **does not
+carry PyTorch**, which is larger than the rest of the application put
+together.
 
-If you want the MOF builder, run Crystal Builder from Python:
+If you want MACE, run Crystal Builder from Python:
 
 ```bash
-pip install 'crystal-builder[gui,mof]'
+pip install 'crystal-builder[gui,mace]'
 crystal-builder
 ```
 
@@ -140,10 +141,10 @@ pip install --target "<that folder>" <package>
 ```
 
 makes a package importable inside the packaged build.  It works for a
-package that is pure Python.  It is **not** reliable for PORMAKE:
-those dependencies are compiled, they have to match the build's exact
-Python version and ABI, and their numpy would collide with the one
-already in the bundle.  The folder exists because it is the only way a
+package that is pure Python.  It is **not** reliable for MACE:
+PyTorch is compiled, has to match the build's exact Python version
+and ABI, and its numpy would collide with the one already in the
+bundle.  The folder exists because it is the only way a
 frozen build can be given a package at all — a plugin installed with
 pip registers an entry point that a bundle cannot see.
 

@@ -90,7 +90,8 @@ def relax(job) -> JobResult:
         reader.finish()
         final = read_gen_string(common.read(directory, "geo_end.gen"))
         converged = "Geometry converged" in \
-            (directory / "detailed.out").read_text() \
+            (directory / "detailed.out").read_text(
+                encoding="utf-8", errors="replace") \
             if (directory / "detailed.out").is_file() else False
 
     try:

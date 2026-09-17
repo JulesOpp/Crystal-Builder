@@ -49,7 +49,8 @@ _LINKS = " 0" * 8
 
 def write_cssr(structure: Structure, path, name: str = "") -> Path:
     path = Path(path)
-    path.write_text(cssr_string(structure, name or path.stem))
+    path.write_text(cssr_string(structure, name or path.stem),
+                    encoding="utf-8")
     return path
 
 
@@ -103,7 +104,8 @@ def _charges(structure: Structure, cell) -> np.ndarray:
 
 def read_cssr(path) -> Structure:
     path = Path(path)
-    structure = read_cssr_string(path.read_text(), name=path.stem)
+    structure = read_cssr_string(path.read_text(encoding="utf-8"),
+                                 name=path.stem)
     structure.meta.update({"source": str(path), "format": "cssr"})
     return structure
 

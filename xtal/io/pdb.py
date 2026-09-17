@@ -60,7 +60,7 @@ def pdb_text(cut) -> str:
 
 def write_pdb(cut, path) -> Path:
     path = Path(path)
-    path.write_text(pdb_text(cut))
+    path.write_text(pdb_text(cut), encoding="utf-8")
     return path
 
 

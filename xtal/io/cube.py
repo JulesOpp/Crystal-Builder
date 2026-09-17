@@ -46,7 +46,7 @@ class Cube:
 
 
 def read_cube(path) -> Cube:
-    return read_cube_string(Path(path).read_text())
+    return read_cube_string(Path(path).read_text(encoding="utf-8"))
 
 
 def read_cube_string(text: str) -> Cube:

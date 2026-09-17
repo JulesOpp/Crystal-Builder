@@ -40,7 +40,7 @@ from xtal.core.structure import Structure
 
 def write_gen(structure: Structure, path, fractional: bool = True) -> Path:
     path = Path(path)
-    path.write_text(gen_string(structure, fractional))
+    path.write_text(gen_string(structure, fractional), encoding="utf-8")
     return path
 
 
@@ -66,7 +66,7 @@ def gen_string(structure: Structure, fractional: bool = True) -> str:
 
 def read_gen(path) -> Structure:
     path = Path(path)
-    structure = read_gen_string(path.read_text())
+    structure = read_gen_string(path.read_text(encoding="utf-8"))
     structure.meta.update({"source": str(path), "format": "gen"})
     return structure
 

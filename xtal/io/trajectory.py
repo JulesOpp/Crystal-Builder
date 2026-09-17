@@ -346,7 +346,7 @@ def read_trajectory(path) -> Trajectory:
     windowed reader, not a reason to make every playback seek.
     """
     path = Path(path)
-    return Trajectory(read_frames(path.read_text()), path=path)
+    return Trajectory(read_frames(path.read_text(encoding="utf-8")), path=path)
 
 
 def write_trajectory(frames: Iterable[Frame], path) -> Path:

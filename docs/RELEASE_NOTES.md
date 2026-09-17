@@ -4,6 +4,28 @@ Build, manipulate, analyse and export crystal structures. Read and
 write CIF, edit symmetry and bonding, run a force field, DFTB+ or
 Zeo++ on the result.
 
+## New since 0.1.0
+
+- **Relaxed energy scans** over any coordinate, lattice parameter or
+  the volume, holding the coordinate rather than freezing atoms. The
+  landscape is drawn clickable, walked in both directions, and every
+  point is written to disk as soon as it finishes.
+- **More engines**: xTB (GFN2, GFN1 through tblite; GFN-FF through
+  xtb), MACE, plain UFF beside UFF4MOF, and Forcite-style optimisers.
+- **DFTB+ runs of its own**: band structure with its Brillouin zone,
+  projected density of states, Mulliken charges and orbitals, the
+  DFTB+ driver for relaxation and MD, and vibrational modes that play.
+- **Porosity you can see**: Zeo++ channel networks, accessible volume
+  and the accessible surface drawn over the crystal.
+- **The MOF builder ships inside the application**, including blocks
+  you draw yourself; pores can be filled with guest molecules.
+- A **workspace chooser** at start-up, one *Engines* page with a Test
+  button per program, a Style panel that reflows, STL export through
+  Blender, and non-centred subgroups.
+- **Windows**: Stop now ends a program started through a wrapper
+  script, and files holding non-ASCII text (a Γ in a band path, an
+  accented folder name) are written and read as UTF-8.
+
 ## Downloads
 
 | You have | Download |
@@ -57,28 +79,31 @@ and when it is already open.
 
 ## What is in the download, and what is not
 
-Bundled and working, with nothing to install: **RDKit**, so *Build
-from SMILES* and the molecule sketcher both work, and **rdeditor**,
-which is the sketcher's canvas.
+Bundled and working, with nothing to install:
 
-**The MOF builder (PORMAKE) is not included.** It is 44 packages and
-about 889 MB — `jax` and `pymatgen` among them — which is larger than
-the rest of the application put together. The entry greys out saying
-so. Net identification, the RCSR index and the `.cgd` reader are this
-project's own code and keep working; only the builder dialog is
-affected. *Preferences → Engines* explains the two routes to
-having it, and recommends running from Python:
+- **The MOF builder.** PORMAKE is vendored into the application — its
+  867 building blocks and the RCSR topologies included — so a
+  framework from a net, a node and a linker needs nothing else.
+- **RDKit and rdeditor**, so *Build from SMILES* and the molecule
+  sketcher both work.
+- **matplotlib**, for the PXRD pattern window: zooming, overlaying a
+  measured `.xy` file, and exporting the figure as a vector.
+
+**MACE is not included.** It needs PyTorch, which is gigabytes and
+wants to arrive differently on every platform. The Force Field panel
+lists it and greys it out; run from Python to use it:
 
 ```bash
-pip install 'crystal-builder[gui,mof]'
+pip install 'crystal-builder[gui,mace]'
 crystal-builder
 ```
 
-**Zeo++ and DFTB+ are found, never carried.** They have their own
-licences and citation terms, and DFTB+ is a conda package. Install
-either one however you normally would and point at it in
-*Preferences → Engines*, which says what it looked for and
-where. `XTAL_ZEOPP`, `DFTB_PREFIX` and `PATH` all still work.
+**Zeo++, DFTB+, tblite and xtb are found, never carried.** They have
+their own licences and citation terms, and several are conda packages.
+Install them however you normally would and point at them in
+*Preferences → Engines*, which says what it looked for and where, and
+has a Test button for each. `XTAL_ZEOPP`, `XTAL_TBLITE`, `XTAL_XTB`,
+`DFTB_PREFIX` and `PATH` all still work.
 
 **Plugins installed with `pip` do not load in a packaged build.** A
 frozen application has no `pip` and nowhere to install one to, so the
