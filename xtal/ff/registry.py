@@ -83,12 +83,45 @@ class Engine:
         from xtal.core import p1
         from xtal.ff import markers
 
+        _refuse_coincident(structure)
         clean, kept = markers.hold_back(structure)
         calculator = self.build(clean, **options)
         if kept is None:
             return calculator
         return markers.WithoutMarkers(calculator, kept,
                                       p1.expand(structure).n_atoms)
+
+
+def _refuse_coincident(structure) -> None:
+    """Refuse a cell with two atoms in the same place.
+
+    :func:`xtal.core.neighbors.neighbor_pairs` drops any pair closer
+    than ``min_distance`` so that a coincident pair cannot divide by
+    zero.  That is right for the sum and wrong for the answer: the
+    terms simply go missing, and what comes back is a finite energy
+    for a crystal nobody has -- Ni2Cl2BTDD.cif relaxes to
+    ``converged=True`` with ``|F|max = 0.00000`` while holding three
+    copies of most of its atoms.
+
+    Refusing rather than warning is deliberate.  A warning leaves that
+    number on screen and in the run log; a refusal is turned into a
+    hole with a reason beside it by :func:`xtal.ff.scan.run`, which is
+    what an unanswerable point is supposed to look like.  The remedy
+    is Merge Duplicates, and the message says so.
+    """
+    from xtal.core import p1
+    from xtal.core.neighbors import MIN_SEPARATION
+    from xtal.ff.api import CalculatorError
+
+    pairs = p1.coincident_pairs(structure, tol=MIN_SEPARATION)
+    if not len(pairs):
+        return
+    closest = float(pairs.distance.min()) if len(pairs.distance) else 0.0
+    raise CalculatorError(
+        f"{len(pairs)} pairs of atoms in this cell are on top of one "
+        f"another (closest {closest:.3g} A). An energy computed for it "
+        f"would silently leave those pairs out of every sum. Run Merge "
+        f"Duplicates first.")
 
 
 class EngineRegistry:

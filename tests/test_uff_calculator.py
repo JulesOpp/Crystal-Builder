@@ -358,3 +358,79 @@ def test_a_structure_with_no_bonds_still_has_an_energy():
 def test_the_summary_says_what_it_built(quartz):
     text = build(quartz).summary()
     assert "9 atoms" in text and "bonds" in text
+
+
+def test_a_cell_with_atoms_in_the_same_place_is_refused_not_answered():
+    """neighbor_pairs drops a pair closer than MIN_SEPARATION so it
+    cannot divide by zero, which leaves the terms out of the sum in
+    silence.  Ni2Cl2BTDD.cif then relaxed to converged=True with
+    |F|max = 0 while holding three copies of most of its atoms.  A
+    refusal becomes a hole with a reason; a number does not."""
+    import pathlib
+
+    from xtal.ff import ENGINES, CalculatorError
+    from xtal.io import FORMATS
+    sample = (pathlib.Path(__file__).resolve().parent.parent
+              / "resources" / "samples" / "Ni2Cl2BTDD.cif")
+    if not sample.exists():
+        pytest.skip("sample structure not present")
+    structure = FORMATS.read(sample)
+    with pytest.raises(CalculatorError, match="on top of one another"):
+        ENGINES.build("uff", structure)
+
+
+def test_the_refusal_names_the_menu_item_that_answers_it():
+    """A refusal a user cannot act on is a dead end."""
+    import pathlib
+
+    from xtal.ff import ENGINES, CalculatorError
+    from xtal.io import FORMATS
+    sample = (pathlib.Path(__file__).resolve().parent.parent
+              / "resources" / "samples" / "CFA1.cif")
+    if not sample.exists():
+        pytest.skip("sample structure not present")
+    with pytest.raises(CalculatorError, match="Merge Duplicates"):
+        ENGINES.build("uff", FORMATS.read(sample))
+
+
+def test_merging_the_duplicates_makes_the_cell_answerable():
+    """The remedy works: the same file builds once it is merged."""
+    import pathlib
+
+    from xtal.core import symmetry
+    from xtal.ff import ENGINES
+    from xtal.io import FORMATS
+    sample = (pathlib.Path(__file__).resolve().parent.parent
+              / "resources" / "samples" / "CFA1.cif")
+    if not sample.exists():
+        pytest.skip("sample structure not present")
+    merged, _ = symmetry.merge_duplicates(FORMATS.read(sample))
+    assert ENGINES.build("uff", merged) is not None
+
+
+def test_a_clean_crystal_is_not_refused():
+    """The guard must not cost anybody a calculation they could have
+    had: MFU-4l has 648 atoms in one cell and none of them coincide."""
+    import pathlib
+
+    from xtal.ff import ENGINES
+    from xtal.io import FORMATS
+    sample = (pathlib.Path(__file__).resolve().parent.parent
+              / "resources" / "samples" / "MFU4l.cif")
+    if not sample.exists():
+        pytest.skip("sample structure not present")
+    assert ENGINES.build("uff", FORMATS.read(sample)) is not None
+
+
+def test_the_refusal_distance_is_the_one_the_pair_list_drops_at():
+    """Two constants that have to agree, named once so they cannot
+    drift: the force field refuses exactly where the neighbour list
+    stops counting."""
+    import inspect
+
+    from xtal.core.neighbors import MIN_SEPARATION, neighbor_pairs
+    from xtal.ff import registry
+    assert (inspect.signature(neighbor_pairs)
+            .parameters["min_distance"].default is MIN_SEPARATION)
+    assert "MIN_SEPARATION" in inspect.getsource(
+        registry._refuse_coincident)
