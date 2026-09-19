@@ -27,6 +27,18 @@ class Format:
     read: Callable | None = None    # (path) -> Structure
     write: Callable | None = None   # (structure, path, **kw) -> None
     read_all: Callable | None = None  # (path) -> list[Structure]
+    #: Whole file names this format claims, for the formats that are
+    #: identified by their name rather than a suffix.  VASP's are
+    #: POSCAR and CONTCAR, and ``Path("POSCAR").suffix`` is ``""``, so
+    #: matching on the suffix alone can never find them.
+    filenames: tuple[str, ...] = ()
+    #: Whether the format can be used at all, for one whose reader
+    #: needs a package the core does not install.  Declared the way
+    #: :class:`~xtal.params.Availability` is declared for a module or
+    #: an engine, and for the same reason: the dialog greys the entry
+    #: out and names what to install, rather than offering a format
+    #: that throws ImportError when it is chosen.
+    available: Callable | None = None      # () -> Availability
     # What survives a round trip, for the export dialog to be honest
     # about: {"symmetry", "occupancy", "adp", "bonds", "charges"}
     keeps: frozenset = field(default_factory=frozenset)
@@ -68,12 +80,32 @@ class FormatRegistry:
             raise ValueError(f"unknown format: {name!r}") from None
 
     def by_extension(self, path) -> Format:
+        """The format for a path, by its suffix or by its whole name.
+
+        The name is tried first and exactly: a file called ``POSCAR``
+        has no suffix to match on, and one called ``POSCAR.cif`` is a
+        CIF whatever its stem says.
+        """
+        name = Path(path).name
+        for fmt in self._formats.values():
+            if name in fmt.filenames:
+                return fmt
         suffix = Path(path).suffix.lower()
         for fmt in self._formats.values():
             if suffix in fmt.extensions:
                 return fmt
         raise ValueError(
-            f"no format is registered for {suffix or 'that file'!r}")
+            f"no format is registered for {suffix or name!r}")
+
+    def availability(self, fmt: Format):
+        """Whether ``fmt`` can be used, the way a module is asked."""
+        from xtal.params import Availability
+        if fmt.available is None:
+            return Availability(True)
+        try:
+            return fmt.available()
+        except Exception as exc:                    # noqa: BLE001
+            return Availability(False, str(exc))
 
     def readable(self) -> list[Format]:
         return [f for f in self._formats.values() if f.can_read]
