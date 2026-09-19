@@ -42,7 +42,7 @@ from xtal.build import installed as rdkit_installed
 from xtal.commands.bonds import BOND_TYPES
 from xtal.commands.clipboard import Fragment
 from xtal.core.structure import Change
-from xtalapp import external, layout, menus
+from xtalapp import external, layout, menus, workers
 from xtalapp.actions import ActionRegistry
 from xtalapp.dialogs.add_atom import AddAtomDialog
 from xtalapp.dialogs.add_centroid import AddCentroidDialog
@@ -1809,6 +1809,15 @@ class MainWindow(QMainWindow):
         # is stopped -- an external process especially, which would go
         # on writing into a run folder nobody is watching.
         self.stop_module()
+        # And so does an optimisation. FFPanel.closeEvent would stop
+        # it, but a docked widget gets no close event when its window
+        # closes -- Qt delivers one to the top level only, which is why
+        # that method was never covered. Then wait: a QThread destroyed
+        # while it is still running aborts the process, and closing the
+        # window destroys the whole object tree.
+        if getattr(self, "ff_dock", None) is not None:
+            self.ff_dock.stop()
+        workers.stop_all()
         if not self._quit_confirmed and not self.may_discard_unsaved():
             event.ignore()
             return

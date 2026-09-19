@@ -25,10 +25,17 @@ from xtal.ff import ENGINES, optimize
 
 
 def hexagonal() -> Structure:
-    """Two atoms in a hexagonal cell -- the shape is the subject."""
+    """One site in a hexagonal cell -- the shape is the subject.
+
+    It used to be written as two, at (1/3, 2/3, 1/4) and (2/3, 1/3,
+    3/4), which P6_3/mmc generates from each other: the cell held four
+    atoms where it holds two, in coincident pairs. Harmless while the
+    subject was the lattice, and refused now that a force field will
+    not compute an energy for a cell with two atoms in one place.
+    """
     return Structure.from_arrays(
         Lattice.from_parameters(4.0, 4.0, 6.5, 90, 90, 120),
-        ["C", "C"], [[1 / 3, 2 / 3, 0.25], [2 / 3, 1 / 3, 0.75]],
+        ["C"], [[1 / 3, 2 / 3, 0.25]],
         space_group="P6_3/mmc")
 
 

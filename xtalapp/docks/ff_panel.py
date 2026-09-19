@@ -729,7 +729,7 @@ class ForceFieldDock(QDockWidget):
         self.worker.stepped.connect(self._on_step)
         self.worker.finished.connect(self._on_finished)
         self.worker.failed.connect(self._on_failed)
-        self._thread = start_in_thread(self.worker)
+        self._thread = start_in_thread(self.worker, self)
         self._set_running(True)
 
     def stop(self) -> None:
