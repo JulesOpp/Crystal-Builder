@@ -1,0 +1,76 @@
+2026-09-18 20:16:31.999 python[24540:9811779] +[IMKClient subclass]: chose IMKClient_Legacy
+2026-09-18 20:16:31.999 python[24540:9811779] +[IMKInputSession subclass]: chose IMKInputSession_Legacy
+qt.qpa.window: Window position QRect(-1015,-591 515x91) outside any known screen, using primary screen
+qt.qpa.window: Window position QRect(-1015,-591 515x91) outside any known screen, using primary screen
+qt.qpa.window: Window position QRect(-600,-530 113x127) outside any known screen, using primary screen
+qt.qpa.window: Window position QRect(-1015,-591 515x91) outside any known screen, using primary screen
+qt.qpa.window: Window position QRect(-1015,-591 515x91) outside any known screen, using primary screen
+qt.qpa.window: Window position QRect(-1015,-591 515x91) outside any known screen, using primary screen
+qt.qpa.window: Window position QRect(-1015,-591 515x91) outside any known screen, using primary screen
+qt.qpa.window: Window position QRect(-600,-530 100x91) outside any known screen, using primary screen
+opened MOF-5.cif: 424 sites, 1 tab(s)
+== docks ==
+  dftb_dock        title='DFTB+' -> review/shots/dock/dftb_dock.png
+  ff_dock          title='Force Field' -> review/shots/dock/ff_dock.png
+  file_dock        title='Workspace' -> review/shots/dock/file_dock.png
+  info_dock        title='Structure' -> review/shots/dock/info_dock.png
+  inspector_dock   title='Inspector' -> review/shots/dock/inspector_dock.png
+  log_dock         title='Log' -> review/shots/dock/log_dock.png
+  measure_dock     title='Measure' -> review/shots/dock/measure_dock.png
+  modules_dock     title='Modules' -> review/shots/dock/modules_dock.png
+  move_dock        title='Move' -> review/shots/dock/move_dock.png
+  net_dock         title='Net' -> review/shots/dock/net_dock.png
+  results_dock     title='Results' -> review/shots/dock/results_dock.png
+  sites_dock       title='Sites' -> review/shots/dock/sites_dock.png
+  style_dock       title='Style' -> review/shots/dock/style_dock.png
+  trajectory_dock  title='Trajectory' -> review/shots/dock/trajectory_dock.png
+== module availability ==
+  forcefield   ok=True  
+  dftb         ok=False  DFTB+ is not installed, or not on PATH (XTAL_DFTB is not set).  It is at https://dftbplus.org  (conda install 'dftbplus=*=nompi_*' -c conda-forge)
+      orbital: waveplot is not installed, or not on PATH (XTAL_WAVEPLOT is not set).  It is at https://dftbplus.org (it ships with DFTB+)
+      modes: modes is not installed, or not on PATH (XTAL_MODES is not set).  It is at https://dftbplus.org (it ships with DFTB+)
+  zeopp        ok=False  Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set).  It is at https://www.zeoplusplus.org/
+  mof          ok=True  /Users/sam/Projects/Jules/Crystal-Builder/xtal/mof/pormake/database
+  build        ok=True  RDKit
+  pxrd         ok=True  
+  scan         ok=True  
+  net          ok=True  
+  blender      ok=False  Blender is not installed, or not on PATH (XTAL_BLENDER is not set).  It is at https://www.blender.org/
+== run a module whose binary is missing ==
+  action enabled: True
+  status message after clicking Zeo++ volume: 'Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set).  It is at https://www.zeoplusplus.org/'
+  permanent line: 'C24H12O13Zn4  ·  Z = 8  ·  P1 (#1)  ·  424 sites / 424 atoms  ·  V = 17305.33 A^3  ·  0.591 g/cm^3'
+  message boxes: []
+== the same for DFTB+ ==
+  dftb_single_point enabled: True tip: Energy and per-term breakdown at this geometry, through DFTB+
+  status: 'Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set).  It is at https://www.zeoplusplus.org/'
+== the force field panel (energy units) ==
+   label: 'Optimiser'
+   label: 'Max steps'
+   label: 'Converge below'
+   label: 'Stress below'
+   label: 'Pressure'
+   label: 'Redraw'
+   label: 'Force field'
+   label: 'Parameters'
+   label: 'Charges'
+   label: 'van der Waals cutoff'
+   label: 'Pair list skin'
+   label: 'Method'
+   label: 'Total charge'
+   label: 'Accuracy'
+   label: 'Electronic temperature'
+   label: 'Max SCF iterations'
+   label: 'Model'
+   label: 'Model file'
+   label: 'Run on'
+   label: 'Atom types (double-click to override)'
+   combo: ['L-BFGS (fast near a minimum)', 'FIRE (robust far from one)', 'Smart (descent, then ABNR, then quasi-Newton)', 'Steepest descent', 'Conjugate gradient', 'Quasi-Newton (BFGS)', 'ABNR (adopted-basis Newton-Raphson)']
+   combo: ['Every step', '20 times a second', '5 times a second', 'Not while it runs']
+   combo: ['UFF', 'xTB (GFN)', 'MACE (machine-learned)']
+   combo: ['UFF4MOF (UFF plus framework nodes)', 'UFF (Rappe 1992 only)']
+   combo: ['From the sites', 'Equilibrate (QEq)', 'All zero']
+   combo: ['GFN2-xTB', 'GFN1-xTB', 'GFN-FF']
+   combo: ['MACE-MPA-0 -- MPtrj + sAlex, PBE+U (recommended)', 'MACE-MP-0b3 -- MPtrj, PBE+U, steadier under pressure', 'MACE-OMAT-0 -- OMat, PBE+U [ASL licence]', 'MACE-MATPES-r2SCAN-0 -- r2SCAN, no +U [ASL licence]', 'MACE-MH-1 -- crystals, molecules and surfaces [ASL licence]', 'MACE-MP-0a medium -- the default before mace 0.3.10', 'MACE-MP-0a small -- fastest', 'MACE-MP-0a large', 'A model file of my own']
+   combo: ['Whatever is fastest here', 'CPU', 'Apple GPU (mps)', 'NVIDIA GPU (cuda)']
+ran docks_and_modules.py

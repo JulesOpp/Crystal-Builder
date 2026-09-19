@@ -1,0 +1,318 @@
+2026-09-18 20:12:09.484 python[22976:9799927] +[IMKClient subclass]: chose IMKClient_Legacy
+2026-09-18 20:12:09.484 python[22976:9799927] +[IMKInputSession subclass]: chose IMKInputSession_Legacy
+Traceback (most recent call last):
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 113, in <module>
+    describe(name, dlg)
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 84, in describe
+    focusable = [w for w in dlg.findChildren(
+                            ^^^^^^^^^^^^^^^^^
+TypeError: 'PySide6.QtCore.QObject.findChildren' called with wrong argument types:
+  PySide6.QtCore.QObject.findChildren(tuple)
+Supported signatures:
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+Traceback (most recent call last):
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 113, in <module>
+    describe(name, dlg)
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 84, in describe
+    focusable = [w for w in dlg.findChildren(
+                            ^^^^^^^^^^^^^^^^^
+TypeError: 'PySide6.QtCore.QObject.findChildren' called with wrong argument types:
+  PySide6.QtCore.QObject.findChildren(tuple)
+Supported signatures:
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+Traceback (most recent call last):
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 113, in <module>
+    describe(name, dlg)
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 84, in describe
+    focusable = [w for w in dlg.findChildren(
+                            ^^^^^^^^^^^^^^^^^
+TypeError: 'PySide6.QtCore.QObject.findChildren' called with wrong argument types:
+  PySide6.QtCore.QObject.findChildren(tuple)
+Supported signatures:
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+Traceback (most recent call last):
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 113, in <module>
+    describe(name, dlg)
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 84, in describe
+    focusable = [w for w in dlg.findChildren(
+                            ^^^^^^^^^^^^^^^^^
+TypeError: 'PySide6.QtCore.QObject.findChildren' called with wrong argument types:
+  PySide6.QtCore.QObject.findChildren(tuple)
+Supported signatures:
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+Traceback (most recent call last):
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 113, in <module>
+    describe(name, dlg)
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 84, in describe
+    focusable = [w for w in dlg.findChildren(
+                            ^^^^^^^^^^^^^^^^^
+TypeError: 'PySide6.QtCore.QObject.findChildren' called with wrong argument types:
+  PySide6.QtCore.QObject.findChildren(tuple)
+Supported signatures:
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+Traceback (most recent call last):
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 113, in <module>
+    describe(name, dlg)
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 84, in describe
+    focusable = [w for w in dlg.findChildren(
+                            ^^^^^^^^^^^^^^^^^
+TypeError: 'PySide6.QtCore.QObject.findChildren' called with wrong argument types:
+  PySide6.QtCore.QObject.findChildren(tuple)
+Supported signatures:
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+Traceback (most recent call last):
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 113, in <module>
+    describe(name, dlg)
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 84, in describe
+    focusable = [w for w in dlg.findChildren(
+                            ^^^^^^^^^^^^^^^^^
+TypeError: 'PySide6.QtCore.QObject.findChildren' called with wrong argument types:
+  PySide6.QtCore.QObject.findChildren(tuple)
+Supported signatures:
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+opened MOF-5.cif: 424 sites, 1 tab(s)
+--- workspace_chooser: WorkspaceChooser
+    title: 'Crystal Builder'  modal=False sizeHint=675x390
+    buttonbox: 'Continue'[AcceptRole]*DEFAULT, 'Quit'[RejectRole]
+    loose buttons: 'New Workspace...', 'Open Other...', 'Open Sample'
+    keyPressEvent overridden: False   reject overridden: False
+FIXME qt_isinstance((<class 'PySide6.QtWidgets.QAbstractSpinBox'>, <class 'PySide6.QtWidgets.QLineEdit'>, <class 'PySide6.QtWidgets.QComboBox'>, <class 'PySide6.QtWidgets.QCheckBox'>, <class 'PySide6.QtWidgets.QRadioButton'>), typing.Type[~PlaceholderType]): Subscripted generics cannot be used with class and instance checks
+--- workspace_chooser: FAILED TypeError("'PySide6.QtCore.QObject.findChildren' called with wrong argument types:\n  PySide6.QtCore.QObject.findChildren(tuple)\nSupported signatures:\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))")
+--- preferences: PreferencesDialog
+    title: 'Preferences'  modal=False sizeHint=627x464
+    buttonbox: 'Close'[RejectRole]
+    loose buttons: 'Browse...', 'Test', 'Browse...', 'Test', 'Browse...', 'Test', 'Browse...', 'Test', 'Browse...', 'Browse...', 'Test', 'Browse...', 'Test', 'Browse...', 'Test', 'Test', 'Test', 'Test', 'Copy', 'Show the folder', 'Browse...', 'Browse...', 'Edit defaults...', 'Reset to built-in', 'Browse...'*DEF, 'Clear', 'Reset'
+    keyPressEvent overridden: False   reject overridden: False
+FIXME qt_isinstance((<class 'PySide6.QtWidgets.QAbstractSpinBox'>, <class 'PySide6.QtWidgets.QLineEdit'>, <class 'PySide6.QtWidgets.QComboBox'>, <class 'PySide6.QtWidgets.QCheckBox'>, <class 'PySide6.QtWidgets.QRadioButton'>), typing.Type[~PlaceholderType]): Subscripted generics cannot be used with class and instance checks
+--- preferences: FAILED TypeError("'PySide6.QtCore.QObject.findChildren' called with wrong argument types:\n  PySide6.QtCore.QObject.findChildren(tuple)\nSupported signatures:\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))")
+--- supercell: SupercellDialog
+    title: 'Supercell'  modal=False sizeHint=390x276
+    buttonbox: 'OK'[AcceptRole]*DEFAULT, 'Cancel'[RejectRole]
+    keyPressEvent overridden: False   reject overridden: False
+FIXME qt_isinstance((<class 'PySide6.QtWidgets.QAbstractSpinBox'>, <class 'PySide6.QtWidgets.QLineEdit'>, <class 'PySide6.QtWidgets.QComboBox'>, <class 'PySide6.QtWidgets.QCheckBox'>, <class 'PySide6.QtWidgets.QRadioButton'>), typing.Type[~PlaceholderType]): Subscripted generics cannot be used with class and instance checks
+--- supercell: FAILED TypeError("'PySide6.QtCore.QObject.findChildren' called with wrong argument types:\n  PySide6.QtCore.QObject.findChildren(tuple)\nSupported signatures:\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))")
+--- cell_edit: CellEditDialog
+    title: 'Edit unit cell'  modal=False sizeHint=375x361
+    buttonbox: 'OK'[AcceptRole]*DEFAULT, 'Cancel'[RejectRole], 'Reset'[ResetRole]
+    keyPressEvent overridden: False   reject overridden: False
+FIXME qt_isinstance((<class 'PySide6.QtWidgets.QAbstractSpinBox'>, <class 'PySide6.QtWidgets.QLineEdit'>, <class 'PySide6.QtWidgets.QComboBox'>, <class 'PySide6.QtWidgets.QCheckBox'>, <class 'PySide6.QtWidgets.QRadioButton'>), typing.Type[~PlaceholderType]): Subscripted generics cannot be used with class and instance checks
+--- cell_edit: FAILED TypeError("'PySide6.QtCore.QObject.findChildren' called with wrong argument types:\n  PySide6.QtCore.QObject.findChildren(tuple)\nSupported signatures:\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))")
+--- find_symmetry: FindSymmetryDialog
+    title: 'Find symmetry'  modal=False sizeHint=406x371
+    buttonbox: 'Adopt this group'[AcceptRole], 'Close'[RejectRole]*DEFAULT, 'Label Wyckoff only'[ActionRole]
+    keyPressEvent overridden: False   reject overridden: False
+FIXME qt_isinstance((<class 'PySide6.QtWidgets.QAbstractSpinBox'>, <class 'PySide6.QtWidgets.QLineEdit'>, <class 'PySide6.QtWidgets.QComboBox'>, <class 'PySide6.QtWidgets.QCheckBox'>, <class 'PySide6.QtWidgets.QRadioButton'>), typing.Type[~PlaceholderType]): Subscripted generics cannot be used with class and instance checks
+--- find_symmetry: FAILED TypeError("'PySide6.QtCore.QObject.findChildren' called with wrong argument types:\n  PySide6.QtCore.QObject.findChildren(tuple)\nSupported signatures:\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))")
+--- spacegroup: SpaceGroupDialog
+    title: 'Set space group'  modal=False sizeHint=322x386
+    buttonbox: 'OK'[AcceptRole]*DEFAULT, 'Cancel'[RejectRole]
+    keyPressEvent overridden: False   reject overridden: False
+FIXME qt_isinstance((<class 'PySide6.QtWidgets.QAbstractSpinBox'>, <class 'PySide6.QtWidgets.QLineEdit'>, <class 'PySide6.QtWidgets.QComboBox'>, <class 'PySide6.QtWidgets.QCheckBox'>, <class 'PySide6.QtWidgets.QRadioButton'>), typing.Type[~PlaceholderType]): Subscripted generics cannot be used with class and instance checks
+--- spacegroup: FAILED TypeError("'PySide6.QtCore.QObject.findChildren' called with wrong argument types:\n  PySide6.QtCore.QObject.findChildren(tuple)\nSupported signatures:\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))")
+--- merge_duplicates: MergeDuplicatesDialog
+    title: 'Merge duplicate sites'  modal=False sizeHint=470x216
+    buttonbox: 'Merge'[AcceptRole]*DEFAULT, 'Cancel'[RejectRole]
+    keyPressEvent overridden: False   reject overridden: False
+FIXME qt_isinstance((<class 'PySide6.QtWidgets.QAbstractSpinBox'>, <class 'PySide6.QtWidgets.QLineEdit'>, <class 'PySide6.QtWidgets.QComboBox'>, <class 'PySide6.QtWidgets.QCheckBox'>, <class 'PySide6.QtWidgets.QRadioButton'>), typing.Type[~PlaceholderType]): Subscripted generics cannot be used with class and instance checks
+--- merge_duplicates: FAILED TypeError("'PySide6.QtCore.QObject.findChildren' called with wrong argument types:\n  PySide6.QtCore.QObject.findChildren(tuple)\nSupported signatures:\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))")
+--- display_range: DisplayRangeDialogTraceback (most recent call last):
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 113, in <module>
+    describe(name, dlg)
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 84, in describe
+    focusable = [w for w in dlg.findChildren(
+                            ^^^^^^^^^^^^^^^^^
+TypeError: 'PySide6.QtCore.QObject.findChildren' called with wrong argument types:
+  PySide6.QtCore.QObject.findChildren(tuple)
+Supported signatures:
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+Traceback (most recent call last):
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 113, in <module>
+    describe(name, dlg)
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 84, in describe
+    focusable = [w for w in dlg.findChildren(
+                            ^^^^^^^^^^^^^^^^^
+TypeError: 'PySide6.QtCore.QObject.findChildren' called with wrong argument types:
+  PySide6.QtCore.QObject.findChildren(tuple)
+Supported signatures:
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+Traceback (most recent call last):
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 113, in <module>
+    describe(name, dlg)
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 84, in describe
+    focusable = [w for w in dlg.findChildren(
+                            ^^^^^^^^^^^^^^^^^
+TypeError: 'PySide6.QtCore.QObject.findChildren' called with wrong argument types:
+  PySide6.QtCore.QObject.findChildren(tuple)
+Supported signatures:
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+Traceback (most recent call last):
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 113, in <module>
+    describe(name, dlg)
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 84, in describe
+    focusable = [w for w in dlg.findChildren(
+                            ^^^^^^^^^^^^^^^^^
+TypeError: 'PySide6.QtCore.QObject.findChildren' called with wrong argument types:
+  PySide6.QtCore.QObject.findChildren(tuple)
+Supported signatures:
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+Traceback (most recent call last):
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 113, in <module>
+    describe(name, dlg)
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 84, in describe
+    focusable = [w for w in dlg.findChildren(
+                            ^^^^^^^^^^^^^^^^^
+TypeError: 'PySide6.QtCore.QObject.findChildren' called with wrong argument types:
+  PySide6.QtCore.QObject.findChildren(tuple)
+Supported signatures:
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+Traceback (most recent call last):
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 113, in <module>
+    describe(name, dlg)
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 84, in describe
+    focusable = [w for w in dlg.findChildren(
+                            ^^^^^^^^^^^^^^^^^
+TypeError: 'PySide6.QtCore.QObject.findChildren' called with wrong argument types:
+  PySide6.QtCore.QObject.findChildren(tuple)
+Supported signatures:
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+Traceback (most recent call last):
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 113, in <module>
+    describe(name, dlg)
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 84, in describe
+    focusable = [w for w in dlg.findChildren(
+                            ^^^^^^^^^^^^^^^^^
+TypeError: 'PySide6.QtCore.QObject.findChildren' called with wrong argument types:
+  PySide6.QtCore.QObject.findChildren(tuple)
+Supported signatures:
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+
+    title: 'Display range'  modal=False sizeHint=420x338
+    buttonbox: 'OK'[AcceptRole]*DEFAULT, 'Cancel'[RejectRole], 'One whole cell'[ResetRole]
+    keyPressEvent overridden: False   reject overridden: False
+FIXME qt_isinstance((<class 'PySide6.QtWidgets.QAbstractSpinBox'>, <class 'PySide6.QtWidgets.QLineEdit'>, <class 'PySide6.QtWidgets.QComboBox'>, <class 'PySide6.QtWidgets.QCheckBox'>, <class 'PySide6.QtWidgets.QRadioButton'>), typing.Type[~PlaceholderType]): Subscripted generics cannot be used with class and instance checks
+--- display_range: FAILED TypeError("'PySide6.QtCore.QObject.findChildren' called with wrong argument types:\n  PySide6.QtCore.QObject.findChildren(tuple)\nSupported signatures:\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))")
+--- add_atom: AddAtomDialog
+    title: 'Add atom'  modal=False sizeHint=420x251
+    buttonbox: 'OK'[AcceptRole]*DEFAULT, 'Cancel'[RejectRole]
+    loose buttons: 'Table...'
+    keyPressEvent overridden: False   reject overridden: False
+FIXME qt_isinstance((<class 'PySide6.QtWidgets.QAbstractSpinBox'>, <class 'PySide6.QtWidgets.QLineEdit'>, <class 'PySide6.QtWidgets.QComboBox'>, <class 'PySide6.QtWidgets.QCheckBox'>, <class 'PySide6.QtWidgets.QRadioButton'>), typing.Type[~PlaceholderType]): Subscripted generics cannot be used with class and instance checks
+--- add_atom: FAILED TypeError("'PySide6.QtCore.QObject.findChildren' called with wrong argument types:\n  PySide6.QtCore.QObject.findChildren(tuple)\nSupported signatures:\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))")
+--- add_centroid: AddCentroidDialog
+    title: 'Add centroid'  modal=False sizeHint=266x193
+    buttonbox: 'OK'[AcceptRole]*DEFAULT, 'Cancel'[RejectRole]
+    keyPressEvent overridden: False   reject overridden: False
+FIXME qt_isinstance((<class 'PySide6.QtWidgets.QAbstractSpinBox'>, <class 'PySide6.QtWidgets.QLineEdit'>, <class 'PySide6.QtWidgets.QComboBox'>, <class 'PySide6.QtWidgets.QCheckBox'>, <class 'PySide6.QtWidgets.QRadioButton'>), typing.Type[~PlaceholderType]): Subscripted generics cannot be used with class and instance checks
+--- add_centroid: FAILED TypeError("'PySide6.QtCore.QObject.findChildren' called with wrong argument types:\n  PySide6.QtCore.QObject.findChildren(tuple)\nSupported signatures:\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))")
+--- add_hydrogens: AddHydrogensDialog
+    title: 'Add hydrogens'  modal=False sizeHint=296x319
+    buttonbox: 'Add'[AcceptRole]*DEFAULT, 'Cancel'[RejectRole]
+    keyPressEvent overridden: False   reject overridden: False
+FIXME qt_isinstance((<class 'PySide6.QtWidgets.QAbstractSpinBox'>, <class 'PySide6.QtWidgets.QLineEdit'>, <class 'PySide6.QtWidgets.QComboBox'>, <class 'PySide6.QtWidgets.QCheckBox'>, <class 'PySide6.QtWidgets.QRadioButton'>), typing.Type[~PlaceholderType]): Subscripted generics cannot be used with class and instance checks
+--- add_hydrogens: FAILED TypeError("'PySide6.QtCore.QObject.findChildren' called with wrong argument types:\n  PySide6.QtCore.QObject.findChildren(tuple)\nSupported signatures:\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))")
+--- bond_rules: BondRulesDialog
+    title: 'Bond rules'  modal=False sizeHint=375x546
+    buttonbox: 'OK'[AcceptRole]*DEFAULT, 'Cancel'[RejectRole], 'Restore Defaults'[ResetRole]
+    keyPressEvent overridden: False   reject overridden: False
+FIXME qt_isinstance((<class 'PySide6.QtWidgets.QAbstractSpinBox'>, <class 'PySide6.QtWidgets.QLineEdit'>, <class 'PySide6.QtWidgets.QComboBox'>, <class 'PySide6.QtWidgets.QCheckBox'>, <class 'PySide6.QtWidgets.QRadioButton'>), typing.Type[~PlaceholderType]): Subscripted generics cannot be used with class and instance checks
+--- bond_rules: FAILED TypeError("'PySide6.QtCore.QObject.findChildren' called with wrong argument types:\n  PySide6.QtCore.QObject.findChildren(tuple)\nSupported signatures:\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))")
+--- export: ExportDialog
+    title: 'Export'  modal=False sizeHint=431x322
+    buttonbox: 'Export'[AcceptRole]*DEFAULT, 'Cancel'[RejectRole]
+    loose buttons: 'Browse...'
+    keyPressEvent overridden: False   reject overridden: False
+FIXME qt_isinstance((<class 'PySide6.QtWidgets.QAbstractSpinBox'>, <class 'PySide6.QtWidgets.QLineEdit'>, <class 'PySide6.QtWidgets.QComboBox'>, <class 'PySide6.QtWidgets.QCheckBox'>, <class 'PySide6.QtWidgets.QRadioButton'>), typing.Type[~PlaceholderType]): Subscripted generics cannot be used with class and instance checks
+--- export: FAILED TypeError("'PySide6.QtCore.QObject.findChildren' called with wrong argument types:\n  PySide6.QtCore.QObject.findChildren(tuple)\nSupported signatures:\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))")
+--- image_export: ImageExportDialog
+    title: 'Export Image'  modal=False sizeHint=431x267
+    buttonbox: 'Export'[AcceptRole]*DEFAULT, 'Cancel'[RejectRole]
+    loose buttons: 'Browse...'
+    keyPressEvent overridden: False   reject overridden: False
+FIXME qt_isinstance((<class 'PySide6.QtWidgets.QAbstractSpinBox'>, <class 'PySide6.QtWidgets.QLineEdit'>, <class 'PySide6.QtWidgets.QComboBox'>, <class 'PySide6.QtWidgets.QCheckBox'>, <class 'PySide6.QtWidgets.QRadioButton'>), typing.Type[~PlaceholderType]): Subscripted generics cannot be used with class and instance checks
+--- image_export: FAILED TypeError("'PySide6.QtCore.QObject.findChildren' called with wrong argument types:\n  PySide6.QtCore.QObject.findChildren(tuple)\nSupported signatures:\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))")
+--- run_progress: RunProgressDialog
+    title: 'Running'  modal=False sizeHint=388x152
+    NO QDialogButtonBox
+    loose buttons: 'Hide'*DEF, 'Stop'
+    keyPressEvent overridden: False   reject overridden: False
+FIXME qt_isinstance((<class 'PySide6.QtWidgets.QAbstractSpinBox'>, <class 'PySide6.QtWidgets.QLineEdit'>, <class 'PySide6.QtWidgets.QComboBox'>, <class 'PySide6.QtWidgets.QCheckBox'>, <class 'PySide6.QtWidgets.QRadioButton'>), typing.Type[~PlaceholderType]):Traceback (most recent call last):
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 113, in <module>
+    describe(name, dlg)
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 84, in describe
+    focusable = [w for w in dlg.findChildren(
+                            ^^^^^^^^^^^^^^^^^
+TypeError: 'PySide6.QtCore.QObject.findChildren' called with wrong argument types:
+  PySide6.QtCore.QObject.findChildren(tuple)
+Supported signatures:
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+Traceback (most recent call last):
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 113, in <module>
+    describe(name, dlg)
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 84, in describe
+    focusable = [w for w in dlg.findChildren(
+                            ^^^^^^^^^^^^^^^^^
+TypeError: 'PySide6.QtCore.QObject.findChildren' called with wrong argument types:
+  PySide6.QtCore.QObject.findChildren(tuple)
+Supported signatures:
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+Traceback (most recent call last):
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 113, in <module>
+    describe(name, dlg)
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 84, in describe
+    focusable = [w for w in dlg.findChildren(
+                            ^^^^^^^^^^^^^^^^^
+TypeError: 'PySide6.QtCore.QObject.findChildren' called with wrong argument types:
+  PySide6.QtCore.QObject.findChildren(tuple)
+Supported signatures:
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+Traceback (most recent call last):
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 113, in <module>
+    describe(name, dlg)
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/dialogs.py", line 84, in describe
+    focusable = [w for w in dlg.findChildren(
+                            ^^^^^^^^^^^^^^^^^
+TypeError: 'PySide6.QtCore.QObject.findChildren' called with wrong argument types:
+  PySide6.QtCore.QObject.findChildren(tuple)
+Supported signatures:
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))
+ Subscripted generics cannot be used with class and instance checks
+--- run_progress: FAILED TypeError("'PySide6.QtCore.QObject.findChildren' called with wrong argument types:\n  PySide6.QtCore.QObject.findChildren(tuple)\nSupported signatures:\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))")
+--- help: HelpWindow
+    title: 'Help'  modal=False sizeHint=302x291
+    buttonbox: 'Close'[RejectRole]*DEFAULT
+    keyPressEvent overridden: False   reject overridden: False
+FIXME qt_isinstance((<class 'PySide6.QtWidgets.QAbstractSpinBox'>, <class 'PySide6.QtWidgets.QLineEdit'>, <class 'PySide6.QtWidgets.QComboBox'>, <class 'PySide6.QtWidgets.QCheckBox'>, <class 'PySide6.QtWidgets.QRadioButton'>), typing.Type[~PlaceholderType]): Subscripted generics cannot be used with class and instance checks
+--- help: FAILED TypeError("'PySide6.QtCore.QObject.findChildren' called with wrong argument types:\n  PySide6.QtCore.QObject.findChildren(tuple)\nSupported signatures:\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))")
+--- save_block: SaveBlockDialog
+    title: 'Save as a building block'  modal=False sizeHint=396x222
+    buttonbox: 'Save'[AcceptRole]*DEFAULT, 'Cancel'[RejectRole]
+    loose buttons: 'Browse...'
+    keyPressEvent overridden: False   reject overridden: False
+FIXME qt_isinstance((<class 'PySide6.QtWidgets.QAbstractSpinBox'>, <class 'PySide6.QtWidgets.QLineEdit'>, <class 'PySide6.QtWidgets.QComboBox'>, <class 'PySide6.QtWidgets.QCheckBox'>, <class 'PySide6.QtWidgets.QRadioButton'>), typing.Type[~PlaceholderType]): Subscripted generics cannot be used with class and instance checks
+--- save_block: FAILED TypeError("'PySide6.QtCore.QObject.findChildren' called with wrong argument types:\n  PySide6.QtCore.QObject.findChildren(tuple)\nSupported signatures:\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))")
+--- fill_pores: FillPoresDialog
+    title: 'Fill pores with molecules'  modal=False sizeHint=330x305
+    buttonbox: 'Fill'[AcceptRole]*DEFAULT, 'Cancel'[RejectRole]
+    loose buttons: 'Browse...'
+    keyPressEvent overridden: False   reject overridden: False
+FIXME qt_isinstance((<class 'PySide6.QtWidgets.QAbstractSpinBox'>, <class 'PySide6.QtWidgets.QLineEdit'>, <class 'PySide6.QtWidgets.QComboBox'>, <class 'PySide6.QtWidgets.QCheckBox'>, <class 'PySide6.QtWidgets.QRadioButton'>), typing.Type[~PlaceholderType]): Subscripted generics cannot be used with class and instance checks
+--- fill_pores: FAILED TypeError("'PySide6.QtCore.QObject.findChildren' called with wrong argument types:\n  PySide6.QtCore.QObject.findChildren(tuple)\nSupported signatures:\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], /, name: str = {}, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))\n  PySide6.QtCore.QObject.findChildren(type: Type[~PlaceholderType], pattern: PySide6.QtCore.QRegularExpression | str, /, options: PySide6.QtCore.Qt.FindChildOption = Instance(Qt.FindChildrenRecursively))")
+ran dialogs.py

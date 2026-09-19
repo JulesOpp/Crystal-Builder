@@ -1,0 +1,235 @@
+2026-09-18 20:19:24.792 python[25454:9820073] +[IMKClient subclass]: chose IMKClient_Legacy
+2026-09-18 20:19:24.792 python[25454:9820073] +[IMKInputSession subclass]: chose IMKInputSession_Legacy
+opened MOF-5.cif: 424 sites, 1 tab(s)
+== the menu bar as built ==
+  &File
+     &New                                  Ctrl+N          ⌘N          
+     &Open...                              Ctrl+O          ⌘O          
+     Open &Recent                                                       >
+        - MOF-5.cif                                       
+        - Clear                                           
+     Open Sa&mple                                                       >
+        - MOF-5                                           
+        - HKUST-1                                         
+        - ZIF-8                                           
+        - MFU-4l                                          
+        - Ni2Cl2(BTDD)                                    
+        - CFA-1                                           
+        - CFA-1 in P1                                     
+     ---
+     &Save File                            Ctrl+S          ⌘S          
+     Save &As...                           Ctrl+Shift+S    ⇧⌘S         
+     ---
+     &Export...                                                        
+     Export &Image...                                                  
+     Export as S&TL...                                                 
+     Export &Net for Systre...                                           [disabled]
+     Save as a &building block...                                      
+     ---
+     &New Workspace...                                                 
+     &Open Workspace...                                                
+     ---
+     &Close                                Ctrl+W          ⌘W          
+     Close A&ll                            Ctrl+Shift+W    ⇧⌘W         
+     ---
+     &Preferences...                       Ctrl+,          ⌘,          
+     ---
+     &Quit                                 Ctrl+Q          ⌘Q          
+  &Edit
+     &Undo                                 Ctrl+Z          ⌘Z            [disabled]
+     &Redo                                 Ctrl+Shift+Z    ⇧⌘Z           [disabled]
+     ---
+     Cu&t                                  Ctrl+X          ⌘X            [disabled]
+     &Copy                                 Ctrl+C          ⌘C            [disabled]
+     &Paste                                Ctrl+V          ⌘V          
+     Du&plicate                            Ctrl+D          ⌘D            [disabled]
+     ---
+     &Delete                               Del             ⌦             [disabled]
+     Delete &bond                                                      
+     Change &element...                                                  [disabled]
+  &Select
+     Select &All                           Ctrl+A          ⌘A          
+     Select &None                                                      
+     &Invert selection                     Ctrl+I          ⌘I          
+     ---
+     Select same &element                                                [disabled]
+     By &element                                                        >
+        - C                                               
+        - H                                               
+        - O                                               
+        - Zn                                              
+     &Grow                                                              >
+        - Grow to &bonded neighbours        Ctrl+G        [disabled]
+        - Grow to whole &fragment           Ctrl+Shift+G  [disabled]
+        - Grow to symmetry &orbit                         [disabled]
+  S&tructure
+     &Add atom...                          Ctrl+Shift+A    ⇧⌘A         
+     Add &centroid...                                                    [disabled]
+     Mer&ge atoms                                                        [disabled]
+     Add &hydrogens...                                                 
+     &Insert molecule...                                               
+     &Fill pores with molecules...                                     
+     &Mark connection points                                             [disabled]
+     ---
+     &Bond rules...                                                    
+     &Recalculate bonds                                                
+     Reset bonds to a&utomatic             Ctrl+B          ⌘B          
+     Bonds &follow the geometry                                        
+     Set Bond &Type                                                      [disabled] >
+        - &Single                                         [disabled]
+        - &Double                                         [disabled]
+        - &Triple                                         [disabled]
+        - &Aromatic                                       [disabled]
+        - &Automatic                                      [disabled]
+     ---
+     Mouse &mode                                                        >
+        - Select                                          
+        - Box select                                      
+        - Add atom                                        
+        - Add bond                                        
+        - Draw net                                        
+        - Move                                            
+        - Measure                                         
+  S&ymmetry
+     &Find symmetry...                     Ctrl+Shift+F    ⇧⌘F         
+     &Set space group...                                               
+     &Descend to a subgroup...                                         
+     ---
+     S&tandardise cell                                                 
+     Reduce to pri&mitive cell                                         
+     ---
+     Assign &Wyckoff letters                                           
+     Merge &duplicate sites...                                         
+     &Invert the structure                                             
+     ---
+     Reduce to &P1                                                     
+  &Cell
+     &Edit cell...                                                     
+     &Supercell...                                                     
+     ---
+     &Niggli reduction                                                 
+     &Delaunay reduction                                               
+     ---
+     &Wrap atoms into the cell                                         
+  &Measure
+     &Measure selection                    Ctrl+M          ⌘M            [disabled]
+     ---
+     Define &plane from selection          Ctrl+Shift+P    ⇧⌘P           [disabled]
+     &Angle between planes                                               [disabled]
+     ---
+     Clear pl&anes                                                       [disabled]
+     Clear &measurements                                                 [disabled]
+  &View
+     &Style                                                             >
+        - Ball and stick                                  
+        - Ball and stick (occupancy)                      
+        - Stick                                           
+        - Wireframe                                       
+        - Net only                                        
+        - Space filling                                   
+        - Thermal ellipsoids (ORTEP)                      
+        - Polyhedra and sticks                            
+        - Polyhedra                                       
+        - Ellipsoid plot (PLATON)                         
+        - Cartoon                                         
+     &Show                                                              >
+        - Atoms                                           
+        - Bonds                                           
+        - Bond orders                                     
+        - Net (topology bonds)                            
+        - Unit cell                                       
+        - Cell axes (a, b, c)                             
+        - Planes                                          
+        - Pore network                                    Traceback (most recent call last):
+  File "/Users/sam/Projects/Jules/Crystal-Builder/.claude/skills/run-app/drive.py", line 174, in main
+    _run(step, value, win, app)
+  File "/Users/sam/Projects/Jules/Crystal-Builder/.claude/skills/run-app/drive.py", line 216, in _run
+    exec(code, scope)
+  File "/Users/sam/Projects/Jules/Crystal-Builder/review/probes/modules_dialogs.py", line 36, in <module>
+    from xtalapp.dialogs.module_form import module_dialog   # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ImportError: cannot import name 'module_dialog' from 'xtalapp.dialogs.module_form' (/Users/sam/Projects/Jules/Crystal-Builder/xtalapp/dialogs/module_form.py)
+FAILED
+
+        - Labels                                          
+        - Element legend                                  
+        - Scale bar                                       
+     Clear c&harges and orbital                                        
+     ---
+     &Background                                                        >
+        - White                                           
+        - Black                                           
+        - Slate                                           
+        - Paper                                           
+        - Custom...                                       
+     ---
+     Display &range...                     Ctrl+R          ⌘R          
+     Bonds at the &boundary                                             >
+        - &Drop bonds at the boundary                     
+        - &Complete bonds at the boundary                 
+        - Draw &half bonds at the boundary                
+     ---
+     Orthographic projection                                           
+     Depth cueing                                                      
+     ---
+     Along &a                              1               1           
+     Along &b                              2               2           
+     Along &c                              3               3           
+     &Reset view                           Ctrl+0          ⌘0          
+  &Modules
+     Forcefield                                                         >
+        - &Force Field panel                              
+        - &Single point energy              Ctrl+E        
+        - &Optimise geometry                Ctrl+Shift+E  
+     DFTB+                                                               [disabled] >
+        - DFTB&+ panel                                    
+        - DFTB+: &Single point energy                     
+        - DFTB+: &Optimise geometry                       
+        - Band structure...                               
+        - Density of states...                            
+        - Mulliken charges                                
+        - Orbital...                                      [disabled]
+        - Optimise with DFTB+'s driver...                 
+        - Vibrational modes...                            [disabled]
+        - Molecular dynamics...                           
+     Zeo++                                                               [disabled] >
+        - Pore diameters and channels...                  
+        - Surface area...                                 
+        - Accessible volume...                            
+        - Pore size distribution...                       
+     MOF builder                                                        >
+        - Build a framework...                            
+     Molecule builder                                                   >
+        - Molecule from SMILES...                         
+     PXRD                                                               >
+        - Simulate a pattern...                           
+     Energy scan                                                        >
+        - Relaxed scan...                                 
+     Net builder                                                        >
+        - Draw a net...                                   
+     Blender                                                             [disabled] >
+        - Export as STL...                                
+  &Window
+     Structure                                                         
+     Workspace                                                         
+     Modules                                                           
+     Inspector                                                         
+     Net                                                               
+     Sites                                                             
+     Move                                                              
+     Style                                                             
+     Measure                                                           
+     Force Field                                                       
+     DFTB+                                                             
+     Trajectory                                                        
+     Log                                                               
+     Results                                                           
+     ---
+     Reset &layout                                                     
+  &Help
+     Crystal Builder &Help                 Ctrl+?          ⌘?          
+     ---
+     Show &Log                                                         
+     ---
+     About Crystal Builder                                             
+== module dialogs ==
