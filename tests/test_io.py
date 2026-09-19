@@ -502,3 +502,64 @@ def test_an_awkward_label_still_carries_its_bonds(tmp_path, rutile):
     back = read_cif(path)
     assert len(back.bonds) == 1
     assert back.sites[0].label == "Ti 1"
+
+
+def _mmcif_file(tmp_path):
+    """A valid mmCIF, written by gemmi so it is valid by construction."""
+    gemmi = pytest.importorskip("gemmi")
+    st = gemmi.Structure()
+    st.cell = gemmi.UnitCell(30, 40, 50, 90, 90, 90)
+    st.spacegroup_hm = "P 21 21 21"
+    model, chain = gemmi.Model("1"), gemmi.Chain("A")
+    residue = gemmi.Residue()
+    residue.name, residue.seqid = "GLY", gemmi.SeqId("1")
+    for name, element, xyz in [("N", "N", (1, 2, 3)),
+                               ("CA", "C", (2, 3, 4)),
+                               ("O", "O", (3, 4, 5))]:
+        atom = gemmi.Atom()
+        atom.name, atom.element = name, gemmi.Element(element)
+        atom.pos, atom.occ, atom.b_iso = gemmi.Position(*xyz), 1.0, 20.0
+        residue.add_atom(atom)
+    chain.add_residue(residue)
+    model.add_chain(chain)
+    st.add_model(model)
+    st.setup_entities()
+    path = tmp_path / "macro.cif"
+    st.make_mmcif_document().write_file(str(path))
+    return path
+
+
+def test_an_mmcif_file_is_read_as_a_crystal(tmp_path):
+    """mmCIF and small-molecule CIF are two vocabularies in one file
+    extension -- `_atom_site.Cartn_x` against `_atom_site_fract_x` --
+    and gemmi, which this reader already depends on, speaks both. The
+    file used to open with "no structure found"."""
+    structure = read_cif(_mmcif_file(tmp_path))
+    assert len(structure.sites) == 3
+    assert structure.space_group.number == 19
+    assert [round(v, 1) for v in structure.lattice.parameters[:3]] \
+        == [30.0, 40.0, 50.0]
+
+
+def test_cartesian_coordinates_become_fractional_ones(tmp_path):
+    """The whole conversion, and the only place it can go wrong."""
+    structure = read_cif(_mmcif_file(tmp_path))
+    assert np.allclose(structure.sites[0].frac,
+                       [1 / 30, 2 / 40, 3 / 50], atol=1e-6)
+
+
+def test_an_mmcif_atom_keeps_the_name_that_makes_it_findable(tmp_path):
+    """The chain and residue hierarchy is not represented here and is
+    dropped; the atom's own name is what lets somebody find the metal
+    afterwards."""
+    labels = [s.label for s in read_cif(_mmcif_file(tmp_path)).sites]
+    assert labels == ["N_1", "CA_1", "O_1"]
+
+
+def test_an_ordinary_cif_never_reaches_the_macromolecular_reader(
+        tmp_path, rutile):
+    """It is tried only when the small-molecule route found nothing,
+    so no existing file changes how it is read."""
+    path = tmp_path / "small.cif"
+    write_cif(rutile, path)
+    assert read_cif(path).meta.get("format") == "cif"
