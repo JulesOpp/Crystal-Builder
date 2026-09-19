@@ -27,6 +27,7 @@ broken.
 from __future__ import annotations
 
 import re
+import warnings
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -346,7 +347,75 @@ def read_trajectory(path) -> Trajectory:
     windowed reader, not a reason to make every playback seek.
     """
     path = Path(path)
+    if path.suffix.lower() == ".traj":
+        return Trajectory(_ase_frames(path), path=path)
     return Trajectory(read_frames(path.read_text(encoding="utf-8")), path=path)
+
+
+def ase_available() -> bool:
+    """Whether ASE is installed, without importing it.
+
+    ``find_spec`` and never an import, the way every optional feature
+    here is checked: importing ase to find out whether ase is there
+    costs a second and a hundred modules on a machine that has it.
+    """
+    from importlib.util import find_spec
+    return find_spec("ase") is not None
+
+
+def _ase_frames(path: Path) -> list[Frame]:
+    """The frames of an ASE ``.traj``.
+
+    ASE's own binary trajectory, which is what anything driven from
+    ASE writes -- an optimisation, a molecular-dynamics run, a
+    calculator's own history.  Read through ase because the format is
+    a pickle-adjacent container and its layout is ase's business, not
+    a thing to reimplement from the outside.
+    """
+    try:
+        from ase.io import read as ase_read
+    except ImportError:
+        raise ValueError(
+            "reading an ASE trajectory needs the 'ase' extra: "
+            "pip install 'crystal-builder[ase]'") from None
+    frames = []
+    with warnings.catch_warnings():
+        # ase 3.29's .traj reader assigns to ``array.shape``, which
+        # numpy 2.5 deprecates.  It is ase's to fix and not ours, and
+        # this suite turns a DeprecationWarning into an error, so the
+        # suppression is here rather than in the configuration: narrow
+        # to this call, named, and nothing else in this module is
+        # covered by it.  When numpy *removes* that assignment rather
+        # than deprecating it, ase's reader stops working outright and
+        # this raises instead of warning -- which is the right way
+        # round to find out.
+        warnings.filterwarnings(
+            "ignore", category=DeprecationWarning,
+            message="Setting the shape on a NumPy array")
+        try:
+            read = list(ase_read(str(path), index=":"))
+        except Exception as exc:        # ase's own, and various
+            raise ValueError(
+                f"{path.name} could not be read as an ASE "
+                f"trajectory: {exc}") from None
+    for step, atoms in enumerate(read):
+        cell = np.array(atoms.get_cell(), dtype=float)
+        info = {"step": step}
+        energy = None
+        try:                          # only if a calculator was attached
+            energy = float(atoms.get_potential_energy())
+        except Exception:             # noqa: BLE001 -- no calculator
+            energy = None
+        if energy is not None:
+            info["energy"] = energy
+        frames.append(Frame(
+            elements=tuple(atoms.get_chemical_symbols()),
+            cart=np.array(atoms.get_positions(), dtype=float),
+            lattice=Lattice(cell) if cell.any() else None,
+            info=info))
+    if not frames:
+        raise ValueError(f"{path.name} holds no frames")
+    return frames
 
 
 def write_trajectory(frames: Iterable[Frame], path) -> Path:
