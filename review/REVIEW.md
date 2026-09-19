@@ -225,7 +225,73 @@ Sized on ROADMAP's scale (S ≤ a day, M a few days, L a week+).
 
 ## 6. Performance
 
-*(pending — see [reports/performance.md](reports/performance.md))*
+Full report: [performance.md](reports/performance.md) (800 lines, probes in
+`probes/perf/`).
+
+**First, a correction to my own framing.** This machine is **8 GB, not 16**
+(`hw.memsize`), with 1.67 GB wired and the compressor holding 19.9 GB of data
+in 3.20 GB of pages — **4.87 GB gone before any application gets a page**, and
+279 GB of lifetime swapins. That, not the application, is the 819 s vs 332 s
+suite swing. The app is well-behaved; the machine is the contended resource.
+
+**The application's own cost is three accidentally-quadratic paths:**
+
+1. `[critical]` **`Structure.add_bond` is O(n²)** — `structure.py:538-541`
+   calls `reverse` (`:140`) with a numpy matmul inside the comparison.
+   Synthetic: 200 bonds 115 ms → 3200 bonds **29.8 s**. Real consequence:
+   **opening a 21 KB MFU-4l `.xtalproj` takes 2.10 s**, with `cProfile`
+   showing 360,824 `reverse` calls (= 848²/2). Six loop callers: Reduce to
+   P1, project load, MOF build, SMILES, paste, connections. A `set` of bond
+   identities fixes it.
+2. `[important]` **`SpaceGroup._build_inverses`: 177 ms per fresh Fm-3m
+   object**, O(192²) `np.allclose`, and the cache is per-instance so two
+   `SpaceGroup(225)` objects each pay it. A third of Set Bond Type's cost.
+3. `[important]` **`bonding._find_atom` linear-scans the cell** — 7296 calls
+   × 648 atoms to place 19 bonds. Wants the KD-tree this repo already applied
+   to `read_cgd`.
+
+**Main-thread freezes with no busy cursor** (exactly **one**
+`setOverrideCursor` in all of `xtalapp/`): Set Bond Type over a selection is
+**740 ms on MFU-4l and 3207 ms on Ni2Cl2BTDD**; Supercell 2×2×2 is 1182 ms;
+Reduce to P1 463 ms. The batching invariant *is* honoured (2 `Render()` calls
+per recompute) — the cost is the batch itself, plus `_sync_bond_type_actions`
+rebuilding a bond graph twice to tick a menu item.
+
+**Cell relaxation costs 13 energy evaluations per step** (`numeric_stress` —
+78 `compute` calls for 5 steps). MFU-4l 0.008 → 0.102 s/step; Ni2Cl2BTDD
+0.297 → **3.88 s/step**. CLAUDE.md's "12×12 grid ≈ 2.6 hours" becomes
+**23 hours** with the cell free. The code's own comment already names the
+analytic virial as the fix — this is the single biggest win available to
+anyone running the flexible-framework scans the app was built for.
+
+**Why Ni2Cl2BTDD is expensive is not its atom count** — it is the disordered
+solvent this review found unmerged ([§3.4](#34-important-two-shipped-samples-are-wrong-and-nothing-says-so)):
+6786 bonds, average degree 11.78, max 28 → **526,176 torsion terms, 75 MB of
+arrays, +298 MB for one energy evaluation**. Merging duplicates on open would
+fix a correctness bug and a performance cliff at once.
+
+**A theory I had, disproved:** BLAS thread contention inside `QThread` is not
+happening here. numpy is on Apple Accelerate, nothing sets `*_NUM_THREADS`,
+and a running job measures **0.99× parallelism on 2 OS threads** — one core
+busy, seven idle. Ewald is confirmed default-off.
+
+**Strengths, measured:** VTK is imported by name only (no `import vtk`;
+`vtkmodules.all` excluded in packaging), rdkit/matplotlib/ase are all
+function-level; the scene uses **19 fixed `vtkActor`s via glyph mappers at
+both 648 and 5184 atoms**; `compute` is 823 Python calls for 1152 atoms; the
+`pytest_runtest_teardown` leak fix holds (RSS oscillates 200–440 MB with no
+trend); packaging is the best-documented NFR work in the project.
+
+**The suite is memory-bound, not CPU-bound**: 481 tests in 46.8 s wall vs
+35.5 s CPU (24 % off-CPU), peak 497 MB, extrapolating to 272 s — matching
+CLAUDE.md's own figure. 36 files build a `MainWindow` 53 times; fewer full
+windows is the real lever, ahead of `-n auto`.
+
+**Three optimisations that pay back most** for a user with MFU-4l-sized
+frameworks: the `add_bond` set (**S**, low risk — 2.10 s off every project
+open); the analytic virial for cell relaxation (**M** — 23 h → hours on an
+overnight scan); a busy cursor plus moving Set Bond Type off the main thread
+(**S** — the app stops looking hung).
 
 ---
 
