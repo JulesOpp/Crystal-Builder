@@ -42,8 +42,9 @@
    first: three of them carry CCDC download headers and there is no
    `PROVENANCE.md` beside them, unlike the vendored PORMAKE.
 
-Probes: `review/probes/registry/` (`interpenetration.py`,
-`mmcif_via_gemmi.py`, `ase_engine_split.py`, `gemmi_mmcif.py`).
+Probes: `review/probes/registry/` — `interpenetration.py`,
+`mmcif_via_gemmi.py`, `ase_engine_split.py`. Each carries a one-line
+header saying when and against which commit it was written.
 Nothing in the tree was modified; `git status` is clean.
 
 ---
@@ -69,16 +70,29 @@ problem:
 | **Polycatenation / polythreading** | Lower-dimensional motifs (chains, sheets) entangled into a higher-dimensional array | Needs per-component periodicity rank, which you can get |
 
 The standard report is *n*-fold interpenetration — the number of
-independent identical nets in the crystal — plus, in the
-Blatov/Proserpio classification, a **class** saying what symmetry
-relates the nets to one another (Class Ia: related by full
-translations only; Class II: related by a point operation; and so on).
+independent identical nets in the crystal, written **Z** — plus, in
+the Blatov/Proserpio classification (Baburin, Blatov, Carlucci, Ciani
+& Proserpio, *J. Solid State Chem.* **178** (2005) 2452,
+[doi:10.1016/j.jssc.2005.05.023]; the parameter list is on ToposPro's
+own manual page, accessed 2026-09-19), a **class**:
 
-**Recommendation: report the fold and the per-component periodicity.
-Do not attempt the class, and do not attempt self-penetration.** The
-class needs the relating operation found and named; self-penetration
-needs ring perception. Both are a different and much larger piece of
-work, and neither is what a person opening a CIF is asking.
+| Class | The nets are related by | Z | PICVR |
+|---|---|---|---|
+| **I** | translations only (a non-lattice vector) | `Zt` | `Zt` |
+| **II** | space-group symmetry operations only | `Zn` | **1** |
+| **III** | both | `Zt × Zn` | `Zt` |
+
+**PICVR** is the ratio of the primitive interpenetration cell's volume
+to the crystal's, and it is the piece of that table this application
+already computes — see A.6. Class II admits only Z ∈ {2, 3, 4, 6},
+because a single symmetry element has to generate all the nets.
+
+**Recommendation: report Z and the per-component periodicity. Do not
+attempt the class, and do not attempt self-penetration.** The class
+needs the relating operations found and named against the space group;
+self-penetration needs ring perception and a Hopf ring net. Both are a
+different and much larger piece of work, and neither is what a person
+opening a CIF is asking.
 
 ## A.2 What is already in the tree — this is the finding
 
@@ -223,9 +237,66 @@ property computed over it would report nonsense with total confidence.
 **So: the property is computed from the bond graph, is worded as a
 statement about the bond graph, and says when there are no bonds.** Not
 "this crystal is 1-fold"; "the bonds as drawn make one 3-periodic
-framework". A proper entanglement test (Hopf ring net, or ToposPro's
-separation test) is out of scope and should be named as such rather
-than half-done.
+framework".
+
+The rigorous entanglement test is the **Hopf ring net** (Alexandrov,
+Blatov & Proserpio, *Acta Cryst.* **A68** (2012) 484,
+[doi:10.1107/S0108767312019034], accessed 2026-09-19): nodes are the
+barycentres of catenating rings, edges are Hopf links found by
+fan-triangulating each smallest ring and counting edge-surface
+crossings with odd parity. It is what distinguishes interpenetration
+from polycatenation and is the only thing that finds
+**self**-penetration. It needs ring perception, and it is out of scope
+— name it in the docstring as what the property does not do, rather
+than half-do it.
+
+Two cheap partial answers are worth having instead:
+
+- **PICVR > 1 is already proof of entanglement in the translational
+  case.** If the multiplicity is greater than one, the nets are
+  translates of one another by a non-lattice vector and by
+  construction occupy the same primitive cell — they cannot be pulled
+  apart. So the doubled-cell branch of the algorithm needs no extra
+  test at all; only the several-components branch does.
+- **Identical topology is the definition, and is worth checking where
+  it is affordable.** ToposPro requires all Z nets to have the same
+  topology before calling it interpenetration, and MOFid warns (only
+  warns) when its components have different formulas. On the atom
+  graph, the cheap proxies are the atom count and the formula per
+  component; the real check needs the simplified net.
+
+### What the other tools do, and where this would sit
+
+*(Accessed 2026-09-19.)*
+
+| Tool | Components | Multiplicity / PICVR | Class | Entanglement |
+|---|:-:|:-:|:-:|:-:|
+| **ToposPro** (Blatov, *Cryst. Growth Des.* **14** (2014) 3576) | yes | yes | yes | yes (HRN) |
+| **Systre / Gavrog** | yes (`connectedComponents`) | yes (`Component.multiplicity` = `basis.determinant()`) | no | no |
+| **CrystalNets.jl** (*SciPost Chem.* **1**, 005 (2022)) | yes | yes (one entry per `vmap`) | no | no |
+| **pymatgen `StructureGraph`** | dimensionality only (`get_structure_components`, Larsen 2019) | **no** | no | no |
+| **MOFid** `.catN` | yes | **no** | no | no |
+| **Zeo++ `-strinfo`** | yes, with dimensionality | no | no | no |
+| **Crystal Builder today** | **yes** (`Net.components`) | **yes** (`Net.multiplicity`) | no | no |
+
+Two things to read off that. **The app is already level with Systre
+and CrystalNets.jl on the part that matters, and ahead of MOFid** —
+MOFid's `catN` is literally `components − 1`
+(`Deconstructor::CheckCatenation` calls `Separate()` and counts), so
+it undercounts any structure written in a cell smaller than its
+primitive interpenetration cell, which is exactly the case
+`Net.multiplicity` was written to catch. `pymatgen` cannot do it at
+all.
+
+And **`Zeo++ -strinfo` is a free cross-check that this application can
+already run.** Zeo++ is already an integrated `Program`
+(`xtal/modules/zeopp.py`), and `-strinfo` identifies and counts the
+framework components and their dimensionality. `_argv`
+(`zeopp.py:225`) does not use it today. It needs the binary where the
+in-tree route needs nothing, so it is not the implementation — but it
+is a good way to validate the implementation against somebody else's
+code on the first day, and a good candidate for a `@pytest.mark.slow`
+test if a vendored binary is available.
 
 ## A.5 Where it goes: a property, not a `MODULES` entry
 
@@ -292,6 +363,21 @@ alone would miss the second; reporting multiplicity alone would miss
 the first. The probe's last line sums both and is the whole
 definition.
 
+**This is not an approximation, and it lines up exactly with the
+literature.** `multiplicity()` is the saturation index of the cycle
+lattice; Gao, Wang, Guo & Sun (*npj Comput. Mater.* **6**, 143 (2020),
+[doi:10.1038/s41524-020-00409-0], accessed 2026-09-19) give it as
+`m = |det S̃|` for `S̃` the reduced basis of the cycle vectors, call it
+the net's **multiplicity**, and identify it with Blatov's **PICVR**.
+Systre computes the same number as `Component.multiplicity` and prints
+it when the quotient graph is one component (`basis.determinant()` in
+`PeriodicGraph.java`). Reading the class table above with that
+identity: **the multiplicity recovers `Zt` exactly and cannot see
+`Zn`** — a purely symmetry-related pair of nets (Class II) has
+PICVR = 1 and shows up as two separate *components* instead. Summing
+multiplicity over components therefore gets both halves and gives Z,
+which is why the sum is the definition rather than either term.
+
 **For a non-interpenetrated crystal the answer is 1, and the UI must
 not print "1-fold interpenetrated".** That phrasing is wrong and
 looks like a finding. The tree already gets this right and the
@@ -309,6 +395,69 @@ So:
 | Only molecules | `no periodic framework: 4 molecules` |
 
 ## A.7 Generation, honestly
+
+### What has actually been done
+
+The 2016 method the earlier research found is an **AIChE Annual
+Meeting 2016 talk (paper 436g)**, not a journal paper, and its journal
+form is **Sezginel, Feng & Wilmer, "Discovery of hypothetical
+hetero-interpenetrated MOFs with arbitrarily dissimilar topologies and
+unit cell shapes", *CrystEngComm* **19** (2017) 4497**,
+[doi:10.1039/C7CE00290D]. The code is **IPMOF**
+(<https://github.com/kbsezginel/IPMOF>, Python 3.5). Its method,
+which is the atom-by-atom collision check with an acceleration:
+
+1. Build a **grid of Lennard-Jones insertion energies** (1 Å spacing
+   for screening) over the passive framework's cell, with UFF or
+   DREIDING parameters.
+2. Enumerate poses of the active framework — the 24 ninety-degree
+   rotations × a translation grid.
+3. Sum trilinearly interpolated insertion energies over every atom of
+   the active framework, with a 12 Å cutoff and a 50 Å replication
+   cutoff for the multi-cell collision test.
+4. Accept or reject on three thresholds: per-atom energy, per-structure
+   energy, and energy **density** (so cells of different size compare).
+
+18 structures out of a large screen; ~3.5 minutes per pair.
+Concurrently, **Kwon, Park, Zhou & Kim, *Chem. Commun.* **53** (2017)
+1953**, [doi:10.1039/C6CC08940B] screened a database for partners that
+can hetero-interpenetrate a target. Experimental follow-up:
+*Nature Chem.* (2023), [doi:10.1038/s41557-023-01277-z].
+
+**Since 2016, essentially nothing has been added.** What exists:
+
+- **hMOF's own trick**, the one behind MOFid's `cat1`/`cat2`/`cat3`:
+  displace a copy of the framework along the **cell body diagonal** —
+  `(½,½,½)` for 2-fold, `(⅓,⅓,⅓)+(⅔,⅔,⅔)` for 3-fold — then reject on
+  overlap. That is Class Ia interpenetration with the FIV along [111],
+  and it is *one guess*, not a search. It is what
+  **GHP-MOFassemble** (*Commun. Chem.* **6** (2023) 222,
+  [doi:10.1038/s42004-023-01090-2]) re-implemented for its generated
+  MOFs in 2023, which is the most recent thing found.
+- **ToBaCCo** does generate catenated frameworks, but only because its
+  *template* CIF has more than one connected component
+  (`ciftemplate2graph.py` sets `catenation = True` when
+  `nx.connected_components` finds several, and `merge_catenated_cifs`
+  recombines the builds). The ~3000 shipped RCSR templates are
+  single-component, so out of the box it does not. It never invents an
+  interpenetration vector.
+- **PORMAKE — the library this application vendors — has no
+  catenation code at all**, and would need an interpenetrated
+  blueprint for the same reason.
+- The rigorous route is **Baburin, *Acta Cryst.* **A72** (2016) 366**,
+  [doi:10.1107/S2053273316002692] (preprint
+  <https://arxiv.org/pdf/1805.01773>): enumerate index-*n* supergroups
+  *G* ⊃ *H* subject to a site-symmetry condition, with the theorem
+  that interpenetrating nets can never be related by a mirror, nor by
+  any axis meeting a vertex or an edge. This *derives* the patterns
+  rather than guessing translations, and nobody has implemented it in
+  a tool a chemist can run.
+- Modern generative MOF models (MOFDiff, MOFFlow, MOFGPT, LEGO-MOF)
+  do **not** model interpenetration.
+
+*(Sources accessed 2026-09-19.)*
+
+### Why it is a different order of work
 
 Generation is **much** harder than detection, and they are not the
 same feature wearing two hats.
@@ -342,9 +491,12 @@ MFU-4l* — flipped nodes on a `pcu` net, and an SBU that does not meet
 its linker at a single point — and that fixing that "takes
 precedence". Adding a second, harder geometry problem on top of a
 builder that cannot yet build the application's own stress case is the
-wrong order. Revisit generation **after** item 1 lands, at which point
-the connection-point model will have been rethought anyway and the
-answer may be cheaper.
+wrong order — and `review/design/pormake-mfu4l.md` (landed at
+`d6d8b22`) shows item 1 is smaller than it looked, with a working
+prototype that needs no change to vendored code, so the wait is short.
+Revisit generation **after** item 1 lands, at which point the
+connection-point model will have been rethought anyway and the answer
+may be cheaper.
 
 If it is ever picked up, the shape is a `MODULES` entry
 (`kind="build"`, `needs_structure=True`, returns a `structure`), not a
@@ -987,9 +1139,6 @@ further **S**, blocked on the MOF parameter table.
 
 ## B.3 More ML potentials as `ENGINES` (idea 4) — *"Yes we should add"*
 
-*(Taken before EQeq because the shared-base question is the one that
-changes the sizes.)*
-
 ### B.3.1 Are they one engine or five?
 
 **Measured.** `review/probes/registry/ase_engine_split.py` classifies
@@ -1143,3 +1292,625 @@ covers every arithmetic test) and `in_a_fresh_interpreter`
 returning JSON) for the one test that must touch the real model — the
 stress-versus-`numeric_stress` check, which `xtal/ff/xtb/calculator.py`
 explains is the one claim that must never be taken on trust.
+
+### B.3.4 The five engines, and what each costs
+
+*All package facts accessed 2026-09-19; pin nothing on them without
+re-checking, since these projects release monthly.*
+
+| | ORB-v3 | SevenNet | UMA | eSEN-30M-OAM | MatterSim |
+|---|---|---|---|---|---|
+| pip | `orb-models` 0.7.0 | `sevenn` 0.13.0 | `fairchem-core` 2.22.0 | `fairchem-core[torch-extras]==1.10.0` | `mattersim` 1.2.5 |
+| Python | **≥3.12** | ≥3.10 | ≥3.11,<3.15 | ≥3.9,<3.13 | **≥3.12** |
+| torch | ≥2.8,<3.0 | not declared | **`~=2.13.0` hard pin** | **`==2.4.0`** | ≥2.2.0, no cap |
+| torch-geometric | no | yes (pure-python) | no | **yes, compiled** (scatter/sparse/cluster) | yes |
+| Weights | S3, auto, **no auth** | GitHub + in-wheel, auto | HF, **gated, manual approval + token** | HF, **gated**, manual download by path | GitHub raw, auto, **no auth** |
+| Code licence | Apache-2.0 | MIT | MIT | MIT | MIT |
+| **Weights licence** | **Apache-2.0** | **MIT** | FAIR Chemistry License v1 (bespoke; "commercial" not mentioned) | **OMat24 License — "research use"** | **MIT** |
+| Stress | yes (conservative and direct) | yes | **task-dependent — see below** | yes | yes, always |
+| CPU-only | yes | yes (its D3 variants are CUDA-only) | yes | yes | yes (its README advises CPU over MPS on Apple Silicon) |
+
+**Yes, they are all ASE-calculator-shaped.** Every one exposes a
+standard `ase.calculators.calculator.Calculator` with
+`implemented_properties`, which is exactly what `MACECalculator`
+already drives. The construction line differs and nothing else does:
+
+```python
+# ORB-v3  (>=0.6: the module MOVED and the loader now returns a pair)
+from orb_models.forcefield import pretrained
+from orb_models.forcefield.inference.calculator import ORBCalculator
+model, adapter = pretrained.orb_v3_conservative_inf_omat(device="cpu",
+                                                         precision="float32-high")
+calc = ORBCalculator(model, atoms_adapter=adapter, device="cpu")
+
+# SevenNet
+from sevenn.calculator import SevenNetCalculator
+calc = SevenNetCalculator(model="7net-omni", modal="mpa")   # modal= is REQUIRED for multi-fidelity
+
+# UMA
+from fairchem.core import pretrained_mlip, FAIRChemCalculator
+calc = FAIRChemCalculator(pretrained_mlip.get_predict_unit("uma-s-1p2p1",
+                                                           device="cpu"),
+                          task_name="odac")                 # odac is the MOF task
+
+# MatterSim
+from mattersim.forcefield import MatterSimCalculator
+calc = MatterSimCalculator(device="cpu")
+
+# MACE-MP-MOF0 — no keyword; a file by path
+from mace.calculators import MACECalculator
+calc = MACECalculator(model_paths="mofs_v2.model", device="cpu",
+                      default_dtype="float64")
+```
+
+**That is `_load` and nothing else**, which is what the 64% measurement
+predicted. Five of these are 10–20 lines each behind a shared base.
+
+**Four things that decide the plan.**
+
+**(1) They cannot share one environment, and three of them cannot
+share one with MACE.**
+
+- `mace-torch` pins `e3nn==0.4.4`; `sevenn` needs `e3nn>=0.5.0`.
+  **Mutually exclusive.**
+- `fairchem-core` v2 pins `torch~=2.13.0`; eSEN-30M-OAM needs
+  `fairchem-core==1.10.0` and `torch==2.4.0`, and **both install into
+  the same `fairchem.core` namespace**. So UMA and eSEN-OAM are also
+  mutually exclusive.
+- `orb-models>=0.6` and `mattersim>=1.2.5` both require **Python
+  3.12+**; fairchem v2 requires 3.11+. Python 3.12 is the only version
+  where all current releases install at all — which is what the
+  review venv already is (3.12, arm64).
+
+  This does **not** break the registry — `ENGINES` entries are
+  independent and each `check` is a `find_spec` — but it does mean
+  `pyproject.toml` must never define a `[dev]`-style extra that
+  installs more than one of them, and the extras' comments must say
+  why, in the same voice as the existing `mace` comment. **A user
+  installs one.** The engine list greying out four of five entries is
+  the normal state and is exactly what the existing
+  `Availability(False, "...pip install ...")` convention already
+  renders.
+
+**(2) UMA's stress is the trap, and it is the MOF task that has
+it.** `FAIRChemCalculator` emits stress only for tasks trained with
+stress labels. `odac` — the MOF task, and the only reason to reach for
+UMA here — **was not**, so `get_stress()` raises unless you pass
+`InferenceSettings(predict_untrained_stress={"odac"})`, and the
+stresses you then get are autograd through a head never fitted to DFT
+stress. `xtal/ff/xtb/calculator.py` already refuses to claim a stress
+it has not checked, and CLAUDE.md records why. **UMA must ship with
+`provides` **not** containing `"stress"`, or with a per-model claim
+the way `mace.implements_stress` does it.** That existing function
+generalises straight to this.
+
+**(3) Licences differ and two of them are restrictive.** MACE already
+sets the precedent — `ASL_MODELS` (`mace/calculator.py:127`) names the
+non-MIT models in the combo label *before* the choice is made, because
+*"MACE `print`s 'you accept the terms of the license' as it downloads,
+which is a poor moment to find out, and this application is the thing
+doing the downloading."* The same discipline applies here and is
+stricter, because two of these are worse than ASL:
+
+- **eSEN-30M-OAM's weights are "research use"** under Meta's OMat24
+  License. Matbench Discovery labels them "Meta Research". The OMat24
+  *dataset* is CC-BY-4.0 and that does **not** extend to the
+  checkpoints.
+- **UMA's weights are gated `manual`** on HuggingFace — a human
+  approves the request, and the form asks for legal name, date of
+  birth, country and affiliation. There is no way for this application
+  to fetch them on a user's behalf, and it should not try: the entry
+  greys out with "sign in to HuggingFace and request access at
+  <https://huggingface.co/facebook/UMA>", which is the same shape as
+  the DFTB+ Slater-Koster message.
+- **ORB-v3, SevenNet and MatterSim are Apache-2.0 / MIT / MIT for code
+  *and* weights, download without any account, and are therefore the
+  three to do first.**
+
+**(4) MACE-MP-MOF0 (idea 19, *"Sure"*) is not a `MODEL_CHOICES`
+entry.** It is not in `mace_mp_urls`, has no keyword, and is loaded by
+path from <https://github.com/ddmms/data/tree/main/mace-mof-0>
+(`mofs_v2.model`, ~31 MB, **CC BY 4.0 with a mandatory citation**).
+The existing `CUSTOM` / `model_path` branch already handles it
+(`mace/calculator.py:154 available()` checks the file is there), so
+"support" is a **documentation** change plus, at most, a named entry
+that fills `model_path` from a download. `review/PRIORITIES.md` sizes
+it S; that is right, and most of the S is the download-and-cite
+question, not code.
+
+### B.3.5 Which models, and the evidence for choosing them
+
+The benchmark that should drive the order is **MOFSimBench** (Kraß,
+Huang, Moosavi) — arXiv:2507.11806 (16 Jul 2025), published as *npj
+Comput. Mater.* 2026, 12:4, <https://doi.org/10.1038/s41524-025-01872-3>;
+repo <https://github.com/AI4ChemS/mofsim-bench>. Accessed 2026-09-19.
+
+**The 89% / 62% claim in `review/PRIORITIES.md` is verified against
+the preprint**, which says in terms that the best models achieve 89%
+against UFF4MOF's 62%. **Read the metric before quoting it**: it is
+Figure 3b of the *structural optimisation* task — the percentage of
+100 structures that both completed an atom+cell relaxation **and**
+landed within ±10% of the DFT cell volume. It is not "volume accuracy"
+in general, and it folds two failure modes (a crash or an unsupported
+element, and a >10% volume error) into one number. *Caveat: the
+published npj version is reported to revise these to 94% / 66%; I have
+not been able to read the published version behind its paywall, so
+**quote the preprint's 89/62 or check the npj figure yourself** —
+do not cite 94/66 on this document's authority.*
+
+Rankings, from the preprint:
+
+- **Overall best: eSEN-30M-OAM**, with **orb-v3-conservative-inf-omat**
+  a close second and **MatterSim-v1-5M** consistently top three.
+- Optimisation: eSEN-OAM and orb-v3-omat tied at 89%; **orb-d3-v2
+  worst at 39%**; the non-conservative models failed to converge in
+  5000 steps for 85–96% of structures. The paper's reading —
+  conservative force formulations give a smoother PES — is a useful
+  thing to put in the engine descriptions.
+- Bulk modulus MAE: eSEN-OAM 2.60 GPa < MACE-MP-MOF0 3.16 <
+  GRACE-2L-OMAT 3.23; heat capacity MAE: orb-v3-omat 0.018 J/K/g best.
+- **MACE-MP-MOF0 is not the winner on MOFs.** It has a low outlier
+  rate but **28 of the 100 structures are unsupported** for lack of
+  elemental coverage, and the general models beat it on the subset
+  where it is defined. That is worth saying out loud, because
+  `PRIORITIES.md` §19 already flags a tension between ideas 4 and 19
+  and this resolves it: **the general uMLIPs win; MOF0 is the
+  phonon/QHA specialist.**
+- **UMA is not in MOFSimBench at all** — which, given `odac` is UMA's
+  own MOF task, is a genuine gap rather than an omission to read past.
+- **Every model was benchmarked with a consistent D3 correction**
+  (ASE `SumCalculator` + `TorchDFTD3Calculator(xc="pbe",
+  damping="bj")`) where it had none built in. So the numbers above are
+  for *model + D3*, not bare models. If this application ships these
+  engines without the same dispersion treatment, it will not reproduce
+  them — and `torch-dftd` is then a further dependency. **Decision
+  needed: does an `ENGINES` entry own its dispersion correction?**
+  MACE's `mace_mp(dispersion=True)` already raises the same question
+  and the tree currently answers it by not exposing the option.
+
+**Recommended order**, on licence cleanliness first and benchmark
+second:
+
+1. **ORB-v3** — best-ranked of the permissively licensed ones,
+   Apache-2.0 weights, no account, stress in both variants.
+2. **MatterSim** — MIT throughout, no account, always gives stress,
+   and it wins the MOFSimBench host-guest task outright (it beats
+   both the fine-tuned MACE-DAC-1 and UFF+DDEC on CO₂/H₂O interaction
+   energies), which is the task closest to what this application's
+   users do next.
+3. **SevenNet** — MIT, no account, but **cannot share an environment
+   with MACE** (`e3nn`), so its extra's comment has to say so.
+4. **UMA** — after the others, because of the gate and the `odac`
+   stress hole.
+5. **eSEN-30M-OAM** — best on the benchmark, **and research-use-only
+   weights on a pinned `torch==2.4.0` and compiled PyG extensions.**
+   Hardest to install, most restrictive licence. Last, if at all.
+
+### B.3.6 Sizes
+
+| Piece | Size | Note |
+|---|:-:|---|
+| `ASECalculator` base in `xtal/ff/api.py` | **M** | ~150 lines moved, not written; `mace/calculator.py` shrinks to ~150; `tests/test_mace.py` must stay green unchanged, which is the check that the move was a move |
+| `Engine.__call__` calls `self.coerce()` | **S** | deletes three copies of option filtering (factoring §6); one line plus three deletions |
+| `ExternalCalculator` base (factoring §6) | **M** | xTB + DFTB+; do it in the same pass as the above |
+| **Each engine, after the base** | **S** | ~100 lines + `xtal/ff/__init__.py` + `layout.py` + two `pyproject.toml` lines + a test file copied from `test_mace.py` |
+| Each engine, on today's shape | **M** | ~350 lines, of which 141 are a copy of code that already exists twice |
+| MACE-MP-MOF0 | **S** | documentation and a named entry over the existing `CUSTOM` path |
+
+**So: one M for the base, then five S.** Doing it the other way round
+is five M's and five chances to get the stress conversion wrong.
+
+
+---
+
+## B.4 MOFid / MOFkey (idea 13) and a curated MOF set (idea 12)
+
+> **13.** *"Yes"*
+> **12.** *"Depends on licensing and the size of databases. A small
+> database of curated MOFs could also be useful. MOF-#, NU-#, HKUST-#,
+> etc."*
+
+He is right that this is a licensing question. It is **also** a
+licensing question about the nine files already in the tree, and that
+is where to start.
+
+### B.4.1 MOFid: it is not a library, and the shape that works is not the obvious one
+
+*(All verified 2026-09-19 against <https://github.com/snurr-group/mofid>
+and the PyPI/GitHub APIs.)*
+
+**`pip install mofid` does not work — there is no `mofid` on PyPI.**
+`https://pypi.org/pypi/mofid/json` is a 404, as are `mofid-python`,
+`pymofid`, `mofkey`. There is no conda-forge feedstock. The repo's
+`setup.py` (`version='1.1.0'`, `license='GNU'`) packages only the
+`Python/` directory, and the documented install is `make init` (which
+**builds a vendored full copy of Open Babel with CMake**, C++17,
+GCC 11 recommended), then `python set_paths.py`, then `pip install .`.
+
+**Worse for a desktop application: the install is not relocatable.**
+`set_paths.py` writes a generated `Python/paths.py` holding **absolute
+paths** of the build tree, and the Python layer then shells out to
+`os.path.join(openbabel_path, 'build', 'bin', 'obabel')`. The issue
+"Remove `set_paths.py` requirement" has been open since 2019. There is
+no way to ship that in a PyInstaller bundle.
+
+Two premises worth correcting:
+
+- **The patched Open Babel is history.** MOFid 1.0 (2019) did vendor a
+  patched OB 2.4.90 — it *added* the `-xg` CIF bond-writing option.
+  That patch was **upstreamed**: OB 3.1.1 contains it, and a
+  blob-level diff of MOFid's vendored tree against upstream 3.1.1
+  finds only four differing files, none of them chemistry
+  (`obutil.h` gains `#include <ctime>` for GCC 12; the rest are test
+  and data files). `cifformat.cpp`, `mol.cpp`, `bond.cpp`,
+  `kekulize.cpp` are byte-identical. **The source no longer needs a
+  fork; the build system still insists on its own in-tree build**,
+  because `sbu.cpp` `setenv`s `BABEL_DATADIR`/`BABEL_LIBDIR` at
+  compile-baked paths.
+- **Java is required, and the jar ships.** `Python/id_constructor.py`
+  asserts `java` is on PATH at import, and invokes
+  `Resources/Systre-experimental-20.8.0.jar` (1,651,077 bytes, the
+  upstream Gavrog release) with a 30-second timeout "because it hangs
+  on certain CGD files", against a 2.3 MB `RCSRnets.arc`.
+
+**Licences:** MOFid **GPL-2.0**; the Open Babel it vendors
+**GPL-2.0-only** (no "or later"); Systre/Gavrog **Apache-2.0**;
+`RCSRnets.arc` has **no stated licence**. Crystal Builder is **MIT**.
+So linking any of it in is out; invoking `sbu` as a separate process
+is the arm's-length route people use, and it is a judgement call
+rather than a settled one.
+
+**Is that acceptable here? No — but there is a route that is.** The
+project already has a precedent for exactly this shape and it is a
+good one: **`Export Net for Systre...`** (`xtalapp/menus.py:128`) does
+not run Systre. It writes a `.cgd` and tells the user to run Systre on
+it, "a second opinion on the Net panel". Nothing Java, nothing GPL,
+nothing bundled. MOFid gets the same answer by default.
+
+But there is a better option than the default, and it is the finding:
+
+**MOFid has an Emscripten/WASM build that needs no Java and no
+compiler.** <https://snurr-group.github.io/web-mofid/> runs the whole
+thing client-side, **replacing Java Systre with webGavrog (JS)**.
+Contents: `sbu.wasm` 4.41 MB, `sbu.data` 9.21 MB (the preloaded OB
+data directory plus `RCSRnets.arc`), `sbu.js` 0.23 MB,
+`webGavrog/main.js` 0.41 MB — **≈14 MB for a complete, self-contained
+MOFid engine**, with `_analyzeMOFc` as the exported entry point.
+
+The catches are real and should be stated: the `web-mofid` repository
+has **no LICENSE file** (so it inherits GPL-2 from MOFid by
+derivation, unstated), was last pushed **2021-09-01**, and there is an
+open upstream issue "Inconsistent output between local mofid and
+webmofid". Running WASM would also mean QtWebEngine, which this
+application deliberately excludes (`packaging/bundle.py EXCLUDES`
+lists `PySide6.QtWebEngineCore` and four siblings, and the comment
+says *"The application uses exactly four Qt modules"*). So it is not
+free either — but a 14 MB WASM blob with no Java is a far more
+plausible thing to ship than a CMake build of Open Babel, and it is
+worth knowing exists.
+
+**What `catN` actually is, since the app's own answer is better.**
+`Deconstructor::CheckCatenation()` calls `Separate()` on the
+simplified net and returns the component count; Python then does
+`cat = str(int(line[8]) - 1)`. That is: `catN` where `N = components −
+1`, with **no multiplicity term**, and a single-character parse that
+misreads any structure with ten or more nets. Systre is used only for
+the *topology symbol*, not for the count. Section A.6 of this document
+describes a number that is strictly better on the same input.
+
+**Recommendation.** Do **not** integrate MOFid. Do two things instead:
+
+1. **MOFkey-shaped identification, ours.** A MOFkey is
+   `<metals>.<InChIKey skeleton per linker>.MOFkey-v1.<topology>` —
+   metals sorted by atomic number, the first 14 characters of each
+   linker's InChIKey, sorted. The app already has the two hard pieces:
+   `graph.fragments()` gives the linkers and
+   `rcsr.describe(document.net())` gives the topology. The missing
+   piece is InChIKey, which is **RDKit**, already an optional extra
+   (`build`). That is a real S-sized feature that gives Julius what he
+   wants from idea 13 — "naming and dedup" — without GPL, Java, or a
+   14 MB blob.
+2. **Deduplication does not need MOFid at all.** CLAUDE.md already
+   records that *"`add_structure` de-duplicates by content, never by
+   name"* with `filecmp.cmp(..., shallow=False)`. A structural hash
+   would be a genuine improvement over a byte comparison, and the
+   existing `Net.key()` canonical form is one — for the net. For the
+   whole structure, `mofchecker`'s structure-graph hash is the
+   published idea and it is MIT.
+
+**Size: S** for a MOFkey-shaped identifier over what already exists;
+**L and not recommended** for MOFid itself.
+
+### B.4.2 The curated set: the licence problem starts at home
+
+**What is in `resources/samples/` today — nine files, 164 KB, and no
+provenance file at all.**
+
+```
+$ for f in resources/samples/*.cif; do ...; done
+CFA1.cif                36204 raw    9827 gz
+HKUST1.cif               4489 raw    1209 gz
+MFU4l.cif               19763 raw    5430 gz
+MIL53.cif                1933 raw     806 gz
+MOF-5.cif               34813 raw    2751 gz
+Ni2Cl2BTDD.cif           4570 raw    1955 gz
+UIO66.cif               25259 raw    2421 gz
+ZIF-8.cif                7348 raw    1866 gz
+zn_oac.cif              33851 raw    8268 gz
+                       168230 raw   32823 gz (as one stream)
+```
+
+`packaging/bundle.py RESOURCES` records the budget as
+*"File > Open Sample, and what --selftest opens. 164 KB"* — accurate
+to the byte. There is **no size test**:
+`tests/test_packaging.py:246 test_nothing_enormous_is_collected_by_accident`
+asserts only that the four `OMITTED` folders do not ship.
+
+Three things fall out of reading those files.
+
+**(1) Three of the nine carry CCDC headers.** Measured:
+
+```
+$ grep -il "licen|copyright|CCDC|deposit" resources/samples/*.cif
+resources/samples/Ni2Cl2BTDD.cif
+resources/samples/MFU4l.cif
+resources/samples/zn_oac.cif
+```
+
+`MFU4l.cif` contains `_database_code_depnum_ccdc_archive 'CCDC 776578'`
+and the line *"2010-05-10 deposited with the CCDC. 2025-02-04
+downloaded from the CCDC."*; `Ni2Cl2BTDD.cif` has
+`_database_code_CSD POSWUS` and `_audit_creation_method CSD-ConQuest-V1`;
+`zn_oac.cif` has `_ccdc_geom_bond_type`. Three more
+(`MOF-5`, `UIO66`, `HKUST1`) are `_audit_creation_method RASPA-1.0`,
+i.e. from the RASPA distribution, itself CSD-derived.
+
+CCDC's own support article *"Can I redistribute data from the CSD?"*
+says the licence *"does not allow external sharing of original data
+from the CSD, such as making bulk CIF files available to others
+outside your organization"*, and — checked — **states no threshold for
+a small number of structures**. There is no documented safe harbour.
+`MFU4l.cif` is the application's own stress case and is in the
+shipped bundle and in the signed macOS download.
+
+**This is not a reason to panic and it is a reason to act**: the
+project already has the right machinery for it one directory over.
+`xtal/mof/pormake/PROVENANCE.md` exists because vendored code needs
+its origin and its licence recorded, and
+`tests/test_packaging.py:164
+test_the_vendored_licence_and_provenance_are_collected` makes sure it
+travels. **`resources/samples/PROVENANCE.md` is the same file for the
+same reason and it is missing.** Writing it forces the question per
+file, which is the useful part.
+
+**(2) Two of the nine files ship but are not in the menu.**
+`xtalapp/samples.py SAMPLES` has **seven** entries; the folder has
+nine files; `bundle.project_datas()` iterates the folder, so
+`MIL53.cif` and `UIO66.cif` are in every download and reachable from
+nowhere. `MIL53.cif` is interesting: its
+`_audit_creation_method` is `'Crystal Builder 0.1.1.dev10+g72879303e'`
+— **the application built it**, so it is the one sample whose
+provenance is unambiguously the project's own. And UiO-66 is on
+Julius's own list of what a curated set should contain. **Adding two
+`Sample` entries is a five-line change and grows the set by 22% for
+nothing.**
+
+**(3) The size question is settled and it is not the constraint.**
+Measured: nine real MOF CIFs are 164 KB raw, 32 KB gzipped, averaging
+18.7 KB each. Scaling: **50 curated P1 CIFs is roughly 1–2.5 MB raw
+and 200–400 KB gzipped**; symmetry-reduced rather than P1 is 5–25×
+smaller again (MIL-47 is 1.7 KB in its own space group and 8.7 KB
+expanded). Against the vendored PORMAKE database already in the
+wheel — **3271 files and 2.8 MB, about 13 MB installed** — 50 CIFs is
+noise. **Optimise for provenance, not for bytes**, and ship them in
+the bundle rather than downloading: a download needs a server, a URL
+that stays up, and a first-run network call, all of which this
+application has carefully avoided everywhere else.
+
+### B.4.3 Where clean CIFs come from — see the sibling document
+
+**Another reviewer has answered this half properly and in more depth
+than I did**, and where we disagree they are right. See
+**`review/design/mof-database-licensing.md`** (committed at `d6d8b22`,
+after this document was begun). Its conclusions, which supersede my
+own sourcing notes:
+
+- **Source from COD (CC0), and regenerate what COD lacks**,
+  RASPA2-style with an `_audit_creation_method` and a `_citation_*`
+  block. RASPA2 is MIT and ships 108 such files; that is the community
+  norm and it is the legally right shape.
+- **All six headline MOFs are in COD** — MOF-5 1516287, HKUST-1
+  4002052, ZIF-8 7249359, UiO-66 4512072, MIL-101(Cr) 4000663,
+  NU-1000 7230579, each downloaded and parsed with gemmi. **This
+  corrects my own note above**: my search found no COD entry for
+  NU-1000 or MIL-101 and concluded COD's coverage was patchy. It is
+  not; I looked badly.
+- **CoRE MOF 2019 should be avoided**, not preferred: 94.2 % of its
+  files are refcode-named and therefore CSD-derived, which makes its
+  CC BY tag doubtful. CoRE MOF **2025**'s SI subset (99.8 %
+  journal-SI-derived) is the legitimate CC BY fallback.
+- **Ship a `DATA_LICENSES` / provenance file** naming each structure's
+  source, COD ID, citation and licence.
+
+Two things from my own reading that are worth carrying across as
+cautions rather than corrections:
+
+- **COD's public-domain dedication is not on every file.** COD
+  4118891 (ZIF-8) and 4340010 carry *"All data on this site have been
+  placed in the public domain by the contributors."* COD **2300380**,
+  an IUCr-sourced HKUST-1 entry, carries instead *"The file may be
+  used within the scientific community so long as proper attribution
+  is given to the journal article"* — a use restriction, not CC0.
+  Neither document's recommended entry is that one, but the lesson
+  holds: **read the header of every file you take**, rather than
+  relying on the site-level claim.
+- **Raw COD downloads carry refinement data.** COD 2300380 is
+  **1,019,557 bytes** because it embeds a full powder profile; the
+  sibling document measures the same effect on UiO-66 (286 KB) and
+  NU-1000 (301 KB) from `_refln` loops. Stripping to cell + symmetry +
+  `_atom_site` removes ~99.7 % of it. Curating means stripping.
+
+The two documents agree on the size answer, from independent
+measurements: **~30 structures is 200–700 KB raw and 50–150 KB
+gzipped** (theirs, on stripped COD files) against my ~1–2.5 MB raw /
+200–400 KB gzipped (on unstripped P1 files). Either way it is noise,
+and **the constraint is provenance, not bytes.**
+
+### B.4.4 The recommendation
+
+This one needs a recommendation on licensing more than on code, so
+here it is, in order:
+
+1. **Write `resources/samples/PROVENANCE.md` first** — before any new
+   file is added. One row per file: where it came from, what its
+   header says, and the citation. Model it on
+   `xtal/mof/pormake/PROVENANCE.md`, and add it to
+   `packaging/bundle.py RESOURCES` so it travels, with a test beside
+   `test_the_vendored_licence_and_provenance_are_collected`. **S.**
+   This is the whole job's foundation and it is half a day.
+2. **Add the two orphans to `samples.SAMPLES`** — `MIL53.cif` (built
+   by this application, so provenance-clean) and `UIO66.cif`. **S,
+   five lines.**
+3. **Decide the sourcing rule**, and make it a rule rather than a
+   judgement per file. `review/design/mof-database-licensing.md`
+   proposes the right one: *every sample either (a) comes from **COD**
+   with its public-domain header quoted, (b) is **regenerated** from
+   the paper with an `_audit_creation_method` and a `_citation_*`
+   block, RASPA2-style, or (c) was built by Crystal Builder.* CoRE MOF
+   **2025**'s SI subset is the CC BY fallback with a NOTICE; anything
+   with a CCDC header does not ship. **This is the decision only
+   Julius can make**, and it has a cost: it puts the current
+   `MFU4l.cif` in question, and MFU-4l is the application's benchmark.
+   A COD entry or a regenerated file has to be found for it before the
+   rule can be applied retroactively.
+4. **Then grow to 20–30**, from the allowed sources — the sibling
+   document has already located COD IDs for the six that matter most —
+   one `Sample`
+   entry each with the same one-sentence "why it is here" the seven
+   existing entries have — that writing is what makes them a curated
+   set rather than a folder. Target the list Julius named: MOF-5,
+   HKUST-1, **UiO-66**, ZIF-8, **NU-1000**, **MIL-101**, MIL-53,
+   MOF-74/CPO-27, IRMOF-9 or -10 (**an interpenetrated one**, which
+   Part A now has a reason to want), and the project's own MFU-4l,
+   CFA-1 and Ni₂Cl₂(BTDD). **M**, and most of the M is sourcing and
+   writing, not code: `samples.py` needs no new machinery and
+   `bundle.py` needs no change at all.
+
+**Size: S for the provenance file and the two orphans; M for the
+curated set; L and not recommended for MOFid.** And the gate on all of
+it is a decision, not an engineer.
+
+---
+
+# Every item, sized
+
+`S` ≈ a day or less · `M` ≈ two to five days · `L` ≈ longer, or with a
+research question inside it.
+
+| # | Item | Size | Dependency | Copies / exemplar | Decision needed from Julius first? |
+|---|---|:-:|---|---|---|
+| **A** | **Interpenetration — detection** | **S** | none | `Net.multiplicity` + `Net.components` (`topology.py:243`, `:255`); surfaced like `docks/net.py` | No |
+| A′ | Interpenetration in `StructureInfo` too | S | none | `properties.py:117` | No — do it second |
+| A″ | Interpenetration — **generation** | **L** | none | IPMOF (2017) is the only method | **Yes** — and it is blocked behind PORMAKE item 1 anyway |
+| A‴ | Blatov class / self-penetration (HRN) | L | none | ToposPro | Not recommended |
+| **1a** | **mmCIF / PDBx, read** | **S** | **none** (gemmi is already required) | `cif_reader._from_small_structure` | No |
+| 1b | mmCIF, write | S | none | `cif_writer` | **Yes** — recommend not in v1 |
+| **1c** | **POSCAR / CONTCAR** | **S**+**M** | none | `xtal/io/gen.py` | **Yes** — `Format.filenames`, a shared-code change |
+| **1d** | **pymatgen `Structure` JSON** | **S** | **none** (not pymatgen) | `gen.py` + `json` | **Yes** — which extension |
+| **1e** | **ASE `.traj`** | **M** | `ase` extra | `xtal/io/trajectory.py` | **Yes** — `Format.available`, and the trajectory dispatch |
+| **2a** | Charge-source list read from the `Param` | **S** | none | `test_every_engine_that_is_registered_can_be_chosen` | No — **do this first** |
+| **2b** | **EQeq** | **M** | none (numpy/scipy) | `xtal/ff/uff/qeq.py`; `ZEO_RADII` for the table | **Yes** — transcribe the table from NIST rather than the GPL-2.0 repo |
+| **2c** | EQeq+C | S | none | 40 lines over EQeq | **Yes** — the MOF `D_Z` table is behind a paywall |
+| **3a** | `Engine.__call__` coerces options | **S** | none | `Engine.coerce` already exists, uncalled | No — cheapest line here |
+| **3b** | **`ASECalculator` base** | **M** | none | 141 of 219 lines already in `mace/calculator.py` | No — **do this before any new engine** |
+| 3c | `ExternalCalculator` base (factoring §6) | M | none | xtb + dftb | No — same pass as 3b |
+| **3d** | **ORB-v3** | S after 3b | `orb-models` extra | `xtal/ff/mace/` | No — **Apache-2.0, no account: do first** |
+| **3e** | **MatterSim** | S after 3b | `mattersim` extra | same | No — MIT, no account, always gives stress |
+| **3f** | **SevenNet** | S after 3b | `sevenn` extra | same | No — MIT, but **cannot coexist with mace** (`e3nn`) |
+| 3g | UMA | S after 3b | `fairchem-core` extra | same | **Yes** — HuggingFace manual gate, and `odac` has no trained stress |
+| 3h | eSEN-30M-OAM | M | `fairchem-core==1.10` + compiled PyG | same | **Yes** — **research-use-only weights**; best on the benchmark |
+| 3i | MACE-MP-MOF0 (idea 19) | S | existing `mace` extra | the existing `CUSTOM` / `model_path` path | **Yes** — download-and-cite (CC BY 4.0, mandatory citation) |
+| **4a** | **`resources/samples/PROVENANCE.md`** | **S** | none | `xtal/mof/pormake/PROVENANCE.md` | No — **do this first of all** |
+| 4b | Add `MIL53` and `UIO66` to the menu | S | none | `xtalapp/samples.py SAMPLES` | No — five lines |
+| **4c** | **A curated MOF set (20–30)** | **M** | none | `samples.py`; **COD (CC0)** per `review/design/mof-database-licensing.md` | **Yes** — the sourcing rule, and what to do about `MFU4l.cif` |
+| 4d | MOFid / MOFkey via MOFid itself | **L** | GPL-2.0, Java, a CMake OB build | — | **Not recommended** |
+| **4e** | **A MOFkey-shaped identifier of our own** | **S** | `rdkit` (existing `build` extra) | `graph.fragments()` + `rcsr.describe` | No |
+
+**Six decisions are the gate on nine items**, and they are worth
+answering together rather than one at a time:
+
+1. **`Format` grows `filenames` and `available`** — or POSCAR and
+   `.traj` do not happen. (1c, 1e)
+2. **Which extension `.json` structures claim.** (1d)
+3. **Is transcribing 484 NIST numbers, checked against a GPL-2.0
+   repo's file, acceptable?** (2b)
+4. **Does an `ENGINES` entry own a dispersion correction?** MOFSimBench's
+   numbers are all model+D3, and MACE already has the option hidden.
+   (3d–3i)
+5. **Do research-use-only and manually-gated model weights belong in a
+   greyed-out engine list at all?** (3g, 3h)
+6. **What is the sourcing rule for a shipped structure — and does it
+   apply retroactively to `MFU4l.cif`?** (4a, 4c)
+
+**If only three things get built**, they should be:
+**A (detection)**, **1a (mmCIF)** and **3b + 3d (the ASE base and
+ORB-v3)** — the first turns code that already exists into a visible
+feature, the second is a whole file format for half a day because
+gemmi is already paid for, and the third stops the next five engines
+each costing four times what they should.
+
+---
+
+# What I did not get to
+
+- **I did not run the test suite.** The machine's swap is near full
+  and CLAUDE.md is explicit about what a full run costs here; every
+  measurement above comes from a targeted probe or from reading. The
+  probes import `xtal` and touch nothing else. `git status` is clean.
+- **No positive real interpenetrated structure was tested**, because
+  the tree has none. The three controls in
+  `review/probes/registry/interpenetration.py` are synthetic (a
+  doubled-cell `pcu`, and MOF-5's framework duplicated). Before
+  building A, get one real 2-fold structure — IRMOF-9 or IRMOF-10, or
+  a `cat1` entry from hMOF — and check the detector against a
+  published fold.
+- **`Net.key` on the atom graph was not pursued past its refusal.** It
+  refuses 424 vertices, so "are the two frameworks the same net?" is
+  unanswered on the chemistry and I did not measure where its budget
+  actually runs out.
+- **The mmCIF probe used a hand-written four-atom PDBx file**, not a
+  real PDB entry, because fetching one was out of scope. Before
+  building 1a, run it on a real `.cif` from the PDB and on a
+  multi-model entry.
+- **I did not prototype the POSCAR reader**, so "150 lines" is from
+  the shape of `gen.py`, not from writing it.
+- **EQeq's numerics were not implemented or checked.** The claim that
+  `qeq._solve` is reusable comes from reading both; the Ewald pair
+  matrix is the piece I would expect to cost more than the estimate.
+- **The EQeq+C MOF parameter table was not obtained** (paywalled), and
+  the EQeq erratum (JPCL 2012, 3, 2897) was not read. The ATMO
+  parameters quoted are from the SI script's docstring.
+- **The published MOFSimBench figures were not read** — only the
+  arXiv preprint. The 89% / 62% figures are verified against the
+  preprint; a report that the journal version revises them to
+  94% / 66% is **second-hand and should not be cited on this
+  document's authority.**
+- **No MLIP was installed or run.** Every package claim in B.3.4 is
+  from PyPI/GitHub/HuggingFace metadata read on 2026-09-19, not from
+  an install, and install sizes are estimates. These projects release
+  monthly; re-check before pinning.
+- **The licensing half of B.4 was done better elsewhere and I have
+  deferred to it.** `review/design/mof-database-licensing.md`, landed
+  at `d6d8b22` while this was being written, has COD IDs for all six
+  headline MOFs, the RASPA2 precedent, per-file size measurements and
+  a survey of what other projects ship. My own search concluded COD
+  lacked NU-1000 and MIL-101; that was wrong, and B.4.3 now says so.
+  What survives from my side is the state of `resources/samples/`
+  today (B.4.2), which that document does not cover.
+- **The remaining legal questions should not be answered by a
+  reviewer**, and both documents reach the same list: whether EU/UK
+  database right bites on ~30 structures extracted from a curated
+  collection; whether CCDC's contractual ban binds someone who never
+  accepted the terms; and the copyright status of a CIF deposited as
+  journal supporting information. They want one conversation with
+  somebody qualified, and then a line in `PROVENANCE.md`.
