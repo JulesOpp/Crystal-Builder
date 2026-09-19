@@ -1,5 +1,8 @@
 # Performance and resource usage
 
+> **Written 2026-09-18** against `Crystal-Builder` at commit `3cd15e2` (v0.2.1), the base of branch `features/deep-review`. `origin/main` has since moved to `fb38d25`. Line numbers, measurements and code references below were true at `3cd15e2` — re-verify before acting on one if the file has changed since.
+
+
 **This machine has 8 GB of RAM, not 16** (`sysctl hw.memsize` =
 8589934592; `hw.ncpu` = 8). That single fact explains most of the 819 s
 vs 332 s swing: at the moment of measuring, 1.67 GB was wired and the

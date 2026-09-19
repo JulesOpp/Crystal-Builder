@@ -1,5 +1,8 @@
 # Reliability of long-running work
 
+> **Written 2026-09-18** against `Crystal-Builder` at commit `3cd15e2` (v0.2.1), the base of branch `features/deep-review`. `origin/main` has since moved to `fb38d25`. Line numbers, measurements and code references below were true at `3cd15e2` — re-verify before acting on one if the file has changed since.
+
+
 *Worker-thread teardown, cancellation, and process lifecycle.*
 Reviewed against `main` @ v0.2.1, PySide6 **6.9.3** / Qt 6.9.3,
 `.venv/bin/python` 3.12 arm64. No tracked file was modified

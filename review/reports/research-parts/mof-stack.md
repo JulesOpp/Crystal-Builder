@@ -1,5 +1,8 @@
 # Sub-research: MOF-specific software stack (condensed by coordinator)
 
+> **Written 2026-09-18** against `Crystal-Builder` at commit `3cd15e2` (v0.2.1), the base of branch `features/deep-review`. `origin/main` has since moved to `fb38d25`. Line numbers, measurements and code references below were true at `3cd15e2` — re-verify before acting on one if the file has changed since.
+
+
 ## Strongest signals
 - **Structural validation is a field-wide crisis**: CoRE2014 38% error; >40% across 14 databases / 1.9M structures (JACS 2025, oxidation-state check); "over half of top-performing screening candidates contain structural errors" (Israel J Chem 2026 "Hunting Structural Demons"). **mofchecker** (lamalab-org, RSC DD 2023/2025) is validation-only: duplicates, overlaps, missing H/counter-ions/linkers, oxidation states via OxiMACHINE, porosity via zeopp PLD 2.4 Å. Nothing desktop does this at import time.
 - **LAMMPS export is unowned**: lammps-interface has "New maintainer wanted!" (#61), Zr in UiO-66 gets 0 neighbours (#70), requires P1; cif2lammps archived Apr 2024. CB already has the graph + UFF/UFF4MOF typer — the hard part of both tools.

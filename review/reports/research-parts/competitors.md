@@ -1,5 +1,8 @@
 # Sub-research: competitors and neighbours (condensed by coordinator)
 
+> **Written 2026-09-18** against `Crystal-Builder` at commit `3cd15e2` (v0.2.1), the base of branch `features/deep-review`. `origin/main` has since moved to `fb38d25`. Line numbers, measurements and code references below were true at `3cd15e2` — re-verify before acting on one if the file has changed since.
+
+
 | Tool | Has that CB lacks | Recurring complaints |
 |---|---|---|
 | VESTA | 30 in / 13 out structure formats, 17 volumetric formats, isosurfaces of charge density/ELF, thermal ellipsoids, crystal morphology, 25y polish, cited everywhere | macOS crashes on open / standardize / .xsf; "opens but no structure appears"; lock-file corruption; cannot cut along arbitrary plane; not scriptable |

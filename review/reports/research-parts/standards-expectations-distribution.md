@@ -1,5 +1,8 @@
 # Sub-research: standards, desktop expectations, distribution (condensed by coordinator)
 
+> **Written 2026-09-18** against `Crystal-Builder` at commit `3cd15e2` (v0.2.1), the base of branch `features/deep-review`. `origin/main` has since moved to `fb38d25`. Line numbers, measurements and code references below were true at `3cd15e2` — re-verify before acting on one if the file has changed since.
+
+
 ## Interchange — what is vendorable
 - **mmCIF/PDBx**: gemmi (already a dependency) reads/writes it. Zero new deps.
 - **POSCAR/CONTCAR**: ase.io.vasp (ase already an extra) or ~80 lines by hand.

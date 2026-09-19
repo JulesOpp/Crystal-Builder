@@ -1,5 +1,8 @@
 # What to build, in order
 
+> **Written 2026-09-19** against `Crystal-Builder` at commit `3cd15e2` (v0.2.1), the base of branch `features/deep-review`. `origin/main` has since moved to `fb38d25`. Line numbers, measurements and code references below were true at `3cd15e2` — re-verify before acting on one if the file has changed since.
+
+
 Jules reviewed the deep review on PR #1 (2026-09-19, five inline comments)
 and gave a verdict on all 24 feature ideas plus the bug findings. This file
 turns that into an ordered plan. His words are quoted; the ordering is the

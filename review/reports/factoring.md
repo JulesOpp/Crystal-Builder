@@ -1,5 +1,8 @@
 # Are the workflows and code paths well factored?
 
+> **Written 2026-09-18** against `Crystal-Builder` at commit `3cd15e2` (v0.2.1), the base of branch `features/deep-review`. `origin/main` has since moved to `fb38d25`. Line numbers, measurements and code references below were true at `3cd15e2` — re-verify before acting on one if the file has changed since.
+
+
 *Architecture and maintainability review of Crystal Builder v0.2.1 (main, clean).
 Topic: factoring of the five end-to-end workflows, the registries, error
 conventions, the settings layer, and `mainwindow.py`.*
