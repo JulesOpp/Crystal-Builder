@@ -16,7 +16,9 @@
 | File | What it is |
 |---|---|
 | [REVIEW.md](REVIEW.md) | The synthesis. §4 is what is good, §5 an ordered work plan, §7 the feature ideas. Start here. |
-| [PRIORITIES.md](PRIORITIES.md) | The same work re-ordered after Julius answered every idea on PR #1. |
+| [PLAN.md](PLAN.md) | **The ordered work, with measured sizes.** What to act on. |
+| [PRIORITIES.md](PRIORITIES.md) | Superseded by PLAN.md — the ordering from Julius's PR verdicts, before the design reading. |
+| [design/](design/) | The reading behind PLAN.md: PORMAKE/MFU-4l, tier-1 specs, registry sizing, licensing. |
 | `design/` | High-level design for the items that needed it before they could be sized. |
 | `reports/` | The nine reviews the synthesis rests on, each with its evidence. |
 | `probes/` | Reproductions. Scripts, not tests — they are how the findings were proved. |
