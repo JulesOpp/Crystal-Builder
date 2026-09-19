@@ -317,3 +317,77 @@ def test_the_same_net_edge_is_not_stored_twice(halite):
     topology = [b for b in halite.bonds if b.kind == bonding.TOPOLOGY]
     assert len(topology) == 1
     assert len(bonding.topology_graph(halite).bonds) == drawn
+
+
+# ----------------------------------------------------------------------
+#  Adding bonds one at a time
+# ----------------------------------------------------------------------
+
+def _line_of_bonds(n_sites=40):
+    """A structure and a list of distinct bonds to add to it."""
+    import numpy as np
+
+    from xtal import Lattice, Structure
+    from xtal.core.site import Site
+    from xtal.core.structure import Bond
+    rng = np.random.default_rng(0)
+    sites = [Site("C", rng.random(3)) for _ in range(n_sites)]
+    s = Structure(lattice=Lattice.cubic(30.0), sites=sites)
+    bonds = [Bond(i, j, (0, 0, 0))
+             for i in range(n_sites) for j in range(i + 1, n_sites)]
+    return s, bonds
+
+
+def test_adding_bonds_one_at_a_time_does_not_rescan_the_whole_graph(
+        monkeypatch):
+    """Asserted as a call count and not a timing, because the cost was
+    never about the clock: the duplicate check scanned the whole list
+    and Bond.reverse composes symmetry operations with a matrix
+    multiply, so building a graph a bond at a time was quadratic in
+    that. Opening an MFU-4l project made 360 824 of these calls and
+    took 2.1 seconds."""
+    from xtal.core.structure import Structure
+    s, bonds = _line_of_bonds()
+    calls = []
+    real = Structure._bond_identity
+    monkeypatch.setattr(Structure, "_bond_identity",
+                        lambda self, b: (calls.append(1), real(self, b))[1])
+    for b in bonds:
+        s.add_bond(b)
+    # One identity per bond added, plus the set built once. Quadratic
+    # behaviour is ~len(bonds)**2 / 2, which for 780 bonds is 304 200.
+    assert len(calls) < 3 * len(bonds), len(calls)
+
+
+def test_the_same_bond_twice_is_still_only_added_once():
+    """The memo exists to make the duplicate check cheap, not to skip
+    it."""
+    s, bonds = _line_of_bonds(6)
+    assert s.add_bond(bonds[0]) is True
+    assert s.add_bond(bonds[0]) is False
+    assert len(s.bonds) == 1
+
+
+def test_replacing_the_bond_list_wholesale_is_noticed():
+    """`structure.bonds` is assigned directly in seven places. A set
+    kept eagerly beside it would go stale there and start rejecting
+    bonds that are not present; the memo is invalidated by the same
+    revision stamp everything else uses, so it cannot."""
+    s, bonds = _line_of_bonds(6)
+    s.add_bond(bonds[0])
+    s.bonds = []
+    s.touch()
+    assert s.add_bond(bonds[0]) is True, "a cleared graph rejected a bond"
+    assert len(s.bonds) == 1
+
+
+def test_a_new_space_group_makes_the_identities_stale():
+    """An identity is (kind, key-under-the-group), so changing the
+    group changes what counts as the same bond."""
+    from xtal.core.structure import Change
+    s, bonds = _line_of_bonds(6)
+    s.add_bond(bonds[0])
+    before = len(s._bond_identities())
+    s.space_group = s.space_group
+    s.touch(Change.SYMMETRY)
+    assert len(s._bond_identities()) == before
