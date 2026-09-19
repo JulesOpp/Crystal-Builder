@@ -440,3 +440,65 @@ def test_cif_export_of_a_structure_built_from_scratch(tmp_path):
     back = read_cif(path)
     assert symmetry.detect(back).number == 225
     assert properties.formula(back) == ("NaCl", 4)
+
+
+# A label the CIF grammar cannot carry bare -- a space, a quote, a
+# reserved word.  The writer used to put these in the file raw, and
+# _quote, which nothing routed them through, would have damaged them if
+# it had: it swapped every apostrophe for a space.  So `Na'1` came back
+# as two tokens, or `#h` commented its own row away and the atom left
+# the file with the exit status still zero.
+AWKWARD_LABELS = ["Na 1", "Na'1", 'Na"1', 'Na\'1"2', "data_x", "loop_",
+                  "#hidden", "_leading", ";semi"]
+
+
+@pytest.mark.parametrize("label", AWKWARD_LABELS)
+def test_a_label_the_grammar_cannot_carry_bare_survives_the_file(
+        tmp_path, rutile, label):
+    """Every atom comes back, with the label it was given.
+
+    If this regresses the file is either unreadable or -- worse -- one
+    atom shorter, and nothing says so."""
+    s = rutile.copy()
+    s.ensure_labels()
+    s.sites[0].label = label
+    path = tmp_path / "awkward.cif"
+    write_cif(s, path)
+    back = read_cif(path)
+    assert len(back.sites) == len(s.sites)
+    assert back.sites[0].label == label
+
+
+def test_an_apostrophe_in_a_label_is_not_swapped_for_a_space(tmp_path,
+                                                             rutile):
+    """The specific damage _quote used to do.  `Na'1` is one token and
+    has to stay one token; as `Na 1` it is two, and the row is wrong by
+    a column from there on."""
+    s = rutile.copy()
+    s.ensure_labels()
+    s.sites[0].label = "Na'1"
+    path = tmp_path / "apostrophe.cif"
+    write_cif(s, path)
+    assert " 1" not in path.read_text(encoding="utf-8").split("\n")[0]
+    assert read_cif(path).sites[0].label == "Na'1"
+
+
+def test_a_label_that_needs_no_quoting_is_not_quoted(rutile):
+    """Ordinary files must not change shape.  Quoting every label would
+    rewrite every CIF this program has ever written."""
+    text = cif_string(rutile)
+    assert "\nTi1      Ti" in text or "\nTi1     " in text
+    assert "'Ti1'" not in text
+
+
+def test_an_awkward_label_still_carries_its_bonds(tmp_path, rutile):
+    """The bond loop names sites by label, so a label the grammar
+    breaks on loses the bonds that refer to it, not just the label."""
+    rutile.ensure_labels()
+    rutile.bonds.append(Bond(0, 1, (0, 0, 0), kind="explicit"))
+    rutile.sites[0].label = "Ti 1"
+    path = tmp_path / "bonded.cif"
+    write_cif(rutile, path)
+    back = read_cif(path)
+    assert len(back.bonds) == 1
+    assert back.sites[0].label == "Ti 1"
