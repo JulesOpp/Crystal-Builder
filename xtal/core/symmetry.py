@@ -136,6 +136,23 @@ def _spglib_cell(structure: Structure):
 #  DETECTION
 # ======================================================================
 
+def _check_symprec(symprec: float) -> None:
+    """Refuse a tolerance spglib would crash on.
+
+    ``symprec`` reaches spglib as a C double and a negative one walks
+    off the end of its neighbour search: ``xtal symmetry FILE
+    --symprec -1`` took the whole process down with SIGSEGV and no
+    output at all.  The only guard used to be in the Find symmetry
+    dialog, so the headless half -- the half that is meant to be
+    usable from a script -- was the unprotected one.
+    """
+    value = float(symprec)
+    if not value > 0.0 or value != value:      # NaN is not > 0 either
+        raise ValueError(
+            f"symprec must be a positive distance in angstroms, "
+            f"not {symprec!r}")
+
+
 def detect(structure: Structure, symprec: float = DEFAULT_SYMPREC,
            angle_tolerance: float = DEFAULT_ANGLE_TOLERANCE
            ) -> SymmetryInfo:
@@ -144,6 +161,7 @@ def detect(structure: Structure, symprec: float = DEFAULT_SYMPREC,
     Raises ValueError if spglib cannot make sense of the cell (which is
     itself useful information -- usually overlapping atoms).
     """
+    _check_symprec(symprec)
     cell, back, _ = _spglib_cell(structure)
     try:
         ds = spglib.get_symmetry_dataset(
@@ -404,6 +422,7 @@ def standardize(structure: Structure,
     """Rebuild the cell in the conventional (or primitive) setting of
     its detected group.  The result is in P1 -- call
     :func:`asymmetrize` after it to also reduce the sites."""
+    _check_symprec(symprec)
     cell, back, _ = _spglib_cell(structure)
     try:
         std = spglib.standardize_cell(
@@ -505,6 +524,9 @@ def asymmetrize(structure: Structure,
         notes.append(
             f"imposing the group idealised the coordinates: atoms move "
             f"by up to {worst:.4f} A")
+    looser = _looser_group(work, info, symprec)
+    if looser is not None:
+        notes.append(looser)
     report = SymmetryReport(
         n_before=cell.n_atoms, n_after=len(sites),
         message=(f"{info.international} (#{info.number}): "
@@ -513,6 +535,60 @@ def asymmetrize(structure: Structure,
         warnings=notes,
     )
     return out, report
+
+
+#: Tolerances tried above the one asked for, when the answer may be a
+#: subgroup of the real group.  It stops at 0.05 A because 0.1 A finds
+#: Cc in ZIF-8, which is a worse answer than the one it replaces, and
+#: because 0.05 A is already :data:`p1.SPECIAL_POSITION_TOL` -- the
+#: distance at which this program stops believing two coordinates are
+#: different places.
+_LOOSER_SYMPREC = (1e-3, 1e-2, 5e-2)
+
+
+def _looser_group(structure: Structure, found: SymmetryInfo,
+                  symprec: float) -> str | None:
+    """Say so when a looser tolerance would find a bigger group.
+
+    A file written from a P1 refinement carries coordinates a rounding
+    place off their ideal positions, so the default 1e-5 A finds a
+    subgroup of the group the crystal actually has: MFU4l.cif, reduced
+    to P1 and asymmetrized, comes back as *Pmmm* with 87 sites instead
+    of *Fm-3m* with 10.  Every automatic check passes, because Pmmm
+    with 87 sites does regenerate the same 648 atoms -- what is lost is
+    the group, silently, and the structure will then scan, optimise and
+    save as an orthorhombic crystal.
+
+    The previous group is not recoverable at this point: after Reduce
+    to P1 nothing in the structure remembers it.  So the only way to
+    know is to look, which costs about 90 ms on MFU-4l and happens
+    once, when a person presses Find symmetry.
+    """
+    # The whole ladder, not the first rung that improves: MFU-4l finds
+    # P4/mmm at 1e-3 and Fm-3m at 1e-2, and sending somebody to the
+    # first of those costs them the second.
+    best = None
+    for tol in _LOOSER_SYMPREC:
+        if tol <= symprec:
+            continue
+        try:
+            candidate = detect(structure, tol)
+        except (ValueError, RuntimeError):
+            continue
+        if candidate.n_operations <= found.n_operations:
+            continue
+        if best is None or candidate.n_operations > best[1].n_operations:
+            best = (tol, candidate)
+    if best is None:
+        return None
+    tol, candidate = best
+    return (f"at a tolerance of {tol:g} A this cell is "
+            f"{candidate.international} (#{candidate.number}) with "
+            f"{candidate.n_operations} operations, against "
+            f"{found.international} with {found.n_operations}. Coordinates "
+            f"written a rounding place off their ideal positions look "
+            f"like a subgroup; if that is this file, run Find symmetry "
+            f"again at {tol:g} A.")
 
 
 def _regenerates(candidate: Structure, original: p1.P1Cell, tol: float):
