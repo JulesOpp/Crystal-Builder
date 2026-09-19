@@ -88,13 +88,13 @@ class FormatRegistry:
         f = self.get(fmt) if fmt else self.by_extension(path)
         if not f.can_read:
             raise ValueError(f"{f.name} files cannot be read")
-        return f.read(Path(path))
+        return _warn_if_coincident(f.read(Path(path)))
 
     def read_all(self, path, fmt: str | None = None) -> list:
         """Read every structure in a multi-block file."""
         f = self.get(fmt) if fmt else self.by_extension(path)
         if f.read_all is not None:
-            return f.read_all(Path(path))
+            return [_warn_if_coincident(s) for s in f.read_all(Path(path))]
         return [self.read(path, fmt)]
 
     def write(self, structure, path, fmt: str | None = None, **kw):
@@ -105,3 +105,23 @@ class FormatRegistry:
 
 
 FORMATS = FormatRegistry()
+
+
+def _warn_if_coincident(structure):
+    """Say so, once, when a file's own symmetry repeats its atoms.
+
+    Every door into the application comes through here, so this is the
+    one place it has to be said.  It is a *warning* and not a refusal:
+    the file is legal CIF and the user may have meant it, and
+    :func:`xtal.core.symmetry.merge_duplicates` is one menu item away.
+    Expanding costs a few milliseconds and the result is memoised on
+    the structure, so the next thing to want the cell gets it free.
+    """
+    from xtal.core.p1 import coincidence_warning
+    try:
+        warning = coincidence_warning(structure)
+    except Exception:            # a structure too broken to expand is
+        return structure         # the reader's problem to report, not
+    if warning:                  # a reason to fail the read here
+        structure.meta.setdefault("warnings", []).append(warning)
+    return structure
