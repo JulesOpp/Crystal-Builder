@@ -297,6 +297,12 @@ overnight scan); a busy cursor plus moving Set Bond Type off the main thread
 
 ## 7. Feature ideas to put to Jules
 
+Every citation below was re-verified against Crossref or the publisher in
+[literature-matrix.md](reports/literature-matrix.md), which found **six
+errors** in the research pass — one of which (MOFSimBench) nearly inverted
+idea 4's argument. The corrections are folded in below; the matrix carries
+the per-paper detail and a claimed-vs-says column.
+
 Curated from [research.md](reports/research.md) (30 ranked ideas, each with
 source, roadmap status and size) and cross-checked against what the code
 reviews found. Ordered by how well each fits what the app already is:
@@ -308,10 +314,15 @@ as questions, because they are Jules's calls.
 1. **"Should the app check a structure the moment it opens?"** The field's
    loudest problem: 38 % of CoRE2014 and >40 % of 1.9 M structures across 14
    databases have errors (JACS 2025); "over half of top screening candidates"
-   are structurally wrong (Israel J. Chem 2026). `mofchecker` does this as a
-   library; nothing desktop does it at import. And this review found two of
-   Jules's own nine samples expand with atoms at 0 Å with nothing saying so
-   ([edge-cases §3](reports/edge-cases.md)). `duplicate_groups` exists;
+   `duplicate_groups` exists; `meta["warnings"]` exists; PLAN §12 already
+   sketches a validation panel. **M** — and the first step (coincident
+   atoms on open) is **S**. *Scope it honestly:* **32.5 of MOFChecker's 38
+   percentage points are charge-balance failures, not geometry**, so a
+   geometry-only panel catches the smaller half. The two audits behind this
+   are MOFChecker (Digital Discovery **4**(6) 1560) and the JACS
+   oxidation-state study (147(21) 17579) — which is where the 52 % figure
+   actually comes from; the Israel J. Chem. piece is a mini-review
+   restating it, not a third source.
    `meta["warnings"]` exists; PLAN §12 already sketches a validation panel.
    **M** — and the first step (coincident atoms on open) is **S**.
 
@@ -327,21 +338,42 @@ as questions, because they are Jules's calls.
 
 ### Extending a registry (cheap, on-pattern)
 
-4. **More ML potentials as `ENGINES` entries** — CHGNet, M3GNet, ORB-v3,
-   SevenNet, UMA (Meta, June 2025), MatterSim. All ASE-calculator-shaped,
-   the same seam MACE uses. MOFSimBench (npj 2025) showed none is uniformly
-   reliable on MOFs — which is the argument for offering several. **S each**.
+4. **More ML potentials as `ENGINES` entries** — ORB-v3, SevenNet, UMA
+   (Meta, June 2025), eSEN-OAM, MatterSim. All ASE-calculator-shaped, the
+   same seam MACE uses. **S each.** The argument is stronger than the
+   research pass first stated, and points a different way: MOFSimBench
+   (npj Comput. Mater. **12**, 4) tests **21** models and finds the top
+   universal MLIPs *consistently outperform* classical force fields —
+   **89 % volume accuracy against UFF4MOF's 62 %** — so this is about
+   accuracy the app cannot reach today, not about hedging between
+   unreliable options. It does not test CHGNet or M3GNet, and does not
+   evaluate charge-dependent properties or breathing at all.
 5. **MACE-MP-MOF0 as a checkpoint choice** — the MOF fine-tune of
-   MACE-MP-0b, 10× more accurate on geometry/forces/stress. **S**.
-6. **EQeq / EQeq+C beside QEq** — non-iterative Ewald charge equilibration,
-   seconds not days; EQeq+C fixes high-oxidation-state metals. The Ewald sum
-   is already there. **S**.
+   MACE-MP-0b (Elena et al., npj Comput. Mater. **11**, 125). Forces ~30 %
+   better and lattice constants ~10x on its own set — but it is a
+   **phonon / quasi-harmonic** paper, MOFSimBench finds it now matched by
+   general models and unable to run 28 % of its test set, and it cannot do
+   what idea 4's engines do. **Ideas 4 and 5 are in tension; 4 is the
+   better buy.** Its real gift is to **idea 26** (quasi-harmonic F(V,T)) —
+   MIL-53 is one of its four validation frameworks. **S**.
+6. **EQeq / EQeq+C beside QEq** — non-iterative Ewald charge
+   equilibration, seconds not days; EQeq+C (Martin-Noble et al., JCTC
+   **11**(7) 3364 — not Wilmer's, which is the 2012 EQeq original) fixes
+   high-oxidation-state metals. The Ewald sum is already there. **S.**
+   The supporting statistic is softer than first reported: Ongari 2019
+   found 8 of the top 15 *rankings agree* between EQeq and DDEC — rank
+   disagreement, not validated false positives.
 7. **Formats via `FORMATS`**: mmCIF/PDBx (gemmi already reads it — nearly
    free), POSCAR/CONTCAR, pymatgen `Structure` JSON, ASE `.traj`. **S each**.
-8. **LAMMPS data export** — `lammps-interface` has "New maintainer wanted!"
-   and Zr in UiO-66 gets 0 neighbours; `cif2lammps` was archived April 2024.
-   Both reconstruct what Crystal Builder already holds: the bond graph and
-   the UFF/UFF4MOF typer. A maintained GUI exporter fills a real hole. **M**.
+8. **LAMMPS data export** — `lammps-interface` has "New maintainer
+   wanted!" and Zr in UiO-66 gets 0 neighbours; `cif2lammps` was archived
+   April 2024. Both reconstruct what Crystal Builder already holds: the bond
+   graph and the UFF/UFF4MOF typer. A maintained GUI exporter fills a real
+   hole. **M.** Boyd et al. (JPCL **8**(2) 357) — the paper
+   `lammps-interface` asks users to cite — supplies both the accuracy case
+   and its limit: UFF/UFF4MOF are sound for bulk moduli and thermal
+   expansion but deviate for properties sensitive to vibrational modes,
+   "more pronounced upon the introduction of framework charges".
 9. **Framework-class force fields** — Dreiding, MZHB (zeolites), ZIFFF
    (ZIFs) as engines. **M each**.
 10. **Zeo++ features the module does not yet expose** — per-channel
@@ -362,16 +394,23 @@ as questions, because they are Jules's calls.
 
 14. **Interpenetration** — no maintained open-source tool exists anywhere;
     the only method is a 2016 collision check. Genuine, field-wide. **M**.
-15. **Missing-linker / missing-node defects** — MOFBuilder (npj 2026) and
-    MOFun do it as libraries; UiO-66 is the testbed. **M**.
+15. **Missing-linker / missing-node defects** — MOFBuilder and MOFun do
+    it as libraries; UiO-66 is the testbed. **M.** Its "within seconds"
+    claim could not be verified, and it targets GROMACS/OpenMM rather than
+    LAMMPS. Its actual headline matters more to this app than its defect
+    generator: functionalised UiO-66 variants that score **non-porous
+    statically** take up CO2 by gate-opening — the "Porosity Paradox". That
+    is an argument for the app's *flexible* scans, not for static numbers.
 16. **Multi-linker and combinatorial generation** — PORMAKE's own open
     issues #32/#33; the vendored copy could go past upstream. **M**.
 17. **Post-synthetic functionalisation** — PSYMOF (npj 2025): pick a site,
     grow a group, retype, re-relax. "Mark connection points" + Add hydrogens
     is adjacent machinery. **L**.
-18. **GCMC input generation for RASPA3** — the research found no GUI does
-    it and three hand-glue scripts (simple-adsorption-workflow, MatKit,
-    CoRE-MOF-Tools) exist because of that. **L**.
+18. **GCMC input generation for RASPA3** — three hand-glue scripts
+    (simple-adsorption-workflow, MatKit, CoRE-MOF-Tools) exist because no
+    GUI does it. **L.** Weakest evidence of the set: RASPA3's paper (JCP
+    **161**, 114106) says nothing about input preparation, so this rests on
+    issue trackers and those scripts, not a citation.
 
 ### Output and reach
 
