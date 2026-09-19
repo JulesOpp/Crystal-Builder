@@ -1,5 +1,8 @@
 # Do the product invariants have functional tests?
 
+> **Written 2026-09-18** against `Crystal-Builder` at commit `3cd15e2` (v0.2.1), the base of branch `features/deep-review`. `origin/main` has since moved to `fb38d25`. Line numbers, measurements and code references below were true at `3cd15e2` — re-verify before acting on one if the file has changed since.
+
+
 Of the ~33 bolded invariants in `CLAUDE.md`, **26 are pinned by tests that
 would fail if the invariant regressed the way CLAUDE.md describes**, and
 most of those are functional (a real structure through a real door), not

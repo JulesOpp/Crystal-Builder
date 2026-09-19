@@ -1,5 +1,8 @@
 # Field research — competitors, workflows, standards, distribution
 
+> **Written 2026-09-18** against `Crystal-Builder` at commit `3cd15e2` (v0.2.1), the base of branch `features/deep-review`. `origin/main` has since moved to `fb38d25`. Line numbers, measurements and code references below were true at `3cd15e2` — re-verify before acting on one if the file has changed since.
+
+
 Research topic for the coordinator's feature-idea generation. Desk
 research only (WebSearch/WebFetch via four parallel sub-agents); no
 code in this repo was run or read beyond README.md, docs/PLAN.md

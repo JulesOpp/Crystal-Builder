@@ -1,5 +1,8 @@
 # Literature triage matrix — the papers the feature ideas rest on
 
+> **Written 2026-09-18** against `Crystal-Builder` at commit `3cd15e2` (v0.2.1), the base of branch `features/deep-review`. `origin/main` has since moved to `fb38d25`. Line numbers, measurements and code references below were true at `3cd15e2` — re-verify before acting on one if the file has changed since.
+
+
 Ten papers (eleven rows; EQeq is two). Every year, venue, volume and DOI
 below was re-verified against Crossref or the publisher, not copied from
 `reports/research.md`. **Four citations in the research report are wrong or

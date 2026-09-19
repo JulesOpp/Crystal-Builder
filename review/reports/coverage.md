@@ -1,5 +1,8 @@
 # Test coverage and suite characterisation
 
+> **Written 2026-09-18** against `Crystal-Builder` at commit `3cd15e2` (v0.2.1), the base of branch `features/deep-review`. `origin/main` has since moved to `fb38d25`. Line numbers, measurements and code references below were true at `3cd15e2` — re-verify before acting on one if the file has changed since.
+
+
 **Summary.** The suite is large (2,794 test functions in source, ~3,016
 collected after parametrisation), well-organised around four shared
 fixtures and three autouse guards, and lands at 89% combined statement

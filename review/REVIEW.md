@@ -1,5 +1,8 @@
 # Crystal Builder — deep review, 2026-09-18
 
+> **Written 2026-09-18** against `Crystal-Builder` at commit `3cd15e2` (v0.2.1), the base of branch `features/deep-review`. `origin/main` has since moved to `fb38d25`. Line numbers, measurements and code references below were true at `3cd15e2` — re-verify before acting on one if the file has changed since.
+
+
 **Subject:** `JulesOpp/Crystal-Builder` at `3cd15e2` (v0.2.1, main, 2026-09-17).
 **Method:** eight focused reviews, each by a separate agent with its own
 brief, each producing a report under `reports/` with reproductions under
