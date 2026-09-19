@@ -586,6 +586,24 @@ def test_choosing_xtb_hides_the_controls_that_are_uffs(opened):
     assert not dock.engine_forms["xtb"].isHidden()
 
 
+def test_choosing_uff_shows_the_controls_that_are_uffs(opened):
+    """UFF declares its options so that the scan dialog can offer
+    UFF4MOF without reaching into this panel, and the panel read that
+    as "this engine draws its own form" and hid all five of UFF's
+    controls -- with nothing generated to replace them, because UFF is
+    left out of those by name.  The parameter set was unreachable and
+    UFF4MOF could not be turned off."""
+    window, _ = opened
+    dock = window.ff_dock
+    dock.engine.setCurrentIndex(dock.engine.findData("xtb"))
+    dock.engine.setCurrentIndex(dock.engine.findData("uff"))
+    assert "uff" not in dock.engine_forms
+    for widget in dock.uff_rows:
+        assert not widget.isHidden()
+        label = dock.setup_form.labelForField(widget)
+        assert label is None or not label.isHidden()
+
+
 def test_a_method_the_machine_cannot_run_greys_out_as_it_is_chosen(
         opened, monkeypatch, tmp_path):
     """The availability of this engine is a function of what the form

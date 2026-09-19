@@ -502,12 +502,18 @@ class ForceFieldDock(QDockWidget):
         engine = ENGINES.get(name)
         for form_name, form in self.engine_forms.items():
             form.setVisible(form_name == name)
-        declared = bool(engine.options)
+        # Whether a generated form takes over, and not merely
+        # whether the engine declares options: UFF declares them so
+        # the scan dialog can offer UFF4MOF without reaching in here,
+        # and keeps its hand-built controls all the same.  Asking
+        # ``engine.options`` hid all five of them the day UFF gained
+        # them, with no form built to put in their place.
+        generated = name in self.engine_forms
         for widget in self.uff_rows:
-            widget.setVisible(not declared)
+            widget.setVisible(not generated)
             label = self.setup_form.labelForField(widget)
             if label is not None:
-                label.setVisible(not declared)
+                label.setVisible(not generated)
         # With the options, because half of what an external engine
         # needs to be available is in them -- DFTB+ without a
         # parameter directory cannot run, and the box that names one
