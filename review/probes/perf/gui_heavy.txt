@@ -1,0 +1,136 @@
+opened MFU4l.cif: 10 sites, 1 tab(s)
+10 sites, P1 648 atoms
+
+##### recompute_bonds: call 262.1 ms  drain 25.9 ms  RSS 349 MB
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        2    0.041    0.021    0.041    0.021 {method 'Render' of 'vtkmodules.vtkRenderingOpenGL2.vtkCocoaRenderWindow' objects}
+        2    0.030    0.015    0.064    0.032 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/bonding.py:881(find_rings)
+    87936    0.017    0.000    0.017    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/bonding.py:910(<genexpr>)
+    67138    0.011    0.000    0.011    0.000 {built-in method numpy.asarray}
+      816    0.009    0.000    0.014    0.000 /Users/sam/Projects/Jules/Crystal-Builder/.venv/lib/python3.12/site-packages/numpy/linalg/_linalg.py:1666(svd)
+      720    0.008    0.000    0.008    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtalapp/docks/sites.py:84(data)
+    12528    0.007    0.000    0.010    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/bonding.py:618(neighbors_with_images)
+       10    0.007    0.001    0.010    0.001 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/p1.py:238(_distinct)
+     1296    0.007    0.000    0.009    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/bonding.py:776(_resolve)
+      576    0.006    0.000    0.011    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtalapp/viewport/builder.py:633(_substituents)
+     3791    0.005    0.000    0.005    0.000 {method 'reduce' of 'numpy.ufunc' objects}
+      579    0.004    0.000    0.015    0.000 /Users/sam/Projects/Jules/Crystal-Builder/.venv/lib/python3.12/site-packages/numpy/_core/numeric.py:1563(cross)
+
+
+
+##### Set Bond Type: Single over 648 atoms: call 1135.3 ms  drain 28.6 ms  RSS 337 MB
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+    30221    0.212    0.000    0.439    0.000 /Users/sam/Projects/Jules/Crystal-Builder/.venv/lib/python3.12/site-packages/numpy/_core/numeric.py:2320(isclose)
+     7296    0.092    0.000    0.195    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/bonding.py:584(_find_atom)
+   103048    0.090    0.000    0.090    0.000 {method 'reduce' of 'numpy.ufunc' objects}
+    90666    0.051    0.000    0.135    0.000 /Users/sam/Projects/Jules/Crystal-Builder/.venv/lib/python3.12/site-packages/numpy/_core/fromnumeric.py:86(_wrapreduction_any_all)
+       19    0.043    0.002    0.359    0.019 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/bonding.py:449(map_explicit_bond)
+    15310    0.030    0.000    0.095    0.000 /Users/sam/Projects/Jules/Crystal-Builder/.venv/lib/python3.12/site-packages/numpy/linalg/_linalg.py:2598(norm)
+        2    0.029    0.015    0.062    0.031 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/bonding.py:881(find_rings)
+        2    0.029    0.014    0.029    0.014 {method 'Render' of 'vtkmodules.vtkRenderingOpenGL2.vtkCocoaRenderWindow' objects}
+   151105    0.028    0.000    0.044    0.000 /Users/sam/Projects/Jules/Crystal-Builder/.venv/lib/python3.12/site-packages/numpy/_core/numeric.py:2412(<genexpr>)
+    90664    0.028    0.000    0.163    0.000 /Users/sam/Projects/Jules/Crystal-Builder/.venv/lib/python3.12/site-packages/numpy/_core/fromnumeric.py:2586(all)
+    60442    0.027    0.000    0.058    0.000 {method 'all' of 'numpy.generic' objects}
+    30221    0.026    0.000    0.510    0.000 /Users/sam/Projects/Jules/Crystal-Builder/.venv/lib/python3.12/site-packages/numpy/_core/numeric.py:2226(allclose)
+
+
+
+##### Reduce to P1: call 5242.2 ms  drain 202.5 ms  RSS 165 MB
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+   420288    1.196    0.000    3.897    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/structure.py:140(reverse)
+  1262258    0.764    0.000    0.764    0.000 {built-in method builtins.round}
+   421664    0.611    0.000    0.802    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/structure.py:124(__post_init__)
+  1681152    0.406    0.000    1.170    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/structure.py:152(<genexpr>)
+  1686656    0.164    0.000    0.164    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/structure.py:130(<genexpr>)
+   518530    0.162    0.000    0.162    0.000 {built-in method numpy.asarray}
+     8992    0.126    0.000    0.258    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/bonding.py:584(_find_atom)
+   420288    0.119    0.000    4.015    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/structure.py:155(canonical)
+   420288    0.109    0.000    4.125    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/structure.py:175(key)
+   420288    0.092    0.000    0.125    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/spacegroup.py:223(inverse_of)
+   420288    0.087    0.000    4.274    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/structure.py:539(<genexpr>)
+   420288    0.078    0.000    4.203    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/structure.py:518(_bond_identity)
+     6480    0.069    0.000    0.076    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtalapp/docks/sites.py:84(data)
+   878712    0.067    0.000    0.067    0.000 {method 'get' of 'dict' objects}
+
+
+
+##### Supercell 2x2x2 (doc.operate): call 1403.3 ms drain 5.0 ms -> 5184 sites, P1 5184 atoms, RSS 400 MB
+
+##### select_all on the 5184-site supercell: call 270.2 ms  drain 0.8 ms  RSS 442 MB
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.070    0.070    0.070    0.070 {method 'Render' of 'vtkmodules.vtkRenderingOpenGL2.vtkCocoaRenderWindow' objects}
+    10369    0.023    0.000    0.033    0.000 {method 'index' of 'PySide6.QtCore.QAbstractTableModel' objects}
+        1    0.018    0.018    0.026    0.026 {method 'select' of 'PySide6.QtCore.QItemSelectionModel' objects}
+    25980    0.017    0.000    0.037    0.000 /Users/sam/.local/share/uv/python/cpython-3.12.14-macos-aarch64-none/lib/python3.12/enum.py:1561(__and__)
+        1    0.012    0.012    0.080    0.080 /Users/sam/Projects/Jules/Crystal-Builder/xtalapp/docks/inspector.py:246(_show_many_atoms)
+    77940    0.009    0.000    0.013    0.000 /Users/sam/.local/share/uv/python/cpython-3.12.14-macos-aarch64-none/lib/python3.12/enum.py:1543(_get_value)
+    19443    0.008    0.000    0.014    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtalapp/docks/sites.py:64(rowCount)
+    13760    0.007    0.000    0.007    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtalapp/viewport/scene.py:449(bond_key)
+    31172    0.007    0.000    0.046    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/structure.py:637(<genexpr>)
+    13568    0.006    0.000    0.009    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/structure.py:232(key)
+        1    0.006    0.006    0.006    0.006 {method 'setPlainText' of 'PySide6.QtWidgets.QPlainTextEdit' objects}
+        2    0.006    0.003    0.018    0.009 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/selection.py:248(covers_whole_orbits)
+
+
+
+##### style -> polyhedra on supercell: call 75.0 ms  drain 0.1 ms  RSS 449 MB
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.023    0.023    0.023    0.023 {method 'Render' of 'vtkmodules.vtkRenderingOpenGL2.vtkCocoaRenderWindow' objects}
+        1    0.014    0.014    0.024    0.024 /Users/sam/Projects/Jules/Crystal-Builder/xtalapp/viewport/builder.py:752(_emit_polyhedra)
+        1    0.004    0.004    0.007    0.007 /Users/sam/Projects/Jules/Crystal-Builder/xtalapp/viewport/builder.py:366(_emit_atoms)
+     8192    0.004    0.000    0.006    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/structure.py:232(key)
+        1    0.004    0.004    0.011    0.011 /Users/sam/Projects/Jules/Crystal-Builder/xtalapp/document.py:1335(selected_bond_type)
+     5280    0.003    0.000    0.004    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/bonding.py:618(neighbors_with_images)
+        3    0.002    0.001    0.002    0.001 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/properties.py:28(cell_contents)
+      320    0.002    0.000    0.002    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtalapp/viewport/builder.py:728(add)
+    32768    0.002    0.000    0.002    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/structure.py:233(<genexpr>)
+      336    0.002    0.000    0.002    0.000 {built-in method numpy.array}
+     1008    0.002    0.000    0.002    0.000 {method 'reduce' of 'numpy.ufunc' objects}
+    12066    0.001    0.000    0.001    0.000 {method 'get' of 'dict' objects}
+
+
+
+##### style -> ball+stick on supercell: call 741.8 ms  drain 0.1 ms  RSS 517 MB
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.238    0.238    0.238    0.238 {method 'Render' of 'vtkmodules.vtkRenderingOpenGL2.vtkCocoaRenderWindow' objects}
+     4608    0.048    0.000    0.080    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtalapp/viewport/builder.py:633(_substituents)
+     4608    0.047    0.000    0.078    0.000 /Users/sam/Projects/Jules/Crystal-Builder/.venv/lib/python3.12/site-packages/numpy/linalg/_linalg.py:1666(svd)
+     4608    0.034    0.000    0.115    0.000 /Users/sam/Projects/Jules/Crystal-Builder/.venv/lib/python3.12/site-packages/numpy/_core/numeric.py:1563(cross)
+    27648    0.028    0.000    0.045    0.000 /Users/sam/Projects/Jules/Crystal-Builder/.venv/lib/python3.12/site-packages/numpy/_core/numeric.py:1427(normalize_axis_tuple)
+     4608    0.023    0.000    0.312    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtalapp/viewport/builder.py:652(_offset_direction)
+        1    0.020    0.020    0.423    0.423 /Users/sam/Projects/Jules/Crystal-Builder/xtalapp/viewport/builder.py:608(_bond_frames)
+    13824    0.019    0.000    0.073    0.000 /Users/sam/Projects/Jules/Crystal-Builder/.venv/lib/python3.12/site-packages/numpy/_core/numeric.py:1489(moveaxis)
+     9216    0.016    0.000    0.036    0.000 /Users/sam/Projects/Jules/Crystal-Builder/.venv/lib/python3.12/site-packages/numpy/_core/_methods.py:115(_mean)
+     4608    0.015    0.000    0.124    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/transforms.py:27(best_fit_plane)
+    27136    0.014    0.000    0.020    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/structure.py:232(key)
+        1    0.014    0.014    0.048    0.048 /Users/sam/Projects/Jules/Crystal-Builder/xtalapp/viewport/builder.py:537(_emit_bonds)
+
+
+
+##### recompute_bonds on supercell: call 2393.0 ms  drain 1.1 ms  RSS 444 MB
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        2    0.293    0.146    0.293    0.146 {method 'Render' of 'vtkmodules.vtkRenderingOpenGL2.vtkCocoaRenderWindow' objects}
+        2    0.279    0.139    0.541    0.270 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/bonding.py:881(find_rings)
+   708480    0.128    0.000    0.128    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/bonding.py:910(<genexpr>)
+   540616    0.083    0.000    0.083    0.000 {built-in method numpy.asarray}
+        1    0.079    0.079    0.629    0.629 /Users/sam/Projects/Jules/Crystal-Builder/xtalapp/widgets/atom_types.py:111(fill)
+     6528    0.067    0.000    0.110    0.000 /Users/sam/Projects/Jules/Crystal-Builder/.venv/lib/python3.12/site-packages/numpy/linalg/_linalg.py:1666(svd)
+   100608    0.057    0.000    0.081    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/bonding.py:618(neighbors_with_images)
+    10368    0.050    0.000    0.069    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/bonding.py:776(_resolve)
+     4608    0.048    0.000    0.082    0.000 /Users/sam/Projects/Jules/Crystal-Builder/xtalapp/viewport/builder.py:633(_substituents)
+    20738    0.046    0.000    0.064    0.000 {method 'index' of 'PySide6.QtCore.QAbstractTableModel' objects}
+    25938    0.039    0.000    0.039    0.000 {method 'setItem' of 'PySide6.QtWidgets.QTableWidget' objects}
+        1    0.038    0.038    0.043    0.043 /Users/sam/Projects/Jules/Crystal-Builder/xtal/core/neighbors.py:80(neighbor_pairs)
+     4611    0.034    0.000    0.115    0.000 /Users/sam/Projects/Jules/Crystal-Builder/.venv/lib/python3.12/site-packages/numpy/_core/numeric.py:1563(cross)
+    52319    0.032    0.000    0.072    0.000 /Users/sam/.local/share/uv/python/cpython-3.12.14-macos-aarch64-none/lib/python3.12/enum.py:1561(__and__)
+
+
+undo API: ['can_undo', 'undo', 'undo_label']
+ran gui_heavy.py
