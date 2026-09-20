@@ -59,6 +59,12 @@ import numpy as np
 from xtal.core.structure import TOPOLOGY, Bond
 from xtal.mof.catalog import Catalog, CatalogError, Slot
 
+#: How far :func:`closest_contact` looks.  Nothing unbonded within
+#: 3 A is an open framework, not a verdict, and looking further costs
+#: pairs without changing the answer: the shortest unbonded contact in
+#: every sample that has one is under 2.2 A.
+CONTACT_CUTOFF = 3.0
+
 #: PORMAKE's own name for the atoms that mark where a block connects.
 #: They are removed from the framework, which is what makes the atom
 #: ordering below need stating rather than assuming.
@@ -240,6 +246,11 @@ class BuildOutcome:
     identified: object = None
     #: The topology's own name, as PORMAKE's database spells it.
     asked: str = ""
+    #: The shortest distance between two atoms that are not bonded --
+    #: see :func:`closest_contact`.  ``inf`` when it was not measured,
+    #: which is why it is not 0.0: 0.000 A is a real answer and CFA1
+    #: gives it.
+    closest: float = float("inf")
 
     @property
     def net_name(self) -> str:
@@ -251,16 +262,38 @@ class BuildOutcome:
         return bool(self.net_name) and self.net_name == self.asked
 
     def verdict(self) -> str:
-        """One line: the check, in the words it is worth reading in."""
+        """One line: what was measured, and nothing that was not.
+
+        The net half is a measurement and not a repetition of the
+        request: it is read back off the bonds in the structure by
+        :func:`check_net`.  What it must never become is a claim about
+        the *shape* of the cell.  A topology is a combinatorial object
+        and its metric is free -- DMOF-1 is tetragonal **pcu** and
+        MIL-53 monoclinic -- so "the cell relaxed to triclinic where
+        pcu is cubic" would be a false alarm on real materials.  What
+        says whether a build is any good is the fit and the contacts,
+        and those are numbers, so they are given as numbers.
+        """
         if not self.identified:
-            return "the net could not be read back off the framework"
-        if self.net_agrees:
-            return f"the framework is {self.asked}, as asked"
-        if not self.net_name:
-            return (f"asked for {self.asked}; what was built is "
+            head = "the net could not be read back off the framework"
+        elif self.net_agrees:
+            head = f"the framework is {self.asked}, as asked"
+        elif not self.net_name:
+            head = (f"asked for {self.asked}; what was built is "
                     f"{self.identified.headline()}")
-        return (f"asked for {self.asked} and built {self.net_name} -- "
-                f"these are different nets")
+        else:
+            head = (f"asked for {self.asked} and built {self.net_name} "
+                    f"-- these are different nets")
+        return head + self._measured()
+
+    def _measured(self) -> str:
+        """The numbers, when there are any, as a trailing clause."""
+        said = [f"blocks fit to {self.max_rmsd:.3f} A"]
+        if np.isfinite(self.closest):
+            said.append(f"closest contact {self.closest:.2f} A")
+        if self.joints:
+            said.append(f"{self.joints} joint(s) bonded")
+        return " -- " + ", ".join(said)
 
 
 def build(request: BuildRequest, directory, catalog: Catalog | None
@@ -305,6 +338,7 @@ def build(request: BuildRequest, directory, catalog: Catalog | None
         mean_rmsd=float(framework.info.get("mean_rmsd", 0.0) or 0.0),
         objective=float(framework.info.get("relax_obj", 0.0) or 0.0))
     outcome.joints = bond_joints(structure, framework)
+    outcome.closest = closest_contact(structure)
     _say(log, f"bonded {outcome.joints} joint(s) between blocks")
     drawn = draw_net(structure, framework)
     # Said before rather than after, because it is not free: naming a
@@ -710,6 +744,59 @@ def _edges_of(topology) -> list[tuple[int, int, tuple[int, int, int]]]:
         (i, shift_i), (j, shift_j) = ends
         out.append((i, j, tuple(int(v) for v in shift_j - shift_i)))
     return out
+
+
+def closest_contact(structure) -> float:
+    """The shortest distance between two atoms that are not bonded.
+
+    The shortest distance of *any* kind says nothing about a build:
+    it is the C-H bond every time, 0.930 A in `MFU4l.cif`'s own
+    refinement and 0.930 A in a framework built out of it.  What a
+    build whose blocks do not fit shows is atoms that are close and
+    **not** joined.  Measured over `resources/samples`: every
+    framework there sits between 1.996 A (Ni3(HITP)2) and 2.170 A
+    (UiO-66), while `acs` built on `N457` -- blocks that genuinely do
+    not fit that net -- sits at 1.662 A.
+
+    No threshold is applied and none is wanted.  The bands are close
+    enough that a constant would be a guess, and the number next to
+    the fit is what a person needs to judge a build by; ``CFA1.cif``
+    and ``Ni2Cl2BTDD.cif`` both answer 0.000 A, which is a fact about
+    those files rather than a failure of this one.
+
+    Dummy atoms are held back at the door here as everywhere: a
+    connection point sits 0.75 A from the atom it hangs off and would
+    otherwise be the answer to this question in every structure.
+
+    ``inf`` when no unbonded pair is within :data:`CONTACT_CUTOFF` at
+    all, which is an open framework rather than a good or a bad one.
+    """
+    from xtal.core import bonding, elements, p1
+    from xtal.core.neighbors import neighbor_pairs
+
+    cell = p1.expand(structure)
+    pairs = neighbor_pairs(cell.frac, structure.lattice, CONTACT_CUTOFF,
+                           min_distance=0.0)
+    if not len(pairs):
+        return float("inf")
+    dummy = np.array([elements.is_dummy(str(e))
+                      for e in cell.elements])
+    keep = ~(dummy[pairs.i] | dummy[pairs.j])
+    bonded = {_contact_key(b.i, b.j, b.image)
+              for b in bonding.graph(structure).bonds}
+    keep &= np.array([_contact_key(int(i), int(j), im) not in bonded
+                      for i, j, im in zip(pairs.i, pairs.j, pairs.image,
+                                          strict=True)])
+    near = pairs.distance[keep]
+    return float(near.min()) if len(near) else float("inf")
+
+
+def _contact_key(i: int, j: int, image) -> tuple:
+    """One name for a pair, whichever end it is described from."""
+    image = np.asarray(image, dtype=int)
+    if i <= j:
+        return (int(i), int(j), tuple(int(v) for v in image))
+    return (int(j), int(i), tuple(int(-v) for v in image))
 
 
 def check_net(structure):

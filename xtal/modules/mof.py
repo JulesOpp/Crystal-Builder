@@ -261,10 +261,18 @@ def _report(outcome) -> Report:
                        decimals=4),
             Row.number("Cell relaxation", outcome.objective, "", "",
                        "", decimals=4),
+            Row.number("Closest contact", outcome.closest, "A",
+                       "the shortest distance between two atoms that "
+                       "are not bonded -- every framework in "
+                       "resources/samples sits between 1.996 and "
+                       "2.170 A, and blocks that do not fit their net "
+                       "come out below that", "", decimals=3),
         ),
-        note="PORMAKE's own numbers.  They say whether the geometry "
-             "is strained; they say nothing about the net, which is "
-             "the next table.")
+        note="The first three are PORMAKE's own numbers and say "
+             "whether the geometry is strained; the fourth is ours "
+             "and says whether atoms ended up on top of one another.  "
+             "None of them says anything about the net, which is the "
+             "next table.")
     return Report(
         title=f"{outcome.request.title()}",
         blocks=(what, fit, _check(outcome)),

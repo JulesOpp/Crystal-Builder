@@ -162,7 +162,7 @@ clean diff against upstream 0.2.3.
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
 | **1 — Probes** | Shipped 2026-09-20; numbers below | `probes/polydentate/` | S |
-| **2 — The verdict** | A build reports what it measured, never a symmetry it did not check | `xtal/mof/build.py`, `xtal/modules/mof.py` | S |
+| **2 — The verdict** | Shipped 2026-09-20; a build reports what it measured, never a symmetry it did not check | `xtal/mof/build.py`, `xtal/modules/mof.py` | S |
 | **3 — Attachments** | A connection point may stand for several atoms; *Mark as one connection point* | `xtal/mof/block.py`, `xtal/mof/catalog.py`, new `xtal/mof/attach.py`, `xtal/commands/connections.py` | M |
 | **4 — Joints** | Every member of a polydentate end arrives bonded | `xtal/mof/build.py` | M |
 | **5 — Node orientation** | The discrete tie-break, through `permutations=` | new `xtal/mof/orient.py`, `xtal/mof/build.py` | M-L |
@@ -170,6 +170,32 @@ clean diff against upstream 0.2.3.
 | **7 — MFU-4l** | The four blocks shipped; MFU-4l built end to end | new `xtal/mof/library/`, `packaging/bundle.py` | M |
 | **8 — Layer nets** | 2-periodic nets with a stacking spacing; Ni-HITP | new `xtal/mof/library/nets/` | M |
 | **9 — Interpenetration** | Generated and verified against `Net.multiplicity()` | new `xtal/analysis/interpenetrate.py` | M-L |
+
+### What Phase 2 changed
+
+`BuildOutcome.verdict()` said `the framework is pcu, as asked` and
+stopped, which reads like a pass and was true of a build with none of
+MFU-4l's chlorides and a fifth of its atoms.  It now carries the fit,
+the closest contact and the joint count, and it still says nothing
+about the shape of the cell -- a test pins that, because the review's
+own proposal (*"the relaxed cell is triclinic where pcu is cubic"*)
+would fire on DMOF-1 and MIL-53.
+
+The new measurement is `xtal.mof.build.closest_contact`: the shortest
+distance between two atoms that are **not** bonded.  The plain
+minimum was measured first and discarded -- it is the C-H bond every
+time, 0.930 A in `MFU4l.cif`'s own refinement and 0.930 A in a
+framework built out of it, so it separates nothing.  The unbonded
+minimum does: every framework in `resources/samples` sits between
+**1.996 A** (Ni3(HITP)2) and **2.170 A** (UiO-66), while `acs` built
+on `N457` -- blocks that do not fit that net -- sits at **1.662 A**.
+No threshold is applied: the bands are close enough that a constant
+would be a guess, and `zn_oac.cif`, a molecular crystal, sits at 1.806
+between them.  It costs 3-89 ms, the worst on Ni2Cl2BTDD's 1152 atoms.
+
+Two shipped samples answer **0.000 A** -- `CFA1.cif` and
+`Ni2Cl2BTDD.cif` -- which independently reproduces the coincident-atom
+finding in `features/deep-review` item 1.2, from a different direction.
 
 ### What Phase 1 measured
 

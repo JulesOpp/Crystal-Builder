@@ -19,7 +19,12 @@ from types import SimpleNamespace
 import pytest
 
 from xtal.mof import Catalog, MofError, database_root, installed
-from xtal.mof.build import BuildRequest, build
+from xtal.mof.build import (
+    BuildOutcome,
+    BuildRequest,
+    build,
+    closest_contact,
+)
 from xtal.mof.catalog import (
     CatalogError,
     matches_composition,
@@ -513,3 +518,94 @@ def test_importing_pormake_does_not_write_into_the_working_directory(
     monkeypatch.chdir(tmp_path)
     build(BuildRequest.parse("pcu", "N59", "E32"), tmp_path, catalog)
     assert not (tmp_path / "runtime.log").exists()
+
+
+# ------------------------------------------- what the verdict claims
+
+def test_a_verdict_never_claims_a_shape_the_net_does_not_have():
+    """A topology is combinatorial; the metric cell is free.
+
+    The review this work came out of proposed reporting "the relaxed
+    cell is triclinic where pcu is cubic".  That would be a false
+    alarm on real materials -- DMOF-1 is tetragonal **pcu** and
+    MIL-53 monoclinic -- so the verdict says nothing about the shape
+    of the cell, and this is the test that keeps it that way.
+    """
+    outcome = BuildOutcome(
+        structure=None, cif=None, request=BuildRequest.parse("pcu", "N59", ""),
+        asked="pcu", max_rmsd=0.5, closest=1.2,
+        identified=SimpleNamespace(name="pcu", headline=lambda: "pcu"))
+    said = outcome.verdict()
+    assert outcome.net_agrees
+    for word in ("cubic", "triclinic", "monoclinic", "tetragonal",
+                 "orthorhombic", "hexagonal", "trigonal"):
+        assert word not in said
+
+
+def test_a_verdict_carries_the_numbers_it_was_judged_on():
+    """The net half alone reads like a pass however bad the geometry.
+
+    "the framework is pcu, as asked" was the whole sentence, and it
+    was true of a build with none of MFU-4l's chlorides and a fifth of
+    its atoms.  What says whether a build is any good is the fit and
+    the contacts, so the sentence carries them.
+    """
+    outcome = BuildOutcome(
+        structure=None, cif=None, request=BuildRequest.parse("pcu", "N59", ""),
+        asked="pcu", max_rmsd=0.2710, closest=1.662, joints=6,
+        identified=SimpleNamespace(name="pcu", headline=lambda: "pcu"))
+    said = outcome.verdict()
+    assert "as asked" in said
+    assert "0.271" in said
+    assert "1.66" in said
+    assert "6 joint(s)" in said
+
+
+def test_a_verdict_with_nothing_measured_still_reads():
+    """A contact that was never measured is ``inf``, not 0.0 -- 0.000 A
+    is a real answer and ``CFA1.cif`` gives it -- so the clause is left
+    out rather than printed as a number nobody measured."""
+    outcome = BuildOutcome(
+        structure=None, cif=None, request=BuildRequest.parse("pcu", "N59", ""),
+        asked="pcu",
+        identified=SimpleNamespace(name="tbo", headline=lambda: "tbo"))
+    said = outcome.verdict()
+    assert "different nets" in said
+    assert "inf" not in said
+    assert "contact" not in said
+
+
+@needs_database
+def test_the_closest_contact_is_the_shortest_one_that_is_not_a_bond():
+    """The shortest distance of any kind is the C-H bond every time.
+
+    ``MFU4l.cif``'s own refinement puts it at 0.930 A, and so does a
+    framework built out of blocks cut from it, so the plain minimum
+    tells a person nothing.  The unbonded minimum does: every
+    framework in ``resources/samples`` sits between 1.996 and 2.170 A.
+    """
+    from xtal.io import FORMATS
+
+    structure = FORMATS.read("resources/samples/MFU4l.cif")
+    assert 1.9 < closest_contact(structure) < 2.2
+
+
+@needs_database
+def test_the_closest_contact_holds_connection_points_back():
+    """An ``X`` sits 0.75 A from the atom it hangs off, so a structure
+    that carries one would answer 0.75 A to this question every time,
+    whatever else is in it."""
+    from xtal.core.structure import Bond, Lattice, Structure
+    from xtal.io import FORMATS
+
+    plain = FORMATS.read("resources/samples/MFU4l.cif")
+    before = closest_contact(plain)
+    marked = Structure.from_arrays(
+        Lattice.from_parameters(10.0, 10.0, 10.0, 90, 90, 90),
+        ["C", "C", "X"],
+        [[0.0, 0.0, 0.0], [0.25, 0.0, 0.0], [0.075, 0.0, 0.0]],
+        space_group="P1")
+    marked.add_bond(Bond(0, 2, (0, 0, 0), 1.0))
+    # 2.5 A apart and not bonded; the X is 0.75 A from atom 0.
+    assert abs(closest_contact(marked) - 2.5) < 1e-6
+    assert before > 1.9
