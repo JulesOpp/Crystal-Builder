@@ -4,11 +4,21 @@ xtal.commands.connections
 Turning an atom into a connection point, and why there is no way back.
 
 A building block's connection point is a dummy atom sitting
-:data:`~xtal.mof.block.CONNECTION_DISTANCE` from the atom it hangs
+:data:`~xtal.mof.block.CONNECTION_DISTANCE` from the atoms it hangs
 off, pointing where the next block goes.  Somebody with a molecule
 open has the direction already -- it is a bond they can see -- so
 marking one is retyping the atom on the end of that bond and pulling
-it in, which is what this does.
+it in, which is what :class:`MarkConnectionPoints` does.
+
+**A point may stand for several atoms**, and that is the second
+command here.  A chelate meets its metal through two atoms, not one,
+and marking those two separately gives a block with twice the
+coordination number it has -- so :class:`MarkOneConnectionPoint`
+collapses a selection into a single point instead of retyping each of
+them.  Two commands and not one option on one, because the two
+gestures differ in what they leave behind: the first moves atoms the
+user already had, the second deletes them and adds one that was not
+there.
 
 **One command for both halves.**  The user made one gesture and Ctrl+Z
 has to give back the element *and* the position; two commands would
@@ -37,8 +47,10 @@ from __future__ import annotations
 
 import numpy as np
 
+from xtal.commands import atoms as atom_commands
+from xtal.commands import bonds as bond_commands
 from xtal.commands.base import Command
-from xtal.core import bonding, p1
+from xtal.core import bonding, neighbors, p1
 from xtal.core.structure import Change
 from xtal.mof.block import CONNECTION_DISTANCE
 
@@ -169,3 +181,185 @@ class MarkConnectionPoints(Command):
         if not self.refused:
             return done
         return f"{done}; left alone: " + "; ".join(self.refused)
+
+
+def _gather(cell, lattice, atoms) -> dict:
+    """A lattice translation for each atom that puts the group
+    together, in the image nearest the first of them.
+
+    The same rule -- and the same function --
+    :func:`xtal.core.measure.centroid` uses, a star from the first
+    atom rather than a chain, because a selection has no order worth
+    following.  It is done here rather than there because the
+    translations are needed twice: once for the middle the point goes
+    to, and once for the bonds it takes over, which have to name the
+    image of each partner that is actually beside it.
+    """
+    atoms = list(atoms)
+    origin = cell.frac[atoms[0]]
+    found = {atoms[0]: np.zeros(3, dtype=int)}
+    for atom in atoms[1:]:
+        vector = neighbors.min_image_vector(origin, cell.frac[atom],
+                                            lattice)
+        moved = lattice.to_frac(lattice.to_cart(origin) + vector)
+        found[atom] = np.round(moved - cell.frac[atom]).astype(int)
+    return found
+
+
+def plan_one(structure, atoms):
+    """``(frac, partners, refused)`` for collapsing these atoms into
+    one connection point.
+
+    ``partners`` is ``(atom, image)`` for every atom *outside* the
+    group that something inside it was bonded to -- the attachment's
+    members, and the bonds the new point inherits.  ``frac`` is where
+    the point goes, which is
+    :data:`~xtal.mof.block.CONNECTION_DISTANCE` from those members'
+    centroid along the direction the group sat in.
+
+    Separate from the command for the same reason :func:`plan` is: a
+    menu can ask what would happen before it offers to do it.
+    """
+    cell = p1.expand(structure)
+    graph = bonding.graph(structure)
+    lattice = structure.lattice
+    group = sorted({int(a) for a in atoms})
+    if len(group) < 2:
+        return None, [], [
+            "select two or more atoms -- one atom on the end of one "
+            "bond is Mark connection points"]
+
+    inside = set(group)
+    shifts = _gather(cell, lattice, group)
+    matrix = lattice.matrix
+    middle = np.mean([cell.cart[a] + shifts[a] @ matrix
+                      for a in group], axis=0)
+
+    partners: dict[tuple, np.ndarray] = {}
+    for atom in group:
+        for j, image in graph.neighbors_with_images(atom):
+            if j in inside:
+                continue
+            translation = tuple(int(v) for v in
+                                (np.asarray(image) + shifts[atom]))
+            partners[(j, translation)] = (
+                cell.cart[j] + np.asarray(translation) @ matrix)
+    if not partners:
+        return None, [], [
+            "these atoms are bonded to nothing outside themselves, "
+            "so there is no direction for a connection point to "
+            "point along"]
+
+    anchor = np.mean(list(partners.values()), axis=0)
+    offset = middle - anchor
+    length = float(np.linalg.norm(offset))
+    if length < 1e-9:
+        return None, [], [
+            "these atoms sit on the middle of the ones they are "
+            "bonded to, so there is no direction for a connection "
+            "point to point along"]
+    point = anchor + offset * (CONNECTION_DISTANCE / length)
+    return (lattice.to_frac(point), sorted(partners), [])
+
+
+class MarkOneConnectionPoint(Command):
+    """Collapse the selected atoms into a single connection point.
+
+    The gesture :class:`MarkConnectionPoints` cannot make.  That one
+    retypes each selected atom, which is right when each of them is a
+    separate joint and wrong when they are one: MFU-4l's kernel meets
+    a triazolate through two ring atoms and Ni3(HITP)2's nickel meets
+    an imine through two nitrogens, and marked one at a time those
+    blocks come out with twice the coordination number they have and
+    fit no net in the catalogue.
+
+    So this is a *new* atom rather than a retyped one -- an ``X`` at
+    :data:`~xtal.mof.block.CONNECTION_DISTANCE` from the centroid of
+    everything the group was bonded to, carrying those bonds, and the
+    group itself deleted.  Add first and delete second, exactly as
+    Merge atoms does: a site appended last renumbers nothing, so the
+    delete that follows still names the sites it was asked to.
+
+    **There is still no Unmark**, and for the same reason: an ``X``
+    does not remember what it was.  The grouping is the structure's
+    own bonds and not new state on a marker, so there is nothing extra
+    to put back -- and nothing but the undo stack that could.
+    """
+
+    change = Change.TOPOLOGY | Change.POSITIONS
+    label = "Mark as one connection point"
+
+    def __init__(self, atoms, sites, plan_for=None):
+        self.atoms = sorted({int(a) for a in atoms})
+        self.sites = sorted({int(s) for s in sites})
+        #: Why nothing happened, in sentences -- see
+        #: :class:`MarkConnectionPoints`.
+        self.refused: list[str] = []
+        #: The site the point was added as, once it has been.
+        self.placed: int | None = None
+        self._plan = plan_for
+        self._steps: list = []
+
+    def do(self, host) -> None:
+        if self._steps:                                 # redo
+            for step in self._steps:
+                step.do(host)
+            return
+        structure = host.structure
+        frac, partners, refused = (
+            self._plan if self._plan is not None
+            else plan_one(structure, self.atoms))
+        self.refused = list(refused)
+        if frac is None:
+            return
+
+        self._run(host, atom_commands.AddSites(
+            [atom_commands.new_site(CONNECTION, frac)],
+            label=self.label, perceive=False))
+
+        # Re-expanded on purpose: the bonds are between drawn atoms,
+        # and the point has only just become one of them.  Appending
+        # a site appends its images, so every partner index above is
+        # still the atom it was.
+        cell = p1.expand(structure)
+        drawn = self._image_at(cell, structure, frac)
+        for atom, image in partners:
+            self._run(host, bond_commands.AddBond(
+                bonding.bond_between(structure, cell, drawn, atom,
+                                     (0, 0, 0), image)))
+        self._run(host, atom_commands.DeleteSites(self.sites))
+        # Read after the delete and not before it: every site the
+        # delete removes is below the one just appended, so the point
+        # is the last site either way -- but only this number is an
+        # index into the structure the caller is about to look at.
+        self.placed = structure.n_sites - 1
+
+    def _run(self, host, command) -> None:
+        command.do(host)
+        self._steps.append(command)
+
+    @staticmethod
+    def _image_at(cell, structure, frac) -> int:
+        """Which drawn copy of the new site is the one at ``frac``.
+
+        Any image would do for a bond -- they are related by an
+        operation of the group -- but only one of them is where the
+        user's atoms were, and that is the one whose neighbours are
+        the atoms they were bonded to.
+        """
+        target = structure.lattice.to_cart(frac)
+        atoms = cell.indices_of_site(structure.n_sites - 1)
+        distances = [np.linalg.norm(cell.cart[int(a)] - target)
+                     for a in atoms]
+        return int(atoms[int(np.argmin(distances))])
+
+    def undo(self, host) -> None:
+        for step in reversed(self._steps):
+            step.undo(host)
+
+    def summary(self) -> str:
+        """One line saying what happened, refusals included."""
+        if self.placed is None:
+            return "; ".join(self.refused) or "nothing to mark"
+        return (f"marked {len(self.atoms)} atoms as one connection "
+                f"point")

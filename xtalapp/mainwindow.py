@@ -623,6 +623,11 @@ class MainWindow(QMainWindow):
         if document is not None:
             self.show_status(document.mark_connection_points())
 
+    def mark_one_connection_point(self) -> None:
+        document = self.current_document()
+        if document is not None:
+            self.show_status(document.mark_one_connection_point())
+
     def add_centroid_dialog(self) -> None:
         document = self.current_document()
         if document is None:
@@ -1276,7 +1281,8 @@ class MainWindow(QMainWindow):
             bool(document.selection.atoms))
         # A centroid needs a middle, and one atom has none.
         self.actions_.set_enabled(
-            ["add_centroid", "merge_atoms"],
+            ["add_centroid", "merge_atoms",
+             "mark_one_connection_point"],
             len(document.selection.atoms) > 1)
 
     def _sync_bond_type_actions(self, document) -> None:
@@ -1537,7 +1543,8 @@ class MainWindow(QMainWindow):
             has_selection and editable)
         # A centroid needs a middle, and one atom has none.
         self.actions_.set_enabled(
-            ["add_centroid", "merge_atoms"],
+            ["add_centroid", "merge_atoms",
+             "mark_one_connection_point"],
             len(document.selection.atoms) > 1 and editable)
         # Anything selected, not just atoms -- see _on_selection_changed.
         self.actions_.set_enabled(

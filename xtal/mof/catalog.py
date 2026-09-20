@@ -139,6 +139,10 @@ class BuildingBlock:
     slot when it has exactly as many of them as the slot's
     coordination number demands, which is the only compatibility rule
     there is and is why the count is the first thing here.
+
+    ``bonds`` is the block's fourth section, ``(i, j, letter)``.  It is
+    read because it is the only thing that says which atoms a
+    connection point stands for -- see :mod:`xtal.mof.attach`.
     """
 
     name: str
@@ -146,10 +150,51 @@ class BuildingBlock:
     symbols: tuple[str, ...]
     positions: np.ndarray
     connections: tuple[int, ...]
+    bonds: tuple[tuple[int, int, str], ...] = ()
 
     @property
     def n_connections(self) -> int:
         return len(self.connections)
+
+    @property
+    def members(self) -> dict[int, tuple[int, ...]]:
+        """Connection point -> the *distinct* atoms it hangs off.
+
+        Distinct, and never the number of bond records.  54 of the
+        4256 shipped connection points carry more than one record and
+        52 of those name the same partner twice, across 26 blocks: a
+        reader that counted records would take 26 shipped blocks down
+        the polydentate path, where they belong on none of it.
+
+        A point with no record at all maps to an empty tuple rather
+        than being left out, so a caller can tell "this block says
+        nothing about its bonds" from "this point has none".
+
+        A bond onto *another* connection point is not a member: a
+        point stands for the atoms of the block, and two of them
+        standing for each other describe a joint to nowhere.
+        :func:`xtal.mof.block.problems` refuses it outright; here it
+        is simply not counted.
+        """
+        marked = set(self.connections)
+        found: dict[int, set[int]] = {c: set() for c in marked}
+        for i, j, _letter in self.bonds:
+            if i in marked and j not in marked:
+                found[i].add(j)
+            elif j in marked and i not in marked:
+                found[j].add(i)
+        return {c: tuple(sorted(found[c])) for c in sorted(marked)}
+
+    @property
+    def is_polydentate(self) -> bool:
+        """Whether any connection point stands for more than one atom.
+
+        The switch the build reads: a catalogue of blocks that answer
+        False reaches none of the polydentate path, which is what
+        makes every framework built before this work byte-identical
+        after it.
+        """
+        return any(len(m) > 1 for m in self.members.values())
 
     @property
     def has_metal(self) -> bool:
@@ -254,6 +299,10 @@ def read_building_block(path) -> BuildingBlock:
     Files written the other way mark them as ``X`` atoms instead, and
     both are read, because a user writing their own block will copy
     whichever example they found.
+
+    Everything after the atoms is bonds, which is PORMAKE's own rule
+    (``pormake/utils.py``) and the reason a block file can have no
+    header of its own: a line that is not a bond would be read as one.
     """
     path = Path(path)
     lines = path.read_text(encoding="utf-8").splitlines()
@@ -282,7 +331,34 @@ def read_building_block(path) -> BuildingBlock:
     return BuildingBlock(path.stem, path, tuple(symbols),
                          np.asarray(positions, dtype=float).reshape(
                              -1, 3),
-                         connections)
+                         connections,
+                         _bonds(lines[2 + n_atoms:], len(symbols)))
+
+
+def _bonds(lines, n_atoms: int) -> tuple[tuple[int, int, str], ...]:
+    """The bond block: ``i j letter``, one per line.
+
+    Tolerant in exactly the way PORMAKE's own reader is tolerant
+    (``pormake/utils.py`` lines 527-531): a line with fewer than three
+    tokens is skipped in silence, because there is no header to tell a
+    bond block from a blank line and refusing would make a file
+    PORMAKE reads one this application does not.  Two things go
+    further than PORMAKE does, and both would otherwise become an
+    :class:`IndexError` a long way from here: a pair of tokens that
+    are not integers is skipped, and so is an index outside the atoms.
+    """
+    found = []
+    for line in lines:
+        tokens = line.split()
+        if len(tokens) < 3:
+            continue
+        try:
+            i, j = int(tokens[0]), int(tokens[1])
+        except ValueError:
+            continue
+        if 0 <= i < n_atoms and 0 <= j < n_atoms and i != j:
+            found.append((i, j, tokens[2]))
+    return tuple(found)
 
 
 def _connections(comment: str, symbols, path: Path) -> tuple[int, ...]:

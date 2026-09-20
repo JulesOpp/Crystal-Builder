@@ -262,13 +262,33 @@ stress case).
   aimed at the net selected the bond beneath — with `Del` then
   suppressing that bond and its whole orbit, 96 chemical bonds on
   MOF-5 with the net still on screen.
-- **A connection point is 0.75 A from the atom it hangs off**, not a
-  bond length — `mof.block.CONNECTION_DISTANCE`, measured over the 867
-  blocks PORMAKE ships. A block written at 1.4 A builds a framework
-  with every linker bond twice too long and nothing reports it. It is
-  an `X`, so everything that holds a marker back at the door already
-  holds these back too, and there is no *Unmark*: an `X` does not
-  remember what it was, so the way back is Ctrl+Z.
+- **A connection point is 0.75 A from the centroid of the atoms it
+  hangs off**, not a bond length — `mof.block.CONNECTION_DISTANCE`,
+  measured over the 867 blocks PORMAKE ships. A block written at 1.4 A
+  builds a framework with every linker bond twice too long and nothing
+  reports it. It is an `X`, so everything that holds a marker back at
+  the door already holds these back too, and there is no *Unmark*: an
+  `X` does not remember what it was, so the way back is Ctrl+Z.
+  It said *the atom* until 2026-09-20, and that is why MFU-4l and
+  Ni3(HITP)2 could not be built: a chelate meets its metal through two
+  atoms, and marked one at a time those blocks come out with twice the
+  coordination number they have and fit no net in the catalogue.
+  **An attachment is one `X` plus the *distinct* body atoms bonded to
+  it** — `xtal/mof/attach.py`. The bond block said so all along and
+  PORMAKE has always read it, so nothing new enters the `.xyz`.
+  Distinct and never the bond count: 54 shipped points carry more than
+  one bond *record* and 52 name one partner twice, across 26 blocks.
+  With one member the centroid is that atom, so every single-point
+  block is written byte for byte as it was, pinned by a test rather
+  than argued. Two bonds are no longer refused; what is, is a point
+  bonded to another point, members further apart than
+  `attach.MAX_ATTACHMENT_SPAN`, and a point facing back into the
+  molecule — judged one bond in and never against the block's middle,
+  because a node's arms are concave and 77 of the 4256 shipped points
+  face their own centroid. *Mark as one connection point* is the
+  gesture that makes one, and the grouping is the structure's own
+  bonds rather than new state on a marker, which is why there is
+  still no *Unmark*.
 - **The workspace is asked for before anything opens, and everything
   lives in it.** `WorkspaceChooser` runs in `xtalapp/main.py` *before*
   `MainWindow` is built — recent workspaces listed, the last one

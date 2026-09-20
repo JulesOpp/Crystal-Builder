@@ -623,6 +623,72 @@ def test_marking_an_atom_that_has_no_single_bond_says_which(
     assert "bond" in window.status_label.text()
 
 
+def benzene_ring():
+    """Four carbons in a ring with two hydrogens on the far pair.
+
+    Small enough to name every atom in a test and shaped so that a
+    bidentate attachment has somewhere to point: the two carbons at
+    the top are the group, the two below them the members.
+    """
+    from xtal.core.lattice import Lattice
+    from xtal.core.structure import Bond, Structure
+
+    lattice = Lattice.cubic(20.0)
+    cart = np.array([[-0.70, -1.21, 0.0], [0.70, -1.21, 0.0],
+                     [-0.70, 0.21, 0.0], [0.70, 0.21, 0.0],
+                     [-1.40, -2.42, 0.0], [1.40, -2.42, 0.0]]) + 10.0
+    ring = Structure.from_arrays(
+        lattice, ["C", "C", "C", "C", "H", "H"],
+        lattice.to_frac(cart), space_group="P1")
+    for i, j in ((0, 1), (0, 2), (1, 3), (2, 3), (0, 4), (1, 5)):
+        ring.add_bond(Bond(i, j, (0, 0, 0), 1.0))
+    return ring
+
+
+def test_marking_a_group_as_one_point_needs_two_atoms(window,
+                                                      tmp_path):
+    """One atom on the end of one bond is the other command's
+    gesture, so this one is greyed out until there are two."""
+    document = opened(window, tmp_path, benzene_ring())
+    document.select({2})
+
+    assert window.actions_["mark_connection_points"].isEnabled()
+    assert not window.actions_[
+        "mark_one_connection_point"].isEnabled()
+
+
+def test_marking_a_group_as_one_point_is_one_undo_step(window,
+                                                       tmp_path):
+    """Three commands inside it -- the add, the bonds, the delete --
+    and one press of Ctrl+Z gives back all six atoms."""
+    document = opened(window, tmp_path, benzene_ring())
+    document.select({2, 3})
+
+    assert window.actions_["mark_one_connection_point"].isEnabled()
+    window.actions_["mark_one_connection_point"].trigger()
+
+    assert list(document.cell.elements).count("X") == 1
+    assert document.structure.n_sites == 5
+    assert document.can_undo
+
+    document.undo()
+    assert document.structure.n_sites == 6
+    assert "X" not in list(document.cell.elements)
+    assert not document.can_undo
+
+
+def test_the_new_connection_point_is_left_selected(window, tmp_path):
+    """Like Merge atoms and Add centroid: the atom that was just made
+    is the one the next gesture is about."""
+    document = opened(window, tmp_path, benzene_ring())
+    document.select({2, 3})
+    window.actions_["mark_one_connection_point"].trigger()
+
+    selected = sorted(document.selection.atoms)
+    assert len(selected) == 1
+    assert document.cell.elements[selected[0]] == "X"
+
+
 # ------------------------------------------------- saving a block
 
 @needs_rdkit

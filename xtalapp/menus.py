@@ -292,6 +292,14 @@ def build_actions(window):
             "which is what a PORMAKE building block is joined by.  "
             "There is no unmark -- an X does not remember what it "
             "was, so the way back is Ctrl+Z.")
+    add("mark_one_connection_point", "Mark as &one connection point",
+        window.mark_one_connection_point,
+        tip="Collapse the selected atoms into a single connection "
+            "point, 0.75 A from the middle of everything they were "
+            "bonded to and carrying those bonds.  For a chelate: two "
+            "atoms that meet the next block together are one joint, "
+            "and marking them separately gives a block with twice "
+            "the coordination number it has.")
     add("recompute_bonds", "&Recalculate bonds",
         window.recompute_bonds,
         tip="Perceive the bonds again from the geometry as it is "
@@ -533,7 +541,7 @@ def build_menus(window):
     window.actions_.fill_menu(structure_menu, [
         "add_atom_dialog", "add_centroid", "merge_atoms",
         "add_hydrogens", "insert_molecule", "fill_pores",
-        "mark_connection_points", None,
+        "mark_connection_points", "mark_one_connection_point", None,
         "bond_rules", "recompute_bonds", "reset_bonds",
         "bonds_follow"])
     window.bond_type_menu = add_bond_type_menu(window,

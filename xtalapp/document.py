@@ -903,6 +903,33 @@ class Document(QObject):
         self.run(command)
         return command.summary()
 
+    def mark_one_connection_point(self) -> str:
+        """Collapse the selected atoms into a single connection point.
+
+        The gesture for a chelate: two atoms that meet the next block
+        together are one joint, and marking them separately gives a
+        block with twice the coordination number it has.  See
+        :class:`~xtal.commands.connections.MarkOneConnectionPoint`,
+        including why there is still no way back except Ctrl+Z.
+
+        Planned before it is run, like Mark connection points, so a
+        selection nothing can be done with is a sentence in the status
+        bar rather than an undo step that changed nothing.
+        """
+        atoms = sorted(self.selection.atoms)
+        if len(atoms) < 2:
+            return "select at least two atoms"
+        planned = connection_commands.plan_one(self._structure, atoms)
+        if planned[0] is None:
+            return "; ".join(planned[2]) or "nothing to mark"
+        command = connection_commands.MarkOneConnectionPoint(
+            atoms, sorted(self.selected_sites()), plan_for=planned)
+        self.run(command)
+        # Left selected, like Merge atoms and Add centroid: the atom
+        # that was just made is the one the next gesture is about.
+        self.select(self.cell.indices_of_site(command.placed).tolist())
+        return command.summary()
+
     def move_selection(self, delta, cartesian: bool = False) -> str:
         """Translate the selected sites."""
         sites = sorted(self.selected_sites())

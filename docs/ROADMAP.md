@@ -163,13 +163,73 @@ clean diff against upstream 0.2.3.
 |---|---|---|---|
 | **1 — Probes** | Shipped 2026-09-20; numbers below | `probes/polydentate/` | S |
 | **2 — The verdict** | Shipped 2026-09-20; a build reports what it measured, never a symmetry it did not check | `xtal/mof/build.py`, `xtal/modules/mof.py` | S |
-| **3 — Attachments** | A connection point may stand for several atoms; *Mark as one connection point* | `xtal/mof/block.py`, `xtal/mof/catalog.py`, new `xtal/mof/attach.py`, `xtal/commands/connections.py` | M |
+| **3 — Attachments** | Shipped 2026-09-20; a connection point may stand for several atoms, and *Mark as one connection point* makes one | `xtal/mof/attach.py`, `xtal/mof/block.py`, `xtal/mof/catalog.py`, `xtal/commands/connections.py` | M |
 | **4 — Joints** | Every member of a polydentate end arrives bonded | `xtal/mof/build.py` | M |
 | **5 — Node orientation** | The discrete tie-break, through `permutations=` | new `xtal/mof/orient.py`, `xtal/mof/build.py` | M-L |
 | **6 — Linker orientation** | The continuous axial angle, in closed form | `xtal/mof/orient.py` | M |
 | **7 — MFU-4l** | The four blocks shipped; MFU-4l built end to end | new `xtal/mof/library/`, `packaging/bundle.py` | M |
 | **8 — Layer nets** | 2-periodic nets with a stacking spacing; Ni-HITP | new `xtal/mof/library/nets/` | M |
 | **9 — Interpenetration** | Generated and verified against `Net.multiplicity()` | new `xtal/analysis/interpenetrate.py` | M-L |
+
+### What Phase 3 changed
+
+A connection point stood for exactly one atom, and that is why
+MFU-4l and Ni3(HITP)2 could not be built: their nodes meet a linker
+through *two* atoms, and marked one at a time they come out with
+twice the coordination number they have and fit no net in the
+catalogue.  **An attachment is now one `X` plus the distinct body
+atoms bonded to it** -- new `xtal/mof/attach.py`, which is numpy at
+import and holds `Attachment`, `attachments_of`, `lateral`,
+`pair_cost` and `MAX_ATTACHMENT_SPAN`.  Nothing new enters the
+`.xyz`: the bond block always said which atoms a point hangs off and
+PORMAKE has always read it, so no vendored file is touched and
+`tests/test_mof_vendored.py` is green unchanged.
+
+`block.pull_in` pulls a point in to `CONNECTION_DISTANCE` of its
+members' **centroid**, and `block.problems` loosens from `n != 1` to
+`n < 1`.  Two bonds are a bidentate attachment;
+`test_a_connection_point_with_two_bonds_is_named` was rewritten
+rather than deleted.  Three refusals replace it, and only the third
+needed measuring:
+
+* an `X` bonded to another `X`;
+* members further apart than **`MAX_ATTACHMENT_SPAN = 5.0 A`** -- the
+  four target blocks span 1.405, 1.408, 2.558 and 2.861, the mis-click
+  it catches is two ends of a molecule, and half the shipped blocks
+  are wider than **10.33 A** (821 of 867 wider than 5.0);
+* an attachment pointing **inward**, judged against the atoms one
+  bond further in.  Two global definitions were measured first and
+  both discarded: against the block's own centroid, **77** of the
+  4256 shipped points read as inward, and by what lies ahead along
+  the axis, a quarter of them do -- a node's arms are concave.  The
+  local reading fires on **0** of the 4202 shipped points that have a
+  bond block, worst cosine **-0.032**, so the threshold is plain zero
+  with no margin to tune.
+
+`catalog.read_building_block` now parses the bond block with
+PORMAKE's own tolerance (a line of fewer than three tokens is skipped
+in silence), and `BuildingBlock` gains `bonds`, `members` and
+`is_polydentate`.  All 867 shipped blocks still parse, in **0.158 s**
+including the bonds.  `members` is the set of **distinct** partners:
+counting records would take 26 shipped blocks down the new path.
+Exactly two shipped blocks read as polydentate -- `N484` and `N684`,
+both upstream data errors -- and they are **named in a test** rather
+than separated by a tolerance that would have to be 0.047 A wide.
+
+`MarkOneConnectionPoint` (`xtal/commands/connections.py`) collapses a
+selection into one `X` carrying every bond the group had to atoms
+outside it, add-then-delete exactly as Merge atoms does, in one undo
+step; *Mark as &one connection point* sits beside *Mark connection
+points* in the Structure menu, enabled on two or more atoms.  The
+point is **pulled in** at the moment it is marked rather than left at
+the group's middle: the sibling command does, and the invariant would
+otherwise be false in an open document until the block was saved.
+
+**The bit-identical guarantee is pinned, not argued.**
+`test_a_single_point_block_is_written_byte_for_byte_as_before` fixes
+the bytes, and the writer's output was diffed against `HEAD`'s for
+both that block and the real RDKit phenylene before the test was
+written.
 
 ### What Phase 2 changed
 

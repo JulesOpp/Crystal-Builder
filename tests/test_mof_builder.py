@@ -16,6 +16,7 @@ the vendored copy is diffed against a real upstream one.
 import sys
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 
 from xtal.mof import Catalog, MofError, database_root, installed
@@ -609,3 +610,167 @@ def test_the_closest_contact_holds_connection_points_back():
     # 2.5 A apart and not bonded; the X is 0.75 A from atom 0.
     assert abs(closest_contact(marked) - 2.5) < 1e-6
     assert before > 1.9
+
+
+# ------------------------------------------- what a point stands for
+
+def block_file(tmp_path, text: str, name: str = "U01"):
+    path = tmp_path / f"{name}.xyz"
+    path.write_text(text, encoding="utf-8")
+    return read_building_block(path)
+
+
+def test_members_are_the_distinct_partners_and_not_the_bond_count():
+    """54 of the 4256 shipped connection points carry more than one
+    bond *record* and 52 of those name the same partner twice, across
+    26 blocks.  A reader that counted records would take 26 shipped
+    blocks down the polydentate path, where none of them belongs."""
+    from xtal.mof.catalog import BuildingBlock
+
+    block = BuildingBlock("test", None, ("C", "H", "X"), None, (2,),
+                          ((0, 2, "S"), (2, 0, "S")))
+
+    assert block.members == {2: (0,)}
+    assert not block.is_polydentate
+
+
+def test_a_block_with_no_bond_block_says_nothing_about_its_members(
+        tmp_path):
+    """Not "this point has no members".  A file that never wrote its
+    bonds cannot be asked which atom a point hangs off, and guessing
+    the nearest one is how a block is built along a direction nobody
+    wrote down."""
+    block = block_file(tmp_path,
+                       "2\n    1\nC 0.0 0.0 0.0\nX 0.75 0.0 0.0\n")
+
+    assert block.bonds == ()
+    assert block.members == {1: ()}
+    assert not block.is_polydentate
+
+
+def test_a_line_that_is_not_a_bond_is_skipped_the_way_pormake_skips_it(
+        tmp_path):
+    """There is no header to tell a bond block from anything else --
+    everything after the atoms is read as a bond -- so a line that is
+    not one is dropped in silence.  Refusing would make a file
+    PORMAKE reads one this application does not."""
+    block = block_file(
+        tmp_path,
+        "3\n    2\nC 0.0 0.0 0.0\nH -1.0 0.0 0.0\nX 0.75 0.0 0.0\n"
+        "   0    2 S\n"
+        "\n"
+        "a comment somebody left\n"
+        "   0    9 S\n"
+        "   x    2 S\n")
+
+    assert block.bonds == ((0, 2, "S"),)
+    assert block.members == {2: (0,)}
+
+
+@needs_database
+def test_only_two_shipped_blocks_read_as_bidentate_and_both_are_wrong(
+        catalog):
+    """Pinned rather than tolerated by a threshold.
+
+    ``N484``'s connection point is bonded to a **hydrogen**, and
+    ``N684``'s sits 1.201 and 0.613 A from its two partners against a
+    CONNECTION_DISTANCE of 0.75.  Both are upstream data errors and
+    both genuinely read as bidentate.  No geometric tolerance
+    separates them from ours -- N684 sits 0.703 A from its members'
+    centroid against our 0.750 -- so tuning one to 0.047 A would be
+    fitting a constant to two broken files.  They are named here
+    instead, and a third name appearing is a change in the database
+    rather than a change in the rules.
+    """
+    names = sorted(block.name for block in catalog.building_blocks()
+                   if block.is_polydentate)
+
+    assert names == ["N484", "N684"]
+
+
+# -------------------------------------------- the attachment's frame
+
+def attachment(offsets):
+    from xtal.mof.attach import Attachment
+
+    offsets = np.asarray(offsets, dtype=float)
+    return Attachment(0, tuple(range(1, len(offsets) + 1)), offsets)
+
+
+def test_a_monodentate_attachment_s_axis_is_the_bond_direction():
+    """What the single-point path has always used, which is why a
+    catalogue of them reaches none of the new arithmetic."""
+    single = attachment([[0.0, 0.0, -1.5]])
+
+    assert single.denticity == 1
+    assert not single.is_polydentate
+    assert single.span == 0.0
+    assert single.axis == pytest.approx([0.0, 0.0, 1.0])
+
+
+def test_a_bidentate_attachment_points_out_of_its_members_middle():
+    pair = attachment([[1.4, 0.0, -1.0], [-1.4, 0.0, -1.0]])
+
+    assert pair.is_polydentate
+    assert pair.span == pytest.approx(2.8)
+    assert pair.axis == pytest.approx([0.0, 0.0, 1.0])
+
+
+def test_two_ends_that_agree_cost_nothing_and_a_right_angle_costs_two():
+    """Measured on MFU-4l before any of this was built: the crystal's
+    own orientation scores exactly 0.000000 and a 90-degree twist
+    exactly 2.000000."""
+    from xtal.mof.attach import pair_cost
+
+    axis = [0.0, 0.0, 1.0]
+    node = attachment([[1.405, 0.0, -1.0], [-1.405, 0.0, -1.0]])
+    aligned = attachment([[2.861, 0.0, 1.0], [-2.861, 0.0, 1.0]])
+    twisted = attachment([[0.0, 2.861, 1.0], [0.0, -2.861, 1.0]])
+
+    assert pair_cost(node, aligned, axis) == pytest.approx(0.0,
+                                                           abs=1e-12)
+    assert pair_cost(node, twisted, axis) == pytest.approx(2.0,
+                                                           abs=1e-12)
+
+
+def test_the_two_ends_different_spans_do_not_show_up_in_the_cost():
+    """Comparing the offsets themselves leaves a floor of 0.53 A^2
+    that is the span difference and nothing else -- MFU-4l's node
+    members are 1.405 A apart and its linker's 2.861.  The laterals
+    are compared as directions for exactly that reason."""
+    from xtal.mof.attach import pair_cost
+
+    axis = [0.0, 0.0, 1.0]
+    narrow = attachment([[0.1, 0.0, -1.0], [-0.1, 0.0, -1.0]])
+    wide = attachment([[4.0, 0.0, 1.0], [-4.0, 0.0, 1.0]])
+
+    assert pair_cost(narrow, wide, axis) == pytest.approx(0.0,
+                                                          abs=1e-12)
+
+
+def test_a_joint_with_a_monodentate_end_has_no_twist_to_prefer():
+    """One member has no lateral to disagree about.  This is what
+    makes the tie-break inert for every block shipped before this
+    work, rather than a thing that has to be switched off."""
+    from xtal.mof.attach import pair_cost
+
+    axis = [0.0, 0.0, 1.0]
+    single = attachment([[0.0, 0.0, -1.5]])
+    pair = attachment([[1.4, 0.0, 1.0], [-1.4, 0.0, 1.0]])
+
+    assert pair_cost(single, pair, axis) == 0.0
+
+
+@needs_database
+def test_a_shipped_block_s_attachments_are_one_per_connection_point(
+        catalog):
+    """Read off the file and not counted: ``attachments_of`` is what
+    the orientation work will be written against."""
+    from xtal.mof.attach import attachments_of
+
+    block = catalog.building_block("N484")
+    found = attachments_of(block)
+
+    assert len(found) == block.n_connections
+    assert sum(a.denticity for a in found) == 4
+    assert [a.point for a in found] == sorted(block.connections)
