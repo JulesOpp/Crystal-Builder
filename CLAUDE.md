@@ -308,6 +308,23 @@ stress case).
   of it. The rule moves a node only where it is *strictly* cheaper,
   never where it merely ties: on `pcu` every orientation costs the
   same and the build must come back unchanged.
+- **A linker's angle about its own axis is not "as found", because
+  the fit never found it.** Placing a two-connected block is Kabsch
+  on two vectors — "not uniquely defined", as scipy says out loud —
+  so `orient.align_edges` settles it in closed form after every
+  build, whatever `orientation` asked for, and that is not a hole in
+  the rule above: there is no earlier decision there to be faithful
+  to. It is a refinement and not a second fit because **both
+  connection points are on the axis** and a turn about it moves
+  neither, so the RMSD, the relaxed cell and every X-to-X
+  coincidence stay true. `phi* = -arg(sum z_here conj(z_there))`
+  over the unit laterals, the pairing re-solved once at `phi*`; the
+  cost is `attach.pair_cost`, the same one the discrete rule
+  minimises. What turns is asked of the **block** — two points and a
+  face at one of them — and never of the slot, so a two-connected
+  *node* turns too. No shipped block is on that list, and
+  Ni3(HITP)2's own blocks come back wanting 6e-08 radians, which is
+  the crystal's angle and below `_STILL`.
 - **The workspace is asked for before anything opens, and everything
   lives in it.** `WorkspaceChooser` runs in `xtalapp/main.py` *before*
   `MainWindow` is built — recent workspaces listed, the last one

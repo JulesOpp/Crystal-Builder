@@ -19,7 +19,18 @@ python probes/polydentate/p7_shipped.py       # all 867 shipped blocks
 python probes/polydentate/p89_supercell_layer.py
 python probes/polydentate/p9b_spacing.py
 python probes/polydentate/p6_10.py
+python probes/polydentate/phase6_settle.py
 ```
+
+The last one is named for a **phase** and not for a Phase 1 probe:
+`pN_` is the numbering of the ten questions this design was measured
+against before any of it was built, and `phase6_settle.py` came
+afterwards, with Phase 6.  It holds the numbers
+[docs/ROADMAP.md](../../docs/ROADMAP.md) § 2 carries under *What
+Phase 6 changed*, and the evidence behind *A repeated net cannot be
+told to flip its neighbours* in [docs/TODO.md](../../docs/TODO.md)
+§ Modules -- both measured on the blocks below, which no test can
+reach until Phase 7 ships them inside the package.
 
 `blocks/` holds the four blocks cut out of `MFU4l.cif` and
 `NiHITP.cif`, and `nets/hcb.cgd` a honeycomb layer written in

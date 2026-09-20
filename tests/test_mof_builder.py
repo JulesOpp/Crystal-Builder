@@ -884,12 +884,17 @@ def test_the_two_ends_of_a_joint_are_paired_not_crossed(tmp_path,
     instead of being added to it.
 
     The lengths are pinned because they say which pairing was taken.
-    This node presents a different face on each pair of axes, so the
-    twelve joints come out in three groups of four: the rejected
-    pairings there are 2.052 and 2.019 A, and the third group is a
-    square -- all four distances 1.797 -- which is the relative twist
-    that has no fit reason to prefer either and is what Phase 5 and 6
-    are about.
+    All twelve are the same here and that is the settled geometry:
+    this node presents a different face on each pair of axes, so the
+    fit left the twelve in three groups of four -- 1.5, 1.544, and a
+    *square* at 1.797, all four of its distances equal, which is a
+    quarter turn with nothing in the fit to prefer either way round.
+    :func:`xtal.mof.orient.align_edges` turns each linker about its
+    own axis until both its ends face the nodes they meet, and on a
+    cubic net whose edges are all alike that is one length twelve
+    times.  ``test_a_planar_linker_lands_coplanar_with_both_ends``
+    is where that turn is measured; here it is the floor the pairing
+    is read against.
     """
     outcome = build(BuildRequest.parse("pcu", "SNODE", "SLINK"),
                     tmp_path, synthetic)
@@ -904,8 +909,7 @@ def test_the_two_ends_of_a_joint_are_paired_not_crossed(tmp_path,
         lengths.append(float(np.linalg.norm(lattice.to_cart(offset))))
         ends += [bond.i, bond.j]
 
-    assert sorted(round(v, 3) for v in lengths) == (
-        [1.5] * 4 + [1.544] * 4 + [1.797] * 4)
+    assert sorted(round(v, 3) for v in lengths) == [1.5] * 12
     # Twenty-four attachment atoms, each in one joint and no more:
     # a crossed joint would double one of them and drop another.
     assert len(ends) == len(set(ends)) == 24

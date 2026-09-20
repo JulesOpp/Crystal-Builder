@@ -166,10 +166,90 @@ clean diff against upstream 0.2.3.
 | **3 — Attachments** | Shipped 2026-09-20; a connection point may stand for several atoms, and *Mark as one connection point* makes one | `xtal/mof/attach.py`, `xtal/mof/block.py`, `xtal/mof/catalog.py`, `xtal/commands/connections.py` | M |
 | **4 — Joints** | Shipped 2026-09-20; every member of a polydentate end arrives bonded | `xtal/mof/build.py`, `xtal/mof/attach.py`, `xtal/modules/mof.py` | M |
 | **5 — Node orientation** | Shipped 2026-09-20; the discrete tie-break, through `permutations=`, and a net that can be repeated | new `xtal/mof/orient.py`, `xtal/mof/build.py`, `xtal/mof/catalog.py` | M-L |
-| **6 — Linker orientation** | The continuous axial angle, in closed form | `xtal/mof/orient.py` | M |
+| **6 — Linker orientation** | Shipped 2026-09-20; the continuous axial angle, in closed form | `xtal/mof/orient.py`, `xtal/mof/attach.py`, `xtal/mof/build.py` | M |
 | **7 — MFU-4l** | The four blocks shipped; MFU-4l built end to end | new `xtal/mof/library/`, `packaging/bundle.py` | M |
 | **8 — Layer nets** | 2-periodic nets with a stacking spacing; Ni-HITP | new `xtal/mof/library/nets/` | M |
 | **9 — Interpenetration** | Generated and verified against `Net.multiplicity()` | new `xtal/analysis/interpenetrate.py` | M-L |
+
+### What Phase 6 changed
+
+Everything Phase 5 does chooses between placements that differ
+*discretely*, because a node's fit is over-determined and the only
+freedom left in it is which of the block's own rotations was applied.
+A two-connected block is the opposite case, and the difference is what
+this phase is: its fit is Kabsch on two vectors, which scipy itself
+warns is "not uniquely defined", so the angle about the line through
+its two connection points is left **undetermined** rather than
+decided.  There is no earlier answer there to be faithful to.
+
+`orient.align_edges(framework)` settles it, and it is a refinement of
+the fit rather than a second fit for one reason: **both connection
+points are on the axis**, so a turn about it moves neither, and the
+RMSD, the relaxed cell and every X-to-X coincidence the builder made
+go on being true of what is written out.  It runs between `_build` and
+`write_cif`, so `bond_joints`, `draw_net` and `_representatives` all
+see the settled geometry.
+
+The angle is **solved and not searched**: each member's unit lateral
+written as a complex number in one basis across the axis -- the same
+basis at both ends -- makes the cost `const - 2 Re(exp(i phi) S)`, so
+`phi* = -arg(S)` with `S = sum over ends, sum over paired members
+z_here conj(z_there)`.  The pairing is re-solved once at `phi*` and
+the angle taken again, because the closed form is exact only for a
+fixed pairing.  The cost is **the one Phase 5 minimises**,
+`attach.pair_cost`, so the two levers are scored on one scale;
+`attach.unit_laterals` and `attach.pairing` are that rule in one
+place, read by both.
+
+Four things measured rather than assumed:
+
+* **What turns is asked of the *block*, never of the net.**
+  `_turnable` takes any placed block with two connection points and a
+  face at one of them, which covers the two-connected *node* -- and
+  Ni3(HITP)2's NiN4H4 is one -- without naming either kind of slot.
+  It is also the whole of the guarantee for the 867 shipped blocks:
+  a point standing for one atom presents no face, so the list is
+  empty and nothing runs.  Measured on `pcu`/N59/E32: the same 6
+  joints and no length.
+* **The closed form returns the crystal's own angle.**  Ni3(HITP)2's
+  three NiN4H4 blocks on `hcb` come back wanting 1.5e-08, 6.1e-08 and
+  4.2e-08 radians -- the same 1e-05-ish imperfection a block cut from
+  a real crystal has everywhere else -- so the framework is left
+  **atom for atom as it was placed** and `align_edges` reports 0.
+  That is `_STILL` = 1e-6 rad doing its job: at that angle the widest
+  attachment there is moves its furthest member 5e-06 A, below the
+  figure a CIF is written to.
+* **On MFU-4l the turn is real and the residual is somebody else's.**
+  `pcu` goes from a joint disagreement of 5.999987 to **3.514719**
+  and its longest joint from **2.188 A to 1.835**; `acs` goes 7.924843
+  to 2.584810 and 2.235 A to 2.028.  On `acs` the two rules then
+  *agree* -- `as-found` and `consistent` both settle to 2.584 and
+  2.028 -- because with a linker between them the linker's own turn
+  absorbs most of what the discrete choice was buying.  Where it
+  cannot is `acs` with no linker at all, where nothing is
+  two-connected and Phase 5 is still the whole answer (2.766 ->
+  1.884 A).
+* **What is left on `pcu` is the node flip, and it is now a TODO
+  rather than a mystery.**  Every edge of `pcu` joins a node to an
+  image of *itself*, so both ends of a linker meet the same
+  orientation and, on MFU-4l, two faces a quarter turn apart.  One
+  angle cannot satisfy both, so the closed form splits the difference
+  at exactly **45 degrees** on all three linkers and every one of the
+  six joints is left at **0.585786 = 2 - sqrt(2)**, the cost of a
+  45-degree mismatch to seven figures.  Splitting the difference is
+  the right answer to the question asked; the fix is an inverted
+  neighbour rather than a better angle, and it is *A repeated net
+  cannot be told to flip its neighbours* in
+  [docs/TODO.md](TODO.md) § Modules.
+
+On the synthetic blocks the fit leaves the three `pcu` linkers at
+0.000000, 0.271226 and **2.000000** -- a dead quarter turn, which is
+the square `test_the_two_ends_of_a_joint_are_paired_not_crossed` saw
+as four equal distances of 1.797 A.  All three come back at zero and
+the twelve joints become one length, **1.500 A**, twelve times; the
+linker that was already right is left alone rather than turned by its
+own rounding, so two of three move.  Those two pinned numbers are
+this phase's only changes to an existing test.
 
 ### What Phase 5 changed
 

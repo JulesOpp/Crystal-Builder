@@ -11,6 +11,11 @@ correctly, and the real four are Phase 7's to ship.  One more is added
 here -- a trigonal planar node -- because a planar block is the case
 three connection directions cannot describe at all, and that is what
 decided how the rotation group is enumerated.
+
+The second half of the file is the *continuous* freedom, which is a
+different lever on the same cost: a two-connected block turns about
+the line through its own two connection points, that line moves
+neither of them, and the angle is solved rather than searched.
 """
 
 import numpy as np
@@ -56,6 +61,52 @@ def trigonal_node() -> str:
         positions.append(tuple(2.1 * arm))
         bonds += [(7 + k, 1 + 2 * k), (7 + k, 2 + 2 * k)]
     return _block_text(symbols, positions, bonds)
+
+
+def settled(catalog, *spelled):
+    """A framework as the builder leaves it, before anything settles.
+
+    ``build`` settles it on the way past, which is the point -- so a
+    test that wants to watch the turn happen has to stand between the
+    two, and this is that seam.
+    """
+    from xtal.mof.build import _build, _resolve
+
+    request = BuildRequest.parse(*spelled)
+    topology, nodes, edges = _resolve(request, catalog)
+    return _build(topology, nodes, edges, None, request.repeat,
+                  request.orientation)
+
+
+def disagreement(framework):
+    """How badly the two ends of each joint disagree about their face.
+
+    :func:`xtal.mof.attach.pair_cost` per joint, which is 0.000000
+    when the two frames coincide and 2.000000 at a quarter turn --
+    the same number the discrete rule above minimises, so the two
+    halves of this file are scored on one scale.
+    """
+    from xtal.mof import orient
+    from xtal.mof.attach import pair_cost
+
+    blocks = framework.info["located_bbs"]
+    out = []
+    for here, there in orient.fused_points(
+            framework.info["topology"], blocks,
+            framework.info["permutations"]):
+        mine = orient._attachment_at(blocks, *here)
+        theirs = orient._attachment_at(blocks, *there)
+        if mine is not None and theirs is not None:
+            out.append(round(pair_cost(mine, theirs, mine.axis), 6))
+    return sorted(out)
+
+
+def positions_of(framework):
+    """Every placed block's atoms, slot by slot, before wrapping."""
+    return {slot: np.asarray(block.atoms.get_positions(), dtype=float)
+            for slot, block in
+            enumerate(framework.info["located_bbs"])
+            if block is not None}
 
 
 def _fresh(path):
@@ -267,13 +318,19 @@ def test_a_trigonal_linker_has_one_orientation_only(synthetic):
 def test_the_default_rule_builds_exactly_what_it_built_before(
         tmp_path, synthetic):
     """``as-found`` is the default and it is today's behaviour, so a
-    build that does not ask for a rule never reaches any of this.
+    build that does not ask for a rule never reaches any of the
+    discrete choice above.
 
-    Pinned against the numbers ``test_the_two_ends_of_a_joint_are_
-    paired_not_crossed`` fixed in the phase before: twelve joints and
-    a longest of 1.797 A, which is the square -- the quarter turn
-    between a node and its linker that only a *continuous* turn of the
-    linker can undo.
+    It does reach the *continuous* one, and that is not a hole in the
+    guarantee.  A node's fit decides which of its own rotations was
+    applied and ``as-found`` is faithful to that decision; a linker's
+    fit leaves the angle about its own axis **undetermined**, so
+    there is no decision there to be faithful to and
+    :func:`xtal.mof.orient.align_edges` runs whatever the rule is.
+    The square that ``test_the_two_ends_of_a_joint_are_paired_not_
+    crossed`` used to pin at 1.797 A is what it undoes; what no
+    continuous turn can undo is two nodes a quarter turn apart, and
+    that is what the rule below is for.
     """
     request = BuildRequest.parse("pcu", "SNODE", "SLINK")
     assert request.orientation == "as-found"
@@ -284,7 +341,7 @@ def test_the_default_rule_builds_exactly_what_it_built_before(
                   _fresh(tmp_path / "b"), synthetic)
 
     assert built.joints == 12
-    assert round(built.longest_joint, 3) == 1.797
+    assert round(built.longest_joint, 3) == 1.500
     assert named.cif.read_text() == built.cif.read_text()
 
 
@@ -442,3 +499,158 @@ def test_a_flat_block_has_no_handedness_to_carry_over(synthetic):
     assert orient.handedness(flat) == 0.0
     assert not orient.mirrored(flat,
                                flat.make_chiral_building_block())
+
+
+# ------------------------------------- the angle about its own axis
+
+@needs_builder
+@pytest.mark.slow
+def test_a_planar_linker_lands_coplanar_with_both_ends(synthetic):
+    """The freedom the primary fit does not decide, and so is not
+    overriding when this decides it.
+
+    Placing a two-connected block is Kabsch on two vectors, which
+    scipy itself warns is "not uniquely defined": the angle about the
+    line through the block's own two points is left where the grid
+    happened to leave it.  On ``pcu`` this node presents a different
+    face on each pair of axes, so the fit leaves one linker already
+    right, one a third of the way out, and one at **2.000000** -- a
+    dead quarter turn, which is the square
+    ``test_the_two_ends_of_a_joint_are_paired_not_crossed`` sees as
+    four equal distances.
+
+    Every one of them comes back at zero, which is what "coplanar
+    with both ends" is in a number: the two ends' unit laterals
+    coincide, so the joint's four atoms and its axis are in one
+    plane.
+    """
+    from xtal.mof import orient
+
+    framework = settled(synthetic, "pcu", "SNODE", "SLINK")
+    assert disagreement(framework) == [0.0, 0.0, 0.271226, 0.271226,
+                                       2.0, 2.0]
+
+    turned = orient.align_edges(framework)
+
+    # Two of the three, and not three: a linker the fit had already
+    # put right is left alone rather than turned by its own rounding.
+    assert turned == 2
+    assert disagreement(framework) == [0.0] * 6
+
+
+@needs_builder
+@pytest.mark.slow
+def test_settling_moves_no_connection_point(synthetic):
+    """Why this is a refinement of the fit and not a second one.
+
+    The axis is the line through the block's own two connection
+    points, so both of them are *on* it and a turn about it leaves
+    them exactly where the builder fused them.  The RMSD the fit
+    reported, the cell the scaler relaxed and every X-to-X
+    coincidence therefore go on being true of the framework that is
+    written out, which is what makes turning it legal at all.
+    """
+    from xtal.mof import orient
+
+    framework = settled(synthetic, "pcu", "SNODE", "SLINK")
+    blocks = framework.info["located_bbs"]
+    before = {slot: np.asarray(
+        blocks[slot].atoms.get_positions(), dtype=float)[
+            list(blocks[slot].connection_point_indices)]
+        for slot in orient._turnable(blocks)}
+
+    orient.align_edges(framework)
+
+    for slot, points in before.items():
+        moved = np.asarray(blocks[slot].atoms.get_positions(),
+                           dtype=float)[
+            list(blocks[slot].connection_point_indices)]
+        assert float(np.abs(moved - points).max()) < 1e-9
+
+
+@needs_builder
+@pytest.mark.slow
+def test_settling_moves_no_atom_between_blocks(synthetic):
+    """A turn is one block's own and reaches nothing else.
+
+    Nothing is added, nothing is removed and nothing changes hands:
+    the framework comes back with the same atoms in the same order,
+    every block that was not turned exactly where it was placed, and
+    only the bodies of the ones that were anywhere else.  A test
+    worth having because the write-back is index arithmetic over
+    ``_framework_indices``, and the way that arithmetic fails is by
+    moving the wrong atoms rather than by raising.
+    """
+    from xtal.mof import orient
+
+    framework = settled(synthetic, "pcu", "SNODE", "SLINK")
+    before = positions_of(framework)
+    symbols = list(framework.atoms.symbols)
+    turnable = set(orient._turnable(framework.info["located_bbs"]))
+
+    orient.align_edges(framework)
+    after = positions_of(framework)
+
+    assert list(framework.atoms.symbols) == symbols
+    assert set(after) == set(before)
+    still = [slot for slot in before
+             if float(np.abs(after[slot] - before[slot]).max()) > 1e-9]
+    assert set(still) <= turnable
+    # And the node slot is one of the ones that did not move: it is
+    # six-connected, so it has no axis of its own to turn about.
+    assert 0 in before and 0 not in still
+
+
+@needs_builder
+@pytest.mark.slow
+def test_a_linker_with_no_members_is_left_where_it_was_placed(
+        tmp_path, synthetic, catalog):
+    """A connection point standing for one atom presents no face, so
+    no angle is better than any other and there is nothing to settle.
+
+    That is the whole of the guarantee for the 867 shipped blocks --
+    not a rule they are exempt from but a list they are not on -- and
+    it is checked twice here: once on the framework, which comes back
+    atom for atom as it was placed, and once through ``build``, where
+    a shipped net on shipped blocks writes the CIF it always wrote.
+    """
+    from xtal.mof import orient
+
+    framework = settled(synthetic, "pcu", "SNODE", "SSTICK")
+    before = positions_of(framework)
+
+    assert orient._turnable(framework.info["located_bbs"]) == []
+    assert orient.align_edges(framework) == 0
+    assert all(np.array_equal(after, before[slot])
+               for slot, after in positions_of(framework).items())
+
+    shipped = build(BuildRequest.parse("pcu", "N59", "E32"),
+                    _fresh(tmp_path / "a"), catalog)
+    assert shipped.joints == 6
+    assert shipped.longest_joint == 0.0
+
+
+@needs_builder
+def test_a_two_connected_node_turns_like_a_linker(synthetic):
+    """The same freedom, and it is not an edge slot's.
+
+    Ni3(HITP)2's NiN4H4 is two-connected and bidentate and sits on a
+    *node* slot of ``hcb``; its angle about its own axis is as
+    undetermined as any linker's and matters for the same reason.  So
+    what is asked is the block -- two connection points, and a face
+    at one of them -- and never which kind of slot it landed on,
+    which is what covers both without naming either.
+    """
+    from xtal.mof import orient
+
+    pormake = orient.import_pormake()
+    node = pormake.BuildingBlock(
+        str(synthetic.building_block("SNODE").path))
+    linker = pormake.BuildingBlock(
+        str(synthetic.building_block("SLINK").path))
+    stick = pormake.BuildingBlock(
+        str(synthetic.building_block("SSTICK").path))
+
+    # The two-connected block in a node slot and the six-connected
+    # one in an edge slot: the answer follows the block.
+    assert orient._turnable([linker, node, None, stick]) == [0]

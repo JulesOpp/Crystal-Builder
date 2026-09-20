@@ -383,6 +383,15 @@ def build(request: BuildRequest, directory, catalog: Catalog | None
     with _Logging(trace if trace is not None else log) as listening:
         framework = _build(topology, node_bbs, edge_bbs, log,
                            request.repeat, request.orientation)
+        # After the build and before anything reads the geometry.  A
+        # two-connected block's angle about its own axis is the one
+        # freedom the fit leaves *undetermined* rather than decides,
+        # so settling it is not a rule the user picks between -- it
+        # runs whatever `orientation` says, and is empty for every
+        # block whose connection points stand for one atom.
+        from xtal.mof import orient
+
+        orient.align_edges(framework, log)
         framework.write_cif(str(cif))
         if not cif.is_file():
             raise MofError(

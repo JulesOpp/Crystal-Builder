@@ -66,11 +66,19 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from xtal.mof.attach import Attachment, members_of, pair_cost
+from xtal.mof.attach import (
+    Attachment,
+    members_of,
+    pair_cost,
+    pairing,
+    unit_laterals,
+)
 from xtal.mof.build import (
     MofError,
+    _framework_indices,
     edge_axis,
     edge_ends,
+    fused_points,
     import_pormake,
     point_at,
 )
@@ -687,6 +695,314 @@ def _descend(nodes, ties, score, choice) -> dict:
         if not moved or round(score.cost(choice), _PLACES) <= 0.0:
             break
     return choice
+
+
+# ======================================================================
+#  THE ANGLE ABOUT A BLOCK'S OWN AXIS
+# ======================================================================
+#
+# Everything above this line chooses between placements that are
+# *discretely* different, and there is nothing else it could do: a
+# node's fit is over-determined and the only freedom left in it is
+# which of the block's own rotations was applied.
+#
+# A two-connected block is the opposite case.  Its fit is Kabsch on
+# two vectors, which scipy itself warns is "not uniquely defined": the
+# angle about the line through its two connection points is left
+# **undetermined** by the fit rather than decided by it, so there is
+# no earlier answer here to be faithful to and settling it is not
+# overriding anything.  That is why this runs whatever rule was asked
+# for, and why the guarantee it has to keep is the other one -- a
+# framework of single-point blocks must come out exactly as it always
+# did.  It does, structurally: :func:`_turnable` is empty unless a
+# block presents a face at one of its two ends, and no shipped block
+# does.
+#
+# Turning about that line is a legal refinement and not a second fit,
+# and for one reason worth stating plainly: **both connection points
+# are on the line**, so they do not move at all.  The primary RMSD,
+# the relaxed cell and every X-to-X coincidence the builder made are
+# preserved exactly, and what moves is only the body of the block
+# between them.
+
+#: How many times the pairing between two ends is re-solved.
+#:
+#: The angle is exact once the pairing is fixed and the pairing is
+#: exact once the angle is, so the two are taken in turn.  Twice is
+#: where it stops: a second round changes the answer only where the
+#: first one's turn carried a member past its neighbour's, and it is
+#: the round that catches a linker the fit left more than a quarter
+#: turn out.
+_ROUNDS = 2
+
+#: How many times the whole set of turnable blocks is swept.
+#:
+#: One sweep is exact wherever no two turnable blocks meet, which is
+#: every net whose linkers sit between many-connected nodes: an edge
+#: slot's two neighbours are node slots by construction.  Where a
+#: *node* is two-connected as well -- Ni3(HITP)2's NiN4H4 is -- two
+#: turnable blocks do meet, each sweep is one step of a coordinate
+#: descent, and every step is a closed-form minimum for the block it
+#: moves.  Four is where the descent is stopped rather than where it
+#: is known to have converged, and a block still moving at the fourth
+#: is left where the fourth put it.
+_SWEEPS = 4
+
+#: A turn smaller than this, in radians, is not made at all.
+#:
+#: Not a convergence criterion -- the closed form does not converge,
+#: it answers.  It is what keeps a block that is *already* settled
+#: from being turned by its own rounding error, and the number is
+#: measured: Ni3(HITP)2's three NiN4H4 blocks come back wanting
+#: 1.5e-08, 6.1e-08 and 4.2e-08 radians, which is the same 1e-05-ish
+#: imperfection a block cut from a real crystal has everywhere else
+#: in this module and is not a turn.  At 1e-06 the widest attachment
+#: there is moves its furthest member by 5e-06 A, which is below the
+#: figure a CIF is written to, so nothing that is stopped here could
+#: have been seen in the file.
+_STILL = 1e-6
+
+#: Below this the two ends have nothing to say about the angle.
+_UNDECIDED = 1e-9
+
+
+def align_edges(framework, log=None) -> int:
+    """Turn every two-connected block about its own axis until its
+    ends face the blocks they meet.  Returns how many were turned.
+
+    The block is rotated in place -- ``info["located_bbs"]`` and the
+    framework's own atoms both -- so everything downstream reads the
+    settled geometry: :func:`xtal.mof.build.bond_joints` pairs members
+    that have been brought together rather than members a quarter turn
+    apart, and the CIF is written from it.
+
+    **The cost is the one Phase 5 minimised**, joint by joint:
+    :func:`xtal.mof.attach.pair_cost` over the unit laterals the two
+    ends present across the joint.  What differs is the lever.  A node
+    can only be turned onto one of its own rotations, so its tie is
+    discrete and is searched; a two-connected block turns continuously
+    about the line through its two points, so its angle is *solved*:
+
+    .. code-block:: text
+
+        phi* = -arg( sum over ends, sum over paired members
+                     z_here * conj(z_there) )
+
+    with each member's unit lateral written as a complex number in one
+    basis across the axis, the same basis at both ends.  Rotating by
+    ``phi`` multiplies every ``z_here`` by ``exp(i phi)``, so the sum
+    of squared differences is ``const - 2 Re(exp(i phi) S)`` and is
+    least where ``exp(i phi) S`` is real and positive.  No scan, no
+    tolerance, and no starting guess -- measured on Ni3(HITP)2 the
+    closed form returns 0.000 degrees, which is the angle the crystal
+    has.
+
+    A C2-symmetric linker gives two equal minima half a turn apart and
+    either is correct; which one comes back is decided by the sum
+    above and so is the same on two runs of one build.
+    """
+    blocks = framework.info["located_bbs"]
+    turnable = _turnable(blocks)
+    if not turnable:
+        return 0
+    partner = {}
+    for here, there in fused_points(framework.info["topology"], blocks,
+                                    framework.info["permutations"]):
+        partner[here] = there
+        partner[there] = here
+    turned: set[int] = set()
+    for _sweep in range(_SWEEPS):
+        moved = False
+        for slot in turnable:
+            angle, axis, origin = _axial(blocks, partner, slot)
+            if angle is None or abs(angle) < _STILL:
+                continue
+            _turn(blocks[slot], axis, origin, angle)
+            turned.add(slot)
+            moved = True
+        if not moved:
+            break
+    if turned:
+        _write_back(framework, blocks, turned)
+        _say(log, f"settled {len(turned)} block(s) about their own "
+                  f"axis, of {len(turnable)} that could turn")
+    return len(turned)
+
+
+def _turnable(blocks) -> list[int]:
+    """The slots whose block has two connection points and a face to
+    present at one of them.
+
+    Two points and not "is an edge slot": a two-connected *node* has
+    exactly the same freedom and exactly the same reason to settle it
+    -- Ni3(HITP)2's NiN4H4 sits on a node slot -- and asking the block
+    rather than the net is what covers both without naming either.
+
+    A block whose every point stands for one atom presents no face, so
+    no angle is better than any other and this is empty.  That is the
+    whole of the guarantee for the 867 shipped blocks: not a rule they
+    are exempt from, but a list they are not on.
+    """
+    out = []
+    for slot, block in enumerate(blocks):
+        if block is None or block.bonds is None:
+            continue
+        points = np.asarray(block.connection_point_indices, dtype=int)
+        if len(points) != 2 or not readable(block):
+            continue
+        members = members_of(points, block.bonds)
+        if any(len(found) > 1 for found in members.values()):
+            out.append(slot)
+    return out
+
+
+def _axial(blocks, partner, slot):
+    """``(angle, axis, origin)`` for one block, or three ``None``.
+
+    ``None`` where there is nothing to settle: an end whose partner
+    presents no face, a member sitting on the axis -- where a unit
+    lateral would be manufactured out of rounding noise -- or two
+    connection points on top of each other, which is not an axis.
+    """
+    block = blocks[slot]
+    positions = np.asarray(block.atoms.get_positions(), dtype=float)
+    first, second = (int(p) for p in block.connection_point_indices)
+    axis = positions[second] - positions[first]
+    length = float(np.linalg.norm(axis))
+    if length < _UNDECIDED:                         # pragma: no cover
+        return None, None, None
+    axis = axis / length
+    ends = []
+    for point in (first, second):
+        met = partner.get((slot, point))
+        here = _attachment_at(blocks, slot, point)
+        there = None if met is None else _attachment_at(blocks, *met)
+        if here is None or there is None:
+            continue
+        mine = unit_laterals(here, axis)
+        theirs = unit_laterals(there, axis)
+        if mine is not None and theirs is not None:
+            ends.append((mine, theirs))
+    if not ends:
+        return None, None, None
+    return _angle(axis, ends), axis, positions[first]
+
+
+def _attachment_at(blocks, slot, point):
+    """The face a placed block presents at one of its points, or
+    ``None`` where it presents none.
+
+    In the framework's own frame, because that is where the two ends
+    of a joint have to agree -- but only the *offsets* are ever read,
+    so it does not matter that two placed blocks need not be in the
+    same cell.  The distances between them do, and
+    :func:`xtal.mof.build._joint_bonds` takes those at their minimum
+    image; an offset inside one block is the same vector wherever the
+    block is.
+    """
+    block = blocks[slot]
+    if block is None or block.bonds is None or not readable(block):
+        return None
+    members = members_of(block.connection_point_indices,
+                         block.bonds).get(int(point), ())
+    if len(members) < 2:
+        return None
+    positions = np.asarray(block.atoms.get_positions(), dtype=float)
+    return Attachment(int(point), tuple(int(m) for m in members),
+                      positions[list(members)] - positions[point])
+
+
+def _angle(axis, ends) -> float:
+    """The turn about ``axis`` that brings these ends onto the ones
+    they meet, in closed form.
+
+    Solved twice, because the closed form is exact only for a fixed
+    pairing of one end's members with the other's: the pairing is
+    taken at the angle in hand, the angle is then the minimum for that
+    pairing, and the second round is where a pairing the first turn
+    invalidated is put right.
+    """
+    across = _across(axis)
+    angle = 0.0
+    for _round in range(_ROUNDS):
+        rotation = _rotation(axis, angle)
+        total = 0j
+        for here, there in ends:
+            rows, cols, _cost = pairing(here @ rotation.T, there)
+            total += complex(np.sum(
+                _plane(here[rows], across)
+                * np.conj(_plane(there[cols], across))))
+        if abs(total) < _UNDECIDED:
+            # The two ends' frames cancel each other out, which is a
+            # linker whose members are symmetric about its axis
+            # meeting a node whose are too.  Every angle then costs
+            # exactly the same and there is nothing to choose, so the
+            # block is left where the fit put it.
+            return 0.0
+        angle = -float(np.angle(total))
+    return angle
+
+
+def _across(axis):
+    """An orthonormal pair across ``axis``, the same for both ends.
+
+    Which pair does not matter and cannot: turning the pair turns
+    every complex coordinate on both sides of the product below by the
+    same phase, and the product is one conjugated against the other.
+    """
+    other = (np.array([0.0, 1.0, 0.0]) if abs(float(axis[0])) > 0.9
+             else np.array([1.0, 0.0, 0.0]))
+    first = np.cross(axis, other)
+    first = first / float(np.linalg.norm(first))
+    return first, np.cross(axis, first)
+
+
+def _plane(vectors, across):
+    """Vectors across the axis, as complex numbers in that basis."""
+    first, second = across
+    return vectors @ first + 1j * (vectors @ second)
+
+
+def _rotation(axis, angle) -> np.ndarray:
+    """Rodrigues: the matrix that turns a vector about ``axis``."""
+    cross = np.array([[0.0, -axis[2], axis[1]],
+                      [axis[2], 0.0, -axis[0]],
+                      [-axis[1], axis[0], 0.0]])
+    return (np.cos(angle) * np.eye(3) + np.sin(angle) * cross
+            + (1.0 - np.cos(angle)) * np.outer(axis, axis))
+
+
+def _turn(block, axis, origin, angle) -> None:
+    """One placed block, turned about the line through its points."""
+    rotation = _rotation(axis, angle)
+    positions = np.asarray(block.atoms.get_positions(), dtype=float)
+    block.atoms.set_positions(
+        (positions - origin) @ rotation.T + origin)
+
+
+def _write_back(framework, blocks, turned) -> None:
+    """The turned blocks' atoms, back into the framework's own.
+
+    Over the index range :func:`xtal.mof.build._framework_indices`
+    gives that slot -- the one walk, because a private copy of that
+    arithmetic here would move the wrong atoms rather than fail to
+    find them.  The framework then wraps itself again: it wrapped once
+    when it was made (``framework.py:76``), a turned block is back
+    outside the cell, and wrapping is idempotent for everything that
+    was already in it.
+    """
+    starts, kept = _framework_indices(blocks)
+    positions = np.asarray(framework.atoms.get_positions(),
+                           dtype=float)
+    for slot in sorted(turned):
+        placed = np.asarray(blocks[slot].atoms.get_positions(),
+                            dtype=float)
+        for local in range(len(placed)):
+            index = kept.get(starts[slot] + local)
+            if index is not None:
+                positions[index] = placed[local]
+    framework.atoms.set_positions(positions)
+    framework.wrap()
 
 
 def _say(log, text: str) -> None:

@@ -190,18 +190,50 @@ def pair_cost(a: Attachment, b: Attachment, axis) -> float:
     """
     if not (a.is_polydentate and b.is_polydentate):
         return 0.0
-    ua = _directions(lateral(a, axis))
-    ub = _directions(lateral(b, axis))
+    ua = unit_laterals(a, axis)
+    ub = unit_laterals(b, axis)
     if ua is None or ub is None:
         return 0.0
+    rows, cols, cost = pairing(ua, ub)
+    return float(cost[rows, cols].mean())
+
+
+def unit_laterals(attachment: Attachment, axis):
+    """The frame an attachment presents across ``axis``, or ``None``.
+
+    The laterals normalised, which is the whole of what two ends of a
+    joint have to agree about: their reach along the axis is the same
+    by construction and their spans need not be -- MFU-4l's node
+    members sit 1.405 A apart and its linker's 2.861 -- so comparing
+    the raw offsets leaves a floor that is the span difference and
+    nothing to do with orientation.
+
+    One function because two callers need exactly this and for the
+    same reason: :func:`pair_cost`, which says how badly two ends
+    disagree, and :func:`xtal.mof.orient.align_edges`, which turns one
+    of them until they do not.
+    """
+    return _directions(lateral(attachment, axis))
+
+
+def pairing(here: np.ndarray, there: np.ndarray):
+    """Which of one end's laterals answers which of the other's.
+
+    ``(rows, cols, cost)`` from a **rectangular** assignment on the
+    squared difference, because denticity may differ across a joint
+    and a bidentate end may meet a tridentate one.  The cost matrix
+    comes back with them: what it is minimised over and what its value
+    is are the same numbers, and the caller that wants the angle needs
+    the pairing while the caller that wants the cost needs the sum.
+    """
     # Imported here and not above: this module is on the path
     # `xtal.mof.block` takes, which `xtal.build.chem` takes in turn,
     # and that one is deliberately cheap to import.
     from scipy.optimize import linear_sum_assignment
 
-    cost = np.sum((ua[:, None, :] - ub[None, :, :]) ** 2, axis=-1)
+    cost = np.sum((here[:, None, :] - there[None, :, :]) ** 2, axis=-1)
     rows, cols = linear_sum_assignment(cost)
-    return float(cost[rows, cols].mean())
+    return rows, cols, cost
 
 
 def _directions(vectors: np.ndarray):
