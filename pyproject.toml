@@ -250,8 +250,15 @@ line-length = 79
 # Blender's side of Export as STL, which Blender runs and nothing here
 # imports: the author's own tool, shipped unchanged so that it stays
 # the same script they maintain -- `xtal/modules/blender.py`.
+# The probes under `probes/`, for the third time: each one is a
+# standalone script that puts its own directory on `sys.path` before
+# importing its sibling, so sorting its imports breaks it, and each is
+# a record of a measurement that decided a design rather than code
+# anything ships or imports.  `probes/polydentate/README.md` says what
+# they measured.
 extend-exclude = ["xtal/mof/pormake", "resources/topo/Top2Cif.py",
-                  "xtal/modules/data/pdb_to_printable_stl.py"]
+                  "xtal/modules/data/pdb_to_printable_stl.py",
+                  "probes"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]

@@ -149,7 +149,103 @@ reports its word count and open `TODO-cite`s.
 
 ---
 
-## 2. What this plan does not do
+## 2. The MOF builder: polydentate connections and orientation
+
+Planned 2026-09-20 on `features/mof-polydentate`, from Julius's four
+block definitions.  The full plan is
+`~/.claude/plans/read-through-the-discussions-validated-floyd.md`.
+Targets: **MFU-4l** first, then **Ni3(HITP)2**; Cu-HHTP by hand.
+**No vendored file is edited** — every lever already exists in
+PORMAKE's public API, so `xtal/mof/pormake/PROVENANCE.md` stays a
+clean diff against upstream 0.2.3.
+
+| Phase | Delivers | Main files | Size |
+|---|---|---|---|
+| **1 — Probes** | Shipped 2026-09-20; numbers below | `probes/polydentate/` | S |
+| **2 — The verdict** | A build reports what it measured, never a symmetry it did not check | `xtal/mof/build.py`, `xtal/modules/mof.py` | S |
+| **3 — Attachments** | A connection point may stand for several atoms; *Mark as one connection point* | `xtal/mof/block.py`, `xtal/mof/catalog.py`, new `xtal/mof/attach.py`, `xtal/commands/connections.py` | M |
+| **4 — Joints** | Every member of a polydentate end arrives bonded | `xtal/mof/build.py` | M |
+| **5 — Node orientation** | The discrete tie-break, through `permutations=` | new `xtal/mof/orient.py`, `xtal/mof/build.py` | M-L |
+| **6 — Linker orientation** | The continuous axial angle, in closed form | `xtal/mof/orient.py` | M |
+| **7 — MFU-4l** | The four blocks shipped; MFU-4l built end to end | new `xtal/mof/library/`, `packaging/bundle.py` | M |
+| **8 — Layer nets** | 2-periodic nets with a stacking spacing; Ni-HITP | new `xtal/mof/library/nets/` | M |
+| **9 — Interpenetration** | Generated and verified against `Net.multiplicity()` | new `xtal/analysis/interpenetrate.py` | M-L |
+
+### What Phase 1 measured
+
+Ten probes, all under `probes/polydentate/`.  The three that could
+have killed the design did not.
+
+* **The objective works, and its cost must compare directions, not
+  offsets.**  One Zn5Cl4(N3C2)6 node scored against all 24 rotations
+  that leave its six connection directions alone: the crystal's own
+  orientation is a minimum, **12 of the 24 tie** (the T_d body's own
+  rotations), so there are exactly **2 distinct orientations** — the
+  measured flip, derived rather than observed.  Comparing raw lateral
+  offsets leaves a floor of 0.53 A^2 that is nothing but the span
+  difference (node members 1.405 A, linker members 2.861 A);
+  normalising them to directions first gives **exactly 0.000000 for
+  the crystal and 2.000000 for a 90-degree twist**.  On Ni3(HITP)2 the
+  closed form `phi* = -arg(sum z_e conj(z_n))` returns **0.000 deg**,
+  the experimental angle, with no scan.
+* **The permutation lever moves the body.**  Over the 24 candidates
+  the RMSD spread is 6.2e-08 while the body moves up to **8.239 A**,
+  in **2 placements of 12** — and against the *scaled* topology the 24
+  still stand at 2.2e-06 to 8.3e-06 while everything else starts at
+  0.8165, a **98,189x** separation.
+* **The tie set is enumerable.**  `|G| = 24` from **120** Kabsch-on-
+  triples candidates rather than 720 permutations, and composed with
+  the baseline it **equals the brute-force tie set exactly**.  Two
+  tolerances are not cosmetic: the group search needs **1e-3**, not
+  1e-6, because a block cut from a real crystal is octahedral to a
+  thousandth of a degree; and the tie criterion must be **gap-based**,
+  not an absolute epsilon, because the block's own imperfection
+  (~1e-5) is larger than any fixed threshold worth writing.
+* **Unmodified PORMAKE reads a polydentate block and builds with it.**
+  All four blocks load with two bonds per X and a silent
+  `check_bonds`, and `pcu` comes out as **Zn5Cl4N18C36O6H12 — exactly
+  MFU-4l's formula unit — in a cubic cell, 16.136 A, at max_rmsd
+  0.000002**.  (The catalogue's own N457 gives 77 atoms, no chlorides
+  and a triclinic 81.0/99.4/100.2 cell.)  Of its 100 bonds, 94 are
+  intra-block and **6 are joints where 12 are needed** — one per
+  joint, exactly the `builder.py:644-658` defect, which Phase 4
+  repairs from our side.
+* **Members must be the *distinct* partners of an X.**  No shipped
+  block is polydentate by design, but **54 connection points carry
+  more than one bond record** and 52 of those name the same partner
+  twice, across **26 blocks**.  Counting records rather than partners
+  would take 26 shipped blocks down the new path.  Two more — `N484`,
+  whose X is bonded to a **hydrogen**, and `N684`, whose X sits 1.201
+  and 0.613 A from its two partners against a `CONNECTION_DISTANCE` of
+  0.75 — are upstream data errors.  They are **not** separable by a
+  geometric tolerance (N684 sits 0.703 A from its members' centroid
+  against our 0.750), so Phase 3 records them in a test rather than
+  tuning a threshold to 0.047 A.
+* **A supercell is cheap and our own code survives it.**  `pcu` x
+  (2,2,2): 32 slots, 8 nodes, **648 atoms — MFU-4l's own P1 count — in
+  0.03 s**, with `_edges_of` giving 24 edges and `_representatives` 8
+  node slots, matching the crystal's 24 linkers and 8 SBUs.
+* **A layer net does *not* keep its stacking axis, and that was
+  predicted wrong.**  The scaler applies a global factor, so `hcb`'s
+  c went 10 -> **107.154**.  The layer is flat to **0.0000 A**, so
+  Phase 8 sets c *after* the build; doing that gives
+  `[22.730, 22.731, 3.238, 90, 90, 120]` against the crystal's
+  `[21.552, 21.552, 3.238, ...]`.  The build itself is already
+  **75 atoms, C36H24N12Ni3** — exactly Ni3(HITP)2.
+* **Idealised geometry costs a few percent.**  a is +3.9% on MFU-4l
+  and +5.5% on Ni-HITP, which is what a builder that places blocks and
+  stops is worth.  Relaxation is the user's, in the Force Field panel.
+* **The mirror hazard did not fire** on these blocks (0 mirrored
+  placements over `pcu` and `acs`) because the fit is near-exact, so
+  the 1% chiral retry is never reached.  The guard stays: the sample is
+  two nets.
+* **Rewriting a placed block's positions before `write_cif` is safe** —
+  file written, atom order unchanged, longest bond 2.607 A against the
+  6.0 A ceiling that would have deleted the file.
+
+---
+
+## 3. What this plan does not do
 
 * It does not touch the design principles in
   [docs/PLAN.md](PLAN.md) § 1.  Every phase keeps the core Qt-free,
