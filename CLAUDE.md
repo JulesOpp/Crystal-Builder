@@ -288,7 +288,12 @@ stress case).
   face their own centroid. *Mark as one connection point* is the
   gesture that makes one, and the grouping is the structure's own
   bonds rather than new state on a marker, which is why there is
-  still no *Unmark*.
+  still no *Unmark*. **A joint is as many bonds as the two ends have
+  members**, paired by rectangular assignment on distance so that
+  every member arrives bonded: PORMAKE writes one bond per joint and
+  which member it keeps is an accident, so `build._joints_of`
+  enumerates them from `info` instead and the enumeration owns the
+  joint. MFU-4l on `pcu` goes from 6 joints to 12.
 - **The workspace is asked for before anything opens, and everything
   lives in it.** `WorkspaceChooser` runs in `xtalapp/main.py` *before*
   `MainWindow` is built — recent workspaces listed, the last one

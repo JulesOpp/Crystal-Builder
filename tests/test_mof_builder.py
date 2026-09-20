@@ -774,3 +774,192 @@ def test_a_shipped_block_s_attachments_are_one_per_connection_point(
     assert len(found) == block.n_connections
     assert sum(a.denticity for a in found) == 4
     assert [a.point for a in found] == sorted(block.connections)
+
+
+# ------------------------------------- the joints an attachment makes
+
+#: Six directions, each with a perpendicular for the two atoms of a
+#: bidentate attachment to straddle.  Octahedral, so the node below
+#: goes on ``pcu``.
+_AXES = [((1, 0, 0), (0, 1, 0)), ((-1, 0, 0), (0, 1, 0)),
+         ((0, 1, 0), (0, 0, 1)), ((0, -1, 0), (0, 0, 1)),
+         ((0, 0, 1), (1, 0, 0)), ((0, 0, -1), (1, 0, 0))]
+
+
+def bidentate_node() -> str:
+    """A 6-connected node whose every point stands for two atoms.
+
+    Synthetic and not one of the four real ones, because a test about
+    how many bonds a joint makes should not also depend on a crystal
+    being cut up correctly -- and because the real blocks are Phase 7's
+    to ship.
+    """
+    symbols, positions, bonds = ["Zn"], [(0.0, 0.0, 0.0)], []
+    for k, (axis, across) in enumerate(_AXES):
+        axis, across = np.array(axis, float), np.array(across, float)
+        symbols += ["C", "C"]
+        positions += [tuple(1.4 * axis + 0.7 * across),
+                      tuple(1.4 * axis - 0.7 * across)]
+        bonds += [(0, 1 + 2 * k), (0, 2 + 2 * k)]
+    for k, (axis, _across) in enumerate(_AXES):
+        symbols.append("X")
+        positions.append(tuple(2.15 * np.array(axis, float)))
+        bonds += [(13 + k, 1 + 2 * k), (13 + k, 2 + 2 * k)]
+    return _block_text(symbols, positions, bonds)
+
+
+def bidentate_linker() -> str:
+    """A 2-connected linker that meets each node through two atoms."""
+    return _block_text(
+        ["C", "C", "C", "C", "X", "X"],
+        [(0.7, 0.0, 2.0), (-0.7, 0.0, 2.0),
+         (0.7, 0.0, -2.0), (-0.7, 0.0, -2.0),
+         (0.0, 0.0, 2.75), (0.0, 0.0, -2.75)],
+        [(0, 1), (2, 3), (0, 2), (1, 3),
+         (4, 0), (4, 1), (5, 2), (5, 3)])
+
+
+def single_point_linker() -> str:
+    """A 2-connected linker of the shape every shipped block has:
+    one atom per connection point."""
+    return _block_text(
+        ["C", "C", "X", "X"],
+        [(0.0, 0.0, 2.0), (0.0, 0.0, -2.0),
+         (0.0, 0.0, 2.75), (0.0, 0.0, -2.75)],
+        [(0, 1), (2, 0), (3, 1)])
+
+
+def _block_text(symbols, positions, bonds) -> str:
+    marked = [i for i, s in enumerate(symbols) if s == "X"]
+    lines = [str(len(symbols)), "".join(f"{i:5d}" for i in marked)]
+    lines += [f"{s:<4s} {x:.4f} {y:.4f} {z:.4f}"
+              for s, (x, y, z) in zip(symbols, positions, strict=True)]
+    lines += [f"{i:4d} {j:4d} S" for i, j in bonds]
+    return "\n".join(lines) + "\n"
+
+
+@pytest.fixture
+def synthetic(tmp_path):
+    """A catalogue with the three blocks above in it."""
+    folder = tmp_path / "blocks"
+    folder.mkdir()
+    for name, text in (("SNODE", bidentate_node()),
+                       ("SLINK", bidentate_linker()),
+                       ("SSTICK", single_point_linker())):
+        (folder / f"{name}.xyz").write_text(text, encoding="utf-8")
+    return Catalog.default(also_blocks=[folder])
+
+
+def joints_of(outcome):
+    return {tuple(sorted((b.i, b.j))) for b in outcome.structure.bonds
+            if b.kind == "explicit"}
+
+
+@needs_builder
+@pytest.mark.slow
+def test_a_bidentate_end_arrives_with_two_bonds(tmp_path, synthetic):
+    """The defect this phase exists for.  ``builder.py:644-658`` keeps
+    one partner per connection point -- a scalar assigned into a
+    list-valued map -- so a bidentate joint comes back with half its
+    bonds, and pcu's three edges give six joints where twelve are
+    needed."""
+    outcome = build(BuildRequest.parse("pcu", "SNODE", "SLINK"),
+                    tmp_path, synthetic)
+
+    assert outcome.joints == 12
+    assert len(joints_of(outcome)) == 12
+    assert outcome.longest_joint > 0.0
+
+
+@needs_builder
+@pytest.mark.slow
+def test_the_two_ends_of_a_joint_are_paired_not_crossed(tmp_path,
+                                                        synthetic):
+    """Each joint takes the cheaper of its two pairings, and every
+    attachment atom ends up in exactly one bond.
+
+    PORMAKE's own choice is whichever partner it saw last -- three of
+    MFU-4l's six joints on pcu come back crossed that way -- which is
+    why an enumerated joint replaces what the builder made of it
+    instead of being added to it.
+
+    The lengths are pinned because they say which pairing was taken.
+    This node presents a different face on each pair of axes, so the
+    twelve joints come out in three groups of four: the rejected
+    pairings there are 2.052 and 2.019 A, and the third group is a
+    square -- all four distances 1.797 -- which is the relative twist
+    that has no fit reason to prefer either and is what Phase 5 and 6
+    are about.
+    """
+    outcome = build(BuildRequest.parse("pcu", "SNODE", "SLINK"),
+                    tmp_path, synthetic)
+    lattice = outcome.structure.lattice
+    frac = np.asarray(outcome.structure.frac, dtype=float)
+
+    lengths, ends = [], []
+    for bond in outcome.structure.bonds:
+        if bond.kind != "explicit":
+            continue
+        offset = frac[bond.i] - frac[bond.j] - np.asarray(bond.image)
+        lengths.append(float(np.linalg.norm(lattice.to_cart(offset))))
+        ends += [bond.i, bond.j]
+
+    assert sorted(round(v, 3) for v in lengths) == (
+        [1.5] * 4 + [1.544] * 4 + [1.797] * 4)
+    # Twenty-four attachment atoms, each in one joint and no more:
+    # a crossed joint would double one of them and drop another.
+    assert len(ends) == len(set(ends)) == 24
+
+
+@needs_builder
+@pytest.mark.slow
+def test_a_joint_between_unequal_denticities_bonds_every_member(
+        tmp_path, synthetic):
+    """A bidentate node meeting a single-point linker is a real joint,
+    and leaving half of it floating would be the same defect one size
+    down.  The assignment covers the smaller end and the larger end's
+    leftovers take their nearest partner."""
+    outcome = build(BuildRequest.parse("pcu", "SNODE", "SSTICK"),
+                    tmp_path, synthetic)
+    bonded = {atom for pair in joints_of(outcome) for atom in pair}
+    elements = [str(s.element) for s in outcome.structure.sites]
+
+    assert outcome.joints == 12
+    # Every one of the node's twelve attachment atoms, not six.
+    assert sum(1 for a in bonded if elements[a] == "C") >= 12
+
+
+@needs_builder
+@pytest.mark.slow
+def test_a_net_with_no_linker_still_joins_a_bidentate_node(
+        tmp_path, synthetic):
+    """Node to its own periodic image, and twice per joint.
+
+    This is the one case where the located block comes back without
+    its connection points -- upstream deletes them from the framework's
+    atoms, which with a single filled slot is the same object -- so it
+    is the case that says :func:`_placed_atoms` reads each block's
+    extent off its own bond list.
+    """
+    outcome = build(BuildRequest.parse("pcu", "SNODE", ""), tmp_path,
+                    synthetic)
+
+    assert outcome.joints == 6              # three edges, two each
+    assert len(joints_of(outcome)) == 6
+
+
+@needs_builder
+@pytest.mark.slow
+def test_a_single_point_build_makes_exactly_the_bonds_it_always_made(
+        tmp_path, synthetic, catalog):
+    """The guarantee.  No shipped block is polydentate, so the whole
+    of the new path is behind a guard none of them opens, and a build
+    of them makes the bonds it made before any of this was written --
+    one per joint, and the length not measured because there is
+    nothing to choose between."""
+    shipped = build(BuildRequest.parse("pcu", "N59", "E32"), tmp_path,
+                    catalog)
+
+    assert shipped.joints == 6
+    assert shipped.longest_joint == 0.0
+    assert "longest joint" not in shipped.verdict()

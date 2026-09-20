@@ -109,6 +109,39 @@ class Attachment:
         return -middle / length
 
 
+def members_of(connections, bonds) -> dict[int, tuple[int, ...]]:
+    """Connection point -> the *distinct* atoms it hangs off.
+
+    The one rule, in one place, because it is read from two different
+    objects: :class:`xtal.mof.catalog.BuildingBlock`, which is what
+    the picker and the writer see, and PORMAKE's own
+    ``BuildingBlock``, which is what a build is made out of.  Two
+    implementations of it would drift, and the direction they would
+    drift in is a block being read as bidentate at one end of the
+    application and monodentate at the other.
+
+    Distinct, and never the number of bond records: 54 of the 4256
+    shipped connection points carry more than one record and 52 of
+    those name the same partner twice, across 26 blocks.
+
+    A bond onto another connection point is not a member -- a point
+    stands for the atoms of the block, and two of them standing for
+    each other describe a joint to nowhere.  A point with no record at
+    all maps to an empty tuple rather than being left out, so a caller
+    can tell "this block says nothing about its bonds" from "this
+    point has none".
+    """
+    marked = {int(c) for c in connections}
+    found: dict[int, set[int]] = {c: set() for c in marked}
+    for record in () if bonds is None else bonds:
+        i, j = int(record[0]), int(record[1])
+        if i in marked and j not in marked:
+            found[i].add(j)
+        elif j in marked and i not in marked:
+            found[j].add(i)
+    return {c: tuple(sorted(found[c])) for c in sorted(marked)}
+
+
 def attachments_of(block) -> list[Attachment]:
     """Every attachment of a catalogue :class:`BuildingBlock`.
 

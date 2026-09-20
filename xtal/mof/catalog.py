@@ -160,30 +160,15 @@ class BuildingBlock:
     def members(self) -> dict[int, tuple[int, ...]]:
         """Connection point -> the *distinct* atoms it hangs off.
 
-        Distinct, and never the number of bond records.  54 of the
-        4256 shipped connection points carry more than one record and
-        52 of those name the same partner twice, across 26 blocks: a
-        reader that counted records would take 26 shipped blocks down
-        the polydentate path, where they belong on none of it.
-
-        A point with no record at all maps to an empty tuple rather
-        than being left out, so a caller can tell "this block says
-        nothing about its bonds" from "this point has none".
-
-        A bond onto *another* connection point is not a member: a
-        point stands for the atoms of the block, and two of them
-        standing for each other describe a joint to nowhere.
-        :func:`xtal.mof.block.problems` refuses it outright; here it
-        is simply not counted.
+        The rule is :func:`xtal.mof.attach.members_of` and lives
+        there rather than here, because a build reads it off
+        PORMAKE's own ``BuildingBlock`` instead of off this one, and
+        two copies of it would drift into a block that is bidentate
+        at one end of the application and monodentate at the other.
         """
-        marked = set(self.connections)
-        found: dict[int, set[int]] = {c: set() for c in marked}
-        for i, j, _letter in self.bonds:
-            if i in marked and j not in marked:
-                found[i].add(j)
-            elif j in marked and i not in marked:
-                found[j].add(i)
-        return {c: tuple(sorted(found[c])) for c in sorted(marked)}
+        from xtal.mof.attach import members_of
+
+        return members_of(self.connections, self.bonds)
 
     @property
     def is_polydentate(self) -> bool:

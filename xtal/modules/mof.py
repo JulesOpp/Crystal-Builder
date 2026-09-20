@@ -250,6 +250,20 @@ def _report(outcome) -> Report:
             Row("Cell", f"{a:.3f} x {b:.3f} x {c:.3f} A",
                 "", f"{alpha:.2f}, {beta:.2f}, {gamma:.2f} deg"),
         ))
+    # Appended rather than always present: a build of single-point
+    # blocks has one bond per joint and nothing to choose between, so
+    # it never measures this and a row reading 0.000 A would be a
+    # measurement nobody made.
+    joint_row = (
+        (Row.number("Longest joint", outcome.longest_joint, "A",
+                    "the longest bond a joint made -- a connection "
+                    "point may stand for several atoms, and each of "
+                    "them is bonded, so this says whether the two "
+                    "ends of a joint actually met.  The RMSDs above "
+                    "do not: a block can sit perfectly on its own "
+                    "slot and still present the wrong face to its "
+                    "neighbour", "", decimals=3),)
+        if outcome.longest_joint else ())
     fit = Table(
         title="How well the blocks fit the net",
         rows=(
@@ -267,7 +281,7 @@ def _report(outcome) -> Report:
                        "resources/samples sits between 1.996 and "
                        "2.170 A, and blocks that do not fit their net "
                        "come out below that", "", decimals=3),
-        ),
+        ) + joint_row,
         note="The first three are PORMAKE's own numbers and say "
              "whether the geometry is strained; the fourth is ours "
              "and says whether atoms ended up on top of one another.  "

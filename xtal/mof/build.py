@@ -242,6 +242,13 @@ class BuildOutcome:
     #: See :func:`bond_joints`: a joint can be longer than any distance
     #: criterion, so it is stored rather than left to perception.
     joints: int = 0
+    #: The longest bond a joint made, in Angstrom.  0.0 when nothing
+    #: measured it -- a build of single-point blocks does not, because
+    #: there is one bond per joint and PORMAKE already made it.  What
+    #: it says is whether the two ends of a joint actually met, which
+    #: the blocks' RMSD does not: each block can sit perfectly on its
+    #: own slot and still present the wrong face to its neighbour.
+    longest_joint: float = 0.0
     #: What the RCSR calls the net that was drawn on the framework.
     identified: object = None
     #: The topology's own name, as PORMAKE's database spells it.
@@ -293,6 +300,8 @@ class BuildOutcome:
             said.append(f"closest contact {self.closest:.2f} A")
         if self.joints:
             said.append(f"{self.joints} joint(s) bonded")
+        if self.longest_joint:
+            said.append(f"longest joint {self.longest_joint:.2f} A")
         return " -- " + ", ".join(said)
 
 
@@ -337,7 +346,8 @@ def build(request: BuildRequest, directory, catalog: Catalog | None
         max_rmsd=float(framework.info.get("max_rmsd", 0.0) or 0.0),
         mean_rmsd=float(framework.info.get("mean_rmsd", 0.0) or 0.0),
         objective=float(framework.info.get("relax_obj", 0.0) or 0.0))
-    outcome.joints = bond_joints(structure, framework)
+    outcome.joints, outcome.longest_joint = bond_joints(
+        structure, framework)
     outcome.closest = closest_contact(structure)
     _say(log, f"bonded {outcome.joints} joint(s) between blocks")
     drawn = draw_net(structure, framework)
@@ -555,7 +565,7 @@ def draw_net(structure, framework) -> int:
     return drawn
 
 
-def bond_joints(structure, framework) -> int:
+def bond_joints(structure, framework) -> tuple[int, float]:
     """Bond the joints PORMAKE made between one block and the next.
 
     A framework is blocks placed on a net and then *joined*: the
@@ -583,7 +593,16 @@ def bond_joints(structure, framework) -> int:
     do not contain it, which is true in both cases and is what this
     subtracts.
 
-    Returns how many were added.
+    **A connection point may stand for several atoms**, and then one
+    joint is several bonds.  The framework's own bond list cannot say
+    so -- ``builder.py:644-658`` keeps one partner per point -- so
+    those are enumerated instead, by :func:`_joint_bonds`, and
+    appended to what the diff above found.
+
+    Returns ``(how many were added, the longest joint bond)``.  The
+    length is a measurement of the fit that nothing else reports: the
+    blocks' RMSD says how well each one sits on its slot and says
+    nothing about whether the two ends of a joint met.
     """
     blocks = framework.info["located_bbs"]
     inside = _intra_block_bonds(blocks)
@@ -594,12 +613,12 @@ def bond_joints(structure, framework) -> int:
     symbols = framework.atoms.symbols
     fresh, seen = [], {b.key(structure.space_group)
                        for b in structure.bonds}
-    for i, j in framework.bonds:
-        i, j = int(i), int(j)
-        if i not in known or j not in known:        # pragma: no cover
-            continue
-        if (min(i, j), max(i, j)) in inside:
-            continue
+    made, owned = ((), set())
+    if any(_is_polydentate(block) for block in blocks):
+        made, owned = _joint_bonds(framework, blocks)
+
+    def take(i: int, j: int) -> None:
+        """One bond between two framework atoms, if it is new."""
         # By label rather than by position.  The CIF is written in the
         # framework's own atom order and read back in it, and the
         # labels say so -- but the mapping is what this depends on, and
@@ -608,20 +627,52 @@ def bond_joints(structure, framework) -> int:
         ends = (labels.get(f"{symbols[i]}{i}"),
                 labels.get(f"{symbols[j]}{j}"))
         if None in ends:                            # pragma: no cover
-            continue
+            return
         a, b = ends
         image = tuple(int(v) for v in np.round(frac[a] - frac[b]))
         bond = Bond(a, b, image)
-        if bond.key(structure.space_group) in seen:
-            continue
-        seen.add(bond.key(structure.space_group))
+        key = bond.key(structure.space_group)
+        if key in seen:
+            return
+        seen.add(key)
         fresh.append(bond)
+
+    for i, j in framework.bonds:
+        i, j = int(i), int(j)
+        if i not in known or j not in known:        # pragma: no cover
+            continue
+        pair = (min(i, j), max(i, j))
+        if pair in inside:
+            continue
+        if pair in owned:
+            # A joint the enumeration accounts for is the
+            # enumeration's, whole.  PORMAKE bonds one pair of its
+            # members and which pair is an accident, so taking this
+            # one as well is how a bidentate joint gets three bonds.
+            continue
+        take(i, j)
+
+    longest = 0.0
+    for i, j, reach in made:
+        take(i, j)
+        longest = max(longest, reach)
     if fresh:
         # One change and not one per bond: every add drops the P1
         # expansion, and a framework re-expanded once per joint is the
         # stall that `set_bonds` exists to avoid.
         structure.set_bonds(list(structure.bonds) + fresh)
-    return len(fresh)
+    return len(fresh), longest
+
+
+def _is_polydentate(block) -> bool:
+    """Whether any connection point of this placed block stands for
+    more than one atom."""
+    if block is None or block.bonds is None:
+        return False
+    from xtal.mof.attach import members_of
+
+    members = members_of(block.connection_point_indices, block.bonds)
+    return any(len(found) > 1 for found in members.values())
 
 
 def _intra_block_bonds(blocks) -> set[tuple[int, int]]:
@@ -639,22 +690,51 @@ def _intra_block_bonds(blocks) -> set[tuple[int, int]]:
     bonds is exactly what the joining step added.  See
     :func:`bond_joints`.
     """
+    starts, kept = _framework_indices(blocks)
     out: set[tuple[int, int]] = set()
-    offset = 0
-    for block in blocks:
+    for slot, block in enumerate(blocks):
         if block is None:
             continue
-        moved: dict[int, int] = {}
+        for u, v in np.asarray(block.bonds, dtype=int).reshape(-1, 2):
+            a = kept.get(starts[slot] + int(u))
+            b = kept.get(starts[slot] + int(v))
+            if a is not None and b is not None:
+                out.add((min(a, b), max(a, b)))
+    return out
+
+
+def _framework_indices(blocks):
+    """``(starts, kept)`` -- the one walk over the placed blocks.
+
+    ``starts[slot]`` is where that block's atoms begin in the
+    concatenated numbering PORMAKE's *own* bond list is written in --
+    connection points included, empty slots counted as nothing --
+    and ``kept`` maps each of those indices that survives to the
+    framework index it becomes, the connection points having been
+    taken out.  It is PORMAKE's ``index_offsets`` and ``new_indices``,
+    recomputed rather than read, because neither is put in ``info``.
+
+    One walk and not three.  :func:`_intra_block_bonds`,
+    :func:`_block_of_atoms` and :func:`_joints_of` each need a slice
+    of it, and three private copies of the same arithmetic is exactly
+    the drift the comment on :func:`_representatives` warns about --
+    with the difference that a drift here bonds the wrong pair of
+    atoms rather than failing to find one.
+    """
+    starts: list[int] = []
+    kept: dict[int, int] = {}
+    start = count = 0
+    for block in blocks:
+        starts.append(start)
+        if block is None:
+            continue
         for local, symbol in enumerate(
                 block.atoms.get_chemical_symbols()):
             if symbol != CONNECTION:
-                moved[local] = offset + len(moved)
-        for u, v in np.asarray(block.bonds, dtype=int).reshape(-1, 2):
-            a, b = moved.get(int(u)), moved.get(int(v))
-            if a is not None and b is not None:
-                out.add((min(a, b), max(a, b)))
-        offset += len(moved)
-    return out
+                kept[start + local] = count
+                count += 1
+        start += block.n_atoms
+    return starts, kept
 
 
 def _block_of_atoms(blocks) -> dict[int, int]:
@@ -665,17 +745,230 @@ def _block_of_atoms(blocks) -> dict[int, int]:
     rather than a search -- the same ordering :func:`_representatives`
     relies on, shared so that the two cannot drift apart.
     """
+    starts, kept = _framework_indices(blocks)
     out: dict[int, int] = {}
-    offset = 0
     for slot, block in enumerate(blocks):
         if block is None:
             continue
-        kept = sum(1 for symbol in block.atoms.get_chemical_symbols()
-                   if symbol != CONNECTION)
-        for k in range(kept):
-            out[offset + k] = slot
-        offset += kept
+        for local in range(block.n_atoms):
+            index = kept.get(starts[slot] + local)
+            if index is not None:
+                out[index] = slot
     return out
+
+
+def _joints_of(topology, blocks, permutations):
+    """Every pair of connection points the builder fused.
+
+    In the concatenated numbering of :func:`_framework_indices`, which
+    is the numbering PORMAKE writes its own bond list in.
+
+    These are **enumerated and not read back**, and that is the whole
+    reason this function exists.  ``builder.py:644-658`` collapses
+    each connection point to a single partner --
+    ``X_neighbor_list[i] = j``, a scalar into a list-valued map, so
+    whichever partner was seen last wins -- and then makes one bond
+    per fused pair.  A bidentate end therefore arrives with one bond
+    where it needs two, and the framework's bond list is missing them
+    rather than holding them wrongly, so no amount of reading it
+    recovers them.  The vendored file is not edited
+    (``xtal/mof/pormake/PROVENANCE.md``); what it *did* write is
+    still taken, and this adds the rest.
+
+    The matching is ``find_matched_atom_indices``
+    (``builder.py:441-469``) restated: the zero-sum neighbour test
+    finds which of a node's edges this one is, and the slot's own
+    permutation turns that ordinal into a connection point.  An edge
+    slot with a block yields two fused pairs, one per end; an empty
+    edge slot yields one, node point to node point, which is the
+    linkerless net :func:`bond_joints` is already careful about.
+    """
+    starts, _kept = _framework_indices(blocks)
+    out: list[tuple[int, int]] = []
+    for slot in topology.edge_indices:
+        slot = int(slot)
+        neighbours = topology.neighbor_list[slot]
+        if len(neighbours) != 2:                    # pragma: no cover
+            continue
+        ends = []
+        for end in neighbours:
+            node = int(end.index)
+            point = _matched_point(topology, blocks, permutations,
+                                   node, end)
+            if point is None:                       # pragma: no cover
+                break
+            ends.append(point + starts[node])
+        if len(ends) != 2:                          # pragma: no cover
+            continue
+        block = blocks[slot]
+        if block is None:
+            out.append((ends[0], ends[1]))
+            continue
+        points = np.asarray(block.connection_point_indices)[
+            permutations[slot]] + starts[slot]
+        # Strict: an edge slot is two-connected and `_resolve`
+        # refuses a block that does not match its slot before the
+        # build starts, so a mismatch here is a broken guarantee
+        # rather than a shape to tolerate -- and tolerating it would
+        # silently bond one end of a joint and not the other.
+        out.extend((int(point), end)
+                   for point, end in zip(points, ends, strict=True))
+    return out
+
+
+def _matched_point(topology, blocks, permutations, node, end):
+    """Which connection point of ``node``'s block this edge end fused
+    to, or ``None`` if that slot is empty.
+
+    An edge records each neighbour as a displacement, so the edge that
+    leaves the node towards this edge is the one whose displacement
+    cancels the edge's own -- ``builder.py``'s zero-sum test, to its
+    own 0.01 A.  Its position in the node's neighbour list is the
+    ordinal the slot's permutation is about.
+    """
+    block = blocks[node]
+    if block is None:                               # pragma: no cover
+        return None
+    reach = np.asarray(end.distance_vector, dtype=float)
+    for ordinal, neighbour in enumerate(topology.neighbor_list[node]):
+        total = np.asarray(neighbour.distance_vector,
+                           dtype=float) + reach
+        if float(np.linalg.norm(total)) < 0.01:
+            points = np.asarray(block.connection_point_indices)[
+                permutations[node]]
+            return int(points[ordinal])
+    return None                                     # pragma: no cover
+
+
+def _joint_bonds(framework, blocks):
+    """``(chosen, owned)`` for every joint this can account for.
+
+    ``chosen`` is ``(atom, atom, distance)``, one per pair of members
+    the assignment made; ``owned`` is every member-to-member pair of
+    every enumerated joint, whether it was chosen or not.
+
+    The second is what stops a bidentate joint arriving with three
+    bonds.  PORMAKE makes one bond per joint and *which* one is an
+    accident of iteration order -- on MFU-4l over ``pcu``, three of
+    its six are the pairing this rejects -- so a joint the
+    enumeration knows about is the enumeration's whole answer, and
+    :func:`bond_joints` drops what the builder made of it rather than
+    adding to it.  For a monodentate joint the two agree atom for
+    atom, so nothing is dropped and nothing changes.
+
+    **Every member arrives bonded**, whatever the denticities are.
+    The pairing is a rectangular assignment on distance, which covers
+    the smaller end; a member of the larger end that the assignment
+    left over then takes its nearest partner on the other side.  A
+    bidentate end meeting a monodentate one is a real joint and
+    leaving half of it floating would be the same defect this exists
+    to repair, one size down.
+
+    The geometry is the **placed blocks'**, not the framework's: a
+    framework wraps its atoms into the cell (``framework.py:76``) and
+    a wrapped block is in pieces.  The blocks are whole, but two of
+    them need not be in the same cell -- half of MFU-4l's joints on
+    ``pcu`` are a full 16.136 A apart as placed -- so the vector
+    between two *different* blocks is taken at its minimum image
+    under the framework's own cell.  Without that the pairing is
+    decided on distances of 14.7 A that differ in the second decimal
+    place, and the number reported alongside is not a bond length.
+    """
+    from scipy.optimize import linear_sum_assignment
+
+    topology = framework.info["topology"]
+    permutations = framework.info["permutations"]
+    starts, kept = _framework_indices(blocks)
+    owner, place = _placed_atoms(blocks, starts, kept)
+    cell = np.asarray(framework.atoms.cell, dtype=float)
+    inverse = np.linalg.inv(cell)
+
+    chosen, owned = [], set()
+    for left, right in _joints_of(topology, blocks, permutations):
+        here, there = (_members_at(blocks, starts, kept, owner, point)
+                       for point in (left, right))
+        if not here or not there:
+            continue
+        owned.update((min(a, b), max(a, b))
+                     for a in here for b in there)
+        offset = (place[here][:, None, :]
+                  - place[there][None, :, :])
+        frac = offset @ inverse
+        cost = np.linalg.norm(
+            (frac - np.round(frac)) @ cell, axis=-1)
+        rows, cols = linear_sum_assignment(cost)
+        pairs = set(zip(rows.tolist(), cols.tolist(), strict=True))
+        # The assignment covers the smaller end; whatever the larger
+        # end has left over takes its nearest partner, so that every
+        # member of a joint arrives bonded whatever the denticities.
+        for row in set(range(len(here))) - {r for r, _c in pairs}:
+            pairs.add((row, int(np.argmin(cost[row]))))
+        for col in set(range(len(there))) - {c for _r, c in pairs}:
+            pairs.add((int(np.argmin(cost[:, col])), col))
+        chosen.extend((here[row], there[col], float(cost[row, col]))
+                      for row, col in sorted(pairs))
+    return chosen, owned
+
+
+def _placed_atoms(blocks, starts, kept):
+    """``(owner, place)`` -- which slot each concatenated index is in,
+    and where each framework atom was *placed*, before wrapping.
+
+    ``place`` is indexed by framework atom, so a list of members is a
+    fancy index into it and the distances between two ends of a joint
+    are one array operation.
+
+    ``owner`` runs to each block's *declared* extent rather than to
+    the atoms it still has, and the difference is one upstream
+    accident.  The framework's atoms are built as
+    ``sum(bb_atoms_list[1:], bb_atoms_list[0])`` and its connection
+    points then deleted; where exactly one slot is filled -- a net
+    with no linker -- that sum **is** its one argument, so the delete
+    lands on the located block as well and it comes back short of
+    every ``X`` it had.  ``bonds`` and ``connection_point_indices``
+    still name them, which is what makes the joint recoverable at all,
+    so the extent is taken from those rather than from ``n_atoms``.
+    With two or more filled slots the sum copies and the two agree.
+    """
+    owner: dict[int, int] = {}
+    place = np.zeros((len(kept), 3), dtype=float)
+    for slot, block in enumerate(blocks):
+        if block is None:
+            continue
+        positions = np.asarray(block.atoms.get_positions(),
+                               dtype=float)
+        points = np.asarray(block.connection_point_indices, dtype=int)
+        extent = max(int(block.n_atoms),
+                     int(points.max()) + 1 if points.size else 0)
+        for local in range(extent):
+            owner[starts[slot] + local] = slot
+            index = kept.get(starts[slot] + local)
+            if index is not None and local < len(positions):
+                place[index] = positions[local]
+    return owner, place
+
+
+def _members_at(blocks, starts, kept, owner, point) -> list[int]:
+    """The framework indices of the atoms one fused point stands for.
+
+    Empty when the block never wrote its bonds, which is the one case
+    where nothing here can say what the point stood for -- the joint
+    is then left to whatever PORMAKE made of it.
+
+    The whole block's connection points are handed to
+    :func:`~xtal.mof.attach.members_of` and not just this one, so that
+    a bond onto another point is recognised as such instead of being
+    counted as an atom this one stands for.
+    """
+    from xtal.mof.attach import members_of
+
+    slot = owner[point]
+    block = blocks[slot]
+    local = point - starts[slot]
+    members = members_of(block.connection_point_indices,
+                         block.bonds).get(local, ())
+    found = [kept.get(starts[slot] + int(m)) for m in members]
+    return [index for index in found if index is not None]
 
 
 def _representatives(topology, blocks) -> dict[int, int]:

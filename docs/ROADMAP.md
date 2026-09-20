@@ -164,12 +164,71 @@ clean diff against upstream 0.2.3.
 | **1 — Probes** | Shipped 2026-09-20; numbers below | `probes/polydentate/` | S |
 | **2 — The verdict** | Shipped 2026-09-20; a build reports what it measured, never a symmetry it did not check | `xtal/mof/build.py`, `xtal/modules/mof.py` | S |
 | **3 — Attachments** | Shipped 2026-09-20; a connection point may stand for several atoms, and *Mark as one connection point* makes one | `xtal/mof/attach.py`, `xtal/mof/block.py`, `xtal/mof/catalog.py`, `xtal/commands/connections.py` | M |
-| **4 — Joints** | Every member of a polydentate end arrives bonded | `xtal/mof/build.py` | M |
+| **4 — Joints** | Shipped 2026-09-20; every member of a polydentate end arrives bonded | `xtal/mof/build.py`, `xtal/mof/attach.py`, `xtal/modules/mof.py` | M |
 | **5 — Node orientation** | The discrete tie-break, through `permutations=` | new `xtal/mof/orient.py`, `xtal/mof/build.py` | M-L |
 | **6 — Linker orientation** | The continuous axial angle, in closed form | `xtal/mof/orient.py` | M |
 | **7 — MFU-4l** | The four blocks shipped; MFU-4l built end to end | new `xtal/mof/library/`, `packaging/bundle.py` | M |
 | **8 — Layer nets** | 2-periodic nets with a stacking spacing; Ni-HITP | new `xtal/mof/library/nets/` | M |
 | **9 — Interpenetration** | Generated and verified against `Net.multiplicity()` | new `xtal/analysis/interpenetrate.py` | M-L |
+
+### What Phase 4 changed
+
+`builder.py:644-658` keeps **one partner per connection point** --
+`X_neighbor_list[i] = j`, a scalar assigned into a list-valued map --
+so a bidentate joint arrives with half its bonds and the framework's
+own bond list is missing them rather than holding them wrongly.  No
+amount of reading it back recovers them, so `_joints_of` **enumerates**
+the fused pairs instead, restating `find_matched_atom_indices`
+(`builder.py:441-469`) against `info["located_bbs"]` and
+`info["permutations"]`.  The vendored file is still untouched.
+
+Measured on the four probe blocks, through the ordinary `build()`
+path:
+
+| Framework | Net | Atoms | Joints before | Joints now | Longest joint |
+|---|---|---|---|---|---|
+| MFU-4l | `pcu` | 81 (Zn5Cl4N18C36O6H12) | 6 | **12** | 2.19 A |
+| Ni3(HITP)2 | `hcb` | 75 (C36H24N12Ni3) | 6 | **12** | 1.61 A |
+
+Three things the plan did not foresee, each measured rather than
+argued:
+
+* **The located blocks are not all in one cell.** Three of MFU-4l's
+  six joints on `pcu` have their two ends a full **16.136 A** apart as
+  placed, so the member-to-member distances are taken at their
+  minimum image under the framework's own cell.  Without it the
+  pairing is decided on distances of 14.7 A differing in the second
+  decimal, and the number reported beside it is not a bond length.
+* **PORMAKE's own joint bond must be dropped, not deduplicated.**
+  Which member it kept is an accident of iteration order, and on
+  MFU-4l **three of its six** are the pairing the assignment rejects
+  -- so appending gave 15 bonds where 12 are right.  A joint the
+  enumeration accounts for is now the enumeration's whole answer;
+  `owned` is every member-to-member pair of that joint and the diff
+  loop skips all of them.  For a monodentate joint the two agree atom
+  for atom and nothing is dropped.
+* **A net with no linker comes back without its connection points.**
+  Upstream builds the framework's atoms as
+  `sum(bb_atoms_list[1:], bb_atoms_list[0])` and then deletes the `X`;
+  with exactly one filled slot that sum *is* its one argument, so the
+  delete lands on the located block too (N59: 26 atoms -> 20).  Its
+  `bonds` and `connection_point_indices` still name them, so
+  `_placed_atoms` reads each block's extent from those rather than
+  from `n_atoms`, and a bare `pcu` on a bidentate node goes from 3
+  joints to **6**.
+
+`_framework_indices` is now the one walk over the placed blocks --
+PORMAKE's `index_offsets` and `new_indices`, neither of which reaches
+`info` -- and `_intra_block_bonds`, `_block_of_atoms` and
+`_joints_of` all read it instead of each repeating the arithmetic.
+`attach.members_of` is the one distinct-partner rule, read off both
+our `BuildingBlock` and PORMAKE's.
+
+`bond_joints` returns `(count, longest joint)`; the length joins the
+verdict and the report's fit table, and is **omitted** when nothing
+measured it.  A test pins that `pcu`/N59/E32 still
+makes its 6 and reports no length: no shipped block is polydentate,
+so none of them opens the guard.
 
 ### What Phase 3 changed
 
