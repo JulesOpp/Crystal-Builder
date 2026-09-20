@@ -71,6 +71,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from xtal.modules.mof import PARAMS
 from xtal.mof import Catalog
 from xtal.mof.build import BuildRequest
 from xtal.mof.catalog import matches_composition
@@ -87,6 +88,13 @@ from xtalapp.dialogs.mof_preview import (
 #: answer and worth naming rather than reaching by leaving a box
 #: blank.
 NO_LINKER = "(none -- join the nodes directly)"
+
+#: The orientation rule, read off the module rather than restated.
+#: Its labels and its help are the ones ``xtal run --help`` prints and
+#: the ones the generated form would have shown, which is the whole
+#: point of a :class:`~xtal.params.Param`: a rule added there reaches
+#: this dialog without this file being edited.
+_ORIENTATIONS = next(p for p in PARAMS if p.name == "orientation")
 
 
 class MofBuildDialog(QDialog):
@@ -181,6 +189,22 @@ class MofBuildDialog(QDialog):
         area.setWidget(self.slots_box)
         area.setMinimumHeight(320)
 
+        self.repeat = QLineEdit(self)
+        self.repeat.setPlaceholderText("1x1x1")
+        self.repeat.setToolTip(
+            "Tile the net before anything is placed on it -- 2x2x2, "
+            "or 2 for the same in all three.  The same material in a "
+            "larger cell.")
+        self.orientation = QComboBox(self)
+        for value, label in _ORIENTATIONS.values_and_labels():
+            self.orientation.addItem(label, value)
+        self.orientation.setToolTip(_ORIENTATIONS.help)
+
+        how = QGroupBox("How it is built", self)
+        form = QFormLayout(how)
+        form.addRow("Repeat the net", self.repeat)
+        form.addRow("Node orientation", self.orientation)
+
         folders = QGroupBox("Your own topologies and building blocks",
                             self)
         form = QFormLayout(folders)
@@ -200,6 +224,7 @@ class MofBuildDialog(QDialog):
         layout.addWidget(top, 1)
         layout.addWidget(self.composition)
         layout.addWidget(area)
+        layout.addWidget(how)
         layout.addWidget(folders)
         layout.addWidget(buttons)
         self.resize(900, 780)
@@ -393,6 +418,10 @@ class MofBuildDialog(QDialog):
         left out rather than refused: the parameters outlive the
         catalogue they were chosen from.
         """
+        self.repeat.setText(str(given.get("repeat") or ""))
+        wanted_rule = str(given.get("orientation") or "")
+        at = self.orientation.findData(wanted_rule)
+        self.orientation.setCurrentIndex(max(at, 0))
         wanted = str(given.get("topology") or "pcu")
         if not self._select(wanted) and not self._select("pcu"):
             self.topologies.setCurrentRow(0)
@@ -419,6 +448,8 @@ class MofBuildDialog(QDialog):
             "topology": self._topology.name if self._topology else "",
             "nodes": ",".join(nodes),
             "edges": ",".join(edges),
+            "repeat": self.repeat.text().strip() or "1x1x1",
+            "orientation": self.orientation.currentData(),
             "topology_dir": self.topology_dir.text(),
             # The scratch folder only ever exists when there was no
             # workspace and no folder named, which is exactly when the

@@ -165,11 +165,93 @@ clean diff against upstream 0.2.3.
 | **2 — The verdict** | Shipped 2026-09-20; a build reports what it measured, never a symmetry it did not check | `xtal/mof/build.py`, `xtal/modules/mof.py` | S |
 | **3 — Attachments** | Shipped 2026-09-20; a connection point may stand for several atoms, and *Mark as one connection point* makes one | `xtal/mof/attach.py`, `xtal/mof/block.py`, `xtal/mof/catalog.py`, `xtal/commands/connections.py` | M |
 | **4 — Joints** | Shipped 2026-09-20; every member of a polydentate end arrives bonded | `xtal/mof/build.py`, `xtal/mof/attach.py`, `xtal/modules/mof.py` | M |
-| **5 — Node orientation** | The discrete tie-break, through `permutations=` | new `xtal/mof/orient.py`, `xtal/mof/build.py` | M-L |
+| **5 — Node orientation** | Shipped 2026-09-20; the discrete tie-break, through `permutations=`, and a net that can be repeated | new `xtal/mof/orient.py`, `xtal/mof/build.py`, `xtal/mof/catalog.py` | M-L |
 | **6 — Linker orientation** | The continuous axial angle, in closed form | `xtal/mof/orient.py` | M |
 | **7 — MFU-4l** | The four blocks shipped; MFU-4l built end to end | new `xtal/mof/library/`, `packaging/bundle.py` | M |
 | **8 — Layer nets** | 2-periodic nets with a stacking spacing; Ni-HITP | new `xtal/mof/library/nets/` | M |
 | **9 — Interpenetration** | Generated and verified against `Net.multiplicity()` | new `xtal/analysis/interpenetrate.py` | M-L |
+
+### What Phase 5 changed
+
+A symmetric node fits its slot a great many ways and `locate` takes
+whichever its Euler grid reached first.  For an octahedral node that
+is **24 fits, tied to 3.4e-08**, while the body of the block moves up
+to 8.2 A between them -- so which face a node presents to its
+neighbour was, until now, an accident.  It did not matter while a
+connection point stood for one atom; it decides a bond as soon as one
+stands for two.
+
+`xtal/mof/orient.py` breaks that tie and only that tie.  **The default
+rule is `as-found`, which is today's behaviour, and `build._build`
+returns at pass 1 unless a block is polydentate *and* another rule was
+asked for** -- so "nothing regresses" is structural rather than
+argued, and a test pins that `pcu`/N59/E32 comes back byte for byte.
+
+**The rotation group is enumerated from ordered *pairs*, not
+triples.**  Two directions and the normal of the plane they span fix a
+rotation, so a six-connected node is **24 candidates** rather than the
+plan's 120 and never 720; composed with the primary fit it equals the
+brute-force tie set over all 720 **exactly**, and the gap it has to
+find is **4.21e-08 against 8.16e-01**, a factor of 1.9e7.  The change
+from triples is not an optimisation: three directions of a *planar*
+block never span a volume, so triples name no rotation of one at all
+and return the identity alone -- **|G| = 1 where it is 6** for the
+trigonal node Ni3(HITP)2 is built out of, which would have left Phase
+8 with nothing to choose between and no sign of it.
+
+Three things the phase measured rather than assumed:
+
+* **Where the discrete choice bites is an edge joining two
+  *different* node slots.**  On `pcu` -- and on `hcb` -- every edge
+  joins a node to an image of *itself*, so its two ends are antipodal
+  points of one block and agree by construction whatever the
+  rotation.  MFU-4l on `pcu` is therefore **2.188 A before and after**,
+  and Ni3(HITP)2 on `hcb` **1.606 A before and after**: MFU-4l's 2.19
+  is the linker's own quarter turn and is Phase 6's, exactly as the
+  plan says.  Where the two ends are different slots the rule does
+  move: MFU-4l on `acs` goes **2.235 -> 2.146 A**, and the synthetic
+  bidentate node on `acs` with no linker at all -- where the node-to-
+  node joint is the whole of the geometry -- goes **2.766 -> 1.884 A**.
+  Scored over the 33 six-connected nets small enough to sweep, **24
+  have a strictly cheaper orientation available** than the fit chose;
+  `acs` goes from 9.4029 to 2.8807.
+* **The rule may only ever improve on the fit, never merely tie with
+  it.**  `choose_permutations` is given pass 1's own permutations as
+  its baseline and moves off them only where the cost is *strictly*
+  lower; lowest-permutation tie-breaking decides between candidates
+  and never against the placement in hand.  Without that, `pcu` --
+  where every orientation costs the same -- came back re-oriented for
+  no reason and `longest_joint` changed by luck, 1.797 to 1.544.  When
+  nothing is better the second pass is not run at all.
+* **Correction 3's hazard has a blind spot, and it is named rather
+  than assumed away.**  A pinned slot `continue`s at `builder.py:266`
+  before the chiral retries, so it never fights the fallback; the risk
+  is that pass 1 mirrored a block at `:313` and pass 2 skips the
+  substitution.  `orient.substitute_mirrored` catches that by the
+  signed volume of three connection directions -- **0 substitutions
+  over `pcu` and `acs`**, the guard staying because the sample is two
+  nets.  But a located block **loses its `X` atoms** when exactly one
+  slot is filled (the `sum(bb_atoms_list[1:], ...)` aliasing Phase 4
+  found), so its handedness cannot be read at all; such a slot is
+  **reported as unchecked** in the run log rather than silently
+  passed.  Reaching it was a crash before it was a guard.
+
+`catalog.Topology.expanded(nx, ny, nz)` is the one place a vendored
+`pormake.Topology` is made, over `__mul__`; `(1, 1, 1)` hands back the
+net itself and multiplies nothing, which is what makes a repeat of one
+bit-identical.  `pcu` x (2,2,2) is 32 slots, and MFU-4l on it is
+**648 atoms -- the crystal's own P1 count**, in 1.2 s under
+`consistent` against 0.4 s under `as-found`.  `BuildRequest` gains
+`repeat` and `orientation`; only the repeat is spelled into `title()`
+(`pcu-2x2x2-N59-E32`), because the orientation changes which way round
+a block went and never what the framework is made of.
+
+`build.edge_ends` and `build.point_at` are the one walk over a net's
+edges -- which node slot each end is and which of that node's own
+edges it is, out of the topology alone.  `_joints_of` is now
+`fused_points` mapped into the concatenated numbering, and the
+orientation search reads the same walk without re-deriving it for
+every one of the two dozen permutations it tries per slot.
 
 ### What Phase 4 changed
 

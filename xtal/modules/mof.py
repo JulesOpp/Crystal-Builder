@@ -125,6 +125,25 @@ PARAMS = (
                "'0-0=E32,0-1=E14'.  Left empty the nodes are joined "
                "directly, which is what PORMAKE builds for a net with "
                "no linker in it."),
+    Param("repeat", "Repeat the net", kind="text", default="1x1x1",
+          help="How many times to tile the net before anything is "
+               "placed on it -- '2x2x2', or '2' for the same in all "
+               "three.  A framework built on a repeated net is the "
+               "same material in a larger cell, which is what a "
+               "defect, a guest or an interpenetrated pair needs "
+               "room for.  Leave it at 1x1x1 for the net itself."),
+    Param("orientation", "Node orientation", kind="choice",
+          default="as-found",
+          choices=(("as-found", "As found by the fit"),
+                   ("consistent", "Consistent across every joint")),
+          help="Which way round the node blocks go.  A symmetric "
+               "node fits its slot equally well two dozen ways and "
+               "the fit takes whichever it reached first, which "
+               "decides nothing while a connection point stands for "
+               "one atom.  Where one stands for two, 'consistent' "
+               "turns each node so that the two ends of every joint "
+               "present the same face -- and only where that is "
+               "measurably better than what the fit chose."),
     Param("topology_dir", "Extra topologies", kind="path",
           help="A folder of your own .cgd nets, read alongside the "
                "ones PORMAKE ships"),
@@ -199,7 +218,9 @@ def build_framework(job) -> JobResult:
     try:
         request = BuildRequest.parse(job.param("topology", ""),
                                      job.param("nodes", ""),
-                                     job.param("edges", ""))
+                                     job.param("edges", ""),
+                                     job.param("repeat", ""),
+                                     job.param("orientation", ""))
         job.say(f"PORMAKE: building {request.title()}")
         job.check()
         # ``say`` for our own five lines, ``note`` for PORMAKE's
@@ -242,6 +263,13 @@ def _report(outcome) -> Report:
             Row("Topology", topology, "", outcome.asked),
             Row("Node blocks", nodes or "none"),
             Row("Linkers", edges or "none -- nodes joined directly"),
+            Row("Net repeated", "x".join(
+                str(n) for n in outcome.request.repeat), "",
+                "how many times the net was tiled before anything "
+                "was placed on it"),
+            Row("Node orientation", outcome.request.orientation, "",
+                "which way round a symmetric node was turned -- see "
+                "the MOF builder's own settings"),
             Row("Atoms", str(outcome.n_atoms)),
             Row("Joints bonded", str(outcome.joints), "",
                 "the node-to-linker and node-to-node joins, stored as "

@@ -12,7 +12,7 @@ bonding, run force field / DFTB+ / Zeo++ calculations on the result.
 | `xtal/io/` | CIF and project (`.xtalproj`) read/write |
 | `xtal/commands/` | Undoable operations on a structure |
 | `xtal/ff/`, `xtal/modules/` | Calculators (UFF with UFF4MOF, xTB, DFTB+, MACE) and the module/job registry (Zeo++). MACE is the one that runs in process rather than as a binary; it needs the `mace` extra, and `_load_model` is the seam its tests replace. |
-| `xtal/mof/`, `xtal/build/` | PORMAKE frameworks, and SMILES to a molecule. **PORMAKE is vendored** at `xtal/mof/pormake/` — MIT, trimmed of `jax`, `pymatgen` and `networkx`; see its `PROVENANCE.md`, and do not reformat it. The MOF builder needs the `ase` extra, the molecule builder the `build` one; the check is `find_spec` and never an import, and the entries grey out naming the extra. |
+| `xtal/mof/`, `xtal/build/` | PORMAKE frameworks (`orient.py` is which way round a node goes), and SMILES to a molecule. **PORMAKE is vendored** at `xtal/mof/pormake/` — MIT, trimmed of `jax`, `pymatgen` and `networkx`; see its `PROVENANCE.md`, and do not reformat it. The MOF builder needs the `ase` extra, the molecule builder the `build` one; the check is `find_spec` and never an import, and the entries grey out naming the extra. |
 | `xtalapp/` | The Qt/PySide6 + VTK GUI shell. Holds no crystallography of its own. |
 | `xtalapp/mainwindow.py` | The shell: menus, docks, tabs. Large; see "Working in mainwindow" below. |
 | `xtalapp/document.py` | `Document` — a structure plus its undo stack. The GUI asks the Document to change things; it does not edit structures directly. |
@@ -294,6 +294,20 @@ stress case).
   which member it keeps is an accident, so `build._joints_of`
   enumerates them from `info` instead and the enumeration owns the
   joint. MFU-4l on `pcu` goes from 6 joints to 12.
+- **Which way round a symmetric node goes is a tie, and the default
+  is to leave it where the fit put it.** An octahedral node fits its
+  slot 24 ways at the same RMSD while its body moves 8.2 A between
+  them. `xtal/mof/orient.py` enumerates that tie set — the block's
+  rotation group from ordered *pairs* of connection directions and
+  the normal they span, never triples, because three directions of a
+  planar block span no volume and triples would call a trigonal node
+  unsymmetric — and `consistent` minimises `attach.pair_cost` over
+  the two nodes each edge joins. `as-found` is the default and
+  `build._build` **returns at pass 1** unless a block is polydentate
+  *and* another rule was asked for, so no shipped build reaches any
+  of it. The rule moves a node only where it is *strictly* cheaper,
+  never where it merely ties: on `pcu` every orientation costs the
+  same and the build must come back unchanged.
 - **The workspace is asked for before anything opens, and everything
   lives in it.** `WorkspaceChooser` runs in `xtalapp/main.py` *before*
   `MainWindow` is built — recent workspaces listed, the last one

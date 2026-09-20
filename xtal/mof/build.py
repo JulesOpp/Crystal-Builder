@@ -96,12 +96,22 @@ class BuildRequest:
     #: ``{(node type, node type): block name}``.  Empty means no
     #: linkers at all, which PORMAKE builds as nodes bonded directly.
     edges: dict[tuple[int, int], str] = field(default_factory=dict)
+    #: How many times the net is repeated along its own axes before
+    #: anything is placed on it.  ``(1, 1, 1)`` is the net itself and
+    #: is the only value that takes the build down the path it always
+    #: took -- see :meth:`xtal.mof.catalog.Topology.expanded`.
+    repeat: tuple[int, int, int] = (1, 1, 1)
+    #: Which way round the node blocks go: see :mod:`xtal.mof.orient`.
+    #: ``"as-found"`` is what the locator chose and is the default,
+    #: which is what makes the other rule unable to regress anything.
+    orientation: str = "as-found"
 
     @classmethod
-    def parse(cls, topology: str, nodes: str, edges: str
+    def parse(cls, topology: str, nodes: str, edges: str,
+              repeat: str = "", orientation: str = ""
               ) -> BuildRequest:
-        """The three strings a parameter form and a command line both
-        hand over.
+        """The strings a parameter form and a command line both hand
+        over.
 
         ``nodes`` is ``"N59"`` when there is one node type and
         ``"0=N59,1=N131"`` when there is more than one; ``edges`` is
@@ -109,13 +119,18 @@ class BuildRequest:
         form exists because the overwhelming majority of nets people
         build on have one kind of node and one kind of edge, and
         making those spell a slot they cannot get wrong is ceremony.
+
+        ``repeat`` is ``"2x2x2"``, ``"2"`` for the same in all three,
+        or empty for the net as it stands.
         """
         topology = str(topology or "").strip()
         if not topology:
             raise MofError("a build needs a topology to build on")
         return cls(topology,
                    _assignments(nodes, _node_key, "node"),
-                   _assignments(edges, _edge_key, "edge"))
+                   _assignments(edges, _edge_key, "edge"),
+                   _repeat(repeat),
+                   str(orientation or "").strip() or "as-found")
 
     def spelled(self) -> tuple[str, str, str]:
         """Back to the three strings, for a log and for a saved set.
@@ -128,8 +143,19 @@ class BuildRequest:
                 _spell(self.edges, _edge_token))
 
     def title(self) -> str:
-        """What to call the framework: ``pcu-N59-E32``."""
+        """What to call the framework: ``pcu-N59-E32``.
+
+        A repeat is spelled into it -- ``pcu-2x2x2-N59-E32`` -- and
+        only when there is one, so that the name of every framework
+        built before repeats existed is the name it had.  The
+        orientation rule is *not*: it changes which way round the
+        blocks are and never what the framework is made of, and two
+        files whose names differ only in it would be two names for
+        one material.
+        """
         parts = [self.topology]
+        if self.repeat != (1, 1, 1):
+            parts.append("x".join(str(n) for n in self.repeat))
         parts += [self.nodes[k] for k in _ordered(self.nodes)]
         parts += [self.edges[k] for k in _ordered(self.edges)]
         return "-".join(p for p in parts if p)
@@ -201,6 +227,34 @@ def _node_token(key) -> str:
 
 def _edge_token(key) -> str:
     return f"{key[0]}-{key[1]}"
+
+
+def _repeat(text) -> tuple[int, int, int]:
+    """``"2x2x2"``, ``"2"``, ``"2,2,1"`` or nothing, as three counts.
+
+    Separators are not a matter of taste here: ``x`` is how a person
+    writes a supercell and how :meth:`BuildRequest.title` spells one
+    back, and a comma is how every other list in this module is
+    written.  Both are taken, so neither is a mistake.
+    """
+    text = str(text or "").strip().lower()
+    if not text:
+        return (1, 1, 1)
+    parts = [part for part in text.replace(",", "x").replace(
+        " ", "x").split("x") if part]
+    try:
+        counts = [int(part) for part in parts]
+    except ValueError:
+        raise MofError(
+            f"{text!r} does not say how many times to repeat the "
+            f"net -- write 2x2x2, or just 2") from None
+    if len(counts) == 1:
+        counts = counts * 3
+    if len(counts) != 3 or min(counts) < 1:
+        raise MofError(
+            f"{text!r} does not say how many times to repeat the net "
+            f"-- write 2x2x2, or just 2")
+    return (counts[0], counts[1], counts[2])
 
 
 def _node_key(text: str) -> int:
@@ -327,7 +381,8 @@ def build(request: BuildRequest, directory, catalog: Catalog | None
 
     cif = directory / f"{_safe(request.title())}.cif"
     with _Logging(trace if trace is not None else log) as listening:
-        framework = _build(topology, node_bbs, edge_bbs, log)
+        framework = _build(topology, node_bbs, edge_bbs, log,
+                           request.repeat, request.orientation)
         framework.write_cif(str(cif))
         if not cif.is_file():
             raise MofError(
@@ -363,8 +418,26 @@ def build(request: BuildRequest, directory, catalog: Catalog | None
     return outcome
 
 
-def _build(topology, node_bbs, edge_bbs, log):
-    """The one call, with PORMAKE imported at the point of use."""
+def _build(topology, node_bbs, edge_bbs, log, repeat=(1, 1, 1),
+           orientation="as-found"):
+    """The build, in one pass or in two, with PORMAKE imported at the
+    point of use.
+
+    **Pass 1 is today's call and returns there**, and that is what
+    makes "nothing regresses" structural rather than argued: a build
+    reaches the second pass only when a block is polydentate *and*
+    the user asked for a rule other than ``as-found``, and no build
+    of the 867 shipped blocks is either.
+
+    Pass 2 is the same builder, the same blocks and the same net with
+    the node permutations pinned -- ``make_bbs_by_type`` and
+    ``Builder.build(permutations=...)``, both public API, no vendored
+    file edited.  What pass 1 is for, then, is two things it is the
+    only source of: the net after relaxation, which is the geometry
+    the chosen orientations will actually sit on, and whatever block
+    it quietly mirrored at ``builder.py:313``, which pass 2 would
+    otherwise place the wrong way round with nothing saying so.
+    """
     _say(log, "loading PORMAKE")
     pormake = import_pormake()
     # By path rather than through ``pormake.Database``, which is a
@@ -372,16 +445,55 @@ def _build(topology, node_bbs, edge_bbs, log):
     # folder.  Our catalogue already did that lookup, over as many
     # folders as the user has -- so a block they wrote themselves is
     # built with here for free rather than needing a second database.
-    topo = pormake.Topology(str(topology.path))
+    # ``expanded`` is the net's half of that, and the only place a
+    # vendored ``Topology`` is made.
+    topo = topology.expanded(*repeat)
     nodes = {int(k): pormake.BuildingBlock(str(v.path))
              for k, v in node_bbs.items()}
     edges = {tuple(int(i) for i in k): pormake.BuildingBlock(
         str(v.path)) for k, v in edge_bbs.items()}
     _say(log, f"placing {len(nodes)} node type(s) and "
               f"{len(edges)} linker type(s) on {topo.n_slots} slots")
-    return pormake.Builder().build_by_type(
+    builder = pormake.Builder()
+    framework = builder.build_by_type(
         topology=topo, node_bbs=nodes,
         edge_bbs=edges or None)
+
+    from xtal.mof import orient
+
+    if orientation == orient.AS_FOUND:
+        return framework
+    if not any(_is_polydentate(block)
+               for block in framework.info["located_bbs"]):
+        _say(log, "no block here stands for more than one atom at a "
+                  "connection point, so there is no orientation to "
+                  "choose; keeping the fit")
+        return framework
+
+    blocks = builder.make_bbs_by_type(topo, nodes, edges or None)
+    swapped, unchecked = orient.substitute_mirrored(blocks, framework)
+    if swapped:
+        _say(log, f"the fit mirrored the block on {len(swapped)} "
+                  f"slot(s); carrying that into the second pass")
+    if unchecked:
+        _say(log, f"{len(unchecked)} slot(s) came back without the "
+                  f"atoms that mark where they connect, so whether "
+                  f"the fit mirrored them could not be read")
+    found = framework.info["permutations"]
+    chosen = orient.choose_permutations(
+        framework.info["topology"], blocks, orientation,
+        baseline={slot: found[slot] for slot in range(len(found))},
+        log=log)
+    if all(tuple(chosen[slot]) == tuple(found[slot])
+           for slot in chosen):
+        # Nothing was strictly better than what the fit already
+        # chose, so the second pass is the first one again -- and
+        # running it would be a second relaxation of the same cell
+        # for the same answer.
+        _say(log, "the fit had already put the nodes the best way "
+                  "round; keeping it")
+        return framework
+    return builder.build(topo, blocks, permutations=chosen)
 
 
 # ======================================================================
@@ -757,11 +869,79 @@ def _block_of_atoms(blocks) -> dict[int, int]:
     return out
 
 
-def _joints_of(topology, blocks, permutations):
-    """Every pair of connection points the builder fused.
+def edge_ends(topology) -> dict:
+    """Edge slot -> the two node slots it joins, and which of each
+    node's edges this is.
 
-    In the concatenated numbering of :func:`_framework_indices`, which
-    is the numbering PORMAKE writes its own bond list in.
+    ``{edge slot: ((node slot, ordinal), (node slot, ordinal))}``, out
+    of the topology alone -- no blocks, no permutations, nothing
+    placed.  The ordinal is a position in the node's own neighbour
+    list, and a slot's permutation is exactly what turns one into a
+    connection point; keeping the two apart is what lets
+    :mod:`xtal.mof.orient` try two dozen permutations per slot against
+    one net without re-deriving which edge is which every time.
+
+    ``builder.py``'s ``find_matched_atom_indices`` (``:441-469``)
+    restated: an edge records each neighbour as a displacement, so the
+    edge that leaves a node towards this one is the one whose
+    displacement cancels the edge's own, to that function's own
+    0.01 A.
+    """
+    out: dict[int, tuple[tuple[int, int], tuple[int, int]]] = {}
+    for slot in topology.edge_indices:
+        slot = int(slot)
+        neighbours = topology.neighbor_list[slot]
+        if len(neighbours) != 2:                    # pragma: no cover
+            continue
+        ends = []
+        for end in neighbours:
+            ordinal = _ordinal_of(topology, int(end.index), end)
+            if ordinal is None:                     # pragma: no cover
+                break
+            ends.append((int(end.index), ordinal))
+        if len(ends) == 2:
+            out[slot] = (ends[0], ends[1])
+    return out
+
+
+def _ordinal_of(topology, node, end):
+    """Which of ``node``'s own edges leaves it towards this edge."""
+    reach = np.asarray(end.distance_vector, dtype=float)
+    for ordinal, neighbour in enumerate(topology.neighbor_list[node]):
+        total = np.asarray(neighbour.distance_vector,
+                           dtype=float) + reach
+        if float(np.linalg.norm(total)) < 0.01:
+            return ordinal
+    return None                                     # pragma: no cover
+
+
+def edge_axis(topology, edge) -> np.ndarray:
+    """The direction of one edge, from its first end to its second.
+
+    Not normalised here, and not needed to be: what reads it is
+    :func:`xtal.mof.attach.lateral`, which takes the unit vector for
+    itself.
+    """
+    first, second = topology.neighbor_list[int(edge)]
+    return (np.asarray(second.distance_vector, dtype=float)
+            - np.asarray(first.distance_vector, dtype=float))
+
+
+def point_at(block, permutation, ordinal) -> int:
+    """Which connection point of a placed block one of its edges took.
+
+    The slot's permutation is the whole of the mapping: PORMAKE's
+    locator hands back the order its connection points were matched
+    to the slot's neighbours in, and ``ordinal`` is a position in that
+    neighbour list.
+    """
+    points = np.asarray(block.connection_point_indices)
+    return int(points[np.asarray(permutation)[int(ordinal)]])
+
+
+def fused_points(topology, blocks, permutations):
+    """Every pair of connection points the builder fused, as
+    ``((slot, point), (slot, point))`` in each block's own numbering.
 
     These are **enumerated and not read back**, and that is the whole
     reason this function exists.  ``builder.py:644-658`` collapses
@@ -775,69 +955,38 @@ def _joints_of(topology, blocks, permutations):
     (``xtal/mof/pormake/PROVENANCE.md``); what it *did* write is
     still taken, and this adds the rest.
 
-    The matching is ``find_matched_atom_indices``
-    (``builder.py:441-469``) restated: the zero-sum neighbour test
-    finds which of a node's edges this one is, and the slot's own
-    permutation turns that ordinal into a connection point.  An edge
-    slot with a block yields two fused pairs, one per end; an empty
-    edge slot yields one, node point to node point, which is the
-    linkerless net :func:`bond_joints` is already careful about.
+    An edge slot with a block yields two fused pairs, one per end; an
+    empty edge slot yields one, node point to node point, which is
+    the linkerless net :func:`bond_joints` is already careful about.
     """
-    starts, _kept = _framework_indices(blocks)
-    out: list[tuple[int, int]] = []
-    for slot in topology.edge_indices:
-        slot = int(slot)
-        neighbours = topology.neighbor_list[slot]
-        if len(neighbours) != 2:                    # pragma: no cover
-            continue
-        ends = []
-        for end in neighbours:
-            node = int(end.index)
-            point = _matched_point(topology, blocks, permutations,
-                                   node, end)
-            if point is None:                       # pragma: no cover
-                break
-            ends.append(point + starts[node])
-        if len(ends) != 2:                          # pragma: no cover
-            continue
-        block = blocks[slot]
+    out = []
+    for edge, ends in edge_ends(topology).items():
+        ends = tuple(
+            (node, point_at(blocks[node], permutations[node], ordinal))
+            for node, ordinal in ends)
+        block = blocks[edge]
         if block is None:
-            out.append((ends[0], ends[1]))
+            out.append(ends)
             continue
         points = np.asarray(block.connection_point_indices)[
-            permutations[slot]] + starts[slot]
+            permutations[edge]]
         # Strict: an edge slot is two-connected and `_resolve`
         # refuses a block that does not match its slot before the
         # build starts, so a mismatch here is a broken guarantee
         # rather than a shape to tolerate -- and tolerating it would
         # silently bond one end of a joint and not the other.
-        out.extend((int(point), end)
+        out.extend(((edge, int(point)), end)
                    for point, end in zip(points, ends, strict=True))
     return out
 
 
-def _matched_point(topology, blocks, permutations, node, end):
-    """Which connection point of ``node``'s block this edge end fused
-    to, or ``None`` if that slot is empty.
-
-    An edge records each neighbour as a displacement, so the edge that
-    leaves the node towards this edge is the one whose displacement
-    cancels the edge's own -- ``builder.py``'s zero-sum test, to its
-    own 0.01 A.  Its position in the node's neighbour list is the
-    ordinal the slot's permutation is about.
-    """
-    block = blocks[node]
-    if block is None:                               # pragma: no cover
-        return None
-    reach = np.asarray(end.distance_vector, dtype=float)
-    for ordinal, neighbour in enumerate(topology.neighbor_list[node]):
-        total = np.asarray(neighbour.distance_vector,
-                           dtype=float) + reach
-        if float(np.linalg.norm(total)) < 0.01:
-            points = np.asarray(block.connection_point_indices)[
-                permutations[node]]
-            return int(points[ordinal])
-    return None                                     # pragma: no cover
+def _joints_of(topology, blocks, permutations):
+    """:func:`fused_points`, in the concatenated numbering of
+    :func:`_framework_indices` -- which is the numbering PORMAKE
+    writes its own bond list in."""
+    starts, _kept = _framework_indices(blocks)
+    return [(starts[a[0]] + a[1], starts[b[0]] + b[1])
+            for a, b in fused_points(topology, blocks, permutations)]
 
 
 def _joint_bonds(framework, blocks):

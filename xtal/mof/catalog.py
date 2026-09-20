@@ -456,6 +456,40 @@ class Topology:
             self._cache["placement"] = rcsr.placement(self.entry())
         return self._cache["placement"]
 
+    def expanded(self, nx: int = 1, ny: int = 1, nz: int = 1):
+        """This net as PORMAKE reads it, repeated along its own axes.
+
+        The one place a vendored :class:`pormake.Topology` is made,
+        so that a build and a test ask for a supercell the same way.
+        ``(1, 1, 1)`` hands back the net itself and multiplies
+        nothing -- a repeat of one has to be the build it always was,
+        to the bit, and the way to guarantee that is not to take the
+        other path.
+
+        Over ``Topology.__mul__``, which tiles the underlying atoms
+        and rebuilds the neighbour lists; no vendored file is edited
+        to reach it.  A 2x2x2 of ``pcu`` is 32 slots and 0.03 s, and
+        building MFU-4l on it gives 648 atoms -- the crystal's own P1
+        count.
+
+        Nothing is cached.  The builder scales the topology it is
+        given into a *copy*, so handing the same object to two builds
+        would be safe today; it is made fresh anyway, because a net
+        held between builds is a thing whose state nobody owns.
+        """
+        from xtal.mof.build import import_pormake
+
+        pormake = import_pormake()
+        topology = pormake.Topology(str(self.path))
+        repeat = (int(nx), int(ny), int(nz))
+        if min(repeat) < 1:
+            raise CatalogError(
+                f"a net cannot be repeated {repeat[0]}x{repeat[1]}x"
+                f"{repeat[2]} times")
+        if repeat == (1, 1, 1):
+            return topology
+        return topology * repeat
+
     def lattice(self):
         """A cell to draw the vertices in.
 
