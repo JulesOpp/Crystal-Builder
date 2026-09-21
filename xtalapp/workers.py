@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import threading
 
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import QObject, QThread, QTimer, Signal
 
 from xtal.ff import optimize
 from xtal.ff.api import CalculatorStopped
@@ -176,30 +176,113 @@ class OptimizationWorker(QObject):
             self.recorder = None
 
 
+#: Every run that has been started and not yet released.  The GUI
+#: thread is the only thread that touches this, and it is a
+#: module-level set rather than an attribute of the caller so that a
+#: panel is free to drop its own ``self.worker`` the moment the result
+#: arrives -- which is what ``test_modules_ui`` waits on.
+_LIVE: set = set()
+
+
+class _Run(QObject):
+    """Owns one worker and its thread, from the GUI thread.
+
+    The arrangement this replaces let Qt delete both: ``finished`` was
+    wired to ``deleteLater`` on each.  That put the destruction of two
+    Python wrappers at two places nobody chose -- the worker's on the
+    dying thread inside ``QThreadPrivate::finish``, the thread's inside
+    ``sendPostedEvents`` -- and a Python wrapper cannot be destroyed
+    without the GIL, while ``~QObject`` severing its connections holds
+    Qt's connection lock and calls back into Python for
+    ``disconnectNotify``.  A GUI thread holding the GIL and connecting
+    anything then waits on that lock for as long as the other thread
+    waits for the GIL.
+
+    So nothing here is deleted by Qt.  Both objects are owned by
+    Python, from this object, on the GUI thread, and both are dropped
+    from a plain event-loop turn with no thread dying and no signal
+    being delivered.
+    """
+
+    def __init__(self, worker, thread):
+        # Deliberately unparented.  Parenting it to the window would
+        # hand its lifetime back to C++ -- and then closing the window
+        # would destroy it while ``_LIVE`` still held the wrapper,
+        # which is the zombie this whole change exists to stop making.
+        super().__init__()
+        self.worker = worker
+        self.thread = thread
+
+    def stop_and_wait(self, timeout: int = 30000) -> bool:
+        """Quit the thread and block until it has actually stopped.
+
+        For a window on its way out: a thread whose ``QThread`` is
+        destroyed while it is still running aborts the process, and
+        closing the window destroys the whole object tree.
+        """
+        thread = self.thread
+        if thread is None:
+            return True
+        cancel = getattr(self.worker, "cancel", None)
+        if cancel is not None:
+            cancel()
+        thread.quit()
+        stopped = thread.wait(timeout)
+        if stopped:
+            self._release()
+        return stopped
+
+    def _finished(self, *_ignored) -> None:
+        """The worker is done.  Runs on the GUI thread.
+
+        ``worker.finished`` is emitted from inside ``run``, and the
+        worker lives on the other thread, so this is a queued call and
+        the worker is by now back in ``QThread::exec``.  ``quit`` makes
+        that return; ``wait`` is then the length of one event-loop
+        return, not of the run.
+        """
+        thread = self.thread
+        if thread is None:
+            return
+        thread.quit()
+        thread.wait()
+        # Not here: the stack above this is still Qt delivering a
+        # signal.  One clean turn later there is nothing underneath.
+        QTimer.singleShot(0, self._release)
+
+    def _release(self) -> None:
+        self.worker = None
+        self.thread = None
+        _LIVE.discard(self)
+
+
 def start_in_thread(worker: QObject, parent: QObject = None) -> QThread:
     """Move ``worker`` onto a fresh thread and start it.
 
-    The thread quits when the worker signals either outcome, and both
-    are deleted when it has actually stopped -- deleting a worker while
-    its thread is still inside ``run`` is the classic way to crash a Qt
-    application on exit.
-
-    Give it a ``parent`` and C++ owns the thread, which is the other
-    half of the same rule.  ``finished`` is emitted from *inside* the
-    thread, so a caller that drops its last Python reference in that
-    slot destroys a ``QThread`` that has not stopped yet -- and Qt
-    aborts the process rather than raising something catchable.  With
-    a parent, the reference count is nobody's problem.
+    Both objects stay alive, owned from Python on the GUI thread,
+    until the thread has stopped -- see :class:`_Run`.  ``parent`` is
+    still honoured for the thread, so a window that outlives the run
+    still owns it in C++ as well.
     """
     thread = QThread(parent)
     worker.moveToThread(thread)
     thread.started.connect(worker.run)
-    worker.finished.connect(thread.quit)
-    worker.failed.connect(thread.quit)
-    thread.finished.connect(worker.deleteLater)
-    thread.finished.connect(thread.deleteLater)
+    run = _Run(worker, thread)
+    _LIVE.add(run)
+    worker.finished.connect(run._finished)
+    worker.failed.connect(run._finished)
     thread.start()
     return thread
+
+
+def stop_all(timeout: int = 30000) -> bool:
+    """Stop every run there is and wait for it.  For ``closeEvent``.
+
+    Every one of them, not up to the first that will not stop: a list
+    rather than a generator, because ``all`` short-circuits and a
+    thread left running is the abort this is here to prevent.
+    """
+    return all([run.stop_and_wait(timeout) for run in list(_LIVE)])
 
 
 class ModuleWorker(QObject):

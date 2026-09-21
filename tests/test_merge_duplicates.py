@@ -108,3 +108,64 @@ def test_the_preview_and_the_merge_agree(btdd):
         == (report.merged, merged.n_sites, p1.expand(merged).n_atoms)
     assert plan.message() == ("27 of 40 sites merge -- 1152 atoms in "
                               "the cell become 378")
+
+
+# Every structure that ships, and whether its own symmetry repeats it.
+# The two that do are the reason the check exists; the seven that do
+# not are the reason it can be on by default.
+SAMPLES_DIR = SAMPLE.parent
+COINCIDENT = {"CFA1.cif", "Ni2Cl2BTDD.cif"}
+
+
+@pytest.mark.parametrize("name", sorted(p.name for p in
+                                        SAMPLES_DIR.glob("*.cif")))
+def test_only_the_two_repeating_samples_are_reported_as_coincident(name):
+    """A false positive here would put a warning on a correct crystal
+    every time it is opened, which is how a warning stops being read."""
+    from xtal.io import FORMATS
+    structure = FORMATS.read(SAMPLES_DIR / name)
+    # Specifically the coincidence warning: MFU4l.cif carries an
+    # unrelated one about its malformed Hall symbol, and a test that
+    # counted any warning would call that a duplicate.
+    warned = any("on top of one another" in w
+                 for w in structure.meta.get("warnings", []))
+    assert warned == (name in COINCIDENT), (
+        f"{name}: warned={warned}")
+
+
+def test_the_warning_names_the_menu_item_that_fixes_it():
+    """"2088 pairs are coincident" is not something a user can act on;
+    "Merge Duplicates" is."""
+    from xtal.io import FORMATS
+    structure = FORMATS.read(SAMPLES_DIR / "Ni2Cl2BTDD.cif")
+    assert "Merge Duplicates" in structure.meta["warnings"][0]
+
+
+def test_merging_the_duplicates_clears_the_coincidence():
+    """The remedy the warning names actually answers it -- otherwise
+    the user is told to press a button that does not help."""
+    from xtal.io import FORMATS
+    structure = FORMATS.read(SAMPLES_DIR / "Ni2Cl2BTDD.cif")
+    assert p1.coincidence_warning(structure) is not None
+    merged, _ = symmetry.merge_duplicates(structure)
+    assert p1.coincidence_warning(merged) is None
+
+
+def test_a_clean_crystal_is_not_reported_at_any_sane_tolerance():
+    """The count is flat from 0.01 A to 0.2 A on a correct structure,
+    so the 0.05 A default is not perched on the edge of an answer."""
+    from xtal.io import FORMATS
+    structure = FORMATS.read(SAMPLES_DIR / "MFU4l.cif")
+    for tol in (0.01, 0.05, 0.1, 0.2):
+        assert not len(p1.coincident_pairs(structure, tol)), f"at {tol}"
+
+
+def test_a_structure_too_broken_to_expand_still_reads():
+    """The check is a courtesy on the way past, not a second gate: a
+    file the reader accepted must not be lost to it."""
+    from xtal.io import registry
+    class Hopeless:
+        meta: dict = {}
+        def __getattr__(self, name):
+            raise RuntimeError("no lattice, no sites, nothing")
+    assert registry._warn_if_coincident(Hopeless()) is not None

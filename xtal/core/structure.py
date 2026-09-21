@@ -531,15 +531,42 @@ class Structure:
         """
         return (bond.kind == TOPOLOGY, bond.key(self.space_group))
 
+    def _bond_identities(self) -> set:
+        """Every bond's identity, as a set, memoised.
+
+        The lookup this replaces was a scan of the whole list with a
+        matrix multiply inside the comparison -- :meth:`Bond.reverse`
+        composes symmetry operations to name a bond from its other
+        end.  Adding n bonds one at a time therefore cost n**2 of
+        them: opening a 21 KB MFU-4l project made 360 824 calls and
+        took 2.1 seconds, and the six loops that build a graph a bond
+        at a time (Reduce to P1, a project load, a MOF build, SMILES,
+        a paste, connection points) all paid it.
+        """
+        return self.cached(
+            "bond_identities",
+            lambda: {self._bond_identity(b) for b in self.bonds},
+            invalidated_by=CHEMISTRY)
+
     def add_bond(self, bond: Bond) -> bool:
         """Add a bond if it is not already there.  Returns whether it
         was added."""
         self._check_bond(bond)
         identity = self._bond_identity(bond)
-        if any(self._bond_identity(b) == identity for b in self.bonds):
+        known = self._bond_identities()
+        if identity in known:
             return False
         self.bonds.append(bond)
         self.touch(Change.TOPOLOGY)
+        # Carry the set across the touch rather than let the next call
+        # rebuild it: without this the memo is re-made on every add and
+        # the loop is quadratic again, just with a cheaper constant.
+        # Any *other* mutation bumps the stamp past this one and the
+        # entry is discarded, which is what keeps it honest -- the bond
+        # list is replaced wholesale in seven places.
+        known.add(identity)
+        self._cache["bond_identities"] = (self._stamp(CHEMISTRY),
+                                          known, CHEMISTRY)
         return True
 
     def remove_bond(self, bond: Bond) -> bool:

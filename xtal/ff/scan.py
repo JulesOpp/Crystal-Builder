@@ -548,6 +548,12 @@ def _one_point(build, original, start, prepared, index, targets,
                        "stopped")
     except (CalculatorError, ValueError) as error:
         return _failed(index, targets, branch, at, blank, str(error))
+    if result.stopped:
+        # optimize.run keeps the steps a stopped relaxation finished,
+        # which is right for a panel and wrong here: the geometry is
+        # half way to somewhere and its energy is not a point on this
+        # landscape.
+        return _failed(index, targets, branch, at, blank, "stopped")
 
     matrix = (result.matrix if result.matrix is not None
               else at.lattice.matrix)

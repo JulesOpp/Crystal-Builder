@@ -77,8 +77,20 @@ def image_range(lattice: Lattice, cutoff: float) -> tuple[int, int, int]:
     return tuple(int(max(1, v)) for v in n)
 
 
+#: Below this, two atoms are not a pair: the vector between them has
+#: no direction and 1/r has no value, so the pair is dropped rather
+#: than allowed to divide by zero.  Dropping is right for the sum and
+#: wrong for the answer, because the terms go missing in silence -- so
+#: :func:`xtal.ff.registry._refuse_coincident` refuses a structure at
+#: this same distance rather than let a force field report a finite
+#: energy for a cell holding two atoms in one place.  The two must not
+#: drift apart, which is why this is a name and not a literal.
+MIN_SEPARATION = 1e-6
+
+
 def neighbor_pairs(frac, lattice: Lattice, cutoff: float,
-                   min_distance: float = 1e-6, subset=None) -> PairList:
+                   min_distance: float = MIN_SEPARATION,
+                   subset=None) -> PairList:
     """Every pair of atoms closer than ``cutoff``, listed once.
 
     A pair appears once per periodic image that satisfies the cutoff.

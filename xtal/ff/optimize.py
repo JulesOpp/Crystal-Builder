@@ -48,7 +48,7 @@ import numpy as np
 
 from xtal.core import p1
 from xtal.core.lattice import PARAMETER_NAMES
-from xtal.ff.api import CalculatorError
+from xtal.ff.api import CalculatorError, CalculatorStopped
 
 # Convergence: the largest force on any atom, in kcal/mol/Angstrom.
 # Loose enough to reach on a framework, tight enough that the geometry
@@ -131,6 +131,13 @@ class OptimizationResult:
     matrix: np.ndarray | None = None        # the relaxed cell, or None
     initial_matrix: np.ndarray | None = None
     stress: float = 0.0                     # GPa, the last step's
+    #: Whether the run ended because somebody pressed Stop rather than
+    #: because it converged or ran out of steps.  A caller that can
+    #: present a partial relaxation (the Force Field panel) shows it;
+    #: one that cannot (a scan point) turns it into a hole, because a
+    #: half-relaxed geometry recorded as an energy is a false minimum
+    #: that looks exactly like a real one.
+    stopped: bool = False
 
     @property
     def energy_change(self) -> float:
@@ -695,6 +702,28 @@ def _from_voigt(voigt) -> np.ndarray:
 # ======================================================================
 #  THE OPTIMISERS
 # ======================================================================
+
+class _StopBetweenEvaluations:
+    """A calculator that checks for Stop before each evaluation.
+
+    Everything but :meth:`compute` is the wrapped engine's, so an
+    optimiser, a report or a panel asking this for its summary, its
+    atom types or its charges gets the real answers.
+    """
+
+    def __init__(self, calculator, cancel):
+        self._calculator = calculator
+        self._cancel = cancel
+
+    def __getattr__(self, name):
+        return getattr(self._calculator, name)
+
+    def compute(self, positions, matrix=None, *args, **kwargs):
+        if getattr(self._cancel, "requested", False):
+            raise CalculatorStopped("stopped between evaluations")
+        return self._calculator.compute(positions, matrix,
+                                        *args, **kwargs)
+
 
 class _Problem:
     """Energy and gradient in the variables the optimisers see."""
@@ -1359,6 +1388,7 @@ METHODS = {"lbfgs": lbfgs, "fire": fire, "smart": smart,
 def steps(calculator, structure, method: str = "lbfgs",
           frozen=(), relax_cell: bool = False, pressure: float = 0.0,
           cancel=None, constraints=None, freedom=None,
+          poll_evaluations: bool = False,
           **kwargs) -> Iterator[Step]:
     """The chosen optimiser, as a generator of steps.
 
@@ -1378,10 +1408,25 @@ def steps(calculator, structure, method: str = "lbfgs",
     ``relax_cell``, because with a fixed cell there is nothing to
     hold back.
     """
-    if cancel is not None and hasattr(calculator, "stop_with"):
-        # Anything with ``compute`` can be optimised; only a
-        # Calculator knows how to be stopped mid-evaluation.
-        calculator.stop_with(cancel)
+    if cancel is not None:
+        if hasattr(calculator, "stop_with"):
+            # An engine that runs a program can be stopped in the
+            # middle of one; that is all ``stop_with`` ever did.
+            calculator.stop_with(cancel)
+        if poll_evaluations:
+            # An engine that computes in this process cannot be
+            # stopped that way, so the poll goes where every optimiser
+            # has to come: the call that asks for an energy.
+            #
+            # Off by default, and on for :func:`run`.  A caller that
+            # drives the generator itself -- the Force Field panel's
+            # worker -- already stops at the step boundary and keeps
+            # what it reached; arriving mid-step would leave it with
+            # no step to report and turn Stop into a failure.  A scan
+            # point is the other case: one point is hundreds of steps
+            # and waiting for the boundary made Stop look dead for up
+            # to 3.7 minutes on Ni2Cl2BTDD.
+            calculator = _StopBetweenEvaluations(calculator, cancel)
     try:
         optimizer = METHODS[method]
     except KeyError:
@@ -1407,21 +1452,38 @@ def run(calculator, structure, method: str = "lbfgs", frozen=(),
     history = []
     first = last = None
     stopped = False
-    for step in steps(calculator, structure, method, frozen,
-                      **kwargs):
-        history.append((step.iteration, step.energy, step.max_force))
-        if first is None:
-            first = step
-        last = step
-        if callback is not None and callback(step) is False:
-            stopped = True
-            break
+    # A Stop raised between evaluations is the same event as a
+    # callback returning False, only noticed sooner: one step of a
+    # relaxing cell is about fourteen energy evaluations, so waiting
+    # for the step boundary is what made Stop feel dead. Both land
+    # here, so a stopped run keeps the steps it finished rather than
+    # becoming a failure -- the Force Field panel says "stopped
+    # without converging" and leaves the trace on screen.
+    try:
+        for step in steps(calculator, structure, method, frozen,
+                          poll_evaluations=True, **kwargs):
+            history.append((step.iteration, step.energy,
+                            step.max_force))
+            if first is None:
+                first = step
+            last = step
+            if callback is not None and callback(step) is False:
+                stopped = True
+                break
+    except CalculatorStopped:
+        stopped = True
+        if last is None:
+            raise
 
     if last is None:                                # pragma: no cover
         raise CalculatorError("the optimiser produced no steps")
     message = last.reason or last.line()
     if stopped:
         message = f"stopped by the caller at step {last.iteration}"
+        # So a caller that cannot use a half-relaxed geometry -- a
+        # scan point, which would otherwise record a finite energy for
+        # a structure nobody asked about -- can tell.
+
     return OptimizationResult(
         converged=last.converged and not stopped,
         steps=last.iteration,
@@ -1436,4 +1498,5 @@ def run(calculator, structure, method: str = "lbfgs", frozen=(),
         initial_matrix=(None if last.matrix is None
                         else structure.lattice.matrix),
         stress=last.stress,
+        stopped=stopped,
     )

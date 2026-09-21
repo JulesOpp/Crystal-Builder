@@ -48,13 +48,36 @@ def _block_name(structure: Structure, fallback: str) -> str:
     return cleaned or "structure"
 
 
+#: Words a bare CIF value may not begin with: they open a block, a loop
+#: or a save frame, so a value spelled like one has to be quoted.
+_RESERVED = ("data_", "loop_", "global_", "save_", "stop_")
+
+
 def _quote(value: str) -> str:
+    """A CIF value, quoted only when it has to be, and never damaged.
+
+    CIF 1.1 has no escape character, so a quoted string is delimited by
+    whichever quote it does not itself contain.  This used to substitute
+    a space for every apostrophe, which turned ``Na'1`` into ``Na 1``:
+    two tokens where the file said one, silently, with no way back.
+    A label containing both quote characters cannot be delimited at all
+    and becomes a semicolon text field -- legal anywhere a value is,
+    including inside a loop, because a newline is only whitespace.
+    """
     text = str(value)
     if not text:
         return "?"
-    if any(c in text for c in " \t'\"") or text[0] in "_#$[];":
-        return "'" + text.replace("'", " ") + "'"
-    return text
+    lowered = text.lower()
+    plain = (not any(c in text for c in " \t\n'\"")
+             and text[0] not in "_#$[];"
+             and not lowered.startswith(_RESERVED))
+    if plain:
+        return text
+    if "'" not in text and "\n" not in text:
+        return f"'{text}'"
+    if '"' not in text and "\n" not in text:
+        return f'"{text}"'
+    return f"\n;{text}\n;"
 
 
 def write_cif(structure: Structure, path, expand_to_p1: bool = False,
@@ -133,7 +156,7 @@ def cif_string(structure: Structure, expand_to_p1: bool = False,
     labelled.ensure_labels()
     for site in labelled.sites:
         x, y, z = site.frac
-        row = (f"{site.label:<8s} {_type_symbol(site):<5s} "
+        row = (f"{_quote(site.label):<8s} {_quote(_type_symbol(site)):<5s} "
                f"{x: .6f} {y: .6f} {z: .6f} {site.occupancy:8.4f}")
         if has_uiso:
             u = site.u_iso if site.u_iso is not None else 0.0
@@ -183,8 +206,8 @@ def _bond_loop(structure) -> list[str]:
              "_xtal_bond_image", "_xtal_bond_order",
              "_xtal_bond_kind", "_xtal_bond_stated"]
     for bond in bonds:
-        one = structure.sites[bond.i].label
-        two = structure.sites[bond.j].label
+        one = _quote(structure.sites[bond.i].label)
+        two = _quote(structure.sites[bond.j].label)
         distance = _bond_distance(structure, bond)
         image = ",".join(str(int(t)) for t in bond.image)
         lines.append(
@@ -298,7 +321,7 @@ def _aniso_loop(structure) -> list[str]:
              "_atom_site_aniso_U_13", "_atom_site_aniso_U_23"]
     for site in rows:
         u11, u22, u33, u12, u13, u23 = site.u_aniso
-        lines.append(f"{site.label:<8s} {u11: .5f} {u22: .5f} "
+        lines.append(f"{_quote(site.label):<8s} {u11: .5f} {u22: .5f} "
                      f"{u33: .5f} {u12: .5f} {u13: .5f} {u23: .5f}")
     return lines
 

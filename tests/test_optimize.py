@@ -367,3 +367,93 @@ def test_the_force_reported_is_per_atom_and_not_per_orbit(rutile):
     raw = calculator.compute(p1.expand(rutile).cart,
                              rutile.lattice.matrix).max_force
     assert first.max_force < raw
+
+
+# ----------------------------------------------------------------------
+#  Stop, under an engine that computes in this process
+# ----------------------------------------------------------------------
+
+def test_stop_is_noticed_by_an_in_process_engine(quartz):
+    """`cancel` used only to be handed to calculator.stop_with, which
+    exists so an engine running a *program* can be killed mid
+    evaluation. UFF and MACE compute here, so nothing checked it and
+    Stop did nothing at all: a relaxed scan of Ni2Cl2BTDD sat for up
+    to 3.7 minutes finishing the grid point it was on."""
+    from xtal.ff import ENGINES, optimize
+    from xtal.ff.api import CalculatorStopped
+    from xtal.modules.job import Cancellation
+    cancel = Cancellation()
+    cancel.cancel()
+    with pytest.raises(CalculatorStopped):
+        optimize.run(ENGINES.build("uff", quartz), quartz,
+                     cancel=cancel, max_steps=500)
+
+
+def test_an_uncancelled_optimisation_is_untouched(quartz):
+    """The poll must not cost anybody a relaxation they asked for."""
+    from xtal.ff import ENGINES, optimize
+    result = optimize.run(ENGINES.build("uff", quartz), quartz,
+                          max_steps=3)
+    assert result.steps >= 1
+
+
+def test_the_stop_proxy_still_answers_for_the_engine_behind_it(quartz):
+    """Everything but compute is the real calculator's, so a panel or
+    a report asking for a summary, the atom types or the charges gets
+    the engine's own answer and not the wrapper's."""
+    from xtal.ff import ENGINES
+    from xtal.ff.optimize import _StopBetweenEvaluations
+    from xtal.modules.job import Cancellation
+    real = ENGINES.build("uff", quartz)
+    wrapped = _StopBetweenEvaluations(real, Cancellation())
+    assert wrapped.summary() == real.summary()
+
+
+def test_a_stopped_scan_point_is_a_hole_and_not_a_number():
+    """xtal.ff.scan already turns CalculatorStopped into _failed(...,
+    "stopped"); this is what now raises it. A half-relaxed geometry
+    reported as an energy is a false minimum that looks exactly like a
+    real one."""
+    import inspect
+
+    from xtal.ff import scan
+    source = inspect.getsource(scan)
+    assert "except CalculatorStopped" in source
+    assert '"stopped"' in source
+
+
+def test_a_run_stopped_after_some_progress_keeps_it(quartz):
+    """Stop is not a failure: the steps that finished are the result,
+    and `stopped` is how a caller that cannot use a half-relaxed
+    geometry tells the difference.
+
+    Cancelled from the step callback rather than a timer, so it is the
+    same answer on a fast machine and a loaded one."""
+    from xtal.ff import ENGINES, optimize
+    from xtal.modules.job import Cancellation
+    cancel = Cancellation()
+
+    def after_two(step):
+        if step.iteration >= 2:
+            cancel.cancel()
+        return True
+
+    result = optimize.run(ENGINES.build("uff", quartz), quartz,
+                          cancel=cancel, callback=after_two,
+                          max_steps=5000)
+    assert result.stopped is True
+    assert result.converged is False
+    assert result.steps >= 2
+
+
+def test_driving_the_steps_yourself_still_stops_at_a_step_boundary(
+        quartz):
+    """The Force Field panel's worker iterates steps() itself and
+    keeps what it reached. Polling every evaluation there would leave
+    it with no step to report and turn Stop into a failure, so the
+    poll is off unless asked for."""
+    import inspect
+
+    from xtal.ff import optimize
+    sig = inspect.signature(optimize.steps)
+    assert sig.parameters["poll_evaluations"].default is False

@@ -334,3 +334,69 @@ def test_mof5_with_one_bond_between_its_oxygens_is_pcu(rcsr_catalogue):
     assert report.name == "pcu"
     assert "6, 18, 38, 66" in report.sentence()
     assert "4^12.6^3" in report.sentence()
+
+
+# ==================================== interpenetration, from the bonds
+
+def test_a_crystal_is_asked_about_its_own_bonds_not_a_drawn_net():
+    """net_of answers about a net somebody drew by hand. Asking the
+    same question of the chemistry is what makes interpenetration
+    something the application can answer without being told where the
+    nodes are."""
+    import pathlib
+
+    from xtal.analysis.topology import interpenetration
+    from xtal.io import FORMATS
+    sample = (pathlib.Path(__file__).resolve().parent.parent
+              / "resources" / "samples" / "MOF-5.cif")
+    if not sample.exists():
+        pytest.skip("sample structure not present")
+    answer = interpenetration(FORMATS.read(sample))
+    assert answer.fold == 1
+    assert answer.frameworks == 1
+    assert answer.text() == "not interpenetrated"
+
+
+def test_two_frameworks_that_never_touch_are_two_fold():
+    """The obvious half: a second framework disconnected from the
+    first is another component."""
+    from xtal.analysis.topology import Interpenetration
+    net = Net(2, (Edge(0, 0, (1, 0, 0)), Edge(0, 0, (0, 1, 0)),
+                  Edge(0, 0, (0, 0, 1)), Edge(1, 1, (1, 0, 0)),
+                  Edge(1, 1, (0, 1, 0)), Edge(1, 1, (0, 0, 1))))
+    parts = [c for c in net.components() if c.periodicity() == 3]
+    answer = Interpenetration(sum(c.multiplicity() for c in parts),
+                              len(parts), 0)
+    assert answer.fold == 2
+    assert answer.text() == "2-fold interpenetrated"
+
+
+def test_a_framework_doubled_inside_one_component_is_still_two():
+    """The half a component count gets wrong, and the common one in
+    deposited files: a net whose cycles close on every second cell is
+    two copies described in one component."""
+    net = Net(1, (Edge(0, 0, (2, 0, 0)), Edge(0, 0, (0, 1, 0)),
+                  Edge(0, 0, (0, 0, 1))))
+    assert net.periodicity() == 3
+    assert len(net.components()) == 1, "one component"
+    assert net.multiplicity() == 2, "and two copies in it"
+
+
+def test_solvent_in_the_pores_is_not_a_second_framework():
+    """Ni2Cl2BTDD carries eighteen molecules in its channels. Counting
+    components alone would call it a nineteen-fold framework; only the
+    3-periodic ones are frameworks."""
+    import pathlib
+
+    from xtal.analysis.topology import interpenetration
+    from xtal.core import symmetry
+    from xtal.io import FORMATS
+    sample = (pathlib.Path(__file__).resolve().parent.parent
+              / "resources" / "samples" / "Ni2Cl2BTDD.cif")
+    if not sample.exists():
+        pytest.skip("sample structure not present")
+    merged, _ = symmetry.merge_duplicates(FORMATS.read(sample))
+    answer = interpenetration(merged)
+    assert answer.fold == 1
+    assert answer.frameworks == 1
+    assert answer.other == 18

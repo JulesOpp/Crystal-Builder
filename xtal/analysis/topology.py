@@ -414,6 +414,64 @@ def net_of(structure) -> Net:
     return Net(len(vertices), edges, labels, orbits)
 
 
+def net_of_chemistry(structure) -> Net:
+    """The net of the *bonds*, rather than the net drawn over them.
+
+    :func:`net_of` answers about a net somebody drew by hand.  This
+    answers about the crystal as it is bonded, which is what makes
+    interpenetration a question the application can ask without being
+    told where the nodes are.
+    """
+    from xtal.core import bonding, p1
+
+    graph = bonding.graph(structure)
+    cell = p1.expand(structure)
+    edges = tuple(Edge(b.i, b.j, tuple(int(v) for v in b.image))
+                  for b in graph.bonds)
+    labels = tuple(cell.labels[v] or cell.elements[v]
+                   for v in range(cell.n_atoms))
+    orbits = tuple(int(cell.site_idx[v]) for v in range(cell.n_atoms))
+    return Net(cell.n_atoms, edges, labels, orbits)
+
+
+@dataclass(frozen=True)
+class Interpenetration:
+    """How many independent frameworks a crystal holds."""
+
+    fold: int                   # 1 is not interpenetrated
+    frameworks: int             # 3-periodic components
+    other: int                  # everything else: solvent, ions, dust
+
+    def text(self) -> str:
+        if self.fold <= 1:
+            return "not interpenetrated"
+        return f"{self.fold}-fold interpenetrated"
+
+
+def interpenetration(structure) -> Interpenetration:
+    """Count the independent frameworks threaded through each other.
+
+    Two things have to be counted and only one of them is obvious.  A
+    second framework that is simply *disconnected* from the first is
+    another component, which :meth:`Net.components` finds.  A second
+    one described in the *same* component -- because the cell given is
+    a multiple of the net's own -- is not, and is what
+    :meth:`Net.multiplicity` is for.  A count of components alone gets
+    that case wrong, and it is the common one in deposited files.
+
+    Only 3-periodic components are frameworks.  The rest are solvent,
+    counter-ions and whatever else was left in the pores, which is why
+    they are counted separately rather than ignored: Ni2Cl2BTDD has
+    eighteen of them and they are not a second framework.
+    """
+    components = net_of_chemistry(structure).components()
+    frameworks = [c for c in components if c.periodicity() == 3]
+    return Interpenetration(
+        fold=sum(c.multiplicity() for c in frameworks),
+        frameworks=len(frameworks),
+        other=len(components) - len(frameworks))
+
+
 # ======================================================================
 #  INTEGER LATTICES
 # ======================================================================

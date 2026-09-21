@@ -441,3 +441,67 @@ def test_reduce_to_p1_does_not_perceive_again(quartz):
     flat = symmetry.reduce_to_p1(quartz)
     assert {(b.i, b.j, b.image)
             for b in bonding.graph(flat).bonds} == before
+
+
+# ----------------------------------------------------------------------
+#  A tolerance spglib would crash on, and a group it would understate
+# ----------------------------------------------------------------------
+
+@pytest.mark.parametrize("bad", [-1.0, 0.0, float("nan")])
+@pytest.mark.parametrize("door", ["detect", "assign_wyckoff",
+                                  "standardize", "asymmetrize"])
+def test_a_tolerance_spglib_would_crash_on_is_refused(quartz, door, bad):
+    """symprec reaches spglib as a C double and a negative one walked
+    off the end of its neighbour search: `xtal symmetry --symprec -1`
+    took the process down with SIGSEGV and printed nothing. The only
+    guard was in the Find symmetry dialog, so the headless half -- the
+    half meant to be usable from a script -- was the unguarded one."""
+    with pytest.raises(ValueError, match="positive distance"):
+        getattr(symmetry, door)(quartz, bad)
+
+
+def test_a_usable_tolerance_is_still_accepted(quartz):
+    """The guard must not cost anybody an answer they could have had."""
+    assert symmetry.detect(quartz, 1e-5).number == 154
+
+
+def test_finding_a_subgroup_says_which_tolerance_finds_the_group():
+    """Reduce to P1 then Find symmetry on MFU-4l answered Pmmm (#47)
+    with 87 sites where the crystal is Fm-3m (#225) with 10, ok=True
+    and nothing said otherwise -- Pmmm with 87 sites does regenerate
+    the same 648 atoms, so every automatic check passed. The structure
+    would then scan, optimise and save as an orthorhombic crystal."""
+    import pathlib
+    sample = (pathlib.Path(__file__).resolve().parent.parent
+              / "resources" / "samples" / "MFU4l.cif")
+    if not sample.exists():
+        pytest.skip("sample structure not present")
+    from xtal.io import FORMATS
+    flat = symmetry.reduce_to_p1(FORMATS.read(sample))
+    _, report = symmetry.asymmetrize(flat)
+    note = [w for w in report.warnings if "at a tolerance" in w]
+    assert note, report.warnings
+    assert "Fm-3m" in note[0] and "192" in note[0]
+
+
+def test_the_note_offers_the_best_group_not_the_first_one_found():
+    """MFU-4l is P4/mmm at 1e-3 and Fm-3m at 1e-2. Stopping at the
+    first rung that improves would send somebody to the worse of the
+    two and cost them the better."""
+    import pathlib
+    sample = (pathlib.Path(__file__).resolve().parent.parent
+              / "resources" / "samples" / "MFU4l.cif")
+    if not sample.exists():
+        pytest.skip("sample structure not present")
+    from xtal.io import FORMATS
+    flat = symmetry.reduce_to_p1(FORMATS.read(sample))
+    _, report = symmetry.asymmetrize(flat)
+    note = [w for w in report.warnings if "at a tolerance" in w][0]
+    assert "P4/mmm" not in note
+
+
+def test_a_structure_already_at_its_full_symmetry_gets_no_note(quartz):
+    """A note on every answer is a note nobody reads."""
+    flat = symmetry.reduce_to_p1(quartz)
+    _, report = symmetry.asymmetrize(flat)
+    assert not [w for w in report.warnings if "at a tolerance" in w]

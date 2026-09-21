@@ -98,7 +98,63 @@ def read_cif_all(path) -> list[Structure]:
         if not small.sites and not _declares_sites(block):
             continue                    # a metadata-only block
         out.append(_from_small_structure(small, block, path))
+    if not out:
+        macro = _from_macromolecular(path)
+        if macro is not None:
+            out.append(macro)
     return out
+
+
+def _from_macromolecular(path: Path) -> Structure | None:
+    """An mmCIF/PDBx file, read as a crystal.
+
+    The small-molecule and macromolecular halves of a CIF are two
+    different vocabularies -- ``_atom_site_fract_x`` against
+    ``_atom_site.Cartn_x`` -- and gemmi, which this reader already
+    depends on, speaks both.  Only the second is tried, and only when
+    the first found nothing, so an ordinary CIF never reaches it.
+
+    What is kept is what this application is about: the cell, the
+    space group and the atoms.  The chain, residue and entity
+    hierarchy is not represented here and is dropped; the atom's name
+    within its residue becomes the site label, which is what makes a
+    metal site findable afterwards.
+    """
+    try:
+        st = gemmi.read_structure(str(path), merge_chain_parts=False)
+    except Exception:                       # not a coordinate file
+        return None
+    if st.cell.volume <= 0 or not len(st):
+        return None
+    sites = []
+    for model in st:
+        for chain in model:
+            for residue in chain:
+                for atom in residue:
+                    frac = st.cell.fractionalize(atom.pos)
+                    sites.append(Site(
+                        element=atom.element.name,
+                        frac=[frac.x, frac.y, frac.z],
+                        occupancy=float(atom.occ) or 1.0,
+                        label=f"{atom.name}_{residue.seqid.num}",
+                        u_iso=(float(atom.b_iso) / (8.0 * np.pi ** 2)
+                               if atom.b_iso else None)))
+        break                               # the first model only
+    if not sites:
+        return None
+    lattice = Lattice.from_parameters(
+        st.cell.a, st.cell.b, st.cell.c,
+        st.cell.alpha, st.cell.beta, st.cell.gamma)
+    structure = Structure(lattice=lattice, sites=sites)
+    if st.spacegroup_hm:
+        try:
+            structure.space_group = SpaceGroup.from_any(st.spacegroup_hm)
+        except Exception:                   # a setting we cannot name
+            pass
+    structure.meta.update({"title": st.name or path.stem,
+                           "source": str(path), "format": "mmcif"})
+    structure.ensure_labels()
+    return structure
 
 
 def read_cif_string(text: str, name: str = "<string>") -> Structure:

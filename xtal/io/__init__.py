@@ -15,6 +15,7 @@ pattern -- see :mod:`xtal.io.xy` for why registering it would put a
 file in the Open dialog that nothing downstream could accept.
 """
 
+from xtal.io import pmg, poscar
 from xtal.io.cif_reader import read_cif, read_cif_all, read_cif_string
 from xtal.io.cif_writer import cif_string, write_cif
 from xtal.io.cssr import (
@@ -68,6 +69,28 @@ FORMATS.register(Format(
     # A project keeps everything, which is the whole reason it exists.
     keeps=frozenset({"symmetry", "occupancy", "adp", "charges",
                      "bonds", "view"}),
+))
+
+FORMATS.register(Format(
+    name="poscar",
+    description="VASP POSCAR/CONTCAR",
+    extensions=(".poscar", ".vasp"),
+    filenames=poscar.FILENAMES,
+    read=poscar.read_poscar,
+    write=poscar.write_poscar,
+    # No symmetry in the file at all: a POSCAR is P1 by construction.
+    keeps=frozenset(),
+))
+
+FORMATS.register(Format(
+    name="pmg-json",
+    description="pymatgen Structure (JSON)",
+    extensions=(".json",),
+    read=pmg.read_pmg_json,
+    write=pmg.write_pmg_json,
+    # A pymatgen Structure is a list of sites in a cell: it has
+    # nowhere to record a space group, and does carry occupancy.
+    keeps=frozenset({"occupancy"}),
 ))
 
 FORMATS.register(Format(

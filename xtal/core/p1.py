@@ -330,3 +330,42 @@ def parent_frac(structure, cell: P1Cell, frac) -> np.ndarray:
         out[index] = parent_coordinates(structure, cell, first,
                                         frac[first])
     return out
+
+
+def coincident_pairs(structure, tol: float = SPECIAL_POSITION_TOL):
+    """Pairs of atoms in the expanded cell that are the same place.
+
+    A CIF written from a P1 refinement often carries a whole cell's
+    worth of coordinates *and* the space group it was refined in, so
+    expanding it generates every atom two or three times over.  The
+    file is legal and nothing downstream notices: symmetry detection
+    refuses with "too close distance", perception bonds an atom to its
+    own copy, and the force field returns a number for a crystal that
+    is not there.
+
+    ``tol`` is :data:`SPECIAL_POSITION_TOL` for the reason given where
+    that constant is defined -- it is the distance below which this
+    program already considers two atoms to be one.
+    """
+    from xtal.core.neighbors import neighbor_pairs
+    cell = expand(structure)
+    return neighbor_pairs(cell.frac, structure.lattice,
+                          cutoff=float(tol), min_distance=0.0)
+
+
+def coincidence_warning(structure,
+                        tol: float = SPECIAL_POSITION_TOL) -> str | None:
+    """One sentence for a structure whose cell repeats itself, or None.
+
+    Named as the remedy, not the symptom: the user cannot act on "360
+    pairs are coincident", and can act on "Merge Duplicates".
+    """
+    pairs = coincident_pairs(structure, tol)
+    if not len(pairs):
+        return None
+    return (f"{len(pairs)} pairs of atoms in the cell are on top of one "
+            f"another (within {tol:g} A). The file repeats atoms that "
+            f"its own symmetry already generates. Merge Duplicates "
+            f"collapses them; until it is run, symmetry, bonding and "
+            f"any energy are computed for a crystal with the extra "
+            f"copies still in it.")

@@ -29,6 +29,7 @@ the one use left outside.
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 
@@ -246,9 +247,7 @@ class DocumentSet:
         self.window.settings.last_directory = str(path.parent)
         self.window._rebuild_recent_menu()
         self.window.place_in_workspace(document, path)
-        if document.warnings:
-            self.window.statusBar().showMessage(
-                f"opened with {len(document.warnings)} warning(s)", 8000)
+        self._announce_warnings(document)
         return document
 
     def open_sample(self, name: str) -> Document | None:
@@ -301,10 +300,30 @@ class DocumentSet:
         structure.meta["title"] = sample.label
         document = Document(structure)
         self.add_document(document)
-        if document.warnings:
-            self.window.statusBar().showMessage(
-                f"opened with {len(document.warnings)} warning(s)", 8000)
+        self._announce_warnings(document)
         return document
+
+    def _announce_warnings(self, document: Document) -> None:
+        """Say a file opened with warnings, and say what they were.
+
+        The status line used to read "opened with 1 warning(s)" for
+        eight seconds, with no way to reach the sentence it was
+        counting: the Log panel shows a *run* log, and Show Log opens
+        a folder in Finder.  A count nobody can expand is the same as
+        not having said it, so the warning says itself, and the
+        application log keeps the whole of it.
+        """
+        if not document.warnings:
+            return
+        log = logging.getLogger("xtalapp")
+        for warning in document.warnings:
+            log.warning("%s: %s", document.title, warning)
+        first = document.warnings[0]
+        if len(first) > 110:
+            first = first[:109].rsplit(" ", 1)[0] + "..."
+        more = (f" (+{len(document.warnings) - 1} more)"
+                if len(document.warnings) > 1 else "")
+        self.window.statusBar().showMessage(first + more, 15000)
 
     def document_for(self, path) -> Document | None:
         """The open document that came from this file, or ``None``.
