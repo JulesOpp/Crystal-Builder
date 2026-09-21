@@ -114,6 +114,13 @@ PACKAGE_DATA = {
     "xtal/mof/pormake": ["database/topologies/*.cgd",
                          "database/bbs/*.xyz",
                          "LICENSE.md", "PROVENANCE.md"],
+    # Our own four, and they are four files rather than 3271 -- but
+    # they are the only polydentate blocks anybody has, so a bundle
+    # without them is one that cannot build MFU-4l at all.  Named
+    # separately from PORMAKE's because they are ours and travel
+    # under our licence; `xtal.mof.catalog.library_root` is what
+    # looks.
+    "xtal/mof/library": ["blocks/*.xyz"],
 }
 
 #: Imported for their side effect and not for a name, or reached only

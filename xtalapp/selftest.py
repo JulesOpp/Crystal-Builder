@@ -240,8 +240,16 @@ def check_mof_builder(report) -> None:
     covers the database, the vendored code, ``ase``, the SciPy
     relaxation that replaced jax's gradient, and the net
     identification, in about a second.
+
+    Then it builds **MFU-4l** on the same net, out of two of the four
+    blocks this application ships of its own, which the first build
+    cannot cover: those are package data of ``xtal.mof.library`` rather than
+    of the vendored package, they are four files against 3271, and
+    they are the only polydentate blocks there are -- so a bundle
+    that dropped them would pass every check above and still be one
+    that cannot build the material the feature was written for.
     """
-    from xtal.mof import Catalog, database_root, has_ase
+    from xtal.mof import Catalog, database_root, has_ase, library_root
 
     root = database_root()
     if root is None:
@@ -258,11 +266,11 @@ def check_mof_builder(report) -> None:
     catalogue = Catalog.default()
     nets = catalogue.topologies()
     blocks = catalogue.building_blocks()
-    report(f"PORMAKE database: {len(nets)} nets, {len(blocks)} blocks")
+    report(f"MOF catalogue: {len(nets)} nets, {len(blocks)} blocks")
     if len(nets) < 2000 or len(blocks) < 800:
         raise AssertionError(
-            f"the database is short: {len(nets)} nets and "
-            f"{len(blocks)} blocks, against 2403 and 867")
+            f"the catalogue is short: {len(nets)} nets and "
+            f"{len(blocks)} blocks, against 2403 and 871")
 
     from xtal.mof.build import BuildRequest, build
 
@@ -276,6 +284,24 @@ def check_mof_builder(report) -> None:
             f"built pcu and got {outcome.net_name}.  The framework is "
             "wrong, which in a bundle means the vendored PORMAKE or "
             "its database is not what the tests ran against.")
+
+    if library_root() is None:
+        raise AssertionError(
+            "the four polydentate blocks did not come along.  The "
+            "builder has PORMAKE's 867 and cannot build MFU-4l; see "
+            "PACKAGE_DATA in packaging/bundle.py.")
+    with tempfile.TemporaryDirectory(prefix="selftest-mfu4l-") as folder:
+        mfu4l = build(BuildRequest.parse("pcu", "MFU4l_Kuratowski",
+                                         "MFU4l_BTDD"),
+                      folder, catalogue)
+    report(f"MOF builder: MFU-4l, {mfu4l.n_atoms} atoms, "
+           f"{mfu4l.joints} joint(s) bonded")
+    if mfu4l.n_atoms != 81 or mfu4l.joints != 12:
+        raise AssertionError(
+            f"MFU-4l on pcu came out {mfu4l.n_atoms} atoms and "
+            f"{mfu4l.joints} joints, against 81 and 12.  Twelve is "
+            "the bidentate count: six at six would mean the blocks "
+            "arrived with their attachments read as single atoms.")
 
 
 def check_window(report, shot: Path | None) -> None:

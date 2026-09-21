@@ -128,7 +128,7 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
             "xtal.ff.uff", "xtal.ff.dftb", "xtal.ff.xtb",
             "xtal.ff.mace",
             "xtal.modules", "xtal.modules.dftb_runs", "xtal.analysis",
-            "xtal.mof", "xtal.mof.pormake",
+            "xtal.mof", "xtal.mof.pormake", "xtal.mof.library",
             "xtal.build", "xtal.build.data",
             "xtalapp", "xtalapp.viewport", "xtalapp.docks",
             "xtalapp.dialogs", "xtalapp.widgets"]
@@ -157,6 +157,11 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
 # and the record of what was changed travel beside it.
 "xtal.mof.pormake" = ["database/topologies/*.cgd", "database/bbs/*.xyz",
                       "LICENSE.md", "PROVENANCE.md"]
+# The four polydentate blocks this application ships of its own.  Four
+# files, and the only ones anywhere whose connection points stand for
+# more than one atom -- without them the builder has 867 blocks and
+# cannot build MFU-4l.
+"xtal.mof.library" = ["blocks/*.xyz"]
 
 [tool.setuptools_scm]        # version from git tags; no version file to bump
 

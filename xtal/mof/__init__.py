@@ -44,6 +44,13 @@ and means the build can be *checked*: :func:`xtal.analysis.net_of` and
 the RCSR catalogue answer "what did this actually come out as", and a
 build that says **tbo** and produces something that is not tbo says so
 in its own report.
+
+**And four blocks of our own.**  :mod:`xtal.mof.library`, read by
+:meth:`~xtal.mof.catalog.Catalog.default` beside PORMAKE's 867.  Not
+a fifth kind of work so much as the first material the four above
+were written for: every connection point of every one of them stands
+for *two* atoms, which none of PORMAKE's do, and MFU-4l cannot be
+built out of a catalogue where a chelate is one atom.
 """
 
 from xtal.mof.block import (
@@ -70,11 +77,12 @@ from xtal.mof.catalog import (
     database_root,
     has_ase,
     installed,
+    library_root,
 )
 
 __all__ = ["BOND_LETTERS", "BlockError", "BuildRequest",
            "BuildingBlock", "CONNECTION_DISTANCE", "Catalog",
            "MofError", "Slot", "Topology", "block_string", "build",
            "check_net", "database_root", "draw_net", "has_ase",
-           "installed",
+           "installed", "library_root",
            "problems", "pull_in", "write_building_block"]

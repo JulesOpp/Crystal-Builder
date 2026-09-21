@@ -668,8 +668,7 @@ def test_a_line_that_is_not_a_bond_is_skipped_the_way_pormake_skips_it(
 
 
 @needs_database
-def test_only_two_shipped_blocks_read_as_bidentate_and_both_are_wrong(
-        catalog):
+def test_only_two_vendored_blocks_read_as_bidentate_and_both_wrong():
     """Pinned rather than tolerated by a threshold.
 
     ``N484``'s connection point is bonded to a **hydrogen**, and
@@ -681,7 +680,15 @@ def test_only_two_shipped_blocks_read_as_bidentate_and_both_are_wrong(
     fitting a constant to two broken files.  They are named here
     instead, and a third name appearing is a change in the database
     rather than a change in the rules.
+
+    PORMAKE's ``bbs/`` alone, and that is the point of the test
+    rather than a detail of it: the four this application now ships
+    of its own are polydentate *deliberately*, so asking the default
+    catalogue would measure our library and call an upstream data
+    error a feature.
     """
+    catalog = Catalog((), (database_root() / "bbs",))
+
     names = sorted(block.name for block in catalog.building_blocks()
                    if block.is_polydentate)
 

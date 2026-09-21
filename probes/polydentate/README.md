@@ -29,11 +29,17 @@ afterwards, with Phase 6.  It holds the numbers
 [docs/ROADMAP.md](../../docs/ROADMAP.md) § 2 carries under *What
 Phase 6 changed*, and the evidence behind *A repeated net cannot be
 told to flip its neighbours* in [docs/TODO.md](../../docs/TODO.md)
-§ Modules -- both measured on the blocks below, which no test can
-reach until Phase 7 ships them inside the package.
+§ Modules -- both measured on the blocks below.
 
 `blocks/` holds the four blocks cut out of `MFU4l.cif` and
 `NiHITP.cif`, and `nets/hcb.cgd` a honeycomb layer written in
-PORMAKE's own dialect in a 3-D cell.  Both are drafts: the shipped
-versions belong under `xtal/mof/library/` and arrive with their
-phases.
+PORMAKE's own dialect in a 3-D cell.
+
+The four **shipped** with Phase 7 and live at
+`xtal/mof/library/blocks/`, under the names the picker shows:
+`MFU4l_Kuratowski`, `MFU4l_BTDD`, `NiHITP_triphenylene` and
+`NiHITP_NiN4`.  These stay as they are, byte for byte, because
+`mkblocks.py` is the record of how they were cut and the probes above
+read them by the names they were cut under; change a block and change
+it there, not here.  `nets/hcb.cgd` is still a draft and belongs to
+Phase 8.

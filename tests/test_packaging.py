@@ -161,6 +161,30 @@ def test_the_mof_database_is_collected(destinations):
     assert len(collected) == len(nets) + len(blocks)
 
 
+def test_the_four_polydentate_blocks_are_collected(destinations):
+    """The four are what Phases 3 to 6 were built for, and they are
+    the only blocks anywhere whose connection points stand for more
+    than one atom.
+
+    Named one by one rather than counted, which is the opposite of
+    the test above and right for the opposite reason: 3271 files fail
+    by the glob stopping matching, and four fail by one of them being
+    renamed or quietly dropped.  A bundle missing ``MFU4l_BTDD``
+    still builds 867 blocks' worth of framework and cannot build
+    MFU-4l, which reads as the feature never having worked.
+    """
+    root = ROOT / "xtal" / "mof" / "library" / "blocks"
+    for name in ("MFU4l_Kuratowski", "MFU4l_BTDD",
+                 "NiHITP_triphenylene", "NiHITP_NiN4"):
+        path = root / f"{name}.xyz"
+        assert path.is_file()
+        assert path in destinations
+        assert destinations[path] == "xtal/mof/library/blocks"
+
+    collected = {p for p in destinations if p.is_relative_to(root)}
+    assert len(collected) == 4
+
+
 def test_the_vendored_licence_and_provenance_are_collected(
         destinations):
     """Vendoring somebody else's MIT code obliges the notice to travel

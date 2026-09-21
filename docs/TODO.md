@@ -184,6 +184,13 @@ Either way it is only representable on a **repeated** net: `pcu` x
 (1,1,1) has one node slot, so there is nowhere for a second
 orientation to go.
 
+Phase 7 shipped the blocks, so the half of this that *works* is now a
+test rather than a probe:
+`test_mfu4l_builds_with_its_nodes_alternating` in
+`tests/test_mof_targets.py` holds the four-and-four and the 1.838 A
+-> 1.667.  What is still owed is unchanged and is the other half --
+MOF-5, whose `N16` has nothing to score.
+
 ### The .cgd writer has never met Systre
 
 File ▸ Export Net for Systre is checked by reading the file back

@@ -167,9 +167,80 @@ clean diff against upstream 0.2.3.
 | **4 — Joints** | Shipped 2026-09-20; every member of a polydentate end arrives bonded | `xtal/mof/build.py`, `xtal/mof/attach.py`, `xtal/modules/mof.py` | M |
 | **5 — Node orientation** | Shipped 2026-09-20; the discrete tie-break, through `permutations=`, and a net that can be repeated | new `xtal/mof/orient.py`, `xtal/mof/build.py`, `xtal/mof/catalog.py` | M-L |
 | **6 — Linker orientation** | Shipped 2026-09-20; the continuous axial angle, in closed form | `xtal/mof/orient.py`, `xtal/mof/attach.py`, `xtal/mof/build.py` | M |
-| **7 — MFU-4l** | The four blocks shipped; MFU-4l built end to end | new `xtal/mof/library/`, `packaging/bundle.py` | M |
+| **7 — MFU-4l** | Shipped 2026-09-21; the four blocks are package data and MFU-4l builds end to end | new `xtal/mof/library/`, `xtal/mof/catalog.py`, `packaging/bundle.py`, `xtalapp/selftest.py` | M |
 | **8 — Layer nets** | 2-periodic nets with a stacking spacing; Ni-HITP | new `xtal/mof/library/nets/` | M |
 | **9 — Interpenetration** | Generated and verified against `Net.multiplicity()` | new `xtal/analysis/interpenetrate.py` | M-L |
+
+### What Phase 7 changed
+
+The four blocks Phases 3 to 6 were written for are now **package
+data**, and MFU-4l builds out of them without a probe script.  There
+is no new geometry in this phase: every lever it uses shipped in the
+six before it, and what it adds is that they are reachable from a
+menu and from a `.dmg`.
+
+`xtal/mof/library/blocks/` rather than `resources/`, and that is the
+whole of the placement argument: `packaging/bundle.py` collects
+**package data**, so a folder outside a package has to be remembered
+separately every time -- which is exactly how `MIL53.cif` became
+unreachable in a shipped build.  `catalog.library_root()` finds it
+the way `database_root()` finds PORMAKE's, with `find_spec` and never
+an import, and `Catalog.default` reads it **second**: after PORMAKE's
+`bbs/` because ours may replace one of theirs, before the user's own
+folders because a block somebody drew must still win over a block
+they were shipped.  871 blocks where there were 867.
+
+Four things measured rather than assumed:
+
+* **MFU-4l comes out as the crystal's own formula.**  One node and
+  three linkers on `pcu` give 81 atoms, `Zn5Cl4N18C36O6H12` -- which
+  is `_chemical_formula_sum` for one Kuratowski unit, so nothing was
+  lost at a cut and nothing counted twice.  The net reads back as
+  **pcu**, the blocks fit to 2.2e-06 A, the closest non-bonded
+  contact is 2.05 A, and the four chlorides are 2.07 A from four
+  *different* zincs with the central one bare.
+* **Twelve joints, not six.**  The node's six triazolate arms are two
+  carbons each and every one of the twelve arrives bonded, to twelve
+  *distinct* linker carbons.  Six would be PORMAKE's one-bond-per-joint
+  and no later perception recovers it: the carbons left over are 1.5 A
+  apart with nothing between them.
+* **`consistent` alternates the nodes, and only on a repeated cell.**
+  Every edge of `pcu` joins a node to an image of itself, so on the
+  single cell the discrete rule has nothing to choose between and
+  `as-found` and `consistent` build the same file.  Repeat it and the
+  eight slots are eight choices: the signed volume of each cluster's
+  four zinc directions is **-0.77 eight times** as found and **four
+  and four** under the rule, which is MOF-5's own +-0.770 measured on
+  MFU-4l's node.  96 joints either way, longest **1.838 A -> 1.667**,
+  the fit untouched.  That is the same number *A repeated net cannot
+  be told to flip its neighbours* in [docs/TODO.md](TODO.md) § Modules
+  reports, now reachable from a test rather than from a probe.
+* **One picker default moved, and nothing else in the UI did.**  A
+  6-connected node slot offered `N101` first and now offers
+  `MFU4l_Kuratowski`: the rows are metals first and then by name, and
+  `M` sorts before `N`.  The 2- and 3-connected defaults are
+  unchanged (`E103` and `N117` both sort ahead of `NiHITP_*`), and a
+  returning user sees what they picked last time either way.
+
+Ni3(HITP)2's two blocks ship here and are **not built** here: they
+want a layer net with a stacking spacing, which is Phase 8.  What
+this phase says about them is that they read back off disk bidentate
+at all three and both points respectively, which is the property no
+file format records and no other check would catch.
+
+`xtalapp/selftest.py` builds MFU-4l after `pcu-N59-E32` for the
+reason the first build exists at all: four files against 3271 travel
+by a different `PACKAGE_DATA` entry, and a bundle that dropped them
+passes every other check and cannot build the material the feature
+was written for.
+
+One test from Phase 3 changed.
+`test_only_two_shipped_blocks_read_as_bidentate_and_both_are_wrong`
+asked the *default* catalogue which blocks read as polydentate and
+named `N484` and `N684`, two upstream data errors.  Ours are
+polydentate deliberately, so the question is now put to PORMAKE's
+`bbs/` alone and the test is
+`test_only_two_vendored_blocks_read_as_bidentate_and_both_wrong`.
 
 ### What Phase 6 changed
 

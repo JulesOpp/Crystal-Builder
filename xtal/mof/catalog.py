@@ -127,6 +127,26 @@ def database_root() -> Path | None:
     return root if root.is_dir() else None
 
 
+def library_root() -> Path | None:
+    """Our own ``blocks/``, the four that are polydentate, or ``None``.
+
+    Found the same way and for the same reason as
+    :func:`database_root`: ``find_spec`` reads the location off the
+    path and stops, where importing :mod:`xtal.mof.library` to ask
+    where it is would cost the import.  ``None`` where the folder did
+    not travel, which is a smaller catalogue and never a failure --
+    the builder has PORMAKE's 867 either way.
+    """
+    try:
+        spec = importlib.util.find_spec("xtal.mof.library")
+    except (ImportError, ValueError):           # pragma: no cover
+        return None
+    if spec is None or not spec.submodule_search_locations:
+        return None
+    root = Path(list(spec.submodule_search_locations)[0]) / "blocks"
+    return root if root.is_dir() else None
+
+
 # ======================================================================
 #  A BUILDING BLOCK
 # ======================================================================
@@ -631,10 +651,19 @@ class Catalog:
         same reason ``bb_dir`` comes after PORMAKE's: a file in a
         later directory replaces one of the same name in an earlier
         one, so a block you drew wins over a block you were shipped.
+
+        :func:`library_root` goes in second, between the two, and
+        that is where it belongs rather than an accident of writing:
+        our four are shipped, so a folder of the user's own must
+        still win over them, and they are ours, so they may replace
+        one of PORMAKE's.
         """
         root = database_root()
+        ours = library_root()
         topologies = [root / "topologies"] if root else []
         blocks = [root / "bbs"] if root else []
+        if ours:
+            blocks.append(ours)
         if topology_dir:
             topologies.append(Path(topology_dir).expanduser())
         if bb_dir:
