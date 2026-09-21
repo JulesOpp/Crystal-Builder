@@ -169,7 +169,98 @@ clean diff against upstream 0.2.3.
 | **6 — Linker orientation** | Shipped 2026-09-20; the continuous axial angle, in closed form | `xtal/mof/orient.py`, `xtal/mof/attach.py`, `xtal/mof/build.py` | M |
 | **7 — MFU-4l** | Shipped 2026-09-21; the four blocks are package data and MFU-4l builds end to end | new `xtal/mof/library/`, `xtal/mof/catalog.py`, `packaging/bundle.py`, `xtalapp/selftest.py` | M |
 | **8 — Layer nets** | Shipped 2026-09-21; `hcb`, `sql` and `kgm` stacked at a spacing and offset after the build, and Ni3(HITP)2 builds | new `xtal/mof/library/nets/`, new `xtal/mof/layers.py`, `xtal/mof/build.py`, `xtal/modules/mof.py`, `xtalapp/dialogs/mof_build.py` | M |
-| **9 — Interpenetration** | Generated and verified against `Net.multiplicity()` | new `xtal/analysis/interpenetrate.py` | M-L |
+| **9 — Interpenetration** | Shipped 2026-09-21; generated, and verified against `Net.multiplicity()`, from a Structure-menu dialog and a build parameter | new `xtal/analysis/interpenetrate.py`, new `xtal/commands/interpenetrate.py`, new `xtalapp/dialogs/interpenetrate.py`, `xtal/mof/build.py`, `xtal/modules/mof.py` | M-L |
+
+### What Phase 9 changed
+
+One routine, two doors.  `xtal/analysis/interpenetrate.py` does the
+work; **Structure ▸ Interpenetrate…** lists every placement it found
+and applies the chosen one as one undo step
+(`xtal/commands/interpenetrate.Interpenetrate`, through
+`Document.operate`); the MOF builder's `interpenetration` parameter
+(a spinbox in *How it is built*, `pcu-2fold-N59-E32` in the title)
+takes the one with the most room after the joints are bonded and the
+net drawn.
+
+**Enumerated, not theorised**, as the plan's correction 2 said.
+Class Ia: the Hermite forms of determinant *n* give every index-*n*
+superlattice of the structure's lattice, and their coset
+representatives are where the copies sit -- seven at two-fold,
+thirteen at three-fold.  Class II, at two-fold: inversion through each
+eighth-cell point.  Rows that a symmetry of the structure carries onto
+each other are one row, and **that symmetry is detected** with spglib
+on the P1 cell rather than read off the label, because a framework
+straight out of the builder is labelled P1 and is cubic: the seven
+half-vectors of a primitive cube come back as three rows, body, edge
+and face.
+
+**The plan's Class II was the wrong half.**  It named "supergroup
+relations `subgroups.py` can supply", and there are none to supply --
+that module goes down, not up.  What it missed is the case that
+matters: **MOF-5 finds nothing among the half-vectors.**  In its
+F-centred cell each one is either a centring or puts a node on a
+node (0.00 A).  Its real second copy is a quarter of the cell along
+the body diagonal, which has order four modulo the lattice and so is
+not Class Ia at two-fold at all; it is the inversion through
+(1/8, 1/8, 1/8), and for a centrosymmetric framework that inversion
+*is* the translation by twice the point less the framework's own
+centre.  So the inversion rows are offered as the translation they
+amount to, labelled Class II.  Measured:
+
+| Structure | Best 2-fold placement | Closest contact between copies |
+|---|---|--:|
+| hand-made pcu, a = 4 A | translation 1/2, 1/2, 1/2 (Ia) | 3.46 A |
+| MOF-5 (`resources/samples`) | translation 1/4, 1/4, 1/4 (II) | 3.45 A, H...H |
+| MFU-4l on `pcu`, built | translation 1/2, 1/2, 1/2 (Ia) | 4.83 A |
+| MFU-4l (`resources/samples`, Fm-3m) | refused: Cl...Cl 2.02 A | -- |
+| quartz | refused: O...O 1.31 A | -- |
+| halite | refused: Na...Na 2.44 A, 0.00 on the half-vectors | -- |
+| dry ice | refused: only molecules | -- |
+
+MOF-5's candidate list is 0.4 s on the UI thread, with a wait cursor.
+
+**A collision is the bond rules' own criterion, with a floor.**  A
+cross-copy pair Recalculate Bonds would join has fused the copies,
+and the count of copies would then be wrong; that is the first test.
+It lets two hydrogens sit 0.7 A apart, so `MIN_CONTACT` = 1.5 A is
+the second, below every sample framework's closest non-bonded contact
+(1.996-2.170) and below the 1.66 of a misfit build.  A collision is
+refused **by name** -- *puts Na1 of one copy 2.44 A from Na2 of
+another* -- and the dialog keeps such rows, greyed, so a dense
+framework says why it offers nothing.  A pair the rules never bond
+(two sodiums) is worded as "closer than a bond between the two would
+be" rather than blaming Recalculate Bonds.
+
+**The copies carry what the original had, and nothing is
+perceived.**  The structure is perceived once, reduced to P1 with the
+graph carried (`reduce_to_p1`), and each copy takes the explicit
+bonds, the stored perceived graph and the drawn net with its images
+moved through `R` and the wrap.  MOF-5's 512 perceived bonds become
+1024, and a fresh perception of the array finds exactly those.
+
+**The detector is the check.**  The array is refused unless
+`interpenetrate.copies` -- `Net.multiplicity()` summed over the
+components of the chemical graph, and separately over the drawn net
+-- counts *n* times the original.  The plan wrote
+`net_of(result).multiplicity() == n`; in the cell the array is
+written in, the copies are separate components of the quotient graph
+and each has multiplicity one, so the count is the **sum**, which is
+also what `NetReport.copies` already computes.  The RCSR report reads
+a 2-fold build as *2-fold interpenetrated pcu*, and the build's
+verdict now says so -- `net_agrees` also asks for the number of
+copies that was requested.
+
+**Same cell, P1, and no `Change.CELL`.**  The plan expected a Class
+Ia offset to need a larger cell; it does not, because the offset has
+order *n* modulo the structure's lattice and every copy is whole in
+the cell it had.  The array's own smaller lattice is a symmetry on
+top, which Find Symmetry looks for.  `TOPOLOGY | SYMMETRY`, the flags
+Reduce to P1 uses, and `TOPOLOGY` drops a pore network as it should.
+
+Not done: n > 2 is Class Ia only (the 3-fold rotations that relate
+Class II copies are not enumerated), and inversion centres off the
+eighth-cell grid are not sampled -- both would be rows, not a new
+mechanism.  No test is marked slow: the whole file is 4 s.
 
 ### What Phase 8 changed
 

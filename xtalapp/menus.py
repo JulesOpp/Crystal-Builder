@@ -277,6 +277,12 @@ def build_actions(window):
             "-- into the empty space of this structure, each where it "
             "touches nothing.  A host with symmetry is reduced to P1 "
             "first, and bonds are not recalculated")
+    add("interpenetrate", "Interpe&netrate...",
+        window.interpenetrate_dialog,
+        tip="Thread copies of this framework through its own pores: "
+            "every placement the lattice allows is measured, and one "
+            "where atoms of two copies would meet cannot be chosen.  "
+            "The copies keep their bonds, and the result is in P1")
     add("insert_molecule", "&Insert molecule...",
         window.insert_molecule_dialog, tip=INSERT_MOLECULE_TIP)
     add("save_building_block", "Save as a &building block...",
@@ -541,6 +547,7 @@ def build_menus(window):
     window.actions_.fill_menu(structure_menu, [
         "add_atom_dialog", "add_centroid", "merge_atoms",
         "add_hydrogens", "insert_molecule", "fill_pores",
+        "interpenetrate",
         "mark_connection_points", "mark_one_connection_point", None,
         "bond_rules", "recompute_bonds", "reset_bonds",
         "bonds_follow"])

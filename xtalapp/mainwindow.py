@@ -53,6 +53,7 @@ from xtalapp.dialogs.display_range import DisplayRangeDialog
 from xtalapp.dialogs.fill_pores import FillPoresDialog
 from xtalapp.dialogs.find_symmetry import FindSymmetryDialog
 from xtalapp.dialogs.help import HelpWindow
+from xtalapp.dialogs.interpenetrate import InterpenetrateDialog
 from xtalapp.dialogs.merge_duplicates import MergeDuplicatesDialog
 from xtalapp.dialogs.spacegroup import SpaceGroupDialog
 from xtalapp.dialogs.subgroup import SubgroupDialog
@@ -1135,6 +1136,11 @@ class MainWindow(QMainWindow):
         if message:
             self.statusBar().showMessage(message, 8000)
 
+    def interpenetrate_dialog(self) -> None:
+        document = self.current_document()
+        if document is not None:
+            self._report(InterpenetrateDialog.ask(document, self))
+
     def supercell_dialog(self) -> None:
         document = self.current_document()
         if document is not None:
@@ -1509,7 +1515,7 @@ class MainWindow(QMainWindow):
         editable = has_document and not document.is_playing
         self.actions_.set_enabled(
             ["reduce_p1", "paste", "add_atom_dialog", "add_hydrogens",
-             "fill_pores",
+             "fill_pores", "interpenetrate",
              "find_symmetry", "set_space_group", "standardize",
              "primitive", "wyckoff", "merge_duplicates", "subgroup",
              "invert", "supercell",

@@ -66,6 +66,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QPushButton,
     QScrollArea,
+    QSpinBox,
     QSplitter,
     QVBoxLayout,
     QWidget,
@@ -97,6 +98,8 @@ NO_LINKER = "(none -- join the nodes directly)"
 _ORIENTATIONS = next(p for p in PARAMS if p.name == "orientation")
 _SPACING = next(p for p in PARAMS if p.name == "spacing")
 _OFFSET = next(p for p in PARAMS if p.name == "offset")
+_INTERPENETRATION = next(p for p in PARAMS
+                         if p.name == "interpenetration")
 
 
 class MofBuildDialog(QDialog):
@@ -212,12 +215,21 @@ class MofBuildDialog(QDialog):
         self.offset.setPlaceholderText("0, 0")
         self.offset.setToolTip(_OFFSET.help)
 
+        self.interpenetration = QSpinBox(self)
+        self.interpenetration.setRange(int(_INTERPENETRATION.minimum),
+                                       int(_INTERPENETRATION.maximum))
+        self.interpenetration.setValue(1)
+        self.interpenetration.setSpecialValueText("none")
+        self.interpenetration.setSuffix("-fold")
+        self.interpenetration.setToolTip(_INTERPENETRATION.help)
+
         how = QGroupBox("How it is built", self)
         form = QFormLayout(how)
         form.addRow("Repeat the net", self.repeat)
         form.addRow("Node orientation", self.orientation)
         form.addRow("Layer spacing (A)", self.spacing)
         form.addRow("Stacking offset", self.offset)
+        form.addRow("Interpenetration", self.interpenetration)
 
         folders = QGroupBox("Your own topologies and building blocks",
                             self)
@@ -441,6 +453,11 @@ class MofBuildDialog(QDialog):
         self.repeat.setText(str(given.get("repeat") or ""))
         self.spacing.setText(str(given.get("spacing") or ""))
         self.offset.setText(str(given.get("offset") or ""))
+        try:
+            fold = int(given.get("interpenetration") or 1)
+        except (TypeError, ValueError):
+            fold = 1
+        self.interpenetration.setValue(fold)
         wanted_rule = str(given.get("orientation") or "")
         at = self.orientation.findData(wanted_rule)
         self.orientation.setCurrentIndex(max(at, 0))
@@ -472,6 +489,7 @@ class MofBuildDialog(QDialog):
             "edges": ",".join(edges),
             "repeat": self.repeat.text().strip() or "1x1x1",
             "orientation": self.orientation.currentData(),
+            "interpenetration": self.interpenetration.value(),
             # Only for a layer net, so that a spacing typed while hcb
             # was selected does not follow the user to pcu and get
             # the build refused for a box they can no longer edit.

@@ -115,12 +115,17 @@ class BuildRequest:
     #: net's own *a* and *b*, or ``None`` for eclipsed.  Refused on a
     #: 3-periodic net for the same reason.
     offset: tuple[float, float] | None = None
+    #: How many copies of the framework, threaded through one another.
+    #: 1 is the framework alone.  Placed after the build by
+    #: :func:`xtal.analysis.interpenetrate.best` -- the placement with
+    #: the most room -- and refused, by name, when none has any.
+    interpenetration: int = 1
 
     @classmethod
     def parse(cls, topology: str, nodes: str, edges: str,
               repeat: str = "", orientation: str = "",
-              spacing: str = "", offset: str = ""
-              ) -> BuildRequest:
+              spacing: str = "", offset: str = "",
+              interpenetration="") -> BuildRequest:
         """The strings a parameter form and a command line both hand
         over.
 
@@ -135,7 +140,8 @@ class BuildRequest:
         or empty for the net as it stands.  ``spacing`` is a length in
         Angstrom and ``offset`` two fractions, ``"1/3, 2/3"``; both
         empty is a layer stacked eclipsed at the default spacing, and
-        a 3-periodic net built as it always was.
+        a 3-periodic net built as it always was.  ``interpenetration``
+        is a count of copies, empty or 1 for the framework alone.
         """
         topology = str(topology or "").strip()
         if not topology:
@@ -145,7 +151,8 @@ class BuildRequest:
                    _assignments(edges, _edge_key, "edge"),
                    _repeat(repeat),
                    str(orientation or "").strip() or "as-found",
-                   _spacing(spacing), _offset(offset))
+                   _spacing(spacing), _offset(offset),
+                   _interpenetration(interpenetration))
 
     def spelled(self) -> tuple[str, str, str]:
         """Back to the three strings, for a log and for a saved set.
@@ -171,6 +178,8 @@ class BuildRequest:
         parts = [self.topology]
         if self.repeat != (1, 1, 1):
             parts.append("x".join(str(n) for n in self.repeat))
+        if self.interpenetration > 1:
+            parts.append(f"{self.interpenetration}fold")
         parts += [self.nodes[k] for k in _ordered(self.nodes)]
         parts += [self.edges[k] for k in _ordered(self.edges)]
         return "-".join(p for p in parts if p)
@@ -323,6 +332,27 @@ def _offset(text) -> tuple[float, float] | None:
     return (values[0], values[1])
 
 
+def _interpenetration(text) -> int:
+    """A count of copies: empty and 1 are the framework alone."""
+    from xtal.analysis.interpenetrate import MAX_FOLD
+
+    text = str(text if text is not None else "").strip().lower()
+    for suffix in ("-fold", "fold"):
+        if text.endswith(suffix):
+            text = text[:-len(suffix)].strip()
+    if not text:
+        return 1
+    try:
+        value = int(float(text))
+    except ValueError:
+        value = 0
+    if value < 1 or value > MAX_FOLD or value != float(text):
+        raise MofError(
+            f"{text!r} is not a number of interpenetrating copies -- "
+            f"1 for the framework alone, up to {MAX_FOLD}")
+    return value
+
+
 def _node_key(text: str) -> int:
     return int(text)
 
@@ -385,8 +415,15 @@ class BuildOutcome:
 
     @property
     def net_agrees(self) -> bool:
-        """Whether what came out is the net that was asked for."""
-        return bool(self.net_name) and self.net_name == self.asked
+        """Whether what came out is the net that was asked for --
+        and in as many copies as were asked for."""
+        return (bool(self.net_name) and self.net_name == self.asked
+                and self.copies == self.request.interpenetration)
+
+    @property
+    def copies(self) -> int:
+        """How many interpenetrating copies the drawn net reads as."""
+        return max(int(getattr(self.identified, "copies", 1) or 1), 1)
 
     def verdict(self) -> str:
         """One line: what was measured, and nothing that was not.
@@ -403,8 +440,16 @@ class BuildOutcome:
         """
         if not self.identified:
             head = "the net could not be read back off the framework"
+        elif self.net_agrees and self.copies > 1:
+            head = (f"the framework is {self.identified.headline()}, "
+                    f"as asked")
         elif self.net_agrees:
             head = f"the framework is {self.asked}, as asked"
+        elif self.net_name == self.asked:
+            asked = self.request.interpenetration
+            head = (f"asked for {asked} "
+                    f"cop{'y' if asked == 1 else 'ies'} of {self.asked} "
+                    f"and built {self.identified.headline()}")
         elif not self.net_name:
             head = (f"asked for {self.asked}; what was built is "
                     f"{self.identified.headline()}")
@@ -490,9 +535,42 @@ def build(request: BuildRequest, directory, catalog: Catalog | None
     # database.  A status bar that has gone quiet for thirty seconds
     # should say what it is doing.
     _say(log, f"drew {drawn} net edge(s); identifying what came out")
+    if request.interpenetration > 1:
+        structure = _interpenetrate(outcome, request.interpenetration,
+                                    log)
     outcome.identified = check_net(structure)
     _say(log, outcome.verdict())
     return outcome
+
+
+def _interpenetrate(outcome: BuildOutcome, n: int, log):
+    """Thread ``n`` copies of the built framework through each other.
+
+    After the joints are bonded and the net is drawn, because the
+    copies carry what the framework has and nothing is perceived
+    afterwards: a copy with its joints unbonded would stay unbonded.
+    The placement is the one with the most room; the Interpenetrate
+    dialog is where somebody picks another.
+    """
+    from xtal.analysis import interpenetrate
+
+    try:
+        placement = interpenetrate.best(outcome.structure, n)
+        array, placement = interpenetrate.build(outcome.structure,
+                                                placement)
+    except interpenetrate.InterpenetrationError as exc:
+        raise MofError(
+            f"the framework was built and cannot be interpenetrated "
+            f"{n}-fold: {exc}") from None
+    array.meta.update(outcome.structure.meta)
+    _say(log, f"interpenetrated {n}-fold by {placement.name} "
+              f"({placement.relation}); closest contact between "
+              f"copies {placement.contact_text()}")
+    outcome.structure = array
+    outcome.n_atoms = array.n_sites
+    outcome.joints *= n
+    outcome.closest = closest_contact(array)
+    return array
 
 
 def _stack(framework, request: BuildRequest, log) -> None:

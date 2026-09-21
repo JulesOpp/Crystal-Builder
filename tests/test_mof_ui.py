@@ -780,3 +780,14 @@ def test_a_new_topology_starts_from_the_default_view(dialog):
     assert dialog._select("dia")
 
     assert np.allclose(dialog.net_preview.rotation, DEFAULT_ROTATION)
+
+
+@needs_database
+def test_the_interpenetration_row_hands_back_a_count(dialog):
+    """1 is shown as "none" and handed on as 1, which is the framework
+    alone; the run parses the number, so the spinbox and a command
+    line spell it the same way."""
+    assert dialog.interpenetration.text() == "none"
+    assert dialog.values()["interpenetration"] == 1
+    dialog.interpenetration.setValue(2)
+    assert dialog.values()["interpenetration"] == 2

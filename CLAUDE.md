@@ -333,6 +333,23 @@ stress case).
   sheets' *mean planes* one spacing apart. A layer is known by its
   graph (`Topology.is_layer`), and a spacing or offset given for a
   3-periodic net is refused, never ignored.
+- **An interpenetrated framework carries the bonds its copies had,
+  and the detector says whether it worked.**
+  `xtal/analysis/interpenetrate.py` enumerates rather than theorises
+  (there is no topological test for which nets self-interpenetrate):
+  Class Ia translations from the index-*n* superlattices of the
+  structure's lattice, and at two-fold the Class II inversions
+  through eighth-cell points -- which for a centrosymmetric framework
+  are translations, and are how 2-fold MOF-5 is found at ¼,¼,¼,
+  which no half-vector of its F cell reaches. Rows a *detected*
+  symmetry relates are one row. Each is scored by the closest contact
+  between copies; one closer than the bond rules' criterion or
+  `MIN_CONTACT` is refused by name. Copies carry explicit bonds, the
+  stored perceived graph and the drawn net -- nothing is perceived --
+  and the array is refused unless `copies()` (the sum of
+  `Net.multiplicity` over components) counts *n* times the original.
+  Same cell, P1. Two doors: Structure ▸ Interpenetrate… and the MOF
+  builder's `interpenetration`.
 - **The workspace is asked for before anything opens, and everything
   lives in it.** `WorkspaceChooser` runs in `xtalapp/main.py` *before*
   `MainWindow` is built — recent workspaces listed, the last one

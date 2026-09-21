@@ -55,6 +55,7 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
+from xtal.analysis.interpenetrate import MAX_FOLD
 from xtal.modules.job import JobResult
 from xtal.modules.registry import (
     MODULES,
@@ -157,6 +158,14 @@ PARAMS = (
                "'0.5, 0'.  Left empty the sheets are eclipsed, one "
                "directly over the next.  Layer nets only, like the "
                "spacing."),
+    Param("interpenetration", "Interpenetration", kind="int",
+          default=1, minimum=1, maximum=MAX_FOLD,
+          help="How many copies of the framework, threaded through "
+               "one another -- 2 for two-fold.  The copies go where "
+               "the most room is, measured by the closest contact "
+               "between them, and a framework too dense for any "
+               "placement is refused rather than built crowded.  "
+               "Structure > Interpenetrate lists every placement."),
     Param("topology_dir", "Extra topologies", kind="path",
           help="A folder of your own .cgd nets, read alongside the "
                "ones PORMAKE ships"),
@@ -235,7 +244,8 @@ def build_framework(job) -> JobResult:
                                      job.param("repeat", ""),
                                      job.param("orientation", ""),
                                      job.param("spacing", ""),
-                                     job.param("offset", ""))
+                                     job.param("offset", ""),
+                                     job.param("interpenetration", 1))
         job.say(f"PORMAKE: building {request.title()}")
         job.check()
         # ``say`` for our own five lines, ``note`` for PORMAKE's
@@ -282,6 +292,11 @@ def _report(outcome) -> Report:
                 str(n) for n in outcome.request.repeat), "",
                 "how many times the net was tiled before anything "
                 "was placed on it"),
+            Row("Interpenetration",
+                f"{outcome.request.interpenetration}-fold"
+                if outcome.request.interpenetration > 1 else "none",
+                "", "how many copies of the framework thread through "
+                    "one another"),
             Row("Node orientation", outcome.request.orientation, "",
                 "which way round a symmetric node was turned -- see "
                 "the MOF builder's own settings"),

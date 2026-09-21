@@ -34,6 +34,7 @@ from xtal.commands import atoms as atom_commands
 from xtal.commands import bonds as bond_commands
 from xtal.commands import cell as cell_commands
 from xtal.commands import connections as connection_commands
+from xtal.commands import interpenetrate as interpenetrate_commands
 from xtal.commands import symmetry as symmetry_commands
 from xtal.commands.clipboard import (
     Fragment,
@@ -1494,6 +1495,23 @@ class Document(QObject):
     def descend_to_subgroup(self, subgroup):
         return self.operate(
             symmetry_commands.DescendToSubgroup(subgroup))
+
+    def interpenetration_candidates(self, n: int):
+        """Where ``n`` copies of this framework could go, best first.
+
+        Read-only, so the dialog can follow the fold spinbox.  Raises
+        :class:`~xtal.analysis.interpenetrate.InterpenetrationError`
+        for a structure with nothing periodic to interpenetrate.
+        """
+        from xtal.analysis import interpenetrate
+        return interpenetrate.candidates(self._structure, n)
+
+    def interpenetrate(self, placement):
+        """Add the copies a placement names, as one undo step; returns
+        the report, which is ``ok=False`` with the reason when the
+        placement collides."""
+        return self.operate(
+            interpenetrate_commands.Interpenetrate(placement))
 
     def make_supercell(self, na: int, nb: int, nc: int):
         return self.operate(cell_commands.Supercell(na, nb, nc))
