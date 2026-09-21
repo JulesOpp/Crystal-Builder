@@ -797,7 +797,99 @@ have killed the design did not.
 
 ---
 
-## 3. What this plan does not do
+## 3. MOF-5 from the builder: the face rule
+
+Planned 2026-09-21 on `features/mof-polydentate`, for
+[docs/TODO.md](TODO.md) § *A repeated net cannot be told to flip its
+neighbours*.  The full plan, with every measurement, is
+`~/.claude/plans/mof-face-rule.md`.  `pcu` x 2x2x2 on `N16` / `E14`
+builds MOF-5's 424 atoms with all eight Zn4O the same way round; the
+sample alternates, four and four.
+
+**Why**: across every linker the two carboxylates are coplanar in the
+sample (0 degrees x 24) and turned a quarter turn in the build (90 x
+24), because a Td node's opposite carboxylates are perpendicular.
+**The rule**: a connection point standing for one atom presents a
+*face* -- the plane of that atom and its two other neighbours
+(carboxylate on N16, ring on E14) -- and `consistent` scores it with
+the `pair_cost` it already has.  Monkeypatched prototype: joints 24.0
+-> 0.000000, parity four and four, rings flat on all 48 carboxylates,
+**0.10 A RMS** onto `resources/samples/MOF-5.cif` (1.18 today), 2.1 s.
+
+**Decided with Julius**: `consistent` becomes the default; faces feed
+the linker spin only under `consistent`.  That reverses the CLAUDE.md
+invariant *Which way round a symmetric node goes*, rewritten in
+Phase 3.
+
+| Phase | Delivers | Main files | Size |
+|---|---|---|---|
+| **0 — Clean tree** | The MOF dialog work left uncommitted (name search, denticity boxes, folding sections) committed on its own | `xtalapp/dialogs/mof_build.py`, `xtal/mof/catalog.py` | S |
+| **1 — A safe, fast search** | A slot whose fit is outside its tie set is pinned; a second pass that fits worse is discarded; descent scores only the moved slot's edges | `xtal/mof/orient.py`, `xtal/mof/build.py` | M |
+| **2 — Faces** | `attach.face_of`, `attach.presents_face`; MOF-5 builds under `consistent`, default still `as-found` | `xtal/mof/attach.py`, `xtal/mof/orient.py`, `xtal/mof/build.py` | M |
+| **3 — `consistent` by default** | The default flips; "Joint twist left" in the results; upstream comparison pinned to `as-found` | `xtal/mof/build.py`, `xtal/modules/mof.py`, `xtal/mof/orient.py`, `xtalapp/dialogs/mof_build.py` | S-M |
+
+### Phase 1 — A safe, fast search
+
+Latent bugs in the shipped `consistent` rule, measured over 24 builds
+of a 17-net spread, and all three must go before it can be a default:
+
+* `orient._start` assumes the fit's own permutation is in its tie set
+  ("in practice it does not happen").  On `cds`/N307/E3 it is not, so
+  the build changes at **equal cost** (joint 3.49 -> 2.54 A).  Pin
+  such a slot to the fit.
+* Nothing compares pass 2 with pass 1: `nbo`/N466/E14 fits **worse**,
+  max RMSD 0.562 -> 0.973.  Keep pass 1 when pass 2's `max_rmsd`
+  exceeds it by more than `orient.FIT_SLACK`, measured from the
+  rebuild noise of unchanged orientations.
+* `_Score.cost` is 54 of 72 s on `dia`/N194/E1 2x2x2 (1290 calls x 256
+  edges).  Cache attachments; `_descend` and `_better` score a delta
+  over the moved slot's edges.
+* Tests: `test_a_slot_whose_fit_is_outside_its_tie_set_keeps_the_fit`,
+  `test_a_second_pass_that_fits_worse_is_thrown_away`,
+  `test_descending_scores_only_the_edges_it_moved`; MFU-4l's
+  48.0 -> 0.0 and 1.667 A unchanged.
+
+### Phase 2 — Faces
+
+* `attach.face_of`: where the atom a single-atom point hangs off has
+  exactly two neighbours that are not connection points, two virtual
+  members at +-*w* either side of it, *w* in its plane and across the
+  atom->X bond.  **Where the X was written plays no part**: 2045 of
+  the 3899 shipped faces have it off the plane.  One or three-plus
+  neighbours present none (linear; free rotor).
+* **A face is scored, never bonded**: never in `members_of`, so MOF-5
+  keeps 48 joints.
+* `attach.presents_face` replaces `build._is_polydentate`, the guard
+  in `choose_permutations` and the check in `orient._turnable`.
+* Tests: a `mof5` fixture in `tests/test_mof_targets.py` --
+  `test_mof5_builds_with_its_nodes_alternating`,
+  `test_every_mof5_linker_lies_flat_against_both_ends`,
+  `test_mof5_overlays_the_sample_to_a_fifth_of_an_angstrom`,
+  `test_mof5_has_the_joints_it_had`; synthetic ones in
+  `test_mof_orientation.py` for the face's plane, a tilted X, linear
+  and tetrahedral points, and `as-found` unchanged.
+
+### Phase 3 — `consistent` by default
+
+* `BuildRequest`, `parse` and the `orientation` `Param` default to
+  `consistent`; `orient.RULES` reordered; help text rewritten.  Keys
+  unchanged.
+* The dialog's "How it is built" section opens when the orientation
+  is not the *first* choice (`max(at, 0) > 0` in
+  `MofBuildDialog._restore`); that must compare with the default once
+  the choices are reordered.
+* Results gain "Joint twist left": 0 over 24 for MOF-5, 6.0 over 3 for
+  `pcu` x 1x1x1, which has one slot and no room to alternate.
+* `test_a_vendored_build_is_the_framework_upstream_builds` pins
+  `as-found`; tests that assumed the old default spell it out.
+* Re-run the 52-build spread with room in memory and record how many
+  moved and the time ratio here.
+* Docs: delete the TODO entry; rewrite the two orientation invariants
+  in CLAUDE.md and add *A face is read, never bonded*.
+
+---
+
+## 4. What this plan does not do
 
 * It does not touch the design principles in
   [docs/PLAN.md](PLAN.md) § 1.  Every phase keeps the core Qt-free,
