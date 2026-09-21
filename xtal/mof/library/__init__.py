@@ -10,7 +10,11 @@ package has to be remembered separately every time.
 by the gesture *Mark as one connection point* -- every connection
 point of every one of them stands for **two** atoms, which is what
 none of PORMAKE's own do and what the whole of Phases 3 to 6 is
-about.  There is no code here; :func:`xtal.mof.catalog.library_root`
-finds the folder the way :func:`~xtal.mof.catalog.database_root`
-finds PORMAKE's, with ``find_spec`` and never an import.
+about -- and their relatives, written by script in the same shape:
+the acene and triptycene triazolates that meet MFU-4l's kernel, bare
+C6 cores for Cu3(hhb)2 and Cu3(hhb), and a CuS4 beside the CuO4.
+``nets/`` holds the layer nets PORMAKE has none of.  There is no code
+here; :func:`xtal.mof.catalog.library_root` finds the folder the way
+:func:`~xtal.mof.catalog.database_root` finds PORMAKE's, with
+``find_spec`` and never an import.
 """

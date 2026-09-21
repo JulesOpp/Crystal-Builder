@@ -855,6 +855,74 @@ def test_switching_topology_keeps_the_denticity_applied(dialog):
                    for name in _offered(row))
 
 
+def _listed(dialog) -> set:
+    from PySide6.QtCore import Qt
+
+    items = (dialog.topologies.item(i)
+             for i in range(dialog.topologies.count()))
+    return {item.data(Qt.UserRole) for item in items
+            if not item.isHidden()}
+
+
+@needs_database
+def test_the_dimension_boxes_offer_3d_nets_2d_nets_or_both(dialog):
+    """hcb is a layer and pcu is not, and each box alone lists only
+    its own kind -- the denticity boxes' rule, asked of the nets."""
+    both = _listed(dialog)
+    dialog.three_d.setChecked(False)
+    layers = _listed(dialog)
+    dialog.three_d.setChecked(True)
+    dialog.two_d.setChecked(False)
+    solid = _listed(dialog)
+
+    assert "hcb" in layers and "pcu" not in layers
+    assert "pcu" in solid and "hcb" not in solid
+    assert layers | solid == both
+
+
+@needs_database
+def test_unticking_the_last_dimension_ticks_the_other_instead(dialog):
+    dialog.two_d.setChecked(False)
+    dialog.three_d.setChecked(False)
+
+    assert dialog.two_d.isChecked()
+    assert _listed(dialog)
+
+
+@needs_database
+def test_the_dimension_boxes_and_the_name_filter_both_apply(dialog):
+    dialog.filter.setText("hcb")
+    assert "hcb" in _listed(dialog)
+    dialog.two_d.setChecked(False)
+    assert "hcb" not in _listed(dialog)
+    dialog.filter.setText("")
+    assert "hcb" not in _listed(dialog) and "pcu" in _listed(dialog)
+
+
+@needs_database
+def test_the_dimension_boxes_say_how_many_nets_each_has(dialog):
+    three = int(dialog.three_d.text().split("(")[1].rstrip(")"))
+    two = int(dialog.two_d.text().split("(")[1].rstrip(")"))
+
+    assert two >= 4 and three > 2000
+    assert two + three == dialog.topologies.count()
+
+
+@needs_database
+def test_numbered_blocks_are_offered_in_numeric_order(dialog):
+    """N2 before N10 before N100: sorted as text, N10 and N100 came
+    before N2 and a block looked for by its number was not where the
+    number said."""
+    row = dialog._rows[0]
+    names = [row.combo.itemData(i) for i in range(row.combo.count())]
+    organic = [n for n in names
+               if not dialog.catalog.building_block(n).has_metal]
+    numbered = [n for n in organic
+                if n[:1] == "N" and n[1:].isdigit()]
+    assert len(numbered) > 10
+    assert numbered == sorted(numbered, key=lambda n: int(n[1:]))
+
+
 @needs_database
 def test_the_dialog_is_never_taller_than_the_screen(dialog):
     """It opened 780 px tall with a 320 px floor on the slot rows,

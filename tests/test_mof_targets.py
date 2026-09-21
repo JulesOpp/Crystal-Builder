@@ -526,7 +526,7 @@ def test_the_nickel_lands_square_planar_in_the_layer(nihitp):
 
 @needs_database
 @needs_layers
-def test_the_three_layer_nets_are_layers_and_pcu_is_not(catalog):
+def test_the_layer_nets_are_layers_and_pcu_is_not(catalog):
     """Read off the graph, not off the folder: a net whose own
     lattice has rank two and no cycle along *c*.
 
@@ -536,8 +536,8 @@ def test_the_three_layer_nets_are_layers_and_pcu_is_not(catalog):
     everything one.
     """
     assert [catalog.topology(n).is_layer
-            for n in ("hcb", "sql", "kgm", "pcu", "tbo")] == \
-        [True, True, True, False, False]
+            for n in ("hcb", "hxl", "sql", "kgm", "pcu", "tbo")] == \
+        [True, True, True, True, False, False]
 
 
 @needs_database

@@ -353,13 +353,17 @@ stress case).
   wanting 6e-08 radians, which is the crystal's angle and below
   `_STILL`.
 - **A layer net is stacked after it is built, never by the builder.**
-  `hcb`, `sql` and `kgm` ship in `xtal/mof/library/nets/` as 3-D
+  `hcb`, `hxl`, `sql` and `kgm` ship in `xtal/mof/library/nets/` as 3-D
   cells; PORMAKE's scaler multiplies *c* with everything else (10 →
   107 A on Ni3(HITP)2), so `xtal/mof/layers.restack` rewrites it,
   moving framework, net and placed blocks together and putting the
   sheets' *mean planes* one spacing apart. A layer is known by its
   graph (`Topology.is_layer`), and a spacing or offset given for a
-  3-periodic net is refused, never ignored.
+  3-periodic net is refused, never ignored. PORMAKE's own nets arrive
+  already answered -- every one is 3-periodic, recorded by
+  `catalog._record_pormake_dimensions` and re-derived by a slow test
+  -- because asking 2400 graphs is ten seconds, and the picker's
+  3D / 2D boxes need the answer for every row.
 - **An interpenetrated framework carries the bonds its copies had,
   and the detector says whether it worked.**
   `xtal/analysis/interpenetrate.py` enumerates rather than theorises

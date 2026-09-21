@@ -316,7 +316,7 @@ def check_mof_builder(report) -> None:
     if library_nets() is None:
         raise AssertionError(
             "the layer nets did not come along.  The builder has no "
-            "hcb, sql or kgm and cannot build Ni3(HITP)2; see "
+            "hcb, hxl, sql or kgm and cannot build Ni3(HITP)2; see "
             "PACKAGE_DATA in packaging/bundle.py.")
     with tempfile.TemporaryDirectory(prefix="selftest-hitp-") as folder:
         hitp = build(BuildRequest.parse("hcb", "NiHITP_triphenylene",

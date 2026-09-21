@@ -150,7 +150,7 @@ PARAMS = (
           help="How far apart the sheets of a layer net are stacked, "
                "in Angstrom.  Left empty it is 3.4, which is where "
                "pi-stacked sheets sit -- Ni3(HITP)2 is 3.24.  Only a "
-               "layer net such as hcb, sql or kgm has sheets to "
+               "layer net such as hcb, hxl, sql or kgm has sheets to "
                "stack, and a spacing given for any other net is "
                "refused."),
     Param("offset", "Stacking offset", kind="text",

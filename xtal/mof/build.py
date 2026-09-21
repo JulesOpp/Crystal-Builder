@@ -879,7 +879,7 @@ def _resolve(request: BuildRequest, catalog: Catalog):
                 f"{topology.name} is periodic in three directions, so "
                 f"it has no layers to stack and {' or '.join(asked)} "
                 f"means nothing on it; that is for a layer net, such "
-                f"as hcb, sql or kgm")
+                f"as hcb, hxl, sql or kgm")
     return topology, nodes, edges
 
 

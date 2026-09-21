@@ -128,7 +128,7 @@ def database_root() -> Path | None:
 
 
 def library_root() -> Path | None:
-    """Our own ``blocks/``, the four that are polydentate, or ``None``.
+    """Our own ``blocks/``, the polydentate ones, or ``None``.
 
     Found the same way and for the same reason as
     :func:`database_root`: ``find_spec`` reads the location off the
@@ -143,9 +143,10 @@ def library_root() -> Path | None:
 def library_nets() -> Path | None:
     """Our own ``nets/``, the layers PORMAKE has none of, or ``None``.
 
-    ``hcb``, ``sql`` and ``kgm``, each a 2-periodic net written in a
-    3-D cell -- see :mod:`xtal.mof.layers` for why the third axis is
-    there at all and why its length in the file means nothing.
+    ``hcb``, ``hxl``, ``sql`` and ``kgm``, each a 2-periodic net
+    written in a 3-D cell -- see :mod:`xtal.mof.layers` for why the
+    third axis is there at all and why its length in the file means
+    nothing.
     """
     return _library("nets")
 
@@ -551,8 +552,9 @@ class Topology:
         stacking_axis_is_free` -- and not off the folder it came
         from, so a layer somebody wrote into their own topology
         folder is stacked like one of ours.  It costs the expansion,
-        milliseconds, which is why it is asked of the one topology
-        that was picked and never of the list.
+        milliseconds; the list can ask it of every row only because
+        PORMAKE's own nets arrive already answered
+        (:func:`_record_pormake_dimensions`).
         """
         if "layer" not in self._cache:
             from xtal.mof.layers import stacking_axis_is_free
@@ -627,6 +629,27 @@ def _entry_of(path: Path) -> CgdEntry:
         raise CgdError(read.problems[0] if read.problems
                        else f"{Path(path).name} holds no net")
     return read.entries[0]
+
+
+def _record_pormake_dimensions(topologies) -> None:
+    """Tell every net of PORMAKE's own that it is not a layer.
+
+    Every one of them is 3-periodic: the 2395 that expand, which is
+    the recorded fact ``test_every_pormake_net_is_three_periodic``
+    re-derives.  Asking the graph instead costs the expansion, ten
+    seconds over the list, and the topology picker needs the answer
+    for every row to offer 3-D and 2-D nets apart.  Only the files in
+    PORMAKE's folder are told: a net of ours or of the user's --
+    including one that replaces a PORMAKE name -- is still asked, and
+    there are a handful of those.
+    """
+    root = database_root()
+    if root is None:
+        return
+    folder = (root / "topologies").resolve()
+    for topology in topologies:
+        if topology.path.parent.resolve() == folder:
+            topology._cache.setdefault("layer", False)
 
 
 def read_topology(path) -> Topology:
@@ -739,6 +762,7 @@ class Catalog:
         if self._topologies is None:
             self._topologies = self._read(
                 self.topology_dirs, "*.cgd", read_topology)
+            _record_pormake_dimensions(self._topologies.values())
         return tuple(self._topologies.values())
 
     def topology(self, name: str) -> Topology:

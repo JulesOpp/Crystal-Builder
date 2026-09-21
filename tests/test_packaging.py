@@ -161,43 +161,47 @@ def test_the_mof_database_is_collected(destinations):
     assert len(collected) == len(nets) + len(blocks)
 
 
-def test_the_four_polydentate_blocks_are_collected(destinations):
-    """The four are what Phases 3 to 6 were built for, and they are
-    the only blocks anywhere whose connection points stand for more
-    than one atom.
+def test_the_polydentate_blocks_are_collected(destinations):
+    """The first four are what Phases 3 to 6 were built for, and they
+    and their relatives are the only blocks anywhere whose connection
+    points stand for more than one atom.
 
-    Named one by one rather than counted, which is the opposite of
+    Named one by one as well as globbed, which is the opposite of
     the test above and right for the opposite reason: 3271 files fail
-    by the glob stopping matching, and four fail by one of them being
-    renamed or quietly dropped.  A bundle missing ``MFU4l_BTDD``
+    by the glob stopping matching, and a dozen fail by one of them
+    being renamed or quietly dropped.  A bundle missing ``MFU4l_BTDD``
     still builds 867 blocks' worth of framework and cannot build
     MFU-4l, which reads as the feature never having worked.
     """
     root = ROOT / "xtal" / "mof" / "library" / "blocks"
     for name in ("MFU4l_Kuratowski", "MFU4l_BTDD",
-                 "NiHITP_triphenylene", "NiHITP_NiN4"):
+                 "NiHITP_triphenylene", "NiHITP_NiN4",
+                 "bistriazolate_benzene", "bistriazolate_naphthalene",
+                 "bistriazolate_anthracene",
+                 "tristriazolate_triptycene", "HHB_benzene_X3",
+                 "HHB_benzene_X6", "CuHTTP_CuS4"):
         path = root / f"{name}.xyz"
         assert path.is_file()
         assert path in destinations
         assert destinations[path] == "xtal/mof/library/blocks"
 
     collected = {p for p in destinations if p.is_relative_to(root)}
-    assert len(collected) == 4
+    assert collected == set(root.glob("*.xyz"))
 
 
-def test_the_three_layer_nets_are_collected(destinations):
-    """PORMAKE's 2403 nets are all 3-periodic, so these three are the
+def test_the_four_layer_nets_are_collected(destinations):
+    """PORMAKE's 2403 nets are all 3-periodic, so these four are the
     only layers the builder has.  A bundle without ``hcb`` builds
     every MOF it ever could and not Ni3(HITP)2, with nothing but a
     topology missing from a list of 2403 to say so."""
     root = ROOT / "xtal" / "mof" / "library" / "nets"
-    for name in ("hcb", "sql", "kgm"):
+    for name in ("hcb", "hxl", "sql", "kgm"):
         path = root / f"{name}.cgd"
         assert path.is_file()
         assert destinations.get(path) == "xtal/mof/library/nets"
 
     collected = {p for p in destinations if p.is_relative_to(root)}
-    assert len(collected) == 3
+    assert len(collected) == 4
 
 
 def test_the_vendored_licence_and_provenance_are_collected(

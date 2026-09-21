@@ -47,6 +47,7 @@ what was picked, and it appears in the report.
 
 from __future__ import annotations
 
+import re
 import tempfile
 from pathlib import Path
 
@@ -164,6 +165,20 @@ class MofBuildDialog(QDialog):
             "Fm-3m")
         self.filter.textChanged.connect(self._apply_filter)
 
+        # The same two boxes as the denticity ones below, for the
+        # same reason: both ticked is both, and the counts say
+        # whether the second kind is worth asking for at all.
+        self.three_d = QCheckBox(self)
+        self.three_d.setToolTip(
+            "Nets periodic in three directions -- all of PORMAKE's")
+        self.two_d = QCheckBox(self)
+        self.two_d.setToolTip(
+            "Layer nets, periodic in two directions and stacked "
+            "along c -- hcb, hxl, sql and kgm, as in Ni3(HITP)2")
+        for box in (self.three_d, self.two_d):
+            box.setChecked(True)
+            box.toggled.connect(self._on_dimension)
+
         self.topologies = QListWidget(self)
         self.topologies.currentItemChanged.connect(
             self._on_topology_changed)
@@ -177,7 +192,15 @@ class MofBuildDialog(QDialog):
         left = QWidget(self)
         column = QVBoxLayout(left)
         column.setContentsMargins(0, 0, 0, 0)
+        # A row of their own: beside the filter they left it too
+        # narrow to show its own placeholder.
+        kinds = QHBoxLayout()
+        kinds.setContentsMargins(0, 0, 0, 0)
+        kinds.addWidget(self.three_d)
+        kinds.addWidget(self.two_d)
+        kinds.addStretch(1)
         column.addWidget(self.filter)
+        column.addLayout(kinds)
         column.addWidget(self.topologies, 1)
 
         right = QWidget(self)
@@ -370,6 +393,19 @@ class MofBuildDialog(QDialog):
         for row in self._rows:
             row.set_denticity(*self._denticity())
 
+    def _dimensions(self) -> tuple[bool, bool]:
+        return self.three_d.isChecked(), self.two_d.isChecked()
+
+    def _on_dimension(self, checked: bool) -> None:
+        """Keep at least one kind ticked, then narrow the list --
+        the rule :meth:`_on_denticity` keeps, for the same reason."""
+        if not checked and not any(self._dimensions()):
+            other = (self.two_d if self.sender() is self.three_d
+                     else self.three_d)
+            other.setChecked(True)
+            return
+        self._apply_filter(self.filter.text())
+
     def _remembered(self, name: str) -> str:
         return str(getattr(self._settings, name, "") or "")
 
@@ -426,6 +462,7 @@ class MofBuildDialog(QDialog):
 
     def _fill_topologies(self) -> None:
         self.topologies.clear()
+        layers = 0
         for topology in self.catalog.topologies():
             item = QListWidgetItem(
                 f"{topology.name}    {topology.summary()}")
@@ -437,14 +474,21 @@ class MofBuildDialog(QDialog):
             item.setData(Qt.UserRole + 1,
                          f"{topology.name} {topology.summary()} "
                          f"{coordinations}".lower())
+            item.setData(Qt.UserRole + 2, topology.is_layer)
+            layers += topology.is_layer
             self.topologies.addItem(item)
+        total = self.topologies.count()
+        self.three_d.setText(f"3D ({total - layers})")
+        self.two_d.setText(f"2D ({layers})")
 
     def _apply_filter(self, text: str) -> None:
         needle = text.strip().lower()
+        three_d, two_d = self._dimensions()
         for index in range(self.topologies.count()):
             item = self.topologies.item(index)
-            item.setHidden(bool(needle) and needle not in
-                           str(item.data(Qt.UserRole + 1)))
+            wanted = two_d if item.data(Qt.UserRole + 2) else three_d
+            item.setHidden(not wanted or (bool(needle) and needle not in
+                           str(item.data(Qt.UserRole + 1))))
 
     def _select(self, name: str) -> bool:
         for index in range(self.topologies.count()):
@@ -804,14 +848,23 @@ class _SlotRow(QWidget):
 
 
 def _ordered(blocks) -> list:
-    """Metals first, then by name.
+    """Metals first, then by name, the numbers in a name counted.
 
     A node slot is nearly always a metal cluster and an edge slot
     nearly always is not, so putting the metals at the top of both
     lists puts the likely answer where it can be found -- and, in a
-    list of 210, "likely" is worth a great deal.
+    list of 210, "likely" is worth a great deal.  PORMAKE names its
+    blocks N1 to N719, and sorted as text N10 and N100 come before
+    N2, so a block looked for by its number is not where it should be.
     """
-    return sorted(blocks, key=lambda b: (not b.has_metal, b.name))
+    return sorted(blocks, key=lambda b: (not b.has_metal,
+                                         _natural(b.name)))
+
+
+def _natural(name: str) -> tuple:
+    """*name* split so its digit runs compare as numbers."""
+    return tuple((0, int(part), "") if part.isdigit() else (1, 0, part)
+                 for part in re.split(r"(\d+)", name) if part)
 
 
 class _FolderEdit(QWidget):
