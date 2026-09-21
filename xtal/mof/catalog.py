@@ -310,6 +310,25 @@ def matches_composition(block: BuildingBlock, query: str) -> bool:
               for symbol, count in exact.items())
 
 
+def matches_search(block: BuildingBlock, query: str) -> bool:
+    """Whether *block* answers the building-block search box.
+
+    A composition search, plus names: a word that reads as an element
+    or a count and an element is composition -- ``6C``, ``Zn``, ``N``
+    -- and any other word must appear in the block's name -- ``N59``,
+    ``paddle``.  Every word is ANDed.  The split is by what a word can
+    be rather than by trying both, because ``N`` tried as a name
+    fragment is in every one of PORMAKE's 700-odd node names and would
+    make a search for nitrogen a search for nothing.
+    """
+    fragments = [word.lower() for word in str(query or "").split()
+                 if _parse_composition(word) == ({}, frozenset())]
+    name = block.name.lower()
+    if not all(fragment in name for fragment in fragments):
+        return False
+    return matches_composition(block, query)
+
+
 def read_building_block(path) -> BuildingBlock:
     """One ``.xyz`` from PORMAKE's ``bbs/``, or one of the user's own.
 

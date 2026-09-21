@@ -29,6 +29,7 @@ from xtal.mof.build import (
 from xtal.mof.catalog import (
     CatalogError,
     matches_composition,
+    matches_search,
     read_building_block,
 )
 
@@ -225,6 +226,23 @@ def test_composition_search_mixes_exact_counts_and_presence():
     assert matches_composition(block, "6C N")
     assert not matches_composition(block, "6C O")
     assert not matches_composition(block, "7C N")
+
+
+def test_a_block_search_word_that_is_no_element_is_a_name():
+    """"N59" is not a composition, so it is looked for in the name;
+    "N" is nitrogen, and as a name fragment would be in every one of
+    PORMAKE's node names."""
+    from xtal.mof.catalog import BuildingBlock
+
+    block = BuildingBlock("N59", None, ("C",) * 6 + ("Cd",) * 2,
+                          None, ())
+    other = BuildingBlock("N60", None, ("C",) * 6 + ("N",), None, ())
+    assert matches_search(block, "N59")
+    assert matches_search(block, "n59 6C")
+    assert not matches_search(block, "N59 N")
+    assert not matches_search(other, "N59")
+    assert matches_search(other, "N")
+    assert not matches_search(block, "N")
 
 
 def test_an_empty_composition_query_matches_everything():

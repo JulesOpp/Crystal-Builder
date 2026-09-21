@@ -791,3 +791,104 @@ def test_the_interpenetration_row_hands_back_a_count(dialog):
     assert dialog.values()["interpenetration"] == 1
     dialog.interpenetration.setValue(2)
     assert dialog.values()["interpenetration"] == 2
+
+
+def _offered(row) -> set:
+    return {row.combo.itemData(i) for i in range(row.combo.count())} \
+        - {""}
+
+
+@needs_database
+def test_the_denticity_boxes_offer_one_kind_of_block_or_both(dialog):
+    """pcu's six-connected slot has both kinds -- MFU-4l's Kuratowski
+    node is polydentate, N59 is not -- and each box alone offers only
+    its own kind, with both together offering everything."""
+    row = dialog._rows[0]
+    both = _offered(row)
+    dialog.monodentate.setChecked(False)
+    poly = _offered(row)
+    dialog.monodentate.setChecked(True)
+    dialog.polydentate.setChecked(False)
+    mono = _offered(row)
+
+    assert "MFU4l_Kuratowski" in poly and "N59" not in poly
+    assert "N59" in mono and "MFU4l_Kuratowski" not in mono
+    assert poly | mono == both
+
+
+@needs_database
+def test_unticking_the_last_kind_ticks_the_other_instead(dialog):
+    """Two empty boxes would empty every list with nothing on screen
+    to say why."""
+    dialog.polydentate.setChecked(False)
+    dialog.monodentate.setChecked(False)
+
+    assert dialog.polydentate.isChecked()
+    assert _offered(dialog._rows[0])
+
+
+@needs_database
+def test_the_denticity_boxes_say_how_many_of_each_kind_there_are(
+        dialog):
+    assert "Monodentate (" in dialog.monodentate.text()
+    assert "Polydentate (" in dialog.polydentate.text()
+    assert dialog.polydentate.text() != "Polydentate (0)"
+
+
+@needs_database
+def test_a_block_can_be_searched_for_by_name(dialog):
+    row = dialog._rows[0]
+    dialog.composition.setText("N59")
+
+    offered = _offered(row)
+    assert "N59" in offered
+    assert all("N59" in name for name in offered)
+
+
+@needs_database
+def test_switching_topology_keeps_the_denticity_applied(dialog):
+    dialog.monodentate.setChecked(False)
+    assert dialog._select("tbo")
+
+    for row in dialog._rows:
+        assert all(dialog.catalog.building_block(name).is_polydentate
+                   for name in _offered(row))
+
+
+@needs_database
+def test_the_dialog_is_never_taller_than_the_screen(dialog):
+    """It opened 780 px tall with a 320 px floor on the slot rows,
+    and on a laptop the Build button was below the screen.  Every
+    section now scrolls, so the size is the screen's to decide."""
+    room = dialog.screen().availableGeometry()
+    assert dialog.height() <= room.height()
+    assert dialog.width() <= room.width()
+    assert dialog.minimumSizeHint().height() < room.height()
+
+
+@needs_database
+def test_every_section_folds_away(dialog):
+    for fold in (dialog.topology_fold, dialog.blocks_fold,
+                 dialog.how_fold, dialog.folders_fold):
+        fold.set_open(False)
+        assert not fold.body.isVisibleTo(dialog)
+        fold.set_open(True)
+        assert fold.body.isVisibleTo(dialog)
+
+
+@needs_database
+def test_a_repeat_asked_for_last_time_is_not_hidden(qtbot, window):
+    """A 2x2x2 repeat folded out of sight builds eight times the cell
+    nobody remembers asking for."""
+    from xtalapp.dialogs.mof_build import MofBuildDialog
+
+    _module, action = MODULES.find("mof.build")
+    plain = MofBuildDialog(MODULES.get("mof"), action, window,
+                           {"topology": "pcu"})
+    tiled = MofBuildDialog(MODULES.get("mof"), action, window,
+                           {"topology": "pcu", "repeat": "2x2x2"})
+    qtbot.addWidget(plain)
+    qtbot.addWidget(tiled)
+
+    assert not plain.how_fold.is_open()
+    assert tiled.how_fold.is_open()

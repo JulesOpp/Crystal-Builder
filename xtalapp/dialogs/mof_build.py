@@ -52,13 +52,14 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
     QFormLayout,
+    QFrame,
     QGridLayout,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -75,13 +76,14 @@ from PySide6.QtWidgets import (
 from xtal.modules.mof import PARAMS
 from xtal.mof import Catalog
 from xtal.mof.build import BuildRequest
-from xtal.mof.catalog import matches_composition
+from xtal.mof.catalog import matches_search
 from xtalapp.dialogs.mof_preview import (
     ORBIT_COLORS,
     BlockPreview,
     NetPreview,
     reset_view_row,
 )
+from xtalapp.docks.columns import Collapsible
 
 #: What an edge slot offers instead of a linker.  A net has edges
 #: whether or not anything is put on them, and PORMAKE builds an empty
@@ -100,6 +102,19 @@ _SPACING = next(p for p in PARAMS if p.name == "spacing")
 _OFFSET = next(p for p in PARAMS if p.name == "offset")
 _INTERPENETRATION = next(p for p in PARAMS
                          if p.name == "interpenetration")
+
+#: The size the dialog asks for, and the share of the screen it may
+#: take when the screen is smaller.  Every section folds and the whole
+#: of it scrolls, so nothing below the net picture has to fit: the
+#: dialog used to open 780 px tall with a 320 px floor on the slot
+#: rows, and on a laptop the Build button was below the screen.
+PREFERRED_SIZE = (900, 780)
+SCREEN_SHARE = 0.9
+
+#: How tall the net list and picture are kept.  Inside a scroll area a
+#: section is only as tall as its minimum, and a list of 2399 nets
+#: squeezed to its minimum shows two of them.
+TOPOLOGY_HEIGHT = 280
 
 
 class MofBuildDialog(QDialog):
@@ -176,23 +191,51 @@ class MofBuildDialog(QDialog):
         top.addWidget(left)
         top.addWidget(right)
         top.setStretchFactor(1, 1)
+        top.setMinimumHeight(TOPOLOGY_HEIGHT)
 
         self.composition = QLineEdit(self)
         self.composition.setPlaceholderText(
-            "Search building blocks by composition -- 6C 4N 3Zn, or "
-            "C H N O, or Zn")
+            "Search building blocks by name or composition -- N59, "
+            "6C 4N 3Zn, or Zn")
         self.composition.setToolTip(
             "A count and a symbol asks for exactly that many -- "
             "6C.  A bare symbol asks only that it be present -- Zn.  "
+            "Any other word must be in the block's name -- N59.  "
             "Every word in the box is ANDed together.")
         self.composition.textChanged.connect(self._apply_composition)
 
-        self.slots_box = QGroupBox("Building blocks", self)
+        # Two boxes rather than a three-way choice, as the kinds are
+        # offered when descending to a subgroup: "both" is both boxes
+        # ticked, and the counts say before anything is clicked
+        # whether the second kind is worth asking for at all.
+        self.monodentate = QCheckBox(self)
+        self.monodentate.setToolTip(
+            "Blocks whose every connection point hangs off one atom "
+            "-- all of PORMAKE's")
+        self.polydentate = QCheckBox(self)
+        self.polydentate.setToolTip(
+            "Blocks with a connection point that hangs off more than "
+            "one atom -- a chelate, as in MFU-4l or Ni3(HITP)2")
+        for box in (self.monodentate, self.polydentate):
+            box.setChecked(True)
+            box.toggled.connect(self._on_denticity)
+        self._count_denticity()
+
+        search = QHBoxLayout()
+        search.setContentsMargins(0, 0, 0, 0)
+        search.addWidget(self.composition, 1)
+        search.addWidget(self.monodentate)
+        search.addWidget(self.polydentate)
+
+        self.slots_box = QWidget(self)
         self.slots_layout = QVBoxLayout(self.slots_box)
-        area = QScrollArea(self)
-        area.setWidgetResizable(True)
-        area.setWidget(self.slots_box)
-        area.setMinimumHeight(320)
+        self.slots_layout.setContentsMargins(0, 0, 0, 0)
+
+        blocks = QWidget(self)
+        column = QVBoxLayout(blocks)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.addLayout(search)
+        column.addWidget(self.slots_box)
 
         self.repeat = QLineEdit(self)
         self.repeat.setPlaceholderText("1x1x1")
@@ -223,21 +266,56 @@ class MofBuildDialog(QDialog):
         self.interpenetration.setSuffix("-fold")
         self.interpenetration.setToolTip(_INTERPENETRATION.help)
 
-        how = QGroupBox("How it is built", self)
+        how = QWidget(self)
         form = QFormLayout(how)
+        form.setContentsMargins(0, 0, 0, 0)
         form.addRow("Repeat the net", self.repeat)
         form.addRow("Node orientation", self.orientation)
         form.addRow("Layer spacing (A)", self.spacing)
         form.addRow("Stacking offset", self.offset)
         form.addRow("Interpenetration", self.interpenetration)
 
-        folders = QGroupBox("Your own topologies and building blocks",
-                            self)
+        folders = QWidget(self)
         form = QFormLayout(folders)
+        form.setContentsMargins(0, 0, 0, 0)
         form.addRow(self.topology_dir.label, self.topology_dir)
         form.addRow(self.bb_dir.label, self.bb_dir)
         self.topology_dir.changed.connect(self._reread)
         self.bb_dir.changed.connect(self._reread)
+
+        self.topology_fold = Collapsible("Topology", top, parent=self)
+        self.blocks_fold = Collapsible("Building blocks", blocks,
+                                       parent=self)
+        self.how_fold = Collapsible("How it is built", how, parent=self)
+        self.folders_fold = Collapsible(
+            "Your own topologies and building blocks", folders,
+            parent=self)
+        self.topology_fold.set_open(True)
+        self.blocks_fold.set_open(True)
+        # Open unless there is nothing in it: a folder that was named
+        # last time is a folder whose blocks are in every list below,
+        # and that should not be hidden.
+        self.folders_fold.set_open(bool(self.topology_dir.text()
+                                        or self.bb_dir.text()))
+
+        body = QWidget(self)
+        sections = QVBoxLayout(body)
+        for fold in (self.topology_fold, self.blocks_fold,
+                     self.how_fold, self.folders_fold):
+            sections.addWidget(fold)
+        # The net list takes whatever height is spare while it is
+        # open, and gives it back when it is folded away.
+        sections.setStretchFactor(self.topology_fold, 1)
+        self.topology_fold.toggled.connect(
+            lambda open_: sections.setStretchFactor(
+                self.topology_fold, 1 if open_ else 0))
+        sections.addStretch(0)
+
+        self.scroll = QScrollArea(self)
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QFrame.NoFrame)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll.setWidget(body)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok |
                                    QDialogButtonBox.Cancel)
@@ -247,13 +325,50 @@ class MofBuildDialog(QDialog):
         buttons.rejected.connect(self.reject)
 
         layout = QVBoxLayout(self)
-        layout.addWidget(top, 1)
-        layout.addWidget(self.composition)
-        layout.addWidget(area)
-        layout.addWidget(how)
-        layout.addWidget(folders)
+        layout.addWidget(self.scroll, 1)
         layout.addWidget(buttons)
-        self.resize(900, 780)
+        self._fit_to_screen()
+
+    def _fit_to_screen(self) -> None:
+        """The preferred size, or as much of the screen as there is.
+
+        The screen the parent window is on, because that is where the
+        dialog opens; the primary one when there is no parent.
+        """
+        width, height = PREFERRED_SIZE
+        screen = (self.parent().screen() if self.parent() is not None
+                  else self.screen())
+        if screen is not None:
+            room = screen.availableGeometry()
+            width = min(width, int(room.width() * SCREEN_SHARE))
+            height = min(height, int(room.height() * SCREEN_SHARE))
+        self.resize(width, height)
+
+    def _count_denticity(self) -> None:
+        """Label the two boxes with how many blocks each kind has."""
+        blocks = self.catalog.building_blocks()
+        poly = sum(1 for block in blocks if block.is_polydentate)
+        self.monodentate.setText(f"Monodentate ({len(blocks) - poly})")
+        self.polydentate.setText(f"Polydentate ({poly})")
+
+    def _denticity(self) -> tuple[bool, bool]:
+        return (self.monodentate.isChecked(),
+                self.polydentate.isChecked())
+
+    def _on_denticity(self, checked: bool) -> None:
+        """Keep at least one kind ticked, then narrow every row.
+
+        Unticking the last one ticks the other instead: two empty
+        boxes would empty every list with nothing on screen to say
+        why.
+        """
+        if not checked and not any(self._denticity()):
+            other = (self.polydentate if self.sender() is
+                     self.monodentate else self.monodentate)
+            other.setChecked(True)
+            return
+        for row in self._rows:
+            row.set_denticity(*self._denticity())
 
     def _remembered(self, name: str) -> str:
         return str(getattr(self._settings, name, "") or "")
@@ -301,6 +416,7 @@ class MofBuildDialog(QDialog):
         """
         name = self._topology.name if self._topology else ""
         self.catalog = self._catalog()
+        self._count_denticity()
         self._fill_topologies()
         self._apply_filter(self.filter.text())
         if not self._select(name):
@@ -374,6 +490,7 @@ class MofBuildDialog(QDialog):
         for slot in slots:
             row = _SlotRow(slot, self.catalog, self._draw_into(),
                            self.slots_box)
+            row.set_denticity(*self._denticity(), rebuild=False)
             row.set_composition(self.composition.text())
             row.drawn.connect(self._on_block_drawn)
             self.slots_layout.addWidget(row)
@@ -407,6 +524,7 @@ class MofBuildDialog(QDialog):
         wants it.
         """
         self.catalog = self._catalog()
+        self._count_denticity()
         sender = self.sender()
         for row in self._rows:
             row.refresh(self.catalog)
@@ -461,6 +579,13 @@ class MofBuildDialog(QDialog):
         wanted_rule = str(given.get("orientation") or "")
         at = self.orientation.findData(wanted_rule)
         self.orientation.setCurrentIndex(max(at, 0))
+        # Folded away unless last time's answer was not the default:
+        # a 2x2x2 repeat hidden under a closed arrow builds eight
+        # times the cell nobody remembers asking for.
+        self.how_fold.set_open(
+            bool(self.repeat.text().strip(" 1x") or
+                 self.spacing.text() or self.offset.text())
+            or fold > 1 or max(at, 0) > 0)
         wanted = str(given.get("topology") or "pcu")
         if not self._select(wanted) and not self._select("pcu"):
             self.topologies.setCurrentRow(0)
@@ -556,6 +681,7 @@ class _SlotRow(QWidget):
         self.folder = str(folder or "")
         self._catalog = catalog
         self._composition = ""
+        self._denticity = (True, True)
         self.combo = QComboBox(self)
         self.draw_button = QPushButton("Draw...", self)
         self.draw_button.setToolTip(
@@ -589,15 +715,17 @@ class _SlotRow(QWidget):
 
     def _fitting(self) -> list:
         """The blocks that fit this slot, narrowed further by
-        whatever composition search is active -- both the
-        coordination rule (:meth:`Catalog.fitting`) and the search box
-        are "offer only what could be right", the same principle
-        stated twice."""
+        whatever search and kind are asked for -- the coordination
+        rule (:meth:`Catalog.fitting`), the search box and the
+        denticity boxes are all "offer only what could be right", the
+        same principle stated three times."""
         found = self._catalog.fitting(self.slot.coordination)
+        mono, poly = self._denticity
+        if not (mono and poly):
+            found = [b for b in found if b.is_polydentate == poly]
         query = self._composition.strip()
         if query:
-            found = [b for b in found
-                    if matches_composition(b, query)]
+            found = [b for b in found if matches_search(b, query)]
         return _ordered(found)
 
     def _on_changed(self, *_args) -> None:
@@ -655,6 +783,13 @@ class _SlotRow(QWidget):
         *query* -- see :func:`xtal.mof.catalog.matches_composition`."""
         self._composition = str(query or "")
         self._rebuild()
+
+    def set_denticity(self, mono: bool, poly: bool,
+                      rebuild: bool = True) -> None:
+        """Offer monodentate blocks, polydentate ones, or both."""
+        self._denticity = (bool(mono), bool(poly))
+        if rebuild:
+            self._rebuild()
 
     def _draw(self) -> None:
         from xtalapp.dialogs.draw_block import DrawBlockDialog
