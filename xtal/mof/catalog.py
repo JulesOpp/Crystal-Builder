@@ -38,19 +38,35 @@ the whole catalogue.  Four of the 2403 files cannot be expanded (they
 give edge midpoints instead of endpoints, and a midpoint does not say
 what it joins); those report their slots as unknown and the build
 falls back on asking PORMAKE, which is imported by then anyway.
+
+**The layer nets are the RCSR's, not files of ours.**  PORMAKE's
+database is all 3-periodic; the 2-D nets come from the RCSR file that
+already ships for naming nets (:func:`xtal.analysis.rcsr.nets`), each
+written flat in its layer group by :func:`xtal.analysis.rcsr.as_layer`
+and held as text.  PORMAKE is handed a file only when one is built on.
+Four hand-written ones -- ``hcb``, ``hxl``, ``sql``, ``kgm`` -- were
+the whole of it until 2026-09-21, and the RCSR's ``hcb`` is the file
+that was here, value for value.
 """
 
 from __future__ import annotations
 
 import importlib.util
 import re
+import tempfile
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
 
 from xtal.core import elements as el
-from xtal.io.cgd import CgdEntry, CgdError, read_cgd_string
+from xtal.io.cgd import (
+    CgdEntry,
+    CgdError,
+    read_cgd_string,
+    write_cgd_string,
+)
 
 
 class CatalogError(ValueError):
@@ -138,17 +154,6 @@ def library_root() -> Path | None:
     the builder has PORMAKE's 867 either way.
     """
     return _library("blocks")
-
-
-def library_nets() -> Path | None:
-    """Our own ``nets/``, the layers PORMAKE has none of, or ``None``.
-
-    ``hcb``, ``hxl``, ``sql`` and ``kgm``, each a 2-periodic net
-    written in a 3-D cell -- see :mod:`xtal.mof.layers` for why the
-    third axis is there at all and why its length in the file means
-    nothing.
-    """
-    return _library("nets")
 
 
 def _library(folder: str) -> Path | None:
@@ -466,11 +471,17 @@ class Topology:
     """One net to build on, read but not expanded."""
 
     name: str
-    path: Path
+    #: ``None`` for a net held as :attr:`text` -- an RCSR layer.
+    path: Path | None
     group: str
     #: The coordination number of each node type, in the order the
     #: ``NODE`` lines appear -- which is PORMAKE's node numbering.
     coordinations: tuple[int, ...]
+    #: The ``.cgd`` itself, for a net that has no file of its own.
+    text: str = field(default="", repr=False, compare=False)
+    #: How many ``EDGE`` lines the file wrote: q, the edge
+    #: transitivity, unless the RCSR says otherwise (:meth:`facts`).
+    edge_lines: int = field(default=0, compare=False)
     _cache: dict = field(default_factory=dict, repr=False,
                          compare=False)
 
@@ -479,13 +490,48 @@ class Topology:
         return len(self.coordinations)
 
     def summary(self) -> str:
-        counts = ", ".join(f"{c}-c" for c in self.coordinations)
-        return f"{counts}  ·  {self.group}"
+        """The line the picker shows beside the name: coordination,
+        group and number, and transitivity as the RCSR prints it."""
+        return self.facts().summary()
+
+    def facts(self):
+        """What the net search matches this topology on.
+
+        p and q are the RCSR's for a net of PORMAKE's or of the
+        RCSR's own, looked up by name: the RCSR writes each net at its
+        maximum symmetry, so its ``NODE`` and ``EDGE`` lines count the
+        kinds of vertex and edge, and eight of PORMAKE's files write a
+        different number of ``EDGE`` lines for the same net -- ``tfm``
+        has eleven for two kinds.  A net of the user's is taken at its
+        word; one with no ``EDGE`` lines has q unknown.  Read off the
+        header, never the expansion, so the whole list costs
+        milliseconds.
+        """
+        if "facts" not in self._cache:
+            self._cache["facts"] = self._facts()
+        return self._cache["facts"]
+
+    def _facts(self):
+        from xtal.analysis.netsearch import NetFacts, space_group_number
+        from xtal.analysis.rcsr import plane_group_number
+
+        plane = plane_group_number(self.group)
+        number = (plane if plane is not None
+                  else space_group_number(self.group))
+        p, q = len(self.coordinations), self.edge_lines or None
+        if self.path is None or _in_pormake(self.path):
+            p, q = _rcsr_transitivity().get(self.name, (p, q))
+        return NetFacts(
+            name=self.name, dimension=2 if plane is not None else 3,
+            coordinations=self.coordinations, group=self.group,
+            number=number, p=p, q=q)
 
     def entry(self) -> CgdEntry:
         """The ``.cgd`` block, parsed."""
         if "entry" not in self._cache:
-            self._cache["entry"] = _entry_of(self.path)
+            self._cache["entry"] = (_entry_of_text(self.text)
+                                    if self.text
+                                    else _entry_of(self.path))
         return self._cache["entry"]
 
     def net(self):
@@ -534,7 +580,7 @@ class Topology:
         from xtal.mof.build import import_pormake
 
         pormake = import_pormake()
-        topology = pormake.Topology(str(self.path))
+        topology = self._pormake(pormake)
         repeat = (int(nx), int(ny), int(nz))
         if min(repeat) < 1:
             raise CatalogError(
@@ -543,6 +589,20 @@ class Topology:
         if repeat == (1, 1, 1):
             return topology
         return topology * repeat
+
+    def _pormake(self, pormake):
+        """PORMAKE's reading of this net, from a file either way.
+
+        It reads the file once, in its constructor, and keeps nothing
+        but what it parsed, so a net held as text is written to a
+        folder that is gone before the build begins.
+        """
+        if not self.text:
+            return pormake.Topology(str(self.path))
+        with tempfile.TemporaryDirectory(prefix="xtal-net-") as folder:
+            path = Path(folder) / f"{self.name}.cgd"
+            path.write_text(self.text, encoding="utf-8")
+            return pormake.Topology(str(path))
 
     @property
     def is_layer(self) -> bool:
@@ -624,11 +684,93 @@ class Topology:
 
 
 def _entry_of(path: Path) -> CgdEntry:
-    read = read_cgd_string(Path(path).read_text(encoding="utf-8"))
+    return _entry_of_text(Path(path).read_text(encoding="utf-8"),
+                          Path(path).name)
+
+
+def _entry_of_text(text: str, where: str = "the net") -> CgdEntry:
+    read = read_cgd_string(text)
     if not read.entries:
         raise CgdError(read.problems[0] if read.problems
-                       else f"{Path(path).name} holds no net")
+                       else f"{where} holds no net")
     return read.entries[0]
+
+
+#: The RCSR layer nets PORMAKE cannot build on: each fails its own
+#: ``check_validity``, the test that took its 3-D catalogue from 2726
+#: nets to 2405.  Listing a net whose every build fails is worse than
+#: a list four shorter, so they are left out, and
+#: ``test_the_four_pormake_rejects_are_left_out_and_still_fail`` is
+#: what keeps this from going stale.  The Net builder still draws them.
+PORMAKE_REJECTS = frozenset({"fzh", "mtb-a", "mtc-a", "sde"})
+
+
+def rcsr_layers() -> tuple[Topology, ...]:
+    """Every 2-periodic RCSR net PORMAKE can build on, as topologies.
+
+    Written by :func:`xtal.analysis.rcsr.as_layer` into the layer
+    group of their plane group, with the plane group kept as
+    :attr:`Topology.group` because that is the group the net is *in*;
+    the space group is how it is spelled for PORMAKE.  Each is told
+    it is a layer rather than asked, as PORMAKE's are told they are
+    not (:func:`_record_pormake_dimensions`), and
+    ``test_every_rcsr_layer_is_recorded_as_a_layer_and_is_one``
+    re-derives it.  ``END`` is the file's last line because PORMAKE
+    drops the last line unread.
+    """
+    from xtal.analysis import rcsr
+
+    found = []
+    for entry in rcsr.nets():
+        if (entry.dimension != 2 or not entry.cell
+                or entry.name in PORMAKE_REJECTS):
+            continue
+        text = write_cgd_string([rcsr.as_layer(entry)]).rstrip() + "\n"
+        topology = Topology(
+            entry.name, None, entry.group,
+            tuple(node.coordination for node in entry.nodes), text,
+            len(entry.edges))
+        topology._cache["layer"] = True
+        found.append(topology)
+    return tuple(found)
+
+
+class _Layers:
+    """Where :class:`Catalog` reads the RCSR layers, in the order of
+    its folders.  Not a folder; it stands in the list so that a
+    folder after it still wins, as every later folder does."""
+
+    def __str__(self) -> str:
+        return "the RCSR's layer nets"
+
+
+#: The one :class:`_Layers` a catalogue's ``topology_dirs`` holds.
+RCSR_LAYERS = _Layers()
+
+
+@lru_cache(maxsize=1)
+def _rcsr_transitivity() -> dict[str, tuple[int | None, int | None]]:
+    """Name -> (p, q) for every RCSR net; empty if the file is not
+    there, which leaves every net with what its own file says."""
+    from xtal.analysis import rcsr
+
+    try:
+        nets = rcsr.nets()
+    except rcsr.RcsrError:                      # pragma: no cover
+        return {}
+    return {e.name: (len(e.nodes) or None, len(e.edges) or None)
+            for e in nets}
+
+
+@lru_cache(maxsize=1)
+def _pormake_folder() -> Path | None:
+    root = database_root()
+    return (root / "topologies").resolve() if root else None
+
+
+def _in_pormake(path: Path) -> bool:
+    folder = _pormake_folder()
+    return folder is not None and path.parent.resolve() == folder
 
 
 def _record_pormake_dimensions(topologies) -> None:
@@ -643,12 +785,8 @@ def _record_pormake_dimensions(topologies) -> None:
     including one that replaces a PORMAKE name -- is still asked, and
     there are a handful of those.
     """
-    root = database_root()
-    if root is None:
-        return
-    folder = (root / "topologies").resolve()
     for topology in topologies:
-        if topology.path.parent.resolve() == folder:
+        if topology.path is not None and _in_pormake(topology.path):
             topology._cache.setdefault("layer", False)
 
 
@@ -662,13 +800,15 @@ def read_topology(path) -> Topology:
     graph when a topology is actually picked.
     """
     path = Path(path)
-    entry = _header(path)
-    return Topology(entry[0] or path.stem, path, entry[1], entry[2])
+    name, group, coordinations, edges = _header(path)
+    return Topology(name or path.stem, path, group, coordinations,
+                    edge_lines=edges)
 
 
-def _header(path: Path) -> tuple[str, str, tuple[int, ...]]:
+def _header(path: Path) -> tuple[str, str, tuple[int, ...], int]:
     name = group = ""
     coordinations: list[int] = []
+    edges = 0
     for raw in path.read_text(encoding="utf-8").splitlines():
         line = raw.split("#")[0].strip()
         if not line:
@@ -684,11 +824,13 @@ def _header(path: Path) -> tuple[str, str, tuple[int, ...]]:
                 coordinations.append(int(token[2]))
             except ValueError:                  # pragma: no cover
                 pass
+        elif head == "edge":
+            edges += 1
         elif head == "end":
             break
     if not coordinations:
         raise CatalogError(f"{path.name} declares no nodes")
-    return name, group or "P1", tuple(coordinations)
+    return name, group or "P1", tuple(coordinations), edges
 
 
 # ======================================================================
@@ -712,7 +854,8 @@ class Catalog:
 
     def __post_init__(self):
         self.topology_dirs = tuple(
-            Path(p) for p in self.topology_dirs if p)
+            p if p is RCSR_LAYERS else Path(p)
+            for p in self.topology_dirs if p)
         self.bb_dirs = tuple(Path(p) for p in self.bb_dirs if p)
         self._topologies: dict[str, Topology] | None = None
         self._blocks: dict[str, BuildingBlock] | None = None
@@ -733,16 +876,14 @@ class Catalog:
         that is where it belongs rather than an accident of writing:
         our four are shipped, so a folder of the user's own must
         still win over them, and they are ours, so they may replace
-        one of PORMAKE's.  :func:`library_nets` goes between PORMAKE's
+        one of PORMAKE's.  :data:`RCSR_LAYERS` goes between PORMAKE's
         nets and the user's for the same reason.
         """
         root = database_root()
         ours = library_root()
-        layers = library_nets()
         topologies = [root / "topologies"] if root else []
         blocks = [root / "bbs"] if root else []
-        if layers:
-            topologies.append(layers)
+        topologies.append(RCSR_LAYERS)
         if ours:
             blocks.append(ours)
         if topology_dir:
@@ -822,6 +963,13 @@ class Catalog:
     def _read(self, directories, pattern: str, reader) -> dict:
         out: dict = {}
         for directory in directories:
+            if directory is RCSR_LAYERS:
+                from xtal.analysis.rcsr import RcsrError
+                try:
+                    out.update((t.name, t) for t in rcsr_layers())
+                except RcsrError as exc:
+                    self._failures.append(f"{directory}: {exc}")
+                continue
             if not directory.is_dir():
                 continue
             for path in sorted(directory.glob(pattern)):

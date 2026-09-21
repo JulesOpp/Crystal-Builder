@@ -203,9 +203,3 @@ def test_every_pormake_net_is_three_periodic():
             layers.append(topology.name)
     assert layers == []
 
-
-@needs_database
-@needs_layers
-def test_only_our_own_nets_are_filed_as_layers(catalog):
-    layers = sorted(t.name for t in catalog.topologies() if t.is_layer)
-    assert layers == ["hcb", "hxl", "kgm", "sql"]

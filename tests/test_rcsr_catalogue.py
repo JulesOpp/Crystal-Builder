@@ -181,13 +181,23 @@ def test_every_entry_agrees_with_its_own_declared_coordination(
     A vertex whose degree is not the coordination number its own NODE
     line declares means the symmetry expansion produced the wrong
     orbit, and it is refused at build time rather than catalogued.
+
+    The same sweep checks that no two NODE lines are one orbit, which
+    is what lets the net search read vertex transitivity p off the
+    NODE count (:func:`xtal.analysis.netsearch.facts_of_entry`):
+    expanding the file twice to ask the two questions apart would be
+    ten seconds for nothing.
     """
     read = read_cgd(rcsr_path)
-    refused = []
+    refused, merged = [], []
     for entry in read:
         try:
-            expand(entry)
+            net = expand(entry)
         except rcsr.RcsrError as exc:
             refused.append((entry.name, str(exc)))
+            continue
+        if len(set(net.orbits)) != len(entry.nodes):
+            merged.append(entry.name)
     assert len(refused) <= 2, refused
+    assert merged == []
     assert len(read) - len(refused) > 2900

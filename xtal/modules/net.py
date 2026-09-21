@@ -32,8 +32,8 @@ __all__ = ["PARAMS", "NET", "draw_net", "register"]
 PARAMS = (
     Param("net", "Net", kind="text", default="pcu",
           help="The RCSR's own name for it -- pcu, dia, srs, acs, "
-               "sod, rht.  2726 of them can be drawn; the 2-periodic "
-               "nets and the four with no cell cannot."),
+               "sod, rht, hcb.  2926 of them can be drawn, the 200 "
+               "layers among them; the four with no cell cannot."),
     Param("scale", "Cell scale", kind="float", default=topology.SCALE,
           minimum=1.0, maximum=40.0,
           help="The .cgd cells are normalised so an edge is about one "

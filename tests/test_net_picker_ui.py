@@ -1,4 +1,4 @@
-"""The net picker: finding one of 2726 nets by something you know.
+"""The net picker: finding one of 2926 nets by something you know.
 
 The dialog exists because the generated form for
 :data:`xtal.modules.net.PARAMS` is a text box you have to already know
@@ -34,24 +34,49 @@ def showing(dialog) -> list[str]:
 
 def test_the_net_picker_offers_every_drawable_net(dialog):
     """A text box you have to already know the answer to type into is
-    only usable by somebody who did not need it: 2726 names of three
+    only usable by somebody who did not need it: 2926 names of three
     letters each, and no mnemonic among them."""
     assert dialog.nets.count() == len(topology.names())
 
 
-def test_the_filter_matches_a_group_and_a_coordination(dialog):
+def test_the_search_matches_a_group_number_and_a_coordination(dialog):
     """What somebody knows is rarely the name.  More often it is "the
     4-coordinate ones" or a space group, so every row carries both."""
-    dialog.filter.setText("Fm-3m")
+    dialog.search.number.setText("225")
     cubic = showing(dialog)
-    assert cubic and len(cubic) < dialog.nets.count()
+    assert "fcu" in cubic and len(cubic) < dialog.nets.count()
 
-    dialog.filter.setText("4-c")
+    dialog.search.number.setText("")
+    dialog.search.coordination.setText("4")
+    dialog.search.exclusive.setChecked(True)
     four = showing(dialog)
     assert "sod" in four and "pcu" not in four   # pcu is 6-coordinate
 
-    dialog.filter.setText("")
+    dialog.search.coordination.setText("")
     assert len(showing(dialog)) == dialog.nets.count()
+
+
+def test_the_net_builder_lists_layers_and_can_leave_them_out(dialog):
+    """The 200 layers were refused until 2026-09-21; now they are
+    drawn, and the 2D box is how to not see them."""
+    assert "hcb" in showing(dialog)
+    assert dialog.two_d.text() == "2D (200)"
+    dialog.two_d.setChecked(False)
+    assert "hcb" not in showing(dialog) and "pcu" in showing(dialog)
+
+
+def test_a_layer_gets_a_picture_and_says_its_plane_group(dialog):
+    assert dialog._select("kgm")
+    assert dialog.preview._drawing is not None
+    assert "Plane group p6mm" in dialog.details.text()
+    assert dialog.values()["net"] == "kgm"
+
+
+def test_a_transitivity_search_finds_the_two_kinds_of_edge(dialog):
+    dialog.search.transitivity.setText("2 2")
+    dialog.two_d.setChecked(True)
+    found = showing(dialog)
+    assert "mcm" in found and "hcb" not in found
 
 
 def test_the_picker_returns_the_net_it_is_showing(dialog):

@@ -160,9 +160,9 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
 # The four polydentate blocks this application ships of its own.  Four
 # files, and the only ones anywhere whose connection points stand for
 # more than one atom -- without them the builder has 867 blocks and
-# cannot build MFU-4l.  And the three layer nets, which PORMAKE has
-# none of.
-"xtal.mof.library" = ["blocks/*.xyz", "nets/*.cgd"]
+# cannot build MFU-4l.  The layer nets are not here: they are the
+# RCSR's, from xtal.analysis's gzipped .cgd.
+"xtal.mof.library" = ["blocks/*.xyz"]
 
 [tool.setuptools_scm]        # version from git tags; no version file to bump
 

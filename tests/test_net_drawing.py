@@ -124,14 +124,22 @@ def test_a_net_whose_edges_do_not_land_on_it_is_refused(nets):
         topology.by_name("thz")
 
 
-def test_a_two_periodic_net_is_refused_by_name(nets):
-    """200 of the 2931 entries are 2-periodic and have no cell to be
-    drawn in.  They are left out of :func:`names` rather than offered
-    and then refused."""
-    flat = next(e for e in nets if e.dimension == 2)
-    with pytest.raises(topology.NetDrawingError, match=flat.name):
-        topology.structure_for(flat)
-    assert flat.name not in topology.names()
+def test_a_layer_is_drawn_flat_in_its_layer_group(nets):
+    """200 of the 2931 entries are 2-periodic.  They are drawn as the
+    MOF builder builds them, in the plane group's layer group with
+    every atom at z = 0 -- a sheet with a tilt or a second copy would
+    be a picture of a different net."""
+    from xtal.core import p1
+
+    kgm = topology.structure_for(nets["kgm"])
+    assert kgm.space_group.number == 191
+    assert kgm.lattice.parameters[2] == pytest.approx(
+        rcsr.LAYER_C * topology.SCALE)
+    cell = p1.expand(kgm)
+    assert {round(f[2] % 1.0, 6) for f in cell.frac} == {0.0}
+    nodes = [e for e in cell.elements if e == topology.NODE_ELEMENT]
+    assert len(nodes) == 3
+    assert "kgm" in topology.names() and "hcb" in topology.names()
 
 
 def test_a_net_with_no_cell_is_refused_by_name(nets):

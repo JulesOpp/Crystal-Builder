@@ -43,4 +43,6 @@ The four **shipped** with Phase 7 and live at
 read them by the names they were cut under; change a block and change
 it there, not here.  `nets/hcb.cgd` was the draft of the layer Phase 8
 shipped as `xtal/mof/library/nets/hcb.cgd`, rewritten there with edges
-of length one; the probes read the draft and it stays as it is.
+of length one; that file has since given way to the RCSR's own `hcb`
+(`xtal.mof.catalog.rcsr_layers`), the same values.  The probes read
+the draft and it stays as it is.
