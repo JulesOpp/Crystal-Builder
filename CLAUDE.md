@@ -295,22 +295,31 @@ stress case).
   enumerates them from `info` instead and the enumeration owns the
   joint. MFU-4l on `pcu` goes from 6 joints to 12.
 - **Which way round a symmetric node goes is a tie, and the default
-  is to leave it where the fit put it.** An octahedral node fits its
-  slot 24 ways at the same RMSD while its body moves 8.2 A between
-  them. `xtal/mof/orient.py` enumerates that tie set — the block's
-  rotation group from ordered *pairs* of connection directions and
-  the normal they span, never triples, because three directions of a
-  planar block span no volume and triples would call a trigonal node
-  unsymmetric — and `consistent` minimises `attach.pair_cost` over
-  the two nodes each edge joins. `as-found` is the default and
-  `build._build` **returns at pass 1** unless another rule was asked
-  for *and* some node presents a frame -- several atoms at a point,
-  or a **face** (next item) -- so an `as-found` build is byte for
-  byte what PORMAKE makes. The rule moves a node only where it is
-  *strictly* cheaper, never where it merely ties, and it starts from
-  the fit itself (`orient._admit`), which need not be in the tie set
-  `tie_set` locates afresh. A second pass whose `max_rmsd` is worse
-  than the first by more than `orient.FIT_SLACK` is thrown away.
+  breaks it so that the faces across every edge agree.** An
+  octahedral node fits its slot 24 ways at the same RMSD while its
+  body moves 8.2 A between them. `xtal/mof/orient.py` enumerates that
+  tie set — the block's rotation group from ordered *pairs* of
+  connection directions and the normal they span, never triples,
+  because three directions of a planar block span no volume and
+  triples would call a trigonal node unsymmetric — and `consistent`,
+  **the default since 2026-09-21**, minimises `attach.pair_cost` over
+  the two nodes each edge joins; it is what builds MOF-5 with its
+  clusters alternating. It was `as-found` until then, and what made
+  the change safe is structural: the search **starts from the fit**
+  (`orient._admit` -- the fit need not be in the tie set `tie_set`
+  locates afresh), moves a node only where it is *strictly* cheaper,
+  and a second pass is **thrown away** if its `max_rmsd` is worse
+  than the first's by more than `orient.FIT_SLACK` or its cell is not
+  the first's to `orient.CELL_SLACK` (0.5 %): a tie cannot move the
+  cell, and `dia` on N623 turned collapsed *b* to 0.007 A with every
+  block "fitting" to 1e-4. `build._build` returns
+  at pass 1 unless some *node* presents a frame -- several atoms at a
+  point, or a face -- so a build of faceless nodes is what PORMAKE
+  made. `as-found` stays, one down in the form, and is byte for byte
+  PORMAKE's build; the upstream comparison in `test_mof_vendored.py`
+  asks for it by name. The results table's *Joint twist left* is
+  what the rule could not fix: `pcu` x 1x1x1 on N16 is 6.0 over 3,
+  because one slot cannot alternate.
 - **A face is scored, never bonded.** A connection point standing for
   one atom presents the plane of that atom and its two other
   neighbours (`attach.face_of`): a carboxylate on N16, a ring on E14.
@@ -338,9 +347,9 @@ stress case).
   minimises. What turns is asked of the **block** — two points and a
   face at one of them — and never of the slot, so a two-connected
   *node* turns too. **Faces count only under `consistent`**
-  (`align_edges(faces=...)`), so under `as-found` no shipped block is
-  on that list; under `consistent` E14 turns until its ring lies flat
-  on both carboxylates it meets. Ni3(HITP)2's own blocks come back
+  (`align_edges(faces=...)`) -- the default, so E14 turns until its
+  ring lies flat on both carboxylates it meets; under `as-found` no
+  shipped block is on that list. Ni3(HITP)2's own blocks come back
   wanting 6e-08 radians, which is the crystal's angle and below
   `_STILL`.
 - **A layer net is stacked after it is built, never by the builder.**

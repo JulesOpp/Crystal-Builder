@@ -578,14 +578,19 @@ class MofBuildDialog(QDialog):
         self.interpenetration.setValue(fold)
         wanted_rule = str(given.get("orientation") or "")
         at = self.orientation.findData(wanted_rule)
+        if at < 0:
+            at = self.orientation.findData(_ORIENTATIONS.default)
         self.orientation.setCurrentIndex(max(at, 0))
         # Folded away unless last time's answer was not the default:
         # a 2x2x2 repeat hidden under a closed arrow builds eight
-        # times the cell nobody remembers asking for.
+        # times the cell nobody remembers asking for.  The default by
+        # name and never by position -- the rules were reordered when
+        # `consistent` became it.
         self.how_fold.set_open(
             bool(self.repeat.text().strip(" 1x") or
                  self.spacing.text() or self.offset.text())
-            or fold > 1 or max(at, 0) > 0)
+            or fold > 1
+            or self.orientation.currentData() != _ORIENTATIONS.default)
         wanted = str(given.get("topology") or "pcu")
         if not self._select(wanted) and not self._select("pcu"):
             self.topologies.setCurrentRow(0)

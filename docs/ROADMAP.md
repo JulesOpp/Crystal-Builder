@@ -826,7 +826,7 @@ Phase 3.
 | **0 — Clean tree** | Shipped 2026-09-21 (7689c37); the MOF dialog work left uncommitted, committed on its own | `xtalapp/dialogs/mof_build.py`, `xtal/mof/catalog.py` | S |
 | **1 — A safe, fast search** | Shipped 2026-09-21; the search starts from the fit, a second pass that fits worse is discarded, each joint is scored once | `xtal/mof/orient.py`, `xtal/mof/build.py` | M |
 | **2 — Faces** | Shipped 2026-09-21; `attach.face_of`, `attach.presents_face`; MOF-5 builds under `consistent` to 0.10 A of the sample, default still `as-found` | `xtal/mof/attach.py`, `xtal/mof/orient.py`, `xtal/mof/build.py` | M |
-| **3 — `consistent` by default** | The default flips; "Joint twist left" in the results; upstream comparison pinned to `as-found` | `xtal/mof/build.py`, `xtal/modules/mof.py`, `xtal/mof/orient.py`, `xtalapp/dialogs/mof_build.py` | S-M |
+| **3 — `consistent` by default** | Shipped 2026-09-21; the default flips, a pass 2 that moves the cell is thrown away, "Joint twist left" in the results | `xtal/mof/build.py`, `xtal/modules/mof.py`, `xtal/mof/orient.py`, `xtalapp/dialogs/mof_build.py` | S-M |
 
 ### What Phase 1 changed
 
@@ -889,7 +889,10 @@ Phase 3.
   0.131 worst** onto `resources/samples/MOF-5.cif` (1.18 / 2.98
   before), 424 atoms and 48 joints as before.
 * **Elsewhere under `consistent`**: `dia`/N623/E14 0.579 -> 0.000 A
-  max RMSD, joints 17.6 -> 0; `pcu`/N343/E32 x 2x2x2 0.450 -> 0.395;
+  max RMSD, joints 17.6 -> 0 -- **wrong, and caught in Phase 3**: that
+  pass 2 had collapsed the cell (*b* 25.2 -> 0.007 A), and a perfect
+  fit is what a cell with no room looks like; `pcu`/N343/E32 x 2x2x2
+  0.450 -> 0.395 (also a cell change, 4.6 % in volume);
   `nbo`/N466/E14 would have fitted 1.051 against 0.562 and Phase 1's
   guard kept the fit; `cds`/N161/E3 had nothing strictly better and
   only its linkers turned.  Every `as-found` build checked is byte
@@ -909,23 +912,53 @@ Phase 3.
   `test_nodes_with_nothing_to_score_between_linkers_with_faces_keep_the_fit`
   (`test_mof_orientation.py`).
 
-### Phase 3 — `consistent` by default
+### What Phase 3 changed
 
-* `BuildRequest`, `parse` and the `orientation` `Param` default to
-  `consistent`; `orient.RULES` reordered; help text rewritten.  Keys
-  unchanged.
-* The dialog's "How it is built" section opens when the orientation
-  is not the *first* choice (`max(at, 0) > 0` in
-  `MofBuildDialog._restore`); that must compare with the default once
-  the choices are reordered.
-* Results gain "Joint twist left": 0 over 24 for MOF-5, 6.0 over 3 for
-  `pcu` x 1x1x1, which has one slot and no room to alternate.
-* `test_a_vendored_build_is_the_framework_upstream_builds` pins
-  `as-found`; tests that assumed the old default spell it out.
-* Re-run the 52-build spread with room in memory and record how many
-  moved and the time ratio here.
-* Docs: delete the TODO entry; rewrite the two orientation invariants
-  in CLAUDE.md and add *A face is read, never bonded*.
+* **`consistent` is the default** -- `BuildRequest`, `parse`, the
+  `orientation` `Param` -- and `orient.RULES` offers it first; keys
+  unchanged.  A MOF-5 build that names no rule, in the real window,
+  comes back four and four, 0 degrees on 24 linkers and 48 rings, and
+  0.101 A RMS onto the sample.  `as-found` stays, byte for byte
+  PORMAKE's, and the upstream comparison asks for it by name.
+* **A pass 2 that moves the cell is thrown away** (`orient.
+  same_cell`, `CELL_SLACK` = 0.5 % in every length and in volume).
+  Found by the spread: `dia`/N623/E14 took **368 s** against 0.9,
+  because pass 2 had collapsed *b* from 25.2 A to 0.007 and PORMAKE's
+  `write_cif` spent five minutes on the neighbour list of a 3.9 A^3
+  cell.  Its blocks "fitted" to 1e-4, which is why the `max_rmsd`
+  guard let it through, and why Phase 2 reported it as 0.579 ->
+  0.000.  A tie cannot move the cell -- MOF-5's turned cell matches
+  to 2e-16 -- and over the 23 builds that took pass 2, the ties moved
+  it by at most 0.19 % and everything else by 0.74 % or more.  The
+  cost is that `pcu`/N343, `dia`/N194, `lvt`/N50 and `sod`/N276 lose
+  "better fits" that were PORMAKE relaxing to a different framework,
+  not the rule breaking a tie.
+* **The pass-1 gate reads the blocks as made, not as placed.**  A node
+  placed with no linker beside it comes back without its X atoms but
+  still naming them, and `face_of` indexed off the end: N59 on bare
+  `pcu` raised.  `make_bbs_by_type` moved up a line and the gate reads
+  that.
+* **Results** gain *Joint twist left*, the node-to-node cost the rule
+  could not remove: `pcu` x 1x1x1 on N16 reports 6.0 over 3 edges, the
+  2x2x2 0 over 24; no row where no node had a face.
+* **The dialog** opens *How it is built* when the rule is not the
+  default *by name*, and falls back to it when none was saved.
+* **The spread**, 52 builds on 17 nets, each in its own process:
+  every net identifies as asked with the same atom count; none fits
+  worse; 2 fit better (`tbo`/N48+N385 0.447 -> 0.445, `lvt`/N654
+  0.007 -> 0.000); 34 change by linker spin or a tie at the same fit;
+  16 are byte for byte `as-found`.  Time 48.0 s -> 52.2 s (x1.09),
+  none slower than x1.5.
+* Tests: `test_a_build_that_names_no_rule_is_built_consistent`,
+  `test_as_found_builds_exactly_what_it_built_before` (was
+  *the default rule*), `test_a_second_pass_that_moves_the_cell_is_thrown_away`,
+  `test_a_cell_with_no_room_to_alternate_says_how_much_twist_is_left`,
+  `test_the_orientation_form_offers_consistent_first`,
+  `test_as_found_last_time_is_not_hidden_and_the_default_is`; the
+  MOF-5 fixture names no rule, so its four tests are of the default.
+* The TODO entry *A repeated net cannot be told to flip its
+  neighbours* is deleted; CLAUDE.md's orientation invariant is
+  rewritten for the new default.
 
 ---
 

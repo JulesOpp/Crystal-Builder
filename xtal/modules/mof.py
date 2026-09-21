@@ -134,17 +134,18 @@ PARAMS = (
                "defect, a guest or an interpenetrated pair needs "
                "room for.  Leave it at 1x1x1 for the net itself."),
     Param("orientation", "Node orientation", kind="choice",
-          default="as-found",
-          choices=(("as-found", "As found by the fit"),
-                   ("consistent", "Consistent across every joint")),
+          default="consistent",
+          choices=(("consistent", "Consistent across every joint"),
+                   ("as-found", "As found by the fit")),
           help="Which way round the node blocks go.  A symmetric "
-               "node fits its slot equally well two dozen ways and "
-               "the fit takes whichever it reached first, which "
-               "decides nothing while a connection point stands for "
-               "one atom.  Where one stands for two, 'consistent' "
-               "turns each node so that the two ends of every joint "
-               "present the same face -- and only where that is "
-               "measurably better than what the fit chose."),
+               "node fits its slot equally well two dozen ways.  By "
+               "default each node is turned so that the faces at the "
+               "two ends of every linker agree -- carboxylate against "
+               "carboxylate, chelate against chelate -- which is what "
+               "makes MOF-5's clusters alternate on a 2x2x2 net, and "
+               "only where that is measurably better than what the "
+               "fit chose.  'As found' keeps whatever the fit reached "
+               "first, exactly as PORMAKE builds it."),
     Param("spacing", "Interlayer spacing", kind="text",
           help="How far apart the sheets of a layer net are stacked, "
                "in Angstrom.  Left empty it is 3.4, which is where "
@@ -322,6 +323,18 @@ def _report(outcome) -> Report:
                     "slot and still present the wrong face to its "
                     "neighbour", "", decimals=3),)
         if outcome.longest_joint else ())
+    # Likewise only when a rule scored something: no row means no node
+    # had a face, not that every joint agreed.
+    if outcome.twist is not None:
+        cost, edges = outcome.twist
+        joint_row += (Row.number(
+            "Joint twist left", cost, "",
+            f"over {edges} edge(s): how far the faces at the two ends "
+            f"of each edge still disagree once the nodes were turned "
+            f"-- 0 where they agree, 2 an edge at a quarter turn.  A "
+            f"net with one node slot cannot alternate, so MOF-5 on "
+            f"pcu is 6.0 over 3 and needs a 2x2x2 repeat to reach 0",
+            "", decimals=3),)
     fit = Table(
         title="How well the blocks fit the net",
         rows=(

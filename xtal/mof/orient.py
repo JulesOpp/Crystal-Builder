@@ -31,12 +31,14 @@ safe rather than a second fit:
 * every candidate is validated by calling the vendored
   ``locator.locate_with_permutation``, so the placement that is scored
   is the placement that will be produced;
-* the default rule is :data:`AS_FOUND`, which is today's behaviour and
-  returns nothing at all.  A build only reaches any of this when the
-  user asked for the other rule *and* a connection point has a frame:
-  several atoms, or the plane its one atom presents
-  (:func:`xtal.mof.attach.face_of`), which is what makes MOF-5's
-  clusters alternate.
+* the search starts from the fit and leaves it only for something
+  strictly cheaper, and a rebuilt framework whose blocks fit worse is
+  thrown away (:data:`FIT_SLACK`).  That is what made
+  :data:`CONSISTENT` safe to be the default.  It is reached only
+  where a node has a frame -- several atoms at a point, or the plane
+  its one atom presents (:func:`xtal.mof.attach.face_of`), which is
+  what makes MOF-5's clusters alternate -- and :data:`AS_FOUND`
+  returns nothing at all, byte for byte what PORMAKE builds.
 
 **What is scored is the two nodes at the ends of an edge, not a node
 against its linker.**  A linker's angle about its own axis is a
@@ -88,14 +90,17 @@ from xtal.mof.build import (
     point_at,
 )
 
-#: Today's behaviour: the primary fit chooses, and nothing here runs.
+#: The primary fit chooses, and nothing here runs: byte for byte what
+#: PORMAKE builds.
 AS_FOUND = "as-found"
 
-#: Minimise the disagreement between the two ends of every edge.
+#: Minimise the disagreement between the two ends of every edge.  The
+#: default, because it is what builds MOF-5 with its clusters
+#: alternating.
 CONSISTENT = "consistent"
 
-#: The rules, in the order a form should offer them.
-RULES = (AS_FOUND, CONSISTENT)
+#: The rules, in the order a form should offer them: the default first.
+RULES = (CONSISTENT, AS_FOUND)
 
 #: How nearly a candidate rotation has to be a rotation.
 #:
@@ -135,6 +140,32 @@ _FLOOR = 1e-12
 #: orders the other side: ``nbo`` on N466 and E14, turned, fitted
 #: 0.973 A against 0.562 as found.
 FIT_SLACK = 1e-3
+
+#: How far, as a fraction, a second pass's cell may differ from the
+#: first's in any length or in volume before it is thrown away.
+#:
+#: A tie does not move where a node's connection points go, so it
+#: cannot move the cell either: turning MOF-5's clusters leaves the
+#: cell as it was to 2e-16.  Measured over the 23 builds of a 52-build
+#: spread that took a second pass, the turns that were ties moved it
+#: by at most 0.19 % (``lvt`` on N654, in volume), and the rest by
+#: 0.74 % and up -- PORMAKE's relaxation finding a different framework
+#: rather than the rule breaking a tie.  The worst was ``dia`` on
+#: N623 and E14: *b* went from 25.2 A to 0.007, the blocks "fitted" to
+#: 1e-4 in a cell of 3.9 A^3, and writing it out took five minutes.
+#: Half a percent is between the two.
+CELL_SLACK = 5e-3
+
+
+def same_cell(first, second) -> bool:
+    """Whether two ``ase`` cells are the same to :data:`CELL_SLACK`,
+    in every length and in volume -- the second catches an angle."""
+    before = np.asarray(first.lengths(), dtype=float)
+    after = np.asarray(second.lengths(), dtype=float)
+    if np.any(before <= 0) or first.volume <= 0:    # pragma: no cover
+        return False
+    return (bool(np.all(np.abs(after / before - 1.0) <= CELL_SLACK))
+            and abs(second.volume / first.volume - 1.0) <= CELL_SLACK)
 
 #: Costs are compared to this many places, so that two orientations
 #: that differ only in rounding are decided by the tie-break below
@@ -429,13 +460,16 @@ def _tied(fits) -> tuple[Fit, ...]:
 # ======================================================================
 
 def choose_permutations(topology, blocks, rule: str = AS_FOUND,
-                        baseline=None, log=None) -> dict:
+                        baseline=None, log=None, trace=None) -> dict:
     """``{node slot: permutation}`` for ``Builder.build``.
 
-    Empty under :data:`AS_FOUND`, which is the default and is today's
-    behaviour: an empty map is exactly "let the locator decide", so
-    the rule that changes nothing changes nothing structurally rather
-    than by agreeing with itself.
+    Empty under :data:`AS_FOUND`: an empty map is exactly "let the
+    locator decide", so the rule that changes nothing changes nothing
+    structurally rather than by agreeing with itself.
+
+    ``trace``, given a dict, is filled with ``cost``, ``found`` -- the
+    cost of the fit itself -- and ``edges``, which is what the build
+    reports as the twist left over.
 
     Under :data:`CONSISTENT` the sum of
     :func:`xtal.mof.attach.pair_cost` over every edge of the net is
@@ -511,6 +545,11 @@ def choose_permutations(topology, blocks, rule: str = AS_FOUND,
     _say(log, f"orientation {rule}: joints disagree by "
               f"{score.cost(choice):.6f} over {len(score.edges)} "
               f"edge(s), against {score.cost(start):.6f} as found")
+    if trace is not None:
+        # What the results table reports, and what the caller needs
+        # when it throws the turned build away and keeps the fit.
+        trace.update(cost=score.cost(choice), found=score.cost(start),
+                     edges=len(score.edges))
     return {slot: np.asarray(choice[slot]) for slot in nodes}
 
 

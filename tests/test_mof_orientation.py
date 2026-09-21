@@ -315,11 +315,12 @@ def test_a_trigonal_linker_has_one_orientation_only(synthetic):
 
 @needs_builder
 @pytest.mark.slow
-def test_the_default_rule_builds_exactly_what_it_built_before(
+def test_as_found_builds_exactly_what_it_built_before(
         tmp_path, synthetic):
-    """``as-found`` is the default and it is today's behaviour, so a
-    build that does not ask for a rule never reaches any of the
-    discrete choice above.
+    """``as-found`` is the fit's own choice, so a build that asks for
+    it never reaches any of the discrete choice above.  It was the
+    default until ``consistent`` took over; the pins are the ones it
+    had then.
 
     It does reach the *continuous* one, and that is not a hole in the
     guarantee.  A node's fit decides which of its own rotations was
@@ -332,17 +333,33 @@ def test_the_default_rule_builds_exactly_what_it_built_before(
     continuous turn can undo is two nodes a quarter turn apart, and
     that is what the rule below is for.
     """
-    request = BuildRequest.parse("pcu", "SNODE", "SLINK")
-    assert request.orientation == "as-found"
-
-    built = build(request, _fresh(tmp_path / "a"), synthetic)
-    named = build(BuildRequest.parse("pcu", "SNODE", "SLINK", "",
+    built = build(BuildRequest.parse("pcu", "SNODE", "SLINK", "",
                                      "as-found"),
-                  _fresh(tmp_path / "b"), synthetic)
+                  _fresh(tmp_path / "a"), synthetic)
 
     assert built.joints == 12
     assert round(built.longest_joint, 3) == 1.500
-    assert named.cif.read_text() == built.cif.read_text()
+    assert built.twist is None
+
+
+@needs_builder
+@pytest.mark.slow
+def test_a_build_that_names_no_rule_is_built_consistent(tmp_path,
+                                                         synthetic):
+    """``consistent`` is the default: it is what builds MOF-5 with its
+    clusters alternating, and Phase 1 of the face rule is what made it
+    safe to be -- it starts from the fit, leaves it only for something
+    strictly cheaper, and throws away a rebuild that fits worse."""
+    request = BuildRequest.parse("acs", "SNODE", "")
+    assert request.orientation == "consistent"
+
+    unnamed = build(request, _fresh(tmp_path / "a"), synthetic)
+    named = build(BuildRequest.parse("acs", "SNODE", "", "",
+                                     "consistent"),
+                  _fresh(tmp_path / "b"), synthetic)
+
+    assert unnamed.cif.read_text() == named.cif.read_text()
+    assert unnamed.twist is not None
 
 
 @needs_builder
@@ -478,6 +495,30 @@ def test_a_second_pass_that_fits_worse_is_thrown_away(
 
     assert any("fit their slots worse" in line for line in said)
     assert turned.cif.read_text() == plain.cif.read_text()
+
+
+@needs_builder
+@pytest.mark.slow
+def test_a_second_pass_that_moves_the_cell_is_thrown_away(tmp_path,
+                                                          catalog):
+    """A tie does not move where connection points go, so it cannot
+    move the cell.  ``dia`` on N623 and E14, turned, relaxed to a cell
+    with *b* = 0.007 A: every block fitted to 1e-4 because there was
+    no room left to misfit in, the closest contact was 0.01 A, and
+    writing the CIF took five minutes.  The fit's framework comes
+    back instead, and says why."""
+    said = []
+    turned = build(BuildRequest.parse("dia", "N623", "E14"),
+                   _fresh(tmp_path / "a"), catalog, log=said.append)
+    plain = build(BuildRequest.parse("dia", "N623", "E14", "",
+                                     "as-found"),
+                  _fresh(tmp_path / "b"), catalog)
+
+    assert any("relaxed to another cell" in line for line in said)
+    assert round(turned.max_rmsd, 6) == round(plain.max_rmsd, 6)
+    assert turned.closest > 1.0
+    assert (turned.structure.lattice.parameters[:3]
+            == pytest.approx(plain.structure.lattice.parameters[:3]))
 
 
 @needs_builder

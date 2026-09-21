@@ -141,56 +141,6 @@ reported.  Two things it does not do, and neither blocks anything:
   surface ever needs to be *written* -- an STL for a figure, or the
   project file it is deliberately kept out of.
 
-### A repeated net cannot be told to flip its neighbours
-
-Asked for by Julius, 2026-09-20.  MOF-5's own file is already the
-2x2x2 of `pcu` -- 25.866 A, 424 atoms -- and its eight Zn4O clusters
-**alternate**: four of them span a signed volume of +0.770 on their
-first three Zn directions and four -0.770, which is the other
-tetrahedron of the same cube.  `pcu` x (2,2,2) on `N16` and `E14`
-builds the same 424 atoms with all eight the same way round, and no
-option asks for anything else.
-
-The lever is there and it works.  Phase 5's `consistent` rule reaches
-exactly that alternation: on the same net with MFU-4l's own
-polydentate node it takes the joint disagreement from **48.0 to
-0.000000**, changes seven of the eight slots and comes back **four
-and four** -- 648 atoms, 96 joints, longest 1.667 A against 1.838
-as-found.  The flip is one of the node's own 24 proper rotations (the
-twelve that are not in T swap the cube's two tetrahedra), so nothing
-new has to be enumerated to find it.
-
-What is missing is a reason to prefer it.  `consistent` scores the
-**faces two attachments present across a joint**, and a connection
-point standing for one atom presents none -- so on `N16`, whose six
-points are one carboxylate carbon each, every orientation costs zero
-and the build keeps the fit and says so.  Two ways out, and they are
-not exclusive:
-
-* **Author the node polydentate.**  Each carboxylate as one `X`
-  standing for its two oxygens is the Phase 3 gesture, and MOF-5
-  would then alternate for the same reason MFU-4l does, with no new
-  code.  Worth trying first, because it says whether the cost
-  function is right about MOF-5 as well as about MFU-4l.
-* **Say it outright.**  Julius's own suggestion: an explicit
-  *invert the nearest neighbours* -- a third `orientation` rule that
-  alternates the node slots of a repeated net by a named operation
-  rather than by minimising anything, so a node with nothing to score
-  can still be flipped.  It needs a definition of "alternating" that
-  survives a net that is not bipartite, and `Net.multiplicity()` and
-  the Phase 9 machinery are the obvious place to get one.
-
-Either way it is only representable on a **repeated** net: `pcu` x
-(1,1,1) has one node slot, so there is nowhere for a second
-orientation to go.
-
-Phase 7 shipped the blocks, so the half of this that *works* is now a
-test rather than a probe:
-`test_mfu4l_builds_with_its_nodes_alternating` in
-`tests/test_mof_targets.py` holds the four-and-four and the 1.838 A
--> 1.667.  What is still owed is unchanged and is the other half --
-MOF-5, whose `N16` has nothing to score.
-
 ### A chelate's joint comes out 0.3 A long, and the cell with it
 
 Measured in Phase 8, 2026-09-21.  Ni3(HITP)2 built on `hcb` has the

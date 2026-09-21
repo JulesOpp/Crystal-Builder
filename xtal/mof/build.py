@@ -102,9 +102,12 @@ class BuildRequest:
     #: took -- see :meth:`xtal.mof.catalog.Topology.expanded`.
     repeat: tuple[int, int, int] = (1, 1, 1)
     #: Which way round the node blocks go: see :mod:`xtal.mof.orient`.
-    #: ``"as-found"`` is what the locator chose and is the default,
-    #: which is what makes the other rule unable to regress anything.
-    orientation: str = "as-found"
+    #: ``"consistent"`` by default, because it is what builds MOF-5
+    #: with its clusters alternating; ``"as-found"`` is what the
+    #: locator chose, byte for byte what PORMAKE makes.  Spelled out
+    #: here rather than imported, because :mod:`xtal.mof.orient`
+    #: imports this module.
+    orientation: str = "consistent"
     #: How far apart the sheets of a layer net are stacked, in
     #: Angstrom, or ``None`` for :data:`xtal.mof.layers.
     #: DEFAULT_SPACING`.  ``None`` is not the same as 3.4 written
@@ -150,7 +153,7 @@ class BuildRequest:
                    _assignments(nodes, _node_key, "node"),
                    _assignments(edges, _edge_key, "edge"),
                    _repeat(repeat),
-                   str(orientation or "").strip() or "as-found",
+                   str(orientation or "").strip() or "consistent",
                    _spacing(spacing), _offset(offset),
                    _interpenetration(interpenetration))
 
@@ -408,6 +411,14 @@ class BuildOutcome:
     #: which is why it is not 0.0: 0.000 A is a real answer and CFA1
     #: gives it.
     closest: float = float("inf")
+    #: ``(cost, edges)``: how far the two nodes at the ends of each edge
+    #: still disagree about their faces once the orientation rule has
+    #: done what it can -- :func:`xtal.mof.attach.pair_cost` summed, 0
+    #: for agreement and 2 an edge for a quarter turn.  ``None`` when
+    #: no rule ran or no node had a face to score.  What says a cell
+    #: had no room: ``pcu`` x 1x1x1 on N16 is 6.0 over 3, because its
+    #: one slot cannot alternate, and the same net x 2x2x2 is 0.
+    twist: tuple | None = None
 
     @property
     def net_name(self) -> str:
@@ -525,6 +536,7 @@ def build(request: BuildRequest, directory, catalog: Catalog | None
         max_rmsd=float(framework.info.get("max_rmsd", 0.0) or 0.0),
         mean_rmsd=float(framework.info.get("mean_rmsd", 0.0) or 0.0),
         objective=float(framework.info.get("relax_obj", 0.0) or 0.0))
+    outcome.twist = framework.info.get("joint_twist")
     outcome.joints, outcome.longest_joint = bond_joints(
         structure, framework)
     outcome.closest = closest_contact(structure)
@@ -601,7 +613,7 @@ def _stack(framework, request: BuildRequest, log) -> None:
 
 
 def _build(topology, node_bbs, edge_bbs, log, repeat=(1, 1, 1),
-           orientation="as-found"):
+           orientation="consistent"):
     """The build, in one pass or in two, with PORMAKE imported at the
     point of use.
 
@@ -652,16 +664,18 @@ def _build(topology, node_bbs, edge_bbs, log, repeat=(1, 1, 1),
     # The nodes, and not every block: the choice is of which way round
     # each *node* goes, and a linker with a face between nodes with
     # none -- cds on N307 and E3 -- has nothing here to choose.  The
-    # linker still turns about its own axis, later, in `build`.
-    placed = framework.info["located_bbs"]
-    if not any(_presents_face(placed[int(slot)])
-               for slot in framework.info["topology"].node_indices):
+    # linker still turns about its own axis, later, in `build`.  And
+    # the blocks as made, not as placed: a node placed with no linker
+    # beside it comes back without its X atoms while still naming
+    # them, so N59 on bare pcu has points 20-25 in a block of 20.
+    blocks = builder.make_bbs_by_type(topo, nodes, edges or None)
+    if not any(_presents_face(blocks[int(slot)])
+               for slot in topo.node_indices):
         _say(log, "no connection point of a node here stands for more "
                   "than one atom or presents a face, so there is no "
                   "orientation to choose; keeping the fit")
         return framework
 
-    blocks = builder.make_bbs_by_type(topo, nodes, edges or None)
     swapped, unchecked = orient.substitute_mirrored(blocks, framework)
     if swapped:
         _say(log, f"the fit mirrored the block on {len(swapped)} "
@@ -671,10 +685,13 @@ def _build(topology, node_bbs, edge_bbs, log, repeat=(1, 1, 1),
                   f"atoms that mark where they connect, so whether "
                   f"the fit mirrored them could not be read")
     found = framework.info["permutations"]
+    scored: dict = {}
     chosen = orient.choose_permutations(
         framework.info["topology"], blocks, orientation,
         baseline={slot: found[slot] for slot in range(len(found))},
-        log=log)
+        log=log, trace=scored)
+    kept = (scored["found"], scored["edges"])
+    framework.info["joint_twist"] = kept
     if all(tuple(chosen[slot]) == tuple(found[slot])
            for slot in chosen):
         # Nothing was strictly better than what the fit already
@@ -695,6 +712,16 @@ def _build(topology, node_bbs, edge_bbs, log, repeat=(1, 1, 1),
         _say(log, f"the turned nodes fit their slots worse ({after:.3f} "
                   f"A against {before:.3f}); keeping the fit")
         return framework
+    # And a turn that is a tie cannot move the cell.  One that does is
+    # the relaxation finding another framework -- or collapsing, which
+    # is what a perfect fit in a cell with no room looks like.
+    if not orient.same_cell(framework.atoms.cell, turned.atoms.cell):
+        was = ", ".join(f"{v:.2f}" for v in framework.atoms.cell.lengths())
+        now = ", ".join(f"{v:.2f}" for v in turned.atoms.cell.lengths())
+        _say(log, f"the turned nodes relaxed to another cell ({now} A "
+                  f"against {was}); keeping the fit")
+        return framework
+    turned.info["joint_twist"] = (scored["cost"], scored["edges"])
     return turned
 
 

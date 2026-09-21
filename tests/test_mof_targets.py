@@ -83,11 +83,10 @@ def mfu4l(tmp_path_factory, catalog):
     """MFU-4l on **pcu**, built once for the four tests below.
 
     Module-scoped because a build is a second and none of these tests
-    changes what it looks at.  ``as-found`` is the default and is
-    deliberately not overridden: on the single cell every edge joins a
-    node to an image of itself, so the discrete rule has nothing to
-    choose between and the framework must be the one a user who asked
-    for nothing gets.
+    changes what it looks at.  The default rule is deliberately not
+    overridden: on the single cell every edge joins a node to an image
+    of itself, so the discrete rule has nothing to choose between, and
+    the framework must be the one a user who asked for nothing gets.
     """
     folder = tmp_path_factory.mktemp("mfu4l")
     return build(BuildRequest.parse("pcu", NODE, LINKER), folder,
@@ -292,7 +291,8 @@ def test_mfu4l_builds_with_its_nodes_alternating(tmp_path, catalog):
     falls from 1.838 A to 1.667 with the blocks sitting on their slots
     exactly as well as before.
     """
-    plain = build(BuildRequest.parse("pcu", NODE, LINKER, "2x2x2"),
+    plain = build(BuildRequest.parse("pcu", NODE, LINKER, "2x2x2",
+                                     "as-found"),
                   _fresh(tmp_path / "as-found"), catalog)
     turned = build(
         BuildRequest.parse("pcu", NODE, LINKER, "2x2x2", "consistent"),
@@ -313,15 +313,15 @@ def test_mfu4l_builds_with_its_nodes_alternating(tmp_path, catalog):
 @pytest.fixture(scope="module")
 def mof5(tmp_path_factory, catalog):
     """MOF-5 as the builder makes it: ``pcu`` x 2x2x2, N16 and E14,
-    under ``consistent``.
+    and **no rule named** -- the default is what has to be MOF-5.
 
     The 2x2x2 is not a convenience.  The sample is that cell --
     25.866 A, 424 atoms, eight Zn4O -- and a single cell has one node
     slot, so there is nowhere for a second orientation to go.
     """
     folder = tmp_path_factory.mktemp("mof5")
-    return build(BuildRequest.parse("pcu", "N16", "E14", "2x2x2",
-                                    "consistent"), folder, catalog)
+    return build(BuildRequest.parse("pcu", "N16", "E14", "2x2x2"),
+                 folder, catalog)
 
 
 @needs_builder
@@ -373,6 +373,26 @@ def test_mof5_overlays_the_sample_to_a_fifth_of_an_angstrom(mof5):
 
     assert rms < 0.2
     assert worst < 0.3
+
+
+@needs_builder
+@pytest.mark.slow
+def test_a_cell_with_no_room_to_alternate_says_how_much_twist_is_left(
+        tmp_path, catalog, mof5):
+    """``pcu`` x 1x1x1 has one node slot, and a Td cluster's opposite
+    carboxylates are a quarter turn apart, so each of its three edges
+    stays at 2.0 whatever the rule does.  The results table says so,
+    and says the 2x2x2 reached 0."""
+    from xtal.modules.mof import _report
+
+    single = build(BuildRequest.parse("pcu", "N16", "E14"),
+                   _fresh(tmp_path / "single"), catalog)
+
+    assert (round(single.twist[0], 3), single.twist[1]) == (6.0, 3)
+    assert (round(mof5.twist[0], 6), mof5.twist[1]) == (0.0, 24)
+    rows = {row.label: row for table in _report(single).tables
+            for row in table.rows}
+    assert rows["Joint twist left"].value == "6.000"
 
 
 @needs_builder

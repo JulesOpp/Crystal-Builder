@@ -286,8 +286,10 @@ def test_a_vendored_build_is_the_framework_upstream_builds(
     which elements, and how well the blocks sat on their slots.
     """
     spelled = ",".join(f"{k}={v}" for k, v in nodes.items())
-    ours = build(BuildRequest.parse(name, spelled, edge), tmp_path,
-                 catalog)
+    # As found: upstream has no orientation rule, so the comparison is
+    # with the fit alone, whatever the application's default is.
+    ours = build(BuildRequest.parse(name, spelled, edge, "",
+                                    "as-found"), tmp_path, catalog)
     theirs = recorded["builds"][f"{name}|{spelled}|{edge}"]
 
     assert ours.n_atoms == theirs["n_atoms"]

@@ -892,3 +892,40 @@ def test_a_repeat_asked_for_last_time_is_not_hidden(qtbot, window):
 
     assert not plain.how_fold.is_open()
     assert tiled.how_fold.is_open()
+
+
+@needs_database
+def test_the_orientation_form_offers_consistent_first(dialog):
+    """``consistent`` is the default, and a form offers the default
+    first; ``as-found`` stays, one down, for PORMAKE's own build."""
+    offered = [dialog.orientation.itemData(i)
+               for i in range(dialog.orientation.count())]
+
+    assert offered == ["consistent", "as-found"]
+    assert dialog.orientation.currentData() == "consistent"
+
+
+@needs_database
+def test_as_found_last_time_is_not_hidden_and_the_default_is(qtbot,
+                                                              window):
+    """The section opens when last time's answer was not the default.
+    It used to ask whether the rule was the *first* one offered, which
+    is the same question only while the default is listed first; it
+    now asks for the default by name.  No rule at all is the
+    default."""
+    from xtalapp.dialogs.mof_build import MofBuildDialog
+
+    _module, action = MODULES.find("mof.build")
+    shown = {}
+    for rule in ("consistent", "as-found", None):
+        given = {"topology": "pcu"}
+        if rule is not None:
+            given["orientation"] = rule
+        made = MofBuildDialog(MODULES.get("mof"), action, window, given)
+        qtbot.addWidget(made)
+        shown[rule] = (made.how_fold.is_open(),
+                       made.orientation.currentData())
+
+    assert shown["consistent"] == (False, "consistent")
+    assert shown["as-found"] == (True, "as-found")
+    assert shown[None] == (False, "consistent")
