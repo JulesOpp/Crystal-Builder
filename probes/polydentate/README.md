@@ -41,5 +41,6 @@ The four **shipped** with Phase 7 and live at
 `NiHITP_NiN4`.  These stay as they are, byte for byte, because
 `mkblocks.py` is the record of how they were cut and the probes above
 read them by the names they were cut under; change a block and change
-it there, not here.  `nets/hcb.cgd` is still a draft and belongs to
-Phase 8.
+it there, not here.  `nets/hcb.cgd` was the draft of the layer Phase 8
+shipped as `xtal/mof/library/nets/hcb.cgd`, rewritten there with edges
+of length one; the probes read the draft and it stays as it is.

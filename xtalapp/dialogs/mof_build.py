@@ -95,6 +95,8 @@ NO_LINKER = "(none -- join the nodes directly)"
 #: point of a :class:`~xtal.params.Param`: a rule added there reaches
 #: this dialog without this file being edited.
 _ORIENTATIONS = next(p for p in PARAMS if p.name == "orientation")
+_SPACING = next(p for p in PARAMS if p.name == "spacing")
+_OFFSET = next(p for p in PARAMS if p.name == "offset")
 
 
 class MofBuildDialog(QDialog):
@@ -200,10 +202,22 @@ class MofBuildDialog(QDialog):
             self.orientation.addItem(label, value)
         self.orientation.setToolTip(_ORIENTATIONS.help)
 
+        # A layer net's two rows, there for every net and enabled for
+        # the layers: rows that appear and vanish as the list is
+        # scrolled move the Build button under the cursor.
+        self.spacing = QLineEdit(self)
+        self.spacing.setPlaceholderText("3.4")
+        self.spacing.setToolTip(_SPACING.help)
+        self.offset = QLineEdit(self)
+        self.offset.setPlaceholderText("0, 0")
+        self.offset.setToolTip(_OFFSET.help)
+
         how = QGroupBox("How it is built", self)
         form = QFormLayout(how)
         form.addRow("Repeat the net", self.repeat)
         form.addRow("Node orientation", self.orientation)
+        form.addRow("Layer spacing (A)", self.spacing)
+        form.addRow("Stacking offset", self.offset)
 
         folders = QGroupBox("Your own topologies and building blocks",
                             self)
@@ -320,6 +334,9 @@ class MofBuildDialog(QDialog):
             current.data(Qt.UserRole))
         self.net_preview.set_topology(self._topology)
         self._rebuild_slots()
+        layered = self._topology.is_layer
+        self.spacing.setEnabled(layered)
+        self.offset.setEnabled(layered)
 
     # -- the slots -----------------------------------------------------
 
@@ -404,6 +421,9 @@ class MofBuildDialog(QDialog):
                 f"node {index + 1}: {coordination}-connected")
         edges = [s for s in slots if s.is_edge]
         lines.append(f"{len(edges)} kind(s) of edge")
+        if topology.is_layer:
+            lines.append("a layer: its sheets are stacked at the "
+                         "spacing below")
         self.details.setText("<br>".join(lines))
 
     # -- values --------------------------------------------------------
@@ -419,6 +439,8 @@ class MofBuildDialog(QDialog):
         catalogue they were chosen from.
         """
         self.repeat.setText(str(given.get("repeat") or ""))
+        self.spacing.setText(str(given.get("spacing") or ""))
+        self.offset.setText(str(given.get("offset") or ""))
         wanted_rule = str(given.get("orientation") or "")
         at = self.orientation.findData(wanted_rule)
         self.orientation.setCurrentIndex(max(at, 0))
@@ -450,6 +472,11 @@ class MofBuildDialog(QDialog):
             "edges": ",".join(edges),
             "repeat": self.repeat.text().strip() or "1x1x1",
             "orientation": self.orientation.currentData(),
+            # Only for a layer net, so that a spacing typed while hcb
+            # was selected does not follow the user to pcu and get
+            # the build refused for a box they can no longer edit.
+            "spacing": self._stacking(self.spacing),
+            "offset": self._stacking(self.offset),
             "topology_dir": self.topology_dir.text(),
             # The scratch folder only ever exists when there was no
             # workspace and no folder named, which is exactly when the
@@ -457,6 +484,11 @@ class MofBuildDialog(QDialog):
             # from.  It never overwrites a folder the user typed.
             "bb_dir": self.bb_dir.text() or (self._scratch or ""),
         })
+
+    def _stacking(self, edit: QLineEdit) -> str:
+        if self._topology is None or not self._topology.is_layer:
+            return ""
+        return edit.text().strip()
 
     def accept(self) -> None:
         if self._settings is not None:

@@ -168,8 +168,91 @@ clean diff against upstream 0.2.3.
 | **5 — Node orientation** | Shipped 2026-09-20; the discrete tie-break, through `permutations=`, and a net that can be repeated | new `xtal/mof/orient.py`, `xtal/mof/build.py`, `xtal/mof/catalog.py` | M-L |
 | **6 — Linker orientation** | Shipped 2026-09-20; the continuous axial angle, in closed form | `xtal/mof/orient.py`, `xtal/mof/attach.py`, `xtal/mof/build.py` | M |
 | **7 — MFU-4l** | Shipped 2026-09-21; the four blocks are package data and MFU-4l builds end to end | new `xtal/mof/library/`, `xtal/mof/catalog.py`, `packaging/bundle.py`, `xtalapp/selftest.py` | M |
-| **8 — Layer nets** | 2-periodic nets with a stacking spacing; Ni-HITP | new `xtal/mof/library/nets/` | M |
+| **8 — Layer nets** | Shipped 2026-09-21; `hcb`, `sql` and `kgm` stacked at a spacing and offset after the build, and Ni3(HITP)2 builds | new `xtal/mof/library/nets/`, new `xtal/mof/layers.py`, `xtal/mof/build.py`, `xtal/modules/mof.py`, `xtalapp/dialogs/mof_build.py` | M |
 | **9 — Interpenetration** | Generated and verified against `Net.multiplicity()` | new `xtal/analysis/interpenetrate.py` | M-L |
+
+### What Phase 8 changed
+
+PORMAKE's 2403 nets are all 3-periodic, so a layered MOF had nothing
+to be built on.  Three layers now ship as package data beside the
+four blocks -- `xtal/mof/library/nets/hcb.cgd`, `sql.cgd`, `kgm.cgd`,
+each in a 3-D cell with *c* = 10 and edges of length one -- and
+`Catalog.default` reads them between PORMAKE's nets and the user's
+own.  2406 nets where there were 2403.  All three identify against
+the RCSR as themselves, before a build and read back off one.
+
+**A layer is recognised by its graph, not by its folder.**
+`Topology.is_layer` is `xtal.mof.layers.stacking_axis_is_free`: the
+net's own lattice has rank two and no cycle of it closes along *c*.
+So a layer somebody writes into their own topology folder is stacked
+like ours, and `pcu` and `tbo` are not layers.
+
+**The stacking is set after the build, not asked of it**, which is
+what probe P9 said and the plan inherited.  The scaler hands `hcb`
+back with *c* = 107.154 A, one global factor chosen for the in-plane
+edges.  `layers.restack` throws that *c* away and writes the asked-for
+one, moving the framework, the net and every placed block together
+because `write_cif`, `draw_net` and `bond_joints` each read one of the
+three afterwards.  Two things it had to be taught rather than
+assumed:
+
+* **Which sheet an atom is in is read off the *built* cell.**  A
+  paddlewheel is 3.0 A thick and wrapped by PORMAKE, and in a new
+  cell 3.4 A tall its top half already rounds into the next sheet.
+  Read off the 107 A cell, nothing is ever half way.
+* **The spacing is between the sheets' mean planes.**  PORMAKE does
+  not put every sheet on its lattice plane: on `hcb` x (1,1,2) one is
+  0.021 A above it and the other exactly on it, so carrying each
+  sheet's own offset across made "3.3 A apart" 3.278.  Each sheet is
+  now lifted as a whole until its middle is one spacing above the
+  last one's, and its shape inside is untouched.
+
+Two parameters, `spacing` (Angstrom; empty is
+`layers.DEFAULT_SPACING` = 3.4) and `offset` (two fractions of the
+net's own *a* and *b*, `1/3, 2/3` read as thirds; empty is
+eclipsed).  **On a 3-periodic net either one is refused**, by name,
+rather than dropped -- a command-line run would never notice a
+number quietly ignored.  The dialog gains *Layer spacing* and
+*Stacking offset* in *How it is built*, greyed for any net that is
+not a layer and never handed to the run from one.  The log always
+gives the sheet's thickness beside the spacing, with no threshold:
+the closest contact in the verdict is the measurement of a collision.
+
+Ni3(HITP)2, measured against `resources/samples/NiHITP.cif`:
+
+* **75 atoms, C36H24N12Ni3**, the crystal's P1 composition, on
+  **hcb** read back off the bonds; blocks fit to 0.000 A; **12**
+  joints, one N-C bond per nitrogen and per carbon.  Hexagonal,
+  *c* = 3.238 A as given (the vendored writer puts a cell length in
+  the file to 0.001 A, which is as close as any build reads back).
+* **The nickel lands the crystal's own way**: four nitrogens at
+  1.836-1.840 A against 1.838, at 88.2 / 91.8 / 180 degrees -- the
+  crystal's bite angle -- and in the sheet to 1e-4 A.  This is Phase
+  6 doing its job on a two-connected *linker*: nothing discrete is
+  chosen on `hcb` at all.
+* ***a* is 22.731 A against 21.552, +5.5 %, and the whole of it is
+  the joint.**  The N-C bond across every cut is **1.606 A against
+  1.294**: two ends meet with their member centroids 1.5 A apart,
+  which is `CONNECTION_DISTANCE` twice, where a chelate's lean-in
+  bonds put them 1.16 A apart.  Two joints per triphenylene-to-
+  triphenylene path is the 5.5 %; MFU-4l's 3.9 % is the same thing.
+  It is a consequence of an invariant, not a bug in applying one, so
+  it is pinned by `test_nihitp_builds_with_the_cell_the_crystal_has`
+  and written up as *A chelate's joint comes out 0.3 A long* in
+  [docs/TODO.md](TODO.md) § Modules rather than changed here.
+
+The same machinery on PORMAKE's own blocks: `sql` and `kgm` on the
+`N153` paddlewheel with `E14` identify as themselves, and at the
+default 3.4 A the sheets collide -- closest contact 0.53 A, the log
+saying the sheet is 3.00 A thick -- where at 7 A they do not (2.04).
+That is what the thickness line is for.
+
+`xtalapp/selftest.py` builds Ni3(HITP)2 after MFU-4l, for the reason
+the MFU-4l build is there: the nets are a third `PACKAGE_DATA` glob,
+and a bundle without them passes every other check.  The three
+Ni3(HITP)2 tests are **not** marked slow, against the plan: the
+build is 0.06 s, and CLAUDE.md keeps `slow` for tests that take
+seconds.
 
 ### What Phase 7 changed
 

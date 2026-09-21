@@ -105,10 +105,21 @@ class BuildRequest:
     #: ``"as-found"`` is what the locator chose and is the default,
     #: which is what makes the other rule unable to regress anything.
     orientation: str = "as-found"
+    #: How far apart the sheets of a layer net are stacked, in
+    #: Angstrom, or ``None`` for :data:`xtal.mof.layers.
+    #: DEFAULT_SPACING`.  ``None`` is not the same as 3.4 written
+    #: down: a 3-periodic net has no spacing to set, and one that was
+    #: *asked for* there is refused rather than ignored.
+    spacing: float | None = None
+    #: Where each sheet sits over the one below, in fractions of the
+    #: net's own *a* and *b*, or ``None`` for eclipsed.  Refused on a
+    #: 3-periodic net for the same reason.
+    offset: tuple[float, float] | None = None
 
     @classmethod
     def parse(cls, topology: str, nodes: str, edges: str,
-              repeat: str = "", orientation: str = ""
+              repeat: str = "", orientation: str = "",
+              spacing: str = "", offset: str = ""
               ) -> BuildRequest:
         """The strings a parameter form and a command line both hand
         over.
@@ -121,7 +132,10 @@ class BuildRequest:
         making those spell a slot they cannot get wrong is ceremony.
 
         ``repeat`` is ``"2x2x2"``, ``"2"`` for the same in all three,
-        or empty for the net as it stands.
+        or empty for the net as it stands.  ``spacing`` is a length in
+        Angstrom and ``offset`` two fractions, ``"1/3, 2/3"``; both
+        empty is a layer stacked eclipsed at the default spacing, and
+        a 3-periodic net built as it always was.
         """
         topology = str(topology or "").strip()
         if not topology:
@@ -130,7 +144,8 @@ class BuildRequest:
                    _assignments(nodes, _node_key, "node"),
                    _assignments(edges, _edge_key, "edge"),
                    _repeat(repeat),
-                   str(orientation or "").strip() or "as-found")
+                   str(orientation or "").strip() or "as-found",
+                   _spacing(spacing), _offset(offset))
 
     def spelled(self) -> tuple[str, str, str]:
         """Back to the three strings, for a log and for a saved set.
@@ -255,6 +270,57 @@ def _repeat(text) -> tuple[int, int, int]:
             f"{text!r} does not say how many times to repeat the net "
             f"-- write 2x2x2, or just 2")
     return (counts[0], counts[1], counts[2])
+
+
+def _spacing(text) -> float | None:
+    """A length in Angstrom, or nothing.
+
+    Positive, and nothing more is checked: a spacing smaller than the
+    layer is thick builds sheets that collide, and the build says so
+    in its closest contact rather than guessing here how thick the
+    layer will turn out to be.
+    """
+    text = str(text if text is not None else "").strip()
+    if text.lower().endswith("a"):
+        text = text[:-1].strip()
+    if not text:
+        return None
+    try:
+        value = float(text)
+    except ValueError:
+        raise MofError(
+            f"{text!r} is not an interlayer spacing -- write it in "
+            f"Angstrom, 3.4") from None
+    if not np.isfinite(value) or value <= 0:
+        raise MofError(
+            f"an interlayer spacing of {text} A would put the layers "
+            f"on top of each other")
+    return value
+
+
+def _offset(text) -> tuple[float, float] | None:
+    """Two fractions of *a* and *b* -- ``"1/3, 2/3"``, ``"0.5 0"`` --
+    or nothing.
+
+    Fractions are taken as written because the stackings people name
+    are thirds and halves, and ``0.3333`` is a slip of 0.0003 of a
+    cell that ``1/3`` is not.
+    """
+    from fractions import Fraction
+
+    text = str(text if text is not None else "").strip()
+    if not text:
+        return None
+    parts = [p for p in text.replace(",", " ").split() if p]
+    try:
+        values = [float(Fraction(p)) for p in parts]
+    except (ValueError, ZeroDivisionError):
+        values = []
+    if len(values) != 2:
+        raise MofError(
+            f"{text!r} is not a stacking offset -- write two "
+            f"fractions of a and b, 0,0 for eclipsed or 1/3,2/3")
+    return (values[0], values[1])
 
 
 def _node_key(text: str) -> int:
@@ -383,6 +449,8 @@ def build(request: BuildRequest, directory, catalog: Catalog | None
     with _Logging(trace if trace is not None else log) as listening:
         framework = _build(topology, node_bbs, edge_bbs, log,
                            request.repeat, request.orientation)
+        if topology.is_layer:
+            _stack(framework, request, log)
         # After the build and before anything reads the geometry.  A
         # two-connected block's angle about its own axis is the one
         # freedom the fit leaves *undetermined* rather than decides,
@@ -425,6 +493,31 @@ def build(request: BuildRequest, directory, catalog: Catalog | None
     outcome.identified = check_net(structure)
     _say(log, outcome.verdict())
     return outcome
+
+
+def _stack(framework, request: BuildRequest, log) -> None:
+    """Stack a layer net's sheets the way the request says.
+
+    Before anything else reads the geometry, for the reason
+    :func:`xtal.mof.layers.restack` gives: the framework, the net and
+    the placed blocks all move together, and every step after this
+    one reads one of the three.
+    """
+    from xtal.mof import layers
+
+    spacing = (request.spacing if request.spacing is not None
+               else layers.DEFAULT_SPACING)
+    offset = request.offset or (0.0, 0.0)
+    thickness = layers.restack(framework, spacing, offset,
+                               request.repeat)
+    # The thickness is said every time rather than past a threshold:
+    # 3.0 A of paddlewheel at a 3.4 A spacing is two sheets 0.4 A
+    # apart, and no cutoff for "too close" would be anybody's but
+    # ours.  The closest contact in the verdict is the measurement.
+    _say(log, f"stacked the layers {spacing:.3f} A apart"
+              + (f", each offset {offset[0]:g}, {offset[1]:g} over "
+                 f"the last" if any(offset) else ", eclipsed")
+              + f"; one layer is {thickness:.2f} A thick")
 
 
 def _build(topology, node_bbs, edge_bbs, log, repeat=(1, 1, 1),
@@ -649,6 +742,17 @@ def _resolve(request: BuildRequest, catalog: Catalog):
                 f"point(s) and {slot.label.lower()} needs "
                 f"{slot.coordination}")
         (edges if slot.is_edge else nodes)[slot.key] = block
+    if not topology.is_layer:
+        asked = [what for what, value in
+                 (("an interlayer spacing", request.spacing),
+                  ("a stacking offset", request.offset))
+                 if value is not None]
+        if asked:
+            raise MofError(
+                f"{topology.name} is periodic in three directions, so "
+                f"it has no layers to stack and {' or '.join(asked)} "
+                f"means nothing on it; that is for a layer net, such "
+                f"as hcb, sql or kgm")
     return topology, nodes, edges
 
 

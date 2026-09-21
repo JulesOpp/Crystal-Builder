@@ -534,6 +534,32 @@ def test_the_dialog_hands_back_exactly_what_the_module_declared(
 
 
 @needs_database
+def test_the_stacking_rows_are_live_only_for_a_layer_net(dialog):
+    """``hcb`` has sheets to stack and ``pcu`` does not.
+
+    The rows are there for every net and greyed for most, rather
+    than appearing with the layers: rows that come and go as the list
+    is scrolled move the Build button under the cursor.  And what was
+    typed while ``hcb`` was selected is not handed on for ``pcu``,
+    where the run would refuse it for a box nobody can edit.
+    """
+    assert not dialog.spacing.isEnabled()
+    assert not dialog.offset.isEnabled()
+
+    assert dialog._select("hcb")
+    assert dialog.spacing.isEnabled() and dialog.offset.isEnabled()
+    dialog.spacing.setText("3.24")
+    dialog.offset.setText("1/3, 2/3")
+    assert dialog.values()["spacing"] == "3.24"
+    assert dialog.values()["offset"] == "1/3, 2/3"
+
+    assert dialog._select("pcu")
+    assert not dialog.spacing.isEnabled()
+    assert dialog.values()["spacing"] == ""
+    assert dialog.values()["offset"] == ""
+
+
+@needs_database
 def test_what_was_picked_last_time_is_offered_again(dialog):
     assert dialog.values()["nodes"] == "0=N59"
     assert dialog.values()["edges"] == "0-0=E32"

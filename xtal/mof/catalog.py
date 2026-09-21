@@ -137,13 +137,27 @@ def library_root() -> Path | None:
     not travel, which is a smaller catalogue and never a failure --
     the builder has PORMAKE's 867 either way.
     """
+    return _library("blocks")
+
+
+def library_nets() -> Path | None:
+    """Our own ``nets/``, the layers PORMAKE has none of, or ``None``.
+
+    ``hcb``, ``sql`` and ``kgm``, each a 2-periodic net written in a
+    3-D cell -- see :mod:`xtal.mof.layers` for why the third axis is
+    there at all and why its length in the file means nothing.
+    """
+    return _library("nets")
+
+
+def _library(folder: str) -> Path | None:
     try:
         spec = importlib.util.find_spec("xtal.mof.library")
     except (ImportError, ValueError):           # pragma: no cover
         return None
     if spec is None or not spec.submodule_search_locations:
         return None
-    root = Path(list(spec.submodule_search_locations)[0]) / "blocks"
+    root = Path(list(spec.submodule_search_locations)[0]) / folder
     return root if root.is_dir() else None
 
 
@@ -510,6 +524,27 @@ class Topology:
             return topology
         return topology * repeat
 
+    @property
+    def is_layer(self) -> bool:
+        """Whether this is a 2-periodic net, stacked along *c*.
+
+        Read off the graph -- :func:`xtal.mof.layers.
+        stacking_axis_is_free` -- and not off the folder it came
+        from, so a layer somebody wrote into their own topology
+        folder is stacked like one of ours.  It costs the expansion,
+        milliseconds, which is why it is asked of the one topology
+        that was picked and never of the list.
+        """
+        if "layer" not in self._cache:
+            from xtal.mof.layers import stacking_axis_is_free
+
+            try:
+                self._cache["layer"] = stacking_axis_is_free(
+                    self.net())
+            except (CgdError, ValueError):
+                self._cache["layer"] = False
+        return self._cache["layer"]
+
     def lattice(self):
         """A cell to draw the vertices in.
 
@@ -656,12 +691,16 @@ class Catalog:
         that is where it belongs rather than an accident of writing:
         our four are shipped, so a folder of the user's own must
         still win over them, and they are ours, so they may replace
-        one of PORMAKE's.
+        one of PORMAKE's.  :func:`library_nets` goes between PORMAKE's
+        nets and the user's for the same reason.
         """
         root = database_root()
         ours = library_root()
+        layers = library_nets()
         topologies = [root / "topologies"] if root else []
         blocks = [root / "bbs"] if root else []
+        if layers:
+            topologies.append(layers)
         if ours:
             blocks.append(ours)
         if topology_dir:

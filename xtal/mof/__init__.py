@@ -77,6 +77,7 @@ from xtal.mof.catalog import (
     database_root,
     has_ase,
     installed,
+    library_nets,
     library_root,
 )
 
@@ -84,5 +85,5 @@ __all__ = ["BOND_LETTERS", "BlockError", "BuildRequest",
            "BuildingBlock", "CONNECTION_DISTANCE", "Catalog",
            "MofError", "Slot", "Topology", "block_string", "build",
            "check_net", "database_root", "draw_net", "has_ase",
-           "installed", "library_root",
+           "installed", "library_nets", "library_root",
            "problems", "pull_in", "write_building_block"]

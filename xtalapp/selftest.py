@@ -248,8 +248,18 @@ def check_mof_builder(report) -> None:
     they are the only polydentate blocks there are -- so a bundle
     that dropped them would pass every check above and still be one
     that cannot build the material the feature was written for.
+
+    And **Ni3(HITP)2** on ``hcb``, which is a third ``PACKAGE_DATA``
+    glob: the layer nets are ours too, PORMAKE has none, and a
+    bundle without them has no net to build a layered MOF on.
     """
-    from xtal.mof import Catalog, database_root, has_ase, library_root
+    from xtal.mof import (
+        Catalog,
+        database_root,
+        has_ase,
+        library_nets,
+        library_root,
+    )
 
     root = database_root()
     if root is None:
@@ -270,7 +280,7 @@ def check_mof_builder(report) -> None:
     if len(nets) < 2000 or len(blocks) < 800:
         raise AssertionError(
             f"the catalogue is short: {len(nets)} nets and "
-            f"{len(blocks)} blocks, against 2403 and 871")
+            f"{len(blocks)} blocks, against 2406 and 871")
 
     from xtal.mof.build import BuildRequest, build
 
@@ -302,6 +312,26 @@ def check_mof_builder(report) -> None:
             f"{mfu4l.joints} joints, against 81 and 12.  Twelve is "
             "the bidentate count: six at six would mean the blocks "
             "arrived with their attachments read as single atoms.")
+
+    if library_nets() is None:
+        raise AssertionError(
+            "the layer nets did not come along.  The builder has no "
+            "hcb, sql or kgm and cannot build Ni3(HITP)2; see "
+            "PACKAGE_DATA in packaging/bundle.py.")
+    with tempfile.TemporaryDirectory(prefix="selftest-hitp-") as folder:
+        hitp = build(BuildRequest.parse("hcb", "NiHITP_triphenylene",
+                                        "NiHITP_NiN4",
+                                        spacing="3.2384"),
+                     folder, catalogue)
+    c = hitp.structure.lattice.parameters[2]
+    report(f"MOF builder: Ni3(HITP)2, {hitp.n_atoms} atoms, "
+           f"c = {c:.4f} A, net identified as {hitp.net_name}")
+    if hitp.n_atoms != 75 or not hitp.net_agrees or abs(
+            c - 3.2384) > 1e-4:
+        raise AssertionError(
+            f"Ni3(HITP)2 on hcb came out {hitp.n_atoms} atoms, "
+            f"c = {c:.4f} A, net {hitp.net_name or 'unread'}, against "
+            "75, 3.2384 and hcb.")
 
 
 def check_window(report, shot: Path | None) -> None:

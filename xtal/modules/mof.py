@@ -144,6 +144,19 @@ PARAMS = (
                "turns each node so that the two ends of every joint "
                "present the same face -- and only where that is "
                "measurably better than what the fit chose."),
+    Param("spacing", "Interlayer spacing", kind="text",
+          help="How far apart the sheets of a layer net are stacked, "
+               "in Angstrom.  Left empty it is 3.4, which is where "
+               "pi-stacked sheets sit -- Ni3(HITP)2 is 3.24.  Only a "
+               "layer net such as hcb, sql or kgm has sheets to "
+               "stack, and a spacing given for any other net is "
+               "refused."),
+    Param("offset", "Stacking offset", kind="text",
+          help="Where each sheet sits over the one below, as two "
+               "fractions of the net's own a and b -- '1/3, 2/3', or "
+               "'0.5, 0'.  Left empty the sheets are eclipsed, one "
+               "directly over the next.  Layer nets only, like the "
+               "spacing."),
     Param("topology_dir", "Extra topologies", kind="path",
           help="A folder of your own .cgd nets, read alongside the "
                "ones PORMAKE ships"),
@@ -220,7 +233,9 @@ def build_framework(job) -> JobResult:
                                      job.param("nodes", ""),
                                      job.param("edges", ""),
                                      job.param("repeat", ""),
-                                     job.param("orientation", ""))
+                                     job.param("orientation", ""),
+                                     job.param("spacing", ""),
+                                     job.param("offset", ""))
         job.say(f"PORMAKE: building {request.title()}")
         job.check()
         # ``say`` for our own five lines, ``note`` for PORMAKE's

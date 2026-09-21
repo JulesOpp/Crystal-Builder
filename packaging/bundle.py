@@ -119,8 +119,10 @@ PACKAGE_DATA = {
     # without them is one that cannot build MFU-4l at all.  Named
     # separately from PORMAKE's because they are ours and travel
     # under our licence; `xtal.mof.catalog.library_root` is what
-    # looks.
-    "xtal/mof/library": ["blocks/*.xyz"],
+    # looks.  `nets/` is the three layer nets, which PORMAKE has
+    # none of, and without which Ni3(HITP)2 has nothing to be built
+    # on; `library_nets` looks for those.
+    "xtal/mof/library": ["blocks/*.xyz", "nets/*.cgd"],
 }
 
 #: Imported for their side effect and not for a name, or reached only

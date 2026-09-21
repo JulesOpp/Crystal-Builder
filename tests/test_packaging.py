@@ -185,6 +185,21 @@ def test_the_four_polydentate_blocks_are_collected(destinations):
     assert len(collected) == 4
 
 
+def test_the_three_layer_nets_are_collected(destinations):
+    """PORMAKE's 2403 nets are all 3-periodic, so these three are the
+    only layers the builder has.  A bundle without ``hcb`` builds
+    every MOF it ever could and not Ni3(HITP)2, with nothing but a
+    topology missing from a list of 2403 to say so."""
+    root = ROOT / "xtal" / "mof" / "library" / "nets"
+    for name in ("hcb", "sql", "kgm"):
+        path = root / f"{name}.cgd"
+        assert path.is_file()
+        assert destinations.get(path) == "xtal/mof/library/nets"
+
+    collected = {p for p in destinations if p.is_relative_to(root)}
+    assert len(collected) == 3
+
+
 def test_the_vendored_licence_and_provenance_are_collected(
         destinations):
     """Vendoring somebody else's MIT code obliges the notice to travel

@@ -347,6 +347,25 @@ def test_something_that_does_not_name_a_slot_says_how_to_write_one():
     assert "0=N59" in str(raised.value)
 
 
+def test_a_stacking_offset_is_read_as_the_fractions_it_was_written_in():
+    """``1/3`` is a third and ``0.3333`` is not: a slip written the
+    way stackings are named must not arrive 0.0003 of a cell off."""
+    request = BuildRequest.parse("hcb", "N1", "E1", spacing="3.24 A",
+                                 offset="1/3, 2/3")
+    assert request.spacing == 3.24
+    assert request.offset == (1 / 3, 2 / 3)
+    assert BuildRequest.parse("hcb", "N1", "E1").spacing is None
+    assert BuildRequest.parse("hcb", "N1", "E1").offset is None
+
+
+def test_a_spacing_or_offset_that_says_nothing_is_refused_by_name():
+    for spacing, offset in (("0", ""), ("-3", ""), ("wide", ""),
+                            ("", "1/3"), ("", "a, b"), ("", "1/0, 0")):
+        with pytest.raises(MofError):
+            BuildRequest.parse("hcb", "N1", "E1", spacing=spacing,
+                               offset=offset)
+
+
 @needs_database
 def test_a_block_that_does_not_fit_its_slot_names_both(tmp_path,
                                                        catalog):

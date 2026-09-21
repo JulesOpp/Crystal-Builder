@@ -191,6 +191,43 @@ test rather than a probe:
 -> 1.667.  What is still owed is unchanged and is the other half --
 MOF-5, whose `N16` has nothing to score.
 
+### A chelate's joint comes out 0.3 A long, and the cell with it
+
+Measured in Phase 8, 2026-09-21.  Ni3(HITP)2 built on `hcb` has the
+crystal's Ni-N to the thousandth (1.836-1.840 A against 1.838) and
+the crystal's bite angle, 88.2 degrees -- and the N-C bond across
+every cut is **1.606 A against the crystal's 1.294**.  Two such
+joints on every path from one triphenylene to the next make *a*
+**22.731 A against 21.552, +5.5 %**; MFU-4l's +3.9 % on `pcu` is
+the same thing at a C-C cut.
+
+The cause is the invariant, not a bug in applying it.  A connection
+point is `CONNECTION_DISTANCE` = 0.75 A from the centroid of the
+atoms it stands for, so two ends meet with their centroids **1.5 A
+apart** -- right for one atom onto one atom, which is what the
+number was measured over.  A chelate's bonds lean inwards: two
+nitrogens 2.56 A apart bonded to two carbons 1.42 A apart put the
+centroids **1.16 A** apart along the axis, and the 0.34 A difference
+is what every joint carries.
+
+Two ways out, neither taken because both change a product decision:
+
+* **Write the point where the crystal has it.**  A block cut from a
+  real crystal knows its own bond: the point could sit half the
+  measured centroid-to-centroid distance out rather than 0.75 A, and
+  *Mark as one connection point* would record it.  That makes the
+  distance a property of the block, which the invariant exists to
+  stop -- a block written at a bond length builds every linker twice
+  too long with nothing reporting it.
+* **Leave it and say so.**  The build places blocks and stops;
+  relaxation is the user's, in the Force Field panel, and a UFF
+  relaxation will pull a 1.6 A C-N back.  The report could name the
+  longest joint against a typical bond for the pair, so the number
+  that is already measured reads as a warning rather than a figure.
+
+`test_nihitp_builds_with_the_cell_the_crystal_has` pins 22.731 and
+1.606, so either change has to move a test and say why.
+
 ### The .cgd writer has never met Systre
 
 File ▸ Export Net for Systre is checked by reading the file back

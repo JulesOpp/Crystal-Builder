@@ -325,6 +325,14 @@ stress case).
   *node* turns too. No shipped block is on that list, and
   Ni3(HITP)2's own blocks come back wanting 6e-08 radians, which is
   the crystal's angle and below `_STILL`.
+- **A layer net is stacked after it is built, never by the builder.**
+  `hcb`, `sql` and `kgm` ship in `xtal/mof/library/nets/` as 3-D
+  cells; PORMAKE's scaler multiplies *c* with everything else (10 →
+  107 A on Ni3(HITP)2), so `xtal/mof/layers.restack` rewrites it,
+  moving framework, net and placed blocks together and putting the
+  sheets' *mean planes* one spacing apart. A layer is known by its
+  graph (`Topology.is_layer`), and a spacing or offset given for a
+  3-periodic net is refused, never ignored.
 - **The workspace is asked for before anything opens, and everything
   lives in it.** `WorkspaceChooser` runs in `xtalapp/main.py` *before*
   `MainWindow` is built — recent workspaces listed, the last one
