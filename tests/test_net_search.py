@@ -214,3 +214,76 @@ def test_every_layer_expands_to_the_net_its_plane_group_makes():
         assert np.array_equal(np.sort(built.orbits),
                               np.sort(flat.orbits)), entry.name
 
+
+
+# ======================================================== the catalogue
+
+@pytest.fixture(scope="module")
+def catalog():
+    from xtal.mof import Catalog, database_root
+
+    if database_root() is None:
+        pytest.skip("the vendored PORMAKE database is missing")
+    return Catalog.default()
+
+
+def _user_net(folder, name, edges):
+    text = ["CRYSTAL", f"  NAME {name}", "  GROUP Pm-3m",
+            "  CELL 1 1 1 90 90 90", "  NODE 1 6  0 0 0"]
+    text += ["  EDGE  0 0 0   0 0 1"] * edges
+    path = folder / f"{name}.cgd"
+    path.write_text("\n".join(text + ["END"]) + "\n", encoding="utf-8")
+    return path
+
+
+def test_a_pormake_net_takes_p_and_q_from_the_rcsr_entry_of_its_name(
+        catalog):
+    """PORMAKE's tfm writes eleven EDGE lines where the RCSR writes
+    two; counting lines would file it under q = 11 and a search for
+    ``3 2`` would never find it."""
+    tfm = catalog.topology("tfm")
+    assert tfm.edge_lines == 11
+    assert (tfm.facts().p, tfm.facts().q) == (3, 2)
+
+
+def test_a_users_net_is_taken_at_its_word(tmp_path):
+    """A file of the user's called pcu is not assumed to be the RCSR's
+    pcu: its own lines are its transitivity."""
+    from xtal.mof.catalog import read_topology
+
+    facts = read_topology(_user_net(tmp_path, "pcu", 3)).facts()
+    assert (facts.p, facts.q, facts.number) == (1, 3, 221)
+
+
+def test_a_net_with_no_edge_lines_has_unknown_q(tmp_path):
+    """Unknown, not zero: a search for ``* *`` still finds it and a
+    search for ``1 1`` does not claim to know."""
+    from xtal.mof.catalog import read_topology
+
+    facts = read_topology(_user_net(tmp_path, "mine", 0)).facts()
+    assert facts.q is None
+    assert NetQuery.parse(transitivity="1 *").matches(facts)
+    assert not NetQuery.parse(transitivity="1 1").matches(facts)
+
+
+def test_an_unrecognised_group_symbol_has_no_number_and_is_still_listed(
+        catalog):
+    odd = catalog.topology("lcw_component_3")
+    assert odd.group == "opm" and odd.facts().number is None
+    assert NetQuery.parse(name="lcw_component").matches(odd.facts())
+    assert not NetQuery.parse(number="1-230").matches(odd.facts())
+
+
+def test_a_catalogue_layer_answers_to_its_plane_group(catalog):
+    hcb = catalog.topology("hcb").facts()
+    assert (hcb.dimension, hcb.number, hcb.p, hcb.q) == (2, 17, 1, 1)
+    assert catalog.topology("hcb").summary() == \
+        "3-c  ·  p6mm (17)  ·  [1 1]"
+
+
+def test_facts_for_the_whole_catalogue_expand_no_net(catalog):
+    """The list asks every row, so a fact that needed the graph would
+    be ten seconds before the dialog opened."""
+    for topology in catalog.topologies():
+        topology.facts()
+        assert "placement" not in topology._cache, topology.name

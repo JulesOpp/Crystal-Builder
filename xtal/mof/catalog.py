@@ -55,6 +55,7 @@ import importlib.util
 import re
 import tempfile
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -478,6 +479,9 @@ class Topology:
     coordinations: tuple[int, ...]
     #: The ``.cgd`` itself, for a net that has no file of its own.
     text: str = field(default="", repr=False, compare=False)
+    #: How many ``EDGE`` lines the file wrote: q, the edge
+    #: transitivity, unless the RCSR says otherwise (:meth:`facts`).
+    edge_lines: int = field(default=0, compare=False)
     _cache: dict = field(default_factory=dict, repr=False,
                          compare=False)
 
@@ -486,8 +490,47 @@ class Topology:
         return len(self.coordinations)
 
     def summary(self) -> str:
+        """The line the picker shows beside the name: coordination,
+        group and number, and transitivity as the RCSR prints it."""
+        facts = self.facts()
         counts = ", ".join(f"{c}-c" for c in self.coordinations)
-        return f"{counts}  ·  {self.group}"
+        group = (f"{self.group} ({facts.number})"
+                 if facts.number is not None else self.group)
+        known = " ".join("?" if v is None else str(v)
+                         for v in (facts.p, facts.q))
+        return f"{counts}  ·  {group}  ·  [{known}]"
+
+    def facts(self):
+        """What the net search matches this topology on.
+
+        p and q are the RCSR's for a net of PORMAKE's or of the
+        RCSR's own, looked up by name: the RCSR writes each net at its
+        maximum symmetry, so its ``NODE`` and ``EDGE`` lines count the
+        kinds of vertex and edge, and eight of PORMAKE's files write a
+        different number of ``EDGE`` lines for the same net -- ``tfm``
+        has eleven for two kinds.  A net of the user's is taken at its
+        word; one with no ``EDGE`` lines has q unknown.  Read off the
+        header, never the expansion, so the whole list costs
+        milliseconds.
+        """
+        if "facts" not in self._cache:
+            self._cache["facts"] = self._facts()
+        return self._cache["facts"]
+
+    def _facts(self):
+        from xtal.analysis.netsearch import NetFacts, space_group_number
+        from xtal.analysis.rcsr import plane_group_number
+
+        plane = plane_group_number(self.group)
+        number = (plane if plane is not None
+                  else space_group_number(self.group))
+        p, q = len(self.coordinations), self.edge_lines or None
+        if self.path is None or _in_pormake(self.path):
+            p, q = _rcsr_transitivity().get(self.name, (p, q))
+        return NetFacts(
+            name=self.name, dimension=2 if plane is not None else 3,
+            coordinations=self.coordinations, group=self.group,
+            number=number, p=p, q=q)
 
     def entry(self) -> CgdEntry:
         """The ``.cgd`` block, parsed."""
@@ -691,7 +734,8 @@ def rcsr_layers() -> tuple[Topology, ...]:
         text = write_cgd_string([rcsr.as_layer(entry)]).rstrip() + "\n"
         topology = Topology(
             entry.name, None, entry.group,
-            tuple(node.coordination for node in entry.nodes), text)
+            tuple(node.coordination for node in entry.nodes), text,
+            len(entry.edges))
         topology._cache["layer"] = True
         found.append(topology)
     return tuple(found)
@@ -710,6 +754,31 @@ class _Layers:
 RCSR_LAYERS = _Layers()
 
 
+@lru_cache(maxsize=1)
+def _rcsr_transitivity() -> dict[str, tuple[int | None, int | None]]:
+    """Name -> (p, q) for every RCSR net; empty if the file is not
+    there, which leaves every net with what its own file says."""
+    from xtal.analysis import rcsr
+
+    try:
+        nets = rcsr.nets()
+    except rcsr.RcsrError:                      # pragma: no cover
+        return {}
+    return {e.name: (len(e.nodes) or None, len(e.edges) or None)
+            for e in nets}
+
+
+@lru_cache(maxsize=1)
+def _pormake_folder() -> Path | None:
+    root = database_root()
+    return (root / "topologies").resolve() if root else None
+
+
+def _in_pormake(path: Path) -> bool:
+    folder = _pormake_folder()
+    return folder is not None and path.parent.resolve() == folder
+
+
 def _record_pormake_dimensions(topologies) -> None:
     """Tell every net of PORMAKE's own that it is not a layer.
 
@@ -722,13 +791,8 @@ def _record_pormake_dimensions(topologies) -> None:
     including one that replaces a PORMAKE name -- is still asked, and
     there are a handful of those.
     """
-    root = database_root()
-    if root is None:
-        return
-    folder = (root / "topologies").resolve()
     for topology in topologies:
-        if (topology.path is not None
-                and topology.path.parent.resolve() == folder):
+        if topology.path is not None and _in_pormake(topology.path):
             topology._cache.setdefault("layer", False)
 
 
@@ -742,13 +806,15 @@ def read_topology(path) -> Topology:
     graph when a topology is actually picked.
     """
     path = Path(path)
-    entry = _header(path)
-    return Topology(entry[0] or path.stem, path, entry[1], entry[2])
+    name, group, coordinations, edges = _header(path)
+    return Topology(name or path.stem, path, group, coordinations,
+                    edge_lines=edges)
 
 
-def _header(path: Path) -> tuple[str, str, tuple[int, ...]]:
+def _header(path: Path) -> tuple[str, str, tuple[int, ...], int]:
     name = group = ""
     coordinations: list[int] = []
+    edges = 0
     for raw in path.read_text(encoding="utf-8").splitlines():
         line = raw.split("#")[0].strip()
         if not line:
@@ -764,11 +830,13 @@ def _header(path: Path) -> tuple[str, str, tuple[int, ...]]:
                 coordinations.append(int(token[2]))
             except ValueError:                  # pragma: no cover
                 pass
+        elif head == "edge":
+            edges += 1
         elif head == "end":
             break
     if not coordinations:
         raise CatalogError(f"{path.name} declares no nodes")
-    return name, group or "P1", tuple(coordinations)
+    return name, group or "P1", tuple(coordinations), edges
 
 
 # ======================================================================
