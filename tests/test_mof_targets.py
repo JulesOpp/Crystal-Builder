@@ -308,6 +308,84 @@ def test_mfu4l_builds_with_its_nodes_alternating(tmp_path, catalog):
         [-0.77] * 4 + [0.77] * 4
 
 
+# ------------------------------------------------ MOF-5
+
+@pytest.fixture(scope="module")
+def mof5(tmp_path_factory, catalog):
+    """MOF-5 as the builder makes it: ``pcu`` x 2x2x2, N16 and E14,
+    under ``consistent``.
+
+    The 2x2x2 is not a convenience.  The sample is that cell --
+    25.866 A, 424 atoms, eight Zn4O -- and a single cell has one node
+    slot, so there is nowhere for a second orientation to go.
+    """
+    folder = tmp_path_factory.mktemp("mof5")
+    return build(BuildRequest.parse("pcu", "N16", "E14", "2x2x2",
+                                    "consistent"), folder, catalog)
+
+
+@needs_builder
+@pytest.mark.slow
+def test_mof5_builds_with_its_nodes_alternating(mof5):
+    """A Td cluster's opposite carboxylates are turned a quarter turn
+    apart, so two neighbours the same way round meet across every
+    linker with perpendicular carboxylates.  The crystal alternates,
+    four and four, every neighbour along a, b and c the other way; a
+    build that scored no face put all eight the same way."""
+    sample = FORMATS.read(SAMPLES / "MOF-5.cif")
+
+    assert sorted(_zn4o_parity(sample).values()) == [-1] * 4 + [1] * 4
+    found = _zn4o_parity(mof5.structure)
+    assert sorted(found.values()) == [-1] * 4 + [1] * 4
+    for (i, j, k), sign in found.items():
+        for step in ((1, 0, 0), (0, 1, 0), (0, 0, 1)):
+            there = tuple((c + d) % 2 for c, d in
+                          zip((i, j, k), step, strict=True))
+            assert found[there] == -sign
+
+
+@needs_builder
+@pytest.mark.slow
+def test_every_mof5_linker_lies_flat_against_both_ends(mof5):
+    """The two carboxylates on one linker are coplanar in the crystal
+    (0 degrees on all 24) and were 90 in every build before faces;
+    and the ring lies in their plane, which is the linker's turn about
+    its own axis reading the faces too."""
+    carboxylates, rings = _mof5_planes(mof5.structure)
+
+    assert len(carboxylates) == 24
+    assert max(carboxylates) < 1.0
+    assert len(rings) == 48
+    assert max(rings) < 1.0
+
+
+@needs_builder
+@pytest.mark.slow
+def test_mof5_overlays_the_sample_to_a_fifth_of_an_angstrom(mof5):
+    """The acceptance test: every atom of the build within reach of
+    the same element in ``resources/samples/MOF-5.cif``, once the
+    build's cell (26.49 A) is scaled to the crystal's (25.866).
+    Before faces the RMS was 1.18 A with a 2.98 A worst; with them it
+    measured 0.10 and 0.13."""
+    sample = FORMATS.read(SAMPLES / "MOF-5.cif")
+
+    rms, worst = _overlay(mof5.structure, sample)
+
+    assert rms < 0.2
+    assert worst < 0.3
+
+
+@needs_builder
+@pytest.mark.slow
+def test_mof5_has_the_joints_it_had(mof5):
+    """A face is scored and never bonded: it names the carboxylate's
+    two oxygens, and if that ever reached ``members_of`` each joint
+    would come out as two bonds and every oxygen bonded to a ring."""
+    assert mof5.n_atoms == 424
+    assert mof5.joints == 48
+    assert mof5.net_agrees
+
+
 # ------------------------------------------------ Ni3(HITP)2
 
 @pytest.fixture(scope="module")
@@ -592,3 +670,111 @@ def _handedness(structure) -> list[float]:
         arms = arms[np.lexsort(np.round(arms, 3).T[::-1])]
         out.append(round(float(np.linalg.det(arms[:3])), 2))
     return out
+
+
+# ------------------------------------------------ helpers (MOF-5)
+
+def _cartesian(structure):
+    matrix = np.asarray(structure.lattice.matrix, dtype=float)
+    frac = np.array([site.frac for site in structure.sites]) % 1.0
+    inverse = np.linalg.inv(matrix)
+
+    def offset(a, b):
+        delta = (frac[b] - frac[a]) @ matrix
+        f = delta @ inverse
+        return (f - np.round(f)) @ matrix
+
+    return matrix, frac, offset
+
+
+def _zn4o_parity(structure) -> dict:
+    """Each Zn4O cluster by which half-cell it sits in, and which of
+    the cube's two tetrahedra its zincs make: the product of the signs
+    of the four Zn directions along a, b and c, which is the same for
+    all four in one cluster and opposite between the two tetrahedra.
+    """
+    matrix, frac, offset = _cartesian(structure)
+    elements = [site.element for site in structure.sites]
+    zinc = [i for i, e in enumerate(elements) if e == "Zn"]
+    lengths = np.linalg.norm(matrix, axis=1)
+    out = {}
+    for o in (i for i, e in enumerate(elements) if e == "O"):
+        arms = [offset(o, z) for z in zinc]
+        arms = [a for a in arms if np.linalg.norm(a) < 2.2]
+        if len(arms) != 4:
+            continue
+        along = np.array(arms) @ np.linalg.inv(matrix) * lengths
+        signs = {int(np.prod(np.sign(a))) for a in along}
+        assert len(signs) == 1
+        cell = tuple(int(c) for c in np.floor(frac[o] * 2) % 2)
+        out[cell] = signs.pop()
+    return out
+
+
+def _mof5_planes(structure):
+    """``(carboxylates, rings)``: the angle in degrees between the two
+    carboxylate planes on each linker, and between each carboxylate
+    and the ring it is bonded to."""
+    _matrix, _frac, offset = _cartesian(structure)
+    elements = [site.element for site in structure.sites]
+    carbon = [i for i, e in enumerate(elements) if e == "C"]
+    oxygen = [i for i, e in enumerate(elements) if e == "O"]
+
+    def near(i, pool, reach):
+        return [j for j in pool
+                if j != i and np.linalg.norm(offset(i, j)) < reach]
+
+    def normal(centre, a, b):
+        n = np.cross(offset(centre, a), offset(centre, b))
+        return n / np.linalg.norm(n)
+
+    def angle(n, m):
+        return float(np.degrees(np.arccos(min(1.0, abs(n @ m)))))
+
+    faces, rings = {}, []
+    for c in carbon:
+        pair = near(c, oxygen, 1.45)
+        if len(pair) != 2:
+            continue
+        faces[c] = normal(c, *pair)
+        ipso = near(c, carbon, 1.6)[0]
+        ortho = [j for j in near(ipso, carbon, 1.6) if j != c]
+        rings.append(angle(faces[c], normal(ipso, *ortho)))
+    ends = list(faces)
+    carboxylates = [angle(faces[a], faces[b])
+                    for k, a in enumerate(ends) for b in ends[k + 1:]
+                    if 5.5 < np.linalg.norm(offset(a, b)) < 6.2]
+    return carboxylates, rings
+
+
+def _overlay(structure, reference):
+    """``(rms, worst)``, in Angstrom: each atom of ``structure`` to the
+    nearest of the same element in ``reference``, over the 48 cubic
+    axis operations and 64 quarter-cell shifts, with the cell scaled
+    to the reference's."""
+    import itertools
+
+    from scipy.spatial import cKDTree
+
+    side = float(np.linalg.norm(reference.lattice.matrix[0]))
+    ours = np.array([site.frac for site in structure.sites]) % 1.0
+    theirs = np.array([site.frac for site in reference.sites]) % 1.0
+    mine = [site.element for site in structure.sites]
+    kinds = sorted(set(mine))
+    trees = {e: cKDTree(theirs[[k for k, s in enumerate(
+        reference.sites) if s.element == e]] * side,
+        boxsize=side + 1e-9) for e in kinds}
+    groups = {e: [k for k, x in enumerate(mine) if x == e]
+              for e in kinds}
+    best = None
+    for order in itertools.permutations(range(3)):
+        for signs in itertools.product((1, -1), repeat=3):
+            turned = ours[:, order] * signs
+            for shift in itertools.product((0, .25, .5, .75), repeat=3):
+                moved = ((turned + shift) % 1.0) * side % side
+                d = np.concatenate([trees[e].query(moved[groups[e]])[0]
+                                    for e in kinds])
+                rms = float(np.sqrt((d ** 2).mean()))
+                if best is None or rms < best[0]:
+                    best = (rms, float(d.max()))
+    return best

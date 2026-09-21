@@ -507,9 +507,11 @@ def test_a_joint_is_scored_once_however_often_the_search_asks(
 
 @needs_builder
 def test_a_rule_with_nothing_to_score_refuses_by_name(synthetic):
-    """No shipped block is polydentate: every connection point stands
-    for exactly one atom, which presents no face, so every joint in
-    such a build costs zero however the nodes are turned.
+    """N6 is a B12 icosahedron: every connection point stands for one
+    boron, and a boron with five neighbours besides it presents no
+    plane -- so every joint in such a build costs zero however the
+    nodes are turned.  N59 was this test's block until a carboxylate
+    became a face.
 
     The refusal is the function's and not the build's.  A build asks
     only after it has found a polydentate block, and one that has not
@@ -524,7 +526,7 @@ def test_a_rule_with_nothing_to_score_refuses_by_name(synthetic):
     blocks = [None] * topology.n_slots
     for slot in topology.node_indices:
         blocks[int(slot)] = pormake.BuildingBlock(
-            str(synthetic.building_block("N59").path))
+            str(synthetic.building_block("N6").path))
 
     with pytest.raises(MofError, match="consistent"):
         orient.choose_permutations(topology, blocks, "consistent")
@@ -537,14 +539,35 @@ def test_a_build_with_nothing_to_score_keeps_the_fit(tmp_path,
     """And the build itself does not refuse.  Asking for consistent
     orientations of blocks that have no faces is a preference with
     nothing to apply it to, and the framework is the one the fit
-    made."""
-    asked = build(BuildRequest.parse("pcu", "N59", "E32", "",
+    made.  N6's borons have five neighbours each and E32's points
+    hang off alkyne carbons, so neither presents a plane."""
+    asked = build(BuildRequest.parse("pcu", "N6", "E32", "",
                                      "consistent"),
                   _fresh(tmp_path / "a"), synthetic)
-    plain = build(BuildRequest.parse("pcu", "N59", "E32"),
+    plain = build(BuildRequest.parse("pcu", "N6", "E32"),
                   _fresh(tmp_path / "b"), synthetic)
 
     assert asked.cif.read_text() == plain.cif.read_text()
+
+
+@needs_builder
+@pytest.mark.slow
+def test_nodes_with_nothing_to_score_between_linkers_with_faces_keep_the_fit(
+        tmp_path, synthetic):
+    """The build asked whether *any* block had a frame, and the rule
+    asks only of the nodes -- so N6 between E14 rings reached the rule
+    with nothing it could score and failed the whole build.  ``cds``
+    on N307 and E3 did, in the shipped database.  The nodes keep the
+    fit; the linkers still turn."""
+    asked = build(BuildRequest.parse("pcu", "N6", "E14", "",
+                                     "consistent"),
+                  _fresh(tmp_path / "a"), synthetic)
+    plain = build(BuildRequest.parse("pcu", "N6", "E14", "",
+                                     "as-found"),
+                  _fresh(tmp_path / "b"), synthetic)
+
+    assert asked.n_atoms == plain.n_atoms
+    assert round(asked.max_rmsd, 6) == round(plain.max_rmsd, 6)
 
 
 @needs_builder
@@ -764,3 +787,77 @@ def test_a_two_connected_node_turns_like_a_linker(synthetic):
     # The two-connected block in a node slot and the six-connected
     # one in an edge slot: the answer follows the block.
     assert orient._turnable([linker, node, None, stick]) == [0]
+
+
+# ------------------------------------------------ faces
+
+def _carboxylate(tilt=0.0):
+    """C with two neighbours in the xy plane and a point along +y,
+    lifted ``tilt`` A out of that plane.  ``(connections, bonds,
+    positions)`` in the shape a block hands :mod:`xtal.mof.attach`."""
+    positions = [(0.0, 0.0, 0.0), (1.08, -0.62, 0.0),
+                 (-1.08, -0.62, 0.0), (0.0, 0.75, tilt)]
+    bonds = [(0, 1), (0, 2), (3, 0)]
+    return (3,), bonds, np.array(positions)
+
+
+def test_a_face_is_the_plane_of_the_atom_and_its_two_neighbours():
+    """The carboxylate is in the xy plane and the joint runs along y,
+    so what it presents across the joint is +-x: a line in its own
+    plane, and nothing along z."""
+    from xtal.mof.attach import face_of, unit_laterals
+
+    face = face_of(*_carboxylate(), 3)
+    laterals = unit_laterals(face, [0.0, 1.0, 0.0])
+
+    assert face.members == (1, 2)
+    assert np.allclose(np.abs(laterals), [[1, 0, 0], [1, 0, 0]])
+    assert np.allclose(laterals.sum(axis=0), 0.0)
+    assert np.allclose(face.axis, [0.0, 1.0, 0.0])
+
+
+def test_a_face_does_not_care_where_its_x_was_written():
+    """2045 of the 3899 faces the shipped blocks present have their X
+    more than 0.1 off the plane -- E102's is 0.65.  Tilted by half an
+    Angstrom, the carboxylate still presents +-x across the joint."""
+    from xtal.mof.attach import face_of, unit_laterals
+
+    upright = face_of(*_carboxylate(), 3)
+    tilted = face_of(*_carboxylate(tilt=0.5), 3)
+    axis = [0.0, 1.0, 0.0]
+
+    # To the hair `face_of` keeps along the bond for `axis`'s sake,
+    # a millionth of a radian; at 0.5 A of tilt the old construction
+    # leaned by 0.43.
+    assert np.allclose(unit_laterals(tilted, axis),
+                       unit_laterals(upright, axis), atol=1e-5)
+
+
+def test_a_linear_or_tetrahedral_point_presents_no_face():
+    """One other neighbour is a line and has no plane; three is a
+    free rotor with no preferred angle.  Neither is a face, and a
+    point standing for several atoms has its members instead."""
+    from xtal.mof.attach import face_of
+
+    linear = [(0.0, 0.0, 0.0), (0.0, -1.2, 0.0), (0.0, 0.75, 0.0)]
+    assert face_of((2,), [(0, 1), (2, 0)], linear, 2) is None
+
+    rotor = [(0.0, 0.0, 0.0), (1.0, -0.4, 0.0), (-0.5, -0.4, 0.87),
+             (-0.5, -0.4, -0.87), (0.0, 0.75, 0.0)]
+    assert face_of((4,), [(0, 1), (0, 2), (0, 3), (4, 0)], rotor,
+                   4) is None
+
+    chelate = [(0.7, 0.0, 0.0), (-0.7, 0.0, 0.0), (0.0, 0.75, 0.0)]
+    assert face_of((2,), [(0, 2), (1, 2)], chelate, 2) is None
+
+
+def test_a_face_is_never_a_member():
+    """``members_of`` owns joints and bonding, so the two oxygens a
+    carboxylate's face is taken from must never be read as atoms that
+    join the next block."""
+    from xtal.mof.attach import members_of, presents_face
+
+    connections, bonds, positions = _carboxylate()
+
+    assert members_of(connections, bonds) == {3: (0,)}
+    assert presents_face(connections, bonds, positions)

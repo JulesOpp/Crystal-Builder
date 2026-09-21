@@ -504,7 +504,9 @@ def build(request: BuildRequest, directory, catalog: Catalog | None
         # block whose connection points stand for one atom.
         from xtal.mof import orient
 
-        orient.align_edges(framework, log)
+        orient.align_edges(
+            framework, log,
+            faces=request.orientation == orient.CONSISTENT)
         framework.write_cif(str(cif))
         if not cif.is_file():
             raise MofError(
@@ -605,9 +607,10 @@ def _build(topology, node_bbs, edge_bbs, log, repeat=(1, 1, 1),
 
     **Pass 1 is today's call and returns there**, and that is what
     makes "nothing regresses" structural rather than argued: a build
-    reaches the second pass only when a block is polydentate *and*
-    the user asked for a rule other than ``as-found``, and no build
-    of the 867 shipped blocks is either.
+    reaches the second pass only when the user asked for a rule other
+    than ``as-found`` *and* some connection point has a frame to
+    agree about -- several atoms, or the plane of one
+    (:func:`_presents_face`).
 
     Pass 2 is the same builder, the same blocks and the same net with
     the node permutations pinned -- ``make_bbs_by_type`` and
@@ -646,11 +649,16 @@ def _build(topology, node_bbs, edge_bbs, log, repeat=(1, 1, 1),
 
     if orientation == orient.AS_FOUND:
         return framework
-    if not any(_is_polydentate(block)
-               for block in framework.info["located_bbs"]):
-        _say(log, "no block here stands for more than one atom at a "
-                  "connection point, so there is no orientation to "
-                  "choose; keeping the fit")
+    # The nodes, and not every block: the choice is of which way round
+    # each *node* goes, and a linker with a face between nodes with
+    # none -- cds on N307 and E3 -- has nothing here to choose.  The
+    # linker still turns about its own axis, later, in `build`.
+    placed = framework.info["located_bbs"]
+    if not any(_presents_face(placed[int(slot)])
+               for slot in framework.info["topology"].node_indices):
+        _say(log, "no connection point of a node here stands for more "
+                  "than one atom or presents a face, so there is no "
+                  "orientation to choose; keeping the fit")
         return framework
 
     blocks = builder.make_bbs_by_type(topo, nodes, edges or None)
@@ -990,6 +998,21 @@ def _is_polydentate(block) -> bool:
 
     members = members_of(block.connection_point_indices, block.bonds)
     return any(len(found) > 1 for found in members.values())
+
+
+def _presents_face(block) -> bool:
+    """Whether a placed block has a frame to agree about at any of its
+    connection points -- several atoms, or the plane of one
+    (:func:`xtal.mof.attach.presents_face`).  What decides whether a
+    build has an orientation to choose; what decides whether it has
+    joints to bond is :func:`_is_polydentate`, and a face is never
+    that."""
+    if block is None or block.bonds is None:
+        return False
+    from xtal.mof.attach import presents_face
+
+    return presents_face(block.connection_point_indices, block.bonds,
+                         block.atoms.get_positions())
 
 
 def _intra_block_bonds(blocks) -> set[tuple[int, int]]:

@@ -32,8 +32,11 @@ safe rather than a second fit:
   ``locator.locate_with_permutation``, so the placement that is scored
   is the placement that will be produced;
 * the default rule is :data:`AS_FOUND`, which is today's behaviour and
-  returns nothing at all.  A build only reaches any of this when a
-  block is polydentate *and* the user asked for the other rule.
+  returns nothing at all.  A build only reaches any of this when the
+  user asked for the other rule *and* a connection point has a frame:
+  several atoms, or the plane its one atom presents
+  (:func:`xtal.mof.attach.face_of`), which is what makes MOF-5's
+  clusters alternate.
 
 **What is scored is the two nodes at the ends of an edge, not a node
 against its linker.**  A linker's angle about its own axis is a
@@ -68,9 +71,11 @@ import numpy as np
 
 from xtal.mof.attach import (
     Attachment,
+    face_of,
     members_of,
     pair_cost,
     pairing,
+    presents_face,
     unit_laterals,
 )
 from xtal.mof.build import (
@@ -448,11 +453,19 @@ def choose_permutations(topology, blocks, rule: str = AS_FOUND,
     ``baseline`` is what the fit already chose, and giving it is what
     makes this rule unable to make a build worse: the search starts
     there and moves only where it is **strictly** better, so a net on
-    which the cost is already at its minimum -- which is every net
-    whose edges join a node to an image of itself, where the two ends
-    of an edge are antipodal points of one block and agree by
-    construction -- comes back with the placement it arrived with
-    rather than with another that merely scores the same.
+    which the cost is already at its minimum comes back with the
+    placement it arrived with rather than with another that merely
+    scores the same.
+
+    A net whose edges join a node to an image of itself cannot be
+    helped by this at all: one slot, one orientation, and both ends of
+    every edge are points of the same placed block.  Where those
+    antipodal points present the same face that costs nothing; where
+    they do not it cannot be fixed on that cell.  MOF-5's cluster is
+    the second kind -- a Td node's opposite carboxylates are turned a
+    quarter turn apart -- so ``pcu`` x 1x1x1 on N16 stays at 6.0 over
+    its three edges, and the net repeated 2x2x2 has the eight slots
+    that alternate to 0.
     """
     if rule not in RULES:
         raise MofError(
@@ -465,8 +478,10 @@ def choose_permutations(topology, blocks, rule: str = AS_FOUND,
     members = {slot: members_of(blocks[slot].connection_point_indices,
                                 blocks[slot].bonds)
                for slot in nodes}
-    if not any(len(found) > 1 for table in members.values()
-               for found in table.values()):
+    if not any(presents_face(blocks[slot].connection_point_indices,
+                             blocks[slot].bonds,
+                             blocks[slot].atoms.get_positions())
+               for slot in nodes):
         # Not "no bond block": PORMAKE guesses one for a file that
         # has none, so every block declares *something*.  What
         # decides whether there is anything to score is denticity --
@@ -475,8 +490,9 @@ def choose_permutations(topology, blocks, rule: str = AS_FOUND,
         raise MofError(
             f"the {rule!r} rule turns a node so that the two ends of "
             f"a joint present the same face, and no connection point "
-            f"of these blocks stands for more than one atom -- so "
-            f"there are no faces and nothing to choose between")
+            f"of these blocks stands for more than one atom or hangs "
+            f"off an atom with a plane to present -- so there are no "
+            f"faces and nothing to choose between")
 
     groups: dict[tuple, tuple] = {}
     ties: dict[int, tuple[Fit, ...]] = {}
@@ -592,9 +608,9 @@ class _Score:
         return self._placed[key]
 
     def attachment(self, slot, permutation, ordinal):
-        """The attachment one of this slot's edges leaves through, or
-        ``None`` when it stands for fewer than two atoms and so has no
-        frame to agree about."""
+        """The attachment one of this slot's edges leaves through --
+        its members, or the face its one atom presents -- or ``None``
+        where it has no frame to agree about."""
         key = (slot, permutation, ordinal)
         if key not in self._attached:
             self._attached[key] = self._attach(slot, permutation,
@@ -602,11 +618,13 @@ class _Score:
         return self._attached[key]
 
     def _attach(self, slot, permutation, ordinal):
-        point = point_at(self.blocks[slot], permutation, ordinal)
+        block = self.blocks[slot]
+        point = point_at(block, permutation, ordinal)
         found = self.members[slot].get(point, ())
-        if len(found) < 2:
-            return None
         positions = self.positions(slot, permutation)
+        if len(found) < 2:
+            return face_of(block.connection_point_indices, block.bonds,
+                           positions, point)
         return Attachment(point, tuple(found),
                           positions[list(found)] - positions[point])
 
@@ -781,8 +799,11 @@ def _descend(nodes, ties, score, choice) -> dict:
 # no earlier answer here to be faithful to and settling it is not
 # overriding anything.  That is why this runs whatever rule was asked
 # for, and why the guarantee it has to keep is the other one -- a
-# framework of single-point blocks must come out exactly as it always
-# did.  It does, structurally: :func:`_turnable` is empty unless a
+# framework of single-point blocks built ``as-found`` must come out
+# exactly as it always did.  Faces -- the plane a single-atom point
+# presents -- are read only when ``faces`` is asked for, which the
+# build does under :data:`CONSISTENT` and nowhere else.  Without them
+# it holds structurally: :func:`_turnable` is empty unless a
 # block presents a face at one of its two ends, and no shipped block
 # does.
 #
@@ -834,7 +855,7 @@ _STILL = 1e-6
 _UNDECIDED = 1e-9
 
 
-def align_edges(framework, log=None) -> int:
+def align_edges(framework, log=None, faces: bool = False) -> int:
     """Turn every two-connected block about its own axis until its
     ends face the blocks they meet.  Returns how many were turned.
 
@@ -870,7 +891,7 @@ def align_edges(framework, log=None) -> int:
     above and so is the same on two runs of one build.
     """
     blocks = framework.info["located_bbs"]
-    turnable = _turnable(blocks)
+    turnable = _turnable(blocks, faces)
     if not turnable:
         return 0
     partner = {}
@@ -882,7 +903,8 @@ def align_edges(framework, log=None) -> int:
     for _sweep in range(_SWEEPS):
         moved = False
         for slot in turnable:
-            angle, axis, origin = _axial(blocks, partner, slot)
+            angle, axis, origin = _axial(blocks, partner, slot,
+                                         faces)
             if angle is None or abs(angle) < _STILL:
                 continue
             _turn(blocks[slot], axis, origin, angle)
@@ -897,7 +919,7 @@ def align_edges(framework, log=None) -> int:
     return len(turned)
 
 
-def _turnable(blocks) -> list[int]:
+def _turnable(blocks, faces: bool = False) -> list[int]:
     """The slots whose block has two connection points and a face to
     present at one of them.
 
@@ -906,10 +928,13 @@ def _turnable(blocks) -> list[int]:
     -- Ni3(HITP)2's NiN4H4 sits on a node slot -- and asking the block
     rather than the net is what covers both without naming either.
 
-    A block whose every point stands for one atom presents no face, so
-    no angle is better than any other and this is empty.  That is the
-    whole of the guarantee for the 867 shipped blocks: not a rule they
-    are exempt from, but a list they are not on.
+    Without ``faces``, a block whose every point stands for one atom
+    presents nothing, so no angle is better than any other and this is
+    empty.  That is the whole of the guarantee for the shipped blocks
+    built ``as-found``: not a rule they are exempt from, but a list
+    they are not on.  With ``faces`` -- under ``consistent`` -- a ring
+    or a carboxylate at either end is a face, and E14 turns until its
+    ring lies flat against both carboxylates it meets.
     """
     out = []
     for slot, block in enumerate(blocks):
@@ -918,13 +943,18 @@ def _turnable(blocks) -> list[int]:
         points = np.asarray(block.connection_point_indices, dtype=int)
         if len(points) != 2 or not readable(block):
             continue
+        if faces:
+            if presents_face(points, block.bonds,
+                             block.atoms.get_positions()):
+                out.append(slot)
+            continue
         members = members_of(points, block.bonds)
         if any(len(found) > 1 for found in members.values()):
             out.append(slot)
     return out
 
 
-def _axial(blocks, partner, slot):
+def _axial(blocks, partner, slot, faces: bool = False):
     """``(angle, axis, origin)`` for one block, or three ``None``.
 
     ``None`` where there is nothing to settle: an end whose partner
@@ -943,8 +973,9 @@ def _axial(blocks, partner, slot):
     ends = []
     for point in (first, second):
         met = partner.get((slot, point))
-        here = _attachment_at(blocks, slot, point)
-        there = None if met is None else _attachment_at(blocks, *met)
+        here = _attachment_at(blocks, slot, point, faces)
+        there = (None if met is None
+                 else _attachment_at(blocks, *met, faces))
         if here is None or there is None:
             continue
         mine = unit_laterals(here, axis)
@@ -956,7 +987,7 @@ def _axial(blocks, partner, slot):
     return _angle(axis, ends), axis, positions[first]
 
 
-def _attachment_at(blocks, slot, point):
+def _attachment_at(blocks, slot, point, faces: bool = False):
     """The face a placed block presents at one of its points, or
     ``None`` where it presents none.
 
@@ -967,15 +998,22 @@ def _attachment_at(blocks, slot, point):
     :func:`xtal.mof.build._joint_bonds` takes those at their minimum
     image; an offset inside one block is the same vector wherever the
     block is.
+
+    With ``faces`` a single-atom point presents the plane of its atom
+    (:func:`xtal.mof.attach.face_of`); without, only a point standing
+    for several atoms presents anything.
     """
     block = blocks[slot]
     if block is None or block.bonds is None or not readable(block):
         return None
     members = members_of(block.connection_point_indices,
                          block.bonds).get(int(point), ())
-    if len(members) < 2:
-        return None
     positions = np.asarray(block.atoms.get_positions(), dtype=float)
+    if len(members) < 2:
+        if not faces:
+            return None
+        return face_of(block.connection_point_indices, block.bonds,
+                       positions, point)
     return Attachment(int(point), tuple(int(m) for m in members),
                       positions[list(members)] - positions[point])
 

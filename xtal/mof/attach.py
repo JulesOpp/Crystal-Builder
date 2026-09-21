@@ -59,6 +59,11 @@ import numpy as np
 #: around 4 A, and still catches the mis-click in 95 % of the database.
 MAX_ATTACHMENT_SPAN = 5.0
 
+#: How far back along its bond a face's two virtual members sit, as a
+#: fraction of their reach: enough for ``Attachment.axis`` to have a
+#: direction, and a millionth of a radian of lean at worst.
+_HAIR = 1e-6
+
 
 @dataclass(frozen=True)
 class Attachment:
@@ -140,6 +145,83 @@ def members_of(connections, bonds) -> dict[int, tuple[int, ...]]:
         elif j in marked and i not in marked:
             found[j].add(i)
     return {c: tuple(sorted(found[c])) for c in sorted(marked)}
+
+
+def face_of(connections, bonds, positions, point) -> Attachment | None:
+    """The face a single-atom connection point presents, or ``None``.
+
+    Where the atom a point hangs off has exactly **two** other
+    neighbours in the block, the plane of that atom and those two is
+    what meets the next block: a carboxylate on a Zn4O node, a ring on
+    a linker.  A planar linker cannot lie flat against two
+    carboxylates turned a quarter turn apart, which is the whole
+    reason MOF-5's clusters alternate -- 0 degrees across each of its
+    24 linkers in the crystal, 90 across all 24 in a build that
+    ignored this.
+
+    Presented as a **virtual bidentate**: two members at +-*w*, *w* in
+    that plane and across the atom-to-point bond, so that
+    :func:`pair_cost`, :func:`pairing` and :func:`unit_laterals` read
+    a face exactly as they read a chelate, and ``axis`` still points
+    from the atom towards the point.  ``members`` names the two
+    neighbours, which are the atoms the plane was taken from; nothing
+    that bonds ever reads a face, so they are never taken for atoms
+    that join.
+
+    Where the point was written plays no part in the plane, and it
+    must not: 2045 of the 3899 faces the shipped blocks present have
+    their ``X`` more than 0.1 off it -- E102's is 0.65.  A point with
+    one other neighbour is linear and has no plane; one with three or
+    more is a free rotor, or a metal, with no preferred angle.  Of the
+    4215 shipped points 3899 present a face, 67 are linear and 234
+    have more neighbours.
+    """
+    positions = np.asarray(positions, dtype=float)
+    point = int(point)
+    members = members_of(connections, bonds).get(point, ())
+    if len(members) != 1:
+        return None
+    atom = members[0]
+    marked = {int(c) for c in connections}
+    around = set()
+    for record in () if bonds is None else bonds:
+        i, j = int(record[0]), int(record[1])
+        if i == atom and j not in marked:
+            around.add(j)
+        elif j == atom and i not in marked:
+            around.add(i)
+    if len(around) != 2:
+        return None
+    a, b = sorted(around)
+    normal = np.cross(positions[a] - positions[atom],
+                      positions[b] - positions[atom])
+    bond = positions[point] - positions[atom]
+    across = np.cross(normal, bond)
+    length = float(np.linalg.norm(across))
+    if length < 1e-9:
+        return None
+    reach = 0.5 * float(np.linalg.norm(positions[a] - positions[b]))
+    across *= reach / length
+    # +-w and nothing else, bar a hair back along the bond so that
+    # `axis` still says which way the point faces.  The atom-to-point
+    # offset itself must not be in here: with the X off the plane it
+    # has a part across the joint that survives projection, and the
+    # face would lean with the X.
+    back = -bond / float(np.linalg.norm(bond)) * reach * _HAIR
+    return Attachment(point, (a, b),
+                      np.array([back + across, back - across]))
+
+
+def presents_face(connections, bonds, positions) -> bool:
+    """Whether any connection point of a block has a frame to agree
+    about: it stands for several atoms, or its one atom presents a
+    face (:func:`face_of`)."""
+    for point, members in members_of(connections, bonds).items():
+        if len(members) > 1:
+            return True
+        if face_of(connections, bonds, positions, point) is not None:
+            return True
+    return False
 
 
 def attachments_of(block) -> list[Attachment]:

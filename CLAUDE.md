@@ -303,11 +303,26 @@ stress case).
   planar block span no volume and triples would call a trigonal node
   unsymmetric — and `consistent` minimises `attach.pair_cost` over
   the two nodes each edge joins. `as-found` is the default and
-  `build._build` **returns at pass 1** unless a block is polydentate
-  *and* another rule was asked for, so no shipped build reaches any
-  of it. The rule moves a node only where it is *strictly* cheaper,
-  never where it merely ties: on `pcu` every orientation costs the
-  same and the build must come back unchanged.
+  `build._build` **returns at pass 1** unless another rule was asked
+  for *and* some node presents a frame -- several atoms at a point,
+  or a **face** (next item) -- so an `as-found` build is byte for
+  byte what PORMAKE makes. The rule moves a node only where it is
+  *strictly* cheaper, never where it merely ties, and it starts from
+  the fit itself (`orient._admit`), which need not be in the tie set
+  `tie_set` locates afresh. A second pass whose `max_rmsd` is worse
+  than the first by more than `orient.FIT_SLACK` is thrown away.
+- **A face is scored, never bonded.** A connection point standing for
+  one atom presents the plane of that atom and its two other
+  neighbours (`attach.face_of`): a carboxylate on N16, a ring on E14.
+  That is why MOF-5's clusters alternate -- a Td node's opposite
+  carboxylates are a quarter turn apart, so neighbours the same way
+  round meet with the two carboxylates on each linker at 90 degrees,
+  against 0 in the crystal. The plane is the atom's and its
+  neighbours', never where the `X` was written (2045 of 3899 shipped
+  faces have it off the plane); one neighbour (linear) or three
+  (a rotor, a metal) is no face. A face never enters `members_of`,
+  so joints and bond counts are what they were: `bond_joints` still
+  asks `_is_polydentate`, and MOF-5 has its 48 joints.
 - **A linker's angle about its own axis is not "as found", because
   the fit never found it.** Placing a two-connected block is Kabsch
   on two vectors — "not uniquely defined", as scipy says out loud —
@@ -322,9 +337,12 @@ stress case).
   cost is `attach.pair_cost`, the same one the discrete rule
   minimises. What turns is asked of the **block** — two points and a
   face at one of them — and never of the slot, so a two-connected
-  *node* turns too. No shipped block is on that list, and
-  Ni3(HITP)2's own blocks come back wanting 6e-08 radians, which is
-  the crystal's angle and below `_STILL`.
+  *node* turns too. **Faces count only under `consistent`**
+  (`align_edges(faces=...)`), so under `as-found` no shipped block is
+  on that list; under `consistent` E14 turns until its ring lies flat
+  on both carboxylates it meets. Ni3(HITP)2's own blocks come back
+  wanting 6e-08 radians, which is the crystal's angle and below
+  `_STILL`.
 - **A layer net is stacked after it is built, never by the builder.**
   `hcb`, `sql` and `kgm` ship in `xtal/mof/library/nets/` as 3-D
   cells; PORMAKE's scaler multiplies *c* with everything else (10 →

@@ -825,7 +825,7 @@ Phase 3.
 |---|---|---|---|
 | **0 — Clean tree** | Shipped 2026-09-21 (7689c37); the MOF dialog work left uncommitted, committed on its own | `xtalapp/dialogs/mof_build.py`, `xtal/mof/catalog.py` | S |
 | **1 — A safe, fast search** | Shipped 2026-09-21; the search starts from the fit, a second pass that fits worse is discarded, each joint is scored once | `xtal/mof/orient.py`, `xtal/mof/build.py` | M |
-| **2 — Faces** | `attach.face_of`, `attach.presents_face`; MOF-5 builds under `consistent`, default still `as-found` | `xtal/mof/attach.py`, `xtal/mof/orient.py`, `xtal/mof/build.py` | M |
+| **2 — Faces** | Shipped 2026-09-21; `attach.face_of`, `attach.presents_face`; MOF-5 builds under `consistent` to 0.10 A of the sample, default still `as-found` | `xtal/mof/attach.py`, `xtal/mof/orient.py`, `xtal/mof/build.py` | M |
 | **3 — `consistent` by default** | The default flips; "Joint twist left" in the results; upstream comparison pinned to `as-found` | `xtal/mof/build.py`, `xtal/modules/mof.py`, `xtal/mof/orient.py`, `xtalapp/dialogs/mof_build.py` | S-M |
 
 ### What Phase 1 changed
@@ -861,25 +861,53 @@ Phase 3.
   `test_a_second_pass_that_fits_worse_is_thrown_away`,
   `test_a_joint_is_scored_once_however_often_the_search_asks`.
 
-### Phase 2 — Faces
+### What Phase 2 changed
 
-* `attach.face_of`: where the atom a single-atom point hangs off has
-  exactly two neighbours that are not connection points, two virtual
-  members at +-*w* either side of it, *w* in its plane and across the
-  atom->X bond.  **Where the X was written plays no part**: 2045 of
-  the 3899 shipped faces have it off the plane.  One or three-plus
-  neighbours present none (linear; free rotor).
-* **A face is scored, never bonded**: never in `members_of`, so MOF-5
-  keeps 48 joints.
-* `attach.presents_face` replaces `build._is_polydentate`, the guard
-  in `choose_permutations` and the check in `orient._turnable`.
-* Tests: a `mof5` fixture in `tests/test_mof_targets.py` --
-  `test_mof5_builds_with_its_nodes_alternating`,
+* **A face.**  `attach.face_of`: where the atom a single-atom point
+  hangs off has exactly two neighbours that are not points, the
+  point presents that plane as a virtual bidentate at +-*w*, *w* in
+  the plane and across the atom->X bond.  Built first with the
+  atom->point offset in the virtual members, and that was wrong: with
+  the X tilted 0.5 A off the plane the face leaned 0.43 rad with it.
+  The members are +-*w* alone now, less a 1e-6 hair back along the
+  bond so `Attachment.axis` keeps a direction.
+* **Where faces are read.**  `orient._Score` and `_attachment_at`
+  fall back to the face; `choose_permutations`' refusal and
+  `build._build`'s pass-1 gate ask `presents_face`; `align_edges`
+  reads faces only with `faces=True`, which `build` passes under
+  `consistent`.  `bond_joints` still asks `_is_polydentate`: a face is
+  never bonded.
+* **The pass-1 gate asks of the nodes.**  It asked whether *any*
+  block had a frame while the rule scores only nodes, so `cds` on
+  N307 (no face) and E3 (a face) reached the rule with nothing to
+  score and the whole build raised.  The same hole was there for a
+  polydentate linker between plain nodes; nothing shipped reached it.
+* **MOF-5**, `pcu` x 2x2x2 on N16 and E14 under `consistent`: joints
+  24.0 -> 0.000000, clusters four and four with every neighbour
+  opposite, 0 degrees between the carboxylates on all 24 linkers and
+  between each ring and its carboxylate on all 48, **0.101 A RMS /
+  0.131 worst** onto `resources/samples/MOF-5.cif` (1.18 / 2.98
+  before), 424 atoms and 48 joints as before.
+* **Elsewhere under `consistent`**: `dia`/N623/E14 0.579 -> 0.000 A
+  max RMSD, joints 17.6 -> 0; `pcu`/N343/E32 x 2x2x2 0.450 -> 0.395;
+  `nbo`/N466/E14 would have fitted 1.051 against 0.562 and Phase 1's
+  guard kept the fit; `cds`/N161/E3 had nothing strictly better and
+  only its linkers turned.  Every `as-found` build checked is byte
+  for byte what it was.
+* **Tests changed**: N59 is no longer a block with nothing to score
+  (its carboxylates are faces), so the two tests that said so use
+  N6, a B12 icosahedron whose borons have five neighbours, and E32,
+  whose points hang off alkyne carbons.
+* Tests added: `test_mof5_builds_with_its_nodes_alternating`,
   `test_every_mof5_linker_lies_flat_against_both_ends`,
   `test_mof5_overlays_the_sample_to_a_fifth_of_an_angstrom`,
-  `test_mof5_has_the_joints_it_had`; synthetic ones in
-  `test_mof_orientation.py` for the face's plane, a tilted X, linear
-  and tetrahedral points, and `as-found` unchanged.
+  `test_mof5_has_the_joints_it_had` (`test_mof_targets.py`, 4 s
+  together); `test_a_face_is_the_plane_of_the_atom_and_its_two_neighbours`,
+  `test_a_face_does_not_care_where_its_x_was_written`,
+  `test_a_linear_or_tetrahedral_point_presents_no_face`,
+  `test_a_face_is_never_a_member`,
+  `test_nodes_with_nothing_to_score_between_linkers_with_faces_keep_the_fit`
+  (`test_mof_orientation.py`).
 
 ### Phase 3 — `consistent` by default
 
