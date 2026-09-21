@@ -119,6 +119,18 @@ COPLANAR = 0.3
 #: Below this a fit is exact and a ratio against it means nothing.
 _FLOOR = 1e-12
 
+#: How much worse, in Angstrom, a second pass may fit than the first
+#: before it is thrown away and the first kept.
+#:
+#: Measured, not chosen: the second pass rebuilt with the *same*
+#: permutations the first chose comes back with the same ``max_rmsd``
+#: to the last bit on all eight builds tried, so there is no rebuild
+#: noise to allow for -- only the spread inside a tie set, which is
+#: 1e-5 on a block cut from a crystal.  What this has to catch is two
+#: orders the other side: ``nbo`` on N466 and E14, turned, fitted
+#: 0.973 A against 0.562 as found.
+FIT_SLACK = 1e-3
+
 #: Costs are compared to this many places, so that two orientations
 #: that differ only in rounding are decided by the tie-break below
 #: them rather than by the last bit of a sum.
@@ -475,6 +487,7 @@ def choose_permutations(topology, blocks, rule: str = AS_FOUND,
             groups[key] = rotation_group(block)
         ties[slot] = tie_set(topology, slot, block, groups[key])
 
+    ties = _admit(nodes, ties, baseline)
     score = _Score(topology, blocks, members, nodes)
     start = _start(nodes, ties, baseline)
     choice = _by_type(topology, nodes, ties, score, start)
@@ -485,15 +498,44 @@ def choose_permutations(topology, blocks, rule: str = AS_FOUND,
     return {slot: np.asarray(choice[slot]) for slot in nodes}
 
 
-def _start(nodes, ties, baseline) -> dict:
-    """Where the search begins: what the fit chose, where it can.
+def _admit(nodes, ties, baseline) -> dict:
+    """The tie sets, with the fit's own permutation in every one.
 
-    A permutation the fit chose that is not in the tie set cannot be
-    started from -- it would be a placement this rule is not allowed
-    to make -- so such a slot begins at its lowest permutation
-    instead.  In practice it does not happen: the tie set is the
-    fit's own choice composed with the block's rotation group, and
-    the identity is in every group.
+    It was assumed to be there already -- the tie set is the fit
+    composed with the block's rotation group, and the identity is in
+    every group -- and it is not always.  :func:`tie_set` locates the
+    block afresh, and ``locate`` stops at the first orientation on its
+    Euler grid that is good enough, so on a block that fits its slot
+    loosely the two land on different permutations: ``cds`` on N307
+    had a tie set of one that was not the builder's, and the
+    synthetic node on ``acs`` two of 24 that were not.  The search
+    then started such a slot somewhere else and rebuilt the framework
+    whether or not that was any cheaper -- on ``cds`` a joint went
+    from 3.49 A to 2.54 at the *same* cost.  Admitted as a candidate
+    and started from, the fit is left only for something strictly
+    better, which is the promise the rest of this module makes.
+    """
+    if baseline is None:
+        return ties
+    ties = dict(ties)
+    for slot in nodes:
+        found = baseline.get(slot)
+        if found is None:
+            continue
+        given = tuple(int(v) for v in found)
+        if given not in {fit.permutation for fit in ties[slot]}:
+            ties[slot] = tuple(sorted(
+                (*ties[slot], Fit(int(slot), given, (), float("nan"))),
+                key=lambda fit: fit.permutation))
+    return ties
+
+
+def _start(nodes, ties, baseline) -> dict:
+    """Where the search begins: what the fit chose.
+
+    After :func:`_admit` the fit's own permutation is in every slot's
+    tie set, so the lowest permutation is only where a search with no
+    baseline at all begins.
     """
     start = {}
     for slot in nodes:
@@ -521,6 +563,11 @@ class _Score:
         self.blocks = blocks
         self.members = members
         self.locator = _locator()
+        # The search asks for the same joint under the same two
+        # orientations over and over -- 15 096 times on MFU-4l's pcu
+        # x 2x2x2 for 1736 distinct answers -- so each is scored once.
+        self._attached: dict[tuple, Attachment | None] = {}
+        self._joint: dict[tuple, float] = {}
         # Every edge of the net, and not only the ones with a linker
         # on them: what is scored is the two *nodes* an edge joins,
         # so an edge slot left empty is scored exactly as one with a
@@ -548,6 +595,13 @@ class _Score:
         """The attachment one of this slot's edges leaves through, or
         ``None`` when it stands for fewer than two atoms and so has no
         frame to agree about."""
+        key = (slot, permutation, ordinal)
+        if key not in self._attached:
+            self._attached[key] = self._attach(slot, permutation,
+                                               ordinal)
+        return self._attached[key]
+
+    def _attach(self, slot, permutation, ordinal):
         point = point_at(self.blocks[slot], permutation, ordinal)
         found = self.members[slot].get(point, ())
         if len(found) < 2:
@@ -556,14 +610,26 @@ class _Score:
         return Attachment(point, tuple(found),
                           positions[list(found)] - positions[point])
 
+    def joint(self, edge, here, there) -> float:
+        """One edge's cost with its two nodes turned ``here`` and
+        ``there``; 0.0 where either end presents no frame."""
+        key = (edge, here, there)
+        if key not in self._joint:
+            (a, oa), (b, ob) = self.edges[edge]
+            mine = self.attachment(a, here, oa)
+            theirs = self.attachment(b, there, ob)
+            self._joint[key] = (
+                0.0 if mine is None or theirs is None
+                else pair_cost(mine, theirs, self.axes[edge]))
+        return self._joint[key]
+
     def cost(self, choice) -> float:
+        # Summed in the same order every time, so a cost read from the
+        # cache is the same float as one computed afresh and the
+        # rounding in `key` breaks the same ties it always did.
         total = 0.0
-        for edge, ((a, oa), (b, ob)) in self.edges.items():
-            here = self.attachment(a, choice[a], oa)
-            there = self.attachment(b, choice[b], ob)
-            if here is None or there is None:
-                continue
-            total += pair_cost(here, there, self.axes[edge])
+        for edge, ((a, _oa), (b, _ob)) in self.edges.items():
+            total += self.joint(edge, choice[a], choice[b])
         return total
 
     def key(self, choice):
@@ -591,7 +657,9 @@ def _by_type(topology, nodes, ties, score, start) -> dict:
     Only rotations every slot of the type ties on are offered, because
     a rotation that is a tie on one slot and a worse fit on another is
     not a choice this may make: the fit comes first and this breaks
-    what it leaves.
+    what it leaves.  The fit's own permutation, where :func:`_admit`
+    had to add it, is no rotation of the block and so is never shared;
+    such a slot is reached by the descent instead.
     """
     by_type: dict[int, list[int]] = {}
     for slot in nodes:
@@ -615,7 +683,7 @@ def _by_type(topology, nodes, ties, score, start) -> dict:
 
     best, best_key = None, None
     for turns in combinations:
-        trial = {}
+        trial = dict(start)
         for kind, rotation in zip(kinds, turns, strict=True):
             for slot in by_type[kind]:
                 trial[slot] = _same_rotation(ties[slot], rotation)

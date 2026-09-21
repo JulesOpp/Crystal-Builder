@@ -354,10 +354,17 @@ def test_consistent_orientations_put_opposite_nodes_on_every_edge(
 
     So this is where the discrete choice is the whole answer rather
     than half of it: the fit leaves the two nodes a quarter turn
-    apart and the joint comes back 2.766 A long, and turning one of
-    them brings it to 1.884.  Neither number is a bond length -- these
-    are synthetic blocks -- but the second is the shorter, and no
+    apart and the joint comes back 2.766 A long, and turning them
+    brings it to 1.931.  Neither number is a bond length -- these are
+    synthetic blocks -- but the second is the shorter, and no
     continuous rotation of anything could have found it.
+
+    It was 1.884 until the search started from the fit.  The fit's own
+    permutation is in neither slot's tie set here, and the search used
+    to start both slots at their lowest permutation instead, logging
+    *that* as "as found" at 2.602 -- the real fit costs 9.693 -- and
+    then kept it for a 1e-5 improvement.  Started honestly it reaches
+    2.191, cheaper on the cost the rule minimises.
     """
     as_found = build(BuildRequest.parse("acs", "SNODE", "", "",
                                         "as-found"),
@@ -368,7 +375,7 @@ def test_consistent_orientations_put_opposite_nodes_on_every_edge(
 
     assert as_found.joints == consistent.joints == 12
     assert round(as_found.longest_joint, 3) == 2.766
-    assert round(consistent.longest_joint, 3) == 1.884
+    assert round(consistent.longest_joint, 3) == 1.931
     # The fit is not touched: what changed is which way round the
     # block went, not how well it sits on its slot.
     assert round(consistent.max_rmsd, 3) == round(as_found.max_rmsd, 3)
@@ -393,6 +400,109 @@ def test_two_runs_of_the_same_build_choose_the_same_orientations(
                    _fresh(tmp_path / "b"), synthetic)
 
     assert second.cif.read_text() == first.cif.read_text()
+
+
+def _acs_nodes(synthetic):
+    """acs, and the synthetic bidentate node on both its node slots."""
+    from xtal.mof import orient
+
+    pormake = orient.import_pormake()
+    topology = synthetic.topology("acs").expanded()
+    blocks = [None] * topology.n_slots
+    for slot in topology.node_indices:
+        blocks[int(slot)] = pormake.BuildingBlock(
+            str(synthetic.building_block("SNODE").path))
+    return topology, blocks
+
+
+@needs_builder
+def test_the_fit_s_own_orientation_is_always_a_candidate(synthetic):
+    """The tie set is located afresh, and ``locate`` stops at the
+    first good-enough orientation on its grid, so the builder's own
+    fit need not be in it -- on ``cds`` with N307 it was not, and the
+    search started that slot elsewhere and rebuilt the framework at
+    the same cost, a joint going from 3.49 A to 2.54 for nothing.
+    So the fit is admitted and started from, and like every other
+    start it is left only for something strictly cheaper."""
+    import itertools
+
+    from xtal.mof import orient
+
+    topology, blocks = _acs_nodes(synthetic)
+    nodes = [int(s) for s in topology.node_indices]
+    ties = {slot: orient.tie_set(topology, slot, blocks[slot])
+            for slot in nodes}
+    allowed = {fit.permutation for fit in ties[nodes[0]]}
+    foreign = next(p for p in itertools.permutations(
+        range(len(ties[nodes[0]][0].permutation))) if p not in allowed)
+    baseline = {nodes[0]: foreign,
+                nodes[1]: ties[nodes[1]][0].permutation}
+
+    admitted = orient._admit(nodes, ties, baseline)
+
+    assert foreign in {fit.permutation for fit in admitted[nodes[0]]}
+    assert len(admitted[nodes[1]]) == len(ties[nodes[1]])
+    assert orient._start(nodes, admitted, baseline)[nodes[0]] == foreign
+
+
+@needs_builder
+@pytest.mark.slow
+def test_a_second_pass_that_fits_worse_is_thrown_away(
+        tmp_path, synthetic, monkeypatch):
+    """Pass 2 relaxes the cell again around the turned nodes, and the
+    choice never looked at how well they would sit afterwards.
+    ``nbo`` on N466 and E14, turned, fitted 0.973 A against 0.562 as
+    found; a default rule cannot hand that back.  Here pass 2 -- the
+    only call that pins permutations -- is made to report a worse
+    fit, and the framework that comes back is pass 1's."""
+    from xtal.mof import orient
+
+    builder = orient.import_pormake().Builder
+    real = builder.build
+
+    def worse(self, topology, bbs, permutations=None, **kwargs):
+        framework = real(self, topology, bbs, permutations, **kwargs)
+        if permutations:
+            framework.info["max_rmsd"] = (
+                float(framework.info["max_rmsd"]) + 0.5)
+        return framework
+
+    monkeypatch.setattr(builder, "build", worse)
+    said = []
+    turned = build(BuildRequest.parse("acs", "SNODE", "", "",
+                                      "consistent"),
+                   _fresh(tmp_path / "a"), synthetic, log=said.append)
+    plain = build(BuildRequest.parse("acs", "SNODE", "", "",
+                                     "as-found"),
+                  _fresh(tmp_path / "b"), synthetic)
+
+    assert any("fit their slots worse" in line for line in said)
+    assert turned.cif.read_text() == plain.cif.read_text()
+
+
+@needs_builder
+def test_a_joint_is_scored_once_however_often_the_search_asks(
+        synthetic, monkeypatch):
+    """The search asks for the same joint under the same pair of
+    orientations over and over: 15 096 scorings for 1736 distinct
+    answers on MFU-4l's pcu x 2x2x2, and 54 of 72 seconds on a
+    2x2x2 ``dia``.  Each is scored once."""
+    from xtal.mof import orient
+
+    seen = []
+    real = orient.pair_cost
+
+    def counted(a, b, axis):
+        seen.append((a.point, a.offsets.tobytes(), b.point,
+                     b.offsets.tobytes(), np.asarray(axis).tobytes()))
+        return real(a, b, axis)
+
+    monkeypatch.setattr(orient, "pair_cost", counted)
+    topology, blocks = _acs_nodes(synthetic)
+    orient.choose_permutations(topology, blocks, "consistent")
+
+    assert seen
+    assert len(seen) == len(set(seen))
 
 
 @needs_builder

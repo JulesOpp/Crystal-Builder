@@ -823,31 +823,43 @@ Phase 3.
 
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
-| **0 — Clean tree** | The MOF dialog work left uncommitted (name search, denticity boxes, folding sections) committed on its own | `xtalapp/dialogs/mof_build.py`, `xtal/mof/catalog.py` | S |
-| **1 — A safe, fast search** | A slot whose fit is outside its tie set is pinned; a second pass that fits worse is discarded; descent scores only the moved slot's edges | `xtal/mof/orient.py`, `xtal/mof/build.py` | M |
+| **0 — Clean tree** | Shipped 2026-09-21 (7689c37); the MOF dialog work left uncommitted, committed on its own | `xtalapp/dialogs/mof_build.py`, `xtal/mof/catalog.py` | S |
+| **1 — A safe, fast search** | Shipped 2026-09-21; the search starts from the fit, a second pass that fits worse is discarded, each joint is scored once | `xtal/mof/orient.py`, `xtal/mof/build.py` | M |
 | **2 — Faces** | `attach.face_of`, `attach.presents_face`; MOF-5 builds under `consistent`, default still `as-found` | `xtal/mof/attach.py`, `xtal/mof/orient.py`, `xtal/mof/build.py` | M |
 | **3 — `consistent` by default** | The default flips; "Joint twist left" in the results; upstream comparison pinned to `as-found` | `xtal/mof/build.py`, `xtal/modules/mof.py`, `xtal/mof/orient.py`, `xtalapp/dialogs/mof_build.py` | S-M |
 
-### Phase 1 — A safe, fast search
+### What Phase 1 changed
 
-Latent bugs in the shipped `consistent` rule, measured over 24 builds
-of a 17-net spread, and all three must go before it can be a default:
-
-* `orient._start` assumes the fit's own permutation is in its tie set
-  ("in practice it does not happen").  On `cds`/N307/E3 it is not, so
-  the build changes at **equal cost** (joint 3.49 -> 2.54 A).  Pin
-  such a slot to the fit.
-* Nothing compares pass 2 with pass 1: `nbo`/N466/E14 fits **worse**,
-  max RMSD 0.562 -> 0.973.  Keep pass 1 when pass 2's `max_rmsd`
-  exceeds it by more than `orient.FIT_SLACK`, measured from the
-  rebuild noise of unchanged orientations.
-* `_Score.cost` is 54 of 72 s on `dia`/N194/E1 2x2x2 (1290 calls x 256
-  edges).  Cache attachments; `_descend` and `_better` score a delta
-  over the moved slot's edges.
-* Tests: `test_a_slot_whose_fit_is_outside_its_tie_set_keeps_the_fit`,
+* **The search starts from the fit.**  `orient._start` assumed the
+  fit's own permutation was in its tie set, and fell back to the
+  lowest permutation when it was not -- and it is not, whenever
+  `tie_set`'s fresh `locate` lands elsewhere on its Euler grid.
+  Pinning such a slot was tried first and was wrong: on the synthetic
+  node on `acs`, *both* slots' fits are outside their tie sets of 24,
+  and pinning froze a real improvement.  `orient._admit` instead adds
+  the fit to the candidates and starts there, so it is left only for
+  something strictly cheaper.  The old `acs` figure was the bug at
+  work: it logged the lowest permutation as "as found" (2.602) where
+  the fit costs 9.693, and kept it for a 1e-5 gain.  Started honestly
+  it reaches **2.191**, and the longest joint the test pins moves
+  from 1.884 A to **1.931** (the joint length is not what the rule
+  minimises).
+* **A worse second pass is thrown away.**  `build._build` keeps pass
+  1 when pass 2's `max_rmsd` is above it by more than
+  `orient.FIT_SLACK` = 1e-3 A.  Measured: rebuilding with the *same*
+  permutations gives the same `max_rmsd` to the last bit on 8 of 8
+  builds, so there is no noise to allow for; the prototype's
+  regression it has to catch was `nbo`/N466/E14, 0.562 -> 0.973.
+* **Each joint is scored once.**  `_Score` caches attachments and
+  joint costs by `(edge, orientation, orientation)`, summed in the
+  same order, so every cost is the same float as before.  MFU-4l pcu
+  x 2x2x2: search 0.88 -> **0.20 s**, `pair_cost` calls 15 096 ->
+  2694, result unchanged (48.0 -> 0.0, four and four, 1.667 A).
+  `dia`/N194/E1 x 2x2x2 through the face prototype: the search's
+  share went from ~35 s to ~3.7 s (11.0 s as found, 14.7 s turned).
+* Tests: `test_the_fit_s_own_orientation_is_always_a_candidate`,
   `test_a_second_pass_that_fits_worse_is_thrown_away`,
-  `test_descending_scores_only_the_edges_it_moved`; MFU-4l's
-  48.0 -> 0.0 and 1.667 A unchanged.
+  `test_a_joint_is_scored_once_however_often_the_search_asks`.
 
 ### Phase 2 — Faces
 

@@ -616,7 +616,10 @@ def _build(topology, node_bbs, edge_bbs, log, repeat=(1, 1, 1),
     only source of: the net after relaxation, which is the geometry
     the chosen orientations will actually sit on, and whatever block
     it quietly mirrored at ``builder.py:313``, which pass 2 would
-    otherwise place the wrong way round with nothing saying so.
+    otherwise place the wrong way round with nothing saying so.  And
+    it is the yardstick: a pass 2 whose blocks fit their slots worse
+    than pass 1's by more than :data:`xtal.mof.orient.FIT_SLACK` is
+    thrown away, and pass 1 comes back.
     """
     _say(log, "loading PORMAKE")
     pormake = import_pormake()
@@ -673,7 +676,18 @@ def _build(topology, node_bbs, edge_bbs, log, repeat=(1, 1, 1),
         _say(log, "the fit had already put the nodes the best way "
                   "round; keeping it")
         return framework
-    return builder.build(topo, blocks, permutations=chosen)
+    turned = builder.build(topo, blocks, permutations=chosen)
+    # Pass 2 relaxes the cell again around the new orientations, and
+    # nothing in the choice looked at how well the blocks would sit
+    # afterwards.  A turn that agrees better across the joints and
+    # fits the slots worse is not the better framework.
+    before = float(framework.info.get("max_rmsd", 0.0) or 0.0)
+    after = float(turned.info.get("max_rmsd", 0.0) or 0.0)
+    if after > before + orient.FIT_SLACK:
+        _say(log, f"the turned nodes fit their slots worse ({after:.3f} "
+                  f"A against {before:.3f}); keeping the fit")
+        return framework
+    return turned
 
 
 # ======================================================================
