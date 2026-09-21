@@ -28,12 +28,19 @@ ruff check .                           # lint (check only — see below)
 crystal-builder                        # launch the GUI
 ```
 
-**Serial is the default and it is not an oversight** — see the note in
-`pyproject.toml`. `-n auto` finishes in 25 s and wedged four runs out
-of eight; the deadlock behind that is described below. Prefer a
-**targeted file** while iterating and the full suite once before
-committing; the whole suite is 2000+ tests and running it after every
-edit is the single most expensive habit in this repo, and more so now.
+**Serial is still the default, and the reason it was chosen has
+gone.** `-n auto` wedged four runs out of eight because of the worker
+deadlock below, which is fixed: five consecutive `-n auto` runs of the
+whole suite came back clean at 65-111 s against 220 s serial. That is
+evidence and not proof -- at the old rate five clean runs in a row is
+about a 3 % event -- and `conftest.py:62` records a *second* wedge
+cause, eight workers contending on `cfprefsd`, which the INI-backend
+guard addressed but which nobody has re-measured under load. Changing
+the default is worth doing and is worth doing deliberately; CI runs
+serial too. Until then prefer a **targeted file** while iterating and
+the full suite once before committing; the whole suite is 3000+ tests
+and running it after every edit is the single most expensive habit in
+this repo.
 
 **No single test should take anything like a minute**, whatever the
 suite as a whole costs. `--durations` is how to check that rather than
@@ -136,22 +143,39 @@ cure is to load less in the test process, not to retry: run a test that
 needs a large optional stack in a subprocess, as `test_mace.py` does.
 Check `sysctl vm.swapusage` before trusting a run's timing.
 
-**A full run wedges roughly one time in four, and it is a real
-application bug rather than a test one.** `xtalapp/workers.py`
-connects `worker.finished` to `thread.quit`; a bound method owns the
-Python wrapper of the object it is bound to, so when nothing else
-owns it, PySide6 frees a `QThread` wrapper *inside* signal delivery --
-while Qt holds the connection mutex, calling back into Python for
-`disconnectNotify`, which wants the GIL. Any thread holding the GIL
-and asking Qt to connect something then waits for that mutex forever,
-which is why every dump lands in `MainWindow.__init__` at a different
-line. The same race can hang the shipped application when a module
-run finishes. **Unfixed** -- holding the pair alive from Python is the
-obvious remedy and it is not enough on its own; it broke
-`test_modules_ui` outright.
+**A full run used to wedge roughly one time in four, and it was a
+real application bug rather than a test one. Fixed 2026-09-21.**
+`xtalapp/workers.py` wired `finished` to `deleteLater` on both the
+worker and its thread, which put the destruction of two Python
+wrappers at two moments nobody chose. A Python wrapper cannot be
+destroyed without the GIL, and `~QObject` severing its connections
+holds Qt's connection lock while calling back into Python for
+`disconnectNotify` -- Qt documents that hazard on `disconnectNotify`
+itself. A thread holding the GIL and asking Qt to connect anything
+then waits on that lock forever, which is why every dump landed in
+`MainWindow.__init__` at a different line, and the same race could
+hang the shipped application when a module run finished.
 
-**If you turn `-n auto` back on and a run hangs**, kill the orphaned
-xdist workers before believing anything you measure next. They survive
+Nothing is deleted by Qt now: both objects are owned from Python, on
+the GUI thread, by a `_Run` held in a module-level set, and dropped
+one clean event-loop turn after the thread has stopped. The set is
+module level and **not** an attribute of the caller on purpose --
+holding them in `module_runner.module_worker` or `FFPanel.worker` is
+what `test_modules_ui` waits on going `None`, and is why the earlier
+attempt at this broke it. `MainWindow.closeEvent` stops the Force
+Field worker as well as the module one and then waits; a docked
+widget gets no close event when its window closes, which is why
+`FFPanel.closeEvent` was never covered.
+
+Measured across five configurations, 150 jobs a run, three runs each:
+the old arrangement aborted every run of three of them (the two with
+an unparented thread, and a second run overlapping the first);
+this one was clean in all fifteen.
+`review/probes/` in the `features/deep-review` branch has the harness
+(`stress_workers.py`, `matrix.sh`) if it is ever worth re-checking.
+
+**If you run `-n auto` and it hangs**, kill the orphaned xdist
+workers before believing anything you measure next. They survive
 `pkill -f pytest`, they wedge every later run, and a loop that
 `kill -9`s the controller on a timeout manufactures a fresh one every
 time -- which is how a hang rate of "one in six" grew to "one in two"
