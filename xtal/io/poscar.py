@@ -78,6 +78,14 @@ def read_poscar(path) -> Structure:
     index += 1
     counts = [int(tok) for tok in lines[index].split()]
     index += 1
+    if len(counts) != len(species):
+        # zip would have stopped at the shorter of the two and read a
+        # crystal with some of its atoms missing, silently.
+        raise ValueError(
+            f"{path.name} names {len(species)} species "
+            f"({', '.join(species)}) but gives {len(counts)} counts; "
+            f"the two lines have to agree or there is no saying which "
+            f"atoms are which")
 
     if lines[index][:1] in ("S", "s"):          # selective dynamics
         index += 1
@@ -87,7 +95,7 @@ def read_poscar(path) -> Structure:
 
     lattice = Lattice(vectors)
     sites = []
-    for element, count in zip(species, counts):
+    for element, count in zip(species, counts, strict=True):
         for _ in range(count):
             values = [float(v) for v in lines[index].split()[:3]]
             index += 1

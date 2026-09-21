@@ -113,3 +113,12 @@ def test_the_format_says_it_keeps_no_symmetry(tmp_path):
     """The export dialog is honest about what a format drops, and a
     POSCAR drops the group."""
     assert not FORMATS.get("poscar").keeps
+
+
+def test_species_and_counts_that_disagree_are_refused(tmp_path):
+    """zip would have stopped at the shorter of the two and read a
+    crystal with some of its atoms missing, without saying so."""
+    path = _poscar(tmp_path, "t\n1.0\n" + BODY + " Na Cl K\n 1 1\n"
+                   "Direct\n 0.0 0.0 0.0\n 0.5 0.5 0.5\n")
+    with pytest.raises(ValueError, match="3 species"):
+        FORMATS.read(path)
