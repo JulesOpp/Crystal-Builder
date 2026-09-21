@@ -997,3 +997,17 @@ def test_as_found_last_time_is_not_hidden_and_the_default_is(qtbot,
     assert shown["consistent"] == (False, "consistent")
     assert shown["as-found"] == (True, "as-found")
     assert shown[None] == (False, "consistent")
+
+
+@needs_database
+def test_the_mof_builder_searches_by_group_number_and_transitivity(
+        dialog):
+    """MOF+'s fields, in the topology list: a layer by its plane group
+    number, a 3-D net by its space group's."""
+    dialog.search.number.setText("17")
+    dialog.search.transitivity.setText("1 1")
+    found = _listed(dialog)
+    assert {"hcb", "hxl", "kgm"} <= found and "pcu" not in found
+
+    dialog.search.number.setText("221")
+    assert "pcu" in _listed(dialog) and "hcb" not in _listed(dialog)

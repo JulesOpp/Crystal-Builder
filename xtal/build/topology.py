@@ -42,6 +42,11 @@ seconds, which is 20 ms each -- so there is no cache and no folder.
 The outliers are worth knowing rather than guarding against: **fav**
 takes 1.7 s because it is 264 sites and 48960 atoms once expanded,
 and a net that large is slow to *draw* whatever produced it.
+
+**A layer is drawn as the MOF builder builds it**: flat at z = 0 in
+its plane group's layer group, with *c* = :data:`xtal.analysis.rcsr.
+LAYER_C` before scaling (:func:`xtal.analysis.rcsr.as_layer`).  All
+200 draw, in a second between them.
 """
 
 from __future__ import annotations
@@ -95,9 +100,10 @@ class NetDrawingError(ValueError):
 def names() -> list[str]:
     """Every net worth offering, in the file's own order.
 
-    The 2-periodic nets and the four with no ``CELL`` are left out
-    rather than offered and then refused: a picker whose entries raise
-    when they are picked is worse than a shorter picker.
+    The four with no ``CELL`` are left out rather than offered and
+    then refused: a picker whose entries raise when they are picked is
+    worse than a shorter picker.  The 2-periodic nets are in, drawn as
+    layers.
 
     That is everything knowable without drawing the net.  **thz** is
     still in here and still will not draw, because the only way to
@@ -105,8 +111,7 @@ def names() -> list[str]:
     2727 nets to shorten a list by one is not a trade worth making, so
     it is one failed run rather than a slower dialog.
     """
-    return [entry.name for entry in rcsr.nets()
-            if entry.dimension == 3 and entry.cell]
+    return [entry.name for entry in rcsr.nets() if entry.cell]
 
 
 def by_name(name: str, scale: float = SCALE,
@@ -135,16 +140,13 @@ def structure_for(entry, scale: float = SCALE,
     to be findable in the expanded cell, and **thz** is the one net of
     2727 where one is not.
     """
-    if entry.dimension != 3:
-        raise NetDrawingError(
-            f"{entry.name} is a {entry.dimension}-periodic net, and "
-            "only 3-periodic nets have a cell to draw in")
     if not entry.cell:
         raise NetDrawingError(
             f"{entry.name} carries no CELL, so there is no cell to "
             "draw it in")
     if beads < 2:
         raise NetDrawingError("an edge needs at least two beads")
+    entry = rcsr.as_layer(entry)
 
     structure = _sites(entry, scale, beads)
     structure, _report = symmetry.merge_duplicates(structure,

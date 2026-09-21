@@ -1,25 +1,29 @@
 """
 xtalapp.dialogs.net_draw
 ========================
-Find a net among 2726 of them, see it, and draw it.
+Find a net among 2926 of them, see it, and draw it.
 
 The generated form for :data:`xtal.modules.net.PARAMS` is a text box
-you have to already know the answer to type into.  There are 2726
-drawable nets and their names are three letters of no mnemonic value
+you have to already know the answer to type into.  There are 2926
+drawable nets -- 2726 of them 3-periodic and 200 layers -- and their
+names are three letters of no mnemonic value
 -- **tbo**, **rht**, **soc** -- so a box is only usable by somebody who
 did not need it.
 
-**The same search the MOF builder has**, and deliberately the same
-shape: a filter over a list, a picture beside it, and the numbers
-underneath.  The two are looking at the same 2929 nets from different
-ends, and a user who has learned one has learned the other.
+**The same search the MOF builder has** -- the same widget,
+:class:`~xtalapp.widgets.net_search.NetSearch` -- and deliberately
+the same shape: a search over a list, a picture beside it, and the
+numbers underneath.  The two are looking at the same nets from
+different ends, and a user who has learned one has learned the other.
 
-**What it filters on is what somebody knows.**  Rarely the name --
-more often "the 4-coordinate ones", or a space group, or the number of
-vertices.  So every row carries its name, its group, its coordination
-figures and its counts in one lowered string, matched as a substring,
-which finds ``pcu`` from ``pc``, every cubic net from ``m-3m`` and
-every 6-coordinate one from ``6-c``.
+**What it searches on is what somebody knows.**  Rarely the name --
+more often "the 4-coordinate ones", a space group number, or how many
+kinds of vertex and edge: MOF+'s four fields, read by
+:mod:`xtal.analysis.netsearch`.
+
+**A layer is drawn in 3-D**, flat at z = 0 in its plane group's
+layer group (:func:`xtal.analysis.rcsr.as_layer`), which is the cell
+the MOF builder builds it in.
 
 **The picture comes from the same place the MOF builder's does.**
 :class:`~xtalapp.dialogs.mof_preview.NetPreview` wants an object with
@@ -36,17 +40,17 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QLabel,
-    QLineEdit,
     QListWidget,
-    QListWidgetItem,
     QSplitter,
     QVBoxLayout,
     QWidget,
 )
 
 from xtal.analysis import rcsr
+from xtal.analysis.netsearch import facts_of_entry
 from xtal.core.lattice import Lattice
 from xtalapp.dialogs.mof_preview import NetPreview, reset_view_row
+from xtalapp.widgets.net_search import NetSearch, add_row
 
 #: The parameter the list answers, and so the one the form must not
 #: also ask about.  Everything else in ``PARAMS`` is a number and goes
@@ -65,7 +69,7 @@ class _Placed:
     """
 
     def __init__(self, entry):
-        self.entry = entry
+        self.entry = rcsr.as_layer(entry)
         self.name = entry.name
 
     def placement(self):
@@ -99,11 +103,11 @@ class NetDrawDialog(QDialog):
     def _build_ui(self) -> None:
         from xtalapp.dialogs.module_form import ParamForm
 
-        self.filter = QLineEdit(self)
-        self.filter.setPlaceholderText(
-            "Filter by name, coordination or space group -- pcu, 4-c, "
-            "Fm-3m")
-        self.filter.textChanged.connect(self._apply_filter)
+        self.search = NetSearch(self)
+        self.search.changed.connect(self._apply_filter)
+        self.filter = self.search.name
+        self.three_d = self.search.three_d
+        self.two_d = self.search.two_d
 
         self.nets = QListWidget(self)
         self.nets.currentItemChanged.connect(self._on_net_changed)
@@ -120,7 +124,7 @@ class NetDrawDialog(QDialog):
         left = QWidget(self)
         column = QVBoxLayout(left)
         column.setContentsMargins(0, 0, 0, 0)
-        column.addWidget(self.filter)
+        column.addWidget(self.search)
         column.addWidget(self.nets, 1)
 
         right = QWidget(self)
@@ -151,35 +155,23 @@ class NetDrawDialog(QDialog):
     def _fill(self) -> None:
         """Every drawable net, with what it can be searched by.
 
-        The catalogue is what carries the coordination and the counts;
-        the ``.cgd`` is what carries the cell, and a net without one
-        cannot be drawn -- so the two are joined here and only the
-        entries in both are offered.
+        Read off the ``.cgd`` alone -- the header counts are p and q
+        (:func:`~xtal.analysis.netsearch.facts_of_entry`) -- so the
+        2926 rows cost no expansion.  The four with no cell cannot be
+        drawn and are not offered.
         """
-        described = {entry.name: entry
-                     for entry in rcsr.catalogue().entries}
         for entry in rcsr.nets():
-            if entry.dimension != 3 or not entry.cell:
+            if not entry.cell:
                 continue
-            known = described.get(entry.name)
-            summary = _summary(entry, known)
-            item = QListWidgetItem(f"{entry.name}    {summary}")
-            item.setData(Qt.UserRole, entry.name)
-            # Lowered once here rather than on every keystroke of a
-            # 2726-row list, which is the same reason the MOF
-            # builder's does it.
-            item.setData(Qt.UserRole + 1,
-                         f"{entry.name} {summary}".lower())
-            self.nets.addItem(item)
+            facts = facts_of_entry(entry)
+            add_row(self.nets, f"{entry.name}    {facts.summary()}",
+                    facts, entry.dimension == 2)
+        self.search.count(self.nets)
 
     # -- behaviour -----------------------------------------------------
 
-    def _apply_filter(self, text: str) -> None:
-        needle = text.strip().lower()
-        for index in range(self.nets.count()):
-            item = self.nets.item(index)
-            item.setHidden(bool(needle) and needle not in
-                           str(item.data(Qt.UserRole + 1)))
+    def _apply_filter(self) -> None:
+        self.search.narrow(self.nets)
 
     def _select(self, name: str) -> bool:
         for index in range(self.nets.count()):
@@ -208,7 +200,12 @@ class NetDrawDialog(QDialog):
             listed = known[entry.name]
         except KeyError:
             listed = None
-        rows = [f"<b>{entry.name}</b>", f"Space group {entry.group}"]
+        if entry.dimension == 2:
+            rows = [f"<b>{entry.name}</b>",
+                    f"Plane group {entry.group}, drawn as a layer in "
+                    f"{rcsr.as_layer(entry).group}"]
+        else:
+            rows = [f"<b>{entry.name}</b>", f"Space group {entry.group}"]
         if listed is not None:
             rows.append("Coordination "
                         + ", ".join(str(c)
@@ -244,16 +241,3 @@ class NetDrawDialog(QDialog):
             return None
         return dialog.values()
 
-
-def _summary(entry, listed) -> str:
-    """One line per row: what somebody would search by.
-
-    The coordination is written ``4-c`` the way the RCSR writes it, so
-    that typing what is on the page finds the net it names.
-    """
-    parts = [entry.group]
-    if listed is not None:
-        parts.append("".join(f"{c}-c " for c in listed.coordination())
-                     .strip())
-        parts.append(f"{listed.vertices}v {listed.edges}e")
-    return "  ".join(p for p in parts if p)

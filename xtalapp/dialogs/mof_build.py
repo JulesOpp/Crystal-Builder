@@ -65,7 +65,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
-    QListWidgetItem,
     QPushButton,
     QScrollArea,
     QSpinBox,
@@ -85,6 +84,7 @@ from xtalapp.dialogs.mof_preview import (
     reset_view_row,
 )
 from xtalapp.docks.columns import Collapsible
+from xtalapp.widgets.net_search import NetSearch, add_row
 
 #: What an edge slot offers instead of a linker.  A net has edges
 #: whether or not anything is put on them, and PORMAKE builds an empty
@@ -159,25 +159,16 @@ class MofBuildDialog(QDialog):
     # -- construction --------------------------------------------------
 
     def _build_ui(self) -> None:
-        self.filter = QLineEdit(self)
-        self.filter.setPlaceholderText(
-            "Filter by name, coordination or space group -- pcu, 6, "
-            "Fm-3m")
-        self.filter.textChanged.connect(self._apply_filter)
-
-        # The same two boxes as the denticity ones below, for the
-        # same reason: both ticked is both, and the counts say
-        # whether the second kind is worth asking for at all.
-        self.three_d = QCheckBox(self)
-        self.three_d.setToolTip(
+        # The Net builder's search too: see NetSearch for why it is
+        # one widget.  The name field and the boxes keep the names
+        # they had here.
+        self.search = NetSearch(self)
+        self.search.three_d.setToolTip(
             "Nets periodic in three directions -- all of PORMAKE's")
-        self.two_d = QCheckBox(self)
-        self.two_d.setToolTip(
-            "Layer nets, periodic in two directions and stacked "
-            "along c -- the RCSR's, such as hcb for Ni3(HITP)2")
-        for box in (self.three_d, self.two_d):
-            box.setChecked(True)
-            box.toggled.connect(self._on_dimension)
+        self.search.changed.connect(self._apply_filter)
+        self.filter = self.search.name
+        self.three_d = self.search.three_d
+        self.two_d = self.search.two_d
 
         self.topologies = QListWidget(self)
         self.topologies.currentItemChanged.connect(
@@ -192,15 +183,7 @@ class MofBuildDialog(QDialog):
         left = QWidget(self)
         column = QVBoxLayout(left)
         column.setContentsMargins(0, 0, 0, 0)
-        # A row of their own: beside the filter they left it too
-        # narrow to show its own placeholder.
-        kinds = QHBoxLayout()
-        kinds.setContentsMargins(0, 0, 0, 0)
-        kinds.addWidget(self.three_d)
-        kinds.addWidget(self.two_d)
-        kinds.addStretch(1)
-        column.addWidget(self.filter)
-        column.addLayout(kinds)
+        column.addWidget(self.search)
         column.addWidget(self.topologies, 1)
 
         right = QWidget(self)
@@ -393,19 +376,6 @@ class MofBuildDialog(QDialog):
         for row in self._rows:
             row.set_denticity(*self._denticity())
 
-    def _dimensions(self) -> tuple[bool, bool]:
-        return self.three_d.isChecked(), self.two_d.isChecked()
-
-    def _on_dimension(self, checked: bool) -> None:
-        """Keep at least one kind ticked, then narrow the list --
-        the rule :meth:`_on_denticity` keeps, for the same reason."""
-        if not checked and not any(self._dimensions()):
-            other = (self.two_d if self.sender() is self.three_d
-                     else self.three_d)
-            other.setChecked(True)
-            return
-        self._apply_filter(self.filter.text())
-
     def _remembered(self, name: str) -> str:
         return str(getattr(self._settings, name, "") or "")
 
@@ -454,7 +424,7 @@ class MofBuildDialog(QDialog):
         self.catalog = self._catalog()
         self._count_denticity()
         self._fill_topologies()
-        self._apply_filter(self.filter.text())
+        self._apply_filter()
         if not self._select(name):
             self.topologies.setCurrentRow(0)
 
@@ -462,33 +432,14 @@ class MofBuildDialog(QDialog):
 
     def _fill_topologies(self) -> None:
         self.topologies.clear()
-        layers = 0
         for topology in self.catalog.topologies():
-            item = QListWidgetItem(
-                f"{topology.name}    {topology.summary()}")
-            item.setData(Qt.UserRole, topology.name)
-            # Everything the filter matches on, lowered once here
-            # rather than on every keystroke of a 2399-row list.
-            coordinations = " ".join(str(c) for c
-                                     in topology.coordinations)
-            item.setData(Qt.UserRole + 1,
-                         f"{topology.name} {topology.summary()} "
-                         f"{coordinations}".lower())
-            item.setData(Qt.UserRole + 2, topology.is_layer)
-            layers += topology.is_layer
-            self.topologies.addItem(item)
-        total = self.topologies.count()
-        self.three_d.setText(f"3D ({total - layers})")
-        self.two_d.setText(f"2D ({layers})")
+            add_row(self.topologies,
+                    f"{topology.name}    {topology.summary()}",
+                    topology.facts(), topology.is_layer)
+        self.search.count(self.topologies)
 
-    def _apply_filter(self, text: str) -> None:
-        needle = text.strip().lower()
-        three_d, two_d = self._dimensions()
-        for index in range(self.topologies.count()):
-            item = self.topologies.item(index)
-            wanted = two_d if item.data(Qt.UserRole + 2) else three_d
-            item.setHidden(not wanted or (bool(needle) and needle not in
-                           str(item.data(Qt.UserRole + 1))))
+    def _apply_filter(self) -> None:
+        self.search.narrow(self.topologies)
 
     def _select(self, name: str) -> bool:
         for index in range(self.topologies.count()):

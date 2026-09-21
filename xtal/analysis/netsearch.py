@@ -77,6 +77,17 @@ class NetFacts:
     def transitivity(self) -> tuple[int | None, ...]:
         return (self.p, self.q, None, None)
 
+    def summary(self) -> str:
+        """The line both net lists show beside the name: coordination,
+        group and number, and transitivity as the RCSR prints it --
+        ``3-c  ·  p6mm (17)  ·  [1 1]``."""
+        counts = ", ".join(f"{c}-c" for c in self.coordinations)
+        group = (f"{self.group} ({self.number})"
+                 if self.number is not None else self.group)
+        known = " ".join("?" if v is None else str(v)
+                         for v in (self.p, self.q))
+        return f"{counts}  ·  {group}  ·  [{known}]"
+
 
 def space_group_number(symbol: str) -> int | None:
     """The number of a space group symbol, ``None`` if it is none.

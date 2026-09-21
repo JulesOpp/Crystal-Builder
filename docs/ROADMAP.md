@@ -990,10 +990,12 @@ number (hcb is 17).
 | **1 — The query** | Shipped 2026-09-21 (51db3ed); `NetFacts`, `NetQuery.parse` / `matches`; `rcsr.LAYER_GROUPS`, `plane_group_number`, `as_layer` | `xtal/analysis/netsearch.py`, `xtal/analysis/rcsr.py` | M |
 | **2 — Layers in the catalogue** | Shipped 2026-09-21; the 196 RCSR layers in memory, PORMAKE handed a file only at build time; `library/nets` and `library_nets()` deleted; Ni3(HITP)2 on `hcb` unchanged | `xtal/mof/catalog.py`, `packaging/bundle.py`, `xtalapp/selftest.py` | M |
 | **3 — Facts on every topology** | Shipped 2026-09-21; `Topology.facts()`: p and q from the RCSR entry of the same name, else the file; group number by gemmi or plane group | `xtal/mof/catalog.py` | S |
-| **4 — One search widget, both dialogs** | `NetSearch` in the MOF builder and the Net builder; the Net builder gains the 2D/3D boxes and draws layers | `xtalapp/widgets/net_search.py`, `xtalapp/dialogs/mof_build.py`, `xtalapp/dialogs/net_draw.py`, `xtal/build/topology.py` | M |
+| **4 — One search widget, both dialogs** | Shipped 2026-09-21; `NetSearch` in the MOF builder and the Net builder; the Net builder gains the 2D/3D boxes and draws layers | `xtalapp/widgets/net_search.py`, `xtalapp/dialogs/mof_build.py`, `xtalapp/dialogs/net_draw.py`, `xtal/build/topology.py` | M |
 
-When Phase 4 ships, CLAUDE.md's invariant *A layer net is stacked
-after it is built* is rewritten: the layers no longer ship as files.
+All four shipped on `features/net-search`; CLAUDE.md's invariant *A
+layer net is stacked after it is built* was rewritten in Phase 2, when
+the files went.  What is left is [docs/TODO.md](TODO.md) § *Net search
+knows vertices and edges, not faces and tiles*.
 
 ---
 

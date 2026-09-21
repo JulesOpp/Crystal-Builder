@@ -492,13 +492,7 @@ class Topology:
     def summary(self) -> str:
         """The line the picker shows beside the name: coordination,
         group and number, and transitivity as the RCSR prints it."""
-        facts = self.facts()
-        counts = ", ".join(f"{c}-c" for c in self.coordinations)
-        group = (f"{self.group} ({facts.number})"
-                 if facts.number is not None else self.group)
-        known = " ".join("?" if v is None else str(v)
-                         for v in (facts.p, facts.q))
-        return f"{counts}  ·  {group}  ·  [{known}]"
+        return self.facts().summary()
 
     def facts(self):
         """What the net search matches this topology on.
