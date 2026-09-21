@@ -22,7 +22,7 @@ is not an arbitrary pin but the statement that nothing was lost at a
 cut and nothing counted twice.
 
 Ni3(HITP)2 is the second target and the first **layer**: ``hcb`` is
-one of the three 2-periodic nets in ``xtal/mof/library/nets``, and
+one of the RCSR's 2-periodic nets (:func:`xtal.mof.rcsr_layers`), and
 the spacing between its sheets is set after the build by
 :mod:`xtal.mof.layers`.  Two triphenylenes and three NiN4H4 make
 **C36H24N12Ni3**, the CIF's own ``_chemical_formula_sum``.
@@ -35,13 +35,13 @@ import numpy as np
 import pytest
 
 from tests.test_mof_builder import needs_builder, needs_database
+from xtal.analysis import rcsr
 from xtal.core.structure import TOPOLOGY
 from xtal.io import FORMATS
 from xtal.mof import (
     CONNECTION_DISTANCE,
     Catalog,
     MofError,
-    library_nets,
     library_root,
 )
 from xtal.mof.attach import MAX_ATTACHMENT_SPAN
@@ -57,10 +57,12 @@ needs_library = pytest.mark.skipif(
     reason="the four polydentate blocks are missing from this "
            "installation")
 
-#: The layer nets are package data as well, and a separate glob.
+#: The layer nets are the RCSR's, read from its gzipped ``.cgd`` --
+#: package data of ``xtal.analysis``, with the checkout's copy as
+#: the fallback.
 needs_layers = pytest.mark.skipif(
-    library_nets() is None,
-    reason="the layer nets are missing from this installation")
+    not (rcsr.NETS.is_file() or rcsr.source_file()),
+    reason="the RCSR nets are missing from this installation")
 
 NODE = "MFU4l_Kuratowski"
 LINKER = "MFU4l_BTDD"

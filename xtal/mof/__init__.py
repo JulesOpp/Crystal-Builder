@@ -77,13 +77,13 @@ from xtal.mof.catalog import (
     database_root,
     has_ase,
     installed,
-    library_nets,
     library_root,
+    rcsr_layers,
 )
 
 __all__ = ["BOND_LETTERS", "BlockError", "BuildRequest",
            "BuildingBlock", "CONNECTION_DISTANCE", "Catalog",
            "MofError", "Slot", "Topology", "block_string", "build",
            "check_net", "database_root", "draw_net", "has_ase",
-           "installed", "library_nets", "library_root",
+           "installed", "library_root", "rcsr_layers",
            "problems", "pull_in", "write_building_block"]

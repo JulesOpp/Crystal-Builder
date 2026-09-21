@@ -249,15 +249,15 @@ def check_mof_builder(report) -> None:
     that dropped them would pass every check above and still be one
     that cannot build the material the feature was written for.
 
-    And **Ni3(HITP)2** on ``hcb``, which is a third ``PACKAGE_DATA``
-    glob: the layer nets are ours too, PORMAKE has none, and a
-    bundle without them has no net to build a layered MOF on.
+    And **Ni3(HITP)2** on ``hcb``: the layer nets are the RCSR's,
+    read from the gzipped ``.cgd`` in ``xtal/analysis/data``, PORMAKE
+    has none, and a bundle without that file has no net to build a
+    layered MOF on.
     """
     from xtal.mof import (
         Catalog,
         database_root,
         has_ase,
-        library_nets,
         library_root,
     )
 
@@ -313,11 +313,12 @@ def check_mof_builder(report) -> None:
             "the bidentate count: six at six would mean the blocks "
             "arrived with their attachments read as single atoms.")
 
-    if library_nets() is None:
+    if not any(t.is_layer for t in nets):
         raise AssertionError(
-            "the layer nets did not come along.  The builder has no "
-            "hcb, hxl, sql or kgm and cannot build Ni3(HITP)2; see "
-            "PACKAGE_DATA in packaging/bundle.py.")
+            "the layer nets did not come along.  They are the RCSR's "
+            "own, read from its gzipped .cgd, and without them the "
+            "builder cannot build Ni3(HITP)2; see PACKAGE_DATA in "
+            "packaging/bundle.py.")
     with tempfile.TemporaryDirectory(prefix="selftest-hitp-") as folder:
         hitp = build(BuildRequest.parse("hcb", "NiHITP_triphenylene",
                                         "NiHITP_NiN4",

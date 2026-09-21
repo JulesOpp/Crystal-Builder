@@ -353,9 +353,14 @@ stress case).
   wanting 6e-08 radians, which is the crystal's angle and below
   `_STILL`.
 - **A layer net is stacked after it is built, never by the builder.**
-  `hcb`, `hxl`, `sql` and `kgm` ship in `xtal/mof/library/nets/` as 3-D
-  cells; PORMAKE's scaler multiplies *c* with everything else (10 →
-  107 A on Ni3(HITP)2), so `xtal/mof/layers.restack` rewrites it,
+  The layers are the RCSR's own: every 2-periodic net in its file
+  that PORMAKE can build on (196 of 200; `catalog.PORMAKE_REJECTS`
+  names the four), written flat in the plane group's layer group at
+  c = 10 by `rcsr.as_layer` and held as text (`catalog.rcsr_layers`)
+  -- PORMAKE is handed a file only when one is built on. `hcb` is,
+  value for value, the hand-written file it replaced in
+  `xtal/mof/library/nets/`, which is gone. PORMAKE's scaler multiplies
+  *c* with everything else (10 → 107 A on Ni3(HITP)2), so `xtal/mof/layers.restack` rewrites it,
   moving framework, net and placed blocks together and putting the
   sheets' *mean planes* one spacing apart. A layer is known by its
   graph (`Topology.is_layer`), and a spacing or offset given for a
@@ -363,7 +368,8 @@ stress case).
   already answered -- every one is 3-periodic, recorded by
   `catalog._record_pormake_dimensions` and re-derived by a slow test
   -- because asking 2400 graphs is ten seconds, and the picker's
-  3D / 2D boxes need the answer for every row.
+  3D / 2D boxes need the answer for every row. The RCSR's layers are
+  told the opposite, and re-derived the same way.
 - **An interpenetrated framework carries the bonds its copies had,
   and the detector says whether it worked.**
   `xtal/analysis/interpenetrate.py` enumerates rather than theorises

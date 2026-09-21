@@ -174,7 +174,7 @@ class MofBuildDialog(QDialog):
         self.two_d = QCheckBox(self)
         self.two_d.setToolTip(
             "Layer nets, periodic in two directions and stacked "
-            "along c -- hcb, hxl, sql and kgm, as in Ni3(HITP)2")
+            "along c -- the RCSR's, such as hcb for Ni3(HITP)2")
         for box in (self.three_d, self.two_d):
             box.setChecked(True)
             box.toggled.connect(self._on_dimension)
