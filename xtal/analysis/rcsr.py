@@ -65,7 +65,7 @@ from __future__ import annotations
 
 import gzip
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import cached_property, lru_cache
 from itertools import product
 from pathlib import Path
@@ -155,6 +155,35 @@ _PLANE_ALIASES = {"pmm": "p2mm", "pmg": "p2mg", "pgg": "p2gg",
                   "cmm": "c2mm", "p4m": "p4mm", "p4g": "p4gm",
                   "p6m": "p6mm", "p2mm": "p2mm"}
 
+#: The International Tables' number of each plane group, which is
+#: what a layer answers to when it is searched by group number: hcb
+#: is 17, not the 191 of the cell it is built in.
+PLANE_GROUP_NUMBERS: dict[str, int] = {
+    name: number for number, name in enumerate(PLANE_GROUPS, start=1)}
+
+#: Each plane group with the mirror z -> -z added: the space group a
+#: layer lying at z = 0 is written in so that PORMAKE, which reads only
+#: space groups, can build on it.  The warning above stands -- ``pg``
+#: and three others land in settings nobody checks by eye -- which is
+#: why this table is not trusted for being written down:
+#: ``test_every_plane_group_maps_to_the_layer_group_its_operations_make``
+#: derives it with ``gemmi.find_spacegroup_by_ops``.  No spaces,
+#: because PORMAKE splits the ``GROUP`` line on whitespace.
+LAYER_GROUPS: dict[str, str] = {
+    "p1": "P11m", "p2": "P112/m", "pm": "Pm2m", "pg": "Pb21m",
+    "cm": "Cm2m", "p2mm": "Pmmm", "p2mg": "Pmam", "p2gg": "Pbam",
+    "c2mm": "Cmmm", "p4": "P4/m", "p4mm": "P4/mmm", "p4gm": "P4/mbm",
+    "p3": "P-6", "p3m1": "P-6m2", "p31m": "P-62m", "p6": "P6/m",
+    "p6mm": "P6/mmm",
+}
+
+#: The *c* a layer is written with.  The RCSR scales every net so an
+#: edge is about one long, so ten puts no two sheets within reach of
+#: PORMAKE's neighbour search; and it is the *c* the four hand-written
+#: layers had, so ``hcb`` comes out as the file it replaced.  Nothing
+#: downstream keeps it: :func:`xtal.mof.layers.restack` rewrites *c*.
+LAYER_C = 10.0
+
 
 def _triplet(text: str) -> tuple[np.ndarray, np.ndarray]:
     """``"-y,x-y+1/2"`` to a rotation and a translation."""
@@ -203,6 +232,44 @@ def plane_group_operations(symbol: str) -> list[tuple]:
                     nxt.append(new)
         frontier = nxt
     return list(found.values())
+
+
+def plane_group_key(symbol: str) -> str:
+    """The key :data:`PLANE_GROUPS` knows *symbol* by, or ``""``."""
+    key = symbol.strip().lower()
+    key = _PLANE_ALIASES.get(key, key)
+    return key if key in PLANE_GROUPS else ""
+
+
+def plane_group_number(symbol: str) -> int | None:
+    """1 for ``p1`` to 17 for ``p6mm``; ``None`` for no plane group."""
+    return PLANE_GROUP_NUMBERS.get(plane_group_key(symbol))
+
+
+def as_layer(entry: CgdEntry) -> CgdEntry:
+    """A 2-periodic entry written as the 3-D one PORMAKE can read.
+
+    The sheet at z = 0 in :data:`LAYER_GROUPS`' group, *c* =
+    :data:`LAYER_C` and perpendicular to it.  The net is the same
+    net: a vertex at z = 0 is fixed by the mirror, so the added
+    operations make no vertex and no edge the plane group did not.
+    A 3-periodic entry is handed back as it came.
+    """
+    if entry.dimension != 2:
+        return entry
+    key = plane_group_key(entry.group)
+    if not key:
+        raise RcsrError(
+            f"{entry.name}: unknown plane group {entry.group!r}")
+    if not entry.cell or len(entry.cell) != 3:
+        raise RcsrError(f"{entry.name} carries no 2-D cell")
+    a, b, gamma = entry.cell
+    nodes = tuple(replace(node, frac=(*node.frac, 0.0))
+                  for node in entry.nodes)
+    edges = tuple(((*p, 0.0), (*q, 0.0)) for p, q in entry.edges)
+    return replace(entry, group=LAYER_GROUPS[key], nodes=nodes,
+                   edges=edges,
+                   cell=(a, b, LAYER_C, 90.0, 90.0, gamma))
 
 
 def _signature(operation) -> tuple:

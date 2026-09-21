@@ -962,7 +962,42 @@ Phase 3.
 
 ---
 
-## 4. What this plan does not do
+## 4. Net search, and every RCSR layer net
+
+Planned 2026-09-21. The MOF builder's topology list and the Net
+builder get MOF+'s search (mofplus.org/nets/browse): **Name**,
+**Coordination** with *Exclusive*, **Spg #**, and **Transitivity**
+written `p q r s` with `*` matching anything. The 200 2-D nets in
+`resources/topo/RCSRnets-2019-06-01.cgd` replace the four in
+`xtal/mof/library/nets/`. The full plan, with its measurements, is
+`~/.claude/plans/net-search-and-layers.md`.
+
+**Measured**: 196 of the 200 layer nets build through the vendored
+PORMAKE once written in 3-D at z = 0 with c = 10, in the plane group
+plus the z-mirror (p6mm -> P6/mmm, p2gg -> Pbam, ...; derived with
+`gemmi.find_spacegroup_by_ops`). The other four (`sde mtb-a mtc-a
+fzh`) fail PORMAKE's own `check_validity`. Embedded this way, `hcb` is
+its hand-written file line for line. p is the `NODE` count on all
+2931 RCSR nets.
+
+**Decided with Julius**: r and s (faces, tiles) are not known, so a
+number there matches nothing and `*` matches all. Vendoring RCSR's
+table is a later data change. A layer's Spg # is its plane group
+number (hcb is 17).
+
+| Phase | Delivers | Main files | Size |
+|---|---|---|---|
+| **1 — The query** | `NetFacts`, `NetQuery.parse` / `matches`; `rcsr.LAYER_GROUPS`, `plane_group_number`, `as_layer` | `xtal/analysis/netsearch.py`, `xtal/analysis/rcsr.py` | M |
+| **2 — Layers in the catalogue** | The 196 RCSR layers in memory, PORMAKE handed a file only at build time; `library/nets` and `library_nets()` deleted; Ni3(HITP)2 on `hcb` unchanged | `xtal/mof/catalog.py`, `packaging/bundle.py`, `xtalapp/selftest.py` | M |
+| **3 — Facts on every topology** | `Topology.facts()`: p and q from the RCSR entry of the same name, else the file; group number by gemmi or plane group | `xtal/mof/catalog.py` | S |
+| **4 — One search widget, both dialogs** | `NetSearch` in the MOF builder and the Net builder; the Net builder gains the 2D/3D boxes and draws layers | `xtalapp/widgets/net_search.py`, `xtalapp/dialogs/mof_build.py`, `xtalapp/dialogs/net_draw.py`, `xtal/build/topology.py` | M |
+
+When Phase 4 ships, CLAUDE.md's invariant *A layer net is stacked
+after it is built* is rewritten: the layers no longer ship as files.
+
+---
+
+## 5. What this plan does not do
 
 * It does not touch the design principles in
   [docs/PLAN.md](PLAN.md) § 1.  Every phase keeps the core Qt-free,
