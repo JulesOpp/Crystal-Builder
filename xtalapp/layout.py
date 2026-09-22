@@ -88,6 +88,7 @@ def build_docks(window):
     window.modules_dock.actionActivated.connect(
         window.run_module_action)
     window.modules_dock.stopRequested.connect(window.stop_module)
+    window.modules_dock.setupRequested.connect(window.show_module_setup)
 
     window.inspector_dock = InspectorDock(window)
     window.inspector_dock.deleteRequested.connect(

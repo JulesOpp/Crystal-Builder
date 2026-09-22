@@ -232,8 +232,19 @@ class DocumentSet:
                 f"{path.name} is already open, as {already.title}")
             return already
         try:
+            if not path.exists():
+                # Before the reader, whose own answer is gemmi's C
+                # library: "[Errno 2] unable to open() file ...".
+                raise FileNotFoundError(
+                    f"there is no file at {path.parent}")
             document = Document.load(path)
         except (ValueError, OSError, KeyError) as exc:
+            # Logged as well as shown: the box is gone once it is
+            # dismissed, and somebody who wants to send the parser's
+            # line number to a colleague had to reproduce it first.
+            # Help > Show Log is where this goes.
+            logging.getLogger("xtalapp").warning(
+                "could not open %s: %s", path, exc)
             if report:
                 QMessageBox.warning(self.window,
                                     "Could not open the file",
@@ -411,15 +422,42 @@ class DocumentSet:
             return
         if not self._may_overwrite(target):
             return
+        source = document.path
         try:
             written = document.save(target)
         except (ValueError, OSError) as exc:
+            logging.getLogger("xtalapp").warning(
+                "could not save %s: %s", target, exc)
             QMessageBox.warning(self.window, "Could not save", str(exc))
             return
         self.window.settings.add_recent_file(written)
         self.window._rebuild_recent_menu()
         self.window.show_message(f"saved {written.name}")
         self.window.refresh_workspace()
+        if source is not None and source != written:
+            self._explain_conversion(source, written)
+
+    def _explain_conversion(self, source: Path, written: Path) -> None:
+        """Say, once, that the CIF was left and a project made.
+
+        Somebody who edits a CIF, saves, and mails "the CIF" to a
+        collaborator mails the unedited one -- and the status line was
+        all that told them otherwise, for six seconds.
+        """
+        settings = self.window.settings
+        if settings.explained_conversion:
+            return
+        dont = "Don't Show Again"
+
+        def answered(label):
+            if label == dont:
+                settings.explained_conversion = True
+
+        self.window.notice.show_notice(
+            f"Saved as {written.name}, which keeps the measurements, "
+            f"planes and view that a CIF cannot hold. {source.name} "
+            f"is unchanged; File ▸ Export writes a CIF.",
+            buttons=(dont,), on_answer=answered)
 
     def _save_target(self, document) -> Path | None:
         """The project this document is, or becomes.  ``None`` to ask.

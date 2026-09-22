@@ -402,6 +402,45 @@ def test_save_file_converts_a_structure_to_the_project_beside_it(
     assert document.path.parent == document.entry.path
 
 
+def test_the_first_conversion_is_explained_once(opened):
+    """Every other program's Ctrl+S updated the file that was opened.
+    Here the CIF is left and the project made beside it, and a
+    six-second "saved MOF-5.xtalproj" was all that said so."""
+    window, document = opened
+    cif = document.path
+
+    window.save_document()
+
+    assert not window.notice.isHidden()
+    assert cif.name in window.notice.label.text()
+    assert document.path.name in window.notice.label.text()
+
+
+def test_a_second_save_of_the_same_project_says_nothing(opened):
+    window, document = opened
+    window.save_document()
+    window.notice.close_button.click()
+
+    window.save_document()
+
+    assert window.notice.isHidden()
+
+
+def test_dont_show_again_is_remembered(opened, tmp_path, quartz):
+    window, document = opened
+    window.save_document()
+
+    window.notice.button("Don't Show Again").click()
+
+    assert window.settings.explained_conversion
+    other = tmp_path / "quartz.cif"
+    write_cif(quartz, other)
+    window.open_path(other)
+    window.save_document()
+    assert window.current_document().path.suffix == ".xtalproj"
+    assert window.notice.isHidden()
+
+
 def test_saving_again_writes_the_same_file_without_asking(opened):
     """The autouse guard raises on any modal, so reaching one here is
     the failure -- Save File never stops to ask where."""
@@ -829,3 +868,29 @@ def test_exporting_a_selection_writes_only_those_atoms(opened,
     target = document.export(tmp_path / "part.cif",
                              selection_only=True)
     assert read_cif(target).n_sites == 2
+
+
+# -- when a file will not open ----------------------------------------
+
+def test_a_file_that_will_not_open_is_logged(window, tmp_path, caplog):
+    """The box is gone once it is dismissed, and it was the only
+    record: a parser's line number had to be reproduced to be sent."""
+    bad = tmp_path / "bad.cif"
+    bad.write_text("data_x\nloop_\n_atom_site_label\n_atom_site_fract_x\n"
+                   "Na1 0.0 Cl1\n", encoding="utf-8")
+
+    with caplog.at_level("WARNING", logger="xtalapp"):
+        assert window.open_path(bad, report=False) is None
+
+    assert any("bad.cif" in r.getMessage() for r in caplog.records)
+
+
+def test_a_file_that_is_not_there_is_said_plainly(window, tmp_path,
+                                                  caplog):
+    """Not gemmi's "[Errno 2] unable to open() file"."""
+    with caplog.at_level("WARNING", logger="xtalapp"):
+        window.open_path(tmp_path / "gone.cif", report=False)
+
+    text = " ".join(r.getMessage() for r in caplog.records)
+    assert "no file at" in text
+    assert "unable to open()" not in text

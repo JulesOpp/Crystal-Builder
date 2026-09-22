@@ -290,6 +290,23 @@ class AppSettings:
         self._q.setValue("save/confirm_overwrite", bool(value))
 
     @property
+    def explained_conversion(self) -> bool:
+        """Whether the first-save conversion has been explained.
+
+        Every other program somebody has pressed Ctrl+S in updated
+        the file they opened; this one leaves the CIF where it is and
+        writes the project beside it.  The design is right and the
+        status line said only ``saved MOF-5.xtalproj`` -- so the first
+        conversion says what happened, until it is told not to.
+        """
+        return _as_bool(self._q.value("save/explained_conversion",
+                                      False))
+
+    @explained_conversion.setter
+    def explained_conversion(self, value) -> None:
+        self._q.setValue("save/explained_conversion", bool(value))
+
+    @property
     def default_workspace_root(self) -> Path:
         """What the New Workspace dialog suggests.
 

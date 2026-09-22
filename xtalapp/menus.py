@@ -663,6 +663,9 @@ def build_modules_menu(window) -> None:
     """
     menu = window.modules_menu
     menu.clear()
+    # A greyed module's tooltip is its reason, and QMenu shows none
+    # unless asked to.
+    menu.setToolTipsVisible(True)
     window._module_actions = []
     window._module_submenus = {}
     for module in MODULES:

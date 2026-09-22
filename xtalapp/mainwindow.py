@@ -35,6 +35,8 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QStackedWidget,
     QTabWidget,
+    QVBoxLayout,
+    QWidget,
 )
 
 from xtal.build import MISSING as NO_RDKIT
@@ -72,6 +74,7 @@ from xtalapp.viewport.view_settings import (
     BACKGROUNDS,
     BOUNDARIES,
 )
+from xtalapp.widgets.notice import NoticeBar
 from xtalapp.widgets.start_pane import StartPane
 from xtalapp.workspace_shell import WorkspaceShell
 
@@ -174,7 +177,16 @@ class MainWindow(QMainWindow):
         self.central = QStackedWidget()
         self.central.addWidget(self.start_pane)
         self.central.addWidget(self.tabs)
-        self.setCentralWidget(self.central)
+        # And a bar above both, for what a status line is too brief
+        # for and a modal too much.
+        self.notice = NoticeBar()
+        middle = QWidget()
+        column = QVBoxLayout(middle)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(0)
+        column.addWidget(self.notice)
+        column.addWidget(self.central, 1)
+        self.setCentralWidget(middle)
         menus.build_menus(self)
         menus.build_toolbar(self)
         layout.build_docks(self)
@@ -1726,8 +1738,29 @@ class MainWindow(QMainWindow):
         self.actions_["bonds_follow"].setChecked(bool(on))
         self.set_bonds_follow_geometry(bool(on))
 
-    def show_preferences(self) -> None:
-        self.preferences_dialog().exec()
+    def show_preferences(self, page: str = "") -> None:
+        dialog = self.preferences_dialog()
+        if page:
+            dialog.show_page(page)
+        dialog.exec()
+
+    def show_module_setup(self, module_name: str) -> None:
+        """A greyed module's reason row was activated.
+
+        The whole reason goes where it stays -- the Modules panel's
+        footer, not a six-second status line -- and Preferences opens
+        at Engines, which is where a program's path is named and
+        tested, and where an optional extra says what to install.
+        """
+        from xtal.modules import MODULES
+        if module_name in MODULES:
+            available = MODULES.get(module_name).availability()
+            if not available:
+                self.modules_dock.set_idle(available.reason)
+        self.show_preferences("Engines")
+        # Naming a program there may have been the fix.
+        menus.refresh_module_availability(self)
+        self.modules_dock.refresh()
 
     def show_help(self) -> None:
         """The generated help pages.

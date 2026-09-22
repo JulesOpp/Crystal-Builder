@@ -47,11 +47,15 @@ from xtal.modules import MODULES
 #: ``(module name, "")`` on every module row.
 MODULE_ROLE = Qt.UserRole + 1
 
+#: Set on the row under an unavailable module that says why.
+WHY_ROLE = Qt.UserRole + 2
+
 
 class ModuleTree(QTreeView):
     """Every module, and the entries underneath it."""
 
     actionActivated = Signal(str, str)          # module, action
+    setupRequested = Signal(str)                # module
 
     def __init__(self, registry=MODULES, parent=None):
         super().__init__(parent)
@@ -88,6 +92,8 @@ class ModuleTree(QTreeView):
                     enabled=bool(available))[0]
         item.setToolTip(available.reason if not available
                         else (module.description or module.label))
+        if not available:
+            item.appendRow([_why(module.name, available.reason)])
         for action in module.actions:
             leaf = _row(action.label, module.name, action.name,
                         enabled=bool(available))[0]
@@ -104,6 +110,9 @@ class ModuleTree(QTreeView):
         if not payload:
             return
         module, action = payload
+        if item.data(WHY_ROLE):
+            self.setupRequested.emit(str(module))
+            return
         if not action:
             self.setExpanded(index, not self.isExpanded(index))
             return
@@ -119,10 +128,33 @@ def _row(text: str, module, action, enabled: bool = True) -> list:
     return [item]
 
 
+def _why(module: str, reason: str) -> QStandardItem:
+    """The row that says why a module is greyed, and is not greyed.
+
+    The reason was already a good sentence -- what was looked for,
+    which variable is unset, where to get it -- and it was the
+    tooltip of a disabled row: macOS shows none on a disabled item,
+    and a disabled row takes no click.  "The Zeo++ menu is greyed
+    out" is the commonest question a program like this is asked, and
+    the answer was one hover away that nobody could make.  Its first
+    line is the row; the whole of it is the tooltip; activating it is
+    the way to fix it.
+    """
+    first = reason.strip().splitlines()[0] if reason.strip() else ""
+    item = _row(first or "Not available", module, "")[0]
+    item.setData(True, WHY_ROLE)
+    item.setToolTip(reason)
+    font = item.font()
+    font.setItalic(True)
+    item.setFont(font)
+    return item
+
+
 class ModulesDock(QDockWidget):
     """The module tree, and the Stop button for what it started."""
 
     actionActivated = Signal(str, str)          # module, action
+    setupRequested = Signal(str)                # module
     stopRequested = Signal()
 
     def __init__(self, registry=MODULES, parent=None):
@@ -133,6 +165,7 @@ class ModulesDock(QDockWidget):
 
         self.tree = ModuleTree(registry)
         self.tree.actionActivated.connect(self.actionActivated)
+        self.tree.setupRequested.connect(self.setupRequested)
 
         self.status = QLabel("")
         self.status.setWordWrap(True)
