@@ -22,6 +22,18 @@ the user's.  If a drag still misbehaves -- especially one that ends
 over the 3D view, which is still a native window -- that is the next
 place to look.
 
+### A drag and a Supercell still rebuild from scratch
+
+Measured on MFU-4l in the real window, 2026-09-21. A single-atom drag
+is 65 ms a step (15 fps): 20 ms is VTK's `Render`, which is the floor,
+and most of the rest is re-expanding the whole P1 cell (11 ms, in
+`p1._distinct`), repainting the Sites table and re-emitting every bond
+-- for one site that moved. Supercell 2x2x2 is 1.2 s on the UI
+thread, now with a wait cursor. Both want the same thing: an
+expansion and a scene that update the atoms that changed rather than
+being rebuilt. That is a real change to `p1.expand` and
+`viewport/builder.py`, not a tweak, and it has not been designed.
+
 ## Symmetry
 
 ### Merge duplicates cannot see a site duplicated by its own group

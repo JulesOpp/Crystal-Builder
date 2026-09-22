@@ -245,6 +245,9 @@ markers = [
     # relaxation of a 648-atom framework is the only test that
     # exercises the whole force field on a real deposited structure.
     "slow: takes seconds; deselect with -m 'not slow'",
+    # Applied by tests/conftest.py to every module importing xtalapp or
+    # PySide6, so a change to the headless core runs -m "not gui".
+    "gui: imports Qt; deselect with -m 'not gui'",
 ]
 
 [tool.ruff]
