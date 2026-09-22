@@ -1026,6 +1026,13 @@ Nothing is autosaved.  17 styles hard-code the light-theme amber.
 | **4 — Both themes** | Shipped 2026-09-22. `xtalapp/widgets/tone.py`: hint, warning and warning-box tones worked out from the palette, 55 literals replaced, restyled on a theme change; *View ▸ Background ▸ Follow the system*, the default for a structure with no view of its own | `xtalapp/widgets/`, `xtalapp/view_settings.py` | S |
 | **5 — The Workspace tree's menu** | Shipped 2026-09-22. Open, Reveal in Finder, Copy Path and Move to Trash (a run folder only, through `QFile.moveToTrash`), as four registry actions in `CONTEXT_MENUS["workspace"]` | `xtalapp/docks/filetree.py` | S |
 
+All six shipped on `ui/deep-review-shell`, 2026-09-22.  CLAUDE.md
+gained three invariants on the way: the autosave as a side file, the
+order the quit asks its two questions in, and a colour nobody chose
+being worked out from the palette.  What the UI review found and this
+track did not take is in [docs/TODO.md](TODO.md) § Interface; every
+new string is owed to the next ui-text batch (§ 1, Phase 2).
+
 ---
 
 ## 6. What this plan does not do
