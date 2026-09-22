@@ -88,6 +88,12 @@ def image_range(lattice: Lattice, cutoff: float) -> tuple[int, int, int]:
 MIN_SEPARATION = 1e-6
 
 
+#: Atoms searched per pass of :func:`neighbor_pairs`.  Small enough
+#: that one pass's hits are a few megabytes, large enough that the
+#: passes cost nothing next to the search itself.
+_SEARCH_BLOCK = 512
+
+
 def neighbor_pairs(frac, lattice: Lattice, cutoff: float,
                    min_distance: float = MIN_SEPARATION,
                    subset=None) -> PairList:
@@ -129,37 +135,53 @@ def neighbor_pairs(frac, lattice: Lattice, cutoff: float,
     ghost_atom = np.tile(np.arange(n), len(shifts))
     ghost_shift = np.repeat(shifts, n, axis=0)
 
-    tree = cKDTree(cart[source])
     ghost_tree = cKDTree(ghost)
-    # ``sparse_distance_matrix`` hands the hits back as arrays.  The
-    # obvious alternative, ``query_ball_tree``, returns a list of lists
-    # and the loop that unpacks it costs a second for a five-thousand
-    # atom cell -- more than everything the force field does with the
-    # answer.
-    hits = tree.sparse_distance_matrix(ghost_tree, cutoff,
-                                       output_type="ndarray")
-    if not len(hits):
-        return _empty_pairs()
-
-    i_arr = source[hits["i"].astype(int)]
-    ghosts = hits["j"].astype(int)
-    j_arr = ghost_atom[ghosts]
-    t_arr = ghost_shift[ghosts].reshape(-1, 3)
-
-    # Keep each physical pair once: i<j, or the same atom through a
-    # lexicographically positive translation.  A pair with only one end
-    # in ``subset`` is found only once to begin with, so the tie-break
-    # would throw half of those away rather than deduplicate them.
-    tie_break = (j_arr > i_arr) | ((j_arr == i_arr)
-                                   & lexicographically_positive(t_arr))
-    if subset is None:
-        keep_once = tie_break
-    else:
+    if subset is not None:
         searched = np.zeros(n, dtype=bool)
         searched[source] = True
-        keep_once = np.where(searched[j_arr], tie_break, True)
-    i_arr, j_arr, t_arr = (i_arr[keep_once], j_arr[keep_once],
-                           t_arr[keep_once])
+
+    # The search finds every pair from both ends and the tie-break
+    # below throws one of them away, so it is run a block of atoms at
+    # a time: all at once, a 5184-atom cell at a 14 A cutoff held 1.1
+    # million hits -- and scipy's own buffers behind them -- to keep
+    # 555 000, and that was 200 MB of a force field's first step.
+    parts = []
+    for start in range(0, len(source), _SEARCH_BLOCK):
+        rows = source[start:start + _SEARCH_BLOCK]
+        # ``sparse_distance_matrix`` hands the hits back as arrays.
+        # The obvious alternative, ``query_ball_tree``, returns a list
+        # of lists and the loop that unpacks it costs a second for a
+        # five-thousand atom cell -- more than everything the force
+        # field does with the answer.
+        hits = cKDTree(cart[rows]).sparse_distance_matrix(
+            ghost_tree, cutoff, output_type="ndarray")
+        if not len(hits):
+            continue
+        i_arr = rows[hits["i"].astype(int)]
+        ghosts = hits["j"].astype(int)
+        del hits
+        j_arr = ghost_atom[ghosts]
+        t_arr = ghost_shift[ghosts].reshape(-1, 3)
+
+        # Keep each physical pair once: i<j, or the same atom through a
+        # lexicographically positive translation.  A pair with only one
+        # end in ``subset`` is found only once to begin with, so the
+        # tie-break would throw half of those away rather than
+        # deduplicate them.
+        tie_break = (j_arr > i_arr) | ((j_arr == i_arr)
+                                       & lexicographically_positive(t_arr))
+        if subset is None:
+            keep_once = tie_break
+        else:
+            keep_once = np.where(searched[j_arr], tie_break, True)
+        parts.append((i_arr[keep_once], j_arr[keep_once],
+                      t_arr[keep_once]))
+    if not parts:
+        return _empty_pairs()
+    i_arr = np.concatenate([part[0] for part in parts])
+    j_arr = np.concatenate([part[1] for part in parts])
+    t_arr = np.concatenate([part[2] for part in parts])
+    del parts
     if not len(i_arr):
         return _empty_pairs()
 

@@ -160,6 +160,19 @@ def _sine(cross_norm, u, v):
     return cross_norm / np.maximum(lengths, EPS)
 
 
+#: Terms evaluated per pass.  A 5184-atom framework has half a million
+#: van der Waals pairs, and evaluating them in one pass held some
+#: fifteen (n, 3) temporaries at once -- 66 MB, every step.  In blocks
+#: the transient is a few megabytes and the time is the same.
+_TERM_BLOCK = 65536
+
+
+def _blocks(n: int):
+    """Slices covering ``range(n)``, ``_TERM_BLOCK`` at a time."""
+    for start in range(0, n, _TERM_BLOCK):
+        yield slice(start, min(start + _TERM_BLOCK, n))
+
+
 def _scatter(grad, indices, values) -> None:
     """``grad[indices] += values``, with repeated indices accumulating.
 
@@ -440,13 +453,14 @@ class TorsionTerm(Term):
     def __len__(self) -> int:
         return len(self.j)
 
-    def _chebyshev(self, c):
+    @staticmethod
+    def _chebyshev(c, n):
         """``(T_n(c), T_n'(c))`` for the three periodicities UFF
         uses."""
         value = np.zeros_like(c)
         slope = np.zeros_like(c)
         for order in (2, 3, 6):
-            mask = self.n == order
+            mask = n == order
             if not mask.any():
                 continue
             cc = c[mask]
@@ -465,13 +479,20 @@ class TorsionTerm(Term):
 
     def energy_and_gradient(self, positions, matrix):
         grad = np.zeros_like(positions)
-        if not len(self):
-            return 0.0, grad
-        pj = positions[self.j]
-        b1 = pj - (positions[self.i] + self.shift_i @ matrix)
-        b2 = (positions[self.k] + self.shift_k @ matrix) - pj
-        b3 = ((positions[self.l] + self.shift_l @ matrix)
-              - (positions[self.k] + self.shift_k @ matrix))
+        energy = 0.0
+        for part in _blocks(len(self)):
+            energy += self._block(positions, matrix, grad, part)
+        return energy, grad
+
+    def _block(self, positions, matrix, grad, part) -> float:
+        i, j, k, l = self.i[part], self.j[part], self.k[part], self.l[part]
+        barrier = self.barrier[part]
+        cos_n_phi0 = self.cos_n_phi0[part]
+        pj = positions[j]
+        pk = positions[k] + self.shift_k[part] @ matrix
+        b1 = pj - (positions[i] + self.shift_i[part] @ matrix)
+        b2 = pk - pj
+        b3 = (positions[l] + self.shift_l[part] @ matrix) - pk
 
         n1 = np.cross(b1, b2)
         n2 = np.cross(b2, b3)
@@ -487,9 +508,9 @@ class TorsionTerm(Term):
         cos = np.clip(np.einsum("ij,ij->i", n1, n2) / (s1 * s2),
                       -1.0, 1.0)
 
-        value, slope = self._chebyshev(cos)
-        amplitude = 0.5 * self.barrier * self.cos_n_phi0
-        energies = 0.5 * self.barrier - amplitude * value
+        value, slope = self._chebyshev(cos, self.n[part])
+        amplitude = 0.5 * barrier * cos_n_phi0
+        energies = 0.5 * barrier - amplitude * value
         energy = float(np.sum(np.where(good, energies, 0.0)))
         dcos = np.where(good, -amplitude * slope, 0.0)
 
@@ -508,11 +529,11 @@ class TorsionTerm(Term):
         gj = dcos[:, None] * (db1 - db2)
         gk = dcos[:, None] * (db2 - db3)
         gl = dcos[:, None] * db3
-        _scatter(grad, self.i, gi)
-        _scatter(grad, self.j, gj)
-        _scatter(grad, self.k, gk)
-        _scatter(grad, self.l, gl)
-        return energy, grad
+        _scatter(grad, i, gi)
+        _scatter(grad, j, gj)
+        _scatter(grad, k, gk)
+        _scatter(grad, l, gl)
+        return energy
 
 
 # ======================================================================
@@ -666,26 +687,31 @@ class VanDerWaalsTerm(Term):
 
     def energy_and_gradient(self, positions, matrix):
         grad = np.zeros_like(positions)
-        if not len(self):
-            return 0.0, grad
-        d = (positions[self.j] + self.shift @ matrix
-             - positions[self.i])
+        energy = 0.0
+        for part in _blocks(len(self)):
+            energy += self._block(positions, matrix, grad, part)
+        return energy, grad
+
+    def _block(self, positions, matrix, grad, part) -> float:
+        i, j = self.i[part], self.j[part]
+        x, depth = self.x[part], self.d[part]
+        d = positions[j] + self.shift[part] @ matrix - positions[i]
         r = np.linalg.norm(d, axis=1)
         inside = (r > EPS) & (r < self.cutoff)
         safe = np.where(inside, r, 1.0)
-        ratio6 = (self.x / safe) ** 6
+        ratio6 = (x / safe) ** 6
         ratio12 = ratio6 ** 2
-        energies = self.d * (ratio12 - 2.0 * ratio6)
+        energies = depth * (ratio12 - 2.0 * ratio6)
         if len(self.shift_energy):
-            energies = energies - self.shift_energy
+            energies = energies - self.shift_energy[part]
         energy = float(np.sum(np.where(inside, energies, 0.0)))
         scale = np.where(inside,
-                         12.0 * self.d * (ratio6 - ratio12) / safe ** 2,
+                         12.0 * depth * (ratio6 - ratio12) / safe ** 2,
                          0.0)
         force = scale[:, None] * d
-        _scatter(grad, self.j, force)
-        _scatter(grad, self.i, -force)
-        return energy, grad
+        _scatter(grad, j, force)
+        _scatter(grad, i, -force)
+        return energy
 
 
 # ======================================================================
