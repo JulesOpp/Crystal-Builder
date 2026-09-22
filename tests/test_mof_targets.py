@@ -302,9 +302,18 @@ def test_mfu4l_builds_with_its_nodes_alternating(tmp_path, catalog):
 
     assert plain.n_atoms == turned.n_atoms == 648
     assert plain.joints == turned.joints == 96
-    assert round(plain.longest_joint, 3) == 1.838
-    assert round(turned.longest_joint, 3) == 1.667
 
+    # The two lengths are this machine's to three decimals and the
+    # next machine's to two: which member of the fit's tie a build
+    # starts from is not portable, and one CI run had 1.667 here and
+    # 1.668 on Windows. What the rule promises is the fall, and that
+    # the blocks still sit on their slots as well as before.
+    assert turned.longest_joint < plain.longest_joint
+    assert plain.longest_joint == pytest.approx(1.838, abs=0.01)
+    assert turned.longest_joint == pytest.approx(1.667, abs=0.01)
+
+    # The alternation itself is exact, and is the claim: eight
+    # clusters the same way round become four and four.
     assert sorted(_handedness(plain.structure)) == [-0.77] * 8
     assert sorted(_handedness(turned.structure)) == \
         [-0.77] * 4 + [0.77] * 4
