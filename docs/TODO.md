@@ -259,30 +259,3 @@ MACE alone took 467 s; UFF4MOF first (80 and 73 steps) then MACE took
 196 s, and landed 0.02 and 0.08 kcal/mol lower.  Whether that holds on
 a 7x7 grid of a 1152-atom framework, where the neighbour it starts from
 is already close, is the thing the overnight run should also answer.
-
-## Testing and threads
-
-### A finished worker thread can deadlock the application
-
-This is an application bug that shows up as a test hang, and
-[CLAUDE.md](../CLAUDE.md) § Testing the GUI has the diagnosis.
-`xtalapp/workers.py` connects `worker.finished` to `thread.quit`;
-PySide6 can free the `QThread` wrapper *inside* signal delivery while
-Qt holds the connection mutex, and a thread holding the GIL that then
-asks Qt to connect anything waits forever.  The same race can hang the
-shipped application when a module run finishes.
-
-Holding the pair alive from Python is the obvious remedy and is not
-enough on its own: it broke `test_modules_ui` outright.  Fixing this is
-also what gives back `-n auto` -- 25 s instead of about 173 s serial.
-
-**Seen in the shipped application, 2026-09-15.**  A 3x3 relaxed scan
-of `Ni2Cl2BTDD.cif` driven through the real window finished correctly
--- nine points, nine CIFs, `scan.csv`, `energy_landscape.png`, the log
-closed -- and then the window hung.  `sample` put the main thread in
-`PyGILState_Ensure` -> `take_gil` -> `_pthread_cond_wait`, inside a
-`QObjectWrapper::eventFilter` during `sendPostedEvents`, which is this
-race and not a new one.  It raises the priority: a scan is an
-overnight job, so losing the window *after* the work is done costs
-more here than anywhere else it can happen.  What survives is the run
-folder, which is why every point is written as it finishes.

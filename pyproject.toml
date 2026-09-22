@@ -180,15 +180,27 @@ testpaths = ["tests"]
 # MainWindow.__init__ with no Python frame to blame, and it can hang
 # the shipped application the same way when a module run finishes.
 #
-# The deadlock is inside one process, so serial does not make it
+# The deadlock is inside one process, so serial did not make it
 # impossible -- eight workers' worth of contention is what made it
 # likely, and eight serial runs in a row were clean where four of
-# eight parallel ones were not.  A minute that finishes beats
-# twenty-five seconds that stops one time in two.
+# eight parallel ones were not.
 #
-# Put "-n auto" back once workers.py no longer lets a wrapper be
-# freed during signal delivery.  See CLAUDE.md.
-addopts = ["-n0"]
+# Fixed 2026-09-21: nothing is deleted by Qt any more, both objects
+# are owned from Python on the GUI thread, and a stress harness that
+# aborted three configurations of five went clean in all fifteen runs.
+# So this is the line above taken at its word -- it said to put
+# "-n auto" back once workers.py no longer lets a wrapper be freed
+# during signal delivery, and it no longer does.
+#
+# Five consecutive whole-suite runs here came back clean at 65-111 s
+# against 220 s serial.  That is evidence rather than proof: at the
+# old rate five in a row is about a 3 % event, and conftest.py:62
+# records a second wedge cause -- eight workers contending on
+# cfprefsd -- which the INI-backend guard addressed but which nobody
+# has re-measured under load.  If a run wedges, "-n0" here is the
+# whole of the way back, and CLAUDE.md says how to clear the orphaned
+# workers first.
+addopts = ["-n", "auto"]
 # Both PORMAKE deprecations that used to be ignored here are gone,
 # and they are worth a sentence because the fix was the same one.
 # They were a dependency's lines in a dependency's code -- scipy's
