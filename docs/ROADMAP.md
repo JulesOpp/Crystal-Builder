@@ -1019,8 +1019,8 @@ Nothing is autosaved.  17 styles hard-code the light-theme amber.
 
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
-| **0 — The silent class** | Non-object `workspace.json`, session paths outside the root, a BOM or Latin-1 byte, a second CIF block, a bond operation outside the group, two runs at once, `convert a a`, a misspelt `-p` | `xtal/workspace.py`, `xtal/io/text.py`, `xtal/io/cif_reader.py`, `xtal/cli.py` | S |
-| **1 — The first minute** | The viewport gets half the window on a first run; a start pane (open, drop, samples) in the empty window | `xtalapp/layout.py`, `xtalapp/widgets/start_pane.py` | S |
+| **0 — The silent class** | Shipped 2026-09-22 (98c005d). Non-object `workspace.json`, session paths outside the root, a BOM or Latin-1 byte, a second CIF block, a bond operation outside the group, two runs at once, `convert a a`, a misspelt `-p` | `xtal/workspace.py`, `xtal/io/text.py`, `xtal/io/cif_reader.py`, `xtal/cli.py` | S |
+| **1 — The first minute** | Shipped 2026-09-22. The viewport gets 47 % of the window on a first run (603 of 1285 px, 342 at 1024 wide; Structure keeps its 380); a start pane (open, drop, samples) in the empty window | `xtalapp/layout.py`, `xtalapp/widgets/start_pane.py` | S |
 | **2 — Say why** | A greyed module says why where it is greyed; the first CIF-to-project save explains itself once; open errors are logged | `xtalapp/menus.py`, `xtalapp/docks/modules.py`, `xtalapp/documents.py` | S |
 | **3 — Don't lose work** | Quit asks before stopping a run; autosave to `<workspace>/.autosave/`, offered back as one undo step when the entry opens | `xtalapp/autosave.py`, `xtalapp/mainwindow.py`, `xtalapp/workspace_shell.py` | M |
 | **4 — Both themes** | One palette-based warning style for the 17; *Background ▸ Follow the system* | `xtalapp/widgets/`, `xtalapp/view_settings.py` | S |

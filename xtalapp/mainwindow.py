@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QMessageBox,
+    QStackedWidget,
     QTabWidget,
 )
 
@@ -71,6 +72,7 @@ from xtalapp.viewport.view_settings import (
     BACKGROUNDS,
     BOUNDARIES,
 )
+from xtalapp.widgets.start_pane import StartPane
 from xtalapp.workspace_shell import WorkspaceShell
 
 APP_NAME = "Crystal Builder"
@@ -163,10 +165,16 @@ class MainWindow(QMainWindow):
         self.tabs.setMovable(True)
         self.tabs.tabCloseRequested.connect(self.close_document)
         self.tabs.currentChanged.connect(self._on_tab_changed)
-        self.setCentralWidget(self.tabs)
 
         self.actions_ = ActionRegistry(self)
         menus.build_actions(self)
+        # The start pane is built from the actions, so after them; it
+        # and the tabs share the middle, one at a time.
+        self.start_pane = StartPane(self)
+        self.central = QStackedWidget()
+        self.central.addWidget(self.start_pane)
+        self.central.addWidget(self.tabs)
+        self.setCentralWidget(self.central)
         menus.build_menus(self)
         menus.build_toolbar(self)
         layout.build_docks(self)
@@ -1386,6 +1394,10 @@ class MainWindow(QMainWindow):
     # ==================================================================
 
     def _on_tab_changed(self, _index: int) -> None:
+        # Fired for the first tab arriving and the last one going, so
+        # it is also where the start pane comes and goes.
+        self.central.setCurrentWidget(
+            self.tabs if self.tabs.count() else self.start_pane)
         self._update_ui()
         self.workspace_shell.save_session()
         self.workspace_shell.show_open_document()
