@@ -12,6 +12,7 @@ that break crystallography code.
 import atexit
 import functools
 import os
+import re
 import shutil
 import tempfile
 
@@ -190,6 +191,33 @@ def offscreen_gl_works() -> bool:
 needs_offscreen_gl = pytest.mark.skipif(
     not offscreen_gl_works(),
     reason="offscreen OpenGL is not available here")
+
+
+_GUI_IMPORT = re.compile(r"^\s*(?:from|import)\s+(?:xtalapp|PySide6)\b",
+                         re.MULTILINE)
+
+
+def pytest_collection_modifyitems(config, items):
+    """Mark every test in a module that brings in Qt as ``gui``.
+
+    So a change to the headless core can be checked with
+    ``-m "not gui"``: the other half of the suite, without the
+    thousand-odd windows that are a quarter of its time.  Judged by
+    what the *module* imports and not by fixture, because a test of a
+    ``Document`` asks for no ``qtbot`` and is still a Qt test.
+    """
+    gui = pytest.mark.gui
+    verdict: dict = {}
+    for item in items:
+        path = str(item.path)
+        if path not in verdict:
+            try:
+                verdict[path] = bool(_GUI_IMPORT.search(
+                    item.path.read_text(encoding="utf-8")))
+            except OSError:                     # pragma: no cover
+                verdict[path] = False
+        if verdict[path]:
+            item.add_marker(gui)
 
 
 @pytest.hookimpl(wrapper=True)

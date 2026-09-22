@@ -1420,7 +1420,7 @@ class MainWindow(QMainWindow):
 
         # These show coordinates, so a move is news to them.
         self.inspector_dock.refresh()
-        self.sites_dock.refresh()
+        self.sites_dock.refresh(positions_only)
         self.move_dock.refresh()
 
         # The net panel is the one expensive refresh here, so it is

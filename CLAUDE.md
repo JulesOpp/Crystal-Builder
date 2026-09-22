@@ -20,27 +20,33 @@ bonding, run force field / DFTB+ / Zeo++ calculations on the result.
 ## Commands
 
 ```bash
-python -m pytest -q                    # full suite, serial, 4-6 min
-python -m pytest -q tests/test_bonding.py    # while iterating
+python -m pytest -q -n 3               # full suite, three workers, ~2 min
+python -m pytest -q -n0 tests/test_bonding.py  # while iterating
+python -m pytest -q -n 3 -m "not gui"  # headless core only, ~1 min
 python -m pytest -q -m "not slow"      # skips the ones marked slow
 python -m pytest -q --durations=20     # what the run is actually spending
 ruff check .                           # lint (check only — see below)
 crystal-builder                        # launch the GUI
 ```
 
-**Serial is still the default, and the reason it was chosen has
-gone.** `-n auto` wedged four runs out of eight because of the worker
-deadlock below, which is fixed: five consecutive `-n auto` runs of the
-whole suite came back clean at 65-111 s against 220 s serial. That is
-evidence and not proof -- at the old rate five clean runs in a row is
-about a 3 % event -- and `conftest.py:62` records a *second* wedge
-cause, eight workers contending on `cfprefsd`, which the INI-backend
-guard addressed but which nobody has re-measured under load. Changing
-the default is worth doing and is worth doing deliberately; CI runs
-serial too. Until then prefer a **targeted file** while iterating and
-the full suite once before committing; the whole suite is 3000+ tests
-and running it after every edit is the single most expensive habit in
-this repo.
+**`pyproject.toml` defaults to `-n auto`; pass `-n 3`.** The default
+was made parallel once the worker deadlock below was fixed, and a plain
+`pytest` now starts a worker per core -- eight here, which leaves the
+machine unusable while it runs. Three workers finish the suite in about
+two minutes and leave the rest of the cores free. `-n0` for a targeted
+file, where starting workers costs more than it saves. CI runs serial.
+Prefer a **targeted file** while iterating and the full suite once
+before committing; the whole suite is 3000+ tests and running it after
+every edit is the single most expensive habit in this repo.
+
+**`-m "not gui"` is the headless half**: `conftest.py` marks every
+module that imports `xtalapp` or `PySide6`, which is 1500 of the 3360
+tests and every window the suite builds. Building windows is a quarter
+of the suite's time -- about 80 ms each, a thousand of them -- so a
+change under `xtal/` is checked in half the time the whole suite
+takes. Memory is not what that saves: a window is 25 MB, freed at the
+end of its test, and a worker's 200-600 MB is the transients of the
+tests it runs rather than windows piling up.
 
 **No single test should take anything like a minute**, whatever the
 suite as a whole costs. `--durations` is how to check that rather than
@@ -502,8 +508,10 @@ stress case).
   transcribed, because it is compiled into the binary and written
   nowhere it could be read back, and a test checks the transcription
   against the vendored source. **The surface is not written into the
-  project**: MFU-4l's is 190 000 triangles and 59 MB of JSON against
-  three seconds to compute it again.
+  project**: MFU-4l's is 307 680 triangles and 96 MB of JSON against
+  1.1 seconds to compute it again. The grid is float32 and the march
+  goes a slab of cells at a time, so that second peaks at about 90 MB
+  rather than 400.
 - **The CIF carries the bonds; Export cleans.** `_geom_bond` says
   (site, site, operation, translation) and always could, so the
   workspace copy of a structure *is* the document: the markers the

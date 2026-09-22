@@ -327,16 +327,23 @@ def _impose(structure, group, tol):
     reps: list[int] = []
     missing: list[np.ndarray] = []
 
+    rotations, translations = group.stacked
+    elements = np.asarray(cell.elements)
     for k in range(cell.n_atoms):
         if covered[k]:
             continue
         reps.append(k)
         covered[k] = True
-        for op in group.operations:
-            target = p1._wrap(op.apply(cell.frac[k]))
-            hit = _match_atom(cell, target, cell.elements[k],
-                              cell.occupancy[k], lattice, tol)
-            if hit is None:
+        # Every operation's image of atom k at once: one operation at a
+        # time was a scan of the cell per image, 36 000 of them to
+        # describe MFU-4l's splits, and the Subgroup dialog computes a
+        # split on the UI thread for the row that is clicked.
+        targets = p1._wrap(rotations @ cell.frac[k] + translations)
+        same = ((elements == cell.elements[k])
+                & (np.abs(cell.occupancy - cell.occupancy[k]) < 1e-6))
+        hits = _nearest_of_species(cell, targets, same, lattice, tol)
+        for target, hit in zip(targets, hits, strict=True):
+            if hit < 0:
                 missing.append(target)
             else:
                 covered[hit] = True
@@ -367,12 +374,22 @@ def _impose(structure, group, tol):
     return out, report
 
 
-def _match_atom(cell, target, element, occupancy, lattice, tol):
-    """Index of the atom of ``cell`` sitting at ``target`` with the same
-    species, or None."""
-    found = _nearest_atom(cell, target, element, occupancy, lattice,
-                          tol)
-    return None if found is None else found[0]
+def _nearest_of_species(cell, targets, same, lattice, tol) -> np.ndarray:
+    """For each target, the closest atom of ``cell`` among those
+    ``same`` marks and within ``tol``, or -1 -- :func:`_nearest_atom`
+    asked of many points at once, and choosing as it does: the least
+    distance, and the lowest index where two are equally close."""
+    out = np.full(len(targets), -1, dtype=int)
+    point, atom, distance = p1.within(cell, targets, lattice, tol)
+    keep = same[atom]
+    point, atom, distance = point[keep], atom[keep], distance[keep]
+    if not len(point):
+        return out
+    order = np.lexsort((atom, distance, point))
+    first = np.ones(len(order), dtype=bool)
+    first[1:] = point[order][1:] != point[order][:-1]
+    out[point[order][first]] = atom[order][first]
+    return out
 
 
 def _nearest_atom(cell, target, element, occupancy, lattice, tol):

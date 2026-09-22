@@ -157,6 +157,55 @@ def _min_image_distance(a, b, lattice: Lattice) -> float:
     return float(np.linalg.norm(d @ lattice.matrix))
 
 
+def within(cell: P1Cell, fracs, lattice: Lattice, tol: float) -> tuple:
+    """Every atom of ``cell`` within ``tol`` A of each point, as
+    ``(point, atom, distance)`` arrays.
+
+    The distance is the one every scan here used -- the fractional
+    difference rounded to the nearest lattice vector, then made
+    cartesian -- so asking this instead of scanning finds what the scan
+    found.  A periodic KD-tree over the cell, kept on it, only narrows
+    the field: its fractional ball is the smallest that holds the
+    cartesian one, ``tol`` over the lattice's smallest singular value.
+    """
+    fracs = np.asarray(fracs, dtype=float).reshape(-1, 3)
+    tree = cell._index.get("frac_tree")
+    if tree is None:
+        from scipy.spatial import cKDTree
+        tree = cell._index["frac_tree"] = cKDTree(_wrap(cell.frac),
+                                                  boxsize=1.0)
+    matrix = lattice.matrix
+    reach = tol / np.linalg.svd(matrix, compute_uv=False)[-1]
+    near = tree.query_ball_point(_wrap(fracs), reach * (1 + 1e-9))
+    counts = np.fromiter(map(len, near), dtype=int, count=len(fracs))
+    if not counts.any():
+        empty = np.zeros(0, dtype=int)
+        return empty, empty, np.zeros(0)
+    atom = np.concatenate([np.asarray(c, dtype=int) for c in near])
+    point = np.repeat(np.arange(len(fracs)), counts)
+    d = cell.frac[atom] - fracs[point]
+    d -= np.round(d)
+    distance = np.linalg.norm(d @ matrix, axis=1)
+    inside = distance < tol
+    return point[inside], atom[inside], distance[inside]
+
+
+def nearest_atoms(cell: P1Cell, fracs, lattice: Lattice,
+                  tol: float) -> np.ndarray:
+    """The nearest atom of ``cell`` to each point if it is within
+    ``tol`` A, else -1; the lower index where two are equally near."""
+    n = len(np.asarray(fracs).reshape(-1, 3))
+    point, atom, distance = within(cell, fracs, lattice, tol)
+    out = np.full(n, -1, dtype=int)
+    if not len(point):
+        return out
+    order = np.lexsort((atom, distance, point))
+    first = np.ones(len(order), dtype=bool)
+    first[1:] = point[order][1:] != point[order][:-1]
+    out[point[order][first]] = atom[order][first]
+    return out
+
+
 def expand(structure, tol: float = SPECIAL_POSITION_TOL) -> P1Cell:
     """Generate the unit cell of ``structure``.
 

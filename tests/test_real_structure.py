@@ -274,15 +274,17 @@ def test_descending_a_real_framework_is_quick_enough_to_watch(mfu4l):
     from xtal.core import subgroups
 
     found = subgroups.subgroups_of(mfu4l.space_group)
-    started = time.perf_counter()
+    # CPU time and not the wall clock: under xdist this shares a CI
+    # runner with the other workers, and the macos-15-intel job once
+    # measured 60 s of wall time for what is 4 s of work on a laptop.
+    started = time.process_time()
     for sub in found:
         assert subgroups.describe_split(mfu4l, sub).ok
-    elapsed = time.perf_counter() - started
-    # Every row of the list, tens of milliseconds apiece on a laptop;
-    # the bound is loose because this is a guard against the quadratic
-    # coming back, not a benchmark.  The dialog only computes the row
-    # you select, so what a user waits for is one two-hundredth of
-    # this.
+    elapsed = time.process_time() - started
+    # Every row of the list, about 15 ms apiece on a laptop; the bound
+    # is loose because this is a guard against the quadratic coming
+    # back, not a benchmark.  The dialog only computes the row you
+    # select, so what a user waits for is one two-hundredth of this.
     assert elapsed < 40.0, f"{len(found)} splits took {elapsed:.1f} s"
 
 

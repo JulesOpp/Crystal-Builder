@@ -21,6 +21,7 @@ clean again, exactly as in any other editor.
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from pathlib import Path
 
 import numpy as np
@@ -36,6 +37,7 @@ from xtal.commands import cell as cell_commands
 from xtal.commands import connections as connection_commands
 from xtal.commands import interpenetrate as interpenetrate_commands
 from xtal.commands import symmetry as symmetry_commands
+from xtal.commands.base import Command
 from xtal.commands.clipboard import (
     Fragment,
     InsertMolecules,
@@ -55,11 +57,25 @@ from xtal.io import (
 from xtal.io.project import EXTENSION as PROJECT_EXTENSION
 from xtal.workspace import Workspace
 from xtalapp import playback
+from xtalapp.busy import busy
 from xtalapp.viewport.view_settings import ViewSettings
 
 
 class PlaybackActive(RuntimeError):
     """An edit was attempted while a trajectory was being played."""
+
+
+def _busy_unless_gesture(command):
+    """The wait cursor for a command, unless it is one of a gesture's.
+
+    A command that merges with the next is one that arrives several
+    times a second -- a drag, a spinbox held down -- and a cursor that
+    flickers to *wait* at every step of a drag is worse than none.
+    Everything else is a click, and some clicks take seconds.
+    """
+    if type(command).merge_with is not Command.merge_with:
+        return nullcontext()
+    return busy()
 
 
 class Document(QObject):
@@ -461,8 +477,9 @@ class Document(QObject):
             raise PlaybackActive(
                 "this document is playing a trajectory back; adopt "
                 "the frame or close the trajectory before editing")
-        self.stack.push(command, self)
-        self._after_change(command.change)
+        with _busy_unless_gesture(command):
+            self.stack.push(command, self)
+            self._after_change(command.change)
         return command
 
     def apply(self, mutate, change: Change = Change.ALL,
@@ -494,17 +511,19 @@ class Document(QObject):
         self.stack.break_merge()
 
     def undo(self) -> str:
-        command = self.stack.undo(self)
-        if command is None:
-            return ""
-        self._after_change(command.change)
+        with busy():
+            command = self.stack.undo(self)
+            if command is None:
+                return ""
+            self._after_change(command.change)
         return command.label
 
     def redo(self) -> str:
-        command = self.stack.redo(self)
-        if command is None:
-            return ""
-        self._after_change(command.change)
+        with busy():
+            command = self.stack.redo(self)
+            if command is None:
+                return ""
+            self._after_change(command.change)
         return command.label
 
     @property

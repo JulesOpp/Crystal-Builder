@@ -244,7 +244,11 @@ def apply_default_layout(window) -> None:
 
     shown = {getattr(window, name) for name in DEFAULT_VISIBLE}
     for dock in window.docks:
-        dock.setFloating(False)
+        # Only the ones that are floating: Qt redoes a dock's window
+        # state even when asked for the state it is in, and fourteen
+        # of those were an eighth of building a window.
+        if dock.isFloating():
+            dock.setFloating(False)
         dock.setVisible(dock in shown)
     # Sites, and not whatever is first in the tuple: the asymmetric
     # unit is what the right-hand column is open for.

@@ -15,6 +15,7 @@ undoable for free when the command stack lands.
 
 from __future__ import annotations
 
+import numpy as np
 from PySide6.QtCore import (
     QAbstractTableModel,
     QItemSelection,
@@ -49,15 +50,50 @@ class SiteTableModel(QAbstractTableModel):
     def __init__(self, document=None, parent=None):
         super().__init__(parent)
         self.document = document
+        self._shown = self._coordinates()
 
     def set_document(self, document) -> None:
         self.beginResetModel()
         self.document = document
+        self._shown = self._coordinates()
         self.endResetModel()
 
     def refresh(self) -> None:
         self.beginResetModel()
+        self._shown = self._coordinates()
         self.endResetModel()
+
+    def moved(self) -> None:
+        """The atoms moved and nothing else changed: repaint the rows
+        whose sites did, and leave the table's shape alone.
+
+        A reset re-lays-out every row and throws the selection away, and
+        a drag asks for one per mouse event -- a third of a drag step on
+        MFU-4l went here.  Which rows moved is read off the coordinates
+        rather than trusted from the caller, so an optimiser that moves
+        everything and a drag that moves one site are the same call.
+        """
+        now = self._coordinates()
+        before = self._shown
+        if before is None or now is None or before.shape != now.shape:
+            self.refresh()
+            return
+        self._shown = now
+        rows = np.flatnonzero(np.any(now != before, axis=1))
+        if not len(rows):
+            return
+        # A move can put a site on a special position, so the
+        # multiplicity column is news as well as the coordinates.
+        self.dataChanged.emit(self.index(int(rows[0]), 2),
+                              self.index(int(rows[-1]), 8))
+
+    def _coordinates(self):
+        if self.document is None:
+            return None
+        sites = self.document.structure.sites
+        if not sites:
+            return np.zeros((0, 3))
+        return np.array([site.frac for site in sites], dtype=float)
 
     # -- shape ---------------------------------------------------------
 
@@ -186,7 +222,10 @@ class SitesDock(QDockWidget):
         self.model.set_document(document)
         self.refresh()
 
-    def refresh(self) -> None:
+    def refresh(self, positions_only: bool = False) -> None:
+        if positions_only:
+            self.model.moved()
+            return
         self.model.refresh()
         self.sync_selection()
 

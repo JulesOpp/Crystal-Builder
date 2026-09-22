@@ -1227,16 +1227,11 @@ def _pieces_of(parent_cell, child_cell, child, site_index, subgroup):
     if not len(orbit):
         return 0
     moved = _map_forward(orbit, subgroup)
-    lattice = child.lattice
-    hits = set()
-    for point in moved:
-        d = child_cell.frac - point
-        d -= np.round(d)
-        dist = np.linalg.norm(d @ lattice.matrix, axis=1)
-        k = int(np.argmin(dist))
-        if dist[k] < 1e-2:
-            hits.add(int(child_cell.site_idx[k]))
-    return len(hits)
+    # By tree rather than a scan of the child's cell per point, which
+    # was half of describing MFU-4l's 237 descents.
+    from xtal.core import p1
+    nearest = p1.nearest_atoms(child_cell, moved, child.lattice, 1e-2)
+    return len({int(v) for v in child_cell.site_idx[nearest[nearest >= 0]]})
 
 
 def _map_forward(frac, subgroup: Subgroup):

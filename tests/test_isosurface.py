@@ -189,3 +189,47 @@ def test_the_accessible_fraction_agrees_with_what_zeo_measures():
     structure = FORMATS.read(path)
     grid = distance_grid(structure, porosity.zeo_radius, spacing=0.5)
     assert (grid >= 1.86).mean() == pytest.approx(0.4616, abs=0.03)
+
+
+# ------------------------------------------------- memory, not answers
+
+def triangle_set(points, faces) -> set:
+    """The mesh as a set of triangles, each an unordered set of
+    corners -- the same surface whatever order it was emitted in."""
+    return {frozenset(map(tuple, points[t].tolist())) for t in faces}
+
+
+def test_the_slab_march_gives_the_triangles_of_one_pass(monkeypatch):
+    """Cells are marched a slab at a time so that MFU-4l's pore
+    surface peaks at a quarter of the memory.  A slab of one plane is
+    the hardest cut: every triangle must still come out once, whole,
+    and facing the way it faced before."""
+    from xtal.analysis import isosurface as iso
+
+    lattice = Lattice.cubic(SIDE)
+    grid = sphere_grid((5.13, 0.07, 5.31), n=24)
+    whole = isosurface(grid, lattice, 0.0)
+    monkeypatch.setattr(iso, "_SLAB_CELLS", 1)
+    sliced = isosurface(grid, lattice, 0.0)
+    assert triangle_set(*sliced) == triangle_set(*whole)
+    assert enclosed_volume(*sliced, lattice, (5.13, 0.07, 5.31)) \
+        == pytest.approx(enclosed_volume(*whole, lattice,
+                                         (5.13, 0.07, 5.31)))
+
+
+def test_the_grid_queried_in_blocks_is_the_grid_queried_at_once(
+        monkeypatch):
+    """The nearest-surface query runs a block of points at a time; a
+    block edge that dropped or doubled a point would leave a stripe of
+    wrong distances through the cell."""
+    from xtal.analysis import grid as grids
+
+    pair = Structure.from_arrays(
+        Lattice.cubic(SIDE), ["C", "O"],
+        [[0.1, 0.2, 0.3], [0.6, 0.55, 0.9]])
+    radii = {"C": 1.7, "O": 1.5}.get
+    whole = distance_grid(pair, radii, shape=(11, 13, 7))
+    monkeypatch.setattr(grids, "_POINT_BLOCK", 5)
+    assert np.array_equal(distance_grid(pair, radii, shape=(11, 13, 7)),
+                          whole)
+    assert whole.dtype == np.float32

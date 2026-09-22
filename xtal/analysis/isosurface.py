@@ -89,7 +89,9 @@ def isosurface(grid, lattice, level: float) -> tuple:
     point to save a third of the memory of a mesh that is already
     thrown away on the next run.
     """
-    grid = np.asarray(grid, float)
+    grid = np.asarray(grid)
+    if not np.issubdtype(grid.dtype, np.floating):
+        grid = grid.astype(float)
     if grid.ndim != 3 or min(grid.shape) < 2:
         return _nothing()
     inside = grid >= level
@@ -99,17 +101,23 @@ def isosurface(grid, lattice, level: float) -> tuple:
         # solid is a real answer and it is "nothing to draw".
         return _nothing()
 
-    corners, values = _corner_arrays(grid)
+    # A slab of cells at a time along the first axis.  The corner
+    # arrays for every cell at once were (8, N, 3) coordinates and
+    # (8, N) values -- 280 MB at the peak for MFU-4l's 78-cubed grid --
+    # and no cell's triangles depend on any other cell's.
+    per_slab = max(1, _SLAB_CELLS // (grid.shape[1] * grid.shape[2]))
     points, triangles = [], []
     base = 0
-    for tetra in TETRAHEDRA:
-        got = _march(tetra, corners, values, level)
-        if got is None:
-            continue
-        vertices, faces = got
-        points.append(vertices)
-        triangles.append(faces + base)
-        base += len(vertices)
+    for start in range(0, grid.shape[0], per_slab):
+        corners, values = _corner_arrays(grid, start, start + per_slab)
+        for tetra in TETRAHEDRA:
+            got = _march(tetra, corners, values, level)
+            if got is None:
+                continue
+            vertices, faces = got
+            points.append(vertices.astype(np.float32))
+            triangles.append(faces + base)
+            base += len(vertices)
     if not points:
         return _nothing()
     return (np.vstack(points).astype(np.float32),
@@ -120,8 +128,13 @@ def _nothing():
     return np.zeros((0, 3), np.float32), np.zeros((0, 3), int)
 
 
-def _corner_arrays(grid):
-    """``(corner_frac, corner_value)`` for every cell of the grid.
+#: Cells whose corners are gathered at once by :func:`isosurface`.
+_SLAB_CELLS = 65536
+
+
+def _corner_arrays(grid, start: int = 0, stop: int | None = None):
+    """``(corner_frac, corner_value)`` for every cell of the grid whose
+    first index is in ``range(start, stop)`` -- all of them by default.
 
     ``corner_frac`` is ``(8, N, 3)`` fractional coordinates and
     ``corner_value`` is ``(8, N)``.  The coordinates are *unwrapped* --
@@ -130,7 +143,9 @@ def _corner_arrays(grid):
     cell straddling a face has both.
     """
     shape = np.array(grid.shape)
-    axes = [np.arange(n) for n in shape]
+    stop = shape[0] if stop is None else min(stop, shape[0])
+    axes = [np.arange(start, stop), np.arange(shape[1]),
+            np.arange(shape[2])]
     i, j, k = np.meshgrid(*axes, indexing="ij")
     origin = np.stack([i.ravel(), j.ravel(), k.ravel()], axis=1)
 
