@@ -461,34 +461,42 @@ def map_explicit_bond(structure, cell: p1.P1Cell,
     instead would draw one bond per central atom where the symmetry
     demands several.
     """
-    ops = structure.space_group.operations
+    group = structure.space_group
+    ops = group.operations
+    rotations, translations = group.stacked
     lattice = structure.lattice
     near = structure.sites[bond.i].frac
     far = (ops[bond.op].apply(structure.sites[bond.j].frac)
            + np.array(bond.image, dtype=float))
 
+    # Every operation at once: one lookup for all 2 x order ends rather
+    # than a scan of the cell per end.
+    here = rotations @ near + translations
+    wrapped_here = p1._wrap(here)
+    tau = wrapped_here - here                   # into the cell
+    there_all = rotations @ far + translations + tau
+    wrapped_all = p1._wrap(there_all)
+    found = _find_atoms(cell, np.vstack([wrapped_here, wrapped_all]),
+                        lattice)
+    n_ops = len(ops)
+    ends = found[:n_ops]
+    lengths = _min_image_distances(cell.frac[np.maximum(ends, 0)],
+                                   there_all, lattice)
+    images = np.round(there_all - wrapped_all).astype(int)
+
     out: dict[tuple, CellBond] = {}
-    for op in ops:
-        here = op.apply(near)
-        wrapped_here = p1._wrap(here)
-        tau = wrapped_here - here               # into the cell
-        a = _find_atom(cell, wrapped_here, lattice)
-        if a is None:                           # pragma: no cover
-            continue
-        there = op.apply(far) + tau
-        wrapped_there = p1._wrap(there)
-        b = _find_atom(cell, wrapped_there, lattice)
-        if b is None:                           # pragma: no cover
+    for k in range(n_ops):
+        a, b = found[k], found[n_ops + k]
+        if a < 0 or b < 0:                      # pragma: no cover
             continue
         # ``there`` is where the partner really is; the atom found for
         # it lives inside the cell, so the bond carries the translation
         # between the two.  Getting this sign wrong draws the bond to
         # the copy on the opposite side -- or, more often, to a partner
         # that is not in the picture at all, so the bond vanishes.
-        image = np.round(there - wrapped_there).astype(int)
         cell_bond = CellBond(
-            int(a), int(b), tuple(int(v) for v in image),
-            neighbors.min_image_distance(cell.frac[a], there, lattice),
+            int(a), int(b), tuple(int(v) for v in images[k]),
+            float(lengths[k]),
             explicit=True, order=bond.order, stated=bond.stated)
         out[cell_bond.key()] = cell_bond
     return list(out.values())
@@ -570,23 +578,71 @@ def bond_between(structure, cell, atom_a: int, atom_b: int,
     # Atom b, seen from site i's own frame: undo op_a.
     q = np.linalg.inv(op_a.rot) @ (target - tau_a - op_a.trans)
 
-    frac_j = structure.sites[site_j].frac
-    for k, op in enumerate(ops):
-        shift = q - op.apply(frac_j)
-        if np.allclose(shift, np.round(shift), atol=1e-6):
-            return Bond(site_i, site_j,
-                        tuple(int(v) for v in np.round(shift)), op=k)
+    # Every operation's image of site j at once; the first whose
+    # difference from q is a lattice vector names the bond.  The test
+    # is np.allclose's own, written out so it can be asked of all of
+    # them in one go.
+    rotations, translations = structure.space_group.stacked
+    shift = q - (rotations @ structure.sites[site_j].frac + translations)
+    whole = np.round(shift)
+    close = np.all(np.abs(shift - whole) <= 1e-6 + 1e-5 * np.abs(whole),
+                   axis=1)
+    hits = np.flatnonzero(close)
+    if len(hits):
+        k = int(hits[0])
+        return Bond(site_i, site_j,
+                    tuple(int(v) for v in whole[k]), op=k)
     raise ValueError(                           # pragma: no cover
         "these two atoms are not in orbits of the same space group; "
         "reduce the structure to P1 to bond them")
 
 
-def _find_atom(cell, frac, lattice, tol=1e-3):
-    d = cell.frac - frac
+def _find_atoms(cell, fracs, lattice, tol=1e-3) -> np.ndarray:
+    """The lowest-numbered atom of the cell within ``tol`` A of each
+    point, or -1.
+
+    A scan of the whole cell per point was 4.7 million distances to
+    map 19 bonds through Fm-3m.  The tree only narrows the field: the
+    fractional ball it is asked for is the smallest that holds the
+    cartesian one (``tol`` over the lattice's smallest singular value),
+    and the answer is still the minimum-image distance and the first
+    index, exactly as the scan chose.
+    """
+    fracs = np.asarray(fracs, dtype=float).reshape(-1, 3)
+    tree = cell._index.get("frac_tree")
+    if tree is None:
+        from scipy.spatial import cKDTree
+        tree = cell._index["frac_tree"] = cKDTree(
+            p1._wrap(cell.frac), boxsize=1.0)
+    matrix = lattice.matrix
+    reach = tol / np.linalg.svd(matrix, compute_uv=False)[-1]
+    near = tree.query_ball_point(p1._wrap(fracs), reach * (1 + 1e-9))
+    counts = np.fromiter(map(len, near), dtype=int, count=len(fracs))
+    out = np.full(len(fracs), -1, dtype=int)
+    if not counts.any():
+        return out
+    atom = np.concatenate([np.asarray(c, dtype=int) for c in near])
+    point = np.repeat(np.arange(len(fracs)), counts)
+    d = cell.frac[atom] - fracs[point]
     d -= np.round(d)
-    dist = np.linalg.norm(d @ lattice.matrix, axis=1)
-    hit = np.flatnonzero(dist < tol)
-    return int(hit[0]) if len(hit) else None
+    inside = np.linalg.norm(d @ matrix, axis=1) < tol
+    lowest = np.full(len(fracs), np.iinfo(int).max)
+    np.minimum.at(lowest, point[inside], atom[inside])
+    found = lowest != np.iinfo(int).max
+    out[found] = lowest[found]
+    return out
+
+
+def _min_image_distances(frac_a, frac_b, lattice) -> np.ndarray:
+    """:func:`neighbors.min_image_distance` for many pairs at once."""
+    d = np.asarray(frac_b, dtype=float) - np.asarray(frac_a, dtype=float)
+    d -= np.round(d)
+    candidates = (d[:, None, :] + _IMAGES[None]) @ lattice.matrix
+    return np.linalg.norm(candidates, axis=2).min(axis=1)
+
+
+_IMAGES = np.array([(a, b, c) for a in (-1, 0, 1) for b in (-1, 0, 1)
+                    for c in (-1, 0, 1)], dtype=float)
 
 
 # ======================================================================
