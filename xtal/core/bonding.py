@@ -602,32 +602,16 @@ def _find_atoms(cell, fracs, lattice, tol=1e-3) -> np.ndarray:
     point, or -1.
 
     A scan of the whole cell per point was 4.7 million distances to
-    map 19 bonds through Fm-3m.  The tree only narrows the field: the
-    fractional ball it is asked for is the smallest that holds the
-    cartesian one (``tol`` over the lattice's smallest singular value),
-    and the answer is still the minimum-image distance and the first
-    index, exactly as the scan chose.
+    map 19 bonds through Fm-3m; :func:`p1.within` asks a KD-tree, and
+    the answer is still the first index, exactly as the scan chose.
     """
     fracs = np.asarray(fracs, dtype=float).reshape(-1, 3)
-    tree = cell._index.get("frac_tree")
-    if tree is None:
-        from scipy.spatial import cKDTree
-        tree = cell._index["frac_tree"] = cKDTree(
-            p1._wrap(cell.frac), boxsize=1.0)
-    matrix = lattice.matrix
-    reach = tol / np.linalg.svd(matrix, compute_uv=False)[-1]
-    near = tree.query_ball_point(p1._wrap(fracs), reach * (1 + 1e-9))
-    counts = np.fromiter(map(len, near), dtype=int, count=len(fracs))
+    point, atom, _distance = p1.within(cell, fracs, lattice, tol)
     out = np.full(len(fracs), -1, dtype=int)
-    if not counts.any():
+    if not len(point):
         return out
-    atom = np.concatenate([np.asarray(c, dtype=int) for c in near])
-    point = np.repeat(np.arange(len(fracs)), counts)
-    d = cell.frac[atom] - fracs[point]
-    d -= np.round(d)
-    inside = np.linalg.norm(d @ matrix, axis=1) < tol
     lowest = np.full(len(fracs), np.iinfo(int).max)
-    np.minimum.at(lowest, point[inside], atom[inside])
+    np.minimum.at(lowest, point, atom)
     found = lowest != np.iinfo(int).max
     out[found] = lowest[found]
     return out

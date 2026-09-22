@@ -97,3 +97,32 @@ def test_every_stored_bond_of_mfu4l_draws_what_it_drew_before(mfu4l):
     assert ({b.key() for b in drawn.bonds}
             == {b.key() for b in perceived.bonds})
     assert all(b.order == 1.0 for b in drawn.bonds)
+
+
+# --------------------------------------------- nearest, not first
+
+def test_the_nearest_atom_by_tree_is_the_nearest_by_scan(quartz):
+    """``p1.nearest_atoms`` is what the subgroup descent matches a
+    mapped orbit with: the closest atom within reach, not merely the
+    first.  Held against a scan over the whole cell."""
+    cell = p1.expand(quartz)
+    rng = np.random.default_rng(2)
+    points = p1._wrap(cell.frac[rng.integers(len(cell.frac), size=40)]
+                      + rng.normal(scale=0.02, size=(40, 3)))
+    found = p1.nearest_atoms(cell, points, quartz.lattice, 0.5)
+    for point, atom in zip(points, found, strict=True):
+        d = cell.frac - point
+        d -= np.round(d)
+        dist = np.linalg.norm(d @ quartz.lattice.matrix, axis=1)
+        best = int(np.argmin(dist))
+        assert atom == (best if dist[best] < 0.5 else -1)
+
+
+def test_two_atoms_equally_near_give_the_lower_index(halite):
+    """The scan's argmin took the first of two equal distances; the
+    tree must as well, or a descent would name a different site."""
+    cell = p1.expand(halite)
+    a, b = 0, int(np.flatnonzero(np.all(cell.frac == [0.5, 0.5, 0], 1))[0])
+    middle = (cell.frac[a] + cell.frac[b]) / 2
+    found = p1.nearest_atoms(cell, [middle], halite.lattice, 3.0)
+    assert found.tolist() == [min(a, b)]
