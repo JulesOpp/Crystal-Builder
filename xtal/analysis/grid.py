@@ -63,20 +63,22 @@ def distance_grid(structure, radius_of, spacing: float = DEFAULT_SPACING,
     and a picture drawn with a different one is a picture of a
     different crystal.
 
-    Returns a ``(na, nb, nc)`` array of Angstrom, negative inside an
-    atom.  Index ``(i, j, k)`` is the point at fractional
+    Returns a ``(na, nb, nc)`` float32 array of Angstrom, negative
+    inside an atom.  Index ``(i, j, k)`` is the point at fractional
     ``(i/na, j/nb, k/nc)``, so the array wraps: the caller marches it
-    periodically and no padding is needed at the faces.
+    periodically and no padding is needed at the faces.  Single
+    precision because it is a distance on a 0.4 A grid, and 1e-7 of
+    one is not a thing a surface can show.
     """
     lattice = structure.lattice
     shape = shape or shape_for(lattice, spacing)
     cell = p1.expand(structure)
     if not cell.n_atoms:
-        return np.full(shape, np.inf)
+        return np.full(shape, np.inf, dtype=np.float32)
 
     centres, radii = _images(cell, lattice, radius_of)
     tree = cKDTree(centres)
-    points = lattice.to_cart(_sample_points(shape))
+    frac = _sample_points(shape)
 
     # The nearest atom *surface* is not the nearest atom centre: a
     # large atom a little further away can still be the one whose skin
@@ -84,11 +86,23 @@ def distance_grid(structure, radius_of, spacing: float = DEFAULT_SPACING,
     # radius is taken off each, which is exact as long as k covers the
     # spread of radii -- and the spread over a periodic crystal is one
     # coordination shell, not the whole cell.
+    #
+    # A block of points at a time: the k-nearest answer for the whole
+    # of MFU-4l's 475 000 points was four (N, 8) arrays at once.
     k = min(_NEIGHBOURS, len(centres))
-    distances, index = tree.query(points, k=k)
-    distances = np.atleast_2d(distances.T).T.reshape(len(points), -1)
-    index = np.atleast_2d(index.T).T.reshape(len(points), -1)
-    return (distances - radii[index]).min(axis=1).reshape(shape)
+    out = np.empty(len(frac), dtype=np.float32)
+    for start in range(0, len(frac), _POINT_BLOCK):
+        points = lattice.to_cart(frac[start:start + _POINT_BLOCK])
+        distances, index = tree.query(points, k=k)
+        distances = distances.reshape(len(points), -1)
+        index = index.reshape(len(points), -1)
+        out[start:start + len(points)] = (
+            distances - radii[index]).min(axis=1)
+    return out.reshape(shape)
+
+
+#: Grid points per KD-tree query in :func:`distance_grid`.
+_POINT_BLOCK = 32768
 
 
 #: How many neighbouring centres to consider per grid point.  Eight is

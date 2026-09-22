@@ -502,8 +502,10 @@ stress case).
   transcribed, because it is compiled into the binary and written
   nowhere it could be read back, and a test checks the transcription
   against the vendored source. **The surface is not written into the
-  project**: MFU-4l's is 190 000 triangles and 59 MB of JSON against
-  three seconds to compute it again.
+  project**: MFU-4l's is 307 680 triangles and 96 MB of JSON against
+  1.1 seconds to compute it again. The grid is float32 and the march
+  goes a slab of cells at a time, so that second peaks at about 90 MB
+  rather than 400.
 - **The CIF carries the bonds; Export cleans.** `_geom_bond` says
   (site, site, operation, translation) and always could, so the
   workspace copy of a structure *is* the document: the markers the
