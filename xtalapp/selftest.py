@@ -327,8 +327,12 @@ def check_mof_builder(report) -> None:
     c = hitp.structure.lattice.parameters[2]
     report(f"MOF builder: Ni3(HITP)2, {hitp.n_atoms} atoms, "
            f"c = {c:.4f} A, net identified as {hitp.net_name}")
+    # To the place PORMAKE's CIF writer carries and no further: the
+    # build reads its structure back from a file written ``{:.3f}``,
+    # so 3.2384 asked is 3.238 got on every machine.  A 1e-4 check
+    # failed all three bundles on the first run that reached them.
     if hitp.n_atoms != 75 or not hitp.net_agrees or abs(
-            c - 3.2384) > 1e-4:
+            c - 3.2384) > 5e-4:
         raise AssertionError(
             f"Ni3(HITP)2 on hcb came out {hitp.n_atoms} atoms, "
             f"c = {c:.4f} A, net {hitp.net_name or 'unread'}, against "

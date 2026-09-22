@@ -809,3 +809,22 @@ def _overlay(structure, reference):
                 if best is None or rms < best[0]:
                     best = (rms, float(d.max()))
     return best
+
+
+@pytest.mark.slow
+@needs_database
+@needs_builder
+@needs_library
+@needs_layers
+def test_the_bundles_mof_self_check_passes_from_a_checkout():
+    """``selftest.check_mof_builder`` is what every bundle job runs
+    after PyInstaller, and nothing ran it before one.  It asked for
+    Ni3(HITP)2's c to 1e-4 against a CIF PORMAKE writes to three
+    places, so it failed macOS arm64, Intel and Windows alike on the
+    first run that got that far -- a check that could never pass,
+    found twenty minutes into CI rather than here."""
+    from xtalapp import selftest
+
+    said = []
+    selftest.check_mof_builder(said.append)
+    assert any("Ni3(HITP)2" in line for line in said)
