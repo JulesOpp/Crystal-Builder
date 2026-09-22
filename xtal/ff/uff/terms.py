@@ -138,9 +138,17 @@ class Term:
     def __len__(self) -> int:                   # pragma: no cover
         raise NotImplementedError
 
-    def energy_and_gradient(self, positions, matrix):
+    def energy_and_gradient(self, positions, matrix, virial=None):
         """``(energy, dE/dpositions)``.  ``matrix`` is the (3,3) cell,
-        rows being the lattice vectors."""
+        rows being the lattice vectors.
+
+        ``virial``, a (3,3) array, is added to in place when given:
+        the sum over every vector the term is written in of
+        ``d (x) dE/dd``, which divided by the volume is the stress.
+        Every term here is a function of vectors between atoms, so this
+        is exact and costs one product per vector -- against the twelve
+        whole evaluations the finite-difference stress takes.
+        """
         raise NotImplementedError               # pragma: no cover
 
     def energy(self, positions, matrix) -> float:
@@ -171,6 +179,14 @@ def _blocks(n: int):
     """Slices covering ``range(n)``, ``_TERM_BLOCK`` at a time."""
     for start in range(0, n, _TERM_BLOCK):
         yield slice(start, min(start + _TERM_BLOCK, n))
+
+
+def _add_virial(virial, *pairs) -> None:
+    """``virial += sum d (x) g`` for each ``(vectors, gradients)``."""
+    if virial is None:
+        return
+    for vectors, gradients in pairs:
+        virial += vectors.T @ gradients
 
 
 def _scatter(grad, indices, values) -> None:
@@ -215,7 +231,7 @@ class BondTerm(Term):
     def __len__(self) -> int:
         return len(self.i)
 
-    def energy_and_gradient(self, positions, matrix):
+    def energy_and_gradient(self, positions, matrix, virial=None):
         grad = np.zeros_like(positions)
         if not len(self):
             return 0.0, grad
@@ -228,6 +244,7 @@ class BondTerm(Term):
         scale = np.where(good, self.k * delta / np.where(good, r, 1.0),
                          0.0)
         force = scale[:, None] * d
+        _add_virial(virial, (d, force))
         _scatter(grad, self.j, force)
         _scatter(grad, self.i, -force)
         return energy, grad
@@ -334,7 +351,7 @@ class AngleTerm(Term):
 
         return self.force * energy, self.force * derivative
 
-    def energy_and_gradient(self, positions, matrix):
+    def energy_and_gradient(self, positions, matrix, virial=None):
         grad = np.zeros_like(positions)
         if not len(self):
             return 0.0, grad
@@ -360,6 +377,7 @@ class AngleTerm(Term):
               - (cos / safe_v ** 2)[:, None] * v)
         gi = dcos[:, None] * du
         gk = dcos[:, None] * dv
+        _add_virial(virial, (u, gi), (v, gk))
         _scatter(grad, self.i, gi)
         _scatter(grad, self.k, gk)
         _scatter(grad, self.j, -(gi + gk))
@@ -477,14 +495,14 @@ class TorsionTerm(Term):
                                + 36 * cc)
         return value, slope
 
-    def energy_and_gradient(self, positions, matrix):
+    def energy_and_gradient(self, positions, matrix, virial=None):
         grad = np.zeros_like(positions)
         energy = 0.0
         for part in _blocks(len(self)):
-            energy += self._block(positions, matrix, grad, part)
+            energy += self._block(positions, matrix, grad, part, virial)
         return energy, grad
 
-    def _block(self, positions, matrix, grad, part) -> float:
+    def _block(self, positions, matrix, grad, part, virial) -> float:
         i, j, k, l = self.i[part], self.j[part], self.k[part], self.l[part]
         barrier = self.barrier[part]
         cos_n_phi0 = self.cos_n_phi0[part]
@@ -529,6 +547,10 @@ class TorsionTerm(Term):
         gj = dcos[:, None] * (db1 - db2)
         gk = dcos[:, None] * (db2 - db3)
         gl = dcos[:, None] * db3
+        # b1 runs *from* atom i, so its gradient is -gi; b2's is only
+        # ever seen split between j and k.
+        _add_virial(virial, (b1, -gi), (b2, dcos[:, None] * db2),
+                    (b3, gl))
         _scatter(grad, i, gi)
         _scatter(grad, j, gj)
         _scatter(grad, k, gk)
@@ -606,7 +628,7 @@ class InversionTerm(Term):
     def __len__(self) -> int:
         return len(self.centre)
 
-    def energy_and_gradient(self, positions, matrix):
+    def energy_and_gradient(self, positions, matrix, virial=None):
         grad = np.zeros_like(positions)
         if not len(self):
             return 0.0, grad
@@ -650,6 +672,7 @@ class InversionTerm(Term):
         ga = dsin[:, None] * da
         gb = dsin[:, None] * db
         gc = dsin[:, None] * dc
+        _add_virial(virial, (a, ga), (b, gb), (c, gc))
         _scatter(grad, self.j, ga)
         _scatter(grad, self.k, gb)
         _scatter(grad, self.l, gc)
@@ -685,14 +708,14 @@ class VanDerWaalsTerm(Term):
     def __len__(self) -> int:
         return len(self.i)
 
-    def energy_and_gradient(self, positions, matrix):
+    def energy_and_gradient(self, positions, matrix, virial=None):
         grad = np.zeros_like(positions)
         energy = 0.0
         for part in _blocks(len(self)):
-            energy += self._block(positions, matrix, grad, part)
+            energy += self._block(positions, matrix, grad, part, virial)
         return energy, grad
 
-    def _block(self, positions, matrix, grad, part) -> float:
+    def _block(self, positions, matrix, grad, part, virial) -> float:
         i, j = self.i[part], self.j[part]
         x, depth = self.x[part], self.d[part]
         d = positions[j] + self.shift[part] @ matrix - positions[i]
@@ -709,6 +732,7 @@ class VanDerWaalsTerm(Term):
                          12.0 * depth * (ratio6 - ratio12) / safe ** 2,
                          0.0)
         force = scale[:, None] * d
+        _add_virial(virial, (d, force))
         _scatter(grad, j, force)
         _scatter(grad, i, -force)
         return energy
@@ -739,7 +763,7 @@ class CoulombTerm(Term):
     def __len__(self) -> int:
         return len(self.i)
 
-    def energy_and_gradient(self, positions, matrix):
+    def energy_and_gradient(self, positions, matrix, virial=None):
         grad = np.zeros_like(positions)
         if not len(self):
             return 0.0, grad
@@ -753,6 +777,7 @@ class CoulombTerm(Term):
         energy = float(np.sum(np.where(inside, energies, 0.0)))
         scale = np.where(inside, -prefactor * self.qq / safe ** 3, 0.0)
         force = scale[:, None] * d
+        _add_virial(virial, (d, force))
         _scatter(grad, self.j, force)
         _scatter(grad, self.i, -force)
         return energy, grad

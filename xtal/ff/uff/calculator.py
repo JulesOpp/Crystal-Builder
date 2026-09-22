@@ -94,9 +94,10 @@ class UFFCalculator(Calculator):
     name = "uff"
     label = "UFF"
     provides_forces = True
-    # Not yet: nothing here returns a stress, so the optimiser takes a
-    # numeric one.  Claiming it said otherwise to anything that asked.
-    provides_stress = False
+    # Every term is written in vectors between atoms, so the virial
+    # falls out of the pass that makes the forces.  Set per instance:
+    # an Ewald sum is the exception, see ``__init__``.
+    provides_stress = True
 
     def __init__(self, structure, options: UFFOptions | None = None,
                  rules: bonding.BondRules | None = None):
@@ -121,6 +122,11 @@ class UFFCalculator(Calculator):
         self._coulomb_pairs = None
         self._coulomb_excluded = None
         self._ewald = None
+        # The Ewald sum is not a sum over vectors between atoms -- its
+        # reciprocal half depends on the cell directly -- so with
+        # charges on, the stress stays the finite-difference one.
+        self.provides_stress = not (self.options.coulomb
+                                    and bool(np.any(self.charges)))
         self._check_topology()
 
     # -- what the panel asks about -------------------------------------
@@ -391,12 +397,14 @@ class UFFCalculator(Calculator):
 
         total = 0.0
         grad = np.zeros_like(positions)
+        virial = np.zeros((3, 3))
         breakdown = {}
         for name, term in (("bond", self.topology.bonds),
                            ("angle", self.topology.angles),
                            ("torsion", self.topology.torsions),
                            ("inversion", self.topology.inversions)):
-            energy, g = term.energy_and_gradient(positions, matrix)
+            energy, g = term.energy_and_gradient(positions, matrix,
+                                                 virial)
             breakdown[name] = energy
             total += energy
             grad += g
@@ -404,11 +412,15 @@ class UFFCalculator(Calculator):
         if self.options.vdw:
             self._refresh_pairs(positions, matrix)
             energy, g = self._vdw.energy_and_gradient(positions,
-                                                      matrix)
+                                                      matrix, virial)
             breakdown["van der Waals"] = energy
             total += energy
             grad += g
 
+        stress = None
+        if self.provides_stress:
+            volume = abs(float(np.linalg.det(matrix)))
+            stress = 0.5 * (virial + virial.T) / volume
         if self.options.coulomb and np.any(self.charges):
             self._refresh_pairs(positions, matrix)
             self._ewald = ewald.strained(self._ewald, matrix)
@@ -420,7 +432,7 @@ class UFFCalculator(Calculator):
             total += energy
             grad += g
 
-        return Result(total, -grad, breakdown)
+        return Result(total, -grad, breakdown, stress)
 
     def _refresh_pairs(self, positions, matrix) -> None:
         """Rebuild the neighbour lists if an atom has outrun the skin.
