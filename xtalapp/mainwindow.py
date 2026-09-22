@@ -24,8 +24,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, Qt
-from PySide6.QtGui import QColor, QGuiApplication
+from PySide6.QtCore import QEvent, QFile, Qt, QUrl
+from PySide6.QtGui import QColor, QDesktopServices, QGuiApplication
 from PySide6.QtWidgets import (
     QApplication,
     QColorDialog,
@@ -373,6 +373,84 @@ class MainWindow(QMainWindow):
 
     def open_artifact(self, kind: str, path: str) -> None:
         self.workspace_shell.open_artifact(kind, path)
+
+    # -- the Workspace panel's own menu ---------------------------------
+
+    def selected_artifact(self):
+        """``(kind, path)`` of the row selected in the tree, or None."""
+        return self.file_dock.tree.selected_artifact()
+
+    def show_workspace_menu(self, position) -> None:
+        """Right-click in the Workspace panel."""
+        self._refresh_workspace_actions()
+        menu = self.build_context_menu("workspace")
+        if menu is not None:
+            menu.exec(position)
+
+    def _refresh_workspace_actions(self) -> None:
+        """What may be done to the row that is selected.
+
+        Asked when the menu is raised rather than on every selection:
+        these four are reachable from nowhere else, so between two
+        right-clicks nobody can see them.
+        """
+        selected = self.selected_artifact()
+        kind = selected[0] if selected else ""
+        self.actions_.set_enabled(
+            ["workspace_reveal", "workspace_copy_path"], bool(selected))
+        self.actions_.set_enabled(
+            ["workspace_open"], bool(selected)
+            and kind not in ("entry", "run"))
+        # A run alone.  An entry is the structure and every run under
+        # it, and a file inside a run is part of the record of what
+        # happened -- neither is a thing to throw away one piece of.
+        self.actions_.set_enabled(["workspace_trash"], kind == "run")
+
+    def open_selected_artifact(self) -> None:
+        selected = self.selected_artifact()
+        if selected is not None:
+            self.open_artifact(selected[0], str(selected[1]))
+
+    def reveal_selected_artifact(self) -> None:
+        """Show it where the desktop shows files.
+
+        The containing folder for a file and the folder itself for a
+        run, which is what "reveal" means in both: opening a run.log
+        in whatever has claimed ``.log`` is not what was asked for.
+        """
+        selected = self.selected_artifact()
+        if selected is None:
+            return
+        _kind, path = selected
+        target = path if path.is_dir() else path.parent
+        if not QDesktopServices.openUrl(
+                QUrl.fromLocalFile(str(target))):
+            self.show_message(f"could not show {target}")
+
+    def copy_selected_artifact_path(self) -> None:
+        selected = self.selected_artifact()
+        if selected is None:
+            return
+        QApplication.clipboard().setText(str(selected[1]))
+        self.show_message(f"copied the path of {selected[1].name}")
+
+    def trash_selected_run(self) -> None:
+        """Put a run's folder in the wastebasket.
+
+        The wastebasket and never an unlink: a run is hours of
+        somebody's machine and the only record of what was computed,
+        so the way back has to be the one the desktop already has.
+        """
+        selected = self.selected_artifact()
+        if selected is None or selected[0] != "run":
+            return
+        folder = selected[1]
+        if not QFile.moveToTrash(str(folder)):
+            self.show_message(f"could not move {folder.name} to the "
+                              f"trash")
+            return
+        self.show_message(f"moved {folder.name} to the trash")
+        self.refresh_workspace()
 
     def save_document(self) -> None:
         self.document_set.save_document()
@@ -810,6 +888,12 @@ class MainWindow(QMainWindow):
                  BOUNDARY_MENU, None, "orthographic",
                  "reset_view", None,
                  "edit_cell", "display_range"],
+        # The Workspace panel.  Read-only until now: a run folder
+        # could only be reached through the desktop's file browser,
+        # and the path of the thing under the cursor could not be had
+        # at all.
+        "workspace": ["workspace_open", None, "workspace_reveal",
+                      "workspace_copy_path", None, "workspace_trash"],
     }
 
     #: The entries whose wording should say how much they will take.

@@ -31,6 +31,9 @@ would change how they are spelled without buying anything.
 
 from __future__ import annotations
 
+import os
+import sys
+
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QComboBox,
@@ -72,6 +75,14 @@ BOUNDARY_ACTIONS = (
      "notation for a bond that leaves the picture, and the only one "
      "that draws a six-coordinate net vertex with six edges"),
 )
+
+
+#: What "show it in the file browser" is called where the user is.
+#: Qt has no name for it, and "Reveal in Finder" on Windows reads as
+#: a different program.
+REVEAL_LABEL = ("&Reveal in Finder" if sys.platform == "darwin"
+                else "Show in &Explorer" if os.name == "nt"
+                else "Show in &File Manager")
 
 
 #: The tooltip on ``Insert molecule...`` when it is available.  Named
@@ -500,6 +511,20 @@ def build_actions(window):
         tip="Look down the c axis")
     add("about", f"About {APP_NAME}", window.show_about,
         role=QAction.MenuRole.AboutRole)
+    add("workspace_open", "&Open", window.open_selected_artifact,
+        tip="Open what is selected in the Workspace panel -- the same "
+            "as double-clicking it.")
+    add("workspace_reveal", REVEAL_LABEL, window.reveal_selected_artifact,
+        tip="Show the selected file or run folder in the desktop's own "
+            "file browser.")
+    add("workspace_copy_path", "&Copy Path",
+        window.copy_selected_artifact_path,
+        tip="Put the full path of what is selected on the clipboard, "
+            "for a script or a terminal.")
+    add("workspace_trash", "Move to &Trash", window.trash_selected_run,
+        tip="Put a run's folder in the desktop's wastebasket.  Only a "
+            "run: the structure it was run on stays, and nothing here "
+            "is ever deleted outright.")
     add("show_log", "Show &Log", window.show_log,
         tip="Reveal the file this application writes its warnings "
             "and its crashes to")

@@ -79,6 +79,7 @@ def build_docks(window):
     window.file_dock.artifactActivated.connect(window.open_artifact)
     window.file_dock.workspaceRequested.connect(
         window._on_workspace_requested)
+    window.file_dock.contextRequested.connect(window.show_workspace_menu)
 
     # What can be run, beside what it produced: the module tree
     # picks the calculation and the workspace tree shows its

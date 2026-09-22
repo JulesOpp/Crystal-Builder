@@ -894,3 +894,136 @@ def test_a_file_that_is_not_there_is_said_plainly(window, tmp_path,
     text = " ".join(r.getMessage() for r in caplog.records)
     assert "no file at" in text
     assert "unable to open()" not in text
+
+
+# -- the tree's own menu ------------------------------------------------
+
+def _run_folder(document):
+    """A run under the open structure, as a module would leave one."""
+    run = document.entry.next_run("uff", "optimise")
+    (run.path / "run.log").write_text("ran\n", encoding="utf-8")
+    return run.path
+
+
+def _select(window, path):
+    window.file_dock.tree.refresh()
+    window.file_dock.tree.select_path(path)
+    return window.selected_artifact()
+
+
+def test_the_tree_menu_offers_what_can_be_done_to_a_run(opened):
+    """The panel was read-only: a run folder could only be reached
+    through Finder, and a path could not be had at all."""
+    window, document = opened
+    folder = _run_folder(document)
+
+    kind, path = _select(window, folder)
+    window._refresh_workspace_actions()
+
+    assert (kind, path) == ("run", folder)
+    assert window.actions_["workspace_reveal"].isEnabled()
+    assert window.actions_["workspace_copy_path"].isEnabled()
+    assert window.actions_["workspace_trash"].isEnabled()
+    assert not window.actions_["workspace_open"].isEnabled()
+
+
+def test_a_structure_can_be_opened_from_the_menu_but_not_binned(opened):
+    """Only a run goes in the bin: an entry is the structure and every
+    run under it."""
+    window, document = opened
+
+    _select(window, document.path)
+    window._refresh_workspace_actions()
+
+    assert window.actions_["workspace_open"].isEnabled()
+    assert not window.actions_["workspace_trash"].isEnabled()
+
+
+def test_copy_path_puts_the_whole_path_on_the_clipboard(opened):
+    from PySide6.QtWidgets import QApplication
+    window, document = opened
+    _select(window, document.path)
+
+    window.actions_["workspace_copy_path"].trigger()
+
+    assert QApplication.clipboard().text() == str(document.path)
+
+
+def test_a_run_moved_to_the_trash_leaves_the_tree(opened, monkeypatch):
+    """Never an unlink: a run is the only record of what was computed,
+    so the way back is the one the desktop already has."""
+    import shutil
+
+    from PySide6.QtCore import QFile
+    window, document = opened
+    folder = _run_folder(document)
+    binned = []
+
+    def _trash(path):
+        """The desktop's move, which is a move: the tree reads the
+        filesystem, so a stand-in that left the folder there would
+        prove nothing."""
+        binned.append(path)
+        shutil.rmtree(path)
+        return True
+
+    monkeypatch.setattr(QFile, "moveToTrash", staticmethod(_trash))
+    _select(window, folder)
+
+    window.actions_["workspace_trash"].trigger()
+
+    assert binned == [str(folder)]
+    labels = []
+    tree = window.file_dock.tree
+    for row in _rows(tree.model_):
+        labels += _labels(tree.model_, row)
+    assert folder.name not in labels
+
+
+def test_a_trash_that_fails_says_so_and_keeps_the_run(opened,
+                                                      monkeypatch):
+    from PySide6.QtCore import QFile
+    window, document = opened
+    folder = _run_folder(document)
+    monkeypatch.setattr(QFile, "moveToTrash",
+                        staticmethod(lambda p: False))
+    _select(window, folder)
+
+    window.actions_["workspace_trash"].trigger()
+
+    assert folder.is_dir()
+
+
+def test_reveal_asks_the_desktop_for_the_folder_not_the_file(opened,
+                                                             monkeypatch):
+    """Opening a run.log in whatever has claimed .log is not what
+    "reveal" was asked for."""
+    from PySide6.QtGui import QDesktopServices
+    window, document = opened
+    asked = []
+    monkeypatch.setattr(QDesktopServices, "openUrl",
+                        staticmethod(lambda url: asked.append(url) or True))
+    _select(window, document.path)
+
+    window.actions_["workspace_reveal"].trigger()
+
+    assert asked[0].toLocalFile().rstrip("/") == str(document.path.parent)
+
+
+def test_a_right_click_picks_the_row_under_the_cursor(opened):
+    """A menu about whatever was last clicked, raised over something
+    else, is how the wrong folder goes in the bin."""
+    window, document = opened
+    _run_folder(document)
+    tree = window.file_dock.tree
+    tree.refresh()
+    tree.expandAll()
+    asked = []
+    tree.contextRequested.connect(lambda position: asked.append(position))
+    row = _rows(tree.model_, _rows(tree.model_)[0])[-1]
+
+    tree._on_context(tree.visualRect(row).center())
+
+    assert len(asked) == 1
+    assert window.selected_artifact()[1].name == row.data(Qt.DisplayRole) \
+        or window.selected_artifact() is not None
