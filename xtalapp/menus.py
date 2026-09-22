@@ -44,7 +44,11 @@ from xtal.commands.bonds import BOND_TYPES
 from xtal.modules import MODULES
 from xtalapp import external, samples
 from xtalapp.viewport import modes, styles
-from xtalapp.viewport.view_settings import BACKGROUNDS, ViewSettings
+from xtalapp.viewport.view_settings import (
+    BACKGROUNDS,
+    FOLLOW_THE_SYSTEM,
+    ViewSettings,
+)
 
 #: Which mouse mode the element combo belongs beside on the toolbar.
 #: Named rather than positioned: the combo is the element *that* mode
@@ -593,6 +597,10 @@ def build_menus(window):
     window.actions_.fill_menu(view_menu, ["clear_overlays"])
     view_menu.addSeparator()
     background_menu = submenu(view_menu, "&Background")
+    background_menu.addAction(
+        "Follow the system",
+        lambda checked=False: window.set_background(FOLLOW_THE_SYSTEM))
+    background_menu.addSeparator()
     for name in BACKGROUNDS:
         background_menu.addAction(
             name.capitalize(),

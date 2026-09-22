@@ -556,6 +556,14 @@ stress case).
 - Structure edits go through `Document.apply(...)` with a `Change`
   flag, so they land as one undo step and refresh only the panels that
   care. Do not mutate a structure behind the Document's back.
+- **A colour a person did not choose is worked out from the palette.**
+  Hint text, a warning and a warning box are the three tones in
+  `xtalapp.widgets.tone`; nothing styles one by hand, and
+  `tone.retone` restyles them when the theme changes (a test sweeps
+  the source for the old literals). The viewport follows too --
+  *View ▸ Background ▸ Follow the system*, which is what a structure
+  with no view of its own starts as -- while **a colour chosen by
+  hand is never overwritten**, by a theme change or anything else.
 - **A panel never holds its column open.** A dock area is as wide as
   the largest minimum of any dock shown in it, tabbed behind or not,
   so no dock may need more than `xtalapp.docks.MAXIMUM_MINIMUM`

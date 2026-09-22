@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (
 
 from xtal.commands import symmetry as symmetry_commands
 from xtal.core import spacegroup as sg
+from xtalapp.widgets.tone import WARNING_BOX, set_tone
 
 MODES = [
     ("reinterpret", "Generate: the sites are the asymmetric unit",
@@ -159,9 +160,9 @@ class SpaceGroupDialog(QDialog):
             return
         lines = [report.message] + list(report.warnings)
         self.preview.setText("\n".join(lines))
-        self.preview.setStyleSheet(
-            "padding: 4px; color: #8a5a00; background: #fdf3e0;"
-            if report.warnings or not report.ok else "padding: 4px;")
+        set_tone(self.preview,
+                 WARNING_BOX if report.warnings or not report.ok
+                 else None, padding=4)
 
     # -- running -------------------------------------------------------
 

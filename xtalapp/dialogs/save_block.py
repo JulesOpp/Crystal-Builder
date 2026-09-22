@@ -41,6 +41,7 @@ from PySide6.QtWidgets import (
 
 from xtal.mof.block import problems
 from xtal.workspace import safe_name
+from xtalapp.widgets.tone import HINT, set_tone
 
 
 class SaveBlockDialog(QDialog):
@@ -109,9 +110,11 @@ class SaveBlockDialog(QDialog):
         found = self.problems()
         self.summary.setText("<br>".join(found) if found
                              else self._describe())
-        self.summary.setStyleSheet(
-            "color: palette(link-visited);" if found
-            else "color: palette(mid);")
+        if found:
+            set_tone(self.summary, None)
+            self.summary.setStyleSheet("color: palette(link-visited);")
+        else:
+            set_tone(self.summary, HINT)
         self.ok_button.setEnabled(not found)
 
     def problems(self) -> list[str]:

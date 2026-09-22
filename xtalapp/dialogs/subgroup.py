@@ -66,6 +66,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.core import subgroups as subgroup_core
+from xtalapp.widgets.tone import WARNING_BOX, set_tone
 
 
 def _times(ratio: float) -> str:
@@ -309,10 +310,9 @@ class SubgroupDialog(QDialog):
 
     def _describe(self, sub, split) -> str:
         if not split.ok:
-            self.detail.setStyleSheet(
-                "padding: 4px; color: #8a5a00; background: #fdf3e0;")
+            set_tone(self.detail, WARNING_BOX, padding=4)
             return split.message
-        self.detail.setStyleSheet("padding: 4px;")
+        set_tone(self.detail, None, padding=4)
         lines = []
         if split.splits:
             for label, element, multiplicity, pieces in split.per_site:

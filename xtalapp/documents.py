@@ -39,6 +39,7 @@ from xtal.core.structure import Structure
 from xtal.io import FORMATS
 from xtalapp import samples
 from xtalapp.document import PROJECT_EXTENSION, Document
+from xtalapp.viewport.view_settings import theme_background
 
 #: The environment variable that turns the unsaved-changes prompt off.
 NO_CONFIRM_CLOSE_ENV = "XTAL_NO_CONFIRM_CLOSE"
@@ -126,7 +127,10 @@ class DocumentSet:
             # drawn twice.
             default = self.window.settings.default_view()
             document.view.style = default["style"]
-            document.view.background = default["background"]
+            follows = default["background_follows_theme"]
+            document.view.background_follows_theme = follows
+            document.view.background = (theme_background() if follows
+                                        else default["background"])
         viewport = self.window._viewport_factory(document, self.tabs)
         if hasattr(viewport, "preview_interval_ms"):
             viewport.preview_interval_ms = \

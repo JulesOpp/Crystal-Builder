@@ -1023,7 +1023,7 @@ Nothing is autosaved.  17 styles hard-code the light-theme amber.
 | **1 — The first minute** | Shipped 2026-09-22. The viewport gets 47 % of the window on a first run (603 of 1285 px, 342 at 1024 wide; Structure keeps its 380); a start pane (open, drop, samples) in the empty window | `xtalapp/layout.py`, `xtalapp/widgets/start_pane.py` | S |
 | **2 — Say why** | Shipped 2026-09-22. A greyed module gets a row of its own in the Modules panel with its reason, opening Preferences ▸ Engines (the menu only gains visible tooltips, because the submenu stays greyed); a `NoticeBar` over the middle of the window explains  the first CIF-to-project save once; open and save errors are logged, and a missing file is said plainly | `xtalapp/menus.py`, `xtalapp/docks/modules.py`, `xtalapp/documents.py` | S |
 | **3 — Don't lose work** | Shipped 2026-09-22. Quit asks before stopping a run; autosave to `<workspace>/.autosave/`, offered back as one undo step when the entry opens | `xtalapp/autosave.py`, `xtalapp/mainwindow.py`, `xtalapp/workspace_shell.py` | M |
-| **4 — Both themes** | One palette-based warning style for the 17; *Background ▸ Follow the system* | `xtalapp/widgets/`, `xtalapp/view_settings.py` | S |
+| **4 — Both themes** | Shipped 2026-09-22. `xtalapp/widgets/tone.py`: hint, warning and warning-box tones worked out from the palette, 55 literals replaced, restyled on a theme change; *View ▸ Background ▸ Follow the system*, the default for a structure with no view of its own | `xtalapp/widgets/`, `xtalapp/view_settings.py` | S |
 | **5 — The Workspace tree's menu** | Reveal, Open, Copy path, Move to Trash | `xtalapp/docks/filetree.py` | S |
 
 ---

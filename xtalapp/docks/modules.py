@@ -42,6 +42,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.modules import MODULES
+from xtalapp.widgets.tone import HINT, set_tone
 
 #: Role carrying ``(module name, action name)`` on every leaf, and
 #: ``(module name, "")`` on every module row.
@@ -169,7 +170,7 @@ class ModulesDock(QDockWidget):
 
         self.status = QLabel("")
         self.status.setWordWrap(True)
-        self.status.setStyleSheet("color: palette(mid);")
+        set_tone(self.status, HINT)
         self.stop_button = QPushButton("Stop")
         self.stop_button.setEnabled(False)
         self.stop_button.clicked.connect(self.stopRequested)

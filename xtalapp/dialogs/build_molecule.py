@@ -55,6 +55,7 @@ from xtal.build import BuildError, library
 from xtal.commands.clipboard import PasteFragment
 from xtal.modules.build import molecule_for
 from xtalapp.dialogs import sketch
+from xtalapp.widgets.tone import HINT, set_tone
 
 #: The action that pastes into the open cell, by name.  Everything
 #: else this dialog is opened for builds a document of its own.
@@ -217,9 +218,11 @@ class BuildMoleculeDialog(QDialog):
 
     def _say(self, message: str, bad: bool = False) -> None:
         self.footer.setText(message)
-        self.footer.setStyleSheet(
-            "color: palette(link-visited);" if bad
-            else "color: palette(mid);")
+        if bad:
+            set_tone(self.footer, None)
+            self.footer.setStyleSheet("color: palette(link-visited);")
+        else:
+            set_tone(self.footer, HINT)
         self.ok_button.setEnabled(self.molecule is not None)
 
     # -- the contract --------------------------------------------------
@@ -365,14 +368,14 @@ class _Sketch(QWidget):
         self.empty = QLabel("The molecule appears here as it is "
                             "typed", self)
         self.empty.setAlignment(Qt.AlignCenter)
-        self.empty.setStyleSheet("color: palette(mid);")
+        set_tone(self.empty, HINT)
         # The offer, made where somebody is looking at the thing they
         # cannot do.  Absent when rdeditor is there, because then this
         # class is not what the dialog is showing.
         self.hint = QLabel(sketch.MISSING, self)
         self.hint.setWordWrap(True)
         self.hint.setAlignment(Qt.AlignCenter)
-        self.hint.setStyleSheet("color: palette(mid);")
+        set_tone(self.hint, HINT)
         self.hint.setVisible(not sketch.installed())
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)

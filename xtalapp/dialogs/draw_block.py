@@ -52,6 +52,7 @@ from xtal.workspace import safe_name
 from xtalapp.dialogs import sketch
 from xtalapp.dialogs.build_molecule import on_change, sketch_for
 from xtalapp.dialogs.module_form import ParamForm
+from xtalapp.widgets.tone import HINT, set_tone
 
 #: How long to wait after a keystroke before building -- the same
 #: pause :mod:`xtalapp.dialogs.build_molecule` uses and for the same
@@ -84,7 +85,7 @@ class DrawBlockDialog(QDialog):
         self.footer.setWordWrap(True)
         self.footer.setTextFormat(Qt.RichText)
         self.where = QLabel(self._where(), self)
-        self.where.setStyleSheet("color: palette(mid);")
+        set_tone(self.where, HINT)
         self.where.setWordWrap(True)
 
         self._quiet = QTimer(self)
@@ -176,9 +177,11 @@ class DrawBlockDialog(QDialog):
 
     def _say(self, message: str, ok: bool) -> None:
         self.footer.setText(message)
-        self.footer.setStyleSheet(
-            "color: palette(mid);" if ok
-            else "color: palette(link-visited);")
+        if ok:
+            set_tone(self.footer, HINT)
+        else:
+            set_tone(self.footer, None)
+            self.footer.setStyleSheet("color: palette(link-visited);")
         self.save_button.setEnabled(ok and bool(self.folder))
 
     # -- the save ---------------------------------------------------

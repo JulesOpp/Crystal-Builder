@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, Qt
 from PySide6.QtGui import QColor, QGuiApplication
 from PySide6.QtWidgets import (
     QApplication,
@@ -74,9 +74,12 @@ from xtalapp.viewport import modes
 from xtalapp.viewport.view_settings import (
     BACKGROUNDS,
     BOUNDARIES,
+    FOLLOW_THE_SYSTEM,
+    theme_background,
 )
 from xtalapp.widgets.notice import NoticeBar
 from xtalapp.widgets.start_pane import StartPane
+from xtalapp.widgets.tone import retone
 from xtalapp.workspace_shell import WorkspaceShell
 
 APP_NAME = "Crystal Builder"
@@ -462,8 +465,35 @@ class MainWindow(QMainWindow):
         a style or a colour here silently decided what the next
         structure would open as.  That default is now Preferences >
         View defaults, which says which of the two it is.
+
+        ``system`` is the one that is not a colour: it follows the
+        light or dark theme from here on, which is what stops a white
+        rectangle sitting in the middle of a dark application.
         """
-        self.set_view(background=BACKGROUNDS[name])
+        if name == FOLLOW_THE_SYSTEM:
+            self.set_view(background=theme_background(),
+                          background_follows_theme=True)
+            return
+        self.set_view(background=BACKGROUNDS[name],
+                      background_follows_theme=False)
+
+    def _follow_theme(self) -> None:
+        """Restyle what was coloured from the palette, for all of it.
+
+        The Qt chrome follows the system by itself; the hint and
+        warning tones and a viewport told to follow are worked out
+        from the palette and have to be worked out again.
+        """
+        retone(self)
+        for document in self.documents:
+            if document.view.background_follows_theme:
+                document.update_view(background=theme_background())
+
+    def changeEvent(self, event):
+        if event.type() in (QEvent.PaletteChange, QEvent.ThemeChange,
+                            QEvent.ApplicationPaletteChange):
+            self._follow_theme()
+        super().changeEvent(event)
 
     def choose_background(self) -> None:
         document = self.current_document()

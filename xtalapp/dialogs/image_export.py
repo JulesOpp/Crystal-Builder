@@ -44,6 +44,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from xtalapp.widgets.tone import HINT, set_tone
+
 #: ``(label, suffix, filter, note)`` for each format the viewport can
 #: write.  The note is the counterpart of ``ExportDialog``'s
 #: ``keeps_text``: what this format costs, said before the file is
@@ -94,7 +96,7 @@ class ImageExportDialog(QDialog):
         # old height and its last line is cut off.
         self.note = QLabel(max(NOTES.values(), key=len))
         self.note.setWordWrap(True)
-        self.note.setStyleSheet("color: palette(mid);")
+        set_tone(self.note, HINT)
         self.note.setMinimumWidth(320)
         self.note.setMinimumHeight(
             self.note.heightForWidth(self.note.minimumWidth()))
@@ -105,7 +107,7 @@ class ImageExportDialog(QDialog):
         self.scale.setSuffix("x")
         self.scale.valueChanged.connect(self._on_scale)
         self.pixels = QLabel()
-        self.pixels.setStyleSheet("color: palette(mid);")
+        set_tone(self.pixels, HINT)
         scale_row = QHBoxLayout()
         scale_row.addWidget(self.scale)
         scale_row.addWidget(self.pixels, 1)

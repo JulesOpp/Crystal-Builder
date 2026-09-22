@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.commands import cell as cell_commands
+from xtalapp.widgets.tone import WARNING, set_tone
 
 MAX_MULTIPLE = 20
 # A general P is allowed to be this large in any one entry; beyond it
@@ -125,7 +126,7 @@ class SupercellDialog(QDialog):
                 self.document.structure)
         except (ValueError, np.linalg.LinAlgError) as exc:
             self.preview.setText(str(exc))
-            self.preview.setStyleSheet("color: #8a5a00;")
+            set_tone(self.preview, WARNING)
             ok_button.setEnabled(False)
             return
         self.preview.setText(report.message)

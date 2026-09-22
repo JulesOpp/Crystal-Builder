@@ -432,18 +432,35 @@ class AppSettings:
     # -- view defaults -------------------------------------------------
 
     def default_view(self) -> dict:
+        """What a structure opened with no view of its own starts as.
+
+        The background follows the system theme unless somebody has
+        chosen a colour: a white rectangle in the middle of a dark
+        application is what this program looked like in every
+        screenshot of it.
+        """
         return {
             "style": str(self._q.value("view/style", "ball_stick")),
             "background": tuple(
                 int(v) for v in self._q.value(
                     "view/background", (255, 255, 255))),
+            "background_follows_theme": _as_bool(
+                self._q.value("view/background_follows_theme", True)),
         }
 
-    def set_default_view(self, style=None, background=None) -> None:
+    def set_default_view(self, style=None, background=None,
+                         background_follows_theme=None) -> None:
         if style is not None:
             self._q.setValue("view/style", style)
         if background is not None:
             self._q.setValue("view/background", tuple(background))
+            if background_follows_theme is None:
+                # Naming a colour is choosing one, and a choice is not
+                # a thing to overwrite when the theme changes.
+                background_follows_theme = False
+        if background_follows_theme is not None:
+            self._q.setValue("view/background_follows_theme",
+                             bool(background_follows_theme))
 
     def sync(self) -> None:
         self._q.sync()

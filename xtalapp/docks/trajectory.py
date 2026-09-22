@@ -42,6 +42,7 @@ from PySide6.QtWidgets import (
 from xtal.io.trajectory import read_trajectory
 from xtalapp.docks import scrolling
 from xtalapp.playback import IncompatibleTrajectory
+from xtalapp.widgets.tone import HINT, set_tone
 
 #: Label -> milliseconds between frames.
 SPEEDS = (
@@ -94,7 +95,7 @@ class TrajectoryDock(QDockWidget):
         self.frame_label = QLabel("")
         self.frame_label.setMinimumWidth(220)
         self.name_label = QLabel("No trajectory open")
-        self.name_label.setStyleSheet("color: palette(mid);")
+        set_tone(self.name_label, HINT)
 
         self.adopt_button = QPushButton("Adopt this frame")
         self.adopt_button.setToolTip(
