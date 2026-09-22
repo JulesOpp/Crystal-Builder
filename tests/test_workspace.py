@@ -478,3 +478,26 @@ def test_the_cli_writes_the_same_layout(tmp_path, rutile):
     assert run.name == "uff-optimise-001"
     assert {a.kind for a in run.artifacts()} == {"final", "trajectory",
                                                  "log"}
+
+
+# ------------------------------------------------------- autosave
+
+def test_an_autosave_mirrors_the_file_it_is_for(workspace, entry):
+    kept = workspace.autosave_path(entry.structure_path)
+
+    assert kept == (workspace.root / ".autosave" / "rutile"
+                    / "rutile.xtalproj")
+    assert kept != entry.structure_path
+
+
+def test_the_autosave_folder_is_not_an_entry(workspace, entry):
+    kept = workspace.autosave_path(entry.structure_path)
+    kept.parent.mkdir(parents=True)
+    kept.write_bytes(b"")
+
+    assert [e.name for e in workspace.entries()] == ["rutile"]
+
+
+def test_a_file_outside_the_workspace_has_no_autosave(workspace,
+                                                     tmp_path):
+    assert workspace.autosave_path(tmp_path / "elsewhere.cif") is None

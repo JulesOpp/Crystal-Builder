@@ -47,6 +47,7 @@ from xtal.commands.clipboard import Fragment
 from xtal.core.structure import Change
 from xtalapp import external, layout, menus, workers
 from xtalapp.actions import ActionRegistry
+from xtalapp.autosave import Autosaver
 from xtalapp.dialogs.add_atom import AddAtomDialog
 from xtalapp.dialogs.add_centroid import AddCentroidDialog
 from xtalapp.dialogs.add_hydrogens import AddHydrogensDialog
@@ -150,6 +151,8 @@ class MainWindow(QMainWindow):
         # it, so it is set once and never cleared -- see
         # ``confirm_quit``.
         self._quit_confirmed = False
+        # The same, for "a calculation is running -- stop it?".
+        self._stop_confirmed = False
 
         self.document_set = DocumentSet(self)
         self.tabs = QTabWidget()
@@ -187,6 +190,8 @@ class MainWindow(QMainWindow):
         column.addWidget(self.notice)
         column.addWidget(self.central, 1)
         self.setCentralWidget(middle)
+        # After the notice bar, which is where it offers work back.
+        self.autosaver = Autosaver(self)
         menus.build_menus(self)
         menus.build_toolbar(self)
         layout.build_docks(self)
@@ -1707,6 +1712,7 @@ class MainWindow(QMainWindow):
         dialog.layoutReset.connect(self.reset_layout)
         dialog.followGeometryChanged.connect(self._follow_geometry_set)
         dialog.toolPathsChanged.connect(self._tool_paths_changed)
+        dialog.autosaveChanged.connect(self.autosaver.apply_interval)
         return dialog
 
     def _tool_paths_changed(self) -> None:
@@ -1830,6 +1836,32 @@ class MainWindow(QMainWindow):
             QMessageBox.Yes | QMessageBox.No)
         return answer == QMessageBox.Yes
 
+    def has_running_calculation(self) -> bool:
+        """Whether a module run or a Force Field optimisation is going."""
+        ff_dock = getattr(self, "ff_dock", None)
+        return (self.module_worker is not None
+                or (ff_dock is not None and ff_dock.is_running))
+
+    def may_stop_calculations(self) -> bool:
+        """Ask, once, whether a running calculation may be stopped.
+
+        Asked *before* anything is stopped.  ``closeEvent`` used to
+        stop the run first and ask about unsaved edits second, so a
+        No to the second question kept the window and lost the run
+        anyway -- and the scan this program is built for is an
+        overnight job.  Honours ``XTAL_NO_CONFIRM_CLOSE`` like the
+        unsaved question, which is what keeps the suite from waiting.
+        """
+        if (self._stop_confirmed or no_confirm_close()
+                or not self.has_running_calculation()):
+            return True
+        answer = QMessageBox.question(
+            self, "A calculation is running",
+            "A calculation is still running. Stop it and quit?",
+            QMessageBox.Yes | QMessageBox.No)
+        self._stop_confirmed = answer == QMessageBox.Yes
+        return self._stop_confirmed
+
     def confirm_quit(self) -> bool:
         """Whether a quit that did not come through this window may go
         ahead.
@@ -1851,10 +1883,17 @@ class MainWindow(QMainWindow):
         """
         if self._quit_confirmed:
             return True
-        if not self.has_unsaved_work():
+        if not self.has_unsaved_work() and (
+                self._stop_confirmed or not self.has_running_calculation()
+                or no_confirm_close()):
             return True
         _dismiss_modals()
+        if not self.may_stop_calculations():
+            return False
         self._quit_confirmed = self.may_discard_unsaved()
+        # A quit called off is called off whole: the run's yes is not
+        # carried into a later quit it was not given for.
+        self._stop_confirmed = self._quit_confirmed
         return self._quit_confirmed
 
     def request_quit(self) -> None:
@@ -1863,6 +1902,18 @@ class MainWindow(QMainWindow):
             self.close()
 
     def closeEvent(self, event):
+        # Both questions before anything is stopped, so that No to
+        # either leaves the window, the edits and the run as they were.
+        if not self.may_stop_calculations():
+            event.ignore()
+            return
+        if not self._quit_confirmed and not self.may_discard_unsaved():
+            self._stop_confirmed = False
+            event.ignore()
+            return
+        # Agreed to, or nothing was unsaved: either way what is left in
+        # .autosave now would be work somebody chose to throw away.
+        self.autosaver.forget_modified()
         # A module run outlives the window that started it unless it
         # is stopped -- an external process especially, which would go
         # on writing into a run folder nobody is watching.
@@ -1876,9 +1927,6 @@ class MainWindow(QMainWindow):
         if getattr(self, "ff_dock", None) is not None:
             self.ff_dock.stop()
         workers.stop_all()
-        if not self._quit_confirmed and not self.may_discard_unsaved():
-            event.ignore()
-            return
         self.workspace_shell.save_session()
         self.settings.save_window(self)
         self.settings.sync()

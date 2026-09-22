@@ -145,6 +145,7 @@ class DocumentSet:
         document.planesChanged.connect(self.window._on_planes_changed)
         document.historyChanged.connect(self.window._update_history_actions)
         document.playbackChanged.connect(self.window._refresh_shell)
+        self.window.autosaver.watch(document)
         if hasattr(viewport, "statusMessage"):
             viewport.statusMessage.connect(
                 lambda text: self.window.statusBar().showMessage(text, 4000))
@@ -259,6 +260,7 @@ class DocumentSet:
         self.window._rebuild_recent_menu()
         self.window.place_in_workspace(document, path)
         self._announce_warnings(document)
+        self.window.autosaver.offer(document)
         return document
 
     def open_sample(self, name: str) -> Document | None:
@@ -676,6 +678,10 @@ class DocumentSet:
                 QMessageBox.Yes | QMessageBox.No)
             if answer != QMessageBox.Yes:
                 return
+        if document.modified:
+            # Asked and answered, or forced by a caller that asked for
+            # the whole window: its edits were thrown away on purpose.
+            self.window.autosaver.forget(document)
         widget = self.tabs.widget(index)
         self.tabs.removeTab(index)
         del self.documents[index]

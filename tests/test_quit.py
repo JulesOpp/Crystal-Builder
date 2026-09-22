@@ -256,3 +256,76 @@ def test_a_refused_quit_event_is_swallowed_and_ignored(qapp, kind):
         assert not event.isAccepted()
     finally:
         qapp.reset()
+
+
+# ======================================================================
+#  A CALCULATION THAT IS STILL GOING
+# ======================================================================
+
+@pytest.fixture
+def running(window, monkeypatch):
+    """The window believes an optimisation is going, and records any
+    attempt to stop it -- no thread, so nothing races the assertions."""
+    stopped = []
+    monkeypatch.setattr(type(window.ff_dock), "is_running",
+                        property(lambda self: True))
+    monkeypatch.setattr(window.ff_dock, "stop",
+                        lambda: stopped.append("ff"))
+    monkeypatch.setattr(window, "stop_module",
+                        lambda: stopped.append("module"))
+    return stopped
+
+
+def test_quitting_with_a_run_going_asks_first(window, running, answers):
+    window.close()
+
+    assert len(answers) == 1
+    assert "running" in answers[0][2]
+    assert not window.isVisible()
+
+
+def test_cancelling_the_quit_leaves_the_run_running(window, running,
+                                                    answers):
+    """closeEvent stopped the run before it asked anything, so a No
+    kept the window and lost the overnight scan anyway."""
+    answers.answer = QMessageBox.No
+
+    window.close()
+
+    assert running == []
+    assert window.isVisible()
+
+
+def test_the_run_is_asked_about_before_the_unsaved_work(
+        window, running, answers, rutile_cif):
+    _dirty(window, rutile_cif)
+
+    window.request_quit()
+
+    assert len(answers) == 2
+    assert "running" in answers[0][2]
+    assert "unsaved" in answers[1][2]
+    assert not window.isVisible()
+    assert "module" in running
+
+
+def test_a_no_to_the_unsaved_question_keeps_the_run_too(
+        window, running, answers, rutile_cif, monkeypatch):
+    _dirty(window, rutile_cif)
+    running.clear()             # adding a document stops the panel's
+    replies = iter([QMessageBox.Yes, QMessageBox.No])
+    monkeypatch.setattr(
+        QMessageBox, "question",
+        lambda *a, **k: answers.append(a) or next(replies))
+
+    window.request_quit()
+
+    assert running == []
+    assert window.isVisible()
+    assert not window._stop_confirmed     # the next quit asks again
+
+
+def test_a_quit_with_no_run_going_does_not_mention_one(window, answers):
+    window.close()
+
+    assert answers == []

@@ -307,6 +307,22 @@ class AppSettings:
         self._q.setValue("save/explained_conversion", bool(value))
 
     @property
+    def autosave_interval(self) -> int:
+        """Seconds between autosaves of the modified tabs; 0 is off.
+
+        Two minutes: a structure is often twenty minutes of fiddly
+        hand editing, and a project write is milliseconds.
+        """
+        try:
+            return max(0, int(self._q.value("autosave/interval", 120)))
+        except (TypeError, ValueError):
+            return 120
+
+    @autosave_interval.setter
+    def autosave_interval(self, value) -> None:
+        self._q.setValue("autosave/interval", max(0, int(value)))
+
+    @property
     def default_workspace_root(self) -> Path:
         """What the New Workspace dialog suggests.
 

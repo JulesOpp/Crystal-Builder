@@ -66,6 +66,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 WORKSPACE_FILE = "workspace.json"
+
+#: Where unsaved edits are kept between saves.  A dot-folder, so
+#: :meth:`Workspace.entries` -- which skips them -- never mistakes it
+#: for a structure, and the tree never shows it.
+AUTOSAVE_DIR = ".autosave"
 FORMAT_VERSION = 1
 
 #: The one folder in a workspace that is not a structure --
@@ -427,6 +432,27 @@ class Workspace:
             return None
         parts = relative.parts
         return self.entry(parts[0]) if parts else None
+
+    def autosave_path(self, path) -> Path | None:
+        """Where the unsaved edits of the file at ``path`` are kept.
+
+        Mirrors the file's place in the workspace -- ``MOF-5/MOF-5.cif``
+        is kept as ``.autosave/MOF-5/MOF-5.xtalproj`` -- so two files
+        of one name in two entries are two autosaves, and a project so
+        that everything a session holds survives.  **Never the file
+        itself**: Save converts and overwriting is silent, and both
+        would stop meaning what they say if a timer could write where
+        Save writes.  ``None`` for a path outside the workspace.
+        """
+        root = self.root.resolve()
+        try:
+            relative = Path(path).resolve().relative_to(root)
+        except (ValueError, OSError):
+            return None
+        if not relative.parts or relative.parts[0] == AUTOSAVE_DIR:
+            return None
+        return (self.root / AUTOSAVE_DIR / relative).with_suffix(
+            ".xtalproj")
 
     def add_structure(self, source, name: str | None = None) -> Entry:
         """Copy a structure file in, and give it a folder of its own.

@@ -476,6 +476,25 @@ stress case).
   a file that already exists. Only a document with no file at all
   still falls through to Save As, which outside the degraded path no
   longer happens.
+- **An autosave is a side file, never the document.** Every two
+  minutes (`settings.autosave_interval`, 0 is off) each tab edited
+  since the last tick is written with `Document.write_project` to
+  `<workspace>/.autosave/`, mirroring its place in the workspace
+  (`Workspace.autosave_path`) -- never where Save writes, so *Save
+  File converts* and silent overwriting keep meaning what they say. It
+  is deleted when the document is clean again (saved, or undone to the
+  file) and when unsaved work is deliberately discarded (a tab closed
+  or a quit answered yes), so what is left is exactly the work nobody
+  chose to lose. It is **offered back, never applied**: opening a file
+  with a newer autosave puts a `NoticeBar` up, and Restore is
+  `Document.recover` -- one undo step, the project's own bonds,
+  nothing perceived. `xtalapp/autosave.py`.
+- **Quitting asks before it stops anything.** `closeEvent` and
+  `confirm_quit` ask *a calculation is running -- stop it?* first and
+  the unsaved question second, and stop the run only once both are
+  yes; a No to either leaves the window, the edits and the run as they
+  were. It used to stop the run and then ask, so a No lost an
+  overnight scan anyway.
 - **The degraded window survives.** Every `workspace is None` branch
   downstream is still reachable and still means what it said: it is
   the folder-could-not-be-made path, not the default. The chooser

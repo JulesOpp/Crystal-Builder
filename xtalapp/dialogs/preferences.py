@@ -51,6 +51,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QSpinBox,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -95,6 +96,9 @@ class GeneralPage(QWidget):
     #: window owns that -- it is the same operation as
     #: ``Window > Reset layout`` and is that method, not a copy of it.
     layoutReset = Signal()
+    #: How often unsaved tabs are autosaved changed; the window's
+    #: timer is restarted from it.
+    autosaveChanged = Signal()
 
     def __init__(self, settings, parent=None):
         super().__init__(parent)
@@ -123,7 +127,27 @@ class GeneralPage(QWidget):
             "nobody reads by the third time.  A structure opened as "
             "a CIF becomes the project beside it on its first save, "
             "and that CIF is left where it is."))
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Keep unsaved changes every"))
+        self.autosave_minutes = QSpinBox()
+        self.autosave_minutes.setRange(0, 60)
+        self.autosave_minutes.setSuffix(" min")
+        self.autosave_minutes.setSpecialValueText("never")
+        self.autosave_minutes.setValue(
+            round(self.settings.autosave_interval / 60))
+        self.autosave_minutes.valueChanged.connect(self._set_autosave)
+        row.addWidget(self.autosave_minutes)
+        row.addStretch(1)
+        outer.addLayout(row)
+        outer.addWidget(_hint(
+            "Unsaved edits are copied into the workspace's .autosave "
+            "folder, never over the file, and offered back the next "
+            "time the file is opened."))
         return box
+
+    def _set_autosave(self, minutes: int) -> None:
+        self.settings.autosave_interval = minutes * 60
+        self.autosaveChanged.emit()
 
     def _workspace_box(self) -> QGroupBox:
         box = QGroupBox("Workspaces")
@@ -730,6 +754,7 @@ class PreferencesDialog(QDialog):
     layoutReset = Signal()
     followGeometryChanged = Signal(bool)
     toolPathsChanged = Signal()
+    autosaveChanged = Signal()
 
     def __init__(self, settings, parent=None):
         super().__init__(parent)
@@ -755,7 +780,8 @@ class PreferencesDialog(QDialog):
             area.setWidget(page)
             self.stack.addWidget(area)
             for name in ("recentCleared", "layoutReset",
-                         "followGeometryChanged", "toolPathsChanged"):
+                         "followGeometryChanged", "toolPathsChanged",
+                         "autosaveChanged"):
                 signal = getattr(page, name, None)
                 if signal is not None:
                     signal.connect(getattr(self, name))

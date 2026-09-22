@@ -54,13 +54,16 @@ class NoticeBar(QFrame):
     def show_notice(self, text: str, buttons=(), on_answer=None) -> None:
         """Say ``text``, offering ``buttons``; replaces any notice up.
 
-        ``on_answer`` is called once with the label pressed, or ``""``
-        when the notice is closed without one -- including when a
-        newer notice takes its place, so nothing waits on an answer
-        that will never come.
+        ``on_answer`` is called once: with the label pressed, ``""``
+        when the notice is closed without one, or ``None`` when a
+        newer notice takes its place before it was answered -- so
+        nothing waits on an answer that will never come, and a caller
+        that still wants one can ask again once the bar is free
+        (:attr:`answered` says when).
         """
-        if self.isVisible():
-            self._answer("")
+        superseded, self._handler = self._handler, None
+        if superseded is not None:
+            superseded(None)
         for button in self.buttons:
             self._row.removeWidget(button)
             button.deleteLater()
