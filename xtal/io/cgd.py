@@ -73,6 +73,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from xtal.io.text import read_text
+
 #: Every keyword a ``.cgd`` file uses.  A line starting with anything
 #: else is a continuation row belonging to the keyword above it.
 #:
@@ -158,7 +160,7 @@ class CgdFile:
 
 def read_cgd(path) -> CgdFile:
     """Every net in a ``.cgd`` file, in the order it appears."""
-    return read_cgd_string(Path(path).read_text(encoding="utf-8"))
+    return read_cgd_string(read_text(path))
 
 
 def read_cgd_string(text: str) -> CgdFile:

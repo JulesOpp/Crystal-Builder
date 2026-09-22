@@ -286,9 +286,20 @@ class Entry:
         module = safe_name(module, "module").lower().replace("-", "_")
         kind = safe_name(kind, "run").lower()
         index = max((r.index for r in self.runs()), default=0) + 1
-        path = self.path / f"{module}-{kind}-{index:03d}"
-        path.mkdir(parents=True, exist_ok=False)
-        return RunFolder(Run(path, module, kind, index))
+        # Refusing to share a folder is right; failing is not.  Two
+        # runs started together -- a scan in one tab, an optimisation
+        # in another -- both read the same maximum, and the second
+        # takes the next number rather than a FileExistsError out of
+        # a worker thread.
+        for _ in range(1000):
+            path = self.path / f"{module}-{kind}-{index:03d}"
+            try:
+                path.mkdir(parents=True, exist_ok=False)
+            except FileExistsError:
+                index += 1
+                continue
+            return RunFolder(Run(path, module, kind, index))
+        raise FileExistsError(f"no free run folder under {self.path}")
 
 
 # ======================================================================
@@ -355,14 +366,27 @@ class Workspace:
                 return cls(candidate)
         return None
 
-    @property
-    def version(self) -> int:
+    def _marker_data(self) -> dict:
+        """The marker file's contents, or ``{}`` for anything else.
+
+        Valid JSON is not the same as a marker: ``[1, 2]`` or ``null``
+        parse, and then every ``.get`` on them raises -- while the
+        workspace is being opened, before there is a window to say so
+        in, which is the path the degraded window exists to survive.
+        """
         try:
             data = json.loads(
                 (self.root / WORKSPACE_FILE).read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    @property
+    def version(self) -> int:
+        try:
+            return int(self._marker_data().get("version", 0))
+        except (TypeError, ValueError):
             return 0
-        return int(data.get("version", 0))
 
     # -- entries -------------------------------------------------------
 
@@ -514,21 +538,37 @@ class Workspace:
         at.
         """
         try:
-            data = json.loads((self.root / WORKSPACE_FILE).read_text(
-                encoding="utf-8"))
-            stored = data["session"]
+            stored = self._marker_data()["session"]
+            # A string is iterable too, and "a.cif" read as a list is
+            # five one-letter paths, one of them "." -- the root.
+            if not isinstance(stored["open"], list):
+                raise TypeError
             paths = [str(p) for p in stored["open"]]
             active = int(stored.get("active", 0))
-        except (OSError, json.JSONDecodeError, LookupError,
-                TypeError, ValueError):
+        except (LookupError, TypeError, ValueError, AttributeError):
             return {"open": [], "active": 0}
         return {"open": paths, "active": active}
 
     def session_paths(self) -> list[Path]:
-        """The remembered paths that are still there, in order."""
-        return [path for path in
-                (self.root / name for name in self.session["open"])
-                if path.exists()]
+        """The remembered paths that are still there, in order.
+
+        Only files *inside* the workspace: :meth:`set_session` never
+        writes any other kind, and a marker from a shared or synced
+        folder does not get to name ``/etc/passwd`` as a tab -- an
+        absolute right-hand side makes ``root / name`` discard the
+        root altogether.
+        """
+        root = self.root.resolve()
+        paths = []
+        for name in self.session["open"]:
+            path = self.root / name
+            try:
+                path.resolve().relative_to(root)
+            except (ValueError, OSError):
+                continue
+            if path.is_file():
+                paths.append(path)
+        return paths
 
     def set_session(self, open_paths, active: int = 0) -> None:
         """Record what is open, for the next time this is entered.
@@ -554,12 +594,7 @@ class Workspace:
             except (ValueError, OSError):
                 continue
         marker = self.root / WORKSPACE_FILE
-        try:
-            data = json.loads(marker.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            data = {}
-        if not isinstance(data, dict):
-            data = {}
+        data = self._marker_data()
         data.setdefault("format", "crystal-builder-workspace")
         data.setdefault("version", FORMAT_VERSION)
         data["session"] = {"open": relative,

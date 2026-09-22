@@ -5,6 +5,8 @@ the tree that shows it, which is what makes a run started from a script
 openable in the window -- so it has to be testable without one.
 """
 
+import json
+
 import numpy as np
 import pytest
 
@@ -172,6 +174,42 @@ def test_a_marker_edited_into_nonsense_opens_empty(workspace):
     assert workspace.session == {"open": [], "active": 0}
 
 
+@pytest.mark.parametrize("text", ["[1, 2, 3]", "null", "42", '"a"'])
+def test_a_marker_that_is_json_but_not_an_object_opens_empty(workspace,
+                                                            text):
+    """Valid JSON that is not a marker used to raise on `.get`, while
+    the workspace was being opened and before any window could say
+    why."""
+    (workspace.root / WORKSPACE_FILE).write_text(text)
+
+    assert workspace.session == {"open": [], "active": 0}
+    assert workspace.version == 0
+    workspace.set_session([])       # and writing one over it works
+
+
+def test_a_session_open_list_that_is_a_string_opens_nothing(workspace,
+                                                            entry):
+    """"a.cif" iterated is five paths, and "." among them is the root
+    -- a directory offered as a document."""
+    (workspace.root / WORKSPACE_FILE).write_text(
+        '{"session": {"open": "rutile/rutile.cif"}}')
+
+    assert workspace.session_paths() == []
+
+
+def test_a_remembered_path_outside_the_workspace_is_not_opened(
+        workspace, entry, tmp_path):
+    """A marker in a shared folder does not get to choose a file
+    anywhere on the disk; `set_session` never writes one."""
+    outside = tmp_path / "outside.cif"
+    outside.write_text("data_x\n", encoding="utf-8")
+    (workspace.root / WORKSPACE_FILE).write_text(json.dumps(
+        {"session": {"open": [outside.as_posix(), "../outside.cif",
+                              "rutile/rutile.cif"]}}))
+
+    assert workspace.session_paths() == [entry.structure_path]
+
+
 def test_a_path_outside_the_workspace_is_not_remembered(workspace,
                                                         tmp_path):
     workspace.set_session([tmp_path / "elsewhere.cif"])
@@ -239,6 +277,31 @@ def test_a_run_folder_is_named_by_what_made_it(entry):
     assert second.name == "uff-single-point-002"
     assert [r.name for r in entry.runs()] == [first.name, second.name]
     assert entry.runs()[0].label == "uff optimise 001"
+
+
+def test_two_runs_started_together_get_two_numbers(entry):
+    """Both read the same maximum; the second used to raise
+    FileExistsError from a worker thread instead of numbering."""
+    import threading
+
+    barrier = threading.Barrier(6)
+    made, failed = [], []
+
+    def start():
+        barrier.wait()
+        try:
+            made.append(entry.next_run("uff", "optimise").name)
+        except Exception as error:      # noqa: BLE001 -- recorded
+            failed.append(error)
+
+    threads = [threading.Thread(target=start) for _ in range(6)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert failed == []
+    assert sorted(made) == [f"uff-optimise-{i:03d}" for i in range(1, 7)]
 
 
 def test_the_numbering_is_read_back_from_the_folders(entry):

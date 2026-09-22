@@ -36,6 +36,7 @@ from xtal.core.p1 import expand
 from xtal.core.site import Site
 from xtal.core.spacegroup import SpaceGroup
 from xtal.core.structure import Structure
+from xtal.io.text import read_text
 
 
 def write_gen(structure: Structure, path, fractional: bool = True) -> Path:
@@ -66,7 +67,7 @@ def gen_string(structure: Structure, fractional: bool = True) -> str:
 
 def read_gen(path) -> Structure:
     path = Path(path)
-    structure = read_gen_string(path.read_text(encoding="utf-8"))
+    structure = read_gen_string(read_text(path))
     structure.meta.update({"source": str(path), "format": "gen"})
     return structure
 

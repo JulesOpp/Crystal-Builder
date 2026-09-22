@@ -272,6 +272,73 @@ Na1 Na1    1_655 explicit
     assert [(b.i, b.j, b.image) for b in kept] == [(0, 0, (1, 0, 0))]
 
 
+def test_a_bond_operation_the_group_does_not_have_is_dropped(tmp_path):
+    """`9_555` in P1 used to be read, and then refused by the writer:
+    a document that opened, looked right, and failed on Ctrl+S."""
+    text = NO_SYMMETRY_CIF + """
+loop_
+_geom_bond_atom_site_label_1
+_geom_bond_atom_site_label_2
+_geom_bond_site_symmetry_2
+_xtal_bond_kind
+Na1 Na1    9_555 explicit
+Na1 Na1    1_655 explicit
+"""
+    structure = read_cif_string(text)
+
+    assert [(b.op, b.image) for b in structure.bonds] == [(0, (1, 0, 0))]
+    write_cif(structure, tmp_path / "saved.cif")      # and it saves
+
+
+def _text_formats():
+    """Every format this program both writes and reads as text."""
+    return [f for f in FORMATS
+            if f.read and f.write and f.extensions
+            and f.name != "xtalproj" and not f.filenames
+            and (f.available is None or f.available())]
+
+
+@pytest.mark.parametrize("fmt", _text_formats(), ids=lambda f: f.name)
+def test_a_file_with_a_byte_order_mark_opens(fmt, quartz, tmp_path):
+    """Notepad, Excel and PowerShell put one there as a matter of
+    course, and four readers used to blame line one for it."""
+    path = tmp_path / f"q{fmt.extensions[0]}"
+    FORMATS.write(quartz, path)
+    path.write_bytes(b"\xef\xbb\xbf" + path.read_bytes())
+
+    assert (len(p1.expand(FORMATS.read(path)).elements)
+            == len(p1.expand(quartz).elements))
+
+
+def test_a_file_that_is_not_utf8_is_named_in_the_error(quartz,
+                                                       tmp_path):
+    """A Latin-1 byte was a UnicodeDecodeError quoting an offset, and
+    not the file."""
+    path = tmp_path / "caf\u00e9.xyz"
+    FORMATS.write(quartz, path)
+    path.write_bytes(path.read_bytes().replace(b"Lattice",
+                                               b"\xe9 Lattice", 1))
+
+    with pytest.raises(ValueError, match="caf\u00e9.xyz is not UTF-8"):
+        FORMATS.read(path)
+
+
+def test_a_second_data_block_is_reported_not_dropped(tmp_path):
+    """Block one is still what opens; the file saying it holds two is
+    what used to be missing."""
+    path = tmp_path / "two.cif"
+    path.write_text(TWO_BLOCK_CIF)
+
+    warnings = read_cif(path).meta.get("warnings", [])
+
+    assert any("holds 2 structures" in w for w in warnings)
+
+
+def test_a_one_block_file_carries_no_block_warning(rutile_cif):
+    warnings = read_cif(rutile_cif).meta.get("warnings", [])
+    assert not any("structures" in w for w in warnings)
+
+
 def _stretched_mil53():
     from xtal.core import bonding
 

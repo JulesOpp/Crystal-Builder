@@ -32,14 +32,28 @@ from xtal.core.lattice import Lattice
 from xtal.core.site import Site
 from xtal.core.spacegroup import SpaceGroup
 from xtal.core.structure import Bond, CellBond, Structure
+from xtal.io.text import has_bom, read_text
 
 
 def read_cif(path) -> Structure:
-    """Read the first data block of a CIF file."""
+    """Read the first data block of a CIF file.
+
+    A file with more than one crystal in it -- how the CSD and most
+    refinement programs ship a series -- says so in the first one's
+    warnings, which the window shows on open.  Reading block one in
+    silence answered a question about one crystal with no hint that
+    the file held four.
+    """
     blocks = read_cif_all(path)
     if not blocks:
         raise ValueError(f"no structure found in {path}")
-    return blocks[0]
+    first = blocks[0]
+    if len(blocks) > 1:
+        first.meta.setdefault("warnings", []).append(
+            f"{Path(path).name} holds {len(blocks)} structures; "
+            f"the first ({first.meta.get('title') or 'block 1'}) "
+            f"was opened")
+    return first
 
 
 #: Tags gemmi reads with ``as_int`` rather than ``as_string``, so that
@@ -88,7 +102,12 @@ def _declares_sites(block) -> bool:
 def read_cif_all(path) -> list[Structure]:
     """Read every data block that contains a structure."""
     path = Path(path)
-    doc = gemmi.cif.read_file(str(path))
+    if has_bom(path):
+        # gemmi reads bytes and takes the mark for the start of line
+        # one; see xtal.io.text.
+        doc = gemmi.cif.read_string(read_text(path))
+    else:
+        doc = gemmi.cif.read_file(str(path))
     out = []
     for block in doc:
         small = gemmi.make_small_structure_from_block(
@@ -241,6 +260,7 @@ def read_bonds(block, structure) -> None:
     if not kinds:
         return
     where = {site.label: i for i, site in enumerate(structure.sites)}
+    n_ops = len(structure.space_group.operations)
     ones = _column(block, "_geom_bond_atom_site_label_1")
     twos = _column(block, "_geom_bond_atom_site_label_2")
     codes = _column(block, "_geom_bond_site_symmetry_2")
@@ -253,6 +273,11 @@ def read_bonds(block, structure) -> None:
         if i is None or j is None:
             continue
         op, image = _symmetry_of(_at(codes, n))
+        if not 0 <= op < n_ops:
+            # `9_555` in P1 used to be read, and then refused by the
+            # writer -- a document that opened, looked right and could
+            # never be saved.  Refused here instead, one row of it.
+            continue
         told = _image_of(_at(images, n))
         try:
             order = float(_at(orders, n) or 1.0)

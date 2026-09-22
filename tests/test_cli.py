@@ -1,5 +1,7 @@
 """The headless command line."""
 
+from pathlib import Path
+
 import pytest
 
 from xtal.cli import main
@@ -103,6 +105,18 @@ def test_convert_applies_transforms(rutile_cif, tmp_path, capsys):
     text = capsys.readouterr().out
     assert "24 sites" in text               # 6 atoms x 4 cells
     assert "P1" in text
+
+
+def test_convert_refuses_to_write_over_its_input(rutile_cif, capsys):
+    """It read the whole file first, so this was never truncation: it
+    was somebody's deposited CIF replaced by this program's minimal
+    rendering of it, with no prompt."""
+    before = Path(rutile_cif).read_bytes()
+
+    assert main(["convert", rutile_cif, rutile_cif]) == 1
+
+    assert "is the input" in capsys.readouterr().err
+    assert Path(rutile_cif).read_bytes() == before
 
 
 def test_bonds(rutile_cif, capsys):
@@ -258,6 +272,36 @@ def test_run_says_what_there_is_when_the_name_is_wrong(stub_module,
 def test_a_parameter_needs_a_value(stub_module, rutile_cif, capsys):
     assert main(["run", "stub.count", rutile_cif, "-p", "steps"]) == 1
     assert "name=value" in capsys.readouterr().err
+
+
+def test_a_misspelt_param_is_refused_by_name(stub_module, rutile_cif,
+                                            capsys):
+    """`step=2` for `steps=2` used to run on every default and exit 0,
+    having measured something other than what was asked."""
+    assert main(["run", "stub.count", rutile_cif, "-p", "step=2"]) == 1
+
+    err = capsys.readouterr().err
+    assert "'step'" in err
+    assert "steps" in err                   # and what it does take
+
+
+def test_a_param_with_no_name_is_refused(stub_module, rutile_cif,
+                                         capsys):
+    assert main(["run", "stub.count", rutile_cif, "-p", "=2"]) == 1
+    assert "name=value" in capsys.readouterr().err
+
+
+def test_a_missing_file_is_named_not_quoted_from_the_c_library(
+        tmp_path, capsys):
+    """The handler that said so sat behind the OSError one and never
+    ran."""
+    missing = tmp_path / "nowhere.xyz"
+
+    assert main(["info", str(missing)]) == 1
+
+    err = capsys.readouterr().err
+    assert "no such file" in err
+    assert "nowhere.xyz" in err
 
 
 def test_a_module_that_builds_a_structure_runs_with_no_file(capsys):

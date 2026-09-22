@@ -36,6 +36,7 @@ import numpy as np
 from xtal.core.lattice import Lattice
 from xtal.core.site import Site
 from xtal.core.structure import Structure
+from xtal.io.text import read_text
 
 MODULE = "pymatgen.core.structure"
 CLASS = "Structure"
@@ -44,7 +45,7 @@ CLASS = "Structure"
 def read_pmg_json(path) -> Structure:
     """Read a pymatgen ``Structure`` dict."""
     path = Path(path)
-    data = json.loads(path.read_text(encoding="utf-8"))
+    data = json.loads(read_text(path))
     return from_dict(data, name=path.stem, source=str(path))
 
 
