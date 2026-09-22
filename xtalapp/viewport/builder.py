@@ -35,10 +35,11 @@ No Qt, no VTK: this module is tested headless.
 from __future__ import annotations
 
 import itertools
+import weakref
 
 import numpy as np
 
-from xtal.core import bonding, measure, p1, transforms
+from xtal.core import bonding, measure, p1
 from xtalapp.viewport import scene as scene_model
 from xtalapp.viewport import styles, view_settings
 from xtalapp.viewport.scene import SceneModel
@@ -610,72 +611,124 @@ def _bond_frames(graph, cell, orders, view=None) -> np.ndarray:
 
     Only worked out for the bonds that need one; a single bond is one
     tube down the axis and never asks.
+
+    The direction is the in-plane perpendicular to the bond, the plane
+    being the least-squares one through the bond and everything bonded
+    to either end of it -- both ends, because the plane of an amide or
+    a carboxylate is set by the atoms around the carbon, and a terminal
+    oxygen at the other end of the double bond has none of its own.  It
+    is pointed *at* the substituents, which is what puts an aromatic
+    ring's inner line inside the ring.
+
+    Every bond at once, because a drag rebuilds the scene on every
+    mouse event: one SVD per bond was 588 of them per step on MFU-4l,
+    30 ms of it.  The planes are now the smallest eigenvectors of one
+    stacked ``(K, 3, 3)`` scatter matrix, which is the same vector the
+    SVD's last row is.
     """
     out = np.zeros((len(graph.bonds), 3))
     if not len(graph.bonds):
         return out
+    wanted = np.flatnonzero(np.asarray(orders, dtype=float)
+                            > scene_model.SINGLE_MAX)
+    if not len(wanted):
+        return out
     matrix = cell.lattice.matrix
     cart = cell.cart
-    for k, bond in enumerate(graph.bonds):
-        if orders[k] <= scene_model.SINGLE_MAX:
-            continue
-        far = cart[bond.j] + np.asarray(bond.image) @ matrix \
-            - cart[bond.i]
-        length = float(np.linalg.norm(far))
-        if length < 1e-9:                       # pragma: no cover
-            continue
-        out[k] = _offset_direction(
-            far / length, far, _substituents(graph, cart, matrix, bond),
-            view)
+    ends, images = _bond_ends(graph)
+    i, j = ends[wanted, 0], ends[wanted, 1]
+    far = cart[j] + images[wanted] @ matrix - cart[i]
+    length = np.linalg.norm(far, axis=1)
+    real = length >= 1e-9
+    axis = far / np.where(real, length, 1.0)[:, None]
+
+    # Every substituent of every wanted bond, in a frame with that
+    # bond's atom i at the origin.
+    table = _substituents(graph)
+    slot = np.full(len(graph.bonds), -1)
+    slot[wanted] = np.arange(len(wanted))
+    table = table[slot[table[:, 0]] >= 0]
+    owner = slot[table[:, 0]]
+    at_j = table[:, 5].astype(bool)
+    origin = np.where(at_j[:, None], cart[j[owner]] - far[owner],
+                      cart[i[owner]])
+    points = cart[table[:, 1]] + table[:, 2:5] @ matrix - origin
+
+    count = np.bincount(owner, minlength=len(wanted))
+    total = np.zeros((len(wanted), 3))
+    np.add.at(total, owner, points)
+    # The cloud is the bond's own two atoms plus its substituents, and
+    # atom i sits at the origin, so it adds to the count and nothing
+    # else.
+    size = count + 2
+    centroid = (total + far) / size[:, None]
+    scatter = np.einsum("ka,kb->kab", far, far)
+    np.add.at(scatter, owner, np.einsum("ka,kb->kab", points, points))
+    scatter -= size[:, None, None] * np.einsum("ka,kb->kab",
+                                                centroid, centroid)
+    normal = np.linalg.eigh(scatter)[1][:, :, 0]
+
+    direction = np.cross(normal, axis)
+    norm = np.linalg.norm(direction, axis=1)
+    planar = real & (count > 0) & (norm >= 1e-6)
+    direction = direction / np.where(planar, norm, 1.0)[:, None]
+    middle = total / np.maximum(count, 1)[:, None]
+    inward = np.einsum("ka,ka->k", direction, middle - far / 2.0)
+    direction[inward < 0] *= -1.0                  # point it inwards
+    out[wanted[planar]] = direction[planar]
+    for k in np.flatnonzero(real & ~planar):
+        out[wanted[k]] = _view_perpendicular(axis[k], view)
     return out
 
 
-def _substituents(graph, cart, matrix, bond) -> np.ndarray:
-    """Everything bonded to either end of ``bond`` except each other,
-    in a frame with atom ``i`` at the origin.
+def _bond_ends(graph) -> tuple[np.ndarray, np.ndarray]:
+    """``(ends, images)``: each bond's two atoms and the translation of
+    the second, as arrays."""
+    if not len(graph.bonds):
+        return np.zeros((0, 2), int), np.zeros((0, 3), int)
+    ends = np.array([(b.i, b.j) for b in graph.bonds], dtype=int)
+    images = np.array([b.image for b in graph.bonds], dtype=int)
+    return ends, images
 
-    Both ends contribute, and they have to: the plane of an amide or a
-    carboxylate is set by the atoms around the carbon, and a terminal
-    oxygen at the other end of the double bond has none of its own.
+
+#: :func:`_substituents` per graph.  Keyed on the graph object and
+#: weakly, because a graph is replaced whenever the bonding changes
+#: and a table outliving it would name atoms of a different topology.
+_SUBSTITUENTS: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+
+
+def _substituents(graph) -> np.ndarray:
+    """Everything bonded to either end of each bond except each other,
+    as rows ``(bond, atom, image a, b, c, at_j)``.
+
+    ``at_j`` says which end the neighbour hangs off, and the image is
+    relative to that end.  Nothing in it depends on where the atoms
+    are, so it is kept for as long as the graph is: a rebuild for a
+    selection or a style asks again of the same graph.  A move makes a
+    new graph and pays for the table again, which on MFU-4l is 2 ms.
     """
-    image = np.asarray(bond.image, dtype=int)
-    far = cart[bond.j] + image @ matrix - cart[bond.i]
-    points = [cart[n] + t @ matrix - cart[bond.i]
-              for n, t in graph.neighbors_with_images(bond.i)
-              if not (n == bond.j and np.array_equal(t, image))]
-    points += [far + cart[n] + t @ matrix - cart[bond.j]
-               for n, t in graph.neighbors_with_images(bond.j)
-               if not (n == bond.i and np.array_equal(t, -image))]
-    return np.array(points) if points else np.zeros((0, 3))
-
-
-def _offset_direction(axis, far, others, view=None) -> np.ndarray:
-    """The in-plane perpendicular to a bond, or the best guess when
-    there is no plane.
-
-    A bare diatomic -- an isolated O2, a nitrogen sitting in a pore --
-    has no substituents and so no pi plane to be consistent with.
-    There the tubes are laid into the plane of the *screen*, which is
-    the only way a lone double bond reads as double instead of as one
-    fat tube seen edge-on.  It is fixed when the scene is built and not
-    while the camera turns, so orbiting the structure does not make the
-    picture flicker; it is re-chosen on the next rebuild.
-
-    There is nothing for that to be inconsistent with, which is why it
-    is allowed here and nowhere else.
-    """
-    if not len(others):
-        return _view_perpendicular(axis, view)
-    cloud = np.vstack([np.zeros(3), far, others])
-    _centroid, normal = transforms.best_fit_plane(cloud)
-    direction = np.cross(normal, axis)
-    length = float(np.linalg.norm(direction))
-    if length < 1e-6:                           # pragma: no cover
-        return _view_perpendicular(axis, view)
-    direction = direction / length
-    if direction @ (others.mean(axis=0) - far / 2.0) < 0:
-        direction = -direction                  # point it inwards
-    return direction
+    try:
+        return _SUBSTITUENTS[graph]
+    except (KeyError, TypeError):
+        pass
+    rows = []
+    for k, bond in enumerate(graph.bonds):
+        image = tuple(int(v) for v in bond.image)
+        back = tuple(-v for v in image)
+        for n, t in graph.neighbors_with_images(bond.i):
+            t = tuple(int(v) for v in t)
+            if not (n == bond.j and t == image):
+                rows.append((k, n, *t, 0))
+        for n, t in graph.neighbors_with_images(bond.j):
+            t = tuple(int(v) for v in t)
+            if not (n == bond.i and t == back):
+                rows.append((k, n, *t, 1))
+    table = np.array(rows, dtype=int).reshape(-1, 6)
+    try:
+        _SUBSTITUENTS[graph] = table
+    except TypeError:                           # pragma: no cover
+        pass
+    return table
 
 
 def _view_perpendicular(axis, view) -> np.ndarray:
