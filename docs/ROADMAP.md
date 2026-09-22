@@ -999,7 +999,36 @@ knows vertices and edges, not faces and tiles*.
 
 ---
 
-## 5. What this plan does not do
+## 5. The shell: the first minute, and not losing work
+
+Planned 2026-09-22 from what `features/deep-review` left open once its
+correctness, registry, MOF-builder and performance items had shipped:
+nearly all of `review/reports/ui-ux.md`, plus the small silent
+failures in `review/reports/edge-cases.md` §6-14.  The full plan, with
+its measurements, is
+`~/.claude/plans/the-branch-features-deep-review-has-imperative-pearl.md`.
+Branch `ui/deep-review-shell`, off `perf/deep-review-findings`.
+
+**Measured**: a fresh window on MOF-5 gives the viewport 388 of
+1285 px (30 %), and 133 px at 1024x700.  `closeEvent` stops a run
+before asking about unsaved edits, so Cancel does not bring it back.
+Nothing is autosaved.  17 styles hard-code the light-theme amber.
+
+**Every new string is a placeholder** for the next ui-text batch
+(§ 1, Phase 2); tests assert on mechanism, never on wording.
+
+| Phase | Delivers | Main files | Size |
+|---|---|---|---|
+| **0 — The silent class** | Non-object `workspace.json`, session paths outside the root, a BOM or Latin-1 byte, a second CIF block, a bond operation outside the group, two runs at once, `convert a a`, a misspelt `-p` | `xtal/workspace.py`, `xtal/io/text.py`, `xtal/io/cif_reader.py`, `xtal/cli.py` | S |
+| **1 — The first minute** | The viewport gets half the window on a first run; a start pane (open, drop, samples) in the empty window | `xtalapp/layout.py`, `xtalapp/widgets/start_pane.py` | S |
+| **2 — Say why** | A greyed module says why where it is greyed; the first CIF-to-project save explains itself once; open errors are logged | `xtalapp/menus.py`, `xtalapp/docks/modules.py`, `xtalapp/documents.py` | S |
+| **3 — Don't lose work** | Quit asks before stopping a run; autosave to `<workspace>/.autosave/`, offered back as one undo step when the entry opens | `xtalapp/autosave.py`, `xtalapp/mainwindow.py`, `xtalapp/workspace_shell.py` | M |
+| **4 — Both themes** | One palette-based warning style for the 17; *Background ▸ Follow the system* | `xtalapp/widgets/`, `xtalapp/view_settings.py` | S |
+| **5 — The Workspace tree's menu** | Reveal, Open, Copy path, Move to Trash | `xtalapp/docks/filetree.py` | S |
+
+---
+
+## 6. What this plan does not do
 
 * It does not touch the design principles in
   [docs/PLAN.md](PLAN.md) § 1.  Every phase keeps the core Qt-free,
