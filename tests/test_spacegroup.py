@@ -115,3 +115,38 @@ def test_bad_lookups_raise():
         SpaceGroup.from_hall("not a hall symbol")
     with pytest.raises(TypeError):
         SpaceGroup.from_any(3.7)
+
+
+def test_every_operation_undoes_to_a_lattice_translation():
+    """``inverse_of`` over every setting gemmi knows: the op it names
+    composed with the op it inverts is the identity plus the integer
+    shift it reports.  A wrong entry names a bond from its far end as
+    a different bond, and every stored bond then counts twice."""
+    from xtal.core.spacegroup import table
+    for sg in table():
+        ops = sg.operations
+        for k, op in enumerate(ops):
+            m, shift = sg.inverse_of(k)
+            back = ops[m]
+            assert np.array_equal(back.rot @ op.rot, np.eye(3)), sg.hm
+            assert np.allclose(back.rot @ op.trans + back.trans, shift,
+                               atol=1e-9), sg.hm
+
+
+def test_a_second_instance_of_a_group_reuses_its_inverse_table():
+    """The table belongs to the group and not the object: a fresh
+    ``SpaceGroup`` is made on every CIF read and Reduce to P1, and
+    rebuilding Fm-3m's table each time was 0.2 s of every one."""
+    first = SpaceGroup.from_number(225)
+    first.inverse_of(0)
+    second = SpaceGroup.from_hall(first.hall)
+    assert second is not first
+    assert second.inverse_of(5)[1] is first.inverse_of(5)[1]
+
+
+def test_an_inverse_shift_cannot_be_edited_by_its_caller():
+    """The shift is shared by every caller of the group, so one caller
+    writing into it would corrupt every later bond reversal."""
+    _m, shift = SpaceGroup.from_name("Fm-3m").inverse_of(7)
+    with pytest.raises(ValueError):
+        shift[0] = 3

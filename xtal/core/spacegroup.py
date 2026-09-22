@@ -78,6 +78,44 @@ def _lookup(hall: str) -> gemmi.SpaceGroup:
     return sg
 
 
+def _rotation_key(rot: np.ndarray) -> tuple:
+    # A space group's rotations are integer in the fractional basis,
+    # so rounding them is an exact key and not a tolerance.
+    return tuple(np.rint(rot).astype(int).ravel())
+
+
+@lru_cache(maxsize=512)
+def _inverses(hall: str) -> tuple:
+    """Every operation's ``(m, shift)`` inverse, for one Hall symbol.
+
+    Keyed on the group and not held by the instance, because the table
+    is a function of the operations alone and every CIF read, project
+    load and Reduce to P1 makes a fresh ``SpaceGroup``: Fm-3m's table
+    was 36 864 ``np.allclose`` calls, 0.2 s, paid again each time.
+    Looking the rotation up by its integer entries makes it one pass.
+    """
+    ops = _ops_from_gemmi(_lookup(hall))
+    by_rotation: dict = {}
+    for m, op in enumerate(ops):
+        by_rotation.setdefault(_rotation_key(op.rot), []).append(m)
+    out = []
+    for op in ops:
+        rot = np.linalg.inv(op.rot)
+        for m in by_rotation.get(_rotation_key(rot), ()):
+            candidate = ops[m]
+            shift = candidate.rot @ op.trans + candidate.trans
+            if np.allclose(shift, np.round(shift), atol=1e-9):
+                closing = np.round(shift).astype(int)
+                closing.flags.writeable = False     # shared by callers
+                out.append((m, closing))
+                break
+        else:                                       # pragma: no cover
+            raise ValueError(
+                f"{hall} is not closed under inversion; "
+                f"{op.triplet} has no inverse in the group")
+    return tuple(out)
+
+
 # ======================================================================
 #  SPACE GROUP
 # ======================================================================
@@ -229,29 +267,7 @@ class SpaceGroup:
         atoms backwards needs this -- most of all a bond, which is the
         same bond whichever end you name first.
         """
-        table = self._cache.get("inverses")
-        if table is None:
-            table = self._build_inverses()
-            self._cache["inverses"] = table
-        return table[int(k)]
-
-    def _build_inverses(self) -> list:
-        ops = self.operations
-        out = []
-        for op in ops:
-            rot = np.linalg.inv(op.rot)
-            for m, candidate in enumerate(ops):
-                if not np.allclose(candidate.rot, rot, atol=1e-9):
-                    continue
-                shift = candidate.rot @ op.trans + candidate.trans
-                if np.allclose(shift, np.round(shift), atol=1e-9):
-                    out.append((m, np.round(shift).astype(int)))
-                    break
-            else:                                   # pragma: no cover
-                raise ValueError(
-                    f"{self.short_name} is not closed under inversion; "
-                    f"{op.triplet} has no inverse in the group")
-        return out
+        return _inverses(self.hall)[int(k)]
 
     @property
     def triplets(self) -> list[str]:
@@ -263,8 +279,28 @@ class SpaceGroup:
 
         No de-duplication: points on a special position repeat.  Use
         ``xtal.core.symmetry.orbit`` for the unique set."""
+        rotations, translations = self.stacked
         f = np.asarray(frac, dtype=float).reshape(3)
-        return np.array([op.apply(f) for op in self.operations])
+        return rotations @ f + translations
+
+    @property
+    def stacked(self) -> tuple[np.ndarray, np.ndarray]:
+        """Every rotation as one ``(order, 3, 3)`` array and every
+        translation as one ``(order, 3)``, in operation order.
+
+        For code that asks the same question of every operation: a
+        Python loop of 192 small matrix products per point is what
+        made mapping a bond through Fm-3m cost a millisecond.
+        """
+        stacked = self._cache.get("stacked")
+        if stacked is None:
+            ops = self.operations
+            rotations = np.array([op.rot for op in ops])
+            translations = np.array([op.trans for op in ops])
+            rotations.flags.writeable = False
+            translations.flags.writeable = False
+            stacked = self._cache["stacked"] = (rotations, translations)
+        return stacked
 
     # -- flags ---------------------------------------------------------
 
