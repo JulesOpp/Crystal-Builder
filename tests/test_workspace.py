@@ -18,6 +18,7 @@ from xtal.workspace import (
     Run,
     Workspace,
     classify,
+    resolved,
     safe_name,
 )
 
@@ -615,3 +616,34 @@ def test_cli_and_panel_write_the_same_run_folder(tmp_path, entry,
     assert ours.name == theirs.name == "uff-single-point-001"
     assert _stable(ours.log_path.read_text()) \
         == _stable(theirs.log_path.read_text())
+
+
+
+# ------------------------------------------------- the same file
+
+def test_no_path_is_not_the_current_directory():
+    """``Path("").resolve()`` is the working directory, which every
+    unsaved document would then have matched."""
+    assert resolved(None) is None
+    assert resolved("") is None
+
+
+def test_a_symlink_is_the_file_it_points_at(tmp_path):
+    target = tmp_path / "a.cif"
+    target.write_text("data_a\n")
+    link = tmp_path / "b.cif"
+    link.symlink_to(target)
+
+    assert resolved(link) == resolved(target)
+
+
+def test_a_path_that_cannot_be_resolved_still_matches_itself(
+        tmp_path, monkeypatch):
+    """The tab set said None here and the tree kept the spelling; None
+    matches nothing, so the tree was right."""
+    def refuse(self, strict=False):
+        raise OSError("the volume went away")
+
+    monkeypatch.setattr(type(tmp_path), "resolve", refuse)
+
+    assert resolved(tmp_path / "x.cif") == tmp_path / "x.cif"

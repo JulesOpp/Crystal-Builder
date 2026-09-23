@@ -576,6 +576,19 @@ class ForceFieldDock(QDockWidget):
     def engine_name(self) -> str:
         return self.engine.currentData()
 
+    def options_for(self, engine: str) -> dict | None:
+        """What this panel has set up for ``engine``, or ``None`` when
+        it does not offer that engine.
+
+        :meth:`options` when it is the one selected, which is the
+        only way to read UFF's hand-built controls; otherwise the
+        engine's own form, as the user last left it.
+        """
+        if engine == self.engine_name():
+            return dict(self.options())
+        form = self.engine_forms.get(engine)
+        return dict(form.values()) if form is not None else None
+
     # ==================================================================
     #  OVERRIDING A TYPE
     # ==================================================================
@@ -849,3 +862,30 @@ class ForceFieldDock(QDockWidget):
     def closeEvent(self, event):                    # pragma: no cover
         self.stop()
         super().closeEvent(event)
+
+
+def panel_engine(window) -> str:
+    """Which engine the Force Field panel has selected."""
+    dock = getattr(window, "ff_dock", None) \
+        or getattr(window, "dftb_dock", None)
+    return str(dock.engine_name()) if dock is not None else "uff"
+
+
+def panel_options(window, engine: str) -> dict:
+    """``engine``'s options as the window's panels have them.
+
+    The one reader of the engine panels, for everything that runs an
+    engine without configuring one -- a scan, a DFTB+ band structure.
+    They were two: the scan's walked both docks through a ``getattr``
+    chain wrapped in a bare ``except``, the DFTB+ run's looked only at
+    one form, and nothing said they gave the same answer.  Empty when
+    no panel offers the engine, which gets its registry defaults.
+    """
+    for name in ("ff_dock", "dftb_dock"):
+        dock = getattr(window, name, None)
+        if dock is None:
+            continue
+        found = dock.options_for(engine)
+        if found is not None:
+            return found
+    return {}

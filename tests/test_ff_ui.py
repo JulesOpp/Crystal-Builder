@@ -533,6 +533,59 @@ def test_the_worker_can_be_cancelled_between_steps(qtbot):
     assert blocker.args[0].steps <= 3
 
 
+
+def test_one_stop_reaches_the_loop_and_the_engine(qtbot):
+    """The worker kept a threading.Event for its loop and a
+    Cancellation for the engine, set together and read apart.  One
+    record now: a Stop ends the loop *and* fires what an external
+    engine registered to kill its program with."""
+    from xtal.ff import ENGINES
+
+    structure = water(oh=1.30)
+    worker = OptimizationWorker(
+        ENGINES.build("uff", structure.copy()), structure.copy(),
+        max_steps=5000, force_tolerance=1e-12)
+    killed = []
+    worker._stop.when_cancelled(lambda: killed.append(True))
+    worker.stepped.connect(
+        lambda step: worker.cancel() if step.iteration >= 1 else None)
+    with qtbot.waitSignal(worker.finished, timeout=TIMEOUT) as blocker:
+        worker.run()
+
+    assert killed == [True]
+    assert not blocker.args[0].converged
+
+
+# ------------------------------------------------ reading the panels
+
+def test_the_dftb_run_and_the_scan_read_the_same_hamiltonian(window):
+    """Two readers of the DFTB+ panel, one of them looking only at its
+    form, and nothing tying their answers together."""
+    from xtalapp.docks.ff_panel import panel_options
+
+    form = window.dftb_dock.engine_forms["dftb"]
+    form.set_values({"method": "scc", "dispersion": "d3"})
+
+    read = panel_options(window, "dftb")
+
+    assert read["method"] == "scc" and read["dispersion"] == "d3"
+    assert read == form.values()
+
+
+def test_the_selected_engine_is_read_from_its_own_controls(window):
+    """UFF has hand-built controls rather than a form; reading a form
+    for it would miss the parameter set the user chose."""
+    from xtalapp.docks.ff_panel import panel_engine, panel_options
+
+    dock = window.ff_dock
+    dock.parameter_set.setCurrentIndex(
+        dock.parameter_set.findData("uff"))
+
+    assert panel_engine(window) == "uff"
+    assert panel_options(window, "uff")["parameter_set"] == "uff"
+    assert panel_options(window, "nonesuch") == {}
+
+
 # ------------------------------------------------------------ the plot
 
 def test_the_plot_says_so_before_there_is_anything_to_draw(qtbot):

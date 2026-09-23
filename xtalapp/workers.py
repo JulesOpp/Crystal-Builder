@@ -66,10 +66,11 @@ class OptimizationWorker(QObject):
         self.recorder = recorder
         self.recording_failed = ""
         self.options = options
-        self._cancel = threading.Event()
-        # The same Stop, for the engine: DFTB+ and xTB kill their
-        # program with it rather than finishing an SCC cycle nobody is
-        # waiting for.
+        # One Stop, read by this loop between steps and by the engine
+        # inside one: DFTB+ and xTB kill their program with it rather
+        # than finishing an SCC cycle nobody is waiting for.  It was a
+        # threading.Event beside this, set together and read apart --
+        # two records of one decision.
         from xtal.modules.job import Cancellation
         self._stop = Cancellation()
         self._resume = threading.Event()
@@ -79,7 +80,6 @@ class OptimizationWorker(QObject):
     # -- control, called from the GUI thread ---------------------------
 
     def cancel(self) -> None:
-        self._cancel.set()
         self._resume.set()           # a paused run must be able to stop
         self._stop.cancel()
 
@@ -124,7 +124,7 @@ class OptimizationWorker(QObject):
                     self._record(lambda r, s=step: r.step(s))
                     self.stepped.emit(step)
                     self._resume.wait()
-                    if self._cancel.is_set():
+                    if self._stop.requested:
                         break
             except CalculatorStopped:
                 # Killed in the middle of an evaluation.  The last step
@@ -137,7 +137,7 @@ class OptimizationWorker(QObject):
                 raise RuntimeError(
                     "the optimiser produced no steps")
             self.finished.emit(optimize.OptimizationResult(
-                converged=last.converged and not self._cancel.is_set(),
+                converged=last.converged and not self._stop.requested,
                 steps=last.iteration,
                 initial_energy=first.energy,
                 energy=last.energy,
@@ -150,7 +150,7 @@ class OptimizationWorker(QObject):
                                 self.structure.lattice.matrix),
                 stress=last.stress,
                 message=("stopped at step "
-                         f"{last.iteration}" if self._cancel.is_set()
+                         f"{last.iteration}" if self._stop.requested
                          else last.reason or last.line()),
             ))
         except Exception as exc:                    # noqa: BLE001

@@ -96,6 +96,28 @@ _RUN_DIR = re.compile(r"^(?P<module>[a-z0-9._+]+)-"
                       r"-(?P<index>\d+)$")
 
 
+def resolved(path) -> Path | None:
+    """A path as the filesystem knows it, for asking "is this the
+    same file".
+
+    Resolving settles a symlink and ``/var`` versus ``/private/var``,
+    which are one file spelled two ways.  ``None`` for no path at all
+    -- a document never saved -- and never the current directory,
+    which is what ``Path("")`` resolves to.  A path that cannot be
+    resolved (a volume gone, a permission withdrawn) is kept as it is
+    spelled rather than dropped, so it still matches itself.
+
+    The tab set and the workspace tree each had their own, and they
+    disagreed on exactly that last case.
+    """
+    if not path:
+        return None
+    try:
+        return Path(path).resolve()
+    except OSError:
+        return Path(path)
+
+
 def safe_name(text: str, fallback: str = "structure") -> str:
     """A file name that keeps its meaning on macOS and on Windows."""
     cleaned = _UNSAFE.sub("_", str(text)).strip("._")

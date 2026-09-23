@@ -54,7 +54,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from xtal.workspace import Workspace
+from xtal.workspace import Workspace, resolved
 from xtalapp.docks.filetree import FileBrowser
 
 # Role carrying (kind, path) on every row.  A tuple rather than two
@@ -217,7 +217,7 @@ class WorkspaceTree(QTreeView):
         The entry above it is bold too, so the answer survives the
         entry being folded.
         """
-        self.open_path = _resolved(path)
+        self.open_path = resolved(path)
         found = self._mark_open()
         if found is not None:
             self.setCurrentIndex(found)
@@ -230,7 +230,7 @@ class WorkspaceTree(QTreeView):
             payload = self._payload(index)
             if (self.open_path is not None and payload
                     and payload[0] not in ("entry", "run")
-                    and _resolved(payload[1]) == self.open_path):
+                    and resolved(payload[1]) == self.open_path):
                 found = index
         # The file itself, and the top-level entry it sits under.
         top = found
@@ -275,15 +275,6 @@ class WorkspaceTree(QTreeView):
             self.setExpanded(index, not self.isExpanded(index))
             return
         self.artifactActivated.emit(str(kind), str(path))
-
-
-def _resolved(path) -> Path | None:
-    if not path:
-        return None
-    try:
-        return Path(path).resolve()
-    except OSError:                                 # pragma: no cover
-        return Path(path)
 
 
 def _label(artifact) -> str:
