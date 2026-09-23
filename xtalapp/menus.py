@@ -31,6 +31,9 @@ would change how they are spelled without buying anything.
 
 from __future__ import annotations
 
+import os
+import sys
+
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QComboBox,
@@ -44,7 +47,11 @@ from xtal.commands.bonds import BOND_TYPES
 from xtal.modules import MODULES
 from xtalapp import external, samples
 from xtalapp.viewport import modes, styles
-from xtalapp.viewport.view_settings import BACKGROUNDS, ViewSettings
+from xtalapp.viewport.view_settings import (
+    BACKGROUNDS,
+    FOLLOW_THE_SYSTEM,
+    ViewSettings,
+)
 
 #: Which mouse mode the element combo belongs beside on the toolbar.
 #: Named rather than positioned: the combo is the element *that* mode
@@ -68,6 +75,14 @@ BOUNDARY_ACTIONS = (
      "notation for a bond that leaves the picture, and the only one "
      "that draws a six-coordinate net vertex with six edges"),
 )
+
+
+#: What "show it in the file browser" is called where the user is.
+#: Qt has no name for it, and "Reveal in Finder" on Windows reads as
+#: a different program.
+REVEAL_LABEL = ("&Reveal in Finder" if sys.platform == "darwin"
+                else "Show in &Explorer" if os.name == "nt"
+                else "Show in &File Manager")
 
 
 #: The tooltip on ``Insert molecule...`` when it is available.  Named
@@ -496,6 +511,20 @@ def build_actions(window):
         tip="Look down the c axis")
     add("about", f"About {APP_NAME}", window.show_about,
         role=QAction.MenuRole.AboutRole)
+    add("workspace_open", "&Open", window.open_selected_artifact,
+        tip="Open what is selected in the Workspace panel -- the same "
+            "as double-clicking it.")
+    add("workspace_reveal", REVEAL_LABEL, window.reveal_selected_artifact,
+        tip="Show the selected file or run folder in the desktop's own "
+            "file browser.")
+    add("workspace_copy_path", "&Copy Path",
+        window.copy_selected_artifact_path,
+        tip="Put the full path of what is selected on the clipboard, "
+            "for a script or a terminal.")
+    add("workspace_trash", "Move to &Trash", window.trash_selected_run,
+        tip="Put a run's folder in the desktop's wastebasket.  Only a "
+            "run: the structure it was run on stays, and nothing here "
+            "is ever deleted outright.")
     add("show_log", "Show &Log", window.show_log,
         tip="Reveal the file this application writes its warnings "
             "and its crashes to")
@@ -593,6 +622,10 @@ def build_menus(window):
     window.actions_.fill_menu(view_menu, ["clear_overlays"])
     view_menu.addSeparator()
     background_menu = submenu(view_menu, "&Background")
+    background_menu.addAction(
+        "Follow the system",
+        lambda checked=False: window.set_background(FOLLOW_THE_SYSTEM))
+    background_menu.addSeparator()
     for name in BACKGROUNDS:
         background_menu.addAction(
             name.capitalize(),
@@ -663,6 +696,9 @@ def build_modules_menu(window) -> None:
     """
     menu = window.modules_menu
     menu.clear()
+    # A greyed module's tooltip is its reason, and QMenu shows none
+    # unless asked to.
+    menu.setToolTipsVisible(True)
     window._module_actions = []
     window._module_submenus = {}
     for module in MODULES:
@@ -803,6 +839,21 @@ def build_toolbar(window):
         bar.addAction(action)
     window.addToolBar(bar)
     window.toolbar = bar
+
+def popup(menu, position) -> None:
+    """Raise a context menu and wait on it, in one place.
+
+    A seam, because ``QMenu.exec`` cannot be replaced from Python --
+    PySide resolves it in C++ and an override on the class is ignored,
+    unlike ``QDialog.exec``, which the suite's modal guard does
+    replace.  So a test that reached a context menu could not be
+    stopped by that guard and hung instead: 27 minutes of a CI job at
+    98 %, for a menu nobody could click.  ``tests/conftest.py``
+    patches this function; a test that means to open one patches it
+    itself.
+    """
+    menu.exec(position)
+
 
 def context_menu(window, kind: str):
     """The menu for whatever was right-clicked, or ``None``.

@@ -58,6 +58,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from xtalapp.widgets.tone import HINT, set_tone
+
 
 class ParamForm(QWidget):
     """The widgets for one action's parameters, and their values."""
@@ -278,7 +280,7 @@ class ModuleDialog(QDialog):
         if note:
             label = QLabel(note)
             label.setWordWrap(True)
-            label.setStyleSheet("color: palette(mid);")
+            set_tone(label, HINT)
             layout.addWidget(label)
         layout.addWidget(self.form)
         layout.addStretch(1)

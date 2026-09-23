@@ -61,6 +61,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.io.xy import read_xy, write_xy
+from xtalapp.widgets.tone import HINT, set_tone
 
 MISSING = ("matplotlib is not installed, so a pattern can be looked "
            "at in the panel but not zoomed, overlaid or exported as "
@@ -165,7 +166,7 @@ class PatternDialog(QDialog):
 
         self.status = QLabel("")
         self.status.setWordWrap(True)
-        self.status.setStyleSheet("color: palette(mid);")
+        set_tone(self.status, HINT)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Close)
         self.overlay_button = buttons.addButton(

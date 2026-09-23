@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
 from xtal.core import elements as el
 from xtal.core import neighbors
 from xtalapp.docks import scrolling
+from xtalapp.widgets.tone import WARNING_BOX, set_tone
 
 COMMON_ELEMENTS = ["H", "C", "N", "O", "F", "Na", "Mg", "Al", "Si",
                    "P", "S", "Cl", "K", "Ca", "Ti", "Cr", "Mn", "Fe",
@@ -133,8 +134,7 @@ class InspectorDock(QDockWidget):
 
         self.symmetry_note = QLabel()
         self.symmetry_note.setWordWrap(True)
-        self.symmetry_note.setStyleSheet(
-            "color: #8a5a00; background: #fdf3e0; padding: 5px;")
+        set_tone(self.symmetry_note, WARNING_BOX)
         self.symmetry_note.hide()
 
         self.details = QPlainTextEdit()

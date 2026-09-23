@@ -38,6 +38,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from xtalapp.widgets.tone import WARNING, set_tone
+
 AXES = ["a", "b", "c"]
 
 BOUNDARIES = [
@@ -145,7 +147,7 @@ class DisplayRangeDialog(QDialog):
         if empty:
             self.preview.setText(
                 f"the {', '.join(empty)} range ends before it starts")
-            self.preview.setStyleSheet("color: #8a5a00;")
+            set_tone(self.preview, WARNING)
             ok_button.setEnabled(False)
             return
         ok_button.setEnabled(True)

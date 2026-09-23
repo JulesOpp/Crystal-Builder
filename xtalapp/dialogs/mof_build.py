@@ -85,6 +85,7 @@ from xtalapp.dialogs.mof_preview import (
 )
 from xtalapp.docks.columns import Collapsible
 from xtalapp.widgets.net_search import NetSearch, add_row
+from xtalapp.widgets.tone import HINT, set_tone
 
 #: What an edge slot offers instead of a linker.  A net has edges
 #: whether or not anything is put on them, and PORMAKE builds an empty
@@ -697,7 +698,7 @@ class _SlotRow(QWidget):
 
         heading = QLabel(f"<b>{slot.label}</b>", self)
         self.count = QLabel(self)
-        self.count.setStyleSheet("color: palette(mid);")
+        set_tone(self.count, HINT)
 
         picker = QHBoxLayout()
         picker.setContentsMargins(0, 0, 0, 0)

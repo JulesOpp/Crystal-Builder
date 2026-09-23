@@ -84,6 +84,7 @@ from xtalapp.widgets.atom_types import (
     warnings_text,
 )
 from xtalapp.widgets.atom_types import HEADING as TYPES_HEADING
+from xtalapp.widgets.tone import HINT, set_tone
 from xtalapp.workers import OptimizationWorker, start_in_thread
 
 CHARGE_SOURCES = [
@@ -179,7 +180,7 @@ class ForceFieldDock(QDockWidget):
             form.changed.connect(self._show_engine)
         self.engine_note = QLabel("")
         self.engine_note.setWordWrap(True)
-        self.engine_note.setStyleSheet("color: palette(mid);")
+        set_tone(self.engine_note, HINT)
 
         # UFF4MOF was always on and nothing said so.  Offered so a
         # number can be checked against the field it extends, and so
@@ -317,7 +318,7 @@ class ForceFieldDock(QDockWidget):
         self.report.setMinimumHeight(90)
         self.notes = QLabel("")
         self.notes.setWordWrap(True)
-        self.notes.setStyleSheet("color: palette(mid);")
+        set_tone(self.notes, HINT)
 
         self.setWidget(self._build())
         self.set_document(None)

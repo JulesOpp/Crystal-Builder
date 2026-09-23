@@ -14,6 +14,7 @@ dist/
 resources/PTBP/
 resources/test/
 archive/
+JulesWork/
 
 # Zeo++, unpacked into resources/ so the module finds it without an
 # install.  78 MB of somebody else's source, object files and a built

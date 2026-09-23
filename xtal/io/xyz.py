@@ -25,6 +25,7 @@ from xtal.core.p1 import expand
 from xtal.core.site import Site
 from xtal.core.spacegroup import SpaceGroup
 from xtal.core.structure import Structure
+from xtal.io.text import read_text
 
 PAD = 5.0                       # Angstrom of vacuum for cell-less files
 _NO_LATTICE = (f"no Lattice= in the comment line; atoms were placed "
@@ -57,7 +58,7 @@ def xyz_string(structure: Structure, comment: str = "") -> str:
 
 
 def read_xyz(path) -> Structure:
-    return read_xyz_string(Path(path).read_text(encoding="utf-8"),
+    return read_xyz_string(read_text(path),
                            name=str(path))
 
 
@@ -75,7 +76,7 @@ def read_xyz_all(path) -> list[Structure]:
 
     path = Path(path)
     out = []
-    frames = read_frames(path.read_text(encoding="utf-8"))
+    frames = read_frames(read_text(path))
     for index, frame in enumerate(frames):
         if frame.lattice is not None:
             structure = frame.to_structure()

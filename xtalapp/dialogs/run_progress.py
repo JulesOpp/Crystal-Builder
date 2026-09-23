@@ -45,6 +45,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from xtalapp.widgets.tone import HINT, set_tone
+
 #: How long a run has to have been going before the window appears.
 #: Long enough that a fast module never shows one, short enough that a
 #: slow one has not yet had time to look like a hang.
@@ -82,10 +84,10 @@ class RunProgressDialog(QDialog):
         self.bar.setTextVisible(False)
 
         self.elapsed = QLabel("")
-        self.elapsed.setStyleSheet("color: palette(mid);")
+        set_tone(self.elapsed, HINT)
         self.line = QLabel("")
         self.line.setWordWrap(False)
-        self.line.setStyleSheet("color: palette(mid);")
+        set_tone(self.line, HINT)
         self.line.setMinimumWidth(360)
 
         self.stop_button = QPushButton("Stop")

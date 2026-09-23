@@ -22,6 +22,34 @@ the user's.  If a drag still misbehaves -- especially one that ends
 over the 3D view, which is still a native window -- that is the next
 place to look.
 
+### Four things the deep review's UI pass found and phase 5 left
+
+From `review/reports/ui-ux.md`, written 2026-09-18 against v0.2.1 and
+still true.  None was in the shell track's plan; each is small and
+none is urgent.
+
+* **The Move panel's buttons are live with nothing selected** --
+  Apply, Apply -, Mirror and Make planar all invite a click while the
+  panel's own header says `Nothing selected`.  Measure and Inspector
+  disable correctly, so this is an inconsistency rather than a house
+  rule.  `Edit > Paste` is the same with an empty clipboard.  And
+  `Apply -` is not a label anybody reads correctly.
+* **The Trajectory panel's labels overlap at 440 px** -- `Loop` and
+  `Speed` paint over each other, and `No trajectory open` over the
+  Adopt button.  The dock's minimum is small because the scroll area
+  has one of its own; what is missing is a sensible `minimumWidth` on
+  the *inner* widget, so it scrolls instead of being squeezed 485 px
+  below its hint.
+* **Only the Style panel reflows.**  Force Field, Move, Measure and
+  Trajectory sprout a horizontal scroll bar at 240 px and hide half
+  their controls off the right edge.  `docks.columns.ReflowColumns`
+  is the machinery and it works.
+* **Screen readers have nothing to read** -- 173 input widgets, zero
+  `accessibleName`, no `setBuddy` anywhere, so VoiceOver says "text
+  field" for a cell length.  The 142 tooltips are most of the text
+  already.  Keyboard-only navigation could not be judged through the
+  driver either, the same gap as the panel-drag entry above.
+
 ### A drag and a Supercell still rebuild from scratch
 
 Measured on MFU-4l in the real window, 2026-09-21. A single-atom drag

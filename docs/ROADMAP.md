@@ -999,7 +999,43 @@ knows vertices and edges, not faces and tiles*.
 
 ---
 
-## 5. What this plan does not do
+## 5. The shell: the first minute, and not losing work
+
+Planned 2026-09-22 from what `features/deep-review` left open once its
+correctness, registry, MOF-builder and performance items had shipped:
+nearly all of `review/reports/ui-ux.md`, plus the small silent
+failures in `review/reports/edge-cases.md` §6-14.  The full plan, with
+its measurements, is
+`~/.claude/plans/the-branch-features-deep-review-has-imperative-pearl.md`.
+Branch `ui/deep-review-shell`, off `perf/deep-review-findings`.
+
+**Measured**: a fresh window on MOF-5 gives the viewport 388 of
+1285 px (30 %), and 133 px at 1024x700.  `closeEvent` stops a run
+before asking about unsaved edits, so Cancel does not bring it back.
+Nothing is autosaved.  17 styles hard-code the light-theme amber.
+
+**Every new string is a placeholder** for the next ui-text batch
+(§ 1, Phase 2); tests assert on mechanism, never on wording.
+
+| Phase | Delivers | Main files | Size |
+|---|---|---|---|
+| **0 — The silent class** | Shipped 2026-09-22 (98c005d). Non-object `workspace.json`, session paths outside the root, a BOM or Latin-1 byte, a second CIF block, a bond operation outside the group, two runs at once, `convert a a`, a misspelt `-p` | `xtal/workspace.py`, `xtal/io/text.py`, `xtal/io/cif_reader.py`, `xtal/cli.py` | S |
+| **1 — The first minute** | Shipped 2026-09-22. The viewport gets 47 % of the window on a first run (603 of 1285 px, 342 at 1024 wide; Structure keeps its 380); a start pane (open, drop, samples) in the empty window | `xtalapp/layout.py`, `xtalapp/widgets/start_pane.py` | S |
+| **2 — Say why** | Shipped 2026-09-22. A greyed module gets a row of its own in the Modules panel with its reason, opening Preferences ▸ Engines (the menu only gains visible tooltips, because the submenu stays greyed); a `NoticeBar` over the middle of the window explains  the first CIF-to-project save once; open and save errors are logged, and a missing file is said plainly | `xtalapp/menus.py`, `xtalapp/docks/modules.py`, `xtalapp/documents.py` | S |
+| **3 — Don't lose work** | Shipped 2026-09-22. Quit asks before stopping a run; autosave to `<workspace>/.autosave/`, offered back as one undo step when the entry opens | `xtalapp/autosave.py`, `xtalapp/mainwindow.py`, `xtalapp/workspace_shell.py` | M |
+| **4 — Both themes** | Shipped 2026-09-22. `xtalapp/widgets/tone.py`: hint, warning and warning-box tones worked out from the palette, 55 literals replaced, restyled on a theme change; *View ▸ Background ▸ Follow the system*, the default for a structure with no view of its own | `xtalapp/widgets/`, `xtalapp/view_settings.py` | S |
+| **5 — The Workspace tree's menu** | Shipped 2026-09-22. Open, Reveal in Finder, Copy Path and Move to Trash (a run folder only, through `QFile.moveToTrash`), as four registry actions in `CONTEXT_MENUS["workspace"]` | `xtalapp/docks/filetree.py` | S |
+
+All six shipped on `ui/deep-review-shell`, 2026-09-22.  CLAUDE.md
+gained three invariants on the way: the autosave as a side file, the
+order the quit asks its two questions in, and a colour nobody chose
+being worked out from the palette.  What the UI review found and this
+track did not take is in [docs/TODO.md](TODO.md) § Interface; every
+new string is owed to the next ui-text batch (§ 1, Phase 2).
+
+---
+
+## 6. What this plan does not do
 
 * It does not touch the design principles in
   [docs/PLAN.md](PLAN.md) § 1.  Every phase keeps the core Qt-free,

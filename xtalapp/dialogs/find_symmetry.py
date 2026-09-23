@@ -33,6 +33,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from xtalapp.widgets.tone import WARNING_BOX, set_tone
+
 # Spanning five decades, which is the range real structures need: a
 # published CIF resolves at 10^-5, anything that has been through an
 # optimiser needs 10^-3 or looser.
@@ -94,8 +96,7 @@ class FindSymmetryDialog(QDialog):
 
         self.note = QLabel()
         self.note.setWordWrap(True)
-        self.note.setStyleSheet(
-            "color: #8a5a00; background: #fdf3e0; padding: 5px;")
+        set_tone(self.note, WARNING_BOX)
         self.note.hide()
 
         self.table = QTableWidget(0, len(COLUMNS))

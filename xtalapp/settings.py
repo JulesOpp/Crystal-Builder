@@ -290,6 +290,39 @@ class AppSettings:
         self._q.setValue("save/confirm_overwrite", bool(value))
 
     @property
+    def explained_conversion(self) -> bool:
+        """Whether the first-save conversion has been explained.
+
+        Every other program somebody has pressed Ctrl+S in updated
+        the file they opened; this one leaves the CIF where it is and
+        writes the project beside it.  The design is right and the
+        status line said only ``saved MOF-5.xtalproj`` -- so the first
+        conversion says what happened, until it is told not to.
+        """
+        return _as_bool(self._q.value("save/explained_conversion",
+                                      False))
+
+    @explained_conversion.setter
+    def explained_conversion(self, value) -> None:
+        self._q.setValue("save/explained_conversion", bool(value))
+
+    @property
+    def autosave_interval(self) -> int:
+        """Seconds between autosaves of the modified tabs; 0 is off.
+
+        Two minutes: a structure is often twenty minutes of fiddly
+        hand editing, and a project write is milliseconds.
+        """
+        try:
+            return max(0, int(self._q.value("autosave/interval", 120)))
+        except (TypeError, ValueError):
+            return 120
+
+    @autosave_interval.setter
+    def autosave_interval(self, value) -> None:
+        self._q.setValue("autosave/interval", max(0, int(value)))
+
+    @property
     def default_workspace_root(self) -> Path:
         """What the New Workspace dialog suggests.
 
@@ -399,18 +432,35 @@ class AppSettings:
     # -- view defaults -------------------------------------------------
 
     def default_view(self) -> dict:
+        """What a structure opened with no view of its own starts as.
+
+        The background follows the system theme unless somebody has
+        chosen a colour: a white rectangle in the middle of a dark
+        application is what this program looked like in every
+        screenshot of it.
+        """
         return {
             "style": str(self._q.value("view/style", "ball_stick")),
             "background": tuple(
                 int(v) for v in self._q.value(
                     "view/background", (255, 255, 255))),
+            "background_follows_theme": _as_bool(
+                self._q.value("view/background_follows_theme", True)),
         }
 
-    def set_default_view(self, style=None, background=None) -> None:
+    def set_default_view(self, style=None, background=None,
+                         background_follows_theme=None) -> None:
         if style is not None:
             self._q.setValue("view/style", style)
         if background is not None:
             self._q.setValue("view/background", tuple(background))
+            if background_follows_theme is None:
+                # Naming a colour is choosing one, and a choice is not
+                # a thing to overwrite when the theme changes.
+                background_follows_theme = False
+        if background_follows_theme is not None:
+            self._q.setValue("view/background_follows_theme",
+                             bool(background_follows_theme))
 
     def sync(self) -> None:
         self._q.sync()

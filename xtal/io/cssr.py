@@ -42,6 +42,7 @@ from xtal.core.p1 import expand
 from xtal.core.site import Site
 from xtal.core.spacegroup import SpaceGroup
 from xtal.core.structure import Structure
+from xtal.io.text import read_text
 
 #: The eight connectivity slots, kept as literal zeros.
 _LINKS = " 0" * 8
@@ -104,7 +105,7 @@ def _charges(structure: Structure, cell) -> np.ndarray:
 
 def read_cssr(path) -> Structure:
     path = Path(path)
-    structure = read_cssr_string(path.read_text(encoding="utf-8"),
+    structure = read_cssr_string(read_text(path),
                                  name=path.stem)
     structure.meta.update({"source": str(path), "format": "cssr"})
     return structure

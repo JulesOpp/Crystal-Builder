@@ -39,6 +39,7 @@ from xtal.core.structure import Structure
 from xtal.io import FORMATS
 from xtalapp import samples
 from xtalapp.document import PROJECT_EXTENSION, Document
+from xtalapp.viewport.view_settings import theme_background
 
 #: The environment variable that turns the unsaved-changes prompt off.
 NO_CONFIRM_CLOSE_ENV = "XTAL_NO_CONFIRM_CLOSE"
@@ -126,7 +127,10 @@ class DocumentSet:
             # drawn twice.
             default = self.window.settings.default_view()
             document.view.style = default["style"]
-            document.view.background = default["background"]
+            follows = default["background_follows_theme"]
+            document.view.background_follows_theme = follows
+            document.view.background = (theme_background() if follows
+                                        else default["background"])
         viewport = self.window._viewport_factory(document, self.tabs)
         if hasattr(viewport, "preview_interval_ms"):
             viewport.preview_interval_ms = \
@@ -145,6 +149,7 @@ class DocumentSet:
         document.planesChanged.connect(self.window._on_planes_changed)
         document.historyChanged.connect(self.window._update_history_actions)
         document.playbackChanged.connect(self.window._refresh_shell)
+        self.window.autosaver.watch(document)
         if hasattr(viewport, "statusMessage"):
             viewport.statusMessage.connect(
                 lambda text: self.window.statusBar().showMessage(text, 4000))
@@ -232,8 +237,19 @@ class DocumentSet:
                 f"{path.name} is already open, as {already.title}")
             return already
         try:
+            if not path.exists():
+                # Before the reader, whose own answer is gemmi's C
+                # library: "[Errno 2] unable to open() file ...".
+                raise FileNotFoundError(
+                    f"there is no file at {path.parent}")
             document = Document.load(path)
         except (ValueError, OSError, KeyError) as exc:
+            # Logged as well as shown: the box is gone once it is
+            # dismissed, and somebody who wants to send the parser's
+            # line number to a colleague had to reproduce it first.
+            # Help > Show Log is where this goes.
+            logging.getLogger("xtalapp").warning(
+                "could not open %s: %s", path, exc)
             if report:
                 QMessageBox.warning(self.window,
                                     "Could not open the file",
@@ -248,6 +264,7 @@ class DocumentSet:
         self.window._rebuild_recent_menu()
         self.window.place_in_workspace(document, path)
         self._announce_warnings(document)
+        self.window.autosaver.offer(document)
         return document
 
     def open_sample(self, name: str) -> Document | None:
@@ -411,15 +428,42 @@ class DocumentSet:
             return
         if not self._may_overwrite(target):
             return
+        source = document.path
         try:
             written = document.save(target)
         except (ValueError, OSError) as exc:
+            logging.getLogger("xtalapp").warning(
+                "could not save %s: %s", target, exc)
             QMessageBox.warning(self.window, "Could not save", str(exc))
             return
         self.window.settings.add_recent_file(written)
         self.window._rebuild_recent_menu()
         self.window.show_message(f"saved {written.name}")
         self.window.refresh_workspace()
+        if source is not None and source != written:
+            self._explain_conversion(source, written)
+
+    def _explain_conversion(self, source: Path, written: Path) -> None:
+        """Say, once, that the CIF was left and a project made.
+
+        Somebody who edits a CIF, saves, and mails "the CIF" to a
+        collaborator mails the unedited one -- and the status line was
+        all that told them otherwise, for six seconds.
+        """
+        settings = self.window.settings
+        if settings.explained_conversion:
+            return
+        dont = "Don't Show Again"
+
+        def answered(label):
+            if label == dont:
+                settings.explained_conversion = True
+
+        self.window.notice.show_notice(
+            f"Saved as {written.name}, which keeps the measurements, "
+            f"planes and view that a CIF cannot hold. {source.name} "
+            f"is unchanged; File ▸ Export writes a CIF.",
+            buttons=(dont,), on_answer=answered)
 
     def _save_target(self, document) -> Path | None:
         """The project this document is, or becomes.  ``None`` to ask.
@@ -638,6 +682,10 @@ class DocumentSet:
                 QMessageBox.Yes | QMessageBox.No)
             if answer != QMessageBox.Yes:
                 return
+        if document.modified:
+            # Asked and answered, or forced by a caller that asked for
+            # the whole window: its edits were thrown away on purpose.
+            self.window.autosaver.forget(document)
         widget = self.tabs.widget(index)
         self.tabs.removeTab(index)
         del self.documents[index]

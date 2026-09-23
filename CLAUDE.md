@@ -110,6 +110,15 @@ waiting on a person, and both must stay:
   the classmethod above it (e.g. `ModuleDialog.ask`), as
   `tests/test_run_progress_ui.py` does for Zeo++ runs.
 
+A context menu waits the same way, and **`QMenu.exec` cannot be
+patched** -- PySide resolves it in C++ and an override on the class is
+ignored, unlike `QDialog.exec`. So every context menu is raised
+through `xtalapp.menus.popup`, and that is what the guard replaces; a
+test that means to open one patches it itself. The gap cost three CI
+jobs 30 minutes each, cancelled at 98 % with nothing in the log saying
+which test it was, which is also why CI now caps at 12 minutes and
+dumps stacks at `faulthandler_timeout=180`.
+
 A test that is *about* a prompt opts out with
 `monkeypatch.delenv("XTAL_NO_CONFIRM_CLOSE")` and patches
 `QMessageBox.question` itself — see
@@ -476,6 +485,25 @@ stress case).
   a file that already exists. Only a document with no file at all
   still falls through to Save As, which outside the degraded path no
   longer happens.
+- **An autosave is a side file, never the document.** Every two
+  minutes (`settings.autosave_interval`, 0 is off) each tab edited
+  since the last tick is written with `Document.write_project` to
+  `<workspace>/.autosave/`, mirroring its place in the workspace
+  (`Workspace.autosave_path`) -- never where Save writes, so *Save
+  File converts* and silent overwriting keep meaning what they say. It
+  is deleted when the document is clean again (saved, or undone to the
+  file) and when unsaved work is deliberately discarded (a tab closed
+  or a quit answered yes), so what is left is exactly the work nobody
+  chose to lose. It is **offered back, never applied**: opening a file
+  with a newer autosave puts a `NoticeBar` up, and Restore is
+  `Document.recover` -- one undo step, the project's own bonds,
+  nothing perceived. `xtalapp/autosave.py`.
+- **Quitting asks before it stops anything.** `closeEvent` and
+  `confirm_quit` ask *a calculation is running -- stop it?* first and
+  the unsaved question second, and stop the run only once both are
+  yes; a No to either leaves the window, the edits and the run as they
+  were. It used to stop the run and then ask, so a No lost an
+  overnight scan anyway.
 - **The degraded window survives.** Every `workspace is None` branch
   downstream is still reachable and still means what it said: it is
   the folder-could-not-be-made path, not the default. The chooser
@@ -537,6 +565,14 @@ stress case).
 - Structure edits go through `Document.apply(...)` with a `Change`
   flag, so they land as one undo step and refresh only the panels that
   care. Do not mutate a structure behind the Document's back.
+- **A colour a person did not choose is worked out from the palette.**
+  Hint text, a warning and a warning box are the three tones in
+  `xtalapp.widgets.tone`; nothing styles one by hand, and
+  `tone.retone` restyles them when the theme changes (a test sweeps
+  the source for the old literals). The viewport follows too --
+  *View ▸ Background ▸ Follow the system*, which is what a structure
+  with no view of its own starts as -- while **a colour chosen by
+  hand is never overwritten**, by a theme change or anything else.
 - **A panel never holds its column open.** A dock area is as wide as
   the largest minimum of any dock shown in it, tabbed behind or not,
   so no dock may need more than `xtalapp.docks.MAXIMUM_MINIMUM`

@@ -38,6 +38,7 @@ import numpy as np
 from xtal.core.lattice import Lattice
 from xtal.core.site import Site
 from xtal.core.structure import Structure
+from xtal.io.text import read_text
 
 #: The file names VASP uses.  A POSCAR is the input and a CONTCAR the
 #: relaxed output; they are the same format and differ only in which
@@ -48,7 +49,7 @@ FILENAMES = ("POSCAR", "CONTCAR")
 def read_poscar(path) -> Structure:
     """Read a POSCAR or CONTCAR."""
     path = Path(path)
-    lines = path.read_text(encoding="utf-8").splitlines()
+    lines = read_text(path).splitlines()
     if len(lines) < 8:
         raise ValueError(f"{path.name} is too short to be a POSCAR")
 

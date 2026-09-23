@@ -10,12 +10,13 @@ jobs:
   test:
     name: ${{ matrix.os }} · py${{ matrix.python }}
     runs-on: ${{ matrix.os }}
-    # A run takes about five minutes.  The cap is here because of the
-    # deadlock in CLAUDE.md -- `worker.finished` freeing a QThread
-    # wrapper inside signal delivery wedges roughly one run in four --
-    # and a wedged job otherwise sits on the six-hour default before
-    # anyone is told the suite hung.
-    timeout-minutes: 30
+    # A run takes about five minutes.  The cap was 30 and that is
+    # what a hung job cost: a test that opened a context menu waited
+    # for a click nobody could make, and three jobs burned half an
+    # hour each to say so.  Twelve is still twice the longest honest
+    # run, and `faulthandler_timeout` below names the test before the
+    # cap is reached rather than leaving "The operation was canceled".
+    timeout-minutes: 12
     strategy:
       fail-fast: false
       matrix:
@@ -81,7 +82,12 @@ jobs:
         # `from tests.conftest_ff import ...`.  Bare `pytest` does
         # not, so every one of them failed to import with
         # `ModuleNotFoundError: No module named 'tests'`.
-        run: python -m pytest -q
+        # -o faulthandler_timeout: any test still going after three
+        # minutes dumps every thread's stack into the log, which is
+        # how a hang names itself instead of being cancelled in
+        # silence.  No honest test here is close to it: the slowest
+        # are about eleven seconds.
+        run: python -m pytest -q -o faulthandler_timeout=180
 
   lint:
     runs-on: ubuntu-latest

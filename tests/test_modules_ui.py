@@ -32,7 +32,11 @@ from xtal.modules.registry import (  # noqa: E402
     Param,
 )
 from xtalapp.dialogs.module_form import ModuleDialog, ParamForm  # noqa: E402
-from xtalapp.docks.modules import MODULE_ROLE, ModuleTree  # noqa: E402
+from xtalapp.docks.modules import (  # noqa: E402
+    MODULE_ROLE,
+    WHY_ROLE,
+    ModuleTree,
+)
 from xtalapp.mainwindow import MainWindow  # noqa: E402
 from xtalapp.settings import AppSettings  # noqa: E402
 
@@ -165,6 +169,83 @@ def test_an_unavailable_module_is_greyed_out_with_the_reason(
         MODULES.unregister("absent")
 
 
+def _absent_module(name="absent", label="Absent"):
+    return Module(
+        name=name, label=label, order=800,
+        check=lambda: Availability(
+            False, "Absent is not installed.\nIt is at example.org"),
+        actions=(Action(name="go", label="Go", run=lambda job: None),))
+
+
+def _tree_row(tree, label):
+    for row in range(tree.model_.rowCount()):
+        item = tree.model_.item(row)
+        if item.text() == label:
+            return item
+    raise AssertionError(f"no {label} row")
+
+
+def test_an_unavailable_module_says_why_in_the_panel(qtbot, settings):
+    """The reason was the tooltip of a disabled row, which macOS never
+    shows and nobody can click.  It is a row of its own now, and not
+    greyed -- while the entries under it are."""
+    MODULES.register(_absent_module())
+    try:
+        win = MainWindow(viewport_factory=StubViewport,
+                         settings=settings)
+        qtbot.addWidget(win)
+        module = _tree_row(win.modules_dock.tree, "Absent")
+
+        why = module.child(0)
+        assert why.data(WHY_ROLE)
+        assert why.isEnabled()
+        assert why.text() == "Absent is not installed."
+        assert "example.org" in why.toolTip()
+        assert not module.child(1).isEnabled()          # Go
+    finally:
+        MODULES.unregister("absent")
+
+
+def test_an_available_module_has_no_reason_row(window):
+    stub_row = _tree_row(window.modules_dock.tree, "Stub")
+    assert not any(stub_row.child(c).data(WHY_ROLE)
+                   for c in range(stub_row.rowCount()))
+
+
+def test_activating_the_reason_opens_engines_and_keeps_the_reason(
+        qtbot, settings, monkeypatch):
+    MODULES.register(_absent_module())
+    try:
+        win = MainWindow(viewport_factory=StubViewport,
+                         settings=settings)
+        qtbot.addWidget(win)
+        shown = []
+
+        class _Preferences:
+            def show_page(self, title):
+                shown.append(title)
+
+            def exec(self):
+                shown.append("exec")
+
+        monkeypatch.setattr(win, "preferences_dialog",
+                            lambda: _Preferences())
+        tree = win.modules_dock.tree
+        why = _tree_row(tree, "Absent").child(0)
+
+        tree.activated.emit(why.index())
+
+        assert shown == ["Engines", "exec"]
+        assert "example.org" in win.modules_dock.status.text()
+    finally:
+        MODULES.unregister("absent")
+
+
+def test_the_modules_menu_shows_its_tooltips(window):
+    """A greyed module's reason is its submenu's tooltip."""
+    assert window.modules_menu.toolTipsVisible()
+
+
 def test_availability_is_asked_again_when_the_menu_opens(qtbot,
                                                           settings):
     """A binary installed while the window was open should stop the
@@ -236,7 +317,10 @@ def test_an_unavailable_module_is_disabled_in_the_tree(qapp):
     item = tree.model_.item(0)
     assert not item.isEnabled()
     assert "no binary here" in item.toolTip()
-    assert not item.child(0).isEnabled()
+    entries = [item.child(c) for c in range(item.rowCount())
+               if not item.child(c).data(WHY_ROLE)]
+    assert [e.text() for e in entries] == ["Go"]
+    assert not entries[0].isEnabled()
 
 
 def _index_of(tree, module, action):

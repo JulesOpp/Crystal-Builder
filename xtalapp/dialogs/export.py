@@ -53,6 +53,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.io import FORMATS, what_is_dropped
+from xtalapp.widgets.tone import HINT, set_tone
 
 # What a round trip can lose, in the order a chemist would miss it.
 # The registry's ``keeps`` is a set of these names.
@@ -107,7 +108,7 @@ class ExportDialog(QDialog):
 
         self.keeps = QLabel()
         self.keeps.setWordWrap(True)
-        self.keeps.setStyleSheet("color: palette(mid);")
+        set_tone(self.keeps, HINT)
 
         # CIF's two answers to "what is a structure file", which are
         # both right and are not the same file.

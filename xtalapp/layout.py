@@ -79,6 +79,7 @@ def build_docks(window):
     window.file_dock.artifactActivated.connect(window.open_artifact)
     window.file_dock.workspaceRequested.connect(
         window._on_workspace_requested)
+    window.file_dock.contextRequested.connect(window.show_workspace_menu)
 
     # What can be run, beside what it produced: the module tree
     # picks the calculation and the workspace tree shows its
@@ -88,6 +89,7 @@ def build_docks(window):
     window.modules_dock.actionActivated.connect(
         window.run_module_action)
     window.modules_dock.stopRequested.connect(window.stop_module)
+    window.modules_dock.setupRequested.connect(window.show_module_setup)
 
     window.inspector_dock = InspectorDock(window)
     window.inspector_dock.deleteRequested.connect(
@@ -210,6 +212,13 @@ DEFAULT_VISIBLE = ("info_dock", "file_dock", "sites_dock")
 #: the Structure panel writes, so the cell parameters are not clipped.
 DEFAULT_LEFT_WIDTH = 380
 
+#: The right column on a first run.  Left to the Sites table's size
+#: hint it was 515 px -- eight columns at five significant figures --
+#: and with the left column that gave the viewport 388 px of a
+#: 1285 px window, and 133 px at 1024 wide.  This is a structure
+#: viewer; the table scrolls sideways and the model does not.
+DEFAULT_RIGHT_WIDTH = 300
+
 
 def apply_default_layout(window) -> None:
     """Put every dock back where it starts: Structure over the two
@@ -256,7 +265,8 @@ def apply_default_layout(window) -> None:
     # A starting width and nothing more.  It used to be each panel's
     # *minimum* -- 380 px on the Structure text -- which is also the
     # narrowest the column could ever be dragged.
-    window.resizeDocks([window.info_dock], [DEFAULT_LEFT_WIDTH],
+    window.resizeDocks([window.info_dock, window.sites_dock],
+                       [DEFAULT_LEFT_WIDTH, DEFAULT_RIGHT_WIDTH],
                        Qt.Horizontal)
 
 

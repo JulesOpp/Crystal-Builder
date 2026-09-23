@@ -66,6 +66,7 @@ from xtalapp.dialogs import landscape as landscape_window
 from xtalapp.dialogs import pattern as pattern_window
 from xtalapp.heatmap import HeatmapPlot
 from xtalapp.histogram import HistogramPlot
+from xtalapp.widgets.tone import HINT, set_tone
 
 #: The fewest rows a table is ever squeezed to.  Below this it stops
 #: being a table and becomes a slot, and the panel is better off
@@ -120,7 +121,7 @@ class ResultsDock(QDockWidget):
 
         self.note = QLabel(EMPTY)
         self.note.setWordWrap(True)
-        self.note.setStyleSheet("color: palette(mid);")
+        set_tone(self.note, HINT)
 
         self.body = QVBoxLayout()
         self.body.setContentsMargins(8, 8, 8, 8)
@@ -411,7 +412,7 @@ def _table_widget(table: Table) -> QWidget:
     if table.note:
         note = QLabel(table.note)
         note.setWordWrap(True)
-        note.setStyleSheet("color: palette(mid);")
+        set_tone(note, HINT)
         layout.addWidget(note)
     return box
 
@@ -485,7 +486,7 @@ def _histogram_widget(histogram: Histogram) -> QWidget:
     if histogram.note:
         note = QLabel(histogram.note)
         note.setWordWrap(True)
-        note.setStyleSheet("color: palette(mid);")
+        set_tone(note, HINT)
         layout.addWidget(note)
     return box
 
@@ -538,7 +539,7 @@ def _curve_widget(curve: Curve, dock) -> QWidget:
     if curve.note:
         note = QLabel(curve.note)
         note.setWordWrap(True)
-        note.setStyleSheet("color: palette(mid);")
+        set_tone(note, HINT)
         layout.addWidget(note)
     return box
 
@@ -612,7 +613,7 @@ def _surface_widget(surface: Surface, dock) -> QWidget:
     if surface.note:
         note = QLabel(surface.note)
         note.setWordWrap(True)
-        note.setStyleSheet("color: palette(mid);")
+        set_tone(note, HINT)
         layout.addWidget(note)
     return box
 
@@ -700,7 +701,7 @@ def _dos_widget(dos: Dos) -> QWidget:
     if dos.note:
         note = QLabel(dos.note)
         note.setWordWrap(True)
-        note.setStyleSheet("color: palette(mid);")
+        set_tone(note, HINT)
         layout.addWidget(note)
     return box
 
@@ -770,7 +771,7 @@ def _bands_widget(bands: Bands, dos: Dos | None = None) -> QWidget:
     if bands.note:
         note = QLabel(bands.note)
         note.setWordWrap(True)
-        note.setStyleSheet("color: palette(mid);")
+        set_tone(note, HINT)
         layout.addWidget(note)
     return box
 
@@ -853,7 +854,7 @@ def _modes_widget(modes: Modes, dock) -> QWidget:
     if modes.note:
         note = QLabel(modes.note)
         note.setWordWrap(True)
-        note.setStyleSheet("color: palette(mid);")
+        set_tone(note, HINT)
         box.layout().addWidget(note)
     return box
 

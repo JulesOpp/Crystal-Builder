@@ -48,6 +48,7 @@ from xtalapp.dialogs.pattern import (
     VECTOR_SUFFIXES,
     _figure_canvas,
 )
+from xtalapp.widgets.tone import HINT, set_tone
 
 MISSING = ("matplotlib is not installed, so a landscape can be "
            "looked at in the panel but not contoured, zoomed or "
@@ -100,7 +101,7 @@ class LandscapeDialog(QDialog):
 
         self.status = QLabel("")
         self.status.setWordWrap(True)
-        self.status.setStyleSheet("color: palette(mid);")
+        set_tone(self.status, HINT)
 
         self.levels = QSpinBox()
         self.levels.setRange(2, 60)

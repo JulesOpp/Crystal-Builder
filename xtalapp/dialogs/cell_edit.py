@@ -36,6 +36,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.core.lattice import PARAMETER_NAMES, Lattice
+from xtalapp.widgets.tone import HINT, WARNING, WARNING_BOX, set_tone
 
 KEEPS = [
     ("fractional", "Keep fractional coordinates",
@@ -78,8 +79,7 @@ class CellEditDialog(QDialog):
 
         self.symmetry_note = QLabel()
         self.symmetry_note.setWordWrap(True)
-        self.symmetry_note.setStyleSheet(
-            "color: #8a5a00; background: #fdf3e0; padding: 5px;")
+        set_tone(self.symmetry_note, WARNING_BOX)
 
         self.keeps = []
         keep_box = QVBoxLayout()
@@ -105,7 +105,7 @@ class CellEditDialog(QDialog):
             "Recalculate bonds afterwards if the new cell should "
             "change them.")
         self.bonds_note.setWordWrap(True)
-        self.bonds_note.setStyleSheet("color: palette(mid);")
+        set_tone(self.bonds_note, HINT)
 
         self.buttons = QDialogButtonBox(QDialogButtonBox.Ok
                                         | QDialogButtonBox.Cancel)
@@ -150,10 +150,9 @@ class CellEditDialog(QDialog):
             self.symmetry_note.setText(
                 f"{group.short_name} is triclinic: every parameter is "
                 f"free.")
-            self.symmetry_note.setStyleSheet("padding: 5px;")
+            set_tone(self.symmetry_note, None, padding=5)
             return
-        self.symmetry_note.setStyleSheet(
-            "color: #8a5a00; background: #fdf3e0; padding: 5px;")
+        set_tone(self.symmetry_note, WARNING_BOX)
         self.symmetry_note.setText(
             f"{group.short_name} is {group.crystal_system}: only "
             f"{', '.join(self.constraint.free_names)} "
@@ -205,7 +204,7 @@ class CellEditDialog(QDialog):
         lattice = self.lattice()
         if lattice is None or lattice.volume <= 0:
             self.preview.setText("Those angles do not close a cell.")
-            self.preview.setStyleSheet("color: #8a5a00;")
+            set_tone(self.preview, WARNING)
             ok_button.setEnabled(False)
             return
         ok_button.setEnabled(True)

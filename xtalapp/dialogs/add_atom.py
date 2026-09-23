@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 from xtal.core import elements as el
 from xtalapp.docks.inspector import COMMON_ELEMENTS
 from xtalapp.widgets.periodic_table import PeriodicTableButton
+from xtalapp.widgets.tone import WARNING, set_tone
 
 
 class AddAtomDialog(QDialog):
@@ -77,7 +78,7 @@ class AddAtomDialog(QDialog):
         self.label.setPlaceholderText("auto")
 
         self.warning = QLabel()
-        self.warning.setStyleSheet("color: #8a5a00;")
+        set_tone(self.warning, WARNING)
         self.warning.setWordWrap(True)
         self.warning.hide()
 

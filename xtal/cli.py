@@ -143,6 +143,14 @@ def cmd_symmetry(args) -> int:
 
 
 def cmd_convert(args) -> int:
+    # _load reads the whole file before anything is written, so this
+    # was never truncation -- it was a deposited CIF quietly replaced
+    # by this program's minimal rendering of it, refinement and all
+    # gone, with no prompt and no backup.
+    output = Path(args.output)
+    if output.exists() and output.resolve() == Path(args.input).resolve():
+        raise ValueError(f"{args.output} is the input; convert writes "
+                         f"a new file, so give it another name")
     structure = _apply_transforms(_load(args.input), args)
     FORMATS.write(structure, args.output)
     info = properties.info(structure)
@@ -196,7 +204,7 @@ def _calculator(structure, args):
     engine = ENGINES.get(args.engine)
     if engine.options:
         options = engine.coerce(_parsed_params(
-            getattr(args, "param", None)))
+            getattr(args, "param", None), engine.options))
     else:
         options = {"coulomb": getattr(args, "coulomb", False),
                    "charges": getattr(args, "charges", "site")}
@@ -283,7 +291,8 @@ def _recorder(args, structure, calculator, kind: str):
     from xtal.ff import ENGINES
     engine = ENGINES.get(args.engine)
     folder = entry.next_run(args.engine, kind)
-    options = (engine.coerce(_parsed_params(getattr(args, "param", None)))
+    options = (engine.coerce(_parsed_params(
+                   getattr(args, "param", None), engine.options))
                if engine.options
                else {"coulomb": args.coulomb, "charges": args.charges})
     recorder = RunRecorder(
@@ -426,7 +435,7 @@ def cmd_run(args) -> int:
         raise ValueError(f"{args.action} needs a structure to run "
                          f"against: give it a file")
     structure = _load(args.file) if args.file else None
-    params = action.coerce(_parsed_params(args.param))
+    params = action.coerce(_parsed_params(args.param, action.params))
 
     folder = None
     if args.workspace:
@@ -469,19 +478,32 @@ def _echo(text: str) -> None:
     print(text, flush=True)
 
 
-def _parsed_params(pairs) -> dict:
+def _parsed_params(pairs, params=None) -> dict:
     """``-p steps=3`` into ``{"steps": "3"}``.
 
     Left as strings: the parameter itself knows what type it is, and
     guessing here would mean guessing differently from the form.
+
+    Given the ``params`` it is for, a name none of them has is
+    refused.  ``coerce`` drops unknown names, which is right for a
+    saved session and wrong here: a dialog cannot misspell a name and
+    a person typing ``-p step=5`` can, and the run then succeeded
+    having measured something else.
     """
     out = {}
     for pair in pairs or ():
         key, sep, value = str(pair).partition("=")
-        if not sep:
+        if not sep or not key.strip():
             raise ValueError(
                 f"--param wants name=value, not {pair!r}")
         out[key.strip()] = value
+    if params is not None:
+        known = [p.name for p in params]
+        unknown = [key for key in out if key not in known]
+        if unknown:
+            raise ValueError(
+                f"no parameter called {', '.join(map(repr, unknown))}; "
+                f"this one takes {', '.join(known) or 'none'}")
     return out
 
 
@@ -673,12 +695,13 @@ def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
     try:
         return args.func(args)
+    # First: it is an OSError, and after that handler it never ran.
+    except FileNotFoundError as exc:
+        name = exc.filename or getattr(args, "file", None) or exc
+        print(f"error: no such file: {name}", file=sys.stderr)
+        return 1
     except (ValueError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)
-        return 1
-    except FileNotFoundError:
-        print(f"error: no such file: {Path(args.file).name}",
-              file=sys.stderr)
         return 1
 
 

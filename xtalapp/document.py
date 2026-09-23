@@ -322,6 +322,32 @@ class Document(QObject):
         self.titleChanged.emit(self.title)
         return target
 
+    def recover(self, path) -> str:
+        """Put an autosave's edits back, as **one undo step**.
+
+        The structure comes back through :meth:`replace_structure`, so
+        Ctrl+Z returns to the file as it was saved and the document is
+        modified -- which it is: the file does not have these edits.
+        The bonds are the project's own, so nothing is perceived.  The
+        view, the measurements and the planes come back the way a
+        project brings them on open; they were never on the undo stack
+        and are not put there now.
+        """
+        structure, view, session = read_project(Path(path))
+        label = self.replace_structure(structure,
+                                       "Restore unsaved changes")
+        self.view = ViewSettings.from_dict(view)
+        self.view_is_saved = True
+        self.selection.clear()
+        self.measurements = []
+        self.planes = []
+        self._restore_session(session)
+        self.viewChanged.emit()
+        self.selectionChanged.emit()
+        self.measurementsChanged.emit()
+        self.planesChanged.emit()
+        return label
+
     def export(self, path, selection_only: bool = False,
                **kwargs) -> Path:
         """Write a copy for something else to read.

@@ -158,6 +158,11 @@ class WorkspaceShell:
         finally:
             self._holding = False
         self._adopt(workspace)
+        # Said on a switch and not on construction: there the chooser
+        # has just asked, the title names it, and a transient here hid
+        # the "No structure open" line -- the one sentence written for
+        # a first window -- for its first six seconds.
+        self.window.show_message(f"workspace: {workspace.root}")
         self.restore_session()
         return workspace
 
@@ -175,7 +180,6 @@ class WorkspaceShell:
         self.window.settings.add_recent_workspace(workspace.root)
         self.refresh_workspace()
         self.window.refresh_title()
-        self.window.show_message(f"workspace: {workspace.root}")
 
     # -- the tabs a workspace was left with --------------------------
 

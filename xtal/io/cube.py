@@ -16,9 +16,10 @@ drawn over the crystal it came from.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 
 import numpy as np
+
+from xtal.io.text import read_text
 
 BOHR = 0.52917721090380
 
@@ -46,7 +47,7 @@ class Cube:
 
 
 def read_cube(path) -> Cube:
-    return read_cube_string(Path(path).read_text(encoding="utf-8"))
+    return read_cube_string(read_text(path))
 
 
 def read_cube_string(text: str) -> Cube:

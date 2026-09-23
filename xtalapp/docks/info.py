@@ -21,6 +21,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from xtalapp.widgets.tone import WARNING_BOX, set_tone
+
 
 class InfoDock(QDockWidget):
     """Read-only summary of the active document."""
@@ -46,8 +48,7 @@ class InfoDock(QDockWidget):
 
         self.warnings = QLabel()
         self.warnings.setWordWrap(True)
-        self.warnings.setStyleSheet(
-            "color: #8a5a00; padding: 6px; background: #fdf3e0;")
+        set_tone(self.warnings, WARNING_BOX, padding=6)
         self.warnings.hide()
 
         layout = QVBoxLayout()

@@ -402,6 +402,45 @@ def test_save_file_converts_a_structure_to_the_project_beside_it(
     assert document.path.parent == document.entry.path
 
 
+def test_the_first_conversion_is_explained_once(opened):
+    """Every other program's Ctrl+S updated the file that was opened.
+    Here the CIF is left and the project made beside it, and a
+    six-second "saved MOF-5.xtalproj" was all that said so."""
+    window, document = opened
+    cif = document.path
+
+    window.save_document()
+
+    assert not window.notice.isHidden()
+    assert cif.name in window.notice.label.text()
+    assert document.path.name in window.notice.label.text()
+
+
+def test_a_second_save_of_the_same_project_says_nothing(opened):
+    window, document = opened
+    window.save_document()
+    window.notice.close_button.click()
+
+    window.save_document()
+
+    assert window.notice.isHidden()
+
+
+def test_dont_show_again_is_remembered(opened, tmp_path, quartz):
+    window, document = opened
+    window.save_document()
+
+    window.notice.button("Don't Show Again").click()
+
+    assert window.settings.explained_conversion
+    other = tmp_path / "quartz.cif"
+    write_cif(quartz, other)
+    window.open_path(other)
+    window.save_document()
+    assert window.current_document().path.suffix == ".xtalproj"
+    assert window.notice.isHidden()
+
+
 def test_saving_again_writes_the_same_file_without_asking(opened):
     """The autouse guard raises on any modal, so reaching one here is
     the failure -- Save File never stops to ask where."""
@@ -829,3 +868,199 @@ def test_exporting_a_selection_writes_only_those_atoms(opened,
     target = document.export(tmp_path / "part.cif",
                              selection_only=True)
     assert read_cif(target).n_sites == 2
+
+
+# -- when a file will not open ----------------------------------------
+
+def test_a_file_that_will_not_open_is_logged(window, tmp_path, caplog):
+    """The box is gone once it is dismissed, and it was the only
+    record: a parser's line number had to be reproduced to be sent."""
+    bad = tmp_path / "bad.cif"
+    bad.write_text("data_x\nloop_\n_atom_site_label\n_atom_site_fract_x\n"
+                   "Na1 0.0 Cl1\n", encoding="utf-8")
+
+    with caplog.at_level("WARNING", logger="xtalapp"):
+        assert window.open_path(bad, report=False) is None
+
+    assert any("bad.cif" in r.getMessage() for r in caplog.records)
+
+
+def test_a_file_that_is_not_there_is_said_plainly(window, tmp_path,
+                                                  caplog):
+    """Not gemmi's "[Errno 2] unable to open() file"."""
+    with caplog.at_level("WARNING", logger="xtalapp"):
+        window.open_path(tmp_path / "gone.cif", report=False)
+
+    text = " ".join(r.getMessage() for r in caplog.records)
+    assert "no file at" in text
+    assert "unable to open()" not in text
+
+
+# -- the tree's own menu ------------------------------------------------
+
+def _run_folder(document):
+    """A run under the open structure, as a module would leave one."""
+    run = document.entry.next_run("uff", "optimise")
+    (run.path / "run.log").write_text("ran\n", encoding="utf-8")
+    return run.path
+
+
+def _select(window, path):
+    window.file_dock.tree.refresh()
+    window.file_dock.tree.select_path(path)
+    return window.selected_artifact()
+
+
+def test_the_tree_menu_offers_what_can_be_done_to_a_run(opened):
+    """The panel was read-only: a run folder could only be reached
+    through Finder, and a path could not be had at all."""
+    window, document = opened
+    folder = _run_folder(document)
+
+    kind, path = _select(window, folder)
+    window._refresh_workspace_actions()
+
+    assert (kind, path) == ("run", folder)
+    assert window.actions_["workspace_reveal"].isEnabled()
+    assert window.actions_["workspace_copy_path"].isEnabled()
+    assert window.actions_["workspace_trash"].isEnabled()
+    assert not window.actions_["workspace_open"].isEnabled()
+
+
+def test_a_structure_can_be_opened_from_the_menu_but_not_binned(opened):
+    """Only a run goes in the bin: an entry is the structure and every
+    run under it."""
+    window, document = opened
+
+    _select(window, document.path)
+    window._refresh_workspace_actions()
+
+    assert window.actions_["workspace_open"].isEnabled()
+    assert not window.actions_["workspace_trash"].isEnabled()
+
+
+def test_copy_path_puts_the_whole_path_on_the_clipboard(opened):
+    from PySide6.QtWidgets import QApplication
+    window, document = opened
+    _select(window, document.path)
+
+    window.actions_["workspace_copy_path"].trigger()
+
+    assert QApplication.clipboard().text() == str(document.path)
+
+
+def test_a_run_moved_to_the_trash_leaves_the_tree(opened, monkeypatch):
+    """Never an unlink: a run is the only record of what was computed,
+    so the way back is the one the desktop already has."""
+    import shutil
+
+    from PySide6.QtCore import QFile
+    window, document = opened
+    folder = _run_folder(document)
+    binned = []
+
+    def _trash(path):
+        """The desktop's move, which is a move: the tree reads the
+        filesystem, so a stand-in that left the folder there would
+        prove nothing."""
+        binned.append(path)
+        shutil.rmtree(path)
+        return True
+
+    monkeypatch.setattr(QFile, "moveToTrash", staticmethod(_trash))
+    _select(window, folder)
+
+    window.actions_["workspace_trash"].trigger()
+
+    assert binned == [str(folder)]
+    labels = []
+    tree = window.file_dock.tree
+    for row in _rows(tree.model_):
+        labels += _labels(tree.model_, row)
+    assert folder.name not in labels
+
+
+def test_a_trash_that_fails_says_so_and_keeps_the_run(opened,
+                                                      monkeypatch):
+    from PySide6.QtCore import QFile
+    window, document = opened
+    folder = _run_folder(document)
+    monkeypatch.setattr(QFile, "moveToTrash",
+                        staticmethod(lambda p: False))
+    _select(window, folder)
+
+    window.actions_["workspace_trash"].trigger()
+
+    assert folder.is_dir()
+
+
+def test_reveal_asks_the_desktop_for_the_folder_not_the_file(opened,
+                                                             monkeypatch):
+    """Opening a run.log in whatever has claimed .log is not what
+    "reveal" was asked for."""
+    from PySide6.QtGui import QDesktopServices
+    window, document = opened
+    asked = []
+    monkeypatch.setattr(QDesktopServices, "openUrl",
+                        staticmethod(lambda url: asked.append(url) or True))
+    _select(window, document.path)
+
+    window.actions_["workspace_reveal"].trigger()
+
+    # Compared as a path: QUrl spells a Windows one with forward
+    # slashes and `str(Path)` with backslashes, so the two strings
+    # differ where the two locations do not.
+    assert Path(asked[0].toLocalFile()) == document.path.parent
+
+
+def test_a_right_click_picks_the_row_under_the_cursor(opened,
+                                                      monkeypatch):
+    """A menu about whatever was last clicked, raised over something
+    else, is how the wrong folder goes in the bin.
+
+    The window's own slot is disconnected first: it raises the menu,
+    and a menu waits for a click that no test makes.
+    """
+    window, document = opened
+    folder = _run_folder(document)
+    window.file_dock.contextRequested.disconnect(
+        window.show_workspace_menu)
+    tree = window.file_dock.tree
+    tree.refresh()
+    tree.expandAll()
+    asked = []
+    tree.contextRequested.connect(lambda position: asked.append(position))
+    row = tree._find(folder)
+
+    tree._on_context(tree.visualRect(row).center())
+
+    assert len(asked) == 1
+    assert window.selected_artifact() == ("run", folder)
+
+
+def test_a_context_menu_nobody_patched_fails_rather_than_waits(opened):
+    """The guard, checking itself.  QMenu.exec cannot be replaced from
+    Python, so the guard is on xtalapp.menus.popup -- and a guard that
+    silently stopped working would be paid for in 30-minute CI jobs."""
+    window, _document = opened
+
+    with pytest.raises(AssertionError, match="wait for a click"):
+        window.show_context_menu("view", None)
+
+
+def test_the_menu_is_raised_where_the_click_was(opened, monkeypatch):
+    """The wiring from the panel to the window, without the modal."""
+    from xtalapp import menus
+    window, document = opened
+    folder = _run_folder(document)
+    _select(window, folder)
+    raised = []
+    monkeypatch.setattr(menus, "popup",
+                        lambda menu, position: raised.append(
+                            ([a.text() for a in menu.actions()],
+                             position)))
+
+    window.file_dock.contextRequested.emit("here")
+
+    assert raised[0][1] == "here"
+    assert "Move to &Trash" in raised[0][0]

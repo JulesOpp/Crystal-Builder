@@ -24,8 +24,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QGuiApplication
+from PySide6.QtCore import QEvent, QFile, Qt, QUrl
+from PySide6.QtGui import QColor, QDesktopServices, QGuiApplication
 from PySide6.QtWidgets import (
     QApplication,
     QColorDialog,
@@ -33,7 +33,10 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QMessageBox,
+    QStackedWidget,
     QTabWidget,
+    QVBoxLayout,
+    QWidget,
 )
 
 from xtal.build import MISSING as NO_RDKIT
@@ -44,6 +47,7 @@ from xtal.commands.clipboard import Fragment
 from xtal.core.structure import Change
 from xtalapp import external, layout, menus, workers
 from xtalapp.actions import ActionRegistry
+from xtalapp.autosave import Autosaver
 from xtalapp.dialogs.add_atom import AddAtomDialog
 from xtalapp.dialogs.add_centroid import AddCentroidDialog
 from xtalapp.dialogs.add_hydrogens import AddHydrogensDialog
@@ -70,7 +74,12 @@ from xtalapp.viewport import modes
 from xtalapp.viewport.view_settings import (
     BACKGROUNDS,
     BOUNDARIES,
+    FOLLOW_THE_SYSTEM,
+    theme_background,
 )
+from xtalapp.widgets.notice import NoticeBar
+from xtalapp.widgets.start_pane import StartPane
+from xtalapp.widgets.tone import retone
 from xtalapp.workspace_shell import WorkspaceShell
 
 APP_NAME = "Crystal Builder"
@@ -145,6 +154,8 @@ class MainWindow(QMainWindow):
         # it, so it is set once and never cleared -- see
         # ``confirm_quit``.
         self._quit_confirmed = False
+        # The same, for "a calculation is running -- stop it?".
+        self._stop_confirmed = False
 
         self.document_set = DocumentSet(self)
         self.tabs = QTabWidget()
@@ -163,10 +174,27 @@ class MainWindow(QMainWindow):
         self.tabs.setMovable(True)
         self.tabs.tabCloseRequested.connect(self.close_document)
         self.tabs.currentChanged.connect(self._on_tab_changed)
-        self.setCentralWidget(self.tabs)
 
         self.actions_ = ActionRegistry(self)
         menus.build_actions(self)
+        # The start pane is built from the actions, so after them; it
+        # and the tabs share the middle, one at a time.
+        self.start_pane = StartPane(self)
+        self.central = QStackedWidget()
+        self.central.addWidget(self.start_pane)
+        self.central.addWidget(self.tabs)
+        # And a bar above both, for what a status line is too brief
+        # for and a modal too much.
+        self.notice = NoticeBar()
+        middle = QWidget()
+        column = QVBoxLayout(middle)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(0)
+        column.addWidget(self.notice)
+        column.addWidget(self.central, 1)
+        self.setCentralWidget(middle)
+        # After the notice bar, which is where it offers work back.
+        self.autosaver = Autosaver(self)
         menus.build_menus(self)
         menus.build_toolbar(self)
         layout.build_docks(self)
@@ -346,6 +374,84 @@ class MainWindow(QMainWindow):
     def open_artifact(self, kind: str, path: str) -> None:
         self.workspace_shell.open_artifact(kind, path)
 
+    # -- the Workspace panel's own menu ---------------------------------
+
+    def selected_artifact(self):
+        """``(kind, path)`` of the row selected in the tree, or None."""
+        return self.file_dock.tree.selected_artifact()
+
+    def show_workspace_menu(self, position) -> None:
+        """Right-click in the Workspace panel."""
+        self._refresh_workspace_actions()
+        menu = self.build_context_menu("workspace")
+        if menu is not None:
+            menus.popup(menu, position)
+
+    def _refresh_workspace_actions(self) -> None:
+        """What may be done to the row that is selected.
+
+        Asked when the menu is raised rather than on every selection:
+        these four are reachable from nowhere else, so between two
+        right-clicks nobody can see them.
+        """
+        selected = self.selected_artifact()
+        kind = selected[0] if selected else ""
+        self.actions_.set_enabled(
+            ["workspace_reveal", "workspace_copy_path"], bool(selected))
+        self.actions_.set_enabled(
+            ["workspace_open"], bool(selected)
+            and kind not in ("entry", "run"))
+        # A run alone.  An entry is the structure and every run under
+        # it, and a file inside a run is part of the record of what
+        # happened -- neither is a thing to throw away one piece of.
+        self.actions_.set_enabled(["workspace_trash"], kind == "run")
+
+    def open_selected_artifact(self) -> None:
+        selected = self.selected_artifact()
+        if selected is not None:
+            self.open_artifact(selected[0], str(selected[1]))
+
+    def reveal_selected_artifact(self) -> None:
+        """Show it where the desktop shows files.
+
+        The containing folder for a file and the folder itself for a
+        run, which is what "reveal" means in both: opening a run.log
+        in whatever has claimed ``.log`` is not what was asked for.
+        """
+        selected = self.selected_artifact()
+        if selected is None:
+            return
+        _kind, path = selected
+        target = path if path.is_dir() else path.parent
+        if not QDesktopServices.openUrl(
+                QUrl.fromLocalFile(str(target))):
+            self.show_message(f"could not show {target}")
+
+    def copy_selected_artifact_path(self) -> None:
+        selected = self.selected_artifact()
+        if selected is None:
+            return
+        QApplication.clipboard().setText(str(selected[1]))
+        self.show_message(f"copied the path of {selected[1].name}")
+
+    def trash_selected_run(self) -> None:
+        """Put a run's folder in the wastebasket.
+
+        The wastebasket and never an unlink: a run is hours of
+        somebody's machine and the only record of what was computed,
+        so the way back has to be the one the desktop already has.
+        """
+        selected = self.selected_artifact()
+        if selected is None or selected[0] != "run":
+            return
+        folder = selected[1]
+        if not QFile.moveToTrash(str(folder)):
+            self.show_message(f"could not move {folder.name} to the "
+                              f"trash")
+            return
+        self.show_message(f"moved {folder.name} to the trash")
+        self.refresh_workspace()
+
     def save_document(self) -> None:
         self.document_set.save_document()
 
@@ -437,8 +543,35 @@ class MainWindow(QMainWindow):
         a style or a colour here silently decided what the next
         structure would open as.  That default is now Preferences >
         View defaults, which says which of the two it is.
+
+        ``system`` is the one that is not a colour: it follows the
+        light or dark theme from here on, which is what stops a white
+        rectangle sitting in the middle of a dark application.
         """
-        self.set_view(background=BACKGROUNDS[name])
+        if name == FOLLOW_THE_SYSTEM:
+            self.set_view(background=theme_background(),
+                          background_follows_theme=True)
+            return
+        self.set_view(background=BACKGROUNDS[name],
+                      background_follows_theme=False)
+
+    def _follow_theme(self) -> None:
+        """Restyle what was coloured from the palette, for all of it.
+
+        The Qt chrome follows the system by itself; the hint and
+        warning tones and a viewport told to follow are worked out
+        from the palette and have to be worked out again.
+        """
+        retone(self)
+        for document in self.documents:
+            if document.view.background_follows_theme:
+                document.update_view(background=theme_background())
+
+    def changeEvent(self, event):
+        if event.type() in (QEvent.PaletteChange, QEvent.ThemeChange,
+                            QEvent.ApplicationPaletteChange):
+            self._follow_theme()
+        super().changeEvent(event)
 
     def choose_background(self) -> None:
         document = self.current_document()
@@ -755,6 +888,12 @@ class MainWindow(QMainWindow):
                  BOUNDARY_MENU, None, "orthographic",
                  "reset_view", None,
                  "edit_cell", "display_range"],
+        # The Workspace panel.  Read-only until now: a run folder
+        # could only be reached through the desktop's file browser,
+        # and the path of the thing under the cursor could not be had
+        # at all.
+        "workspace": ["workspace_open", None, "workspace_reveal",
+                      "workspace_copy_path", None, "workspace_trash"],
     }
 
     #: The entries whose wording should say how much they will take.
@@ -785,7 +924,7 @@ class MainWindow(QMainWindow):
     def show_context_menu(self, kind: str, position) -> None:
         menu = self.build_context_menu(kind)
         if menu is not None:
-            menu.exec(position)
+            menus.popup(menu, position)
 
     def set_mode(self, name: str) -> None:
         modes.get(name)                     # validate before switching
@@ -1386,6 +1525,10 @@ class MainWindow(QMainWindow):
     # ==================================================================
 
     def _on_tab_changed(self, _index: int) -> None:
+        # Fired for the first tab arriving and the last one going, so
+        # it is also where the start pane comes and goes.
+        self.central.setCurrentWidget(
+            self.tabs if self.tabs.count() else self.start_pane)
         self._update_ui()
         self.workspace_shell.save_session()
         self.workspace_shell.show_open_document()
@@ -1683,6 +1826,7 @@ class MainWindow(QMainWindow):
         dialog.layoutReset.connect(self.reset_layout)
         dialog.followGeometryChanged.connect(self._follow_geometry_set)
         dialog.toolPathsChanged.connect(self._tool_paths_changed)
+        dialog.autosaveChanged.connect(self.autosaver.apply_interval)
         return dialog
 
     def _tool_paths_changed(self) -> None:
@@ -1714,8 +1858,29 @@ class MainWindow(QMainWindow):
         self.actions_["bonds_follow"].setChecked(bool(on))
         self.set_bonds_follow_geometry(bool(on))
 
-    def show_preferences(self) -> None:
-        self.preferences_dialog().exec()
+    def show_preferences(self, page: str = "") -> None:
+        dialog = self.preferences_dialog()
+        if page:
+            dialog.show_page(page)
+        dialog.exec()
+
+    def show_module_setup(self, module_name: str) -> None:
+        """A greyed module's reason row was activated.
+
+        The whole reason goes where it stays -- the Modules panel's
+        footer, not a six-second status line -- and Preferences opens
+        at Engines, which is where a program's path is named and
+        tested, and where an optional extra says what to install.
+        """
+        from xtal.modules import MODULES
+        if module_name in MODULES:
+            available = MODULES.get(module_name).availability()
+            if not available:
+                self.modules_dock.set_idle(available.reason)
+        self.show_preferences("Engines")
+        # Naming a program there may have been the fix.
+        menus.refresh_module_availability(self)
+        self.modules_dock.refresh()
 
     def show_help(self) -> None:
         """The generated help pages.
@@ -1785,6 +1950,32 @@ class MainWindow(QMainWindow):
             QMessageBox.Yes | QMessageBox.No)
         return answer == QMessageBox.Yes
 
+    def has_running_calculation(self) -> bool:
+        """Whether a module run or a Force Field optimisation is going."""
+        ff_dock = getattr(self, "ff_dock", None)
+        return (self.module_worker is not None
+                or (ff_dock is not None and ff_dock.is_running))
+
+    def may_stop_calculations(self) -> bool:
+        """Ask, once, whether a running calculation may be stopped.
+
+        Asked *before* anything is stopped.  ``closeEvent`` used to
+        stop the run first and ask about unsaved edits second, so a
+        No to the second question kept the window and lost the run
+        anyway -- and the scan this program is built for is an
+        overnight job.  Honours ``XTAL_NO_CONFIRM_CLOSE`` like the
+        unsaved question, which is what keeps the suite from waiting.
+        """
+        if (self._stop_confirmed or no_confirm_close()
+                or not self.has_running_calculation()):
+            return True
+        answer = QMessageBox.question(
+            self, "A calculation is running",
+            "A calculation is still running. Stop it and quit?",
+            QMessageBox.Yes | QMessageBox.No)
+        self._stop_confirmed = answer == QMessageBox.Yes
+        return self._stop_confirmed
+
     def confirm_quit(self) -> bool:
         """Whether a quit that did not come through this window may go
         ahead.
@@ -1806,10 +1997,17 @@ class MainWindow(QMainWindow):
         """
         if self._quit_confirmed:
             return True
-        if not self.has_unsaved_work():
+        if not self.has_unsaved_work() and (
+                self._stop_confirmed or not self.has_running_calculation()
+                or no_confirm_close()):
             return True
         _dismiss_modals()
+        if not self.may_stop_calculations():
+            return False
         self._quit_confirmed = self.may_discard_unsaved()
+        # A quit called off is called off whole: the run's yes is not
+        # carried into a later quit it was not given for.
+        self._stop_confirmed = self._quit_confirmed
         return self._quit_confirmed
 
     def request_quit(self) -> None:
@@ -1818,6 +2016,18 @@ class MainWindow(QMainWindow):
             self.close()
 
     def closeEvent(self, event):
+        # Both questions before anything is stopped, so that No to
+        # either leaves the window, the edits and the run as they were.
+        if not self.may_stop_calculations():
+            event.ignore()
+            return
+        if not self._quit_confirmed and not self.may_discard_unsaved():
+            self._stop_confirmed = False
+            event.ignore()
+            return
+        # Agreed to, or nothing was unsaved: either way what is left in
+        # .autosave now would be work somebody chose to throw away.
+        self.autosaver.forget_modified()
         # A module run outlives the window that started it unless it
         # is stopped -- an external process especially, which would go
         # on writing into a run folder nobody is watching.
@@ -1831,9 +2041,6 @@ class MainWindow(QMainWindow):
         if getattr(self, "ff_dock", None) is not None:
             self.ff_dock.stop()
         workers.stop_all()
-        if not self._quit_confirmed and not self.may_discard_unsaved():
-            event.ignore()
-            return
         self.workspace_shell.save_session()
         self.settings.save_window(self)
         self.settings.sync()

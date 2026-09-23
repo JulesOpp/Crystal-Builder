@@ -51,6 +51,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QSpinBox,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -61,7 +62,11 @@ from xtal.modules import probe as probes
 from xtalapp import external, extras
 from xtalapp.dialogs.bond_rules import BondRulesDialog
 from xtalapp.viewport import styles
-from xtalapp.viewport.view_settings import BACKGROUNDS
+from xtalapp.viewport.view_settings import (
+    BACKGROUNDS,
+    FOLLOW_THE_SYSTEM,
+)
+from xtalapp.widgets.tone import HINT, WARNING, set_tone
 
 
 def _hint(text: str) -> QLabel:
@@ -73,7 +78,7 @@ def _hint(text: str) -> QLabel:
     """
     label = QLabel(text)
     label.setWordWrap(True)
-    label.setStyleSheet("color: palette(mid);")
+    set_tone(label, HINT)
     # A wrapped label's height depends on the width it is given, and a
     # layout that does not ask draws the second line over whatever is
     # under it.  Minimum vertical policy is what makes the layout ask.
@@ -95,6 +100,9 @@ class GeneralPage(QWidget):
     #: window owns that -- it is the same operation as
     #: ``Window > Reset layout`` and is that method, not a copy of it.
     layoutReset = Signal()
+    #: How often unsaved tabs are autosaved changed; the window's
+    #: timer is restarted from it.
+    autosaveChanged = Signal()
 
     def __init__(self, settings, parent=None):
         super().__init__(parent)
@@ -123,7 +131,27 @@ class GeneralPage(QWidget):
             "nobody reads by the third time.  A structure opened as "
             "a CIF becomes the project beside it on its first save, "
             "and that CIF is left where it is."))
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Keep unsaved changes every"))
+        self.autosave_minutes = QSpinBox()
+        self.autosave_minutes.setRange(0, 60)
+        self.autosave_minutes.setSuffix(" min")
+        self.autosave_minutes.setSpecialValueText("never")
+        self.autosave_minutes.setValue(
+            round(self.settings.autosave_interval / 60))
+        self.autosave_minutes.valueChanged.connect(self._set_autosave)
+        row.addWidget(self.autosave_minutes)
+        row.addStretch(1)
+        outer.addLayout(row)
+        outer.addWidget(_hint(
+            "Unsaved edits are copied into the workspace's .autosave "
+            "folder, never over the file, and offered back the next "
+            "time the file is opened."))
         return box
+
+    def _set_autosave(self, minutes: int) -> None:
+        self.settings.autosave_interval = minutes * 60
+        self.autosaveChanged.emit()
 
     def _workspace_box(self) -> QGroupBox:
         box = QGroupBox("Workspaces")
@@ -239,8 +267,10 @@ class ViewDefaultsPage(QWidget):
         # does not match a Python tuple against the one it stored --
         # it answers -1 for a colour that is in the list.
         self.background = QComboBox()
+        self.background.addItem("Follow the system", FOLLOW_THE_SYSTEM)
         for name in BACKGROUNDS:
             self.background.addItem(name.capitalize(), name)
+        self._follows_theme = current["background_follows_theme"]
         self._custom_background = tuple(current["background"])
         if self._custom_background not in BACKGROUNDS.values():
             # A colour chosen with View > Background > Custom, back
@@ -250,8 +280,7 @@ class ViewDefaultsPage(QWidget):
         self.background.setCurrentIndex(
             max(0, self.background.findData(self._background_name())))
         self.background.currentIndexChanged.connect(
-            lambda _i: self.settings.set_default_view(
-                background=self._chosen_background()))
+            lambda _i: self._background_chosen())
 
         form.addRow("Style", self.style)
         form.addRow("Background", self.background)
@@ -267,6 +296,8 @@ class ViewDefaultsPage(QWidget):
 
     def _background_name(self) -> str:
         """Which entry the stored default is, by name."""
+        if self._follows_theme:
+            return FOLLOW_THE_SYSTEM
         for name, colour in BACKGROUNDS.items():
             if tuple(colour) == self._custom_background:
                 return name
@@ -275,6 +306,15 @@ class ViewDefaultsPage(QWidget):
     def _chosen_background(self) -> tuple:
         name = self.background.currentData()
         return tuple(BACKGROUNDS.get(name, self._custom_background))
+
+    def _background_chosen(self) -> None:
+        """Both halves of the answer: which colour, and whether it is
+        a colour at all."""
+        follows = self.background.currentData() == FOLLOW_THE_SYSTEM
+        self._follows_theme = follows
+        self.settings.set_default_view(
+            background=self._chosen_background(),
+            background_follows_theme=follows)
 
 
 class BondingPage(QWidget):
@@ -544,7 +584,7 @@ class EnginesPage(QWidget):
         inner.addWidget(_hint(extra.powers))
         state = QLabel(sentence)
         state.setWordWrap(True)
-        state.setStyleSheet("" if ok else "color: #8a5a00;")
+        set_tone(state, None if ok else WARNING)
         row = QHBoxLayout()
         row.addWidget(state, 1)
         row.addWidget(self._test_button(extra.package), 0, Qt.AlignTop)
@@ -587,7 +627,7 @@ class EnginesPage(QWidget):
         inner.addWidget(self.target_command)
         warning = QLabel(extras.TARGET_WARNING)
         warning.setWordWrap(True)
-        warning.setStyleSheet("color: #8a5a00;")
+        set_tone(warning, WARNING)
         inner.addWidget(warning)
         self.reveal = QPushButton("Show the folder")
         self.reveal.clicked.connect(lambda: extras.reveal())
@@ -623,7 +663,7 @@ class EnginesPage(QWidget):
         label.setText(sentence)
         # Not grey when it is found: the description above it is
         # grey, and the answer must not read as more of the blurb.
-        label.setStyleSheet("" if ok else "color: #8a5a00;")
+        set_tone(label, None if ok else WARNING)
 
     # -- Test ----------------------------------------------------------
 
@@ -703,8 +743,7 @@ class EnginesPage(QWidget):
     def _report(self, key: str, ok, sentence: str) -> None:
         label = self.results[key]
         label.setText(sentence)
-        label.setStyleSheet(
-            "color: #8a5a00;" if ok is False else "")
+        set_tone(label, WARNING if ok is False else None)
         label.show()
 
     def stop_tests(self) -> None:
@@ -730,6 +769,7 @@ class PreferencesDialog(QDialog):
     layoutReset = Signal()
     followGeometryChanged = Signal(bool)
     toolPathsChanged = Signal()
+    autosaveChanged = Signal()
 
     def __init__(self, settings, parent=None):
         super().__init__(parent)
@@ -755,7 +795,8 @@ class PreferencesDialog(QDialog):
             area.setWidget(page)
             self.stack.addWidget(area)
             for name in ("recentCleared", "layoutReset",
-                         "followGeometryChanged", "toolPathsChanged"):
+                         "followGeometryChanged", "toolPathsChanged",
+                         "autosaveChanged"):
                 signal = getattr(page, name, None)
                 if signal is not None:
                     signal.connect(getattr(self, name))

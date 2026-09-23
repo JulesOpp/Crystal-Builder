@@ -80,6 +80,7 @@ class WorkspaceTree(QTreeView):
     """The structures of a workspace, and the runs underneath them."""
 
     artifactActivated = Signal(str, str)        # kind, path
+    contextRequested = Signal(object)           # global position
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -90,6 +91,8 @@ class WorkspaceTree(QTreeView):
         self.setModel(self.model_)
         self.setHeaderHidden(True)
         self.activated.connect(self._on_activated)
+        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._on_context)
 
     # -- building ------------------------------------------------------
 
@@ -244,6 +247,24 @@ class WorkspaceTree(QTreeView):
 
     # -- activation ----------------------------------------------------
 
+    def selected_artifact(self):
+        """``(kind, path)`` of the highlighted row, or ``None``."""
+        payload = self._payload(self.currentIndex())
+        return (str(payload[0]), Path(payload[1])) if payload else None
+
+    def _on_context(self, position) -> None:
+        """Right-click: pick the row under the cursor, then ask.
+
+        The row and not the selection: a menu about whatever was last
+        clicked, raised over something else, is how the wrong folder
+        goes in the bin.
+        """
+        index = self.indexAt(position)
+        if index.isValid():
+            self.setCurrentIndex(index)
+        if self.selected_artifact() is not None:
+            self.contextRequested.emit(self.viewport().mapToGlobal(position))
+
     def _on_activated(self, index) -> None:
         item = self.model_.itemFromIndex(index)
         payload = item.data(ARTIFACT_ROLE) if item is not None else None
@@ -286,6 +307,7 @@ class WorkspaceDock(QDockWidget):
     artifactActivated = Signal(str, str)        # kind, path
     fileActivated = Signal(str)
     workspaceRequested = Signal(str)            # "open" | "new"
+    contextRequested = Signal(object)           # global position
 
     def __init__(self, root=None, parent=None):
         super().__init__("Workspace", parent)
@@ -299,6 +321,7 @@ class WorkspaceDock(QDockWidget):
 
         self.tree = WorkspaceTree()
         self.tree.artifactActivated.connect(self.artifactActivated)
+        self.tree.contextRequested.connect(self.contextRequested)
         self.browser = FileBrowser(root)
         self.browser.fileActivated.connect(self.fileActivated)
 

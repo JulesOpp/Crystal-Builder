@@ -35,6 +35,7 @@ from pathlib import Path
 import numpy as np
 
 from xtal.core.lattice import Lattice
+from xtal.io.text import read_text
 
 EXTENSION = ".extxyz"
 PROPERTIES = "species:S:1:pos:R:3"
@@ -349,7 +350,7 @@ def read_trajectory(path) -> Trajectory:
     path = Path(path)
     if path.suffix.lower() == ".traj":
         return Trajectory(_ase_frames(path), path=path)
-    return Trajectory(read_frames(path.read_text(encoding="utf-8")), path=path)
+    return Trajectory(read_frames(read_text(path)), path=path)
 
 
 def ase_available() -> bool:

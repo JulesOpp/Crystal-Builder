@@ -298,6 +298,22 @@ def test_the_left_column_still_starts_wide_enough_for_structure(
     assert window.info_dock.width() >= DEFAULT_LEFT_WIDTH - 10
 
 
+def test_a_first_window_gives_the_viewport_the_widest_share(
+        qtbot, laptop_screen, settings):
+    """The Sites table's own hint was 515 px, and with Structure's 380
+    it left the model 30 % of a structure viewer's window (133 px at
+    1024 wide).  The right column starts narrow; the table scrolls."""
+    window = MainWindow(viewport_factory=StubViewport, settings=settings)
+    qtbot.addWidget(window)
+    window.show()
+    qtbot.waitExposed(window)
+
+    middle = window.centralWidget().width()
+    assert middle > window.info_dock.width()
+    assert middle > window.sites_dock.width()
+    assert middle >= 0.45 * window.width()
+
+
 def test_many_open_tabs_do_not_widen_the_tab_bar_past_the_screen(
         qtbot, window, tmp_path, rutile):
     """A tab bar without scroll arrows is as wide as all of its tabs.

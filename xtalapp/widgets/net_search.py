@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.analysis.netsearch import NetFacts, NetQuery, NetQueryError
+from xtalapp.widgets.tone import WARNING, set_tone
 
 #: Where a row keeps its name, what it is matched on, and whether it
 #: is a layer.  The name at ``UserRole`` is what both dialogs have
@@ -42,9 +43,9 @@ FACTS_ROLE = Qt.UserRole + 1
 LAYER_ROLE = Qt.UserRole + 2
 
 #: The border a field it cannot read is given; the reason is in the
-#: note beneath, in the colour every other warning here uses.
+#: note beneath; its colour is the warning tone every other one here
+#: uses (:mod:`xtalapp.widgets.tone`).
 _UNREAD = "QLineEdit { border: 1px solid #b3261e; }"
-_NOTE = "color: #8a5a00;"
 
 
 def add_row(nets: QListWidget, text: str, facts: NetFacts,
@@ -106,7 +107,7 @@ class NetSearch(QWidget):
 
         self.note = QLabel(self)
         self.note.setWordWrap(True)
-        self.note.setStyleSheet(_NOTE)
+        set_tone(self.note, WARNING)
         self.note.hide()
 
         for field in self._fields():

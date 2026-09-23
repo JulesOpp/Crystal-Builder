@@ -91,6 +91,21 @@ BACKGROUNDS = {
     "paper": (246, 245, 240),
 }
 
+#: What "follow the system" means: the two of the above that belong
+#: with a light and a dark window.  A white rectangle in the middle of
+#: a dark application was what every screenshot of this program showed.
+THEME_BACKGROUNDS = {False: BACKGROUNDS["white"], True: BACKGROUNDS["slate"]}
+
+#: The name *View > Background* uses for the entry that is not a
+#: colour.  Not a key of BACKGROUNDS: there is no such fixed colour.
+FOLLOW_THE_SYSTEM = "system"
+
+
+def theme_background() -> tuple[int, int, int]:
+    """The background that goes with the theme in force."""
+    from xtalapp.widgets.tone import is_dark
+    return THEME_BACKGROUNDS[is_dark()]
+
 
 @dataclass
 class ViewSettings:
@@ -194,6 +209,10 @@ class ViewSettings:
     boundary: str = "half"
 
     background: tuple[int, int, int] = BACKGROUNDS["white"]
+    #: Whether the background follows the system's light or dark
+    #: theme.  A colour chosen by hand turns it off -- an explicit
+    #: choice is not a thing to overwrite when the sun goes down.
+    background_follows_theme: bool = False
     projection: str = "perspective"         # perspective | orthographic
     show_legend: bool = False
 
@@ -304,6 +323,7 @@ class ViewSettings:
             "range_c": list(self.range_c),
             "boundary": self.boundary,
             "background": list(self.background),
+            "background_follows_theme": self.background_follows_theme,
             "projection": self.projection,
             "show_legend": self.show_legend,
             "polyhedron_opacity": self.polyhedron_opacity,
@@ -327,7 +347,8 @@ class ViewSettings:
                     "ellipsoid_octants",
                     "label_mode", "boundary", "projection",
                     "show_legend", "polyhedron_opacity",
-                    "polyhedron_min_vertices"):
+                    "polyhedron_min_vertices",
+                    "background_follows_theme"):
             if key in d:
                 setattr(s, key, d[key])
         if s.boundary not in BOUNDARIES:

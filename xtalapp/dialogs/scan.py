@@ -59,6 +59,7 @@ from xtalapp.dialogs.module_form import ParamForm
 from xtalapp.docks import scrolling
 from xtalapp.widgets.atom_types import HEADING as TYPES_HEADING
 from xtalapp.widgets.atom_types import AtomTypeTable, warnings_text
+from xtalapp.widgets.tone import HINT, set_tone
 
 #: Roughly how long one optimiser step takes, per atom of the P1 cell,
 #: in seconds.  Measured under UFF: 0.44 s for the 1152 atoms of
@@ -205,7 +206,7 @@ class AxisBox(QGroupBox):
 
         self.status = QLabel("")
         self.status.setWordWrap(True)
-        self.status.setStyleSheet("color: palette(mid);")
+        set_tone(self.status, HINT)
 
         atoms_row = QHBoxLayout()
         atoms_row.addWidget(self.atoms, 1)
@@ -394,7 +395,7 @@ class ScanDialog(QDialog):
 
         self.availability = QLabel("")
         self.availability.setWordWrap(True)
-        self.availability.setStyleSheet("color: palette(mid);")
+        set_tone(self.availability, HINT)
 
         # The same table the Force Field panel shows, over the same
         # document: a scan runs the engine for hours on these types,
@@ -404,7 +405,7 @@ class ScanDialog(QDialog):
         self.types.statusMessage.connect(self._type_overridden)
         self.types_note = QLabel("")
         self.types_note.setWordWrap(True)
-        self.types_note.setStyleSheet("color: palette(mid);")
+        set_tone(self.types_note, HINT)
 
         self.first = AxisBox("First axis", self.structure, parent)
         self.second = AxisBox("Second axis", self.structure, parent,
@@ -463,7 +464,7 @@ class ScanDialog(QDialog):
             _engine_forms(parent)
         self.pre_availability = QLabel("")
         self.pre_availability.setWordWrap(True)
-        self.pre_availability.setStyleSheet("color: palette(mid);")
+        set_tone(self.pre_availability, HINT)
         self.pre_max_steps = QSpinBox()
         self.pre_max_steps.setRange(1, 100000)
         self.pre_max_steps.setValue(500)
@@ -514,7 +515,7 @@ class ScanDialog(QDialog):
             "the better choice: UFF4MOF was never fitted to "
             "reproduce a breathing double well.")
         note.setWordWrap(True)
-        note.setStyleSheet("color: palette(mid);")
+        set_tone(note, HINT)
 
         how = QFormLayout()
         how.addRow("Starting geometry", self.seed)
@@ -666,7 +667,7 @@ class ScanDialog(QDialog):
                 direction=str(self.direction.currentData()))
         except Exception as error:                  # noqa: BLE001
             self.summary.setText(str(error))
-            self.summary.setStyleSheet("color: palette(mid);")
+            set_tone(self.summary, HINT)
             ok.setEnabled(False)
             return
         atoms = p1.expand(self.structure).n_atoms
