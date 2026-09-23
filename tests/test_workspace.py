@@ -501,3 +501,51 @@ def test_the_autosave_folder_is_not_an_entry(workspace, entry):
 def test_a_file_outside_the_workspace_has_no_autosave(workspace,
                                                      tmp_path):
     assert workspace.autosave_path(tmp_path / "elsewhere.cif") is None
+
+
+# --------------------------------------------------- filing a build
+
+def _placeholder_run(workspace, rutile):
+    """A run opened under an entry named for the module, holding the
+    copy of the structure the module wrote for itself."""
+    run = workspace.add_document("MOF builder").next_run("mof", "build")
+    own = run.path / "pormake.cif"
+    write_cif(rutile, own)
+    return run.path, own
+
+
+def test_adopting_a_build_leaves_one_entry_and_one_cif(workspace,
+                                                       rutile):
+    """Two copies of a build are a question about which is real."""
+    run, own = _placeholder_run(workspace, rutile)
+    built = rutile.copy()
+    built.meta["title"] = "pcu-N1"
+
+    filed = workspace.adopt_build(built, run=run, artifacts=(own,))
+
+    assert filed.entry.path == workspace.root / "pcu-N1"
+    assert filed.path == filed.entry.path / "pcu-N1.cif"
+    assert filed.run == filed.entry.path / run.name
+    assert [p.name for p in filed.run.iterdir()
+            if p.suffix == ".cif"] == []
+    assert not run.parent.exists()            # the placeholder went
+    assert [e.name for e in workspace.entries()] == ["pcu-N1"]
+
+
+def test_a_placeholder_holding_another_run_is_left_alone(workspace,
+                                                         rutile):
+    run, own = _placeholder_run(workspace, rutile)
+    workspace.add_document("MOF builder").next_run("mof", "build")
+
+    workspace.adopt_build(rutile.copy(), run=run, artifacts=(own,))
+
+    assert run.parent.is_dir()
+
+
+def test_a_second_build_of_one_name_gets_a_folder_of_its_own(
+        workspace, rutile):
+    first = workspace.adopt_build(rutile.copy())
+    second = workspace.adopt_build(rutile.copy())
+
+    assert first.entry.path != second.entry.path
+    assert first.run is None and second.run is None

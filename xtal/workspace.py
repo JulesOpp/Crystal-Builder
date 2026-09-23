@@ -311,6 +311,15 @@ class Entry:
 #  THE WORKSPACE
 # ======================================================================
 
+@dataclass(frozen=True)
+class FiledBuild:
+    """Where :meth:`Workspace.adopt_build` put a build."""
+
+    entry: Entry
+    path: Path                      # the one CIF, written from the build
+    run: Path | None = None         # the run folder, if it was moved
+
+
 class NotAWorkspace(ValueError):
     """The directory is not a workspace, and was expected to be one."""
 
@@ -543,6 +552,63 @@ class Workspace:
         entry = Entry(path=self.root / candidate, workspace=self)
         entry.path.mkdir(parents=True)
         return entry
+
+    def adopt_build(self, structure, *, run=None,
+                    artifacts=()) -> FiledBuild:
+        """File a structure built from nothing, and the run that
+        built it, as one entry.
+
+        **One CIF, and it is written from the structure.**  A module
+        that made its structure by writing a file and reading it back
+        -- which is how PORMAKE builds -- has a copy of its own in the
+        run folder, and that copy is the framework as PORMAKE left it:
+        before the net was drawn over it, and so no longer the thing
+        that was built.  Writing ours and dropping theirs is the only
+        arrangement where the file in the workspace is the document
+        and there is one of it.  ``artifacts`` is what the module said
+        it wrote (``JobResult.artifacts``), so this asks the run which
+        file that was rather than guessing at its folder.
+
+        **The run moves under the thing it built.**  A run folder is
+        opened before the build starts and a build has no name until
+        it finishes, so it is written under an entry named for the
+        *module* -- right while it is going, wrong once there is a
+        framework to name it after.  The placeholder is removed when
+        that was the only run in it.
+
+        This lived in the window (``ModuleRunner._file_build``), and
+        ``xtal run mof.build --workspace`` therefore left the build
+        under the placeholder with PORMAKE's poorer copy beside it.
+        Filing is a rule about a folder, not about a window.
+
+        ``new_document`` and not ``add_document``: a build has no
+        file, only a title another structure may already be using.
+        """
+        from xtal.io import FORMATS
+
+        entry = self.new_document(
+            str(structure.meta.get("title") or ""))
+        path = entry.path / f"{entry.name}.cif"
+        FORMATS.write(structure, path)
+        # Before the move, while these paths are still where the
+        # module left them.
+        for artifact in artifacts or ():
+            source = Path(artifact)
+            if source.is_file() and source.suffix.lower() == ".cif":
+                source.unlink()
+        moved = None
+        source = Path(run) if run is not None else None
+        if source is not None and source.is_dir() \
+                and source.parent != entry.path:
+            placeholder = source.parent
+            moved = Path(shutil.move(str(source), str(entry.path)))
+            try:
+                # Non-empty means another run of the same module is
+                # filed there, which is a folder to leave alone.
+                placeholder.rmdir()
+            except OSError:
+                pass
+        return FiledBuild(entry=entry, path=path, run=moved)
 
     # -- session -------------------------------------------------------
 

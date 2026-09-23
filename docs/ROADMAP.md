@@ -1050,7 +1050,7 @@ Branch `refactor/deep-review-factoring`, off `main`.
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
 | **0 — One enablement rule** | Shipped 2026-09-23. `shell_state.selection_states` is the one answer for the selection's actions; both refresh paths apply it, so clicking an atom during playback no longer re-enables Cut, Duplicate and Delete | `xtalapp/shell_state.py`, `xtalapp/mainwindow.py` | S |
-| **1 — A build is filed by the core** | `Workspace.adopt_build` takes the filesystem half of `ModuleRunner._file_build`; `xtal run mof.build --workspace` files a build the way the window does | `xtal/workspace.py`, `xtalapp/module_runner.py`, `xtal/cli.py` | M |
+| **1 — A build is filed by the core** | Shipped 2026-09-23. `Workspace.adopt_build` takes the filesystem half of `ModuleRunner._file_build`; `xtal run mof.build --workspace` files a build the way the window does | `xtal/workspace.py`, `xtalapp/module_runner.py`, `xtal/cli.py` | M |
 | **2 — A Force Field run is recorded by the core** | `xtal/ff/record.py` `open_run` / `close_run`, mirroring the modules'; the dock and the CLI call it, and the failure path exists once | `xtal/ff/record.py`, `xtalapp/docks/ff_panel.py`, `xtal/cli.py` | M |
 | **3 — Chemistry out of the shell** | The MOF preview draws the block's own bonds (or the core's rule), `bond_distance` moves to `xtal.core.bonding`, and the headless test imports every core module | `xtalapp/dialogs/mof_preview.py`, `tests/test_core_is_headless.py` | S |
 | **5 — Small decisions made twice** | One stop record in `OptimizationWorker`, one reader of the engine panels for the scan and the DFTB+ run, one `_resolved` | `xtalapp/workers.py`, `xtalapp/dialogs/scan.py`, `xtalapp/dialogs/dftb_run.py` | S |

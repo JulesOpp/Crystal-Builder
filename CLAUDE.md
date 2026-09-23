@@ -449,8 +449,10 @@ stress case).
   one whose first run has nowhere to land. Open Sample copies the
   bundled CIF in and opens the copy — that is what stopped Ctrl+S
   aiming inside a signed app bundle. A build is filed by
-  `ModuleRunner._file_build`: one entry, **one** CIF written from the
+  `Workspace.adopt_build`: one entry, **one** CIF written from the
   structure, the run's poorer copy dropped, the run moved underneath.
+  It is the core's and not the window's, so `xtal run mof.build
+  --workspace` files a build exactly as the window does.
 - **`add_structure` de-duplicates by content, never by name.** Two
   people's `MFU4l.cif` are two structures and get `MFU4l` and
   `MFU4l-2`. Deciding by name alone silently copied the second over

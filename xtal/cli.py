@@ -437,7 +437,7 @@ def cmd_run(args) -> int:
     structure = _load(args.file) if args.file else None
     params = action.coerce(_parsed_params(args.param, action.params))
 
-    folder = None
+    folder = workspace = None
     if args.workspace:
         from xtal.workspace import Workspace
         workspace = Workspace.create(args.workspace)
@@ -458,6 +458,17 @@ def cmd_run(args) -> int:
         print("interrupted", file=sys.stderr)
         return 130
     module_record.close_run(folder, result)
+    run_path = folder.path if folder is not None else None
+    if workspace is not None and not action.needs_structure \
+            and result.ok and result.structure is not None:
+        # A build is filed the way the window files one: an entry
+        # named after what was built, one CIF written from it, and
+        # the run moved underneath.
+        filed = workspace.adopt_build(
+            result.structure, run=run_path,
+            artifacts=getattr(result, "artifacts", ()))
+        run_path = filed.run or run_path
+        print(f"filed as {filed.path}")
     print(result.summary())
     # A run whose whole answer is a table has to print the table:
     # "peak at 18.75 A" is a headline, not a result.
@@ -469,8 +480,8 @@ def cmd_run(args) -> int:
     if args.output and result.structure is not None:
         FORMATS.write(result.structure, args.output)
         print(f"wrote {args.output}")
-    if folder is not None:
-        print(f"run folder: {folder.path}")
+    if run_path is not None:
+        print(f"run folder: {run_path}")
     return 0 if result.ok else 2
 
 
