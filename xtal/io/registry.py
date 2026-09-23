@@ -16,6 +16,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from xtal.params import Registry
+
 
 @dataclass(frozen=True)
 class Format:
@@ -57,27 +59,11 @@ class Format:
         return f"{self.description} ({globs})"
 
 
-class FormatRegistry:
-    """Extension -> Format, with dispatch helpers."""
+class FormatRegistry(Registry):
+    """Name -> Format, in the order registered, with dispatch by
+    extension."""
 
-    def __init__(self):
-        self._formats: dict[str, Format] = {}
-
-    def register(self, fmt: Format) -> Format:
-        self._formats[fmt.name] = fmt
-        return fmt
-
-    def __contains__(self, name: str) -> bool:
-        return name in self._formats
-
-    def __iter__(self):
-        return iter(self._formats.values())
-
-    def get(self, name: str) -> Format:
-        try:
-            return self._formats[name]
-        except KeyError:
-            raise ValueError(f"unknown format: {name!r}") from None
+    noun = "format"
 
     def by_extension(self, path) -> Format:
         """The format for a path, by its suffix or by its whole name.
@@ -87,11 +73,11 @@ class FormatRegistry:
         CIF whatever its stem says.
         """
         name = Path(path).name
-        for fmt in self._formats.values():
+        for fmt in self._items.values():
             if name in fmt.filenames:
                 return fmt
         suffix = Path(path).suffix.lower()
-        for fmt in self._formats.values():
+        for fmt in self._items.values():
             if suffix in fmt.extensions:
                 return fmt
         raise ValueError(
@@ -108,10 +94,10 @@ class FormatRegistry:
             return Availability(False, str(exc))
 
     def readable(self) -> list[Format]:
-        return [f for f in self._formats.values() if f.can_read]
+        return [f for f in self._items.values() if f.can_read]
 
     def writable(self) -> list[Format]:
-        return [f for f in self._formats.values() if f.can_write]
+        return [f for f in self._items.values() if f.can_write]
 
     # -- dispatch ------------------------------------------------------
 

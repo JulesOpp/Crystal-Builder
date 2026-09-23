@@ -30,7 +30,7 @@ contract.
 heading: a build reports nothing a log would hold that the molecule
 itself does not say.  What it does get is an *entry* -- the shell
 files what a build returns in the workspace and opens it from there
-(``ModuleRunner._file_build``), so the molecule is a file the moment
+(``Workspace.adopt_build``), so the molecule is a file the moment
 it appears rather than after a trip through Save As, and the run
 folder this action still does not write is beside the point.
 """

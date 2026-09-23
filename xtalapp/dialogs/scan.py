@@ -57,6 +57,7 @@ from xtal.ff.registry import ENGINES
 from xtal.modules import scan as scan_module
 from xtalapp.dialogs.module_form import ParamForm
 from xtalapp.docks import scrolling
+from xtalapp.docks.ff_panel import panel_engine, panel_options
 from xtalapp.widgets.atom_types import HEADING as TYPES_HEADING
 from xtalapp.widgets.atom_types import AtomTypeTable, warnings_text
 from xtalapp.widgets.tone import HINT, set_tone
@@ -74,43 +75,6 @@ INTERNAL = (("distance", "Distance between two", 2),
             ("angle", "Angle across three", 3),
             ("torsion", "Dihedral across four", 4),
             ("plane", "Angle between two planes", 2))
-
-
-def panel_engine(window) -> str:
-    """Which engine the Force Field panel has selected."""
-    for name in ("ff_dock", "dftb_dock"):
-        dock = getattr(window, name, None)
-        chosen = getattr(dock, "engine_name", None)
-        if callable(chosen):
-            try:
-                return str(chosen())
-            except Exception:                       # noqa: BLE001
-                continue                            # pragma: no cover
-    return "uff"
-
-
-def panel_options(window, engine: str) -> dict:
-    """That engine's own options, as the Force Field panel has them.
-
-    Used to *open* this dialog's form on what the user last set up
-    rather than on the registry defaults, which is the difference
-    between "the scan runs UFF4MOF because that is what I have been
-    using" and "the scan runs whatever it felt like".  The form is
-    still the dialog's own: an engine chosen here that the panel is
-    not on has nothing to inherit, and gets its defaults.
-    """
-    for name in ("ff_dock", "dftb_dock"):
-        dock = getattr(window, name, None)
-        if dock is None:
-            continue
-        chosen = getattr(dock, "engine_name", None)
-        if callable(chosen) and str(chosen()) == engine:
-            return dict(dock.options())
-        forms = getattr(dock, "engine_forms", {}) or {}
-        form = forms.get(engine)
-        if form is not None:
-            return dict(form.values())
-    return {}
 
 
 def selected_atoms(window) -> list[int]:

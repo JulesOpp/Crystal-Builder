@@ -229,22 +229,10 @@ class ResultsDock(QDockWidget):
             self.body.addStretch(1)
 
     def _render(self, block):
-        if isinstance(block, Table):
-            return _table_widget(block)
-        if isinstance(block, Histogram):
-            return _histogram_widget(block)
-        if isinstance(block, Curve):
-            return _curve_widget(block, self)
-        if isinstance(block, Bands):
-            return _bands_widget(block, getattr(self, "_beside", None))
-        if isinstance(block, Dos):
-            return _dos_widget(block)
-        if isinstance(block, Modes):
-            return _modes_widget(block, self)
-        if isinstance(block, Zone):
-            return _zone_widget(block)
-        if isinstance(block, Surface):
-            return _surface_widget(block, self)
+        for kind in type(block).__mro__:
+            render = RENDERERS.get(kind)
+            if render is not None:
+                return render(block, self)
         return None                                 # pragma: no cover
 
     def _drop_blocks(self) -> None:
@@ -883,3 +871,20 @@ def _export_modes(modes: Modes, parent) -> None:
         Path(path).write_text(modes.as_dat(), encoding="utf-8")
     except OSError as exc:
         QMessageBox.warning(parent, "Export the modes", str(exc))
+
+
+#: How each kind of block is drawn, as ``(block, dock) -> widget``.
+#: A table rather than a chain of ``isinstance`` checks, so a module
+#: that brings a new kind of block adds one line here -- and
+#: ``test_every_report_block_has_a_widget`` says so if it does not.
+RENDERERS = {
+    Table: lambda block, dock: _table_widget(block),
+    Histogram: lambda block, dock: _histogram_widget(block),
+    Curve: _curve_widget,
+    Bands: lambda block, dock: _bands_widget(
+        block, getattr(dock, "_beside", None)),
+    Dos: lambda block, dock: _dos_widget(block),
+    Modes: _modes_widget,
+    Zone: lambda block, dock: _zone_widget(block),
+    Surface: _surface_widget,
+}

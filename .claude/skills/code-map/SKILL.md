@@ -56,7 +56,7 @@ The layout table in `CLAUDE.md` names the packages. Beyond it:
 |---|---|
 | What a menu entry does | `xtalapp/menus.py` `build_actions` (the `add(...)` calls), then the `MainWindow` method named as its slot |
 | What a structure edit does | `xtalapp/document.py` (the verb), then `xtal/commands/` (the undoable command) |
-| When an action is enabled | `MainWindow._refresh_shell` and `_on_selection_changed` in `xtalapp/mainwindow.py` |
+| When an action is enabled | `shell_state.selection_states` for the selection's actions, then `_refresh_shell` and `_on_selection_changed` in `xtalapp/shell_state.py` (`ShellRefresh`, a mixin of `MainWindow`) |
 | A module's settings | `xtal/modules/<name>.py`, the `Param(...)` tuples |
 | A module's custom dialog | `xtalapp/dialogs/__init__.py` `_BY_NAME` |
 | A force-field engine | `xtal/ff/registry.py`, `xtal/ff/<engine>/` |

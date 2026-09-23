@@ -1035,7 +1035,39 @@ new string is owed to the next ui-text batch (§ 1, Phase 2).
 
 ---
 
-## 6. What this plan does not do
+## 6. One decision, one place: the factoring track
+
+Planned 2026-09-23 from `review/reports/factoring.md` on
+`features/deep-review`, none of whose ten findings had been touched
+once the performance and shell tracks shipped.  The recurring fault is
+not tangle but **the same decision written down twice**, and every
+pair the review checked had drifted -- two of them into live bugs.
+Doing this before the uMLIPs and EQeq means each of those is written
+once against a shared base, not copied a fifth time.  The full plan is
+`~/.claude/plans/the-branch-features-deep-review-has-witty-dolphin.md`.
+Branch `refactor/deep-review-factoring`, off `main`.
+
+| Phase | Delivers | Main files | Size |
+|---|---|---|---|
+| **0 — One enablement rule** | Shipped 2026-09-23. `shell_state.selection_states` is the one answer for the selection's actions; both refresh paths apply it, so clicking an atom during playback no longer re-enables Cut, Duplicate and Delete | `xtalapp/shell_state.py`, `xtalapp/mainwindow.py` | S |
+| **1 — A build is filed by the core** | Shipped 2026-09-23. `Workspace.adopt_build` takes the filesystem half of `ModuleRunner._file_build`; `xtal run mof.build --workspace` files a build the way the window does | `xtal/workspace.py`, `xtalapp/module_runner.py`, `xtal/cli.py` | M |
+| **2 — A Force Field run is recorded by the core** | Shipped 2026-09-23. `xtal/ff/record.py` `open_run` / `close_run`, mirroring the modules'; the dock and the CLI call it, and the failure path exists once | `xtal/ff/record.py`, `xtalapp/docks/ff_panel.py`, `xtal/cli.py` | M |
+| **3 — Chemistry out of the shell** | Shipped 2026-09-23. The MOF preview draws the block's own bonds (all 879 shipped blocks have them; the old rule drew 9401 they do not), or the core's rule for a block with none, `bond_distance` moves to `xtal.core.bonding`, and the headless test imports every core module | `xtalapp/dialogs/mof_preview.py`, `tests/test_core_is_headless.py` | S |
+| **5 — Small decisions made twice** | Shipped 2026-09-23. One stop record in `OptimizationWorker`; `ff_panel.panel_options` the one reader of the engine panels, for the scan and the DFTB+ run; `xtal.workspace.resolved` the one "same file" answer | `xtalapp/workers.py`, `xtalapp/dialogs/scan.py`, `xtalapp/dialogs/dftb_run.py` | S |
+| **4 — Engines share their plumbing** | Shipped 2026-09-23. `Engine.__call__` coerces; an `ExternalCalculator` base for DFTB+ and xTB; an `ASECalculatorEngine` base under MACE; one charge-source list | `xtal/ff/registry.py`, `xtal/ff/api.py`, `xtal/ff/*/calculator.py`, `xtalapp/docks/ff_panel.py` | M |
+| **6 — One registry shape** | Shipped 2026-09-23. A `Registry` generic the three registries subclass; report blocks rendered by table, not `isinstance` | `xtal/params.py`, `xtal/*/registry.py`, `xtalapp/docks/results.py` | S-M |
+| **7 — Split `mainwindow.py`** | Shipped 2026-09-23. A pure move into three mixins, one seam per commit: refresh/enable to `shell_state.ShellRefresh`, symmetry and cell to `symmetry_actions.SymmetryActions`, edit/select/measure to `edit_actions.EditActions`; 2014 -> 1093 lines | `xtalapp/mainwindow.py`, `xtalapp/shell_state.py` | M |
+
+The table is in the order the phases are done; 5 comes before 4
+because it is small and 4 is easier with the stop and panel readers
+already single.  **After it**: uMLIPs on `ASECalculatorEngine` (ORB-v3,
+then MatterSim and SevenNet), EQeq on the single charge-source list,
+and the CCDC-headed sample files, which need a decision first because
+`MFU4l.cif` is the suite's stress case.
+
+---
+
+## 7. What this plan does not do
 
 * It does not touch the design principles in
   [docs/PLAN.md](PLAN.md) § 1.  Every phase keeps the core Qt-free,

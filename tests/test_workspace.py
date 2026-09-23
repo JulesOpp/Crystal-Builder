@@ -18,6 +18,7 @@ from xtal.workspace import (
     Run,
     Workspace,
     classify,
+    resolved,
     safe_name,
 )
 
@@ -501,3 +502,148 @@ def test_the_autosave_folder_is_not_an_entry(workspace, entry):
 def test_a_file_outside_the_workspace_has_no_autosave(workspace,
                                                      tmp_path):
     assert workspace.autosave_path(tmp_path / "elsewhere.cif") is None
+
+
+# --------------------------------------------------- filing a build
+
+def _placeholder_run(workspace, rutile):
+    """A run opened under an entry named for the module, holding the
+    copy of the structure the module wrote for itself."""
+    run = workspace.add_document("MOF builder").next_run("mof", "build")
+    own = run.path / "pormake.cif"
+    write_cif(rutile, own)
+    return run.path, own
+
+
+def test_adopting_a_build_leaves_one_entry_and_one_cif(workspace,
+                                                       rutile):
+    """Two copies of a build are a question about which is real."""
+    run, own = _placeholder_run(workspace, rutile)
+    built = rutile.copy()
+    built.meta["title"] = "pcu-N1"
+
+    filed = workspace.adopt_build(built, run=run, artifacts=(own,))
+
+    assert filed.entry.path == workspace.root / "pcu-N1"
+    assert filed.path == filed.entry.path / "pcu-N1.cif"
+    assert filed.run == filed.entry.path / run.name
+    assert [p.name for p in filed.run.iterdir()
+            if p.suffix == ".cif"] == []
+    assert not run.parent.exists()            # the placeholder went
+    assert [e.name for e in workspace.entries()] == ["pcu-N1"]
+
+
+def test_a_placeholder_holding_another_run_is_left_alone(workspace,
+                                                         rutile):
+    run, own = _placeholder_run(workspace, rutile)
+    workspace.add_document("MOF builder").next_run("mof", "build")
+
+    workspace.adopt_build(rutile.copy(), run=run, artifacts=(own,))
+
+    assert run.parent.is_dir()
+
+
+def test_a_second_build_of_one_name_gets_a_folder_of_its_own(
+        workspace, rutile):
+    first = workspace.adopt_build(rutile.copy())
+    second = workspace.adopt_build(rutile.copy())
+
+    assert first.entry.path != second.entry.path
+    assert first.run is None and second.run is None
+
+
+# ------------------------------------------ a force-field run's life
+
+def _stable(log_text: str) -> list[str]:
+    """A log without the lines that name a moment or a place."""
+    return [line for line in log_text.splitlines()
+            if not any(word in line for word in
+                       ("started", "finished", "folder", "timing",
+                        "seconds", "version", "/"))]
+
+
+def test_a_failed_run_closes_its_log_once(entry, rutile):
+    """The panel used to write its failure path twice, differently."""
+    from xtal.ff import ENGINES
+    from xtal.ff import record as ff_record
+
+    calculator = ENGINES.get("uff")(rutile)
+    recorder = ff_record.open_run(entry, "uff", "optimise", rutile,
+                                  calculator)
+    ff_record.close_run(recorder, error="it went wrong",
+                        warning="recording stopped: disk full")
+    ff_record.close_run(None, error="nothing to close")
+
+    run, = entry.runs()
+    log = run.log_path.read_text()
+    assert log.count("the run failed: it went wrong") == 1
+    assert log.count("recording stopped: disk full") == 1
+    assert log.count("finished") == 1
+    assert not run.final_path.exists()
+
+
+def test_no_entry_is_a_run_that_leaves_nothing(rutile):
+    from xtal.ff import record as ff_record
+
+    assert ff_record.open_run(None, "uff", "single-point", rutile,
+                              None) is None
+
+
+def test_cli_and_panel_write_the_same_run_folder(tmp_path, entry,
+                                                 rutile):
+    """The panel calls ``open_run`` and ``write_single_point``; the CLI
+    must write the same log from them, not from a copy of them."""
+    from xtal.cli import main
+    from xtal.core import p1
+    from xtal.ff import ENGINES
+    from xtal.ff import record as ff_record
+
+    source = tmp_path / "rutile.cif"
+    write_cif(rutile, source)
+    structure = read_cif(source)                # as the CLI sees it
+    options = ENGINES.get("uff").coerce({})
+    calculator = ENGINES.get("uff")(structure, **options)
+    cell = p1.expand(structure)
+    result = calculator.compute(cell.cart, structure.lattice.matrix)
+    ff_record.write_single_point(ff_record.open_run(
+        entry, "uff", "single-point", structure, calculator,
+        options=options), result)
+    root = tmp_path / "cli-ws"
+    main(["energy", str(source), "--workspace", str(root)])
+
+    ours, = entry.runs()
+    theirs, = Workspace.open(root).entries()[0].runs()
+    assert ours.name == theirs.name == "uff-single-point-001"
+    assert _stable(ours.log_path.read_text()) \
+        == _stable(theirs.log_path.read_text())
+
+
+
+# ------------------------------------------------- the same file
+
+def test_no_path_is_not_the_current_directory():
+    """``Path("").resolve()`` is the working directory, which every
+    unsaved document would then have matched."""
+    assert resolved(None) is None
+    assert resolved("") is None
+
+
+def test_a_symlink_is_the_file_it_points_at(tmp_path):
+    target = tmp_path / "a.cif"
+    target.write_text("data_a\n")
+    link = tmp_path / "b.cif"
+    link.symlink_to(target)
+
+    assert resolved(link) == resolved(target)
+
+
+def test_a_path_that_cannot_be_resolved_still_matches_itself(
+        tmp_path, monkeypatch):
+    """The tab set said None here and the tree kept the spelling; None
+    matches nothing, so the tree was right."""
+    def refuse(self, strict=False):
+        raise OSError("the volume went away")
+
+    monkeypatch.setattr(type(tmp_path), "resolve", refuse)
+
+    assert resolved(tmp_path / "x.cif") == tmp_path / "x.cif"

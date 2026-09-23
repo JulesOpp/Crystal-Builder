@@ -5,8 +5,9 @@ description: Move code between modules without changing behaviour - splitting ma
 
 # Moving code, and only moving code
 
-`mainwindow.py` is ~1800 lines and nearly every change touches it, so
-a split is worth doing — and is the change most likely to be smuggled
+`mainwindow.py` was ~2000 lines and nearly every change touched it, so
+a split was worth doing (it is ~1100 now; see CLAUDE.md), and the next
+file to outgrow itself is worth the same care — and is the change most likely to be smuggled
 in alongside a bug fix, after which neither can be reviewed. The rule
 is the whole skill: **a pure move changes no behaviour.**
 
@@ -15,7 +16,13 @@ is the whole skill: **a pure move changes no behaviour.**
 **1. Propose, do not edit.** Read the file and report the seams that
 already exist before proposing new ones. In `mainwindow.py` they are:
 the menu/action wiring, the module-run plumbing, the document/tab
-management, the three refresh paths. For each candidate module say
+management -- the three refresh paths, the symmetry commands and the
+edit commands have already gone to mixins.  **A mixin is the purest
+way out of a window**: the bodies keep their ``self`` and move byte for
+byte, with no forwarders, where a collaborator holding ``self.window``
+means rewriting every line it takes.  Check that the moved text is a
+substring of the new file, and that the only lines added to the old
+one are imports and the class line. For each candidate module say
 what moves, what it depends on, what stays behind, and what cannot
 move cleanly. Ask before touching anything.
 

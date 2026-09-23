@@ -15,7 +15,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from xtal.params import Availability, Param, coerce, defaults
+from xtal.params import Availability, Param, Registry, coerce, defaults
 
 
 @dataclass(frozen=True)
@@ -79,11 +79,20 @@ class Engine:
         rather than in each engine is the same argument
         :mod:`xtal.ff.markers` makes: an engine written next year
         would have to remember, and would not.
+
+        **And the options are coerced here**, to exactly the ones the
+        engine declares, typed and with the rest at their defaults.
+        Each engine used to filter its own keywords, three different
+        ways (its ``Param`` names, its dataclass fields, or not at
+        all, when an unknown key was a ``TypeError``).  An engine that
+        declares no options is handed what it was given.
         """
         from xtal.core import p1
         from xtal.ff import markers
 
         _refuse_coincident(structure)
+        if self.options:
+            options = self.coerce(options)
         clean, kept = markers.hold_back(structure)
         calculator = self.build(clean, **options)
         if kept is None:
@@ -124,35 +133,11 @@ def _refuse_coincident(structure) -> None:
         f"Duplicates first.")
 
 
-class EngineRegistry:
-    def __init__(self):
-        self._engines: dict[str, Engine] = {}
+class EngineRegistry(Registry):
+    """Name -> :class:`Engine`, in the order the chooser offers them."""
 
-    def register(self, engine: Engine) -> Engine:
-        self._engines[engine.name] = engine
-        return engine
-
-    def __contains__(self, name: str) -> bool:
-        return name in self._engines
-
-    def __iter__(self):
-        return iter(sorted(self._engines.values(),
-                           key=lambda e: (e.order, e.label)))
-
-    def __len__(self) -> int:
-        return len(self._engines)
-
-    def get(self, name: str) -> Engine:
-        try:
-            return self._engines[name]
-        except KeyError:
-            raise ValueError(
-                f"unknown force field: {name!r}; "
-                f"have {', '.join(sorted(self._engines)) or 'none'}"
-            ) from None
-
-    def names(self) -> list[str]:
-        return list(self._engines)
+    noun = "force field"
+    sorted = True
 
     def build(self, name: str, structure, **options):
         return self.get(name)(structure, **options)

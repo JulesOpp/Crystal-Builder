@@ -330,3 +330,14 @@ def test_the_ticks_are_round_numbers_inside_the_range():
 def test_the_ticks_scale_with_the_range():
     assert _ticks(0.0, 1000.0)[-1] == 1000
     assert len(_ticks(3.2, 3.9)) >= 2
+
+
+def test_every_report_block_has_a_widget():
+    """The panel dispatched with eight isinstance checks, the report
+    listed its kinds twice more, and nothing tied the three together:
+    a module bringing a ninth kind of block would have been drawn as
+    nothing, in silence."""
+    from xtal.modules.report import BLOCK_TYPES
+    from xtalapp.docks.results import RENDERERS
+
+    assert set(BLOCK_TYPES) == set(RENDERERS)

@@ -14,7 +14,7 @@ bonding, run force field / DFTB+ / Zeo++ calculations on the result.
 | `xtal/ff/`, `xtal/modules/` | Calculators (UFF with UFF4MOF, xTB, DFTB+, MACE) and the module/job registry (Zeo++). MACE is the one that runs in process rather than as a binary; it needs the `mace` extra, and `_load_model` is the seam its tests replace. |
 | `xtal/mof/`, `xtal/build/` | PORMAKE frameworks (`orient.py` is which way round a node goes), and SMILES to a molecule. **PORMAKE is vendored** at `xtal/mof/pormake/` — MIT, trimmed of `jax`, `pymatgen` and `networkx`; see its `PROVENANCE.md`, and do not reformat it. The MOF builder needs the `ase` extra, the molecule builder the `build` one; the check is `find_spec` and never an import, and the entries grey out naming the extra. |
 | `xtalapp/` | The Qt/PySide6 + VTK GUI shell. Holds no crystallography of its own. |
-| `xtalapp/mainwindow.py` | The shell: menus, docks, tabs. Large; see "Working in mainwindow" below. |
+| `xtalapp/mainwindow.py` | The shell: menus, docks, tabs, and three mixins it inherits -- `shell_state.ShellRefresh` (refreshing and enabling), `symmetry_actions.SymmetryActions`, `edit_actions.EditActions`. See "Working in mainwindow" below. |
 | `xtalapp/document.py` | `Document` — a structure plus its undo stack. The GUI asks the Document to change things; it does not edit structures directly. |
 
 ## Commands
@@ -449,8 +449,10 @@ stress case).
   one whose first run has nowhere to land. Open Sample copies the
   bundled CIF in and opens the copy — that is what stopped Ctrl+S
   aiming inside a signed app bundle. A build is filed by
-  `ModuleRunner._file_build`: one entry, **one** CIF written from the
+  `Workspace.adopt_build`: one entry, **one** CIF written from the
   structure, the run's poorer copy dropped, the run moved underneath.
+  It is the core's and not the window's, so `xtal run mof.build
+  --workspace` files a build exactly as the window does.
 - **`add_structure` de-duplicates by content, never by name.** Two
   people's `MFU4l.cif` are two structures and get `MFU4l` and
   `MFU4l-2`. Deciding by name alone silently copied the second over
@@ -653,9 +655,17 @@ stress case).
 
 ## Working in `mainwindow.py`
 
-It is ~1800 lines and is touched by nearly every change. When editing
-it, read the specific method rather than the whole file, and prefer a
-targeted `Edit` over rewriting the file.
+It is ~1100 lines, and ~900 more are in three mixins `MainWindow`
+inherits, split out by a pure move in 2026-09: `xtalapp/shell_state.py`
+(`ShellRefresh` -- the refresh paths and every enabling decision),
+`xtalapp/symmetry_actions.py` (the Symmetry and Cell commands) and
+`xtalapp/edit_actions.py` (editing, selection, bonds, measurements).
+A mixin's methods read the window through ``self`` like any other; put
+a new command beside its siblings, wherever they are, and outline with
+`code-map` rather than reading a file whole. A test that patches a
+module-level name (``rdkit_installed``, a dialog class) patches it in
+the module whose method looks it up. Prefer a targeted `Edit` over
+rewriting the file.
 
 Refreshing is deliberately split three ways and the distinction
 matters for responsiveness: `_update_ui` rebinds panels when the

@@ -210,6 +210,41 @@ class BuildingBlock:
 
         return members_of(self.connections, self.bonds)
 
+    def bond_pairs(self) -> list[tuple[int, int]]:
+        """The pairs to draw this block with, as ``(i, j)``, ``i < j``.
+
+        Its own bond section, which is what the build reads -- every
+        one of the 879 blocks shipped today has one.  Guessing from
+        distances instead, as the picker once did, drew 9401 bonds
+        those blocks do not have (335 of them metal-metal) and missed
+        74 they do, so the block in the picture was not the block that
+        would be built.
+
+        A block written with no bond section gets the application's
+        own perception over its atoms, which never bonds a connection
+        point, and each point is then joined to its nearest atom so it
+        still hangs off something.
+        """
+        if self.bonds:
+            return sorted({(min(int(i), int(j)), max(int(i), int(j)))
+                           for i, j, *_ in self.bonds})
+        from xtal.core.bonding import BondRules
+
+        positions = np.asarray(self.positions, dtype=float)
+        points = set(self.connections) | {
+            i for i, s in enumerate(self.symbols) if s == CONNECTION}
+        body = [i for i in range(len(self.symbols)) if i not in points]
+        pairs = {(body[a], body[b]) for a, b in BondRules().pairs_within(
+            positions[body], [self.symbols[i] for i in body])}
+        for point in points:
+            if not body:
+                break
+            gaps = np.linalg.norm(positions[body] - positions[point],
+                                  axis=1)
+            near = body[int(np.argmin(gaps))]
+            pairs.add((min(point, near), max(point, near)))
+        return sorted(pairs)
+
     @property
     def is_polydentate(self) -> bool:
         """Whether any connection point stands for more than one atom.

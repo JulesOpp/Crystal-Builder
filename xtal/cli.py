@@ -202,12 +202,7 @@ def _calculator(structure, args):
     from xtal.ff import ENGINES
 
     engine = ENGINES.get(args.engine)
-    if engine.options:
-        options = engine.coerce(_parsed_params(
-            getattr(args, "param", None), engine.options))
-    else:
-        options = {"coulomb": getattr(args, "coulomb", False),
-                   "charges": getattr(args, "charges", "site")}
+    options = _engine_options(args)
     # After the options, not before: half of what an external engine
     # needs to be available is in them.
     available = engine.availability(**options)
@@ -219,6 +214,19 @@ def _calculator(structure, args):
     for warning in calculator.warnings:
         print(f"warning: {warning}", file=sys.stderr)
     return calculator
+
+
+def _engine_options(args) -> dict:
+    """The options the arguments give the engine, asked once so the
+    calculator and the run's log cannot be told two different things."""
+    from xtal.ff import ENGINES
+
+    engine = ENGINES.get(args.engine)
+    if engine.options:
+        return engine.coerce(_parsed_params(
+            getattr(args, "param", None), engine.options))
+    return {"coulomb": getattr(args, "coulomb", False),
+            "charges": getattr(args, "charges", "site")}
 
 
 def cmd_types(args) -> int:
@@ -247,6 +255,7 @@ def cmd_types(args) -> int:
 
 def cmd_energy(args) -> int:
     from xtal.core import p1
+    from xtal.ff import record as ff_record
 
     structure = _load(args.file)
     calculator = _calculator(structure, args)
@@ -262,12 +271,7 @@ def cmd_energy(args) -> int:
 
     recorder = _recorder(args, structure, calculator, "single-point")
     if recorder is not None:
-        recorder.energies(result, "Energy")
-        recorder.log.write(
-            f"max force      {result.max_force:.5f} kcal/mol/A")
-        recorder.log.write(
-            f"rms force      {result.rms_force:.5f} kcal/mol/A")
-        recorder.close()
+        ff_record.write_single_point(recorder, result)
         print(f"wrote {recorder.folder.path}")
     return 0
 
@@ -283,33 +287,18 @@ def _recorder(args, structure, calculator, kind: str):
     """
     if not getattr(args, "workspace", None):
         return None
-    from xtal.ff.record import RunRecorder
+    from xtal.ff import record as ff_record
     from xtal.workspace import Workspace
 
     workspace = Workspace.create(args.workspace)
-    entry = workspace.add_structure(args.file)
-    from xtal.ff import ENGINES
-    engine = ENGINES.get(args.engine)
-    folder = entry.next_run(args.engine, kind)
-    options = (engine.coerce(_parsed_params(
-                   getattr(args, "param", None), engine.options))
-               if engine.options
-               else {"coulomb": args.coulomb, "charges": args.charges})
-    recorder = RunRecorder(
-        folder, structure, calculator, engine=args.engine,
-        options=options, record_trajectory=(kind == "optimise"))
-    recorder.header(kind.replace("-", " "))
-    if "types" in engine.provides:
-        # UFF's typing table.  Writing it for an engine that has no
-        # atom types would put a page of somebody else's answer in
-        # the middle of this one's log.
-        recorder.typing()
-    recorder.topology()
-    return recorder
+    return ff_record.open_run(
+        workspace.add_structure(args.file), args.engine, kind,
+        structure, calculator, options=_engine_options(args))
 
 
 def cmd_optimize(args) -> int:
     from xtal.ff import optimize
+    from xtal.ff import record as ff_record
 
     structure = _load(args.file)
     calculator = _calculator(structure, args)
@@ -352,8 +341,7 @@ def cmd_optimize(args) -> int:
               f"({structure.lattice.volume:.2f} A^3)")
     structure.touch()
     if recorder is not None:
-        recorder.result(result, final=structure)
-        recorder.close()
+        ff_record.close_run(recorder, result, final=structure)
         print(f"wrote {recorder.folder.path}")
     if args.output:
         FORMATS.write(structure, args.output)
@@ -437,7 +425,7 @@ def cmd_run(args) -> int:
     structure = _load(args.file) if args.file else None
     params = action.coerce(_parsed_params(args.param, action.params))
 
-    folder = None
+    folder = workspace = None
     if args.workspace:
         from xtal.workspace import Workspace
         workspace = Workspace.create(args.workspace)
@@ -458,6 +446,17 @@ def cmd_run(args) -> int:
         print("interrupted", file=sys.stderr)
         return 130
     module_record.close_run(folder, result)
+    run_path = folder.path if folder is not None else None
+    if workspace is not None and not action.needs_structure \
+            and result.ok and result.structure is not None:
+        # A build is filed the way the window files one: an entry
+        # named after what was built, one CIF written from it, and
+        # the run moved underneath.
+        filed = workspace.adopt_build(
+            result.structure, run=run_path,
+            artifacts=getattr(result, "artifacts", ()))
+        run_path = filed.run or run_path
+        print(f"filed as {filed.path}")
     print(result.summary())
     # A run whose whole answer is a table has to print the table:
     # "peak at 18.75 A" is a headline, not a result.
@@ -469,8 +468,8 @@ def cmd_run(args) -> int:
     if args.output and result.structure is not None:
         FORMATS.write(result.structure, args.output)
         print(f"wrote {args.output}")
-    if folder is not None:
-        print(f"run folder: {folder.path}")
+    if run_path is not None:
+        print(f"run folder: {run_path}")
     return 0 if result.ok else 2
 
 
@@ -577,6 +576,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("file")
     p.set_defaults(func=cmd_types)
 
+    from xtal.ff.uff.calculator import CHARGE_SOURCES
+    charge_sources = [value for value, _label in CHARGE_SOURCES]
     for name, help_text in (("energy", "single-point energy"),
                             ("optimize", "relax the geometry")):
         p = sub.add_parser(name, help=help_text)
@@ -588,7 +589,7 @@ def build_parser() -> argparse.ArgumentParser:
                        help="include electrostatics (off by default, "
                             "as in UFF itself)")
         p.add_argument("--charges", default="site",
-                       choices=["site", "qeq", "zero"],
+                       choices=charge_sources,
                        help="where charges come from when "
                             "electrostatics are on")
         p.add_argument("-p", "--param", action="append",

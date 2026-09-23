@@ -99,7 +99,7 @@ def test_without_rdkit_the_entry_is_greyed_and_says_what_to_install(
     """Greyed with a sentence, not absent.  A menu entry that is
     simply not there leaves somebody looking for a feature they have
     read about with nothing to find."""
-    import xtalapp.mainwindow as shell
+    import xtalapp.shell_state as shell
     monkeypatch.setattr(shell, "rdkit_installed", lambda: False)
     opened(window, tmp_path, rutile)
 

@@ -67,6 +67,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.ff import ENGINES
+from xtal.ff import record as ff_record
 from xtal.ff.optimize import (
     DEFAULT_FORCE_TOLERANCE,
     DEFAULT_MAX_STEPS,
@@ -87,11 +88,6 @@ from xtalapp.widgets.atom_types import HEADING as TYPES_HEADING
 from xtalapp.widgets.tone import HINT, set_tone
 from xtalapp.workers import OptimizationWorker, start_in_thread
 
-CHARGE_SOURCES = [
-    ("From the sites", "site"),
-    ("Equilibrate (QEq)", "qeq"),
-    ("All zero", "zero"),
-]
 METHOD_LABELS = {
     "lbfgs": "L-BFGS (fast near a minimum)",
     "fire": "FIRE (robust far from one)",
@@ -200,7 +196,7 @@ class ForceFieldDock(QDockWidget):
             "parameters were fitted without a Coulomb term")
         self.coulomb.toggled.connect(self._on_coulomb)
         self.charges = QComboBox()
-        for label, value in CHARGE_SOURCES:
+        for value, label in uff_calculator.CHARGE_SOURCES:
             self.charges.addItem(label, value)
         self.charges.setEnabled(False)
 
@@ -329,7 +325,7 @@ class ForceFieldDock(QDockWidget):
         setup.addRow("Force field", self.engine)
         setup.addRow("Parameters", self.parameter_set)
         setup.addRow(self.coulomb)
-        setup.addRow("Charges", self.charges)
+        setup.addRow(_uff_option("charges").title, self.charges)
         setup.addRow("van der Waals cutoff", self.vdw_cutoff)
         setup.addRow("Pair list skin", self.skin)
         self.uff_rows = (self.parameter_set, self.coulomb, self.charges,
@@ -575,6 +571,19 @@ class ForceFieldDock(QDockWidget):
     def engine_name(self) -> str:
         return self.engine.currentData()
 
+    def options_for(self, engine: str) -> dict | None:
+        """What this panel has set up for ``engine``, or ``None`` when
+        it does not offer that engine.
+
+        :meth:`options` when it is the one selected, which is the
+        only way to read UFF's hand-built controls; otherwise the
+        engine's own form, as the user last left it.
+        """
+        if engine == self.engine_name():
+            return dict(self.options())
+        form = self.engine_forms.get(engine)
+        return dict(form.values()) if form is not None else None
+
     # ==================================================================
     #  OVERRIDING A TYPE
     # ==================================================================
@@ -606,28 +615,15 @@ class ForceFieldDock(QDockWidget):
         rather than silently doing less than the user expects.
         """
         document = self.document
-        entry = getattr(document, "entry", None)
-        if entry is None:
-            return None
-        from xtal.ff.record import RunRecorder
         try:
-            folder = entry.next_run(self.engine_name(), kind)
-            recorder = RunRecorder(
-                folder, document.structure, calculator,
-                engine=self.engine_name(), options=self.options(),
-                record_trajectory=(kind == "optimise"))
-            recorder.header(kind.replace("-", " "))
-            if self._engine_provides("types"):
-                # UFF's typing table.  Writing it for an engine that
-                # has no atom types would put a page of somebody
-                # else's answer in the middle of this one's log.
-                recorder.typing()
-            recorder.topology()
+            return ff_record.open_run(
+                getattr(document, "entry", None), self.engine_name(),
+                kind, document.structure, calculator,
+                options=self.options())
         except OSError as exc:
             self.statusMessage.emit(
                 f"could not write into the workspace: {exc}")
             return None
-        return recorder
 
     def single_point(self) -> None:
         if self.document is None:
@@ -641,12 +637,7 @@ class ForceFieldDock(QDockWidget):
             return
         recorder = self._open_run("single-point", calculator)
         if recorder is not None:
-            recorder.energies(result, "Energy")
-            recorder.log.write(f"max force      {result.max_force:.5f} "
-                               f"kcal/mol/A")
-            recorder.log.write(f"rms force      {result.rms_force:.5f} "
-                               f"kcal/mol/A")
-            recorder.close()
+            ff_record.write_single_point(recorder, result)
             self.runFinished.emit(str(recorder.folder.path))
         self.report.setPlainText(
             f"{calculator.summary()}\n\n{result.breakdown()}\n\n"
@@ -832,24 +823,25 @@ class ForceFieldDock(QDockWidget):
         from the worker's copy: it is the geometry the user is looking
         at, and the one the command that just landed put there.
         """
-        recorder = self._recorder
+        self._finish_run(result=result, final=final,
+                         error="" if result is not None
+                         else "the optimisation failed")
+
+    def _finish_run(self, **how) -> None:
+        """Close the run the panel has open, whichever way it ended."""
+        recorder, self._recorder = self._recorder, None
         if recorder is None:
             return
+        warning = ""
         if self.worker is not None and self.worker.recording_failed:
             self.statusMessage.emit(
                 f"the run was not fully recorded: "
                 f"{self.worker.recording_failed}")
-            recorder.warn(f"recording stopped: "
-                          f"{self.worker.recording_failed}")
+            warning = f"recording stopped: {self.worker.recording_failed}"
         try:
-            if result is None:
-                recorder.failed("the optimisation failed")
-            else:
-                recorder.result(result, final=final)
+            ff_record.close_run(recorder, warning=warning, **how)
         except OSError as exc:                      # pragma: no cover
             self.statusMessage.emit(f"could not finish the log: {exc}")
-        recorder.close()
-        self._recorder = None
         self.runFinished.emit(str(recorder.folder.path))
 
     def _on_failed(self, message: str) -> None:
@@ -859,14 +851,42 @@ class ForceFieldDock(QDockWidget):
                                             self._before_matrix)
         self.report.setPlainText(f"the optimisation failed: {message}")
         self.statusMessage.emit(f"optimisation failed: {message}")
-        if self._recorder is not None:
-            self._recorder.failed(message)
-            self._recorder.close()
-            path = str(self._recorder.folder.path)
-            self._recorder = None
-            self.runFinished.emit(path)
+        self._finish_run(error=message)
         self.worker = None
 
     def closeEvent(self, event):                    # pragma: no cover
         self.stop()
         super().closeEvent(event)
+
+
+def panel_engine(window) -> str:
+    """Which engine the Force Field panel has selected."""
+    dock = getattr(window, "ff_dock", None) \
+        or getattr(window, "dftb_dock", None)
+    return str(dock.engine_name()) if dock is not None else "uff"
+
+
+def panel_options(window, engine: str) -> dict:
+    """``engine``'s options as the window's panels have them.
+
+    The one reader of the engine panels, for everything that runs an
+    engine without configuring one -- a scan, a DFTB+ band structure.
+    They were two: the scan's walked both docks through a ``getattr``
+    chain wrapped in a bare ``except``, the DFTB+ run's looked only at
+    one form, and nothing said they gave the same answer.  Empty when
+    no panel offers the engine, which gets its registry defaults.
+    """
+    for name in ("ff_dock", "dftb_dock"):
+        dock = getattr(window, name, None)
+        if dock is None:
+            continue
+        found = dock.options_for(engine)
+        if found is not None:
+            return found
+    return {}
+
+
+def _uff_option(name: str):
+    """UFF's declared option of this name, for the hand-built controls
+    to take their wording from rather than keep a copy of it."""
+    return next(p for p in uff_calculator.OPTIONS if p.name == name)

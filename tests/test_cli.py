@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from xtal.cli import main
+from xtal.io import write_cif
 
 
 def test_info(rutile_cif, capsys):
@@ -334,3 +335,46 @@ def test_a_module_that_needs_a_structure_still_asks_for_one(
         stub_module, capsys):
     assert main(["run", "stub.count"]) == 1
     assert "needs a structure" in capsys.readouterr().err
+
+
+@pytest.fixture
+def builder_module(rutile):
+    """A module that builds a structure from nothing, as PORMAKE does:
+    by writing a CIF of its own into the run folder and reading it."""
+    from xtal.modules import MODULES, Action, JobResult, Module
+
+    def build(job):
+        built = rutile.copy()
+        built.meta["title"] = "built-thing"
+        artifacts = ()
+        if job.folder is not None:
+            own = job.folder.path / "pormake-style.cif"
+            write_cif(built, own)
+            artifacts = (own,)
+        return JobResult(message="built", structure=built,
+                         artifacts=artifacts)
+
+    module = MODULES.register(Module(
+        name="_builder", label="Builder", actions=(
+            Action(name="go", label="Go", run=build,
+                   needs_structure=False),)))
+    yield module
+    MODULES.unregister(module.name)
+
+
+def test_a_cli_build_is_filed_like_the_windows(builder_module,
+                                                tmp_path, capsys):
+    """``xtal run`` used to leave a build under an entry named after
+    the module, beside the run's own poorer copy of it."""
+    root = tmp_path / "ws"
+    assert main(["run", "_builder.go", "--workspace", str(root),
+                 "-q"]) == 0
+
+    entry = root / "built-thing"
+    assert sorted(p.name for p in entry.iterdir()) == [
+        "builder-go-001", "built-thing.cif"]
+    run = entry / "builder-go-001"
+    assert (run / "run.log").exists()
+    assert not (run / "pormake-style.cif").exists()
+    assert not (root / "Builder").exists()
+    assert str(run) in capsys.readouterr().out

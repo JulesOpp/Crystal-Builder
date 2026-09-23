@@ -37,6 +37,7 @@ from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox
 
 from xtal.core.structure import Structure
 from xtal.io import FORMATS
+from xtal.workspace import resolved
 from xtalapp import samples
 from xtalapp.document import PROJECT_EXTENSION, Document
 from xtalapp.viewport.view_settings import theme_background
@@ -57,22 +58,6 @@ def no_confirm_close() -> bool:
     """
     return os.environ.get(NO_CONFIRM_CLOSE_ENV, "").strip().lower() not in (
         "", "0", "false", "no", "off")
-
-
-def _resolved(path):
-    """A path as the filesystem knows it, or ``None``.
-
-    ``None`` for a document that has never been saved, and for a path
-    that cannot be resolved at all -- a volume that went away, a
-    permission that was withdrawn.  Both are "not the file you are
-    asking about", which is the answer the caller wants.
-    """
-    if path is None:
-        return None
-    try:
-        return Path(path).resolve()
-    except OSError:                                 # pragma: no cover
-        return None
 
 
 class DocumentSet:
@@ -358,7 +343,7 @@ class DocumentSet:
         the Open dialog, the recent list, the workspace tree, drag and
         drop and the command line.
         """
-        wanted = _resolved(path)
+        wanted = resolved(path)
         if wanted is None:
             return None
         for document in self.documents:
@@ -385,16 +370,16 @@ class DocumentSet:
         inside the entry: ``final.cif`` from a run is a different
         geometry that has earned a tab of its own.
         """
-        out = {_resolved(document.path)}
+        out = {resolved(document.path)}
         entry = getattr(document, "entry", None)
         if entry is not None:
-            out.add(_resolved(entry.structure_path))
+            out.add(resolved(entry.structure_path))
         # And the file it was read from, which the tab no longer
         # points at once the copy has been adopted -- opening that
         # same file a second time still has to find this tab.
         source = document.structure.meta.get("source")
         if source:
-            out.add(_resolved(source))
+            out.add(resolved(source))
         out.discard(None)
         return out
 

@@ -29,16 +29,7 @@ from PySide6.QtWidgets import (
 from xtal.analysis import kpath
 from xtal.ff.dftb import params as dftb_params
 from xtalapp.dialogs.module_form import ModuleDialog
-
-
-def panel_hamiltonian(window) -> dict:
-    """The DFTB+ panel's form, or nothing when there is no panel --
-    a run then gets :class:`~xtal.ff.dftb.calculator.DFTBOptions`'
-    defaults, which are the panel's defaults."""
-    dock = getattr(window, "dftb_dock", None)
-    forms = getattr(dock, "engine_forms", {}) or {}
-    form = forms.get("dftb")
-    return dict(form.values()) if form is not None else {}
+from xtalapp.docks.ff_panel import panel_options
 
 
 class DftbRunDialog(ModuleDialog):
@@ -47,7 +38,9 @@ class DftbRunDialog(ModuleDialog):
 
     def __init__(self, module, action, parent=None, initial=None):
         super().__init__(module, action, parent, initial)
-        self.hamiltonian = panel_hamiltonian(parent)
+        # Empty when there is no panel: the run then gets
+        # DFTBOptions' defaults, which are the panel's.
+        self.hamiltonian = panel_options(parent, "dftb")
         method = dict(dftb_params.METHODS).get(
             self.hamiltonian.get("method", "dftb3"), "DFTB3")
         self.summary = QLabel(

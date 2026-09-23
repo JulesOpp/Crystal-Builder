@@ -50,25 +50,16 @@ from __future__ import annotations
 
 import json
 import re
-import shutil
 import signal
-import tempfile
-import weakref
-from dataclasses import dataclass, fields
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 
-from xtal.core import p1
-from xtal.ff.api import (
-    Calculator,
-    CalculatorError,
-    CalculatorStopped,
-    Result,
-)
+from xtal.ff.api import CalculatorError, Result
+from xtal.ff.external import ExternalCalculator
 from xtal.ff.registry import ENGINES, Engine
-from xtal.io.gen import gen_string
-from xtal.modules.process import ExternalProcess, MissingProgram, Program
+from xtal.modules.process import MissingProgram, Program
 from xtal.params import Availability, Param
 
 #: Both programs work in Hartree and Bohr; everything above this works
@@ -219,41 +210,27 @@ OPTIONS = (
 #  THE CALCULATOR
 # ======================================================================
 
-class XTBCalculator(Calculator):
+class XTBCalculator(ExternalCalculator):
     """GFN1-xTB, GFN2-xTB or GFN-FF over a structure's P1 cell."""
 
     name = "xtb"
     label = "xTB"
+    log_name = LOG_NAME
+    geometry_name = GEOMETRY_NAME
+    scratch_prefix = "xtb-"
     provides_forces = True
     #: See the module docstring: both programs report something that
     #: looks like a stress and neither agrees with a numeric one.
     provides_stress = False
 
     def __init__(self, structure, options: XTBOptions | None = None):
-        self.options = options or XTBOptions()
-        self.structure = structure
-        self.cell = p1.expand(structure)
-        if self.cell.n_atoms == 0:
-            raise CalculatorError(
-                "there are no atoms to compute an energy for")
-        self.symbols = tuple(self.cell.elements)
-        self.warnings: list[str] = []
-
+        self._prepare(structure, options or XTBOptions())
         self.program, self.binary = self._resolve()
-
-        self.directory = Path(tempfile.mkdtemp(prefix="xtb-"))
-        # Cleaned when this object goes, not at interpreter exit --
-        # and it is what makes GFN-FF's topology worth writing.
-        self._cleanup = weakref.finalize(
-            self, shutil.rmtree, self.directory, True)
-        self.calls = 0
-        self.seconds = 0.0
+        # One directory for the calculator's life, which is what makes
+        # GFN-FF's topology worth writing: it is read back next call.
+        self._open_scratch()
 
     # -- what the panel asks about -------------------------------------
-
-    @property
-    def n_atoms(self) -> int:
-        return self.cell.n_atoms
 
     def summary(self) -> str:
         label = METHODS.get(self.options.method,
@@ -302,27 +279,7 @@ class XTBCalculator(Calculator):
 
     def compute(self, positions, matrix) -> Result:
         """Energy and forces at these cartesian positions."""
-        from xtal.core.lattice import Lattice
-        from xtal.core.site import Site
-        from xtal.core.spacegroup import SpaceGroup
-        from xtal.core.structure import Structure
-
-        positions = np.asarray(positions, dtype=float).reshape(-1, 3)
-        matrix = np.asarray(matrix, dtype=float).reshape(3, 3)
-        if len(positions) != self.n_atoms:
-            raise CalculatorError(
-                f"this calculator was built for {self.n_atoms} atoms "
-                f"and was handed {len(positions)}")
-        lattice = Lattice(matrix)
-        frac = positions @ np.linalg.inv(matrix)
-        moved = Structure(
-            lattice=lattice,
-            sites=[Site(symbol, f) for symbol, f
-                   in zip(self.symbols, frac, strict=True)],
-            space_group=SpaceGroup.p1())
-
-        (self.directory / GEOMETRY_NAME).write_text(gen_string(moved),
-                                                    encoding="utf-8")
+        self._write_geometry(positions, matrix)
         self._launch()
         energy, gradient = self._read()
         return Result(energy=energy * HARTREE,
@@ -330,20 +287,8 @@ class XTBCalculator(Calculator):
                       terms={self.options.method: energy * HARTREE})
 
     def _launch(self):
-        log = _Log(self.directory / LOG_NAME)
-        process = ExternalProcess(self._argv(), cwd=self.directory,
-                                  log=log)
-        outcome = process.run(cancel=self.cancel)
-        self.calls += 1
-        self.seconds += outcome.seconds
-        log.close()
-        if outcome.cancelled:
-            raise CalculatorStopped("stopped during an evaluation")
-        if not outcome.ok:
-            raise CalculatorError(_why(outcome, self.program,
-                                       self.directory,
-                                       self.options.method))
-        return outcome
+        return self._run(self._argv(), lambda outcome: _why(
+            outcome, self.program, self.directory, self.options.method))
 
     def _read(self):
         if self.program is TBLITE:
@@ -491,38 +436,17 @@ def _why(outcome, program, directory, method="") -> str:
             f"The whole run is in {directory}.")
 
 
-class _Log:
-    """The tiny bit of :class:`xtal.workspace.RunLog` that
-    :class:`ExternalProcess` uses.
-
-    A calculator has no run folder -- the Force Field panel owns the
-    one for the whole optimisation -- so the program's own output goes
-    into the scratch directory, where a failure message can point at
-    it.
-    """
-
-    def __init__(self, path):
-        self.path = Path(path)
-        self._handle = self.path.open("w", encoding="utf-8")
-
-    def write(self, text: str) -> None:
-        self._handle.write(f"{text}\n")
-        self._handle.flush()
-
-    def close(self) -> None:
-        if not self._handle.closed:
-            self._handle.close()
-
-
 # ======================================================================
 #  THE ENGINE
 # ======================================================================
 
 def build(structure, **options) -> XTBCalculator:
-    """Registry entry point: keyword options in, calculator out."""
-    known = {f.name for f in fields(XTBOptions)}
-    return XTBCalculator(structure, XTBOptions(
-        **{k: v for k, v in options.items() if k in known}))
+    """Registry entry point: keyword options in, calculator out.
+
+    The options arrive coerced to :data:`OPTIONS` -- see
+    :meth:`xtal.ff.registry.Engine.__call__`.
+    """
+    return XTBCalculator(structure, XTBOptions(**options))
 
 
 ENGINES.register(Engine(

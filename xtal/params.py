@@ -174,3 +174,66 @@ class Availability:
 
     def __bool__(self) -> bool:
         return self.ok
+
+
+# ======================================================================
+#  A REGISTRY
+# ======================================================================
+
+class Registry:
+    """Name -> thing, for anything that has a ``name``.
+
+    Engines, modules and formats are each a registry of this shape,
+    and each was written out on its own: three copies of thirty lines
+    that had drifted apart -- only modules could be unregistered,
+    formats had no ``names`` or ``len``, and an unknown format did not
+    say what there was instead.  ``unregister``'s reason applies to all
+    three: a registry that can only grow leaks between test cases, and
+    a plugin that fails half way through registering has to be able to
+    take back what it added.
+
+    A subclass names what it holds (:attr:`noun`), the error an
+    unknown name raises (:attr:`error`), and whether it is iterated in
+    ``(order, label)`` order -- the chooser's -- or in the order things
+    were registered (:attr:`sorted`), which for formats is the order a
+    file dialog lists them in.
+    """
+
+    noun = "entry"
+    error: type[Exception] = ValueError
+    sorted = False
+
+    def __init__(self):
+        self._items: dict[str, Any] = {}
+
+    def register(self, item):
+        self._items[item.name] = item
+        return item
+
+    def unregister(self, name: str) -> None:
+        self._items.pop(name, None)
+
+    def __contains__(self, name: str) -> bool:
+        return name in self._items
+
+    def __len__(self) -> int:
+        return len(self._items)
+
+    def __iter__(self):
+        items = list(self._items.values())
+        if self.sorted:
+            items.sort(key=lambda item: (item.order, item.label))
+        return iter(items)
+
+    def get(self, name: str):
+        try:
+            return self._items[name]
+        except KeyError:
+            raise self.error(
+                f"unknown {self.noun}: {name!r}; have "
+                f"{', '.join(sorted(self._items)) or 'none'}"
+            ) from None
+
+    def names(self) -> list[str]:
+        """Every name, in iteration order."""
+        return [item.name for item in self]

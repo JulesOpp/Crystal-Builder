@@ -228,29 +228,19 @@ def _flatten(positions: np.ndarray) -> np.ndarray:
 
 
 def _draw_bonds(painter, block, points, connections, palette) -> None:
-    """Every pair close enough to be bonded, as a line.
+    """The block's bonds, as lines; a connection point's are dashed.
 
-    Distance against the covalent radii, the same rule the
-    application's own perception starts from -- a building block is an
-    XYZ with no bonds in it, and a picture of unbonded atoms is a
-    cloud of dots.
+    Which pairs is :meth:`~xtal.mof.catalog.BuildingBlock.bond_pairs`
+    -- the block's own bond section, the bonds it will be built with.
+    Deciding here, from distances, drew bonds the build never makes.
     """
-    painter.setPen(QPen(palette.color(palette.ColorRole.Mid), 1.4))
-    positions = np.asarray(block.positions, dtype=float)
-    radii = [1.0 if (i in connections or s == "X")
-             else el.covalent_radius(s)
-             for i, s in enumerate(block.symbols)]
-    for i in range(len(positions)):
-        for j in range(i + 1, len(positions)):
-            limit = radii[i] + radii[j] + 0.45
-            if float(np.linalg.norm(positions[i] - positions[j])) \
-                    > limit:
-                continue
-            dashed = i in connections or j in connections
-            painter.setPen(QPen(
-                palette.color(palette.ColorRole.Mid), 1.4,
-                Qt.DashLine if dashed else Qt.SolidLine))
-            painter.drawLine(QPointF(*points[i]), QPointF(*points[j]))
+    colour = palette.color(palette.ColorRole.Mid)
+    for i, j in block.bond_pairs():
+        dashed = (i in connections or j in connections
+                  or "X" in (block.symbols[i], block.symbols[j]))
+        painter.setPen(QPen(colour, 1.4,
+                            Qt.DashLine if dashed else Qt.SolidLine))
+        painter.drawLine(QPointF(*points[i]), QPointF(*points[j]))
 
 
 def _draw_atom(painter, centre, symbol: str, scale: float) -> None:

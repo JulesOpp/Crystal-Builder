@@ -41,7 +41,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from xtal.core import elements as el
+from xtal.core.bonding import bond_distance
 from xtal.core.structure import CHEMISTRY
 from xtalapp.viewport import picking, styles
 from xtalapp.viewport.scene import Ghost
@@ -301,19 +301,6 @@ def model_element(document, atom: int) -> str:
     cell = document.cell
     label = cell.labels[atom] or cell.elements[atom]
     return f"{label}"
-
-
-def bond_distance(a: str, b: str) -> float:
-    """How far apart to place a new atom and the one it bonds to.
-
-    The sum of the two covalent radii, which is what perception
-    already uses to decide that two atoms *are* bonded -- so an atom
-    placed here is one the distance criteria would have found anyway,
-    and the bond drawn with it does not contradict the rules that
-    would have drawn it.  Every element carries one, a dummy atom
-    included, so there is no pair this has no answer for.
-    """
-    return el.covalent_radius(a) + el.covalent_radius(b)
 
 
 def point_on_sphere(origin, direction, centre, radius):

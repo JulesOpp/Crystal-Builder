@@ -229,6 +229,80 @@ class RunRecorder:
         self.close()
 
 
+# -- the run's lifecycle ----------------------------------------------
+#
+# The two functions below are :mod:`xtal.modules.record`'s pair for a
+# force-field run.  The sequence -- which name the folder is filed
+# under, whether a typing table belongs in it, what closes it on a
+# failure -- used to be written in the Force Field panel and copied,
+# comment and all, into the command line, with the panel's failure
+# path written twice more.  A fifth thing in a run's log was four
+# edits in two packages.
+
+
+def open_run(entry, engine: str, kind: str, structure, calculator,
+             options: dict | None = None) -> RunRecorder | None:
+    """Make the run folder for one force-field run and start its log.
+
+    ``None`` when there is no entry: a document with no workspace
+    still runs and leaves nothing behind, which is normal rather than
+    exceptional.  ``kind`` is ``"single-point"`` or ``"optimise"``;
+    only an optimisation records a trajectory.
+    """
+    if entry is None:
+        return None
+    from xtal.ff import ENGINES
+
+    folder = entry.next_run(engine, kind)
+    recorder = RunRecorder(
+        folder, structure, calculator, engine=engine, options=options,
+        record_trajectory=(kind == "optimise"))
+    recorder.header(kind.replace("-", " "))
+    if "types" in ENGINES.get(engine).provides:
+        # UFF's typing table.  Writing it for an engine that has no
+        # atom types would put a page of somebody else's answer in
+        # the middle of this one's log.
+        recorder.typing()
+    recorder.topology()
+    return recorder
+
+
+def write_single_point(recorder: RunRecorder | None, result) -> None:
+    """A single point's whole record, and the run closed after it."""
+    if recorder is None:
+        return
+    recorder.energies(result, "Energy")
+    recorder.log.write(f"max force      {result.max_force:.5f} "
+                       f"kcal/mol/A")
+    recorder.log.write(f"rms force      {result.rms_force:.5f} "
+                       f"kcal/mol/A")
+    recorder.close()
+
+
+def close_run(recorder: RunRecorder | None, result=None, final=None,
+              error: str = "", warning: str = "") -> None:
+    """Finish an optimisation's log, and say how it ended.
+
+    ``error`` for a run that failed, ``result`` (and the ``final``
+    structure, written as ``final.cif``) for one that finished --
+    stopped or unconverged is still finished.  ``warning`` goes in the
+    log first, for something that went wrong beside the run rather
+    than in it, such as a trajectory that could not be written.
+    Always closes, whatever failed on the way.
+    """
+    if recorder is None:
+        return
+    try:
+        if warning:
+            recorder.warn(warning)
+        if error or result is None:
+            recorder.failed(error or "the run ended without a result")
+        else:
+            recorder.result(result, final=final)
+    finally:
+        recorder.close()
+
+
 def _description(type_name: str) -> str:
     """A UFF type in words, for the column beside the name.
 
