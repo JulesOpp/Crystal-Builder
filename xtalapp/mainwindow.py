@@ -45,7 +45,7 @@ from xtal.build import installed as rdkit_installed
 from xtal.commands.bonds import BOND_TYPES
 from xtal.commands.clipboard import Fragment
 from xtal.core.structure import Change
-from xtalapp import external, layout, menus, workers
+from xtalapp import external, layout, menus, shell_state, workers
 from xtalapp.actions import ActionRegistry
 from xtalapp.autosave import Autosaver
 from xtalapp.dialogs.add_atom import AddAtomDialog
@@ -1407,28 +1407,11 @@ class MainWindow(QMainWindow):
         self.sites_dock.sync_selection()
         self.move_dock.refresh()
         self.selection_label.setText(document.selection_summary())
-        self.actions_.set_enabled(
-            ["delete_bond"], bool(document.selection.bonds))
+        shell_state.apply(self.actions_,
+                          shell_state.selection_states(document))
         self._sync_bond_type_actions(document)
         self._refresh_plane_actions()
         self.measure_dock.refresh_planes()
-        # Delete acts on whichever of the three is held -- net edges,
-        # then bonds, then sites -- so it is enabled by any of them.
-        # It used to be listed here *and* in the atoms-only call
-        # below, and the second call wins: with a bond selected and no
-        # atom, Del was greyed out and the key did nothing.
-        self.actions_.set_enabled(
-            ["delete_selection"], bool(document.selection))
-        self.actions_.set_enabled(
-            ["change_element", "select_same", "expand_bonded",
-             "expand_fragment", "expand_orbit", "copy", "cut",
-             "duplicate", "mark_connection_points"],
-            bool(document.selection.atoms))
-        # A centroid needs a middle, and one atom has none.
-        self.actions_.set_enabled(
-            ["add_centroid", "merge_atoms",
-             "mark_one_connection_point"],
-            len(document.selection.atoms) > 1)
 
     def _sync_bond_type_actions(self, document) -> None:
         """Enable the bond types, and tick what the selection already
@@ -1671,6 +1654,8 @@ class MainWindow(QMainWindow):
         # does not take this away.
         self.actions_.set_enabled(
             ["export_net"], has_document and document.has_net())
+        shell_state.apply(self.actions_,
+                          shell_state.selection_states(document))
         if document is None:
             self._refresh_module_actions(False)
             self._refresh_insert_molecule(False)
@@ -1681,24 +1666,6 @@ class MainWindow(QMainWindow):
             self.refresh_title()
             return
         self.selection_label.setText(document.selection_summary())
-        has_selection = bool(document.selection.atoms)
-        self.actions_.set_enabled(
-            ["select_same", "expand_bonded", "expand_fragment",
-             "expand_orbit", "copy"],
-            has_selection)
-        self.actions_.set_enabled(
-            ["change_element", "cut", "duplicate",
-             "mark_connection_points"],
-            has_selection and editable)
-        # A centroid needs a middle, and one atom has none.
-        self.actions_.set_enabled(
-            ["add_centroid", "merge_atoms",
-             "mark_one_connection_point"],
-            len(document.selection.atoms) > 1 and editable)
-        # Anything selected, not just atoms -- see _on_selection_changed.
-        self.actions_.set_enabled(
-            ["delete_selection"],
-            bool(document.selection) and editable)
         self._refresh_module_actions(editable)
         self._refresh_insert_molecule(editable)
         self._sync_bond_type_actions(document)
