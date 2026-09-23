@@ -105,7 +105,9 @@ def _functions_calling(path: pathlib.Path, name: str) -> set[str]:
 
 
 def test_only_drawing_asks_the_shell_for_a_covalent_radius():
-    asked = {(str(path.relative_to(SHELL)), function)
+    # as_posix: the allow-list is written with "/", and on Windows a
+    # relative path's str() has "\" -- which failed CI on win32 only.
+    asked = {(path.relative_to(SHELL).as_posix(), function)
              for path in sorted(SHELL.rglob("*.py"))
              for function in _functions_calling(path, "covalent_radius")}
     assert asked <= RADIUS_FOR_DRAWING, \
