@@ -15,7 +15,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from xtal.params import Availability, Param, coerce, defaults
+from xtal.params import Availability, Param, Registry, coerce, defaults
 
 
 @dataclass(frozen=True)
@@ -133,35 +133,11 @@ def _refuse_coincident(structure) -> None:
         f"Duplicates first.")
 
 
-class EngineRegistry:
-    def __init__(self):
-        self._engines: dict[str, Engine] = {}
+class EngineRegistry(Registry):
+    """Name -> :class:`Engine`, in the order the chooser offers them."""
 
-    def register(self, engine: Engine) -> Engine:
-        self._engines[engine.name] = engine
-        return engine
-
-    def __contains__(self, name: str) -> bool:
-        return name in self._engines
-
-    def __iter__(self):
-        return iter(sorted(self._engines.values(),
-                           key=lambda e: (e.order, e.label)))
-
-    def __len__(self) -> int:
-        return len(self._engines)
-
-    def get(self, name: str) -> Engine:
-        try:
-            return self._engines[name]
-        except KeyError:
-            raise ValueError(
-                f"unknown force field: {name!r}; "
-                f"have {', '.join(sorted(self._engines)) or 'none'}"
-            ) from None
-
-    def names(self) -> list[str]:
-        return list(self._engines)
+    noun = "force field"
+    sorted = True
 
     def build(self, name: str, structure, **options):
         return self.get(name)(structure, **options)

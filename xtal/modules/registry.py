@@ -60,6 +60,7 @@ from xtal.params import (
     Availability,
     Param,
     ParamError,
+    Registry,
     coerce,
     defaults,
 )
@@ -212,45 +213,12 @@ class Module:
         return iter(self.actions)
 
 
-class ModuleRegistry:
+class ModuleRegistry(Registry):
     """Name -> :class:`Module`, in the order the tree shows them."""
 
-    def __init__(self):
-        self._modules: dict[str, Module] = {}
-
-    def register(self, module: Module) -> Module:
-        self._modules[module.name] = module
-        return module
-
-    def unregister(self, name: str) -> None:
-        """Take one out again.
-
-        Here for tests and for a plugin that fails to load half way:
-        a registry that can only grow leaks between test cases.
-        """
-        self._modules.pop(name, None)
-
-    def __contains__(self, name: str) -> bool:
-        return name in self._modules
-
-    def __len__(self) -> int:
-        return len(self._modules)
-
-    def __iter__(self):
-        return iter(sorted(self._modules.values(),
-                           key=lambda m: (m.order, m.label)))
-
-    def get(self, name: str) -> Module:
-        try:
-            return self._modules[name]
-        except KeyError:
-            raise ModuleError(
-                f"unknown module: {name!r}; have "
-                f"{', '.join(sorted(self._modules)) or 'none'}"
-            ) from None
-
-    def names(self) -> list[str]:
-        return [m.name for m in self]
+    noun = "module"
+    error = ModuleError
+    sorted = True
 
     def find(self, path: str) -> tuple[Module, Action]:
         """``"forcefield.optimise"`` -> the module and the action.

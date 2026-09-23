@@ -705,37 +705,41 @@ class Report:
     blocks: tuple = ()
     note: str = ""
 
+    def of(self, kind) -> list:
+        """The blocks of one kind, in the order they were added."""
+        return [b for b in self.blocks if isinstance(b, kind)]
+
     @property
     def tables(self) -> list[Table]:
-        return [b for b in self.blocks if isinstance(b, Table)]
+        return self.of(Table)
 
     @property
     def histograms(self) -> list[Histogram]:
-        return [b for b in self.blocks if isinstance(b, Histogram)]
+        return self.of(Histogram)
 
     @property
     def curves(self) -> list[Curve]:
-        return [b for b in self.blocks if isinstance(b, Curve)]
+        return self.of(Curve)
 
     @property
     def bands(self) -> list[Bands]:
-        return [b for b in self.blocks if isinstance(b, Bands)]
+        return self.of(Bands)
 
     @property
     def doses(self) -> list[Dos]:
-        return [b for b in self.blocks if isinstance(b, Dos)]
+        return self.of(Dos)
 
     @property
     def modes(self) -> list[Modes]:
-        return [b for b in self.blocks if isinstance(b, Modes)]
+        return self.of(Modes)
 
     @property
     def zones(self) -> list[Zone]:
-        return [b for b in self.blocks if isinstance(b, Zone)]
+        return self.of(Zone)
 
     @property
     def surfaces(self) -> list[Surface]:
-        return [b for b in self.blocks if isinstance(b, Surface)]
+        return self.of(Surface)
 
     def __bool__(self) -> bool:
         return bool(self.blocks)
@@ -755,9 +759,14 @@ class Report:
 #: What a run folder calls the report it can be reopened from.
 REPORT_NAME = "report.json"
 
-_BLOCKS = {cls.__name__: cls for cls in
-           (Row, Table, Histogram, Curve, Bands, Dos, Modes, Zone,
-            Surface, Report)}
+#: Every kind of block a report can hold, which is every kind the
+#: Results panel has to know how to draw -- ``tests/test_results_ui``
+#: holds the panel to this list, so a new kind cannot arrive without a
+#: widget.  Written out once; :data:`_BLOCKS` is built from it.
+BLOCK_TYPES = (Table, Histogram, Curve, Bands, Dos, Modes, Zone,
+               Surface)
+
+_BLOCKS = {cls.__name__: cls for cls in (Row, *BLOCK_TYPES, Report)}
 
 
 def save(report: Report, path) -> Path:
