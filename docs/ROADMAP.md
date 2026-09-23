@@ -1056,7 +1056,7 @@ Branch `refactor/deep-review-factoring`, off `main`.
 | **5 — Small decisions made twice** | Shipped 2026-09-23. One stop record in `OptimizationWorker`; `ff_panel.panel_options` the one reader of the engine panels, for the scan and the DFTB+ run; `xtal.workspace.resolved` the one "same file" answer | `xtalapp/workers.py`, `xtalapp/dialogs/scan.py`, `xtalapp/dialogs/dftb_run.py` | S |
 | **4 — Engines share their plumbing** | Shipped 2026-09-23. `Engine.__call__` coerces; an `ExternalCalculator` base for DFTB+ and xTB; an `ASECalculatorEngine` base under MACE; one charge-source list | `xtal/ff/registry.py`, `xtal/ff/api.py`, `xtal/ff/*/calculator.py`, `xtalapp/docks/ff_panel.py` | M |
 | **6 — One registry shape** | Shipped 2026-09-23. A `Registry` generic the three registries subclass; report blocks rendered by table, not `isinstance` | `xtal/params.py`, `xtal/*/registry.py`, `xtalapp/docks/results.py` | S-M |
-| **7 — Split `mainwindow.py`** | A pure move, one seam per commit: refresh/enable to `shell_state.py`, symmetry and cell verbs, edit/select/measure verbs; about 1100 lines left | `xtalapp/mainwindow.py`, `xtalapp/shell_state.py` | M |
+| **7 — Split `mainwindow.py`** | Shipped 2026-09-23. A pure move into three mixins, one seam per commit: refresh/enable to `shell_state.ShellRefresh`, symmetry and cell to `symmetry_actions.SymmetryActions`, edit/select/measure to `edit_actions.EditActions`; 2014 -> 1093 lines | `xtalapp/mainwindow.py`, `xtalapp/shell_state.py` | M |
 
 The table is in the order the phases are done; 5 comes before 4
 because it is small and 4 is easier with the stop and panel readers

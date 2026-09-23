@@ -61,7 +61,7 @@ add("merge_atoms", "Mer&ge atoms", window.merge_atoms,
   new top-level menu or a moved group needs those updated in the same
   commit.
 
-### 3. The window method — `xtalapp/mainwindow.py`
+### 3. The window method — `xtalapp/mainwindow.py` or one of its mixins
 
 Thin. It finds the document, opens a dialog if the command asks for
 values, calls the Document, and shows the sentence:
@@ -75,8 +75,13 @@ def merge_atoms(self) -> None:
 
 A dialog is collected through a classmethod (`AddCentroidDialog.ask`)
 so tests can patch it; `QDialog.exec` raises under the suite. Put the
-method beside its siblings (`add_centroid_dialog`); read them with
-`code-map` rather than the whole file.
+method beside its siblings: an edit, selection, bond or measurement
+command in `xtalapp/edit_actions.py` (`add_centroid_dialog` is there),
+a symmetry or cell command in `xtalapp/symmetry_actions.py`, anything
+else in `mainwindow.py`. All three are `MainWindow` through ``self``,
+so `window.<method>` in `build_actions` reaches them unchanged. An
+enabling rule goes in `xtalapp/shell_state.py`. Read them with
+`code-map` rather than whole.
 
 ### 4. The verb — `xtalapp/document.py`
 
