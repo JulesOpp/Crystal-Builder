@@ -628,10 +628,25 @@ def _shifts(values, n: int) -> np.ndarray:
 
 
 def build(structure, **options) -> UFFCalculator:
-    """Registry entry point: keyword options in, calculator out."""
-    rules = options.pop("rules", None)
-    return UFFCalculator(structure, UFFOptions(**options), rules)
+    """Registry entry point: keyword options in, calculator out.
 
+    The options arrive coerced to :data:`OPTIONS` -- see
+    :meth:`xtal.ff.registry.Engine.__call__` -- so an unknown key is
+    dropped rather than a ``TypeError`` when Optimise is pressed.
+    """
+    return UFFCalculator(structure, UFFOptions(**options))
+
+
+#: Where the charges come from when electrostatics are on, as
+#: ``(value, label)``.  The one list: the panel's chooser, the scan's
+#: form and ``xtal optimize --charges`` all read it, where they were
+#: three copies that no test tied together -- and a fourth source
+#: (EQeq) would have had to be added to each.
+CHARGE_SOURCES = (
+    ("site", "The sites"),
+    ("qeq", "Equilibrate (QEq)"),
+    ("zero", "All zero"),
+)
 
 #: What UFF can be asked, declared the way every other engine
 #: declares it.
@@ -654,8 +669,7 @@ OPTIONS = (
           help="Off by default, as in UFF itself: the published "
                "parameters were fitted without a Coulomb term."),
     Param("charges", "Charges from", "choice", default="site",
-          choices=(("site", "The sites"), ("qeq", "Equilibrate (QEq)"),
-                   ("zero", "All zero")),
+          choices=CHARGE_SOURCES,
           help="Only used when electrostatics are on."),
     Param("vdw_cutoff", "van der Waals cutoff", "float",
           default=DEFAULT_VDW_CUTOFF, minimum=4.0, maximum=30.0,

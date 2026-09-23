@@ -55,20 +55,19 @@ missing.  See :func:`implements_stress`.
 from __future__ import annotations
 
 import importlib.util
-import threading
-from dataclasses import dataclass, fields
+from dataclasses import dataclass
 from pathlib import Path
 
-import numpy as np
-
-from xtal.core import p1
-from xtal.ff.api import Calculator, CalculatorError, Result
+from xtal.ff.api import CalculatorError
+from xtal.ff.ase_engine import (  # noqa: F401 -- implements_stress, too
+    KCAL_PER_EV,
+    ASECalculator,
+    ModelCache,
+    implements_stress,
+    torch_device,
+)
 from xtal.ff.registry import ENGINES, Engine
 from xtal.params import Availability, Param
-
-#: eV to kcal/mol.  Forces and stresses carry the same factor, being
-#: an energy per Angstrom and an energy per Angstrom cubed.
-KCAL_PER_EV = 23.060547830619026
 
 #: The package that has to be installed, and how.
 PACKAGE = "mace"
@@ -227,27 +226,11 @@ OPTIONS = (
 
 #: Loaded models, by what defines one.  See the module docstring: an
 #: optimisation is hundreds of evaluations and a load is seconds.
-_MODELS: dict[tuple, object] = {}
-_LOCK = threading.Lock()
+_MODELS = ModelCache()
 
-
-def _device(wanted: str) -> str:
-    """The device to run on, asking torch what there is.
-
-    'auto' is the default because the honest answer is
-    machine-specific and nobody should have to know theirs: a laptop
-    has mps, a cluster node has cuda, and a CI box has neither.
-    """
-    if wanted and wanted != "auto":
-        return wanted
-    import torch
-
-    if torch.cuda.is_available():
-        return "cuda"
-    if getattr(torch.backends, "mps", None) is not None \
-            and torch.backends.mps.is_available():
-        return "mps"
-    return "cpu"
+#: A module global and not a call to :func:`torch_device` inline, so
+#: the tests can answer "cpu" without importing torch.
+_device = torch_device
 
 
 def _load_model(options: MACEOptions):
@@ -262,145 +245,69 @@ def _load_model(options: MACEOptions):
     """
     key = (options.model, options.model_path, options.device,
            options.double_precision)
-    with _LOCK:
-        if key in _MODELS:
-            return _MODELS[key]
-        dtype = "float64" if options.double_precision else "float32"
-        device = _device(options.device)
-        try:
-            if options.model == CUSTOM:
-                from mace.calculators import MACECalculator as _Model
-
-                model = _Model(
-                    model_paths=str(Path(options.model_path)
-                                    .expanduser()),
-                    device=device, default_dtype=dtype)
-            else:
-                from mace.calculators import mace_mp
-
-                model = mace_mp(model=options.model, device=device,
-                                default_dtype=dtype)
-        except ImportError as exc:
-            raise CalculatorError(
-                f"MACE is not installed -- {INSTALL} ({exc})"
-            ) from None
-        except Exception as exc:                    # noqa: BLE001
-            # A model that will not load is the common failure and it
-            # is nearly always the download or the file: say which
-            # model it was, because the panel's message is all the
-            # user gets.
-            raise CalculatorError(
-                f"the MACE model could not be loaded "
-                f"({options.model_path or options.model}): {exc}"
-            ) from None
-        _MODELS[key] = model
-        return model
+    return _MODELS.get(key, lambda: _build_model(options))
 
 
-def implements_stress(model) -> bool:
-    """Whether this loaded model will answer for a stress at all.
+def _build_model(options: MACEOptions):
+    """Load the model :func:`_load_model` found no cached copy of."""
+    dtype = "float64" if options.double_precision else "float32"
+    device = _device(options.device)
+    try:
+        if options.model == CUSTOM:
+            from mace.calculators import MACECalculator as _Model
 
-    MACE computes one by differentiating the energy with respect to a
-    displacement, and does it for the model types that have the
-    machinery -- ``MACE``, ``EnergyDipoleMACE``, ``PolarMACE`` -- which
-    is every foundation model in :data:`MODEL_CHOICES`.  A **model file
-    of somebody's own** need not be one of those: a dipole-only model
-    reports an energy and forces and no stress, and ASE says which
-    through ``implemented_properties``.
+            model = _Model(
+                model_paths=str(Path(options.model_path)
+                                .expanduser()),
+                device=device, default_dtype=dtype)
+        else:
+            from mace.calculators import mace_mp
 
-    Asking anyway is not a smaller bug than it looks.  ``compute``
-    fetched the stress unconditionally inside one ``except``, so a
-    model with no stress failed *every* evaluation with "MACE could
-    not compute this structure" -- the energy and the forces it would
-    have given perfectly well, thrown away with the stress it never
-    had.  Answered here instead, the optimiser falls back to
-    :meth:`~xtal.ff.api.Calculator.numeric_stress` on its own (see
-    ``optimize.py``, where a ``None`` stress is already the signal),
-    and a fixed-cell run never needed one.
-
-    A model that does not say is taken at its word and asked: that is
-    ASE's older convention, and being wrong here costs the message
-    above rather than a silent number.
-    """
-    properties = getattr(model, "implemented_properties", None)
-    if properties is None:
-        return True
-    return "stress" in properties
+            model = mace_mp(model=options.model, device=device,
+                            default_dtype=dtype)
+    except ImportError as exc:
+        raise CalculatorError(
+            f"MACE is not installed -- {INSTALL} ({exc})"
+        ) from None
+    except Exception as exc:                    # noqa: BLE001
+        # A model that will not load is the common failure and it
+        # is nearly always the download or the file: say which
+        # model it was, because the panel's message is all the
+        # user gets.
+        raise CalculatorError(
+            f"the MACE model could not be loaded "
+            f"({options.model_path or options.model}): {exc}"
+        ) from None
+    return model
 
 
 def forget_models() -> None:
     """Drop the loaded models.  For the tests, and for a user who has
     just refitted the file they pointed at."""
-    with _LOCK:
-        _MODELS.clear()
+    _MODELS.clear()
 
 
 # ======================================================================
 #  THE CALCULATOR
 # ======================================================================
 
-class MACECalculator(Calculator):
-    """A MACE model over a structure's P1 cell."""
+class MACECalculator(ASECalculator):
+    """A MACE model over a structure's P1 cell.
+
+    Everything but the model and its name is
+    :class:`~xtal.ff.ase_engine.ASECalculator`'s, and the stress it
+    claims is checked against a numeric one in ``tests/test_mace.py``.
+    """
 
     name = "mace"
     label = "MACE"
-    provides_forces = True
-    #: ASE reports ``(1/V) dE/de`` in eV/A^3, which is what
-    #: ``numeric_stress`` computes in kcal/mol/A^3 -- one factor, no
-    #: normalisation guessed at, and checked against it in the tests.
-    #:
-    #: True on the class and **answered again per instance** in
-    #: ``__init__``: every foundation model has a stress and a model
-    #: file of somebody's own need not.  See
-    #: :func:`implements_stress`.
-    provides_stress = True
+    install = INSTALL
 
     def __init__(self, structure, options: MACEOptions | None = None):
-        self.options = options or MACEOptions()
-        self.structure = structure
-        self.cell = p1.expand(structure)
-        if self.cell.n_atoms == 0:
-            raise CalculatorError(
-                "there are no atoms to compute an energy for")
-        self.symbols = tuple(self.cell.elements)
-        self.warnings: list[str] = []
-        self.calls = 0
-        self._model = _load_model(self.options)
-        self.provides_stress = implements_stress(self._model)
-        if not self.provides_stress:
-            self.warnings.append(
-                "this model reports no stress, so relaxing the cell "
-                "will differentiate the energy numerically -- twelve "
-                "evaluations a step instead of one")
-        self._atoms = self._make_atoms()
+        super().__init__(structure, options or MACEOptions())
 
-    def _make_atoms(self):
-        """One ASE Atoms, built once and moved under the model.
-
-        In P1 cell order, which is the order everything above this
-        speaks in: the optimiser maps forces back onto the sites they
-        came from by index, so an atom container that reordered
-        anything would put a force on the wrong atom.
-        """
-        try:
-            from ase import Atoms
-        except ImportError:                         # pragma: no cover
-            raise CalculatorError(
-                f"MACE needs ase -- {INSTALL}") from None
-        atoms = Atoms(symbols=list(self.symbols),
-                      positions=np.asarray(self.cell.cart,
-                                           dtype=float),
-                      cell=np.asarray(self.structure.lattice.matrix,
-                                      dtype=float),
-                      pbc=True)
-        atoms.calc = self._model
-        return atoms
-
-    # -- what the panel asks about -------------------------------------
-
-    @property
-    def n_atoms(self) -> int:
-        return self.cell.n_atoms
+    def load_model(self, options):
+        return _load_model(options)
 
     def summary(self) -> str:
         what = (Path(self.options.model_path).name
@@ -409,51 +316,18 @@ class MACECalculator(Calculator):
         return (f"{self.n_atoms} atoms, {what}, on "
                 f"{_device(self.options.device)}")
 
-    # -- the evaluation -------------------------------------------------
-
-    def compute(self, positions, matrix) -> Result:
-        """Energy and forces at these cartesian positions."""
-        positions = np.asarray(positions, dtype=float).reshape(-1, 3)
-        if len(positions) != self.n_atoms:
-            raise CalculatorError(
-                f"got {len(positions)} positions for "
-                f"{self.n_atoms} atoms")
-        # scale_atoms=False: the positions given are already where the
-        # atoms go.  Letting ASE carry them with the cell would apply
-        # the strain twice, which is exactly the error that makes a
-        # numeric stress disagree with an analytic one.
-        self._atoms.set_cell(np.asarray(matrix, dtype=float),
-                             scale_atoms=False)
-        self._atoms.set_positions(positions)
-        try:
-            energy = float(self._atoms.get_potential_energy())
-            forces = np.asarray(self._atoms.get_forces(), dtype=float)
-            stress = (np.asarray(self._atoms.get_stress(voigt=False),
-                                 dtype=float)
-                      if self.provides_stress else None)
-        except CalculatorError:                     # pragma: no cover
-            raise
-        except Exception as exc:                    # noqa: BLE001
-            raise CalculatorError(
-                f"MACE could not compute this structure: {exc}"
-            ) from None
-        self.calls += 1
-        return Result(energy=energy * KCAL_PER_EV,
-                      forces=forces * KCAL_PER_EV,
-                      terms={"mace": energy * KCAL_PER_EV},
-                      stress=(None if stress is None
-                              else stress * KCAL_PER_EV))
-
 
 # ======================================================================
 #  THE ENGINE
 # ======================================================================
 
 def build(structure, **options) -> MACECalculator:
-    """Registry entry point: keyword options in, calculator out."""
-    known = {f.name for f in fields(MACEOptions)}
-    return MACECalculator(structure, MACEOptions(
-        **{k: v for k, v in options.items() if k in known}))
+    """Registry entry point: keyword options in, calculator out.
+
+    The options arrive coerced to :data:`OPTIONS` -- see
+    :meth:`xtal.ff.registry.Engine.__call__`.
+    """
+    return MACECalculator(structure, MACEOptions(**options))
 
 
 ENGINES.register(Engine(

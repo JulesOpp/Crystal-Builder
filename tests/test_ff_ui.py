@@ -556,6 +556,28 @@ def test_one_stop_reaches_the_loop_and_the_engine(qtbot):
     assert not blocker.args[0].converged
 
 
+
+def test_the_panel_and_the_cli_offer_the_charge_sources_uff_declares(
+        window, capsys):
+    """Three copies, until a fourth source would have had to be
+    added to each."""
+    from xtal.cli import build_parser
+    from xtal.ff.uff import calculator as uff
+
+    declared = next(p for p in uff.OPTIONS if p.name == "charges")
+    values = [value for value, _label in declared.choices]
+    charges = window.ff_dock.charges
+
+    assert [charges.itemData(i) for i in range(charges.count())] \
+        == values
+    parser = build_parser()
+    for value in values:
+        assert parser.parse_args(
+            ["optimize", "x.cif", "--charges", value]).charges == value
+    with pytest.raises(SystemExit):
+        parser.parse_args(["optimize", "x.cif", "--charges", "eqeq"])
+
+
 # ------------------------------------------------ reading the panels
 
 def test_the_dftb_run_and_the_scan_read_the_same_hamiltonian(window):

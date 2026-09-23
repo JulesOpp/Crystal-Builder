@@ -165,10 +165,23 @@ the shipped app that no test on a source checkout can see.
 
 ## B. An engine
 
-1. `xtal/ff/<engine>/calculator.py`: a `Calculator` subclass
-   (`xtal/ff/api.py`) with `compute(positions, matrix) -> Result`
-   (energy, forces, and stress only if `provides` says so) and
-   `summary()`. Declare `provides_stress = False` and let
+1. `xtal/ff/<engine>/calculator.py`: a `Calculator` subclass with
+   `compute(positions, matrix) -> Result` (energy, forces, and stress
+   only if `provides` says so) and `summary()`. **Start from the base
+   that fits, not from a sibling's file:**
+   - a program run per evaluation (DFTB+, xTB): subclass
+     `xtal.ff.external.ExternalCalculator`; `_prepare` and
+     `_open_scratch` in `__init__`, `_write_geometry` and
+     `_run(argv, why)` in `compute`. Stop, the scratch directory, the
+     log and the call accounting are the base's.
+   - an ASE calculator in process (MACE, and the next MLIP):
+     subclass `xtal.ff.ase_engine.ASECalculator` and write
+     `load_model` (through a `ModelCache`) and `summary`; the P1
+     order, the cell, eV to kcal/mol and the per-model stress check
+     are the base's. `tests/test_engine_plumbing.py` builds one from
+     Lennard-Jones in eleven lines.
+   - otherwise `xtal.ff.api.Calculator` directly (UFF).
+   Declare `provides_stress = False` and let
    `numeric_stress` pay, **unless the engine's stress has been checked
    against `numeric_stress` on quartz**; see docs/TODO.md for why
    tblite's was not trusted.
@@ -180,8 +193,11 @@ the shipped app that no test on a source checkout can see.
    `xtalapp/layout.py` (`engines=["uff", "xtb", "mace"]`).
    `test_every_engine_that_is_registered_can_be_chosen` fails until
    you do. MACE shipped unreachable before that test existed.
-4. Markers are held back by `Engine.__call__`; always build through
-   `ENGINES.build(name, structure)`, never `engine.build(...)`.
+4. Markers are held back, and the options coerced to exactly the
+   declared `Param`s, by `Engine.__call__`; always build through
+   `ENGINES.build(name, structure)`, never `engine.build(...)`, and
+   let `build` pass `**options` straight to the options dataclass --
+   do not filter them again.
 5. An in-process model with a heavy load (MACE) keeps one seam, such
    as `_load_model`, that tests replace, so the suite never downloads
    or loads weights.

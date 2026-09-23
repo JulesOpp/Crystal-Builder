@@ -576,6 +576,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("file")
     p.set_defaults(func=cmd_types)
 
+    from xtal.ff.uff.calculator import CHARGE_SOURCES
+    charge_sources = [value for value, _label in CHARGE_SOURCES]
     for name, help_text in (("energy", "single-point energy"),
                             ("optimize", "relax the geometry")):
         p = sub.add_parser(name, help=help_text)
@@ -587,7 +589,7 @@ def build_parser() -> argparse.ArgumentParser:
                        help="include electrostatics (off by default, "
                             "as in UFF itself)")
         p.add_argument("--charges", default="site",
-                       choices=["site", "qeq", "zero"],
+                       choices=charge_sources,
                        help="where charges come from when "
                             "electrostatics are on")
         p.add_argument("-p", "--param", action="append",

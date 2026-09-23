@@ -88,11 +88,6 @@ from xtalapp.widgets.atom_types import HEADING as TYPES_HEADING
 from xtalapp.widgets.tone import HINT, set_tone
 from xtalapp.workers import OptimizationWorker, start_in_thread
 
-CHARGE_SOURCES = [
-    ("From the sites", "site"),
-    ("Equilibrate (QEq)", "qeq"),
-    ("All zero", "zero"),
-]
 METHOD_LABELS = {
     "lbfgs": "L-BFGS (fast near a minimum)",
     "fire": "FIRE (robust far from one)",
@@ -201,7 +196,7 @@ class ForceFieldDock(QDockWidget):
             "parameters were fitted without a Coulomb term")
         self.coulomb.toggled.connect(self._on_coulomb)
         self.charges = QComboBox()
-        for label, value in CHARGE_SOURCES:
+        for value, label in uff_calculator.CHARGE_SOURCES:
             self.charges.addItem(label, value)
         self.charges.setEnabled(False)
 
@@ -330,7 +325,7 @@ class ForceFieldDock(QDockWidget):
         setup.addRow("Force field", self.engine)
         setup.addRow("Parameters", self.parameter_set)
         setup.addRow(self.coulomb)
-        setup.addRow("Charges", self.charges)
+        setup.addRow(_uff_option("charges").title, self.charges)
         setup.addRow("van der Waals cutoff", self.vdw_cutoff)
         setup.addRow("Pair list skin", self.skin)
         self.uff_rows = (self.parameter_set, self.coulomb, self.charges,
@@ -889,3 +884,9 @@ def panel_options(window, engine: str) -> dict:
         if found is not None:
             return found
     return {}
+
+
+def _uff_option(name: str):
+    """UFF's declared option of this name, for the hand-built controls
+    to take their wording from rather than keep a copy of it."""
+    return next(p for p in uff_calculator.OPTIONS if p.name == name)
