@@ -292,6 +292,24 @@ def _no_blocking_modal(monkeypatch):
 
     monkeypatch.setattr(QDialog, "exec", refuse, raising=False)
 
+    # A context menu waits the same way and is reached from a signal
+    # rather than from a call the test can see.  ``QMenu.exec`` is
+    # **not** patchable -- PySide resolves it in C++ and an override
+    # on the class is ignored, which a test proved by hanging CI for
+    # 27 minutes at 98 % -- so the application raises every context
+    # menu through one function and that is what is replaced here.
+    try:
+        from xtalapp import menus
+    except ImportError:                           # pragma: no cover
+        return
+
+    def refuse_popup(menu, position):
+        raise AssertionError(
+            "a context menu would wait for a click. Patch "
+            "xtalapp.menus.popup if the test means to open one.")
+
+    monkeypatch.setattr(menus, "popup", refuse_popup)
+
     # QMessageBox's conveniences are static and do not go through
     # QDialog.exec, so they need blocking separately -- and they are
     # the ones reached from an error path nobody expected to reach.

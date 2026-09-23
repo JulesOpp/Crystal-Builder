@@ -110,6 +110,15 @@ waiting on a person, and both must stay:
   the classmethod above it (e.g. `ModuleDialog.ask`), as
   `tests/test_run_progress_ui.py` does for Zeo++ runs.
 
+A context menu waits the same way, and **`QMenu.exec` cannot be
+patched** -- PySide resolves it in C++ and an override on the class is
+ignored, unlike `QDialog.exec`. So every context menu is raised
+through `xtalapp.menus.popup`, and that is what the guard replaces; a
+test that means to open one patches it itself. The gap cost three CI
+jobs 30 minutes each, cancelled at 98 % with nothing in the log saying
+which test it was, which is also why CI now caps at 12 minutes and
+dumps stacks at `faulthandler_timeout=180`.
+
 A test that is *about* a prompt opts out with
 `monkeypatch.delenv("XTAL_NO_CONFIRM_CLOSE")` and patches
 `QMessageBox.question` itself — see

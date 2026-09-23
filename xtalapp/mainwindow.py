@@ -385,7 +385,7 @@ class MainWindow(QMainWindow):
         self._refresh_workspace_actions()
         menu = self.build_context_menu("workspace")
         if menu is not None:
-            menu.exec(position)
+            menus.popup(menu, position)
 
     def _refresh_workspace_actions(self) -> None:
         """What may be done to the row that is selected.
@@ -924,7 +924,7 @@ class MainWindow(QMainWindow):
     def show_context_menu(self, kind: str, position) -> None:
         menu = self.build_context_menu(kind)
         if menu is not None:
-            menu.exec(position)
+            menus.popup(menu, position)
 
     def set_mode(self, name: str) -> None:
         modes.get(name)                     # validate before switching

@@ -1010,20 +1010,54 @@ def test_reveal_asks_the_desktop_for_the_folder_not_the_file(opened,
     assert asked[0].toLocalFile().rstrip("/") == str(document.path.parent)
 
 
-def test_a_right_click_picks_the_row_under_the_cursor(opened):
+def test_a_right_click_picks_the_row_under_the_cursor(opened,
+                                                      monkeypatch):
     """A menu about whatever was last clicked, raised over something
-    else, is how the wrong folder goes in the bin."""
+    else, is how the wrong folder goes in the bin.
+
+    The window's own slot is disconnected first: it raises the menu,
+    and a menu waits for a click that no test makes.
+    """
     window, document = opened
-    _run_folder(document)
+    folder = _run_folder(document)
+    window.file_dock.contextRequested.disconnect(
+        window.show_workspace_menu)
     tree = window.file_dock.tree
     tree.refresh()
     tree.expandAll()
     asked = []
     tree.contextRequested.connect(lambda position: asked.append(position))
-    row = _rows(tree.model_, _rows(tree.model_)[0])[-1]
+    row = tree._find(folder)
 
     tree._on_context(tree.visualRect(row).center())
 
     assert len(asked) == 1
-    assert window.selected_artifact()[1].name == row.data(Qt.DisplayRole) \
-        or window.selected_artifact() is not None
+    assert window.selected_artifact() == ("run", folder)
+
+
+def test_a_context_menu_nobody_patched_fails_rather_than_waits(opened):
+    """The guard, checking itself.  QMenu.exec cannot be replaced from
+    Python, so the guard is on xtalapp.menus.popup -- and a guard that
+    silently stopped working would be paid for in 30-minute CI jobs."""
+    window, _document = opened
+
+    with pytest.raises(AssertionError, match="wait for a click"):
+        window.show_context_menu("view", None)
+
+
+def test_the_menu_is_raised_where_the_click_was(opened, monkeypatch):
+    """The wiring from the panel to the window, without the modal."""
+    from xtalapp import menus
+    window, document = opened
+    folder = _run_folder(document)
+    _select(window, folder)
+    raised = []
+    monkeypatch.setattr(menus, "popup",
+                        lambda menu, position: raised.append(
+                            ([a.text() for a in menu.actions()],
+                             position)))
+
+    window.file_dock.contextRequested.emit("here")
+
+    assert raised[0][1] == "here"
+    assert "Move to &Trash" in raised[0][0]

@@ -840,6 +840,21 @@ def build_toolbar(window):
     window.addToolBar(bar)
     window.toolbar = bar
 
+def popup(menu, position) -> None:
+    """Raise a context menu and wait on it, in one place.
+
+    A seam, because ``QMenu.exec`` cannot be replaced from Python --
+    PySide resolves it in C++ and an override on the class is ignored,
+    unlike ``QDialog.exec``, which the suite's modal guard does
+    replace.  So a test that reached a context menu could not be
+    stopped by that guard and hung instead: 27 minutes of a CI job at
+    98 %, for a menu nobody could click.  ``tests/conftest.py``
+    patches this function; a test that means to open one patches it
+    itself.
+    """
+    menu.exec(position)
+
+
 def context_menu(window, kind: str):
     """The menu for whatever was right-clicked, or ``None``.
 
