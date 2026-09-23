@@ -427,7 +427,14 @@ def test_the_line_style_fades_even_though_it_has_no_shader():
     """A wide line goes through a geometry shader, which does not
     carry the position the fade measures -- so the line-drawn bonds
     are faded by recolouring them instead.  The picture has to recede
-    all the same."""
+    all the same.
+
+    Seen at 45 degrees, because the row of atoms runs along z: looking
+    down it drew every bond as one dot about twelve pixels across,
+    and whether any faded pixel showed round the nearest segment was
+    the driver's to decide -- on Windows none did, and the fade looked
+    like it did nothing.  Side on, every bond is at one depth and
+    there is nothing to fade."""
     from xtal import Lattice, Structure
     from xtal.core.site import Site
     structure = Structure(
@@ -440,7 +447,7 @@ def test_the_line_style_fades_even_though_it_has_no_shader():
         settings.depth_cue = cue
         image = vtk_scene.render_to_array(
             build_scene(structure, settings), (400, 400),
-            direction=(0.0, 0.0, -1.0))
+            direction=(1.0, 0.0, -1.0))
         return fraction_of(image, lambda i: i.sum(axis=2) < 600)
 
     assert ink(False) > 0.0
