@@ -67,6 +67,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.ff import ENGINES
+from xtal.ff import record as ff_record
 from xtal.ff.optimize import (
     DEFAULT_FORCE_TOLERANCE,
     DEFAULT_MAX_STEPS,
@@ -606,28 +607,15 @@ class ForceFieldDock(QDockWidget):
         rather than silently doing less than the user expects.
         """
         document = self.document
-        entry = getattr(document, "entry", None)
-        if entry is None:
-            return None
-        from xtal.ff.record import RunRecorder
         try:
-            folder = entry.next_run(self.engine_name(), kind)
-            recorder = RunRecorder(
-                folder, document.structure, calculator,
-                engine=self.engine_name(), options=self.options(),
-                record_trajectory=(kind == "optimise"))
-            recorder.header(kind.replace("-", " "))
-            if self._engine_provides("types"):
-                # UFF's typing table.  Writing it for an engine that
-                # has no atom types would put a page of somebody
-                # else's answer in the middle of this one's log.
-                recorder.typing()
-            recorder.topology()
+            return ff_record.open_run(
+                getattr(document, "entry", None), self.engine_name(),
+                kind, document.structure, calculator,
+                options=self.options())
         except OSError as exc:
             self.statusMessage.emit(
                 f"could not write into the workspace: {exc}")
             return None
-        return recorder
 
     def single_point(self) -> None:
         if self.document is None:
@@ -641,12 +629,7 @@ class ForceFieldDock(QDockWidget):
             return
         recorder = self._open_run("single-point", calculator)
         if recorder is not None:
-            recorder.energies(result, "Energy")
-            recorder.log.write(f"max force      {result.max_force:.5f} "
-                               f"kcal/mol/A")
-            recorder.log.write(f"rms force      {result.rms_force:.5f} "
-                               f"kcal/mol/A")
-            recorder.close()
+            ff_record.write_single_point(recorder, result)
             self.runFinished.emit(str(recorder.folder.path))
         self.report.setPlainText(
             f"{calculator.summary()}\n\n{result.breakdown()}\n\n"
@@ -832,24 +815,25 @@ class ForceFieldDock(QDockWidget):
         from the worker's copy: it is the geometry the user is looking
         at, and the one the command that just landed put there.
         """
-        recorder = self._recorder
+        self._finish_run(result=result, final=final,
+                         error="" if result is not None
+                         else "the optimisation failed")
+
+    def _finish_run(self, **how) -> None:
+        """Close the run the panel has open, whichever way it ended."""
+        recorder, self._recorder = self._recorder, None
         if recorder is None:
             return
+        warning = ""
         if self.worker is not None and self.worker.recording_failed:
             self.statusMessage.emit(
                 f"the run was not fully recorded: "
                 f"{self.worker.recording_failed}")
-            recorder.warn(f"recording stopped: "
-                          f"{self.worker.recording_failed}")
+            warning = f"recording stopped: {self.worker.recording_failed}"
         try:
-            if result is None:
-                recorder.failed("the optimisation failed")
-            else:
-                recorder.result(result, final=final)
+            ff_record.close_run(recorder, warning=warning, **how)
         except OSError as exc:                      # pragma: no cover
             self.statusMessage.emit(f"could not finish the log: {exc}")
-        recorder.close()
-        self._recorder = None
         self.runFinished.emit(str(recorder.folder.path))
 
     def _on_failed(self, message: str) -> None:
@@ -859,12 +843,7 @@ class ForceFieldDock(QDockWidget):
                                             self._before_matrix)
         self.report.setPlainText(f"the optimisation failed: {message}")
         self.statusMessage.emit(f"optimisation failed: {message}")
-        if self._recorder is not None:
-            self._recorder.failed(message)
-            self._recorder.close()
-            path = str(self._recorder.folder.path)
-            self._recorder = None
-            self.runFinished.emit(path)
+        self._finish_run(error=message)
         self.worker = None
 
     def closeEvent(self, event):                    # pragma: no cover

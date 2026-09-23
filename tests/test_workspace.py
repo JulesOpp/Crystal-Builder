@@ -549,3 +549,69 @@ def test_a_second_build_of_one_name_gets_a_folder_of_its_own(
 
     assert first.entry.path != second.entry.path
     assert first.run is None and second.run is None
+
+
+# ------------------------------------------ a force-field run's life
+
+def _stable(log_text: str) -> list[str]:
+    """A log without the lines that name a moment or a place."""
+    return [line for line in log_text.splitlines()
+            if not any(word in line for word in
+                       ("started", "finished", "folder", "timing",
+                        "seconds", "version", "/"))]
+
+
+def test_a_failed_run_closes_its_log_once(entry, rutile):
+    """The panel used to write its failure path twice, differently."""
+    from xtal.ff import ENGINES
+    from xtal.ff import record as ff_record
+
+    calculator = ENGINES.get("uff")(rutile)
+    recorder = ff_record.open_run(entry, "uff", "optimise", rutile,
+                                  calculator)
+    ff_record.close_run(recorder, error="it went wrong",
+                        warning="recording stopped: disk full")
+    ff_record.close_run(None, error="nothing to close")
+
+    run, = entry.runs()
+    log = run.log_path.read_text()
+    assert log.count("the run failed: it went wrong") == 1
+    assert log.count("recording stopped: disk full") == 1
+    assert log.count("finished") == 1
+    assert not run.final_path.exists()
+
+
+def test_no_entry_is_a_run_that_leaves_nothing(rutile):
+    from xtal.ff import record as ff_record
+
+    assert ff_record.open_run(None, "uff", "single-point", rutile,
+                              None) is None
+
+
+def test_cli_and_panel_write_the_same_run_folder(tmp_path, entry,
+                                                 rutile):
+    """The panel calls ``open_run`` and ``write_single_point``; the CLI
+    must write the same log from them, not from a copy of them."""
+    from xtal.cli import main
+    from xtal.core import p1
+    from xtal.ff import ENGINES
+    from xtal.ff import record as ff_record
+
+    source = tmp_path / "rutile.cif"
+    write_cif(rutile, source)
+    structure = read_cif(source)                # as the CLI sees it
+    options = ENGINES.get("uff").coerce({})
+    calculator = ENGINES.get("uff")(structure, **options)
+    cell = p1.expand(structure)
+    result = calculator.compute(cell.cart, structure.lattice.matrix)
+    ff_record.write_single_point(ff_record.open_run(
+        entry, "uff", "single-point", structure, calculator,
+        options=options), result)
+    root = tmp_path / "cli-ws"
+    main(["energy", str(source), "--workspace", str(root)])
+
+    ours, = entry.runs()
+    theirs, = Workspace.open(root).entries()[0].runs()
+    assert ours.name == theirs.name == "uff-single-point-001"
+    assert _stable(ours.log_path.read_text()) \
+        == _stable(theirs.log_path.read_text())
