@@ -1007,7 +1007,10 @@ def test_reveal_asks_the_desktop_for_the_folder_not_the_file(opened,
 
     window.actions_["workspace_reveal"].trigger()
 
-    assert asked[0].toLocalFile().rstrip("/") == str(document.path.parent)
+    # Compared as a path: QUrl spells a Windows one with forward
+    # slashes and `str(Path)` with backslashes, so the two strings
+    # differ where the two locations do not.
+    assert Path(asked[0].toLocalFile()) == document.path.parent
 
 
 def test_a_right_click_picks_the_row_under_the_cursor(opened,
