@@ -100,6 +100,32 @@ class BondRules:
                 return False
         return True
 
+    def pairs_within(self, positions, symbols) -> list[tuple[int, int]]:
+        """The pairs of a molecule these rules would bond.
+
+        No cell and no images: for something that is not a crystal
+        yet, such as a building block in a picker, which has to be
+        drawn with the bonds the application would give it rather
+        than with a rule of its own -- the MOF preview once drew
+        Zn-Zn and Cu-Cu bonds perception refuses outright.
+        """
+        from scipy.spatial import cKDTree
+
+        positions = np.asarray(positions, dtype=float).reshape(-1, 3)
+        cutoff = self.max_cutoff(symbols)
+        if len(positions) < 2 or cutoff <= 0:
+            return []
+        found = []
+        for i, j in sorted(cKDTree(positions).query_pairs(cutoff)):
+            a, b = symbols[i], symbols[j]
+            if not self.allows(a, b):
+                continue
+            lo, hi = self.cutoff(a, b)
+            if lo <= float(np.linalg.norm(positions[i] - positions[j])) \
+                    <= hi:
+                found.append((int(i), int(j)))
+        return found
+
     def max_cutoff(self, symbols) -> float:
         """Search radius that cannot miss a bond between these
         elements."""
@@ -154,6 +180,19 @@ class BondRules:
 # ======================================================================
 #  PERCEPTION
 # ======================================================================
+
+def bond_distance(a: str, b: str) -> float:
+    """How far apart to place a new atom and the one it bonds to.
+
+    The sum of the two covalent radii, which is what perception
+    already uses to decide that two atoms *are* bonded -- so an atom
+    placed here is one the distance criteria would have found anyway,
+    and the bond drawn with it does not contradict the rules that
+    would have drawn it.  Every element carries one, a dummy atom
+    included, so there is no pair this has no answer for.
+    """
+    return el.covalent_radius(a) + el.covalent_radius(b)
+
 
 def perceive(structure, rules: BondRules | None = None,
              include_explicit: bool = True) -> list[CellBond]:

@@ -14,6 +14,7 @@ the vendored copy is diffed against a real upstream one.
 """
 
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -27,6 +28,7 @@ from xtal.mof.build import (
     closest_contact,
 )
 from xtal.mof.catalog import (
+    BuildingBlock,
     CatalogError,
     matches_composition,
     matches_search,
@@ -1011,3 +1013,32 @@ def test_a_single_point_build_makes_exactly_the_bonds_it_always_made(
     assert shipped.joints == 6
     assert shipped.longest_joint == 0.0
     assert "longest joint" not in shipped.verdict()
+
+
+# ------------------------------------------- the bonds a block is drawn with
+
+def test_a_block_is_drawn_with_the_bonds_it_is_built_with(catalog):
+    """The picker once bonded by its own distance rule: 9401 bonds
+    the shipped blocks do not have, 74 missing that they do."""
+    for block in catalog.building_blocks():
+        own = {(min(int(i), int(j)), max(int(i), int(j)))
+               for i, j, *_ in block.bonds}
+        assert set(block.bond_pairs()) == own, block.name
+
+
+def test_a_block_with_no_bonds_is_drawn_by_the_applications_rule():
+    """No bond section: perception over the atoms, which refuses a
+    metal-metal pair, and each connection point on a stalk to its
+    nearest atom."""
+    block = BuildingBlock(
+        name="bare", path=Path("bare.xyz"),
+        symbols=("Zn", "Zn", "O", "X"),
+        positions=np.array([[0.0, 0, 0], [2.6, 0, 0], [1.3, 1.2, 0],
+                            [1.3, 2.6, 0]]),
+        connections=(3,))
+
+    pairs = block.bond_pairs()
+
+    assert (0, 1) not in pairs                  # never Zn-Zn
+    assert (0, 2) in pairs and (1, 2) in pairs
+    assert (2, 3) in pairs                      # the point's stalk
