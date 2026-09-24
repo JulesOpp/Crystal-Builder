@@ -34,7 +34,7 @@ select an infinite crystal one atom at a time.
 from __future__ import annotations
 
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 
@@ -476,11 +476,14 @@ def rebase(bonds, tau_then, tau_now) -> list[CellBond]:
     if np.array_equal(tau_then, tau_now):
         return list(bonds)
     shift = tau_then - tau_now
+    # dataclasses.replace rather than the constructor: a field listed
+    # by hand is a field that can be left out, and ``stated`` was --
+    # a bond order the user set went back to Automatic whenever an
+    # atom crossed a face.
     return [
-        CellBond(b.i, b.j,
-                 tuple(int(v) for v in
-                       (np.asarray(b.image) + shift[b.j] - shift[b.i])),
-                 b.distance, b.explicit, b.order)
+        replace(b, image=tuple(int(v) for v in
+                               (np.asarray(b.image)
+                                + shift[b.j] - shift[b.i])))
         for b in bonds
     ]
 

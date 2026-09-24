@@ -293,10 +293,16 @@ class InspectorDock(QDockWidget):
         if partners:
             lines.append("")
             lines.append("neighbours")
-            for bond in sorted(partners, key=lambda b: b.distance):
+            # As long as the bonds are now: ``distance`` is from when
+            # they were perceived, which a relaxation or a drag since
+            # has made a number from before.
+            matrix = lattice.matrix
+            lengths = [(bond.length(cell.frac, matrix), bond)
+                       for bond in partners]
+            for length, bond in sorted(lengths, key=lambda p: p[0]):
                 other = bond.j if bond.i == atom else bond.i
                 name = cell.labels[other] or cell.elements[other]
-                lines.append(f"  {name:<8s} {bond.distance:6.3f} A")
+                lines.append(f"  {name:<8s} {length:6.3f} A")
         return "\n".join(lines)
 
     def _describe_bonds(self, document) -> str:
