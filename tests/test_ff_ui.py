@@ -734,3 +734,35 @@ def test_every_engine_that_is_registered_can_be_chosen(window):
     offered = [engine.name for dock in docks for engine in dock.engines]
     assert sorted(offered) == sorted(ENGINES.names())
     assert len(offered) == len(set(offered))
+
+
+# ------------------------------------------- an engine that is missing
+
+def test_a_missing_engine_links_to_its_install_command(opened,
+                                                       monkeypatch):
+    """The command is a long path with nowhere to wrap: in the note it
+    pushed the panel wider than its column, was cut off at the edge,
+    and could not be copied from a label anyway.  The note links to
+    Preferences > Engines, where it can."""
+    import sys
+
+    from xtal.ff.orb import calculator as orb
+    from xtalapp.docks import MAXIMUM_MINIMUM
+
+    monkeypatch.setattr(orb, "installed", lambda: False)
+    window, _ = opened
+    dock = window.ff_dock
+    dock.engine.setCurrentIndex(dock.engine.findData("orb"))
+    note = dock.engine_note
+
+    assert not note.isHidden()
+    assert "ORB is not installed" in note.text()
+    assert 'href="engines"' in note.text()
+    assert sys.executable not in note.text()
+    assert note.minimumSizeHint().width() <= MAXIMUM_MINIMUM
+
+    shown = []
+    monkeypatch.setattr(window, "show_preferences",
+                        lambda page="": shown.append(page))
+    note.linkActivated.emit("engines")
+    assert shown == ["Engines"]

@@ -46,6 +46,8 @@ mistyped atom rather than a strained crystal.
 
 from __future__ import annotations
 
+import html
+
 import numpy as np
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
@@ -77,6 +79,7 @@ from xtal.ff.optimize import (
 )
 from xtal.ff.uff import calculator as uff_calculator
 from xtal.ff.uff import params
+from xtalapp import extras
 from xtalapp.dialogs.module_form import ParamForm
 from xtalapp.plot import TracePlot
 from xtalapp.widgets.atom_types import (
@@ -117,6 +120,25 @@ REDRAW_RATES = (
 )
 
 
+def engine_note_html(reason: str) -> str:
+    """An engine's reason, with its install command made a link.
+
+    The command is spelled out for this interpreter and this checkout
+    (:mod:`xtal.install`), which makes it a long path with no space to
+    wrap at: in a note it pushed the panel wider than its column and
+    was cut off at the edge, in a label nobody can copy from.
+    Preferences > Engines has the same command in a box with a Copy
+    button, so the note links there instead.
+    """
+    text = html.escape(reason)
+    for extra in extras.EXTRAS:
+        command = html.escape(extra.command())
+        if command in text:
+            text = text.replace(
+                command, 'the command to install it is on <a href="engines">'
+                         'Preferences &gt; Engines</a>')
+    return text
+
 class ForceFieldDock(QDockWidget):
     """Atom types, a single point, and a geometry optimisation.
 
@@ -132,6 +154,8 @@ class ForceFieldDock(QDockWidget):
     previewIntervalChanged = Signal(int)    # ms; 0 every step, -1 never
     runStarted = Signal(str)                # the run folder's path
     runFinished = Signal(str)               # the run folder's path
+    #: The note's link to Preferences > Engines was followed.
+    setupRequested = Signal()
 
     def __init__(self, parent=None, *, title="Force Field",
                 object_name="ForceFieldDock", engines=None):
@@ -176,6 +200,9 @@ class ForceFieldDock(QDockWidget):
             form.changed.connect(self._show_engine)
         self.engine_note = QLabel("")
         self.engine_note.setWordWrap(True)
+        self.engine_note.setTextFormat(Qt.TextFormat.RichText)
+        self.engine_note.linkActivated.connect(
+            lambda _link: self.setupRequested.emit())
         set_tone(self.engine_note, HINT)
 
         # UFF4MOF was always on and nothing said so.  Offered so a
@@ -516,7 +543,8 @@ class ForceFieldDock(QDockWidget):
         # parameter directory cannot run, and the box that names one
         # is in the form directly above this note.
         available = engine.availability(**self.options())
-        self.engine_note.setText("" if available else available.reason)
+        self.engine_note.setText("" if available
+                                 else engine_note_html(available.reason))
         self.engine_note.setVisible(not available)
         if self.is_running:
             # Mid-run the run button is Stop, and _set_running owns

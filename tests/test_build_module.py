@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import pytest
 
+from xtal import install
 from xtal.build import MISSING, installed
 from xtal.modules import MODULES, Job
 from xtal.modules import build as build_module
@@ -30,7 +31,7 @@ def test_without_rdkit_the_entry_greys_out_naming_the_extra(
     available = build_module.BUILD.availability()
 
     assert not available
-    assert "crystal-builder[build]" in available.reason
+    assert install.command("build") in available.reason
 
 
 def test_inserting_into_the_open_cell_is_not_a_module_action():

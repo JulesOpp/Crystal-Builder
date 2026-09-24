@@ -60,12 +60,13 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from xtal import install
 from xtal.io.xy import read_xy, write_xy
 from xtalapp.widgets.tone import HINT, set_tone
 
 MISSING = ("matplotlib is not installed, so a pattern can be looked "
            "at in the panel but not zoomed, overlaid or exported as "
-           "a figure -- pip install 'crystal-builder[pxrd]'")
+           f"a figure -- {install.command('pxrd')}")
 
 #: Keeping text as text rather than as outlines is what makes a label
 #: editable after the file is opened in a vector editor.  Applied

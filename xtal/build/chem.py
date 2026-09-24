@@ -41,10 +41,11 @@ import importlib.util
 
 import numpy as np
 
+from xtal import install
 from xtal.mof.block import pull_in
 
 MISSING = ("RDKit is not installed, so there is nothing to build a "
-           "molecule from -- pip install 'crystal-builder[build]'")
+           f"molecule from -- {install.command('build')}")
 
 #: RDKit bond type -> the order this application stores.  Aromatic
 #: stays 1.5 rather than being kekulized, because

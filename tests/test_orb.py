@@ -23,6 +23,7 @@ import numpy as np
 import pytest
 
 from tests.conftest_ff import water
+from xtal import install
 from xtal.ff import ENGINES
 from xtal.ff.api import CalculatorError
 from xtal.ff.orb import calculator as orb
@@ -118,7 +119,7 @@ def test_a_missing_package_names_the_extra_to_install(monkeypatch):
     monkeypatch.setattr(orb, "installed", lambda: False)
     answer = orb.available()
     assert not answer.ok
-    assert "crystal-builder[orb]" in answer.reason
+    assert install.command("orb") in answer.reason
 
 
 def test_the_weights_are_said_to_be_a_download(monkeypatch):

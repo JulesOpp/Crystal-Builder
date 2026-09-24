@@ -22,6 +22,7 @@ from PySide6.QtCore import QEvent, Qt  # noqa: E402
 from PySide6.QtGui import QFocusEvent  # noqa: E402
 from PySide6.QtWidgets import QApplication, QPushButton  # noqa: E402
 
+from xtal import install  # noqa: E402
 from xtal.io.xy import read_xy, write_xy  # noqa: E402
 from xtal.modules.report import Curve, Report  # noqa: E402
 from xtalapp.curve import CurvePlot, save_curve  # noqa: E402
@@ -97,7 +98,7 @@ def test_the_plot_button_greys_out_naming_the_extra(qtbot,
 
     button = dock._blocks[0].findChild(QPushButton)
     assert not button.isEnabled()
-    assert "crystal-builder[pxrd]" in button.toolTip()
+    assert install.command("pxrd") in button.toolTip()
 
 
 @needs_matplotlib

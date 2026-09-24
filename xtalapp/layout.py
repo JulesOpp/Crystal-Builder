@@ -131,6 +131,8 @@ def build_docks(window):
         # Connected to a method, not to the label: the docks are
         # built before the status bar exists.
         dock.statusMessage.connect(window.show_status)
+        dock.setupRequested.connect(
+            lambda: window.show_preferences("Engines"))
         dock.previewIntervalChanged.connect(
             window.set_preview_interval)
         dock.set_preview_interval(window.settings.preview_interval)

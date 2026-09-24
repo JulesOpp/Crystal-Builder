@@ -7,9 +7,9 @@ Five features are gated on a package this application does not
 install: the molecule builder needs RDKit, the sketcher rdeditor, the
 PXRD overlay window matplotlib, the MOF builder ASE, and the MACE
 engine mace-torch.  Each greys its entry out and names the extra to
-install, and this page gives the command for *this* interpreter and
-*this* checkout -- see :meth:`Extra.command` for why the shorthand
-``pip install 'crystal-builder[build]'`` is not good enough there.
+install, spelled by :func:`xtal.install.command` for *this*
+interpreter and *this* checkout -- see that module for why the
+shorthand ``pip install 'crystal-builder[build]'`` is not good enough.
 
 The PXRD one is the narrowest and is worth the distinction:
 what is missing without matplotlib is a *window*, not a feature.  The
@@ -61,6 +61,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from xtal import build as build_extra
+from xtal import install
 from xtal import mof as mof_extra
 from xtal.ff import mace as mace_extra
 from xtal.ff import orb as orb_extra
@@ -115,27 +116,9 @@ class Extra:
         return installed(self.package)
 
     def command(self) -> str:
-        """What to type on a source checkout to get it.
-
-        Spelled with this interpreter, because a bare ``pip`` is
-        whichever one is first on somebody's PATH and is often not
-        the Python the application is running in.  And against the
-        checkout itself where there is one: ``crystal-builder`` is not
-        on PyPI, so the name only resolves against the installed
-        metadata, which is written at install time and does not know
-        an extra added to ``pyproject.toml`` since -- pip warns that
-        the extra does not exist and installs nothing.
-        """
-        root = checkout()
-        target = (f'-e "{root}[{self.extra}]"' if root is not None
-                  else f'"crystal-builder[{self.extra}]"')
-        return f'"{sys.executable}" -m pip install {target}'
-
-
-def checkout() -> Path | None:
-    """The source tree this is running from, or ``None``."""
-    root = Path(__file__).resolve().parent.parent
-    return root if (root / "pyproject.toml").is_file() else None
+        """What to type on a source checkout to get it -- see
+        :mod:`xtal.install` for why it is not the shorthand."""
+        return install.command(self.extra)
 
 
 #: Asked through each feature's own check, so there is one answer to

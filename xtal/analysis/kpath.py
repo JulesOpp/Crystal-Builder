@@ -34,6 +34,7 @@ from dataclasses import dataclass, field
 import numpy as np
 from scipy.spatial import ConvexHull, Voronoi
 
+from xtal import install
 from xtal.ff.dftb.hsd import KLines
 
 #: Points per reciprocal Angstrom along the path.
@@ -43,7 +44,7 @@ DEFAULT_DENSITY = 40
 GREEK = {"G": "Γ"}
 
 MISSING = ("the band path needs ASE, which works out the special "
-           "points of this cell: pip install 'crystal-builder[ase]'")
+           f"points of this cell: {install.command('ase')}")
 
 
 def installed() -> bool:

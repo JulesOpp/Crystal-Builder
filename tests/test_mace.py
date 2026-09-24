@@ -32,6 +32,7 @@ import numpy as np
 import pytest
 
 from tests.conftest_ff import water
+from xtal import install
 from xtal.ff import ENGINES
 from xtal.ff.api import CalculatorError
 from xtal.ff.mace import calculator as mace
@@ -160,7 +161,7 @@ def test_a_missing_package_names_the_extra_to_install(monkeypatch):
     monkeypatch.setattr(mace, "installed", lambda: False)
     answer = mace.available()
     assert not answer.ok
-    assert "crystal-builder[mace]" in answer.reason
+    assert install.command("mace") in answer.reason
 
 
 def test_a_foundation_model_says_it_will_be_downloaded(monkeypatch):

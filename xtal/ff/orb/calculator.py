@@ -47,6 +47,7 @@ import importlib.util
 import warnings
 from dataclasses import dataclass
 
+from xtal import install
 from xtal.ff.api import CalculatorError
 from xtal.ff.ase_engine import KCAL_PER_EV, ASECalculator, ModelCache
 from xtal.ff.registry import ENGINES, Engine
@@ -58,7 +59,7 @@ __all__ = ["DEFAULT_MODEL", "DEVICE_CHOICES", "INSTALL", "KCAL_PER_EV",
 
 #: The package that has to be installed, and how.
 PACKAGE = "orb_models"
-INSTALL = "pip install 'crystal-builder[orb]'"
+INSTALL = install.command("orb")
 
 #: The conservative ORB-v3 models, by the name orb-models knows them.
 #: The descriptions are upstream's own -- training set and neighbour

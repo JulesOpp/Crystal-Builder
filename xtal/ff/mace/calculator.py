@@ -58,6 +58,7 @@ import importlib.util
 from dataclasses import dataclass
 from pathlib import Path
 
+from xtal import install
 from xtal.ff.api import CalculatorError
 from xtal.ff.ase_engine import (  # noqa: F401 -- implements_stress, too
     KCAL_PER_EV,
@@ -71,7 +72,7 @@ from xtal.params import Availability, Param
 
 #: The package that has to be installed, and how.
 PACKAGE = "mace"
-INSTALL = "pip install 'crystal-builder[mace]'"
+INSTALL = install.command("mace")
 
 #: The foundation models this offers, newest first, by the name
 #: ``mace_mp`` knows them.  Not all seventeen: these are the ones whose

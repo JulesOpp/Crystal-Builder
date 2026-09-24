@@ -98,14 +98,18 @@ def test_a_checkout_installs_the_extra_from_itself():
     against metadata written at install time, which does not know an
     extra added since, and pip then installs nothing.  Installing the
     checkout rewrites the metadata on the way."""
-    root = extras.checkout()
+    from xtal import install
+
+    root = install.checkout()
 
     assert root is not None and (root / "pyproject.toml").is_file()
     assert f'-e "{root}[mace]"' in extra("mace").command()
 
 
 def test_an_installed_copy_names_the_package(monkeypatch):
-    monkeypatch.setattr(extras, "checkout", lambda: None)
+    from xtal import install
+
+    monkeypatch.setattr(install, "checkout", lambda: None)
 
     assert extra("mace").command().endswith(
         'pip install "crystal-builder[mace]"')

@@ -107,14 +107,23 @@ type:
 | `mace` | mace-torch | The MACE engine in the Force Field panel. Brings PyTorch |
 | `orb` | orb-models | The ORB-v3 engine in the Force Field panel. Brings PyTorch; on Python 3.13 its pinned dm-tree has to be built, and with CMake 4 that needs `CMAKE_POLICY_VERSION_MINIMUM=3.5` set |
 
+From the checkout, with the Python you run Crystal Builder with:
+
 ```bash
-pip install 'crystal-builder[gui,ase,build,sketch,pxrd]'
-pip install 'crystal-builder[gui,mace]'     # MACE as well
-pip install 'crystal-builder[gui,orb]'      # ORB-v3 as well
+python -m pip install -e ".[gui,ase,build,sketch,pxrd]"
+python -m pip install -e ".[gui,mace]"     # MACE as well
+python -m pip install -e ".[gui,orb]"      # ORB-v3 as well
 ```
 
-`mace` is its own line because it is not a small ask: PyTorch is
-gigabytes of wheel, against the four packages the core installs.
+Not `pip install 'crystal-builder[orb]'`: `crystal-builder` is not on
+PyPI, so that name resolves only against the metadata written when the
+checkout was last installed, and an extra added since is refused with
+"does not provide the extra" and nothing installed.  Installing the
+checkout itself rewrites that metadata.
+
+`mace` and `orb` are their own lines because they are not a small ask:
+PyTorch is gigabytes of wheel, against the four packages the core
+installs.
 
 ### In a packaged build
 
@@ -125,10 +134,10 @@ rdeditor and matplotlib all work with nothing to do — and **does not
 carry PyTorch**, which is larger than the rest of the application put
 together.
 
-If you want MACE, run Crystal Builder from Python:
+If you want MACE or ORB-v3, run Crystal Builder from Python:
 
 ```bash
-pip install 'crystal-builder[gui,mace]'
+python -m pip install -e ".[gui,mace]"
 crystal-builder
 ```
 
