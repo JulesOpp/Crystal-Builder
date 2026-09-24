@@ -1,4 +1,4 @@
-"""Seven real structures ship in resources/samples, and now open.
+"""Thirteen real structures ship in resources/samples, and now open.
 
 They had been in the repository since the early phases with nothing in
 the application referring to them, so a fresh installation opened an
@@ -48,7 +48,7 @@ def test_every_sample_in_the_catalogue_is_a_file_that_is_there():
     missing = [s.label for s in samples.SAMPLES if s.path is None]
 
     assert missing == []
-    assert len(samples.SAMPLES) == 7
+    assert len(samples.SAMPLES) == 13
 
 
 def test_every_sample_is_a_structure_this_application_can_read():
@@ -150,9 +150,14 @@ def test_the_file_menu_offers_every_sample(window):
     way to reach a submenu from the menu bar and it destroys the menu
     it hands back the moment the wrapper is collected -- which kills
     ``window.modules_menu`` on a checkout with none of this in it."""
-    labels = [a.text() for a in window.sample_menu.actions()]
+    labels = [a.text() for a in window.sample_menu.actions()
+              if not a.isSeparator()]
+    cod = window.sample_group_menus[samples.COD]
 
-    assert labels == [s.label for s in samples.SAMPLES]
+    assert labels == [s.label for s in samples.in_group(samples.SHIPPED)
+                      ] + [cod.title()]
+    assert [a.text() for a in cod.actions()] == [
+        s.label for s in samples.in_group(samples.COD)]
     assert window.sample_menu.isEnabled()
     assert window.sample_menu.parentWidget().title() == "&File"
 
@@ -177,11 +182,95 @@ def test_pressing_a_sample_entry_opens_it(window):
 def test_an_installation_without_the_samples_says_so(window, tmp_path,
                                                      monkeypatch):
     """resources/ is not package data, so a wheel install has none of
-    them -- a supported state that gets a sentence, not seven entries
-    that each raise a dialog."""
+    them -- a supported state that gets a sentence, not thirteen
+    entries that each raise a dialog."""
     monkeypatch.setattr(samples, "folder", lambda: tmp_path / "nothing")
     menus.build_sample_menu(window)
 
     assert not window.sample_menu.isEnabled()
     assert window.sample_menu.toolTip() == samples.MISSING
     assert not window.actions_["sample_mof5"].isEnabled()
+
+
+#: What each COD file must read as: the space group it was published
+#: in, and the atoms that group makes of it.  UiO-66 and ZIF-8 carry
+#: their disorder as deposited, so both halves of each split site are
+#: counted; MIL-101 was refined with no hydrogens.
+COD_EXPECTED = {
+    "cod_mof5": ("Fm-3m", 7, 424),
+    "cod_hkust1": ("Fm-3m", 6, 624),
+    "cod_zif8": ("I-43m", 9, 348),
+    "cod_uio66": ("Fm-3m", 13, 688),
+    "cod_mil101": ("Fd-3m", 108, 16000),
+    "cod_nu1000": ("P6/mmm", 26, 510),
+}
+
+
+def test_every_cod_sample_opens_in_its_published_space_group():
+    """Read as the depositors wrote them: the asymmetric unit in its
+    own group, no coincident atoms, and the cell the formula says.  A
+    strip that took a symmetry loop with the reflections, or a reader
+    that fell back to P1, changes all three."""
+    from xtal.core import p1
+
+    for sample in samples.in_group(samples.COD):
+        group, n_sites, n_atoms = COD_EXPECTED[sample.name]
+        structure = FORMATS.read(sample.path)
+
+        assert structure.space_group.short_name == group, sample.label
+        assert structure.n_sites == n_sites, sample.label
+        assert p1.expand(structure).n_atoms == n_atoms, sample.label
+        assert not structure.meta.get("warnings"), sample.label
+
+
+def test_the_cod_samples_are_what_the_script_writes():
+    """Stripped of the experiment and nothing else, byte for byte, so
+    the files are the COD's and the script is how they came to be."""
+    import importlib.util
+
+    script = samples.folder().parent.parent / "scripts" / (
+        "fetch_cod_samples.py")
+    spec = importlib.util.spec_from_file_location("fetch_cod", script)
+    fetch = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fetch)
+
+    assert sorted(fetch.ENTRIES.values()) == sorted(
+        s.file.removeprefix("cod/")
+        for s in samples.in_group(samples.COD))
+    for sample in samples.in_group(samples.COD):
+        text = sample.path.read_text("utf-8")
+        assert fetch.strip(text) == text, sample.label
+        assert f"_cod_database_code               {sample.cod_id}" in (
+            text), sample.label
+
+
+def test_every_file_in_the_samples_folder_is_named_in_provenance():
+    """A structure with no source written down is one nobody can say
+    may be shipped.  Fails the moment a file is added without it."""
+    folder = samples.folder()
+    provenance = (folder / "PROVENANCE.md").read_text("utf-8")
+    files = sorted(p.relative_to(folder).as_posix()
+                   for p in folder.rglob("*.cif"))
+
+    unnamed = [f for f in files if f"`{f}`" not in provenance]
+
+    assert len(files) == 16
+    assert unnamed == []
+
+
+def test_the_cod_samples_are_in_their_own_section_of_open_sample(window):
+    """Two entries called MOF-5 a separator apart, with nothing to
+    say which is the deposited one, is what the submenu is for.  And
+    the workspace entry carries the number, so the two never share a
+    folder name told apart only by a -2."""
+    cod = window.sample_group_menus[samples.COD]
+
+    assert cod.title() == "From the &COD"
+    assert "sample_cod_mof5" in window.actions_
+    assert window.actions_["sample_cod_mof5"] in cod.actions()
+    assert window.actions_["sample_mof5"] not in cod.actions()
+
+    document = window.open_sample("cod_mof5")
+
+    assert document.entry.name == "MOF-5_COD_1516287"
+    assert document.path.name == "MOF-5.cif"

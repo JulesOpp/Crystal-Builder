@@ -3,7 +3,7 @@ xtalapp.samples
 ===============
 The structures that ship in ``resources/samples``, as menu entries.
 
-Seven real frameworks, 164 KB in total, have been in the repository
+Seven real frameworks, 164 KB in total, had been in the repository
 since the early phases and were referenced from nowhere in the
 application.  A freshly installed copy therefore opened an empty
 window to somebody who may not own a CIF yet -- which is the only
@@ -24,6 +24,15 @@ block.**  A document with no path takes its title from
 ``VESTA_phase_1``, ``CSD_CIF_POSWUS`` and ``sen-116-ds1``.  Opening
 *MOF-5* and getting a tab called ``VESTA_phase_1`` is the sort of
 detail that makes a program feel like somebody else's export.
+
+**Two groups, and the second is the Crystallography Open Database's.**
+The first seven are what this project was written against, and four
+of them carry the CCDC's header, which is a decision recorded in
+``resources/samples/PROVENANCE.md`` rather than a licence.  The COD six
+are CC0 and exactly as deposited -- the asymmetric unit in its
+published group, less the reflections -- so a framework everybody
+cites is there in the form it was cited, disorder and all.  They are
+written by ``scripts/fetch_cod_samples.py``.
 
 The catalogue is here rather than in :mod:`xtal` because it is a menu
 and a set of tooltips; nothing in it is crystallography.  Reading the
@@ -57,6 +66,12 @@ def folder() -> Path:
     return Path(__file__).resolve().parent.parent.joinpath(*FOLDER)
 
 
+#: The sections of Open Sample, in menu order, as (group, title).
+SHIPPED = "shipped"
+COD = "cod"
+GROUPS = ((SHIPPED, "Shipped"), (COD, "From the &COD"))
+
+
 @dataclass(frozen=True)
 class Sample:
     """One shipped structure: what it is called, and why it is here."""
@@ -64,9 +79,26 @@ class Sample:
     #: The registry name, as ``sample_<name>``.  Spelled the way the
     #: run-app driver and the tests have to type it.
     name: str
+    #: Relative to :func:`folder`.
     file: str
     label: str
     description: str
+    group: str = SHIPPED
+    #: The COD's number for it, for a sample that came from there.
+    cod_id: int | None = None
+
+    @property
+    def entry_name(self) -> str:
+        """What its workspace entry is called.
+
+        The label, and for a COD sample the number too: there is a
+        MOF-5 in each group, and two entries told apart only by
+        ``add_structure`` appending ``-2`` would leave nobody knowing
+        which was the deposited one.
+        """
+        if self.cod_id is None:
+            return self.label
+        return f"{self.label} COD {self.cod_id}"
 
     @property
     def path(self) -> Path | None:
@@ -76,7 +108,7 @@ class Sample:
 
 
 #: In the order they are worth meeting: the two everybody has heard
-#: of, then the ones this project was written for.
+#: of, then the ones this project was written for, then the COD's.
 SAMPLES = (
     Sample(
         "mof5", "MOF-5.cif", "MOF-5",
@@ -113,6 +145,40 @@ SAMPLES = (
         "The same framework and the same cell, modelled ordered and "
         "written out in P1: 210 atoms, two formula units, every site "
         "fully occupied and none of them related by anything"),
+    Sample(
+        "cod_mof5", "cod/MOF-5.cif", "MOF-5", group=COD,
+        cod_id=1516287, description=(
+            "Lock et al., J. Phys. Chem. C 2010: MOF-5 as refined, in "
+            "Fm-3m with seven sites, where the one above is written "
+            "out in P1")),
+    Sample(
+        "cod_hkust1", "cod/HKUST-1.cif", "HKUST-1", group=COD,
+        cod_id=4002052, description=(
+            "Peterson et al., Chem. Mater. 2014: Cu3(BTC)2 in Fm-3m "
+            "from in-situ diffraction, with no guest in the file")),
+    Sample(
+        "cod_zif8", "cod/ZIF-8.cif", "ZIF-8", group=COD,
+        cod_id=7249359, description=(
+            "De Zitter et al., CrystEngComm 2024: ZIF-8 in I-43m, with "
+            "each methyl hydrogen disordered over two positions")),
+    Sample(
+        "cod_uio66", "cod/UiO-66.cif", "UiO-66", group=COD,
+        cod_id=4512072, description=(
+            "Oien et al., Cryst. Growth Des. 2014: UiO-66 with its "
+            "defects refined -- linkers at 73 % and the cluster oxygens "
+            "split over two positions")),
+    Sample(
+        "cod_mil101", "cod/MIL-101.cif", "MIL-101(Cr)", group=COD,
+        cod_id=4000663, description=(
+            "Lebedev et al., Chem. Mater. 2005: an 89 A cubic cell in "
+            "Fd-3m, 16 000 atoms with no hydrogens, 4304 of them the "
+            "oxygens of the water in its cages -- the largest thing in "
+            "this menu")),
+    Sample(
+        "cod_nu1000", "cod/NU-1000.cif", "NU-1000", group=COD,
+        cod_id=7230579, description=(
+            "Islamoglu et al., CrystEngComm 2018: Zr6 nodes and a "
+            "pyrene tetracarboxylate in P6/mmm, 510 atoms in the cell")),
 )
 
 
@@ -122,6 +188,11 @@ def get(name: str) -> Sample:
         if sample.name == name:
             return sample
     raise KeyError(name)
+
+
+def in_group(group: str) -> tuple[Sample, ...]:
+    """The samples of one section of the menu, in catalogue order."""
+    return tuple(s for s in SAMPLES if s.group == group)
 
 
 def installed() -> tuple[Sample, ...]:

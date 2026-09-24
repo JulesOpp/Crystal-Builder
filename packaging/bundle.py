@@ -45,14 +45,14 @@ ICONS = HERE / "icons"
 
 #: Subtrees of ``resources/`` that travel with the application, as
 #: (relative path, why).  Both are load-bearing: File > Open Sample
-#: builds its seven entries from :func:`xtalapp.samples.installed`, so
+#: builds its thirteen entries from :func:`xtalapp.samples.installed`, so
 #: without the samples the menu greys out with a sentence about source
 #: checkouts and ``--selftest`` has nothing to open; and the workspace
 #: chooser, the first thing a launch shows, draws its side panel from
 #: ``resources/chooser``.
 RESOURCES = {
     "resources/samples":
-        "File > Open Sample, and what --selftest opens.  164 KB.",
+        "File > Open Sample, and what --selftest opens.  270 KB.",
     "resources/chooser":
         "The workspace chooser's icon and framework picture, made by "
         "packaging/render_chooser_art.py.  150 KB.",
@@ -329,9 +329,15 @@ def project_datas() -> list[tuple[str, str]]:
 
     for relative in sorted(RESOURCES):
         folder = ROOT / relative
-        for path in sorted(folder.iterdir()):
-            if path.is_file() and not path.name.startswith("."):
-                datas.append((str(path), relative))
+        # Down every subdirectory, each file landing in its own: the
+        # COD samples are ``resources/samples/cod``, and a flat walk
+        # left them out of the bundle with nothing failing to say so.
+        for path in sorted(folder.rglob("*")):
+            if path.is_file() and not any(
+                    part.startswith(".")
+                    for part in path.relative_to(folder).parts):
+                destination = path.parent.relative_to(ROOT)
+                datas.append((str(path), destination.as_posix()))
 
     for package, patterns in sorted(PACKAGE_DATA.items()):
         folder = ROOT / package

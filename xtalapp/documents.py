@@ -284,7 +284,8 @@ class DocumentSet:
         workspace = self.window.workspace
         if workspace is not None:
             try:
-                entry = workspace.add_structure(path, name=sample.label)
+                entry = workspace.add_structure(
+                    path, name=sample.entry_name)
             except OSError as exc:
                 self.window.show_message(
                     f"could not copy the sample in: {exc}")
@@ -299,7 +300,7 @@ class DocumentSet:
         # The tab is named from here, because a pathless document
         # takes its title from the structure's, and these files carry
         # the data block name whoever exported them left behind.
-        structure.meta["title"] = sample.label
+        structure.meta["title"] = sample.entry_name
         document = Document(structure)
         self.add_document(document)
         self._announce_warnings(document)

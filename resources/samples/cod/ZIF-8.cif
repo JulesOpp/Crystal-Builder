@@ -1,0 +1,305 @@
+#------------------------------------------------------------------------------
+#$Date: 2024-12-06 19:34:28 +0200 (Fri, 06 Dec 2024) $
+#$Revision: 296467 $
+#$URL: file:///home/coder/svn-repositories/_RELOADED_COD/cod-reloaded/cif/7/24/93/7249359.cif $
+#------------------------------------------------------------------------------
+#
+# This file is available in the Crystallography Open Database (COD),
+# http://www.crystallography.net/
+#
+# All data on this site have been placed in the public domain by the
+# contributors.
+#
+data_7249359
+loop_
+_publ_author_name
+'De Zitter, Elke'
+'Perl, David'
+'Savko, Martin'
+'Paley, Daniel W.'
+'Thom, Alexander J.'
+'Jeangerard, Damien'
+'Brewster, Aaron S.'
+'Tissot, Antoine'
+'Serre, Christian'
+'Shepard, William'
+_publ_section_title
+;
+ Elucidating metal--organic framework structures using synchrotron serial
+ crystallography
+;
+_journal_issue                   39
+_journal_name_full               CrystEngComm
+_journal_page_first              5644
+_journal_page_last               5654
+_journal_paper_doi               10.1039/D4CE00735B
+_journal_volume                  26
+_journal_year                    2024
+_chemical_formula_moiety         'C8 H10 N4 Zn'
+_chemical_formula_sum            'C8 H10 N4 Zn'
+_chemical_formula_weight         227.57
+_chemical_name_common            ZIF-8
+_chemical_name_systematic        Zn(mim)2
+_space_group_crystal_system      cubic
+_space_group_IT_number           217
+_space_group_name_Hall           'I -4 2 3'
+_space_group_name_H-M_alt        'I -4 3 m'
+_atom_sites_solution_hydrogens   geom
+_atom_sites_solution_primary     direct
+_audit_creation_date             2024-04-17
+_audit_creation_method
+;
+Olex2 1.5
+(compiled 2023.03.06 svn.rbb2c1857 for OlexSys, GUI svn.r6748)
+;
+_audit_update_record
+;
+2024-05-06 deposited with the CCDC.	2024-07-31 downloaded from the CCDC.
+;
+_cell_angle_alpha                90
+_cell_angle_beta                 90
+_cell_angle_gamma                90
+_cell_formula_units_Z            12
+_cell_length_a                   16.902
+_cell_length_b                   16.902
+_cell_length_c                   16.902
+_cell_measurement_reflns_used    19
+_cell_measurement_temperature    100
+_cell_measurement_theta_max      7.647
+_cell_measurement_theta_min      1.747
+_cell_volume                     4828.523
+_computing_data_collection       MXCuBE
+_computing_data_reduction
+;
+CCTBX: Grosse-Kunstleve RW, Sauter NK, Moriarty NW, Adams PD: The Computational
+Crystallography Toolbox: crystallographic algorithms in a reusable software
+framework. J Appl Crystallogr. 2002, 35: 126-136. 10.1107/S0021889801017824.
+
+DIALS: Waterman DG, Winter G, Parkhurst JM, Fuentes-Montero L, Hattne J,
+Brewster A, Sauter NK, Evans G. CCP4 Newsletter on Protein Crystallography 49,
+16-19 (2013).
+
+cctbx.small_cell: Brewster AS, Sawaya MR, Rodriguez J, Hattne J, Echols N,
+McFarlane HT, Cascio D, Adams PD, Eisenberg DS, Sauter NK. Acta Cryst. D71,
+357-366 (2015). 10.1107/S1399004714026145.
+;
+_computing_molecular_graphics    'Olex2 1.5 (Dolomanov et al., 2009)'
+_computing_publication_material  'Olex2 1.5 (Dolomanov et al., 2009)'
+_computing_structure_refinement  'SHELXL 2018/3 (Sheldrick, 2015)'
+_computing_structure_solution    'SHELXS  (Sheldrick, 2008)'
+_exptl_absorpt_coefficient_mu    1.602
+_exptl_crystal_colour            'clear yellowish colourless'
+_exptl_crystal_density_diffrn    0.939
+_exptl_crystal_description       microcrystals
+_exptl_crystal_F_000             1392
+_refine_diff_density_max         0.600
+_refine_diff_density_min         -0.410
+_refine_diff_density_rms         0.103
+_refine_ls_abs_structure_details
+;
+No quotients, so Flack parameter determined by classical intensity fit
+;
+_refine_ls_abs_structure_Flack   0.11(10)
+_refine_ls_extinction_coef       0.0038(14)
+_refine_ls_extinction_expression Fc^*^=kFc[1+0.001xFc^2^\l^3^/sin(2\q)]^-1/4^
+_refine_ls_extinction_method     'SHELXL-2018/3 (Sheldrick 2018)'
+_refine_ls_goodness_of_fit_ref   1.093
+_refine_ls_hydrogen_treatment    constr
+_refine_ls_matrix_type           full
+_refine_ls_number_parameters     35
+_refine_ls_number_reflns         431
+_refine_ls_number_restraints     0
+_refine_ls_restrained_S_all      1.093
+_refine_ls_R_factor_all          0.0994
+_refine_ls_R_factor_gt           0.0929
+_refine_ls_shift/su_max          0.000
+_refine_ls_shift/su_mean         0.000
+_refine_ls_structure_factor_coef Fsqd
+_refine_ls_weighting_details
+'w=1/[\s^2^(Fo^2^)+(0.1548P)^2^+5.4305P] where P=(Fo^2^+2Fc^2^)/3'
+_refine_ls_weighting_scheme      calc
+_refine_ls_wR_factor_gt          0.2456
+_refine_ls_wR_factor_ref         0.2672
+_cod_data_source_file            d4ce00735b2.cif
+_cod_data_source_block           zif8_dwp_edz
+_cod_depositor_comments
+'Adding full bibliography for 7249358--7249364.cif.'
+_cod_original_cell_volume        4828.2
+_cod_database_code               7249359
+_olex2_refinement_description
+;
+1. Fixed Uiso
+ At 1.2 times of:
+  All C(H) groups
+ At 1.5 times of:
+  All C(H,H,H) groups
+2. Others
+ Fixed Sof: H4A(0.5) H4B(0.5) H4C(0.5)
+3.a Aromatic/amide H refined with riding coordinates:
+ C3(H3)
+3.b Idealised Me refined as rotating group:
+ C4(H4A,H4B,H4C)
+;
+_olex2_submission_special_instructions 'No special instructions were received'
+loop_
+_space_group_symop_operation_xyz
+'x, y, z'
+'y, -x, -z'
+'-x, -y, z'
+'-y, x, -z'
+'-x, z, -y'
+'x, -y, -z'
+'-x, -z, y'
+'-z, -y, x'
+'-x, y, -z'
+'z, -y, -x'
+'z, x, y'
+'y, z, x'
+'-y, -z, x'
+'z, -x, -y'
+'-y, z, -x'
+'-z, -x, y'
+'-z, x, -y'
+'y, -z, -x'
+'-y, -x, z'
+'y, x, z'
+'x, -z, -y'
+'x, z, y'
+'-z, y, -x'
+'z, y, x'
+'x+1/2, y+1/2, z+1/2'
+'y+1/2, -x+1/2, -z+1/2'
+'-x+1/2, -y+1/2, z+1/2'
+'-y+1/2, x+1/2, -z+1/2'
+'-x+1/2, z+1/2, -y+1/2'
+'x+1/2, -y+1/2, -z+1/2'
+'-x+1/2, -z+1/2, y+1/2'
+'-z+1/2, -y+1/2, x+1/2'
+'-x+1/2, y+1/2, -z+1/2'
+'z+1/2, -y+1/2, -x+1/2'
+'z+1/2, x+1/2, y+1/2'
+'y+1/2, z+1/2, x+1/2'
+'-y+1/2, -z+1/2, x+1/2'
+'z+1/2, -x+1/2, -y+1/2'
+'-y+1/2, z+1/2, -x+1/2'
+'-z+1/2, -x+1/2, y+1/2'
+'-z+1/2, x+1/2, -y+1/2'
+'y+1/2, -z+1/2, -x+1/2'
+'-y+1/2, -x+1/2, z+1/2'
+'y+1/2, x+1/2, z+1/2'
+'x+1/2, -z+1/2, -y+1/2'
+'x+1/2, z+1/2, y+1/2'
+'-z+1/2, y+1/2, -x+1/2'
+'z+1/2, y+1/2, x+1/2'
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_U_iso_or_equiv
+_atom_site_adp_type
+_atom_site_occupancy
+_atom_site_site_symmetry_order
+_atom_site_calc_flag
+_atom_site_refinement_flags_posn
+_atom_site_refinement_flags_adp
+_atom_site_refinement_flags_occupancy
+_atom_site_disorder_assembly
+_atom_site_disorder_group
+Zn1 Zn 0.750000 0.000000 0.500000 0.0906(12) Uani 1 4 d S T P . .
+N1 N 0.6804(5) -0.0297(4) 0.4131(5) 0.071(2) Uani 1 1 d . . . . .
+C2 C 0.6225(5) 0.0050(16) 0.3775(5) 0.080(4) Uani 1 2 d S T P . .
+C3 C 0.6890(7) -0.1054(9) 0.3689(7) 0.089(3) Uani 1 1 d . . . . .
+H3 H 0.726826 -0.145785 0.378554 0.107 Uiso 1 1 calc R U . . .
+C4 C 0.5971(7) 0.0837(8) 0.4029(7) 0.073(4) Uani 1 2 d S T P . .
+H4A H 0.603942 0.121307 0.359300 0.109 Uiso 0.5 1 calc R U P A -1
+H4B H 0.629044 0.100676 0.448236 0.109 Uiso 0.5 1 calc R U P A -1
+H4C H 0.541191 0.081960 0.418287 0.109 Uiso 0.5 1 calc R U P A -1
+loop_
+_atom_site_aniso_label
+_atom_site_aniso_U_11
+_atom_site_aniso_U_22
+_atom_site_aniso_U_33
+_atom_site_aniso_U_23
+_atom_site_aniso_U_13
+_atom_site_aniso_U_12
+Zn1 0.0847(17) 0.0935(14) 0.0935(14) 0.000 0.000 0.000
+N1 0.076(5) 0.048(4) 0.090(5) 0.013(4) -0.004(5) 0.002(3)
+C2 0.078(5) 0.085(9) 0.078(5) 0.006(6) 0.013(7) -0.006(6)
+C3 0.063(6) 0.117(9) 0.088(7) -0.016(7) 0.002(5) 0.000(6)
+C4 0.079(5) 0.061(7) 0.079(5) -0.022(5) -0.010(7) 0.022(5)
+loop_
+_atom_type_symbol
+_atom_type_description
+_atom_type_scat_dispersion_real
+_atom_type_scat_dispersion_imag
+_atom_type_scat_source
+C C 0.0034 0.0017 'International Tables Vol C Tables 4.2.6.8 and 6.1.1.4'
+H H 0.0000 0.0000 'International Tables Vol C Tables 4.2.6.8 and 6.1.1.4'
+N N 0.0066 0.0035 'International Tables Vol C Tables 4.2.6.8 and 6.1.1.4'
+Zn Zn 0.2758 1.5072 'International Tables Vol C Tables 4.2.6.8 and 6.1.1.4'
+loop_
+_geom_angle_atom_site_label_1
+_geom_angle_atom_site_label_2
+_geom_angle_atom_site_label_3
+_geom_angle
+_geom_angle_site_symmetry_1
+_geom_angle_site_symmetry_3
+_geom_angle_publ_flag
+N1 Zn1 N1 111.4(3) . 31_655 ?
+N1 Zn1 N1 111.4(3) 31_655 6_556 ?
+N1 Zn1 N1 105.7(5) . 6_556 ?
+N1 Zn1 N1 105.7(5) 31_655 29_645 ?
+N1 Zn1 N1 111.4(3) . 29_645 ?
+N1 Zn1 N1 111.4(3) 6_556 29_645 ?
+C2 N1 Zn1 133.9(11) . . ?
+C2 N1 C3 103.3(12) . . ?
+C3 N1 Zn1 122.8(7) . . ?
+N1 C2 N1 120(2) 23_656 . ?
+N1 C2 C4 119.9(10) 23_656 . ?
+N1 C2 C4 119.9(10) . . ?
+N1 C3 H3 126.7 . . ?
+C3 C3 N1 106.6(6) 23_656 . ?
+C3 C3 H3 126.7 23_656 . ?
+C2 C4 H4A 109.5 . . ?
+C2 C4 H4B 109.5 . . ?
+C2 C4 H4C 109.5 . . ?
+H4A C4 H4B 109.5 . . ?
+H4A C4 H4C 109.5 . . ?
+H4B C4 H4C 109.5 . . ?
+loop_
+_geom_bond_atom_site_label_1
+_geom_bond_atom_site_label_2
+_geom_bond_distance
+_geom_bond_site_symmetry_2
+_geom_bond_publ_flag
+Zn1 N1 1.947(9) . ?
+Zn1 N1 1.947(9) 6_556 ?
+Zn1 N1 1.947(9) 29_645 ?
+Zn1 N1 1.947(9) 31_655 ?
+N1 C2 1.290(14) . ?
+N1 C3 1.487(16) . ?
+C2 C4 1.46(3) . ?
+C3 C3 1.38(2) 23_656 ?
+C3 H3 0.9500 . ?
+C4 H4A 0.9800 . ?
+C4 H4B 0.9800 . ?
+C4 H4C 0.9800 . ?
+loop_
+_geom_torsion_atom_site_label_1
+_geom_torsion_atom_site_label_2
+_geom_torsion_atom_site_label_3
+_geom_torsion_atom_site_label_4
+_geom_torsion
+_geom_torsion_site_symmetry_1
+_geom_torsion_site_symmetry_2
+_geom_torsion_site_symmetry_3
+_geom_torsion_site_symmetry_4
+_geom_torsion_publ_flag
+Zn1 N1 C2 N1 179.2(5) . . . 23_656 ?
+Zn1 N1 C2 C4 -1(2) . . . . ?
+Zn1 N1 C3 C3 -178.7(4) . . . 23_656 ?
+C2 N1 C3 C3 -1.0(10) . . . 23_656 ?
+C3 N1 C2 N1 1.9(18) . . . 23_656 ?
+C3 N1 C2 C4 -178.4(14) . . . . ?
