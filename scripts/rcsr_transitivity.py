@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import gzip
+import io
 import json
 import re
 import sys
@@ -130,10 +131,20 @@ def table() -> dict:
 
 
 def _encoded(data: dict) -> bytes:
-    # mtime=0 so that the same table is the same bytes, and --check can
-    # compare them.
+    """The table as gzipped bytes that are the same on every machine.
+
+    mtime=0, and through GzipFile rather than gzip.compress: byte 9 of
+    a gzip header names the operating system, and gzip.compress lets
+    zlib fill it in -- 0x13 on macOS, 0x0a on Windows -- so the same
+    table was different bytes on Windows CI.  GzipFile writes 255,
+    "unknown", everywhere.
+    """
     text = json.dumps(data, separators=(",", ":")).encode("utf-8")
-    return gzip.compress(text, compresslevel=9, mtime=0)
+    buffer = io.BytesIO()
+    with gzip.GzipFile(fileobj=buffer, mode="wb", compresslevel=9,
+                       mtime=0) as handle:
+        handle.write(text)
+    return buffer.getvalue()
 
 
 def main(argv=None) -> int:
