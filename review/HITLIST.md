@@ -438,6 +438,13 @@ Needs Systre installed (Java 8 is).
 
 ## 6. Status — 2026-09-24, later the same day
 
+**Review these as three PRs:** #21 engines and charges (the EQeq,
+ORB, MatterSim, benchmark and MACE-MP-MOF0 rows below), #22
+reliability (small fixes, orphaned programs, tests and CI), #23 nets
+(transitivity, Systre).  They were first opened as ten (#10-#19) and
+folded together with their commits unchanged; the branch names below
+are those ten.
+
 Ten branches off `main`, each its own PR.  All ten merged together in
 order give 3605 passed, 0 failed, and `ruff check .` clean; the only
 textual conflict between them is two adjacent `docs/TODO.md` deletions
