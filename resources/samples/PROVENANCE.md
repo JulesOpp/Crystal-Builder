@@ -3,7 +3,7 @@
 Every file in this folder is named here, with its source and what may
 be done with it; `tests/test_samples.py` fails when one is not.  File
 ▸ Open Sample reads the catalogue in `xtalapp/samples.py`, which lists
-twenty of the twenty-three.
+twenty-three of the twenty-six.
 
 ## From the COD (`cod/`)
 
@@ -31,6 +31,9 @@ COD still agrees.  Fetched 2026-09-23.
 | `cod/MIL-53.cif` | [1502688](https://www.crystallography.net/cod/1502688.html) | Mulder et al., *J. Phys. Chem. C* **114**, 10648 (2010), [10.1021/jp102463p](https://doi.org/10.1021/jp102463p) |
 | `cod/MIL-88B.cif` | [7100637](https://www.crystallography.net/cod/7100637.html) | Serre et al., *Chem. Commun.* (2006), [10.1039/b512169h](https://doi.org/10.1039/b512169h) |
 | `cod/Mn-BTT.cif` | [4111257](https://www.crystallography.net/cod/4111257.html) | Dincă et al., *J. Am. Chem. Soc.* **128**, 16876 (2006), [10.1021/ja0656853](https://doi.org/10.1021/ja0656853) |
+| `cod/cubic-EuHOTP.cif` | [4134597](https://www.crystallography.net/cod/4134597.html) | Skorupskii et al., *J. Am. Chem. Soc.* (2020); the COD calls it EuHHTP, [10.1021/jacs.0c01713](https://doi.org/10.1021/jacs.0c01713) |
+| `cod/pbz-MOF-1.cif` | [4130966](https://www.crystallography.net/cod/4130966.html) | Alezi et al., *J. Am. Chem. Soc.* **138**, 12767 (2016), [10.1021/jacs.6b08176](https://doi.org/10.1021/jacs.6b08176) |
+| `cod/Al-soc-MOF-1.cif` | [4129499](https://www.crystallography.net/cod/4129499.html) | Alezi et al., *J. Am. Chem. Soc.* **137**, 13308 (2015), [10.1021/jacs.5b07053](https://doi.org/10.1021/jacs.5b07053) |
 
 Not in the COD when looked for on 2026-09-23: MOF-303, Cu3(HHTP)2 and
 Cr-red-MOF-1 ([10.1021/jacs.5c16581](https://doi.org/10.1021/jacs.5c16581)).

@@ -4,7 +4,7 @@
     python scripts/fetch_cod_samples.py --check    # exit 1 if it would change
     python scripts/fetch_cod_samples.py --from DIR # strip files already here
 
-Thirteen frameworks everybody meets, each as the depositors wrote it: the
+Frameworks everybody meets, each as the depositors wrote it: the
 asymmetric unit, in its published space group and setting, with the
 citation, the COD's own record and the refinement statistics kept.
 What is taken out is what describes the *experiment* rather than the
@@ -57,6 +57,9 @@ ENTRIES = {
     1502688: "MIL-53.cif",
     7100637: "MIL-88B.cif",
     4111257: "Mn-BTT.cif",
+    4134597: "cubic-EuHOTP.cif",
+    4130966: "pbz-MOF-1.cif",
+    4129499: "Al-soc-MOF-1.cif",
 }
 
 #: Tag prefixes whose items and loops are dropped.  Each describes the

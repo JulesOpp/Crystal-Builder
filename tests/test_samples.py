@@ -1,4 +1,4 @@
-"""Twenty real structures ship in resources/samples, and now open.
+"""Twenty-three real structures ship in resources/samples, and now open.
 
 They had been in the repository since the early phases with nothing in
 the application referring to them, so a fresh installation opened an
@@ -50,7 +50,7 @@ def test_every_sample_in_the_catalogue_is_a_file_that_is_there():
     missing = [s.label for s in samples.SAMPLES if s.path is None]
 
     assert missing == []
-    assert len(samples.SAMPLES) == 20
+    assert len(samples.SAMPLES) == 23
 
 
 def test_every_sample_is_a_structure_this_application_can_read():
@@ -184,7 +184,7 @@ def test_pressing_a_sample_entry_opens_it(window):
 def test_an_installation_without_the_samples_says_so(window, tmp_path,
                                                      monkeypatch):
     """resources/ is not package data, so a wheel install has none of
-    them -- a supported state that gets a sentence, not twenty
+    them -- a supported state that gets a sentence, not twenty-three
     entries that each raise a dialog."""
     monkeypatch.setattr(samples, "folder", lambda: tmp_path / "nothing")
     menus.build_sample_menu(window)
@@ -213,6 +213,9 @@ COD_EXPECTED = {
     "cod_mil53": ("Imcm", 7, 72),
     "cod_mil88b": ("P-62c", 15, 138),
     "cod_mnbtt": ("Pm-3m", 12, 303),
+    "cod_euhotp": ("Fd-3m", 20, 2112),
+    "cod_pbzmof1": ("Fd-3m", 24, 3488),
+    "cod_alsocmof1": ("Pm-3n", 29, 1208),
 }
 
 
@@ -265,7 +268,7 @@ def test_every_file_in_the_samples_folder_is_named_in_provenance():
 
     unnamed = [f for f in files if f"`{f}`" not in provenance]
 
-    assert len(files) == 23
+    assert len(files) == 26
     assert unnamed == []
 
 

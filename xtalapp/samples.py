@@ -221,6 +221,23 @@ SAMPLES = (
             "Dinca et al., J. Am. Chem. Soc. 2006: "
             "Mn3[(Mn4Cl)3(BTT)8]2 desolvated, square Mn4Cl units and "
             "a tritetrazolate in Pm-3m -- the exposed Mn2+ sites")),
+    Sample(
+        "cod_euhotp", "cod/cubic-EuHOTP.cif", "cubic-EuHOTP", group=COD,
+        cod_id=4134597, description=(
+            "Skorupskii et al., J. Am. Chem. Soc. 2020: europium and "
+            "hexaoxytriphenylene in Fd-3m, a porous conductor, with "
+            "the nitrate in its pores over three positions")),
+    Sample(
+        "cod_pbzmof1", "cod/pbz-MOF-1.cif", "pbz-MOF-1", group=COD,
+        cod_id=4130966, description=(
+            "Alezi et al., J. Am. Chem. Soc. 2016: Zr6 nodes on the "
+            "pbz net in Fd-3m, a 45 A cell of 3488 atoms")),
+    Sample(
+        "cod_alsocmof1", "cod/Al-soc-MOF-1.cif", "Al-soc-MOF-1",
+        group=COD, cod_id=4129499, description=(
+            "Alezi et al., J. Am. Chem. Soc. 2015: Al3O trimers on the "
+            "soc net in Pm-3n, 1208 atoms, with the chloride that "
+            "balances the charge spread thin over its site")),
 )
 
 
