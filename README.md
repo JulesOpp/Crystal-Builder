@@ -32,6 +32,7 @@ Studio**.  Python throughout, shipped to macOS and Windows.
                 sums, and the optimisers
         uff/    UFF: parameter table, atom typer, energy terms,
                 calculator, QEq charges
+        charges/ EQeq charges and their NIST ionisation table
         dftb/   DFTB+: HSD input, Slater-Koster check, calculator
       analysis/ porosity (Zeo++ output), later RDF and PXRD
     xtalapp/    the PySide6 + VTK application

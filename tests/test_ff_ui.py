@@ -575,7 +575,7 @@ def test_the_panel_and_the_cli_offer_the_charge_sources_uff_declares(
         assert parser.parse_args(
             ["optimize", "x.cif", "--charges", value]).charges == value
     with pytest.raises(SystemExit):
-        parser.parse_args(["optimize", "x.cif", "--charges", "eqeq"])
+        parser.parse_args(["optimize", "x.cif", "--charges", "bogus"])
 
 
 # ------------------------------------------------ reading the panels

@@ -148,3 +148,54 @@ def test_a_tighter_accuracy_asks_for_more_reciprocal_vectors():
     loose = ewald.setup(matrix, accuracy=1e-4)
     tight = ewald.setup(matrix, accuracy=1e-10)
     assert tight.n_k > loose.n_k
+
+
+# ------------------------------------------------ the pair matrix
+
+def test_the_pair_matrix_gives_rock_salts_madelung_constant():
+    """The matrix is what EQeq solves with; half of q M q has to be
+    the same lattice sum the energy is."""
+    lattice = Lattice.cubic(SALT_A)
+    conf = ewald.setup(lattice.matrix, real_cutoff=12.0,
+                       accuracy=1e-10)
+    m = ewald.pair_matrix(lattice.to_cart(SALT_FRAC), lattice.matrix,
+                          conf)
+    energy = 0.5 * SALT_CHARGES @ m @ SALT_CHARGES
+    assert -energy * (SALT_A / 2) / 4 == pytest.approx(
+        MADELUNG_NACL, abs=1e-6)
+
+
+def test_the_pair_matrix_is_the_energy_the_ewald_sum_gives():
+    """Any charges, a skewed cell and a net charge: a matrix that
+    agrees only for neutral salt could still be missing the
+    background or one of the reciprocal vectors' partners."""
+    from xtal.ff.uff.params import COULOMB
+
+    rng = np.random.default_rng(7)
+    lattice = Lattice.from_parameters(5.64, 6.1, 5.2, 80, 97, 110)
+    frac = rng.random((6, 3))
+    charges = rng.normal(size=6)
+    conf = ewald.setup(lattice.matrix, real_cutoff=10.0,
+                       accuracy=1e-10)
+    pairs = neighbors.neighbor_pairs(frac, lattice, 10.0)
+    energy, _grad = ewald.energy_and_gradient(
+        lattice.to_cart(frac), lattice.matrix, charges,
+        (pairs.i, pairs.j, pairs.image), setup_=conf)
+
+    m = ewald.pair_matrix(lattice.to_cart(frac), lattice.matrix, conf)
+    assert COULOMB / 2 * charges @ m @ charges == pytest.approx(
+        energy, rel=1e-9)
+
+
+def test_no_entry_of_the_pair_matrix_depends_on_the_split():
+    """The energy of a neutral cell would not notice a diagonal that
+    shifts with alpha; EQeq's hardness sits on that diagonal and
+    would."""
+    rng = np.random.default_rng(11)
+    lattice = Lattice.from_parameters(6.0, 7.0, 8.0, 90, 100, 90)
+    cart = lattice.to_cart(rng.random((5, 3)))
+    matrices = [
+        ewald.pair_matrix(cart, lattice.matrix, ewald.setup(
+            lattice.matrix, real_cutoff=cutoff, accuracy=1e-10))
+        for cutoff in (8.0, 14.0)]
+    np.testing.assert_allclose(*matrices, atol=1e-8)

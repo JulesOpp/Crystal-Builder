@@ -99,6 +99,7 @@ PACKAGE_DATA = {
     # drawing one is what `xtal.build.topology` does.  331 KB.
     "xtal/analysis": ["data/*.json.gz", "data/*.cgd.gz"],
     "xtal/build/data": ["*.json"],          # the fragment library
+    "xtal/ff/charges": ["data/*.csv"],      # EQeq's ionisation table
     # The script Blender runs for Export as STL, by path.
     "xtal/modules": ["data/*.py"],
     # PORMAKE's nets and building blocks, vendored with it: 3271

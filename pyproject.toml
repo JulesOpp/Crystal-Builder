@@ -133,7 +133,7 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
             # calculator at import, so a wheel missing one of these
             # cannot import `xtal.ff` at all.
             "xtal.ff.uff", "xtal.ff.dftb", "xtal.ff.xtb",
-            "xtal.ff.mace", "xtal.ff.orb",
+            "xtal.ff.mace", "xtal.ff.orb", "xtal.ff.charges",
             "xtal.modules", "xtal.modules.dftb_runs", "xtal.analysis",
             "xtal.mof", "xtal.mof.pormake", "xtal.mof.library",
             "xtal.build", "xtal.build.data",
@@ -154,6 +154,10 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
 # and read through importlib.resources so a wheel and a source
 # checkout are the same case.
 "xtal.build.data" = ["*.json"]
+# EQeq's ionisation table, written by scripts/eqeq_table.py.  A charge
+# source offered in the panel that cannot find its table is a
+# traceback when Optimise is pressed.  6 KB.
+"xtal.ff.charges" = ["data/*.csv"]
 # The script Blender runs for Export as STL.  Handed to Blender by
 # path, so it has to be a file on disk in the installed package.
 "xtal.modules" = ["data/*.py"]
