@@ -297,10 +297,138 @@ def test_deuterium_is_written_as_hydrogen():
     assert "D" not in _counts(out)
 
 
-def test_a_prepared_framework_has_nothing_left_to_prepare():
-    for name in ("MIL-88B", "MOF-808", "ZIF-8"):
-        out, _ = prepare.prepare(_read(name))
-        assert not prepare.diagnose(out), name
+@pytest.mark.parametrize("name", sorted(p.stem for p in COD.glob("*.cif")))
+def test_a_prepared_framework_has_nothing_left_to_prepare(name):
+    """And nothing a calculation would choke on: no two atoms closer
+    than two alternatives are, and no hydrogen bonded to nothing."""
+    out, _ = prepare.prepare(_read(name))
+    assert not prepare.diagnose(out)
+    assert _clashes(out) == 0
+    graph = bonding.graph(out)
+    cell = p1.expand(out)
+    assert all(graph.neighbors(a) for a in range(cell.n_atoms)
+               if cell.elements[a] == "H")
+
+
+def _formula(structure) -> dict:
+    counts = _counts(structure)
+    return {e: n for e, n in sorted(counts.items())}
+
+
+@pytest.mark.parametrize("name, per_cluster", [
+    # Zr6O4(OH)4(OH)4(H2O)4(TBAPy)2: four OH and four waters on the
+    # eight-connected node -- eight OH, which is what the planner
+    # gave, left each node -4.
+    ("NU-1000", {"C": 88, "H": 60, "O": 32, "Zr": 6}),
+    # The same node on TCPP-FeCl.  The CIF rides a hydrogen on every
+    # terminal oxygen; they are replaced, not added to.
+    ("PCN-222", {"C": 96, "H": 64, "Cl": 2, "Fe": 2, "N": 8, "O": 32,
+                 "Zr": 6}),
+    ("UiO-66", {"C": 48, "H": 28, "O": 32, "Zr": 6}),
+    ("MOF-808", {"C": 24, "H": 16, "O": 32, "Zr": 6}),
+])
+def test_an_m6_core_gets_the_terminal_ligands_its_charge_asks_for(
+        name, per_cluster):
+    out, _ = prepare.prepare(_read(name))
+    counts = _counts(out)
+    clusters = counts["Zr"] // 6
+    assert {e: n // clusters for e, n in counts.items()} == per_cluster
+    assert all(n % clusters == 0 for n in counts.values())
+
+
+def test_no_riding_hydrogen_is_left_against_a_zirconium():
+    out, said = prepare.prepare(_read("PCN-222"))
+    assert "riding hydrogen(s) the CIF put" in said[-1]
+    cell = p1.expand(out)
+    pairs = neighbor_pairs(cell.frac, out.lattice, 2.2)
+    for i, j in zip(pairs.i, pairs.j, strict=True):
+        assert {cell.elements[i], cell.elements[j]} != {"Zr", "H"}
+
+
+def test_mil53s_bridging_oxygen_is_a_hydroxide():
+    """Cr(OH)(bdc): the neutron structure deuterated the linker and
+    never located the mu2-OD."""
+    out, said = prepare.prepare(_read("MIL-53"))
+    assert _counts(out) == {"C": 16, "Cr": 2, "H": 10, "O": 10}
+    assert "on mu2-OH bridging trivalent metals" in said[-1]
+
+
+def test_a_vanadium_oxo_bridge_is_left_an_oxo():
+    """MIL-47 is V(IV)O(bdc).  Vanadium is left out of the rule."""
+    assert "V" not in prepare.BRIDGING_HYDROXIDE_METALS
+
+
+def test_a_bound_methanol_is_a_whole_methanol():
+    """Mn-BTT's methanol: an O and a barely located C.  Three hydrogens
+    on the carbon whatever its C-O length says, one on the oxygen
+    whatever the metal bond does to its count."""
+    out, said = prepare.prepare(_read("Mn-BTT"))
+    assert "completing bound methanol" in said[-1]
+    cell = p1.expand(out)
+    graph = bonding.graph(out)
+    methyls = [c for c in range(cell.n_atoms)
+               if cell.elements[c] == "C"
+               and [cell.elements[k] for k in graph.neighbors(c)
+                    if cell.elements[k] != "H"] == ["O"]]
+    assert len(methyls) == 12
+    for c in methyls:
+        assert sum(cell.elements[k] == "H"
+                   for k in graph.neighbors(c)) == 3
+        oxygen = next(k for k in graph.neighbors(c)
+                      if cell.elements[k] == "O")
+        assert sum(cell.elements[k] == "H"
+                   for k in graph.neighbors(oxygen)) == 1
+
+
+def test_a_hydrogen_goes_with_the_carbon_it_rides_on():
+    """pbz-MOF-1's acetate: carbon at 5/6, its methyl hydrogens at 5/12
+    over two orientations.  Chosen apart, 48 of them outlived carbons
+    that were not kept."""
+    out, said = prepare.order_disorder(_read("pbz-MOF-1"))
+    assert "left out with the atom they ride on" in said
+    graph = bonding.graph(out)
+    cell = p1.expand(out)
+    assert all(graph.neighbors(a) for a in range(cell.n_atoms)
+               if cell.elements[a] == "H")
+
+
+def test_a_missing_acetate_leaves_a_hydroxide_and_a_water():
+    """Acetate is -1: where one is missing, its two oxygens stay on the
+    zirconiums as one OH and one water, three hydrogens -- turned so
+    that no hydrogen of one points at the other, 2.2 A away."""
+    out, said = prepare.prepare(_read("pbz-MOF-1"))
+    assert "12 on M6 cores' terminal OH and water" in said[-1]
+    assert _clashes(out) == 0
+
+
+def test_no_oxygen_is_shared_by_two_nitrates():
+    """cubic-EuHOTP's orientation-A distal oxygen sits on a two-fold
+    axis between two nitrates; joined, every pair came out N-O-N."""
+    out, _ = prepare.order_disorder(_read("cubic-EuHOTP"))
+    cell = p1.expand(out)
+    graph = bonding.graph(out)
+    for a in range(cell.n_atoms):
+        if cell.elements[a] == "O":
+            assert sum(cell.elements[k] == "N"
+                       for k in graph.neighbors(a)) <= 1
+    for n in range(cell.n_atoms):
+        if cell.elements[n] == "N":
+            assert sum(cell.elements[k] == "O"
+                       for k in graph.neighbors(n)) == 3
+
+
+def test_every_europium_keeps_one_chelating_nitrate():
+    """Of a pair across the axis, A on one leaves room only for B on
+    the other; the shared oxygen, which follows its nitrate, must not
+    take the place of the second."""
+    out, _ = prepare.order_disorder(_read("cubic-EuHOTP"))
+    cell = p1.expand(out)
+    graph = bonding.graph(out)
+    for eu in range(cell.n_atoms):
+        if cell.elements[eu] == "Eu":
+            chelating = {k for k in graph.neighbors(eu)
+                         if cell.elements[k] == "N"}
+            assert len(chelating) == 1
 
 
 def test_an_unknown_step_is_named():
