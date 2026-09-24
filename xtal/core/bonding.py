@@ -521,7 +521,15 @@ def map_explicit_bond(structure, cell: p1.P1Cell,
     ends = found[:n_ops]
     lengths = _min_image_distances(cell.frac[np.maximum(ends, 0)],
                                    there_all, lattice)
-    images = np.round(there_all - wrapped_all).astype(int)
+    # The image joins the two *atoms found*, not the two wrapped
+    # points: an atom stored at 0 is found for a point wrapped to
+    # 0.99999, and taking the image from the point then hangs the
+    # bond on the copy a cell away -- Ni2Cl2BTDD drew six of the
+    # eighteen edges of one chain net 5.9-39 A across the cell.
+    fars = found[n_ops:]
+    images = np.round(
+        (there_all - cell.frac[np.maximum(fars, 0)])
+        - (wrapped_here - cell.frac[np.maximum(ends, 0)])).astype(int)
 
     out: dict[tuple, CellBond] = {}
     for k in range(n_ops):

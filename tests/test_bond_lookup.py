@@ -11,7 +11,7 @@ two are within reach, and the same minimum-image length.
 import numpy as np
 import pytest
 
-from xtal.core import bonding, neighbors, p1
+from xtal.core import bonding, neighbors, p1, symmetry
 from xtal.io import FORMATS
 
 
@@ -126,3 +126,30 @@ def test_two_atoms_equally_near_give_the_lower_index(halite):
     middle = (cell.frac[a] + cell.frac[b]) / 2
     found = p1.nearest_atoms(cell, [middle], halite.lattice, 3.0)
     assert found.tolist() == [min(a, b)]
+
+
+def test_every_edge_of_a_chain_net_runs_along_the_chain():
+    """Ni2Cl2BTDD's Ni1 images land a rounding error below a cell face
+    -- 0.99999 on *c* -- where the atom found for them is stored at 0.
+    The image was taken from the wrapped point rather than that atom,
+    so six of the eighteen edges drawn from one Ni-Ni pair on a chain
+    ran 5.9 to 39 A across the cell instead of 3.44 A along it."""
+    structure, _ = symmetry.merge_duplicates(
+        FORMATS.read("resources/samples/Ni2Cl2BTDD.cif"))
+    cell = p1.expand(structure)
+    lattice = structure.lattice.matrix
+    nickel = [k for k, e in enumerate(cell.elements) if str(e) == "Ni"]
+    a = nickel[0]
+    offsets = [cell.frac[b] - cell.frac[a] for b in nickel[1:]]
+    images = [-np.round(d) for d in offsets]
+    lengths = [np.linalg.norm((d + t) @ lattice)
+               for d, t in zip(offsets, images, strict=True)]
+    k = int(np.argmin(lengths))
+    bond = bonding.bond_between(
+        structure, cell, a, nickel[1:][k], (0, 0, 0),
+        tuple(int(v) for v in images[k]))
+    edges = bonding.map_explicit_bond(structure, cell, bond)
+    drawn = [np.linalg.norm((cell.frac[e.j] + e.image - cell.frac[e.i])
+                            @ lattice) for e in edges]
+    assert len(edges) == 18
+    assert np.allclose(drawn, lengths[k], atol=1e-3)
