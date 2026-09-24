@@ -79,17 +79,23 @@ def test_padding_survives_a_warning_clearing(qapp):
 
 
 def test_a_toned_widget_is_restyled_when_the_theme_changes(qapp):
-    label = QLabel()
-    set_tone(label, WARNING_BOX, padding=6)
-    light = label.styleSheet()
-
-    qapp.setPalette(_dark())
+    """Starts from a light palette on purpose.  Starting from whatever
+    the machine had made this fail on any Mac already in dark mode:
+    "before" and "after" were the same amber, and CI -- always light --
+    never saw it."""
+    original = qapp.palette()
+    qapp.setPalette(_light())
     try:
+        label = QLabel()
+        set_tone(label, WARNING_BOX, padding=6)
+        light = label.styleSheet()
+
+        qapp.setPalette(_dark())
         assert retone(label) == 1
         assert label.styleSheet() != light
         assert "padding: 6px;" in label.styleSheet()
     finally:
-        qapp.setPalette(QPalette())
+        qapp.setPalette(original)
 
 
 def test_no_widget_styles_a_warning_by_hand(qapp):
