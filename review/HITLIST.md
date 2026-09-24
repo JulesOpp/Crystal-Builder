@@ -433,3 +433,40 @@ Needs Systre installed (Java 8 is).
 6. **§ 3.5, 3.6, 3.7, 3.8** — the builder items, in that order; 3.8
    first if he takes the third option, because it moves a pinned number
    the others will build on.
+
+---
+
+## 6. Status — 2026-09-24, later the same day
+
+Ten branches off `main`, each its own PR.  All ten merged together in
+order give 3605 passed, 0 failed, and `ruff check .` clean; the only
+textual conflict between them is two adjacent `docs/TODO.md` deletions
+(Systre and net-search).  Every scientific change was checked in a
+scratch environment against the real package, never only in a stub.
+
+| Hit list item | Branch | What happened |
+|---|---|---|
+| 0.1 EQeq centres | `fix/eqeq-charge-centres` | Every metal about its common oxidation state (agreeing with Open Babel's EQeq; the paper's seven kept, V +4); `centres=` override; impossible charges named with their cause.  Al-soc-MOF-1: Al +6.33 → +2.40.  MOF-5 now pinned against the **authors' own program**, compiled and run on the same cell: agreement 1.6e-4 e, test at 1e-3 catches a 0.8 % dielectric error the old ±0.05 missed. |
+| 0.2 D3 | `fix/ml-benchmark-claims` | Measured: D3(BJ) moves ORB-v3's relaxed volume by −0.6 % (MOF-5) to −2.7 % (MOF-74), not always towards experiment.  Claims corrected; **the option and its default are Julius's call**. |
+| 0.3 ORB precision | `fix/orb-double-precision` | Confirmed and fixed: float32 geometry into a float64 model (2e-3 → 6e-9).  **Correction to § 0.3 above:** it was not load-order dependent — current mace-torch restores the global dtype itself. |
+| (new) MatterSim precision | `fix/mattersim-double-precision` | Found while checking 0.3: its default graph path builds positions in float32 and upcasts after (2.6e-3 → 5.6e-9 via its own `direct_graph`). |
+| (new) MACE precision | — | Measured: true float64 (5.9e-9).  Nothing to fix. |
+| 1 PR #9 stress guards | `fix/orb-…`, `fix/mattersim-…` | Real-model tests now sheared quartz with a slope check.  **Correction:** the `ASECalculator` conversion *was* guarded — the Lennard-Jones test's stress is 44 against a 1e-6 tolerance; only the real-model tests were weak. |
+| 1 PR #9 deuterium | `fix/hitlist-small` | D is H at the engine door (Born–Oppenheimer: same surface), said in the run; MIL-53 now computes. |
+| 1 PR #6 Find symmetry | `fix/hitlist-small` | Fixed; the cause was `setDefault` before the box joined the dialog. |
+| 1 PR #6 dark-mode test | `fix/hitlist-small` | Fixed. |
+| 1 PR #2 reaper | `fix/no-orphaned-programs` | Bigger than reported: Ctrl+C and SIGTERM on `xtal run` both orphaned the program.  Fixed, plus atexit reaper, non-blocking Stop, Windows taskkill failure logged. |
+| 1 Tests | `test/hitlist-coverage` | Save As, `WorkspaceChooser.ask`, "a force field never changes the bonding", the D_f sentence, the modal guards, PySide6 cap; CI runs `--selftest` on macOS PRs and installs `sketch,pxrd`.  **Found on the way:** a stated bond order lost `stated` when an atom crossed a face, and the Inspector showed perception-time bond lengths (1.600 for a 0.990 bond) — both fixed. |
+| 2 one-liners | `fix/hitlist-small` | `.gen` empty, `safe_name` accents (with old-spelling lookup), `--supercell` count.  **Dropped, measured:** read-only mkdir (the real doors already catch it), bond-type enabling (0.5 ms), CSSR `keeps` (nothing reads it), build/net cancellation (≤ 0.4 s). |
+| 3.2 MACE-MP-MOF0 | `features/mace-mp-mof0` | Built.  **Correction to 3.2:** the custom-file path cannot load it — two heads, MACE will not guess.  Pinned by commit and SHA-256; 26 elements, refused by name otherwise; D3 already in it. |
+| 3.12 RCSR transitivity | `features/rcsr-transitivity` | Built from the RCSR's own files; also corrects q on 18 nets. |
+| 3.13 Systre | `test/systre-checks-cgd` | Systre names the exported MOF-5 net pcu and rutile rtl; kept as test data. |
+
+**Left, each waiting on a decision:** D3 as an option and its
+default; where the EQeq centre override lives in the panel; 3.3
+prepare for simulation; 3.4 checks on open; 3.5 defects; 3.6
+multi-linker; 3.7 identifier; 3.8 the chelate joint; 3.9 energy
+units; 3.10 scan resume; 3.11 LAMMPS.  The factoring leftovers (tick
+formatters, status-bar helper) were looked at and left: the heatmap's
+format suits its coordinates, and the helper adds nothing a direct
+call loses.
