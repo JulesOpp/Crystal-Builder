@@ -22,7 +22,9 @@ here (and in the Python console) rather than to automate the widgets.
 from __future__ import annotations
 
 import argparse
+import signal
 import sys
+import threading
 from pathlib import Path
 
 from xtal.core import bonding, properties, supercell, symmetry
@@ -446,13 +448,16 @@ def cmd_run(args) -> int:
               on_progress=None if args.quiet else _echo)
     try:
         result = action.run(job)
-    except KeyboardInterrupt:
+    except KeyboardInterrupt as exc:
         # Ctrl+C is the command line's Stop button, and a run folder
         # that says where it got to is worth more than a traceback.
+        # SIGTERM arrives the same way (Terminated), and says so.
+        terminated = isinstance(exc, Terminated)
+        how = "terminated" if terminated else "interrupted"
         job.cancel.cancel()
-        module_record.close_run(folder, error="interrupted")
-        print("interrupted", file=sys.stderr)
-        return 130
+        module_record.close_run(folder, error=how)
+        print(how, file=sys.stderr)
+        return Terminated.status if terminated else 130
     module_record.close_run(folder, result)
     run_path = folder.path if folder is not None else None
     if workspace is not None and not action.needs_structure \
@@ -700,10 +705,40 @@ def optimize_methods() -> list[str]:
     return list(METHODS)
 
 
+class Terminated(KeyboardInterrupt):
+    """SIGTERM, raised where Ctrl+C would be.
+
+    A KeyboardInterrupt so that everything already written to stop
+    cleanly on Ctrl+C -- ``xtal run`` closing its run folder, a program
+    being ended as the interrupt unwinds past it -- does the same for
+    the signal a batch scheduler sends at a job's time limit, which
+    otherwise ends the interpreter with nothing written and the program
+    it started still running.
+    """
+
+    status = 128 + signal.SIGTERM
+
+
+def _terminated(_signum, _frame):
+    raise Terminated
+
+
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
+    # Only the main thread may set a handler, and a test calling main()
+    # gets the one it had back.
+    installed = threading.current_thread() is threading.main_thread()
+    if installed:
+        previous = signal.signal(signal.SIGTERM, _terminated)
     try:
         return args.func(args)
+    except KeyboardInterrupt as exc:
+        # A command with no Stop of its own (optimize, energy): the
+        # program it was running has already gone with the interrupt.
+        terminated = isinstance(exc, Terminated)
+        print("terminated" if terminated else "interrupted",
+              file=sys.stderr)
+        return Terminated.status if terminated else 130
     # First: it is an OSError, and after that handler it never ran.
     except FileNotFoundError as exc:
         name = exc.filename or getattr(args, "file", None) or exc
@@ -712,6 +747,9 @@ def main(argv=None) -> int:
     except (ValueError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
+    finally:
+        if installed:
+            signal.signal(signal.SIGTERM, previous)
 
 
 if __name__ == "__main__":

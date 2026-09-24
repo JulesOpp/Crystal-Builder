@@ -1,5 +1,6 @@
 """The headless command line."""
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -402,3 +403,49 @@ def test_a_cli_build_is_filed_like_the_windows(builder_module,
     assert not (run / "pormake-style.cif").exists()
     assert not (root / "Builder").exists()
     assert str(run) in capsys.readouterr().out
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX signals")
+def test_a_terminated_run_stops_its_program_and_says_so(tmp_path):
+    """SIGTERM is how a batch scheduler ends a job at its time limit.
+    It killed the interpreter outright: nothing in the run log, and the
+    program it had started -- in a session of its own -- ran on.  It is
+    now the command line's Stop button, like Ctrl+C, with the exit
+    status a terminated program has."""
+    import os
+    import signal
+    import subprocess
+    import time
+
+    source = Path(__file__).parent.parent / "resources/samples/MOF-5.cif"
+    env = dict(os.environ, XTAL_STUB_MODULE="1")
+    cli = subprocess.Popen(
+        [sys.executable, "-m", "xtal.cli", "run", "stub.subprocess",
+         str(source), "--workspace", str(tmp_path / "ws"),
+         "-p", "steps=3", "-p", "interval=30"],
+        env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True)
+    seen = []
+    for line in cli.stdout:
+        seen.append(line)
+        if "step 1 of 3" in line:
+            break
+    children = subprocess.run(["pgrep", "-P", str(cli.pid)],
+                              capture_output=True, text=True).stdout.split()
+
+    cli.send_signal(signal.SIGTERM)
+    rest, _ = cli.communicate(timeout=30)
+
+    assert cli.returncode == 128 + signal.SIGTERM
+    assert "terminated" in rest
+    log = next((tmp_path / "ws").glob("*/stub-subprocess-*/run.log"))
+    assert "the run failed: terminated" in log.read_text()
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline and any(
+            subprocess.run(["ps", "-p", pid], capture_output=True)
+            .returncode == 0 for pid in children):
+        time.sleep(0.05)
+    assert children
+    assert not any(subprocess.run(["ps", "-p", pid],
+                                  capture_output=True).returncode == 0
+                   for pid in children)
