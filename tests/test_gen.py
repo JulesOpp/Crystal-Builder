@@ -97,3 +97,20 @@ def test_the_registry_knows_the_extension(rutile, tmp_path):
     path = tmp_path / "rutile.gen"
     FORMATS.write(rutile, path)
     assert FORMATS.read(path).n_sites == expand(rutile).n_atoms
+
+
+def test_a_structure_with_no_atoms_is_refused_rather_than_written(
+        tmp_path):
+    """File > New makes a cell with nothing in it, and exporting that
+    wrote a count of 0 and an empty species line -- which the reader,
+    rightly skipping blank lines, then took the origin row for.  A
+    .gen with no atoms is nothing DFTB+ can run either, so the writer
+    says so instead of leaving a file nothing can open."""
+    from xtal import Lattice, Structure
+
+    empty = Structure(lattice=Lattice(np.eye(3) * 5.0), sites=[])
+    target = tmp_path / "empty.gen"
+
+    with pytest.raises(ValueError, match="no atoms"):
+        write_gen(empty, target)
+    assert not target.exists()
