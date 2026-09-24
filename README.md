@@ -130,8 +130,13 @@ pip install 'crystal-builder[gui,mace]'
 crystal-builder
 ```
 
-That is the supported route and it is what *Preferences ▸ Optional
-features* recommends.  There is a second one on that page: the
+That is the supported route and it is what *Preferences ▸ Engines*
+recommends.  On a source checkout the page gives the exact command for
+the Python the application is running in -- `python -m pip install -e
+"<checkout>[mace]"` -- because a bare `pip` is often another Python's,
+and because `crystal-builder` is not on PyPI: the name resolves only
+against metadata written when the checkout was installed, which does
+not know an extra added since.  There is a second one on that page: the
 application puts a user-writable folder — `~/Library/Application
 Support/CrystalBuilder/packages`, `%APPDATA%\CrystalBuilder\packages`
 on Windows — first on its import path at start-up, so

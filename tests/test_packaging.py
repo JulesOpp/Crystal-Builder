@@ -397,7 +397,7 @@ def test_the_bundled_extras_are_the_ones_the_extras_page_promises():
     refused = {extra.package for extra in extras.EXTRAS
                if not extra.bundled}
 
-    assert promised <= set(bundle.COLLECT)
+    assert promised <= set(bundle.COLLECT) | set(bundle.TRACED)
     assert refused <= set(bundle.EXCLUDES)
 
 

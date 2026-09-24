@@ -191,6 +191,12 @@ HIDDEN_IMPORTS = [
 #: and the ``.app`` is 16 MB smaller.
 COLLECT = ["rdkit", "rdeditor", "qdarktheme", "matplotlib"]
 
+#: Bundled with nothing to collect: the import analysis finds them,
+#: for the reason given for ``ase`` above.  Named so that what
+#: Preferences > Engines promises a build carries can be checked
+#: against the two lists together.
+TRACED = ["ase"]
+
 #: Not bundled, and each line is a decision rather than an oversight.
 EXCLUDES = [
     # `pormake` is NOT excluded any more, and its absence from this
@@ -214,6 +220,15 @@ EXCLUDES = [
     "jaxlib",
     "pymatgen",
     "networkx",
+    # The ML engines, and the PyTorch every one of them brings, which
+    # is larger than the rest of the application put together.  They
+    # were out of every build only because the build environment had
+    # none installed: PyInstaller follows an import inside a function
+    # as readily as one at the top, so a build made in an environment
+    # with mace in it would have carried gigabytes and still said "not
+    # included in this build" on Preferences > Engines.
+    "mace",
+    "torch",
     # `matplotlib` is NOT excluded any more, and its absence from
     # this list is the point.  It used to be, because the plots this
     # application drew were a hundred lines of QPainter each and the

@@ -245,11 +245,12 @@ what make `pip install crystal-builder` usable on a cluster node, and
 `xtal.modules.mof.available` greys the entry out naming
 `crystal-builder[ase]` when it is missing.  The build jobs install it.
 
-**Preferences → Engines (then Optional features) no longer lists the
-MOF builder at all**, because a page listing a feature that ships as optional is the
-untrue thing that page exists to avoid.  What is left of that box is
-the folder on `sys.path`, which was always the general mechanism and
-is now described as one.
+**Preferences → Engines lists the MOF builder as shipped**: in a
+build its row says it came with the build, and only a source checkout
+without `ase` is offered a command.  The ML engines are the rows a
+build says it does *not* carry, because PyTorch is not bundled.  The
+folder on `sys.path` below them was always the general mechanism and
+is described as one.
 
 ### Never
 

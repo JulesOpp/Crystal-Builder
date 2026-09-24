@@ -126,7 +126,8 @@ def probe_for(key: str, path) -> Probe | None:
 
 
 def probe_for_package(package: str, frozen: bool = False,
-                      executable: str | None = None) -> Probe:
+                      executable: str | None = None,
+                      timeout: float = 0.0) -> Probe:
     """How to ask whether a Python package imports.
 
     In a fresh interpreter, never this one: a package whose compiled
@@ -134,15 +135,26 @@ def probe_for_package(package: str, frozen: bool = False,
     process must not be the application.  A frozen build is asked
     through its own executable, since ``sys.executable`` *is* the
     application there and takes no ``-c``.
+
+    ``package`` may be a module inside one (``mace.calculators``),
+    where importing the top alone would prove nothing; the version
+    printed is the top's, since a submodule has none.
     """
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.]*", package):
         raise ValueError(f"not a package name: {package!r}")
     executable = executable or sys.executable
+    timeout = timeout or DEFAULT_TIMEOUT
     if frozen:
-        return Probe((executable, IMPORT_FLAG, package))
-    line = (f"import {package}; "
-            f"print({package!r}, getattr({package}, '__version__', ''))")
-    return Probe((executable, "-c", line))
+        return Probe((executable, IMPORT_FLAG, package),
+                     timeout=timeout)
+    top = package.split(".")[0]
+    line = (f"import {package}; import {top}; "
+            f"print({top!r}, getattr({top}, '__version__', ''))")
+    # The line this prints, found wherever it is: torch-based packages
+    # warn on import, and the first two lines were a UserWarning about
+    # ``torch.load`` where the version should have been.
+    return Probe((executable, "-c", line), timeout=timeout,
+                 headline=re.compile(rf"^{re.escape(top)} .*$", re.M))
 
 
 # -- reading the answer ------------------------------------------------
