@@ -994,8 +994,10 @@ number (hcb is 17).
 
 All four shipped on `features/net-search`; CLAUDE.md's invariant *A
 layer net is stacked after it is built* was rewritten in Phase 2, when
-the files went.  What is left is [docs/TODO.md](TODO.md) § *Net search
-knows vertices and edges, not faces and tiles*.
+the files went.  The faces and tiles it left unknown were filled on
+2026-09-24 from the RCSR's own data (`scripts/rcsr_transitivity.py`),
+which also corrected q on the 18 nets whose `.cgd` repeats an edge
+kind.
 
 ---
 

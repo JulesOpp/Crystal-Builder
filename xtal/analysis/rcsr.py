@@ -100,6 +100,12 @@ INDEX = DATA / "rcsr-2019-06-01.json.gz"
 #: index already shipping next to it, so both travel.
 NETS = DATA / "RCSRnets-2019-06-01.cgd.gz"
 
+#: p q r s -- the kinds of vertex, edge, face and tile -- for every
+#: net the RCSR lists, written by ``scripts/rcsr_transitivity.py`` from
+#: the RCSR's own data files.  The ``.cgd`` above has no faces or tiles
+#: in it, and overstates q for 18 nets by repeating an edge kind.
+TRANSITIVITY = DATA / "rcsr-transitivity-2026-09-24.json.gz"
+
 #: The same file uncompressed, on a source checkout.  It is what
 #: ``build`` reads, and what :func:`nets` falls back to.
 SOURCE = ("resources", "topo", "RCSRnets-2019-06-01.cgd")
@@ -1109,6 +1115,22 @@ def catalogue() -> Catalogue:
         tuple(CatalogueEntry.from_row(r) for r in payload["nets"]),
         payload.get("source", ""),
         tuple(tuple(r) for r in payload.get("refused", ())))
+
+
+@lru_cache(maxsize=1)
+def transitivity() -> dict[str, tuple[int | None, ...]]:
+    """Name -> ``(p, q, r, s)``, ``None`` where the RCSR does not know.
+
+    Empty rather than an error when the file is missing: every net then
+    falls back to what its own file says, which is what happened before
+    there was a table.
+    """
+    if not TRANSITIVITY.is_file():               # pragma: no cover
+        return {}
+    with gzip.open(TRANSITIVITY, "rt", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    return {name: tuple(values)
+            for name, values in payload["nets"].items()}
 
 
 @lru_cache(maxsize=1)

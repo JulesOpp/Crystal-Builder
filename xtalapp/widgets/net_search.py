@@ -88,9 +88,10 @@ class NetSearch(QWidget):
         self.transitivity = QLineEdit(self)
         self.transitivity.setPlaceholderText("p q r s, * for any")
         self.transitivity.setToolTip(
-            "Kinds of vertex, edge, face and tile, like 1 1 * * or "
-            "11.  Faces and tiles are not known yet, so r and s "
-            "match only *.")
+            "Kinds of vertex, edge, face and tile, like 1 1 1 1 or "
+            "11, as the RCSR gives them.  A layer has no tiles, and "
+            "a net with no tiling on record has no faces or tiles "
+            "either; there r and s match only *.")
         self._tips = {field: field.toolTip() for field in self._fields()}
 
         # Both ticked is both; the counts say whether the second kind
