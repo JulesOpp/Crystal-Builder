@@ -260,9 +260,22 @@ def test_a_six_coordinate_vertex_draws_six_edges_as_halves():
     assert one_vertex.n_atoms == 1
     assert one_vertex.n_topology_edges == 6
 
-    dropped = ViewSettings(boundary="in_range")
-    dropped.range_a = dropped.range_b = dropped.range_c = (0.0, 0.0)
-    assert build_scene(pcu(), dropped).n_topology_edges == 0
+
+
+@pytest.mark.parametrize("boundary", ["in_range", "bonded", "half"])
+def test_the_boundary_setting_does_not_reach_the_net(boundary):
+    """It is about atoms.  "In range" used to drop every edge whose
+    far vertex was out of range and "bonded" to complete one only
+    where a chemical bond had happened to draw that vertex as a ghost,
+    so a repeated pcu showed 8, 22 or 24 of its edges depending on a
+    setting that says nothing about nets."""
+    settings = ViewSettings(boundary=boundary)
+    settings.range_a = settings.range_b = settings.range_c = (0.0, 0.0)
+    assert build_scene(pcu(), settings).n_topology_edges == 6
+    framework = a_framework_with_a_net()
+    assert build_scene(framework, ViewSettings(boundary=boundary)) \
+        .n_topology_edges == build_scene(
+            framework, ViewSettings(boundary="half")).n_topology_edges
 
 
 def test_a_half_edge_stops_at_the_midpoint():
