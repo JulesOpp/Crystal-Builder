@@ -39,6 +39,14 @@ def _load(path: str):
 def _apply_transforms(structure, args):
     if getattr(args, "supercell", None):
         na, nb, nc = args.supercell
+        # Said before it is built, not after: 50 50 50 on a MOF is
+        # millions of atoms and minutes of silence, and the count is
+        # what makes a mistyped 50 a Ctrl+C rather than a swap file.
+        from xtal.core import p1
+        if min(na, nb, nc) >= 1:
+            n = p1.expand(structure).n_atoms * na * nb * nc
+            print(f"building a {na} x {nb} x {nc} supercell: "
+                  f"{n:,} atoms", file=sys.stderr)
         structure = supercell.supercell(structure, na, nb, nc)
     if getattr(args, "p1", False):
         structure = symmetry.reduce_to_p1(structure)

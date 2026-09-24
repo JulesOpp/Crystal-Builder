@@ -108,6 +108,30 @@ def test_convert_applies_transforms(rutile_cif, tmp_path, capsys):
     assert "P1" in text
 
 
+def test_a_supercell_says_how_big_it_will_be_before_building_it(
+        rutile_cif, tmp_path, capsys, monkeypatch):
+    """--supercell 50 50 50 on a 102-site cell is twelve million atoms
+    and six minutes, and it used to spend them without a word.  The
+    count is said first, so a mistyped 50 can be Ctrl+C'd in a second
+    rather than noticed in a swap file."""
+    from xtal.core import supercell
+
+    said = []
+    real = supercell.supercell
+
+    def watching(*args):
+        said.append(capsys.readouterr().err)
+        return real(*args)
+
+    monkeypatch.setattr(supercell, "supercell", watching)
+    out = tmp_path / "big.cif"
+    assert main(["convert", rutile_cif, str(out), "--supercell",
+                 "3", "2", "1"]) == 0
+
+    assert "3 x 2 x 1" in said[0]
+    assert "36 atoms" in said[0]            # 6 atoms x 6 cells
+
+
 def test_convert_refuses_to_write_over_its_input(rutile_cif, capsys):
     """It read the whole file first, so this was never truncation: it
     was somebody's deposited CIF replaced by this program's minimal
