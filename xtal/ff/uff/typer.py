@@ -45,7 +45,7 @@ import numpy as np
 
 from xtal.core import bonding, elements, p1
 from xtal.core.structure import CHEMISTRY, Change
-from xtal.ff import markers
+from xtal.ff import isotopes, markers
 from xtal.ff.uff import params
 
 #: Coordination geometry, and the ring perception over it, both live
@@ -176,6 +176,9 @@ def assign(structure, rules: bonding.BondRules | None = None,
 
 
 def _assign(structure, rules, parameter_set) -> Typing:
+    # Typed as its element: the engine is handed deuterium as hydrogen
+    # (xtal.ff.isotopes), and the table has to say what it computed.
+    structure = isotopes.as_elements(structure)
     cell = p1.expand(structure)
     graph = bonding.graph(structure, rules)
     if cell.n_atoms == 0:

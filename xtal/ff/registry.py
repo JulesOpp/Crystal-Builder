@@ -106,13 +106,21 @@ class Engine:
         declares no options is handed what it was given.
         """
         from xtal.core import p1
-        from xtal.ff import markers
+        from xtal.ff import isotopes, markers
 
         _refuse_coincident(structure)
         if self.options:
             options = self.coerce(options)
         clean, kept = markers.hold_back(structure)
-        calculator = self.build(clean, **options)
+        # After the markers: that removes atoms and this only renames
+        # them, so the mapping hold_back made is still the mapping.
+        renamed = isotopes.has_isotopes(clean)
+        calculator = self.build(isotopes.as_elements(clean), **options)
+        if renamed:
+            # A fresh list on the instance: ``warnings`` is a class
+            # attribute on Calculator, and appending to that would say
+            # this on every run afterwards.
+            calculator.warnings = [*calculator.warnings, isotopes.NOTE]
         if kept is None:
             return calculator
         return markers.WithoutMarkers(calculator, kept,
