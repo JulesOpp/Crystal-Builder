@@ -316,6 +316,15 @@ def test_every_optimiser_is_offered_by_name(opened):
                for i in range(dock.method.count()))
 
 
+def test_the_optimiser_starts_on_smart(opened):
+    """The same default the scan has.  L-BFGS as the first entry was
+    the default by accident of dictionary order, and its first step
+    from a hand-built geometry is the one that goes wild."""
+    window, _document = opened
+
+    assert window.ff_dock.method.currentData() == "smart"
+
+
 def test_the_stress_tolerance_follows_the_cell_checkbox(opened):
     window, _document = opened
     dock = window.ff_dock

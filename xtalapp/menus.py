@@ -49,6 +49,7 @@ from xtalapp import external, samples
 from xtalapp.viewport import modes, styles
 from xtalapp.viewport.view_settings import (
     BACKGROUNDS,
+    DEFAULT_STYLE,
     FOLLOW_THE_SYSTEM,
     ViewSettings,
 )
@@ -187,7 +188,7 @@ def build_actions(window):
         style = styles.get(name)
         add(f"style_{name}", style.label,
             lambda checked=False, s=name: window.set_style(s),
-            checkable=True, checked=(name == "ball_stick"),
+            checkable=True, checked=(name == DEFAULT_STYLE),
             tip=style.description, group="style")
 
     add("show_atoms", "Atoms",

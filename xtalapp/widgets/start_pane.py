@@ -7,7 +7,7 @@ It used to be an empty grey tab widget.  The workspace chooser before
 it explains itself and offers a sample; the window after it offered
 nothing, on the screen where somebody who has just installed the
 program decides whether to keep it -- although drag-and-drop already
-worked and seven structures were one menu away.  The COD's six
+worked and seven structures were one menu away.  The COD's
 sit under a heading of their own, below the seven.
 
 **Nothing here does anything of its own.**  Every button is a view of

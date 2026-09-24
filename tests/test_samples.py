@@ -1,4 +1,4 @@
-"""Thirteen real structures ship in resources/samples, and now open.
+"""Twenty real structures ship in resources/samples, and now open.
 
 They had been in the repository since the early phases with nothing in
 the application referring to them, so a fresh installation opened an
@@ -11,6 +11,8 @@ sample that adopted its own path would answer Ctrl+S by trying to
 write there.  The copy is what makes a sample an ordinary structure of
 this workspace instead.
 """
+
+import re
 
 import pytest
 
@@ -48,7 +50,7 @@ def test_every_sample_in_the_catalogue_is_a_file_that_is_there():
     missing = [s.label for s in samples.SAMPLES if s.path is None]
 
     assert missing == []
-    assert len(samples.SAMPLES) == 13
+    assert len(samples.SAMPLES) == 20
 
 
 def test_every_sample_is_a_structure_this_application_can_read():
@@ -182,7 +184,7 @@ def test_pressing_a_sample_entry_opens_it(window):
 def test_an_installation_without_the_samples_says_so(window, tmp_path,
                                                      monkeypatch):
     """resources/ is not package data, so a wheel install has none of
-    them -- a supported state that gets a sentence, not thirteen
+    them -- a supported state that gets a sentence, not twenty
     entries that each raise a dialog."""
     monkeypatch.setattr(samples, "folder", lambda: tmp_path / "nothing")
     menus.build_sample_menu(window)
@@ -195,7 +197,8 @@ def test_an_installation_without_the_samples_says_so(window, tmp_path,
 #: What each COD file must read as: the space group it was published
 #: in, and the atoms that group makes of it.  UiO-66 and ZIF-8 carry
 #: their disorder as deposited, so both halves of each split site are
-#: counted; MIL-101 was refined with no hydrogens.
+#: counted, as are MOF-808's formate caps and water; MIL-101, MIL-100
+#: and MIL-88B were refined with no hydrogens.
 COD_EXPECTED = {
     "cod_mof5": ("Fm-3m", 7, 424),
     "cod_hkust1": ("Fm-3m", 6, 624),
@@ -203,6 +206,13 @@ COD_EXPECTED = {
     "cod_uio66": ("Fm-3m", 13, 688),
     "cod_mil101": ("Fd-3m", 108, 16000),
     "cod_nu1000": ("P6/mmm", 26, 510),
+    "cod_mil100": ("Fd-3m", 97, 13552),
+    "cod_mof74": ("H-3", 9, 162),         # R-3, hexagonal axes
+    "cod_pcn222": ("P6/mmm", 38, 690),
+    "cod_mof808": ("Fd-3m", 25, 2960),
+    "cod_mil53": ("Imcm", 7, 72),
+    "cod_mil88b": ("P-62c", 15, 138),
+    "cod_mnbtt": ("Pm-3m", 12, 303),
 }
 
 
@@ -240,8 +250,9 @@ def test_the_cod_samples_are_what_the_script_writes():
     for sample in samples.in_group(samples.COD):
         text = sample.path.read_text("utf-8")
         assert fetch.strip(text) == text, sample.label
-        assert f"_cod_database_code               {sample.cod_id}" in (
-            text), sample.label
+        assert re.search(
+            rf"^_cod_database_code\s+{sample.cod_id}$", text,
+            re.MULTILINE), sample.label
 
 
 def test_every_file_in_the_samples_folder_is_named_in_provenance():
@@ -254,7 +265,7 @@ def test_every_file_in_the_samples_folder_is_named_in_provenance():
 
     unnamed = [f for f in files if f"`{f}`" not in provenance]
 
-    assert len(files) == 16
+    assert len(files) == 23
     assert unnamed == []
 
 

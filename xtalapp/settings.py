@@ -17,6 +17,8 @@ from pathlib import Path
 from PySide6.QtCore import QRect, QSettings
 from PySide6.QtGui import QGuiApplication
 
+from xtalapp.viewport.view_settings import DEFAULT_STYLE
+
 ORGANISATION = "CrystalBuilder"
 APPLICATION = "CrystalBuilder"
 MAX_RECENT = 10
@@ -440,7 +442,7 @@ class AppSettings:
         screenshot of it.
         """
         return {
-            "style": str(self._q.value("view/style", "ball_stick")),
+            "style": str(self._q.value("view/style", DEFAULT_STYLE)),
             "background": tuple(
                 int(v) for v in self._q.value(
                     "view/background", (255, 255, 255))),

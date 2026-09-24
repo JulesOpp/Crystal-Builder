@@ -92,6 +92,9 @@ from xtalapp.widgets.links import SourceLinks
 from xtalapp.widgets.tone import HINT, set_tone
 from xtalapp.workers import OptimizationWorker, start_in_thread
 
+#: What the Optimiser box starts on.
+DEFAULT_METHOD = "smart"
+
 METHOD_LABELS = {
     "lbfgs": "L-BFGS (fast near a minimum)",
     "fire": "FIRE (robust far from one)",
@@ -267,6 +270,10 @@ class ForceFieldDock(QDockWidget):
         self.method = QComboBox()
         for name in METHODS:
             self.method.addItem(METHOD_LABELS.get(name, name), name)
+        # Smart, as the scan uses: steepest descent copes with a
+        # hand-built start that L-BFGS would take a wild first step
+        # from, and the later stages finish as quickly near a minimum.
+        self.method.setCurrentIndex(self.method.findData(DEFAULT_METHOD))
         self.max_steps = QSpinBox()
         self.max_steps.setRange(1, 100000)
         self.max_steps.setValue(DEFAULT_MAX_STEPS)

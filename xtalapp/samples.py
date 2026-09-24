@@ -28,8 +28,8 @@ detail that makes a program feel like somebody else's export.
 **Two groups, and the second is the Crystallography Open Database's.**
 The first seven are what this project was written against, and four
 of them carry the CCDC's header, which is a decision recorded in
-``resources/samples/PROVENANCE.md`` rather than a licence.  The COD six
-are CC0 and exactly as deposited -- the asymmetric unit in its
+``resources/samples/PROVENANCE.md`` rather than a licence.  The COD's
+thirteen are CC0 and exactly as deposited -- the asymmetric unit in its
 published group, less the reflections -- so a framework everybody
 cites is there in the form it was cited, disorder and all.  They are
 written by ``scripts/fetch_cod_samples.py``.
@@ -179,6 +179,48 @@ SAMPLES = (
         cod_id=7230579, description=(
             "Islamoglu et al., CrystEngComm 2018: Zr6 nodes and a "
             "pyrene tetracarboxylate in P6/mmm, 510 atoms in the cell")),
+    Sample(
+        "cod_mil100", "cod/MIL-100.cif", "MIL-100(Fe)", group=COD,
+        cod_id=7102029, description=(
+            "Horcajada et al., Chem. Commun. 2007: Fe3O trimers and "
+            "trimesate in Fd-3m, a 73 A cell of 13 552 atoms with no "
+            "hydrogens -- MIL-101's smaller sibling")),
+    Sample(
+        "cod_mof74", "cod/MOF-74.cif", "MOF-74(Zn)", group=COD,
+        cod_id=1517474, description=(
+            "Queen et al., Chem. Sci. 2014: Zn2(dobdc) evacuated, from "
+            "neutron powder diffraction -- the honeycomb of open metal "
+            "sites, 162 atoms in R-3")),
+    Sample(
+        "cod_pcn222", "cod/PCN-222.cif", "PCN-222(Fe)", group=COD,
+        cod_id=4329555, description=(
+            "Morris et al., Inorg. Chem. 2012, as MOF-545(Fe): Zr6 "
+            "nodes and iron porphyrin linkers in P6/mmm, the chloride "
+            "on each iron split over two positions")),
+    Sample(
+        "cod_mof808", "cod/MOF-808.cif", "MOF-808", group=COD,
+        cod_id=4121463, description=(
+            "Furukawa et al., J. Am. Chem. Soc. 2014: six-connected "
+            "Zr6 nodes and trimesate in Fd-3m, with the formate caps "
+            "and pore water as partly occupied sites")),
+    Sample(
+        "cod_mil53", "cod/MIL-53.cif", "MIL-53(Cr)", group=COD,
+        cod_id=1502688, description=(
+            "Mulder et al., J. Phys. Chem. C 2010: the large-pore form, "
+            "Cr(OH) chains and terephthalate, from neutron diffraction "
+            "-- so its hydrogens are deuterium")),
+    Sample(
+        "cod_mil88b", "cod/MIL-88B.cif", "MIL-88B(Cr)", group=COD,
+        cod_id=7100637, description=(
+            "Serre et al., Chem. Commun. 2006: Cr3O trimers and "
+            "terephthalate in P-62c, as refined, with pyridine and "
+            "water in the pores and no hydrogens")),
+    Sample(
+        "cod_mnbtt", "cod/Mn-BTT.cif", "Mn-BTT", group=COD,
+        cod_id=4111257, description=(
+            "Dinca et al., J. Am. Chem. Soc. 2006: "
+            "Mn3[(Mn4Cl)3(BTT)8]2 desolvated, square Mn4Cl units and "
+            "a tritetrazolate in Pm-3m -- the exposed Mn2+ sites")),
 )
 
 

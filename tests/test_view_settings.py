@@ -12,7 +12,7 @@ from xtalapp.viewport.view_settings import (
 
 def test_defaults():
     s = ViewSettings()
-    assert s.style == "ball_stick"
+    assert s.style == "ball_stick_occupancy"
     assert s.show_atoms and s.show_bonds and s.show_cell
     assert s.ranges == ((0.0, 1.0),) * 3
     assert s.cells == (1, 1, 1)
@@ -65,7 +65,7 @@ def test_copy_is_deep():
     c.element_colors["O"] = (9, 9, 9)
     c.style = "spacefill"
     assert s.element_colors["O"] == (1, 2, 3)
-    assert s.style == "ball_stick"
+    assert s.style == "ball_stick_occupancy"
 
 
 def test_dict_round_trip():

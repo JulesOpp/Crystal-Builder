@@ -4,14 +4,15 @@
     python scripts/fetch_cod_samples.py --check    # exit 1 if it would change
     python scripts/fetch_cod_samples.py --from DIR # strip files already here
 
-Six frameworks everybody meets, each as the depositors wrote it: the
+Thirteen frameworks everybody meets, each as the depositors wrote it: the
 asymmetric unit, in its published space group and setting, with the
 citation, the COD's own record and the refinement statistics kept.
 What is taken out is what describes the *experiment* rather than the
-crystal -- the reflection list, the diffractometer, and the SHELX
-``.res`` / ``.hkl`` files and PLATON SQUEEZE report some depositions
-embed whole.  Those are 97 % of UiO-66's 286 KB and NU-1000's 301 KB,
-and nothing in this application reads them.
+crystal -- the reflection list, the diffractometer, a powder
+refinement's profile, and the SHELX ``.res`` / ``.hkl`` files and
+PLATON SQUEEZE report some depositions embed whole.  Those are 97 %
+of UiO-66's 286 KB, NU-1000's 301 KB and MOF-74's 104 KB, and nothing
+in this application reads them.
 
 **The strip is by whole item and whole loop, never by reformatting.**
 A CIF parsed and written back comes out in the writer's layout, which
@@ -49,6 +50,13 @@ ENTRIES = {
     4512072: "UiO-66.cif",
     4000663: "MIL-101.cif",
     7230579: "NU-1000.cif",
+    7102029: "MIL-100.cif",
+    1517474: "MOF-74.cif",
+    4329555: "PCN-222.cif",
+    4121463: "MOF-808.cif",
+    1502688: "MIL-53.cif",
+    7100637: "MIL-88B.cif",
+    4111257: "Mn-BTT.cif",
 }
 
 #: Tag prefixes whose items and loops are dropped.  Each describes the
@@ -58,6 +66,13 @@ STRIPPED = (
     "_diffrn",
     "_shelx_",
     "_platon_squeeze",
+    # A powder refinement's profile, point by point: measured,
+    # weighted, background and calculated intensities.
+    "_pd_meas_intensity",
+    "_pd_proc_ls_weight",
+    "_pd_proc_intensity",
+    "_pd_calc_intensity",
+    "_gsas_i100",
 )
 
 

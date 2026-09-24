@@ -1,0 +1,439 @@
+#------------------------------------------------------------------------------
+#$Date: 2022-09-15 17:37:55 +0300 (Thu, 15 Sep 2022) $
+#$Revision: 277886 $
+#$URL: file:///home/coder/svn-repositories/_RELOADED_COD/cod-reloaded/cif/7/10/20/7102029.cif $
+#------------------------------------------------------------------------------
+#
+# This file is available in the Crystallography Open Database (COD),
+# http://www.crystallography.net/
+#
+# All data on this site have been placed in the public domain by the
+# contributors.
+#
+data_7102029
+loop_
+_publ_author_name
+'Horcajada, Patricia'
+'Surbl\'e, Suzy'
+'Serre, Christian'
+'Hong, Do-Young'
+'Seo, You-Kyong'
+'Chang, Jong-San'
+'Gren\`eche, Jean-Marc'
+'Margiolaki, Irene'
+'F\'erey, G\'erard'
+_publ_section_title
+;
+ Synthesis and catalytic properties of MIL-100(Fe), an iron(III)
+ carboxylate with large pores.
+;
+_journal_issue                   27
+_journal_name_full               'Chemical communications (Cambridge, England)'
+_journal_page_first              2820
+_journal_page_last               2822
+_journal_paper_doi               10.1039/b704325b
+_journal_year                    2007
+_chemical_formula_moiety         'Fe3 O F, (H2 O)2, [C9 H3 O6]2, 12.5(H2 O)'
+_chemical_formula_structural     'Fe3 O F (H2 O)2 [C6 H3 (C O2)3]2 12.5(H2 O)'
+_chemical_formula_sum            'C18 H35 F Fe3 O27.5'
+_chemical_formula_weight         878
+_chemical_name_common            MIL100(Fe)
+_space_group_crystal_system      cubic
+_space_group_IT_number           227
+_space_group_name_Hall           '-F 4vw 2vw 3'
+_space_group_name_H-M_alt        'F d -3 m :2'
+_cell_angle_alpha                90.00000
+_cell_angle_beta                 90.00000
+_cell_angle_gamma                90.00000
+_cell_length_a                   73.34019
+_cell_length_b                   73.34019
+_cell_length_c                   73.34019
+_cell_measurement_temperature    80
+_cell_volume                     394480.96900
+_computing_structure_refinement  FULLPROF
+_computing_structure_solution    'from coordinates of MIL-100(Cr)'
+_pd_instr_location               'ID31- ESRF'
+_pd_meas_2theta_range_inc        0.003000
+_pd_meas_2theta_range_max        57.96300
+_pd_meas_2theta_range_min        0.91500
+_pd_meas_number_of_points        19017
+_pd_prep_cool_rate               360
+_pd_proc_2theta_range_inc        0.003000
+_pd_proc_2theta_range_max        57.9572
+_pd_proc_2theta_range_min        0.9092
+_pd_proc_info_data_reduction     none
+_pd_proc_info_excluded_regions   none
+_pd_proc_ls_background_function  experimental
+_pd_proc_ls_pref_orient_corr     'not applied'
+_pd_proc_ls_profile_function     'pearson VII'
+_pd_proc_ls_prof_R_factor        11.9946
+_pd_proc_ls_prof_wR_expected     5.7313
+_pd_proc_ls_prof_wR_factor       16.1415
+_pd_proc_wavelength              0.801682
+_pd_spec_mounting                'Borosilicate Capillaries'
+_pd_spec_mount_mode              Transmission
+_pd_spec_shape                   Cylinder
+_refine_ls_number_parameters     229
+_refine_ls_number_reflns         16941
+_refine_ls_number_restraints     162
+_refine_ls_R_I_factor            12.9275
+_cod_data_source_file            b704325b.txt
+_cod_data_source_block           MIL100(Fe)
+_cod_depositor_comments
+;
+The following automatic conversions were performed:
+'_symmetry_cell_setting' value 'Cubic' changed to 'cubic' according to
+'/home/saulius/struct/CIF-dictionaries/cif_core.dic' dictionary named
+'cif_core.dic' version 2.4.1 from 2010-06-29.
+
+Automatic conversion script
+Id: cif_fix_enum 1527 2010-12-29 10:47:43Z saulius 
+
+The following automatic conversions were performed:
+
+'_cell_measurement_temperature' value '80K' was changed to '80' - the
+value should be numeric and without a unit
+designator.
+
+'_diffrn_ambient_temperature' value '80K' was changed to
+'80' - the value should be numeric and without a unit designator.
+
+Automatic conversion script
+Id: cif_fix_values 1646 2011-03-28 12:23:43Z adriana 
+;
+_cod_original_sg_symbol_H-M      'F d -3 m'
+_cod_database_code               7102029
+loop_
+_space_group_symop_id
+_space_group_symop_operation_xyz
+1 x,y,z
+2 -y,x+1/4,z+1/4
+3 -x+3/4,-y+1/4,z+1/2
+4 y+3/4,-x,z+3/4
+5 x,-y+1/4,-z+1/4
+6 y+3/4,x+1/4,-z+1/2
+7 -x+3/4,y,-z+3/4
+8 -y,-x,-z
+9 z,x,y
+10 -x,z+1/4,y+1/4
+11 -z+3/4,-x+1/4,y+1/2
+12 x+3/4,-z,y+3/4
+13 z,-x+1/4,-y+1/4
+14 x+3/4,z+1/4,-y+1/2
+15 -z+3/4,x,-y+3/4
+16 -x,-z,-y
+17 y,z,x
+18 y+1/2,-z+3/4,-x+1/4
+19 z+1/4,y+3/4,-x+1/2
+20 -y+1/4,z+1/2,-x+3/4
+21 -z,-y+1/2,-x+1/2
+22 -y+1/4,-z+1/4,x
+23 z+1/4,-y,x+1/4
+24 -z+1/2,y+1/4,x+3/4
+25 -x,-y,-z
+26 y,-x+3/4,-z+3/4
+27 x+1/4,y+3/4,-z+1/2
+28 -y+1/4,x,-z+1/4
+29 -x,y+3/4,z+3/4
+30 -y+1/4,-x+3/4,z+1/2
+31 x+1/4,-y,z+1/4
+32 y,x,z
+33 -z,-x,-y
+34 x,-z+3/4,-y+3/4
+35 z+1/4,x+3/4,-y+1/2
+36 -x+1/4,z,-y+1/4
+37 -z,x+3/4,y+3/4
+38 -x+1/4,-z+3/4,y+1/2
+39 z+1/4,-x,y+1/4
+40 x,z,y
+41 -y,-z,-x
+42 -y+1/2,z+1/4,x+3/4
+43 -z+3/4,-y+1/4,x+1/2
+44 y+3/4,-z+1/2,x+1/4
+45 z,y+1/2,x+1/2
+46 y+3/4,z+3/4,-x
+47 -z+3/4,y,-x+3/4
+48 z+1/2,-y+3/4,-x+1/4
+49 x,y+1/2,z+1/2
+50 -y,x+3/4,z+3/4
+51 -x+3/4,-y+3/4,z
+52 y+3/4,-x+1/2,z+1/4
+53 x,-y+3/4,-z+3/4
+54 y+3/4,x+3/4,-z
+55 -x+3/4,y+1/2,-z+1/4
+56 -y,-x+1/2,-z+1/2
+57 z,x+1/2,y+1/2
+58 -x,z+3/4,y+3/4
+59 -z+3/4,-x+3/4,y
+60 x+3/4,-z+1/2,y+1/4
+61 z,-x+3/4,-y+3/4
+62 x+3/4,z+3/4,-y
+63 -z+3/4,x+1/2,-y+1/4
+64 -x,-z+1/2,-y+1/2
+65 y,z+1/2,x+1/2
+66 y+1/2,-z+1/4,-x+3/4
+67 z+1/4,y+1/4,-x
+68 -y+1/4,z,-x+1/4
+69 -z,-y,-x
+70 -y+1/4,-z+3/4,x+1/2
+71 z+1/4,-y+1/2,x+3/4
+72 -z+1/2,y+3/4,x+1/4
+73 -x,-y+1/2,-z+1/2
+74 y,-x+1/4,-z+1/4
+75 x+1/4,y+1/4,-z
+76 -y+1/4,x+1/2,-z+3/4
+77 -x,y+1/4,z+1/4
+78 -y+1/4,-x+1/4,z
+79 x+1/4,-y+1/2,z+3/4
+80 y,x+1/2,z+1/2
+81 -z,-x+1/2,-y+1/2
+82 x,-z+1/4,-y+1/4
+83 z+1/4,x+1/4,-y
+84 -x+1/4,z+1/2,-y+3/4
+85 -z,x+1/4,y+1/4
+86 -x+1/4,-z+1/4,y
+87 z+1/4,-x+1/2,y+3/4
+88 x,z+1/2,y+1/2
+89 -y,-z+1/2,-x+1/2
+90 -y+1/2,z+3/4,x+1/4
+91 -z+3/4,-y+3/4,x
+92 y+3/4,-z,x+3/4
+93 z,y,x
+94 y+3/4,z+1/4,-x+1/2
+95 -z+3/4,y+1/2,-x+1/4
+96 z+1/2,-y+1/4,-x+3/4
+97 x+1/2,y,z+1/2
+98 -y+1/2,x+1/4,z+3/4
+99 -x+1/4,-y+1/4,z
+100 y+1/4,-x,z+1/4
+101 x+1/2,-y+1/4,-z+3/4
+102 y+1/4,x+1/4,-z
+103 -x+1/4,y,-z+1/4
+104 -y+1/2,-x,-z+1/2
+105 z+1/2,x,y+1/2
+106 -x+1/2,z+1/4,y+3/4
+107 -z+1/4,-x+1/4,y
+108 x+1/4,-z,y+1/4
+109 z+1/2,-x+1/4,-y+3/4
+110 x+1/4,z+1/4,-y
+111 -z+1/4,x,-y+1/4
+112 -x+1/2,-z,-y+1/2
+113 y+1/2,z,x+1/2
+114 y,-z+3/4,-x+3/4
+115 z+3/4,y+3/4,-x
+116 -y+3/4,z+1/2,-x+1/4
+117 -z+1/2,-y+1/2,-x
+118 -y+3/4,-z+1/4,x+1/2
+119 z+3/4,-y,x+3/4
+120 -z,y+1/4,x+1/4
+121 -x+1/2,-y,-z+1/2
+122 y+1/2,-x+3/4,-z+1/4
+123 x+3/4,y+3/4,-z
+124 -y+3/4,x,-z+3/4
+125 -x+1/2,y+3/4,z+1/4
+126 -y+3/4,-x+3/4,z
+127 x+3/4,-y,z+3/4
+128 y+1/2,x,z+1/2
+129 -z+1/2,-x,-y+1/2
+130 x+1/2,-z+3/4,-y+1/4
+131 z+3/4,x+3/4,-y
+132 -x+3/4,z,-y+3/4
+133 -z+1/2,x+3/4,y+1/4
+134 -x+3/4,-z+3/4,y
+135 z+3/4,-x,y+3/4
+136 x+1/2,z,y+1/2
+137 -y+1/2,-z,-x+1/2
+138 -y,z+1/4,x+1/4
+139 -z+1/4,-y+1/4,x
+140 y+1/4,-z+1/2,x+3/4
+141 z+1/2,y+1/2,x
+142 y+1/4,z+3/4,-x+1/2
+143 -z+1/4,y,-x+1/4
+144 z,-y+3/4,-x+3/4
+145 x+1/2,y+1/2,z
+146 -y+1/2,x+3/4,z+1/4
+147 -x+1/4,-y+3/4,z+1/2
+148 y+1/4,-x+1/2,z+3/4
+149 x+1/2,-y+3/4,-z+1/4
+150 y+1/4,x+3/4,-z+1/2
+151 -x+1/4,y+1/2,-z+3/4
+152 -y+1/2,-x+1/2,-z
+153 z+1/2,x+1/2,y
+154 -x+1/2,z+3/4,y+1/4
+155 -z+1/4,-x+3/4,y+1/2
+156 x+1/4,-z+1/2,y+3/4
+157 z+1/2,-x+3/4,-y+1/4
+158 x+1/4,z+3/4,-y+1/2
+159 -z+1/4,x+1/2,-y+3/4
+160 -x+1/2,-z+1/2,-y
+161 y+1/2,z+1/2,x
+162 y,-z+1/4,-x+1/4
+163 z+3/4,y+1/4,-x+1/2
+164 -y+3/4,z,-x+3/4
+165 -z+1/2,-y,-x+1/2
+166 -y+3/4,-z+3/4,x
+167 z+3/4,-y+1/2,x+1/4
+168 -z,y+3/4,x+3/4
+169 -x+1/2,-y+1/2,-z
+170 y+1/2,-x+1/4,-z+3/4
+171 x+3/4,y+1/4,-z+1/2
+172 -y+3/4,x+1/2,-z+1/4
+173 -x+1/2,y+1/4,z+3/4
+174 -y+3/4,-x+1/4,z+1/2
+175 x+3/4,-y+1/2,z+1/4
+176 y+1/2,x+1/2,z
+177 -z+1/2,-x+1/2,-y
+178 x+1/2,-z+1/4,-y+3/4
+179 z+3/4,x+1/4,-y+1/2
+180 -x+3/4,z+1/2,-y+1/4
+181 -z+1/2,x+1/4,y+3/4
+182 -x+3/4,-z+1/4,y+1/2
+183 z+3/4,-x+1/2,y+1/4
+184 x+1/2,z+1/2,y
+185 -y+1/2,-z+1/2,-x
+186 -y,z+3/4,x+3/4
+187 -z+1/4,-y+3/4,x+1/2
+188 y+1/4,-z,x+1/4
+189 z+1/2,y,x+1/2
+190 y+1/4,z+1/4,-x
+191 -z+1/4,y+1/2,-x+3/4
+192 z,-y+1/4,-x+1/4
+loop_
+_atom_site_label
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_U_iso_or_equiv
+_atom_site_occupancy
+_atom_site_adp_type
+_atom_site_type_symbol
+Fe1 0.16042(17) 0.08958(17) 0.0572(2) 0.00000 1.00000 Uiso Fe
+Fe2 0.37500 0.1552(2) 0.87500 0.00000 1.00000 Uiso Fe
+Fe3 0.10905(16) 0.10905(16) 0.8642(2) 0.00000 1.00000 Uiso Fe
+Fe4 0.06841(16) 0.18158(16) 0.9640(2) 0.00000 1.00000 Uiso Fe
+Fe5 0.29760(19) 0.05702(18) 0.02406(17) 0.00000 1.00000 Uiso Fe
+Fe6 0.07612(14) 0.25000 0.82612(14) 0.00000 1.00000 Uiso Fe
+Fe7 0.98657(18) 0.16078(17) 0.86708(17) 0.00000 1.00000 Uiso Fe
+O1 0.3300(11) 0.9200(11) 0.4200(11) 0.00000 1.00002 Uiso O
+O2 0.37500 0.1284(4) 0.87500 0.00000 1.00000 Uiso O
+O3 0.0504(3) 0.1996(3) 0.9564(12) 0.00000 1.00000 Uiso O
+O4 0.0945(2) 0.25000 0.8445(2) 0.00000 1.00000 Uiso O
+O5 0.2040(4) 0.0671(3) 0.0926(6) 0.00000 1.00000 Uiso O
+O6 0.8845(4) 0.9130(6) 0.8160(5) 0.00000 1.00000 Uiso O
+O7 0.0905(3) 0.9005(3) 0.8782(7) 0.00000 1.00000 Uiso O
+O8 0.1503(6) 0.8782(4) 0.8506(5) 0.00000 1.00000 Uiso O
+O9 0.1205(3) 0.9104(4) 0.8832(5) 0.00000 1.00000 Uiso O
+O10 0.1936(3) 0.9836(5) 0.0793(7) 0.00000 1.00000 Uiso O
+O11 0.0518(6) 0.9363(5) 0.8387(5) 0.00000 1.00000 Uiso O
+O12 0.2199(6) 0.9720(5) 0.0729(7) 0.00000 1.00000 Uiso O
+O13 0.2147(3) 0.9641(7) 0.0130(5) 0.00000 1.00000 Uiso O
+O14 0.0715(5) 0.9768(5) 0.7942(6) 0.00000 1.00000 Uiso O
+O15 0.0576(8) 0.9640(4) 0.8291(5) 0.00000 1.00000 Uiso O
+O16 0.1575(3) 0.9936(7) 0.8063(6) 0.00000 1.00000 Uiso O
+O17 0.1781(8) 0.9728(3) 0.8286(5) 0.00000 1.00000 Uiso O
+O18 0.1317(4) 0.0068(5) 0.8132(4) 0.00000 1.00000 Uiso O
+O19 0.1707(6) 0.9648(4) 0.8556(3) 0.00000 1.00000 Uiso O
+O20 0.1377(3) 0.9764(6) 0.8700(6) 0.00000 1.00000 Uiso O
+O21 0.1215(6) 0.9925(5) 0.8500(6) 0.00000 1.00000 Uiso O
+O22 0.1503(5) 0.0997(5) 0.0335(4) 0.00000 1.00000 Uiso O
+O23 0.37500 0.1823(4) 0.87500 0.00000 1.00000 Uiso O
+O24 0.0940(3) 0.0940(3) 0.85000 0.00000 1.00000 Uiso O
+O25 0.0856(3) 0.1644(3) 0.9766(5) 0.00000 1.00000 Uiso O
+O26 0.3010(6) 0.0665(7) 0.9993(4) 0.00000 1.00000 Uiso O
+O27 0.0572(3) 0.25000 0.8074(3) 0.00000 1.00000 Uiso O
+O28 0.9755(5) 0.1637(5) 0.8911(3) 0.00000 1.00000 Uiso O
+C1 0.2422(6) 0.0078(6) 0.9835(9) 0.00000 1.00000 Uiso C
+C2 0.2604(4) 0.0133(5) 0.9896(4) 0.00000 1.00000 Uiso C
+C3 0.2321(5) 0.9683(8) 0.0179(5) 0.00000 1.00000 Uiso C
+C4 0.3528(10) 0.8972(10) 0.3286(11) 0.00000 1.00000 Uiso C
+C5 0.3366(10) 0.9134(10) 0.3607(11) 0.00000 1.00000 Uiso C
+C6 0.3285(8) 0.9215(8) 0.3764(7) 0.00000 1.00000 Uiso C
+C8 0.1704(10) 0.9009(3) 0.8240(3) 0.00000 1.00000 Uiso C
+C9 0.1733(9) 0.9156(3) 0.8103(2) 0.00000 1.00000 Uiso C
+C11 0.1071(3) 0.1429(3) 0.8435(9) 0.00000 1.00000 Uiso C
+C7 0.0927(4) 0.1573(4) 0.8352(12) 0.00000 1.00000 Uiso C
+C10 0.0664(7) 0.1836(7) 0.8214(14) 0.00000 1.00000 Uiso C
+C12 0.1741(12) 0.9603(2) 0.8398(4) 0.00000 1.00000 Uiso C
+C14 0.2324(3) 0.0425(6) 0.0931(10) 0.00000 1.00000 Uiso C
+C15 0.2195(4) 0.0041(5) 0.0847(11) 0.00000 1.00000 Uiso C
+C18 0.19811(17) 0.05189(17) 0.0978(6) 0.00000 1.00000 Uiso C
+C13 0.2129(2) 0.0371(2) 0.0930(11) 0.00000 1.00000 Uiso C
+C16 0.2398(5) 0.0102(5) 0.0809(15) 0.00000 1.00000 Uiso C
+C17 0.2106(2) 0.9854(5) 0.0789(12) 0.00000 1.00000 Uiso C
+C20 0.0897(5) 0.9663(3) 0.8523(9) 0.00000 1.00000 Uiso C
+C22 0.1116(7) 0.9467(4) 0.8720(8) 0.00000 1.00000 Uiso C
+C19 0.0782(6) 0.9492(4) 0.8499(7) 0.00000 1.00000 Uiso C
+C23 0.0991(4) 0.9309(3) 0.8683(8) 0.00000 1.00000 Uiso C
+C24 0.0806(4) 0.9330(6) 0.8612(9) 0.00000 1.00000 Uiso C
+C21 0.1082(4) 0.9633(4) 0.8612(9) 0.00000 1.00000 Uiso C
+C25 0.1036(4) 0.9129(5) 0.8767(10) 0.00000 1.00000 Uiso C
+C26 0.1230(6) 0.9783(6) 0.8608(9) 0.00000 1.00000 Uiso C
+C27 0.0622(6) 0.9495(5) 0.8381(9) 0.00000 1.00000 Uiso C
+C28 0.0253(11) 0.2247(11) 0.8582(5) 0.00000 1.00000 Uiso C
+C30 0.1099(2) 0.9612(9) 0.7636(6) 0.00000 1.00000 Uiso C
+C29 0.1306(2) 0.9608(7) 0.7643(8) 0.00000 1.00000 Uiso C
+C31 0.0301(7) 0.2199(7) 0.8987(3) 0.00000 1.00000 Uiso C
+C32 0.0331(11) 0.2169(11) 0.9195(4) 0.00000 1.00000 Uiso C
+C33 0.1406(3) 0.9971(8) 0.8027(7) 0.00000 1.00000 Uiso C
+Ow1 0.12500 0.12500 -0.0087(14) 0.00000 1.00000 Uiso O
+Ow2 0.2775(8) 0.0798(10) 0.9725(8) 0.00000 1.00000 Uiso O
+Ow3 0.1950(16) 0.87500 0.87500 0.00000 1.00000 Uiso O
+Ow4 0.2388(7) 0.9692(7) 0.1154(8) 0.00000 1.00000 Uiso O
+Ow5 0.9751(7) 0.1927(8) 0.9133(7) 0.00000 1.00000 Uiso O
+Ow6 0.0578(10) 0.2815(7) 0.7815(7) 0.00000 1.00000 Uiso O
+Ow8 0.0518(7) 0.0888(7) 0.8535(7) 0.00000 1.00000 Uiso O
+Ow9 0.1947(8) 0.9755(7) 0.1332(7) 0.00000 1.00000 Uiso O
+Ow10 0.1081(10) 0.9277(7) 0.9277(7) 0.00000 1.00000 Uiso O
+Ow11 0.0754(7) 0.1049(7) 0.0287(7) 0.00000 1.00000 Uiso O
+Ow12 0.3081(8) 0.0789(10) 0.9419(8) 0.00000 1.00000 Uiso O
+Ow13 0.2250(8) 1.0250(8) 0.1706(10) 0.00000 1.00000 Uiso O
+Ow14 0.0268(10) 0.9438(7) 0.9440(7) 0.00000 1.00000 Uiso O
+Ow15 0.0668(8) 0.9603(7) 0.9068(7) 0.00000 1.00000 Uiso O
+Ow16 0.1016(15) 0.1484(15) 0.782(2) 0.00000 0.50000 Uiso O
+Ow17 0.1096(10) 1.0155(7) 0.7345(7) 0.00000 1.00000 Uiso O
+Ow18 0.2399(7) 1.0101(7) 0.1450(10) 0.00000 1.00000 Uiso O
+Ow19 0.1480(10) 1.0386(7) 0.7114(7) 0.00000 1.00000 Uiso O
+Ow20 0.1185(7) 0.9860(7) 0.9298(7) 0.00000 1.00000 Uiso O
+Ow21 0.3288(8) 0.0195(10) 0.9212(8) 0.00000 1.00000 Uiso O
+Ow22 0.0388(9) 0.2475(7) 0.7475(7) 0.00000 1.00000 Uiso O
+Ow23 0.2234(7) 0.9704(8) 0.8423(7) 0.00000 1.00000 Uiso O
+Ow24 0.0918(15) 0.1582(15) 0.787(2) 0.00000 0.50000 Uiso O
+Ow25 0.2964(8) 0.0454(12) 0.9536(8) 0.00000 1.00000 Uiso O
+Ow26 0.1104(4) 0.1396(4) 0.9605(9) 0.00000 1.00000 Uiso O
+Ow27 0.2703(8) 0.0196(7) 0.9327(7) 0.00000 1.00000 Uiso O
+Ow28 0.1833(10) 1.0667(10) 0.1833(10) 0.00000 1.00000 Uiso O
+Ow29 0.0540(7) 0.9460(7) 1.00000 0.00000 1.00000 Uiso O
+Ow30 0.3121(7) -0.01997 0.9379(7) 0.00000 1.00000 Uiso O
+loop_
+_atom_type_symbol
+_atom_type_scat_Cromer_Mann_a1
+_atom_type_scat_Cromer_Mann_b1
+_atom_type_scat_Cromer_Mann_a2
+_atom_type_scat_Cromer_Mann_b2
+_atom_type_scat_Cromer_Mann_a3
+_atom_type_scat_Cromer_Mann_b3
+_atom_type_scat_Cromer_Mann_a4
+_atom_type_scat_Cromer_Mann_b4
+_atom_type_scat_Cromer_Mann_c
+_atom_type_scat_dispersion_real
+_atom_type_scat_dispersion_imag
+_atom_type_scat_source
+fe 11.76950 4.76110 7.35730 0.30720 3.52220 15.35350 2.30450 76.88050 1.03690
+26.37000 1.14000
+International_Tables_for_Crystallography_Vol.C(1991)_Tables_6.1.1.4_and_6.1.1.5
+o 3.04850 13.27710 2.28680 5.70110 1.54630 0.32390 0.86700 32.90890 0.25080
+8.01000 0.07940
+International_Tables_for_Crystallography_Vol.C(1991)_Tables_6.1.1.4_and_6.1.1.5
+c 2.31000 20.84390 1.02000 10.20750 1.58860 0.56870 0.86500 51.65120 0.21560
+6.00000 0.02120
+International_Tables_for_Crystallography_Vol.C(1991)_Tables_6.1.1.4_and_6.1.1.5
+loop_
+_cod_changelog_entry_id
+_cod_changelog_entry_author
+_cod_changelog_entry_date
+_cod_changelog_entry_text
+1 'Vaitkus, Antanas' 2022-09-15T17:35:00+03:00
+;
+ Added an explicit space group operation list and updated space group
+ information.
+;
