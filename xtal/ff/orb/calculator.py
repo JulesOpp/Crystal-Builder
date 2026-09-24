@@ -5,10 +5,22 @@ ORB-v3 as an energy engine -- a machine-learned potential, in process.
 
 ORB-v3 is Orbital Materials' universal potential, Apache-2.0 code and
 weights, and the reason it is here beside MACE is the benchmark the
-deep review read: on MOFSimBench the best universal potentials reach
-89 % volume accuracy on frameworks, where UFF4MOF reaches 62 %.  It is
-the second model on :class:`~xtal.ff.ase_engine.ASECalculator`, which
-is why this module is a loader, a list of choices and nothing else.
+deep review read: on MOFSimBench (arXiv 2507.11806) the best universal
+potentials reach 89 % volume accuracy on frameworks, where UFF4MOF
+reaches 62 %.  It is the second model on
+:class:`~xtal.ff.ase_engine.ASECalculator`, which is why this module is
+a loader, a list of choices and nothing else.
+
+**That figure is for ORB-v3 with a dispersion correction, and this
+engine has none.**  Every model MOFSimBench ranks was run with D3(BJ)
+-- "computed at inference time using the torch-dftd package with
+dispersion_xc=pbe, dispersion_cutoff=40 Bohr, damping=bj" -- and the
+model alone is a PBE energy surface.  Measured with this application's
+own optimiser, cell free, against the COD cells: MOF-74(Zn) +0.66 %
+in volume without D3 and -2.02 % with it; MOF-5 +2.80 % and +2.17 %.
+So D3 moves a relaxed framework's volume by one to three percent, not
+always towards experiment, and a volume from this engine is the bare
+model's, not the benchmark's.
 
 Four things are particular to it, and each was measured on orb-models
 0.7.0 rather than read.
@@ -275,9 +287,11 @@ ENGINES.register(Engine(
     name="orb",
     label="ORB-v3 (machine-learned)",
     description="Orbital Materials' universal potential.  Like MACE it "
-                "needs no parameters assigning; on the MOFSimBench "
-                "framework benchmark it is among the most accurate "
-                "for cell volumes.",
+                "needs no parameters assigning.  Run here without a "
+                "dispersion correction, so a relaxed framework's "
+                "volume differs by a percent or more from the "
+                "benchmark that ranks it among the most accurate, "
+                "which added D3.",
     build=build,
     order=31,
     provides=frozenset({"forces", "stress", "periodic"}),
