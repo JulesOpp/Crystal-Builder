@@ -345,3 +345,34 @@ def test_main_opens_the_sample_the_chooser_returned(qtbot, settings,
     assert document is not None
     assert document.path.is_relative_to(workspace.root)
     assert document.path.name == "MOF-5.cif"
+
+
+def test_ask_hands_back_what_the_dialog_chose(settings, tmp_path,
+                                              monkeypatch):
+    """``ask`` is the one call main.py makes, and it had never been
+    called: every test here drives the widget and stops short of it.
+    exec is patched per class rather than left to the conftest guard,
+    which would raise -- this is the dialog the suite never meets."""
+    Workspace.create(tmp_path / "ws")
+    settings.add_recent_workspace(tmp_path / "ws")
+    settings.last_workspace = str(tmp_path / "ws")
+
+    def accept(dialog):
+        dialog._accept()
+        return dialog.result()
+
+    monkeypatch.setattr(WorkspaceChooser, "exec", accept)
+
+    workspace, sample = WorkspaceChooser.ask(settings)
+
+    assert workspace is not None
+    assert workspace.root == tmp_path / "ws"
+    assert sample is None
+
+
+def test_quitting_the_chooser_is_no_workspace(settings, monkeypatch):
+    """None is how main.py knows not to open a window at all."""
+    monkeypatch.setattr(WorkspaceChooser, "exec",
+                        lambda dialog: QDialog.Rejected)
+
+    assert WorkspaceChooser.ask(settings) == (None, None)

@@ -873,6 +873,82 @@ def test_save_offers_the_project_inside_the_entry(opened):
         document.entry.project_path
 
 
+def _answer_save_as(monkeypatch, path):
+    """The file dialog, answered with ``path`` ("" is Cancel)."""
+    from PySide6.QtWidgets import QFileDialog
+    monkeypatch.setattr(QFileDialog, "getSaveFileName",
+                        staticmethod(lambda *a, **k: (str(path), "")))
+
+
+def test_save_as_on_an_opened_cif_writes_a_project_and_says_so(
+        opened, monkeypatch):
+    """A behaviour change for anybody used to Ctrl+S writing their
+    CIF, which is why it says so -- and the CIF they opened must be
+    byte for byte what it was."""
+    window, document = opened
+    cif = document.path
+    before = cif.read_bytes()
+    target = cif.with_suffix(".xtalproj")
+    _answer_save_as(monkeypatch, target)
+
+    window.save_document_as()
+
+    assert target.exists()
+    assert document.path == target
+    assert cif.read_bytes() == before
+    assert "has not been touched" in window.statusBar().currentMessage()
+    assert str(target) in window.settings.recent_files()
+
+
+def test_save_as_on_a_project_just_says_where(opened, monkeypatch):
+    window, document = opened
+    first = document.path.with_suffix(".xtalproj")
+    _answer_save_as(monkeypatch, first)
+    window.save_document_as()
+    second = first.with_name("again.xtalproj")
+    _answer_save_as(monkeypatch, second)
+
+    window.save_document_as()
+
+    assert second.exists()
+    message = window.statusBar().currentMessage()
+    assert "again.xtalproj" in message
+    assert "not been touched" not in message
+
+
+def test_cancelling_save_as_writes_nothing(opened, monkeypatch):
+    window, document = opened
+    path = document.path
+    _answer_save_as(monkeypatch, "")
+
+    window.save_document_as()
+
+    assert document.path == path
+    assert not list(path.parent.glob("*.xtalproj"))
+
+
+def test_a_save_as_that_fails_is_a_sentence_and_changes_nothing(
+        opened, monkeypatch, tmp_path):
+    """Somewhere the save cannot go.  The tab must still be over the
+    file it was over, or the next Ctrl+S aims at the place that just
+    failed."""
+    from PySide6.QtWidgets import QMessageBox
+
+    window, document = opened
+    path = document.path
+    blocked = tmp_path / "not-a-folder"
+    blocked.write_text("a file where a folder should be\n")
+    _answer_save_as(monkeypatch, blocked / "x.xtalproj")
+    said = []
+    monkeypatch.setattr(QMessageBox, "warning", staticmethod(
+        lambda parent, title, text: said.append((title, text))))
+
+    window.save_document_as()
+
+    assert said and said[0][0] == "Could not save"
+    assert document.path == path
+
+
 def test_export_does_not_become_the_documents_file(opened, tmp_path,
                                                     monkeypatch):
     from xtalapp.dialogs.export import ExportDialog
