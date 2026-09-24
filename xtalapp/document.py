@@ -1558,6 +1558,28 @@ class Document(QObject):
         return self.operate(
             interpenetrate_commands.Interpenetrate(placement))
 
+    def diagnose_preparation(self):
+        """What stands between this structure and a calculation.
+
+        Read-only: :class:`~xtal.core.prepare.Diagnosis`.
+        """
+        from xtal.core import prepare
+        return prepare.diagnose(self._structure)
+
+    def preview_preparation(self, steps):
+        """``(structure, report)`` the chosen steps would give, without
+        giving it -- the report's ``warnings`` are each step's
+        sentence, so the dialog can list them."""
+        from xtal.commands.prepare import Prepare
+        return Prepare(steps).preview(self._structure)
+
+    def prepare_for_simulation(self, steps):
+        """Run the chosen preparation steps as one undo step; returns
+        the report, ``ok=False`` with the reason when nothing was
+        done."""
+        from xtal.commands.prepare import Prepare
+        return self.operate(Prepare(steps))
+
     def make_supercell(self, na: int, nb: int, nc: int):
         return self.operate(cell_commands.Supercell(na, nb, nc))
 

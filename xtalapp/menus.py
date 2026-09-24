@@ -299,6 +299,13 @@ def build_actions(window):
             "every placement the lattice allows is measured, and one "
             "where atoms of two copies would meet cannot be chosen.  "
             "The copies keep their bonds, and the result is in P1")
+    add("prepare_simulation", "&Prepare for simulation...",
+        window.prepare_dialog,
+        tip="Make a deposited structure one a calculation can use: "
+            "order the disorder into whole atoms, remove solvent, "
+            "complete M3O trimers, add the missing hydrogens and take "
+            "the primitive cell -- each step saying what it chose "
+            "before anything is done, and one undo step for the lot")
     add("insert_molecule", "&Insert molecule...",
         window.insert_molecule_dialog, tip=INSERT_MOLECULE_TIP)
     add("save_building_block", "Save as a &building block...",
@@ -577,7 +584,7 @@ def build_menus(window):
     window.actions_.fill_menu(structure_menu, [
         "add_atom_dialog", "add_centroid", "merge_atoms",
         "add_hydrogens", "insert_molecule", "fill_pores",
-        "interpenetrate",
+        "interpenetrate", "prepare_simulation",
         "mark_connection_points", "mark_one_connection_point", None,
         "bond_rules", "recompute_bonds", "reset_bonds",
         "bonds_follow"])

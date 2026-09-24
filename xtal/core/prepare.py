@@ -21,8 +21,9 @@ average are not true of any one cell:
   group is F-centred: MIL-101 is 16 000 atoms, and 4 000 in primitive.
 
 Each is a separate function here returning ``(structure, message)``
-and never mutating its argument, so the dialog can show what each would
-do before it is done and each lands as its own undo step.  None of them
+and never mutating its argument -- the argument itself when there was
+nothing to do -- so the dialog can show what each would do before it
+is done.  None of them
 is a guess dressed up as a fact: every message says what was chosen.
 
 **How disorder is ordered.**  Partial atoms are grouped into *units* --
@@ -193,6 +194,8 @@ def to_hydrogen(structure: Structure) -> tuple[Structure, str]:
     same); this is for the structure itself.  The mass is what changes,
     and it matters only to vibration.
     """
+    if not any(site.element == "D" for site in structure.sites):
+        return structure, "no deuterium"
     out = structure.copy()
     n = 0
     for site in out.sites:
@@ -200,8 +203,7 @@ def to_hydrogen(structure: Structure) -> tuple[Structure, str]:
             site.element = "H"
             n += 1
     out.touch()
-    return out, (f"{n} deuterium site(s) written as hydrogen" if n
-                 else "no deuterium")
+    return out, f"{n} deuterium site(s) written as hydrogen"
 
 
 #: A centred lattice's primitive vectors, as rows in the conventional
@@ -1007,15 +1009,23 @@ def _add_hydrogens(structure):
     """Hydrogens, in three passes: the arene rings and the Zr6 cores
     by rule -- see their functions for why rules and not valences --
     then the planner for everything else."""
+    from xtal.core import symmetry
     from xtal.core.site import Site
     from xtal.ff import hydrogens
 
-    out = structure.copy()
+    found = {kind: finder(structure)
+             for kind, finder in (("ring", _arene_hydrogens),
+                                  ("hydroxide", _hydroxide_hydrogens))}
+    if any(found.values()) and structure.space_group.number != 1:
+        # The rules place hydrogens on every atom of the P1 cell, and
+        # appended as sites of a group each would be multiplied by it.
+        # Cartesian positions, so they hold in the expanded cell.
+        out = symmetry.reduce_to_p1(structure)
+    else:
+        out = structure.copy()
     inverse = np.linalg.inv(out.lattice.matrix)
     by_rule = []
-    for kind, finder in (("ring", _arene_hydrogens),
-                         ("hydroxide", _hydroxide_hydrogens)):
-        positions = finder(out)
+    for kind, positions in found.items():
         for cart in positions:
             out.sites.append(Site("H", np.mod(cart @ inverse, 1.0),
                                   label=f"H{kind}{len(out.sites)}"))
@@ -1037,7 +1047,9 @@ def _add_hydrogens(structure):
             f"{len(planar)} the valence rules asked for were not added: "
             f"each was on a carboxylate or a planar three-coordinate "
             f"carbon, sp2 and full -- the refinement bent its angles")
-    return out, "; ".join(by_rule) or "no hydrogens to add"
+    if not by_rule:
+        return structure, "no hydrogens to add"
+    return out, "; ".join(by_rule)
 
 
 #: Angles around a three-coordinate atom summing above this are a

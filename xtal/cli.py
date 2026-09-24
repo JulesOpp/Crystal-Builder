@@ -160,6 +160,34 @@ def cmd_convert(args) -> int:
     return 0
 
 
+def cmd_prepare(args) -> int:
+    from xtal.core import prepare
+
+    output = Path(args.output)
+    if output.exists() and output.resolve() == Path(args.input).resolve():
+        raise ValueError(f"{args.output} is the input; prepare writes "
+                         f"a new file, so give it another name")
+    steps = [s.strip() for s in args.steps.split(",")] if args.steps \
+        else list(prepare.STEPS)
+    unknown = sorted(set(steps) - set(prepare.STEPS))
+    if unknown:
+        raise ValueError(f"no preparation step called "
+                         f"{', '.join(unknown)}; the steps are "
+                         f"{', '.join(prepare.STEPS)}")
+    structure = _load(args.input)
+    print(prepare.diagnose(structure).text())
+    out, said = prepare.prepare(structure, steps)
+    print()
+    for step, message in zip(
+            [s for s in prepare.STEPS if s in steps], said, strict=True):
+        print(f"{step:<10s} {message}")
+    FORMATS.write(out, args.output)
+    info = properties.info(out)
+    print(f"\nwrote {args.output}: {info.formula}, "
+          f"{info.n_atoms} atoms, {out.space_group.short_name}")
+    return 0
+
+
 def cmd_bonds(args) -> int:
     from xtal.core import p1
     structure = _load(args.file)
@@ -566,6 +594,18 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--wrap", action="store_true",
                    help="fold every atom into the cell")
     p.set_defaults(func=cmd_convert)
+
+    p = sub.add_parser(
+        "prepare", help="order disorder, drop solvent, complete trimers "
+                        "and hydrogens: a deposited CIF made ready "
+                        "for a calculation")
+    p.add_argument("input")
+    p.add_argument("output")
+    p.add_argument("--steps",
+                   help="comma-separated, from "
+                        "deuterium,primitive,disorder,solvent,cap,"
+                        "hydrogens (default: all, in that order)")
+    p.set_defaults(func=cmd_prepare)
 
     p = sub.add_parser("bonds", help="bonds, coordination, fragments")
     p.add_argument("file")

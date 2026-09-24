@@ -306,3 +306,79 @@ def test_a_prepared_framework_has_nothing_left_to_prepare():
 def test_an_unknown_step_is_named():
     with pytest.raises(ValueError, match="no preparation step"):
         prepare.prepare(_box(), steps=("tidy",))
+
+
+def test_ring_hydrogens_on_a_structure_with_symmetry_are_not_multiplied():
+    """The rules place a hydrogen on every ring carbon of the P1 cell.
+    Appended to a structure that still had its group, each would be
+    expanded by it -- 192 operations in MOF-5's Fm-3m."""
+    mof5 = _read("MOF-5")
+    stripped = mof5.copy()
+    stripped.sites = [s for s in stripped.sites if s.element != "H"]
+    stripped.touch()
+    out, _ = prepare.prepare(stripped, steps=("hydrogens",))
+    assert _counts(out)["H"] == _counts(mof5)["H"] == 96
+    assert _clashes(out) == 0
+
+
+def test_a_step_with_nothing_to_do_hands_back_its_argument(quartz):
+    for step, operation in prepare.OPERATIONS.items():
+        assert operation(quartz)[0] is quartz, step
+
+
+# ======================================================================
+#  THE COMMAND
+# ======================================================================
+
+def test_the_command_reports_every_step_it_ran():
+    from xtal.commands.prepare import Prepare
+
+    out, report = Prepare(prepare.STEPS).preview(_read("MIL-88B"))
+    assert report.ok
+    assert report.n_after == p1.expand(out).n_atoms == 120
+    assert len(report.warnings) == len(prepare.STEPS)
+    assert "2 OH and 4 water" in report.warnings[4]
+
+
+def test_nothing_to_prepare_is_not_an_edit(quartz):
+    """An ok report would push an entry Ctrl+Z then undoes nothing."""
+    from xtal.commands.prepare import Prepare
+
+    out, report = Prepare().preview(quartz)
+    assert out is quartz and not report.ok
+    assert report.message == "nothing to prepare"
+
+
+def test_bonds_drawn_by_hand_are_refused_rather_than_lost(rutile):
+    """Ordering renumbers and drops sites; a bond the user drew cannot
+    be carried through it, and losing one quietly is the thing the
+    bonding invariants exist to prevent."""
+    from xtal.commands.prepare import Prepare
+    from xtal.core.structure import Bond
+
+    structure = rutile.copy()
+    structure.add_bond(Bond(0, 1, kind="explicit"))
+    out, report = Prepare().preview(structure)
+    assert out is structure and not report.ok
+    assert "Reset bonds to automatic" in report.message
+
+
+def test_xtal_prepare_writes_the_prepared_cell(tmp_path, capsys):
+    from xtal.cli import main
+    from xtal.io import FORMATS
+
+    out = tmp_path / "mil88b.cif"
+    assert main(["prepare", str(COD / "MIL-88B.cif"), str(out)]) == 0
+    printed = capsys.readouterr().out
+    assert "partially occupied" in printed
+    assert "C24H17Cr3O16" in printed
+    assert p1.expand(FORMATS.read(out)).n_atoms == 120
+
+
+def test_xtal_prepare_names_an_unknown_step_before_reading(tmp_path,
+                                                           capsys):
+    from xtal.cli import main
+
+    assert main(["prepare", "nowhere.cif", str(tmp_path / "x.cif"),
+                 "--steps", "tidy"]) != 0
+    assert "no preparation step called tidy" in capsys.readouterr().err
