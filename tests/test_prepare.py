@@ -139,14 +139,12 @@ def test_every_disordered_cod_framework_orders_without_a_clash(name):
     assert _clashes(out) == 0
 
 
-@pytest.mark.parametrize("name", ["Al-soc-MOF-1", "PCN-222", "ZIF-8",
-                                  "MIL-88B"])
+@pytest.mark.parametrize("name", ["PCN-222", "ZIF-8", "MIL-88B"])
 def test_the_ordered_cell_has_the_formula_the_refinement_declared(name):
-    """The independent check.  These four come out exactly: the
-    ordering chose among alternatives without changing what the cell
-    holds -- Al-soc-MOF-1 keeping its chloride at 1/3 per Al among
-    them.  (MIL-88B's CIF formula has no hydrogens, and neither does
-    the ordered cell.)"""
+    """The independent check.  These come out exactly: the ordering
+    chose among alternatives without changing what the cell holds.
+    (MIL-88B's CIF formula has no hydrogens, and neither does the
+    ordered cell.)"""
     structure = _read(name)
     out, said = prepare.order_disorder(structure)
     assert "differs from the CIF" not in said
@@ -510,3 +508,34 @@ def test_xtal_prepare_names_an_unknown_step_before_reading(tmp_path,
     assert main(["prepare", "nowhere.cif", str(tmp_path / "x.cif"),
                  "--steps", "tidy"]) != 0
     assert "no preparation step called tidy" in capsys.readouterr().err
+
+
+def test_two_orientations_written_at_full_occupancy_are_ordered():
+    """Al-soc-MOF-1's CIF gives both tilts of the terphenyl's central
+    ring occupancy 1, and its formula counts both: C75 per Al3, where
+    [Al3O(TCPT)1.5(H2O)3]Cl is C69H45.  The ordered cell keeps one
+    tilt per ring, keeps its chloride, and says it differs from the
+    CIF rather than agreeing with its mistake."""
+    structure = _read("Al-soc-MOF-1")
+    assert "overlap as two orientations" in \
+        prepare.diagnose(structure).text()
+    out, said = prepare.prepare(structure)
+    assert "two overlapping orientations" in said[2]
+    counts = _counts(out)
+    trimers = counts["Al"] // 3
+    assert {e: n // trimers for e, n in counts.items()} == \
+        {"Al": 3, "C": 69, "Cl": 1, "H": 45, "O": 16}
+    graph = bonding.graph(out)
+    cell = p1.expand(out)
+    assert max(len([k for k in graph.neighbors(a)
+                    if cell.elements[k] != "H"])
+               for a in range(cell.n_atoms)
+               if cell.elements[a] == "C") == 3
+
+
+def test_a_ring_carbon_takes_no_hydrogen_whatever_its_angles():
+    """The ipso carbon of an ordered ring sits at the average of the two
+    tilts and looks pyramidal; typed by its angles it got an sp3
+    hydrogen, 24 of them in Al-soc-MOF-1."""
+    _out, said = prepare.prepare(_read("Al-soc-MOF-1"))
+    assert "more by valence" not in said[-1]

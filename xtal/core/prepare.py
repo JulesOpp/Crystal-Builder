@@ -145,6 +145,13 @@ def diagnose(structure: Structure) -> Diagnosis:
     """What :func:`prepare` would change, and why, without changing it."""
     found = Diagnosis()
     partial = [s for s in structure.sites if s.occupancy < FULL]
+    _pairs, overlapping = _overlaps(structure)
+    if overlapping:
+        found.findings.append(Finding(
+            "disorder",
+            f"{len(overlapping)} atoms written at full occupancy overlap "
+            f"as two orientations of one group (three-membered rings of "
+            f"bonds no linker has): an engine would count both"))
     if partial:
         occupancies = sorted({round(s.occupancy, 3) for s in partial})
         shown = ", ".join(f"{o:g}" for o in occupancies[:5])
@@ -306,13 +313,15 @@ def order_disorder(structure: Structure) -> tuple[Structure, str]:
     group survives.
     """
     sites = structure.sites
-    if all(s.occupancy >= FULL for s in sites):
+    overlap_pairs, overlapping = _overlaps(structure)
+    if all(s.occupancy >= FULL for s in sites) and not overlapping:
         return structure, "nothing is disordered"
     cell = p1.expand(structure)
     lattice = structure.lattice
     n = cell.n_atoms
     occupancy = np.array([sites[int(k)].occupancy
                           for k in cell.site_idx])
+    occupancy[sorted(overlapping)] = 0.5
     group = [str(sites[int(k)].props.get("disorder_group", "")).strip()
              for k in cell.site_idx]
     partial = occupancy < FULL
@@ -328,7 +337,7 @@ def order_disorder(structure: Structure) -> tuple[Structure, str]:
         if i == j:
             continue                 # an atom and its own next-cell copy
         a, b = elements[i], elements[j]
-        if _clash(a, b, d):
+        if _clash(a, b, d) or (min(i, j), max(i, j)) in overlap_pairs:
             if partial[i] and partial[j]:
                 clashes.append((i, j))
             elif partial[i]:
@@ -420,6 +429,10 @@ def order_disorder(structure: Structure) -> tuple[Structure, str]:
     message = (f"ordered {int(partial.sum())} partial atoms: kept "
                f"{len(kept_atoms)}, removed {len(drop)}"
                f"{' (' + removed + ')' if removed else ''}")
+    if overlapping:
+        message += (f"; {len(overlapping)} atoms the CIF writes at full "
+                    f"occupancy are two overlapping orientations, and "
+                    f"were ordered as alternatives at 1/2")
     if orphans:
         message += (f"; {len(orphans)} hydrogen(s) left out with the "
                     f"atom they ride on")
@@ -432,6 +445,49 @@ def order_disorder(structure: Structure) -> tuple[Structure, str]:
     if out.space_group.number == 1 and structure.space_group.number != 1:
         message += "; the result is in P1"
     return out, message
+
+
+def _overlaps(structure) -> tuple[set, set]:
+    """Full-occupancy atoms that are really two orientations of one
+    group: ``(pairs, atoms)`` over the P1 cell, the atoms including the
+    hydrogens that ride on them.
+
+    Al-soc-MOF-1's CIF gives the central ring of its terphenyl in two
+    tilted orientations and both at occupancy 1: the ipso carbon has
+    five carbon neighbours, and it and one carbon of each orientation
+    make a three-membered ring of 1.32 A bonds.  No linker has one, so
+    such a triangle is read as what it is -- the two atoms joined to
+    the better-connected third are alternatives, each at 1/2 -- and
+    ordered like any other disorder.  The CIF's formula counts both,
+    which is why it and the file agreed.
+    """
+    cell = p1.expand(structure)
+    graph = bonding.graph(structure)
+    elements = cell.elements
+    full = [structure.sites[int(k)].occupancy >= FULL
+            for k in cell.site_idx]
+    backbone = {"C", "N", "O"}
+
+    def heavy(a):
+        return [j for j in graph.neighbors(a) if elements[j] != "H"]
+
+    pairs, atoms = set(), set()
+    for a in range(cell.n_atoms):
+        if elements[a] not in backbone or not full[a]:
+            continue
+        around = [j for j in heavy(a)
+                  if elements[j] in backbone and full[j]]
+        for k, x in enumerate(around):
+            for y in around[k + 1:]:
+                if y not in graph.neighbors(x):
+                    continue
+                if len(heavy(a)) <= max(len(heavy(x)), len(heavy(y))):
+                    continue          # not the shared, crowded atom
+                pairs.add((min(x, y), max(x, y)))
+                atoms.update((x, y))
+    riders = {h for a in atoms for h in graph.neighbors(a)
+              if elements[h] == "H" and len(graph.neighbors(h)) == 1}
+    return pairs, atoms | riders
 
 
 def _shared_oxygens(bonds, elements) -> dict:
@@ -1410,10 +1466,15 @@ def _carboxylate(cell, graph, carbon, around) -> bool:
 
 def _on_planar_carbon(structure, planned) -> list:
     """Which of ``planned`` sit on a carbon that already has three
-    neighbours in a plane."""
+    neighbours in a plane -- or three and a place in a benzene ring,
+    whatever its angles: Al-soc-MOF-1's terphenyl ipso carbons, left
+    at the average of two ring orientations once one is ordered away,
+    look pyramidal, and the planner gave each an sp3 hydrogen."""
     cell = p1.expand(structure)
     graph = bonding.graph(structure)
     matrix = structure.lattice.matrix
+    in_ring = {a for ring in _six_rings(graph, cell.elements, cell.frac)
+               for a, _f in ring}
     out = []
     for k, site in enumerate(planned):
         delta = cell.frac - site.frac
@@ -1427,7 +1488,8 @@ def _on_planar_carbon(structure, planned) -> list:
                 for j, t in around]
         if len(arms) != 3:
             continue
-        if _carboxylate(cell, graph, parent, around):
+        if parent in in_ring or _carboxylate(cell, graph, parent,
+                                              around):
             out.append(k)
             continue
         units = [a / np.linalg.norm(a) for a in arms]
