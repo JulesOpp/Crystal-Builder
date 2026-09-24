@@ -268,6 +268,58 @@ def test_a_name_that_would_not_survive_a_filesystem(workspace):
     assert entry.path.is_dir()
 
 
+def test_an_accented_name_keeps_its_letters():
+    """The accent goes and the letter stays.  Deleting the whole
+    character made "quartz café" an entry called quartz_caf, and café
+    and cafè the same folder."""
+    assert safe_name("quartz café") == "quartz_cafe"
+    assert safe_name("Ångström") == "Angstrom"
+    assert safe_name("Straße") == "Strasse"
+
+
+def test_a_greek_letter_is_spelled_out():
+    """α-quartz, β-cristobalite and γ-Fe are how phases are named, and
+    the letter is the part that says which one."""
+    assert safe_name("α-quartz") == "alpha-quartz"
+    assert safe_name("β-cristobalite") == "beta-cristobalite"
+    assert safe_name("Δ") == "Delta"
+
+
+def test_a_name_with_nothing_latin_in_it_still_gets_a_folder():
+    assert safe_name("結晶") == "structure"
+
+
+def test_a_file_filed_under_the_old_spelling_is_still_found(workspace,
+                                                            tmp_path):
+    """A workspace made before accents were kept holds "café.cif" in a
+    folder called caf.  Opening the same file again has to find that
+    entry by its bytes, not file a second copy under cafe."""
+    source = tmp_path / "café.cif"
+    source.write_text("data_x\n")
+    old = workspace.root / "caf"
+    old.mkdir()
+    (old / source.name).write_bytes(source.read_bytes())
+
+    assert workspace.add_structure(source).path == old
+    assert not (workspace.root / "cafe").exists()
+
+
+def test_the_old_spelling_is_searched_past_a_folder_it_shares(
+        workspace, tmp_path):
+    """café and cafè were both caf; whichever came second is in caf-2,
+    and caf holding the other one is not a reason to stop looking."""
+    other = tmp_path / "cafè.cif"
+    other.write_text("data_other\n")
+    source = tmp_path / "café.cif"
+    source.write_text("data_x\n")
+    for folder, file in (("caf", other), ("caf-2", source)):
+        (workspace.root / folder).mkdir()
+        (workspace.root / folder / file.name).write_bytes(
+            file.read_bytes())
+
+    assert workspace.add_structure(source).path == workspace.root / "caf-2"
+
+
 # ------------------------------------------------------- the runs
 
 def test_a_run_folder_is_named_by_what_made_it(entry):
