@@ -43,6 +43,7 @@ after resetting the default.
 
 from __future__ import annotations
 
+import functools
 import importlib.util
 import warnings
 from dataclasses import dataclass
@@ -198,13 +199,38 @@ def _build_model(options: ORBOptions):
             warnings.simplefilter("ignore", UserWarning)
             model, adapter = loader(device=device, precision=precision,
                                     compile=False)
-        return _Model(model, adapter, device=device)
+        return _pin_dtype(_Model(model, adapter, device=device))
     except Exception as exc:                        # noqa: BLE001
         raise CalculatorError(
             f"the ORB model could not be loaded ({options.model}): "
             f"{exc}") from None
     finally:
         torch.set_default_dtype(default)
+
+
+def _pin_dtype(model):
+    """Build every input graph in the model's own precision.
+
+    orb-models builds a graph -- positions, edge vectors, the strain
+    the stress is taken through -- in torch's *global* default dtype
+    unless it is told one, and its ASE calculator never tells it.  The
+    global is put back after loading (above), because every other
+    engine in the process reads it; so a float64 model was handed
+    float32 geometry, and along the force on MOF-74 the energy's slope
+    disagreed with the force by 2e-3 at a 1e-4 A step, against 6e-9
+    with float64 geometry.  That is the error double precision was
+    chosen to remove, and it came and went with which engine had
+    loaded first, because MACE leaves the global at float64.
+
+    Given here, once, from the weights.  An orb-models that stops
+    taking these keywords fails loudly at the first evaluation rather
+    than going back to float32 in silence.
+    """
+    dtype = next(model.model.parameters()).dtype
+    model.adapter.from_ase_atoms = functools.partial(
+        model.adapter.from_ase_atoms, output_dtype=dtype,
+        graph_construction_dtype=dtype)
+    return model
 
 
 def forget_models() -> None:
