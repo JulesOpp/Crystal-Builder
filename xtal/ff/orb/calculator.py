@@ -30,9 +30,9 @@ MACE-MPA-0 at the same precision (3.32 and 7.06 s).
 **No Apple GPU.**  orb-models builds its model and then calls
 ``.cuda(device)`` for any device that is not the CPU, so ``mps``
 fails at load with "Invalid device, must be cuda device".  'auto'
-here means CUDA if there is one and the CPU otherwise -- not
-:func:`~xtal.ff.ase_engine.torch_device`, which would pick mps on a
-Mac and fail.
+here means CUDA if there is one and the CPU otherwise --
+:func:`~xtal.ff.ase_engine.torch_device` with ``allow_mps=False``,
+because left to itself it would pick mps on a Mac and fail.
 
 **Loading one changes torch's default dtype for the whole process**,
 and warns that it has.  That is a global another engine in the same
@@ -49,7 +49,12 @@ from dataclasses import dataclass
 
 from xtal import install
 from xtal.ff.api import CalculatorError
-from xtal.ff.ase_engine import KCAL_PER_EV, ASECalculator, ModelCache
+from xtal.ff.ase_engine import (
+    KCAL_PER_EV,
+    ASECalculator,
+    ModelCache,
+    torch_device,
+)
 from xtal.ff.registry import ENGINES, Engine
 from xtal.params import Availability, Param
 
@@ -149,11 +154,7 @@ _MODELS = ModelCache()
 
 def _torch_device(wanted: str) -> str:
     """CUDA if asked for or there, otherwise the CPU -- never mps."""
-    if wanted and wanted != "auto":
-        return wanted
-    import torch
-
-    return "cuda" if torch.cuda.is_available() else "cpu"
+    return torch_device(wanted, allow_mps=False)
 
 
 #: A module global, as MACE's is, so the tests answer "cpu" without

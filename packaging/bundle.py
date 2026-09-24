@@ -230,6 +230,7 @@ EXCLUDES = [
     # included in this build" on Preferences > Engines.
     "mace",
     "orb_models",
+    "mattersim",
     "torch",
     # `matplotlib` is NOT excluded any more, and its absence from
     # this list is the point.  It used to be, because the plots this

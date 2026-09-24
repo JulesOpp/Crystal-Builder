@@ -64,6 +64,7 @@ from xtal import build as build_extra
 from xtal import install
 from xtal import mof as mof_extra
 from xtal.ff import mace as mace_extra
+from xtal.ff import mattersim as mattersim_extra
 from xtal.ff import orb as orb_extra
 from xtalapp import applog
 from xtalapp.dialogs import pattern, sketch
@@ -134,6 +135,7 @@ _CHECKS = {
     "matplotlib": lambda: pattern.installed(),
     "mace": lambda: mace_extra.installed(),
     "orb_models": lambda: orb_extra.installed(),
+    "mattersim": lambda: mattersim_extra.installed(),
 }
 
 
@@ -174,6 +176,15 @@ EXTRAS = (
                " If the install stops while building dm-tree, run it "
                "again with CMAKE_POLICY_VERSION_MINIMUM=3.5 set in the "
                "environment."),
+    Extra("MatterSim engine", "mattersim", "mattersim",
+          "The MatterSim machine-learned potentials in the Force "
+          "Field panel.  Brings PyTorch, which is gigabytes.", False,
+          module="mattersim.forcefield", timeout=60.0,
+          note="mattersim asks for e3nn 0.5 or newer and MACE for "
+               "exactly 0.4.4, so pip will not install both.  "
+               "MatterSim runs on 0.4.4: to have both, install MACE "
+               "first, then run pip install --no-deps mattersim "
+               "torch_runstats loguru deprecated with this Python."),
 )
 
 #: What the folder below is for, in the words the page uses.

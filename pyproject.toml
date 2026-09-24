@@ -112,6 +112,11 @@ mace = ["mace-torch>=0.3.14", "ase>=3.22"]
 # 3.13 and does not build under CMake 4 unless the environment sets
 # CMAKE_POLICY_VERSION_MINIMUM=3.5; Preferences > Engines says so.
 orb = ["orb-models>=0.7", "ase>=3.25"]
+# MatterSim, the third, on its own line for the same reason.  It
+# declares e3nn>=0.5 where mace-torch pins 0.4.4, so pip will not put
+# `mace` and `mattersim` in one environment; its inference runs on
+# 0.4.4, and Preferences > Engines says how to have both.
+mattersim = ["mattersim>=1.2.5", "ase>=3.23"]
 # pytest-qt belongs here and not in [dev]: without it every widget
 # test skips itself, and CI installs [gui,test] -- so the GUI half of
 # the suite was passing by not running.
@@ -133,7 +138,8 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
             # calculator at import, so a wheel missing one of these
             # cannot import `xtal.ff` at all.
             "xtal.ff.uff", "xtal.ff.dftb", "xtal.ff.xtb",
-            "xtal.ff.mace", "xtal.ff.orb", "xtal.ff.charges",
+            "xtal.ff.mace", "xtal.ff.orb", "xtal.ff.mattersim",
+            "xtal.ff.charges",
             "xtal.modules", "xtal.modules.dftb_runs", "xtal.analysis",
             "xtal.mof", "xtal.mof.pormake", "xtal.mof.library",
             "xtal.build", "xtal.build.data",

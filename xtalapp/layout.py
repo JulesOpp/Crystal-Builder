@@ -123,7 +123,7 @@ def build_docks(window):
     window.ff_dock = ForceFieldDock(window, title="Force Field",
                                     object_name="ForceFieldDock",
                                     engines=["uff", "xtb", "mace",
-                                             "orb"])
+                                             "orb", "mattersim"])
     window.dftb_dock = ForceFieldDock(window, title="DFTB+",
                                       object_name="DFTBDock",
                                       engines=["dftb"])
