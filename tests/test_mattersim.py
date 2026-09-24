@@ -195,6 +195,39 @@ def test_a_load_that_fails_is_a_sentence_naming_the_package(
         mattersim._build_model(mattersim.MatterSimOptions())
 
 
+def test_double_precision_asks_for_the_graph_built_in_double(
+        monkeypatch):
+    """MatterSim's default graph path builds positions and the cell
+    with torch.FloatTensor and only then upcasts them to the model's
+    float64 -- and an upcast cannot put back the digits the float32
+    dropped.  A 20 A coordinate is then good to about 2e-6 A, and along
+    the force on MOF-74 the energy's slope disagreed with the force by
+    3e-3 at a 1e-4 A step (1e-2 at 1e-5), against 6e-9 once the graph
+    is built in float64 -- which its ``direct_graph`` path does."""
+    import types
+
+    made = []
+
+    class Model:
+        def __init__(self, **kwargs):
+            made.append(kwargs)
+
+    forcefield = types.ModuleType("mattersim.forcefield")
+    forcefield.MatterSimCalculator = Model
+    monkeypatch.setitem(sys.modules, "mattersim",
+                        types.ModuleType("mattersim"))
+    monkeypatch.setitem(sys.modules, "mattersim.forcefield", forcefield)
+    monkeypatch.setattr(mattersim, "_device", lambda wanted: "cpu")
+
+    mattersim._build_model(mattersim.MatterSimOptions())
+    mattersim._build_model(
+        mattersim.MatterSimOptions(double_precision=False))
+
+    assert made[0]["dtype"] == "float64" and made[0]["direct_graph"]
+    assert made[1]["dtype"] == "float32"
+    assert not made[1].get("direct_graph", False)
+
+
 # ------------------------------------------------------- the real model
 
 @needs_mattersim
@@ -203,29 +236,50 @@ def test_the_real_model_s_stress_agrees_with_a_numeric_one():
     """A stress that is quietly wrong relaxes a cell to the wrong
     volume.  MatterSim hands its stress through a ``stress_weight`` of
     its own, which is exactly where a unit could slip.  In the same
-    run: torch's default dtype is where it was."""
+    run: torch's default dtype is where it was, and double precision
+    is double precision, measured on the energy's slope against the
+    force.
+
+    Sheared quartz, not a molecule in a box: one water in 30 A has a
+    stress smaller than the tolerance, so a sign or a factor of two
+    passed.  A dense, strained crystal has one to get wrong."""
     answer = in_a_fresh_interpreter(
         "import json\n"
         "import numpy as np\n"
         "import torch\n"
-        "from tests.conftest_ff import water\n"
+        "from xtal import Lattice, Structure\n"
         "from xtal.core import p1\n"
         "from xtal.ff.mattersim import calculator as mattersim\n"
+        "quartz = Structure.from_arrays(\n"
+        "    Lattice.from_parameters(4.9134, 4.9134, 5.4052, 90, 90, 120),\n"
+        "    ['Si', 'O'], [[0.4697, 0.0, 2 / 3],\n"
+        "                  [0.4135, 0.2669, 0.7857]], space_group='P3221')\n"
+        "cell = p1.expand(quartz)\n"
+        "shear = np.eye(3) + np.array([[0.02, 0.03, 0], [0, -0.01, 0],\n"
+        "                              [0, 0, 0.015]])\n"
+        "matrix = np.asarray(quartz.lattice.matrix) @ shear\n"
+        "cart = cell.frac @ matrix\n"
         "before = str(torch.get_default_dtype())\n"
-        "structure = water()\n"
-        "engine = mattersim.MatterSimCalculator(structure,\n"
+        "engine = mattersim.MatterSimCalculator(quartz,\n"
         "    mattersim.MatterSimOptions(device='cpu'))\n"
         "after = str(torch.get_default_dtype())\n"
-        "cell = p1.expand(structure)\n"
-        "matrix = np.asarray(structure.lattice.matrix, dtype=float)\n"
-        "claimed = engine.compute(cell.cart, matrix).stress\n"
-        "numeric = engine.numeric_stress(cell.cart, matrix, strain=1e-4)\n"
-        "print(json.dumps({'claimed': np.asarray(claimed).tolist(),\n"
+        "result = engine.compute(cart, matrix)\n"
+        "numeric = engine.numeric_stress(cart, matrix, strain=1e-4)\n"
+        "f = result.forces / np.linalg.norm(result.forces)\n"
+        "h = 1e-4\n"
+        "slope = -(engine.compute(cart + h * f, matrix).energy\n"
+        "          - engine.compute(cart - h * f, matrix).energy) / (2 * h)\n"
+        "print(json.dumps({'claimed': np.asarray(result.stress).tolist(),\n"
         "                  'numeric': np.asarray(numeric).tolist(),\n"
+        "                  'slope': slope,\n"
+        "                  'along': float(np.sum(result.forces * f)),\n"
         "                  'before': before, 'after': after}))\n")
-    assert np.asarray(answer["claimed"]) == pytest.approx(
-        np.asarray(answer["numeric"]), abs=2e-3)
+    claimed = np.asarray(answer["claimed"])
+    assert np.abs(claimed).max() > 0.05          # there is a stress
+    assert claimed == pytest.approx(np.asarray(answer["numeric"]),
+                                    abs=2e-3)
     assert answer["after"] == answer["before"]
+    assert answer["slope"] == pytest.approx(answer["along"], rel=1e-6)
 
 
 @needs_mattersim

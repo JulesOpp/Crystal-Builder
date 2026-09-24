@@ -204,10 +204,19 @@ def _build_model(options: MatterSimOptions):
         raise CalculatorError(
             f"MatterSim is not installed -- {install_command()} "
             f"({exc})") from None
-    dtype = "float64" if options.double_precision else "float32"
+    # Double precision needs the graph built in it.  MatterSim's default
+    # path makes positions and the cell with torch.FloatTensor and only
+    # then upcasts them to the model's dtype, which cannot put back the
+    # digits float32 dropped: a 20 A coordinate is good to about 2e-6 A,
+    # and along the force on MOF-74 the energy's slope disagreed with
+    # the force by 3e-3 at a 1e-4 A step, against 6e-9 through
+    # ``direct_graph``, which builds them in the model's dtype.  Same
+    # energies otherwise: 8e-7 eV apart, the float32 truncation.
+    kwargs = {"dtype": "float32"}
+    if options.double_precision:
+        kwargs = {"dtype": "float64", "direct_graph": True}
     try:
-        return _Model(load_path=options.model, device=device,
-                      dtype=dtype)
+        return _Model(load_path=options.model, device=device, **kwargs)
     except Exception as exc:                        # noqa: BLE001
         raise CalculatorError(
             f"the MatterSim model could not be loaded "
