@@ -510,8 +510,8 @@ against finite differences):
 * Torsion + inversion (sp² centres), with UFF's rules for the barrier.
 * van der Waals: LJ 12-6, geometric combining rules, cutoff + neighbour
   list, optional tail correction.
-* Coulomb: off by default; charges from the CIF, user-entered, or **QEq**
-  charge equilibration; Ewald summation under PBC.
+* Coulomb: off by default; charges from the CIF, user-entered, or
+  **QEq** / **EQeq** charge equilibration; Ewald summation under PBC.
 
 **Optimisation** — FIRE (robust, cheap) and L-BFGS; constraints: freeze
 selected atoms, freeze cell, **preserve space group** (project forces

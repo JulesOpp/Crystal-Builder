@@ -113,15 +113,17 @@ def build_docks(window):
     window.measure_dock.targetChanged.connect(window._on_measure_target)
     window.measure_dock.statusMessage.connect(window.show_status)
 
-    # MACE is listed with the force fields rather than given a dock
-    # of its own: what earns DFTB+ a separate one is the parameter
-    # directory it cannot run without, and an MLIP has no such thing.
+    # The ML engines are listed with the force fields rather than given
+    # docks of their own: what earns DFTB+ a separate one is the
+    # parameter directory it cannot run without, and an MLIP has no
+    # such thing.
     # This list is hand-written, so an engine registered and left out
     # of it is one nobody can choose -- see the test in
     # tests/test_ff_ui.py that holds the two lists together.
     window.ff_dock = ForceFieldDock(window, title="Force Field",
                                     object_name="ForceFieldDock",
-                                    engines=["uff", "xtb", "mace"])
+                                    engines=["uff", "xtb", "mace",
+                                             "orb", "mattersim"])
     window.dftb_dock = ForceFieldDock(window, title="DFTB+",
                                       object_name="DFTBDock",
                                       engines=["dftb"])
@@ -129,6 +131,8 @@ def build_docks(window):
         # Connected to a method, not to the label: the docks are
         # built before the status bar exists.
         dock.statusMessage.connect(window.show_status)
+        dock.setupRequested.connect(
+            lambda: window.show_preferences("Engines"))
         dock.previewIntervalChanged.connect(
             window.set_preview_interval)
         dock.set_preview_interval(window.settings.preview_interval)

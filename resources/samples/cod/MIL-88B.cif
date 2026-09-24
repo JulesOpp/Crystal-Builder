@@ -1,0 +1,93 @@
+#------------------------------------------------------------------------------
+#$Date: 2018-06-08 05:24:58 +0300 (Fri, 08 Jun 2018) $
+#$Revision: 208201 $
+#$URL: file:///home/coder/svn-repositories/_RELOADED_COD/cod-reloaded/cif/7/10/06/7100637.cif $
+#------------------------------------------------------------------------------
+#
+# This file is available in the Crystallography Open Database (COD),
+# http://www.crystallography.net/
+#
+# All data on this site have been placed in the public domain by the
+# contributors.
+#
+data_7100637
+loop_
+_publ_author_name
+'Christian Serre'
+'Gerard Ferey'
+'Caroline Mellot-Draznieks'
+'Franck Millange'
+'Suzy Surble'
+_publ_section_title
+;
+An new isoreticular class of Metal-Organic-Frameworks
+with the MIL-88 topology
+;
+_journal_name_full               'Chemical Communications'
+_journal_paper_doi               10.1039/b512169h
+_journal_year                    2006
+_chemical_formula_sum            'C58 Cr6 N2 O48'
+_chemical_formula_weight         1804.596
+_space_group_crystal_system      hexagonal
+_space_group_IT_number           190
+_space_group_name_Hall           'P -6c -2c'
+_space_group_name_H-M_alt        'P -6 2 c'
+_cell_angle_alpha                90.000
+_cell_angle_beta                 90.000
+_cell_angle_gamma                120.000
+_cell_length_a                   11.0282(10)
+_cell_length_b                   11.0282(10)
+_cell_length_c                   18.9717(10)
+_cell_volume                     1998.2(3)
+_cod_depositor_comments
+;
+ Updating space group information.
+
+ Antanas Vaitkus,
+ 2018-06-08
+;
+_cod_original_formula_sum        'Cr6 O48 C58 N2'
+_cod_database_code               7100637
+loop_
+_space_group_symop_id
+_space_group_symop_operation_xyz
+1 x,y,z
+2 -x+y,-x,-z+1/2
+3 -y,x-y,z
+4 x,y,-z+1/2
+5 -x+y,-x,z
+6 -y,x-y,-z+1/2
+7 y,x,z+1/2
+8 x-y,-y,-z
+9 -x,-x+y,z+1/2
+10 y,x,-z
+11 x-y,-y,z+1/2
+12 -x,-x+y,-z
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_occupancy
+_atom_site_symmetry_multiplicity
+_atom_site_Wyckoff_symbol
+_atom_site_attached_hydrogens
+_atom_site_calc_flag
+_atom_site_thermal_displace_type
+_atom_site_U_iso_or_equiv
+Cr Cr 0.2236 0.7628 0.7500 1.000 6 h ? d Uiso 0.00000
+O1 O 0.3333 0.6667 0.7500 1.000 2 d ? d Uiso 0.00000
+O2 O 0.3300 0.9040 0.6720 1.000 12 i ? d Uiso 0.00000
+O3 O 0.1105 0.6331 0.6777 1.000 12 i ? d Uiso 0.00000
+O4 O 0.0873 0.8226 0.7500 1.000 6 h ? d Uiso 0.00000
+C1 C 0.0806 0.5250 0.6416 1.000 12 i ? d Uiso 0.00000
+C2 C 0.5159 0.5013 0.4272 1.000 12 i ? d Uiso 0.00000
+C3 C 0.3974 0.3968 0.4635 1.000 12 i ? d Uiso 0.00000
+C4 C 0.6229 0.6093 0.4637 1.000 12 i ? d Uiso 0.00000
+N1 C 0.7564 0.3668 0.7500 0.333 6 h ? d Uiso 0.00000
+Cp2 N -0.2262 0.5355 0.7500 0.333 6 h ? d Uiso 0.00000
+Cp3 C 0.5425 1.2542 0.6867 0.333 12 i ? d Uiso 0.00000
+Cp4 C 0.6831 0.3677 0.6873 0.333 12 i ? d Uiso 0.00000
+Ow1 O -0.1174 0.8177 0.8289 1.000 12 i ? d Uiso 0.00000
+Ow2 O 0.0000 0.0000 0.4326 1.000 4 e ? d Uiso 0.00000

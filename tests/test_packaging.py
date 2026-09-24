@@ -66,7 +66,9 @@ def test_every_sample_in_the_menu_is_collected(destinations):
 
     for sample in installed:
         assert sample.path in destinations, f"{sample.path.name} missing"
-        assert destinations[sample.path] == "resources/samples"
+        folder = sample.path.parent.relative_to(ROOT).as_posix()
+        assert destinations[sample.path] == folder
+        assert folder.startswith("resources/samples")
 
 
 def test_the_samples_land_where_the_application_looks_for_them(
@@ -397,7 +399,7 @@ def test_the_bundled_extras_are_the_ones_the_extras_page_promises():
     refused = {extra.package for extra in extras.EXTRAS
                if not extra.bundled}
 
-    assert promised <= set(bundle.COLLECT)
+    assert promised <= set(bundle.COLLECT) | set(bundle.TRACED)
     assert refused <= set(bundle.EXCLUDES)
 
 

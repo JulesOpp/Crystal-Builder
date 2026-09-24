@@ -43,6 +43,7 @@ from xtal.ff.dftb import hsd
 from xtal.ff.xtb import calculator as xtb
 from xtal.modules import blender, process, zeopp
 from xtal.modules.dftb_runs import electronic, modes
+from xtal.references import PORMAKE, Reference, doi, github
 
 #: The programs whose location is a preference.  The list is read
 #: from the modules themselves so that ``setting`` is written once.
@@ -80,44 +81,60 @@ class Tool:
     kind: str
     #: What it is for, under the field.
     hint: str
+    #: Where it comes from, linked under the hint.
+    references: tuple = ()
+
+
+_DFTB = (doi("DFTB+: Hourahine et al., J. Chem. Phys. 2020",
+             "10.1063/1.5143190"),
+         github("dftbplus/dftbplus"))
 
 
 TOOLS = (
     Tool("tools/zeopp", "Zeo++ (network)", "file",
          "Pore diameters, surface area and the pore size "
-         "distribution.  A single binary called network."),
+         "distribution.  A single binary called network.",
+         (doi("Zeo++: Willems et al., Microporous Mesoporous Mater. "
+              "2012", "10.1016/j.micromeso.2011.08.020"),
+          Reference("zeoplusplus.org", "https://www.zeoplusplus.org"))),
     Tool("tools/dftb", "DFTB+ (dftb+)", "file",
          "The tight-binding engine, for energies and geometries a "
-         "force field cannot reach."),
+         "force field cannot reach.", _DFTB),
     Tool("tools/tblite", "tblite", "file",
          "GFN1-xTB and GFN2-xTB, in one small binary.  The xTB engine "
          "prefers it wherever it can, and GFN2 under a periodic cell "
-         "is its alone."),
+         "is its alone.", (github("tblite/tblite"),)),
     Tool("tools/xtb", "xTB (xtb)", "file",
          "The whole GFN family.  Needed for GFN-FF, which tblite does "
-         "not implement."),
+         "not implement.",
+         (doi("xtb: Bannwarth et al., WIREs Comput. Mol. Sci. 2021",
+              "10.1002/wcms.1493"),
+          github("grimme-lab/xtb"))),
     Tool("tools/blender", "Blender", "file",
          "File > Export as STL, which turns one cell into a printable "
          "mesh.  It needs the Atomic Blender add-on: Blender 3.x ships "
-         "it, 4.2 and later offer it under Get Extensions."),
+         "it, 4.2 and later offer it under Get Extensions.",
+         (Reference("blender.org", "https://www.blender.org"),)),
     Tool("tools/waveplot", "waveplot", "file",
          "DFTB+'s orbital plotter, for Modules > DFTB+ > Orbital.  It "
-         "ships with DFTB+."),
+         "ships with DFTB+.", _DFTB[1:]),
     Tool("tools/modes", "modes", "file",
          "DFTB+'s vibrational analysis, for Modules > DFTB+ > "
-         "Vibrational modes.  It ships with DFTB+."),
+         "Vibrational modes.  It ships with DFTB+.", _DFTB[1:]),
     Tool(SLATER_KOSTER, "Slater-Koster parameters", "folder",
          "The folder of .skf files DFTB+ needs -- a separate download "
          "from dftb.org.  This is the starting value of the run "
-         "form's own field."),
+         "form's own field.",
+         (Reference("dftb.org/parameters",
+                    "https://dftb.org/parameters"),)),
     Tool("mof/topology_dir", "PORMAKE topologies", "folder",
          "Your own .cgd nets, read alongside the 2399 PORMAKE "
-         "ships."),
+         "ships.", PORMAKE),
     Tool("mof/bb_dir", "PORMAKE building blocks", "folder",
          "Your own .xyz blocks, read alongside PORMAKE's 867.  Save "
          "as a building block starts in this folder; a block drawn in "
          "the MOF builder goes to the workspace's blocks folder, which "
-         "is read as well."),
+         "is read as well.", PORMAKE),
 )
 
 

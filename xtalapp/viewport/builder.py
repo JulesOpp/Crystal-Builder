@@ -1225,13 +1225,22 @@ def _emit_topology(structure, cell, drawn, lattice, settings,
     what the net wanted all along: without it a net drawn on one cell
     of **pcu** shows three edges at a six-coordinate vertex, which is
     a wrong picture rather than a missing feature.
+
+    **So the boundary setting does not reach the net at all.**  It is
+    about atoms.  An edge whose far vertex is not in range is drawn as
+    half from each end in every mode -- "in range" used to drop it and
+    "bonded" to complete it only where some chemical bond happened to
+    have drawn that metal as a ghost, so pcu x 2 showed 8 of its 24
+    edges in one mode, 22 in another and all of them only in the
+    third.  Ghosts are neither ends nor starts here, for the same
+    reason: whether one exists is the chemistry's business.
     """
     net = bonding.topology_graph(structure)
     segments = _Segments()
     if not net.bonds or not drawn.count:
         return segments.arrays()
 
-    stub = settings.boundary == "half"
+    in_range = drawn.in_range
     chosen = set() if selection is None else set(
         getattr(selection, "topology", ()))
     shift_of, index_of = drawn.shift, drawn.index_of
@@ -1248,19 +1257,20 @@ def _emit_topology(structure, cell, drawn, lattice, settings,
         for whole, far_atom, (du, dv, dw), group in (
                 (True, bond.j, (u, v, w), drawn.by_atom[bond.i]),
                 (False, bond.i, (-u, -v, -w), drawn.by_atom[bond.j])):
-            if not whole and not stub:
-                continue
             for start in group:
+                if start >= in_range:
+                    continue
                 s = shift_of[start]
                 far_shift = (s[0] + du, s[1] + dv, s[2] + dw)
                 end = index_of.get((far_atom, far_shift))
+                if end is not None and end >= in_range:
+                    end = None
                 if end is None:
-                    if stub:
-                        segments.add_stub(
-                            start,
-                            cell.frac[far_atom] + np.asarray(far_shift,
-                                                             float),
-                            key, selected)
+                    segments.add_stub(
+                        start,
+                        cell.frac[far_atom] + np.asarray(far_shift,
+                                                         float),
+                        key, selected)
                 elif whole:
                     segments.add(start, end, key, selected)
     return segments.arrays(drawn, lattice)

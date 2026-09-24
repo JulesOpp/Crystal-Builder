@@ -309,6 +309,51 @@ def test_a_workspace_that_will_not_open_costs_nobody_their_tabs(
     assert window.tabs.count() == 1
 
 
+def test_switching_workspace_asks_once_about_unsaved_tabs(
+        opened, tmp_path, monkeypatch):
+    """Every tab closes on a switch, so an edit nobody saved is lost
+    by it exactly as by a quit -- and the question has to be asked
+    once for the window, not once a tab, and a No has to leave the
+    workspace and the tabs where they were."""
+    from PySide6.QtWidgets import QMessageBox
+
+    from xtal.core.structure import Change
+
+    # conftest turns the prompt off for the session; this test is
+    # about the prompt.
+    monkeypatch.delenv("XTAL_NO_CONFIRM_CLOSE", raising=False)
+    window, document = opened
+    document.apply(lambda s: s.wrap_sites(), Change.POSITIONS)
+    other = window.new_document()
+    other.apply(lambda s: s.wrap_sites(), Change.POSITIONS)
+    assert window.tabs.count() == 2
+    assert document.modified and other.modified
+    asked = []
+
+    def answer(reply):
+        def question(*args, **kwargs):
+            asked.append(args[2] if len(args) > 2 else "")
+            return reply
+        return question
+
+    monkeypatch.setattr(QMessageBox, "question", answer(QMessageBox.No))
+    assert window.workspace_shell.switch_workspace(
+        tmp_path / "other", create=True) is None
+    assert len(asked) == 1
+    assert "workspace" in asked[0]
+    assert window.workspace.root == tmp_path / "ws"
+    assert window.tabs.count() == 2
+
+    asked.clear()
+    monkeypatch.setattr(QMessageBox, "question",
+                        answer(QMessageBox.Yes))
+    window.workspace_shell.switch_workspace(tmp_path / "other",
+                                            create=True)
+    assert len(asked) == 1
+    assert window.workspace.root == tmp_path / "other"
+    assert window.tabs.count() == 0
+
+
 def test_switching_to_the_workspace_already_open_changes_nothing(
         opened, tmp_path):
     window, document = opened

@@ -952,7 +952,10 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
             "Build, manipulate, analyse and export crystal "
             "structures.<br>"
             "Structure model and symmetry: gemmi and spglib. "
-            "Rendering: VTK.")
+            "Rendering: VTK.<br><br>"
+            "Written by Jules Oppenheim, with help from Sam "
+            "Oppenheim.<br>"
+            "Code written with Claude Code.")
 
     # -- drag and drop -------------------------------------------------
 

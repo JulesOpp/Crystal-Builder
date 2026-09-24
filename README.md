@@ -32,6 +32,7 @@ Studio**.  Python throughout, shipped to macOS and Windows.
                 sums, and the optimisers
         uff/    UFF: parameter table, atom typer, energy terms,
                 calculator, QEq charges
+        charges/ EQeq charges and their NIST ionisation table
         dftb/   DFTB+: HSD input, Slater-Koster check, calculator
       analysis/ porosity (Zeo++ output), later RDF and PXRD
     xtalapp/    the PySide6 + VTK application
@@ -105,14 +106,27 @@ type:
 | `sketch` | rdeditor | Draw the molecule instead of typing it |
 | `pxrd` | matplotlib | The PXRD pattern window: zoom, overlay a measured pattern, vector export |
 | `mace` | mace-torch | The MACE engine in the Force Field panel. Brings PyTorch |
+| `orb` | orb-models | The ORB-v3 engine in the Force Field panel. Brings PyTorch; on Python 3.13 its pinned dm-tree has to be built, and with CMake 4 that needs `CMAKE_POLICY_VERSION_MINIMUM=3.5` set |
+| `mattersim` | mattersim | The MatterSim engine in the Force Field panel. Brings PyTorch. Asks for e3nn 0.5+ where MACE pins 0.4.4, so pip will not install both; for both, install `mace` first and then `python -m pip install --no-deps mattersim torch_runstats loguru deprecated` |
+
+From the checkout, with the Python you run Crystal Builder with:
 
 ```bash
-pip install 'crystal-builder[gui,ase,build,sketch,pxrd]'
-pip install 'crystal-builder[gui,mace]'     # MACE as well
+python -m pip install -e ".[gui,ase,build,sketch,pxrd]"
+python -m pip install -e ".[gui,mace]"     # MACE as well
+python -m pip install -e ".[gui,orb]"      # ORB-v3 as well
+python -m pip install -e ".[gui,mattersim]"  # MatterSim as well
 ```
 
-`mace` is its own line because it is not a small ask: PyTorch is
-gigabytes of wheel, against the four packages the core installs.
+Not `pip install 'crystal-builder[orb]'`: `crystal-builder` is not on
+PyPI, so that name resolves only against the metadata written when the
+checkout was last installed, and an extra added since is refused with
+"does not provide the extra" and nothing installed.  Installing the
+checkout itself rewrites that metadata.
+
+`mace`, `orb` and `mattersim` are their own lines because they are not a small ask:
+PyTorch is gigabytes of wheel, against the four packages the core
+installs.
 
 ### In a packaged build
 
@@ -123,15 +137,20 @@ rdeditor and matplotlib all work with nothing to do — and **does not
 carry PyTorch**, which is larger than the rest of the application put
 together.
 
-If you want MACE, run Crystal Builder from Python:
+If you want MACE or ORB-v3, run Crystal Builder from Python:
 
 ```bash
-pip install 'crystal-builder[gui,mace]'
+python -m pip install -e ".[gui,mace]"
 crystal-builder
 ```
 
-That is the supported route and it is what *Preferences ▸ Optional
-features* recommends.  There is a second one on that page: the
+That is the supported route and it is what *Preferences ▸ Engines*
+recommends.  On a source checkout the page gives the exact command for
+the Python the application is running in -- `python -m pip install -e
+"<checkout>[mace]"` -- because a bare `pip` is often another Python's,
+and because `crystal-builder` is not on PyPI: the name resolves only
+against metadata written when the checkout was installed, which does
+not know an extra added since.  There is a second one on that page: the
 application puts a user-writable folder — `~/Library/Application
 Support/CrystalBuilder/packages`, `%APPDATA%\CrystalBuilder\packages`
 on Windows — first on its import path at start-up, so

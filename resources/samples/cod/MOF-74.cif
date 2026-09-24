@@ -1,0 +1,259 @@
+#------------------------------------------------------------------------------
+#$Date: 2016-02-18 17:37:37 +0200 (Thu, 18 Feb 2016) $
+#$Revision: 176729 $
+#$URL: file:///home/coder/svn-repositories/_RELOADED_COD/cod-reloaded/cif/1/51/74/1517474.cif $
+#------------------------------------------------------------------------------
+#
+# This file is available in the Crystallography Open Database (COD),
+# http://www.crystallography.net/
+#
+# All data on this site have been placed in the public domain by the
+# contributors.
+#
+data_1517474
+loop_
+_publ_author_name
+'Queen, Wendy L.'
+'Hudson, Matthew R.'
+'Bloch, Eric D.'
+'Mason, Jarad A.'
+'Gonzalez, Miguel I.'
+'Lee, Jason S.'
+'Gygi, David'
+'Howe, Joshua D.'
+'Lee, Kyuho'
+'Darwish, Tamim A.'
+'James, Michael'
+'Peterson, Vanessa K.'
+'Teat, Simon J.'
+'Smit, Berend'
+'Neaton, Jeffrey B.'
+'Long, Jeffrey R.'
+'Brown, Craig M.'
+_publ_section_title
+;
+ Comprehensive study of carbon dioxide adsorption in the metal--organic
+ frameworks M2(dobdc) (M = Mg, Mn, Fe, Co, Ni, Cu, Zn)
+;
+_journal_issue                   12
+_journal_name_full               'Chem. Sci.'
+_journal_page_first              4569
+_journal_paper_doi               10.1039/C4SC02064B
+_journal_volume                  5
+_journal_year                    2014
+_chemical_formula_sum            'C4 H O3 Zn'
+_chemical_formula_weight         162.43
+_chemical_name_systematic        ' ?'
+_space_group_IT_number           148
+_symmetry_cell_setting           trigonal
+_symmetry_space_group_name_Hall  '-R 3'
+_symmetry_space_group_name_H-M   'R -3 :H'
+_audit_creation_date             2013-11-26T14:41
+_audit_creation_method           'from EXP file using GSAS2CIF'
+_audit_update_record
+' 2013-11-26T14:41  Initial CIF as created by GSAS2CIF'
+_cell_angle_alpha                90.0
+_cell_angle_beta                 90.0
+_cell_angle_gamma                120.0
+_cell_formula_units_Z            18
+_cell_length_a                   25.9292(24)
+_cell_length_b                   25.9292
+_cell_length_c                   6.7962(9)
+_cell_measurement_temperature    10
+_cell_volume                     3957.1(6)
+_computing_structure_refinement  GSAS
+_exptl_absorpt_correction_T_max  1.00000
+_exptl_absorpt_correction_T_min  1.00000
+_exptl_absorpt_process_details
+;   GSAS Absorption/surface roughness correction: function number 0
+ No correction is applied.
+;
+_exptl_crystal_colour            yellow
+_pd_block_id                     2013-11-26T14:41|BARE_ZN||bt1
+_pd_calc_method                  'Rietveld Refinement'
+_pd_instr_location               ' ?'
+_pd_meas_2theta_range_inc        0.05
+_pd_meas_2theta_range_max        166.25
+_pd_meas_2theta_range_min        1.5
+_pd_meas_number_of_points        3296
+_pd_phase_name
+'from /data/people/craigy/MgMOF/BT1/1108/MOF74.xtl'
+_pd_proc_2theta_range_inc        0.05
+_pd_proc_2theta_range_max        166.268
+_pd_proc_2theta_range_min        1.518
+_pd_proc_info_datetime           2013-11-26T14:41:23
+_pd_proc_info_excluded_regions   ' ?'
+_pd_proc_ls_background_function
+;   GSAS Background function number 1 with 12 terms.
+ Shifted Chebyshev function of 1st kind
+      1:    357.282     2:   -80.2684     3:    57.2288     4:   -8.42231    
+      5:    24.9828     6:   -1.35769     7:    12.2165     8:   -1.31075    
+      9:    6.49603    10:  -0.867218    11:    3.90147    12:  -7.136940E-02
+;
+_pd_proc_ls_peak_cutoff          0.00100
+_pd_proc_ls_profile_function
+;
+ CW Profile function number 3 with  19 terms
+ Pseudovoigt profile coefficients as parameterized in
+ P. Thompson, D.E. Cox & J.B. Hastings (1987). J. Appl. Cryst.,20,79-83.
+ Asymmetry correction of L.W. Finger, D.E. Cox & A. P. Jephcoat (1994).
+ J. Appl. Cryst.,27,892-900.
+ Peak tails are ignored  where the intensity is below 0.0010 times the peak
+   Aniso. broadening axis   0.0   0.0   1.0
+;
+_pd_proc_ls_prof_R_factor        0.0402
+_pd_proc_ls_prof_wR_expected     0.0499
+_pd_proc_ls_prof_wR_factor       0.0484
+_pd_proc_number_of_points        3296
+_pd_spec_mounting                ' ?'
+_refine_ls_goodness_of_fit_all   0.98
+_refine_ls_hydrogen_treatment    refall
+_refine_ls_matrix_type           full
+_refine_ls_number_parameters     47
+_refine_ls_number_restraints     9
+_refine_ls_R_Fsqd_factor         0.04520
+_refine_ls_shift/su_max          0.05
+_refine_ls_shift/su_mean         0.02
+_cod_data_source_file            c4sc02064b2.cif
+_cod_data_source_block           BARE_ZN_publ
+_cod_depositor_comments
+;
+The following automatic conversions were performed:
+
+'_geom_bond_publ_flag' value 'N' changed to 'n' according to
+/usr/data/users/saulius/crontab/automatic-downloads/rss-feeds/RSC/lib/dictionaries/cif_core.dic
+dictionary named 'cif_core.dic' version 2.4.2 from 2011-04-26 (28
+times).
+
+'_geom_angle_publ_flag' value 'N' changed to 'n' according
+to
+/usr/data/users/saulius/crontab/automatic-downloads/rss-feeds/RSC/lib/dictionaries/cif_core.dic
+dictionary named 'cif_core.dic' version 2.4.2 from 2011-04-26 (25
+times).
+
+Automatic conversion script
+Id: cif_fix_values 2281 2013-09-26 08:29:07Z andrius 
+
+ Adding full bibliography for 1517465--1517482.cif.
+;
+_cod_original_sg_symbol_H-M      'R -3'
+_cod_database_code               1517474
+#BEGIN Tags that were not found in dictionaries:
+_gsas_exptl_extinct_corr_t_min   1.00000
+_gsas_exptl_extinct_corr_t_max   1.00000
+#END Tags that were not found in dictionaries
+loop_
+_space_group_symop_operation_xyz
+'x, y, z'
+'-y, x-y, z'
+'-x+y, -x, z'
+'x+2/3, y+1/3, z+1/3'
+'-y+2/3, x-y+1/3, z+1/3'
+'-x+y+2/3, -x+1/3, z+1/3'
+'x+1/3, y+2/3, z+2/3'
+'-y+1/3, x-y+2/3, z+2/3'
+'-x+y+1/3, -x+2/3, z+2/3'
+'-x, -y, -z'
+'y, -x+y, -z'
+'x-y, x, -z'
+'-x+2/3, -y+1/3, -z+1/3'
+'y+2/3, -x+y+1/3, -z+1/3'
+'x-y+2/3, x+1/3, -z+1/3'
+'-x+1/3, -y+2/3, -z+2/3'
+'y+1/3, -x+y+2/3, -z+2/3'
+'x-y+1/3, x+2/3, -z+2/3'
+loop_
+_atom_site_type_symbol
+_atom_site_label
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_occupancy
+_atom_site_thermal_displace_type
+_atom_site_U_iso_or_equiv
+_atom_site_symmetry_multiplicity
+Zn Zn1 0.3833(9) 0.3534(11) 0.1394(27) 1.0 Uiso 0.021(6) 18
+O O1 0.3305(9) 0.2968(8) 0.3816(34) 1.0 Uiso 0.0144(32) 18
+O O2 0.2999(10) 0.2273(10) 0.6027(28) 1.0 Uiso 0.0144(32) 18
+O O3 0.3541(9) 0.2723(10) 0.0013(33) 1.0 Uiso 0.0144(32) 18
+C C1 0.3166(9) 0.2450(9) 0.4287(29) 1.0 Uiso 0.0146(21) 18
+C C2 0.3267(9) 0.2058(9) 0.2859(27) 1.0 Uiso 0.0146(21) 18
+C C3 0.3441(9) 0.2235(10) 0.0940(26) 1.0 Uiso 0.0146(21) 18
+C C4 0.3521(9) 0.1845(10) -0.0294(29) 1.0 Uiso 0.0146(21) 18
+H H 0.3651(20) 0.1942(19) -0.158(7) 1.0 Uiso 0.052(15) 18
+loop_
+_atom_type_symbol
+_atom_type_number_in_cell
+_atom_type_scat_length_neutron
+_atom_type_scat_source
+Zn 18.0 0.5680 International_Tables_Vol_C
+O 54.0 0.5803 International_Tables_Vol_C
+C 72.0 0.6646 International_Tables_Vol_C
+H 18.0 -0.3739 International_Tables_Vol_C
+loop_
+_geom_angle_atom_site_label_1
+_geom_angle_atom_site_label_2
+_geom_angle_atom_site_label_3
+_geom_angle
+_geom_angle_site_symmetry_1
+_geom_angle_site_symmetry_3
+_geom_angle_publ_flag
+O1 Zn1 O1 81.0(8) 1_555 103_554 n
+O1 Zn1 O2 173.4(17) 1_555 202_554 n
+O1 Zn1 O3 82.6(11) 1_555 1_555 n
+O1 Zn1 O3 80.0(11) 1_555 202_555 n
+O1 Zn1 O2 105.6(14) 103_554 202_554 n
+O1 Zn1 O3 80.5(11) 103_554 1_555 n
+O1 Zn1 O3 94.9(12) 103_554 202_555 n
+O2 Zn1 O3 98.8(13) 202_554 1_555 n
+O2 Zn1 O3 98.7(16) 202_554 202_555 n
+O3 Zn1 O3 162.5(16) 1_555 202_555 n
+Zn1 O1 Zn1 89.4(8) 1_555 202_555 n
+Zn1 O1 C1 131.9(20) 1_555 1_555 n
+Zn1 O1 C1 138.6(19) 202_555 1_555 n
+Zn1 O2 C1 120.4(19) 103_555 1_555 n
+Zn1 O3 Zn1 95.1(14) 1_555 103_554 n
+Zn1 O3 C3 123.7(19) 1_555 1_555 n
+Zn1 O3 C3 129.0(19) 103_554 1_555 n
+O1 C1 O2 119.6(24) 1_555 1_555 n
+O1 C1 C2 120.1(23) 1_555 1_555 n
+O2 C1 C2 119.8(20) 1_555 1_555 n
+C1 C2 C3 121.2(24) 1_555 1_555 n
+O3 C3 C2 130.1(25) 1_555 1_555 n
+O3 C3 C4 112.1(19) 1_555 1_555 n
+C2 C3 C4 117.8(21) 1_555 1_555 n
+C3 C4 H 122.2(32) 1_555 1_555 n
+loop_
+_geom_bond_atom_site_label_1
+_geom_bond_atom_site_label_2
+_geom_bond_distance
+_geom_bond_site_symmetry_2
+_geom_bond_publ_flag
+Zn1 Zn1 2.993(24) 103_554 n
+Zn1 Zn1 2.993(24) 202_555 n
+Zn1 O1 2.174(27) 1_555 n
+Zn1 O1 2.080(26) 103_554 n
+Zn1 O2 1.975(29) 202_554 n
+Zn1 O3 2.068(31) 1_555 n
+Zn1 O3 1.988(33) 202_555 n
+O1 Zn1 2.174(27) 1_555 n
+O1 Zn1 2.080(26) 202_555 n
+O1 O2 2.169(30) 1_555 n
+O1 C1 1.246(27) 1_555 n
+O2 Zn1 1.975(29) 103_555 n
+O2 O1 2.169(30) 1_555 n
+O2 C1 1.264(23) 1_555 n
+O3 Zn1 2.068(31) 1_555 n
+O3 Zn1 1.988(33) 103_554 n
+O3 C3 1.319(29) 1_555 n
+C1 O1 1.246(27) 1_555 n
+C1 O2 1.264(23) 1_555 n
+C1 C2 1.519(30) 1_555 n
+C2 C1 1.519(30) 1_555 n
+C2 C3 1.381(24) 1_555 n
+C3 O3 1.319(29) 1_555 n
+C3 C2 1.381(24) 1_555 n
+C3 C4 1.406(26) 1_555 n
+C4 C3 1.406(26) 1_555 n
+C4 H 0.93(5) 1_555 n
+H C4 0.93(5) 1_555 n

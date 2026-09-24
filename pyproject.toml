@@ -105,6 +105,18 @@ pxrd = ["matplotlib>=3.7"]
 # chooser whose entries the installed package cannot resolve
 # is one where picking the newest model fails at load.
 mace = ["mace-torch>=0.3.14", "ase>=3.22"]
+# ORB-v3, the second ML engine, for the reasons MACE is an extra.  Its
+# own line and not part of `mace`: each pins torch its own way, and
+# somebody who wants one should not be made to resolve both.
+# orb-models 0.7.0 pins dm-tree 0.1.8, which has no wheel for Python
+# 3.13 and does not build under CMake 4 unless the environment sets
+# CMAKE_POLICY_VERSION_MINIMUM=3.5; Preferences > Engines says so.
+orb = ["orb-models>=0.7", "ase>=3.25"]
+# MatterSim, the third, on its own line for the same reason.  It
+# declares e3nn>=0.5 where mace-torch pins 0.4.4, so pip will not put
+# `mace` and `mattersim` in one environment; its inference runs on
+# 0.4.4, and Preferences > Engines says how to have both.
+mattersim = ["mattersim>=1.2.5", "ase>=3.23"]
 # pytest-qt belongs here and not in [dev]: without it every widget
 # test skips itself, and CI installs [gui,test] -- so the GUI half of
 # the suite was passing by not running.
@@ -126,7 +138,8 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
             # calculator at import, so a wheel missing one of these
             # cannot import `xtal.ff` at all.
             "xtal.ff.uff", "xtal.ff.dftb", "xtal.ff.xtb",
-            "xtal.ff.mace",
+            "xtal.ff.mace", "xtal.ff.orb", "xtal.ff.mattersim",
+            "xtal.ff.charges",
             "xtal.modules", "xtal.modules.dftb_runs", "xtal.analysis",
             "xtal.mof", "xtal.mof.pormake", "xtal.mof.library",
             "xtal.build", "xtal.build.data",
@@ -147,6 +160,10 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
 # and read through importlib.resources so a wheel and a source
 # checkout are the same case.
 "xtal.build.data" = ["*.json"]
+# EQeq's ionisation table, written by scripts/eqeq_table.py.  A charge
+# source offered in the panel that cannot find its table is a
+# traceback when Optimise is pressed.  6 KB.
+"xtal.ff.charges" = ["data/*.csv"]
 # The script Blender runs for Export as STL.  Handed to Blender by
 # path, so it has to be a file on disk in the installed package.
 "xtal.modules" = ["data/*.py"]

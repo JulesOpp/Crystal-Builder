@@ -128,7 +128,7 @@ def check_fragment_library(report) -> None:
 
 
 def check_samples(report) -> None:
-    """The seven structures File > Open Sample offers are present.
+    """The structures File > Open Sample offers are present.
 
     This is the resource lookup of point 2, asked before a window
     exists so that a failure names the real cause rather than

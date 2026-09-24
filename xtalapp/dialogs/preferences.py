@@ -66,6 +66,7 @@ from xtalapp.viewport.view_settings import (
     BACKGROUNDS,
     FOLLOW_THE_SYSTEM,
 )
+from xtalapp.widgets.links import SourceLinks
 from xtalapp.widgets.tone import HINT, WARNING, set_tone
 
 
@@ -552,6 +553,8 @@ class EnginesPage(QWidget):
         box = QGroupBox(tool.label)
         inner = QVBoxLayout(box)
         inner.addWidget(_hint(tool.hint))
+        if tool.references:
+            inner.addWidget(SourceLinks(tool.references))
 
         field = QLineEdit(self.settings.path_setting(tool.key))
         field.setCursorPosition(0)
@@ -582,6 +585,8 @@ class EnginesPage(QWidget):
         box = QGroupBox(f"{extra.label} ({extra.package})")
         inner = QVBoxLayout(box)
         inner.addWidget(_hint(extra.powers))
+        if extra.references:
+            inner.addWidget(SourceLinks(extra.references))
         state = QLabel(sentence)
         state.setWordWrap(True)
         set_tone(state, None if ok else WARNING)
@@ -591,6 +596,8 @@ class EnginesPage(QWidget):
         inner.addLayout(row)
         if not ok and not extras.frozen():
             inner.addWidget(_Command(extra.command()))
+            if extra.note:
+                inner.addWidget(_hint(extra.note))
         inner.addWidget(self.results[extra.package])
         self.rows[extra.package] = state
         return box
@@ -670,8 +677,12 @@ class EnginesPage(QWidget):
     def _probe(self, key: str):
         """How to ask the program or package ``key``, or the sentence
         saying there is nothing to ask."""
-        if key in {extra.package for extra in extras.EXTRAS}:
-            return probes.probe_for_package(key, frozen=extras.frozen())
+        extra = next((e for e in extras.EXTRAS if e.package == key),
+                     None)
+        if extra is not None:
+            return probes.probe_for_package(
+                extra.module or extra.package, frozen=extras.frozen(),
+                timeout=extra.timeout)
         tool = next(t for t in external.TOOLS if t.key == key)
         path = external.locate(self.settings, tool)
         if path is None:

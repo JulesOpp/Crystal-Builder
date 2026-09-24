@@ -49,6 +49,7 @@ from xtalapp import external, samples
 from xtalapp.viewport import modes, styles
 from xtalapp.viewport.view_settings import (
     BACKGROUNDS,
+    DEFAULT_STYLE,
     FOLLOW_THE_SYSTEM,
     ViewSettings,
 )
@@ -187,7 +188,7 @@ def build_actions(window):
         style = styles.get(name)
         add(f"style_{name}", style.label,
             lambda checked=False, s=name: window.set_style(s),
-            checkable=True, checked=(name == "ball_stick"),
+            checkable=True, checked=(name == DEFAULT_STYLE),
             tip=style.description, group="style")
 
     add("show_atoms", "Atoms",
@@ -666,17 +667,45 @@ def build_sample_menu(window) -> None:
     one: ``resources/`` is not package data, so a wheel install has no
     samples exactly as it has no bundled Zeo++.  That gets a disabled
     menu carrying the reason, which is the same answer a module with
-    no binary gives, and not seven entries that each raise a dialog.
+    no binary gives, and not thirteen entries that each raise a dialog.
+
+    The COD's are a submenu of their own and not a titled section:
+    a section title is not drawn in a native macOS menu, which would
+    leave two entries called MOF-5 a separator apart and nothing to
+    say which was which.
     """
     menu = window.sample_menu
     menu.clear()
     present = samples.installed()
     menu.setEnabled(bool(present))
     menu.setToolTip("" if present else samples.MISSING)
-    for sample in samples.SAMPLES:
-        action = window.actions_[f"sample_{sample.name}"]
-        action.setEnabled(sample.path is not None)
-        menu.addAction(action)
+    for group, title in samples.GROUPS:
+        if group == samples.SHIPPED:
+            into = menu
+        else:
+            menu.addSeparator()
+            into = _sample_group_menu(window, group, title)
+            into.clear()
+            menu.addMenu(into)
+        for sample in samples.in_group(group):
+            action = window.actions_[f"sample_{sample.name}"]
+            action.setEnabled(sample.path is not None)
+            into.addAction(action)
+
+
+def _sample_group_menu(window, group: str, title: str) -> QMenu:
+    """The submenu one group of samples goes in, made once per window.
+
+    Kept on the window because :func:`build_sample_menu` runs again
+    over a menu it has already filled, and a fresh ``QMenu`` each time
+    would leave the last one parented to the menu, unseen.
+    """
+    menus = getattr(window, "sample_group_menus", None)
+    if menus is None:
+        menus = window.sample_group_menus = {}
+    if group not in menus:
+        menus[group] = QMenu(title, window.sample_menu)
+    return menus[group]
 
 def build_modules_menu(window) -> None:
     """The Modules menu, built from the registry and nothing else.

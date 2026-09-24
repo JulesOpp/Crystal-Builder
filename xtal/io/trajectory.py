@@ -34,6 +34,7 @@ from pathlib import Path
 
 import numpy as np
 
+from xtal import install
 from xtal.core.lattice import Lattice
 from xtal.io.text import read_text
 
@@ -378,7 +379,7 @@ def _ase_frames(path: Path) -> list[Frame]:
     except ImportError:
         raise ValueError(
             "reading an ASE trajectory needs the 'ase' extra: "
-            "pip install 'crystal-builder[ase]'") from None
+            f"{install.command('ase')}") from None
     frames = []
     with warnings.catch_warnings():
         # ase 3.29's .traj reader assigns to ``array.shape``, which

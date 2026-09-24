@@ -33,12 +33,17 @@ from xtal.ff.api import Calculator, CalculatorError, Result
 KCAL_PER_EV = 23.060547830619026
 
 
-def torch_device(wanted: str) -> str:
+def torch_device(wanted: str, allow_mps: bool = True) -> str:
     """The device to run on, asking torch what there is.
 
     'auto' is the default because the honest answer is
     machine-specific and nobody should have to know theirs: a laptop
     has mps, a cluster node has cuda, and a CI box has neither.
+
+    ``allow_mps=False`` is for a model that cannot use the Apple GPU
+    however available torch says it is -- ORB-v3 calls ``.cuda()`` on
+    it, MatterSim cannot load its weights onto it -- so 'auto' is the
+    GPU only if it is NVIDIA's.
     """
     if wanted and wanted != "auto":
         return wanted
@@ -46,7 +51,7 @@ def torch_device(wanted: str) -> str:
 
     if torch.cuda.is_available():
         return "cuda"
-    if getattr(torch.backends, "mps", None) is not None \
+    if allow_mps and getattr(torch.backends, "mps", None) is not None \
             and torch.backends.mps.is_available():
         return "mps"
     return "cpu"

@@ -58,7 +58,7 @@ import numpy as np
 
 from xtal.ff.api import CalculatorError, Result
 from xtal.ff.external import ExternalCalculator
-from xtal.ff.registry import ENGINES, Engine
+from xtal.ff.registry import ENGINES, Engine, doi, github
 from xtal.modules.process import MissingProgram, Program
 from xtal.params import Availability, Param
 
@@ -449,6 +449,25 @@ def build(structure, **options) -> XTBCalculator:
     return XTBCalculator(structure, XTBOptions(**options))
 
 
+#: Each method's paper and the program that runs it here: tblite for
+#: the two tight-binding methods, xtb for GFN-FF.
+_REFERENCES = {
+    "gfn2": (doi("GFN2-xTB: Bannwarth et al., J. Chem. Theory Comput. "
+                 "2019", "10.1021/acs.jctc.8b01176"),
+             github("tblite/tblite")),
+    "gfn1": (doi("GFN1-xTB: Grimme et al., J. Chem. Theory Comput. "
+                 "2017", "10.1021/acs.jctc.7b00118"),
+             github("tblite/tblite")),
+    "gfnff": (doi("GFN-FF: Spicher and Grimme, Angew. Chem. Int. Ed. "
+                  "2020", "10.1002/anie.202004239"),
+              github("grimme-lab/xtb")),
+}
+
+
+def references(method="gfn2", **_rest) -> tuple:
+    return _REFERENCES.get(method, ())
+
+
 ENGINES.register(Engine(
     name="xtb",
     label="xTB (GFN)",
@@ -461,4 +480,5 @@ ENGINES.register(Engine(
     provides=frozenset({"forces", "periodic"}),
     options=OPTIONS,
     check=available,
+    references=references,
 ))

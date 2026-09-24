@@ -16,6 +16,10 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from xtal.params import Availability, Param, Registry, coerce, defaults
+from xtal.references import Reference, arxiv, doi, github
+
+__all__ = ["ENGINES", "Engine", "EngineRegistry", "Reference", "arxiv",
+           "doi", "github"]
 
 
 @dataclass(frozen=True)
@@ -52,6 +56,20 @@ class Engine:
     #: that was there before there was a chooser, and the one that is
     #: always installed.
     order: int = 100
+    #: Where the method comes from, shown under the chooser as links.
+    #: A tuple, or a function of the options when the answer depends on
+    #: them -- UFF4MOF is not UFF's paper, and GFN-FF is not GFN2's.
+    references: tuple[Reference, ...] | Callable[..., tuple] = ()
+
+    def sources(self, **options) -> tuple[Reference, ...]:
+        """The references for the method these options select."""
+        if not callable(self.references):
+            return tuple(self.references)
+        try:
+            return tuple(self.references(**self.coerce(options)))
+        except Exception:                           # noqa: BLE001
+            # A link line is not worth losing the panel over.
+            return ()
 
     def availability(self, **options) -> Availability:
         if self.check is None:

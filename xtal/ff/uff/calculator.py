@@ -36,7 +36,7 @@ import numpy as np
 from xtal.core import bonding, neighbors, p1
 from xtal.ff import ewald
 from xtal.ff.api import Calculator, CalculatorError, Result
-from xtal.ff.registry import ENGINES, Engine
+from xtal.ff.registry import ENGINES, Engine, doi
 from xtal.ff.uff import params, terms, typer
 from xtal.params import Param
 
@@ -49,7 +49,7 @@ class UFFOptions:
     """Everything about the calculation that is not the structure."""
 
     coulomb: bool = False
-    charges: str = "site"           # "site" | "qeq" | "zero"
+    charges: str = "site"           # "site" | "qeq" | "eqeq" | "zero"
     dielectric: float = 1.0
     vdw: bool = True
     vdw_cutoff: float = DEFAULT_VDW_CUTOFF
@@ -366,6 +366,12 @@ class UFFCalculator(Calculator):
             if note:
                 self.warnings.append(note)
             return charges
+        if self.options.charges == "eqeq":
+            from xtal.ff.charges import eqeq
+            charges, note = eqeq.equilibrate(self.cell)
+            if note:
+                self.warnings.append(note)
+            return charges
         if self.options.charges == "zero":
             return np.zeros(self.n_atoms)
 
@@ -640,11 +646,12 @@ def build(structure, **options) -> UFFCalculator:
 #: Where the charges come from when electrostatics are on, as
 #: ``(value, label)``.  The one list: the panel's chooser, the scan's
 #: form and ``xtal optimize --charges`` all read it, where they were
-#: three copies that no test tied together -- and a fourth source
-#: (EQeq) would have had to be added to each.
+#: three copies that no test tied together -- and the fourth source,
+#: EQeq, would have had to be added to each.
 CHARGE_SOURCES = (
     ("site", "The sites"),
     ("qeq", "Equilibrate (QEq)"),
+    ("eqeq", "Equilibrate (EQeq)"),
     ("zero", "All zero"),
 )
 
@@ -684,6 +691,30 @@ OPTIONS = (
                "rebuilt."),
 )
 
+_UFF = doi("Rappe et al., J. Am. Chem. Soc. 1992",
+           "10.1021/ja00051a040")
+_UFF4MOF = (doi("Addicoat et al., J. Chem. Theory Comput. 2014",
+                "10.1021/ct400952t"),
+            doi("Coupry et al., J. Chem. Theory Comput. 2016",
+                "10.1021/acs.jctc.6b00664"))
+_CHARGE_REFERENCES = {
+    "qeq": doi("QEq: Rappe and Goddard, J. Phys. Chem. 1991",
+               "10.1021/j100161a070"),
+    "eqeq": doi("EQeq: Wilmer et al., J. Phys. Chem. Lett. 2012",
+                "10.1021/jz3008485"),
+}
+
+
+def references(parameter_set=params.DEFAULT_PARAMETER_SET,
+               coulomb=False, charges="site", **_rest) -> tuple:
+    """UFF's paper, UFF4MOF's two on top of it when they are in use,
+    and the charge scheme's when one is doing the charges."""
+    cited = (_UFF4MOF if parameter_set == "uff4mof" else ()) + (_UFF,)
+    if coulomb and charges in _CHARGE_REFERENCES:
+        cited += (_CHARGE_REFERENCES[charges],)
+    return cited
+
+
 ENGINES.register(Engine(
     name="uff",
     label="UFF",
@@ -694,4 +725,5 @@ ENGINES.register(Engine(
     order=10,
     provides=frozenset({"forces", "stress", "charges", "periodic",
                         "types"}),
+    references=references,
 ))

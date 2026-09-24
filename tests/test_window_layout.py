@@ -298,6 +298,7 @@ def test_the_left_column_still_starts_wide_enough_for_structure(
     assert window.info_dock.width() >= DEFAULT_LEFT_WIDTH - 10
 
 
+
 def test_a_first_window_gives_the_viewport_the_widest_share(
         qtbot, laptop_screen, settings):
     """The Sites table's own hint was 515 px, and with Structure's 380

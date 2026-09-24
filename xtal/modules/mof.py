@@ -55,6 +55,7 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
+from xtal import install
 from xtal.analysis.interpenetrate import MAX_FOLD
 from xtal.modules.job import JobResult
 from xtal.modules.registry import (
@@ -82,8 +83,7 @@ MISSING = ("The PORMAKE database of nets and building blocks is "
 #: ``ase.neighborlist``, and replacing those with this project's own
 #: :class:`~xtal.core.structure.Structure` is a much larger piece of
 #: work than the trim that brought the builder in.
-NEEDS_ASE = ("The MOF builder needs ase -- pip install "
-             "'crystal-builder[ase]'")
+NEEDS_ASE = f"The MOF builder needs ase -- {install.command('ase')}"
 
 
 def available() -> Availability:

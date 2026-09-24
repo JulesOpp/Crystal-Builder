@@ -22,7 +22,10 @@ from xtal.core import elements as el
 
 # Styles are looked up in xtalapp.viewport.styles; the name is stored
 # here so settings stay a plain, serialisable record.
-DEFAULT_STYLE = "ball_stick"
+#: Occupancy pies, so that a disordered site says it is one the moment
+#: a deposited structure opens -- and a fully occupied one looks
+#: exactly as plain ball and stick does.
+DEFAULT_STYLE = "ball_stick_occupancy"
 
 #: What becomes of a bond whose far atom is outside the display
 #: range, in the order the menu offers them.

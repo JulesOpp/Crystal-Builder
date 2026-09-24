@@ -316,6 +316,15 @@ def test_every_optimiser_is_offered_by_name(opened):
                for i in range(dock.method.count()))
 
 
+def test_the_optimiser_starts_on_smart(opened):
+    """The same default the scan has.  L-BFGS as the first entry was
+    the default by accident of dictionary order, and its first step
+    from a hand-built geometry is the one that goes wild."""
+    window, _document = opened
+
+    assert window.ff_dock.method.currentData() == "smart"
+
+
 def test_the_stress_tolerance_follows_the_cell_checkbox(opened):
     window, _document = opened
     dock = window.ff_dock
@@ -575,7 +584,7 @@ def test_the_panel_and_the_cli_offer_the_charge_sources_uff_declares(
         assert parser.parse_args(
             ["optimize", "x.cif", "--charges", value]).charges == value
     with pytest.raises(SystemExit):
-        parser.parse_args(["optimize", "x.cif", "--charges", "eqeq"])
+        parser.parse_args(["optimize", "x.cif", "--charges", "bogus"])
 
 
 # ------------------------------------------------ reading the panels
@@ -650,7 +659,7 @@ def test_the_chooser_appears_once_there_is_something_to_choose(opened):
     # shown, so isVisible is False for every widget in the window.
     assert not dock.engine.isHidden()
     assert [dock.engine.itemData(i) for i in range(dock.engine.count())] \
-        == ["uff", "xtb", "mace"]
+        == ["uff", "xtb", "mace", "orb", "mattersim"]
 
 
 def test_choosing_xtb_hides_the_controls_that_are_uffs(opened):
@@ -734,3 +743,85 @@ def test_every_engine_that_is_registered_can_be_chosen(window):
     offered = [engine.name for dock in docks for engine in dock.engines]
     assert sorted(offered) == sorted(ENGINES.names())
     assert len(offered) == len(set(offered))
+
+
+# ------------------------------------------- an engine that is missing
+
+def test_a_missing_engine_links_to_its_install_command(opened,
+                                                       monkeypatch):
+    """The command is a long path with nowhere to wrap: in the note it
+    pushed the panel wider than its column, was cut off at the edge,
+    and could not be copied from a label anyway.  The note links to
+    Preferences > Engines, where it can."""
+    import sys
+
+    from xtal.ff.orb import calculator as orb
+    from xtalapp.docks import MAXIMUM_MINIMUM
+
+    monkeypatch.setattr(orb, "installed", lambda: False)
+    window, _ = opened
+    dock = window.ff_dock
+    dock.engine.setCurrentIndex(dock.engine.findData("orb"))
+    note = dock.engine_note
+
+    assert not note.isHidden()
+    assert "ORB is not installed" in note.text()
+    assert 'href="engines"' in note.text()
+    assert sys.executable not in note.text()
+    assert note.minimumSizeHint().width() <= MAXIMUM_MINIMUM
+
+    shown = []
+    monkeypatch.setattr(window, "show_preferences",
+                        lambda page="": shown.append(page))
+    note.linkActivated.emit("engines")
+    assert shown == ["Engines"]
+
+
+# ------------------------------------------- where a method comes from
+
+def _links(label):
+    import re
+    return re.findall(r'href="([^"]+)"', label.text())
+
+
+def test_the_chosen_method_links_to_where_it_comes_from(window):
+    """Right under the chooser, and following it: UFF4MOF cites its own
+    papers as well as UFF's, plain UFF only Rappe's, an ML engine its
+    preprint and its repository.  The links go to the browser."""
+    dock = window.ff_dock
+    source = dock.engine_source
+    assert source.openExternalLinks()
+
+    dock.parameter_set.setCurrentIndex(
+        dock.parameter_set.findData("uff4mof"))
+    assert "https://doi.org/10.1021/ct400952t" in _links(source)
+    assert not source.isHidden()
+
+    dock.parameter_set.setCurrentIndex(dock.parameter_set.findData("uff"))
+    assert _links(source) == ["https://doi.org/10.1021/ja00051a040"]
+
+    dock.engine.setCurrentIndex(dock.engine.findData("mattersim"))
+    assert _links(source) == ["https://arxiv.org/abs/2405.04967",
+                              "https://github.com/microsoft/mattersim"]
+
+
+def test_the_charge_scheme_is_cited_once_it_is_doing_the_charges(
+        window):
+    dock = window.ff_dock
+    eqeq = "https://doi.org/10.1021/jz3008485"
+    dock.charges.setCurrentIndex(dock.charges.findData("eqeq"))
+    assert eqeq not in _links(dock.engine_source)
+    dock.coulomb.setChecked(True)
+    assert eqeq in _links(dock.engine_source)
+
+
+def test_the_dftb_panel_cites_the_hamiltonian_it_runs(window):
+    """The DFTB+ dock has no chooser to sit under; the links head its
+    Model box instead, and change with the form."""
+    dock = window.dftb_dock
+    form = dock.engine_forms["dftb"]
+    form.set_values({"method": "scc", "dispersion": "d3"})
+    links = _links(dock.engine_source)
+    assert "https://doi.org/10.1103/PhysRevB.58.7260" in links
+    assert "https://doi.org/10.1063/1.3382344" in links
+    assert "https://github.com/dftbplus/dftbplus" in links

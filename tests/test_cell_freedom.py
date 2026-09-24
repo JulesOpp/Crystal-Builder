@@ -134,6 +134,41 @@ def test_a_mask_is_a_projector(quartz):
     assert np.allclose(dof.project_strain(once), once, atol=1e-12)
 
 
+def test_what_holding_b_takes_away_is_perpendicular_to_what_it_leaves(
+        quartz):
+    """The shears are scaled by root two so that the ordinary dot
+    product is the tensor one, and the mask an *orthogonal*
+    projector in it.  Unscaled, the mask still projects onto the
+    right subspace and still passes the test above, but along the
+    wrong direction: the part of a stress it throws away is no longer
+    perpendicular to the strains it keeps, so a held relaxation walks
+    downhill in the wrong direction.
+
+    Only a held quantity whose derivative mixes a stretch with a
+    shear can tell the two apart, and no cell of higher symmetry
+    offers one -- which is why every other test here passed without
+    the root two.  *b* of a hexagonal cell in P1 lies at 120 degrees
+    to x, so it is one.  Measured: 1e-14 scaled, 6.2 unscaled."""
+    from xtal.core.symmetry import reduce_to_p1
+
+    dof = optimize.SymmetryDOF(
+        reduce_to_p1(quartz), relax_cell=True,
+        freedom=CellFreedom.fixing(("b",)))
+    rng = np.random.default_rng(0)
+
+    def symmetric():
+        m = rng.normal(size=(3, 3))
+        return m + m.T
+
+    for _ in range(3):
+        strain = symmetric()
+        rejected = strain - dof.project_strain(strain)
+        for _ in range(3):
+            kept = dof.project_strain(symmetric())
+            assert np.trace(rejected @ kept) == pytest.approx(
+                0.0, abs=1e-9)
+
+
 def test_a_fixed_cell_ignores_the_mask_entirely(quartz):
     """With no cell variables there is nothing to hold back, and
     building the mask would refuse cases that are perfectly fine."""

@@ -51,7 +51,7 @@ import numpy as np
 from xtal.ff.api import CalculatorError, Result
 from xtal.ff.dftb import hsd, params
 from xtal.ff.external import ExternalCalculator
-from xtal.ff.registry import ENGINES, Engine
+from xtal.ff.registry import ENGINES, Engine, doi, github
 from xtal.modules.process import MissingProgram, Program
 from xtal.params import Availability, Param
 
@@ -384,6 +384,33 @@ def build(structure, **options) -> DFTBCalculator:
     return DFTBCalculator(structure, DFTBOptions(**options))
 
 
+_HAMILTONIANS = {
+    "dftb3": doi("DFTB3: Gaus et al., J. Chem. Theory Comput. 2011",
+                 "10.1021/ct100684s"),
+    "scc": doi("SCC-DFTB: Elstner et al., Phys. Rev. B 1998",
+               "10.1103/PhysRevB.58.7260"),
+    "non-scc": doi("DFTB: Porezag et al., Phys. Rev. B 1995",
+                   "10.1103/PhysRevB.51.12947"),
+}
+_DISPERSIONS = {
+    "d3": doi("D3: Grimme et al., J. Chem. Phys. 2010",
+              "10.1063/1.3382344"),
+    # DFTB+ is handed UFFParameters for its Lennard-Jones term.
+    "lj": doi("Lennard-Jones from UFF: Rappe et al., J. Am. Chem. Soc. "
+              "1992", "10.1021/ja00051a040"),
+}
+_PROGRAM = (doi("DFTB+: Hourahine et al., J. Chem. Phys. 2020",
+                "10.1063/1.5143190"),
+            github("dftbplus/dftbplus"))
+
+
+def references(method="dftb3", dispersion="none", **_rest) -> tuple:
+    """The Hamiltonian's paper, the dispersion's, and the program."""
+    cited = tuple(r for r in (_HAMILTONIANS.get(method),
+                              _DISPERSIONS.get(dispersion)) if r)
+    return cited + _PROGRAM
+
+
 ENGINES.register(Engine(
     name="dftb",
     label="DFTB+",
@@ -394,4 +421,5 @@ ENGINES.register(Engine(
     provides=frozenset({"forces", "periodic"}),
     options=OPTIONS,
     check=available,
+    references=references,
 ))

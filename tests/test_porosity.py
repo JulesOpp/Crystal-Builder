@@ -339,14 +339,21 @@ def test_the_transcribed_radii_still_match_the_vendored_source():
     it could be read back -- and the *picture* of a run has to be
     drawn with the radii its *numbers* were computed with.  So a Zeo++
     upgrade that changes a radius fails here rather than quietly
-    moving a surface off the volume beside it."""
+    moving a surface off the volume beside it.
+
+    ``resources/zeo++-0.3`` is gitignored, so without the excerpt in
+    ``tests/data`` this skipped in every clean checkout and in CI --
+    the one place a transcription error would otherwise be caught.
+    The unpacked source wins where it exists, because that is what
+    notices an upgrade."""
     import re
     from pathlib import Path
 
-    source = Path(__file__).resolve().parent.parent.joinpath(
-        "resources", "zeo++-0.3", "networkinfo.cc")
+    here = Path(__file__).resolve().parent
+    source = here.parent.joinpath("resources", "zeo++-0.3",
+                                  "networkinfo.cc")
     if not source.is_file():
-        pytest.skip("the vendored Zeo++ source is not in this checkout")
+        source = here / "data" / "zeo_radii.cc"
     text = source.read_text()
     block = text[text.index("void initializeRadTable()"):]
     theirs = {symbol: float(radius) for symbol, radius in re.findall(

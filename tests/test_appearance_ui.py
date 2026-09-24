@@ -44,7 +44,7 @@ def document(rutile):
 def test_the_style_dock_shows_the_view(window, rutile_cif):
     document = window.open_path(rutile_cif)
     dock = window.style_dock
-    assert dock.style.currentData() == "ball_stick"
+    assert dock.style.currentData() == "ball_stick_occupancy"
     assert [dock.elements.item(r, 0).text()
             for r in range(dock.elements.rowCount())] == ["O", "Ti"]
 

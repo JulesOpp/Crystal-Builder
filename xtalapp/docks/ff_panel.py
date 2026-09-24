@@ -46,6 +46,8 @@ mistyped atom rather than a strained crystal.
 
 from __future__ import annotations
 
+import html
+
 import numpy as np
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
@@ -77,6 +79,7 @@ from xtal.ff.optimize import (
 )
 from xtal.ff.uff import calculator as uff_calculator
 from xtal.ff.uff import params
+from xtalapp import extras
 from xtalapp.dialogs.module_form import ParamForm
 from xtalapp.plot import TracePlot
 from xtalapp.widgets.atom_types import (
@@ -85,8 +88,12 @@ from xtalapp.widgets.atom_types import (
     warnings_text,
 )
 from xtalapp.widgets.atom_types import HEADING as TYPES_HEADING
+from xtalapp.widgets.links import SourceLinks
 from xtalapp.widgets.tone import HINT, set_tone
 from xtalapp.workers import OptimizationWorker, start_in_thread
+
+#: What the Optimiser box starts on.
+DEFAULT_METHOD = "smart"
 
 METHOD_LABELS = {
     "lbfgs": "L-BFGS (fast near a minimum)",
@@ -117,6 +124,25 @@ REDRAW_RATES = (
 )
 
 
+def engine_note_html(reason: str) -> str:
+    """An engine's reason, with its install command made a link.
+
+    The command is spelled out for this interpreter and this checkout
+    (:mod:`xtal.install`), which makes it a long path with no space to
+    wrap at: in a note it pushed the panel wider than its column and
+    was cut off at the edge, in a label nobody can copy from.
+    Preferences > Engines has the same command in a box with a Copy
+    button, so the note links there instead.
+    """
+    text = html.escape(reason)
+    for extra in extras.EXTRAS:
+        command = html.escape(extra.command())
+        if command in text:
+            text = text.replace(
+                command, 'the command to install it is on <a href="engines">'
+                         'Preferences &gt; Engines</a>')
+    return text
+
 class ForceFieldDock(QDockWidget):
     """Atom types, a single point, and a geometry optimisation.
 
@@ -132,6 +158,8 @@ class ForceFieldDock(QDockWidget):
     previewIntervalChanged = Signal(int)    # ms; 0 every step, -1 never
     runStarted = Signal(str)                # the run folder's path
     runFinished = Signal(str)               # the run folder's path
+    #: The note's link to Preferences > Engines was followed.
+    setupRequested = Signal()
 
     def __init__(self, parent=None, *, title="Force Field",
                 object_name="ForceFieldDock", engines=None):
@@ -176,7 +204,13 @@ class ForceFieldDock(QDockWidget):
             form.changed.connect(self._show_engine)
         self.engine_note = QLabel("")
         self.engine_note.setWordWrap(True)
+        self.engine_note.setTextFormat(Qt.TextFormat.RichText)
+        self.engine_note.linkActivated.connect(
+            lambda _link: self.setupRequested.emit())
         set_tone(self.engine_note, HINT)
+        # Where the method comes from, right under whatever chose it.
+        # The links open in the browser; nothing here follows them.
+        self.engine_source = SourceLinks()
 
         # UFF4MOF was always on and nothing said so.  Offered so a
         # number can be checked against the field it extends, and so
@@ -190,6 +224,8 @@ class ForceFieldDock(QDockWidget):
             "never uses them, which is how to see what they change")
         self.parameter_set.currentIndexChanged.connect(
             lambda _index: self.refresh())
+        self.parameter_set.currentIndexChanged.connect(
+            lambda _index: self._show_sources())
         self.coulomb = QCheckBox("Include electrostatics")
         self.coulomb.setToolTip(
             "Off by default, as in UFF itself: the published "
@@ -199,6 +235,8 @@ class ForceFieldDock(QDockWidget):
         for value, label in uff_calculator.CHARGE_SOURCES:
             self.charges.addItem(label, value)
         self.charges.setEnabled(False)
+        self.charges.currentIndexChanged.connect(
+            lambda _index: self._show_sources())
 
         # The van der Waals pair list is array work now -- 4.0 s down
         # to 0.49 s for a 5184-atom cell -- and what is left to control
@@ -232,6 +270,10 @@ class ForceFieldDock(QDockWidget):
         self.method = QComboBox()
         for name in METHODS:
             self.method.addItem(METHOD_LABELS.get(name, name), name)
+        # Smart, as the scan uses: steepest descent copes with a
+        # hand-built start that L-BFGS would take a wild first step
+        # from, and the later stages finish as quickly near a minimum.
+        self.method.setCurrentIndex(self.method.findData(DEFAULT_METHOD))
         self.max_steps = QSpinBox()
         self.max_steps.setRange(1, 100000)
         self.max_steps.setValue(DEFAULT_MAX_STEPS)
@@ -323,6 +365,7 @@ class ForceFieldDock(QDockWidget):
         setup = QFormLayout()
         setup.setContentsMargins(0, 0, 0, 0)
         setup.addRow("Force field", self.engine)
+        setup.addRow(self.engine_source)
         setup.addRow("Parameters", self.parameter_set)
         setup.addRow(self.coulomb)
         setup.addRow(_uff_option("charges").title, self.charges)
@@ -516,8 +559,10 @@ class ForceFieldDock(QDockWidget):
         # parameter directory cannot run, and the box that names one
         # is in the form directly above this note.
         available = engine.availability(**self.options())
-        self.engine_note.setText("" if available else available.reason)
+        self.engine_note.setText("" if available
+                                 else engine_note_html(available.reason))
         self.engine_note.setVisible(not available)
+        self._show_sources()
         if self.is_running:
             # Mid-run the run button is Stop, and _set_running owns
             # the rest.  Re-enabling either from here would offer a
@@ -525,6 +570,15 @@ class ForceFieldDock(QDockWidget):
             return
         for button in (self.energy_button, self.run_button):
             button.setEnabled(bool(available))
+
+    def _show_sources(self) -> None:
+        """Link the papers and code behind the method as it is now set
+        up -- UFF4MOF's as well as UFF's, the charge scheme's when one
+        is doing the charges, the Hamiltonian DFTB+ is running."""
+        name = self.engine_name()
+        references = (ENGINES.get(name).sources(**self.options())
+                      if name is not None else ())
+        self.engine_source.set_references(references)
 
     def _engine_provides(self, what: str) -> bool:
         name = self.engine_name()
@@ -534,6 +588,7 @@ class ForceFieldDock(QDockWidget):
 
     def _on_coulomb(self, on: bool) -> None:
         self.charges.setEnabled(on)
+        self._show_sources()
 
     def _on_relax_cell(self, on: bool) -> None:
         self.pressure.setEnabled(on)

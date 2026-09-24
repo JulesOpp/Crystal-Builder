@@ -15,7 +15,7 @@ import pytest
 pytest.importorskip("PySide6")
 pytest.importorskip("pytestqt")
 
-from PySide6.QtWidgets import QDialog  # noqa: E402
+from PySide6.QtWidgets import QDialog, QMenu  # noqa: E402
 
 from xtal.workspace import Workspace  # noqa: E402
 from xtalapp.dialogs.workspace_chooser import (  # noqa: E402
@@ -219,8 +219,17 @@ def test_open_sample_offers_every_sample_that_is_installed(chooser):
 
     menu = chooser().sample_button.menu()
 
-    assert [a.text() for a in menu.actions()] == [
-        s.label for s in samples.installed()]
+    def entries(menu):
+        # Not ``QAction.menu()``, which can delete the submenu it hands
+        # back; see test_samples.py.
+        below = {m.menuAction(): m for m in menu.findChildren(QMenu)}
+        for action in menu.actions():
+            if action in below:
+                yield from entries(below[action])
+            elif not action.isSeparator():
+                yield action.text()
+
+    assert list(entries(menu)) == [s.label for s in samples.installed()]
 
 
 def test_open_sample_on_a_folder_that_cannot_be_made_keeps_asking(

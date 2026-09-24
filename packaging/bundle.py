@@ -45,14 +45,14 @@ ICONS = HERE / "icons"
 
 #: Subtrees of ``resources/`` that travel with the application, as
 #: (relative path, why).  Both are load-bearing: File > Open Sample
-#: builds its seven entries from :func:`xtalapp.samples.installed`, so
+#: builds its thirteen entries from :func:`xtalapp.samples.installed`, so
 #: without the samples the menu greys out with a sentence about source
 #: checkouts and ``--selftest`` has nothing to open; and the workspace
 #: chooser, the first thing a launch shows, draws its side panel from
 #: ``resources/chooser``.
 RESOURCES = {
     "resources/samples":
-        "File > Open Sample, and what --selftest opens.  164 KB.",
+        "File > Open Sample, and what --selftest opens.  270 KB.",
     "resources/chooser":
         "The workspace chooser's icon and framework picture, made by "
         "packaging/render_chooser_art.py.  150 KB.",
@@ -99,6 +99,7 @@ PACKAGE_DATA = {
     # drawing one is what `xtal.build.topology` does.  331 KB.
     "xtal/analysis": ["data/*.json.gz", "data/*.cgd.gz"],
     "xtal/build/data": ["*.json"],          # the fragment library
+    "xtal/ff/charges": ["data/*.csv"],      # EQeq's ionisation table
     # The script Blender runs for Export as STL, by path.
     "xtal/modules": ["data/*.py"],
     # PORMAKE's nets and building blocks, vendored with it: 3271
@@ -191,6 +192,12 @@ HIDDEN_IMPORTS = [
 #: and the ``.app`` is 16 MB smaller.
 COLLECT = ["rdkit", "rdeditor", "qdarktheme", "matplotlib"]
 
+#: Bundled with nothing to collect: the import analysis finds them,
+#: for the reason given for ``ase`` above.  Named so that what
+#: Preferences > Engines promises a build carries can be checked
+#: against the two lists together.
+TRACED = ["ase"]
+
 #: Not bundled, and each line is a decision rather than an oversight.
 EXCLUDES = [
     # `pormake` is NOT excluded any more, and its absence from this
@@ -214,6 +221,17 @@ EXCLUDES = [
     "jaxlib",
     "pymatgen",
     "networkx",
+    # The ML engines, and the PyTorch every one of them brings, which
+    # is larger than the rest of the application put together.  They
+    # were out of every build only because the build environment had
+    # none installed: PyInstaller follows an import inside a function
+    # as readily as one at the top, so a build made in an environment
+    # with mace in it would have carried gigabytes and still said "not
+    # included in this build" on Preferences > Engines.
+    "mace",
+    "orb_models",
+    "mattersim",
+    "torch",
     # `matplotlib` is NOT excluded any more, and its absence from
     # this list is the point.  It used to be, because the plots this
     # application drew were a hundred lines of QPainter each and the
@@ -311,9 +329,15 @@ def project_datas() -> list[tuple[str, str]]:
 
     for relative in sorted(RESOURCES):
         folder = ROOT / relative
-        for path in sorted(folder.iterdir()):
-            if path.is_file() and not path.name.startswith("."):
-                datas.append((str(path), relative))
+        # Down every subdirectory, each file landing in its own: the
+        # COD samples are ``resources/samples/cod``, and a flat walk
+        # left them out of the bundle with nothing failing to say so.
+        for path in sorted(folder.rglob("*")):
+            if path.is_file() and not any(
+                    part.startswith(".")
+                    for part in path.relative_to(folder).parts):
+                destination = path.parent.relative_to(ROOT)
+                datas.append((str(path), destination.as_posix()))
 
     for package, patterns in sorted(PACKAGE_DATA.items()):
         folder = ROOT / package

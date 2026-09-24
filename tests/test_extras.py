@@ -68,7 +68,51 @@ def test_a_checkout_says_what_to_install(monkeypatch):
     ok, sentence = extras.status(extra("rdkit"))
 
     assert not ok
-    assert "pip install 'crystal-builder[build]'" in sentence
+    assert sentence == "Not installed."
+
+
+def test_a_missing_package_s_row_offers_its_command_to_copy(
+        monkeypatch, qtbot, settings):
+    from xtalapp.dialogs.preferences import _Command
+
+    monkeypatch.setattr(build_extra, "installed", lambda: False)
+    dialog = PreferencesDialog(settings)
+    qtbot.addWidget(dialog)
+    box = dialog.page("Engines").rows["rdkit"].parentWidget()
+
+    commands = [c.text() for c in box.findChildren(_Command)]
+
+    assert commands == [extra("rdkit").command()]
+
+
+def test_the_command_is_this_interpreter_s_pip():
+    """A bare ``pip`` is whichever is first on the PATH, which is
+    often not the Python the application is running in -- and the
+    package lands somewhere the application never looks."""
+    assert extra("rdkit").command().startswith(
+        f'"{sys.executable}" -m pip install')
+
+
+def test_a_checkout_installs_the_extra_from_itself():
+    """``crystal-builder`` is not on PyPI: the name resolves only
+    against metadata written at install time, which does not know an
+    extra added since, and pip then installs nothing.  Installing the
+    checkout rewrites the metadata on the way."""
+    from xtal import install
+
+    root = install.checkout()
+
+    assert root is not None and (root / "pyproject.toml").is_file()
+    assert f'-e "{root}[mace]"' in extra("mace").command()
+
+
+def test_an_installed_copy_names_the_package(monkeypatch):
+    from xtal import install
+
+    monkeypatch.setattr(install, "checkout", lambda: None)
+
+    assert extra("mace").command().endswith(
+        'pip install "crystal-builder[mace]"')
 
 
 def test_a_bundle_never_says_pip_install(monkeypatch):
@@ -108,28 +152,43 @@ def test_a_bundle_says_a_working_feature_came_with_it(monkeypatch):
     assert "included in this build" in sentence
 
 
-def test_nothing_on_the_page_is_left_out_of_a_build_any_more():
-    """The product decision in SHELL.md 3 was: bundle the small ones,
-    and be honest about the one that is larger than the application.
+def test_only_the_ml_engines_are_left_out_of_a_build():
+    """The product decision in SHELL.md 3: bundle the small ones, and
+    be honest about the one that is larger than the application.
 
-    That one was PORMAKE, and vendoring it settled the question --
-    every feature this page lists now ships.  The ``bundled`` field
-    stays because :func:`extras.status` still needs to tell "missing
-    from a build meant to carry it", which is a fault, apart from
-    "deliberately left out"; this is what fails if a row is added and
-    the page starts making promises a build does not keep.
-    """
-    assert extras.EXTRAS
-    assert [e.package for e in extras.EXTRAS if not e.bundled] == []
+    That was PORMAKE until it was vendored, and is PyTorch now: every
+    ML engine brings it and none ships.  This is what fails if a row
+    is added and the page starts making promises a build does not
+    keep -- or stops listing the one thing a packaged user has to be
+    told they cannot have."""
+    assert {e.package for e in extras.EXTRAS if not e.bundled} == {
+        "mace", "orb_models", "mattersim"}
     assert "pormake" not in {e.package for e in extras.EXTRAS}
+
+
+def test_a_bundle_says_an_ml_engine_is_not_in_it(monkeypatch):
+    from xtal.ff import mace
+
+    frozen_build(monkeypatch)
+    monkeypatch.setattr(mace, "installed", lambda: False)
+
+    ok, sentence = extras.status(extra("mace"))
+
+    assert not ok
+    assert "Not included in this build" in sentence
+    assert "pip" not in sentence
 
 
 def test_the_check_is_each_feature_s_own():
     """One answer to "is RDKit here" in the application, not a second
     one that can drift from the first."""
     from xtal.build import installed as rdkit_installed
+    from xtal.ff.mace import installed as mace_installed
+    from xtal.mof import has_ase
 
     assert extra("rdkit").installed() == rdkit_installed()
+    assert extra("mace").installed() == mace_installed()
+    assert extra("ase").installed() == has_ase()
 
 
 # -- the folder that goes on sys.path -----------------------------------
@@ -200,6 +259,17 @@ def test_the_page_has_a_row_for_every_optional_feature(page):
     assert set(page.rows) == {e.package for e in extras.EXTRAS}
 
 
+def test_testing_an_ml_engine_imports_its_model_code(page):
+    """``import mace`` is 0.05 s and never touches torch, so a Test
+    that stopped there would pass on a broken torch.  The model code
+    is 4.6 s warm, so it gets longer than the five seconds a program
+    gets."""
+    probe = page._probe("mace")
+
+    assert "import mace.calculators" in probe.argv[-1]
+    assert probe.timeout >= 30
+
+
 def test_the_folder_command_is_offered_with_its_warning(page):
     """The box used to offer two routes to a PORMAKE that was not in
     the bundle.  PORMAKE is vendored, so what is left is the one thing
@@ -224,3 +294,30 @@ def test_copying_a_command_puts_it_on_the_clipboard(page, qtbot):
     page.target_command._copy()
 
     assert QApplication.clipboard().text() == extras.target_command()
+
+
+def test_every_row_links_to_where_it_comes_from(page):
+    """A program, a package or a folder of nets is something somebody
+    wrote; each row says who, and the links open in the browser."""
+    from xtalapp import external
+    from xtalapp.widgets.links import SourceLinks
+
+    for row in (*external.TOOLS, *extras.EXTRAS):
+        assert row.references, row.label
+    shown = {url for label in page.findChildren(SourceLinks)
+             for url in label.urls()}
+    assert all(label.openExternalLinks()
+               for label in page.findChildren(SourceLinks))
+    for row in (*external.TOOLS, *extras.EXTRAS):
+        for reference in row.references:
+            assert reference.url in shown, reference
+
+
+def test_an_ml_engine_row_cites_what_the_force_field_panel_does():
+    from xtal.ff import ENGINES
+
+    for name, package in (("mace", "mace"), ("orb", "orb_models"),
+                          ("mattersim", "mattersim")):
+        engine = ENGINES.get(name)
+        assert extra(package).references == engine.sources(
+            **engine.defaults())

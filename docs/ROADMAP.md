@@ -1067,7 +1067,35 @@ and the CCDC-headed sample files, which need a decision first because
 
 ---
 
-## 7. What this plan does not do
+## 7. More engines, EQeq, and a COD sample library
+
+Planned 2026-09-23 as the fourth track from `features/deep-review`
+(`review/PLAN.md` § Phase 2), and the one the factoring track's two
+seams were built for: `xtal/ff/ase_engine.py` has MACE as its only
+subclass, and `CHARGE_SOURCES` has nothing new in it.  Julius's
+answers: all three licence-clean uMLIPs (UMA and eSEN are out -- gated
+or research-only weights), EQeq alone (EQeq+C's table is paywalled),
+and a COD library *beside* the shipped samples rather than replacing
+them.  The full plan is
+`~/.claude/plans/all-three-umlips-eqeq-wise-tiger.md`.  Branch
+`features/deep-review-engines`, off `main`.
+
+| Phase | Delivers | Main files | Size |
+|---|---|---|---|
+| **0 — Pin what the review found unpinned** | Shipped 2026-09-23. Tests only, each checked by putting its regression back: the QSettings scratch guard (`test_suite_guards.py`), the √2 strain metric (holding *b* of quartz in P1: 1e-14 scaled, 6.2 flat), the Zeo++ radii test reading an excerpt in `tests/data` instead of skipping, the workspace-switch question asked once | `tests/` | S |
+| **1 — ORB-v3** | Shipped 2026-09-24. `xtal/ff/orb`, conservative models only, double precision by default (float32's error is a third of a 1e-4 A step's energy change), CPU or CUDA -- orb-models 0.7.0 cannot use mps. MOF-5 0.94 s an evaluation in float32 and 2.58 s in float64, against MACE-MPA-0's 3.32 s. Before it, Preferences > Engines was put right: rows for MACE and ase, and a command that names this interpreter and this checkout | `xtal/ff/orb/`, `pyproject.toml` | M |
+| **2 — EQeq** | Shipped 2026-09-24. `ewald.pair_matrix` (every entry independent of the split, background included), EQeq on `qeq._solve` with the paper's charge centres, lambda 1.2 and hydrogen at -2 eV, one row in `CHARGE_SOURCES`. The table is package data, `xtal/ff/charges/data/ionization.csv`, written by `scripts/eqeq_table.py` from the NIST ASD ionisation export and PubChem's electron affinities (ASD has none), both kept in `tests/data/eqeq/`. MOF-5: Zn +1.210 against the authors' program's +1.211, no atom off by more than 0.05 e, 0.5 s | `xtal/ff/charges/`, `xtal/ff/ewald.py`, `scripts/eqeq_table.py` | M |
+| **3 — MatterSim** | Shipped 2026-09-24. `xtal/ff/mattersim`, the 1M and 5M models, double precision by default (float32 gets a 1e-4 A step's energy change wrong by 7 %; float64 costs 1.5x), CPU or CUDA -- on macOS 13 MatterSim loads onto mps without asking and segfaults, so `torch_device(allow_mps=False)`, which ORB now shares. MOF-5 0.51 s an evaluation in float64, the fastest of the three. mattersim declares e3nn>=0.5 against MACE's pinned 0.4.4; its inference runs on 0.4.4, so `.venv` has it by `--no-deps` plus torch_runstats, loguru and deprecated, and Preferences > Engines says how | `xtal/ff/mattersim/`, `pyproject.toml` | S |
+| **4 — SevenNet** | Dropped 2026-09-24, Julius's decision.  sevenn 0.13.0 refuses to import below e3nn 0.5 ("changes in CG coefficient convention") -- a real change, not metadata -- and every mace-torch release to 0.3.16 pins e3nn to exactly 0.4.4, so the two cannot share a Python.  Running it out of process was the alternative; ORB-v3 and MatterSim already cover the licence-clean universal potentials | -- | -- |
+| **5 — COD library** | Shipped 2026-09-23. Six CC0 structures (COD 1516287, 4002052, 7249359, 4512072, 4000663, 7230579) in `resources/samples/cod/`, each the COD's CIF with `_refln`, `_diffrn`, embedded SHELX files and SQUEEZE removed whole item by whole loop and every other byte kept (UiO-66 286 KB to 13, NU-1000 301 to 15), written by `scripts/fetch_cod_samples.py`. Open Sample has them in a *From the COD* submenu and the start pane under a heading -- a section title is not drawn in a native macOS menu, and both groups have a MOF-5 -- and each entry is named with its number (`MOF-5_COD_1516287`). `PROVENANCE.md` names all sixteen files, with the CCDC decision. The bundle now walks subfolders of `resources/samples`, which it did not. MIL-101 is 16 000 atoms and opens in 2.9 s. Seven more asked for the same day: MIL-100(Fe) 7102029, MOF-74(Zn) 1517474, PCN-222(Fe) 4329555 (as MOF-545(Fe)), MOF-808 4121463, MIL-53(Cr) 1502688, MIL-88B(Cr) 7100637 and Mn-BTT 4111257; a powder profile is stripped too (MOF-74 104 KB to 9). MOF-303, Cu3(HHTP)2 and Cr-red-MOF-1 are not in the COD. Then cubic-EuHOTP 4134597, pbz-MOF-1 4130966 and Al-soc-MOF-1 4129499 (13 MB and 7.5 MB downloads, 17 KB and 12 KB stripped). With them the default style became Ball and stick (occupancy), and the Force Field panel's optimiser Smart, as the scan's already was | `resources/samples/cod/`, `xtalapp/samples.py`, `xtalapp/menus.py` | S-M |
+
+Phases 1, 2 and 5 each downloaded something (weights, the NIST table,
+the COD files) and asked before they did.  No model is ever loaded in the
+test process; see CLAUDE.md "Aborted runs".
+
+---
+
+## 8. What this plan does not do
 
 * It does not touch the design principles in
   [docs/PLAN.md](PLAN.md) § 1.  Every phase keeps the core Qt-free,

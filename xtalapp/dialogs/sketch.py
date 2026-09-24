@@ -48,11 +48,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from xtal import install
 from xtal.build.chem import CONNECTION
 
 MISSING = ("rdeditor is not installed, so the molecule is drawn "
-           "rather than drawable -- pip install "
-           "'crystal-builder[sketch]'")
+           f"rather than drawable -- {install.command('sketch')}")
 
 
 def installed() -> bool:

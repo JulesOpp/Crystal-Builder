@@ -20,6 +20,11 @@ over this.
 from xtal.ff.api import Calculator, CalculatorError, Result
 from xtal.ff.dftb.calculator import DFTBCalculator, DFTBOptions
 from xtal.ff.mace.calculator import MACECalculator, MACEOptions
+from xtal.ff.mattersim.calculator import (
+    MatterSimCalculator,
+    MatterSimOptions,
+)
+from xtal.ff.orb.calculator import ORBCalculator, ORBOptions
 from xtal.ff.registry import ENGINES, Engine, EngineRegistry
 from xtal.ff.uff.calculator import UFFCalculator, UFFOptions
 from xtal.ff.uff.typer import Typing, TypingError
@@ -28,4 +33,6 @@ from xtal.ff.xtb.calculator import XTBCalculator, XTBOptions
 __all__ = ["Calculator", "CalculatorError", "Result", "ENGINES",
            "Engine", "EngineRegistry", "UFFCalculator", "UFFOptions",
            "DFTBCalculator", "DFTBOptions", "XTBCalculator", "XTBOptions",
-           "MACECalculator", "MACEOptions", "Typing", "TypingError"]
+           "MACECalculator", "MACEOptions", "ORBCalculator",
+           "ORBOptions", "MatterSimCalculator", "MatterSimOptions",
+           "Typing", "TypingError"]

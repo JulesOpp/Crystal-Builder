@@ -1,0 +1,97 @@
+#------------------------------------------------------------------------------
+#$Date: 2016-02-14 16:26:36 +0200 (Sun, 14 Feb 2016) $
+#$Revision: 176435 $
+#$URL: file:///home/coder/svn-repositories/_RELOADED_COD/cod-reloaded/cif/1/50/26/1502688.cif $
+#------------------------------------------------------------------------------
+#
+# This file is available in the Crystallography Open Database (COD),
+# http://www.crystallography.net/
+#
+# All data on this site have been placed in the public domain by the
+# contributors.
+#
+data_1502688
+loop_
+_publ_author_name
+'Mulder, Fokko M.'
+'Assfour, Bassem'
+'Huot, Jacques'
+'Dingemans, Theo J.'
+'Wagemaker, Marnix'
+'Ramirez-Cuesta, A. J.'
+_publ_section_title
+;
+ Hydrogen in the Metal&#x2212;Organic Framework Cr MIL-53
+;
+_journal_issue                   23
+_journal_name_full               'The Journal of Physical Chemistry C'
+_journal_page_first              10648
+_journal_paper_doi               10.1021/jp102463p
+_journal_volume                  114
+_journal_year                    2010
+_chemical_formula_sum            'C8 Cr D4 O5'
+_chemical_formula_weight         236.13
+_chemical_name_systematic        ' ?'
+_space_group_IT_number           74
+_symmetry_cell_setting           orthorhombic
+_symmetry_space_group_name_Hall  '-I 2 2a'
+_symmetry_space_group_name_H-M   'I m c m'
+_cell_angle_alpha                90.0
+_cell_angle_beta                 90.0
+_cell_angle_gamma                90.0
+_cell_formula_units_Z            4
+_cell_length_a                   16.772(8)
+_cell_length_b                   13.145(5)
+_cell_length_c                   6.847(5)
+_cell_volume                     1509.5(14)
+_pd_block_id
+2010-05-11T12:36|GEM28422-CIF_phase1|GEM284422||
+_pd_phase_name                   'from C:/gsas/MyWork/GEM28405.EXP'
+_cod_data_source_file            jp102463p_si_002.cif
+_cod_data_source_block           GEM28422-CIF_phase_1
+_cod_original_cell_volume        1506.7(14)
+_cod_original_formula_sum        'C8 D4 Cr O5'
+_cod_database_code               1502688
+loop_
+_symmetry_equiv_pos_site_id
+_symmetry_equiv_pos_as_xyz
+1 +x,+y,+z
+2 -x+1/2,+y,+z
+3 +x,-y+1/2,+z+1/2
+4 -x+1/2,-y+1/2,+z+1/2
+-1 -x,-y,-z
+-2 +x+1/2,-y,-z
+-3 -x,+y+1/2,-z+1/2
+-4 +x+1/2,+y+1/2,-z+1/2
+101 +x+1/2,+y+1/2,+z+1/2
+102 -x,+y+1/2,+z+1/2
+103 +x+1/2,-y,+z
+104 -x,-y,+z
+-101 -x+1/2,-y+1/2,-z+1/2
+-102 +x,-y+1/2,-z+1/2
+-103 -x+1/2,+y,-z
+-104 +x,+y,-z
+loop_
+_atom_site_type_symbol
+_atom_site_label
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_occupancy
+_atom_site_thermal_displace_type
+_atom_site_U_iso_or_equiv
+_atom_site_symmetry_multiplicity
+O O1 0.25 0.7 0.0 1.0 Uiso 0.01 4
+O O2 0.165 0.843 0.154 1.0 Uiso 0.00752 16
+C C1 0.033 0.966 0.832 1.0 Uiso 0.03 16
+C C2 0.069 0.936 0.0 1.0 Uiso 0.01 8
+C C3 0.142 0.869 0.0 1.0 Uiso 0.02 8
+Cr CR1 0.25 0.75 0.25 1.0 Uiso 0.025 4
+D D1 0.056 0.943 0.31 1.0 Uiso 0.04 16
+loop_
+_atom_type_symbol
+_atom_type_number_in_cell
+O 20.0
+C 32.0
+Cr 4.0
+D 16.0

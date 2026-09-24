@@ -41,6 +41,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from xtal import install
 from xtalapp.dialogs.pattern import (
     EDITABLE_TEXT,
     FIGURE_FILTERS,
@@ -53,7 +54,7 @@ from xtalapp.widgets.tone import HINT, set_tone
 MISSING = ("matplotlib is not installed, so a landscape can be "
            "looked at in the panel but not contoured, zoomed or "
            "exported as a figure -- "
-           "pip install 'crystal-builder[pxrd]'")
+           f"{install.command('pxrd')}")
 
 #: How many contour lines to draw by default.  Enough to read the
 #: shape of a basin and few enough to read the labels on them.

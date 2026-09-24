@@ -149,3 +149,15 @@ def test_the_help_window_opens_and_is_kept(window):
     window.actions_["help_contents"].trigger()
     assert window._help_window is first
     first.close()
+
+
+def test_the_about_box_says_who_wrote_it(window, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    shown = []
+    monkeypatch.setattr(QMessageBox, "about",
+                        lambda parent, title, text: shown.append(text))
+    window.show_about()
+    assert "Written by Jules Oppenheim, with help from Sam " \
+           "Oppenheim." in shown[0]
+    assert "Code written with Claude Code." in shown[0]

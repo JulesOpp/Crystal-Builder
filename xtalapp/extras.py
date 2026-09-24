@@ -3,14 +3,15 @@ xtalapp.extras
 ==============
 What is optional, whether it is here, and how to get it.
 
-Three features are gated on a package this application does not
-install: the molecule builder needs RDKit, the sketcher needs
-rdeditor, and the PXRD overlay window needs matplotlib.  Each greys
-its entry out and names the extra to install -- ``pip install
-'crystal-builder[build]'`` -- which is exactly the right advice on a
-source checkout.
+Five features are gated on a package this application does not
+install: the molecule builder needs RDKit, the sketcher rdeditor, the
+PXRD overlay window matplotlib, the MOF builder ASE, and the MACE
+engine mace-torch.  Each greys its entry out and names the extra to
+install, spelled by :func:`xtal.install.command` for *this*
+interpreter and *this* checkout -- see that module for why the
+shorthand ``pip install 'crystal-builder[build]'`` is not good enough.
 
-The third is the narrowest of the three and is worth the distinction:
+The PXRD one is the narrowest and is worth the distinction:
 what is missing without matplotlib is a *window*, not a feature.  The
 pattern is still calculated, still drawn in the Results panel by
 :mod:`xtalapp.curve`, and still written as ``.xy``; the button that
@@ -27,16 +28,18 @@ honest about the big one*.  RDKit is about 107 MB and buys two whole
 features; rdeditor is a megabyte on top of a PySide6 that is bundled
 anyway.
 
-**The MOF builder was the big one, and it is not on this page any
-more.**  It needed PORMAKE: 44 packages and about 889 MB, jax and
-pymatgen for one dialog, larger than the rest of the application put
-together.  So it was excluded, and it was the single feature a
-packaged user could not have.  PORMAKE is now vendored and trimmed of
-all three -- :mod:`xtal.mof.pormake`, about 23 MB with the ``ase``
-it is written over, see ``xtal/mof/pormake/PROVENANCE.md`` -- so the
-builder ships, there is
-nothing to install, and a page listing it as optional would be the
-untrue thing this module exists to avoid.
+**The MOF builder was the big one.**  It needed PORMAKE: 44 packages
+and about 889 MB, jax and pymatgen for one dialog.  PORMAKE is now
+vendored and trimmed of all three -- :mod:`xtal.mof.pormake`, about
+23 MB with the ``ase`` it is written over, see
+``xtal/mof/pormake/PROVENANCE.md`` -- so the builder ships.  It is
+back on this page for a source checkout, where ``ase`` is still an
+extra and the builder greys out without it; a build says it came
+with it.
+
+**The big one now is PyTorch**, which every ML engine brings and no
+build carries.  Those rows say "not included in this build" rather
+than offering an install nobody can do.
 
 **The folder on ``sys.path`` outlives that.**  A user-writable
 directory beside the log, prepended at start-up, so that ``pip install
@@ -54,10 +57,18 @@ from __future__ import annotations
 
 import os
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 from xtal import build as build_extra
+from xtal import install
+from xtal import mof as mof_extra
+from xtal.ff import mace as mace_extra
+from xtal.ff import mattersim as mattersim_extra
+from xtal.ff import orb as orb_extra
+from xtal.ff.registry import ENGINES
+from xtal.references import PORMAKE, Reference, doi, github
 from xtalapp import applog
 from xtalapp.dialogs import pattern, sketch
 
@@ -87,12 +98,27 @@ class Extra:
     package: str                # what is imported
     extra: str                  # the pip extra that installs it
     powers: str
-    #: Whether a packaged build includes it.  Both rows say ``True``
-    #: now that the MOF builder is vendored, and the field stays: it
-    #: is the product decision this table exists to record, and
-    #: :func:`status` tells "missing from a build meant to carry it"
-    #: -- a fault -- apart from "deliberately left out".
+    #: Whether a packaged build includes it.  The ML engines say
+    #: ``False``: PyTorch is larger than the rest of the application
+    #: put together and is not bundled.  :func:`status` tells "missing
+    #: from a build meant to carry it" -- a fault -- apart from
+    #: "deliberately left out", and this field is that decision.
     bundled: bool
+    #: What Test imports, where importing the package alone proves
+    #: nothing: ``import mace`` is 0.05 s and never touches torch,
+    #: ``import mace.calculators`` is 4.6 s and does.
+    module: str = ""
+    #: Seconds Test waits, where the default five would stop a torch
+    #: import that was going to succeed.
+    timeout: float = 0.0
+    #: What else it takes, where the command alone is known to fail.
+    note: str = ""
+    #: The command, where it depends on what else is installed.  The
+    #: feature's own function, so the Force Field panel's note and this
+    #: page cannot give two different answers.
+    command_for: Callable[[], str] | None = None
+    #: Where it comes from, linked on the page.
+    references: tuple = ()
 
     def installed(self) -> bool:
         """``find_spec``, never an import -- see the modules this
@@ -100,8 +126,11 @@ class Extra:
         return installed(self.package)
 
     def command(self) -> str:
-        """What to type on a source checkout to get it."""
-        return f"pip install 'crystal-builder[{self.extra}]'"
+        """What to type on a source checkout to get it -- see
+        :mod:`xtal.install` for why it is not the shorthand."""
+        if self.command_for is not None:
+            return self.command_for()
+        return install.command(self.extra)
 
 
 #: Asked through each feature's own check, so there is one answer to
@@ -111,9 +140,13 @@ class Extra:
 #: machine has all three states at once -- is felt through this table
 #: as well.
 _CHECKS = {
+    "ase": lambda: mof_extra.has_ase(),
     "rdkit": lambda: build_extra.installed(),
     "rdeditor": lambda: sketch.installed(),
     "matplotlib": lambda: pattern.installed(),
+    "mace": lambda: mace_extra.installed(),
+    "orb_models": lambda: orb_extra.installed(),
+    "mattersim": lambda: mattersim_extra.installed(),
 }
 
 
@@ -123,20 +156,68 @@ def installed(package: str) -> bool:
     return bool(check()) if check is not None else False
 
 
+def _engine(name: str) -> tuple:
+    """An ML engine's own references, as the Force Field panel shows
+    them, so the two cannot disagree."""
+    engine = ENGINES.get(name)
+    return engine.sources(**engine.defaults())
+
+
 EXTRAS = (
     Extra("Molecule builder", "rdkit", "build",
           "Insert molecule builds a molecule from a SMILES string and "
           "pastes it into the structure.  It also reads the fragment "
-          "library.", True),
+          "library.", True,
+          references=(Reference("rdkit.org", "https://www.rdkit.org"),
+                      github("rdkit/rdkit"))),
     Extra("Molecule sketcher", "rdeditor", "sketch",
           "Draw a molecule instead of typing a SMILES string.  Needs "
-          "the molecule builder as well.", True),
+          "the molecule builder as well.", True,
+          references=(github("EBjerrum/rdeditor"),)),
     Extra("Pattern plot window", "matplotlib", "pxrd",
           "Zoom into a calculated PXRD pattern, overlay a measured "
           ".xy file on it, and export the figure as a vector with "
           "the text still editable.  The pattern itself is "
           "calculated, drawn in the Results panel and written as .xy "
-          "without it.", True),
+          "without it.", True,
+          references=(Reference("matplotlib.org",
+                                "https://matplotlib.org"),)),
+    Extra("MOF builder", "ase", "ase",
+          "Build a framework from a net, a node and a linker.  PORMAKE "
+          "is part of this application; ASE is what it is written "
+          "over.", True,
+          references=(doi("ASE: Hjorth Larsen et al., J. Phys.: "
+                          "Condens. Matter 2017",
+                          "10.1088/1361-648X/aa680e"),
+                      Reference("gitlab.com/ase/ase",
+                                "https://gitlab.com/ase/ase"))
+          + PORMAKE),
+    Extra("MACE engine", "mace", "mace",
+          "The MACE machine-learned potentials in the Force Field "
+          "panel.  Brings PyTorch, which is gigabytes.", False,
+          module="mace.calculators", timeout=60.0,
+          references=_engine("mace")),
+    Extra("ORB engine", "orb_models", "orb",
+          "The ORB-v3 machine-learned potentials in the Force Field "
+          "panel.  Brings PyTorch, which is gigabytes.", False,
+          module="orb_models.forcefield.pretrained", timeout=60.0,
+          references=_engine("orb"),
+          note="orb-models pins dm-tree 0.1.8, which has no ready-made "
+               "wheel for Python 3.13 and does not build with CMake 4. "
+               " If the install stops while building dm-tree, run it "
+               "again with CMAKE_POLICY_VERSION_MINIMUM=3.5 set in the "
+               "environment."),
+    Extra("MatterSim engine", "mattersim", "mattersim",
+          "The MatterSim machine-learned potentials in the Force "
+          "Field panel.  Brings PyTorch, which is gigabytes.", False,
+          module="mattersim.forcefield", timeout=60.0,
+          command_for=lambda: mattersim_extra.install_command(),
+          references=_engine("mattersim"),
+          note="mattersim asks for e3nn 0.5 or newer and MACE needs "
+               "exactly 0.4.4, and MatterSim runs on 0.4.4.  With MACE "
+               "installed, the command above leaves mattersim's own "
+               "dependencies out and installs the three it needs, so "
+               "that MACE keeps working."),
 )
 
 #: What the folder below is for, in the words the page uses.
@@ -226,7 +307,10 @@ def status(extra: Extra) -> tuple[bool, str]:
         return True, ("Working, and included in this build."
                       if frozen() and extra.bundled else "Working.")
     if not frozen():
-        return False, f"Not installed.  {extra.command()}"
+        # The command is the page's box below, ready to copy.  It was
+        # repeated here while it was short; spelled out for this
+        # interpreter and checkout it is a wrapped path twice over.
+        return False, "Not installed."
     if extra.bundled:
         # Not a thing the user can act on: this build was supposed to
         # carry it.  Saying "pip install" here would be advice about

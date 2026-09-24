@@ -119,3 +119,14 @@ def test_the_dialog_is_reachable_by_the_name_the_action_gives():
     assert module_dialog("net-draw") is NetDrawDialog
     assert "net-draw" in dialog_actions()
     assert "xtalapp.dialogs.net_draw" in dialog_modules()
+
+
+def test_the_chosen_net_links_to_its_page_in_the_rcsr(dialog):
+    """Every net here is the RCSR's; its page is one click from the
+    picture, and a layer's is under /layers, not /nets."""
+    dialog._select("pcu")
+    assert dialog.links.openExternalLinks()
+    assert "http://rcsr.net/nets/pcu" in dialog.links.urls()
+    assert "https://doi.org/10.1021/ar800124u" in dialog.links.urls()
+    dialog._select("hcb")
+    assert "http://rcsr.net/layers/hcb" in dialog.links.urls()

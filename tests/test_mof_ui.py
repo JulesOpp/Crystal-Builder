@@ -1011,3 +1011,20 @@ def test_the_mof_builder_searches_by_group_number_and_transitivity(
 
     dialog.search.number.setText("221")
     assert "pcu" in _listed(dialog) and "hcb" not in _listed(dialog)
+
+
+@needs_database
+def test_the_builder_links_to_pormake_and_the_rcsr(dialog):
+    """Where the builder and its nets come from, outside the scroll
+    so that it is there whichever section is open; the chosen net's
+    RCSR page where it has one, and nothing where it has not."""
+    assert dialog.sources.openExternalLinks()
+    assert "https://github.com/Sangwon91/PORMAKE" in dialog.sources.urls()
+    assert "https://doi.org/10.1021/acsami.1c02471" in \
+        dialog.sources.urls()
+    assert "https://doi.org/10.1021/ar800124u" in dialog.sources.urls()
+    assert dialog.net_links.urls() == ["http://rcsr.net/nets/pcu"]
+
+    assert dialog._select("lcw_component_3")   # PORMAKE's, not the RCSR's
+    assert dialog.net_links.urls() == []
+    assert dialog.net_links.isHidden()

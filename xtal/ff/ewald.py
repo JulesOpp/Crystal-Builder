@@ -164,6 +164,62 @@ def energy_and_gradient(positions, matrix, charges, pairs,
     return energy, grad
 
 
+def pair_matrix(positions, matrix, setup_=None) -> np.ndarray:
+    """The periodic ``1/r`` between every two atoms, as an N x N
+    matrix in 1/Angstrom.
+
+    ``E = COULOMB / 2 * q @ M @ q`` is the energy
+    :func:`energy_and_gradient` gives with nothing excluded, for any
+    charges at all, which is what a charge equilibration needs: its
+    unknowns are the charges, so it has to have the sum before it has
+    them.  The diagonal is an atom's interaction with its own images,
+    screening cloud included.
+
+    The background term is in every entry, as a constant.  For a
+    neutral set of charges it adds nothing; what it buys is that every
+    *entry* is independent of alpha, not just the energy of a neutral
+    cell -- without it the diagonal alone shifts with the split, and a
+    matrix that depends on how it was computed is not a matrix of
+    anything.
+    """
+    positions = np.asarray(positions, dtype=float)
+    matrix = np.asarray(matrix, dtype=float)
+    conf = setup_ or setup(matrix)
+    n = len(positions)
+    alpha = conf.alpha
+
+    # Real space, one lattice translation at a time: the separations
+    # are reduced to the nearest image first so that the translations
+    # needed are the cutoff's worth either side and no more.
+    inverse = np.linalg.inv(matrix)
+    frac = positions @ inverse
+    delta = frac[None, :, :] - frac[:, None, :]
+    delta -= np.rint(delta)
+    widths = conf.volume / np.linalg.norm(
+        np.cross(matrix[[1, 2, 0]], matrix[[2, 0, 1]]), axis=1)
+    reach = np.ceil(conf.real_cutoff / widths + 0.5).astype(int)
+    result = np.zeros((n, n))
+    for shift in itertools.product(*(range(-m, m + 1) for m in reach)):
+        d = (delta + np.array(shift, dtype=float)) @ matrix
+        r = np.linalg.norm(d, axis=2)
+        inside = (r < conf.real_cutoff) & (r > 1e-9)
+        safe = np.where(inside, r, 1.0)
+        result += np.where(inside, erfc(alpha * safe) / safe, 0.0)
+
+    # cos(k.(r_i - r_j)) splits into products of per-atom factors, so
+    # the reciprocal half is two N x K by K x N products rather than an
+    # N x N x K array.
+    if conf.n_k:
+        phase = positions @ conf.k_vectors.T
+        weight = 4.0 * np.pi / conf.volume * conf.k_factor
+        cos, sin = np.cos(phase), np.sin(phase)
+        result += (cos * weight) @ cos.T + (sin * weight) @ sin.T
+
+    result -= np.eye(n) * 2.0 * alpha / np.sqrt(np.pi)
+    result -= np.pi / (alpha ** 2 * conf.volume)
+    return result
+
+
 def _real_space(positions, matrix, charges, pairs, conf, grad,
                 prefactor, kernel) -> float:
     i, j, shift = pairs

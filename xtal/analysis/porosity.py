@@ -103,8 +103,9 @@ def probe_label(name: str, custom: float = 0.0) -> str:
 #: radii beside a volume measured with these would be the quiet
 #: disagreement the rest of this module exists to prevent.
 #: ``tests/test_porosity.py`` checks the transcription against the
-#: vendored source, so a Zeo++ upgrade that changes a radius fails
-#: rather than drifting.
+#: vendored source, or against the excerpt of it in ``tests/data``
+#: where the source is not unpacked, so a Zeo++ upgrade that changes a
+#: radius fails rather than drifting.
 ZEO_RADII = {
     "H": 1.09, "D": 1.09, "He": 1.4, "Li": 1.82, "Be": 2, "B": 2,
     "C": 1.7, "N": 1.55, "O": 1.52, "F": 1.47, "Ne": 1.54, "Na": 2.27,

@@ -16,6 +16,7 @@ pytest.importorskip("pytestqt")
 from PySide6.QtCore import Qt  # noqa: E402
 
 from tests.test_app_shell import StubViewport  # noqa: E402
+from xtal import install  # noqa: E402
 from xtal.build import installed  # noqa: E402
 from xtal.io import write_cif  # noqa: E402
 from xtal.modules.build import BUILD, INSERT  # noqa: E402
@@ -105,7 +106,7 @@ def test_without_rdkit_the_entry_is_greyed_and_says_what_to_install(
 
     action = window.actions_["insert_molecule"]
     assert not action.isEnabled()
-    assert "crystal-builder[build]" in action.toolTip()
+    assert install.command("build") in action.toolTip()
 
 
 def test_both_dialog_names_reach_the_one_class():
@@ -268,7 +269,7 @@ def test_without_rdeditor_the_picture_is_still_there_and_says_what_to_install(  
 
     assert isinstance(dialog.sketch, _Sketch)
     assert dialog.sketch.view.renderer().isValid()
-    assert "crystal-builder[sketch]" in dialog.sketch.hint.text()
+    assert install.command("sketch") in dialog.sketch.hint.text()
     assert dialog.sketch.hint.isVisibleTo(dialog.sketch)
 
 

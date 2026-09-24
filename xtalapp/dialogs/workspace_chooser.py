@@ -319,19 +319,29 @@ class WorkspaceChooser(QDialog):
     def _sample_button(self) -> QPushButton:
         """Open Sample, into the workspace selected in the list.
 
-        A button with a menu of the seven, drawn as the platform draws
-        a pull-down.  Not auto-default, for the reason New and Open
-        Other are not: Return is Continue.
+        A button with a menu of them, drawn as the platform draws a
+        pull-down, in the File menu's two sections.  Not auto-default,
+        for the reason New and Open Other are not: Return is Continue.
         """
         self.sample_button = QPushButton("Open Sample")
         self.sample_button.setAutoDefault(False)
         menu = QMenu(self.sample_button)
-        for sample in samples.installed():
-            action = menu.addAction(sample.label)
-            action.setToolTip(sample.description)
-            action.triggered.connect(
-                lambda _checked=False, n=sample.name:
-                self.choose_sample(n))
+        present = samples.installed()
+        for group, title in samples.GROUPS:
+            found = [s for s in present if s.group == group]
+            if not found:
+                continue
+            into = menu
+            if group != samples.SHIPPED:
+                menu.addSeparator()
+                into = QMenu(title, menu)
+                menu.addMenu(into)
+            for sample in found:
+                action = into.addAction(sample.label)
+                action.setToolTip(sample.description)
+                action.triggered.connect(
+                    lambda _checked=False, n=sample.name:
+                    self.choose_sample(n))
         self.sample_button.setMenu(menu)
         if not samples.installed():
             self.sample_button.setEnabled(False)

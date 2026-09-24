@@ -215,6 +215,37 @@ def test_a_repeat_of_one_builds_exactly_what_it_built_before(
     assert spelled.cif.read_text() == plain.cif.read_text()
 
 
+def _net_edge_lengths(structure) -> list[float]:
+    from xtal.core.structure import TOPOLOGY
+
+    matrix = np.asarray(structure.lattice.matrix)
+    frac = np.asarray(structure.frac)
+    return [float(np.linalg.norm(
+        (frac[b.j] + np.asarray(b.image) - frac[b.i]) @ matrix))
+        for b in structure.bonds if b.kind == TOPOLOGY]
+
+
+@needs_builder
+def test_a_repeated_net_is_drawn_through_every_cell_it_tiles(
+        tmp_path, catalog):
+    """The net's edges carry the image the *net* gives them, and each
+    vertex is drawn on the atom nearest its slot -- which the CIF may
+    have wrapped into the next cell.  With one vertex both ends wrap
+    together and nothing shows; on pcu x 2 thirteen of the 24 edges
+    jumped a cell or more, 25 to 44 A where every one is 12, and the
+    net drew as diagonals across the box.  Every edge of a repeated
+    net is an edge of the net it repeats."""
+    once = build(BuildRequest.parse("pcu", "N59", "E14"),
+                 _fresh(tmp_path / "a"), catalog)
+    twice = build(BuildRequest.parse("pcu", "N59", "E14", "2x2x2"),
+                  _fresh(tmp_path / "b"), catalog)
+
+    single = _net_edge_lengths(once.structure)
+    tiled = _net_edge_lengths(twice.structure)
+    assert len(tiled) == 8 * len(single)
+    assert max(tiled) < 1.5 * max(single), sorted(tiled)
+
+
 def test_a_repeat_is_written_into_the_name_and_only_when_there_is_one():
     """The name says what the framework is made of, and a supercell of
     it is a different file of the same material -- so the repeat is in

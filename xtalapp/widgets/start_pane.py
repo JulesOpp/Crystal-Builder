@@ -7,7 +7,8 @@ It used to be an empty grey tab widget.  The workspace chooser before
 it explains itself and offers a sample; the window after it offered
 nothing, on the screen where somebody who has just installed the
 program decides whether to keep it -- although drag-and-drop already
-worked and seven structures were one menu away.
+worked and seven structures were one menu away.  The COD's
+frameworks sit under a heading of their own, below the seven.
 
 **Nothing here does anything of its own.**  Every button is a view of
 a window action (``open``, ``new``, ``sample_<name>``), so what it is
@@ -30,10 +31,15 @@ from PySide6.QtWidgets import (
 )
 
 from xtalapp import samples
+from xtalapp.widgets.tone import HINT, set_tone
 
 #: Samples per row: seven in two rows fits the narrowest viewport a
 #: first run now gives (about 340 px at 1024 wide) without clipping.
 COLUMNS = 4
+#: The COD's names are longer -- MIL-100(Fe), PCN-222(Fe) -- and four
+#: of them to a row wanted 387 px, which a 1024 px window found by
+#: taking it out of the left column.
+COD_COLUMNS = 3
 
 
 def _button(action) -> QToolButton:
@@ -77,17 +83,29 @@ class StartPane(QWidget):
         row.addStretch(1)
         column.addLayout(row)
 
-        grid = QGridLayout()
+        # A grid per group, the COD's under a heading: both groups have
+        # a MOF-5, and two buttons of that name in one grid would say
+        # nothing about which was which.
         self.sample_buttons = {}
-        for n, sample in enumerate(samples.SAMPLES):
-            button = _button(window.actions_[f"sample_{sample.name}"])
-            self.sample_buttons[sample.name] = button
-            grid.addWidget(button, n // COLUMNS, n % COLUMNS)
-        centred = QHBoxLayout()
-        centred.addStretch(1)
-        centred.addLayout(grid, 4)
-        centred.addStretch(1)
-        column.addLayout(centred)
+        for group, title in samples.GROUPS:
+            if group != samples.SHIPPED:
+                heading = QLabel(title.replace("&", ""))
+                heading.setAlignment(Qt.AlignHCenter)
+                set_tone(heading, HINT)
+                column.addWidget(heading)
+            grid = QGridLayout()
+            columns = COLUMNS if group == samples.SHIPPED \
+                else COD_COLUMNS
+            for n, sample in enumerate(samples.in_group(group)):
+                button = _button(
+                    window.actions_[f"sample_{sample.name}"])
+                self.sample_buttons[sample.name] = button
+                grid.addWidget(button, n // columns, n % columns)
+            centred = QHBoxLayout()
+            centred.addStretch(1)
+            centred.addLayout(grid, 4)
+            centred.addStretch(1)
+            column.addLayout(centred)
         if not samples.installed():
             missing = QLabel(samples.MISSING)
             missing.setAlignment(Qt.AlignHCenter)

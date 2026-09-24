@@ -141,6 +141,30 @@ def test_a_package_is_imported_in_another_interpreter():
     assert sentence.startswith("json")
 
 
+def test_a_package_that_warns_on_import_still_shows_its_version():
+    """Measured on MACE: e3nn warns about ``torch.load`` as it
+    imports, and the result shown was two lines of that warning."""
+    asked = probe.probe_for_package("mace.calculators", timeout=60)
+    output = ("/site-packages/e3nn/o3/_wigner.py:10: UserWarning: "
+              "Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD\n"
+              "  _Jd, _W3j_flat = torch.load(path)\n"
+              "mace 0.3.14\n")
+
+    ok, sentence = probe.summarise(asked, 0, output)
+
+    assert ok
+    assert sentence == "mace 0.3.14"
+    assert asked.timeout == 60
+
+
+def test_a_module_inside_a_package_is_what_gets_imported():
+    """``import mace`` never touches torch; the submodule does."""
+    ok, sentence = probe.run(probe.probe_for_package("email.mime"))
+
+    assert ok
+    assert sentence.startswith("email")
+
+
 def test_a_package_that_will_not_import_says_why():
     ok, sentence = probe.run(
         probe.probe_for_package("no_such_package_here"))
