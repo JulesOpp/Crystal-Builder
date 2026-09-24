@@ -301,3 +301,170 @@ def test_a_run_log_is_flushed_line_by_line(tmp_path):
     log.write("first")
     assert path.read_text() == "first\n"
     log.close()
+
+
+# ------------------------------------------- nothing left running after
+
+#: A program that says it has started and then says nothing: the kind
+#: that outlives its parent.  A chatty one dies of SIGPIPE on its next
+#: write once nobody is reading, which is how the orphaning hid -- the
+#: stub's counter prints every step, and Zeo++ prints almost nothing.
+QUIET = ("import time\n"
+         "print('ready', flush=True)\n"
+         "time.sleep(60)\n")
+
+
+def _alive(pid: int) -> bool:
+    import os
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:                         # pragma: no cover
+        return True
+    # A zombie still answers kill(0); ps says whether it is one.
+    import subprocess
+    state = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)],
+                           capture_output=True, text=True).stdout
+    return bool(state.strip()) and not state.strip().startswith("Z")
+
+
+def _wait_until(condition, seconds: float = 5.0) -> bool:
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if condition():
+            return True
+        time.sleep(0.02)
+    return condition()
+
+
+@pytest.mark.skipif(sys.platform == "win32",
+                    reason="signals a process group")
+def test_an_interrupt_while_reading_ends_the_program(folder):
+    """Ctrl+C on the command line arrives as KeyboardInterrupt in the
+    thread reading the pipe.  It unwound through run(), whose finally
+    forgot the cancel callback -- so the handler that then pressed Stop
+    pressed it on nothing, printed "interrupted", and left the program
+    running in a session of its own that no terminal signal reaches."""
+    pids = []
+
+    def interrupt(line):
+        if line == "ready":
+            pids.append(process._process.pid)
+            raise KeyboardInterrupt
+
+    process = ExternalProcess(python(QUIET), cwd=folder.path,
+                              on_line=interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        process.run(cancel=Cancellation())
+
+    assert pids
+    assert _wait_until(lambda: not _alive(pids[0]))
+
+
+def test_stop_does_not_wait_out_the_grace_on_the_callers_thread(folder):
+    """Cancel is called from the window's thread.  Waiting there for a
+    program to take its SIGTERM froze the window for up to five seconds
+    whenever one ignored it; the kill after the grace is a timer's."""
+    script = ("import signal, time\n"
+              "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+              "print('ready', flush=True)\n"
+              "time.sleep(60)\n")
+    process = ExternalProcess(python(script), cwd=folder.path, grace=1.0)
+    done = []
+    reader = threading.Thread(
+        target=lambda: done.append(process.run(cancel=Cancellation())))
+    reader.start()
+    assert _wait_until(lambda: process.running)
+    time.sleep(0.3)                     # let it install its handler
+
+    started = time.monotonic()
+    process.cancel()
+    assert time.monotonic() - started < 0.5
+
+    reader.join(10.0)
+    assert done and done[0].cancelled
+    assert not process.running
+
+
+@pytest.mark.skipif(sys.platform == "win32",
+                    reason="signals a process group")
+def test_everything_still_running_can_be_ended_at_once(folder):
+    """What the application calls on its way out, for a run whose
+    reading thread is not the one exiting."""
+    from xtal.modules.process import reap_all
+
+    process = ExternalProcess(python(QUIET), cwd=folder.path)
+    reader = threading.Thread(
+        target=lambda: process.run(cancel=Cancellation()), daemon=True)
+    reader.start()
+    assert _wait_until(lambda: process.running)
+    pid = process._process.pid
+
+    assert reap_all() == 1
+    assert _wait_until(lambda: not _alive(pid))
+    reader.join(5.0)
+    assert reap_all() == 0
+
+
+@pytest.mark.skipif(sys.platform == "win32",
+                    reason="signals a process group")
+def test_a_program_still_running_when_python_exits_is_ended(tmp_path):
+    """The child is in a session of its own, so no signal follows the
+    parent's death: an interpreter that exits with a run in flight on
+    another thread -- an exception escaping main, sys.exit anywhere --
+    left it running and writing into a folder nobody was watching."""
+    import subprocess
+    script = (
+        "import sys, threading, time\n"
+        "from xtal.modules.job import Cancellation\n"
+        "from xtal.modules.process import ExternalProcess\n"
+        f"p = ExternalProcess([sys.executable, '-u', '-c', {QUIET!r}],"
+        f" cwd={str(tmp_path)!r})\n"
+        "threading.Thread(target=lambda: p.run(cancel=Cancellation()),"
+        " daemon=True).start()\n"
+        "while not p.running: time.sleep(0.01)\n"
+        "print(p._process.pid, flush=True)\n"
+        "sys.exit(0)\n")
+    parent = subprocess.run([sys.executable, "-c", script],
+                            capture_output=True, text=True, timeout=30)
+    pid = int(parent.stdout.split()[0])
+
+    assert _wait_until(lambda: not _alive(pid))
+
+
+def test_a_windows_tree_that_could_not_be_ended_is_said(monkeypatch,
+                                                        tmp_path):
+    """On Windows the tree is ended by taskkill, and when taskkill is
+    missing or fails only the process we launched is killed -- a program
+    a wrapper script started runs on.  That used to happen in silence,
+    under a release note saying Stop now ends wrapped programs."""
+    import subprocess
+
+    from xtal.modules import process as module
+
+    class Launched:
+        pid = 4242
+        killed = False
+
+        def poll(self):
+            return 0 if self.killed else None
+
+        def kill(self):
+            self.killed = True
+
+    def no_taskkill(*_args, **_kwargs):
+        raise FileNotFoundError("taskkill")
+
+    monkeypatch.setattr(module, "WINDOWS", True)
+    monkeypatch.setattr(subprocess, "CREATE_NO_WINDOW", 0, raising=False)
+    monkeypatch.setattr(subprocess, "run", no_taskkill)
+    lines = []
+    process = ExternalProcess(["wrapper.bat"], cwd=tmp_path,
+                              on_line=lines.append, grace=0.01)
+    process._process = launched = Launched()
+
+    process.cancel()
+
+    assert launched.killed
+    assert any("may still be running" in line for line in lines)
