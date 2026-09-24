@@ -65,10 +65,13 @@ jobs:
       # skips itself -- which is how the MOF builder went untested on
       # CI for its whole life, back when PORMAKE was an extra nobody
       # installed here.
+      # `sketch` and `pxrd` too: without them about sixty tests skip
+      # themselves on every run, and the selftest below refuses to
+      # pass without rdeditor, because the extras page promises it.
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[gui,build,ase,test]"
+          pip install -e ".[gui,build,sketch,pxrd,ase,test]"
       - name: Test
         # Qt needs a platform plugin with no display; the VTK render
         # tests skip themselves where offscreen OpenGL is unavailable.
@@ -88,6 +91,30 @@ jobs:
         # silence.  No honest test here is close to it: the slowest
         # are about eleven seconds.
         run: python -m pytest -q -o faulthandler_timeout=180
+
+      # The one check that opens the real window and draws the 3D view,
+      # which every widget test replaces with a stub -- so a PySide6
+      # that hangs the viewport passes the whole suite.  It ran only on
+      # the bundle, after a merge; run from the checkout it tells the
+      # pull request instead.  Not under the offscreen platform the
+      # tests use: VTK gets no OpenGL context there and segfaults.
+      # macOS only: a Windows runner has no GPU, and the Mesa the
+      # bundle job lays beside the .exe has nowhere to go in a venv.
+      - name: Selftest from the checkout (macOS)
+        if: runner.os == 'macOS'
+        env:
+          XTAL_NO_CONFIRM_CLOSE: "1"
+          XTAL_WORKSPACE_ROOT: ${{ runner.temp }}/selftest-workspace
+          QT_API: pyside6
+        run: |
+          set -o pipefail
+          crystal-builder --selftest --selftest-image selftest.png \
+              | tee selftest.log
+          grep -q "selftest passed" selftest.log \
+              || { echo "::error::the selftest did not run to the end"; \
+                   exit 1; }
+          test -s selftest.png \
+              || { echo "::error::the selftest drew no image"; exit 1; }
 
   lint:
     runs-on: ubuntu-latest
