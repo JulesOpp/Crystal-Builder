@@ -15,6 +15,7 @@
 
 | File | What it is |
 |---|---|
+| [HITLIST.md](HITLIST.md) | **Written 2026-09-24, after PRs #2–#9 shipped.** What is left, what is wrong in what shipped, and what those PRs made cheaper. Start here if the four tracks have already been merged. |
 | [REVIEW.md](REVIEW.md) | The synthesis. §4 is what is good, §5 an ordered work plan, §7 the feature ideas. Start here. |
 | [PLAN.md](PLAN.md) | **The ordered work, with measured sizes.** What to act on. |
 | [PRIORITIES.md](PRIORITIES.md) | Superseded by PLAN.md — the ordering from Julius's PR verdicts, before the design reading. |
