@@ -338,3 +338,109 @@ def test_every_model_offered_is_a_name_mace_knows():
         if name == "custom":
             continue
         assert name in mace_mp_urls, name
+
+
+# ------------------------------------------------------ MACE-MP-MOF0
+#
+# Elena et al., npj Comput. Mater. 11, 125 (2025): MACE-MP-0b
+# fine-tuned on 127 MOFs at PBE-D3(BJ), for phonons.  One file holding
+# two heads, 26 elements, CC BY 4.0 with a citation required.
+
+def test_mof0_is_offered_and_says_what_it_is_before_it_is_chosen(
+        monkeypatch):
+    monkeypatch.setattr(mace, "installed", lambda: True)
+    label = dict(mace.MODEL_CHOICES)[mace.MOF0]
+    assert "D3" in label and "CC BY" in label
+    said = mace.available(model=mace.MOF0).reason
+    assert "31 MB" in said and "cite" in said
+
+
+def test_mof0_is_loaded_through_its_mof_head(monkeypatch, tmp_path):
+    """The file holds the MACE-MP-0b head it was fine-tuned from and
+    the MOF head, and MACE refuses to guess -- so a file of one's own
+    pointed at it cannot load at all.  The MOF head is pbe_d3."""
+    import types
+
+    made = []
+
+    class Model:
+        def __init__(self, **kwargs):
+            made.append(kwargs)
+
+    calculators = types.ModuleType("mace.calculators")
+    calculators.MACECalculator = Model
+    monkeypatch.setitem(sys.modules, "mace", types.ModuleType("mace"))
+    monkeypatch.setitem(sys.modules, "mace.calculators", calculators)
+    monkeypatch.setattr(mace, "_device", lambda wanted: "cpu")
+    monkeypatch.setattr(mace, "_fetch_mof0",
+                        lambda: tmp_path / "mofs_v2.model")
+
+    mace._build_model(mace.MACEOptions(model=mace.MOF0))
+
+    assert made == [{"model_paths": str(tmp_path / "mofs_v2.model"),
+                     "device": "cpu", "default_dtype": "float64",
+                     "head": "pbe_d3"}]
+
+
+def test_mof0_is_fetched_once_and_only_as_the_file_it_was(monkeypatch,
+                                                          tmp_path):
+    """Pinned to a commit and a SHA-256.  A model file is a pickle, so
+    loading one runs it: what is loaded has to be exactly the file the
+    paper published, and a download that is anything else is deleted
+    rather than kept for next time."""
+    import hashlib
+    import io
+
+    good = b"the model"
+    monkeypatch.setattr(mace, "MOF0_SHA256",
+                        hashlib.sha256(good).hexdigest())
+    monkeypatch.setattr(mace, "_cache_dir", lambda: tmp_path)
+    served = []
+
+    def urlopen(url, timeout=None):
+        served.append(url)
+        return io.BytesIO(served_bytes[0])
+
+    monkeypatch.setattr(mace.urllib.request, "urlopen", urlopen)
+
+    served_bytes = [b"something else"]
+    with pytest.raises(CalculatorError, match="not the file"):
+        mace._fetch_mof0()
+    assert not (tmp_path / "mofs_v2.model").exists()
+
+    served_bytes[0] = good
+    path = mace._fetch_mof0()
+    assert path.read_bytes() == good
+    assert mace._fetch_mof0() == path                # cached
+    assert len(served) == 2
+    assert "3b6d2fd559272106d0fff0fce0d0ba32bcb16541" in served[0]
+
+
+def test_mof0_is_cited_when_it_is_the_model(stand_in):
+    from xtal.ff import ENGINES
+
+    engine = ENGINES.get("mace")
+    chosen = [r.url for r in engine.sources(model=mace.MOF0)]
+    usual = [r.url for r in engine.sources()]
+    assert any("10.1038/s41524-025-01611-8" in u for u in chosen)
+    assert not any("s41524-025-01611-8" in u for u in usual)
+
+
+def test_an_element_the_model_was_not_fitted_on_is_refused_by_name(
+        monkeypatch):
+    """MACE-MP-MOF0 knows 26 elements -- no Cr, Mn, Co or Ni -- and
+    MACE's own answer for another is "np.int64(63) is not in list".
+    The same holds for any fitted model file."""
+    from ase.calculators.lj import LennardJones
+
+    class Fitted(LennardJones):
+        z_table = type("Z", (), {"zs": [1, 6, 8, 30]})()
+
+    monkeypatch.setattr(mace, "_load_model", lambda options: Fitted())
+    monkeypatch.setattr(mace, "_device", lambda wanted: "cpu")
+    structure = water()
+    structure.sites[0].element = "Eu"
+    structure.touch()
+
+    with pytest.raises(CalculatorError, match="Eu"):
+        mace.MACECalculator(structure)
