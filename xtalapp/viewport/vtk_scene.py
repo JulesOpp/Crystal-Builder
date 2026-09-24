@@ -63,7 +63,11 @@ from vtkmodules.vtkCommonCore import (
     vtkPoints,
     vtkUnsignedCharArray,
 )
-from vtkmodules.vtkCommonDataModel import vtkCellArray, vtkPolyData
+from vtkmodules.vtkCommonDataModel import (
+    vtkCellArray,
+    vtkDataObject,
+    vtkPolyData,
+)
 from vtkmodules.vtkCommonTransforms import vtkTransform
 from vtkmodules.vtkFiltersCore import vtkTubeFilter
 from vtkmodules.vtkFiltersGeneral import vtkTransformFilter
@@ -215,6 +219,29 @@ DEPTH_CUE_SHADER = """//VTK::Light::Impl
                            cueT * cueT * (3.0 - 2.0 * cueT)
                            * cueStrength);
 """
+
+
+#: An occupancy pie turned to face the camera on the GPU.  The pie's
+#: own frame -- cut about +z, from +x -- is meant to be the camera's
+#: (right, up, towards), which is to say view coordinates, so the
+#: stored normal already is the view-space normal and ``pieOffset``,
+#: the vertex's place about its centre, is a view-space offset.  The
+#: points uploaded are the pie drawn in the *world's* frame
+#: (centre + offset), and the shader swaps one frame for the other.
+#: Uploading the centres alone would be simpler and draws nothing:
+#: an actor whose bounds have no size is skipped before its shader
+#: ever runs.  Doing the turn in numpy meant re-uploading every
+#: vertex on every frame of a drag -- 1.3 million of them on MOF-808,
+#: 150 ms a frame against 2 without the pies.
+PIE_OFFSET_DEC = """//VTK::PositionVC::Dec
+in vec3 pieOffset;
+"""
+PIE_POSITION_IMPL = """  vec4 pieMC = vertexMC + vec4(
+      inverse(mat3(MCVCMatrix)) * pieOffset - pieOffset, 0.0);
+  vertexVCVSOutput = MCVCMatrix * pieMC;
+  gl_Position = MCDCMatrix * pieMC;
+"""
+PIE_NORMAL_IMPL = "  normalVCVSOutput = normalMC;\n"
 
 
 def _to_uchar(colors: np.ndarray, name: str) -> vtkUnsignedCharArray:
@@ -475,9 +502,6 @@ class VtkScene:
         self._octant_cue_state = None
         self._bar_on = False
         self._bar_observer = None
-        self._pies_on = False
-        self._pie_observer = None
-        self._pie_frame = None
 
     # -- actor construction --------------------------------------------
 
@@ -665,63 +689,51 @@ class VtkScene:
         mapper.SetInputData(self._pie_poly)
         mapper.SetScalarModeToUseCellData()
         mapper.SetColorModeToDirectScalars()
+        # The offset is in world units, which the uploaded points are
+        # only while VTK is not shifting and scaling them for
+        # precision -- and a crystal is never far enough from the
+        # origin to need it.  0 is ``DISABLE_SHIFT_SCALE``, an enum
+        # the Python wrapping does not carry.
+        mapper.SetVBOShiftScaleMethod(0)
+        mapper.MapDataArrayToVertexAttribute(
+            "pieOffset", "pieOffset",
+            vtkDataObject.FIELD_ASSOCIATION_POINTS, -1)
         self.pie_mapper = mapper
         self.pie_actor = vtkActor()
         self.pie_actor.SetMapper(mapper)
         self.pie_actor.GetProperty().SetSpecular(0.3)
         self.pie_actor.GetProperty().SetSpecularPower(30)
+        shader = self.pie_actor.GetShaderProperty()
+        shader.AddVertexShaderReplacement(
+            "//VTK::PositionVC::Dec", True, PIE_OFFSET_DEC, False)
+        shader.AddVertexShaderReplacement(
+            "//VTK::PositionVC::Impl", True, PIE_POSITION_IMPL, False)
+        shader.AddVertexShaderReplacement(
+            "//VTK::Normal::Impl", True, PIE_NORMAL_IMPL, False)
         self.pie_actor.SetVisibility(False)
         self.renderer.AddActor(self.pie_actor)
 
     def _set_pies(self, model):
-        """The wedges, and an observer to keep them facing the camera.
+        """The wedges, turned to face the camera by the GPU.
 
         A pie chart is only readable face on -- cut about a fixed
         crystallographic axis, the same 60/40 site reads as any split
-        at all from most directions -- so the frame follows the camera
-        the way the depth cue and the scale bar already do, from a
-        render observer rather than from a rebuilt scene.
+        at all from most directions -- so the frame follows the
+        camera.  It does so in the vertex shader (``PIE_POSITION_IMPL``)
+        and not from a render observer: the geometry is uploaded once
+        per model and a rotation costs the pies nothing.
         """
-        self._pies_on = bool(model.n_pie_faces)
-        self._pie_frame = None
-        if not self._pies_on:
+        if not model.n_pie_faces:
             self.pie_actor.SetVisibility(False)
-            self._watch_camera()
             return
-        points, normals = model.pie_geometry(*self._camera_frame())
-        self._pie_poly = _triangle_polydata(points, model.pie_faces,
-                                            model.pie_colors)
-        self._pie_poly.GetPointData().SetNormals(
-            _to_float(normals, "normals"))
+        self._pie_poly = _triangle_polydata(
+            model.pie_centres + model.pie_local, model.pie_faces,
+            model.pie_colors)
+        data = self._pie_poly.GetPointData()
+        data.SetNormals(_to_float(model.pie_normals, "normals"))
+        data.AddArray(_to_float(model.pie_local, "pieOffset"))
         self.pie_mapper.SetInputData(self._pie_poly)
         self.pie_actor.SetVisibility(True)
-        self._watch_camera()
-        self._refresh_pies()
-
-    def _camera_frame(self):
-        camera = self.renderer.GetActiveCamera()
-        return (np.array(camera.GetDirectionOfProjection(), float),
-                np.array(camera.GetViewUp(), float))
-
-    def _refresh_pies(self) -> None:
-        """Turn the pies onto the camera's axes, if it has moved.
-
-        The guard is not an optimisation to be tidied away: this runs
-        before every render, and a render happens while the camera is
-        being dragged.
-        """
-        if not self._pies_on or self.model is None:
-            return
-        frame = self._camera_frame()
-        if (self._pie_frame is not None
-                and np.allclose(frame, self._pie_frame, atol=1e-9)):
-            return
-        self._pie_frame = frame
-        points, normals = self.model.pie_geometry(*frame)
-        self._pie_poly.SetPoints(_points(points))
-        self._pie_poly.GetPointData().SetNormals(
-            _to_float(normals, "normals"))
-        self._pie_poly.Modified()
 
     def _build_topology_actor(self):
         """The net: its own actor, on purpose.
@@ -1140,11 +1152,9 @@ class VtkScene:
                 _points(model.polyhedron_points))
             self._polyhedron_poly.Modified()
         if model.n_pie_faces:
-            # The centres moved, and the camera did not -- so the
-            # frame cache has to be dropped or the refresh below
-            # decides there is nothing to do.
-            self._pie_frame = None
-            self._refresh_pies()
+            self._pie_poly.SetPoints(
+                _points(model.pie_centres + model.pie_local))
+            self._pie_poly.Modified()
         if model.n_topology_edges:
             self._topology_poly.SetPoints(
                 _points(_interleave(model.topology_starts,
@@ -1690,8 +1700,7 @@ class VtkScene:
         """
         for on, name, refresh in (
                 (self._cue_on, "_cue_observer", self._refresh_cue),
-                (self._bar_on, "_bar_observer", self._refresh_scale_bar),
-                (self._pies_on, "_pie_observer", self._refresh_pies)):
+                (self._bar_on, "_bar_observer", self._refresh_scale_bar)):
             observer = getattr(self, name)
             if on and observer is None:
                 setattr(self, name, self.renderer.AddObserver(
@@ -1745,10 +1754,10 @@ class VtkScene:
         along the view direction, which is the granularity a colour
         array gives and is enough for a fade.
 
-        Guarded on where the camera is, like :meth:`_refresh_pies` and
-        for the same reason: this runs before every render, including
-        every frame of a drag, and a wireframe of a supercell is a lot
-        of segments to recolour for a camera that has not moved.
+        Guarded on where the camera is: this runs before every
+        render, including every frame of a drag, and a wireframe of a
+        supercell is a lot of segments to recolour for a camera that
+        has not moved.
         """
         if not self._cue_on or self.model is None:
             # Its own colours, once, and then nothing to do.
