@@ -12,13 +12,17 @@ chemist knows is the rest of the row MOF+ prints: **the coordination**
 fields, parsed once and matched against a :class:`NetFacts` per row,
 so that both lists answer a query the same way.
 
-**The transitivity is half known, and says so.**  p and q are the
-``NODE`` and ``EDGE`` lines of an RCSR entry, because the RCSR writes
-every net at its maximum symmetry; r and s belong to the net's natural
-tiling, which nothing here has.  A pattern may name all four, ``*``
-matches anything, and a number where the value is unknown matches
-nothing: a list that answered "faces: 2" with every net would be
-claiming knowledge it does not have.
+**The transitivity is the RCSR's, and unknown where it has none.**
+All four numbers come from the RCSR's own data files
+(:func:`xtal.analysis.rcsr.transitivity`, written by
+``scripts/rcsr_transitivity.py``): r and s belong to a net's natural
+tiling, which the ``.cgd`` does not carry.  A layer has no tiles, and
+half the 3-D nets have no natural tiling on record, so those r and s
+are unknown.  A net the RCSR does not list -- the user's own -- has
+its ``NODE`` and ``EDGE`` lines for p and q and nothing more.  A
+pattern may name all four, ``*`` matches anything, and a number where
+the value is unknown matches nothing: a list that answered "faces: 2"
+with every net would be claiming knowledge it does not have.
 
 **A layer answers to its plane group number** -- hcb is 17 -- and not
 to the space group it is built in, because 17 is what the RCSR prints
@@ -72,21 +76,36 @@ class NetFacts:
     #: Vertex and edge transitivity; ``None`` where not known.
     p: int | None
     q: int | None
+    #: Face and tile transitivity of the natural tiling; ``None``
+    #: where there is none on record, and ``s`` always for a layer.
+    r: int | None = None
+    s: int | None = None
 
     @property
     def transitivity(self) -> tuple[int | None, ...]:
-        return (self.p, self.q, None, None)
+        return (self.p, self.q, self.r, self.s)
 
     def summary(self) -> str:
         """The line both net lists show beside the name: coordination,
         group and number, and transitivity as the RCSR prints it --
-        ``3-c  ·  p6mm (17)  ·  [1 1]``."""
+        ``3-c  ·  p6mm (17)  ·  [1 1 1]``.  As far as it is known: an
+        unknown at the end is left off rather than printed as ``?``."""
         counts = ", ".join(f"{c}-c" for c in self.coordinations)
         group = (f"{self.group} ({self.number})"
                  if self.number is not None else self.group)
-        known = " ".join("?" if v is None else str(v)
-                         for v in (self.p, self.q))
+        values = list(self.transitivity)
+        while len(values) > 2 and values[-1] is None:
+            values.pop()
+        known = " ".join("?" if v is None else str(v) for v in values)
         return f"{counts}  ·  {group}  ·  [{known}]"
+
+
+def known_transitivity(name: str, p: int | None, q: int | None
+                       ) -> tuple[int | None, ...]:
+    """``(p, q, r, s)`` for the net called ``name``: the RCSR's where it
+    lists the net, else the ``p`` and ``q`` its own file gives."""
+    from xtal.analysis import rcsr
+    return rcsr.transitivity().get(name, (p, q, None, None))
 
 
 def space_group_number(symbol: str) -> int | None:
@@ -113,14 +132,15 @@ def facts_of_entry(entry: CgdEntry) -> NetFacts:
         number = plane_group_number(entry.group)
     else:
         number = space_group_number(entry.group)
+    p, q, r, s = known_transitivity(
+        entry.name, len(entry.nodes) or None, len(entry.edges) or None)
     return NetFacts(
         name=entry.name,
         dimension=entry.dimension,
         coordinations=tuple(n.coordination for n in entry.nodes),
         group=entry.group,
         number=number,
-        p=len(entry.nodes) or None,
-        q=len(entry.edges) or None)
+        p=p, q=q, r=r, s=s)
 
 
 # ======================================================================

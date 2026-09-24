@@ -41,9 +41,10 @@ def _found(query, *names):
 # ================================================================ facts
 
 def test_an_rcsr_entry_gives_its_group_number_and_transitivity():
-    """pcu is 1 1 in Pm-3m, 221; mcm is two vertices and two edges."""
+    """pcu is 1 1 1 1 in Pm-3m, 221; mcm is two vertices and two edges."""
     pcu = _facts("pcu")
     assert (pcu.number, pcu.p, pcu.q) == (221, 1, 1)
+    assert pcu.transitivity == (1, 1, 1, 1)
     assert pcu.coordinations == (6,)
     mcm = _facts("mcm")
     assert (mcm.dimension, mcm.p, mcm.q) == (2, 2, 2)
@@ -118,12 +119,29 @@ def test_a_star_in_transitivity_matches_anything():
                   "pcu", "mcm") == ["mcm"]
 
 
-def test_a_number_for_faces_matches_nothing_because_faces_are_unknown():
-    """r and s belong to the natural tiling, which nothing here has.
-    Matching them anyway would answer "one kind of face" with every
-    net in the list."""
-    query = NetQuery.parse(transitivity="1 1 1 1")
-    assert _found(query, "pcu", "sql") == []
+def test_faces_and_tiles_are_matched_where_the_rcsr_knows_them():
+    """r and s are the natural tiling's, read from the RCSR's own data
+    (scripts/rcsr_transitivity.py).  fcu is 1 1 1 2 -- one kind of face,
+    and the octahedra and tetrahedra are two kinds of tile -- and sod
+    1 1 2 1: squares and hexagons around one kind of cage."""
+    assert _found(NetQuery.parse(transitivity="1 1 1 1"),
+                  "pcu", "dia", "fcu", "sod") == ["pcu", "dia"]
+    assert _found(NetQuery.parse(transitivity="1 1 1 2"),
+                  "pcu", "fcu") == ["fcu"]
+    assert _found(NetQuery.parse(transitivity="1 1 2 1"),
+                  "fcu", "sod") == ["sod"]
+
+
+def test_a_number_where_the_rcsr_knows_nothing_still_matches_nothing():
+    """A layer has no tiles, and half the 3-D nets have no natural
+    tiling on record (the RCSR writes 0 faces, 0 tiles).  Answering
+    "one kind of tile" for those would be claiming knowledge nobody
+    has."""
+    assert _found(NetQuery.parse(transitivity="1 1 1 1"), "sql") == []
+    aca = _facts("aca")
+    assert aca.transitivity == (3, 2, None, None)
+    assert not NetQuery.parse(transitivity="3 2 1 *").matches(aca)
+    assert NetQuery.parse(transitivity="3 2 * *").matches(aca)
 
 
 def test_packed_and_spaced_transitivity_are_the_same_query():
@@ -278,7 +296,7 @@ def test_a_catalogue_layer_answers_to_its_plane_group(catalog):
     hcb = catalog.topology("hcb").facts()
     assert (hcb.dimension, hcb.number, hcb.p, hcb.q) == (2, 17, 1, 1)
     assert catalog.topology("hcb").summary() == \
-        "3-c  ·  p6mm (17)  ·  [1 1]"
+        "3-c  ·  p6mm (17)  ·  [1 1 1]"
 
 
 def test_facts_for_the_whole_catalogue_expand_no_net(catalog):
@@ -287,3 +305,69 @@ def test_facts_for_the_whole_catalogue_expand_no_net(catalog):
     for topology in catalog.topologies():
         topology.facts()
         assert "placement" not in topology._cache, topology.name
+
+
+def test_q_is_the_kinds_of_edge_and_not_the_edge_lines():
+    """The .cgd writes stz with nine EDGE lines for its six kinds of
+    edge -- one of 18 nets where counting lines overstated q, so a
+    search for "4 6" did not find it."""
+    stz = _facts("stz")
+    assert (stz.p, stz.q) == (4, 6)
+    assert len(rcsr.nets()["stz"].edges) == 9
+
+
+def test_a_net_the_rcsr_does_not_list_keeps_what_its_file_says(tmp_path):
+    """A net of the user's, or one the RCSR has since dropped: p and q
+    are its own NODE and EDGE lines, and nothing is known of r and s."""
+    from xtal.io.cgd import read_cgd_string
+    (entry,) = read_cgd_string(
+        "CRYSTAL\n  NAME not-an-rcsr-net\n  GROUP Pm-3m\n"
+        "  CELL 1 1 1 90 90 90\n  NODE 1 6 0 0 0\n"
+        "  EDGE 0 0 0 1 0 0\nEND\n").entries
+    facts = facts_of_entry(entry)
+    assert facts.transitivity == (1, 1, None, None)
+
+
+def test_the_transitivity_table_is_what_the_script_writes():
+    """The two RCSR downloads are kept in tests/data/rcsr as they
+    arrived; the shipped table must be what the script makes of them,
+    and must cover every net the application can draw."""
+    import importlib.util
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    spec = importlib.util.spec_from_file_location(
+        "rcsr_transitivity", root / "scripts" / "rcsr_transitivity.py")
+    script = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(script)
+
+    assert script.TABLE.read_bytes() == script._encoded(script.table())
+    known = rcsr.transitivity()
+    missing = [e.name for e in rcsr.nets() if e.name not in known]
+    assert missing == ["elv"]           # dropped by the RCSR since 2019
+
+
+def test_the_rcsr_record_is_read_the_way_the_rcsr_reads_it():
+    """A net with no tiling writes 0 faces, 0 tiles and a blank tiling
+    line, and the file ends with a record whose serial number is -1."""
+    import importlib.util
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    spec = importlib.util.spec_from_file_location(
+        "rcsr_transitivity", root / "scripts" / "rcsr_transitivity.py")
+    script = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(script)
+
+    record = "\n".join([
+        "start", "7", "abc", "1a",
+        " 0  !number of other symbols", " 1  !number of names", "X",
+        " 0  !number of other names", " 0  !number of keywords",
+        " 0  !number of references", "Pm-3m   221",
+        "  1.0  1.0  1.0  90.000  90.000  90.000",
+        "2", "V1  6", "0 0 0", "0,0,0", "1 a", "m-3m", "48",
+        "V2  6", "0.5 0.5 0.5", "1/2,1/2,1/2", "1 b", "m-3m", "48",
+        "1", "E1  2", "0.5 0 0", "1/2,0,0", "3 c", "4/mmm",
+        "0", "0", "0", "", "unk",
+        "start", "-1", ""])
+    assert script.read_3d(record) == {"abc": [2, 1, None, None]}

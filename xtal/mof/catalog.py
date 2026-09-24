@@ -547,19 +547,24 @@ class Topology:
         return self._cache["facts"]
 
     def _facts(self):
-        from xtal.analysis.netsearch import NetFacts, space_group_number
+        from xtal.analysis.netsearch import (
+            NetFacts,
+            known_transitivity,
+            space_group_number,
+        )
         from xtal.analysis.rcsr import plane_group_number
 
         plane = plane_group_number(self.group)
         number = (plane if plane is not None
                   else space_group_number(self.group))
         p, q = len(self.coordinations), self.edge_lines or None
+        r = s = None
         if self.path is None or _in_pormake(self.path):
-            p, q = _rcsr_transitivity().get(self.name, (p, q))
+            p, q, r, s = known_transitivity(self.name, p, q)
         return NetFacts(
             name=self.name, dimension=2 if plane is not None else 3,
             coordinations=self.coordinations, group=self.group,
-            number=number, p=p, q=q)
+            number=number, p=p, q=q, r=r, s=s)
 
     def entry(self) -> CgdEntry:
         """The ``.cgd`` block, parsed."""
@@ -781,20 +786,6 @@ class _Layers:
 
 #: The one :class:`_Layers` a catalogue's ``topology_dirs`` holds.
 RCSR_LAYERS = _Layers()
-
-
-@lru_cache(maxsize=1)
-def _rcsr_transitivity() -> dict[str, tuple[int | None, int | None]]:
-    """Name -> (p, q) for every RCSR net; empty if the file is not
-    there, which leaves every net with what its own file says."""
-    from xtal.analysis import rcsr
-
-    try:
-        nets = rcsr.nets()
-    except rcsr.RcsrError:                      # pragma: no cover
-        return {}
-    return {e.name: (len(e.nodes) or None, len(e.edges) or None)
-            for e in nets}
 
 
 @lru_cache(maxsize=1)
