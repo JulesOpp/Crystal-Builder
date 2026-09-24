@@ -145,6 +145,34 @@ def test_inspector_shows_one_atom(open_rutile):
     assert "operation" in details
 
 
+def test_inspector_neighbours_are_as_far_as_they_are_now(open_rutile):
+    """Moving an atom does not perceive its bonds again, so each bond
+    still carries the length it had when it was found.  The Inspector
+    listed that as the neighbour's distance -- after a relaxation it
+    said 1.600 A of an O-H that was 0.990."""
+    import re
+
+    import numpy as np
+
+    window, document = open_rutile
+    oxygen = next(k for k, e in enumerate(document.cell.elements)
+                  if e == "O")
+    document.select([oxygen])
+    document.move_selection(np.array([0.15, 0.15, 0.0]), cartesian=True)
+    document.select([oxygen])
+
+    listed = sorted(float(v) for v in re.findall(
+        r"(\d+\.\d+) A$", window.inspector_dock.details.toPlainText(),
+        flags=re.M))
+    cell, matrix = document.cell, document.structure.lattice.matrix
+    now = sorted(round(b.length(cell.frac, matrix), 3)
+                 for b in document.graph.bonds_of(oxygen))
+    then = sorted(round(b.distance, 3)
+                  for b in document.graph.bonds_of(oxygen))
+    assert now != then                     # the move was felt
+    assert listed == now
+
+
 def test_inspector_says_what_the_force_field_type_means(open_rutile):
     """The five-character name is what an override is stored as; the
     words beside it are the half a reader can check."""
