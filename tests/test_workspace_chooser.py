@@ -137,12 +137,20 @@ def test_a_recent_workspace_that_is_there_shows_when_it_was_used(
     assert "just now" in chooser().list.item(0).text()
 
 
-def test_return_continues_rather_than_quitting(chooser):
+def test_return_continues_rather_than_quitting(chooser, qtbot):
     """Quit is added first and takes the default on macOS unless it is
     told twice not to.  Return ending the launch is not a mistake
     anybody makes twice, but they only need to make it once."""
     dialog = chooser()
 
+    assert dialog.go.isDefault()
+    assert not dialog.quit.isDefault()
+
+    # And still once it is on screen, which is when a dialog chooses
+    # its own default if the one it was given never reached it: that
+    # is how Find symmetry's Return came to press Close.
+    dialog.show()
+    qtbot.waitExposed(dialog)
     assert dialog.go.isDefault()
     assert not dialog.quit.isDefault()
 
