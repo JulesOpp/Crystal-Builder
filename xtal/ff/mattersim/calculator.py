@@ -13,6 +13,13 @@ is a loader, a list of choices and nothing else.
 What is particular to it was measured on mattersim 1.2.5, torch 2.11,
 the 1M model, on this CPU.
 
+**Its limits, in its authors' words** (the model card): "relatively
+low accuracy for organic polymeric systems", and trained on PBE with
+PBE's limits.  A MOF's linkers are organic, so a relaxation here wants
+checking against another engine.  Like ORB-v3 it runs with no
+dispersion correction, and MOFSimBench's numbers for it are with D3;
+see :mod:`xtal.ff.orb.calculator` for what that is worth in a volume.
+
 **It is the fast one.**  MOF-5 (424 atoms) is 0.51 s an evaluation in
 double precision, against ORB-v3's 2.58 s and MACE-MPA-0's 3.32 s.
 
@@ -259,7 +266,10 @@ ENGINES.register(Engine(
     description="Microsoft's universal potential, an M3GNet trained "
                 "across temperature and pressure.  Like MACE it needs "
                 "no parameters assigning, and it is the fastest of "
-                "the three.",
+                "the three.  Its authors note relatively low accuracy "
+                "for organic polymeric systems, which is the linker "
+                "half of a framework; run here without a dispersion "
+                "correction.",
     build=build,
     order=32,
     provides=frozenset({"forces", "stress", "periodic"}),
