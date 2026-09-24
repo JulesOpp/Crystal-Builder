@@ -47,6 +47,13 @@ def write_gen(structure: Structure, path, fractional: bool = True) -> Path:
 
 def gen_string(structure: Structure, fractional: bool = True) -> str:
     cell = expand(structure)
+    if not cell.n_atoms:
+        # The species line would be empty, and a reader that skips
+        # blank lines -- this one, rightly -- takes the origin for it.
+        # DFTB+ cannot run a cell with nothing in it either.
+        raise ValueError(
+            "a .gen file cannot hold a structure with no atoms; add "
+            "some, or export to CIF, which can")
     species = list(dict.fromkeys(cell.elements))
     index = {symbol: n + 1 for n, symbol in enumerate(species)}
     kind = "F" if fractional else "S"
