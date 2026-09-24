@@ -614,6 +614,98 @@ def test_a_pie_puts_both_occupants_of_a_site_on_the_screen():
     assert 0.6 < oxygen / iron < 1.7
 
 
+def _pie_site():
+    from xtal import Lattice, Structure
+    from xtal.core.site import Site
+    structure = Structure(
+        lattice=Lattice.cubic(6.0),
+        sites=[Site("Fe", [0.5, 0.5, 0.5], occupancy=0.5),
+               Site("O", [0.5, 0.5, 0.5], occupancy=0.3),
+               Site("Fe", [0.1, 0.2, 0.3], occupancy=0.6)],
+        space_group="P1")
+    return build_scene(structure,
+                       ViewSettings(style="ball_stick_occupancy",
+                                    show_cell=False))
+
+
+def _render(scene, size=(200, 200)):
+    from vtkmodules.util.numpy_support import vtk_to_numpy
+    from vtkmodules.vtkRenderingCore import (
+        vtkRenderWindow,
+        vtkWindowToImageFilter,
+    )
+    window = vtkRenderWindow()
+    window.SetOffScreenRendering(1)
+    window.SetSize(*size)
+    window.AddRenderer(scene.renderer)
+    window.Render()
+    grabber = vtkWindowToImageFilter()
+    grabber.SetInput(window)
+    grabber.Update()
+    pixels = vtk_to_numpy(grabber.GetOutput().GetPointData()
+                          .GetScalars()).copy()
+    window.Finalize()
+    return pixels
+
+
+def test_a_pie_turned_by_the_gpu_is_the_pie_the_model_describes():
+    """The shader turns the pies to face the camera, and
+    ``SceneModel.pie_geometry`` -- which the SVG export draws from --
+    says where they should end up.  From an oblique, rolled view the
+    two must be the same picture, or the screen and the export
+    disagree about which wedge is where."""
+    model = _pie_site()
+
+    def looking(scene):
+        scene.reset_camera()
+        scene.look_along((0.6, -0.5, -0.62))
+        scene.renderer.ResetCamera()
+        camera = scene.renderer.GetActiveCamera()
+        camera.Roll(25)
+        camera.Elevation(10)
+        camera.OrthogonalizeViewUp()
+        return camera
+
+    on_gpu = vtk_scene.VtkScene()
+    on_gpu.set_model(model)
+    looking(on_gpu)
+
+    on_cpu = vtk_scene.VtkScene()
+    on_cpu.set_model(model)
+    camera = looking(on_cpu)
+    on_cpu.pie_actor.GetShaderProperty() \
+        .ClearAllVertexShaderReplacements()
+    points, normals = model.pie_geometry(
+        np.array(camera.GetDirectionOfProjection()),
+        np.array(camera.GetViewUp()))
+    poly = vtk_scene._triangle_polydata(points, model.pie_faces,
+                                        model.pie_colors)
+    poly.GetPointData().SetNormals(vtk_scene._to_float(normals, "n"))
+    on_cpu.pie_mapper.SetInputData(poly)
+
+    drawn, expected = _render(on_gpu), _render(on_cpu)
+    assert (np.abs(drawn.astype(int) - expected).max(axis=1)
+            > 8).mean() < 0.002
+
+
+def test_turning_the_camera_does_not_touch_the_pies():
+    """The pies face the camera in the vertex shader.  Turning them
+    in numpy re-uploaded every vertex on every frame of a drag --
+    1.3 million on MOF-808, 150 ms a frame, which is what made the
+    occupancy style the one that could not be rotated."""
+    scene = vtk_scene.VtkScene()
+    scene.set_model(_pie_site())
+    scene.reset_camera()
+    _render(scene)
+    before = scene._pie_poly.GetMTime()
+    camera = scene.renderer.GetActiveCamera()
+    camera.Azimuth(40)
+    camera.Elevation(25)
+    camera.OrthogonalizeViewUp()
+    _render(scene)
+    assert scene._pie_poly.GetMTime() == before
+
+
 def test_the_glyph_goes_back_to_spheres_when_the_style_changes():
     """One mapper draws both, so the switch has to put the scale and
     orientation arrays back or every atom keeps the last ellipsoid it
