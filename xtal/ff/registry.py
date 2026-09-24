@@ -19,6 +19,33 @@ from xtal.params import Availability, Param, Registry, coerce, defaults
 
 
 @dataclass(frozen=True)
+class Reference:
+    """Where a method comes from: the paper that defines it, or the
+    code that is it, as a link somebody can follow.
+
+    ``label`` names it the way a citation would at a glance -- authors,
+    journal, year -- so the link says what it opens before it is
+    clicked.
+    """
+
+    label: str                      # "Rappe et al., J. Am. Chem. Soc. 1992"
+    url: str
+
+
+def doi(label: str, identifier: str) -> Reference:
+    return Reference(label, f"https://doi.org/{identifier}")
+
+
+def arxiv(label: str, identifier: str) -> Reference:
+    return Reference(label, f"https://arxiv.org/abs/{identifier}")
+
+
+def github(repository: str) -> Reference:
+    return Reference(f"{repository} on GitHub",
+                     f"https://github.com/{repository}")
+
+
+@dataclass(frozen=True)
 class Engine:
     """One energy engine the application can offer."""
 
@@ -52,6 +79,20 @@ class Engine:
     #: that was there before there was a chooser, and the one that is
     #: always installed.
     order: int = 100
+    #: Where the method comes from, shown under the chooser as links.
+    #: A tuple, or a function of the options when the answer depends on
+    #: them -- UFF4MOF is not UFF's paper, and GFN-FF is not GFN2's.
+    references: tuple[Reference, ...] | Callable[..., tuple] = ()
+
+    def sources(self, **options) -> tuple[Reference, ...]:
+        """The references for the method these options select."""
+        if not callable(self.references):
+            return tuple(self.references)
+        try:
+            return tuple(self.references(**self.coerce(options)))
+        except Exception:                           # noqa: BLE001
+            # A link line is not worth losing the panel over.
+            return ()
 
     def availability(self, **options) -> Availability:
         if self.check is None:

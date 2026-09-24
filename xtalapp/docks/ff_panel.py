@@ -139,6 +139,17 @@ def engine_note_html(reason: str) -> str:
                          'Preferences &gt; Engines</a>')
     return text
 
+def sources_html(references) -> str:
+    """Where the chosen method comes from, one link to a line.
+
+    A paper by its authors, journal and year, and the code by its
+    repository, so each says what it opens before anybody clicks it.
+    """
+    return "<br>".join(
+        f'<a href="{html.escape(r.url, quote=True)}">'
+        f"{html.escape(r.label)}</a>" for r in references)
+
+
 class ForceFieldDock(QDockWidget):
     """Atom types, a single point, and a geometry optimisation.
 
@@ -204,6 +215,13 @@ class ForceFieldDock(QDockWidget):
         self.engine_note.linkActivated.connect(
             lambda _link: self.setupRequested.emit())
         set_tone(self.engine_note, HINT)
+        # Where the method comes from, right under whatever chose it.
+        # The links open in the browser; nothing here follows them.
+        self.engine_source = QLabel("")
+        self.engine_source.setWordWrap(True)
+        self.engine_source.setTextFormat(Qt.TextFormat.RichText)
+        self.engine_source.setOpenExternalLinks(True)
+        set_tone(self.engine_source, HINT)
 
         # UFF4MOF was always on and nothing said so.  Offered so a
         # number can be checked against the field it extends, and so
@@ -217,6 +235,8 @@ class ForceFieldDock(QDockWidget):
             "never uses them, which is how to see what they change")
         self.parameter_set.currentIndexChanged.connect(
             lambda _index: self.refresh())
+        self.parameter_set.currentIndexChanged.connect(
+            lambda _index: self._show_sources())
         self.coulomb = QCheckBox("Include electrostatics")
         self.coulomb.setToolTip(
             "Off by default, as in UFF itself: the published "
@@ -226,6 +246,8 @@ class ForceFieldDock(QDockWidget):
         for value, label in uff_calculator.CHARGE_SOURCES:
             self.charges.addItem(label, value)
         self.charges.setEnabled(False)
+        self.charges.currentIndexChanged.connect(
+            lambda _index: self._show_sources())
 
         # The van der Waals pair list is array work now -- 4.0 s down
         # to 0.49 s for a 5184-atom cell -- and what is left to control
@@ -350,6 +372,7 @@ class ForceFieldDock(QDockWidget):
         setup = QFormLayout()
         setup.setContentsMargins(0, 0, 0, 0)
         setup.addRow("Force field", self.engine)
+        setup.addRow(self.engine_source)
         setup.addRow("Parameters", self.parameter_set)
         setup.addRow(self.coulomb)
         setup.addRow(_uff_option("charges").title, self.charges)
@@ -546,6 +569,7 @@ class ForceFieldDock(QDockWidget):
         self.engine_note.setText("" if available
                                  else engine_note_html(available.reason))
         self.engine_note.setVisible(not available)
+        self._show_sources()
         if self.is_running:
             # Mid-run the run button is Stop, and _set_running owns
             # the rest.  Re-enabling either from here would offer a
@@ -553,6 +577,16 @@ class ForceFieldDock(QDockWidget):
             return
         for button in (self.energy_button, self.run_button):
             button.setEnabled(bool(available))
+
+    def _show_sources(self) -> None:
+        """Link the papers and code behind the method as it is now set
+        up -- UFF4MOF's as well as UFF's, the charge scheme's when one
+        is doing the charges, the Hamiltonian DFTB+ is running."""
+        name = self.engine_name()
+        references = (ENGINES.get(name).sources(**self.options())
+                      if name is not None else ())
+        self.engine_source.setText(sources_html(references))
+        self.engine_source.setVisible(bool(references))
 
     def _engine_provides(self, what: str) -> bool:
         name = self.engine_name()
@@ -562,6 +596,7 @@ class ForceFieldDock(QDockWidget):
 
     def _on_coulomb(self, on: bool) -> None:
         self.charges.setEnabled(on)
+        self._show_sources()
 
     def _on_relax_cell(self, on: bool) -> None:
         self.pressure.setEnabled(on)

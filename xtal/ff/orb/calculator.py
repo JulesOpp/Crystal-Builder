@@ -55,7 +55,7 @@ from xtal.ff.ase_engine import (
     ModelCache,
     torch_device,
 )
-from xtal.ff.registry import ENGINES, Engine
+from xtal.ff.registry import ENGINES, Engine, arxiv, github
 from xtal.params import Availability, Param
 
 __all__ = ["DEFAULT_MODEL", "DEVICE_CHOICES", "INSTALL", "KCAL_PER_EV",
@@ -258,4 +258,8 @@ ENGINES.register(Engine(
     provides=frozenset({"forces", "stress", "periodic"}),
     options=OPTIONS,
     check=available,
+    references=(
+        arxiv("Orb-v3: Rhodes et al., 2025", "2504.06231"),
+        github("orbital-materials/orb-models"),
+    ),
 ))

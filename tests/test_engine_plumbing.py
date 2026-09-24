@@ -90,3 +90,57 @@ def test_an_ase_engine_is_its_loader_and_nothing_else():
                        engine.numeric_stress(cell.cart, matrix,
                                              strain=1e-5),
                        atol=1e-6)
+
+
+def test_every_engine_says_where_its_method_comes_from():
+    """The panel links these under the chooser; an engine registered
+    without them is a method nobody can trace back to its paper."""
+    from xtal.ff import ENGINES
+
+    for engine in ENGINES:
+        cited = engine.sources(**engine.defaults())
+        assert cited, engine.name
+        for reference in cited:
+            assert reference.label
+            assert reference.url.startswith((
+                "https://doi.org/", "https://arxiv.org/abs/",
+                "https://github.com/")), reference
+
+
+def test_the_references_follow_the_options_that_choose_the_method():
+    """UFF4MOF is not UFF's paper, GFN-FF is not GFN2's, and a charge
+    scheme is cited only while it is doing the charges."""
+    from xtal.ff import ENGINES
+
+    def urls(name, **options):
+        return {r.url for r in ENGINES.get(name).sources(**options)}
+
+    uff = "https://doi.org/10.1021/ja00051a040"
+    addicoat = "https://doi.org/10.1021/ct400952t"
+    eqeq = "https://doi.org/10.1021/jz3008485"
+    assert {uff, addicoat} <= urls("uff", parameter_set="uff4mof")
+    assert urls("uff", parameter_set="uff") == {uff}
+    assert eqeq not in urls("uff", coulomb=False, charges="eqeq")
+    assert eqeq in urls("uff", coulomb=True, charges="eqeq")
+
+    assert "https://github.com/grimme-lab/xtb" in urls(
+        "xtb", method="gfnff")
+    assert "https://github.com/tblite/tblite" in urls("xtb",
+                                                      method="gfn2")
+    assert "https://doi.org/10.1103/PhysRevB.58.7260" in urls(
+        "dftb", method="scc")
+    assert "https://doi.org/10.1063/1.3382344" in urls(
+        "dftb", dispersion="d3")
+
+
+def test_a_references_function_that_fails_costs_the_links_only():
+    """They are drawn on every refresh of the panel, as availability
+    is, and must not take the panel with them."""
+    from xtal.ff.registry import Engine
+
+    def broken(**_options):
+        raise RuntimeError("no")
+
+    engine = Engine("x", "X", "", build=lambda s: None,
+                    references=broken)
+    assert engine.sources() == ()

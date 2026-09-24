@@ -766,3 +766,53 @@ def test_a_missing_engine_links_to_its_install_command(opened,
                         lambda page="": shown.append(page))
     note.linkActivated.emit("engines")
     assert shown == ["Engines"]
+
+
+# ------------------------------------------- where a method comes from
+
+def _links(label):
+    import re
+    return re.findall(r'href="([^"]+)"', label.text())
+
+
+def test_the_chosen_method_links_to_where_it_comes_from(window):
+    """Right under the chooser, and following it: UFF4MOF cites its own
+    papers as well as UFF's, plain UFF only Rappe's, an ML engine its
+    preprint and its repository.  The links go to the browser."""
+    dock = window.ff_dock
+    source = dock.engine_source
+    assert source.openExternalLinks()
+
+    dock.parameter_set.setCurrentIndex(
+        dock.parameter_set.findData("uff4mof"))
+    assert "https://doi.org/10.1021/ct400952t" in _links(source)
+    assert not source.isHidden()
+
+    dock.parameter_set.setCurrentIndex(dock.parameter_set.findData("uff"))
+    assert _links(source) == ["https://doi.org/10.1021/ja00051a040"]
+
+    dock.engine.setCurrentIndex(dock.engine.findData("mattersim"))
+    assert _links(source) == ["https://arxiv.org/abs/2405.04967",
+                              "https://github.com/microsoft/mattersim"]
+
+
+def test_the_charge_scheme_is_cited_once_it_is_doing_the_charges(
+        window):
+    dock = window.ff_dock
+    eqeq = "https://doi.org/10.1021/jz3008485"
+    dock.charges.setCurrentIndex(dock.charges.findData("eqeq"))
+    assert eqeq not in _links(dock.engine_source)
+    dock.coulomb.setChecked(True)
+    assert eqeq in _links(dock.engine_source)
+
+
+def test_the_dftb_panel_cites_the_hamiltonian_it_runs(window):
+    """The DFTB+ dock has no chooser to sit under; the links head its
+    Model box instead, and change with the form."""
+    dock = window.dftb_dock
+    form = dock.engine_forms["dftb"]
+    form.set_values({"method": "scc", "dispersion": "d3"})
+    links = _links(dock.engine_source)
+    assert "https://doi.org/10.1103/PhysRevB.58.7260" in links
+    assert "https://doi.org/10.1063/1.3382344" in links
+    assert "https://github.com/dftbplus/dftbplus" in links

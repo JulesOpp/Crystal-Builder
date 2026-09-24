@@ -54,7 +54,7 @@ from xtal.ff.ase_engine import (
     ModelCache,
     torch_device,
 )
-from xtal.ff.registry import ENGINES, Engine
+from xtal.ff.registry import ENGINES, Engine, arxiv, github
 from xtal.params import Availability, Param
 
 __all__ = ["DEFAULT_MODEL", "DEVICE_CHOICES", "INSTALL", "KCAL_PER_EV",
@@ -240,4 +240,8 @@ ENGINES.register(Engine(
     provides=frozenset({"forces", "stress", "periodic"}),
     options=OPTIONS,
     check=available,
+    references=(
+        arxiv("MatterSim: Yang et al., 2024", "2405.04967"),
+        github("microsoft/mattersim"),
+    ),
 ))

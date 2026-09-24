@@ -67,7 +67,7 @@ from xtal.ff.ase_engine import (  # noqa: F401 -- implements_stress, too
     implements_stress,
     torch_device,
 )
-from xtal.ff.registry import ENGINES, Engine
+from xtal.ff.registry import ENGINES, Engine, arxiv, github
 from xtal.params import Availability, Param
 
 #: The package that has to be installed, and how.
@@ -344,4 +344,10 @@ ENGINES.register(Engine(
     provides=frozenset({"forces", "stress", "periodic"}),
     options=OPTIONS,
     check=available,
+    references=(
+        arxiv("MACE: Batatia et al., NeurIPS 2022", "2206.07697"),
+        arxiv("MACE-MP foundation models: Batatia et al., 2023",
+              "2401.00096"),
+        github("ACEsuit/mace"),
+    ),
 ))
