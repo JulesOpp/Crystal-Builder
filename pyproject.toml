@@ -105,6 +105,13 @@ pxrd = ["matplotlib>=3.7"]
 # chooser whose entries the installed package cannot resolve
 # is one where picking the newest model fails at load.
 mace = ["mace-torch>=0.3.14", "ase>=3.22"]
+# ORB-v3, the second ML engine, for the reasons MACE is an extra.  Its
+# own line and not part of `mace`: each pins torch its own way, and
+# somebody who wants one should not be made to resolve both.
+# orb-models 0.7.0 pins dm-tree 0.1.8, which has no wheel for Python
+# 3.13 and does not build under CMake 4 unless the environment sets
+# CMAKE_POLICY_VERSION_MINIMUM=3.5; Preferences > Engines says so.
+orb = ["orb-models>=0.7", "ase>=3.25"]
 # pytest-qt belongs here and not in [dev]: without it every widget
 # test skips itself, and CI installs [gui,test] -- so the GUI half of
 # the suite was passing by not running.
@@ -126,7 +133,7 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
             # calculator at import, so a wheel missing one of these
             # cannot import `xtal.ff` at all.
             "xtal.ff.uff", "xtal.ff.dftb", "xtal.ff.xtb",
-            "xtal.ff.mace",
+            "xtal.ff.mace", "xtal.ff.orb",
             "xtal.modules", "xtal.modules.dftb_runs", "xtal.analysis",
             "xtal.mof", "xtal.mof.pormake", "xtal.mof.library",
             "xtal.build", "xtal.build.data",

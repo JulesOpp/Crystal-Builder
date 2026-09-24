@@ -650,7 +650,7 @@ def test_the_chooser_appears_once_there_is_something_to_choose(opened):
     # shown, so isVisible is False for every widget in the window.
     assert not dock.engine.isHidden()
     assert [dock.engine.itemData(i) for i in range(dock.engine.count())] \
-        == ["uff", "xtb", "mace"]
+        == ["uff", "xtb", "mace", "orb"]
 
 
 def test_choosing_xtb_hides_the_controls_that_are_uffs(opened):

@@ -105,10 +105,12 @@ type:
 | `sketch` | rdeditor | Draw the molecule instead of typing it |
 | `pxrd` | matplotlib | The PXRD pattern window: zoom, overlay a measured pattern, vector export |
 | `mace` | mace-torch | The MACE engine in the Force Field panel. Brings PyTorch |
+| `orb` | orb-models | The ORB-v3 engine in the Force Field panel. Brings PyTorch; on Python 3.13 its pinned dm-tree has to be built, and with CMake 4 that needs `CMAKE_POLICY_VERSION_MINIMUM=3.5` set |
 
 ```bash
 pip install 'crystal-builder[gui,ase,build,sketch,pxrd]'
 pip install 'crystal-builder[gui,mace]'     # MACE as well
+pip install 'crystal-builder[gui,orb]'      # ORB-v3 as well
 ```
 
 `mace` is its own line because it is not a small ask: PyTorch is

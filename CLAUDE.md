@@ -11,7 +11,7 @@ bonding, run force field / DFTB+ / Zeo++ calculations on the result.
 | `xtal/core/` | Structure, lattice, symmetry, subgroups, bonding |
 | `xtal/io/` | CIF and project (`.xtalproj`) read/write |
 | `xtal/commands/` | Undoable operations on a structure |
-| `xtal/ff/`, `xtal/modules/` | Calculators (UFF with UFF4MOF, xTB, DFTB+, MACE) and the module/job registry (Zeo++). MACE is the one that runs in process rather than as a binary; it needs the `mace` extra, and `_load_model` is the seam its tests replace. |
+| `xtal/ff/`, `xtal/modules/` | Calculators (UFF with UFF4MOF, xTB, DFTB+, MACE, ORB-v3) and the module/job registry (Zeo++). The ML engines (MACE, ORB-v3) run in process on `ase_engine.ASECalculator` rather than as a binary; each needs its own extra (`mace`, `orb`), and `_load_model` is the seam their tests replace. |
 | `xtal/mof/`, `xtal/build/` | PORMAKE frameworks (`orient.py` is which way round a node goes), and SMILES to a molecule. **PORMAKE is vendored** at `xtal/mof/pormake/` — MIT, trimmed of `jax`, `pymatgen` and `networkx`; see its `PROVENANCE.md`, and do not reformat it. The MOF builder needs the `ase` extra, the molecule builder the `build` one; the check is `find_spec` and never an import, and the entries grey out naming the extra. |
 | `xtalapp/` | The Qt/PySide6 + VTK GUI shell. Holds no crystallography of its own. |
 | `xtalapp/mainwindow.py` | The shell: menus, docks, tabs, and three mixins it inherits -- `shell_state.ShellRefresh` (refreshing and enabling), `symmetry_actions.SymmetryActions`, `edit_actions.EditActions`. See "Working in mainwindow" below. |

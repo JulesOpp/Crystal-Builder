@@ -63,6 +63,7 @@ from pathlib import Path
 from xtal import build as build_extra
 from xtal import mof as mof_extra
 from xtal.ff import mace as mace_extra
+from xtal.ff import orb as orb_extra
 from xtalapp import applog
 from xtalapp.dialogs import pattern, sketch
 
@@ -149,6 +150,7 @@ _CHECKS = {
     "rdeditor": lambda: sketch.installed(),
     "matplotlib": lambda: pattern.installed(),
     "mace": lambda: mace_extra.installed(),
+    "orb_models": lambda: orb_extra.installed(),
 }
 
 
@@ -180,6 +182,15 @@ EXTRAS = (
           "The MACE machine-learned potentials in the Force Field "
           "panel.  Brings PyTorch, which is gigabytes.", False,
           module="mace.calculators", timeout=60.0),
+    Extra("ORB engine", "orb_models", "orb",
+          "The ORB-v3 machine-learned potentials in the Force Field "
+          "panel.  Brings PyTorch, which is gigabytes.", False,
+          module="orb_models.forcefield.pretrained", timeout=60.0,
+          note="orb-models pins dm-tree 0.1.8, which has no ready-made "
+               "wheel for Python 3.13 and does not build with CMake 4. "
+               " If the install stops while building dm-tree, run it "
+               "again with CMAKE_POLICY_VERSION_MINIMUM=3.5 set in the "
+               "environment."),
 )
 
 #: What the folder below is for, in the words the page uses.

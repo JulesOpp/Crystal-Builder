@@ -158,7 +158,7 @@ def test_only_the_ml_engines_are_left_out_of_a_build():
     keep -- or stops listing the one thing a packaged user has to be
     told they cannot have."""
     assert {e.package for e in extras.EXTRAS if not e.bundled} == {
-        "mace"}
+        "mace", "orb_models"}
     assert "pormake" not in {e.package for e in extras.EXTRAS}
 
 

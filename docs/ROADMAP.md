@@ -1083,7 +1083,7 @@ them.  The full plan is
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
 | **0 — Pin what the review found unpinned** | Shipped 2026-09-23. Tests only, each checked by putting its regression back: the QSettings scratch guard (`test_suite_guards.py`), the √2 strain metric (holding *b* of quartz in P1: 1e-14 scaled, 6.2 flat), the Zeo++ radii test reading an excerpt in `tests/data` instead of skipping, the workspace-switch question asked once | `tests/` | S |
-| **1 — ORB-v3** | An `ASECalculator` engine with its own `orb` extra; tests on a stand-in model, one real run in a subprocess | `xtal/ff/orb/`, `pyproject.toml` | M |
+| **1 — ORB-v3** | Shipped 2026-09-24. `xtal/ff/orb`, conservative models only, double precision by default (float32's error is a third of a 1e-4 A step's energy change), CPU or CUDA -- orb-models 0.7.0 cannot use mps. MOF-5 0.94 s an evaluation in float32 and 2.58 s in float64, against MACE-MPA-0's 3.32 s. Before it, Preferences > Engines was put right: rows for MACE and ase, and a command that names this interpreter and this checkout | `xtal/ff/orb/`, `pyproject.toml` | M |
 | **2 — EQeq** | `ewald.pair_matrix`, EQeq on `qeq._solve`, a table regenerated from NIST by a script, one row in `CHARGE_SOURCES` | `xtal/ff/charges/eqeq.py`, `xtal/ff/ewald.py`, `scripts/eqeq_table.py` | M |
 | **3 — MatterSim** | The phase 1 shape, `mattersim` extra | `xtal/ff/mattersim/` | S |
 | **4 — SevenNet** | The phase 1 shape, `sevennet` extra | `xtal/ff/sevennet/` | S |

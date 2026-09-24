@@ -228,6 +228,7 @@ EXCLUDES = [
     # with mace in it would have carried gigabytes and still said "not
     # included in this build" on Preferences > Engines.
     "mace",
+    "orb_models",
     "torch",
     # `matplotlib` is NOT excluded any more, and its absence from
     # this list is the point.  It used to be, because the plots this
