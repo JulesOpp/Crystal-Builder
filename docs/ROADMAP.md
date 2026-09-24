@@ -1067,7 +1067,35 @@ and the CCDC-headed sample files, which need a decision first because
 
 ---
 
-## 7. What this plan does not do
+## 7. More engines, EQeq, and a COD sample library
+
+Planned 2026-09-23 as the fourth track from `features/deep-review`
+(`review/PLAN.md` § Phase 2), and the one the factoring track's two
+seams were built for: `xtal/ff/ase_engine.py` has MACE as its only
+subclass, and `CHARGE_SOURCES` has nothing new in it.  Julius's
+answers: all three licence-clean uMLIPs (UMA and eSEN are out -- gated
+or research-only weights), EQeq alone (EQeq+C's table is paywalled),
+and a COD library *beside* the shipped samples rather than replacing
+them.  The full plan is
+`~/.claude/plans/all-three-umlips-eqeq-wise-tiger.md`.  Branch
+`features/deep-review-engines`, off `main`.
+
+| Phase | Delivers | Main files | Size |
+|---|---|---|---|
+| **0 — Pin what the review found unpinned** | Shipped 2026-09-23. Tests only, each checked by putting its regression back: the QSettings scratch guard (`test_suite_guards.py`), the √2 strain metric (holding *b* of quartz in P1: 1e-14 scaled, 6.2 flat), the Zeo++ radii test reading an excerpt in `tests/data` instead of skipping, the workspace-switch question asked once | `tests/` | S |
+| **1 — ORB-v3** | An `ASECalculator` engine with its own `orb` extra; tests on a stand-in model, one real run in a subprocess | `xtal/ff/orb/`, `pyproject.toml` | M |
+| **2 — EQeq** | `ewald.pair_matrix`, EQeq on `qeq._solve`, a table regenerated from NIST by a script, one row in `CHARGE_SOURCES` | `xtal/ff/charges/eqeq.py`, `xtal/ff/ewald.py`, `scripts/eqeq_table.py` | M |
+| **3 — MatterSim** | The phase 1 shape, `mattersim` extra | `xtal/ff/mattersim/` | S |
+| **4 — SevenNet** | The phase 1 shape, `sevennet` extra | `xtal/ff/sevennet/` | S |
+| **5 — COD library** | Six CC0 structures in their own section of Open Sample, a fetch-and-strip script, and a `PROVENANCE.md` for every file in `resources/samples` | `resources/samples/cod/`, `xtalapp/samples.py`, `xtalapp/menus.py` | S-M |
+
+Phases 1, 2 and 5 each download something (weights, the NIST table,
+the COD files) and ask before they do.  No model is ever loaded in the
+test process; see CLAUDE.md "Aborted runs".
+
+---
+
+## 8. What this plan does not do
 
 * It does not touch the design principles in
   [docs/PLAN.md](PLAN.md) § 1.  Every phase keeps the core Qt-free,
