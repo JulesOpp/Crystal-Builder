@@ -8,7 +8,7 @@ it explains itself and offers a sample; the window after it offered
 nothing, on the screen where somebody who has just installed the
 program decides whether to keep it -- although drag-and-drop already
 worked and seven structures were one menu away.  The COD's
-sit under a heading of their own, below the seven.
+frameworks sit under a heading of their own, below the seven.
 
 **Nothing here does anything of its own.**  Every button is a view of
 a window action (``open``, ``new``, ``sample_<name>``), so what it is
@@ -36,6 +36,10 @@ from xtalapp.widgets.tone import HINT, set_tone
 #: Samples per row: seven in two rows fits the narrowest viewport a
 #: first run now gives (about 340 px at 1024 wide) without clipping.
 COLUMNS = 4
+#: The COD's names are longer -- MIL-100(Fe), PCN-222(Fe) -- and four
+#: of them to a row wanted 387 px, which a 1024 px window found by
+#: taking it out of the left column.
+COD_COLUMNS = 3
 
 
 def _button(action) -> QToolButton:
@@ -90,11 +94,13 @@ class StartPane(QWidget):
                 set_tone(heading, HINT)
                 column.addWidget(heading)
             grid = QGridLayout()
+            columns = COLUMNS if group == samples.SHIPPED \
+                else COD_COLUMNS
             for n, sample in enumerate(samples.in_group(group)):
                 button = _button(
                     window.actions_[f"sample_{sample.name}"])
                 self.sample_buttons[sample.name] = button
-                grid.addWidget(button, n // COLUMNS, n % COLUMNS)
+                grid.addWidget(button, n // columns, n % columns)
             centred = QHBoxLayout()
             centred.addStretch(1)
             centred.addLayout(grid, 4)

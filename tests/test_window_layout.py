@@ -298,6 +298,22 @@ def test_the_left_column_still_starts_wide_enough_for_structure(
     assert window.info_dock.width() >= DEFAULT_LEFT_WIDTH - 10
 
 
+def test_the_start_pane_leaves_the_left_column_its_width_at_1024(
+        qtbot, laptop_screen, settings):
+    """What is left in the middle of a 1024 px window is about 340
+    px, and the start pane has to fit it: anything wider is taken out
+    of the left column.  Four COD names to a row wanted 387, and only
+    the Windows runner, whose screen is that small, noticed."""
+    from xtalapp.layout import DEFAULT_LEFT_WIDTH
+
+    window = MainWindow(viewport_factory=StubViewport, settings=settings)
+    qtbot.addWidget(window)
+    window.setMaximumWidth(1024)
+    window.show()
+    qtbot.waitExposed(window)
+    assert window.info_dock.width() >= DEFAULT_LEFT_WIDTH - 10
+
+
 def test_a_first_window_gives_the_viewport_the_widest_share(
         qtbot, laptop_screen, settings):
     """The Sites table's own hint was 515 px, and with Structure's 380
