@@ -1,0 +1,53 @@
+Data file "mof5_net.cgd".
+
+Structure #1 - "MOF-5".
+
+   Input structure described as 3-periodic.
+   Given space group is P1.
+   8 nodes and 24 edges in repeat unit as given.
+
+   Ideal repeat unit smaller than given (3 vs 24 edges).
+   Point group has 48 elements.
+   1 kind of node.
+
+   Equivalences for non-unique nodes:
+      2 --> 1
+      3 --> 1
+      4 --> 1
+      5 --> 1
+      6 --> 1
+      7 --> 1
+      8 --> 1
+
+   Coordination sequences:
+      Node 1:    6 18 38 66 102 146 198 258 326 402
+
+   TD10 = 1561
+
+   Ideal space group is Pm-3m.
+   Ideal group or setting differs from given (Pm-3m vs P1).
+
+   Structure was identified with RCSR symbol:
+       Name:		pcu
+
+
+   Relaxed cell parameters:
+       a = 1.00000, b = 1.00000, c = 1.00000
+       alpha = 90.0000, beta = 90.0000, gamma = 90.0000
+   Cell volume: 1.00000
+   Relaxed positions:
+      Node 1:    0.00000 0.00000 0.00000
+   Edges:
+      0.00000 0.00000 0.00000  <->  0.00000 0.00000 1.00000
+   Edge centers:
+      0.00000 0.00000 0.50000
+
+   Edge statistics: minimum = 1.00000, maximum = 1.00000, average = 1.00000
+   Angle statistics: minimum = 90.00000, maximum = 180.00000, average = 108.00000
+   Shortest non-bonded distance = 1.41421
+
+   Degrees of freedom: 1
+
+Finished structure #1 - "MOF-5".
+
+Finished data file "mof5_net.cgd".

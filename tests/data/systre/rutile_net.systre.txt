@@ -1,0 +1,54 @@
+Data file "rutile_net.cgd".
+
+Structure #1 - "rutile".
+
+   Input structure described as 3-periodic.
+   Given space group is P1.
+   6 nodes and 12 edges in repeat unit as given.
+
+   Given repeat unit is accurate.
+   Point group has 16 elements.
+   2 kinds of node.
+
+   Equivalences for non-unique nodes:
+      2 --> 1
+      4 --> 3
+      5 --> 3
+      6 --> 3
+
+   Coordination sequences:
+      Node 1:    6 10 38 34 102 74 198 130 326 202
+      Node 3:    3 14 19 62 51 144 99 254 163 400
+
+   TD10 = 1180
+
+   Ideal space group is P42/mnm.
+   Ideal group or setting differs from given (P42/mnm vs P1).
+
+   Structure was identified with RCSR symbol:
+       Name:		rtl
+
+
+   Relaxed cell parameters:
+       a = 2.35433, b = 2.35433, c = 1.49457
+       alpha = 90.0000, beta = 90.0000, gamma = 90.0000
+   Cell volume: 8.28421
+   Relaxed positions:
+      Node 1:    0.00000 0.00000 0.00000
+      Node 3:    0.30066 0.69934 0.00000
+   Edges:
+      0.00000 0.00000 0.00000  <->  0.19934 0.19934 0.50000
+      0.00000 0.00000 0.00000  <->  0.30066 -0.30066 0.00000
+   Edge centers:
+      0.09967 0.09967 0.25000
+      0.15033 -0.15033 0.00000
+
+   Edge statistics: minimum = 0.99948, maximum = 1.00105, average = 1.00000
+   Angle statistics: minimum = 83.22133, maximum = 180.00000, average = 111.42857
+   Shortest non-bonded distance = 1.32743
+
+   Degrees of freedom: 3
+
+Finished structure #1 - "rutile".
+
+Finished data file "rutile_net.cgd".
