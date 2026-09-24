@@ -43,3 +43,12 @@ def command(extra: str) -> str:
     target = (f'-e "{root}[{extra}]"' if root is not None
               else f'"crystal-builder[{extra}]"')
     return f'"{sys.executable}" -m pip install {target}'
+
+
+def packages(names, no_deps: bool = False) -> str:
+    """What to type to get named packages into this Python, rather
+    than an extra -- for the one case where the extra's own
+    dependencies are what would break something already installed."""
+    flags = " --no-deps" if no_deps else ""
+    return (f'"{sys.executable}" -m pip install{flags} '
+            + " ".join(f'"{name}"' for name in names))

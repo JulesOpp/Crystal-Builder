@@ -57,6 +57,7 @@ from __future__ import annotations
 
 import os
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -110,6 +111,10 @@ class Extra:
     timeout: float = 0.0
     #: What else it takes, where the command alone is known to fail.
     note: str = ""
+    #: The command, where it depends on what else is installed.  The
+    #: feature's own function, so the Force Field panel's note and this
+    #: page cannot give two different answers.
+    command_for: Callable[[], str] | None = None
 
     def installed(self) -> bool:
         """``find_spec``, never an import -- see the modules this
@@ -119,6 +124,8 @@ class Extra:
     def command(self) -> str:
         """What to type on a source checkout to get it -- see
         :mod:`xtal.install` for why it is not the shorthand."""
+        if self.command_for is not None:
+            return self.command_for()
         return install.command(self.extra)
 
 
@@ -180,11 +187,12 @@ EXTRAS = (
           "The MatterSim machine-learned potentials in the Force "
           "Field panel.  Brings PyTorch, which is gigabytes.", False,
           module="mattersim.forcefield", timeout=60.0,
-          note="mattersim asks for e3nn 0.5 or newer and MACE for "
-               "exactly 0.4.4, so pip will not install both.  "
-               "MatterSim runs on 0.4.4: to have both, install MACE "
-               "first, then run pip install --no-deps mattersim "
-               "torch_runstats loguru deprecated with this Python."),
+          command_for=lambda: mattersim_extra.install_command(),
+          note="mattersim asks for e3nn 0.5 or newer and MACE needs "
+               "exactly 0.4.4, and MatterSim runs on 0.4.4.  With MACE "
+               "installed, the command above leaves mattersim's own "
+               "dependencies out and installs the three it needs, so "
+               "that MACE keeps working."),
 )
 
 #: What the folder below is for, in the words the page uses.

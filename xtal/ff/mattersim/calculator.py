@@ -36,9 +36,9 @@ in this application logs through loguru.
 **One package conflicts.**  mattersim declares e3nn 0.5 or newer and
 mace-torch pins 0.4.4, so pip will not resolve both extras into one
 environment.  What MatterSim's inference imports from e3nn is in
-0.4.4, which is how the checkout's own environment has both: MACE
-first, then mattersim with ``--no-deps`` and the three packages it
-imports that MACE did not bring.  Preferences > Engines says so.
+0.4.4, so where MACE is installed the command offered
+(:func:`install_command`) is mattersim with ``--no-deps`` and the three
+packages it imports that MACE did not bring.
 """
 
 from __future__ import annotations
@@ -57,7 +57,8 @@ from xtal.ff.ase_engine import (
 from xtal.ff.registry import ENGINES, Engine, arxiv, github
 from xtal.params import Availability, Param
 
-__all__ = ["DEFAULT_MODEL", "DEVICE_CHOICES", "INSTALL", "KCAL_PER_EV",
+__all__ = ["BESIDE_MACE", "DEFAULT_MODEL", "DEVICE_CHOICES", "INSTALL",
+           "KCAL_PER_EV", "install_command",
            "MODEL_CHOICES", "MODEL_SIZES", "OPTIONS",
            "MatterSimCalculator", "MatterSimOptions", "available",
            "build", "forget_models", "installed"]
@@ -65,6 +66,29 @@ __all__ = ["DEFAULT_MODEL", "DEVICE_CHOICES", "INSTALL", "KCAL_PER_EV",
 #: The package that has to be installed, and how.
 PACKAGE = "mattersim"
 INSTALL = install.command("mattersim")
+
+#: What MatterSim's inference imports that mace-torch did not already
+#: bring, measured by installing it with ``--no-deps`` beside MACE and
+#: importing :class:`mattersim.forcefield.MatterSimCalculator`.
+BESIDE_MACE = ("mattersim>=1.2.5", "torch_runstats", "loguru",
+               "deprecated")
+
+
+def install_command() -> str:
+    """The command to offer, which depends on whether MACE is here.
+
+    The extra is right on its own and wrong beside MACE: its
+    dependencies move e3nn to 0.6, which MACE refuses to load with,
+    and that is what the extra did to the environment the first time
+    it was followed from Preferences > Engines.  Beside MACE the
+    command installs mattersim with ``--no-deps`` and the three
+    packages it imports that MACE did not bring.
+    """
+    from xtal.ff.mace.calculator import installed as mace_installed
+
+    if mace_installed():
+        return install.packages(BESIDE_MACE, no_deps=True)
+    return INSTALL
 
 #: The two released checkpoints, by the name mattersim resolves and
 #: downloads.  The parameter counts are upstream's.
@@ -102,7 +126,7 @@ def available(model: str = DEFAULT_MODEL, **_rest) -> Availability:
     """Installed, and saying that the weights are a download."""
     if not installed():
         return Availability(
-            False, f"MatterSim is not installed -- {INSTALL}")
+            False, f"MatterSim is not installed -- {install_command()}")
     if model not in dict(MODEL_CHOICES):
         return Availability(False, f"{model!r} is not a MatterSim "
                                    f"model this application offers")
@@ -178,7 +202,8 @@ def _build_model(options: MatterSimOptions):
         from mattersim.forcefield import MatterSimCalculator as _Model
     except ImportError as exc:
         raise CalculatorError(
-            f"MatterSim is not installed -- {INSTALL} ({exc})") from None
+            f"MatterSim is not installed -- {install_command()} "
+            f"({exc})") from None
     dtype = "float64" if options.double_precision else "float32"
     try:
         return _Model(load_path=options.model, device=device,

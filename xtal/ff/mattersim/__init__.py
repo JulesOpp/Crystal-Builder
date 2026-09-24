@@ -6,6 +6,7 @@ MatterSim -- Microsoft Research's universal machine-learned potential
 """
 
 from xtal.ff.mattersim.calculator import (
+    BESIDE_MACE,
     DEFAULT_MODEL,
     DEVICE_CHOICES,
     INSTALL,
@@ -18,10 +19,12 @@ from xtal.ff.mattersim.calculator import (
     available,
     build,
     forget_models,
+    install_command,
     installed,
 )
 
-__all__ = ["DEFAULT_MODEL", "DEVICE_CHOICES", "INSTALL", "KCAL_PER_EV",
+__all__ = ["BESIDE_MACE", "DEFAULT_MODEL", "DEVICE_CHOICES", "INSTALL",
+           "KCAL_PER_EV", "install_command",
            "MODEL_CHOICES", "MODEL_SIZES", "OPTIONS",
            "MatterSimCalculator", "MatterSimOptions", "available",
            "build", "forget_models", "installed"]

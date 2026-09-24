@@ -108,10 +108,31 @@ def test_the_registry_builds_it_with_markers_held_back(stand_in):
 # ------------------------------------------------------- availability
 
 def test_a_missing_package_names_the_extra_to_install(monkeypatch):
+    from xtal.ff.mace import calculator as mace
+
+    monkeypatch.setattr(mace, "installed", lambda: False)
     monkeypatch.setattr(mattersim, "installed", lambda: False)
     answer = mattersim.available()
     assert not answer.ok
     assert install.command("mattersim") in answer.reason
+
+
+def test_beside_mace_the_command_leaves_mattersims_dependencies_out(
+        monkeypatch):
+    """The extra moves e3nn to 0.6 and MACE will not load on it: that
+    is what following the extra did to the environment beside MACE
+    the first time.  MatterSim runs on MACE's 0.4.4."""
+    from xtal.ff.mace import calculator as mace
+    from xtalapp import extras
+
+    monkeypatch.setattr(mace, "installed", lambda: True)
+    command = mattersim.install_command()
+    assert "--no-deps" in command
+    assert "[mattersim]" not in command
+    for name in mattersim.BESIDE_MACE:
+        assert f'"{name}"' in command
+    row = next(e for e in extras.EXTRAS if e.package == "mattersim")
+    assert row.command() == command
 
 
 def test_the_weights_are_said_to_be_a_download_of_their_size(
