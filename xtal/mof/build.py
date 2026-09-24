@@ -906,10 +906,23 @@ def draw_net(structure, framework) -> int:
     topology = framework.info["topology"]
     blocks = framework.info["located_bbs"]
     representative = _representatives(topology, blocks)
+    # The net's image joins two *slots*; the bond joins two atoms, and
+    # an atom need not be in the cell its slot is in -- a metal a
+    # hair past a face is written wrapped to the far side.  So each
+    # end carries the whole-cell offset from its atom to its slot.
+    # With one vertex, as pcu has, both ends carry the same offset and
+    # it cancels, which is how this went unseen until a net was
+    # repeated: pcu x 2 drew thirteen of its 24 edges a cell long.
+    slots = topology.atoms.get_scaled_positions()
+    sites = np.asarray(structure.frac, dtype=float)
+    offset = {slot: np.rint(slots[slot] - sites[atom]).astype(int)
+              for slot, atom in representative.items()}
     drawn = 0
     for i, j, image in _edges_of(topology):
         if i not in representative or j not in representative:
             continue                            # pragma: no cover
+        image = tuple(int(v) for v in
+                      np.asarray(image) + offset[j] - offset[i])
         if structure.add_bond(Bond(i=representative[i],
                                    j=representative[j],
                                    image=image, kind=TOPOLOGY)):
