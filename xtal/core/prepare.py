@@ -288,11 +288,17 @@ def primitive(structure: Structure) -> tuple[Structure, str]:
     for a in kept:
         site = structure.sites[int(cell.site_idx[a])].copy()
         site.frac = frac[a]
+        # Numbered afresh, as Reduce to P1 does: every image of a site
+        # carried its label, and a CIF's bond loop names atoms by
+        # label -- MIL-100's 3264 atoms had 816 labels between them,
+        # and a bond written to one Fe7 was read back on another.
+        site.label = ""
         sites.append(site)
     out = Structure(lattice=lattice, sites=sites,
                     space_group=SpaceGroup.p1(),
                     meta=dict(structure.meta),
                     bond_rules=dict(structure.bond_rules))
+    out.ensure_labels()
     return out, (f"primitive cell of the {letter}-centred lattice: "
                  f"{len(sites)} atoms, from {cell.n_atoms}")
 
@@ -1520,8 +1526,11 @@ def prepare(structure: Structure, steps=STEPS
                          f"{', '.join(sorted(unknown))}; the steps are "
                          f"{', '.join(STEPS)}")
     said = []
+    before = structure
     for step in STEPS:
         if step in steps:
             structure, message = OPERATIONS[step](structure)
             said.append(message)
+    if structure is not before:
+        structure.ensure_labels()   # the planner's hydrogens have none
     return structure, said

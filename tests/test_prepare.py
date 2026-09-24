@@ -539,3 +539,13 @@ def test_a_ring_carbon_takes_no_hydrogen_whatever_its_angles():
     hydrogen, 24 of them in Al-soc-MOF-1."""
     _out, said = prepare.prepare(_read("Al-soc-MOF-1"))
     assert "more by valence" not in said[-1]
+
+
+@pytest.mark.parametrize("name", sorted(p.stem for p in COD.glob("*.cif")))
+def test_every_prepared_atom_has_a_label_of_its_own(name):
+    """A CIF names atoms by label in its bond loop.  The primitive cell
+    once gave every image of a site that site's label, and a bond
+    written between two atoms came back between two others."""
+    out, _ = prepare.prepare(_read(name))
+    labels = [s.label for s in out.sites]
+    assert len(set(labels)) == len(labels)

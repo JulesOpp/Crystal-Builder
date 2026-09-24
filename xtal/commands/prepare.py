@@ -75,10 +75,10 @@ def _held(structure) -> str:
     edits = sum(1 for b in structure.bonds
                 if b.kind in ("explicit", "suppressed"))
     if edits:
-        return (f"this structure has {edits} bond(s) drawn or removed "
-                f"by hand, which ordering the disorder cannot carry "
-                f"through; prepare the file as deposited, or Reset "
-                f"bonds to automatic first")
+        return (f"this structure has {edits} bond(s) stated in its "
+                f"file or drawn or removed by hand, which ordering the "
+                f"disorder cannot carry through; prepare the file as "
+                f"deposited, or Reset bonds to automatic first")
     if structure.bonds:
         return (f"this structure has a net drawn over it "
                 f"({len(structure.bonds)} edge(s)), which ordering the "
