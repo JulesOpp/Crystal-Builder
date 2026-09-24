@@ -219,8 +219,7 @@ def _pin_dtype(model):
     float32 geometry, and along the force on MOF-74 the energy's slope
     disagreed with the force by 2e-3 at a 1e-4 A step, against 6e-9
     with float64 geometry.  That is the error double precision was
-    chosen to remove, and it came and went with which engine had
-    loaded first, because MACE leaves the global at float64.
+    chosen to remove.
 
     Given here, once, from the weights.  An orb-models that stops
     taking these keywords fails loudly at the first evaluation rather

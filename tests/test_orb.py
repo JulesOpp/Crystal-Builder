@@ -246,8 +246,7 @@ def test_every_graph_is_built_in_the_models_own_precision():
     float64 model was handed float32 geometry: along the force on
     MOF-74 the energy's slope then disagreed with the force by 2e-3 at
     a 1e-4 A step, against 6e-9 in float64 -- the error double
-    precision was chosen to remove.  And it depended on which engine
-    had loaded first, because MACE leaves the global at float64.
+    precision was chosen to remove.
 
     So the dtype is given to the adapter, from the model's weights."""
     called = []
