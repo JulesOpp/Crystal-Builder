@@ -616,9 +616,11 @@ stress case).
   Ni2Cl2BTDD's 1152 atoms under UFF, so a 12×12 grid is ~2.6 hours —
   and Stop, a crash or a full disk has to leave a landscape behind
   rather than lose one. It runs in **one job on one thread**, never
-  one per point: `xtalapp/workers.py` has an unfixed teardown race
-  (see § Testing and threads in `docs/TODO.md`) and multiplying it by
-  144 would make an overnight scan a coin toss.
+  one per point: a point starts from its relaxed neighbour
+  (`xtal/ff/scan.py`, the "previous" seed), so the grid is a walk and
+  not a batch, and splitting it across workers would seed each point
+  from wherever its worker happened to be. (This used to be argued
+  from the `workers.py` teardown race, which was fixed on 2026-09-21.)
 - **An unconverged scan point is not a number.** NaN, hatched on the
   heat map, outside the colour scale, crossed out in the contour
   window, `--` in the log. A hole plotted as a zero is the deepest
