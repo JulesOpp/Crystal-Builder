@@ -67,6 +67,8 @@ from xtal import mof as mof_extra
 from xtal.ff import mace as mace_extra
 from xtal.ff import mattersim as mattersim_extra
 from xtal.ff import orb as orb_extra
+from xtal.ff.registry import ENGINES
+from xtal.references import PORMAKE, Reference, doi, github
 from xtalapp import applog
 from xtalapp.dialogs import pattern, sketch
 
@@ -115,6 +117,8 @@ class Extra:
     #: feature's own function, so the Force Field panel's note and this
     #: page cannot give two different answers.
     command_for: Callable[[], str] | None = None
+    #: Where it comes from, linked on the page.
+    references: tuple = ()
 
     def installed(self) -> bool:
         """``find_spec``, never an import -- see the modules this
@@ -152,32 +156,52 @@ def installed(package: str) -> bool:
     return bool(check()) if check is not None else False
 
 
+def _engine(name: str) -> tuple:
+    """An ML engine's own references, as the Force Field panel shows
+    them, so the two cannot disagree."""
+    engine = ENGINES.get(name)
+    return engine.sources(**engine.defaults())
+
+
 EXTRAS = (
     Extra("Molecule builder", "rdkit", "build",
           "Insert molecule builds a molecule from a SMILES string and "
           "pastes it into the structure.  It also reads the fragment "
-          "library.", True),
+          "library.", True,
+          references=(Reference("rdkit.org", "https://www.rdkit.org"),
+                      github("rdkit/rdkit"))),
     Extra("Molecule sketcher", "rdeditor", "sketch",
           "Draw a molecule instead of typing a SMILES string.  Needs "
-          "the molecule builder as well.", True),
+          "the molecule builder as well.", True,
+          references=(github("EBjerrum/rdeditor"),)),
     Extra("Pattern plot window", "matplotlib", "pxrd",
           "Zoom into a calculated PXRD pattern, overlay a measured "
           ".xy file on it, and export the figure as a vector with "
           "the text still editable.  The pattern itself is "
           "calculated, drawn in the Results panel and written as .xy "
-          "without it.", True),
+          "without it.", True,
+          references=(Reference("matplotlib.org",
+                                "https://matplotlib.org"),)),
     Extra("MOF builder", "ase", "ase",
           "Build a framework from a net, a node and a linker.  PORMAKE "
           "is part of this application; ASE is what it is written "
-          "over.", True),
+          "over.", True,
+          references=(doi("ASE: Hjorth Larsen et al., J. Phys.: "
+                          "Condens. Matter 2017",
+                          "10.1088/1361-648X/aa680e"),
+                      Reference("gitlab.com/ase/ase",
+                                "https://gitlab.com/ase/ase"))
+          + PORMAKE),
     Extra("MACE engine", "mace", "mace",
           "The MACE machine-learned potentials in the Force Field "
           "panel.  Brings PyTorch, which is gigabytes.", False,
-          module="mace.calculators", timeout=60.0),
+          module="mace.calculators", timeout=60.0,
+          references=_engine("mace")),
     Extra("ORB engine", "orb_models", "orb",
           "The ORB-v3 machine-learned potentials in the Force Field "
           "panel.  Brings PyTorch, which is gigabytes.", False,
           module="orb_models.forcefield.pretrained", timeout=60.0,
+          references=_engine("orb"),
           note="orb-models pins dm-tree 0.1.8, which has no ready-made "
                "wheel for Python 3.13 and does not build with CMake 4. "
                " If the install stops while building dm-tree, run it "
@@ -188,6 +212,7 @@ EXTRAS = (
           "Field panel.  Brings PyTorch, which is gigabytes.", False,
           module="mattersim.forcefield", timeout=60.0,
           command_for=lambda: mattersim_extra.install_command(),
+          references=_engine("mattersim"),
           note="mattersim asks for e3nn 0.5 or newer and MACE needs "
                "exactly 0.4.4, and MatterSim runs on 0.4.4.  With MACE "
                "installed, the command above leaves mattersim's own "

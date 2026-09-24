@@ -66,6 +66,7 @@ from xtalapp.viewport.view_settings import (
     BACKGROUNDS,
     FOLLOW_THE_SYSTEM,
 )
+from xtalapp.widgets.links import SourceLinks
 from xtalapp.widgets.tone import HINT, WARNING, set_tone
 
 
@@ -552,6 +553,8 @@ class EnginesPage(QWidget):
         box = QGroupBox(tool.label)
         inner = QVBoxLayout(box)
         inner.addWidget(_hint(tool.hint))
+        if tool.references:
+            inner.addWidget(SourceLinks(tool.references))
 
         field = QLineEdit(self.settings.path_setting(tool.key))
         field.setCursorPosition(0)
@@ -582,6 +585,8 @@ class EnginesPage(QWidget):
         box = QGroupBox(f"{extra.label} ({extra.package})")
         inner = QVBoxLayout(box)
         inner.addWidget(_hint(extra.powers))
+        if extra.references:
+            inner.addWidget(SourceLinks(extra.references))
         state = QLabel(sentence)
         state.setWordWrap(True)
         set_tone(state, None if ok else WARNING)

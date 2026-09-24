@@ -16,33 +16,10 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from xtal.params import Availability, Param, Registry, coerce, defaults
+from xtal.references import Reference, arxiv, doi, github
 
-
-@dataclass(frozen=True)
-class Reference:
-    """Where a method comes from: the paper that defines it, or the
-    code that is it, as a link somebody can follow.
-
-    ``label`` names it the way a citation would at a glance -- authors,
-    journal, year -- so the link says what it opens before it is
-    clicked.
-    """
-
-    label: str                      # "Rappe et al., J. Am. Chem. Soc. 1992"
-    url: str
-
-
-def doi(label: str, identifier: str) -> Reference:
-    return Reference(label, f"https://doi.org/{identifier}")
-
-
-def arxiv(label: str, identifier: str) -> Reference:
-    return Reference(label, f"https://arxiv.org/abs/{identifier}")
-
-
-def github(repository: str) -> Reference:
-    return Reference(f"{repository} on GitHub",
-                     f"https://github.com/{repository}")
+__all__ = ["ENGINES", "Engine", "EngineRegistry", "Reference", "arxiv",
+           "doi", "github"]
 
 
 @dataclass(frozen=True)

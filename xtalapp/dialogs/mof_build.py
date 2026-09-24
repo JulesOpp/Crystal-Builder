@@ -77,6 +77,7 @@ from xtal.modules.mof import PARAMS
 from xtal.mof import Catalog
 from xtal.mof.build import BuildRequest
 from xtal.mof.catalog import matches_search
+from xtal.references import PORMAKE, RCSR, rcsr_net
 from xtalapp.dialogs.mof_preview import (
     ORBIT_COLORS,
     BlockPreview,
@@ -84,6 +85,7 @@ from xtalapp.dialogs.mof_preview import (
     reset_view_row,
 )
 from xtalapp.docks.columns import Collapsible
+from xtalapp.widgets.links import SourceLinks
 from xtalapp.widgets.net_search import NetSearch, add_row
 from xtalapp.widgets.tone import HINT, set_tone
 
@@ -180,6 +182,10 @@ class MofBuildDialog(QDialog):
         self.details.setWordWrap(True)
         self.details.setTextFormat(Qt.RichText)
         self.details.setAlignment(Qt.AlignTop)
+        # The chosen net's page in the RCSR, where it has one: PORMAKE's
+        # nets are the RCSR's, but not every derived name (pcu-a) or a
+        # net of somebody's own has a page there.
+        self.net_links = SourceLinks((), self)
 
         left = QWidget(self)
         column = QVBoxLayout(left)
@@ -193,6 +199,7 @@ class MofBuildDialog(QDialog):
         column.addWidget(self.net_preview, 1)
         column.addLayout(reset_view_row(self.net_preview))
         column.addWidget(self.details)
+        column.addWidget(self.net_links)
 
         top = QSplitter(Qt.Horizontal, self)
         top.addWidget(left)
@@ -331,8 +338,13 @@ class MofBuildDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
 
+        # Where the builder and its nets come from, outside the scroll
+        # so that it is there whichever section is open.
+        self.sources = SourceLinks(PORMAKE + RCSR, self)
+
         layout = QVBoxLayout(self)
         layout.addWidget(self.scroll, 1)
+        layout.addWidget(self.sources)
         layout.addWidget(buttons)
         self._fit_to_screen()
 
@@ -457,6 +469,7 @@ class MofBuildDialog(QDialog):
         self._topology = self.catalog.topology(
             current.data(Qt.UserRole))
         self.net_preview.set_topology(self._topology)
+        self.net_links.set_references(_rcsr_page(self._topology))
         self._rebuild_slots()
         layered = self._topology.is_layer
         self.spacing.setEnabled(layered)
@@ -797,6 +810,17 @@ class _SlotRow(QWidget):
         written = DrawBlockDialog.ask(self.slot, self.folder, self)
         if written is not None:
             self.drawn.emit(written.stem)
+
+
+def _rcsr_page(topology) -> tuple:
+    """The RCSR's page for this net, or nothing where it has none."""
+    from xtal.analysis import rcsr
+
+    try:
+        entry = rcsr.nets()[topology.name]
+    except KeyError:
+        return ()
+    return (rcsr_net(entry.name, entry.dimension),)
 
 
 def _ordered(blocks) -> list:

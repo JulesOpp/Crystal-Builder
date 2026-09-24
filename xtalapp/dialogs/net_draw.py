@@ -49,7 +49,9 @@ from PySide6.QtWidgets import (
 from xtal.analysis import rcsr
 from xtal.analysis.netsearch import facts_of_entry
 from xtal.core.lattice import Lattice
+from xtal.references import RCSR, rcsr_net
 from xtalapp.dialogs.mof_preview import NetPreview, reset_view_row
+from xtalapp.widgets.links import SourceLinks
 from xtalapp.widgets.net_search import NetSearch, add_row
 
 #: The parameter the list answers, and so the one the form must not
@@ -117,6 +119,9 @@ class NetDrawDialog(QDialog):
         self.details.setWordWrap(True)
         self.details.setTextFormat(Qt.RichText)
         self.details.setAlignment(Qt.AlignTop)
+        # The chosen net's own page in the RCSR, which every net here
+        # comes from, and the database's paper.
+        self.links = SourceLinks(RCSR, self)
 
         self.form = ParamForm(
             [p for p in self.action.params if p.name != CHOSEN], self)
@@ -133,6 +138,7 @@ class NetDrawDialog(QDialog):
         column.addWidget(self.preview, 1)
         column.addLayout(reset_view_row(self.preview))
         column.addWidget(self.details)
+        column.addWidget(self.links)
 
         split = QSplitter(Qt.Horizontal, self)
         split.addWidget(left)
@@ -193,6 +199,8 @@ class NetDrawDialog(QDialog):
             return
         self.preview.set_topology(_Placed(self._entry))
         self.details.setText(self._describe(self._entry))
+        self.links.set_references(
+            (rcsr_net(self._entry.name, self._entry.dimension),) + RCSR)
 
     def _describe(self, entry) -> str:
         known = rcsr.catalogue()

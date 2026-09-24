@@ -88,6 +88,7 @@ from xtalapp.widgets.atom_types import (
     warnings_text,
 )
 from xtalapp.widgets.atom_types import HEADING as TYPES_HEADING
+from xtalapp.widgets.links import SourceLinks
 from xtalapp.widgets.tone import HINT, set_tone
 from xtalapp.workers import OptimizationWorker, start_in_thread
 
@@ -138,17 +139,6 @@ def engine_note_html(reason: str) -> str:
                 command, 'the command to install it is on <a href="engines">'
                          'Preferences &gt; Engines</a>')
     return text
-
-def sources_html(references) -> str:
-    """Where the chosen method comes from, one link to a line.
-
-    A paper by its authors, journal and year, and the code by its
-    repository, so each says what it opens before anybody clicks it.
-    """
-    return "<br>".join(
-        f'<a href="{html.escape(r.url, quote=True)}">'
-        f"{html.escape(r.label)}</a>" for r in references)
-
 
 class ForceFieldDock(QDockWidget):
     """Atom types, a single point, and a geometry optimisation.
@@ -217,11 +207,7 @@ class ForceFieldDock(QDockWidget):
         set_tone(self.engine_note, HINT)
         # Where the method comes from, right under whatever chose it.
         # The links open in the browser; nothing here follows them.
-        self.engine_source = QLabel("")
-        self.engine_source.setWordWrap(True)
-        self.engine_source.setTextFormat(Qt.TextFormat.RichText)
-        self.engine_source.setOpenExternalLinks(True)
-        set_tone(self.engine_source, HINT)
+        self.engine_source = SourceLinks()
 
         # UFF4MOF was always on and nothing said so.  Offered so a
         # number can be checked against the field it extends, and so
@@ -585,8 +571,7 @@ class ForceFieldDock(QDockWidget):
         name = self.engine_name()
         references = (ENGINES.get(name).sources(**self.options())
                       if name is not None else ())
-        self.engine_source.setText(sources_html(references))
-        self.engine_source.setVisible(bool(references))
+        self.engine_source.set_references(references)
 
     def _engine_provides(self, what: str) -> bool:
         name = self.engine_name()

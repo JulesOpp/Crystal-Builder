@@ -294,3 +294,30 @@ def test_copying_a_command_puts_it_on_the_clipboard(page, qtbot):
     page.target_command._copy()
 
     assert QApplication.clipboard().text() == extras.target_command()
+
+
+def test_every_row_links_to_where_it_comes_from(page):
+    """A program, a package or a folder of nets is something somebody
+    wrote; each row says who, and the links open in the browser."""
+    from xtalapp import external
+    from xtalapp.widgets.links import SourceLinks
+
+    for row in (*external.TOOLS, *extras.EXTRAS):
+        assert row.references, row.label
+    shown = {url for label in page.findChildren(SourceLinks)
+             for url in label.urls()}
+    assert all(label.openExternalLinks()
+               for label in page.findChildren(SourceLinks))
+    for row in (*external.TOOLS, *extras.EXTRAS):
+        for reference in row.references:
+            assert reference.url in shown, reference
+
+
+def test_an_ml_engine_row_cites_what_the_force_field_panel_does():
+    from xtal.ff import ENGINES
+
+    for name, package in (("mace", "mace"), ("orb", "orb_models"),
+                          ("mattersim", "mattersim")):
+        engine = ENGINES.get(name)
+        assert extra(package).references == engine.sources(
+            **engine.defaults())
