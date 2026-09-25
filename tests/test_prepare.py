@@ -246,6 +246,31 @@ def test_a_bare_oxygen_on_a_metal_is_a_water():
     assert "12 as water on metals" in said[-1]
 
 
+def test_an_atom_that_clashes_with_its_own_image_is_disorder():
+    """"O3b disordered by symmetry over two configurations with
+    occupancy 0.5", says the refinement; the export dropped the
+    occupancy column, so O4 and its mirror image, 1.21 A apart, were
+    both whole waters -- an O-O "molecule" the solvent step could not
+    name and the planner gave hydrogens."""
+    structure = prepare.merge_duplicates(_ni2cl2btdd())[0]
+    assert "O4" in prepare.diagnose(structure).text()
+    out, said = prepare.order_disorder(structure)
+    assert "O4" in said
+    cell = p1.expand(out)
+    pairs = neighbor_pairs(cell.frac, out.lattice, 2.0)
+    assert not any(cell.elements[i] == cell.elements[j] == "O"
+                   for i, j in zip(pairs.i, pairs.j, strict=True))
+    assert _counts(out)["O"] == _counts(structure)["O"] - 18
+
+
+def test_the_pore_water_that_was_two_halves_is_solvent():
+    out, said = prepare.prepare(_ni2cl2btdd())
+    solvent = said[prepare.DEFAULT_STEPS.index("solvent")]
+    assert "other molecule" not in solvent
+    assert "more by valence" not in said[-1]
+    assert not any(prepare.SOURCE_SITE in s.props for s in out.sites)
+
+
 def test_an_atom_written_once_is_not_a_duplicate(quartz):
     out, said = prepare.merge_duplicates(quartz)
     assert out is quartz and said == "no site written twice"

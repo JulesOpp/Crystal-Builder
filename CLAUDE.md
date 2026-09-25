@@ -291,8 +291,15 @@ stress case).
   and the composition the occupancies add up to; a hydrogen goes with
   the atom it rides on; no oxygen is shared by two oxyanions; two
   orientations written at full occupancy (a three-membered ring of
-  sp2 bonds) are disorder too. Bonds drawn by hand are refused rather
-  than lost. The shipped COD files stay as deposited;
+  sp2 bonds) are disorder too, and so is an atom at full occupancy
+  too close to an image of its own site (`_self_clashes`: Ni2Cl2BTDD's
+  pore water O4, 1.21 A from its mirror image, with the occupancy
+  column dropped by the export) -- unless it is at a bond's length and
+  bonded to something else, which is a peroxide or a bound O2. The
+  primitive cell is P1, so it tags each atom with its deposited site
+  (`prepare.SOURCE_SITE`) and `run` strips the tag before returning,
+  since props are written into projects. Bonds drawn by hand are
+  refused rather than lost. The shipped COD files stay as deposited;
   `resources/samples/prepared/` holds the prepared models, written by
   `scripts/prepare_samples.py`, some relaxed with ORB-v3 + D3(BJ)
   because UFF made MIL-88B's linker geometry worse, not better.
