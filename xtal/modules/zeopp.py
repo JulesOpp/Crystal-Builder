@@ -1,12 +1,19 @@
 """
 xtal.modules.zeopp
 ==================
-Zeo++, as a registry entry.
+Zeo++, as a registry entry -- the Porosity module.
 
 Four entries, which are the four questions asked of a porous crystal:
 how big are the pores (``-res`` and ``-chan``), how much surface does
 a gas molecule see (``-sa``), how much room is there for it
-(``-vol``), and what is the spread of pore sizes (``-psd``).
+(``-vol``), and what is the spread of pore sizes (``-psd``).  Two more
+sit under their Zeo++ twins, labelled *(faster)*: the same surface
+area and volume read off this application's own distance grid,
+:mod:`xtal.modules.poregrid`, in a second or two rather than a minute.
+They need no binary, so the Zeo++ check is on each Zeo++ entry and
+not on the module: a missing ``network`` greys four entries, not six.
+The registry key stays ``zeopp`` so run folders and scripts keep
+their names.
 Everything about launching, streaming, cancelling and recording is
 :mod:`xtal.modules.process` and :mod:`xtal.modules.record`, written
 once in Phase D; what is here is only what is true of Zeo++ in
@@ -133,8 +140,11 @@ def _shared() -> tuple[Param, ...]:
 
 
 def _probe(default_gas: str, default_radius: float,
-           label: str) -> tuple[Param, ...]:
-    return (
+           label: str, channel: bool = True) -> tuple[Param, ...]:
+    """The probe, and -- for Zeo++'s entries -- the channel radius.
+    The grid decides what is reachable at the probe itself, so it has
+    no second radius to offer."""
+    probe = (
         Param("gas", "Probe", kind="choice",
               choices=[(k, v) for k, v, _r in porosity.PROBES],
               default=default_gas,
@@ -145,6 +155,10 @@ def _probe(default_gas: str, default_radius: float,
               step=0.05, decimals=2, suffix=" A",
               help="Used only when the probe above is set to "
                    "'Use the radius below'"),
+    )
+    if not channel:
+        return probe
+    return (*probe,
         Param("channel_radius", "Channel radius", kind="float",
               default=0.0, minimum=0.0, maximum=10.0, step=0.05,
               decimals=2, suffix=" A",
@@ -310,9 +324,15 @@ def _accessible_surface(job, probe: float):
 
     A surface that could not be built is not a failed run -- the
     volume is already read and correct.
+
+    **Channels only.**  The number beside it is AV, which a sealed
+    pocket is not part of, so a pocket drawn with the channels was a
+    picture of a different quantity.  :mod:`xtal.analysis.voids` makes
+    the split, and a pocket is pushed just under the level so the
+    march closes it off.
     """
     from xtal.analysis import grid as grids
-    from xtal.analysis import isosurface as iso
+    from xtal.analysis import voids
 
     radius_of, why = _radius_function(job)
     if radius_of is None:
@@ -321,16 +341,34 @@ def _accessible_surface(job, probe: float):
     spacing = float(job.param("spacing", grids.DEFAULT_SPACING))
     field = grids.distance_grid(job.structure, radius_of,
                                 spacing=spacing)
-    points, faces = iso.isosurface(field, job.structure.lattice, probe)
-    if not len(faces):
-        job.note("nothing to draw: no point in the cell is further "
-                 "than the probe radius from an atom")
+    split = voids.classify(job.structure, field, radius_of, probe)
+    return channel_overlay(job, field, split)
+
+
+def channel_overlay(job, field, split):
+    """The channels' surface as something the viewport draws, or
+    ``None`` with the reason in the log.  Shared with the grid's own
+    volume entry, :mod:`xtal.modules.poregrid`."""
+    from xtal.analysis import voids
+
+    grid = f"{'x'.join(str(n) for n in field.shape)} grid"
+    if split.borderline:
+        job.note(f"a window is within half a grid step of the probe's "
+                 f"size on the {grid}, so whether the drawn surface "
+                 f"passes through it is a matter of resolution")
+    if not split.channels.any():
+        job.note("nothing to draw: " + (
+            f"every void is a pocket the probe cannot reach "
+            f"({split.summary()})" if split.pockets.any() else
+            "no point in the cell is further than the probe radius "
+            "from an atom"))
         return None
+    points, faces = voids.channel_mesh(field, split, job.structure.lattice)
     network = porosity.PoreNetwork(surface_points=points,
                                    surface_faces=faces,
-                                   probe=float(probe))
-    job.note(f"{network.summary()}, on a "
-             f"{'x'.join(str(n) for n in field.shape)} grid")
+                                   probe=float(split.probe))
+    job.note(f"{network.summary()} around {split.summary()}, on a "
+             f"{grid}")
     return network
 
 
@@ -631,8 +669,12 @@ def _channel_table(channels) -> Table:
 
 
 def _area_report(found, gas: str, probe: float, samples: int,
-                 said: str) -> Report:
+                 said: str, how: str = "", first=()) -> Report:
+    """``how`` replaces the sampling note and ``first`` goes above the
+    numbers: the grid's entries share this report and differ only in
+    how they got there and in what they could not resolve."""
     rows = [
+        *first,
         Row.number("Accessible surface area",
                    found.accessible_per_gram, "m^2/g",
                    f"what a {gas} isotherm measures", "ASA",
@@ -658,14 +700,15 @@ def _area_report(found, gas: str, probe: float, samples: int,
     return Report(
         title=f"Surface area to {gas}",
         blocks=(Table(rows=tuple(rows),
-                      note=f"{samples} Monte Carlo samples per "
-                           f"atom, at a probe radius of "
-                           f"{probe:.2f} A."),),
+                      note=how or f"{samples} Monte Carlo samples "
+                                      f"per atom, at a probe radius "
+                                      f"of {probe:.2f} A."),),
         note=said)
 
 
 def _volume_report(found, gas: str, probe: float, samples: int,
-                   occupiable: bool, said: str) -> Report:
+                   occupiable: bool, said: str, how: str = "",
+                   first=()) -> Report:
     measured = ("the volume the probe occupies -- the pore volume a "
                 "paper quotes" if occupiable else
                 "the volume the probe's centre can reach -- what a "
@@ -674,6 +717,7 @@ def _volume_report(found, gas: str, probe: float, samples: int,
     # Zeo++ spellings and a paper quoting one of them means that one.
     symbol = "POAV" if found.occupiable else "AV"
     rows = [
+        *first,
         Row.number("Accessible volume", found.accessible_per_gram,
                    "cm^3/g", measured, symbol, decimals=4),
         Row.number("Accessible fraction of the cell",
@@ -704,9 +748,9 @@ def _volume_report(found, gas: str, probe: float, samples: int,
     return Report(
         title=f"Accessible volume to {gas}",
         blocks=(Table(rows=tuple(rows),
-                      note=f"{samples} Monte Carlo samples across the "
-                           f"cell, at a probe radius of "
-                           f"{probe:.2f} A."),),
+                      note=how or f"{samples} Monte Carlo samples "
+                                      f"across the cell, at a probe "
+                                      f"radius of {probe:.2f} A."),),
         note=said)
 
 
@@ -751,14 +795,44 @@ def _psd_report(found, gas: str, probe: float, said: str) -> Report:
 #  THE MODULE
 # ======================================================================
 
+def _grid_area(job) -> JobResult:
+    # Imported here: poregrid reads this module's reports, so a
+    # top-level import would be circular.
+    from xtal.modules import poregrid
+    return poregrid.surface_area(job)
+
+
+def _grid_volume(job) -> JobResult:
+    from xtal.modules import poregrid
+    return poregrid.volume(job)
+
+
+def _grid_shared() -> tuple[Param, ...]:
+    """What the grid entries take instead of Zeo++'s accuracy switch:
+    a grid spacing, and the same radii -- a file included, since the
+    grid reads it itself."""
+    radii, radii_file, _accuracy = _shared()
+    return (
+        Param("spacing", "Grid spacing", kind="float", default=0.4,
+              minimum=0.2, maximum=1.0, step=0.05, decimals=2,
+              suffix=" A",
+              help="Finer is slower and resolves narrower windows: "
+                   "0.4 A is a second or two on MFU-4l.  A window "
+                   "within half a step of the probe's size is flagged "
+                   "in the table rather than guessed."),
+        radii, radii_file,
+    )
+
+
 ZEOPP = Module(
     name="zeopp",
-    label="Zeo++",
-    description="Pore diameters, accessible surface area and the pore "
-                "size distribution of a periodic structure, by "
-                "Voronoi decomposition.",
+    label="Porosity",
+    description="Pore diameters, accessible surface area, pore volume "
+                "and the pore size distribution of a periodic "
+                "structure -- by Zeo++'s Voronoi decomposition, or, "
+                "for the entries marked (faster), off this "
+                "application's own distance grid.",
     order=30,
-    check=available,
     provides=frozenset({"porosity", "table", "histogram"}),
     actions=(
         Action(name="diameters",
@@ -780,7 +854,7 @@ ZEOPP = Module(
                                   "the decomposition this run has "
                                   "already paid for."),
                        *_shared()),
-               run=pore_diameters),
+               run=pore_diameters, check=available),
         Action(name="surface-area", label="Surface area...",
                tip="The area a gas molecule can touch, which is what "
                    "a BET measurement sees",
@@ -795,7 +869,26 @@ ZEOPP = Module(
                                   "is slower and less noisy; 2000 is "
                                   "the usual choice."),
                        *_shared()),
-               run=surface_area),
+               run=surface_area, check=available),
+        Action(name="surface-area-grid",
+               label="Surface area (faster)...",
+               tip="The same area in a second or two rather than "
+                   "several: sampled here on this application's own "
+                   "grid instead of by Zeo++, which it need not have.  "
+                   "A window within a grid step of the probe's size is "
+                   "flagged rather than guessed.",
+               kind="surface-area-grid",
+               params=(*_probe(porosity.DEFAULT_PROBE, 1.86,
+                               "Nitrogen is what a BET surface area "
+                               "is measured with.", channel=False),
+                       Param("samples", "Points per atom", kind="int",
+                             default=1000, minimum=100,
+                             maximum=100000,
+                             help="Evenly spread points on each "
+                                  "atom's sphere.  1000 is within 1 % "
+                                  "of Zeo++ on every sample."),
+                       *_grid_shared()),
+               run=_grid_area),
         Action(name="volume", label="Accessible volume...",
                tip="How much of the cell a gas molecule can occupy, "
                    "which is the pore volume a paper quotes",
@@ -833,7 +926,34 @@ ZEOPP = Module(
                                   "on MFU-4l, 0.3 A is eight times "
                                   "that."),
                        *_shared()),
-               run=accessible_volume),
+               run=accessible_volume, check=available),
+        Action(name="volume-grid",
+               label="Accessible volume (faster)...",
+               tip="The same volume in a second or two -- MFU-4l's "
+                   "occupiable volume is 1.7 s here against 71 s in "
+                   "Zeo++ -- read off this application's own grid.  "
+                   "A window within a grid step of the probe's size is "
+                   "flagged rather than guessed.",
+               kind="volume-grid",
+               params=(*_probe(porosity.DEFAULT_PROBE, 1.86,
+                               "Nitrogen is what a pore volume is "
+                               "usually quoted to.", channel=False),
+                       Param("occupiable", "Probe-occupiable volume",
+                             kind="bool", default=True,
+                             help="The volume the probe occupies "
+                                  "rather than the volume its centre "
+                                  "can reach: the pore volume a paper "
+                                  "quotes.  It reads up to 0.03 of the "
+                                  "cell above Zeo++'s -volpo, which "
+                                  "falls short of the union of probe "
+                                  "spheres."),
+                       Param("draw", "Draw the accessible surface",
+                             kind="bool", default=True,
+                             help="Put the channels' surface into the "
+                                  "3D view: the same grid the numbers "
+                                  "come from."),
+                       *_grid_shared()),
+               run=_grid_volume),
         Action(name="psd", label="Pore size distribution...",
                tip="How much of the pore space sits at each diameter, "
                    "as a histogram",
@@ -853,7 +973,7 @@ ZEOPP = Module(
                                   "and enough to see the shape; the "
                                   "published figures use 50000."),
                        *_shared()),
-               run=pore_size_distribution),
+               run=pore_size_distribution, check=available),
     ),
 )
 

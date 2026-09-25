@@ -774,6 +774,27 @@ class Document(QObject):
     def select_site(self, site_index: int, mode: str = "set") -> None:
         self.select(sel.by_site(self.cell, site_index), mode)
 
+    def select_bonds_between(self, first: str,
+                             second: str | None = None) -> str:
+        """Select every bond joining two elements, and nothing else.
+
+        The atoms are let go on purpose.  Delete acts on the sites
+        whenever any atom is held, so a selection of Zn-O bonds that
+        kept the atoms it was chosen from would delete the zinc; with
+        bonds alone, Delete and Bond type act on exactly these.
+        ``second`` of ``None`` is every bond ``first`` makes.
+        """
+        keys = sel.bonds_between_elements(self.graph, self.cell,
+                                          first, second)
+        self.selection.set_atoms(())
+        self.selection.topology.clear()
+        self.selection.bonds = keys
+        self.selectionChanged.emit()
+        name = f"{first}-{second}" if second else f"{first}-any"
+        if not keys:
+            return f"no {name} bonds"
+        return f"selected {len(keys)} {name} bond(s)"
+
     def expand_selection(self, how: str, value=1) -> None:
         atoms = set(self.selection.atoms)
         if not atoms:

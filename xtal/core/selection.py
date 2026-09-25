@@ -236,6 +236,28 @@ def bonds_within(graph, atoms) -> set:
             if b.i in inside and b.j in inside}
 
 
+def bonds_between_elements(graph, cell, first: str,
+                           second: str | None = None) -> set:
+    """Keys of the bonds joining ``first`` to ``second``, either way
+    round -- or ``first`` to anything when ``second`` is ``None``.
+
+    Both ends are asked, not the order the bond was stored in: a
+    Zn-O bond is stored O-Zn as often as not, and matching one
+    direction would find half of them.
+    """
+    elements = cell.elements
+    wanted = {first, second}
+    keys = set()
+    for bond in graph.bonds:
+        pair = {elements[bond.i], elements[bond.j]}
+        if second is None:
+            if first in pair:
+                keys.add(bond.key())
+        elif pair == wanted:
+            keys.add(bond.key())
+    return keys
+
+
 # ======================================================================
 #  MAPPING BACK TO THE ASYMMETRIC UNIT
 # ======================================================================

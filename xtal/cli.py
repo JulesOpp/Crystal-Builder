@@ -400,6 +400,9 @@ def cmd_modules(args) -> int:
         print(f"{module.name}{mark}")
         for action in module.actions:
             how = "  (in the window)" if action.shell else ""
+            entry = action.availability()
+            if not entry:
+                how += f"   [unavailable: {entry.reason}]"
             print(f"  {module.name}.{action.name:<16s} "
                   f"{action.label}{how}")
             for param in action.params:
@@ -444,6 +447,8 @@ def cmd_run(args) -> int:
             f"{args.action} is performed by the application window "
             f"and has nothing to run from a script")
     available = module.availability()
+    if available:
+        available = action.availability()
     if not available:
         raise ValueError(available.reason)
     # A module that builds a structure rather than measuring one has

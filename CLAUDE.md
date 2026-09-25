@@ -575,7 +575,23 @@ stress case).
   project**: MFU-4l's is 307 680 triangles and 96 MB of JSON against
   1.1 seconds to compute it again. The grid is float32 and the march
   goes a slab of cells at a time, so that second peaks at about 90 MB
-  rather than 400.
+  rather than 400. **It is drawn over channels only**, because the
+  number is AV: `xtal/analysis/voids.py` splits the grid into channels
+  and pockets, joining two neighbouring points only where the field is
+  clear at the segment's middle too — face neighbours alone gave
+  HKUST-1 104 false pockets, all 26 on their endpoints let N2 through
+  ZIF-8's 3.27 A windows. A window within half a grid step of the
+  probe is flagged (`Voids.borderline`), never guessed. **The
+  "(faster)" entries read their numbers off the same grid**
+  (`xtal/modules/poregrid.py`): area from points on the spheres, not
+  from the mesh, which reads 2-3 % low; POAV above Zeo++'s `-volpo` by
+  up to 0.03 of the cell, because Zeo++ falls short of the union of
+  probe spheres -- so POAV is tested against that union, never
+  against Zeo++. They sit in the **Porosity** module (registry key
+  still `zeopp`) under their Zeo++ twins, and need no binary, so the
+  Zeo++ check is on each Zeo++ entry rather than on the module: a
+  missing `network` greys four entries, and `Module.blocked` is what
+  keeps the reason row in the panel.
 - **The CIF carries the bonds; Export cleans.** `_geom_bond` says
   (site, site, operation, translation) and always could, so the
   workspace copy of a structure *is* the document: the markers the

@@ -159,6 +159,31 @@ def test_bonds_within(rutile):
     assert sel.bonds_within(graph, {0}) == set()
 
 
+def test_bonds_between_elements_match_either_way_round(rutile):
+    """Stored bonds have an order; a Ti-O bond written O-Ti would be
+    missed by a match on one direction, and half the bonds with it."""
+    graph = bonding.graph(rutile)
+    cell = p1.expand(rutile)
+    every = {b.key() for b in graph.bonds}
+    assert sel.bonds_between_elements(graph, cell, "Ti", "O") == every
+    assert sel.bonds_between_elements(graph, cell, "O", "Ti") == every
+
+
+def test_bonds_between_elements_leave_out_other_pairs(rutile):
+    graph = bonding.graph(rutile)
+    cell = p1.expand(rutile)
+    assert sel.bonds_between_elements(graph, cell, "O", "O") == set()
+    assert sel.bonds_between_elements(graph, cell, "Ti", "Ti") == set()
+
+
+def test_bonds_to_any_element_are_every_bond_it_makes(rutile):
+    graph = bonding.graph(rutile)
+    cell = p1.expand(rutile)
+    every = {b.key() for b in graph.bonds}
+    assert sel.bonds_between_elements(graph, cell, "O") == every
+    assert sel.bonds_between_elements(graph, cell, "Ti", None) == every
+
+
 def test_describe(rutile):
     cell = p1.expand(rutile)
     s = Selection()

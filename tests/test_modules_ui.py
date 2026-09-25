@@ -323,6 +323,51 @@ def test_an_unavailable_module_is_disabled_in_the_tree(qapp):
     assert not entries[0].isEnabled()
 
 
+def _porosity_tree(monkeypatch):
+    from dataclasses import replace
+
+    from xtal.modules import zeopp
+    monkeypatch.setenv("XTAL_ZEOPP", "/nowhere/network")
+    monkeypatch.setattr(zeopp, "bundled", lambda: None)
+    monkeypatch.setattr(
+        zeopp, "PROGRAM",
+        replace(zeopp.PROGRAM, name="network-that-is-not-installed"))
+    registry = type(MODULES)()
+    zeopp.register(registry)
+    # The tree is returned too: its model dies with it.
+    tree = ModuleTree(registry)
+    return tree, tree.model_.item(0)
+
+
+def test_a_missing_zeopp_greys_only_its_own_entries(qapp, monkeypatch):
+    """Porosity runs without Zeo++ -- its (faster) entries read the
+    grid -- so the module stays live and only the four entries that
+    launch the binary are greyed, each with the reason as its tip."""
+    _tree, porosity = _porosity_tree(monkeypatch)
+    assert porosity.text() == "Porosity"
+    assert porosity.isEnabled()
+    entries = {porosity.child(c).text(): porosity.child(c)
+               for c in range(porosity.rowCount())
+               if not porosity.child(c).data(WHY_ROLE)}
+    assert entries["Surface area (faster)..."].isEnabled()
+    assert entries["Accessible volume (faster)..."].isEnabled()
+    for label in ("Pore diameters and channels...", "Surface area...",
+                  "Accessible volume...", "Pore size distribution..."):
+        assert not entries[label].isEnabled(), label
+        assert "zeoplusplus" in entries[label].toolTip()
+
+
+def test_a_greyed_zeopp_entry_still_says_why(qapp, monkeypatch):
+    """The reason row is the way to Preferences > Engines, where the
+    binary is named.  Keyed to the module being greyed, it would have
+    vanished with the module no longer greyed."""
+    _tree, porosity = _porosity_tree(monkeypatch)
+    why = porosity.child(0)
+    assert why.data(WHY_ROLE)
+    assert why.isEnabled()
+    assert "Zeo++" in why.text()
+
+
 def _index_of(tree, module, action):
     for row in range(tree.model_.rowCount()):
         item = tree.model_.item(row)

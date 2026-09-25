@@ -1,0 +1,9 @@
+{
+  "_about": "Zeo++ 0.3 (resources/zeo++-0.3/network), -ha, Zeo++'s own radii, N2 probe 1.86 A, channel radius 1.86, run 2026-09-25 on the CSSR xtal.io.cssr writes of each resources/samples file. -sa 2000 samples per atom; -vol and -volpo 50000. Recorded rather than re-run: the suite never needs the binary.",
+  "MOF-5":  {"asa": 3727.11, "nasa": 0.0,     "av": 0.39176, "nav": 0.0,     "poav": 0.7562,  "ponav": 0.0,     "density": 0.591016},
+  "HKUST1": {"asa": 3488.16, "nasa": 0.0,     "av": 0.25954, "nav": 0.0,     "poav": 0.6535,  "ponav": 0.0,     "density": 0.879097},
+  "MIL53":  {"asa": 654.926, "nasa": 0.0,     "av": 0.22898, "nav": 0.0,     "poav": 0.65108, "ponav": 0.0,     "density": 0.751988},
+  "MFU4l":  {"asa": 5395.24, "nasa": 0.0,     "av": 0.47496, "nav": 0.0,     "poav": 0.77924, "ponav": 0.0,     "density": 0.559382},
+  "ZIF-8":  {"asa": 0.0,     "nasa": 355.219, "av": 0.0,     "nav": 0.19158, "poav": 0.0,     "ponav": 0.55342, "density": 0.803306},
+  "UIO66":  {"asa": 1070.82, "nasa": 0.0,     "av": 0.0708,  "nav": 0.0,     "poav": 0.42978, "ponav": 0.0,     "density": 1.21909}
+}
