@@ -168,7 +168,7 @@ def cmd_prepare(args) -> int:
         raise ValueError(f"{args.output} is the input; prepare writes "
                          f"a new file, so give it another name")
     steps = [s.strip() for s in args.steps.split(",")] if args.steps \
-        else list(prepare.STEPS)
+        else list(prepare.DEFAULT_STEPS)
     unknown = sorted(set(steps) - set(prepare.STEPS))
     if unknown:
         raise ValueError(f"no preparation step called "
@@ -176,11 +176,14 @@ def cmd_prepare(args) -> int:
                          f"{', '.join(prepare.STEPS)}")
     structure = _load(args.input)
     print(prepare.diagnose(structure).text())
-    out, said = prepare.prepare(structure, steps)
+    outcome = prepare.run(structure, steps)
+    out = outcome.structure
     print()
-    for step, message in zip(
-            [s for s in prepare.STEPS if s in steps], said, strict=True):
+    for step, message in zip([s for s in prepare.STEPS if s in steps],
+                             outcome.said, strict=True):
         print(f"{step:<10s} {message}")
+    for caution in outcome.cautions:
+        print(f"\nwarning: {caution}")
     FORMATS.write(out, args.output)
     info = properties.info(out)
     print(f"\nwrote {args.output}: {info.formula}, "
@@ -596,15 +599,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_convert)
 
     p = sub.add_parser(
-        "prepare", help="order disorder, drop solvent, complete trimers "
-                        "and hydrogens: a deposited CIF made ready "
-                        "for a calculation")
+        "prepare", help="merge copied sites, order disorder, drop "
+                        "solvent, add hydrogens: a deposited CIF made "
+                        "ready for a calculation")
     p.add_argument("input")
     p.add_argument("output")
     p.add_argument("--steps",
                    help="comma-separated, from "
-                        "deuterium,primitive,disorder,solvent,cap,"
-                        "hydrogens (default: all, in that order)")
+                        "duplicates,deuterium,primitive,disorder,"
+                        "solvent,cap,hydrogens, run in that order "
+                        "(default: all but cap, which changes the "
+                        "chemistry and is only run when named)")
     p.set_defaults(func=cmd_prepare)
 
     p = sub.add_parser("bonds", help="bonds, coordination, fragments")

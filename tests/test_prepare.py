@@ -193,6 +193,108 @@ def test_a_primitive_cell_is_left_alone(quartz):
 
 
 # ======================================================================
+#  SYMMETRY COPIES WRITTEN AS SITES
+# ======================================================================
+
+def _ni2cl2btdd():
+    from xtal.io import FORMATS
+    return FORMATS.read(COD.parent / "Ni2Cl2BTDD.cif")
+
+
+def test_symmetry_copies_written_as_sites_are_merged_before_reducing():
+    """A CSD ConQuest export writes 27 symmetry copies of its 13
+    independent sites under R-3m.  Expanded, 1152 atoms stack on 378
+    places, and the primitive cell refused them: 378 / 3 is 126, not
+    1152 / 3."""
+    out, said = prepare.prepare(_ni2cl2btdd(),
+                                steps=("duplicates", "primitive"))
+    assert "27 site(s)" in said[0]
+    assert len(out.sites) == 126
+    assert "126 atoms, from 378" in said[1]
+
+
+def test_the_primitive_cell_names_stacked_atoms_rather_than_the_group():
+    """"Find symmetry first" sent the user after a group that was
+    right; the atoms written twice were what was wrong."""
+    with pytest.raises(ValueError, match="Merge duplicates"):
+        prepare.primitive(_ni2cl2btdd())
+
+
+def test_the_diagnosis_counts_each_atom_once():
+    found = prepare.diagnose(_ni2cl2btdd())
+    assert "duplicates" in found.keys()
+    text = found.text()
+    assert "27 of 40 sites" in text
+    assert "378 atoms against 126" in text
+
+
+def test_a_bare_oxygen_on_a_metal_is_a_water():
+    """"Bis(mu-chloro)-diaqua-di-nickel(II)": Ni(II) x 2 against two
+    chlorides and BTDD(2-) leaves the oxygen on each nickel neutral.
+    The planner read the Ni-O bond as covalent and made each a
+    hydroxide, the framework -2 per formula unit."""
+    out, said = prepare.prepare(_ni2cl2btdd())
+    cell = p1.expand(out)
+    graph = bonding.graph(out)
+    on_nickel = [o for o in range(cell.n_atoms)
+                 if cell.elements[o] == "O"
+                 and [cell.elements[k] for k in graph.neighbors(o)
+                      if cell.elements[k] != "H"] == ["Ni"]]
+    assert len(on_nickel) == 6
+    assert all(sum(cell.elements[k] == "H" for k in graph.neighbors(o))
+               == 2 for o in on_nickel)
+    assert "12 as water on metals" in said[-1]
+
+
+def test_an_atom_written_once_is_not_a_duplicate(quartz):
+    out, said = prepare.merge_duplicates(quartz)
+    assert out is quartz and said == "no site written twice"
+
+
+# ======================================================================
+#  CHEMISTRY THE FILE DID NOT HAVE
+# ======================================================================
+
+def test_completing_the_trimers_is_never_a_default():
+    """Choosing F, OH or water for a site the refinement left bare is a
+    change to the material, so it is asked for or not done."""
+    assert "cap" in prepare.STEPS
+    assert "cap" not in prepare.DEFAULT_STEPS
+
+
+def test_a_trimer_left_as_found_gets_no_hydrogen_on_its_ligands():
+    """Without the trimer step the planner read valences and made all
+    three terminal oxygens hydroxide -- the trimer -2, a charge choice
+    nobody made."""
+    out, _said = prepare.prepare(_read("MIL-88B"))
+    cell = p1.expand(out)
+    graph = bonding.graph(out)
+    ligands = [lig for _o, members in prepare._trimers(out)
+               for _m, lig in members if lig is not None]
+    assert ligands
+    assert not any(cell.elements[k] == "H"
+                   for lig in ligands for k in graph.neighbors(lig))
+
+
+def test_a_trimer_left_charged_is_a_caution():
+    outcome = prepare.run(_read("MIL-88B"), prepare.DEFAULT_STEPS)
+    assert len(outcome.cautions) == 1
+    assert "2 M3O trimer(s)" in outcome.cautions[0]
+    assert "not neutral" in outcome.cautions[0]
+
+
+def test_completing_the_trimers_is_a_caution_that_names_the_change():
+    outcome = prepare.run(_read("MIL-88B"), prepare.STEPS)
+    assert len(outcome.cautions) == 1
+    assert "changes the chemistry" in outcome.cautions[0]
+    assert "2 OH and 4 water" in outcome.cautions[0]
+
+
+def test_a_framework_without_trimers_has_nothing_to_caution():
+    assert prepare.run(_read("UiO-66"), prepare.STEPS).cautions == []
+
+
+# ======================================================================
 #  CHARGE: TRIMERS AND ZR6 CORES
 # ======================================================================
 
@@ -215,17 +317,17 @@ def _terminal_roles(structure):
 def test_each_trimer_carries_one_anion_and_two_waters():
     """Cr3O(bdc)3 is +1.  A hydrogen planner reading valences made all
     three terminal oxygens hydroxide, and each trimer -2."""
-    out, _ = prepare.prepare(_read("MIL-88B"))
+    out, _ = prepare.prepare(_read("MIL-88B"), prepare.STEPS)
     assert _terminal_roles(out) == {"OH": 2, "water": 4, "F": 0}
 
 
 def test_a_counter_ion_in_the_pores_is_the_trimers_anion():
     """Al-soc-MOF-1 is [Al3O(abtc)1.5(H2O)3]+ Cl-: the chloride is the
     anion, and the trimer keeps three waters."""
-    out, said = prepare.prepare(_read("Al-soc-MOF-1"))
+    out, said = prepare.prepare(_read("Al-soc-MOF-1"), prepare.STEPS)
     assert _counts(out)["Cl"] == len(prepare._trimers(out)) == 8
     assert _terminal_roles(out) == {"OH": 0, "water": 24, "F": 0}
-    assert "halide ion" in said[4]
+    assert "halide ion" in said[prepare.STEPS.index("cap")]
 
 
 def test_a_zr6_core_gets_its_four_hydroxides_outward():
@@ -271,7 +373,7 @@ def test_ring_hydrogens_come_from_the_ring_and_not_the_bond_lengths():
 def test_a_bent_carboxylate_gets_no_hydrogen():
     """MIL-100's powder model has a carboxylate carbon with angles
     summing to 337 degrees; typed by geometry it wanted a hydrogen."""
-    out, said = prepare.prepare(_read("MIL-100"))
+    out, said = prepare.prepare(_read("MIL-100"), prepare.STEPS)
     assert "were not added" in said[-1]
     counts = _counts(out)
     trimers = counts["Fe"] // 3
@@ -299,7 +401,7 @@ def test_deuterium_is_written_as_hydrogen():
 def test_a_prepared_framework_has_nothing_left_to_prepare(name):
     """And nothing a calculation would choke on: no two atoms closer
     than two alternatives are, and no hydrogen bonded to nothing."""
-    out, _ = prepare.prepare(_read(name))
+    out, _ = prepare.prepare(_read(name), prepare.STEPS)
     assert not prepare.diagnose(out)
     assert _clashes(out) == 0
     graph = bonding.graph(out)
@@ -463,7 +565,8 @@ def test_the_command_reports_every_step_it_ran():
     assert report.ok
     assert report.n_after == p1.expand(out).n_atoms == 120
     assert len(report.warnings) == len(prepare.STEPS)
-    assert "2 OH and 4 water" in report.warnings[4]
+    assert "2 OH and 4 water" in \
+        report.warnings[prepare.STEPS.index("cap")]
 
 
 def test_nothing_to_prepare_is_not_an_edit(quartz):
@@ -490,6 +593,8 @@ def test_bonds_drawn_by_hand_are_refused_rather_than_lost(rutile):
 
 
 def test_xtal_prepare_writes_the_prepared_cell(tmp_path, capsys):
+    """By default the trimers stay as the file has them, and a warning
+    says the cell is not neutral."""
     from xtal.cli import main
     from xtal.io import FORMATS
 
@@ -497,8 +602,22 @@ def test_xtal_prepare_writes_the_prepared_cell(tmp_path, capsys):
     assert main(["prepare", str(COD / "MIL-88B.cif"), str(out)]) == 0
     printed = capsys.readouterr().out
     assert "partially occupied" in printed
+    assert "C24H12Cr3O16" in printed
+    assert "warning: 2 M3O trimer(s)" in printed
+    assert p1.expand(FORMATS.read(out)).n_atoms == 110
+
+
+def test_xtal_prepare_completes_the_trimers_only_when_named(tmp_path,
+                                                           capsys):
+    from xtal.cli import main
+
+    out = tmp_path / "mil88b.cif"
+    assert main(["prepare", str(COD / "MIL-88B.cif"), str(out),
+                 "--steps", ",".join(prepare.STEPS)]) == 0
+    printed = capsys.readouterr().out
     assert "C24H17Cr3O16" in printed
-    assert p1.expand(FORMATS.read(out)).n_atoms == 120
+    assert "warning: Complete M3O trimers' terminal ligands changes " \
+           "the chemistry" in printed
 
 
 def test_xtal_prepare_names_an_unknown_step_before_reading(tmp_path,
@@ -519,8 +638,9 @@ def test_two_orientations_written_at_full_occupancy_are_ordered():
     structure = _read("Al-soc-MOF-1")
     assert "overlap as two orientations" in \
         prepare.diagnose(structure).text()
-    out, said = prepare.prepare(structure)
-    assert "two overlapping orientations" in said[2]
+    out, said = prepare.prepare(structure, prepare.STEPS)
+    assert "two overlapping orientations" in \
+        said[prepare.STEPS.index("disorder")]
     counts = _counts(out)
     trimers = counts["Al"] // 3
     assert {e: n // trimers for e, n in counts.items()} == \

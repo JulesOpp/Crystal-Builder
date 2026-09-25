@@ -14,11 +14,22 @@ capped but with the solvent put back.
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+
 from xtal.commands.base import StructureOperation
 from xtal.core import p1
 from xtal.core import prepare as core
 from xtal.core.structure import Change
 from xtal.core.symmetry import SymmetryReport
+
+
+@dataclass
+class PrepareReport(SymmetryReport):
+    """A report with the cautions of :func:`xtal.core.prepare.run`:
+    kept apart from ``warnings``, which are each step's sentence, so
+    the dialog can show them as warnings and not as one more line."""
+
+    cautions: list[str] = field(default_factory=list)
 
 
 class Prepare(StructureOperation):
@@ -40,7 +51,7 @@ class Prepare(StructureOperation):
     change = Change.ALL
     label = "Prepare for simulation"
 
-    def __init__(self, steps=core.STEPS):
+    def __init__(self, steps=core.DEFAULT_STEPS):
         super().__init__()
         self.steps = tuple(s for s in core.STEPS if s in set(steps))
         self.messages: list[str] = []
@@ -48,26 +59,29 @@ class Prepare(StructureOperation):
     def apply_to(self, structure):
         before = p1.expand(structure).n_atoms
         if not self.steps:
-            return structure, SymmetryReport(
+            return structure, PrepareReport(
                 ok=False, message="no step chosen", n_before=before,
                 n_after=before)
         refused = _held(structure)
         if refused:
-            return structure, SymmetryReport(
+            return structure, PrepareReport(
                 ok=False, n_before=before, n_after=before,
                 message=refused)
-        out, self.messages = core.prepare(structure, self.steps)
+        outcome = core.run(structure, self.steps)
+        out, self.messages = outcome.structure, outcome.said
         if out is structure:
-            return structure, SymmetryReport(
+            return structure, PrepareReport(
                 ok=False, n_before=before, n_after=before,
                 message="nothing to prepare",
-                warnings=list(self.messages))
+                warnings=list(self.messages),
+                cautions=list(outcome.cautions))
         after = p1.expand(out).n_atoms
-        return out, SymmetryReport(
+        return out, PrepareReport(
             n_before=before, n_after=after,
             message=(f"prepared for simulation: {before} -> {after} "
                      f"atoms, {out.space_group.short_name}"),
-            warnings=list(self.messages))
+            warnings=list(self.messages),
+            cautions=list(outcome.cautions))
 
 
 def _held(structure) -> str:

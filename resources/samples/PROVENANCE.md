@@ -68,7 +68,7 @@ framework rather than only for clashes:
 | `prepared/MIL-53.cif` | Cr(OH)(bdc): the mu2-OH the neutron structure never located; relaxed |
 | `prepared/MIL-88B.cif` | pyridine and water out of the pores, one OH and two waters per trimer; relaxed |
 | `prepared/Mn-BTT.cif` | each framework Mn's methanol made CH3OH; not relaxed (below).  One extra-framework Mn per cell, where the charge wants 1.5 -- this cell cannot hold half an ion |
-| `prepared/cubic-EuHOTP.cif` | one whole chelating nitrate per Eu (the CIF shares a distal oxygen between two across a two-fold axis) and the cluster nitrate ordered.  **Its charge is not settled**: HOTP is redox-active and any cations in the pores were never located, so the terminal oxygens are as the valence planner left them |
+| `prepared/cubic-EuHOTP.cif` | one whole chelating nitrate per Eu (the CIF shares a distal oxygen between two across a two-fold axis) and the cluster nitrate ordered.  **Its charge is not settled**: HOTP is redox-active and any cations in the pores were never located, so the oxygen on each Eu is a water, the neutral reading of an oxygen whose hydrogens were not located, and not a claim about the charge |
 | `prepared/pbz-MOF-1.cif` | one acetate in six missing, as refined, each gap a hydroxide and a water; relaxed |
 | `prepared/Al-soc-MOF-1.cif` | one tilt of each terphenyl ring -- the CIF gives both at full occupancy, and its formula counts both -- a chloride per trimer and three waters on it; relaxed |
 

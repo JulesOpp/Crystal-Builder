@@ -7,11 +7,17 @@ anything is done.
 
 Every step is offered and ticked, because a step with nothing to do
 says so rather than doing something: "no solvent molecules" is an
-answer worth seeing.  What cannot be seen from the file as deposited --
-the trimers are not complete, the solvent is not a molecule -- until
-the disorder is ordered is why the preview runs the whole chain rather
-than asking each step on its own.  It follows the boxes live; MIL-101,
-the largest shipped structure, prepares in under a second.
+answer worth seeing -- every step but those that change the chemistry
+(:data:`xtal.core.prepare.CHEMISTRY`), which are offered unticked.
+Either way the cautions say so above the Prepare button: that the
+result holds atoms the file did not, or that the file's chemistry was
+kept and its cell is not neutral.
+
+What cannot be seen from the file as deposited -- the trimers are not
+complete, the solvent is not a molecule -- until the disorder is
+ordered is why the preview runs the whole chain rather than asking
+each step on its own.  It follows the boxes live; MIL-101, the largest
+shipped structure, prepares in under a second.
 """
 
 from __future__ import annotations
@@ -28,6 +34,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.core import prepare
+from xtalapp.widgets import tone
 
 
 class PrepareDialog(QDialog):
@@ -46,7 +53,7 @@ class PrepareDialog(QDialog):
         layout.addWidget(self.found)
         for step in prepare.STEPS:
             box = QCheckBox(prepare.LABELS[step])
-            box.setChecked(True)
+            box.setChecked(step not in prepare.CHEMISTRY)
             box.toggled.connect(self._preview)
             self.boxes[step] = box
             layout.addWidget(box)
@@ -56,6 +63,10 @@ class PrepareDialog(QDialog):
         font = self.headline.font()
         font.setBold(True)
         self.headline.setFont(font)
+
+        self.caution = QLabel("")
+        self.caution.setWordWrap(True)
+        tone.set_tone(self.caution, tone.WARNING_BOX)
 
         self.detail = QPlainTextEdit()
         self.detail.setReadOnly(True)
@@ -68,6 +79,7 @@ class PrepareDialog(QDialog):
         self.buttons.rejected.connect(self.reject)
 
         layout.addWidget(self.headline)
+        layout.addWidget(self.caution)
         layout.addWidget(self.detail)
         layout.addWidget(self.buttons)
         self.resize(600, 480)
@@ -85,6 +97,8 @@ class PrepareDialog(QDialog):
         finally:
             QApplication.restoreOverrideCursor()
         self.headline.setText(report.message)
+        self.caution.setText("\n\n".join(report.cautions))
+        self.caution.setVisible(bool(report.cautions))
         chosen = [s for s in prepare.STEPS if s in self.steps()]
         self.detail.setPlainText("\n\n".join(
             f"{prepare.LABELS[step]}: {message}"

@@ -176,7 +176,9 @@ def diagnose(structure: Structure) -> Diagnosis:
         if open_sites:
             found.findings.append(Finding(
                 "cap", f"{len(open_sites)} M3O trimer(s) without the "
-                       f"terminal ligands their charge asks for"))
+                       f"terminal ligands their charge asks for; adding "
+                       f"them changes the chemistry, so it is done only "
+                       f"when asked for"))
     elements = {s.element for s in structure.sites}
     if "H" not in elements and "D" not in elements and "C" in elements:
         found.findings.append(Finding(
@@ -190,12 +192,21 @@ def diagnose(structure: Structure) -> Diagnosis:
                              f"structure's chemistry says they must be "
                              f"-- rings, M6 cores, bridging hydroxides, "
                              f"bound methanol"))
+    from xtal.core import symmetry
+
+    copies = sum(len(g) - 1 for g in symmetry.duplicate_groups(structure))
+    if copies:
+        found.findings.append(Finding(
+            "duplicates", f"{copies} of {len(structure.sites)} sites are "
+                          f"symmetry copies of others: the group stacks "
+                          f"{p1.expand(structure).n_atoms} atoms on "
+                          f"{_distinct_atoms(structure)} places"))
     letter = structure.space_group.hm.strip()[:1].upper()
     if letter in _CENTRINGS and not (
             letter == "R" and ":R" in structure.space_group.hm):
         factor = int(round(1 / abs(np.linalg.det(
             np.array(_CENTRINGS[letter])))))
-        atoms = p1.expand(structure).n_atoms
+        atoms = _distinct_atoms(structure)
         found.findings.append(Finding(
             "primitive", f"the cell is {letter}-centred, {factor} times "
                          f"the primitive one ({atoms} atoms against "
@@ -206,6 +217,36 @@ def diagnose(structure: Structure) -> Diagnosis:
 # ======================================================================
 #  THE OPERATIONS
 # ======================================================================
+
+def merge_duplicates(structure: Structure) -> tuple[Structure, str]:
+    """Every site that is a symmetry copy of another, dropped.
+
+    A CSD ConQuest export writes the fragment it drew -- the asymmetric
+    unit and whichever images of it complete a molecule -- and still
+    declares the group, so the group puts each copied atom on top of
+    itself.  Ni2Cl2BTDD's 40 sites are 13 and 27 copies: 1152 atoms
+    stacked on 378 places.  An engine would compute every one of them.
+    """
+    from xtal.core import symmetry
+
+    if not symmetry.duplicate_groups(structure):
+        return structure, "no site written twice"
+    out, report = symmetry.merge_duplicates(structure)
+    said = (f"{report.merged} site(s) were symmetry copies of others: "
+            f"{p1.expand(structure).n_atoms} atoms written, "
+            f"{p1.expand(out).n_atoms} distinct")
+    return out, "; ".join([said, *report.warnings])
+
+
+def _distinct_atoms(structure: Structure) -> int:
+    """The atoms of the cell, each counted once however often the file
+    writes it."""
+    from xtal.core import symmetry
+
+    if symmetry.duplicate_groups(structure):
+        structure = symmetry.merge_duplicates(structure)[0]
+    return p1.expand(structure).n_atoms
+
 
 def to_hydrogen(structure: Structure) -> tuple[Structure, str]:
     """Deuterium written as hydrogen, for a file anything can read.
@@ -279,6 +320,15 @@ def primitive(structure: Structure) -> tuple[Structure, str]:
             first[max(ri, rj)] = min(ri, rj)
     kept = [a for a in range(cell.n_atoms) if root(a) == a]
     if len(kept) * factor != cell.n_atoms:
+        from xtal.core import symmetry
+
+        copies = sum(len(g) - 1
+                     for g in symmetry.duplicate_groups(structure))
+        if copies:
+            raise ValueError(
+                f"{copies} site(s) are symmetry copies of others, so "
+                f"{cell.n_atoms} atoms stand on {_distinct_atoms(structure)}"
+                f" places -- Merge duplicates first")
         raise ValueError(
             f"the {letter}-centred cell did not reduce by {factor}: "
             f"{cell.n_atoms} atoms became {len(kept)}, so the atoms "
@@ -1034,16 +1084,28 @@ def _surroundings(cell, matrix, atom, radius=3.5) -> np.ndarray:
 
 # ---------------------------------------------------------- the lot
 
-#: The order the steps run in, and why: deuterium first so everything
-#: after sees hydrogen; the primitive cell before the disorder is
-#: ordered, because ordering breaks the centring; solvent after, since
-#: a disordered solvent is only a molecule once it is ordered; the
-#: trimers' ligands before the hydrogens, which then complete the
-#: waters as well as the linkers.
-STEPS = ("deuterium", "primitive", "disorder", "solvent", "cap",
-         "hydrogens")
+#: The order the steps run in, and why: duplicates first, because
+#: every count after it -- the centring's above all -- is of atoms, and
+#: a site written twice is one atom counted twice; deuterium next so
+#: everything after sees hydrogen; the primitive cell before the
+#: disorder is ordered, because ordering breaks the centring; solvent
+#: after, since a disordered solvent is only a molecule once it is
+#: ordered; the trimers' ligands before the hydrogens, which then
+#: complete the waters as well as the linkers.
+STEPS = ("duplicates", "deuterium", "primitive", "disorder", "solvent",
+         "cap", "hydrogens")
+
+#: The steps that change the chemistry of the material rather than how
+#: the file writes it: what they add was never located, and is chosen
+#: by charge balance.  Asked for or not done -- never a default -- and
+#: a caution whether it is done or not (:func:`run`).
+CHEMISTRY = frozenset({"cap"})
+
+#: What runs when nobody chose: every step but :data:`CHEMISTRY`.
+DEFAULT_STEPS = tuple(s for s in STEPS if s not in CHEMISTRY)
 
 LABELS = {
+    "duplicates": "Merge sites written twice",
     "deuterium": "Write deuterium as hydrogen",
     "primitive": "Reduce to the primitive cell",
     "disorder": "Order the disorder",
@@ -1384,17 +1446,58 @@ def _methanol_hydrogens(structure) -> list:
 
 
 #: The hydrogens placed by rule rather than by valence, in order.
+def _aqua_hydrogens(structure) -> list:
+    """Cartesian positions for two hydrogens on every bare oxygen bonded
+    to one metal and nothing else, where no cluster rule decides it.
+
+    What an X-ray sees there is an oxygen whose hydrogens it could not
+    locate, and the neutral ligand is water.  Hydroxide takes a proton
+    away, which is a claim about charge, and only a rule that knows the
+    cluster's charge makes one -- :func:`_terminal_hydrogens` on M6
+    cores, :func:`complete_trimers` on M3O trimers, whose oxygens are
+    left out here.  The planner reads the metal bond as covalent and
+    made each such oxygen a hydroxide: Ni2Cl2BTDD, "diaqua-di-nickel(II)"
+    by its own name, came out -2 per formula unit.
+    """
+    cell = p1.expand(structure)
+    graph = bonding.graph(structure)
+    matrix = structure.lattice.matrix
+    elements = cell.elements
+    decided = {m for metals, _capping in _hexanuclear_clusters(structure)
+               for m in metals}
+    decided |= {lig for _o, members in _trimers(structure)
+                for _m, lig in members if lig is not None}
+    out = []
+    for o in range(cell.n_atoms):
+        if elements[o] != "O" or o in decided:
+            continue
+        around = graph.neighbors_with_images(o)
+        if len(around) != 1:
+            continue
+        m, t = around[0]
+        if not _is_metal(elements[m]) or m in decided:
+            continue
+        here = cell.frac[o] @ matrix
+        metal = (cell.frac[m] + t) @ matrix
+        nearby = [*_surroundings(cell, matrix, o)]
+        nearby += [h for h in out if np.linalg.norm(h - here) < 3.5]
+        out.extend(_hydrogens_on(here, here - metal, 2, avoid=nearby))
+    return out
+
+
 RULES = (("ring", _arene_hydrogens),
          ("hydroxide", _hydroxide_hydrogens),
          ("terminal", _terminal_hydrogens),
          ("bridging", _bridging_hydrogens),
-         ("methanol", _methanol_hydrogens))
+         ("methanol", _methanol_hydrogens),
+         ("aqua", _aqua_hydrogens))
 
 WHERE = {"ring": "on arene rings",
          "hydroxide": "on M6 cores (mu3-OH)",
          "terminal": "on M6 cores' terminal OH and water, by charge",
          "bridging": "on mu2-OH bridging trivalent metals",
-         "methanol": "completing bound methanol"}
+         "methanol": "completing bound methanol",
+         "aqua": "as water on metals no cluster rule covers"}
 
 
 def _add_hydrogens(structure):
@@ -1428,8 +1531,9 @@ def _add_hydrogens(structure):
         out.touch()
     plan = hydrogens.plan(out)
     planar = _on_planar_carbon(out, plan.sites) if plan else []
+    charged = _on_open_trimers(out, plan.sites) if plan else []
     added = [site for k, site in enumerate(plan.sites)
-             if k not in planar] if plan else []
+             if k not in planar and k not in charged] if plan else []
     if added:
         out.sites.extend(site.copy() for site in added)
         out.touch()
@@ -1439,6 +1543,11 @@ def _add_hydrogens(structure):
             f"{len(planar)} the valence rules asked for were not added: "
             f"each was on a carboxylate or a planar three-coordinate "
             f"carbon, sp2 and full -- the refinement bent its angles")
+    if charged:
+        by_rule.append(
+            f"{len(charged)} the valence rules asked for on M3O "
+            f"trimers' terminal oxygens were not added: water or "
+            f"hydroxide there is a choice of charge")
     if riders:
         by_rule.insert(0, f"{len(riders)} riding hydrogen(s) the CIF "
                           f"put on M6 cores' terminal oxygens replaced")
@@ -1507,7 +1616,30 @@ def _on_planar_carbon(structure, planned) -> list:
     return out
 
 
+def _on_open_trimers(structure, planned) -> list:
+    """Which of ``planned`` sit on the terminal oxygen of a trimer that
+    :func:`complete_trimers` has not completed.  Reading valences, the
+    planner makes all three hydroxide and the trimer -2; which is water
+    and which hydroxide is that step's to choose, and it is only run
+    when asked for."""
+    ligands = {lig for _o, members, _w in _trimer_plan(structure)
+               for _m, lig in members if lig is not None}
+    if not ligands:
+        return []
+    cell = p1.expand(structure)
+    matrix = structure.lattice.matrix
+    out = []
+    for k, site in enumerate(planned):
+        delta = cell.frac - site.frac
+        delta -= np.rint(delta)
+        if int(np.argmin(np.linalg.norm(delta @ matrix, axis=1))) \
+                in ligands:
+            out.append(k)
+    return out
+
+
 OPERATIONS = {
+    "duplicates": merge_duplicates,
     "deuterium": to_hydrogen,
     "primitive": primitive,
     "disorder": order_disorder,
@@ -1517,8 +1649,18 @@ OPERATIONS = {
 }
 
 
-def prepare(structure: Structure, steps=STEPS
-            ) -> tuple[Structure, list[str]]:
+@dataclass
+class Outcome:
+    """What :func:`run` made, each step's sentence, and the cautions:
+    where the result's chemistry is not the file's, or the file's
+    chemistry was left as it was and the cell is not neutral."""
+
+    structure: Structure
+    said: list[str]
+    cautions: list[str] = field(default_factory=list)
+
+
+def run(structure: Structure, steps=DEFAULT_STEPS) -> Outcome:
     """The chosen steps, in :data:`STEPS` order, and what each did."""
     unknown = set(steps) - set(STEPS)
     if unknown:
@@ -1526,11 +1668,36 @@ def prepare(structure: Structure, steps=STEPS
                          f"{', '.join(sorted(unknown))}; the steps are "
                          f"{', '.join(STEPS)}")
     said = []
+    cautions = []
     before = structure
     for step in STEPS:
         if step in steps:
+            given = structure
             structure, message = OPERATIONS[step](structure)
             said.append(message)
+            if step in CHEMISTRY and structure is not given:
+                cautions.append(
+                    f"{LABELS[step]} changes the chemistry of the "
+                    f"material -- what it adds was not in the file, "
+                    f"and is chosen by charge balance: {message}")
     if structure is not before:
         structure.ensure_labels()   # the planner's hydrogens have none
-    return structure, said
+    if "cap" not in steps and all(s.occupancy >= FULL
+                                  for s in structure.sites):
+        left = _open_trimer_sites(structure)
+        if left:
+            cautions.append(
+                f"{len(left)} M3O trimer(s) are left as the file has "
+                f"them, without the terminal ligands their charge asks "
+                f"for, so the cell is not neutral; their terminal "
+                f"oxygens get no hydrogens, because water or hydroxide "
+                f"is a choice of charge.  {LABELS['cap']} makes that "
+                f"choice, and changes the chemistry.")
+    return Outcome(structure, said, cautions)
+
+
+def prepare(structure: Structure, steps=DEFAULT_STEPS
+            ) -> tuple[Structure, list[str]]:
+    """:func:`run`, without the cautions."""
+    outcome = run(structure, steps)
+    return outcome.structure, outcome.said

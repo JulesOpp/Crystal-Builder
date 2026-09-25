@@ -5,11 +5,13 @@
     python scripts/prepare_samples.py --check    # exit 1 if it would change
 
 Each COD framework through :func:`xtal.core.prepare.prepare` -- every
-step, in order -- and written to ``resources/samples/prepared`` under
-the same name.  The COD files are never touched: they are the
-depositors' crystals, disorder and all, and these are models made
-from them, which is a different thing to ship and is said so in
-``PROVENANCE.md``.
+step, in order, the trimers' terminal ligands included: those change
+the chemistry and are never a default, and the models shipped here are
+the charge-balanced ones by choice -- and written to
+``resources/samples/prepared`` under the same name.  The COD files are
+never touched: they are the depositors' crystals, disorder and all,
+and these are models made from them, which is a different thing to
+ship and is said so in ``PROVENANCE.md``.
 
 **Some are relaxed as well, and it takes a model this project does
 not ship.**  A refinement's linker geometry is sometimes wrong in ways
@@ -85,7 +87,7 @@ def prepared(name: str):
     from xtal.io import FORMATS
 
     structure = FORMATS.read(SOURCE / f"{name}.cif")
-    out, _said = prepare.prepare(structure)
+    out, _said = prepare.prepare(structure, prepare.STEPS)
     out.meta["title"] = f"{name}_prepared"
     return out
 

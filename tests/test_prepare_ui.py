@@ -47,8 +47,8 @@ def test_the_dialog_says_what_is_wrong_and_what_each_step_would_do(
     dialog = PrepareDialog(Document(_read("MIL-88B")))
     qtbot.addWidget(dialog)
     assert "partially occupied" in dialog.found.text()
-    assert "-> 120 atoms" in dialog.headline.text()
-    assert "2 OH and 4 water" in dialog.detail.toPlainText()
+    assert "-> 110 atoms" in dialog.headline.text()
+    assert "24 on arene rings" in dialog.detail.toPlainText()
     assert _ok(dialog).isEnabled()
 
 
@@ -57,7 +57,36 @@ def test_a_step_unticked_is_left_out_of_the_preview(qtbot):
     qtbot.addWidget(dialog)
     dialog.boxes["hydrogens"].setChecked(False)
     assert "arene rings" not in dialog.detail.toPlainText()
-    assert "-> 96 atoms" in dialog.headline.text()
+    assert "-> 86 atoms" in dialog.headline.text()
+
+
+def test_completing_the_trimers_is_offered_unticked(qtbot):
+    """It adds ligands the refinement never located; nobody should get
+    them for pressing Prepare."""
+    dialog = PrepareDialog(Document(_read("MIL-88B")))
+    qtbot.addWidget(dialog)
+    assert not dialog.boxes["cap"].isChecked()
+    assert all(box.isChecked() for step, box in dialog.boxes.items()
+               if step != "cap")
+
+
+def test_the_dialog_warns_whichever_way_the_trimers_go(qtbot):
+    """Left alone the cell is charged; completed, its chemistry is not
+    the file's.  Either is a warning before Prepare is pressed."""
+    dialog = PrepareDialog(Document(_read("MIL-88B")))
+    qtbot.addWidget(dialog)
+    assert not dialog.caution.isHidden()
+    assert "not neutral" in dialog.caution.text()
+    dialog.boxes["cap"].setChecked(True)
+    assert "-> 120 atoms" in dialog.headline.text()
+    assert "changes the chemistry" in dialog.caution.text()
+    assert "2 OH and 4 water" in dialog.caution.text()
+
+
+def test_a_framework_without_trimers_has_no_caution(qtbot):
+    dialog = PrepareDialog(Document(_read("UiO-66")))
+    qtbot.addWidget(dialog)
+    assert dialog.caution.isHidden()
 
 
 def test_nothing_to_prepare_cannot_be_pressed(qtbot, quartz):
