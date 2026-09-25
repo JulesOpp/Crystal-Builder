@@ -334,8 +334,10 @@ def test_every_model_offered_is_a_name_mace_knows():
         "from mace.calculators.foundations_models import mace_mp_urls\n"
         "print(json.dumps(sorted(mace_mp_urls)))\n")
 
+    # MACE-MP-MOF0 is not in mace's table: it is fetched from its own
+    # pinned URL (``_fetch_mof0``) and never handed to mace_mp by name.
     for name, _label in mace.MODEL_CHOICES:
-        if name == "custom":
+        if name in ("custom", mace.MOF0):
             continue
         assert name in mace_mp_urls, name
 
