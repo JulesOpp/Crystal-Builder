@@ -147,6 +147,32 @@ is a cheap self-test -- a two-atom cell through the chosen binary,
 once, when the path preference changes -- which is the same shape as
 the Slater-Koster check DFTB+ does before it launches.
 
+### EQeq's charge centres: three questions from #21
+
+EQeq now centres every metal on its common oxidation state
+(`xtal/ff/charges/eqeq.py`), and `equilibrate(centres=...)` overrides
+it, but three things were left for a decision:
+
+* The values agree with Open Babel's EQeq table, which is GPL.  They
+  are a list of oxidation states rather than code; say whether they
+  should be regenerated from another source.
+* The override has no place in the Force Field panel yet.  MIL-88B is
+  Cr(III) and the table's +2 gives Cr +1.24 where +3 gives +1.59, so
+  it matters for shipped samples.
+* Whether a CIF's `_atom_site_oxidation_number`, when present, should
+  win over the table.
+
+### No dispersion on the machine-learned engines
+
+ORB-v3, MatterSim and MACE run the bare model.  The benchmark their
+descriptions cite ran every model with D3(BJ), and on ORB-v3 D3 moves
+a relaxed framework's volume by 1-3 % (MOF-74 +0.66 % to -2.02 %,
+MOF-5 +2.80 % to +2.17 %) -- not always towards experiment.  Wanted:
+a decision on D3 as an option of the ASE engines, and on whether it is
+on by default.  `torch-dftd` is what the benchmark used and pulls in
+pymatgen; `tad-dftd3` is torch-only.  **MACE-MP-MOF0 already has D3
+inside and must never get it twice.**
+
 ### UFF4MOF-II redefines Pt4+2 and the table does not
 
 The machine-readable UFF4MOF table carries a second `Pt4+2` with
@@ -157,6 +183,15 @@ row the 1992 paper prints is a different decision from adding ninety-one
 new ones, and `tests/test_uff_params.py` asserts the published value.
 
 ## Modules
+
+### A crash of the application still leaves its program running
+
+Since #22 a run's program ends with Stop, Ctrl+C, SIGTERM and a normal
+exit of the interpreter.  A crash or SIGKILL of the application itself
+runs nothing in-process, so the program survives it.  Closing that
+needs a watcher outside the process -- a lifeline pipe per run, or a
+Job Object on Windows -- which is an extra process per run.  Wanted:
+whether that is worth it.
 
 ### The pore surface is not a contour of anything but distance
 
@@ -277,3 +312,17 @@ MACE alone took 467 s; UFF4MOF first (80 and 73 steps) then MACE took
 196 s, and landed 0.02 and 0.08 kcal/mol lower.  Whether that holds on
 a 7x7 grid of a 1152-atom framework, where the neighbour it starts from
 is already close, is the thing the overnight run should also answer.
+
+## Testing
+
+### CI never runs a test that needs mace, orb or mattersim
+
+CI installs none of the machine-learned extras, so every test marked
+for them is skipped there -- including the real-model checks #21 made
+(sheared quartz, slope against force) and the model-name check that
+failed on `mace-mp-mof0` only when the three PRs were merged on a
+machine with mace.  Those tests run on this Mac and nowhere else.
+Either a CI job with the extras (torch is gigabytes of wheel, and
+mace and mattersim cannot share an environment -- see `pyproject.toml`)
+or a stated rule that a change under `xtal/ff/` runs its engine's tests
+locally before merging.

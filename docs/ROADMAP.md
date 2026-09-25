@@ -1146,9 +1146,56 @@ What the measurements decided, so a phase can start from here:
 | **2 — The numbers off the grid** | Shipped 2026-09-25. `voids.surface_area` (Fibonacci points on the spheres, 0.1-0.9 % from Zeo++) / `voids.volume` (AV within 0.0035 of the cell; POAV by the bound above), returning `porosity.SurfaceArea` / `Volume`, and `poregrid.surface_area` / `volume` runs on Zeo++'s report with a grid note and a *Resolution* row when borderline; a radii file is read. MFU-4l: area 1.1 s against `-sa -ha`'s 7.5 s, POAV and its surface 1.7 s against `-volpo`'s 71 s. Zeo++'s numbers are recorded in `tests/data/zeopp_reference.json` | `xtal/analysis/voids.py`, `xtal/modules/poregrid.py` | M |
 | **3 — The (faster) entries** | Shipped 2026-09-25. Module labelled Porosity (key still `zeopp`), the Zeo++ check per entry, **Surface area (faster)...** and **Accessible volume (faster)...** under their Zeo++ twins with no channel radius or accuracy switch and a grid spacing instead; the Modules panel greys entry by entry and `Module.blocked` keeps the reason row; `xtal run` now checks the entry as well as the module, and the window's availability refresh re-asks the entries, so naming the binary in Preferences lights them without a restart. MFU-4l's occupiable volume and surface in the window: 2.1 s | `xtal/modules/zeopp.py`, `xtalapp/docks/modules.py` | S-M |
 
+All four shipped on `features/fast-porosity` and were merged to `main`
+on 2026-09-25.
+
 ---
 
-## 9. What this plan does not do
+## 9. Prepare for simulation
+
+Built 2026-09-24/25 on `features/prepare-for-simulation`, outside the
+tracks above, and merged to `main` on 2026-09-25: Structure ▸ Prepare
+for simulation… and `xtal prepare`, one rebuild and one undo step over
+`xtal/core/prepare.py`.  CLAUDE.md's invariant *Preparing for
+simulation is a rebuild* is the design; `git log -- xtal/core/prepare.py`
+is what each step measured.  What it does, in order: sites written
+twice merged, deuterium, the declared centring's primitive cell,
+disorder ordered into whole components (including two orientations at
+full occupancy, and an atom too close to an image of its own site),
+solvent out, M3O trimers completed (`prepare.CHEMISTRY`, never a
+default), hydrogens.  Every shipped COD framework prepares clash-free
+with every hydrogen bonded; `resources/samples/prepared/` holds the
+results, written by `scripts/prepare_samples.py`, and Open Sample ▸
+*Prepared for simulation* opens them.  Nothing is left owed.
+
+---
+
+## 10. The deep review's hit list: engines, reliability, nets
+
+Three pull requests from `review/HITLIST.md`, each a series of
+one-change commits with its measurements in the PR, merged to `main`
+together on 2026-09-25 after the full suite passed on the combination.
+The decisions they asked for are in [docs/TODO.md](TODO.md).
+
+| PR | Delivers | Main files |
+|---|---|---|
+| **#21 — Engines and charges** | EQeq centres for every metal at its common oxidation state (Al-soc-MOF-1 was Al +6.33), overridable, impossible charges named, 0.00016 e from the authors' own program on MOF-5. ORB-v3's and MatterSim's "double precision" was float32 geometry, now float64 end to end (slope against force 2e-3 → 6e-9). The MOFSimBench claims now say they are model + D3. **MACE-MP-MOF0**, fetched from a pinned commit and loaded only on a matching SHA-256, through its `pbe_d3` head, refusing its 26 elements' outsiders by name | `xtal/ff/charges/eqeq.py`, `xtal/ff/{orb,mattersim,mace}/` |
+| **#22 — Reliability** | Return adopts in Find symmetry; deuterium computed as hydrogen by every engine but DFTB+'s modes; accented names keep their letters; an empty `.gen` refused; `--supercell` names its size. A run's program no longer outlives Ctrl+C, SIGTERM or the interpreter, and Stop no longer blocks the window. A stated bond order survives a cell-face crossing, and the Inspector's bond lengths are live. `--selftest` on the macOS CI runners | `xtal/modules/process.py`, `xtal/core/bonding.py`, `xtal/workspace.py`, `.github/workflows/ci.yml` |
+| **#23 — Nets** | The RCSR's `p q r s` transitivity for 4001 nets, from its own data files (`scripts/rcsr_transitivity.py`), correcting q on 18; MOF-5's and rutile's exported `.cgd` run through Systre 19.6.0 (pcu, rtl) and kept as test data | `xtal/analysis/netsearch.py`, `tests/data/systre/` |
+
+Merging the three onto today's `main` turned up one failure that CI
+could not: #21's `test_every_model_offered_is_a_name_mace_knows` held
+`mace-mp-mof0` to mace's name table, which it is not in, and CI has no
+mace to run it.  Fixed on the merge; the gap is in
+[docs/TODO.md](TODO.md) § Testing.
+
+Also shipped on 2026-09-25, too small for a section: **Select ▸ Bonds
+between elements…**, every bond joining two elements selected with no
+atoms, so Delete and Bond type act on those bonds alone.
+
+---
+
+## 11. What this plan does not do
 
 * It does not touch the design principles in
   [docs/PLAN.md](PLAN.md) § 1.  Every phase keeps the core Qt-free,
