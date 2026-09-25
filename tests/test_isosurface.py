@@ -233,3 +233,22 @@ def test_the_grid_queried_in_blocks_is_the_grid_queried_at_once(
     assert np.array_equal(distance_grid(pair, radii, shape=(11, 13, 7)),
                           whole)
     assert whole.dtype == np.float32
+
+
+def test_the_grid_is_the_same_on_every_core_as_on_one(monkeypatch):
+    """The query is split across every core, which took MFU-4l's grid
+    from 1.0 s to 0.2 s.  The drawn surface and a number read off the
+    grid are meant to be one measurement, so a split that reordered or
+    dropped a point would draw one crystal and quote another."""
+    from xtal.analysis import grid as grids
+
+    rng = np.random.default_rng(3)
+    crowd = Structure.from_arrays(
+        Lattice.cubic(SIDE), ["C", "O", "N", "Zn"] * 5,
+        rng.random((20, 3)))
+    radii = {"C": 1.7, "O": 1.5, "N": 1.6, "Zn": 1.4}.get
+    shape = (41, 37, 43)
+    everywhere = distance_grid(crowd, radii, shape=shape)
+    monkeypatch.setattr(grids, "_WORKERS", 1)
+    assert np.array_equal(distance_grid(crowd, radii, shape=shape),
+                          everywhere)

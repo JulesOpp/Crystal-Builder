@@ -93,7 +93,7 @@ def distance_grid(structure, radius_of, spacing: float = DEFAULT_SPACING,
     out = np.empty(len(frac), dtype=np.float32)
     for start in range(0, len(frac), _POINT_BLOCK):
         points = lattice.to_cart(frac[start:start + _POINT_BLOCK])
-        distances, index = tree.query(points, k=k)
+        distances, index = tree.query(points, k=k, workers=_WORKERS)
         distances = distances.reshape(len(points), -1)
         index = index.reshape(len(points), -1)
         out[start:start + len(points)] = (
@@ -103,6 +103,11 @@ def distance_grid(structure, radius_of, spacing: float = DEFAULT_SPACING,
 
 #: Grid points per KD-tree query in :func:`distance_grid`.
 _POINT_BLOCK = 32768
+
+#: Threads per KD-tree query: every core.  Each grid point is its own
+#: question, so the split changes nothing but the time -- MFU-4l's
+#: 475 000 points went from 1.01 s to 0.22 s on eight cores.
+_WORKERS = -1
 
 
 #: How many neighbouring centres to consider per grid point.  Eight is
