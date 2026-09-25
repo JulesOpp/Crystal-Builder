@@ -19,7 +19,7 @@ clicked.**  An external engine whose binary is not installed is the
 state it will usually be in, so ``Module.check`` is consulted every
 time the tree is built and an unavailable module is greyed out with
 the reason as its tooltip -- rather than looking perfectly normal
-until it fails.
+until it fails.  An entry with a check of its own is greyed alone.
 
 **Stop lives here.**  A run started from this tree is stopped from the
 footer of this tree, which is also the only place that knows whether
@@ -93,12 +93,18 @@ class ModuleTree(QTreeView):
                     enabled=bool(available))[0]
         item.setToolTip(available.reason if not available
                         else (module.description or module.label))
-        if not available:
-            item.appendRow([_why(module.name, available.reason)])
+        # An entry can be greyed under a module that runs -- Porosity's
+        # Zeo++ entries want a binary its grid entries do not -- and
+        # the reason row is still the way to Preferences.
+        blocked = module.blocked()
+        if not blocked:
+            item.appendRow([_why(module.name, blocked.reason)])
         for action in module.actions:
+            entry = action.availability() if available else available
             leaf = _row(action.label, module.name, action.name,
-                        enabled=bool(available))[0]
-            leaf.setToolTip(action.tip or action.label)
+                        enabled=bool(entry))[0]
+            leaf.setToolTip(action.tip or action.label if entry
+                            else entry.reason)
             item.appendRow([leaf])
         if not module.actions:                      # pragma: no cover
             item.appendRow(_row("(nothing to run)", None, None,

@@ -198,6 +198,24 @@ class Module:
             # module is simply unavailable, and says why.
             return Availability(False, str(exc))
 
+    def blocked(self) -> Availability:
+        """What is greyed under this module, and why: the module's own
+        reason, or else the first entry's that cannot run, or a yes.
+
+        Porosity is the case that needs the second: its Zeo++ entries
+        want the binary and its grid entries want nothing, so the check
+        lives on the entries and the module itself always runs.  The
+        reason row in the panel still has to say what is missing.
+        """
+        available = self.availability()
+        if not available:
+            return available
+        for action in self.actions:
+            entry = action.availability()
+            if not entry:
+                return entry
+        return Availability(True)
+
     def action(self, name: str) -> Action:
         for action in self.actions:
             if action.name == name:

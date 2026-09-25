@@ -553,7 +553,11 @@ stress case).
   from the mesh, which reads 2-3 % low; POAV above Zeo++'s `-volpo` by
   up to 0.03 of the cell, because Zeo++ falls short of the union of
   probe spheres -- so POAV is tested against that union, never
-  against Zeo++.
+  against Zeo++. They sit in the **Porosity** module (registry key
+  still `zeopp`) under their Zeo++ twins, and need no binary, so the
+  Zeo++ check is on each Zeo++ entry rather than on the module: a
+  missing `network` greys four entries, and `Module.blocked` is what
+  keeps the reason row in the panel.
 - **The CIF carries the bonds; Export cleans.** `_geom_bond` says
   (site, site, operation, translation) and always could, so the
   workspace copy of a structure *is* the document: the markers the

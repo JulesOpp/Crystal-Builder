@@ -90,16 +90,18 @@ def test_the_preferences_are_copied_in_one_call(tmp_path, settings):
 def test_a_named_binary_makes_the_module_available_again(
         tmp_path, settings, monkeypatch):
     """The whole point of the page: a path filled in makes a greyed
-    out module run, without restarting anything."""
+    out module run, without restarting anything.  Zeo++'s check is on
+    its entries, since Porosity's grid entries need no binary."""
     monkeypatch.setattr(zeopp, "bundled", lambda: None)
     monkeypatch.delenv(zeopp.PROGRAM.env_var, raising=False)
-    assert not MODULES.get("zeopp").availability()
+    _module, entry = MODULES.find("zeopp.surface-area")
+    assert not entry.availability()
 
     settings.set_path_setting(zeopp.PROGRAM.setting,
                              fake_program(tmp_path))
     external.apply_hints(settings)
 
-    assert MODULES.get("zeopp").availability()
+    assert entry.availability()
 
 
 # -- what the status line says -----------------------------------------

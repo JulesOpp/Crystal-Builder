@@ -92,8 +92,16 @@ class ShellRefresh:
         bound method of this window: that is what makes it a queued
         connection to the right thread and what keeps the menu from
         holding the slot alive by itself.
+
+        The entries are asked too, not only the submenus: an entry can
+        carry a check of its own -- Porosity's Zeo++ entries want a
+        binary its grid entries do not -- and naming that binary in
+        Preferences has to light the entry, not just its submenu.
         """
         menus.refresh_module_availability(self)
+        document = self.current_document()
+        self._refresh_module_actions(
+            document is not None and not document.is_playing)
 
     def _update_history_actions(self) -> None:
         document = self.current_document()
