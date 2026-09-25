@@ -39,11 +39,13 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.commands.clipboard import Fragment
+from xtal.workspace import resolved
 from xtalapp import external, layout, menus, workers
 from xtalapp.actions import ActionRegistry
 from xtalapp.autosave import Autosaver
 from xtalapp.dialogs.display_range import DisplayRangeDialog
 from xtalapp.dialogs.help import HelpWindow
+from xtalapp.docks.workspace import ask_new_name
 from xtalapp.document import Document
 from xtalapp.documents import (
     NO_CONFIRM_CLOSE_ENV,  # noqa: F401 -- the tests import it here
@@ -366,7 +368,7 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         """What may be done to the row that is selected.
 
         Asked when the menu is raised rather than on every selection:
-        these four are reachable from nowhere else, so between two
+        these five are reachable from nowhere else, so between two
         right-clicks nobody can see them.
         """
         selected = self.selected_artifact()
@@ -374,7 +376,7 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         self.actions_.set_enabled(
             ["workspace_reveal", "workspace_copy_path"], bool(selected))
         self.actions_.set_enabled(
-            ["workspace_open"], bool(selected)
+            ["workspace_open", "workspace_rename"], bool(selected)
             and kind not in ("entry", "run"))
         # A run alone.  An entry is the structure and every run under
         # it, and a file inside a run is part of the record of what
@@ -408,6 +410,38 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
             return
         QApplication.clipboard().setText(str(selected[1]))
         self.show_message(f"copied the path of {selected[1].name}")
+
+    def rename_selected_artifact(self) -> None:
+        """Rename a file in the tree, and take its tab along.
+
+        A file and never a folder: the entry's folder is the
+        structure's name and a run's is how the run is read back.  A
+        tab open on the file adopts the new path rather than being
+        left pointing at nothing, where its next Save would quietly
+        write the old name back beside the new one.
+        """
+        selected = self.selected_artifact()
+        if selected is None or selected[0] in ("entry", "run"):
+            return
+        workspace = self.workspace_shell.workspace
+        _kind, path = selected
+        name = ask_new_name(self, path.name)
+        if name is None or workspace is None:
+            return
+        open_on = [d for d in self.documents
+                   if d.path is not None
+                   and resolved(d.path) == resolved(path)]
+        try:
+            renamed = workspace.rename(path, name)
+        except (ValueError, OSError) as error:
+            self.show_message(f"could not rename {path.name}: {error}")
+            return
+        for document in open_on:
+            document.adopt(renamed)
+        self.workspace_shell.save_session()
+        self.refresh_workspace()
+        self.file_dock.tree.select_path(renamed)
+        self.show_message(f"renamed {path.name} to {renamed.name}")
 
     def trash_selected_run(self) -> None:
         """Put a run's folder in the wastebasket.
@@ -648,7 +682,8 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         # and the path of the thing under the cursor could not be had
         # at all.
         "workspace": ["workspace_open", None, "workspace_reveal",
-                      "workspace_copy_path", None, "workspace_trash"],
+                      "workspace_copy_path", None, "workspace_rename",
+                      "workspace_trash"],
     }
 
     #: The entries whose wording should say how much they will take.

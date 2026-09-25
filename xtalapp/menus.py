@@ -533,6 +533,10 @@ def build_actions(window):
         window.copy_selected_artifact_path,
         tip="Put the full path of what is selected on the clipboard, "
             "for a script or a terminal.")
+    add("workspace_rename", "Re&name...", window.rename_selected_artifact,
+        tip="Give the selected file a new name in the same folder.  A "
+            "tab open on it follows, and a name already taken is "
+            "refused rather than written over.")
     add("workspace_trash", "Move to &Trash", window.trash_selected_run,
         tip="Put a run's folder in the desktop's wastebasket.  Only a "
             "run: the structure it was run on stays, and nothing here "

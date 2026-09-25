@@ -630,6 +630,56 @@ class Workspace:
         entry.path.mkdir(parents=True)
         return entry
 
+    def rename(self, path, name: str) -> Path:
+        """Give a file in this workspace a new name, in the same folder.
+
+        A file only: an entry's folder is the structure's name and a
+        run's folder is how :meth:`Run.at` reads the run back, so
+        renaming either is a tree that no longer says what it held.
+
+        **Never over another file**, which is what ``Path.rename``
+        does on POSIX without a word.  A change of case alone is let
+        through, because on macOS the "other file" is this one.  The
+        file's autosave goes with it, since it is kept by path and
+        would otherwise be offered back to nothing.
+
+        Raises ``ValueError`` with a sentence for the status bar.
+        """
+        path = Path(path)
+        name = name.strip()
+        if not path.is_file():
+            raise ValueError(f"{path.name} is not a file")
+        root = self.root.resolve()
+        try:
+            relative = path.resolve().relative_to(root)
+        except ValueError:
+            raise ValueError(f"{path.name} is not in this "
+                             f"workspace") from None
+        if (len(relative.parts) < 2
+                or relative.parts[0] == AUTOSAVE_DIR):
+            raise ValueError(f"{path.name} is the workspace's own "
+                             f"and keeps its name")
+        if not name or name in (".", ".."):
+            raise ValueError("a file needs a name")
+        if any(c in name for c in "/\\:"):
+            raise ValueError(f"'{name}' has a folder separator in it")
+        if name.startswith("."):
+            raise ValueError(f"'{name}' would hide the file")
+        target = path.with_name(name)
+        if target == path:
+            return path
+        if target.exists() and not target.samefile(path):
+            raise ValueError(f"there is already a {name} here")
+        saved = self.autosave_path(path)
+        path.rename(target)
+        moved = self.autosave_path(target)
+        if (saved is not None and moved is not None
+                and saved != moved and saved.exists()
+                and not moved.exists()):
+            moved.parent.mkdir(parents=True, exist_ok=True)
+            saved.rename(moved)
+        return target
+
     def adopt_build(self, structure, *, run=None,
                     artifacts=()) -> FiledBuild:
         """File a structure built from nothing, and the run that
