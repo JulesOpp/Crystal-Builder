@@ -101,13 +101,15 @@ def _sample_grids(pane):
     return found
 
 
-def test_the_cod_samples_are_no_wider_than_the_shipped_ones(window):
+def test_the_other_samples_are_no_wider_than_the_shipped_ones(window):
     """The shipped seven are sized to the middle of a 1024 px window,
     and anything wider than that is taken out of the left column.
     Four COD names to a row -- MIL-100(Fe), MOF-74(Zn), PCN-222(Fe),
     MOF-808 -- took it from 380 px to 318 on the Windows runner.
     Compared with each other rather than with a pixel count, because
     fonts, and the screen a test gets, differ by platform."""
-    shipped, cod = _sample_grids(window.start_pane)
-    assert (cod.minimumSize().width()
-            <= shipped.minimumSize().width())
+    shipped, *others = _sample_grids(window.start_pane)
+    assert len(others) == 2                     # the COD's, and prepared
+    for grid in others:
+        assert (grid.minimumSize().width()
+                <= shipped.minimumSize().width())

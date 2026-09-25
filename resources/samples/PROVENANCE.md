@@ -3,7 +3,7 @@
 Every file in this folder is named here, with its source and what may
 be done with it; `tests/test_samples.py` fails when one is not.  File
 ▸ Open Sample reads the catalogue in `xtalapp/samples.py`, which lists
-twenty-three of the twenty-six.
+thirty-nine of the forty-two.
 
 ## From the COD (`cod/`)
 
@@ -37,6 +37,68 @@ COD still agrees.  Fetched 2026-09-23.
 
 Not in the COD when looked for on 2026-09-23: MOF-303, Cu3(HHTP)2 and
 Cr-red-MOF-1 ([10.1021/jacs.5c16581](https://doi.org/10.1021/jacs.5c16581)).
+
+## Prepared for simulation (`prepared/`)
+
+Models made from the COD files above, which are left exactly as
+deposited.  Each is its COD file through every step of
+`xtal/core/prepare.py` -- deuterium as hydrogen, the declared
+centring's primitive cell, disorder ordered into whole components,
+solvent out of the pores, M3O trimers completed, hydrogens -- written
+by `scripts/prepare_samples.py`, whose `--check` says whether the
+code still makes them.  Being made from CC0 data, they carry no
+licence either; they are this project's models, and citing one means
+citing the structure it was made from as well.
+
+What each needed, checked against the textbook formula of the
+framework rather than only for clashes:
+
+| File | Made from the COD file by |
+|---|---|
+| `prepared/MOF-5.cif` | the primitive cell |
+| `prepared/HKUST-1.cif` | the primitive cell; copper sites left open |
+| `prepared/ZIF-8.cif` | each methyl's hydrogens in one of two orientations |
+| `prepared/UiO-66.cif` | Zr6O4(OH)4(bdc)6, the ideal framework: the refinement's ~27 % missing linkers are an average the ordering does not keep |
+| `prepared/MIL-101.cif` | the primitive cell (4080 atoms), one OH and two waters per Cr3O trimer, arene hydrogens by ring; relaxed |
+| `prepared/NU-1000.cif` | Zr6O4(OH)4(OH)4(H2O)4 -- the valence planner's eight terminal hydroxides left each node -4 |
+| `prepared/MIL-100.cif` | as MIL-101, on Fe; relaxed |
+| `prepared/MOF-74.cif` | the primitive cell |
+| `prepared/PCN-222.cif` | the chloride ordered; the CIF's riding hydrogens on the node's terminal oxygens replaced by four OH and four waters |
+| `prepared/MOF-808.cif` | Zr6O4(OH)4(btc)2(HCOO)6 exactly |
+| `prepared/MIL-53.cif` | Cr(OH)(bdc): the mu2-OH the neutron structure never located; relaxed |
+| `prepared/MIL-88B.cif` | pyridine and water out of the pores, one OH and two waters per trimer; relaxed |
+| `prepared/Mn-BTT.cif` | each framework Mn's methanol made CH3OH; not relaxed (below).  One extra-framework Mn per cell, where the charge wants 1.5 -- this cell cannot hold half an ion |
+| `prepared/cubic-EuHOTP.cif` | one whole chelating nitrate per Eu (the CIF shares a distal oxygen between two across a two-fold axis) and the cluster nitrate ordered.  **Its charge is not settled**: HOTP is redox-active and any cations in the pores were never located, so the terminal oxygens are as the valence planner left them |
+| `prepared/pbz-MOF-1.cif` | one acetate in six missing, as refined, each gap a hydroxide and a water; relaxed |
+| `prepared/Al-soc-MOF-1.cif` | one tilt of each terphenyl ring -- the CIF gives both at full occupancy, and its formula counts both -- a chloride per trimer and three waters on it; relaxed |
+
+**Relaxed** means positions only, at the experimental cell, with
+ORB-v3 (`conservative-inf-omat`, float64) and D3(BJ) through
+torch-dftd at MOFSimBench's settings (xc pbe, 40 Bohr cutoff, BJ
+damping), L-BFGS to a largest force of 0.03 eV/A, and only where the
+refined linker geometry was out of line.  UFF was tried first and made
+MIL-88B worse; MACE-MP-MOF0 knows no Cr, Mn or Eu.  The bonding was
+checked unchanged by every relaxation.
+
+| File | Precision | Steps | Heavy atoms moved (rms) | What it fixed |
+|---|---|---|---|---|
+| `prepared/MIL-100.cif` | float32-high | 217 | 0.30 A | ring C-C 1.45-1.58 to 1.39-1.40 A; C-O 1.23-1.36 to 1.26-1.29; O-C-O 116-123 to 124-128 degrees; ring-carboxylate C-C to 1.61 to 1.47-1.50 |
+| `prepared/MIL-101.cif` | float32-high | 225 | 0.33 A | ring C-C to 1.46 to 1.38-1.41 A; C-O 1.21-1.36 to 1.26-1.29; O-C-O 115-126 to 125-128 degrees |
+| `prepared/MIL-88B.cif` | float64 | 59 | 0.19 A | O-C-O 118 to 126-128 degrees; C-O to 1.32 to 1.26-1.29 A |
+| `prepared/MIL-53.cif` | float64 | 16 | 0.11 A | carboxylate C-O 1.17 to 1.28 A; ring angles 116-122 to 120-121 degrees |
+| `prepared/Al-soc-MOF-1.cif` | float64 | 302 | 0.26 A | the ordered ring's 88 degree angle and 1.33 A bond to 118-122 degrees and 1.39-1.41 A |
+| `prepared/pbz-MOF-1.cif` | float64 | 327 | 0.33 A | acetate C-O to 1.47 to 1.26-1.29 A; O-C-O to 132 to 126 degrees |
+
+float32-high above 2000 atoms, because float64 needs 4.4 GB for
+MIL-100 on an 8 GB laptop; measured on MIL-88B relaxed both ways, the
+two give the same structure to 0.001 A on every heavy atom.
+**MIL-100's file states 24 of its bonds**: a quarter of its trimers'
+waters relax to 2.28-2.31 A from their iron, the trans effect of the
+mu3-oxo, and the Fe-O distance rule stops at 2.28 -- still on the
+iron, but perceived as loose water without the bond written down.
+**Mn-BTT was relaxed and not kept**: its extra-framework Mn slid
+1.42 A and changed four bonds, a cell one half-charge short, while the
+framework's own geometry had needed nothing.
 
 ## Shipped since the early phases
 

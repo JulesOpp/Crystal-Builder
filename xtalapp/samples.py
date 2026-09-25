@@ -69,7 +69,9 @@ def folder() -> Path:
 #: The sections of Open Sample, in menu order, as (group, title).
 SHIPPED = "shipped"
 COD = "cod"
-GROUPS = ((SHIPPED, "Shipped"), (COD, "From the &COD"))
+PREPARED = "prepared"
+GROUPS = ((SHIPPED, "Shipped"), (COD, "From the &COD"),
+          (PREPARED, "&Prepared for simulation"))
 
 
 @dataclass(frozen=True)
@@ -98,6 +100,8 @@ class Sample:
         """
         if self.cod_id is None:
             return self.label
+        if self.group == PREPARED:
+            return f"{self.label} prepared COD {self.cod_id}"
         return f"{self.label} COD {self.cod_id}"
 
     @property
@@ -239,6 +243,67 @@ SAMPLES = (
             "soc net in Pm-3n, 1208 atoms, with the chloride that "
             "balances the charge spread thin over its site")),
 )
+
+
+#: What preparing each COD framework did, by file.  Written from the
+#: messages ``scripts/prepare_samples.py`` prints, which is also what
+#: makes the files; ``PROVENANCE.md`` has the longer account.
+PREPARED_NOTES = {
+    "MOF-5": "the primitive cell, 106 atoms.  Nothing else was needed",
+    "HKUST-1": "the primitive cell, 156 atoms, with its copper sites "
+               "open",
+    "ZIF-8": "each methyl's hydrogens in one of their two orientations, "
+             "in the primitive cell",
+    "UiO-66": "Zr6O4(OH)4(bdc)6 with its four mu3-OH pointing out: the "
+              "ideal framework, not the CIF's average over about 27 % "
+              "missing linkers",
+    "MIL-101": "the primitive cell of 4080 atoms, one OH and two waters "
+               "on each Cr3O trimer, and the powder model's linkers "
+               "relaxed with ORB-v3 + D3(BJ) at the experimental cell",
+    "NU-1000": "Zr6O4(OH)4(OH)4(H2O)4: four hydroxides and four waters "
+               "on the eight-connected node, not the eight hydroxides "
+               "that leave it charged",
+    "MIL-100": "the primitive cell, one OH and two waters on each Fe3O "
+               "trimer, ring hydrogens by ring, and the powder model's "
+               "bent linkers relaxed with ORB-v3 + D3(BJ)",
+    "MOF-74": "the primitive cell, 54 atoms.  Nothing else was needed",
+    "PCN-222": "the disordered chloride ordered, and the node's "
+               "terminal ligands replaced by four OH and four waters",
+    "MOF-808": "Zr6O4(OH)4(btc)2(HCOO)6 exactly: the disordered "
+               "formate and water ordered, the solvent removed",
+    "MIL-53": "Cr(OH)(bdc): deuterium as hydrogen, the mu2-OH the "
+              "neutron structure never located, and relaxed with "
+              "ORB-v3 + D3(BJ)",
+    "MIL-88B": "the pyridine and water taken out of the pores, one OH "
+               "and two waters on each trimer, relaxed with ORB-v3 + "
+               "D3(BJ)",
+    "Mn-BTT": "the methanol on each framework Mn made whole, CH3OH.  "
+              "One extra-framework Mn per cell where the charge wants "
+              "one and a half",
+    "cubic-EuHOTP": "every Eu with one whole chelating nitrate -- the "
+                    "CIF shares an oxygen between two -- and the cluster "
+                    "nitrate ordered.  Its charge is not settled: HOTP's "
+                    "oxidation state is not in the file",
+    "pbz-MOF-1": "one acetate in six missing, as refined, each gap left "
+                 "as a hydroxide and a water; relaxed with ORB-v3 + "
+                 "D3(BJ)",
+    "Al-soc-MOF-1": "one tilt of each terphenyl ring -- the CIF gives "
+                    "both at full occupancy -- a chloride per trimer "
+                    "and three waters on it; relaxed with ORB-v3 + "
+                    "D3(BJ)",
+}
+
+#: The COD frameworks again, prepared for simulation: ordered, the
+#: solvent out, charge-balanced, hydrogens where they belong, and some
+#: relaxed.  Made by ``scripts/prepare_samples.py`` from the COD files,
+#: which stay as deposited.
+SAMPLES = SAMPLES + tuple(
+    Sample(f"prep_{s.name.removeprefix('cod_')}",
+           "prepared/" + s.file.removeprefix("cod/"), s.label,
+           group=PREPARED, cod_id=s.cod_id,
+           description=(f"COD {s.cod_id} prepared for simulation: "
+                        + PREPARED_NOTES[Path(s.file).stem]))
+    for s in SAMPLES if s.group == COD)
 
 
 def get(name: str) -> Sample:
