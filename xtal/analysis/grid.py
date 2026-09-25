@@ -76,10 +76,18 @@ def distance_grid(structure, radius_of, spacing: float = DEFAULT_SPACING,
     if not cell.n_atoms:
         return np.full(shape, np.inf, dtype=np.float32)
 
-    centres, radii = _images(cell, lattice, radius_of)
+    centres, radii = images(cell, lattice, radius_of)
     tree = cKDTree(centres)
     frac = _sample_points(shape)
+    return surface_distance(tree, radii, lattice, frac).reshape(shape)
 
+
+def surface_distance(tree, radii, lattice, frac) -> np.ndarray:
+    """Distance from each of ``frac`` to the nearest atom surface.
+
+    ``tree`` and ``radii`` are over :func:`images`, so ``frac`` may lie
+    anywhere in the cell or a little outside it.
+    """
     # The nearest atom *surface* is not the nearest atom centre: a
     # large atom a little further away can still be the one whose skin
     # is closest.  So the k nearest centres are asked for and the
@@ -89,7 +97,7 @@ def distance_grid(structure, radius_of, spacing: float = DEFAULT_SPACING,
     #
     # A block of points at a time: the k-nearest answer for the whole
     # of MFU-4l's 475 000 points was four (N, 8) arrays at once.
-    k = min(_NEIGHBOURS, len(centres))
+    k = min(_NEIGHBOURS, len(radii))
     out = np.empty(len(frac), dtype=np.float32)
     for start in range(0, len(frac), _POINT_BLOCK):
         points = lattice.to_cart(frac[start:start + _POINT_BLOCK])
@@ -98,7 +106,7 @@ def distance_grid(structure, radius_of, spacing: float = DEFAULT_SPACING,
         index = index.reshape(len(points), -1)
         out[start:start + len(points)] = (
             distances - radii[index]).min(axis=1)
-    return out.reshape(shape)
+    return out
 
 
 #: Grid points per KD-tree query in :func:`distance_grid`.
@@ -125,7 +133,7 @@ def _sample_points(shape) -> np.ndarray:
     return np.stack([m.ravel() for m in mesh], axis=1)
 
 
-def _images(cell, lattice, radius_of) -> tuple:
+def images(cell, lattice, radius_of) -> tuple:
     """Every atom of the cell and of its 26 neighbouring cells.
 
     The whole shell rather than a minimum-image convention, because a

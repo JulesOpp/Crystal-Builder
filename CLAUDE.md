@@ -541,7 +541,13 @@ stress case).
   project**: MFU-4l's is 307 680 triangles and 96 MB of JSON against
   1.1 seconds to compute it again. The grid is float32 and the march
   goes a slab of cells at a time, so that second peaks at about 90 MB
-  rather than 400.
+  rather than 400. **It is drawn over channels only**, because the
+  number is AV: `xtal/analysis/voids.py` splits the grid into channels
+  and pockets, joining two neighbouring points only where the field is
+  clear at the segment's middle too — face neighbours alone gave
+  HKUST-1 104 false pockets, all 26 on their endpoints let N2 through
+  ZIF-8's 3.27 A windows. A window within half a grid step of the
+  probe is flagged (`Voids.borderline`), never guessed.
 - **The CIF carries the bonds; Export cleans.** `_geom_bond` says
   (site, site, operation, translation) and always could, so the
   workspace copy of a structure *is* the document: the markers the

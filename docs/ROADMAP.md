@@ -1116,9 +1116,11 @@ What the measurements decided, so a phase can start from here:
   because tetrahedra flatten a sphere into chords.  Sampling the
   spheres is within 1 %.  The mesh stays the picture.
 * **Two grid points are linked only when the segment between them
-  clears every expanded sphere, exactly.**  Face neighbours alone gave
-  HKUST-1 104 false pockets.  All 26 neighbours let N2 through ZIF-8's
-  3.27 Å windows.  The exact segment test got both right.
+  is clear.**  Face neighbours alone gave HKUST-1 104 false pockets.
+  All 26 neighbours on their endpoints let N2 through ZIF-8's 3.27 Å
+  windows.  Asking the field at the segment's middle as well got both
+  right (a half-step chord dips at most 0.005 Å into a sphere), in
+  0.48 s on MFU-4l against 4.5 s for testing every atom along it.
 * **A window within half a grid step of the probe is flagged, never
   guessed.**  UiO-66's windows clear N2 by 0.045 Å, and the grid's
   answer flips between 0.4 and 0.3 Å spacing.  The report names
@@ -1132,12 +1134,11 @@ What the measurements decided, so a phase can start from here:
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
 | **0 — Every core for the grid** | Shipped 2026-09-25. `distance_grid` queries the KD-tree with `workers=-1`: MFU-4l 1.03 s → 0.22 s, the same array | `xtal/analysis/grid.py` | S |
-| **1 — Channels and pockets** | `voids.classify`: exact segment links, periodic union-find over component IDs (`findChannels`'s test), `borderline`. The Zeo++ volume run stops drawing pockets as channels | `xtal/analysis/voids.py`, `xtal/modules/zeopp.py` | M |
+| **1 — Channels and pockets** | Shipped 2026-09-25. `voids.classify`: segment links gated at the middle, periodic union-find over component IDs (`findChannels`'s test), `borderline`. The Zeo++ volume run stops drawing pockets as channels | `xtal/analysis/voids.py`, `xtal/modules/zeopp.py` | M |
 | **2 — The numbers off the grid** | `voids.surface_area` / `voids.volume` returning `porosity.SurfaceArea` / `Volume`, pinned against recorded Zeo++ numbers (ASA 2 %, AV 0.5 %, POAV 1 % of the cell) | `xtal/analysis/voids.py`, `xtal/modules/poregrid.py` | M |
 | **3 — The (faster) entries** | Module labelled Porosity, the Zeo++ check per entry, **Surface area (faster)...** and **Accessible volume (faster)...** under their Zeo++ twins, per-entry greying in the Modules panel | `xtal/modules/zeopp.py`, `xtalapp/docks/modules.py` | S-M |
 
-Phase 1 must get segment testing under 0.5 s on MFU-4l before it is
-committed; the prototype's Python loop took 9 s.  If Phase 2's
+If Phase 2's
 ZIF-8 PONAV does not come within 0.01 of Zeo++'s 0.5534, the plan
 comes back before Phase 3.
 

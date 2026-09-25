@@ -528,3 +528,20 @@ def test_the_row_says_which_of_the_two_was_measured(fake_network,
 
     other, _f = run("volume", rutile, workspace, occupiable=False)
     assert "centre" in other.report.tables[0].rows[0].note
+
+
+def test_the_volume_run_draws_channels_and_not_pockets(fake_network,
+                                                       workspace):
+    """The number beside the surface is AV, which a sealed pocket is
+    not part of.  ZIF-8's cages are all pockets to N2 -- its windows are
+    3.27 A across -- so there is no channel to draw, and the log says
+    that is why rather than drawing the cages."""
+    from pathlib import Path
+
+    from xtal.io.cif_reader import read_cif
+    zif8 = read_cif(Path(__file__).resolve().parents[1] / "resources"
+                    / "samples" / "ZIF-8.cif")
+    result, folder = run("volume", zif8, workspace, spacing=0.4)
+    assert result.ok
+    assert result.overlay is None
+    assert "every void is a pocket" in folder.run.log_path.read_text()

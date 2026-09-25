@@ -45,6 +45,8 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
+import numpy as np
+
 from xtal.analysis import porosity
 from xtal.modules.job import JobResult
 from xtal.modules.process import ExternalProcess, MissingProgram, Program
@@ -310,9 +312,16 @@ def _accessible_surface(job, probe: float):
 
     A surface that could not be built is not a failed run -- the
     volume is already read and correct.
+
+    **Channels only.**  The number beside it is AV, which a sealed
+    pocket is not part of, so a pocket drawn with the channels was a
+    picture of a different quantity.  :mod:`xtal.analysis.voids` makes
+    the split, and a pocket is pushed just under the level so the
+    march closes it off.
     """
     from xtal.analysis import grid as grids
     from xtal.analysis import isosurface as iso
+    from xtal.analysis import voids
 
     radius_of, why = _radius_function(job)
     if radius_of is None:
@@ -321,16 +330,27 @@ def _accessible_surface(job, probe: float):
     spacing = float(job.param("spacing", grids.DEFAULT_SPACING))
     field = grids.distance_grid(job.structure, radius_of,
                                 spacing=spacing)
-    points, faces = iso.isosurface(field, job.structure.lattice, probe)
-    if not len(faces):
-        job.note("nothing to draw: no point in the cell is further "
-                 "than the probe radius from an atom")
+    split = voids.classify(job.structure, field, radius_of, probe)
+    grid = f"{'x'.join(str(n) for n in field.shape)} grid"
+    if split.borderline:
+        job.note(f"a window is within half a grid step of the probe's "
+                 f"size on the {grid}, so whether the drawn surface "
+                 f"passes through it is a matter of resolution")
+    if not split.channels.any():
+        job.note("nothing to draw: " + (
+            f"every void is a pocket the probe cannot reach "
+            f"({split.summary()})" if split.pockets.any() else
+            "no point in the cell is further than the probe radius "
+            "from an atom"))
         return None
+    below = np.nextafter(np.float32(probe), np.float32(-np.inf))
+    drawn = np.where(split.channels, field, np.minimum(field, below))
+    points, faces = iso.isosurface(drawn, job.structure.lattice, probe)
     network = porosity.PoreNetwork(surface_points=points,
                                    surface_faces=faces,
                                    probe=float(probe))
-    job.note(f"{network.summary()}, on a "
-             f"{'x'.join(str(n) for n in field.shape)} grid")
+    job.note(f"{network.summary()} around {split.summary()}, on a "
+             f"{grid}")
     return network
 
 
