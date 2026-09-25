@@ -176,29 +176,51 @@ def test_the_real_model_s_stress_agrees_with_a_numeric_one():
     """A stress that is quietly wrong relaxes a cell to the wrong
     volume and reports converging while it does it.  In the same run:
     loading the model leaves torch's default dtype where it found it,
-    since that is a global every other engine in the process reads."""
+    since that is a global every other engine in the process reads --
+    and the model still works in its own precision with the global at
+    float32, which it did not.
+
+    Sheared quartz, not a molecule in a box: one water in 30 A has a
+    stress smaller than the tolerance, so a sign or a factor of two
+    passed.  A dense, strained crystal has one to get wrong."""
     answer = in_a_fresh_interpreter(
         "import json\n"
         "import numpy as np\n"
         "import torch\n"
-        "from tests.conftest_ff import water\n"
+        "from xtal import Lattice, Structure\n"
         "from xtal.core import p1\n"
         "from xtal.ff.orb import calculator as orb\n"
+        "quartz = Structure.from_arrays(\n"
+        "    Lattice.from_parameters(4.9134, 4.9134, 5.4052, 90, 90, 120),\n"
+        "    ['Si', 'O'], [[0.4697, 0.0, 2 / 3],\n"
+        "                  [0.4135, 0.2669, 0.7857]], space_group='P3221')\n"
+        "cell = p1.expand(quartz)\n"
+        "shear = np.eye(3) + np.array([[0.02, 0.03, 0], [0, -0.01, 0],\n"
+        "                              [0, 0, 0.015]])\n"
+        "matrix = np.asarray(quartz.lattice.matrix) @ shear\n"
+        "cart = cell.frac @ matrix\n"
         "before = str(torch.get_default_dtype())\n"
-        "structure = water()\n"
-        "engine = orb.ORBCalculator(structure, orb.ORBOptions(\n"
-        "    device='cpu'))\n"
+        "engine = orb.ORBCalculator(quartz, orb.ORBOptions(device='cpu'))\n"
         "after = str(torch.get_default_dtype())\n"
-        "cell = p1.expand(structure)\n"
-        "matrix = np.asarray(structure.lattice.matrix, dtype=float)\n"
-        "claimed = engine.compute(cell.cart, matrix).stress\n"
-        "numeric = engine.numeric_stress(cell.cart, matrix, strain=1e-4)\n"
-        "print(json.dumps({'claimed': np.asarray(claimed).tolist(),\n"
+        "result = engine.compute(cart, matrix)\n"
+        "numeric = engine.numeric_stress(cart, matrix, strain=1e-4)\n"
+        "f = result.forces / np.linalg.norm(result.forces)\n"
+        "h = 1e-4\n"
+        "slope = -(engine.compute(cart + h * f, matrix).energy\n"
+        "          - engine.compute(cart - h * f, matrix).energy) / (2 * h)\n"
+        "print(json.dumps({'claimed': np.asarray(result.stress).tolist(),\n"
         "                  'numeric': np.asarray(numeric).tolist(),\n"
+        "                  'slope': slope,\n"
+        "                  'along': float(np.sum(result.forces * f)),\n"
         "                  'before': before, 'after': after}))\n")
-    assert np.asarray(answer["claimed"]) == pytest.approx(
-        np.asarray(answer["numeric"]), abs=2e-3)
+    claimed = np.asarray(answer["claimed"])
+    assert np.abs(claimed).max() > 0.05          # there is a stress
+    assert claimed == pytest.approx(np.asarray(answer["numeric"]),
+                                    abs=2e-3)
     assert answer["after"] == answer["before"]
+    # Double precision, measured rather than assumed: float32 geometry
+    # gets this wrong by 2e-3 of the force.
+    assert answer["slope"] == pytest.approx(answer["along"], rel=1e-6)
 
 
 @needs_orb
@@ -214,6 +236,42 @@ def test_every_model_offered_is_a_name_orb_knows():
 
     for name, _label in orb.MODEL_CHOICES:
         assert name in known, name
+
+
+def test_every_graph_is_built_in_the_models_own_precision():
+    """orb-models builds each input graph -- positions, edge vectors --
+    in torch's *global* default dtype unless told otherwise, and its
+    ASE calculator never tells it.  The loader puts that global back
+    to float32 after loading a float64 model, as it should, so the
+    float64 model was handed float32 geometry: along the force on
+    MOF-74 the energy's slope then disagreed with the force by 2e-3 at
+    a 1e-4 A step, against 6e-9 in float64 -- the error double
+    precision was chosen to remove.
+
+    So the dtype is given to the adapter, from the model's weights."""
+    called = []
+
+    class Weights:
+        dtype = "float64-of-the-model"
+
+    class Adapter:
+        def from_ase_atoms(self, **kwargs):
+            called.append(kwargs)
+
+    class Model:
+        adapter = Adapter()
+
+        class model:                                     # noqa: N801
+            @staticmethod
+            def parameters():
+                return iter([Weights()])
+
+    pinned = orb._pin_dtype(Model())
+    pinned.adapter.from_ase_atoms(atoms="the atoms")
+
+    assert called == [{"atoms": "the atoms",
+                       "output_dtype": Weights.dtype,
+                       "graph_construction_dtype": Weights.dtype}]
 
 
 def test_a_load_that_fails_is_a_sentence_naming_the_model(monkeypatch):

@@ -54,7 +54,9 @@ missing.  See :func:`implements_stress`.
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -67,7 +69,7 @@ from xtal.ff.ase_engine import (  # noqa: F401 -- implements_stress, too
     implements_stress,
     torch_device,
 )
-from xtal.ff.registry import ENGINES, Engine, arxiv, github
+from xtal.ff.registry import ENGINES, Engine, arxiv, doi, github
 from xtal.params import Availability, Param
 
 #: The package that has to be installed, and how.
@@ -100,6 +102,9 @@ MODEL_CHOICES = (
      "MACE-MATPES-r2SCAN-0 -- r2SCAN, no +U [ASL licence]"),
     ("mh-1",
      "MACE-MH-1 -- crystals, molecules and surfaces [ASL licence]"),
+    (MOF0 := "mace-mp-mof0",
+     "MACE-MP-MOF0 -- 127 MOFs, PBE-D3(BJ), for phonons; 26 elements "
+     "[CC BY 4.0, cite]"),
     ("medium", "MACE-MP-0a medium -- the default before mace 0.3.10"),
     ("small", "MACE-MP-0a small -- fastest"),
     ("large", "MACE-MP-0a large"),
@@ -128,6 +133,31 @@ ASL_MODELS = frozenset({
     "small-omat-0", "medium-omat-0", "mace-matpes-pbe-0",
     "mace-matpes-r2scan-0", "mh-0", "mh-1",
 })
+
+#: MACE-MP-MOF0 (Elena et al., npj Comput. Mater. 11, 125, 2025):
+#: MACE-MP-0b fine-tuned on 127 MOFs at PBE with D3(BJ) dispersion, for
+#: phonons.  Not one of ``mace_mp``'s, so it is fetched here, from the
+#: authors' repository at the commit that added it, and loaded only if
+#: it is byte for byte that file -- a model file is a pickle, and
+#: loading one runs it.
+#:
+#: * **Dispersion is in it.**  Its reference data were PBE-D3(BJ), so
+#:   D3 must never be added on top -- that would count it twice.
+#: * **Two heads in one file**: ``pt_head``, the MACE-MP-0b it was
+#:   fine-tuned from, and ``pbe_d3``, the MOF one.  MACE will not
+#:   guess, so a file of one's own pointed at it cannot load at all.
+#: * **26 elements**: H C N O F Mg Al Si P S Cl Ti Fe Cu Zn Ga Br Sr
+#:   Zr Cd In Sn I Ce Ho Hf -- no Cr, Mn, Co or Ni.
+#: * **CC BY 4.0**, and the licence makes the citation a condition.
+MOF0_URL = ("https://raw.githubusercontent.com/ddmms/data/"
+            "3b6d2fd559272106d0fff0fce0d0ba32bcb16541/"
+            "mace-mof-0/v2/mofs_v2.model")
+MOF0_FILE = "mofs_v2.model"
+MOF0_SHA256 = ("04113c54cb5f8e1f30babbbda12cd97df401a65c"
+               "1424f24c4cf1bcce247f12db")
+MOF0_HEAD = "pbe_d3"
+MOF0_CITATION = ("Elena, Kamath, Jaffrelot Inizan et al., npj Comput. "
+                 "Mater. 11, 125 (2025)")
 
 DEVICE_CHOICES = (
     ("auto", "Whatever is fastest here"),
@@ -172,6 +202,12 @@ def available(model: str = DEFAULT_MODEL, model_path: str = "",
             return Availability(
                 False, f"there is no model file at {model_path}")
         return Availability(True, str(Path(model_path).expanduser()))
+    if model == MOF0:
+        return Availability(
+            True, f"MACE-MP-MOF0 -- a 31 MB download to the MACE cache "
+                  f"the first time it is used, under CC BY 4.0, which "
+                  f"requires you to cite {MOF0_CITATION}.  Its data "
+                  f"were PBE-D3(BJ), so dispersion is already in it")
     licence = (" -- under the Academic Software License, which "
                "using it accepts (https://github.com/gabor1/ASL)"
                if model in ASL_MODELS else "")
@@ -261,6 +297,11 @@ def _build_model(options: MACEOptions):
                 model_paths=str(Path(options.model_path)
                                 .expanduser()),
                 device=device, default_dtype=dtype)
+        elif options.model == MOF0:
+            from mace.calculators import MACECalculator as _Model
+
+            model = _Model(model_paths=str(_fetch_mof0()), device=device,
+                           default_dtype=dtype, head=MOF0_HEAD)
         else:
             from mace.calculators import mace_mp
 
@@ -270,6 +311,8 @@ def _build_model(options: MACEOptions):
         raise CalculatorError(
             f"MACE is not installed -- {INSTALL} ({exc})"
         ) from None
+    except CalculatorError:
+        raise
     except Exception as exc:                    # noqa: BLE001
         # A model that will not load is the common failure and it
         # is nearly always the download or the file: say which
@@ -280,6 +323,56 @@ def _build_model(options: MACEOptions):
             f"({options.model_path or options.model}): {exc}"
         ) from None
     return model
+
+
+def _cache_dir() -> Path:
+    """MACE's own model cache, where ``mace_mp`` keeps the others."""
+    from mace.tools.utils import get_cache_dir
+    return Path(get_cache_dir())
+
+
+def _fetch_mof0() -> Path:
+    """MACE-MP-MOF0's file, downloaded once and checked every time.
+
+    Checked on every load and not only after the download: a cached
+    file somebody has replaced is exactly as much someone else's code
+    as a download that came back wrong.
+    """
+    path = _cache_dir() / MOF0_FILE
+    if not path.is_file():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        partial = path.with_suffix(".part")
+        try:
+            with urllib.request.urlopen(MOF0_URL, timeout=300) as got:
+                partial.write_bytes(got.read())
+        except OSError as exc:
+            partial.unlink(missing_ok=True)
+            raise CalculatorError(
+                f"MACE-MP-MOF0 could not be downloaded ({exc})") from None
+        partial.replace(path)
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    if digest != MOF0_SHA256:
+        path.unlink(missing_ok=True)
+        raise CalculatorError(
+            "the MACE-MP-MOF0 file is not the file its authors "
+            "published (its SHA-256 differs), so it was deleted rather "
+            "than loaded; the next run downloads it again")
+    return path
+
+
+def references(model: str = DEFAULT_MODEL, **_rest) -> tuple:
+    """The method's papers, and MACE-MP-MOF0's when it is the model --
+    which its licence requires."""
+    found = [
+        arxiv("MACE: Batatia et al., NeurIPS 2022", "2206.07697"),
+        arxiv("MACE-MP foundation models: Batatia et al., 2023",
+              "2401.00096"),
+    ]
+    if model == MOF0:
+        found.append(doi(f"MACE-MP-MOF0: {MOF0_CITATION}",
+                         "10.1038/s41524-025-01611-8"))
+    found.append(github("ACEsuit/mace"))
+    return tuple(found)
 
 
 def forget_models() -> None:
@@ -308,14 +401,44 @@ class MACECalculator(ASECalculator):
         super().__init__(structure, options or MACEOptions())
 
     def load_model(self, options):
-        return _load_model(options)
+        model = _load_model(options)
+        _refuse_unfitted(model, self.symbols, options)
+        return model
 
     def summary(self) -> str:
         what = (Path(self.options.model_path).name
                 if self.options.model == CUSTOM
+                else "MACE-MP-MOF0" if self.options.model == MOF0
                 else f"MACE-MP {self.options.model}")
         return (f"{self.n_atoms} atoms, {what}, on "
                 f"{_device(self.options.device)}")
+
+
+def _refuse_unfitted(model, symbols, options) -> None:
+    """Name the elements a fitted model has never seen.
+
+    A model knows the elements in its table and nothing else, and MACE's
+    own answer for another is "np.int64(63) is not in list" from deep
+    in its data pipeline.  MACE-MP-MOF0 knows 26; a model fitted by
+    hand may know three.
+    """
+    table = getattr(model, "z_table", None)
+    if table is None:
+        return
+    from xtal.core import elements as el
+
+    known = {int(z) for z in table.zs}
+    missing = sorted({s for s in symbols
+                      if el.atomic_number(s) not in known},
+                     key=el.atomic_number)
+    if missing:
+        name = ("MACE-MP-MOF0" if options.model == MOF0
+                else Path(options.model_path).name
+                if options.model == CUSTOM else f"MACE {options.model}")
+        raise CalculatorError(
+            f"{name} was fitted on {len(known)} elements, and this "
+            f"structure has {', '.join(missing)}, which is not among "
+            f"them; choose one of the MACE-MP models")
 
 
 # ======================================================================
@@ -344,10 +467,5 @@ ENGINES.register(Engine(
     provides=frozenset({"forces", "stress", "periodic"}),
     options=OPTIONS,
     check=available,
-    references=(
-        arxiv("MACE: Batatia et al., NeurIPS 2022", "2206.07697"),
-        arxiv("MACE-MP foundation models: Batatia et al., 2023",
-              "2401.00096"),
-        github("ACEsuit/mace"),
-    ),
+    references=references,
 ))

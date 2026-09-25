@@ -2,7 +2,9 @@
 
 The numbers that can be checked against something outside this code
 are MOF-5's: the authors' own program, run on IRMOF-1, gives zinc
-+1.211, the central oxygen -0.968 and the carboxylate oxygens -0.483.
++1.211, the central oxygen -0.968 and the carboxylate oxygens -0.483;
+and the same program, run on the shipped COD MOF-5, gives the charges
+in ``tests/data/eqeq/mof5_cod_authors_program.json``.
 Everything else here pins a piece of the method that a plausible
 answer would not reveal was missing -- a charge centre not moved back,
 hydrogen's affinity left at the measured value, a table drifted from
@@ -41,10 +43,31 @@ def test_eqeq_charges_sum_to_the_structure_charge(halite, quartz):
             assert charges.sum() == pytest.approx(total, abs=1e-9)
 
 
+def test_the_authors_program_gives_the_same_charges_on_the_same_cell():
+    """The check that can tell a small error from none.  The authors'
+    own program, compiled and run on the shipped COD MOF-5 (see
+    ``about`` in the data file), against this code on the same atoms:
+    measured to agree within 0.00016 e everywhere.  A thousandth
+    leaves room for the NIST table being newer than theirs and for
+    their truncated Ewald sum, and fails anything that matters."""
+    import json
+
+    reference = json.loads((ROOT / "tests" / "data" / "eqeq"
+                            / "mof5_cod_authors_program.json")
+                           .read_text())["charges"]
+    cell = _cod_cell("MOF-5.cif")
+    charges, _note = eqeq.equilibrate(cell)
+
+    assert len(charges) == len(reference)
+    assert charges == pytest.approx(np.array(reference), abs=1e-3)
+
+
 def test_mof5_zinc_comes_out_positive_and_near_the_published_charge():
-    """Wide enough to absorb the converged Ewald sum and a newer NIST
-    table; narrow enough that a sign error, a missing reciprocal half
-    or a charge centre left un-moved all fail it."""
+    """Against the paper's published numbers, which are for the
+    authors' IRMOF-1 geometry and not this file's.  The 0.05 is that
+    difference in geometry -- on the same cell the program and this
+    code agree to 0.0002 (the test above) -- so this one pins sign and
+    size, and the one above pins the method."""
     cell = _mof5_cell()
     charges, _note = eqeq.equilibrate(cell)
     by = _by_element(cell, charges)
@@ -144,3 +167,94 @@ def test_the_ionisation_table_is_what_the_script_writes():
     shipped = (ROOT / "xtal" / "ff" / "charges" / "data"
                / "ionization.csv").read_text(encoding="utf-8")
     assert script.written() == shipped
+
+
+# ------------------------------------------------------ charge centres
+#
+# The centre is the charge a metal is expanded about, and it decides
+# the answer: Ongari et al. (J. Chem. Theory Comput. 2019, 15, 382)
+# found EQeq "heavily affected" by it over 2338 MOFs, and the choice
+# "mandatory" for alkali metals.  A metal left at 0 is expanded about
+# the neutral atom, where its curve is soft, and runs away.
+
+def _cod_cell(name):
+    from xtal.io import read_cif
+    return p1.expand(read_cif(ROOT / "resources" / "samples" / "cod"
+                              / name))
+
+
+def test_aluminium_is_expanded_about_three_and_stays_possible():
+    """Al-soc-MOF-1, one of the shipped COD frameworks.  With only the
+    paper's seven metals given a centre, aluminium came out at +6.33 --
+    more than the three electrons it has to lose -- and its oxygens at
+    -3.57."""
+    cell = _cod_cell("Al-soc-MOF-1.cif")
+    charges, note = eqeq.equilibrate(cell)
+    by = _by_element(cell, charges)
+
+    assert eqeq.CHARGE_CENTRES["Al"] == 3
+    assert 0 < by["Al"].max() <= 3
+    assert by["O"].min() >= -2
+    assert "beyond" not in note
+
+
+def test_every_metal_has_a_centre_and_the_papers_seven_are_its_own():
+    """Every metal the table has energies for is expanded about its
+    common oxidation state.  The seven the paper gave are kept as it
+    gave them -- vanadium at +4, where Open Babel has +3 -- so the
+    charges of every framework that already worked do not move."""
+    paper = {"Mg": 2, "V": 4, "Co": 2, "Ni": 2, "Cu": 2, "Zn": 2,
+             "Zr": 4}
+    for element, centre in paper.items():
+        assert eqeq.CHARGE_CENTRES[element] == centre
+    for element in ("Na", "K", "Ca", "Al", "Ti", "Cr", "Mn", "Fe",
+                    "Cd", "In", "Eu", "La", "Ce", "Hf", "Pb", "Bi"):
+        assert eqeq.CHARGE_CENTRES.get(element, 0) > 0, element
+    for element in ("H", "C", "N", "O", "F", "Cl", "S", "P", "Si"):
+        assert eqeq.CHARGE_CENTRES.get(element, 0) == 0, element
+
+
+def test_a_centre_can_be_set_for_the_framework_in_hand():
+    """The table is a common oxidation state and a framework need not
+    be common: MIL-88B is chromium(III), and the table's +2 is the
+    usual one.  The method leaves the choice to the user -- the
+    authors list guessing it as a feature they did not write -- so it
+    can be given, and it changes the answer."""
+    cell = _cod_cell("MIL-88B.cif")
+    usual, _ = eqeq.equilibrate(cell)
+    as_is, note = eqeq.equilibrate(cell, centres={"Cr": 3})
+    chromium = np.array(cell.elements) == "Cr"
+
+    assert not np.allclose(usual[chromium], as_is[chromium])
+    assert "Cr +3" in note
+
+
+def test_a_centre_the_table_cannot_expand_about_is_refused():
+    with pytest.raises(ValueError, match="Zn"):
+        eqeq.parameters("Zn", centre=40)
+
+
+def test_a_charge_no_atom_could_carry_is_said(quartz):
+    """Silicon has no centre in any EQeq table -- it is not a metal --
+    and in quartz it runs away the same way aluminium did, to more
+    than the four electrons it has.  Nothing can fix that inside the
+    method; what must not happen is showing the number as though it
+    meant something."""
+    cell = p1.expand(quartz)
+    charges, note = eqeq.equilibrate(cell)
+
+    silicon = charges[np.array(cell.elements) == "Si"]
+    assert silicon.max() > 4                    # the case, still there
+    assert "Si +5.69 (at most +4)" in note
+    assert "expand Si about" in note           # the cause, not the O
+    assert "expand O" not in note
+
+
+def test_the_possible_range_is_the_nearest_closed_shells():
+    """An atom cannot lose more than the electrons outside the
+    noble-gas core beneath it, nor gain more than the next one holds."""
+    assert eqeq.possible_charges("Na") == (-7, 1)
+    assert eqeq.possible_charges("Al") == (-5, 3)
+    assert eqeq.possible_charges("O") == (-2, 6)
+    assert eqeq.possible_charges("H") == (-1, 1)
+    assert eqeq.possible_charges("Fe") == (-10, 8)

@@ -5,10 +5,22 @@ ORB-v3 as an energy engine -- a machine-learned potential, in process.
 
 ORB-v3 is Orbital Materials' universal potential, Apache-2.0 code and
 weights, and the reason it is here beside MACE is the benchmark the
-deep review read: on MOFSimBench the best universal potentials reach
-89 % volume accuracy on frameworks, where UFF4MOF reaches 62 %.  It is
-the second model on :class:`~xtal.ff.ase_engine.ASECalculator`, which
-is why this module is a loader, a list of choices and nothing else.
+deep review read: on MOFSimBench (arXiv 2507.11806) the best universal
+potentials reach 89 % volume accuracy on frameworks, where UFF4MOF
+reaches 62 %.  It is the second model on
+:class:`~xtal.ff.ase_engine.ASECalculator`, which is why this module is
+a loader, a list of choices and nothing else.
+
+**That figure is for ORB-v3 with a dispersion correction, and this
+engine has none.**  Every model MOFSimBench ranks was run with D3(BJ)
+-- "computed at inference time using the torch-dftd package with
+dispersion_xc=pbe, dispersion_cutoff=40 Bohr, damping=bj" -- and the
+model alone is a PBE energy surface.  Measured with this application's
+own optimiser, cell free, against the COD cells: MOF-74(Zn) +0.66 %
+in volume without D3 and -2.02 % with it; MOF-5 +2.80 % and +2.17 %.
+So D3 moves a relaxed framework's volume by one to three percent, not
+always towards experiment, and a volume from this engine is the bare
+model's, not the benchmark's.
 
 Four things are particular to it, and each was measured on orb-models
 0.7.0 rather than read.
@@ -43,6 +55,7 @@ after resetting the default.
 
 from __future__ import annotations
 
+import functools
 import importlib.util
 import warnings
 from dataclasses import dataclass
@@ -198,13 +211,37 @@ def _build_model(options: ORBOptions):
             warnings.simplefilter("ignore", UserWarning)
             model, adapter = loader(device=device, precision=precision,
                                     compile=False)
-        return _Model(model, adapter, device=device)
+        return _pin_dtype(_Model(model, adapter, device=device))
     except Exception as exc:                        # noqa: BLE001
         raise CalculatorError(
             f"the ORB model could not be loaded ({options.model}): "
             f"{exc}") from None
     finally:
         torch.set_default_dtype(default)
+
+
+def _pin_dtype(model):
+    """Build every input graph in the model's own precision.
+
+    orb-models builds a graph -- positions, edge vectors, the strain
+    the stress is taken through -- in torch's *global* default dtype
+    unless it is told one, and its ASE calculator never tells it.  The
+    global is put back after loading (above), because every other
+    engine in the process reads it; so a float64 model was handed
+    float32 geometry, and along the force on MOF-74 the energy's slope
+    disagreed with the force by 2e-3 at a 1e-4 A step, against 6e-9
+    with float64 geometry.  That is the error double precision was
+    chosen to remove.
+
+    Given here, once, from the weights.  An orb-models that stops
+    taking these keywords fails loudly at the first evaluation rather
+    than going back to float32 in silence.
+    """
+    dtype = next(model.model.parameters()).dtype
+    model.adapter.from_ase_atoms = functools.partial(
+        model.adapter.from_ase_atoms, output_dtype=dtype,
+        graph_construction_dtype=dtype)
+    return model
 
 
 def forget_models() -> None:
@@ -250,9 +287,11 @@ ENGINES.register(Engine(
     name="orb",
     label="ORB-v3 (machine-learned)",
     description="Orbital Materials' universal potential.  Like MACE it "
-                "needs no parameters assigning; on the MOFSimBench "
-                "framework benchmark it is among the most accurate "
-                "for cell volumes.",
+                "needs no parameters assigning.  Run here without a "
+                "dispersion correction, so a relaxed framework's "
+                "volume differs by a percent or more from the "
+                "benchmark that ranks it among the most accurate, "
+                "which added D3.",
     build=build,
     order=31,
     provides=frozenset({"forces", "stress", "periodic"}),

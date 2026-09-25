@@ -13,6 +13,13 @@ is a loader, a list of choices and nothing else.
 What is particular to it was measured on mattersim 1.2.5, torch 2.11,
 the 1M model, on this CPU.
 
+**Its limits, in its authors' words** (the model card): "relatively
+low accuracy for organic polymeric systems", and trained on PBE with
+PBE's limits.  A MOF's linkers are organic, so a relaxation here wants
+checking against another engine.  Like ORB-v3 it runs with no
+dispersion correction, and MOFSimBench's numbers for it are with D3;
+see :mod:`xtal.ff.orb.calculator` for what that is worth in a volume.
+
 **It is the fast one.**  MOF-5 (424 atoms) is 0.51 s an evaluation in
 double precision, against ORB-v3's 2.58 s and MACE-MPA-0's 3.32 s.
 
@@ -204,10 +211,19 @@ def _build_model(options: MatterSimOptions):
         raise CalculatorError(
             f"MatterSim is not installed -- {install_command()} "
             f"({exc})") from None
-    dtype = "float64" if options.double_precision else "float32"
+    # Double precision needs the graph built in it.  MatterSim's default
+    # path makes positions and the cell with torch.FloatTensor and only
+    # then upcasts them to the model's dtype, which cannot put back the
+    # digits float32 dropped: a 20 A coordinate is good to about 2e-6 A,
+    # and along the force on MOF-74 the energy's slope disagreed with
+    # the force by 3e-3 at a 1e-4 A step, against 6e-9 through
+    # ``direct_graph``, which builds them in the model's dtype.  Same
+    # energies otherwise: 8e-7 eV apart, the float32 truncation.
+    kwargs = {"dtype": "float32"}
+    if options.double_precision:
+        kwargs = {"dtype": "float64", "direct_graph": True}
     try:
-        return _Model(load_path=options.model, device=device,
-                      dtype=dtype)
+        return _Model(load_path=options.model, device=device, **kwargs)
     except Exception as exc:                        # noqa: BLE001
         raise CalculatorError(
             f"the MatterSim model could not be loaded "
@@ -259,7 +275,10 @@ ENGINES.register(Engine(
     description="Microsoft's universal potential, an M3GNet trained "
                 "across temperature and pressure.  Like MACE it needs "
                 "no parameters assigning, and it is the fastest of "
-                "the three.",
+                "the three.  Its authors note relatively low accuracy "
+                "for organic polymeric systems, which is the linker "
+                "half of a framework; run here without a dispersion "
+                "correction.",
     build=build,
     order=32,
     provides=frozenset({"forces", "stress", "periodic"}),
