@@ -95,6 +95,14 @@ SOLVENTS = {
 }
 
 
+#: The site of the deposited cell an atom of the primitive one came
+#: from.  The primitive cell is in P1, where every atom is a site of its
+#: own, and an atom too close to an image of *its own site* is disorder
+#: across a symmetry element (:func:`_self_clashes`) -- which only this
+#: can still tell.  Removed by :func:`run` before anything is returned,
+#: because a site's props are written into a project.
+SOURCE_SITE = "prepare_site"
+
 #: Below this, two oxygens are alternatives: nothing in a framework
 #: puts two closer than a hydrogen bond allows, about 2.4 A (peroxide
 #: aside).  MOF-808's disordered waters sit 1.45 A apart, which a bond
@@ -152,6 +160,14 @@ def diagnose(structure: Structure) -> Diagnosis:
             f"{len(overlapping)} atoms written at full occupancy overlap "
             f"as two orientations of one group (three-membered rings of "
             f"bonds no linker has): an engine would count both"))
+    _pairs, across = _self_clashes(structure)
+    if across:
+        found.findings.append(Finding(
+            "disorder",
+            f"written at full occupancy but too close to an image of "
+            f"itself: {_across_symmetry(structure, across)}, one atom "
+            f"disordered across a symmetry element that an engine would "
+            f"count at every position"))
     if partial:
         occupancies = sorted({round(s.occupancy, 3) for s in partial})
         shown = ", ".join(f"{o:g}" for o in occupancies[:5])
@@ -338,6 +354,8 @@ def primitive(structure: Structure) -> tuple[Structure, str]:
     for a in kept:
         site = structure.sites[int(cell.site_idx[a])].copy()
         site.frac = frac[a]
+        site.props.setdefault(SOURCE_SITE,
+                              (int(cell.site_idx[a]), site.label))
         # Numbered afresh, as Reduce to P1 does: every image of a site
         # carried its label, and a CIF's bond loop names atoms by
         # label -- MIL-100's 3264 atoms had 816 labels between them,
@@ -370,7 +388,10 @@ def order_disorder(structure: Structure) -> tuple[Structure, str]:
     """
     sites = structure.sites
     overlap_pairs, overlapping = _overlaps(structure)
-    if all(s.occupancy >= FULL for s in sites) and not overlapping:
+    self_pairs, self_occupancy = _self_clashes(structure)
+    overlap_pairs = overlap_pairs | self_pairs
+    if all(s.occupancy >= FULL for s in sites) and not overlapping \
+            and not self_occupancy:
         return structure, "nothing is disordered"
     cell = p1.expand(structure)
     lattice = structure.lattice
@@ -378,6 +399,8 @@ def order_disorder(structure: Structure) -> tuple[Structure, str]:
     occupancy = np.array([sites[int(k)].occupancy
                           for k in cell.site_idx])
     occupancy[sorted(overlapping)] = 0.5
+    for atom, share in self_occupancy.items():
+        occupancy[atom] = share
     group = [str(sites[int(k)].props.get("disorder_group", "")).strip()
              for k in cell.site_idx]
     partial = occupancy < FULL
@@ -489,6 +512,12 @@ def order_disorder(structure: Structure) -> tuple[Structure, str]:
         message += (f"; {len(overlapping)} atoms the CIF writes at full "
                     f"occupancy are two overlapping orientations, and "
                     f"were ordered as alternatives at 1/2")
+    if self_occupancy:
+        message += (f"; written at full occupancy but too close to an "
+                    f"image of itself, each of "
+                    f"{_across_symmetry(structure, self_occupancy)} is "
+                    f"one atom disordered across a symmetry element, "
+                    f"and was ordered as such")
     if orphans:
         message += (f"; {len(orphans)} hydrogen(s) left out with the "
                     f"atom they ride on")
@@ -544,6 +573,83 @@ def _overlaps(structure) -> tuple[set, set]:
     riders = {h for a in atoms for h in graph.neighbors(a)
               if elements[h] == "H" and len(graph.neighbors(h)) == 1}
     return pairs, atoms | riders
+
+
+def _self_clashes(structure) -> tuple[set, dict]:
+    """Full-occupancy atoms too close to an image of their own site to
+    coexist with it: ``(pairs, occupancy)`` over the P1 cell, each atom
+    at one over the number of images in its cluster, and the hydrogens
+    that ride on one at its occupancy.
+
+    A site just off a symmetry element, disordered across it at 1/n,
+    is written by a file with no occupancy column at 1.  Ni2Cl2BTDD's
+    O4 is one pore water over two positions 1.21 A apart ("O3b
+    disordered by symmetry ... with occupancy 0.5" in the refinement's
+    own note), and read at 1 every pair was an O-O "molecule" the
+    solvent step could not name.  Images closer than
+    :data:`p1.SPECIAL_POSITION_TOL` are one atom already.
+
+    Closer than any bond, two images are never two atoms.  Inside
+    :data:`O_CLASH` but at a bond's length they may be -- a peroxide or
+    a bound O2 across an inversion centre is 1.2-1.5 A -- so there the
+    site must also be bonded to nothing but its own images: a ligand is
+    held by its metal, and a water over two positions by nothing.
+    """
+    cell = p1.expand(structure)
+    graph = bonding.graph(structure)
+    elements = cell.elements
+    full = [structure.sites[int(k)].occupancy >= FULL
+            for k in cell.site_idx]
+    pairs = neighbor_pairs(cell.frac, structure.lattice, 2.1,
+                           min_distance=0.0)
+    source = [_source(structure, int(k)) for k in cell.site_idx]
+
+    def alone(a):
+        return all(source[k] == source[a]
+                   for k in graph.neighbors(a) if elements[k] != "H")
+
+    found = set()
+    for i, j, d in zip(pairs.i, pairs.j, pairs.distance, strict=True):
+        i, j, d = int(i), int(j), float(d)
+        if i == j or not (full[i] and full[j]) \
+                or source[i] != source[j] \
+                or not _clash(elements[i], elements[j], d):
+            continue
+        unbondable = d < HEAVY_CLASH * 2 * el.covalent_radius(elements[i])
+        if unbondable or alone(i):
+            found.add((min(i, j), max(i, j)))
+    if not found:
+        return set(), {}
+    cluster = {a: {a} for pair in found for a in pair}
+    for i, j in found:
+        merged = cluster[i] | cluster[j]
+        for a in merged:
+            cluster[a] = merged
+    occupancy = {a: 1.0 / len(atoms) for a, atoms in cluster.items()}
+    for a in list(occupancy):
+        for h in graph.neighbors(a):
+            if elements[h] == "H" and len(graph.neighbors(h)) == 1:
+                occupancy[h] = occupancy[a]
+    return found, occupancy
+
+
+def _source(structure, k: int) -> tuple:
+    """``(index, label)`` of the deposited site that site ``k`` is."""
+    site = structure.sites[k]
+    return tuple(site.props.get(SOURCE_SITE, (k, site.label)))
+
+
+def _across_symmetry(structure, occupancy) -> str:
+    """``O4 over 2 positions``, per site, for :func:`_self_clashes`'s
+    atoms -- the hydrogens riding on them left out."""
+    cell = p1.expand(structure)
+    ways: dict[str, int] = {}
+    for atom, share in occupancy.items():
+        if cell.elements[atom] != "H":
+            _index, label = _source(structure, int(cell.site_idx[atom]))
+            ways[label] = round(1 / share)
+    return ", ".join(f"{label} over {n} positions"
+                     for label, n in sorted(ways.items()))
 
 
 def _shared_oxygens(bonds, elements) -> dict:
@@ -1681,6 +1787,8 @@ def run(structure: Structure, steps=DEFAULT_STEPS) -> Outcome:
                     f"material -- what it adds was not in the file, "
                     f"and is chosen by charge balance: {message}")
     if structure is not before:
+        for site in structure.sites:
+            site.props.pop(SOURCE_SITE, None)
         structure.ensure_labels()   # the planner's hydrogens have none
     if "cap" not in steps and all(s.occupancy >= FULL
                                   for s in structure.sites):
