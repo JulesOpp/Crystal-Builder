@@ -10,7 +10,7 @@ import pytest
 pytest.importorskip("PySide6")
 pytest.importorskip("pytestqt")
 
-from PySide6.QtWidgets import QMessageBox  # noqa: E402
+from PySide6.QtWidgets import QDialogButtonBox, QMessageBox  # noqa: E402
 
 from tests.test_app_shell import StubViewport  # noqa: E402
 from xtal.core.structure import Change  # noqa: E402
@@ -267,6 +267,79 @@ def test_select_menu_actions(open_rutile):
     assert document.selection.atoms == {0, 1}       # both Ti
     window.actions_["expand_bonded"].trigger()
     assert len(document.selection.atoms) == 6
+
+
+def test_selecting_bonds_between_elements_lets_the_atoms_go(
+        rutile_cif):
+    """Delete acts on the sites whenever an atom is held, so a bond
+    selection that kept its atoms would delete the titanium."""
+    document = Document.load(rutile_cif)
+    document.select([0, 1])
+    message = document.select_bonds_between("O", "Ti")
+    assert not document.selection.atoms
+    assert document.selection.bonds == {b.key()
+                                        for b in document.graph.bonds}
+    assert "Ti" in message and str(len(document.graph.bonds)) in message
+
+
+def test_a_pair_with_no_bonds_selects_nothing_and_says_so(rutile_cif):
+    document = Document.load(rutile_cif)
+    assert document.select_bonds_between("O", "O") == "no O-O bonds"
+    assert document.selection.is_empty
+
+
+def test_bonds_between_elements_can_be_deleted_in_one_step(
+        open_rutile, monkeypatch):
+    """The point of the command: pick a pair, press Delete."""
+    from xtalapp.dialogs.select_bonds import SelectBondsDialog
+    window, document = open_rutile
+    monkeypatch.setattr(SelectBondsDialog, "ask", classmethod(
+        lambda cls, *a, **k: {"first": "Ti", "second": "O"}))
+    assert window.actions_["select_bonds"].isEnabled()
+    window.actions_["select_bonds"].trigger()
+    assert document.selection.bonds
+    assert window.actions_["delete_selection"].isEnabled()
+    window.actions_["delete_selection"].trigger()
+    assert len(document.graph.bonds) == 0
+    assert document.structure.n_sites == 2
+    document.undo()
+    assert len(document.graph.bonds) > 0
+
+
+def test_bonds_between_elements_can_all_be_given_one_type(
+        open_rutile, monkeypatch):
+    from xtalapp.dialogs.select_bonds import SelectBondsDialog
+    window, document = open_rutile
+    monkeypatch.setattr(SelectBondsDialog, "ask", classmethod(
+        lambda cls, *a, **k: {"first": "O", "second": None}))
+    window.actions_["select_bonds"].trigger()
+    assert window.bond_type_menu.isEnabled()
+    window.actions_["bond_type_double"].trigger()
+    assert (document.count_bonds_of_order(2)
+            == len(document.graph.bonds))
+
+
+def test_the_bond_dialog_offers_the_elements_and_counts_the_pair(
+        qtbot, rutile_cif):
+    """OK on a pair nothing joins would select nothing; the count says
+    so before the user presses it."""
+    from xtal.core import selection as sel
+    from xtalapp.dialogs.select_bonds import ANY, SelectBondsDialog
+    document = Document.load(rutile_cif)
+    graph, cell = document.graph, document.cell
+    dialog = SelectBondsDialog(
+        ["O", "Ti"],
+        lambda a, b: len(sel.bonds_between_elements(graph, cell, a, b)),
+        first="Ti")
+    qtbot.addWidget(dialog)
+    ok = dialog.buttons.button(QDialogButtonBox.Ok)
+    dialog.second.setCurrentText("O")
+    assert ok.isEnabled() and "bond" in dialog.found.text()
+    dialog.second.setCurrentText("Ti")
+    assert not ok.isEnabled()
+    dialog.second.setCurrentText(ANY)
+    assert dialog.result_values() == {"first": "Ti", "second": None}
+    assert ok.isEnabled()
 
 
 def test_element_menu_is_built_from_the_structure(open_rutile):
