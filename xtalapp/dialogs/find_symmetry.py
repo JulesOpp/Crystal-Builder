@@ -111,7 +111,6 @@ class FindSymmetryDialog(QDialog):
 
         self.buttons = QDialogButtonBox(QDialogButtonBox.Close)
         self.adopt_button = QPushButton("Adopt this group")
-        self.adopt_button.setDefault(True)
         self.adopt_button.setToolTip(
             "Keep the group and reduce the cell to its asymmetric "
             "unit")
@@ -134,6 +133,11 @@ class FindSymmetryDialog(QDialog):
         layout.addWidget(self.note)
         layout.addWidget(self.table, 1)
         layout.addWidget(self.buttons)
+        # Only once the box is inside the dialog.  setDefault tells the
+        # *dialog* which button Return presses, and a button not yet in
+        # one has no dialog to tell -- so called any earlier, the
+        # dialog chose its own on show, and it chose Close.
+        self.adopt_button.setDefault(True)
 
         self.refresh()
 

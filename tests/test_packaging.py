@@ -436,3 +436,29 @@ def test_the_macos_floor_is_the_one_ci_installs_wheels_for():
 
     assert f"macosx_{floor.split('.')[0]}_0_" in workflow
     assert f'MACOSX_DEPLOYMENT_TARGET: "{floor}"' in workflow
+
+
+def test_pyside6_stays_below_6_10():
+    """The cap in pyproject.toml is load-bearing and nothing else in
+    the suite can see it: every widget test injects a stub for the 3D
+    view, so they all pass against a PySide6 whose real window repaints
+    forever at 100 % of a core and never answers again (6.10.0 onward;
+    the comment above ``gui`` in pyproject.toml has the bisection).
+    Only ``--selftest`` notices, and until now that ran after a merge.
+
+    This makes raising the bound a deliberate edit to a test that
+    says why it is there, rather than a version bump that looks
+    routine -- and checks the PySide6 this suite is running on."""
+    from importlib.metadata import version
+
+    from packaging.requirements import Requirement
+    from packaging.version import Version
+
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    gui = project["project"]["optional-dependencies"]["gui"]
+    (pyside,) = [Requirement(r) for r in gui
+                 if Requirement(r).name.lower() == "pyside6"]
+
+    assert Version("6.9.3") in pyside.specifier
+    assert Version("6.10.0") not in pyside.specifier
+    assert Version(version("PySide6")) < Version("6.10")

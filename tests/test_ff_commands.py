@@ -180,3 +180,50 @@ def test_a_props_entry_for_a_site_that_is_gone_is_dropped(rutile,
     restored, _view, _session = read_project(path)
     assert restored.sites[0].props["uff_type"] == "Ti3+4"
     assert restored.n_sites == 2
+
+
+def test_an_optimisation_never_changes_the_bonding_or_the_atoms():
+    """CLAUDE.md's rule, and nothing pinned it.  The test that can tell
+    is one where perceiving again would give a different answer: a
+    hydrogen 1.6 A from its oxygen, too far for perception, held there
+    by a bond the user drew.  UFF pulls it in to a normal O-H, and the
+    bonds afterwards are exactly the ones there were -- nothing
+    perceived, nothing dropped, the atoms the same atoms."""
+    from xtal.core import bonding, p1
+    from xtal.core.structure import Bond
+
+    structure = water()
+    far = structure.lattice.to_frac(np.array([1.6, 0.0, 0.0]))
+    structure.sites[1].frac = far
+    structure.touch()
+    structure.add_bond(Bond(0, 1, kind="explicit"))
+    structure.add_bond(Bond(0, 2, kind="explicit"))
+    bonds = list(structure.bonds)
+    pairs = sorted((b.i, b.j) for b in bonding.graph(structure).bonds)
+    # What perception found: O-H2 only, H1 being too far.  Perceiving
+    # again after the run would find O-H1 too, at 0.99 A -- which is
+    # the change this is here to catch.
+    perceived = sorted((b.i, b.j) for b in structure.perceived.bonds)
+    assert perceived == [(0, 2)]
+    atoms = [(s.element, s.label, s.occupancy) for s in structure.sites]
+
+    calculator = ENGINES.build("uff", structure)
+    result = optimize.run(calculator, structure, max_steps=300,
+                          force_tolerance=1e-3)
+    host = Host(structure)
+    push(host, ff_commands.ApplyOptimizedGeometry.from_result(result))
+
+    moved = host.structure
+    graph = bonding.graph(moved)
+    cell = p1.expand(moved)
+    lengths = [b.length(cell.frac, moved.lattice.matrix)
+               for b in graph.bonds]
+    assert max(lengths) < 1.2          # it was pulled in: a real test
+    assert list(moved.bonds) == bonds
+    # The same atoms joined.  Not the same keys: water sits on the box
+    # corner, an atom wraps as it relaxes, and the image that reaches
+    # the same neighbour is then a different number.
+    assert sorted((b.i, b.j) for b in graph.bonds) == pairs
+    assert sorted((b.i, b.j) for b in moved.perceived.bonds) == perceived
+    assert [(s.element, s.label, s.occupancy)
+            for s in moved.sites] == atoms

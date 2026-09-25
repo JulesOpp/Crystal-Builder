@@ -229,6 +229,19 @@ class CellBond:
     #: see :class:`Bond`.  Perception never states an order.
     stated: bool = False
 
+    def length(self, frac, matrix) -> float:
+        """How long the bond is *now*, with the atoms where ``frac``
+        puts them.
+
+        ``distance`` is what the bond measured when it was perceived,
+        and bonds are not perceived again when atoms move -- so after a
+        relaxation or a drag it is a number from before.  Anything that
+        shows a bond length to somebody wants this one.
+        """
+        frac = np.asarray(frac, dtype=float)
+        separation = frac[self.j] + np.asarray(self.image) - frac[self.i]
+        return float(np.linalg.norm(separation @ np.asarray(matrix)))
+
     def key(self) -> tuple:
         if (self.j, self.image) < (self.i, tuple(-v for v in self.image)):
             return (self.j, self.i, tuple(-v for v in self.image))

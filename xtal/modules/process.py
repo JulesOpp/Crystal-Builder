@@ -41,11 +41,13 @@ stream keeps them adjacent, which is how anybody reads a log.
 
 from __future__ import annotations
 
+import atexit
 import os
 import shutil
 import signal
 import subprocess
 import sys
+import threading
 import time
 from collections import deque
 from dataclasses import dataclass
@@ -400,6 +402,7 @@ class ExternalProcess:
             raise MissingProgram(
                 Path(self.argv[0]).name,
                 searched=(self.argv[0],)) from exc
+        _started(self)
         try:
             # And once more, for the gap between that check and the
             # process existing: the callback fired into a None and had
@@ -408,7 +411,18 @@ class ExternalProcess:
                 self.cancel()
             self._stream()
             self._returncode = self._process.wait()
+        except BaseException:
+            # Whatever is unwinding through here -- Ctrl+C on the
+            # command line, a SystemExit, a bug in on_line -- the
+            # program goes with it, now.  The finally below forgets
+            # the cancel callback, so the handler that catches this
+            # and presses Stop would press it on nothing, and a child
+            # in a session of its own hears no signal of the terminal's.
+            self._cancelled = True
+            _end(self._process, self.grace)
+            raise
         finally:
+            _finished(self)
             if cancel is not None:
                 cancel.forget(self.cancel)
             self._close()
@@ -461,11 +475,16 @@ class ExternalProcess:
         process = self._process
         if process is None or process.poll() is not None:
             return
-        _terminate(process)
-        try:
-            process.wait(timeout=self.grace)
-        except subprocess.TimeoutExpired:
-            _kill(process)
+        if not _terminate(process):
+            self._write(f"note: could not end what {Path(self.argv[0]).name}"
+                        f" started ({_TREE_FAILED}); a program it "
+                        f"launched may still be running")
+        # The kill after the grace is a timer's, not this thread's: this
+        # is the window's thread, and waiting here froze it for the
+        # whole grace whenever a program ignored its SIGTERM.
+        timer = threading.Timer(self.grace, _kill_if_running, (process,))
+        timer.daemon = True
+        timer.start()
 
     @property
     def returncode(self) -> int | None:
@@ -479,6 +498,77 @@ class ExternalProcess:
     def running(self) -> bool:
         return (self._process is not None
                 and self._process.poll() is None)
+
+
+# ======================================================================
+#  NOTHING LEFT RUNNING
+# ======================================================================
+
+#: Every process started here and not yet waited for.  A child is put
+#: in a session of its own (:func:`_isolation`), so that the whole tree
+#: can be signalled -- and so that no signal follows this process's
+#: death.  This set is how an exit finds what it would otherwise leave
+#: behind.
+_RUNNING: set = set()
+_RUNNING_LOCK = threading.Lock()
+
+#: How long the exit waits for everything it signalled, in all, before
+#: killing what is left.  Short: somebody is quitting.
+REAP_GRACE_SECONDS = 1.0
+
+
+def _started(process: ExternalProcess) -> None:
+    with _RUNNING_LOCK:
+        _RUNNING.add(process)
+
+
+def _finished(process: ExternalProcess) -> None:
+    with _RUNNING_LOCK:
+        _RUNNING.discard(process)
+
+
+def reap_all(grace: float = REAP_GRACE_SECONDS) -> int:
+    """End every program still running, and say how many there were.
+
+    Registered with ``atexit`` below, so an interpreter that exits with
+    a run in flight on another thread -- an exception escaping
+    ``main``, ``sys.exit`` from anywhere, the window closing by a path
+    that skipped ``closeEvent`` -- takes its children with it.  What
+    ``atexit`` cannot see is a crash or a SIGKILL: nothing in this
+    process runs then, and covering that needs a watcher outside it.
+    """
+    with _RUNNING_LOCK:
+        live = [p._process for p in _RUNNING
+                if p._process is not None and p._process.poll() is None]
+    for process in live:
+        _terminate(process)
+    deadline = time.monotonic() + grace
+    for process in live:
+        try:
+            process.wait(timeout=max(0.0, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            _kill(process)
+    return len(live)
+
+
+atexit.register(reap_all)
+
+
+def _end(process, grace: float) -> None:
+    """Terminate, wait out the grace here, kill what is left.  For a
+    thread that is on its way out anyway."""
+    if process is None or process.poll() is not None:
+        return
+    _terminate(process)
+    try:
+        process.wait(timeout=grace)
+    except subprocess.TimeoutExpired:
+        _kill(process)
+
+
+def _kill_if_running(process) -> None:
+    if process.poll() is None:
+        _kill(process)
 
 
 # ======================================================================
@@ -498,23 +588,29 @@ def _isolation() -> dict:
     return {"start_new_session": True}
 
 
-def _terminate(process) -> None:
-    if WINDOWS:                                     # pragma: no cover
-        _end_tree(process)
-        return
+def _terminate(process) -> bool:
+    """Ask the whole tree to stop.  False when it could not be reached
+    -- on Windows, when taskkill could not run."""
+    if WINDOWS:
+        return _end_tree(process)
     _quietly(lambda: os.killpg(os.getpgid(process.pid),
                                signal.SIGTERM))
+    return True
 
 
-def _kill(process) -> None:
-    if WINDOWS:                                     # pragma: no cover
-        _end_tree(process)
-        return
+def _kill(process) -> bool:
+    if WINDOWS:
+        return _end_tree(process)
     _quietly(lambda: os.killpg(os.getpgid(process.pid),
                               signal.SIGKILL))
+    return True
 
 
-def _end_tree(process) -> None:                     # pragma: no cover
+#: Why the last taskkill failed, for the note in the log.
+_TREE_FAILED = "taskkill did not run"
+
+
+def _end_tree(process) -> bool:
     """End a Windows process and everything it started.
 
     ``TerminateProcess`` ends the one process it is given, and a
@@ -526,6 +622,7 @@ def _end_tree(process) -> None:                     # pragma: no cover
     because a console program has no window to be asked to close, and
     ``TerminateProcess`` was never anything gentler.
     """
+    ended = True
     try:
         subprocess.run(
             ["taskkill", "/F", "/T", "/PID", str(process.pid)],
@@ -533,8 +630,12 @@ def _end_tree(process) -> None:                     # pragma: no cover
             stderr=subprocess.DEVNULL, timeout=GRACE_SECONDS,
             check=False, creationflags=subprocess.CREATE_NO_WINDOW)
     except (OSError, subprocess.SubprocessError):
-        pass
+        # Only the process we launched can be ended now, and a program
+        # a wrapper started runs on.  Said by the caller, into the log:
+        # it used to pass here in silence.
+        ended = False
     _quietly(process.kill)
+    return ended
 
 
 def _quietly(action) -> None:

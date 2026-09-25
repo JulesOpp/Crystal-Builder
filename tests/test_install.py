@@ -43,7 +43,7 @@ def test_an_installed_copy_names_the_package(monkeypatch):
 def _string_literals(path):
     """Every string in the file that is not a docstring or comment."""
     tokens = tokenize.generate_tokens(
-        io.StringIO(path.read_text()).readline)
+        io.StringIO(path.read_text(encoding="utf-8")).readline)
     previous = None
     for token in tokens:
         if token.type == tokenize.STRING:

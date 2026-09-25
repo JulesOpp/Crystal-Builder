@@ -20,7 +20,7 @@ SHELL = CORE.parent / "xtalapp"
 
 
 def _imported_modules(path: pathlib.Path) -> set[str]:
-    tree = ast.parse(path.read_text(), filename=str(path))
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     names = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
@@ -92,7 +92,7 @@ RADIUS_FOR_DRAWING = {
 
 
 def _functions_calling(path: pathlib.Path, name: str) -> set[str]:
-    tree = ast.parse(path.read_text(), filename=str(path))
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     found = set()
     for function in ast.walk(tree):
         if not isinstance(function,

@@ -193,6 +193,45 @@ def test_the_wrap_correction_costs_nothing_when_nothing_wrapped(
     assert bonding.graph(straddling) is not first
 
 
+def test_a_stated_bond_order_survives_an_atom_crossing_a_face(
+        straddling):
+    """Redrawing an atom on the far side of the cell moves every image
+    it appears in, and the graph is rebuilt over the new ones.  The
+    rebuild copied the order but not ``stated`` -- so the double bond a
+    user set went back to being an inferred one the moment an atom
+    drifted over x = 0: the menu ticked Automatic, and the order was
+    the inference's to change."""
+    (bond,) = bonding.perceive(straddling)
+    straddling.add_bond(Bond(bond.i, bond.j, bond.image, order=2.0,
+                             kind="explicit", stated=True))
+    straddling.touch(Change.TOPOLOGY)
+    (before,) = bonding.graph(straddling).bonds
+    assert before.stated and before.order == 2.0
+
+    straddling.set_frac(0, [-0.01, 0.5, 0.5])   # redrawn at x = 0.99
+
+    (after,) = bonding.graph(straddling).bonds
+    assert after.image != before.image          # it was rebased
+    assert after.stated
+    assert after.order == 2.0
+
+
+def test_a_bond_says_how_long_it_is_now_not_when_it_was_found(
+        straddling):
+    """``distance`` is the length at perception, and bonds are not
+    perceived again when atoms move -- that is the invariant.  So after
+    a relaxation or a drag it is a number from before, and the
+    Inspector was listing it as the neighbour's distance."""
+    (bond,) = bonding.graph(straddling).bonds
+    straddling.set_frac(1, [0.80, 0.5, 0.5])        # 0.40 A further
+    cell = p1.expand(straddling)
+
+    (still,) = bonding.graph(straddling).bonds
+    assert still.distance == pytest.approx(1.36)
+    assert still.length(cell.frac, straddling.lattice.matrix) == \
+        pytest.approx(1.76)
+
+
 def test_rebase_is_its_own_inverse(straddling):
     bonds = bonding.perceive(straddling)
     tau = np.zeros((2, 3), dtype=int)

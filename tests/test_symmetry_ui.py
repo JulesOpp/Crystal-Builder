@@ -131,6 +131,28 @@ def test_find_symmetry_dialog_survives_a_nonsense_tolerance(
     assert dialog.adopt_button.isEnabled()
 
 
+def test_return_adopts_the_group_the_dialog_found(qtbot, flat_document):
+    """Return is the answer for somebody who has read the group and
+    agrees with it.  ``setDefault`` was called before the button joined
+    the box, which takes the default for its own Close, so Return
+    closed the dialog and adopted nothing -- with the line that looks
+    like the fix sitting in the source."""
+    from PySide6.QtCore import Qt
+
+    dialog = FindSymmetryDialog(flat_document)
+    qtbot.addWidget(dialog)
+    dialog.show()
+    qtbot.waitExposed(dialog)
+    close = dialog.buttons.button(QDialogButtonBox.Close)
+    assert dialog.adopt_button.isDefault()
+    assert not close.isDefault()
+
+    qtbot.keyClick(dialog, Qt.Key_Return)
+
+    assert dialog.result() == QDialog.Accepted
+    assert flat_document.structure.space_group.number == 136
+
+
 def test_adopting_the_group_reduces_the_cell(qtbot, flat_document):
     dialog = FindSymmetryDialog(flat_document)
     qtbot.addWidget(dialog)

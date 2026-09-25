@@ -509,20 +509,15 @@ bundle.  Three layers, cheapest first:
 
 ## 9. Ship blockers
 
-Two things should be settled before a build is put in front of
-anybody, and neither is a packaging problem.
+Two things had to be settled before a build is put in front of
+anybody, and neither is a packaging problem.  One has been.
 
-**The `workers.py` deadlock.**  CLAUDE.md is explicit: the lock-order
-inversion between Qt's connection mutex and the GIL "can hang the
-shipped application the same way when a module run finishes", and it
-is **unfixed**.  In the suite it is a wedged run one time in four; in
-a shipped app it is a hang with no traceback, in the one code path
-that runs after a calculation the user waited for.  Shipping the app
-with a known hang at the end of a long job is worse than shipping it
-a fortnight later.  This is its own piece of work — the note says
-holding the pair alive from Python is not enough on its own — and it
-should be fixed, or reduced to a documented and rare case, before
-release rather than after.
+**The `workers.py` deadlock** was the first of two, and it is fixed
+(2026-09-21).  The lock-order inversion between Qt's connection mutex
+and the GIL could hang the shipped application when a module run
+finished; nothing is deleted by Qt now, and a stress harness that
+aborted three configurations of five went clean in all fifteen runs.
+CLAUDE.md, "A full run used to wedge", has the account.
 
 **Nothing is signed and nothing is notarised**, so § 5 and § 6's
 instructions are load-bearing.  That is acceptable for a first

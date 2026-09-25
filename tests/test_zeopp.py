@@ -239,6 +239,22 @@ def test_several_channels_each_get_a_row():
     assert "1D" in rows[0].texts[1] and "3D" in rows[1].texts[1]
 
 
+def test_the_report_says_where_d_f_is_not_known():
+    """The half of CLAUDE.md's porosity rule that is words: D_f is a
+    bottleneck on an edge, no Zeo++ output gives edge radii, so what
+    is drawn for it is the channel it travels along -- and the report
+    says so.  The meanings test beside it only asked that each meaning
+    was not empty, so this sentence could have become anything."""
+    channels = (porosity.Channel(0, 1, 12.0, 11.0, 12.0),)
+    report = zeopp._diameter_report(
+        porosity.parse_res("out.res 12.0 4.0 12.0"), channels,
+        "Nitrogen (1.86 A)", "radii from Zeo++'s own table")
+    note = report.tables[0].note
+
+    assert "bottleneck" in note
+    assert "no output carries it" in note
+
+
 def test_the_run_comes_back_with_something_to_draw(
         fake_network, rutile, workspace):
     """The whole point of the entry: where the pores are is an answer

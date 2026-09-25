@@ -61,6 +61,7 @@ import filecmp
 import json
 import re
 import shutil
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -118,8 +119,49 @@ def resolved(path) -> Path | None:
         return Path(path)
 
 
+#: What decomposing a name does not reach: letters with no accent to
+#: take off, and the Greek alphabet, which is how phases are named --
+#: alpha-quartz and beta-cristobalite differ only in the letter.
+_SPELLED = {
+    "ß": "ss", "æ": "ae", "Æ": "AE", "œ": "oe", "Œ": "OE", "ø": "o",
+    "Ø": "O", "ł": "l", "Ł": "L", "đ": "d", "Đ": "D", "þ": "th",
+    "Þ": "Th", "ð": "d", "Ð": "D", "ı": "i",
+    **dict(zip(
+        "αβγδεζηθικλμνξοπρστυφχψω",
+        ("alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta",
+         "theta", "iota", "kappa", "lambda", "mu", "nu", "xi",
+         "omicron", "pi", "rho", "sigma", "tau", "upsilon", "phi",
+         "chi", "psi", "omega"), strict=True)),
+    **dict(zip(
+        "ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ",
+        ("Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta",
+         "Theta", "Iota", "Kappa", "Lambda", "Mu", "Nu", "Xi",
+         "Omicron", "Pi", "Rho", "Sigma", "Tau", "Upsilon", "Phi",
+         "Chi", "Psi", "Omega"), strict=True)),
+    "ς": "sigma",
+}
+
+
 def safe_name(text: str, fallback: str = "structure") -> str:
-    """A file name that keeps its meaning on macOS and on Windows."""
+    """A file name that keeps its meaning on macOS and on Windows.
+
+    Accents are taken off rather than the letter with them: the file
+    systems cope with "é" but do not agree on how to spell it (macOS
+    decomposes, Windows does not), and a name that compares unequal to
+    itself is worse than one without the accent.  So "café" is "cafe",
+    where it used to be "caf" and the same folder as "cafè".
+    """
+    text = "".join(_SPELLED.get(c, c) for c in str(text))
+    text = "".join(c for c in unicodedata.normalize("NFKD", text)
+                   if not unicodedata.combining(c))
+    return _legacy_safe_name(text, fallback)
+
+
+def _legacy_safe_name(text: str, fallback: str = "structure") -> str:
+    """What :func:`safe_name` was before it transliterated: anything
+    outside ASCII simply deleted.  Kept because workspaces made then
+    have folders named this way, and opening the same file again has
+    to find them."""
     cleaned = _UNSAFE.sub("_", str(text)).strip("._")
     return cleaned or fallback
 
@@ -504,6 +546,19 @@ class Workspace:
         """
         source = Path(source)
         stem = safe_name(name or source.stem, "structure")
+        legacy = _legacy_safe_name(name or source.stem, "structure")
+        if legacy != stem:
+            # A workspace from before accents were kept filed this
+            # file under the old spelling; the bytes say whether it is
+            # the same one.
+            for candidate in _numbered(legacy):
+                folder = self.root / candidate
+                if not folder.exists():
+                    break
+                target = folder / source.name
+                if target.exists() and filecmp.cmp(source, target,
+                                                   shallow=False):
+                    return Entry(path=folder, workspace=self)
         for candidate in _numbered(stem):
             folder = self.root / candidate
             target = folder / source.name
