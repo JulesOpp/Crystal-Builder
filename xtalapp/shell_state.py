@@ -360,7 +360,7 @@ class ShellRefresh:
         editable = has_document and not document.is_playing
         self.actions_.set_enabled(
             ["reduce_p1", "paste", "add_atom_dialog", "add_hydrogens",
-             "fill_pores", "interpenetrate",
+             "fill_pores", "interpenetrate", "prepare_simulation",
              "find_symmetry", "set_space_group", "standardize",
              "primitive", "wyckoff", "merge_duplicates", "subgroup",
              "invert", "supercell",

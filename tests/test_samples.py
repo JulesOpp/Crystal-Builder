@@ -50,7 +50,7 @@ def test_every_sample_in_the_catalogue_is_a_file_that_is_there():
     missing = [s.label for s in samples.SAMPLES if s.path is None]
 
     assert missing == []
-    assert len(samples.SAMPLES) == 23
+    assert len(samples.SAMPLES) == 39
 
 
 def test_every_sample_is_a_structure_this_application_can_read():
@@ -154,12 +154,15 @@ def test_the_file_menu_offers_every_sample(window):
     ``window.modules_menu`` on a checkout with none of this in it."""
     labels = [a.text() for a in window.sample_menu.actions()
               if not a.isSeparator()]
-    cod = window.sample_group_menus[samples.COD]
+    groups = [group for group, _title in samples.GROUPS
+              if group != samples.SHIPPED]
+    submenus = [window.sample_group_menus[group] for group in groups]
 
     assert labels == [s.label for s in samples.in_group(samples.SHIPPED)
-                      ] + [cod.title()]
-    assert [a.text() for a in cod.actions()] == [
-        s.label for s in samples.in_group(samples.COD)]
+                      ] + [menu.title() for menu in submenus]
+    for group, menu in zip(groups, submenus, strict=True):
+        assert [a.text() for a in menu.actions()] == [
+            s.label for s in samples.in_group(group)]
     assert window.sample_menu.isEnabled()
     assert window.sample_menu.parentWidget().title() == "&File"
 
@@ -268,7 +271,7 @@ def test_every_file_in_the_samples_folder_is_named_in_provenance():
 
     unnamed = [f for f in files if f"`{f}`" not in provenance]
 
-    assert len(files) == 26
+    assert len(files) == 42
     assert unnamed == []
 
 
@@ -288,3 +291,42 @@ def test_the_cod_samples_are_in_their_own_section_of_open_sample(window):
 
     assert document.entry.name == "MOF-5_COD_1516287"
     assert document.path.name == "MOF-5.cif"
+
+
+def test_every_cod_framework_has_a_prepared_copy_beside_it():
+    """Two groups that drift apart -- a COD sample with no prepared
+    copy, or a prepared one whose original went -- leave the menu
+    offering a model nobody can trace to its crystal."""
+    cod = {s.cod_id for s in samples.in_group(samples.COD)}
+    prepared = {s.cod_id for s in samples.in_group(samples.PREPARED)}
+    assert prepared == cod
+    assert samples.get("prep_mil101").entry_name == \
+        "MIL-101(Cr) prepared COD 4000663"
+
+
+def test_a_prepared_sample_needs_nothing_more_to_be_simulated():
+    """Whole atoms, nothing the preparation would still change, and in
+    P1 -- which is what ordering the disorder leaves."""
+    from xtal.core import prepare
+
+    for sample in samples.in_group(samples.PREPARED):
+        structure = FORMATS.read(sample.path)
+        assert all(site.occupancy == 1.0 for site in structure.sites)
+        assert not prepare.diagnose(structure), sample.label
+
+
+@pytest.mark.slow
+def test_the_prepared_samples_are_what_the_script_writes():
+    """Coordinate for coordinate where nothing was relaxed, atom for
+    atom where something was: a change to the preparation that would
+    make a different model fails here until the files are written
+    again."""
+    import importlib.util
+
+    script = samples.folder().parent.parent / "scripts" / (
+        "prepare_samples.py")
+    spec = importlib.util.spec_from_file_location("prepare_samples",
+                                                  script)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert module.main(["--check"]) == 0

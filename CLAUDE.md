@@ -262,6 +262,40 @@ stress case).
   wins, which near a special position is the identity. Snapping a site
   onto the position is idealisation, and Standardize is where that
   lives.
+- **Preparing for simulation is a rebuild, one undo step, and every
+  step says what it chose.** Structure ▸ Prepare for simulation… and
+  `xtal prepare` run `xtal/core/prepare.py`: sites written twice
+  merged, deuterium, the declared centring's primitive cell, disorder
+  ordered into whole components, solvent out, M3O trimers completed,
+  hydrogens. **A step that changes the chemistry -- adds what the
+  file never located -- is never a default, and is a warning either
+  way** (`prepare.CHEMISTRY`, today the trimers' terminal ligands):
+  unticked in the dialog and left out of `xtal prepare` unless named,
+  and `prepare.run`'s cautions say, in warning tone, that it changed
+  the chemistry when run and that the cell is not neutral when not.
+  Left alone, a trimer's terminal oxygens get no hydrogen at all,
+  because the planner would make all three hydroxide. Duplicates go
+  first because a ConQuest export writes symmetry copies as sites
+  (Ni2Cl2BTDD: 40 sites, 13 of them independent), which stack 1152
+  atoms on 378 places and made the centring's count refuse. **Chemistry is
+  decided by connectivity and charge, never by a refinement's bond
+  lengths**: a powder model's ring bonds of 1.51 A are still a
+  benzene ring, and a metal bond is dative, not covalent -- the
+  valence planner reads it as covalent, which is why an M6O8 core's
+  terminal ligands, a mu2-OH and a bound methanol are placed by rule
+  (`prepare.RULES`). A bare oxygen on one metal that no cluster rule
+  covers is a **water** (`_aqua_hydrogens`): hydroxide takes a proton
+  away, a charge claim only the M6 and trimer rules know enough to
+  make, and the planner made Ni2Cl2BTDD's "diaqua" oxygens hydroxide.
+  Ordering keeps a place's most probable occupant
+  and the composition the occupancies add up to; a hydrogen goes with
+  the atom it rides on; no oxygen is shared by two oxyanions; two
+  orientations written at full occupancy (a three-membered ring of
+  sp2 bonds) are disorder too. Bonds drawn by hand are refused rather
+  than lost. The shipped COD files stay as deposited;
+  `resources/samples/prepared/` holds the prepared models, written by
+  `scripts/prepare_samples.py`, some relaxed with ORB-v3 + D3(BJ)
+  because UFF made MIL-88B's linker geometry worse, not better.
 - **A dummy atom is a marker, not chemistry.** `X` — see
   `elements.DUMMY_ELEMENTS`. Perception never bonds one, and nothing
   that reasons chemically is ever handed one — it is **held back at

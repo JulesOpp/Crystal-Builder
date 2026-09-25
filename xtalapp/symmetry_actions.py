@@ -15,6 +15,7 @@ from xtalapp.dialogs.fill_pores import FillPoresDialog
 from xtalapp.dialogs.find_symmetry import FindSymmetryDialog
 from xtalapp.dialogs.interpenetrate import InterpenetrateDialog
 from xtalapp.dialogs.merge_duplicates import MergeDuplicatesDialog
+from xtalapp.dialogs.prepare import PrepareDialog
 from xtalapp.dialogs.spacegroup import SpaceGroupDialog
 from xtalapp.dialogs.subgroup import SubgroupDialog
 from xtalapp.dialogs.supercell import SupercellDialog
@@ -151,6 +152,21 @@ class SymmetryActions:
         document = self.current_document()
         if document is not None:
             self._report(InterpenetrateDialog.ask(document, self))
+
+    def prepare_dialog(self) -> None:
+        """Not :meth:`_report`: every step's sentence is a warning of
+        the report, and a preparation that worked is not one to put a
+        warning box up for -- the dialog showed them before it ran."""
+        document = self.current_document()
+        if document is None:
+            return
+        report = PrepareDialog.ask(document, self)
+        if report is None:
+            return
+        self.statusBar().showMessage(report.message, 8000)
+        if not report.ok:
+            QMessageBox.warning(self, "Prepare for simulation",
+                                report.message)
 
     def supercell_dialog(self) -> None:
         document = self.current_document()

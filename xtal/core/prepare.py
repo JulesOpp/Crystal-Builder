@@ -1,0 +1,1703 @@
+"""
+xtal.core.prepare
+=================
+From a deposited CIF to a cell a calculation can use.
+
+A crystal structure as refined is a statement about the *average* over
+every unit cell of a sample, and several things that are true of an
+average are not true of any one cell:
+
+* **Disorder.**  A site with an occupancy of 0.5 is an atom that is
+  there in half the cells.  An engine given it computes a whole atom --
+  and where two half-atoms are alternatives 0.4 A apart, a pair nobody
+  has ever seen.
+* **Solvent.**  The pores of an as-made framework hold whatever it was
+  crystallised from, often with no hydrogens found.
+* **Deuterium**, from a neutron experiment.
+* **Missing hydrogens**, never located by X-rays.
+* **Open metal sites** a refinement left bare -- the terminal ligand of
+  an M3O trimer, disordered over F, OH and water and often not modelled.
+* **The conventional cell**, four times the primitive one when the
+  group is F-centred: MIL-101 is 16 000 atoms, and 4 000 in primitive.
+
+Each is a separate function here returning ``(structure, message)``
+and never mutating its argument -- the argument itself when there was
+nothing to do -- so the dialog can show what each would do before it
+is done.  None of them
+is a guess dressed up as a fact: every message says what was chosen.
+
+**How disorder is ordered.**  Partial atoms are grouped into *units* --
+the atoms that move together, by bonds among them and by the CIF's own
+``_atom_site_disorder_group`` where it gives one.  Two units that would
+put atoms too close to coexist are *alternatives*.  Then, per cluster of
+alternatives, as many units are kept as the occupancies add up to
+(rounded), the most occupied first; and a unit with no alternative is
+kept as many times as its occupancy says it is present in the cell.  So
+each place gets its most probable occupant -- including nothing -- and
+the cell keeps the composition the refinement found: a counter-ion
+spread over six positions at 1/6 is one ion, not none.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+import numpy as np
+
+from xtal.core import bonding, p1
+from xtal.core import elements as el
+from xtal.core.neighbors import neighbor_pairs
+from xtal.core.structure import Structure
+
+#: An occupancy this close to 1 is 1: refinements write 0.999.
+FULL = 0.999
+
+#: Below this, two hydrogens are alternatives rather than neighbours.
+#: The closest real pair is a water's own, 1.53 A; a methyl's are 1.78.
+#: The alternative positions of a disordered methyl are 0.5-1.3 A
+#: apart -- pbz-MOF-1 has them at 1.27.
+H_CLASH = 1.4
+
+#: Below this fraction of the covalent bond length, two heavy atoms are
+#: alternatives.  A real bond is never shorter than about 85 % of it;
+#: the alternatives in the shipped COD files are 0.44-1.12 A apart.
+HEAVY_CLASH = 0.8
+
+#: Occupancies further apart than this are not one disorder component.
+#: Refinements tie a component's atoms to one free variable, so they
+#: agree to the digits written; 0.02 allows for rounding.
+SAME_COMPONENT = 0.02
+
+#: The central atoms of the oxyanions a framework holds as counter-ions
+#: or ligands: nitrate, sulfate, phosphate, perchlorate, selenate.  No
+#: oxygen is shared between two of them.
+OXYANION_CENTRES = frozenset({"N", "S", "P", "Cl", "Se"})
+
+#: Metals an M3O(RCO2)6 trimer is made of in the frameworks that have
+#: one, and are trivalent in it -- which is what makes one anion and
+#: two waters per trimer the neutral count.
+TRIVALENT_TRIMER_METALS = frozenset({
+    "Al", "Sc", "Ti", "V", "Cr", "Mn", "Fe", "Ga", "In"})
+
+#: Metal-ligand distance for a terminal ligand put on an open site, A.
+TERMINAL_DISTANCE = {"F": 1.95, "O": 2.05}
+
+#: Heavy-atom formulas of the solvents a framework is crystallised
+#: from.  Heavy atoms only, because an X-ray structure seldom has the
+#: solvent's hydrogens.  A lone O is water.
+SOLVENTS = {
+    "O": "water", "C1O1": "methanol", "C2O1": "ethanol",
+    "C3N1O1": "DMF", "C5N1O1": "DEF", "C2O1S1": "DMSO",
+    "C3O1": "acetone", "C4O1": "THF", "C2N1": "acetonitrile",
+    "C4O2": "dioxane", "C1Cl2": "dichloromethane",
+    "C1Cl3": "chloroform", "C5N1": "pyridine", "C6": "benzene",
+    "C7": "toluene", "C5N1O1_": "NMP",
+}
+
+
+#: Below this, two oxygens are alternatives: nothing in a framework
+#: puts two closer than a hydrogen bond allows, about 2.4 A (peroxide
+#: aside).  MOF-808's disordered waters sit 1.45 A apart, which a bond
+#: perceiver takes for an O-O bond.
+O_CLASH = 2.0
+
+
+def _clash(a: str, b: str, distance: float) -> bool:
+    """Whether two atoms are too close to both be there."""
+    if a in ("H", "D") and b in ("H", "D"):
+        return distance < H_CLASH
+    if a == "O" and b == "O":
+        return distance < O_CLASH
+    return distance < HEAVY_CLASH * (el.covalent_radius(a)
+                                     + el.covalent_radius(b))
+
+
+# ======================================================================
+#  WHAT IS WRONG
+# ======================================================================
+
+@dataclass(frozen=True)
+class Finding:
+    """One thing between this structure and a calculation."""
+
+    key: str            # the operation that addresses it
+    text: str
+
+
+@dataclass
+class Diagnosis:
+    findings: list[Finding] = field(default_factory=list)
+
+    def __bool__(self) -> bool:
+        return bool(self.findings)
+
+    def keys(self) -> list[str]:
+        return [f.key for f in self.findings]
+
+    def text(self) -> str:
+        if not self.findings:
+            return "nothing to prepare: no disorder, solvent, " \
+                   "deuterium or missing hydrogens were found"
+        return "\n".join(f"- {f.text}" for f in self.findings)
+
+
+def diagnose(structure: Structure) -> Diagnosis:
+    """What :func:`prepare` would change, and why, without changing it."""
+    found = Diagnosis()
+    partial = [s for s in structure.sites if s.occupancy < FULL]
+    _pairs, overlapping = _overlaps(structure)
+    if overlapping:
+        found.findings.append(Finding(
+            "disorder",
+            f"{len(overlapping)} atoms written at full occupancy overlap "
+            f"as two orientations of one group (three-membered rings of "
+            f"bonds no linker has): an engine would count both"))
+    if partial:
+        occupancies = sorted({round(s.occupancy, 3) for s in partial})
+        shown = ", ".join(f"{o:g}" for o in occupancies[:5])
+        found.findings.append(Finding(
+            "disorder",
+            f"{len(partial)} of {len(structure.sites)} sites are "
+            f"partially occupied ({shown}"
+            f"{', ...' if len(occupancies) > 5 else ''}): an engine "
+            f"would count each as a whole atom"))
+    deuterium = sum(1 for s in structure.sites if s.element == "D")
+    if deuterium:
+        found.findings.append(Finding(
+            "deuterium", f"{deuterium} deuterium site(s), from a "
+                         f"neutron experiment"))
+    if not partial:
+        molecules = _solvent_molecules(structure)
+        if molecules:
+            found.findings.append(Finding(
+                "solvent", f"{len(molecules)} solvent molecule(s) in "
+                           f"the pores ({_named(molecules)})"))
+        open_sites = _open_trimer_sites(structure)
+        if open_sites:
+            found.findings.append(Finding(
+                "cap", f"{len(open_sites)} M3O trimer(s) without the "
+                       f"terminal ligands their charge asks for; adding "
+                       f"them changes the chemistry, so it is done only "
+                       f"when asked for"))
+    elements = {s.element for s in structure.sites}
+    if "H" not in elements and "D" not in elements and "C" in elements:
+        found.findings.append(Finding(
+            "hydrogens", "no hydrogen at all: the X-ray structure "
+                         "never located them"))
+    elif not partial:
+        by_rule = sum(len(finder(structure)) for _kind, finder in RULES)
+        if by_rule:
+            found.findings.append(Finding(
+                "hydrogens", f"{by_rule} hydrogen(s) missing where the "
+                             f"structure's chemistry says they must be "
+                             f"-- rings, M6 cores, bridging hydroxides, "
+                             f"bound methanol"))
+    from xtal.core import symmetry
+
+    copies = sum(len(g) - 1 for g in symmetry.duplicate_groups(structure))
+    if copies:
+        found.findings.append(Finding(
+            "duplicates", f"{copies} of {len(structure.sites)} sites are "
+                          f"symmetry copies of others: the group stacks "
+                          f"{p1.expand(structure).n_atoms} atoms on "
+                          f"{_distinct_atoms(structure)} places"))
+    letter = structure.space_group.hm.strip()[:1].upper()
+    if letter in _CENTRINGS and not (
+            letter == "R" and ":R" in structure.space_group.hm):
+        factor = int(round(1 / abs(np.linalg.det(
+            np.array(_CENTRINGS[letter])))))
+        atoms = _distinct_atoms(structure)
+        found.findings.append(Finding(
+            "primitive", f"the cell is {letter}-centred, {factor} times "
+                         f"the primitive one ({atoms} atoms against "
+                         f"{atoms // factor})"))
+    return found
+
+
+# ======================================================================
+#  THE OPERATIONS
+# ======================================================================
+
+def merge_duplicates(structure: Structure) -> tuple[Structure, str]:
+    """Every site that is a symmetry copy of another, dropped.
+
+    A CSD ConQuest export writes the fragment it drew -- the asymmetric
+    unit and whichever images of it complete a molecule -- and still
+    declares the group, so the group puts each copied atom on top of
+    itself.  Ni2Cl2BTDD's 40 sites are 13 and 27 copies: 1152 atoms
+    stacked on 378 places.  An engine would compute every one of them.
+    """
+    from xtal.core import symmetry
+
+    if not symmetry.duplicate_groups(structure):
+        return structure, "no site written twice"
+    out, report = symmetry.merge_duplicates(structure)
+    said = (f"{report.merged} site(s) were symmetry copies of others: "
+            f"{p1.expand(structure).n_atoms} atoms written, "
+            f"{p1.expand(out).n_atoms} distinct")
+    return out, "; ".join([said, *report.warnings])
+
+
+def _distinct_atoms(structure: Structure) -> int:
+    """The atoms of the cell, each counted once however often the file
+    writes it."""
+    from xtal.core import symmetry
+
+    if symmetry.duplicate_groups(structure):
+        structure = symmetry.merge_duplicates(structure)[0]
+    return p1.expand(structure).n_atoms
+
+
+def to_hydrogen(structure: Structure) -> tuple[Structure, str]:
+    """Deuterium written as hydrogen, for a file anything can read.
+
+    The engines already compute D as H (the energy surface is the
+    same); this is for the structure itself.  The mass is what changes,
+    and it matters only to vibration.
+    """
+    if not any(site.element == "D" for site in structure.sites):
+        return structure, "no deuterium"
+    out = structure.copy()
+    n = 0
+    for site in out.sites:
+        if site.element == "D":
+            site.element = "H"
+            n += 1
+    out.touch()
+    return out, f"{n} deuterium site(s) written as hydrogen"
+
+
+#: A centred lattice's primitive vectors, as rows in the conventional
+#: basis -- the International Tables' choices.  R is the hexagonal
+#: setting; a rhombohedral-axes cell is primitive already.
+_CENTRINGS = {
+    "I": ((-0.5, 0.5, 0.5), (0.5, -0.5, 0.5), (0.5, 0.5, -0.5)),
+    "F": ((0.0, 0.5, 0.5), (0.5, 0.0, 0.5), (0.5, 0.5, 0.0)),
+    "C": ((0.5, 0.5, 0.0), (-0.5, 0.5, 0.0), (0.0, 0.0, 1.0)),
+    "A": ((1.0, 0.0, 0.0), (0.0, 0.5, 0.5), (0.0, -0.5, 0.5)),
+    "B": ((0.5, 0.0, 0.5), (0.0, 1.0, 0.0), (-0.5, 0.0, 0.5)),
+    "R": ((2 / 3, 1 / 3, 1 / 3), (-1 / 3, 1 / 3, 1 / 3),
+          (-1 / 3, -2 / 3, 1 / 3)),
+}
+
+
+def primitive(structure: Structure) -> tuple[Structure, str]:
+    """The primitive cell of the group the file declares, every site
+    keeping its label and its disorder group.
+
+    From the declared centring and not by detecting symmetry again: a
+    powder structure's coordinates are seldom good enough for a
+    detection to find the F-centring of an 89 A cell, and the file has
+    already said what the lattice is.  Done before ordering the
+    disorder, because ordering breaks the centring.  In P1.
+    """
+    from xtal.core.lattice import Lattice
+    from xtal.core.spacegroup import SpaceGroup
+
+    symbol = structure.space_group.hm.strip()
+    letter = symbol[:1].upper()
+    if letter not in _CENTRINGS or (letter == "R" and ":R" in symbol):
+        return structure, "the cell is already primitive"
+    basis = np.array(_CENTRINGS[letter])
+    factor = int(round(1 / abs(np.linalg.det(basis))))
+    cell = p1.expand(structure)
+    matrix = basis @ structure.lattice.matrix
+    lattice = Lattice(matrix)
+    cart = cell.frac @ structure.lattice.matrix
+    frac = np.mod(cart @ np.linalg.inv(matrix), 1.0)
+    pairs = neighbor_pairs(frac, lattice, 0.1, min_distance=0.0)
+    first = list(range(cell.n_atoms))
+
+    def root(a):
+        while first[a] != a:
+            first[a] = first[first[a]]
+            a = first[a]
+        return a
+
+    for i, j in zip(pairs.i, pairs.j, strict=True):
+        ri, rj = root(int(i)), root(int(j))
+        if ri != rj:
+            first[max(ri, rj)] = min(ri, rj)
+    kept = [a for a in range(cell.n_atoms) if root(a) == a]
+    if len(kept) * factor != cell.n_atoms:
+        from xtal.core import symmetry
+
+        copies = sum(len(g) - 1
+                     for g in symmetry.duplicate_groups(structure))
+        if copies:
+            raise ValueError(
+                f"{copies} site(s) are symmetry copies of others, so "
+                f"{cell.n_atoms} atoms stand on {_distinct_atoms(structure)}"
+                f" places -- Merge duplicates first")
+        raise ValueError(
+            f"the {letter}-centred cell did not reduce by {factor}: "
+            f"{cell.n_atoms} atoms became {len(kept)}, so the atoms "
+            f"are not where the centring puts them -- Find symmetry "
+            f"first")
+    sites = []
+    for a in kept:
+        site = structure.sites[int(cell.site_idx[a])].copy()
+        site.frac = frac[a]
+        # Numbered afresh, as Reduce to P1 does: every image of a site
+        # carried its label, and a CIF's bond loop names atoms by
+        # label -- MIL-100's 3264 atoms had 816 labels between them,
+        # and a bond written to one Fe7 was read back on another.
+        site.label = ""
+        sites.append(site)
+    out = Structure(lattice=lattice, sites=sites,
+                    space_group=SpaceGroup.p1(),
+                    meta=dict(structure.meta),
+                    bond_rules=dict(structure.bond_rules))
+    out.ensure_labels()
+    return out, (f"primitive cell of the {letter}-centred lattice: "
+                 f"{len(sites)} atoms, from {cell.n_atoms}")
+
+
+@dataclass
+class _Unit:
+    atoms: list
+    occupancy: float
+    kind: tuple
+    blocked: bool = False
+
+
+def order_disorder(structure: Structure) -> tuple[Structure, str]:
+    """Every partially occupied site resolved into whole atoms.
+
+    See the module docstring for the rule.  The result is in P1 unless
+    every orbit came out kept whole or dropped whole, in which case the
+    group survives.
+    """
+    sites = structure.sites
+    overlap_pairs, overlapping = _overlaps(structure)
+    if all(s.occupancy >= FULL for s in sites) and not overlapping:
+        return structure, "nothing is disordered"
+    cell = p1.expand(structure)
+    lattice = structure.lattice
+    n = cell.n_atoms
+    occupancy = np.array([sites[int(k)].occupancy
+                          for k in cell.site_idx])
+    occupancy[sorted(overlapping)] = 0.5
+    group = [str(sites[int(k)].props.get("disorder_group", "")).strip()
+             for k in cell.site_idx]
+    partial = occupancy < FULL
+    elements = cell.elements
+    rules = bonding.BondRules.from_dict(structure.bond_rules)
+
+    pairs = neighbor_pairs(cell.frac, lattice, 2.6, min_distance=0.0)
+    clashes = []
+    bonds = []
+    blocked = np.zeros(n, dtype=bool)
+    for i, j, d in zip(pairs.i, pairs.j, pairs.distance, strict=True):
+        i, j, d = int(i), int(j), float(d)
+        if i == j:
+            continue                 # an atom and its own next-cell copy
+        a, b = elements[i], elements[j]
+        if _clash(a, b, d) or (min(i, j), max(i, j)) in overlap_pairs:
+            if partial[i] and partial[j]:
+                clashes.append((i, j))
+            elif partial[i]:
+                blocked[i] = True
+            elif partial[j]:
+                blocked[j] = True
+            continue
+        if not (partial[i] and partial[j]):
+            continue
+        if _labelled(group[i]) and _labelled(group[j]):
+            if group[i] != group[j]:
+                continue
+        elif abs(occupancy[i] - occupancy[j]) > SAME_COMPONENT:
+            # One disorder component is refined with one occupancy (a
+            # shared free variable), so atoms that differ are not one
+            # component whatever bonds them: Mn-BTT's extra-framework
+            # Mn at 0.06 and the DMF oxygen at 0.42 beside it.
+            continue
+        lo, hi = rules.cutoff(a, b)
+        if lo <= d <= hi and rules.allows(a, b):
+            bonds.append((d, i, j))
+
+    shared = _shared_oxygens(bonds, elements)
+    for centres in shared.values():
+        clashes.extend((a, b) for k, a in enumerate(centres)
+                       for b in centres[k + 1:])
+    bonds = [b for b in bonds if b[1] not in shared and b[2] not in shared]
+    members = _units(n, partial, bonds, clashes)
+    for root in [r for r, atoms in members.items() if atoms[0] in shared]:
+        del members[root]        # not a choice: it follows its centre
+    units = [
+        _Unit(atoms, float(occupancy[atoms].mean()),
+              tuple(sorted({int(cell.site_idx[a]) for a in atoms})),
+              bool(blocked[atoms].any()))
+        for atoms in members.values()]
+    unit_of = {a: u for u, unit in enumerate(units) for a in unit.atoms}
+
+    conflicts = [set() for _ in units]
+    inside = 0
+
+    def owners(atom):
+        # A shared oxygen is in no unit; what clashes with it clashes
+        # with every oxyanion that would bring it.
+        if atom in shared:
+            return {unit_of[c] for c in shared[atom] if c in unit_of}
+        return {unit_of[atom]} if atom in unit_of else set()
+
+    for i, j in clashes:
+        for u in owners(i):
+            for v in owners(j):
+                if u == v:
+                    inside += i not in shared and j not in shared
+                    continue
+                conflicts[u].add(v)
+                conflicts[v].add(u)
+
+    keep = _choose(units, conflicts, cell, lattice)
+    kept_atoms = {a for u in keep for a in units[u].atoms}
+    # A shared oxygen goes with whichever of its oxyanions was kept --
+    # its centres are alternatives, so at most one was.
+    for oxygen, centres in shared.items():
+        kept_atoms.discard(oxygen)
+        if kept_atoms & set(centres):
+            kept_atoms.add(oxygen)
+    # A hydrogen is only as present as the atom it rides on.  A methyl
+    # over two orientations has its hydrogens at half its carbon's
+    # occupancy -- pbz-MOF-1's acetate: carbon 5/6, hydrogens 5/12 --
+    # so they are never one component with it, and chosen apart they
+    # can outlive a carbon that was not kept.  Such a hydrogen goes;
+    # the hydrogen step completes a kept carbon that came up short.
+    present = (~partial) | np.isin(np.arange(n), list(kept_atoms))
+    carried = set()
+    for i, j, d in zip(pairs.i, pairs.j, pairs.distance, strict=True):
+        i, j = int(i), int(j)
+        for h, parent in ((i, j), (j, i)):
+            if elements[h] == "H" and elements[parent] != "H" \
+                    and present[parent]:
+                lo, hi = rules.cutoff("H", elements[parent])
+                if lo <= d <= hi:
+                    carried.add(h)
+    orphans = {a for a in kept_atoms
+               if elements[a] == "H" and a not in carried}
+    kept_atoms = sorted(kept_atoms - orphans)
+    drop = sorted(set(np.flatnonzero(partial).tolist())
+                  - set(kept_atoms))
+
+    out = _without_atoms(structure, cell, drop)
+    removed = _count(elements, drop)
+    message = (f"ordered {int(partial.sum())} partial atoms: kept "
+               f"{len(kept_atoms)}, removed {len(drop)}"
+               f"{' (' + removed + ')' if removed else ''}")
+    if overlapping:
+        message += (f"; {len(overlapping)} atoms the CIF writes at full "
+                    f"occupancy are two overlapping orientations, and "
+                    f"were ordered as alternatives at 1/2")
+    if orphans:
+        message += (f"; {len(orphans)} hydrogen(s) left out with the "
+                    f"atom they ride on")
+    if inside:                                    # pragma: no cover
+        message += (f"; {inside} pair(s) of alternatives ended up in "
+                    f"one group -- look at them")
+    differs = _against_formula(structure, out)
+    if differs:
+        message += "; " + differs
+    if out.space_group.number == 1 and structure.space_group.number != 1:
+        message += "; the result is in P1"
+    return out, message
+
+
+def _overlaps(structure) -> tuple[set, set]:
+    """Full-occupancy atoms that are really two orientations of one
+    group: ``(pairs, atoms)`` over the P1 cell, the atoms including the
+    hydrogens that ride on them.
+
+    Al-soc-MOF-1's CIF gives the central ring of its terphenyl in two
+    tilted orientations and both at occupancy 1: the ipso carbon has
+    five carbon neighbours, and it and one carbon of each orientation
+    make a three-membered ring of 1.32 A bonds.  No linker has one, so
+    such a triangle is read as what it is -- the two atoms joined to
+    the better-connected third are alternatives, each at 1/2 -- and
+    ordered like any other disorder.  The CIF's formula counts both,
+    which is why it and the file agreed.
+    """
+    cell = p1.expand(structure)
+    graph = bonding.graph(structure)
+    elements = cell.elements
+    full = [structure.sites[int(k)].occupancy >= FULL
+            for k in cell.site_idx]
+    backbone = {"C", "N", "O"}
+
+    def heavy(a):
+        return [j for j in graph.neighbors(a) if elements[j] != "H"]
+
+    pairs, atoms = set(), set()
+    for a in range(cell.n_atoms):
+        if elements[a] not in backbone or not full[a]:
+            continue
+        around = [j for j in heavy(a)
+                  if elements[j] in backbone and full[j]]
+        for k, x in enumerate(around):
+            for y in around[k + 1:]:
+                if y not in graph.neighbors(x):
+                    continue
+                if len(heavy(a)) <= max(len(heavy(x)), len(heavy(y))):
+                    continue          # not the shared, crowded atom
+                pairs.add((min(x, y), max(x, y)))
+                atoms.update((x, y))
+    riders = {h for a in atoms for h in graph.neighbors(a)
+              if elements[h] == "H" and len(graph.neighbors(h)) == 1}
+    return pairs, atoms | riders
+
+
+def _shared_oxygens(bonds, elements) -> dict:
+    """Partial oxygens bonded to two oxyanion centres or more, each
+    with its centres.
+
+    No oxygen is shared between two nitrates, and cubic-EuHOTP puts
+    one orientation's distal nitrate oxygen on a two-fold axis, bonded
+    to the nitrogens of both nitrates the axis relates: of the two only
+    one can be in that orientation.  Joined into one unit, every pair
+    came out N-O-N; given to whichever centre bonded first, half the
+    nitrates came out with two oxygens.  So the centres are made
+    alternatives, and the oxygen goes with the one that is kept.
+    """
+    centres: dict[int, list] = {}
+    for _d, i, j in bonds:
+        for oxygen, centre in ((i, j), (j, i)):
+            if elements[oxygen] == "O" \
+                    and elements[centre] in OXYANION_CENTRES:
+                centres.setdefault(oxygen, []).append(centre)
+    return {o: sorted(set(c)) for o, c in centres.items()
+            if len(set(c)) > 1}
+
+
+def _units(n, partial, bonds, clashes) -> dict:
+    """The atoms that move together: partial atoms joined by bonds,
+    shortest bond first, **never joining two atoms that clash**.
+
+    Without that last rule a chain of bonds carries one alternative
+    into the other -- ring atom to ring atom, across the 1.4 A that
+    separates two orientations of a disordered ring -- and the two
+    come out as one group that has to be kept or dropped together.
+    """
+    parent = list(range(n))
+    against: dict[int, set] = {}
+    for i, j in clashes:
+        against.setdefault(i, set()).add(j)
+        against.setdefault(j, set()).add(i)
+    inside = {a: {a} for a in range(n) if partial[a]}
+    avoid = {a: set(against.get(a, ())) for a in inside}
+
+    def find(a):
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
+
+    for _d, i, j in sorted(bonds):
+        ri, rj = find(i), find(j)
+        if ri == rj or avoid[ri] & inside[rj]:
+            continue
+        if len(inside[ri]) < len(inside[rj]):
+            ri, rj = rj, ri
+        parent[rj] = ri
+        inside[ri] |= inside.pop(rj)
+        avoid[ri] |= avoid.pop(rj)
+    members: dict[int, list] = {}
+    for a in np.flatnonzero(partial):
+        members.setdefault(find(int(a)), []).append(int(a))
+    return members
+
+
+def _labelled(group: str) -> bool:
+    """A disorder group that names an alternative: 1, 2, A, B.  ``-1``
+    and friends mean "generated by symmetry", which says nothing about
+    which atoms go together."""
+    return bool(group) and group not in (".", "?") \
+        and not group.startswith("-")
+
+
+def _choose(units, conflicts, cell, lattice) -> set:
+    """Which units to keep: see the module docstring."""
+    keep: set = set()
+    seen: set = set()
+    order = sorted(range(len(units)),
+                   key=lambda u: (-units[u].occupancy, units[u].kind,
+                                  min(units[u].atoms)))
+    rank = {u: k for k, u in enumerate(order)}
+    lonely: dict[tuple, list] = {}
+    for start in order:
+        if start in seen:
+            continue
+        cluster, stack = [], [start]
+        seen.add(start)
+        while stack:
+            u = stack.pop()
+            cluster.append(u)
+            for v in conflicts[u]:
+                if v not in seen:
+                    seen.add(v)
+                    stack.append(v)
+        if len(cluster) == 1 and not conflicts[start]:
+            # Pooled by what the unit is, not which site it came from:
+            # a chloride at 1/6 on six sites that clash with nothing is
+            # one chloride, and per site each rounds to none.
+            formula = tuple(sorted(cell.elements[a]
+                                   for a in units[start].atoms))
+            lonely.setdefault(formula, []).append(start)
+            continue
+        target = int(round(sum(units[u].occupancy for u in cluster)))
+        keep |= _pick(cluster, target, units, conflicts, rank)
+    for members in lonely.values():
+        free = [u for u in members if not units[u].blocked]
+        target = int(round(sum(units[u].occupancy for u in members)))
+        keep.update(_spread(free, target, units, cell, lattice))
+    return keep
+
+
+def _pick(cluster, target, units, conflicts, rank) -> set:
+    """``target`` compatible units of a cluster: the most occupied
+    first, and among equals the one that shuts out fewest of the rest.
+
+    The tie-break is what makes a ring of alternatives come out whole.
+    cubic-EuHOTP's central nitrate has its three oxygens at 1/2 in two
+    orientations, each clashing with two of the other's -- a six-ring.
+    Taken in index order, one oxygen of each orientation can be kept
+    and then nothing more fits: a nitrate with two oxygens.
+    """
+    chosen: set = set()
+    free = [u for u in cluster if not units[u].blocked]
+    while len(chosen) < target:
+        open_ = [u for u in free
+                 if u not in chosen and not conflicts[u] & chosen]
+        if not open_:
+            break
+        available = set(open_)
+        chosen.add(min(open_, key=lambda u: (
+            -round(units[u].occupancy, 6),
+            len(conflicts[u] & available), rank[u])))
+    return chosen
+
+
+def _spread(candidates, target, units, cell, lattice) -> list:
+    """``target`` of ``candidates``, as far apart as they will go: the
+    first, then repeatedly the one furthest from those already kept.
+    Deterministic, so the same file gives the same cell."""
+    if target <= 0 or not candidates:
+        return []
+    if target >= len(candidates):
+        return list(candidates)
+    centres = np.array([cell.frac[units[u].atoms].mean(axis=0)
+                        for u in candidates])
+    chosen = [0]
+    nearest = _distances(centres, centres[0], lattice)
+    while len(chosen) < target:
+        k = int(np.argmax(nearest))
+        chosen.append(k)
+        nearest = np.minimum(nearest,
+                             _distances(centres, centres[k], lattice))
+    return [candidates[k] for k in chosen]
+
+
+def _distances(points, point, lattice) -> np.ndarray:
+    delta = points - point
+    delta -= np.rint(delta)
+    return np.linalg.norm(delta @ lattice.matrix, axis=1)
+
+
+def _without_atoms(structure, cell, drop) -> Structure:
+    """``structure`` less the P1 atoms in ``drop``, every survivor at
+    full occupancy -- kept symmetric when whole orbits went."""
+    drop = set(drop)
+    by_site: dict[int, list] = {}
+    for a in range(cell.n_atoms):
+        by_site.setdefault(int(cell.site_idx[a]), []).append(a)
+    whole = all(not (set(atoms) & drop) or set(atoms) <= drop
+                for atoms in by_site.values())
+    if whole:
+        out = structure.copy()
+        gone = [k for k, atoms in by_site.items() if set(atoms) <= drop]
+        out.remove_sites(gone)
+    else:
+        from xtal.core import symmetry
+        out = symmetry.reduce_to_p1(structure)
+        if len(out.sites) != cell.n_atoms:        # pragma: no cover
+            raise ValueError("the P1 cell does not match its expansion")
+        out.remove_sites(sorted(drop))
+    for site in out.sites:
+        site.occupancy = 1.0
+        site.props.pop("disorder_group", None)
+    out.touch()
+    return out
+
+
+def _is_metal(symbol: str) -> bool:
+    return symbol not in _NONMETALS and symbol not in _NOBLE_GASES
+
+
+def _per_metal(counts: dict) -> dict:
+    metals = [e for e in counts if _is_metal(e)]
+    total = sum(counts[m] for m in metals)
+    if not total:
+        return {}
+    return {e: counts[e] / total for e in counts}
+
+
+_NONMETALS = frozenset({"H", "D", "B", "C", "N", "O", "F", "Si", "P",
+                        "S", "Cl", "Se", "Br", "I", "As", "Te", "X"})
+_NOBLE_GASES = frozenset({"He", "Ne", "Ar", "Kr", "Xe", "Rn"})
+
+
+def _against_formula(before: Structure, after: Structure) -> str:
+    """How the ordered cell's composition differs from the formula the
+    CIF declares, per metal atom, where it differs by more than a
+    tenth -- or ``""``.  A refinement's formula is its composition,
+    so this is the one independent check an ordering has."""
+    import re
+
+    declared = str(before.meta.get("chemical_formula", ""))
+    wanted: dict[str, float] = {}
+    for symbol, number in re.findall(r"([A-Z][a-z]?)\s*([0-9.]*)",
+                                     declared):
+        wanted[symbol] = wanted.get(symbol, 0.0) + float(number or 1)
+    got: dict[str, float] = {}
+    for e in p1.expand(after).elements:
+        got[e] = got.get(e, 0) + 1
+    wanted, got = _per_metal(wanted), _per_metal(got)
+    if not wanted or not got:
+        return ""
+    off = [(e, got.get(e, 0.0), wanted.get(e, 0.0))
+           for e in sorted(set(wanted) | set(got))
+           if abs(got.get(e, 0.0) - wanted.get(e, 0.0)) > 0.1]
+    if not off:
+        return ""
+    shown = ", ".join(f"{e} {g:.2f} (CIF {w:.2f})" for e, g, w in off)
+    return (f"per metal atom this cell differs from the CIF's formula: "
+            f"{shown} -- missing hydrogens, defects the refinement "
+            f"averaged over, or a formula that was never complete")
+
+
+def _count(elements, atoms) -> str:
+    counts: dict[str, int] = {}
+    for a in atoms:
+        counts[elements[a]] = counts.get(elements[a], 0) + 1
+    return ", ".join(f"{n} {e}" for e, n in sorted(counts.items()))
+
+
+# ---------------------------------------------------------- solvent
+
+def _solvent_molecules(structure) -> list:
+    """``(atoms, name)`` of every molecule that is a known solvent."""
+    graph = bonding.graph(structure)
+    cell = p1.expand(structure)
+    out = []
+    for fragment in graph.fragments():
+        if fragment.periodic:
+            continue
+        heavy = [cell.elements[a] for a in fragment.atoms
+                 if cell.elements[a] not in ("H", "D")]
+        name = SOLVENTS.get(_heavy_formula(heavy))
+        if name is not None:
+            out.append((fragment.atoms, name))
+    return out
+
+
+def _heavy_formula(elements) -> str:
+    counts: dict[str, int] = {}
+    for e in elements:
+        counts[e] = counts.get(e, 0) + 1
+    if counts == {"O": 1}:
+        return "O"
+    return "".join(f"{e}{counts[e]}" for e in sorted(counts))
+
+
+def _named(molecules) -> str:
+    counts: dict[str, int] = {}
+    for _atoms, name in molecules:
+        counts[name] = counts.get(name, 0) + 1
+    return ", ".join(f"{n} {name}" for name, n in sorted(counts.items()))
+
+
+def remove_solvent(structure: Structure) -> tuple[Structure, str]:
+    """Every molecule in the pores that is a known solvent, removed.
+
+    Known by its heavy atoms, because X-ray solvent seldom has its
+    hydrogens: a lone oxygen is water, C3NO is DMF.  Anything else
+    that is not bonded into the framework is *left*, and named: an
+    isolated chloride is a counter-ion, not solvent, and taking it out
+    would leave the framework charged.  Solvent bound to a metal is
+    part of the framework and stays.
+    """
+    molecules = _solvent_molecules(structure)
+    if not molecules:
+        return structure, "no solvent molecules"
+    cell = p1.expand(structure)
+    drop = sorted(a for atoms, _name in molecules for a in atoms)
+    out = _without_atoms(structure, cell, drop)
+    left = [f for f in bonding.graph(out).fragments() if not f.periodic]
+    message = f"removed {len(molecules)} solvent molecule(s) " \
+              f"({_named(molecules)})"
+    if left:
+        message += (f"; {len(left)} other molecule(s) left in place -- "
+                    f"counter-ions or guests, which only you can tell")
+    return out, message
+
+
+# ---------------------------------------------------------- trimers
+
+def _trimers(structure):
+    """Every M(III)3O trimer as ``(mu3-O, [(metal, ligand or None)])``,
+    in the P1 cell of ``structure``.
+
+    A mu3-oxide is an oxygen bonded to exactly three of
+    :data:`TRIVALENT_TRIMER_METALS`.  A metal's terminal ligand is the
+    neighbour opposite that oxide -- within 30 degrees of straight
+    through the metal -- that is bonded to nothing else heavy: an F, or
+    an O with nothing but hydrogens besides the metal.  ``None`` where
+    the octahedron's sixth corner is empty.
+    """
+    cell = p1.expand(structure)
+    graph = bonding.graph(structure)
+    elements = cell.elements
+    matrix = structure.lattice.matrix
+    out = []
+    for o in range(cell.n_atoms):
+        if elements[o] != "O":
+            continue
+        around = graph.neighbors_with_images(o)
+        metals = [(j, t) for j, t in around
+                  if elements[j] in TRIVALENT_TRIMER_METALS]
+        if len(metals) != 3 or len(around) != 3:
+            continue
+        members = []
+        for m, t in metals:
+            axis = (cell.frac[m] + t - cell.frac[o]) @ matrix
+            axis /= np.linalg.norm(axis)
+            ligand = None
+            for j, u in graph.neighbors_with_images(m):
+                if elements[j] not in ("O", "F") or j == o:
+                    continue
+                bond = (cell.frac[j] + u - cell.frac[m]) @ matrix
+                if bond @ axis / np.linalg.norm(bond) < 0.866:
+                    continue
+                heavy = [k for k in graph.neighbors(j)
+                         if elements[k] not in ("H", "D") and k != m]
+                if not heavy:
+                    ligand = j
+            members.append((m, ligand))
+        out.append((o, members))
+    return out
+
+
+def _free_anions(structure) -> int:
+    """Halide ions in the pores: single F, Cl, Br or I atoms bonded to
+    nothing.  Each is a trimer's anion that is not on the trimer."""
+    graph = bonding.graph(structure)
+    elements = p1.expand(structure).elements
+    return sum(1 for a in range(len(elements))
+               if elements[a] in ("F", "Cl", "Br", "I")
+               and not graph.neighbors(a))
+
+
+def _trimer_plan(structure) -> list:
+    """``(mu3-O, members, anions wanted)`` for every trimer whose
+    terminal ligands are not already what charge balance asks.
+
+    Each M(III)3O(RCO2)6 trimer is +1 and needs one anion.  A halide in
+    the pores is one -- Al-soc-MOF-1 is [Al3O(abtc)1.5(H2O)3]+ Cl- --
+    so that many trimers keep three waters, and the rest carry their
+    anion themselves: one F or OH and two waters.
+    """
+    cell = p1.expand(structure)
+    graph = bonding.graph(structure)
+    trimers = sorted(_trimers(structure), key=lambda t: t[0])
+    bound = len(trimers) - _free_anions(structure)
+    plan = []
+    for rank, (o, members) in enumerate(trimers):
+        wanted = 1 if rank < bound else 0
+        if _roles(cell, graph, members) != (wanted, 3 - wanted):
+            plan.append((o, members, wanted))
+    return plan
+
+
+def _open_trimer_sites(structure) -> list:
+    """The trimers :func:`complete_trimers` would change."""
+    return _trimer_plan(structure)
+
+
+def _roles(cell, graph, members):
+    """``(anions, waters)`` among the three terminal ligands, or
+    ``None`` if a site is empty or a ligand is neither."""
+    anions = waters = 0
+    for _m, ligand in members:
+        if ligand is None:
+            return None
+        if cell.elements[ligand] == "F":
+            anions += 1
+            continue
+        hydrogens = sum(1 for k in graph.neighbors(ligand)
+                        if cell.elements[k] in ("H", "D"))
+        if hydrogens == 1:
+            anions += 1
+        elif hydrogens == 2:
+            waters += 1
+        else:
+            return None
+    return anions, waters
+
+
+def complete_trimers(structure: Structure) -> tuple[Structure, str]:
+    """Each M(III)3O(RCO2)6 trimer given the terminal ligands its
+    charge asks for.
+
+    Three M(III) are +9, the mu3-oxide -2 and six carboxylates -6,
+    which leaves +1 and one anion.  A halide in the pores is that anion
+    for one trimer, which then keeps three waters; every other trimer
+    carries it itself -- an F already there, else one terminal oxygen
+    made hydroxide, or fluoride on an empty site (the MIL materials
+    are made with HF and their formulas carry it) -- with two waters.
+    A new ligand goes on the line from the mu3-O through the metal,
+    where the octahedron's sixth corner is, and the hydrogens of the
+    waters and the hydroxide are placed here, because only the trimer
+    knows which is which: a planner reading valences alone makes all
+    three hydroxide, and the trimer -2.
+    """
+    if not _trimers(structure):
+        return structure, "no M3O trimers"
+    if not _trimer_plan(structure):
+        return structure, "every M3O trimer already has the ligands " \
+                          "its charge asks for"
+    from xtal.core import symmetry
+    from xtal.core.site import Site
+
+    out = symmetry.reduce_to_p1(structure) \
+        if structure.space_group.number != 1 else structure.copy()
+    plan = _trimer_plan(out)
+    free = _free_anions(out)
+    cell = p1.expand(out)
+    graph = bonding.graph(out)
+    matrix = out.lattice.matrix
+    inverse = np.linalg.inv(matrix)
+    fixed = {"F": 0, "OH": 0, "water": 0}
+    for o, members, wanted in plan:
+        # Existing hydrogens on the ligands are the refinement's; a
+        # trimer being completed gets its own.
+        for _m, lig in members:
+            if lig is None:
+                continue
+            for k in graph.neighbors(lig):
+                if cell.elements[k] in ("H", "D"):
+                    out.sites[k].props["prepare_drop"] = True
+        anions = sum(1 for _m, lig in members
+                     if lig is not None and cell.elements[lig] == "F")
+        for m, ligand in sorted(members, key=lambda p: (
+                p[1] is None, p[0])):
+            if ligand is not None and cell.elements[ligand] == "F":
+                continue
+            axis = cell.frac[m] - cell.frac[o]
+            axis -= np.rint(axis)
+            axis = axis @ matrix
+            axis /= np.linalg.norm(axis)
+            metal = cell.frac[m] @ matrix
+            anion = anions < wanted
+            if ligand is None:
+                kind = "F" if anion else "O"
+                where = metal + TERMINAL_DISTANCE[kind] * axis
+                out.sites.append(Site(kind, np.mod(where @ inverse, 1.0),
+                                      label=f"{kind}cap{len(out.sites)}"))
+                if kind == "F":
+                    anions += 1
+                    fixed["F"] += 1
+                    continue
+                oxygen = where
+            else:
+                shift = cell.frac[ligand] - cell.frac[m]
+                shift -= np.rint(shift)
+                oxygen = metal + shift @ matrix
+            if anion:
+                anions += 1
+                fixed["OH"] += 1
+            else:
+                fixed["water"] += 1
+            for h in _hydrogens_on(oxygen, oxygen - metal,
+                                   1 if anion else 2):
+                out.sites.append(Site("H", np.mod(h @ inverse, 1.0),
+                                      label=f"Hcap{len(out.sites)}"))
+    stale = [k for k, site in enumerate(out.sites)
+             if site.props.pop("prepare_drop", False)]
+    out.remove_sites(stale)
+    out.touch()
+    said = (f"completed {len(plan)} M3O trimer(s): {fixed['F']} F "
+            f"added, {fixed['OH']} OH and {fixed['water']} water")
+    if free:
+        said += (f"; {free} halide ion(s) in the pores are the anions "
+                 f"of as many trimers, which keep three waters")
+    return out, said
+
+
+def _hydrogens_on(oxygen, outward, count: int, avoid=()) -> list:
+    """Hydrogen positions on a terminal O: 0.97 A, pointing away from
+    the metal, H-O-H 104.5 degrees for a water.
+
+    The turn about the metal-oxygen axis is free, and with ``avoid``
+    (Cartesian points) it is the one that keeps the hydrogens furthest
+    from them: the two oxygens an acetate leaves behind are 2.2 A
+    apart, and a fixed turn put a hydrogen of each 0.92 A from the
+    other's.
+    """
+    outward = outward / np.linalg.norm(outward)
+    side = np.cross(outward, [1.0, 0.0, 0.0])
+    if np.linalg.norm(side) < 0.1:
+        side = np.cross(outward, [0.0, 1.0, 0.0])
+    side /= np.linalg.norm(side)
+    other = np.cross(outward, side)
+    avoid = np.asarray(avoid, dtype=float).reshape(-1, 3)
+    best, best_score = None, -1.0
+    for turn in np.radians(np.arange(0.0, 360.0, 15.0)):
+        lateral = np.cos(turn) * side + np.sin(turn) * other
+        if count == 1:
+            # M-O-H of about 120 degrees.
+            placed = [oxygen + 0.97 * (np.cos(np.radians(60)) * outward
+                                       + np.sin(np.radians(60))
+                                       * lateral)]
+        else:
+            half = np.radians(104.5 / 2)
+            placed = [oxygen + 0.97 * (np.cos(half) * outward + sign
+                                       * np.sin(half) * lateral)
+                      for sign in (1.0, -1.0)]
+        if not len(avoid):
+            return placed
+        score = min(np.linalg.norm(avoid - h, axis=1).min()
+                    for h in placed)
+        if score > best_score + 1e-9:
+            best, best_score = placed, score
+    return best
+
+
+def _surroundings(cell, matrix, atom, radius=3.5) -> np.ndarray:
+    """Cartesian positions of the atoms within ``radius`` of ``atom``,
+    each as its image nearest to it."""
+    delta = cell.frac - cell.frac[atom]
+    delta -= np.rint(delta)
+    vectors = delta @ matrix
+    near = np.linalg.norm(vectors, axis=1)
+    keep = (near > 0.1) & (near < radius)
+    return cell.frac[atom] @ matrix + vectors[keep]
+
+
+# ---------------------------------------------------------- the lot
+
+#: The order the steps run in, and why: duplicates first, because
+#: every count after it -- the centring's above all -- is of atoms, and
+#: a site written twice is one atom counted twice; deuterium next so
+#: everything after sees hydrogen; the primitive cell before the
+#: disorder is ordered, because ordering breaks the centring; solvent
+#: after, since a disordered solvent is only a molecule once it is
+#: ordered; the trimers' ligands before the hydrogens, which then
+#: complete the waters as well as the linkers.
+STEPS = ("duplicates", "deuterium", "primitive", "disorder", "solvent",
+         "cap", "hydrogens")
+
+#: The steps that change the chemistry of the material rather than how
+#: the file writes it: what they add was never located, and is chosen
+#: by charge balance.  Asked for or not done -- never a default -- and
+#: a caution whether it is done or not (:func:`run`).
+CHEMISTRY = frozenset({"cap"})
+
+#: What runs when nobody chose: every step but :data:`CHEMISTRY`.
+DEFAULT_STEPS = tuple(s for s in STEPS if s not in CHEMISTRY)
+
+LABELS = {
+    "duplicates": "Merge sites written twice",
+    "deuterium": "Write deuterium as hydrogen",
+    "primitive": "Reduce to the primitive cell",
+    "disorder": "Order the disorder",
+    "solvent": "Remove solvent from the pores",
+    "cap": "Complete M3O trimers' terminal ligands",
+    "hydrogens": "Add missing hydrogens",
+}
+
+
+#: Metals whose M6O8 clusters are Zr6O4(OH)4-like: UiO-66, MOF-808,
+#: NU-1000, PCN-222 and the rest of the zirconium family.
+HEXANUCLEAR_METALS = frozenset({"Zr", "Hf", "Ce", "Th", "U"})
+
+
+def _arene_hydrogens(structure) -> list:
+    """Cartesian positions for the hydrogens of every six-membered
+    carbon ring, by ring membership and not by bond length.
+
+    A powder structure's bonds cannot be trusted to say what a carbon
+    is: MIL-100's btc rings have C-C bonds of 1.51 A, a single bond's
+    length, and a planner reading them gives a ring CH two hydrogens.
+    A carbon in a benzene ring with two ring neighbours has one, in the
+    ring's plane along the outward bisector, 1.08 A out.
+    """
+    cell = p1.expand(structure)
+    graph = bonding.graph(structure)
+    matrix = structure.lattice.matrix
+    elements = cell.elements
+    rings = _six_rings(graph, elements, cell.frac)
+    out, done = [], set()
+    for ring in rings:
+        for k, (atom, position) in enumerate(ring):
+            if atom in done:
+                continue
+            if len(graph.neighbors(atom)) != 2:
+                continue
+            before = ring[k - 1][1]
+            after = ring[(k + 1) % 6][1]
+            here = position @ matrix
+            bisector = (here - before @ matrix) + (here - after @ matrix)
+            norm = np.linalg.norm(bisector)
+            if norm < 1e-6:
+                continue
+            out.append(here + 1.08 * bisector / norm)
+            done.add(atom)
+    return out
+
+
+def _six_rings(graph, elements, frac) -> list:
+    """Each six-membered all-carbon ring once, as ``(atom, fractional
+    position)`` in order, with positions carried across cell faces so
+    the ring is whole."""
+    rings, seen = [], set()
+    carbons = [a for a in range(len(elements)) if elements[a] == "C"]
+    for start in carbons:
+        stack = [(start, np.zeros(3), [(start, np.zeros(3))])]
+        while stack:
+            atom, shift, path = stack.pop()
+            if len(path) > 6:
+                continue
+            for j, t in graph.neighbors_with_images(atom):
+                if elements[j] != "C":
+                    continue
+                where = shift + t
+                if j == start and len(path) == 6 and \
+                        not np.any(where):
+                    key = frozenset(a for a, _ in path)
+                    if key not in seen:
+                        seen.add(key)
+                        rings.append([(a, frac[a] + s)
+                                      for a, s in path])
+                    continue
+                if any(a == j for a, _ in path) or len(path) == 6:
+                    continue
+                stack.append((j, where, path + [(j, where)]))
+    return rings
+
+
+def _hexanuclear_clusters(structure) -> list:
+    """Every M6O8 core: ``(metals, capping)``, with ``capping`` a dict
+    from each face-capping oxygen to its three metals as
+    ``(atom, translation)``, or to ``None`` if it has a hydrogen."""
+    cell = p1.expand(structure)
+    graph = bonding.graph(structure)
+    elements = cell.elements
+    capping = {}
+    for o in range(cell.n_atoms):
+        if elements[o] != "O":
+            continue
+        around = graph.neighbors_with_images(o)
+        metals = [(j, t) for j, t in around
+                  if elements[j] in HEXANUCLEAR_METALS]
+        if len(metals) != 3:
+            continue
+        protonated = any(elements[j] in ("H", "D") for j, _t in around)
+        capping[o] = (metals, protonated)
+    # One cluster is the metals its capping oxygens join: union-find,
+    # so that an oxygen bridging two partial groups joins them.
+    parent: dict[int, int] = {}
+
+    def root(m):
+        parent.setdefault(m, m)
+        while parent[m] != m:
+            parent[m] = parent[parent[m]]
+            m = parent[m]
+        return m
+
+    for metals, _h in capping.values():
+        first = root(metals[0][0])
+        for j, _t in metals[1:]:
+            parent[root(j)] = first
+    groups: dict[int, dict] = {}
+    for o, (metals, protonated) in capping.items():
+        groups.setdefault(root(metals[0][0]), {})[o] = \
+            None if protonated else metals
+    return [({m for m in parent if root(m) == key}, oxygens)
+            for key, oxygens in groups.items() if len(oxygens) == 8]
+
+
+def _hydroxide_hydrogens(structure) -> list:
+    """Cartesian positions for the four mu3-OH hydrogens of every
+    M6O8 core that has none.
+
+    Zr6O4(OH)4: of the eight oxygens capping an octahedron's faces,
+    four are hydroxide, on alternate faces -- the four that pairwise
+    share exactly one metal.  Without them each core is -4.  The
+    hydrogen points out from the cluster's centre, 0.97 A.
+    """
+    cell = p1.expand(structure)
+    matrix = structure.lattice.matrix
+    out = []
+    for _metals, capping in _hexanuclear_clusters(structure):
+        if any(metals is None for metals in capping.values()):
+            continue                  # protonated already, in part
+        oxygens = list(capping)
+        chosen = []
+        for o in oxygens:
+            mine = {j for j, _t in capping[o]}
+            if all(len(mine & {j for j, _t in capping[c]}) == 1
+                   for c in chosen):
+                chosen.append(o)
+            if len(chosen) == 4:
+                break
+        if len(chosen) != 4:
+            continue
+        # Every capping oxygen by its nearest image to the first: the
+        # cluster is a few angstroms across and the cell tens, so that
+        # puts them all round one centre even across a cell face.
+        reference = cell.frac[oxygens[0]]
+        offset = {o: (cell.frac[o] - reference)
+                  - np.rint(cell.frac[o] - reference) for o in oxygens}
+        centre = np.mean([offset[o] for o in oxygens], axis=0) @ matrix
+        for o in chosen:
+            outward = offset[o] @ matrix - centre
+            here = cell.frac[o] @ matrix
+            out.append(here + 0.97 * outward / np.linalg.norm(outward))
+    return out
+
+
+def _terminal_hydrogens(structure) -> list:
+    """Cartesian positions for the hydrogens of the terminal ligands
+    on every M6O8 core: as many hydroxides as its charge asks for, and
+    waters for the rest.
+
+    Zr(IV)6 is +24; each bare capping oxygen takes two, each capping
+    hydroxide one, each carboxylate one.  With *p* capping hydroxides
+    (four, once :func:`_hydroxide_hydrogens` has run on a bare core)
+    and *c* carboxylates, the terminal oxygens hold 8 + *p* - *c*
+    hydroxides.  NU-1000 and PCN-222 are eight-connected: four OH and
+    four waters, one of each on the four equatorial metals.  The planner
+    cannot see this -- it reads the metal bond as covalent and gives
+    every terminal oxygen one hydrogen, eight hydroxides and a core of
+    -4 -- and PCN-222's CIF says the same, with a riding hydrogen on
+    each, which :func:`_terminal_riders` takes away before this runs.
+    """
+    cell = p1.expand(structure)
+    graph = bonding.graph(structure)
+    matrix = structure.lattice.matrix
+    elements = cell.elements
+    out = []
+    for metals, capping in _hexanuclear_clusters(structure):
+        protonated = sum(1 for m in capping.values() if m is None)
+        carboxylates = set()
+        terminal: dict[int, list] = {}
+        for m in sorted(metals):
+            for o, _t in graph.neighbors_with_images(m):
+                if elements[o] != "O" or o in capping:
+                    continue
+                around = graph.neighbors(o)
+                heavy = [j for j in around
+                         if elements[j] not in ("H", "D")]
+                carbons = [j for j in heavy if elements[j] == "C"]
+                if carbons and _carboxylate(
+                        cell, graph, carbons[0],
+                        graph.neighbors_with_images(carbons[0])):
+                    carboxylates.add(carbons[0])
+                elif heavy == [m] and o not in terminal.get(m, []):
+                    terminal.setdefault(m, []).append(o)
+        if not terminal:
+            continue
+        need = 8 + (protonated or 4) - len(carboxylates)
+        total = sum(map(len, terminal.values()))
+        need = min(max(need, 0), total)
+        hydroxide: set = set()
+        while len(hydroxide) < need:
+            for m in sorted(terminal):   # one per metal, then round again
+                spare = [o for o in terminal[m] if o not in hydroxide]
+                if spare and len(hydroxide) < need:
+                    hydroxide.add(spare[0])
+        placed: list = []
+        for m, ligands in terminal.items():
+            for o in ligands:
+                here = cell.frac[o] @ matrix
+                if any(elements[k] in ("H", "D")
+                       for k in graph.neighbors(o)):
+                    continue
+                nearby = [*_surroundings(cell, matrix, o)]
+                nearby += [h for h in placed
+                           if np.linalg.norm(h - here) < 3.5]
+                placed.extend(_hydrogens_on(
+                    here, _away(cell, matrix, o, m),
+                    1 if o in hydroxide else 2, avoid=nearby))
+        out.extend(placed)
+    return out
+
+
+def _terminal_riders(structure) -> list:
+    """The hydrogens on the terminal oxygens of every M6O8 core, which
+    :func:`_terminal_hydrogens` places afresh by charge.
+
+    A CIF's hydrogens there are riding guesses, never observed:
+    PCN-222's give every terminal oxygen one (eight hydroxides, a core
+    of -4), two of them at half occupancy as alternatives, and one
+    close enough to a zirconium to be bonded to it.
+    """
+    cell = p1.expand(structure)
+    graph = bonding.graph(structure)
+    elements = cell.elements
+    riders = set()
+    for metals, capping in _hexanuclear_clusters(structure):
+        for m in metals:
+            for o in graph.neighbors(m):
+                if elements[o] != "O" or o in capping:
+                    continue
+                around = graph.neighbors(o)
+                heavy = [j for j in around
+                         if elements[j] not in ("H", "D")]
+                if heavy == [m]:
+                    riders.update(k for k in around
+                                  if elements[k] in ("H", "D"))
+    return sorted(riders)
+
+
+def _away(cell, matrix, atom, *others) -> np.ndarray:
+    """From the nearest images of ``others`` towards ``atom``, summed:
+    the direction a hydrogen on ``atom`` points away from them."""
+    here = cell.frac[atom]
+    total = np.zeros(3)
+    for other in others:
+        delta = here - cell.frac[other]
+        delta -= np.rint(delta)
+        vector = delta @ matrix
+        total += vector / np.linalg.norm(vector)
+    return total
+
+
+#: Metals that are trivalent in the M(OH) chains of the MIL-53 family,
+#: where a bridging oxygen is a hydroxide: Cr(OH)(bdc) is neutral only
+#: with it.  Vanadium is not here: MIL-47 is V(IV)O(bdc), and its
+#: bridging oxygen is an oxo.
+BRIDGING_HYDROXIDE_METALS = frozenset({"Al", "Sc", "Cr", "Fe", "Ga",
+                                       "In"})
+
+
+def _bridging_hydrogens(structure) -> list:
+    """Cartesian positions for the hydrogen of every oxygen that bridges
+    two trivalent metals and nothing else -- MIL-53's mu2-OH, which a
+    neutron structure of the deuterated linker (the shipped one) never
+    located.  Along the bisector, away from both metals."""
+    cell = p1.expand(structure)
+    graph = bonding.graph(structure)
+    matrix = structure.lattice.matrix
+    elements = cell.elements
+    out = []
+    for o in range(cell.n_atoms):
+        if elements[o] != "O":
+            continue
+        around = graph.neighbors(o)
+        if len(around) == 2 and all(
+                elements[j] in BRIDGING_HYDROXIDE_METALS for j in around):
+            here = cell.frac[o] @ matrix
+            outward = _away(cell, matrix, o, *around)
+            out.append(here + 0.97 * outward / np.linalg.norm(outward))
+    return out
+
+
+def _methanol_hydrogens(structure) -> list:
+    """Cartesian positions completing every methanol bound to a metal:
+    three on the carbon, one on the oxygen.
+
+    Mn-BTT's framework Mn carries one, refined as an O and a C with a
+    displacement parameter of 0.18 -- barely located, so its C-O length
+    says nothing and the planner, reading it as a double bond, gave the
+    carbon one hydrogen, and the oxygen none because it counted the
+    metal bond.  A carbon whose one neighbour is an oxygen bonded
+    otherwise only to metals is a methyl, whatever its bond length.
+    """
+    cell = p1.expand(structure)
+    graph = bonding.graph(structure)
+    matrix = structure.lattice.matrix
+    elements = cell.elements
+    out = []
+    for c in range(cell.n_atoms):
+        if elements[c] != "C" or len(graph.neighbors(c)) != 1:
+            continue
+        o = graph.neighbors(c)[0]
+        others = [j for j in graph.neighbors(o) if j != c]
+        if elements[o] != "O" or not others or not all(
+                _is_metal(elements[j]) for j in others):
+            continue
+        carbon = cell.frac[c] @ matrix
+        axis = _away(cell, matrix, c, o)
+        axis /= np.linalg.norm(axis)
+        u = np.cross(axis, [1.0, 0.0, 0.0])
+        if np.linalg.norm(u) < 0.1:
+            u = np.cross(axis, [0.0, 1.0, 0.0])
+        u /= np.linalg.norm(u)
+        v = np.cross(axis, u)
+        tilt = np.radians(180 - 109.47)
+        for phi in np.radians([0.0, 120.0, 240.0]):
+            out.append(carbon + 1.09 * (
+                np.cos(tilt) * axis + np.sin(tilt)
+                * (np.cos(phi) * u + np.sin(phi) * v)))
+        oxygen = cell.frac[o] @ matrix
+        away = _away(cell, matrix, o, c, *others)
+        out.append(oxygen + 0.97 * away / np.linalg.norm(away))
+    return out
+
+
+#: The hydrogens placed by rule rather than by valence, in order.
+def _aqua_hydrogens(structure) -> list:
+    """Cartesian positions for two hydrogens on every bare oxygen bonded
+    to one metal and nothing else, where no cluster rule decides it.
+
+    What an X-ray sees there is an oxygen whose hydrogens it could not
+    locate, and the neutral ligand is water.  Hydroxide takes a proton
+    away, which is a claim about charge, and only a rule that knows the
+    cluster's charge makes one -- :func:`_terminal_hydrogens` on M6
+    cores, :func:`complete_trimers` on M3O trimers, whose oxygens are
+    left out here.  The planner reads the metal bond as covalent and
+    made each such oxygen a hydroxide: Ni2Cl2BTDD, "diaqua-di-nickel(II)"
+    by its own name, came out -2 per formula unit.
+    """
+    cell = p1.expand(structure)
+    graph = bonding.graph(structure)
+    matrix = structure.lattice.matrix
+    elements = cell.elements
+    decided = {m for metals, _capping in _hexanuclear_clusters(structure)
+               for m in metals}
+    decided |= {lig for _o, members in _trimers(structure)
+                for _m, lig in members if lig is not None}
+    out = []
+    for o in range(cell.n_atoms):
+        if elements[o] != "O" or o in decided:
+            continue
+        around = graph.neighbors_with_images(o)
+        if len(around) != 1:
+            continue
+        m, t = around[0]
+        if not _is_metal(elements[m]) or m in decided:
+            continue
+        here = cell.frac[o] @ matrix
+        metal = (cell.frac[m] + t) @ matrix
+        nearby = [*_surroundings(cell, matrix, o)]
+        nearby += [h for h in out if np.linalg.norm(h - here) < 3.5]
+        out.extend(_hydrogens_on(here, here - metal, 2, avoid=nearby))
+    return out
+
+
+RULES = (("ring", _arene_hydrogens),
+         ("hydroxide", _hydroxide_hydrogens),
+         ("terminal", _terminal_hydrogens),
+         ("bridging", _bridging_hydrogens),
+         ("methanol", _methanol_hydrogens),
+         ("aqua", _aqua_hydrogens))
+
+WHERE = {"ring": "on arene rings",
+         "hydroxide": "on M6 cores (mu3-OH)",
+         "terminal": "on M6 cores' terminal OH and water, by charge",
+         "bridging": "on mu2-OH bridging trivalent metals",
+         "methanol": "completing bound methanol",
+         "aqua": "as water on metals no cluster rule covers"}
+
+
+def _add_hydrogens(structure):
+    """Hydrogens by rule first -- :data:`RULES`; see each function for
+    why a rule and not valences -- then the planner for everything
+    else."""
+    from xtal.core import symmetry
+    from xtal.core.site import Site
+    from xtal.ff import hydrogens
+
+    riders = _terminal_riders(structure)
+    if riders:
+        structure = _without_atoms(structure, p1.expand(structure),
+                                   riders)
+    found = {kind: finder(structure) for kind, finder in RULES}
+    if any(found.values()) and structure.space_group.number != 1:
+        # The rules place hydrogens on every atom of the P1 cell, and
+        # appended as sites of a group each would be multiplied by it.
+        # Cartesian positions, so they hold in the expanded cell.
+        out = symmetry.reduce_to_p1(structure)
+    else:
+        out = structure.copy()
+    inverse = np.linalg.inv(out.lattice.matrix)
+    by_rule = []
+    for kind, positions in found.items():
+        for cart in positions:
+            out.sites.append(Site("H", np.mod(cart @ inverse, 1.0),
+                                  label=f"H{kind}{len(out.sites)}"))
+        if positions:
+            by_rule.append(f"{len(positions)} {WHERE[kind]}")
+        out.touch()
+    plan = hydrogens.plan(out)
+    planar = _on_planar_carbon(out, plan.sites) if plan else []
+    charged = _on_open_trimers(out, plan.sites) if plan else []
+    added = [site for k, site in enumerate(plan.sites)
+             if k not in planar and k not in charged] if plan else []
+    if added:
+        out.sites.extend(site.copy() for site in added)
+        out.touch()
+        by_rule.append(f"{len(added)} more by valence")
+    if planar:
+        by_rule.append(
+            f"{len(planar)} the valence rules asked for were not added: "
+            f"each was on a carboxylate or a planar three-coordinate "
+            f"carbon, sp2 and full -- the refinement bent its angles")
+    if charged:
+        by_rule.append(
+            f"{len(charged)} the valence rules asked for on M3O "
+            f"trimers' terminal oxygens were not added: water or "
+            f"hydroxide there is a choice of charge")
+    if riders:
+        by_rule.insert(0, f"{len(riders)} riding hydrogen(s) the CIF "
+                          f"put on M6 cores' terminal oxygens replaced")
+    if not by_rule:
+        return structure, "no hydrogens to add"
+    return out, "; ".join(by_rule)
+
+
+#: Angles around a three-coordinate atom summing above this are a
+#: plane: 360 for sp2, 328 for a tetrahedral centre with one bond
+#: missing.  The sum survives a refinement that bends the angles one
+#: at a time, which is why it is read and not the bond lengths.
+PLANAR_SUM = 350.0
+
+
+def _carboxylate(cell, graph, carbon, around) -> bool:
+    """Two oxygens on the carbon, bonded to nothing else but metals and
+    hydrogen: a carboxylate, sp2 and full at three bonds whatever its
+    angles say.  MIL-100's powder model bends one to 337 degrees."""
+    oxygens = [j for j, _t in around if cell.elements[j] == "O"]
+    if len(oxygens) < 2:
+        return False
+    for o in oxygens:
+        for k in graph.neighbors(o):
+            other = cell.elements[k]
+            if k != carbon and other not in ("H", "D") \
+                    and not _is_metal(other):
+                return False
+    return True
+
+
+def _on_planar_carbon(structure, planned) -> list:
+    """Which of ``planned`` sit on a carbon that already has three
+    neighbours in a plane -- or three and a place in a benzene ring,
+    whatever its angles: Al-soc-MOF-1's terphenyl ipso carbons, left
+    at the average of two ring orientations once one is ordered away,
+    look pyramidal, and the planner gave each an sp3 hydrogen."""
+    cell = p1.expand(structure)
+    graph = bonding.graph(structure)
+    matrix = structure.lattice.matrix
+    in_ring = {a for ring in _six_rings(graph, cell.elements, cell.frac)
+               for a, _f in ring}
+    out = []
+    for k, site in enumerate(planned):
+        delta = cell.frac - site.frac
+        delta -= np.rint(delta)
+        distance = np.linalg.norm(delta @ matrix, axis=1)
+        parent = int(np.argmin(distance))
+        if cell.elements[parent] != "C":
+            continue
+        around = graph.neighbors_with_images(parent)
+        arms = [(cell.frac[j] + t - cell.frac[parent]) @ matrix
+                for j, t in around]
+        if len(arms) != 3:
+            continue
+        if parent in in_ring or _carboxylate(cell, graph, parent,
+                                              around):
+            out.append(k)
+            continue
+        units = [a / np.linalg.norm(a) for a in arms]
+        total = sum(np.degrees(np.arccos(np.clip(units[a] @ units[b],
+                                                 -1, 1)))
+                    for a, b in ((0, 1), (0, 2), (1, 2)))
+        if total > PLANAR_SUM:
+            out.append(k)
+    return out
+
+
+def _on_open_trimers(structure, planned) -> list:
+    """Which of ``planned`` sit on the terminal oxygen of a trimer that
+    :func:`complete_trimers` has not completed.  Reading valences, the
+    planner makes all three hydroxide and the trimer -2; which is water
+    and which hydroxide is that step's to choose, and it is only run
+    when asked for."""
+    ligands = {lig for _o, members, _w in _trimer_plan(structure)
+               for _m, lig in members if lig is not None}
+    if not ligands:
+        return []
+    cell = p1.expand(structure)
+    matrix = structure.lattice.matrix
+    out = []
+    for k, site in enumerate(planned):
+        delta = cell.frac - site.frac
+        delta -= np.rint(delta)
+        if int(np.argmin(np.linalg.norm(delta @ matrix, axis=1))) \
+                in ligands:
+            out.append(k)
+    return out
+
+
+OPERATIONS = {
+    "duplicates": merge_duplicates,
+    "deuterium": to_hydrogen,
+    "primitive": primitive,
+    "disorder": order_disorder,
+    "solvent": remove_solvent,
+    "cap": complete_trimers,
+    "hydrogens": _add_hydrogens,
+}
+
+
+@dataclass
+class Outcome:
+    """What :func:`run` made, each step's sentence, and the cautions:
+    where the result's chemistry is not the file's, or the file's
+    chemistry was left as it was and the cell is not neutral."""
+
+    structure: Structure
+    said: list[str]
+    cautions: list[str] = field(default_factory=list)
+
+
+def run(structure: Structure, steps=DEFAULT_STEPS) -> Outcome:
+    """The chosen steps, in :data:`STEPS` order, and what each did."""
+    unknown = set(steps) - set(STEPS)
+    if unknown:
+        raise ValueError(f"no preparation step called "
+                         f"{', '.join(sorted(unknown))}; the steps are "
+                         f"{', '.join(STEPS)}")
+    said = []
+    cautions = []
+    before = structure
+    for step in STEPS:
+        if step in steps:
+            given = structure
+            structure, message = OPERATIONS[step](structure)
+            said.append(message)
+            if step in CHEMISTRY and structure is not given:
+                cautions.append(
+                    f"{LABELS[step]} changes the chemistry of the "
+                    f"material -- what it adds was not in the file, "
+                    f"and is chosen by charge balance: {message}")
+    if structure is not before:
+        structure.ensure_labels()   # the planner's hydrogens have none
+    if "cap" not in steps and all(s.occupancy >= FULL
+                                  for s in structure.sites):
+        left = _open_trimer_sites(structure)
+        if left:
+            cautions.append(
+                f"{len(left)} M3O trimer(s) are left as the file has "
+                f"them, without the terminal ligands their charge asks "
+                f"for, so the cell is not neutral; their terminal "
+                f"oxygens get no hydrogens, because water or hydroxide "
+                f"is a choice of charge.  {LABELS['cap']} makes that "
+                f"choice, and changes the chemistry.")
+    return Outcome(structure, said, cautions)
+
+
+def prepare(structure: Structure, steps=DEFAULT_STEPS
+            ) -> tuple[Structure, list[str]]:
+    """:func:`run`, without the cautions."""
+    outcome = run(structure, steps)
+    return outcome.structure, outcome.said
