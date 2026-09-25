@@ -164,13 +164,25 @@ def _panels(window) -> list[dict]:
     return out
 
 
+def _default(value) -> str:
+    """A default as code, or nothing: an empty one printed as a pair of
+    backticks."""
+    text = _cell(value)
+    return f"`{text}`" if text else ""
+
+
 def _params_table(params) -> list[str]:
     if not params:
         return ["No settings.", ""]
-    rows = ["| Setting | Accepts | Default | What it is |",
+    # Column widths for the PDF, as fractions of the line: without them
+    # LaTeX shares the width out by content and a long description
+    # squeezes the header to "Set- ting".  HTML ignores the directive.
+    rows = ["```{tabularcolumns} |\\Y{0.19}|\\Y{0.22}|\\Y{0.13}|\\Y{0.46}|",
+            "```", "",
+            "| Setting | Accepts | Default | What it is |",
             "|---|---|---|---|"]
     rows += [f"| **{_cell(p['label'])}** | {_cell(p['accepts'])} | "
-             f"`{_cell(p['default'])}` | {_cell(p['help'])} |"
+             f"{_default(p['default'])} | {_cell(p['help'])} |"
              for p in params]
     return rows + [""]
 
@@ -218,7 +230,8 @@ def write(out: Path, commands, modules, engines, panels) -> None:
     (out / "engines.md").write_text("\n".join(lines))
 
     lines = [HEADER + "# Panels", "",
-             "| Panel | Opens on the | What it is |", "|---|---|---|"]
+             "```{tabularcolumns} |\\Y{0.2}|\\Y{0.15}|\\Y{0.65}|", "```",
+             "", "| Panel | Opens on the | What it is |", "|---|---|---|"]
     lines += [f"| {{ref}}`{_cell(p['title'])} <panel-{p['key']}>` | "
               f"{p['area']} | {_cell(p['summary'])} |" for p in panels]
     lines.append("")

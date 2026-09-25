@@ -121,6 +121,10 @@ mattersim = ["mattersim>=1.2.5", "ase>=3.23"]
 # test skips itself, and CI installs [gui,test] -- so the GUI half of
 # the suite was passing by not running.
 test = ["pytest>=8", "pytest-qt>=4", "pytest-xdist>=3"]
+# The user manual, docs/manual: Sphinx with MyST pages and a BibTeX
+# bibliography.  The PDF also needs a LaTeX install (make latexpdf).
+docs = ["sphinx>=7", "myst-parser>=3", "sphinxcontrib-bibtex>=2.6",
+        "furo>=2024.1"]
 dev = ["crystal-builder[gui,ase,build,sketch,pxrd,test]", "ruff",
        "pyinstaller>=6"]
 

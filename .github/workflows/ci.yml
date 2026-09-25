@@ -127,6 +127,40 @@ jobs:
       # columns and ruff format would fight it.
       - run: pipx run ruff check .
 
+  # The user manual, docs/manual: HTML with every warning an error --
+  # a broken cross-reference is a warning, and it is what a renamed
+  # command leaves behind -- then the PDF, uploaded to look at.  The
+  # reference pages are generated from the application and committed,
+  # so nothing here needs a display or the application installed.
+  manual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0        # tags: the manual names its release
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install "sphinx>=7" "myst-parser>=3"
+             "sphinxcontrib-bibtex>=2.6" "furo>=2024.1"
+      - run: sphinx-build -n -W --keep-going -b html docs/manual
+             build/manual/html
+      - name: LaTeX
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends \
+            latexmk texlive-xetex texlive-latex-recommended \
+            texlive-latex-extra texlive-fonts-recommended \
+            fonts-freefont-otf
+      - run: sphinx-build -M latexpdf docs/manual build/manual
+      - uses: actions/upload-artifact@v7
+        with:
+          name: crystal-builder-manual
+          path: |
+            build/manual/latex/crystal-builder-manual.pdf
+            build/manual/html
+
   # Build the bundle on every push to main as well as on a tag, and
   # not only when releasing.  A spec file rots the moment somebody
   # adds an import, and finding that out at tag time -- when the tag

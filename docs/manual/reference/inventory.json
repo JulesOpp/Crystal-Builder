@@ -1,0 +1,3024 @@
+{
+ "commands": [
+  {
+   "key": "new",
+   "section": "File",
+   "path": "New",
+   "shortcut": "Ctrl+N",
+   "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "open",
+   "section": "File",
+   "path": "Open...",
+   "shortcut": "Ctrl+O",
+   "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "sample_mof5",
+   "section": "File",
+   "path": "Open Sample ▸ MOF-5",
+   "shortcut": "",
+   "tip": "Zn4O nodes and benzene-1,4-dicarboxylate linkers -- the framework every other one gets compared to.  Written in P1, so Symmetry > Find symmetry has Fm-3m to recover from it",
+   "checkable": false
+  },
+  {
+   "key": "sample_hkust1",
+   "section": "File",
+   "path": "Open Sample ▸ HKUST-1",
+   "shortcut": "",
+   "tip": "Copper paddlewheels and benzene-1,3,5-tricarboxylate, in Fm-3m with six sites in the asymmetric unit -- the small end of what a whole framework can be written as",
+   "checkable": false
+  },
+  {
+   "key": "sample_zif8",
+   "section": "File",
+   "path": "Open Sample ▸ ZIF-8",
+   "shortcut": "",
+   "tip": "Zinc 2-methylimidazolate: the zeolitic imidazolate framework, as a 102-atom cell with no symmetry on it",
+   "checkable": false
+  },
+  {
+   "key": "sample_mfu4l",
+   "section": "File",
+   "path": "Open Sample ▸ MFU-4l",
+   "shortcut": "",
+   "tip": "Zn5Cl4 Kuratowski nodes and a bis(triazolyl) linker.  A 31 A cubic cell, and this project's usual stress case: what a slow operation is measured against",
+   "checkable": false
+  },
+  {
+   "key": "sample_ni2cl2btdd",
+   "section": "File",
+   "path": "Open Sample ▸ Ni2Cl2(BTDD)",
+   "shortcut": "",
+   "tip": "Nickel-chloride chains bridged by a bis(triazolo)dioxine linker, with the solvent still in the pores.  Rhombohedral, R-3m -- a cell that is not orthogonal",
+   "checkable": false
+  },
+  {
+   "key": "sample_cfa1",
+   "section": "File",
+   "path": "Open Sample ▸ CFA-1",
+   "shortcut": "",
+   "tip": "Zn5(OAc)4(bibta)3: the Kuratowski node again, capped with acetate rather than chloride, in trigonal P321.  As deposited, so its acetate is disordered over two positions -- occupancies of 0.57 and 0.43 to look at",
+   "checkable": false
+  },
+  {
+   "key": "sample_cfa1_p1",
+   "section": "File",
+   "path": "Open Sample ▸ CFA-1 in P1",
+   "shortcut": "",
+   "tip": "The same framework and the same cell, modelled ordered and written out in P1: 210 atoms, two formula units, every site fully occupied and none of them related by anything",
+   "checkable": false
+  },
+  {
+   "key": "sample_cod_mof5",
+   "section": "File",
+   "path": "Open Sample ▸ From the COD ▸ MOF-5",
+   "shortcut": "",
+   "tip": "Lock et al., J. Phys. Chem. C 2010: MOF-5 as refined, in Fm-3m with seven sites, where the one above is written out in P1",
+   "checkable": false
+  },
+  {
+   "key": "sample_cod_hkust1",
+   "section": "File",
+   "path": "Open Sample ▸ From the COD ▸ HKUST-1",
+   "shortcut": "",
+   "tip": "Peterson et al., Chem. Mater. 2014: Cu3(BTC)2 in Fm-3m from in-situ diffraction, with no guest in the file",
+   "checkable": false
+  },
+  {
+   "key": "sample_cod_zif8",
+   "section": "File",
+   "path": "Open Sample ▸ From the COD ▸ ZIF-8",
+   "shortcut": "",
+   "tip": "De Zitter et al., CrystEngComm 2024: ZIF-8 in I-43m, with each methyl hydrogen disordered over two positions",
+   "checkable": false
+  },
+  {
+   "key": "sample_cod_uio66",
+   "section": "File",
+   "path": "Open Sample ▸ From the COD ▸ UiO-66",
+   "shortcut": "",
+   "tip": "Oien et al., Cryst. Growth Des. 2014: UiO-66 with its defects refined -- linkers at 73 % and the cluster oxygens split over two positions",
+   "checkable": false
+  },
+  {
+   "key": "sample_cod_mil101",
+   "section": "File",
+   "path": "Open Sample ▸ From the COD ▸ MIL-101(Cr)",
+   "shortcut": "",
+   "tip": "Lebedev et al., Chem. Mater. 2005: an 89 A cubic cell in Fd-3m, 16 000 atoms with no hydrogens, 4304 of them the oxygens of the water in its cages -- the largest thing in this menu",
+   "checkable": false
+  },
+  {
+   "key": "sample_cod_nu1000",
+   "section": "File",
+   "path": "Open Sample ▸ From the COD ▸ NU-1000",
+   "shortcut": "",
+   "tip": "Islamoglu et al., CrystEngComm 2018: Zr6 nodes and a pyrene tetracarboxylate in P6/mmm, 510 atoms in the cell",
+   "checkable": false
+  },
+  {
+   "key": "sample_cod_mil100",
+   "section": "File",
+   "path": "Open Sample ▸ From the COD ▸ MIL-100(Fe)",
+   "shortcut": "",
+   "tip": "Horcajada et al., Chem. Commun. 2007: Fe3O trimers and trimesate in Fd-3m, a 73 A cell of 13 552 atoms with no hydrogens -- MIL-101's smaller sibling",
+   "checkable": false
+  },
+  {
+   "key": "sample_cod_mof74",
+   "section": "File",
+   "path": "Open Sample ▸ From the COD ▸ MOF-74(Zn)",
+   "shortcut": "",
+   "tip": "Queen et al., Chem. Sci. 2014: Zn2(dobdc) evacuated, from neutron powder diffraction -- the honeycomb of open metal sites, 162 atoms in R-3",
+   "checkable": false
+  },
+  {
+   "key": "sample_cod_pcn222",
+   "section": "File",
+   "path": "Open Sample ▸ From the COD ▸ PCN-222(Fe)",
+   "shortcut": "",
+   "tip": "Morris et al., Inorg. Chem. 2012, as MOF-545(Fe): Zr6 nodes and iron porphyrin linkers in P6/mmm, the chloride on each iron split over two positions",
+   "checkable": false
+  },
+  {
+   "key": "sample_cod_mof808",
+   "section": "File",
+   "path": "Open Sample ▸ From the COD ▸ MOF-808",
+   "shortcut": "",
+   "tip": "Furukawa et al., J. Am. Chem. Soc. 2014: six-connected Zr6 nodes and trimesate in Fd-3m, with the formate caps and pore water as partly occupied sites",
+   "checkable": false
+  },
+  {
+   "key": "sample_cod_mil53",
+   "section": "File",
+   "path": "Open Sample ▸ From the COD ▸ MIL-53(Cr)",
+   "shortcut": "",
+   "tip": "Mulder et al., J. Phys. Chem. C 2010: the large-pore form, Cr(OH) chains and terephthalate, from neutron diffraction -- so its hydrogens are deuterium",
+   "checkable": false
+  },
+  {
+   "key": "sample_cod_mil88b",
+   "section": "File",
+   "path": "Open Sample ▸ From the COD ▸ MIL-88B(Cr)",
+   "shortcut": "",
+   "tip": "Serre et al., Chem. Commun. 2006: Cr3O trimers and terephthalate in P-62c, as refined, with pyridine and water in the pores and no hydrogens",
+   "checkable": false
+  },
+  {
+   "key": "sample_cod_mnbtt",
+   "section": "File",
+   "path": "Open Sample ▸ From the COD ▸ Mn-BTT",
+   "shortcut": "",
+   "tip": "Dinca et al., J. Am. Chem. Soc. 2006: Mn3[(Mn4Cl)3(BTT)8]2 desolvated, square Mn4Cl units and a tritetrazolate in Pm-3m -- the exposed Mn2+ sites",
+   "checkable": false
+  },
+  {
+   "key": "sample_cod_euhotp",
+   "section": "File",
+   "path": "Open Sample ▸ From the COD ▸ cubic-EuHOTP",
+   "shortcut": "",
+   "tip": "Skorupskii et al., J. Am. Chem. Soc. 2020: europium and hexaoxytriphenylene in Fd-3m, a porous conductor, with the nitrate in its pores over three positions",
+   "checkable": false
+  },
+  {
+   "key": "sample_cod_pbzmof1",
+   "section": "File",
+   "path": "Open Sample ▸ From the COD ▸ pbz-MOF-1",
+   "shortcut": "",
+   "tip": "Alezi et al., J. Am. Chem. Soc. 2016: Zr6 nodes on the pbz net in Fd-3m, a 45 A cell of 3488 atoms",
+   "checkable": false
+  },
+  {
+   "key": "sample_cod_alsocmof1",
+   "section": "File",
+   "path": "Open Sample ▸ From the COD ▸ Al-soc-MOF-1",
+   "shortcut": "",
+   "tip": "Alezi et al., J. Am. Chem. Soc. 2015: Al3O trimers on the soc net in Pm-3n, 1208 atoms, with the chloride that balances the charge spread thin over its site",
+   "checkable": false
+  },
+  {
+   "key": "sample_prep_mof5",
+   "section": "File",
+   "path": "Open Sample ▸ Prepared for simulation ▸ MOF-5",
+   "shortcut": "",
+   "tip": "COD 1516287 prepared for simulation: the primitive cell, 106 atoms.  Nothing else was needed",
+   "checkable": false
+  },
+  {
+   "key": "sample_prep_hkust1",
+   "section": "File",
+   "path": "Open Sample ▸ Prepared for simulation ▸ HKUST-1",
+   "shortcut": "",
+   "tip": "COD 4002052 prepared for simulation: the primitive cell, 156 atoms, with its copper sites open",
+   "checkable": false
+  },
+  {
+   "key": "sample_prep_zif8",
+   "section": "File",
+   "path": "Open Sample ▸ Prepared for simulation ▸ ZIF-8",
+   "shortcut": "",
+   "tip": "COD 7249359 prepared for simulation: each methyl's hydrogens in one of their two orientations, in the primitive cell",
+   "checkable": false
+  },
+  {
+   "key": "sample_prep_uio66",
+   "section": "File",
+   "path": "Open Sample ▸ Prepared for simulation ▸ UiO-66",
+   "shortcut": "",
+   "tip": "COD 4512072 prepared for simulation: Zr6O4(OH)4(bdc)6 with its four mu3-OH pointing out: the ideal framework, not the CIF's average over about 27 % missing linkers",
+   "checkable": false
+  },
+  {
+   "key": "sample_prep_mil101",
+   "section": "File",
+   "path": "Open Sample ▸ Prepared for simulation ▸ MIL-101(Cr)",
+   "shortcut": "",
+   "tip": "COD 4000663 prepared for simulation: the primitive cell of 4080 atoms, one OH and two waters on each Cr3O trimer, and the powder model's linkers relaxed with ORB-v3 + D3(BJ) at the experimental cell",
+   "checkable": false
+  },
+  {
+   "key": "sample_prep_nu1000",
+   "section": "File",
+   "path": "Open Sample ▸ Prepared for simulation ▸ NU-1000",
+   "shortcut": "",
+   "tip": "COD 7230579 prepared for simulation: Zr6O4(OH)4(OH)4(H2O)4: four hydroxides and four waters on the eight-connected node, not the eight hydroxides that leave it charged",
+   "checkable": false
+  },
+  {
+   "key": "sample_prep_mil100",
+   "section": "File",
+   "path": "Open Sample ▸ Prepared for simulation ▸ MIL-100(Fe)",
+   "shortcut": "",
+   "tip": "COD 7102029 prepared for simulation: the primitive cell, one OH and two waters on each Fe3O trimer, ring hydrogens by ring, and the powder model's bent linkers relaxed with ORB-v3 + D3(BJ)",
+   "checkable": false
+  },
+  {
+   "key": "sample_prep_mof74",
+   "section": "File",
+   "path": "Open Sample ▸ Prepared for simulation ▸ MOF-74(Zn)",
+   "shortcut": "",
+   "tip": "COD 1517474 prepared for simulation: the primitive cell, 54 atoms.  Nothing else was needed",
+   "checkable": false
+  },
+  {
+   "key": "sample_prep_pcn222",
+   "section": "File",
+   "path": "Open Sample ▸ Prepared for simulation ▸ PCN-222(Fe)",
+   "shortcut": "",
+   "tip": "COD 4329555 prepared for simulation: the disordered chloride ordered, and the node's terminal ligands replaced by four OH and four waters",
+   "checkable": false
+  },
+  {
+   "key": "sample_prep_mof808",
+   "section": "File",
+   "path": "Open Sample ▸ Prepared for simulation ▸ MOF-808",
+   "shortcut": "",
+   "tip": "COD 4121463 prepared for simulation: Zr6O4(OH)4(btc)2(HCOO)6 exactly: the disordered formate and water ordered, the solvent removed",
+   "checkable": false
+  },
+  {
+   "key": "sample_prep_mil53",
+   "section": "File",
+   "path": "Open Sample ▸ Prepared for simulation ▸ MIL-53(Cr)",
+   "shortcut": "",
+   "tip": "COD 1502688 prepared for simulation: Cr(OH)(bdc): deuterium as hydrogen, the mu2-OH the neutron structure never located, and relaxed with ORB-v3 + D3(BJ)",
+   "checkable": false
+  },
+  {
+   "key": "sample_prep_mil88b",
+   "section": "File",
+   "path": "Open Sample ▸ Prepared for simulation ▸ MIL-88B(Cr)",
+   "shortcut": "",
+   "tip": "COD 7100637 prepared for simulation: the pyridine and water taken out of the pores, one OH and two waters on each trimer, relaxed with ORB-v3 + D3(BJ)",
+   "checkable": false
+  },
+  {
+   "key": "sample_prep_mnbtt",
+   "section": "File",
+   "path": "Open Sample ▸ Prepared for simulation ▸ Mn-BTT",
+   "shortcut": "",
+   "tip": "COD 4111257 prepared for simulation: the methanol on each framework Mn made whole, CH3OH.  One extra-framework Mn per cell where the charge wants one and a half",
+   "checkable": false
+  },
+  {
+   "key": "sample_prep_euhotp",
+   "section": "File",
+   "path": "Open Sample ▸ Prepared for simulation ▸ cubic-EuHOTP",
+   "shortcut": "",
+   "tip": "COD 4134597 prepared for simulation: every Eu with one whole chelating nitrate -- the CIF shares an oxygen between two -- and the cluster nitrate ordered.  Its charge is not settled: HOTP's oxidation state is not in the file",
+   "checkable": false
+  },
+  {
+   "key": "sample_prep_pbzmof1",
+   "section": "File",
+   "path": "Open Sample ▸ Prepared for simulation ▸ pbz-MOF-1",
+   "shortcut": "",
+   "tip": "COD 4130966 prepared for simulation: one acetate in six missing, as refined, each gap left as a hydroxide and a water; relaxed with ORB-v3 + D3(BJ)",
+   "checkable": false
+  },
+  {
+   "key": "sample_prep_alsocmof1",
+   "section": "File",
+   "path": "Open Sample ▸ Prepared for simulation ▸ Al-soc-MOF-1",
+   "shortcut": "",
+   "tip": "COD 4129499 prepared for simulation: one tilt of each terphenyl ring -- the CIF gives both at full occupancy -- a chloride per trimer and three waters on it; relaxed with ORB-v3 + D3(BJ)",
+   "checkable": false
+  },
+  {
+   "key": "save",
+   "section": "File",
+   "path": "Save File",
+   "shortcut": "Ctrl+S",
+   "tip": "Save the session -- the structure, the bonds you drew, the view, the selection and the measurements -- over the file this is, without asking where",
+   "checkable": false
+  },
+  {
+   "key": "save_as",
+   "section": "File",
+   "path": "Save As...",
+   "shortcut": "Ctrl+Shift+S",
+   "tip": "Save the session under another name",
+   "checkable": false
+  },
+  {
+   "key": "export",
+   "section": "File",
+   "path": "Export...",
+   "shortcut": "",
+   "tip": "Write a file for something else to read -- a CIF, an XYZ.  One way: it never becomes this document's file",
+   "checkable": false
+  },
+  {
+   "key": "export_image",
+   "section": "File",
+   "path": "Export Image...",
+   "shortcut": "",
+   "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "export_stl",
+   "section": "File",
+   "path": "Export as STL...",
+   "shortcut": "",
+   "tip": "One unit cell with its bonds, as a mesh a 3D printer can take.  Blender does the meshing, so it has to be installed -- see Preferences > Engines",
+   "checkable": false
+  },
+  {
+   "key": "export_net",
+   "section": "File",
+   "path": "Export Net for Systre...",
+   "shortcut": "",
+   "tip": "The net drawn on this structure as a .cgd file, for Systre to name -- a second opinion on the Net panel that does not come from the code that gave the first",
+   "checkable": false
+  },
+  {
+   "key": "save_building_block",
+   "section": "File",
+   "path": "Save as a building block...",
+   "shortcut": "",
+   "tip": "Write this molecule into the folder the MOF builder reads, so it appears in the block picker beside the 867 PORMAKE ships.  It needs connection points on it -- the dialog says what is missing.",
+   "checkable": false
+  },
+  {
+   "key": "new_workspace",
+   "section": "File",
+   "path": "New Workspace...",
+   "shortcut": "",
+   "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "open_workspace",
+   "section": "File",
+   "path": "Open Workspace...",
+   "shortcut": "",
+   "tip": "A folder that structures and their calculations live in",
+   "checkable": false
+  },
+  {
+   "key": "close_tab",
+   "section": "File",
+   "path": "Close",
+   "shortcut": "Ctrl+W",
+   "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "close_all_tabs",
+   "section": "File",
+   "path": "Close All",
+   "shortcut": "Ctrl+Shift+W",
+   "tip": "Every open structure.  Each modified one still asks",
+   "checkable": false
+  },
+  {
+   "key": "preferences",
+   "section": "File",
+   "path": "Preferences...",
+   "shortcut": "Ctrl+,",
+   "tip": "Everything this application remembers between sessions -- where new workspaces go, and what a newly opened structure is drawn as",
+   "checkable": false
+  },
+  {
+   "key": "quit",
+   "section": "File",
+   "path": "Quit",
+   "shortcut": "Ctrl+Q",
+   "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "undo",
+   "section": "Edit",
+   "path": "Undo",
+   "shortcut": "Ctrl+Z",
+   "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "redo",
+   "section": "Edit",
+   "path": "Redo",
+   "shortcut": "Ctrl+Shift+Z",
+   "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "cut",
+   "section": "Edit",
+   "path": "Cut",
+   "shortcut": "Ctrl+X",
+   "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "copy",
+   "section": "Edit",
+   "path": "Copy",
+   "shortcut": "Ctrl+C",
+   "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "paste",
+   "section": "Edit",
+   "path": "Paste",
+   "shortcut": "Ctrl+V",
+   "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "duplicate",
+   "section": "Edit",
+   "path": "Duplicate",
+   "shortcut": "Ctrl+D",
+   "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "delete_selection",
+   "section": "Edit",
+   "path": "Delete",
+   "shortcut": "Del",
+   "tip": "Delete whichever is selected: the bonds if bonds are, otherwise the sites",
+   "checkable": false
+  },
+  {
+   "key": "delete_bond",
+   "section": "Edit",
+   "path": "Delete bond",
+   "shortcut": "",
+   "tip": "Suppress the selected bonds, and their whole symmetry orbit",
+   "checkable": false
+  },
+  {
+   "key": "change_element",
+   "section": "Edit",
+   "path": "Change element...",
+   "shortcut": "",
+   "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "select_all",
+   "section": "Select",
+   "path": "Select All",
+   "shortcut": "Ctrl+A",
+   "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "select_none",
+   "section": "Select",
+   "path": "Select None",
+   "shortcut": "",
+   "tip": "Escape, when there is no gesture or mode to leave first",
+   "checkable": false
+  },
+  {
+   "key": "invert_selection",
+   "section": "Select",
+   "path": "Invert selection",
+   "shortcut": "Ctrl+I",
+   "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "select_same",
+   "section": "Select",
+   "path": "Select same element",
+   "shortcut": "",
+   "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "select_bonds",
+   "section": "Select",
+   "path": "Bonds between elements...",
+   "shortcut": "",
+   "tip": "Select every bond joining two elements, and no atoms -- so Delete and Bond type act on those bonds alone",
+   "checkable": false
+  },
+  {
+   "key": "expand_bonded",
+   "section": "Select",
+   "path": "Grow ▸ Grow to bonded neighbours",
+   "shortcut": "Ctrl+G",
+   "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "expand_fragment",
+   "section": "Select",
+   "path": "Grow ▸ Grow to whole fragment",
+   "shortcut": "Ctrl+Shift+G",
+   "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "expand_orbit",
+   "section": "Select",
+   "path": "Grow ▸ Grow to symmetry orbit",
+   "shortcut": "",
+   "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "add_atom_dialog",
+   "section": "Structure",
+   "path": "Add atom...",
+   "shortcut": "Ctrl+Shift+A",
+   "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "add_centroid",
+   "section": "Structure",
+   "path": "Add centroid...",
+   "shortcut": "",
+   "tip": "Put an atom at the middle of the selected atoms -- a dummy atom, which bonds to nothing and is what net edges and measurements are drawn to, or an element",
+   "checkable": false
+  },
+  {
+   "key": "merge_atoms",
+   "section": "Structure",
+   "path": "Merge atoms",
+   "shortcut": "",
+   "tip": "Replace the selected atoms with one at their middle -- of their element when they share one, a dummy atom when they do not.  Whole orbits go, as with Delete, and the new atom is bonded to nothing",
+   "checkable": false
+  },
+  {
+   "key": "add_hydrogens",
+   "section": "Structure",
+   "path": "Add hydrogens...",
+   "shortcut": "",
+   "tip": "Complete every main-group coordination with the hydrogens an X-ray structure never had",
+   "checkable": false
+  },
+  {
+   "key": "insert_molecule",
+   "section": "Structure",
+   "path": "Insert molecule...",
+   "shortcut": "",
+   "tip": "Build a molecule from a SMILES string and paste it into this structure.  It arrives with the bonds the builder gave it and no others, and pasting into a group with symmetry multiplies it -- the dialog says by how much before you press the button.",
+   "checkable": false
+  },
+  {
+   "key": "fill_pores",
+   "section": "Structure",
+   "path": "Fill pores with molecules...",
+   "shortcut": "",
+   "tip": "Put copies of a molecule -- from another tab or a file -- into the empty space of this structure, each where it touches nothing.  A host with symmetry is reduced to P1 first, and bonds are not recalculated",
+   "checkable": false
+  },
+  {
+   "key": "interpenetrate",
+   "section": "Structure",
+   "path": "Interpenetrate...",
+   "shortcut": "",
+   "tip": "Thread copies of this framework through its own pores: every placement the lattice allows is measured, and one where atoms of two copies would meet cannot be chosen.  The copies keep their bonds, and the result is in P1",
+   "checkable": false
+  },
+  {
+   "key": "prepare_simulation",
+   "section": "Structure",
+   "path": "Prepare for simulation...",
+   "shortcut": "",
+   "tip": "Make a deposited structure one a calculation can use: order the disorder into whole atoms, remove solvent, complete M3O trimers, add the missing hydrogens and take the primitive cell -- each step saying what it chose before anything is done, and one undo step for the lot",
+   "checkable": false
+  },
+  {
+   "key": "mark_connection_points",
+   "section": "Structure",
+   "path": "Mark connection points",
+   "shortcut": "",
+   "tip": "Turn each selected atom that has exactly one bond into a connection point: a dummy 0.75 A along that bond, which is what a PORMAKE building block is joined by.  There is no unmark -- an X does not remember what it was, so the way back is Ctrl+Z.",
+   "checkable": false
+  },
+  {
+   "key": "mark_one_connection_point",
+   "section": "Structure",
+   "path": "Mark as one connection point",
+   "shortcut": "",
+   "tip": "Collapse the selected atoms into a single connection point, 0.75 A from the middle of everything they were bonded to and carrying those bonds.  For a chelate: two atoms that meet the next block together are one joint, and marking them separately gives a block with twice the coordination number it has.",
+   "checkable": false
+  },
+  {
+   "key": "bond_rules",
+   "section": "Structure",
+   "path": "Bond rules...",
+   "shortcut": "",
+   "tip": "Which atoms bond, and how close they have to be",
+   "checkable": false
+  },
+  {
+   "key": "recompute_bonds",
+   "section": "Structure",
+   "path": "Recalculate bonds",
+   "shortcut": "",
+   "tip": "Perceive the bonds again from the geometry as it is now.  Bonds do not change on their own when atoms move; this is what changes them.",
+   "checkable": false
+  },
+  {
+   "key": "reset_bonds",
+   "section": "Structure",
+   "path": "Reset bonds to automatic",
+   "shortcut": "Ctrl+B",
+   "tip": "Drop the bonds you drew and the ones you deleted, and take what the distance criteria give.  The only way back from a deleted bond once the undo stack has gone, because a deletion is saved with the project.",
+   "checkable": false
+  },
+  {
+   "key": "bonds_follow",
+   "section": "Structure",
+   "path": "Bonds follow the geometry",
+   "shortcut": "",
+   "tip": "Re-perceive the bonds after every edit that moves an atom, instead of only when you ask",
+   "checkable": true
+  },
+  {
+   "key": "bond_type_single",
+   "section": "Structure",
+   "path": "Set Bond Type ▸ Single",
+   "shortcut": "",
+   "tip": "Call the selected bonds single, and their whole symmetry orbit with them",
+   "checkable": true
+  },
+  {
+   "key": "bond_type_double",
+   "section": "Structure",
+   "path": "Set Bond Type ▸ Double",
+   "shortcut": "",
+   "tip": "Call the selected bonds double, and their whole symmetry orbit with them",
+   "checkable": true
+  },
+  {
+   "key": "bond_type_triple",
+   "section": "Structure",
+   "path": "Set Bond Type ▸ Triple",
+   "shortcut": "",
+   "tip": "Call the selected bonds triple, and their whole symmetry orbit with them",
+   "checkable": true
+  },
+  {
+   "key": "bond_type_aromatic",
+   "section": "Structure",
+   "path": "Set Bond Type ▸ Aromatic",
+   "shortcut": "",
+   "tip": "Call the selected bonds aromatic, and their whole symmetry orbit with them",
+   "checkable": true
+  },
+  {
+   "key": "bond_type_automatic",
+   "section": "Structure",
+   "path": "Set Bond Type ▸ Automatic",
+   "shortcut": "",
+   "tip": "Let the geometry decide this bond's order again",
+   "checkable": true
+  },
+  {
+   "key": "mode_select",
+   "section": "Structure",
+   "path": "Mouse mode ▸ Select",
+   "shortcut": "",
+   "tip": "click an atom or bond · shift-click to add · double-click for the whole fragment",
+   "checkable": true
+  },
+  {
+   "key": "mode_box_select",
+   "section": "Structure",
+   "path": "Mouse mode ▸ Box select",
+   "shortcut": "",
+   "tip": "drag a box over the atoms - shift to add - everything inside is taken, bonds included, front to back",
+   "checkable": true
+  },
+  {
+   "key": "mode_add_atom",
+   "section": "Structure",
+   "path": "Mouse mode ▸ Add atom",
+   "shortcut": "",
+   "tip": "click to place an atom · click an atom to build from it, then keep clicking to chain · Escape stops",
+   "checkable": true
+  },
+  {
+   "key": "mode_add_bond",
+   "section": "Structure",
+   "path": "Mouse mode ▸ Add bond",
+   "shortcut": "",
+   "tip": "click two atoms to bond them · click a bond to remove it",
+   "checkable": true
+  },
+  {
+   "key": "mode_topology",
+   "section": "Structure",
+   "path": "Mouse mode ▸ Draw net",
+   "shortcut": "",
+   "tip": "click two atoms to draw a net edge - click an edge to select it, Del removes it",
+   "checkable": true
+  },
+  {
+   "key": "mode_move",
+   "section": "Structure",
+   "path": "Mouse mode ▸ Move",
+   "shortcut": "",
+   "tip": "drag an atom to move it, or any atom of the selection to move all of it - alt-drag turns the selection - shift-alt-drag moves it in depth - the background still turns the crystal",
+   "checkable": true
+  },
+  {
+   "key": "mode_measure",
+   "section": "Structure",
+   "path": "Mouse mode ▸ Measure",
+   "shortcut": "",
+   "tip": "click a bond for its length, or 2 atoms for a distance, 3 for an angle, 4 for a torsion",
+   "checkable": true
+  },
+  {
+   "key": "find_symmetry",
+   "section": "Symmetry",
+   "path": "Find symmetry...",
+   "shortcut": "Ctrl+Shift+F",
+   "tip": "Detect the space group at a tolerance and adopt it",
+   "checkable": false
+  },
+  {
+   "key": "set_space_group",
+   "section": "Symmetry",
+   "path": "Set space group...",
+   "shortcut": "",
+   "tip": "Choose a group and generate or impose it",
+   "checkable": false
+  },
+  {
+   "key": "subgroup",
+   "section": "Symmetry",
+   "path": "Descend to a subgroup...",
+   "shortcut": "",
+   "tip": "Drop to a maximal subgroup so that an orbit splits and its atoms become independent",
+   "checkable": false
+  },
+  {
+   "key": "standardize",
+   "section": "Symmetry",
+   "path": "Standardise cell",
+   "shortcut": "",
+   "tip": "Rebuild in the conventional setting of the detected group",
+   "checkable": false
+  },
+  {
+   "key": "primitive",
+   "section": "Symmetry",
+   "path": "Reduce to primitive cell",
+   "shortcut": "",
+   "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "wyckoff",
+   "section": "Symmetry",
+   "path": "Assign Wyckoff letters",
+   "shortcut": "",
+   "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "merge_duplicates",
+   "section": "Symmetry",
+   "path": "Merge duplicate sites...",
+   "shortcut": "",
+   "tip": "Merge sites of the same element that are the same atom, symmetry images included",
+   "checkable": false
+  },
+  {
+   "key": "invert",
+   "section": "Symmetry",
+   "path": "Invert the structure",
+   "shortcut": "",
+   "tip": "The same crystal in the other hand: the coordinates and the space group together",
+   "checkable": false
+  },
+  {
+   "key": "reduce_p1",
+   "section": "Symmetry",
+   "path": "Reduce to P1",
+   "shortcut": "",
+   "tip": "Expand every symmetry orbit into independent sites",
+   "checkable": false
+  },
+  {
+   "key": "edit_cell",
+   "section": "Cell",
+   "path": "Edit cell...",
+   "shortcut": "",
+   "tip": "Change the cell parameters, keeping fractional or cartesian coordinates",
+   "checkable": false
+  },
+  {
+   "key": "supercell",
+   "section": "Cell",
+   "path": "Supercell...",
+   "shortcut": "",
+   "tip": "na x nb x nc, or a general integer transformation",
+   "checkable": false
+  },
+  {
+   "key": "niggli",
+   "section": "Cell",
+   "path": "Niggli reduction",
+   "shortcut": "",
+   "tip": "The shortest, most orthogonal basis for this cell",
+   "checkable": false
+  },
+  {
+   "key": "delaunay",
+   "section": "Cell",
+   "path": "Delaunay reduction",
+   "shortcut": "",
+   "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "wrap_cell",
+   "section": "Cell",
+   "path": "Wrap atoms into the cell",
+   "shortcut": "",
+   "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "measure_selection",
+   "section": "Measure",
+   "path": "Measure selection",
+   "shortcut": "Ctrl+M",
+   "tip": "Measure the selected atoms in the order they were picked: two a distance, three an angle about the middle one, four a torsion -- or the length of every selected bond",
+   "checkable": false
+  },
+  {
+   "key": "define_plane",
+   "section": "Measure",
+   "path": "Define plane from selection",
+   "shortcut": "Ctrl+Shift+P",
+   "tip": "Fit a plane through the selected atoms: exactly through three, least-squares through more",
+   "checkable": false
+  },
+  {
+   "key": "plane_angle",
+   "section": "Measure",
+   "path": "Angle between planes",
+   "shortcut": "",
+   "tip": "Measure the angle between the planes defined so far -- one measurement per pair",
+   "checkable": false
+  },
+  {
+   "key": "clear_planes",
+   "section": "Measure",
+   "path": "Clear planes",
+   "shortcut": "",
+   "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "clear_measurements",
+   "section": "Measure",
+   "path": "Clear measurements",
+   "shortcut": "",
+   "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "style_ball_stick",
+   "section": "View",
+   "path": "Style ▸ Ball and stick",
+   "shortcut": "",
+   "tip": "Atoms at half their covalent radius, tubes for bonds",
+   "checkable": true
+  },
+  {
+   "key": "style_ball_stick_occupancy",
+   "section": "View",
+   "path": "Style ▸ Ball and stick (occupancy)",
+   "shortcut": "",
+   "tip": "Ball and stick, with every shared or partly empty site cut into wedges -- one per occupant, and a grey one for the vacancy",
+   "checkable": true
+  },
+  {
+   "key": "style_stick",
+   "section": "View",
+   "path": "Style ▸ Stick",
+   "shortcut": "",
+   "tip": "Bond-width tubes with matching spheres at the joints",
+   "checkable": true
+  },
+  {
+   "key": "style_wireframe",
+   "section": "View",
+   "path": "Style ▸ Wireframe",
+   "shortcut": "",
+   "tip": "Bonds as lines, no atom geometry",
+   "checkable": true
+  },
+  {
+   "key": "style_net",
+   "section": "View",
+   "path": "Style ▸ Net only",
+   "shortcut": "",
+   "tip": "The topology and nothing else -- no atoms and no chemical bonds, for looking at the net a framework reduces to",
+   "checkable": true
+  },
+  {
+   "key": "style_spacefill",
+   "section": "View",
+   "path": "Style ▸ Space filling",
+   "shortcut": "",
+   "tip": "Atoms at their van der Waals radius",
+   "checkable": true
+  },
+  {
+   "key": "style_ortep",
+   "section": "View",
+   "path": "Style ▸ Thermal ellipsoids (ORTEP)",
+   "shortcut": "",
+   "tip": "Atoms as displacement ellipsoids at the probability level set in the style panel -- the picture that makes a bad refinement obvious",
+   "checkable": true
+  },
+  {
+   "key": "style_polyhedra_stick",
+   "section": "View",
+   "path": "Style ▸ Polyhedra and sticks",
+   "shortcut": "",
+   "tip": "Coordination polyhedra for the nodes and tubes for everything else -- an MOF's metals and its linkers in the same picture",
+   "checkable": true
+  },
+  {
+   "key": "style_polyhedra",
+   "section": "View",
+   "path": "Style ▸ Polyhedra",
+   "shortcut": "",
+   "tip": "Coordination polyhedra as translucent hulls, coloured by the atom at the centre",
+   "checkable": true
+  },
+  {
+   "key": "style_platon",
+   "section": "View",
+   "path": "Style ▸ Ellipsoid plot (PLATON)",
+   "shortcut": "",
+   "tip": "The ellipsoid plot a structure report is checked in: pale outlined atoms, thin dark bonds and no highlight -- what PLATON and checkCIF draw",
+   "checkable": true
+  },
+  {
+   "key": "style_cartoon",
+   "section": "View",
+   "path": "Style ▸ Cartoon",
+   "shortcut": "",
+   "tip": "Flat colour inside a dark outline, and no shading at all -- the one style that exports as plain circles and strokes an illustrator can recolour",
+   "checkable": true
+  },
+  {
+   "key": "show_atoms",
+   "section": "View",
+   "path": "Show ▸ Atoms",
+   "shortcut": "",
+   "tip": "",
+   "checkable": true
+  },
+  {
+   "key": "show_bonds",
+   "section": "View",
+   "path": "Show ▸ Bonds",
+   "shortcut": "",
+   "tip": "",
+   "checkable": true
+  },
+  {
+   "key": "show_bond_orders",
+   "section": "View",
+   "path": "Show ▸ Bond orders",
+   "shortcut": "",
+   "tip": "Draw a double bond as two tubes and a triple as three, with an inner dashed line for an aromatic one",
+   "checkable": true
+  },
+  {
+   "key": "show_topology",
+   "section": "View",
+   "path": "Show ▸ Net (topology bonds)",
+   "shortcut": "",
+   "tip": "Draw the net a chemist marked out over the framework -- thicker and translucent, over the real bonds rather than in place of them",
+   "checkable": true
+  },
+  {
+   "key": "show_cell",
+   "section": "View",
+   "path": "Show ▸ Unit cell",
+   "shortcut": "",
+   "tip": "",
+   "checkable": true
+  },
+  {
+   "key": "show_axes",
+   "section": "View",
+   "path": "Show ▸ Cell axes (a, b, c)",
+   "shortcut": "",
+   "tip": "The triad in the corner of the view: which way a, b and c point as the structure turns",
+   "checkable": true
+  },
+  {
+   "key": "show_planes",
+   "section": "View",
+   "path": "Show ▸ Planes",
+   "shortcut": "",
+   "tip": "Draw a translucent quad at every plane in the Measure panel, with its normal on it -- choose rows in that list to draw only those",
+   "checkable": true
+  },
+  {
+   "key": "show_pores",
+   "section": "View",
+   "path": "Show ▸ Pore network",
+   "shortcut": "",
+   "tip": "Draw what a porosity run found: the largest pore where it sits, and the channels it belongs to.  Nothing is drawn until Modules > Zeo++ has answered",
+   "checkable": true
+  },
+  {
+   "key": "labels",
+   "section": "View",
+   "path": "Show ▸ Labels",
+   "shortcut": "",
+   "tip": "",
+   "checkable": true
+  },
+  {
+   "key": "show_legend",
+   "section": "View",
+   "path": "Show ▸ Element legend",
+   "shortcut": "",
+   "tip": "",
+   "checkable": true
+  },
+  {
+   "key": "show_scale_bar",
+   "section": "View",
+   "path": "Show ▸ Scale bar",
+   "shortcut": "",
+   "tip": "A ruler in the corner, in Angstrom.  It measures the camera and not the crystal, so a cell that contracts during a relaxation is seen to contract against it",
+   "checkable": true
+  },
+  {
+   "key": "clear_overlays",
+   "section": "View",
+   "path": "Clear charges and orbital",
+   "shortcut": "",
+   "tip": "Take a DFTB+ run's atom colouring and orbital lobes off the picture.  They go by themselves when the atoms move",
+   "checkable": false
+  },
+  {
+   "key": "display_range",
+   "section": "View",
+   "path": "Display range...",
+   "shortcut": "Ctrl+R",
+   "tip": "How much of the crystal to draw",
+   "checkable": false
+  },
+  {
+   "key": "boundary_in_range",
+   "section": "View",
+   "path": "Bonds at the boundary ▸ Drop bonds at the boundary",
+   "shortcut": "",
+   "tip": "A bond whose far atom is outside the range is not drawn, so every atom on the surface of the picture is drawn under-coordinated",
+   "checkable": true
+  },
+  {
+   "key": "boundary_bonded",
+   "section": "View",
+   "path": "Bonds at the boundary ▸ Complete bonds at the boundary",
+   "shortcut": "",
+   "tip": "Draw the far atom as well.  The only way a coordination polyhedron at the cell edge stays whole, at the cost of a halo of extra atoms around the box",
+   "checkable": true
+  },
+  {
+   "key": "boundary_half",
+   "section": "View",
+   "path": "Bonds at the boundary ▸ Draw half bonds at the boundary",
+   "shortcut": "",
+   "tip": "Draw the near half and nothing on the end of it -- the usual notation for a bond that leaves the picture, and the only one that draws a six-coordinate net vertex with six edges",
+   "checkable": true
+  },
+  {
+   "key": "orthographic",
+   "section": "View",
+   "path": "Orthographic projection",
+   "shortcut": "",
+   "tip": "",
+   "checkable": true
+  },
+  {
+   "key": "depth_cue",
+   "section": "View",
+   "path": "Depth cueing",
+   "shortcut": "",
+   "tip": "Fade distant atoms towards the background, so a thick slab reads as having depth instead of as a flat mat of spheres",
+   "checkable": true
+  },
+  {
+   "key": "view_a",
+   "section": "View",
+   "path": "Along a",
+   "shortcut": "1",
+   "tip": "Look down the a axis",
+   "checkable": false
+  },
+  {
+   "key": "view_b",
+   "section": "View",
+   "path": "Along b",
+   "shortcut": "2",
+   "tip": "Look down the b axis",
+   "checkable": false
+  },
+  {
+   "key": "view_c",
+   "section": "View",
+   "path": "Along c",
+   "shortcut": "3",
+   "tip": "Look down the c axis",
+   "checkable": false
+  },
+  {
+   "key": "reset_view",
+   "section": "View",
+   "path": "Reset view",
+   "shortcut": "Ctrl+0",
+   "tip": "Frame the whole of what is drawn again",
+   "checkable": false
+  },
+  {
+   "key": "show_ff",
+   "section": "Modules",
+   "path": "Forcefield ▸ Force Field panel",
+   "shortcut": "",
+   "tip": "Atom types, electrostatics, and how the run is going",
+   "checkable": false
+  },
+  {
+   "key": "single_point",
+   "section": "Modules",
+   "path": "Forcefield ▸ Single point energy",
+   "shortcut": "Ctrl+E",
+   "tip": "Energy and per-term breakdown at this geometry",
+   "checkable": false
+  },
+  {
+   "key": "optimize",
+   "section": "Modules",
+   "path": "Forcefield ▸ Optimise geometry",
+   "shortcut": "Ctrl+Shift+E",
+   "tip": "Relax the structure within its space group",
+   "checkable": false
+  },
+  {
+   "key": "show_dftb",
+   "section": "Modules",
+   "path": "DFTB+ ▸ DFTB+ panel",
+   "shortcut": "",
+   "tip": "Hamiltonian, parameter set, dispersion, and how the run is going",
+   "checkable": false
+  },
+  {
+   "key": "dftb_single_point",
+   "section": "Modules",
+   "path": "DFTB+ ▸ DFTB+: Single point energy",
+   "shortcut": "",
+   "tip": "Energy and per-term breakdown at this geometry, through DFTB+",
+   "checkable": false
+  },
+  {
+   "key": "dftb_optimize",
+   "section": "Modules",
+   "path": "DFTB+ ▸ DFTB+: Optimise geometry",
+   "shortcut": "",
+   "tip": "Relax the structure within its space group, through DFTB+",
+   "checkable": false
+  },
+  {
+   "key": "module.dftb.band-structure",
+   "section": "Modules",
+   "path": "DFTB+ ▸ Band structure...",
+   "shortcut": "",
+   "tip": "Eigenvalues along a path through the Brillouin zone, from charges converged on a mesh",
+   "checkable": false
+  },
+  {
+   "key": "module.dftb.dos",
+   "section": "Modules",
+   "path": "DFTB+ ▸ Density of states...",
+   "shortcut": "",
+   "tip": "Total and projected onto each element, on a dense mesh",
+   "checkable": false
+  },
+  {
+   "key": "module.dftb.charges",
+   "section": "Modules",
+   "path": "DFTB+ ▸ Mulliken charges",
+   "shortcut": "",
+   "tip": "A charge on every atom, and the atoms coloured by it",
+   "checkable": false
+  },
+  {
+   "key": "module.dftb.orbital",
+   "section": "Modules",
+   "path": "DFTB+ ▸ Orbital...",
+   "shortcut": "",
+   "tip": "waveplot is not installed, or not on PATH (XTAL_WAVEPLOT is not set).  It is at https://dftbplus.org (it ships with DFTB+)",
+   "checkable": false
+  },
+  {
+   "key": "module.dftb.relax",
+   "section": "Modules",
+   "path": "DFTB+ ▸ Optimise with DFTB+'s driver...",
+   "shortcut": "",
+   "tip": "One DFTB+ run relaxes the atoms, and the cell if asked; the answer is mapped back onto the space group",
+   "checkable": false
+  },
+  {
+   "key": "module.dftb.modes",
+   "section": "Modules",
+   "path": "DFTB+ ▸ Vibrational modes...",
+   "shortcut": "",
+   "tip": "modes is not installed, or not on PATH (XTAL_MODES is not set).  It is at https://dftbplus.org (it ships with DFTB+)",
+   "checkable": false
+  },
+  {
+   "key": "module.dftb.md",
+   "section": "Modules",
+   "path": "DFTB+ ▸ Molecular dynamics...",
+   "shortcut": "",
+   "tip": "Velocity Verlet, with a thermostat; the frames go to the transport bar",
+   "checkable": false
+  },
+  {
+   "key": "module.zeopp.diameters",
+   "section": "Modules",
+   "path": "Porosity ▸ Pore diameters and channels...",
+   "shortcut": "",
+   "tip": "Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set).  It is at https://www.zeoplusplus.org/",
+   "checkable": false
+  },
+  {
+   "key": "module.zeopp.surface-area",
+   "section": "Modules",
+   "path": "Porosity ▸ Surface area...",
+   "shortcut": "",
+   "tip": "Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set).  It is at https://www.zeoplusplus.org/",
+   "checkable": false
+  },
+  {
+   "key": "module.zeopp.surface-area-grid",
+   "section": "Modules",
+   "path": "Porosity ▸ Surface area (faster)...",
+   "shortcut": "",
+   "tip": "The same area in a second or two rather than several: sampled here on this application's own grid instead of by Zeo++, which it need not have.  A window within a grid step of the probe's size is flagged rather than guessed.",
+   "checkable": false
+  },
+  {
+   "key": "module.zeopp.volume",
+   "section": "Modules",
+   "path": "Porosity ▸ Accessible volume...",
+   "shortcut": "",
+   "tip": "Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set).  It is at https://www.zeoplusplus.org/",
+   "checkable": false
+  },
+  {
+   "key": "module.zeopp.volume-grid",
+   "section": "Modules",
+   "path": "Porosity ▸ Accessible volume (faster)...",
+   "shortcut": "",
+   "tip": "The same volume in a second or two -- MFU-4l's occupiable volume is 1.7 s here against 71 s in Zeo++ -- read off this application's own grid.  A window within a grid step of the probe's size is flagged rather than guessed.",
+   "checkable": false
+  },
+  {
+   "key": "module.zeopp.psd",
+   "section": "Modules",
+   "path": "Porosity ▸ Pore size distribution...",
+   "shortcut": "",
+   "tip": "Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set).  It is at https://www.zeoplusplus.org/",
+   "checkable": false
+  },
+  {
+   "key": "module.mof.build",
+   "section": "Modules",
+   "path": "MOF builder ▸ Build a framework...",
+   "shortcut": "",
+   "tip": "Pick a net, a node and a linker; the framework opens in a new tab",
+   "checkable": false
+  },
+  {
+   "key": "module.build.molecule",
+   "section": "Modules",
+   "path": "Molecule builder ▸ Molecule from SMILES...",
+   "shortcut": "",
+   "tip": "Build a molecule; it opens in a new tab",
+   "checkable": false
+  },
+  {
+   "key": "module.pxrd.simulate",
+   "section": "Modules",
+   "path": "PXRD ▸ Simulate a pattern...",
+   "shortcut": "",
+   "tip": "Calculate a powder diffraction pattern from this structure",
+   "checkable": false
+  },
+  {
+   "key": "module.scan.run",
+   "section": "Modules",
+   "path": "Energy scan ▸ Relaxed scan...",
+   "shortcut": "",
+   "tip": "Map the energy landscape over one or two coordinates",
+   "checkable": false
+  },
+  {
+   "key": "module.net.draw",
+   "section": "Modules",
+   "path": "Net builder ▸ Draw a net...",
+   "shortcut": "",
+   "tip": "Draw a named RCSR net; it opens in a new tab",
+   "checkable": false
+  },
+  {
+   "key": "module.blender.export-stl",
+   "section": "Modules",
+   "path": "Blender ▸ Export as STL...",
+   "shortcut": "",
+   "tip": "One unit cell with its bonds, turned into a printable mesh by Blender",
+   "checkable": false
+  },
+  {
+   "key": "reset_layout",
+   "section": "Window",
+   "path": "Reset layout",
+   "shortcut": "",
+   "tip": "Put the panels back where they started",
+   "checkable": false
+  },
+  {
+   "key": "help_contents",
+   "section": "Help",
+   "path": "Crystal Builder Help",
+   "shortcut": "Ctrl+?",
+   "tip": "Every command and every module setting, generated from the application itself",
+   "checkable": false
+  },
+  {
+   "key": "show_log",
+   "section": "Help",
+   "path": "Show Log",
+   "shortcut": "",
+   "tip": "Reveal the file this application writes its warnings and its crashes to",
+   "checkable": false
+  },
+  {
+   "key": "about",
+   "section": "Help",
+   "path": "About Crystal Builder",
+   "shortcut": "",
+   "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "cancel_gesture",
+   "section": "Elsewhere",
+   "path": "Cancel the current gesture",
+   "shortcut": "Esc",
+   "tip": "Put down a half-finished click gesture -- an add-atom chain, the first end of a bond, the atoms of a measurement.  Again to leave the mode.",
+   "checkable": false
+  },
+  {
+   "key": "workspace_open",
+   "section": "Elsewhere",
+   "path": "Open",
+   "shortcut": "",
+   "tip": "Open what is selected in the Workspace panel -- the same as double-clicking it.",
+   "checkable": false
+  },
+  {
+   "key": "workspace_reveal",
+   "section": "Elsewhere",
+   "path": "Reveal in Finder",
+   "shortcut": "",
+   "tip": "Show the selected file or run folder in the desktop's own file browser.",
+   "checkable": false
+  },
+  {
+   "key": "workspace_copy_path",
+   "section": "Elsewhere",
+   "path": "Copy Path",
+   "shortcut": "",
+   "tip": "Put the full path of what is selected on the clipboard, for a script or a terminal.",
+   "checkable": false
+  },
+  {
+   "key": "workspace_trash",
+   "section": "Elsewhere",
+   "path": "Move to Trash",
+   "shortcut": "",
+   "tip": "Put a run's folder in the desktop's wastebasket.  Only a run: the structure it was run on stays, and nothing here is ever deleted outright.",
+   "checkable": false
+  }
+ ],
+ "modules": [
+  {
+   "name": "forcefield",
+   "label": "Forcefield",
+   "description": "Universal Force Field: atom types, energies and geometry optimisation, under the space group.",
+   "actions": [
+    {
+     "name": "setup",
+     "label": "Setup and atom types...",
+     "tip": "Atom types, electrostatics, and how the run is going",
+     "dialog": "",
+     "shell": "show_ff",
+     "params": []
+    },
+    {
+     "name": "single-point",
+     "label": "Single point energy",
+     "tip": "Energy and per-term breakdown at this geometry",
+     "dialog": "",
+     "shell": "single_point",
+     "params": []
+    },
+    {
+     "name": "optimise",
+     "label": "Optimise geometry",
+     "tip": "Relax the structure within its space group",
+     "dialog": "",
+     "shell": "optimize",
+     "params": []
+    }
+   ]
+  },
+  {
+   "name": "dftb",
+   "label": "DFTB+",
+   "description": "Density-functional tight binding: atom types have no place in it, but the energy, the forces and the geometry optimisation are asked for the same way.",
+   "actions": [
+    {
+     "name": "setup",
+     "label": "Setup and parameters...",
+     "tip": "Hamiltonian, parameter directory, dispersion, and how the run is going",
+     "dialog": "",
+     "shell": "show_dftb",
+     "params": []
+    },
+    {
+     "name": "single-point",
+     "label": "Single point energy",
+     "tip": "Energy and per-term breakdown at this geometry",
+     "dialog": "",
+     "shell": "dftb_single_point",
+     "params": []
+    },
+    {
+     "name": "optimise",
+     "label": "Optimise geometry",
+     "tip": "Relax the structure within its space group",
+     "dialog": "",
+     "shell": "dftb_optimize",
+     "params": []
+    },
+    {
+     "name": "band-structure",
+     "label": "Band structure...",
+     "tip": "Eigenvalues along a path through the Brillouin zone, from charges converged on a mesh",
+     "dialog": "band-structure",
+     "shell": "",
+     "params": [
+      {
+       "name": "path",
+       "label": "Path",
+       "accepts": "text",
+       "default": "",
+       "help": "The corners to visit, as ASE names them: 'GXWKGLUWLK,UX'.  A comma is a jump.  Empty is ASE's recommended path for this cell"
+      },
+      {
+       "name": "density",
+       "label": "Points per 1/A",
+       "accepts": "float, 2 to 500",
+       "default": "40.0",
+       "help": "How finely each segment is sampled"
+      },
+      {
+       "name": "dos",
+       "label": "Density of states beside it",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Projected onto each element, from the run on the mesh that converges the charges -- no extra invocation, and as fine as that mesh"
+      },
+      {
+       "name": "sigma",
+       "label": "DOS broadening",
+       "accepts": "float, 0.005 to 2 eV",
+       "default": "0.1",
+       "help": ""
+      }
+     ]
+    },
+    {
+     "name": "dos",
+     "label": "Density of states...",
+     "tip": "Total and projected onto each element, on a dense mesh",
+     "dialog": "dftb-run",
+     "shell": "",
+     "params": [
+      {
+       "name": "spacing",
+       "label": "K-point spacing",
+       "accepts": "float, 0.01 to 1 1/A",
+       "default": "0.1",
+       "help": "Denser than the charges need: a density of states is an integral over the zone"
+      },
+      {
+       "name": "sigma",
+       "label": "Broadening",
+       "accepts": "float, 0.005 to 2 eV",
+       "default": "0.1",
+       "help": "DFTB+ does not broaden; this Gaussian width is ours"
+      },
+      {
+       "name": "shells",
+       "label": "Resolve s, p and d",
+       "accepts": "bool",
+       "default": "False",
+       "help": ""
+      }
+     ]
+    },
+    {
+     "name": "charges",
+     "label": "Mulliken charges",
+     "tip": "A charge on every atom, and the atoms coloured by it",
+     "dialog": "dftb-run",
+     "shell": "",
+     "params": []
+    },
+    {
+     "name": "orbital",
+     "label": "Orbital...",
+     "tip": "One state as its two lobes, through waveplot; needs the parameter set's wfc.*.hsd",
+     "dialog": "dftb-run",
+     "shell": "",
+     "params": [
+      {
+       "name": "state",
+       "label": "State",
+       "accepts": "one of Highest occupied (HOMO - n), Lowest empty (LUMO + n), By index",
+       "default": "homo",
+       "help": ""
+      },
+      {
+       "name": "offset",
+       "label": "n",
+       "accepts": "int, 0 to 1000",
+       "default": "0",
+       "help": "How many states below the HOMO, or above the LUMO"
+      },
+      {
+       "name": "index",
+       "label": "Index",
+       "accepts": "int, 1 to 1000000",
+       "default": "1",
+       "help": "The state, counting from 1"
+      },
+      {
+       "name": "kpoint",
+       "label": "k-point",
+       "accepts": "int, 1 to 100000",
+       "default": "1",
+       "help": ""
+      },
+      {
+       "name": "spin",
+       "label": "Spin",
+       "accepts": "int, 1 to 2",
+       "default": "1",
+       "help": ""
+      },
+      {
+       "name": "isovalue",
+       "label": "Isovalue",
+       "accepts": "float, 1e-05 to 10",
+       "default": "0.02",
+       "help": "Drawn at plus and minus this"
+      },
+      {
+       "name": "resolution",
+       "label": "Grid points per A",
+       "accepts": "float, 1 to 20",
+       "default": "4.0",
+       "help": ""
+      }
+     ]
+    },
+    {
+     "name": "relax",
+     "label": "Optimise with DFTB+'s driver...",
+     "tip": "One DFTB+ run relaxes the atoms, and the cell if asked; the answer is mapped back onto the space group",
+     "dialog": "dftb-run",
+     "shell": "",
+     "params": [
+      {
+       "name": "lattice",
+       "label": "Relax the cell as well",
+       "accepts": "bool",
+       "default": "False",
+       "help": "DFTB+'s LatticeOpt, against its analytic stress"
+      },
+      {
+       "name": "pressure",
+       "label": "External pressure",
+       "accepts": "float, -100 to 1000 GPa",
+       "default": "0.0",
+       "help": ""
+      },
+      {
+       "name": "optimiser",
+       "label": "Optimiser",
+       "accepts": "one of L-BFGS, Conjugate gradient",
+       "default": "lbfgs",
+       "help": ""
+      },
+      {
+       "name": "max_force",
+       "label": "Largest force",
+       "accepts": "float, 1e-07 to 0.1 Ha/Bohr",
+       "default": "0.0001",
+       "help": "Converged when no force component is larger"
+      },
+      {
+       "name": "max_steps",
+       "label": "Step limit",
+       "accepts": "int, 1 to 100000",
+       "default": "200",
+       "help": ""
+      },
+      {
+       "name": "freeze",
+       "label": "Hold the frozen sites still",
+       "accepts": "bool",
+       "default": "True",
+       "help": "The sites frozen in the structure are left out of DFTB+'s MovedAtoms"
+      }
+     ]
+    },
+    {
+     "name": "modes",
+     "label": "Vibrational modes...",
+     "tip": "The Hessian by finite differences and its modes.  It costs six evaluations per free atom, and a structure that has not been relaxed first gives imaginary modes that mean nothing",
+     "dialog": "dftb-run",
+     "shell": "",
+     "params": [
+      {
+       "name": "delta",
+       "label": "Displacement",
+       "accepts": "float, 1e-06 to 0.01 Bohr",
+       "default": "0.0001",
+       "help": "How far each atom is moved each way along each axis"
+      },
+      {
+       "name": "freeze",
+       "label": "Hold the frozen sites still",
+       "accepts": "bool",
+       "default": "True",
+       "help": "The sites frozen in the structure are left out of DFTB+'s MovedAtoms"
+      }
+     ]
+    },
+    {
+     "name": "md",
+     "label": "Molecular dynamics...",
+     "tip": "Velocity Verlet, with a thermostat; the frames go to the transport bar",
+     "dialog": "dftb-run",
+     "shell": "",
+     "params": [
+      {
+       "name": "steps",
+       "label": "Steps",
+       "accepts": "int, 1 to 10000000",
+       "default": "500",
+       "help": ""
+      },
+      {
+       "name": "time_step",
+       "label": "Time step",
+       "accepts": "float, 0.01 to 10 fs",
+       "default": "1.0",
+       "help": "Half a femtosecond or less with hydrogen in the structure"
+      },
+      {
+       "name": "thermostat",
+       "label": "Thermostat",
+       "accepts": "one of None (constant energy), Berendsen, Nose-Hoover",
+       "default": "nose-hoover",
+       "help": ""
+      },
+      {
+       "name": "temperature",
+       "label": "Temperature",
+       "accepts": "float, 0 to 10000 K",
+       "default": "300.0",
+       "help": "The thermostat's, or the starting temperature with none"
+      },
+      {
+       "name": "coupling",
+       "label": "Coupling",
+       "accepts": "float, 1e-06 to 100000",
+       "default": "3200.0",
+       "help": "Nose-Hoover's in cm^-1; Berendsen's is a fraction between 0 and 1"
+      },
+      {
+       "name": "write_every",
+       "label": "Write every",
+       "accepts": "int, 1 to 100000 steps",
+       "default": "10",
+       "help": "A frame for the transport bar, and a line of md.out"
+      },
+      {
+       "name": "freeze",
+       "label": "Hold the frozen sites still",
+       "accepts": "bool",
+       "default": "True",
+       "help": "The sites frozen in the structure are left out of DFTB+'s MovedAtoms"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "zeopp",
+   "label": "Porosity",
+   "description": "Pore diameters, accessible surface area, pore volume and the pore size distribution of a periodic structure -- by Zeo++'s Voronoi decomposition, or, for the entries marked (faster), off this application's own distance grid.",
+   "actions": [
+    {
+     "name": "diameters",
+     "label": "Pore diameters and channels...",
+     "tip": "The largest included and free spheres -- D_i, D_f and D_if -- and the channels they run through",
+     "dialog": "",
+     "shell": "",
+     "params": [
+      {
+       "name": "gas",
+       "label": "Probe",
+       "accepts": "one of Nitrogen, N2 (1.86 A), Argon, Ar (1.72 A), Carbon dioxide, CO2 (1.65 A), Hydrogen, H2 (1.48 A), Helium, He (1.30 A), Methane, CH4 (1.86 A), Use the radius below",
+       "default": "n2",
+       "help": "Which channels count as reachable.  The three diameters do not depend on it; the number of channels and their dimensionality do.  A radius quoted without the probe it was measured with means nothing."
+      },
+      {
+       "name": "probe_radius",
+       "label": "Probe radius",
+       "accepts": "float, 0 to 10 A",
+       "default": "1.86",
+       "help": "Used only when the probe above is set to 'Use the radius below'"
+      },
+      {
+       "name": "channel_radius",
+       "label": "Channel radius",
+       "accepts": "float, 0 to 10 A",
+       "default": "0.0",
+       "help": "Which channels count as reachable.  Zero means 'the same as the probe', which is what makes the answer the one the probe would measure."
+      },
+      {
+       "name": "draw",
+       "label": "Draw the pore network",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Put the largest pore and the channels it belongs to into the 3D view, as well as into the table.  Zeo++'s -visVoro, over the decomposition this run has already paid for."
+      },
+      {
+       "name": "radii",
+       "label": "Atom radii",
+       "accepts": "one of Zeo++'s own table (what its papers used), Van der Waals radii (this application's table), Covalent radii (this application's table)",
+       "default": "builtin",
+       "help": "Every number Zeo++ returns is a function of how big it thinks the atoms are.  Whichever is chosen is written into the log."
+      },
+      {
+       "name": "radii_file",
+       "label": "Radii file",
+       "accepts": "path",
+       "default": "",
+       "help": "Your own two-column table (element, radius in A), which overrides the choice above when it is set"
+      },
+      {
+       "name": "high_accuracy",
+       "label": "High accuracy",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Zeo++'s -ha: add Voronoi vertices so that atoms of different radii are treated properly.  Slower, and what the documentation recommends."
+      }
+     ]
+    },
+    {
+     "name": "surface-area",
+     "label": "Surface area...",
+     "tip": "The area a gas molecule can touch, which is what a BET measurement sees",
+     "dialog": "",
+     "shell": "",
+     "params": [
+      {
+       "name": "gas",
+       "label": "Probe",
+       "accepts": "one of Nitrogen, N2 (1.86 A), Argon, Ar (1.72 A), Carbon dioxide, CO2 (1.65 A), Hydrogen, H2 (1.48 A), Helium, He (1.30 A), Methane, CH4 (1.86 A), Use the radius below",
+       "default": "n2",
+       "help": "Nitrogen is what a BET surface area is measured with.  A radius quoted without the probe it was measured with means nothing."
+      },
+      {
+       "name": "probe_radius",
+       "label": "Probe radius",
+       "accepts": "float, 0 to 10 A",
+       "default": "1.86",
+       "help": "Used only when the probe above is set to 'Use the radius below'"
+      },
+      {
+       "name": "channel_radius",
+       "label": "Channel radius",
+       "accepts": "float, 0 to 10 A",
+       "default": "0.0",
+       "help": "Which channels count as reachable.  Zero means 'the same as the probe', which is what makes the answer the one the probe would measure."
+      },
+      {
+       "name": "samples",
+       "label": "Samples per atom",
+       "accepts": "int, 100 to 100000",
+       "default": "2000",
+       "help": "Monte Carlo points per atom.  More is slower and less noisy; 2000 is the usual choice."
+      },
+      {
+       "name": "radii",
+       "label": "Atom radii",
+       "accepts": "one of Zeo++'s own table (what its papers used), Van der Waals radii (this application's table), Covalent radii (this application's table)",
+       "default": "builtin",
+       "help": "Every number Zeo++ returns is a function of how big it thinks the atoms are.  Whichever is chosen is written into the log."
+      },
+      {
+       "name": "radii_file",
+       "label": "Radii file",
+       "accepts": "path",
+       "default": "",
+       "help": "Your own two-column table (element, radius in A), which overrides the choice above when it is set"
+      },
+      {
+       "name": "high_accuracy",
+       "label": "High accuracy",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Zeo++'s -ha: add Voronoi vertices so that atoms of different radii are treated properly.  Slower, and what the documentation recommends."
+      }
+     ]
+    },
+    {
+     "name": "surface-area-grid",
+     "label": "Surface area (faster)...",
+     "tip": "The same area in a second or two rather than several: sampled here on this application's own grid instead of by Zeo++, which it need not have.  A window within a grid step of the probe's size is flagged rather than guessed.",
+     "dialog": "",
+     "shell": "",
+     "params": [
+      {
+       "name": "gas",
+       "label": "Probe",
+       "accepts": "one of Nitrogen, N2 (1.86 A), Argon, Ar (1.72 A), Carbon dioxide, CO2 (1.65 A), Hydrogen, H2 (1.48 A), Helium, He (1.30 A), Methane, CH4 (1.86 A), Use the radius below",
+       "default": "n2",
+       "help": "Nitrogen is what a BET surface area is measured with.  A radius quoted without the probe it was measured with means nothing."
+      },
+      {
+       "name": "probe_radius",
+       "label": "Probe radius",
+       "accepts": "float, 0 to 10 A",
+       "default": "1.86",
+       "help": "Used only when the probe above is set to 'Use the radius below'"
+      },
+      {
+       "name": "samples",
+       "label": "Points per atom",
+       "accepts": "int, 100 to 100000",
+       "default": "1000",
+       "help": "Evenly spread points on each atom's sphere.  1000 is within 1 % of Zeo++ on every sample."
+      },
+      {
+       "name": "spacing",
+       "label": "Grid spacing",
+       "accepts": "float, 0.2 to 1 A",
+       "default": "0.4",
+       "help": "Finer is slower and resolves narrower windows: 0.4 A is a second or two on MFU-4l.  A window within half a step of the probe's size is flagged in the table rather than guessed."
+      },
+      {
+       "name": "radii",
+       "label": "Atom radii",
+       "accepts": "one of Zeo++'s own table (what its papers used), Van der Waals radii (this application's table), Covalent radii (this application's table)",
+       "default": "builtin",
+       "help": "Every number Zeo++ returns is a function of how big it thinks the atoms are.  Whichever is chosen is written into the log."
+      },
+      {
+       "name": "radii_file",
+       "label": "Radii file",
+       "accepts": "path",
+       "default": "",
+       "help": "Your own two-column table (element, radius in A), which overrides the choice above when it is set"
+      }
+     ]
+    },
+    {
+     "name": "volume",
+     "label": "Accessible volume...",
+     "tip": "How much of the cell a gas molecule can occupy, which is the pore volume a paper quotes",
+     "dialog": "",
+     "shell": "",
+     "params": [
+      {
+       "name": "gas",
+       "label": "Probe",
+       "accepts": "one of Nitrogen, N2 (1.86 A), Argon, Ar (1.72 A), Carbon dioxide, CO2 (1.65 A), Hydrogen, H2 (1.48 A), Helium, He (1.30 A), Methane, CH4 (1.86 A), Use the radius below",
+       "default": "n2",
+       "help": "Nitrogen is what a pore volume is usually quoted to.  A radius quoted without the probe it was measured with means nothing."
+      },
+      {
+       "name": "probe_radius",
+       "label": "Probe radius",
+       "accepts": "float, 0 to 10 A",
+       "default": "1.86",
+       "help": "Used only when the probe above is set to 'Use the radius below'"
+      },
+      {
+       "name": "channel_radius",
+       "label": "Channel radius",
+       "accepts": "float, 0 to 10 A",
+       "default": "0.0",
+       "help": "Which channels count as reachable.  Zero means 'the same as the probe', which is what makes the answer the one the probe would measure."
+      },
+      {
+       "name": "occupiable",
+       "label": "Probe-occupiable volume",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Zeo++'s -volpo: the volume the probe occupies rather than the volume its centre can reach.  The larger of the two, and the one a paper means by pore volume."
+      },
+      {
+       "name": "samples",
+       "label": "Samples",
+       "accepts": "int, 1000 to 1000000",
+       "default": "50000",
+       "help": "Monte Carlo points across the whole cell.  50000 is what the published figures use."
+      },
+      {
+       "name": "draw",
+       "label": "Draw the accessible surface",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Put the boundary of that volume into the 3D view: the surface a probe of this radius can push its centre up to.  Computed here and not by Zeo++, at the same probe and the same radii."
+      },
+      {
+       "name": "spacing",
+       "label": "Surface detail",
+       "accepts": "float, 0.2 to 2 A",
+       "default": "0.5",
+       "help": "Grid spacing for the surface.  Smaller is finer and slower: 0.5 A is a second and 190 000 triangles on MFU-4l, 0.3 A is eight times that."
+      },
+      {
+       "name": "radii",
+       "label": "Atom radii",
+       "accepts": "one of Zeo++'s own table (what its papers used), Van der Waals radii (this application's table), Covalent radii (this application's table)",
+       "default": "builtin",
+       "help": "Every number Zeo++ returns is a function of how big it thinks the atoms are.  Whichever is chosen is written into the log."
+      },
+      {
+       "name": "radii_file",
+       "label": "Radii file",
+       "accepts": "path",
+       "default": "",
+       "help": "Your own two-column table (element, radius in A), which overrides the choice above when it is set"
+      },
+      {
+       "name": "high_accuracy",
+       "label": "High accuracy",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Zeo++'s -ha: add Voronoi vertices so that atoms of different radii are treated properly.  Slower, and what the documentation recommends."
+      }
+     ]
+    },
+    {
+     "name": "volume-grid",
+     "label": "Accessible volume (faster)...",
+     "tip": "The same volume in a second or two -- MFU-4l's occupiable volume is 1.7 s here against 71 s in Zeo++ -- read off this application's own grid.  A window within a grid step of the probe's size is flagged rather than guessed.",
+     "dialog": "",
+     "shell": "",
+     "params": [
+      {
+       "name": "gas",
+       "label": "Probe",
+       "accepts": "one of Nitrogen, N2 (1.86 A), Argon, Ar (1.72 A), Carbon dioxide, CO2 (1.65 A), Hydrogen, H2 (1.48 A), Helium, He (1.30 A), Methane, CH4 (1.86 A), Use the radius below",
+       "default": "n2",
+       "help": "Nitrogen is what a pore volume is usually quoted to.  A radius quoted without the probe it was measured with means nothing."
+      },
+      {
+       "name": "probe_radius",
+       "label": "Probe radius",
+       "accepts": "float, 0 to 10 A",
+       "default": "1.86",
+       "help": "Used only when the probe above is set to 'Use the radius below'"
+      },
+      {
+       "name": "occupiable",
+       "label": "Probe-occupiable volume",
+       "accepts": "bool",
+       "default": "True",
+       "help": "The volume the probe occupies rather than the volume its centre can reach: the pore volume a paper quotes.  It reads up to 0.03 of the cell above Zeo++'s -volpo, which falls short of the union of probe spheres."
+      },
+      {
+       "name": "draw",
+       "label": "Draw the accessible surface",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Put the channels' surface into the 3D view: the same grid the numbers come from."
+      },
+      {
+       "name": "spacing",
+       "label": "Grid spacing",
+       "accepts": "float, 0.2 to 1 A",
+       "default": "0.4",
+       "help": "Finer is slower and resolves narrower windows: 0.4 A is a second or two on MFU-4l.  A window within half a step of the probe's size is flagged in the table rather than guessed."
+      },
+      {
+       "name": "radii",
+       "label": "Atom radii",
+       "accepts": "one of Zeo++'s own table (what its papers used), Van der Waals radii (this application's table), Covalent radii (this application's table)",
+       "default": "builtin",
+       "help": "Every number Zeo++ returns is a function of how big it thinks the atoms are.  Whichever is chosen is written into the log."
+      },
+      {
+       "name": "radii_file",
+       "label": "Radii file",
+       "accepts": "path",
+       "default": "",
+       "help": "Your own two-column table (element, radius in A), which overrides the choice above when it is set"
+      }
+     ]
+    },
+    {
+     "name": "psd",
+     "label": "Pore size distribution...",
+     "tip": "How much of the pore space sits at each diameter, as a histogram",
+     "dialog": "",
+     "shell": "",
+     "params": [
+      {
+       "name": "gas",
+       "label": "Probe",
+       "accepts": "one of Nitrogen, N2 (1.86 A), Argon, Ar (1.72 A), Carbon dioxide, CO2 (1.65 A), Hydrogen, H2 (1.48 A), Helium, He (1.30 A), Methane, CH4 (1.86 A), Use the radius below",
+       "default": "custom",
+       "help": "A small probe resolves narrow pores; a large one only sees what it fits into, which is why this one defaults to a radius rather than to a gas.  A radius quoted without the probe it was measured with means nothing."
+      },
+      {
+       "name": "probe_radius",
+       "label": "Probe radius",
+       "accepts": "float, 0 to 10 A",
+       "default": "1.2",
+       "help": "Used only when the probe above is set to 'Use the radius below'"
+      },
+      {
+       "name": "channel_radius",
+       "label": "Channel radius",
+       "accepts": "float, 0 to 10 A",
+       "default": "0.0",
+       "help": "Which channels count as reachable.  Zero means 'the same as the probe', which is what makes the answer the one the probe would measure."
+      },
+      {
+       "name": "samples",
+       "label": "Samples",
+       "accepts": "int, 1000 to 1000000",
+       "default": "20000",
+       "help": "Monte Carlo points across the whole cell, and the one parameter that decides how long this takes: 20000 is minutes on a framework and enough to see the shape; the published figures use 50000."
+      },
+      {
+       "name": "radii",
+       "label": "Atom radii",
+       "accepts": "one of Zeo++'s own table (what its papers used), Van der Waals radii (this application's table), Covalent radii (this application's table)",
+       "default": "builtin",
+       "help": "Every number Zeo++ returns is a function of how big it thinks the atoms are.  Whichever is chosen is written into the log."
+      },
+      {
+       "name": "radii_file",
+       "label": "Radii file",
+       "accepts": "path",
+       "default": "",
+       "help": "Your own two-column table (element, radius in A), which overrides the choice above when it is set"
+      },
+      {
+       "name": "high_accuracy",
+       "label": "High accuracy",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Zeo++'s -ha: add Voronoi vertices so that atoms of different radii are treated properly.  Slower, and what the documentation recommends."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "mof",
+   "label": "MOF builder",
+   "description": "Build a framework from a topology, a metal node and a linker, with PORMAKE.  The result opens in a new tab with its net already drawn.",
+   "actions": [
+    {
+     "name": "build",
+     "label": "Build a framework...",
+     "tip": "Pick a net, a node and a linker; the framework opens in a new tab",
+     "dialog": "mof-build",
+     "shell": "",
+     "params": [
+      {
+       "name": "topology",
+       "label": "Topology",
+       "accepts": "text",
+       "default": "pcu",
+       "help": "The net to build on, by its RCSR name -- pcu, tbo, soc.  2399 of them ship with PORMAKE."
+      },
+      {
+       "name": "nodes",
+       "label": "Node building blocks",
+       "accepts": "text",
+       "default": "",
+       "help": "Which block goes in which node slot: 'N59' when the net has one kind of node, or '0=N19,1=N59' when it has more.  A block fits a slot only when it has as many connection points as the slot is coordinated."
+      },
+      {
+       "name": "edges",
+       "label": "Linkers",
+       "accepts": "text",
+       "default": "",
+       "help": "Which linker goes on which kind of edge: 'E32', or '0-0=E32,0-1=E14'.  Left empty the nodes are joined directly, which is what PORMAKE builds for a net with no linker in it."
+      },
+      {
+       "name": "repeat",
+       "label": "Repeat the net",
+       "accepts": "text",
+       "default": "1x1x1",
+       "help": "How many times to tile the net before anything is placed on it -- '2x2x2', or '2' for the same in all three.  A framework built on a repeated net is the same material in a larger cell, which is what a defect, a guest or an interpenetrated pair needs room for.  Leave it at 1x1x1 for the net itself."
+      },
+      {
+       "name": "orientation",
+       "label": "Node orientation",
+       "accepts": "one of Consistent across every joint, As found by the fit",
+       "default": "consistent",
+       "help": "Which way round the node blocks go.  A symmetric node fits its slot equally well two dozen ways.  By default each node is turned so that the faces at the two ends of every linker agree -- carboxylate against carboxylate, chelate against chelate -- which is what makes MOF-5's clusters alternate on a 2x2x2 net, and only where that is measurably better than what the fit chose.  'As found' keeps whatever the fit reached first, exactly as PORMAKE builds it."
+      },
+      {
+       "name": "spacing",
+       "label": "Interlayer spacing",
+       "accepts": "text",
+       "default": "",
+       "help": "How far apart the sheets of a layer net are stacked, in Angstrom.  Left empty it is 3.4, which is where pi-stacked sheets sit -- Ni3(HITP)2 is 3.24.  Only a layer net such as hcb, hxl, sql or kgm has sheets to stack, and a spacing given for any other net is refused."
+      },
+      {
+       "name": "offset",
+       "label": "Stacking offset",
+       "accepts": "text",
+       "default": "",
+       "help": "Where each sheet sits over the one below, as two fractions of the net's own a and b -- '1/3, 2/3', or '0.5, 0'.  Left empty the sheets are eclipsed, one directly over the next.  Layer nets only, like the spacing."
+      },
+      {
+       "name": "interpenetration",
+       "label": "Interpenetration",
+       "accepts": "int, 1 to 6",
+       "default": "1",
+       "help": "How many copies of the framework, threaded through one another -- 2 for two-fold.  The copies go where the most room is, measured by the closest contact between them, and a framework too dense for any placement is refused rather than built crowded.  Structure > Interpenetrate lists every placement."
+      },
+      {
+       "name": "topology_dir",
+       "label": "Extra topologies",
+       "accepts": "path",
+       "default": "",
+       "help": "A folder of your own .cgd nets, read alongside the ones PORMAKE ships"
+      },
+      {
+       "name": "bb_dir",
+       "label": "Extra building blocks",
+       "accepts": "path",
+       "default": "",
+       "help": "A folder of your own .xyz building blocks, whose connection points are listed on the second line"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "build",
+   "label": "Molecule builder",
+   "description": "Build a molecule from a SMILES string, with RDKit.  It opens in a tab of its own, in a box with enough vacuum around it to relax in.",
+   "actions": [
+    {
+     "name": "molecule",
+     "label": "Molecule from SMILES...",
+     "tip": "Build a molecule; it opens in a new tab",
+     "dialog": "build-molecule",
+     "shell": "",
+     "params": [
+      {
+       "name": "smiles",
+       "label": "SMILES",
+       "accepts": "text",
+       "default": "",
+       "help": "The molecule, as SMILES -- c1ccccc1C(=O)[O-] is benzoate.  A '*' marks a connection point, and [*:1] and [*:2] say which is which."
+      },
+      {
+       "name": "name",
+       "label": "Name",
+       "accepts": "text",
+       "default": "",
+       "help": "What to call it, in the tab and in the block file.  The SMILES string itself when this is left empty."
+      },
+      {
+       "name": "optimise",
+       "label": "Relax it",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Relax the embedded geometry with MMFF, or UFF where MMFF has no parameters for it.  The force field in this application takes it further."
+      },
+      {
+       "name": "seed",
+       "label": "Conformer seed",
+       "accepts": "int, 0 to 2147483647",
+       "default": "61453",
+       "help": "Which conformer comes out.  Fixed rather than random so that the same string twice is the same molecule; change it to be offered another one."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "pxrd",
+   "label": "PXRD",
+   "description": "Calculate a powder X-ray diffraction pattern from the structure: peak positions from the cell and the space group, intensities from the atoms through structure factors.  The pattern is written as .xy beside the indexed reflection list, and a measured pattern can be overlaid on it.",
+   "actions": [
+    {
+     "name": "simulate",
+     "label": "Simulate a pattern...",
+     "tip": "Calculate a powder diffraction pattern from this structure",
+     "dialog": "",
+     "shell": "",
+     "params": [
+      {
+       "name": "source",
+       "label": "Radiation",
+       "accepts": "one of Cu Ka1 (1.5406 A), Cu Ka average (1.5418 A), Mo Ka1 (0.7093 A), Co Ka1 (1.7890 A), Ag Ka1 (0.5594 A), Use the wavelength below",
+       "default": "cu-ka1",
+       "help": "Which tube the pattern is calculated for.  2-theta moves when this does, so a pattern compared with a measurement has to be calculated for the same source."
+      },
+      {
+       "name": "wavelength",
+       "label": "Wavelength",
+       "accepts": "float, 0.1 to 10 A",
+       "default": "1.5406",
+       "help": "Used only when the radiation above is 'Use the wavelength below'."
+      },
+      {
+       "name": "two_theta_min",
+       "label": "2-theta from",
+       "accepts": "float, 0.5 to 179 deg",
+       "default": "5.0",
+       "help": "Below about half a degree the Lorentz-polarisation factor diverges and no instrument measures, so that is the floor."
+      },
+      {
+       "name": "two_theta_max",
+       "label": "2-theta to",
+       "accepts": "float, 1 to 180 deg",
+       "default": "50.0",
+       "help": "A wider range is more reflections and a longer calculation.  Fifty degrees is where a laboratory MOF pattern stops being worth plotting."
+      },
+      {
+       "name": "step",
+       "label": "Step",
+       "accepts": "float, 0.001 to 1 deg",
+       "default": "0.01",
+       "help": "The 2-theta grid the profiles are summed onto.  It has to be several times finer than the peak width or the peaks come out as spikes."
+      },
+      {
+       "name": "shape",
+       "label": "Peak shape",
+       "accepts": "one of Pseudo-Voigt, Gaussian, Lorentzian",
+       "default": "pseudo-voigt",
+       "help": "Pseudo-Voigt is the usual choice for laboratory data: a Lorentzian fraction mixed with a Gaussian, approximating the convolution of sample and instrument broadening."
+      },
+      {
+       "name": "eta",
+       "label": "Lorentzian fraction",
+       "accepts": "float, 0 to 1",
+       "default": "0.5",
+       "help": "The Pseudo-Voigt mixing parameter: 0 is a pure Gaussian and 1 a pure Lorentzian.  Ignored by the other two shapes."
+      },
+      {
+       "name": "caglioti_u",
+       "label": "Caglioti U",
+       "accepts": "float, -1 to 1",
+       "default": "0.004",
+       "help": "Peak width against angle: FWHM^2 = U tan^2(theta) + V tan(theta) + W, in degrees squared.  The three defaults are a typical laboratory diffractometer."
+      },
+      {
+       "name": "caglioti_v",
+       "label": "Caglioti V",
+       "accepts": "float, -1 to 1",
+       "default": "-0.002",
+       "help": "The linear term of the width relation.  Often negative, which is why a very low-angle peak can come out with no width at all and is dropped."
+      },
+      {
+       "name": "caglioti_w",
+       "label": "Caglioti W",
+       "accepts": "float, 0 to 1",
+       "default": "0.01",
+       "help": "The constant term, which is most of the width at low angle."
+      },
+      {
+       "name": "b_overall",
+       "label": "Overall B",
+       "accepts": "float, 0 to 20 A^2",
+       "default": "0.0",
+       "help": "One thermal displacement parameter for every atom: exp(-2 B sin^2(theta) / lambda^2).  Left at zero the high-angle peaks come out systematically too strong against a published pattern; 1 to 3 A^2 is typical."
+      },
+      {
+       "name": "show_absences",
+       "label": "Mark systematic absences",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Draw a second comb under the pattern, in its own colour, where this space group forbids a reflection.  An unexpected peak is either an impurity or the wrong space group, and which one depends on whether it sits over a forbidden position.  A structure in P1 has none, because P1 forbids nothing."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "scan",
+   "label": "Energy scan",
+   "description": "Walk one or two coordinates and relax everything else at each point, to map the energy landscape of a flexible structure.  An axis is a lattice parameter, the cell volume, or an internal coordinate -- a distance, an angle, a dihedral, or the angle between two planes -- and it is held by a constraint rather than by freezing the atoms that define it.  Every point is left behind as a structure to open.",
+   "actions": [
+    {
+     "name": "run",
+     "label": "Relaxed scan...",
+     "tip": "Map the energy landscape over one or two coordinates",
+     "dialog": "scan",
+     "shell": "",
+     "params": [
+      {
+       "name": "engine",
+       "label": "Engine",
+       "accepts": "one of ",
+       "default": "uff",
+       "help": "Which energy engine relaxes each point.  For a flexible framework a machine-learned potential is the better choice: UFF4MOF was never fitted to reproduce a breathing double well."
+      },
+      {
+       "name": "axis1",
+       "label": "First axis",
+       "accepts": "text",
+       "default": "volume",
+       "help": "A cell parameter (a, b, c, alpha, beta, gamma), 'volume', or an internal coordinate over P1 atom indices: 'distance 0, 5', 'angle 0, 1, 2', 'torsion 0, 1, 2, 3', 'plane 0+1+2, 6+7+8'.  Atoms joined by '+' are their centroid, and it follows them."
+      },
+      {
+       "name": "axis1_start",
+       "label": "From",
+       "accepts": "float",
+       "default": "0.0",
+       "help": ""
+      },
+      {
+       "name": "axis1_stop",
+       "label": "To",
+       "accepts": "float",
+       "default": "0.0",
+       "help": ""
+      },
+      {
+       "name": "axis1_steps",
+       "label": "Points",
+       "accepts": "int, 1 to 201",
+       "default": "9",
+       "help": ""
+      },
+      {
+       "name": "axis2",
+       "label": "Second axis",
+       "accepts": "text",
+       "default": "",
+       "help": "Leave empty for a one-dimensional scan.  A cell parameter (a, b, c, alpha, beta, gamma), 'volume', or an internal coordinate over P1 atom indices: 'distance 0, 5', 'angle 0, 1, 2', 'torsion 0, 1, 2, 3', 'plane 0+1+2, 6+7+8'.  Atoms joined by '+' are their centroid, and it follows them."
+      },
+      {
+       "name": "axis2_start",
+       "label": "From",
+       "accepts": "float",
+       "default": "0.0",
+       "help": ""
+      },
+      {
+       "name": "axis2_stop",
+       "label": "To",
+       "accepts": "float",
+       "default": "0.0",
+       "help": ""
+      },
+      {
+       "name": "axis2_steps",
+       "label": "Points",
+       "accepts": "int, 1 to 201",
+       "default": "9",
+       "help": ""
+      },
+      {
+       "name": "seed",
+       "label": "Starting geometry",
+       "accepts": "one of Carry on from the nearest point, Restart from this structure",
+       "default": "previous",
+       "help": "Carrying the last relaxed geometry into the next cell is what makes a scan affordable, and it is also what makes it path-dependent: near a transition the optimiser stays in the basin it arrived in."
+      },
+      {
+       "name": "direction",
+       "label": "Direction",
+       "accepts": "one of Both, and report each, Forwards only, Backwards only",
+       "default": "both",
+       "help": "Walking the grid both ways and drawing both is how hysteresis shows up instead of hiding in one curve."
+      },
+      {
+       "name": "method",
+       "label": "Optimiser",
+       "accepts": "one of abnr, conjugate_gradient, fire, lbfgs, quasi_newton, smart, steepest_descent",
+       "default": "smart",
+       "help": "Smart descends steeply at first and changes rule as the forces fall, which is what a scan wants: every point after the first starts near a minimum, but the first one may not."
+      },
+      {
+       "name": "max_steps",
+       "label": "Steps per point",
+       "accepts": "int, 1 to 100000",
+       "default": "500",
+       "help": "A point that stops at the limit is reported as not converged and drawn apart, so this is a ceiling rather than a target."
+      },
+      {
+       "name": "tolerance",
+       "label": "Force tolerance",
+       "accepts": "float, at least 1e-06 kcal/mol/A",
+       "default": "0.05",
+       "help": ""
+      },
+      {
+       "name": "pre_engine",
+       "label": "Pre-relax with",
+       "accepts": "one of Nothing",
+       "default": "",
+       "help": "A cheaper engine run at every point before the one the landscape is of -- UFF4MOF ahead of MACE, say.  A volume step moves every atom with the cell, and this spends the long walk back at the cheap price.  Only the main engine's energy is reported."
+      },
+      {
+       "name": "pre_max_steps",
+       "label": "Pre-relaxation steps",
+       "accepts": "int, 1 to 100000",
+       "default": "500",
+       "help": ""
+      },
+      {
+       "name": "pre_tolerance",
+       "label": "Pre-relaxation tolerance",
+       "accepts": "float, at least 1e-06 kcal/mol/A",
+       "default": "0.5",
+       "help": "Loose on purpose: the cheap engine's minimum is not the one wanted, so converging to it tightly buys nothing."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "net",
+   "label": "Net builder",
+   "description": "Draw a named RCSR net -- a vertex is a hydrogen and an edge is a string of heliums, which is notation and not chemistry.  It opens in a tab of its own, with coordination polyhedra ready to draw over the vertices.",
+   "actions": [
+    {
+     "name": "draw",
+     "label": "Draw a net...",
+     "tip": "Draw a named RCSR net; it opens in a new tab",
+     "dialog": "net-draw",
+     "shell": "",
+     "params": [
+      {
+       "name": "net",
+       "label": "Net",
+       "accepts": "text",
+       "default": "pcu",
+       "help": "The RCSR's own name for it -- pcu, dia, srs, acs, sod, rht, hcb.  2926 of them can be drawn, the 200 layers among them; the four with no cell cannot."
+      },
+      {
+       "name": "scale",
+       "label": "Cell scale",
+       "accepts": "float, 1 to 40",
+       "default": "8.0",
+       "help": "The .cgd cells are normalised so an edge is about one unit long.  Eight puts the atoms along an edge about 1 A apart, which is what makes the edges read as rods."
+      },
+      {
+       "name": "beads",
+       "label": "Atoms per edge",
+       "accepts": "int, 2 to 24",
+       "default": "8",
+       "help": "Counting the two nodes.  More is a smoother rod and a bigger structure; the atom next to a node is what a coordination polyhedron is drawn over, so there has to be at least one between them."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "blender",
+   "label": "Blender",
+   "description": "Blender, run headless, for what it can make of a structure.",
+   "actions": [
+    {
+     "name": "export-stl",
+     "label": "Export as STL...",
+     "tip": "One unit cell with its bonds, turned into a printable mesh by Blender",
+     "dialog": "stl-export",
+     "shell": "",
+     "params": [
+      {
+       "name": "output",
+       "label": "Save as",
+       "accepts": "path",
+       "default": "",
+       "help": "Where the STL goes.  A copy also stays in the run folder, beside the PDB it was made from"
+      },
+      {
+       "name": "bonded_partners",
+       "label": "Complete bonds across the cell faces",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Bring in the atom at the far end of every bond that leaves the cell, so a linker cut by a face prints with both its ends"
+      },
+      {
+       "name": "ball_scale",
+       "label": "Ball scale",
+       "accepts": "float, 0.1 to 5",
+       "default": "0.8",
+       "help": "Atomic radii times this"
+      },
+      {
+       "name": "h_scale",
+       "label": "Hydrogen scale",
+       "accepts": "float, 0.1 to 10",
+       "default": "2.0",
+       "help": "Hydrogens again times this: at atomic radii they are too small to print"
+      },
+      {
+       "name": "stick_radius",
+       "label": "Stick radius",
+       "accepts": "float, 0.05 to 3 A",
+       "default": "0.4",
+       "help": ""
+      },
+      {
+       "name": "remesh",
+       "label": "Remesh into one solid",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Weld the balls and sticks into one watertight mesh.  Off leaves overlapping pieces, which most slicers refuse"
+      },
+      {
+       "name": "voxel_size",
+       "label": "Voxel size",
+       "accepts": "float, 0.01 to 2 A",
+       "default": "0.1",
+       "help": "The remesh grid.  Smaller keeps more detail and costs memory as the cube of it"
+      },
+      {
+       "name": "max_tris",
+       "label": "Triangle budget",
+       "accepts": "int, 0 to 100000000",
+       "default": "1000000",
+       "help": "The remesh is coarsened until the mesh fits.  0 is no budget; a binary STL is about 50 bytes a triangle"
+      },
+      {
+       "name": "target_size",
+       "label": "Longest side",
+       "accepts": "float, 0 to 10000 mm",
+       "default": "0.0",
+       "help": "Scale the model so its longest side is this.  0 leaves one Angstrom as one millimetre"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "engines": [
+  {
+   "name": "uff",
+   "label": "UFF",
+   "description": "Universal Force Field (Rappe et al. 1992) -- covers the whole periodic table, native and in-process",
+   "provides": [
+    "charges",
+    "forces",
+    "periodic",
+    "stress",
+    "types"
+   ],
+   "options": [
+    {
+     "name": "parameter_set",
+     "label": "Parameters",
+     "accepts": "one of UFF4MOF (UFF plus framework nodes), UFF (Rappe 1992 only)",
+     "default": "uff4mof",
+     "help": "UFF4MOF adds rows fitted to metal nodes in frameworks and types everything else exactly as UFF does.  Plain UFF never uses them, which is how to see what they change."
+    },
+    {
+     "name": "coulomb",
+     "label": "Include electrostatics",
+     "accepts": "bool",
+     "default": "False",
+     "help": "Off by default, as in UFF itself: the published parameters were fitted without a Coulomb term."
+    },
+    {
+     "name": "charges",
+     "label": "Charges from",
+     "accepts": "one of The sites, Equilibrate (QEq), Equilibrate (EQeq), All zero",
+     "default": "site",
+     "help": "Only used when electrostatics are on."
+    },
+    {
+     "name": "vdw_cutoff",
+     "label": "van der Waals cutoff",
+     "accepts": "float, 4 to 30 A",
+     "default": "12.0",
+     "help": "The pair count goes as the cube of this: 10 A is 42% fewer pairs than 12 A, for an LJ tail worth about a thousandth of a kcal/mol per pair."
+    },
+    {
+     "name": "skin",
+     "label": "Neighbour list skin",
+     "accepts": "float, 0 to 10 A",
+     "default": "2.0",
+     "help": "How far an atom may move before the pair list is rebuilt."
+    }
+   ]
+  },
+  {
+   "name": "xtb",
+   "label": "xTB (GFN)",
+   "description": "Semiempirical tight binding and the GFN force field, through the tblite or xtb binary -- no parameter set to download and no atom typing to get right.",
+   "provides": [
+    "forces",
+    "periodic"
+   ],
+   "options": [
+    {
+     "name": "method",
+     "label": "Method",
+     "accepts": "one of GFN2-xTB, GFN1-xTB, GFN-FF",
+     "default": "gfn2",
+     "help": "GFN2-xTB is the default and the most accurate of the three; GFN1-xTB is older and more robust for metals; GFN-FF is a force field and is orders of magnitude faster, which for a framework of a few thousand atoms is the difference between a relaxation and an afternoon.  The method decides which binary runs: tblite for the two tight-binding ones and xtb for GFN-FF."
+    },
+    {
+     "name": "charge",
+     "label": "Total charge",
+     "accepts": "float, -20 to 20 e",
+     "default": "0.0",
+     "help": ""
+    },
+    {
+     "name": "accuracy",
+     "label": "Accuracy",
+     "accepts": "float, 0.01 to 1000",
+     "default": "1.0",
+     "help": "The SCF convergence criterion, as a multiplier: smaller is tighter and slower.  Ignored by GFN-FF, which has no SCF."
+    },
+    {
+     "name": "temperature",
+     "label": "Electronic temperature",
+     "accepts": "float, 0 to 10000 K",
+     "default": "300.0",
+     "help": "Fermi filling.  Not zero by default, for the same reason DFTB+'s is not: a metallic framework at exactly zero has no gap to fill and the cycle oscillates rather than failing."
+    },
+    {
+     "name": "max_iterations",
+     "label": "Max SCF iterations",
+     "accepts": "int, 1 to 10000",
+     "default": "250",
+     "help": ""
+    }
+   ]
+  },
+  {
+   "name": "mace",
+   "label": "MACE (machine-learned)",
+   "description": "A machine-learned potential in the atomic cluster expansion family.  The MACE-MP foundation models answer for a framework with no parameters to assign and no atom typing to get right, at a cost between a force field's and tight binding's.",
+   "provides": [
+    "forces",
+    "periodic",
+    "stress"
+   ],
+   "options": [
+    {
+     "name": "model",
+     "label": "Model",
+     "accepts": "one of MACE-MPA-0 -- MPtrj + sAlex, PBE+U (recommended), MACE-MP-0b3 -- MPtrj, PBE+U, steadier under pressure, MACE-OMAT-0 -- OMat, PBE+U [ASL licence], MACE-MATPES-r2SCAN-0 -- r2SCAN, no +U [ASL licence], MACE-MH-1 -- crystals, molecules and surfaces [ASL licence], MACE-MP-MOF0 -- 127 MOFs, PBE-D3(BJ), for phonons; 26 elements [CC BY 4.0, cite], MACE-MP-0a medium -- the default before mace 0.3.10, MACE-MP-0a small -- fastest, MACE-MP-0a large, A model file of my own",
+     "default": "medium-mpa-0",
+     "help": "The MACE-MP foundation models are fitted over the Materials Project and need nothing assigning -- they answer for a framework whose metal node UFF has no parameters for.  Each is downloaded once, to MACE's own cache.  Choose 'a model file of my own' for one you have fitted."
+    },
+    {
+     "name": "model_path",
+     "label": "Model file",
+     "accepts": "path",
+     "default": "",
+     "help": "A .model file, for the 'my own' choice above.  Ignored by the MACE-MP models."
+    },
+    {
+     "name": "device",
+     "label": "Run on",
+     "accepts": "one of Whatever is fastest here, CPU, Apple GPU (mps), NVIDIA GPU (cuda)",
+     "default": "auto",
+     "help": "A GPU is worth an order of magnitude on a framework of a few thousand atoms.  'Whatever is fastest here' asks torch what this machine has."
+    },
+    {
+     "name": "double_precision",
+     "label": "Double precision",
+     "accepts": "bool",
+     "default": "True",
+     "help": "Leave this on for geometry optimisation: in single precision the model's own noise is larger than the energy differences an optimiser is reading, and the line search wanders instead of converging."
+    }
+   ]
+  },
+  {
+   "name": "orb",
+   "label": "ORB-v3 (machine-learned)",
+   "description": "Orbital Materials' universal potential.  Like MACE it needs no parameters assigning.  Run here without a dispersion correction, so a relaxed framework's volume differs by a percent or more from the benchmark that ranks it among the most accurate, which added D3.",
+   "provides": [
+    "forces",
+    "periodic",
+    "stress"
+   ],
+   "options": [
+    {
+     "name": "model",
+     "label": "Model",
+     "accepts": "one of ORB-v3 -- OMat24, all neighbours within 6 A (recommended), ORB-v3 -- OMat24, 20 neighbours, faster, ORB-v3 -- MPtrj + Alexandria, all neighbours within 6 A, ORB-v3 -- MPtrj + Alexandria, 20 neighbours, faster",
+     "default": "orb-v3-conservative-inf-omat",
+     "help": "Conservative ORB-v3 models only: their forces are the gradient of their energy, which is what a relaxation needs.  Each is downloaded once, to orb-models' own cache."
+    },
+    {
+     "name": "device",
+     "label": "Run on",
+     "accepts": "one of The NVIDIA GPU if there is one, otherwise the CPU, CPU, NVIDIA GPU (cuda)",
+     "default": "auto",
+     "help": "orb-models cannot run on an Apple GPU, so on a Mac this is the CPU."
+    },
+    {
+     "name": "double_precision",
+     "label": "Double precision",
+     "accepts": "bool",
+     "default": "True",
+     "help": "Leave this on for geometry optimisation: in single precision the model's own noise is a third of the energy differences an optimiser reads.  Off is about 2.7 times faster."
+    }
+   ]
+  },
+  {
+   "name": "mattersim",
+   "label": "MatterSim (machine-learned)",
+   "description": "Microsoft's universal potential, an M3GNet trained across temperature and pressure.  Like MACE it needs no parameters assigning, and it is the fastest of the three.  Its authors note relatively low accuracy for organic polymeric systems, which is the linker half of a framework; run here without a dispersion correction.",
+   "provides": [
+    "forces",
+    "periodic",
+    "stress"
+   ],
+   "options": [
+    {
+     "name": "model",
+     "label": "Model",
+     "accepts": "one of MatterSim 1M -- the smaller model, faster (recommended), MatterSim 5M -- five times the parameters, more accurate",
+     "default": "MatterSim-v1.0.0-1M",
+     "help": "Each is downloaded once, to ~/.local/mattersim."
+    },
+    {
+     "name": "device",
+     "label": "Run on",
+     "accepts": "one of The NVIDIA GPU if there is one, otherwise the CPU, CPU, NVIDIA GPU (cuda)",
+     "default": "auto",
+     "help": "MatterSim cannot load onto an Apple GPU, so on a Mac this is the CPU."
+    },
+    {
+     "name": "double_precision",
+     "label": "Double precision",
+     "accepts": "bool",
+     "default": "True",
+     "help": "Leave this on for geometry optimisation: in single precision the model's own noise is a noticeable part of the energy differences an optimiser reads.  Off is about 1.5 times faster."
+    }
+   ]
+  },
+  {
+   "name": "dftb",
+   "label": "DFTB+",
+   "description": "Density-functional tight binding, through the DFTB+ binary -- DFT-like and fast enough to relax a framework UFF can only approximate.",
+   "provides": [
+    "forces",
+    "periodic"
+   ],
+   "options": [
+    {
+     "name": "method",
+     "label": "Hamiltonian",
+     "accepts": "one of DFTB3 (third order, needs 3ob), SCC-DFTB (self-consistent charges), Non-SCC DFTB (fastest, no charge transfer)",
+     "default": "dftb3",
+     "help": "The nearest thing DFTB has to a functional.  DFTB3 is third order and is what the 3ob set was fitted for; SCC-DFTB is second order and works with any set; non-SCC has no charge transfer at all and is for a first look."
+    },
+    {
+     "name": "parameter_directory",
+     "label": "Parameter directory",
+     "accepts": "path",
+     "default": "",
+     "help": "The folder of Slater-Koster .skf files.  They are separate downloads from dftb.org -- 3ob for organics, matsci for inorganic solids.  Left empty, the DFTB_PREFIX environment variable is used."
+    },
+    {
+     "name": "dispersion",
+     "label": "Dispersion",
+     "accepts": "one of None, DFT-D3 with Becke-Johnson damping, Lennard-Jones (universal force field radii)",
+     "default": "none",
+     "help": "DFTB has no dispersion of its own, and a framework's pore size is a dispersion-bound number -- so for a porous solid this is not an optional refinement."
+    },
+    {
+     "name": "charge",
+     "label": "Total charge",
+     "accepts": "float, -20 to 20 e",
+     "default": "0.0",
+     "help": ""
+    },
+    {
+     "name": "temperature",
+     "label": "Electronic temperature",
+     "accepts": "float, 0 to 10000 K",
+     "default": "300.0",
+     "help": "Fermi filling.  Not zero by default: a metallic framework at exactly zero has no gap to fill and the SCC cycle oscillates for ever rather than failing."
+    },
+    {
+     "name": "k_spacing",
+     "label": "K-point spacing",
+     "accepts": "float, 0 to 2 1/A",
+     "default": "0.25",
+     "help": "The mesh is worked out from the cell: a cell twice as long gets half as many k-points along it.  Zero is the Gamma point alone, which is what a large cell wants."
+    },
+    {
+     "name": "scc_tolerance",
+     "label": "SCC tolerance",
+     "accepts": "float, 1e-09 to 0.01",
+     "default": "1e-05",
+     "help": ""
+    },
+    {
+     "name": "max_scc",
+     "label": "Max SCC iterations",
+     "accepts": "int, 1 to 10000",
+     "default": "250",
+     "help": ""
+    },
+    {
+     "name": "angular_momentum",
+     "label": "Angular momentum overrides",
+     "accepts": "text",
+     "default": "",
+     "help": "Per element, as 'Cl=d, Zn=d'.  The built-in table follows 3ob; a set that disagrees with it gives a number rather than an error, which is why this is here."
+    }
+   ]
+  }
+ ],
+ "panels": [
+  {
+   "key": "info_dock",
+   "title": "Structure",
+   "area": "left",
+   "class": "InfoDock",
+   "summary": "Read-only summary of the active document."
+  },
+  {
+   "key": "file_dock",
+   "title": "Workspace",
+   "area": "left",
+   "class": "WorkspaceDock",
+   "summary": "The workspace tree, with the filesystem browser beside it."
+  },
+  {
+   "key": "modules_dock",
+   "title": "Modules",
+   "area": "left",
+   "class": "ModulesDock",
+   "summary": "The module tree, and the Stop button for what it started."
+  },
+  {
+   "key": "inspector_dock",
+   "title": "Inspector",
+   "area": "right",
+   "class": "InspectorDock",
+   "summary": "Properties of the current selection."
+  },
+  {
+   "key": "net_dock",
+   "title": "Net",
+   "area": "right",
+   "class": "NetDock",
+   "summary": "The identification of the net in the active document."
+  },
+  {
+   "key": "sites_dock",
+   "title": "Sites",
+   "area": "right",
+   "class": "SitesDock",
+   "summary": "The site table, kept in step with the viewport selection."
+  },
+  {
+   "key": "move_dock",
+   "title": "Move",
+   "area": "right",
+   "class": "MoveDock",
+   "summary": "Numeric transformations of the current selection."
+  },
+  {
+   "key": "style_dock",
+   "title": "Style",
+   "area": "right",
+   "class": "StylePanelDock",
+   "summary": "Draw style, sizes, colours, labels and the legend."
+  },
+  {
+   "key": "measure_dock",
+   "title": "Measure",
+   "area": "right",
+   "class": "MeasureDock",
+   "summary": "Distances, angles and torsions taken in the viewport."
+  },
+  {
+   "key": "ff_dock",
+   "title": "Force Field",
+   "area": "right",
+   "class": "ForceFieldDock",
+   "summary": "Atom types, a single point, and a geometry optimisation."
+  },
+  {
+   "key": "dftb_dock",
+   "title": "DFTB+",
+   "area": "right",
+   "class": "ForceFieldDock",
+   "summary": "Atom types, a single point, and a geometry optimisation."
+  },
+  {
+   "key": "trajectory_dock",
+   "title": "Trajectory",
+   "area": "bottom",
+   "class": "TrajectoryDock",
+   "summary": "Scrub a trajectory against the open structure."
+  },
+  {
+   "key": "log_dock",
+   "title": "Log",
+   "area": "bottom",
+   "class": "LogDock",
+   "summary": "A read-only monospaced view of one log file."
+  },
+  {
+   "key": "results_dock",
+   "title": "Results",
+   "area": "bottom",
+   "class": "ResultsDock",
+   "summary": "The report from the last module run."
+  }
+ ]
+}
