@@ -1,0 +1,15 @@
+read_project (the add_bond loop at xtal/io/project.py:191)
+sample        sites  bonds  before ms  after ms  speedup
+MOF-5           424    512      785.1      14.7    53.4x
+MFU4l           648    848     2161.8      22.7    95.0x
+HKUST1          624    768     1738.3      20.2    86.0x
+
+reduce_to_p1 with stored bonds (the loop at xtal/core/symmetry.py:243)
+MOF-5          512 stored ->    512 bonds   before    802.4 ms  after    40.5 ms   19.8x
+MFU4l        skipped: bond (0, 32) refers to a site outside 0..9
+HKUST1       skipped: bond (0, 48) refers to a site outside 0..5
+
+identical answers check (same bonds, same order):
+  MOF-5           512 bonds  identical=True
+  MFU4l           848 bonds  identical=True
+  HKUST1          768 bonds  identical=True

@@ -1,0 +1,160 @@
+2026-09-18 20:09:31.978 python[21802:9791848] +[IMKClient subclass]: chose IMKClient_Legacy
+2026-09-18 20:09:31.978 python[21802:9791848] +[IMKInputSession subclass]: chose IMKInputSession_Legacy
+  info_dock          Structure      shown
+  file_dock          Workspace      shown
+  modules_dock       Modules        hidden
+  inspector_dock     Inspector      hidden
+  net_dock           Net            hidden
+  sites_dock         Sites          shown
+  move_dock          Move           hidden
+  style_dock         Style          hidden
+  measure_dock       Measure        hidden
+  ff_dock            Force Field    hidden
+  dftb_dock          DFTB+          hidden
+  trajectory_dock    Trajectory     hidden
+  log_dock           Log            hidden
+  results_dock       Results        hidden
+opened MOF-5.cif: 424 sites, 1 tab(s)
+  about                        About Crystal Builder
+  add_atom_dialog              &Add atom...
+  add_centroid                 Add &centroid...   [disabled]
+  add_hydrogens                Add &hydrogens...
+  bond_rules                   &Bond rules...
+  bond_type_aromatic           &Aromatic   [disabled]
+  bond_type_automatic          &Automatic   [disabled]
+  bond_type_double             &Double   [disabled]
+  bond_type_single             &Single   [disabled]
+  bond_type_triple             &Triple   [disabled]
+  bonds_follow                 Bonds &follow the geometry
+  boundary_bonded              &Complete bonds at the boundary
+  boundary_half                Draw &half bonds at the boundary
+  boundary_in_range            &Drop bonds at the boundary
+  cancel_gesture               Cancel the current gesture
+  change_element               Change &element...   [disabled]
+  clear_measurements           Clear &measurements   [disabled]
+  clear_overlays               Clear c&harges and orbital
+  clear_planes                 Clear pl&anes   [disabled]
+  close_all_tabs               Close A&ll
+  close_tab                    &Close
+  copy                         &Copy   [disabled]
+  cut                          Cu&t   [disabled]
+  define_plane                 Define &plane from selection   [disabled]
+  delaunay                     &Delaunay reduction
+  delete_bond                  Delete &bond
+  delete_selection             &Delete   [disabled]
+  depth_cue                    Depth cueing
+  dftb_optimize                DFTB+: &Optimise geometry
+  dftb_single_point            DFTB+: &Single point energy
+  display_range                Display &range...
+  duplicate                    Du&plicate   [disabled]
+  edit_cell                    &Edit cell...
+  expand_bonded                Grow to &bonded neighbours   [disabled]
+  expand_fragment              Grow to whole &fragment   [disabled]
+  expand_orbit                 Grow to symmetry &orbit   [disabled]
+  export                       &Export...
+  export_image                 Export &Image...
+  export_net                   Export &Net for Systre...   [disabled]
+  export_stl                   Export as S&TL...
+  fill_pores                   &Fill pores with molecules...
+  find_symmetry                &Find symmetry...
+  help_contents                Crystal Builder &Help
+  insert_molecule              &Insert molecule...
+  invert                       &Invert the structure
+  invert_selection             &Invert selection
+  labels                       Labels
+  mark_connection_points       &Mark connection points   [disabled]
+  measure_selection            &Measure selection   [disabled]
+  merge_atoms                  Mer&ge atoms   [disabled]
+  merge_duplicates             Merge &duplicate sites...
+  mode_add_atom                Add atom
+  mode_add_bond                Add bond
+  mode_box_select              Box select
+  mode_measure                 Measure
+  mode_move                    Move
+  mode_select                  Select
+  mode_topology                Draw net
+  module.blender.export-stl    Export as STL...
+  module.build.molecule        Molecule from SMILES...
+  module.dftb.band-structure   Band structure...
+  module.dftb.charges          Mulliken charges
+  module.dftb.dos              Density of states...
+  module.dftb.md               Molecular dynamics...
+  module.dftb.modes            Vibrational modes...   [disabled]
+  module.dftb.orbital          Orbital...   [disabled]
+  module.dftb.relax            Optimise with DFTB+'s driver...
+  module.mof.build             Build a framework...
+  module.net.draw              Draw a net...
+  module.pxrd.simulate         Simulate a pattern...
+  module.scan.run              Relaxed scan...
+  module.zeopp.diameters       Pore diameters and channels...
+  module.zeopp.psd             Pore size distribution...
+  module.zeopp.surface-area    Surface area...
+  module.zeopp.volume          Accessible volume...
+  new                          &New
+  new_workspace                &New Workspace...
+  niggli                       &Niggli reduction
+  open                         &Open...
+  open_workspace               &Open Workspace...
+  optimize                     &Optimise geometry
+  orthographic                 Orthographic projection
+  paste                        &Paste
+  plane_angle                  &Angle between planes   [disabled]
+  preferences                  &Preferences...
+  primitive                    Reduce to pri&mitive cell
+  quit                         &Quit
+  recompute_bonds              &Recalculate bonds
+  redo                         &Redo   [disabled]
+  reduce_p1                    Reduce to &P1
+  reset_bonds                  Reset bonds to a&utomatic
+  reset_layout                 Reset &layout
+  reset_view                   &Reset view
+  sample_cfa1                  CFA-1
+  sample_cfa1_p1               CFA-1 in P1
+  sample_hkust1                HKUST-1
+  sample_mfu4l                 MFU-4l
+  sample_mof5                  MOF-5
+  sample_ni2cl2btdd            Ni2Cl2(BTDD)
+  sample_zif8                  ZIF-8
+  save                         &Save File
+  save_as                      Save &As...
+  save_building_block          Save as a &building block...
+  select_all                   Select &All
+  select_none                  Select &None
+  select_same                  Select same &element   [disabled]
+  set_space_group              &Set space group...
+  show_atoms                   Atoms
+  show_axes                    Cell axes (a, b, c)
+  show_bond_orders             Bond orders
+  show_bonds                   Bonds
+  show_cell                    Unit cell
+  show_dftb                    DFTB&+ panel
+  show_ff                      &Force Field panel
+  show_legend                  Element legend
+  show_log                     Show &Log
+  show_planes                  Planes
+  show_pores                   Pore network
+  show_scale_bar               Scale bar
+  show_topology                Net (topology bonds)
+  single_point                 &Single point energy
+  standardize                  S&tandardise cell
+  style_ball_stick             Ball and stick
+  style_ball_stick_occupancy   Ball and stick (occupancy)
+  style_cartoon                Cartoon
+  style_net                    Net only
+  style_ortep                  Thermal ellipsoids (ORTEP)
+  style_platon                 Ellipsoid plot (PLATON)
+  style_polyhedra              Polyhedra
+  style_polyhedra_stick        Polyhedra and sticks
+  style_spacefill              Space filling
+  style_stick                  Stick
+  style_wireframe              Wireframe
+  subgroup                     &Descend to a subgroup...
+  supercell                    &Supercell...
+  undo                         &Undo   [disabled]
+  view_a                       Along &a
+  view_b                       Along &b
+  view_c                       Along &c
+  wrap_cell                    &Wrap atoms into the cell
+  wyckoff                      Assign &Wyckoff letters
+wrote /Users/sam/Projects/Jules/Crystal-Builder/review/shots/02-mof5-default.png  (window chrome; 3D view will be blank -- use --viewport-shot for that)
+wrote /Users/sam/Projects/Jules/Crystal-Builder/review/shots/03-mof5-viewport.png  (3D view)

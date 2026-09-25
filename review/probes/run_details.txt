@@ -1,0 +1,52 @@
+2026-09-18 20:18:13.554 python[25281:9815911] +[IMKClient subclass]: chose IMKClient_Legacy
+2026-09-18 20:18:13.554 python[25281:9815911] +[IMKInputSession subclass]: chose IMKInputSession_Legacy
+qt.qpa.window: Window position QRect(-600,-530 100x91) outside any known screen, using primary screen
+qt.qpa.window: Window position QRect(-1015,-591 515x91) outside any known screen, using primary screen
+qt.qpa.window: Window position QRect(-1015,-591 515x91) outside any known screen, using primary screen
+qt.qpa.window: Window position QRect(-1015,-591 515x91) outside any known screen, using primary screen
+qt.qpa.window: Window position QRect(-1015,-591 515x91) outside any known screen, using primary screen
+opened MOF-5.cif: 424 sites, 1 tab(s)
+== squeezed panels ==
+  trajectory_dock: dock min 69 content min 69 hint 554
+  move_dock: dock min 69 content min 69 hint 335
+  measure_dock: dock min 69 content min 69 hint 419
+  style_dock: dock min 69 content min 69 hint 272
+  ff_dock: dock min 69 content min 69 hint 505
+== buttons enabled with nothing selected ==
+  move_dock: 'Apply' enabled=True
+  move_dock: 'Apply -' enabled=True
+  move_dock: 'Apply' enabled=True
+  move_dock: 'Mirror' enabled=True
+  move_dock: 'Make planar' enabled=True
+  measure_dock: 'Remove' enabled=False
+  measure_dock: 'Clear' enabled=False
+  measure_dock: 'From selection' enabled=False
+  measure_dock: 'Angle' enabled=False
+  measure_dock: 'Colour' enabled=False
+  measure_dock: 'Remove' enabled=False
+  inspector_dock: 'Delete' enabled=False
+  inspector_dock: 'Reduce to P1' enabled=False
+== accessibleName coverage ==
+  input widgets in the window: 173, with an accessibleName: 0
+  window accessibleName: ''
+== tooltips on toolbar buttons ==
+  toolbar actions without a tooltip: ['', '', '', '', '', '', '', '', '']
+  registry actions with no tip beyond their text: 7 of 141
+   e.g. ['show_atoms', 'show_bonds', 'show_cell', 'show_legend', 'labels', 'orthographic', 'about']
+== DFTB+ menu action with no binary ==
+  enabled: True
+  status message: ''
+  dftb dock visible now: True
+  message boxes: []
+== keyboard: does Tab reach the docks? ==
+  focus widget at start: None
+   tab 1: moved=True -> None 
+   tab 2: moved=True -> None 
+   tab 3: moved=True -> None 
+   tab 4: moved=True -> None 
+   tab 5: moved=True -> None 
+   tab 6: moved=True -> None 
+== font scaling ==
+  app font: .AppleSystemUIFont 13.0
+  any fixed pixel font sizes: []
+ran details.py
