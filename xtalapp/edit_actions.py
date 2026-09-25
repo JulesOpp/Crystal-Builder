@@ -15,6 +15,7 @@ from xtal.commands.clipboard import Fragment
 from xtalapp.dialogs.add_atom import AddAtomDialog
 from xtalapp.dialogs.add_centroid import AddCentroidDialog
 from xtalapp.dialogs.bond_rules import BondRulesDialog
+from xtalapp.dialogs.select_bonds import SelectBondsDialog
 
 
 class EditActions:
@@ -287,6 +288,26 @@ class EditActions:
         for symbol in elements:
             atoms |= sel.by_element(document.cell, symbol)
         document.select(atoms, "set")
+
+    def select_bonds_between(self) -> None:
+        """Every bond joining two elements the user names -- to delete
+        them, or give them all one bond type, in one step."""
+        document = self.current_document()
+        if document is None:
+            return
+        from xtal.core import selection as sel
+        cell = document.cell
+        graph = document.graph
+        elements = sorted(set(cell.elements))
+        held = sorted(document.selection.atoms)
+        answer = SelectBondsDialog.ask(
+            elements,
+            lambda a, b: len(sel.bonds_between_elements(graph, cell,
+                                                        a, b)),
+            self, cell.elements[held[0]] if held else None)
+        if answer is not None:
+            self.show_status(document.select_bonds_between(
+                answer["first"], answer["second"]))
 
     def expand_selection(self, how: str) -> None:
         document = self.current_document()

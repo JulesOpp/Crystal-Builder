@@ -350,7 +350,7 @@ class ShellRefresh:
         self._update_history_actions()
         self.actions_.set_enabled(
             ["select_all", "select_none", "invert_selection",
-             "display_range", "bond_rules"],
+             "select_bonds", "display_range", "bond_rules"],
             has_document)
         # Everything that changes the crystal is off while a
         # trajectory is being played: the atoms are showing a frame,
