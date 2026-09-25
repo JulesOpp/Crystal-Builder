@@ -164,16 +164,12 @@ The accessible surface ships: `xtal/analysis/grid.py` samples the
 distance to the nearest atom surface over the cell and its periodic
 images, `xtal/analysis/isosurface.py` marches it, and the
 accessible-volume run draws the boundary of the volume it just
-reported.  Two things it does not do, and neither blocks anything:
+reported, channels only (`xtal/analysis/voids.py`).  Two things it
+does not do, and neither blocks anything:
 
-* **Pockets are drawn with the channels.**  Zeo++ splits its numbers
-  into AV and NAV -- what a probe can reach from outside, and closed
-  voids it cannot -- and the surface makes no such distinction, so a
-  framework with sealed cavities draws them alongside its channels.
-  Telling them apart means a connected-component pass over the grid
-  with a union-find that carries periodic offsets, which is the same
-  algorithm `CHANNEL::findChannels` is, and it would also give the
-  surface a per-component colour.
+* **One colour for every channel.**  `voids.classify` labels each
+  component, so the surface could be coloured per channel, and pockets
+  drawn in a second tone rather than not at all.
 * **Nothing welds the vertices.**  Marching tetrahedra emits six per
   cut cell and shares none between them, so MFU-4l's surface is
   567 000 points for 189 000 triangles.  It renders, and the mesh is

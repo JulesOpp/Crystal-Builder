@@ -1095,7 +1095,58 @@ test process; see CLAUDE.md "Aborted runs".
 
 ---
 
-## 8. What this plan does not do
+## 8. Porosity in seconds, beside Zeo++
+
+Planned 2026-09-25, after asking why iRASPA reports surface area and
+pore volume at once.  It reads everything off one grid, and we
+already build that grid to draw the pore surface.  Zeo++'s `-volpo`
+is 68-108 s per sample on this machine.  The grid's POAV on MFU-4l is
+0.7805 against Zeo++'s 0.7792, in 0.5 s.  Where there are two
+methods both are offered, and Julius's answer on placement: one
+group, renamed **Porosity** (the key stays `zeopp`), with each
+**"(faster)"** entry under the Zeo++ entry it replaces.  A missing
+binary greys only the Zeo++ entries.  The full plan, with every
+measurement, is `~/.claude/plans/fast-porosity.md`.  Branch
+`features/fast-porosity`, off `main`.
+
+What the measurements decided, so a phase can start from here:
+
+* **Area by Monte Carlo on the spheres, not from the mesh.**  The
+  marched mesh reads 2-3 % low (MOF-5 3626 Å² against Zeo++'s 3727),
+  because tetrahedra flatten a sphere into chords.  Sampling the
+  spheres is within 1 %.  The mesh stays the picture.
+* **Two grid points are linked only when the segment between them
+  is clear.**  Face neighbours alone gave HKUST-1 104 false pockets.
+  All 26 neighbours on their endpoints let N2 through ZIF-8's 3.27 Å
+  windows.  Asking the field at the segment's middle as well got both
+  right (a half-step chord dips at most 0.005 Å into a sphere), in
+  0.48 s on MFU-4l against 4.5 s for testing every atom along it.
+* **A window within half a grid step of the probe is flagged, never
+  guessed.**  UiO-66's windows clear N2 by 0.045 Å, and the grid's
+  answer flips between 0.4 and 0.3 Å spacing.  The report names
+  Zeo++'s Pore diameters entry as the way to settle it.
+* **POAV counts a point as occupiable when it is within `g(a)` of an
+  accessible grid point `a`, not within the probe radius.**  The
+  distance field changes by at most 1 Å per Å, so there is accessible
+  space between the grid points too.  The probe-radius criterion read
+  ZIF-8's PONAV 0.021 low; this reads it 0.004 from Zeo++.
+* **POAV reads above Zeo++'s `-volpo`, and Zeo++ is the one short.**
+  MIL-53 0.659 against 0.651, HKUST-1 0.677 against 0.654.  Probe
+  spheres centred on a 0.15 Å grid of real probe positions already
+  cover 0.663 and 0.679, so the true value is at least that.  POAV is
+  pinned to that brute force and to a lone sphere's exact geometry,
+  not to Zeo++, and the report says so.
+
+| Phase | Delivers | Main files | Size |
+|---|---|---|---|
+| **0 — Every core for the grid** | Shipped 2026-09-25. `distance_grid` queries the KD-tree with `workers=-1`: MFU-4l 1.03 s → 0.22 s, the same array | `xtal/analysis/grid.py` | S |
+| **1 — Channels and pockets** | Shipped 2026-09-25. `voids.classify`: segment links gated at the middle, periodic union-find over component IDs (`findChannels`'s test), `borderline`. The Zeo++ volume run stops drawing pockets as channels | `xtal/analysis/voids.py`, `xtal/modules/zeopp.py` | M |
+| **2 — The numbers off the grid** | Shipped 2026-09-25. `voids.surface_area` (Fibonacci points on the spheres, 0.1-0.9 % from Zeo++) / `voids.volume` (AV within 0.0035 of the cell; POAV by the bound above), returning `porosity.SurfaceArea` / `Volume`, and `poregrid.surface_area` / `volume` runs on Zeo++'s report with a grid note and a *Resolution* row when borderline; a radii file is read. MFU-4l: area 1.1 s against `-sa -ha`'s 7.5 s, POAV and its surface 1.7 s against `-volpo`'s 71 s. Zeo++'s numbers are recorded in `tests/data/zeopp_reference.json` | `xtal/analysis/voids.py`, `xtal/modules/poregrid.py` | M |
+| **3 — The (faster) entries** | Shipped 2026-09-25. Module labelled Porosity (key still `zeopp`), the Zeo++ check per entry, **Surface area (faster)...** and **Accessible volume (faster)...** under their Zeo++ twins with no channel radius or accuracy switch and a grid spacing instead; the Modules panel greys entry by entry and `Module.blocked` keeps the reason row; `xtal run` now checks the entry as well as the module, and the window's availability refresh re-asks the entries, so naming the binary in Preferences lights them without a restart. MFU-4l's occupiable volume and surface in the window: 2.1 s | `xtal/modules/zeopp.py`, `xtalapp/docks/modules.py` | S-M |
+
+---
+
+## 9. What this plan does not do
 
 * It does not touch the design principles in
   [docs/PLAN.md](PLAN.md) § 1.  Every phase keeps the core Qt-free,

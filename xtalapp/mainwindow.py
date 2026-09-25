@@ -886,7 +886,7 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         person filling in a path is trying to avoid.
         """
         external.apply_hints(self.settings)
-        menus.refresh_module_availability(self)
+        self._refresh_module_availability()
         for dock in (self.ff_dock, self.dftb_dock):
             dock.set_parameter_directory(
                 self.settings.path_setting(external.SLATER_KOSTER))
@@ -920,12 +920,12 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         """
         from xtal.modules import MODULES
         if module_name in MODULES:
-            available = MODULES.get(module_name).availability()
+            available = MODULES.get(module_name).blocked()
             if not available:
                 self.modules_dock.set_idle(available.reason)
         self.show_preferences("Engines")
         # Naming a program there may have been the fix.
-        menus.refresh_module_availability(self)
+        self._refresh_module_availability()
         self.modules_dock.refresh()
 
     def show_help(self) -> None:

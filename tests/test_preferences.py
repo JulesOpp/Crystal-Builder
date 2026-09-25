@@ -22,7 +22,7 @@ from PySide6.QtGui import QAction  # noqa: E402
 from PySide6.QtWidgets import QWidget  # noqa: E402
 
 from xtal.core import bonding  # noqa: E402
-from xtalapp import external, extras, menus  # noqa: E402
+from xtalapp import external, extras  # noqa: E402
 from xtalapp.dialogs.preferences import PreferencesDialog  # noqa: E402
 from xtalapp.mainwindow import MainWindow  # noqa: E402
 from xtalapp.settings import (  # noqa: E402
@@ -333,18 +333,22 @@ def test_a_path_typed_here_is_stored_and_reported(dialog, settings,
 def test_naming_a_binary_lights_up_its_module_without_a_restart(
         window, tmp_path, monkeypatch):
     """SHELL.md's own test for this step, and the reason the hints are
-    pushed again every time the Modules menu opens."""
+    pushed again every time the Modules menu opens.  Porosity itself
+    always runs -- its grid entries need no binary -- so it is the
+    Zeo++ entry that goes from its reason to its tip."""
     from xtal.modules import zeopp
     monkeypatch.setattr(zeopp, "bundled", lambda: None)
     monkeypatch.delenv(zeopp.PROGRAM.env_var, raising=False)
-    menus.refresh_module_availability(window)
-    assert not window._module_submenus["zeopp"].isEnabled()
+    window._refresh_module_availability()
+    entry = window.actions_["module.zeopp.surface-area"]
+    assert "zeoplusplus" in entry.toolTip()
+    assert window._module_submenus["zeopp"].isEnabled()
     dialog = window.preferences_dialog()
 
     dialog.page("Engines").fields["tools/zeopp"].setText(
         str(_fake_binary(tmp_path)))
 
-    assert window._module_submenus["zeopp"].isEnabled()
+    assert "zeoplusplus" not in entry.toolTip()
 
 
 def test_a_path_that_is_wrong_is_named_rather_than_reddened(

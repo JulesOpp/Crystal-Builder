@@ -52,10 +52,60 @@ def argv_of(folder):
 
 # ------------------------------------------------------- the declaration
 
-def test_it_registers_four_entries():
+def test_each_faster_entry_sits_under_the_one_it_replaces():
+    """Side by side is the point: the two ways to one number are read
+    one above the other, not found in two places."""
     module = MODULES.get("zeopp")
+    assert module.label == "Porosity"
     assert [a.name for a in module.actions] == [
-        "diameters", "surface-area", "volume", "psd"]
+        "diameters", "surface-area", "surface-area-grid", "volume",
+        "volume-grid", "psd"]
+    assert [a.label for a in module.actions][1:5] == [
+        "Surface area...", "Surface area (faster)...",
+        "Accessible volume...", "Accessible volume (faster)..."]
+
+
+def zeopp_missing(monkeypatch):
+    from dataclasses import replace
+
+    monkeypatch.setenv("XTAL_ZEOPP", "/nowhere/network")
+    monkeypatch.setattr(zeopp, "bundled", lambda: None)
+    monkeypatch.setattr(
+        zeopp, "PROGRAM",
+        replace(zeopp.PROGRAM, name="network-that-is-not-installed"))
+
+
+def test_the_faster_entries_run_without_zeopp_installed(monkeypatch):
+    """A missing binary used to grey the whole module; now it greys
+    the four entries that launch it and says why, and the two that
+    read the grid stay available."""
+    zeopp_missing(monkeypatch)
+    module = MODULES.get("zeopp")
+    assert module.availability()
+    usable = {a.name: bool(a.availability()) for a in module.actions}
+    assert usable == {"diameters": False, "surface-area": False,
+                      "surface-area-grid": True, "volume": False,
+                      "volume-grid": True, "psd": False}
+    assert "zeoplusplus" in module.blocked().reason
+
+
+def test_the_cli_refuses_a_zeopp_entry_it_cannot_run(monkeypatch,
+                                                    tmp_path, rutile):
+    """``xtal run`` asked the module only, which was enough while the
+    check was on the module.  With it on the entry, a missing binary
+    has to stop the run there too, not in the middle of it."""
+    import argparse
+
+    from xtal import cli
+    from xtal.io import write_cif
+
+    zeopp_missing(monkeypatch)
+    path = tmp_path / "rutile.cif"
+    write_cif(rutile, path)
+    args = argparse.Namespace(action="zeopp.surface-area", file=str(path),
+                              param=[], workspace=None)
+    with pytest.raises(ValueError, match="zeoplusplus"):
+        cli.cmd_run(args)
 
 
 def test_registering_touches_no_existing_file():
@@ -86,10 +136,23 @@ def test_a_missing_binary_greys_it_out_and_says_why(monkeypatch):
 
 def test_every_entry_offers_the_radii(monkeypatch):
     """Every number Zeo++ returns is a function of them, so no entry
-    may be missing the control."""
+    may be missing the control -- the grid's included."""
     for action in MODULES.get("zeopp").actions:
         assert "radii" in action.defaults()
-        assert "high_accuracy" in action.defaults()
+        assert "radii_file" in action.defaults()
+        grid = action.name.endswith("-grid")
+        assert ("high_accuracy" in action.defaults()) is not grid
+        assert ("spacing" in action.defaults()) is (
+            grid or action.name == "volume")
+
+
+def test_the_faster_entries_offer_no_channel_radius():
+    """The grid decides what is reachable at the probe itself; a
+    channel radius it silently ignored would be a control that lies."""
+    for name in ("surface-area-grid", "volume-grid"):
+        _module, action = MODULES.find(f"zeopp.{name}")
+        assert "channel_radius" not in action.defaults()
+        assert action.defaults()["gas"] == porosity.DEFAULT_PROBE
 
 
 # ------------------------------------------------------------- diameters
@@ -528,3 +591,20 @@ def test_the_row_says_which_of_the_two_was_measured(fake_network,
 
     other, _f = run("volume", rutile, workspace, occupiable=False)
     assert "centre" in other.report.tables[0].rows[0].note
+
+
+def test_the_volume_run_draws_channels_and_not_pockets(fake_network,
+                                                       workspace):
+    """The number beside the surface is AV, which a sealed pocket is
+    not part of.  ZIF-8's cages are all pockets to N2 -- its windows are
+    3.27 A across -- so there is no channel to draw, and the log says
+    that is why rather than drawing the cages."""
+    from pathlib import Path
+
+    from xtal.io.cif_reader import read_cif
+    zif8 = read_cif(Path(__file__).resolve().parents[1] / "resources"
+                    / "samples" / "ZIF-8.cif")
+    result, folder = run("volume", zif8, workspace, spacing=0.4)
+    assert result.ok
+    assert result.overlay is None
+    assert "every void is a pocket" in folder.run.log_path.read_text()
