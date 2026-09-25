@@ -214,24 +214,6 @@ Two ways out, neither taken because both change a product decision:
 `test_nihitp_builds_with_the_cell_the_crystal_has` pins 22.731 and
 1.606, so either change has to move a test and say why.
 
-### The .cgd writer has never met Systre
-
-File ▸ Export Net for Systre is checked by reading the file back
-through this application's own expansion, which is not an independent
-check.  Run Systre on MOF-5's and rutile's exported nets once and keep
-the output beside the tests.  Java 8 is installed; Systre is not.
-
-### Net search knows vertices and edges, not faces and tiles
-
-The Transitivity field takes `p q r s`, as MOF+ does, but only p and
-q are known: they are the RCSR entry's `NODE` and `EDGE` lines
-(`xtal.analysis.netsearch`).  r and s belong to the natural tiling,
-and nothing here has it, so a number there matches nothing.  RCSR
-publishes the transitivity of every net; vendor it as a small JSON
-beside `xtal/analysis/data/rcsr-2019-06-01.json.gz`, with the script
-that makes it, and fill `NetFacts.transitivity`.  A net of PORMAKE's
-or the user's that the RCSR does not name keeps r and s unknown.
-
 ## Scans
 
 The relaxed scan shipped on 2026-09-15

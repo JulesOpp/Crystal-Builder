@@ -7,6 +7,8 @@ does not produce an error -- it produces a net with an edge missing,
 which is a *different net* and would be named as one.
 """
 
+from pathlib import Path
+
 import pytest
 
 from xtal.io.cgd import CgdError, read_cgd, read_cgd_string
@@ -426,3 +428,65 @@ def test_the_writer_saves_to_a_file(tmp_path):
 
     written = write_cgd(tmp_path / "pcu.cgd", [entry_of(_pcu(), "pcu")])
     assert len(read_cgd(written)["pcu"].edges) == 3
+
+
+# ============================================================ Systre
+
+SYSTRE = Path(__file__).resolve().parent / "data" / "systre"
+
+
+def _mof5_net():
+    """The shipped MOF-5 with its net drawn as a user would: each Zn4O
+    cluster's central oxygen a vertex, joined to the six it reaches
+    through a linker, 12.93 A away."""
+    from dataclasses import replace
+
+    import numpy as np
+
+    from xtal.core import bonding, p1
+    from xtal.core.neighbors import neighbor_pairs
+    from xtal.core.structure import TOPOLOGY
+    from xtal.io import FORMATS
+
+    root = Path(__file__).resolve().parents[1]
+    structure = FORMATS.read(root / "resources" / "samples" / "MOF-5.cif")
+    cell = p1.expand(structure)
+    zinc = np.array([e == "Zn" for e in cell.elements])
+    centres = []
+    for k, element in enumerate(cell.elements):
+        if element != "O":
+            continue
+        apart = ((cell.frac[zinc] - cell.frac[k]) + 0.5) % 1 - 0.5
+        near = np.linalg.norm(apart @ structure.lattice.matrix, axis=1)
+        if np.sum(near < 2.1) == 4:
+            centres.append(k)
+    pairs = neighbor_pairs(cell.frac[centres], structure.lattice, 13.5)
+    for a, b, image in zip(pairs.i, pairs.j, pairs.image, strict=True):
+        record = bonding.bond_between(
+            structure, cell, centres[int(a)], centres[int(b)],
+            image_b=tuple(int(v) for v in image))
+        structure.bonds.append(replace(record, kind=TOPOLOGY))
+    structure.touch()
+    return structure
+
+
+@pytest.mark.parametrize("name, file, identified", [
+    ("MOF-5", "mof5_net", "pcu"),
+    ("rutile", "rutile_net", "rtl"),
+])
+def test_what_the_writer_writes_is_what_systre_named(name, file,
+                                                     identified, rutile):
+    """Export Net for Systre was checked only by reading its own file
+    back.  These two files were run through Systre itself, which named
+    them pcu and rtl (tests/data/systre, with how).  The writer has to
+    go on writing exactly them: a change that alters either is a change
+    Systre has not seen, and the remedy is to run it again."""
+    from xtal.io.cgd import entry_of, write_cgd_string
+
+    structure = _mof5_net() if name == "MOF-5" \
+        else _net_from_bonds(rutile)
+    written = write_cgd_string([entry_of(structure, name)])
+
+    assert written == (SYSTRE / f"{file}.cgd").read_text()
+    said = (SYSTRE / f"{file}.systre.txt").read_text()
+    assert f"Name:\t\t{identified}" in said
