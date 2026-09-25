@@ -45,8 +45,6 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
-import numpy as np
-
 from xtal.analysis import porosity
 from xtal.modules.job import JobResult
 from xtal.modules.process import ExternalProcess, MissingProgram, Program
@@ -320,7 +318,6 @@ def _accessible_surface(job, probe: float):
     march closes it off.
     """
     from xtal.analysis import grid as grids
-    from xtal.analysis import isosurface as iso
     from xtal.analysis import voids
 
     radius_of, why = _radius_function(job)
@@ -331,6 +328,15 @@ def _accessible_surface(job, probe: float):
     field = grids.distance_grid(job.structure, radius_of,
                                 spacing=spacing)
     split = voids.classify(job.structure, field, radius_of, probe)
+    return channel_overlay(job, field, split)
+
+
+def channel_overlay(job, field, split):
+    """The channels' surface as something the viewport draws, or
+    ``None`` with the reason in the log.  Shared with the grid's own
+    volume entry, :mod:`xtal.modules.poregrid`."""
+    from xtal.analysis import voids
+
     grid = f"{'x'.join(str(n) for n in field.shape)} grid"
     if split.borderline:
         job.note(f"a window is within half a grid step of the probe's "
@@ -343,12 +349,10 @@ def _accessible_surface(job, probe: float):
             "no point in the cell is further than the probe radius "
             "from an atom"))
         return None
-    below = np.nextafter(np.float32(probe), np.float32(-np.inf))
-    drawn = np.where(split.channels, field, np.minimum(field, below))
-    points, faces = iso.isosurface(drawn, job.structure.lattice, probe)
+    points, faces = voids.channel_mesh(field, split, job.structure.lattice)
     network = porosity.PoreNetwork(surface_points=points,
                                    surface_faces=faces,
-                                   probe=float(probe))
+                                   probe=float(split.probe))
     job.note(f"{network.summary()} around {split.summary()}, on a "
              f"{grid}")
     return network
@@ -651,8 +655,12 @@ def _channel_table(channels) -> Table:
 
 
 def _area_report(found, gas: str, probe: float, samples: int,
-                 said: str) -> Report:
+                 said: str, how: str = "", first=()) -> Report:
+    """``how`` replaces the sampling note and ``first`` goes above the
+    numbers: the grid's entries share this report and differ only in
+    how they got there and in what they could not resolve."""
     rows = [
+        *first,
         Row.number("Accessible surface area",
                    found.accessible_per_gram, "m^2/g",
                    f"what a {gas} isotherm measures", "ASA",
@@ -678,14 +686,15 @@ def _area_report(found, gas: str, probe: float, samples: int,
     return Report(
         title=f"Surface area to {gas}",
         blocks=(Table(rows=tuple(rows),
-                      note=f"{samples} Monte Carlo samples per "
-                           f"atom, at a probe radius of "
-                           f"{probe:.2f} A."),),
+                      note=how or f"{samples} Monte Carlo samples "
+                                      f"per atom, at a probe radius "
+                                      f"of {probe:.2f} A."),),
         note=said)
 
 
 def _volume_report(found, gas: str, probe: float, samples: int,
-                   occupiable: bool, said: str) -> Report:
+                   occupiable: bool, said: str, how: str = "",
+                   first=()) -> Report:
     measured = ("the volume the probe occupies -- the pore volume a "
                 "paper quotes" if occupiable else
                 "the volume the probe's centre can reach -- what a "
@@ -694,6 +703,7 @@ def _volume_report(found, gas: str, probe: float, samples: int,
     # Zeo++ spellings and a paper quoting one of them means that one.
     symbol = "POAV" if found.occupiable else "AV"
     rows = [
+        *first,
         Row.number("Accessible volume", found.accessible_per_gram,
                    "cm^3/g", measured, symbol, decimals=4),
         Row.number("Accessible fraction of the cell",
@@ -724,9 +734,9 @@ def _volume_report(found, gas: str, probe: float, samples: int,
     return Report(
         title=f"Accessible volume to {gas}",
         blocks=(Table(rows=tuple(rows),
-                      note=f"{samples} Monte Carlo samples across the "
-                           f"cell, at a probe radius of "
-                           f"{probe:.2f} A."),),
+                      note=how or f"{samples} Monte Carlo samples "
+                                      f"across the cell, at a probe "
+                                      f"radius of {probe:.2f} A."),),
         note=said)
 
 

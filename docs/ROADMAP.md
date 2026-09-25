@@ -1129,18 +1129,20 @@ What the measurements decided, so a phase can start from here:
   accessible grid point `a`, not within the probe radius.**  The
   distance field changes by at most 1 Å per Å, so there is accessible
   space between the grid points too.  The probe-radius criterion read
-  ZIF-8's PONAV 0.021 low.
+  ZIF-8's PONAV 0.021 low; this reads it 0.004 from Zeo++.
+* **POAV reads above Zeo++'s `-volpo`, and Zeo++ is the one short.**
+  MIL-53 0.659 against 0.651, HKUST-1 0.677 against 0.654.  Probe
+  spheres centred on a 0.15 Å grid of real probe positions already
+  cover 0.663 and 0.679, so the true value is at least that.  POAV is
+  pinned to that brute force and to a lone sphere's exact geometry,
+  not to Zeo++, and the report says so.
 
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
 | **0 — Every core for the grid** | Shipped 2026-09-25. `distance_grid` queries the KD-tree with `workers=-1`: MFU-4l 1.03 s → 0.22 s, the same array | `xtal/analysis/grid.py` | S |
 | **1 — Channels and pockets** | Shipped 2026-09-25. `voids.classify`: segment links gated at the middle, periodic union-find over component IDs (`findChannels`'s test), `borderline`. The Zeo++ volume run stops drawing pockets as channels | `xtal/analysis/voids.py`, `xtal/modules/zeopp.py` | M |
-| **2 — The numbers off the grid** | `voids.surface_area` / `voids.volume` returning `porosity.SurfaceArea` / `Volume`, pinned against recorded Zeo++ numbers (ASA 2 %, AV 0.5 %, POAV 1 % of the cell) | `xtal/analysis/voids.py`, `xtal/modules/poregrid.py` | M |
+| **2 — The numbers off the grid** | Shipped 2026-09-25. `voids.surface_area` (Fibonacci points on the spheres, 0.1-0.9 % from Zeo++) / `voids.volume` (AV within 0.0035 of the cell; POAV by the bound above), returning `porosity.SurfaceArea` / `Volume`, and `poregrid.surface_area` / `volume` runs on Zeo++'s report with a grid note and a *Resolution* row when borderline; a radii file is read. MFU-4l: area 1.1 s against `-sa -ha`'s 7.5 s, POAV and its surface 1.7 s against `-volpo`'s 71 s. Zeo++'s numbers are recorded in `tests/data/zeopp_reference.json` | `xtal/analysis/voids.py`, `xtal/modules/poregrid.py` | M |
 | **3 — The (faster) entries** | Module labelled Porosity, the Zeo++ check per entry, **Surface area (faster)...** and **Accessible volume (faster)...** under their Zeo++ twins, per-entry greying in the Modules panel | `xtal/modules/zeopp.py`, `xtalapp/docks/modules.py` | S-M |
-
-If Phase 2's
-ZIF-8 PONAV does not come within 0.01 of Zeo++'s 0.5534, the plan
-comes back before Phase 3.
 
 ---
 

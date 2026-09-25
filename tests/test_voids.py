@@ -11,6 +11,7 @@ wrong.
 Nothing here needs Zeo++, and nothing here imports Qt.
 """
 
+import json
 from functools import cache
 from pathlib import Path
 
@@ -127,3 +128,138 @@ def test_an_empty_cell_is_one_channel():
     field = distance_grid(empty, {}.get, spacing=1.0)
     found = voids.classify(empty, field, {}.get, NITROGEN)
     assert (found.n_channels, found.n_pockets) == (1, 0)
+
+
+# ------------------------------------------------------------ the numbers
+
+REFERENCE = json.loads(
+    (Path(__file__).parent / "data" / "zeopp_reference.json").read_text())
+
+
+@cache
+def measured(name, occupiable=True):
+    structure = read_cif(SAMPLES / f"{name}.cif")
+    field = distance_grid(structure, porosity.zeo_radius, spacing=0.4)
+    found = voids.classify(structure, field, porosity.zeo_radius,
+                           NITROGEN)
+    return (voids.surface_area(structure, found, porosity.zeo_radius),
+            voids.volume(structure, field, found, occupiable=occupiable))
+
+
+@pytest.mark.parametrize("name", ["MOF-5", "HKUST1", "MIL53", "MFU4l"])
+def test_surface_area_agrees_with_zeopp_within_two_percent(name):
+    """Measured on the spheres, 0.1-0.9 % from Zeo++ on every sample.
+    The marched mesh read 2-3 % low; a regression to it fails here."""
+    area, _volume = measured(name)
+    assert area.accessible_area == pytest.approx(REFERENCE[name]["asa"],
+                                                 rel=0.02)
+    assert area.inaccessible_area == 0
+
+
+@pytest.mark.parametrize("name", ["MOF-5", "HKUST1", "MIL53", "MFU4l"])
+def test_accessible_volume_agrees_with_zeopp_within_half_a_percent_of_the_cell(
+        name):
+    _area, volume = measured(name, occupiable=False)
+    assert not volume.occupiable
+    assert volume.accessible_fraction == pytest.approx(
+        REFERENCE[name]["av"], abs=0.005)
+
+
+def test_a_pocket_s_surface_is_counted_as_non_accessible():
+    """ZIF-8's cages are sealed to N2: all its area is NASA, and an
+    isotherm would see none of it."""
+    area, _volume = measured("ZIF-8")
+    assert area.accessible_area == 0
+    assert area.inaccessible_area == pytest.approx(
+        REFERENCE["ZIF-8"]["nasa"], rel=0.03)
+
+
+def test_a_pocket_s_occupiable_volume_agrees_with_zeopp():
+    """The case the probe-radius criterion got 0.021 of the cell wrong,
+    because it ignored the open space between grid points."""
+    _area, volume = measured("ZIF-8")
+    cell = volume.volume
+    mass = volume.density * cell * 1e-24
+    fraction = volume.inaccessible_per_gram * mass / (cell * 1e-24)
+    assert fraction == pytest.approx(REFERENCE["ZIF-8"]["ponav"],
+                                     abs=0.01)
+    assert volume.accessible_fraction == 0
+
+
+def lone_atom(radius=2.0, side=12.0):
+    structure = Structure.from_arrays(Lattice.cubic(side), ["C"],
+                                      [[0.5, 0.5, 0.5]])
+    return structure, {"C": radius}.get
+
+
+def test_a_lone_sphere_has_the_area_and_volumes_geometry_says():
+    """One atom in a box: the accessible surface is the sphere of
+    r + probe, the centre's volume is the box outside it, and the
+    probe occupies everything outside the atom itself -- a convex
+    atom leaves no corner a probe cannot reach."""
+    structure, radius_of = lone_atom()
+    field = distance_grid(structure, radius_of, spacing=0.25)
+    found = voids.classify(structure, field, radius_of, NITROGEN)
+    area = voids.surface_area(structure, found, radius_of)
+    box = 12.0 ** 3
+    assert area.accessible_area == pytest.approx(
+        4 * np.pi * (2.0 + NITROGEN) ** 2, rel=1e-3)
+    centre = voids.volume(structure, field, found, occupiable=False)
+    assert centre.accessible_fraction == pytest.approx(
+        1 - 4 / 3 * np.pi * (2.0 + NITROGEN) ** 3 / box, abs=0.003)
+    occupied = voids.volume(structure, field, found, occupiable=True)
+    assert occupied.accessible_fraction == pytest.approx(
+        1 - 4 / 3 * np.pi * 2.0 ** 3 / box, abs=0.003)
+
+
+@pytest.mark.slow
+def test_the_occupiable_volume_is_the_union_of_the_probe_spheres():
+    """Zeo++'s -volpo reads MIL-53 at 0.6511 and HKUST-1 at 0.6535,
+    but probe spheres centred on a 0.15 A grid of open points already
+    cover 0.6629 and 0.6790 -- so the true value is at least that, and
+    Zeo++ is short of it.  This is that brute force, re-derived on
+    MIL-53: ours may not exceed what the spheres cover (plus the
+    resolution of the fine grid) nor fall far below it."""
+    structure = read_cif(SAMPLES / "MIL53.cif")
+    lattice = structure.lattice
+    fine = distance_grid(structure, porosity.zeo_radius, spacing=0.15)
+    shape = np.array(fine.shape)
+    open_ = np.argwhere(fine >= NITROGEN) / shape
+    pad = (NITROGEN + 0.3) / np.linalg.norm(lattice.to_cart(np.eye(3)),
+                                            axis=1)
+    images = np.vstack([open_ + np.array(s) for s in np.ndindex(3, 3, 3)]
+                       ) - 1
+    images = images[np.all((images > -pad) & (images < 1 + pad), axis=1)]
+    from scipy.spatial import cKDTree
+    tree = cKDTree(lattice.to_cart(images))
+    points = lattice.to_cart(np.random.default_rng(1).random((100000, 3)))
+    nearest, _ = tree.query(points)
+    covered = float((nearest <= NITROGEN).mean())
+
+    _area, volume = measured("MIL53")
+    assert volume.accessible_fraction <= covered + 0.01
+    assert volume.accessible_fraction >= covered - 0.006
+    assert volume.accessible_fraction > REFERENCE["MIL53"]["poav"]
+
+
+def test_the_same_seed_gives_the_same_area():
+    structure, radius_of = lone_atom()
+    field = distance_grid(structure, radius_of, spacing=0.5)
+    found = voids.classify(structure, field, radius_of, NITROGEN)
+    first = voids.surface_area(structure, found, radius_of, seed=4)
+    again = voids.surface_area(structure, found, radius_of, seed=4)
+    assert first.accessible_area == again.accessible_area
+
+
+def test_density_and_per_gram_values_are_zeopp_s():
+    """The per-gram columns are the ones a paper quotes; a wrong mass
+    or a unit slip would move all of them and none of the fractions."""
+    area, volume = measured("MOF-5")
+    assert volume.density == pytest.approx(REFERENCE["MOF-5"]["density"],
+                                           rel=1e-3)
+    # Zeo++: 3644.13 m^2/g for 3727.11 A^2; 0.662858 cm^3/g for AV.
+    assert area.accessible_per_gram / area.accessible_area == \
+        pytest.approx(3644.13 / 3727.11, rel=1e-3)
+    centre = measured("MOF-5", occupiable=False)[1]
+    assert centre.accessible_per_gram / centre.accessible_fraction == \
+        pytest.approx(0.662858 / 0.39176, rel=1e-3)

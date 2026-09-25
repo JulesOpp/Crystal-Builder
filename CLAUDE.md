@@ -547,7 +547,13 @@ stress case).
   clear at the segment's middle too — face neighbours alone gave
   HKUST-1 104 false pockets, all 26 on their endpoints let N2 through
   ZIF-8's 3.27 A windows. A window within half a grid step of the
-  probe is flagged (`Voids.borderline`), never guessed.
+  probe is flagged (`Voids.borderline`), never guessed. **The
+  "(faster)" entries read their numbers off the same grid**
+  (`xtal/modules/poregrid.py`): area from points on the spheres, not
+  from the mesh, which reads 2-3 % low; POAV above Zeo++'s `-volpo` by
+  up to 0.03 of the cell, because Zeo++ falls short of the union of
+  probe spheres -- so POAV is tested against that union, never
+  against Zeo++.
 - **The CIF carries the bonds; Export cleans.** `_geom_bond` says
   (site, site, operation, translation) and always could, so the
   workspace copy of a structure *is* the document: the markers the
