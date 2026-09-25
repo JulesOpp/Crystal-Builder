@@ -4,35 +4,52 @@ Build, manipulate, analyse and export crystal structures. Read and
 write CIF, edit symmetry and bonding, run a force field, DFTB+ or
 Zeo++ on the result.
 
-## Fixed in 0.2.1
+## New since 0.2.1
 
-- **The Mac downloads of 0.2.0 did not open on macOS 13 or older.**
-  They were built with numpy, scipy and (on Intel) spglib compiled for
-  macOS 14 and 15, and quit before showing a window. 0.2.1 is built
-  for the macOS it says it needs, and the build now refuses to package
-  anything newer.
+- **Three more machine-learned potentials**: ORB-v3 and MatterSim
+  beside MACE, and **EQeq charges** for the force field.
+  *Preferences → Engines* lists every package a feature needs, with
+  an install command that works for the Python it is running in.
+- **A library of real frameworks**: sixteen MOFs from the
+  Crystallography Open Database (CC0), under *From the COD* in Open
+  Sample.
+- **The MOF builder builds chelating blocks.** A connection point can
+  be several atoms (*Mark as one connection point*), so MFU-4l and
+  Ni3(HITP)2 build from their own nodes. Symmetric nodes are turned
+  so that the faces across every edge agree, which builds MOF-5 with
+  its clusters alternating. Blocks and nets can be searched by name,
+  denticity and MOF+ fields, and the RCSR's layer nets can be built
+  and stacked.
+- **Interpenetration**: *Structure ▸ Interpenetrate…*, or ask the MOF
+  builder for it. Copies closer than a bond are refused by name.
+- **More file formats**: POSCAR/CONTCAR, mmCIF, pymatgen's JSON, and
+  ASE trajectories in the playback bar.
+- **Work is not lost.** Every two minutes, edited tabs are autosaved
+  to a side file, and a newer autosave is offered back when the file
+  is opened. Quitting asks before it stops a running calculation.
+  Each workspace reopens the tabs it had.
+- **The first minute**: a start pane while no tab is open, a wider
+  viewport in the first window, and a reason given for anything
+  greyed out, converted or refused.
+- **Faster and leaner**: a cell relaxation step is one evaluation, a
+  drag on MFU-4l is a third quicker, the pore surface takes a quarter
+  of the memory, and Ball and stick (occupancy) turns as fast as
+  plain Ball and stick. A structure with no view of its own now
+  opens in that style, and the optimiser starts on *Smart*.
 
-## New since 0.1.0
+## Fixed in 0.3.0
 
-- **Relaxed energy scans** over any coordinate, lattice parameter or
-  the volume, holding the coordinate rather than freezing atoms. The
-  landscape is drawn clickable, walked in both directions, and every
-  point is written to disk as soon as it finishes.
-- **More engines**: xTB (GFN2, GFN1 through tblite; GFN-FF through
-  xtb), MACE, plain UFF beside UFF4MOF, and Forcite-style optimisers.
-- **DFTB+ runs of its own**: band structure with its Brillouin zone,
-  projected density of states, Mulliken charges and orbitals, the
-  DFTB+ driver for relaxation and MD, and vibrational modes that play.
-- **Porosity you can see**: Zeo++ channel networks, accessible volume
-  and the accessible surface drawn over the crystal.
-- **The MOF builder ships inside the application**, including blocks
-  you draw yourself; pores can be filled with guest molecules.
-- A **workspace chooser** at start-up, one *Engines* page with a Test
-  button per program, a Style panel that reflows, STL export through
-  Blender, and non-centred subgroups.
-- **Windows**: Stop now ends a program started through a wrapper
-  script, and files holding non-ASCII text (a Γ in a band path, an
-  accented folder name) are written and read as UTF-8.
+- **A finished calculation no longer hangs or aborts the
+  application.** The worker-thread teardown race listed as a known
+  issue in 0.2 is fixed.
+- Stop works under an engine that computes in this process.
+- During playback, editing commands stay greyed out.
+- A symmetry copy of a bond joins the atoms it found, not their
+  wrapped positions. A label the CIF grammar cannot carry bare no
+  longer damages the file. A file whose own symmetry repeats its
+  atoms says so when it opens.
+- A repeated net is drawn through every cell it tiles, without
+  diagonals across the box.
 
 ## Downloads
 
@@ -99,12 +116,13 @@ Bundled and working, with nothing to install:
 - **matplotlib**, for the PXRD pattern window: zooming, overlaying a
   measured `.xy` file, and exporting the figure as a vector.
 
-**MACE is not included.** It needs PyTorch, which is gigabytes and
-wants to arrive differently on every platform. The Force Field panel
-lists it and greys it out; run from Python to use it:
+**MACE, ORB-v3 and MatterSim are not included.** They need PyTorch,
+which is gigabytes and wants to arrive differently on every platform.
+The Force Field panel lists them and greys them out; run from Python
+to use them (*Preferences → Engines* gives the exact command):
 
 ```bash
-pip install 'crystal-builder[gui,mace]'
+pip install 'crystal-builder[gui,mace]'   # or [gui,orb], [gui,mattersim]
 crystal-builder
 ```
 
@@ -124,13 +142,6 @@ need more than that.
 
 ## Known issues
 
-- **A calculation that finishes can occasionally hang the
-  application.** There is a lock-order inversion between Qt's
-  connection mutex and the GIL in the worker-thread teardown: PySide6
-  can free a `QThread`'s Python wrapper during signal delivery, which
-  calls back into Python while Qt holds the mutex. It is being worked
-  on. If it happens, the log written by *Help → Show log* is the
-  useful thing to attach to a report.
 - **The version shown in Help → About is the git tag the build was
   made from.** If it reads `0.0.dev0` or `0.0.0`, the build is broken
   and worth reporting.
