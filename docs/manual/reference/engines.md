@@ -9,7 +9,7 @@ Universal Force Field (Rappe et al. 1992) -- covers the whole periodic table, na
 
 Provides: charges, forces, periodic, stress, types
 
-```{tabularcolumns} |\Y{0.19}|\Y{0.22}|\Y{0.13}|\Y{0.46}|
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
 ```
 
 | Setting | Accepts | Default | What it is |
@@ -27,7 +27,7 @@ Semiempirical tight binding and the GFN force field, through the tblite or xtb b
 
 Provides: forces, periodic
 
-```{tabularcolumns} |\Y{0.19}|\Y{0.22}|\Y{0.13}|\Y{0.46}|
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
 ```
 
 | Setting | Accepts | Default | What it is |
@@ -45,7 +45,7 @@ A machine-learned potential in the atomic cluster expansion family.  The MACE-MP
 
 Provides: forces, periodic, stress
 
-```{tabularcolumns} |\Y{0.19}|\Y{0.22}|\Y{0.13}|\Y{0.46}|
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
 ```
 
 | Setting | Accepts | Default | What it is |
@@ -62,12 +62,12 @@ Orbital Materials' universal potential.  Like MACE it needs no parameters assign
 
 Provides: forces, periodic, stress
 
-```{tabularcolumns} |\Y{0.19}|\Y{0.22}|\Y{0.13}|\Y{0.46}|
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
 ```
 
 | Setting | Accepts | Default | What it is |
 |---|---|---|---|
-| **Model** | one of ORB-v3 -- OMat24, all neighbours within 6 A (recommended), ORB-v3 -- OMat24, 20 neighbours, faster, ORB-v3 -- MPtrj + Alexandria, all neighbours within 6 A, ORB-v3 -- MPtrj + Alexandria, 20 neighbours, faster | `orb-v3-conservative-inf-omat` | Conservative ORB-v3 models only: their forces are the gradient of their energy, which is what a relaxation needs.  Each is downloaded once, to orb-models' own cache. |
+| **Model** | one of ORB-v3 -- OMat24, all neighbours within 6 A (recommended), ORB-v3 -- OMat24, 20 neighbours, faster, ORB-v3 -- MPtrj + Alexandria, all neighbours within 6 A, ORB-v3 -- MPtrj + Alexandria, 20 neighbours, faster | orb-v3-conservative-inf-omat | Conservative ORB-v3 models only: their forces are the gradient of their energy, which is what a relaxation needs.  Each is downloaded once, to orb-models' own cache. |
 | **Run on** | one of The NVIDIA GPU if there is one, otherwise the CPU, CPU, NVIDIA GPU (cuda) | `auto` | orb-models cannot run on an Apple GPU, so on a Mac this is the CPU. |
 | **Double precision** | bool | `True` | Leave this on for geometry optimisation: in single precision the model's own noise is a third of the energy differences an optimiser reads.  Off is about 2.7 times faster. |
 
@@ -78,12 +78,12 @@ Microsoft's universal potential, an M3GNet trained across temperature and pressu
 
 Provides: forces, periodic, stress
 
-```{tabularcolumns} |\Y{0.19}|\Y{0.22}|\Y{0.13}|\Y{0.46}|
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
 ```
 
 | Setting | Accepts | Default | What it is |
 |---|---|---|---|
-| **Model** | one of MatterSim 1M -- the smaller model, faster (recommended), MatterSim 5M -- five times the parameters, more accurate | `MatterSim-v1.0.0-1M` | Each is downloaded once, to ~/.local/mattersim. |
+| **Model** | one of MatterSim 1M -- the smaller model, faster (recommended), MatterSim 5M -- five times the parameters, more accurate | MatterSim-v1.0.0-1M | Each is downloaded once, to ~/.local/mattersim. |
 | **Run on** | one of The NVIDIA GPU if there is one, otherwise the CPU, CPU, NVIDIA GPU (cuda) | `auto` | MatterSim cannot load onto an Apple GPU, so on a Mac this is the CPU. |
 | **Double precision** | bool | `True` | Leave this on for geometry optimisation: in single precision the model's own noise is a noticeable part of the energy differences an optimiser reads.  Off is about 1.5 times faster. |
 
@@ -94,7 +94,7 @@ Density-functional tight binding, through the DFTB+ binary -- DFT-like and fast 
 
 Provides: forces, periodic
 
-```{tabularcolumns} |\Y{0.19}|\Y{0.22}|\Y{0.13}|\Y{0.46}|
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
 ```
 
 | Setting | Accepts | Default | What it is |

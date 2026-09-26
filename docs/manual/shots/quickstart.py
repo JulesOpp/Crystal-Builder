@@ -5,7 +5,7 @@ figure is a first-run window at one size and nothing of the user's is
 read or written::
 
     python .claude/skills/run-app/drive.py --scratch build/manual-shots \
-        --script docs/manual/shots.py
+        --script docs/manual/shots/quickstart.py
 
 Each function writes ``docs/manual/figures/<chapter>/<name>.png``.
 Figures are named after what they show.  A dock or a dialog is grabbed

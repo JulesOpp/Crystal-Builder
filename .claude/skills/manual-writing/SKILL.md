@@ -35,7 +35,7 @@ docs/manual/
   back/                    glossary.md  bibliography.md  genindex (generated)
   reference/               GENERATED: commands.md modules.md engines.md panels.md inventory.json
   figures/                 GENERATED PNGs, one folder per chapter
-  shots.py                 the screenshot script
+  shots/<chapter>.py       one screenshot script per chapter
   references.bib           every citation
 ```
 
@@ -110,7 +110,7 @@ manuals (paraphrase an idea, never copy), guesses about defaults.
    generated reference, a scripted run, a docstring, a cited paper. A
    claim about the science that none of them makes is not written; it
    is a question for Julius.
-8. Figures: add the shot to `shots.py`, regenerate, and look at the
+8. Figures: add the shot to `shots/<chapter>.py`, regenerate, and look at the
    PNG before referencing it.
 9. Build the HTML, fix warnings (broken refs are warnings), and report
    the chapter's word count and the open TODO-cites.
@@ -120,14 +120,14 @@ application uses (*optimise*, *colour*), units as the app shows them
 (Å, kcal/mol/Å, GPa). Say what a control does and why a user would
 choose it; the reference already says what values it takes.
 
-## Screenshots: `docs/manual/shots.py`
+## Screenshots: `docs/manual/shots/<chapter>.py`
 
 A `run-app --script` file, run with a scratch profile so every figure
 is a first-run window at a fixed size:
 
 ```bash
 python .claude/skills/run-app/drive.py --scratch build/manual-shots \
-  --script docs/manual/shots.py
+  --script docs/manual/shots/<chapter>.py
 ```
 
 Inside, one function per figure writes

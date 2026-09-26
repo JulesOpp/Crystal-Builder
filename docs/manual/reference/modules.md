@@ -65,7 +65,7 @@ No settings.
 
 Eigenvalues along a path through the Brillouin zone, from charges converged on a mesh
 
-```{tabularcolumns} |\Y{0.19}|\Y{0.22}|\Y{0.13}|\Y{0.46}|
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
 ```
 
 | Setting | Accepts | Default | What it is |
@@ -80,7 +80,7 @@ Eigenvalues along a path through the Brillouin zone, from charges converged on a
 
 Total and projected onto each element, on a dense mesh
 
-```{tabularcolumns} |\Y{0.19}|\Y{0.22}|\Y{0.13}|\Y{0.46}|
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
 ```
 
 | Setting | Accepts | Default | What it is |
@@ -101,7 +101,7 @@ No settings.
 
 One state as its two lobes, through waveplot; needs the parameter set's wfc.*.hsd
 
-```{tabularcolumns} |\Y{0.19}|\Y{0.22}|\Y{0.13}|\Y{0.46}|
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
 ```
 
 | Setting | Accepts | Default | What it is |
@@ -119,7 +119,7 @@ One state as its two lobes, through waveplot; needs the parameter set's wfc.*.hs
 
 One DFTB+ run relaxes the atoms, and the cell if asked; the answer is mapped back onto the space group
 
-```{tabularcolumns} |\Y{0.19}|\Y{0.22}|\Y{0.13}|\Y{0.46}|
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
 ```
 
 | Setting | Accepts | Default | What it is |
@@ -136,7 +136,7 @@ One DFTB+ run relaxes the atoms, and the cell if asked; the answer is mapped bac
 
 The Hessian by finite differences and its modes.  It costs six evaluations per free atom, and a structure that has not been relaxed first gives imaginary modes that mean nothing
 
-```{tabularcolumns} |\Y{0.19}|\Y{0.22}|\Y{0.13}|\Y{0.46}|
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
 ```
 
 | Setting | Accepts | Default | What it is |
@@ -149,7 +149,7 @@ The Hessian by finite differences and its modes.  It costs six evaluations per f
 
 Velocity Verlet, with a thermostat; the frames go to the transport bar
 
-```{tabularcolumns} |\Y{0.19}|\Y{0.22}|\Y{0.13}|\Y{0.46}|
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
 ```
 
 | Setting | Accepts | Default | What it is |
@@ -175,7 +175,7 @@ Pore diameters, accessible surface area, pore volume and the pore size distribut
 
 The largest included and free spheres -- D_i, D_f and D_if -- and the channels they run through
 
-```{tabularcolumns} |\Y{0.19}|\Y{0.22}|\Y{0.13}|\Y{0.46}|
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
 ```
 
 | Setting | Accepts | Default | What it is |
@@ -193,7 +193,7 @@ The largest included and free spheres -- D_i, D_f and D_if -- and the channels t
 
 The area a gas molecule can touch, which is what a BET measurement sees
 
-```{tabularcolumns} |\Y{0.19}|\Y{0.22}|\Y{0.13}|\Y{0.46}|
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
 ```
 
 | Setting | Accepts | Default | What it is |
@@ -211,7 +211,7 @@ The area a gas molecule can touch, which is what a BET measurement sees
 
 The same area in a second or two rather than several: sampled here on this application's own grid instead of by Zeo++, which it need not have.  A window within a grid step of the probe's size is flagged rather than guessed.
 
-```{tabularcolumns} |\Y{0.19}|\Y{0.22}|\Y{0.13}|\Y{0.46}|
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
 ```
 
 | Setting | Accepts | Default | What it is |
@@ -228,7 +228,7 @@ The same area in a second or two rather than several: sampled here on this appli
 
 How much of the cell a gas molecule can occupy, which is the pore volume a paper quotes
 
-```{tabularcolumns} |\Y{0.19}|\Y{0.22}|\Y{0.13}|\Y{0.46}|
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
 ```
 
 | Setting | Accepts | Default | What it is |
@@ -249,7 +249,7 @@ How much of the cell a gas molecule can occupy, which is the pore volume a paper
 
 The same volume in a second or two -- MFU-4l's occupiable volume is 1.7 s here against 71 s in Zeo++ -- read off this application's own grid.  A window within a grid step of the probe's size is flagged rather than guessed.
 
-```{tabularcolumns} |\Y{0.19}|\Y{0.22}|\Y{0.13}|\Y{0.46}|
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
 ```
 
 | Setting | Accepts | Default | What it is |
@@ -267,7 +267,7 @@ The same volume in a second or two -- MFU-4l's occupiable volume is 1.7 s here a
 
 How much of the pore space sits at each diameter, as a histogram
 
-```{tabularcolumns} |\Y{0.19}|\Y{0.22}|\Y{0.13}|\Y{0.46}|
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
 ```
 
 | Setting | Accepts | Default | What it is |
@@ -293,7 +293,7 @@ Build a framework from a topology, a metal node and a linker, with PORMAKE.  The
 
 Pick a net, a node and a linker; the framework opens in a new tab
 
-```{tabularcolumns} |\Y{0.19}|\Y{0.22}|\Y{0.13}|\Y{0.46}|
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
 ```
 
 | Setting | Accepts | Default | What it is |
@@ -322,7 +322,7 @@ Build a molecule from a SMILES string, with RDKit.  It opens in a tab of its own
 
 Build a molecule; it opens in a new tab
 
-```{tabularcolumns} |\Y{0.19}|\Y{0.22}|\Y{0.13}|\Y{0.46}|
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
 ```
 
 | Setting | Accepts | Default | What it is |
@@ -345,7 +345,7 @@ Calculate a powder X-ray diffraction pattern from the structure: peak positions 
 
 Calculate a powder diffraction pattern from this structure
 
-```{tabularcolumns} |\Y{0.19}|\Y{0.22}|\Y{0.13}|\Y{0.46}|
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
 ```
 
 | Setting | Accepts | Default | What it is |
@@ -376,7 +376,7 @@ Walk one or two coordinates and relax everything else at each point, to map the 
 
 Map the energy landscape over one or two coordinates
 
-```{tabularcolumns} |\Y{0.19}|\Y{0.22}|\Y{0.13}|\Y{0.46}|
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
 ```
 
 | Setting | Accepts | Default | What it is |
@@ -412,7 +412,7 @@ Draw a named RCSR net -- a vertex is a hydrogen and an edge is a string of heliu
 
 Draw a named RCSR net; it opens in a new tab
 
-```{tabularcolumns} |\Y{0.19}|\Y{0.22}|\Y{0.13}|\Y{0.46}|
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
 ```
 
 | Setting | Accepts | Default | What it is |
@@ -434,7 +434,7 @@ Blender, run headless, for what it can make of a structure.
 
 One unit cell with its bonds, turned into a printable mesh by Blender
 
-```{tabularcolumns} |\Y{0.19}|\Y{0.22}|\Y{0.13}|\Y{0.46}|
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
 ```
 
 | Setting | Accepts | Default | What it is |

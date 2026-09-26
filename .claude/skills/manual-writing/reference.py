@@ -168,7 +168,12 @@ def _default(value) -> str:
     """A default as code, or nothing: an empty one printed as a pair of
     backticks."""
     text = _cell(value)
-    return f"`{text}`" if text else ""
+    if not text:
+        return ""
+    # Code cannot break, so a long name -- orb-v3-conservative-inf-omat
+    # -- ran 105 pt past the margin of the PDF; as text it breaks at
+    # its hyphens.
+    return f"`{text}`" if len(text) <= 14 else text
 
 
 def _params_table(params) -> list[str]:
@@ -177,7 +182,7 @@ def _params_table(params) -> list[str]:
     # Column widths for the PDF, as fractions of the line: without them
     # LaTeX shares the width out by content and a long description
     # squeezes the header to "Set- ting".  HTML ignores the directive.
-    rows = ["```{tabularcolumns} |\\Y{0.19}|\\Y{0.22}|\\Y{0.13}|\\Y{0.46}|",
+    rows = ["```{tabularcolumns} |\\Y{0.18}|\\Y{0.2}|\\Y{0.18}|\\Y{0.44}|",
             "```", "",
             "| Setting | Accepts | Default | What it is |",
             "|---|---|---|---|"]
