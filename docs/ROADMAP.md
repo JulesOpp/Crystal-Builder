@@ -1241,7 +1241,7 @@ to Rietveld* is ticked.
 
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
-| **1 — Data, radiation, bridge** | `.xy` in, Cu / Cu Kα1 / Mo / Co / synchrotron + λ, Structure ⇄ RietX site for site, the `refine` extra detected without an import | `xtal/powder/data.py`, `xtal/powder/bridge.py`, `pyproject.toml` | S-M |
+| **1 — Data, radiation, bridge** | Shipped 2026-09-25. `PowderData.from_xy` (σ from a third column only when every row has a positive one), `Radiation` onto RietX's own presets (no wavelength table of ours), `bridge.phase_of` / `apply_phase` site for site with dummies left out and remembered, `bridge.fit` never recording into the cwd. Re-measured: FAP's `mccusker_default` fit is 1.5 s (the 992 s was swap) -- **and that plan frees no atoms**, so Phase 5 builds on `mccusker_structural` or its own stages | `xtal/powder/data.py`, `xtal/powder/bridge.py`, `pyproject.toml` | S-M |
 | **2 — Workbench and peak fitting** | Modules ▸ PXRD ▸ *Refine against a measured pattern…*; the plot; peak fitting after `a_peak.inp`, with a per-peak *use for indexing* box; `Job.on_update` for live payloads; `powder` module entries for `xtal run` | `xtalapp/refine/`, `xtal/powder/peaks.py`, `xtal/modules/powder.py` | M-L |
 | **3 — Indexing** | Bravais checkboxes, a space-group list, zero error, volume and time budgets; the table TOPAS's `.ndx` is | `xtal/powder/index.py` | M |
 | **4 — Pawley** | After `c_paw.inp`; Rwp/GoF, refined cell ± esd, hkl list; *apply this cell* (one undo step) or *new structure from this cell* | `xtal/powder/pawley.py` | M |

@@ -33,7 +33,8 @@ from pathlib import Path
 
 import numpy as np
 
-__all__ = ["EXTENSIONS", "read_xy", "write_xy", "xy_string"]
+__all__ = ["EXTENSIONS", "read_columns", "read_xy", "write_xy",
+           "xy_string"]
 
 EXTENSIONS = (".xy", ".xye", ".dat")
 
@@ -47,12 +48,28 @@ def read_xy(path) -> tuple[np.ndarray, np.ndarray]:
 
     A third column is an uncertainty in most of the files that have
     one, and is ignored rather than refused: a pattern that plots is
-    what was asked for, and dropping the errors loses nothing this
-    application does anything with.
+    what was asked for, and dropping the errors loses nothing an
+    overlay does anything with.  A refinement does weight by them,
+    and reads :func:`read_columns` instead.
+    """
+    x, y, _sigma = read_columns(path)
+    return x, y
+
+
+def read_columns(path) -> tuple[np.ndarray, np.ndarray,
+                                np.ndarray | None]:
+    """``(two_theta, intensity, sigma)``, sorted by angle.
+
+    ``sigma`` is the third column when *every* data row has one and
+    it is positive throughout, and ``None`` otherwise: a column that
+    is there for half the file, or that holds a zero, is not a set of
+    weights anybody measured, and weighting by it would let one row
+    dominate a least-squares fit.
     """
     path = Path(path)
     x: list[float] = []
     y: list[float] = []
+    e: list[float | None] = []
     with open(path, encoding="utf-8", errors="replace") as handle:
         for line in handle:
             row = line.strip()
@@ -65,15 +82,25 @@ def read_xy(path) -> tuple[np.ndarray, np.ndarray]:
                 first, second = float(parts[0]), float(parts[1])
             except ValueError:
                 continue                # a header row of column names
+            try:
+                third = float(parts[2]) if len(parts) > 2 else None
+            except ValueError:
+                third = None
             x.append(first)
             y.append(second)
+            e.append(third)
     if not x:
         raise ValueError(
             f"no two-column data in {path.name} -- an .xy file is "
             f"2-theta and intensity, one pair a line")
-    order = np.argsort(np.asarray(x, dtype=float))
+    order = np.argsort(np.asarray(x, dtype=float), kind="stable")
+    sigma = None
+    if all(v is not None for v in e):
+        column = np.asarray(e, dtype=float)
+        if np.all(column > 0):
+            sigma = column[order]
     return (np.asarray(x, dtype=float)[order],
-            np.asarray(y, dtype=float)[order])
+            np.asarray(y, dtype=float)[order], sigma)
 
 
 def xy_string(x, y, header: str = "") -> str:

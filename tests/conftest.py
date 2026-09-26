@@ -58,6 +58,12 @@ _WORKSPACE = tempfile.mkdtemp(prefix="xtal-test-workspace-")
 atexit.register(shutil.rmtree, _WORKSPACE, ignore_errors=True)
 os.environ.setdefault("XTAL_WORKSPACE_ROOT", _WORKSPACE)
 
+# RietX splits its compiled kernels over min(8, cores) threads unless
+# told otherwise, and under xdist that is eight threads in each of
+# three workers on an eight-core machine.  The parallelism is already
+# one rank up, which is the case its own setting exists for.
+os.environ.setdefault("RIETX_COMPILED_THREADS", "1")
+
 
 
 def _settings_into_a_scratch_directory() -> None:
