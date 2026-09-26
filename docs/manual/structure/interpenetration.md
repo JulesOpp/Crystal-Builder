@@ -46,10 +46,6 @@ At $n$-fold the candidates are:
   copy is a quarter of the cell along the body diagonal, and no
   half-vector of its F-centred cell reaches it.
 
-% TODO(Sam): the module docstring says "quarter-cell points" and the
-% candidates() docstring and CLAUDE.md say "eighth-cell grid"; the
-% page follows the latter.  Reported for the docstring.
-
 Two placements that a symmetry of the structure carries onto each
 other are the same array turned round, and are one row.  The symmetry
 is **detected** on the P1 cell, not read off the label, because a

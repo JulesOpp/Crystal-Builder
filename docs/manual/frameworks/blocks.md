@@ -144,12 +144,46 @@ CIFs with *Mark as one connection point*, and their relatives written
 by script in the same shape.  In the picker they are the
 **Polydentate** ones.
 
-% TODO(Sam): a step-by-step recipe for cutting a node out of an open
-% crystal (select the cluster, take it into a document of its own,
-% mark) has not been walked through in the app for this page; the
-% library docstring says the shipped blocks were made "by the gesture
-% Mark as one connection point" and no more.  Confirm the route with
-% Julius before adding numbered steps.
+### Cutting a node out of a crystal
+
+```{index} single: building block; from a crystal
+```
+
+A node can be taken straight out of a crystal you have open, without
+a document of its own: reduce the cell to P1, keep the cluster and
+delete the rest, draw its connection points and save.  MOF-5's
+Zn{sub}`4`O cluster is the example, because PORMAKE's own block for it
+(N16) is that core with its six carboxylates and an `X` on each
+carboxylate carbon:
+
+1. Open *File ▸* {ref}`Open Sample ▸ From the COD ▸ MOF-5
+   <cmd-sample_cod_mof5>` and choose *Symmetry ▸* {ref}`Reduce to P1
+   <cmd-reduce_p1>`, so that every atom is a site of its own and a
+   selection is exactly the atoms you clicked.
+2. In *Mouse mode ▸* {ref}`Select <cmd-mode_select>`, click one atom
+   of a cluster and shift-click the rest of it: the four zinc atoms,
+   the central oxygen, and the six carboxylate carbons with their
+   oxygens.
+3. *Select ▸* {ref}`Invert selection <cmd-invert_selection>`
+   ({kbd}`Ctrl+I`) selects everything else.
+4. *Edit ▸* {ref}`Delete <cmd-delete_selection>` ({kbd}`Del`) removes
+   it, leaving the cluster alone in the cell.
+5. Type `X` into the toolbar's element box, choose *Mouse mode ▸*
+   {ref}`Add atom <cmd-mode_add_atom>`, click a carboxylate carbon and
+   then click just beyond it, away from the core: an `X` lands bonded
+   to that carbon.  Press {kbd}`Escape` to end the chain, and repeat
+   for the other five carbons.  The dialog of the next step refuses a
+   point placed facing into the cluster, so the direction matters and
+   the distance does not: the point is pulled in to 0.75 Å when the
+   block is written.
+6. *File ▸* {ref}`Save as a building block… <cmd-save_building_block>`
+   says *6-connected*; give it a name and, in *Building blocks folder*,
+   the folder the MOF builder reads your own blocks from, and press
+   **Save**.  The block is in the picker from then on.
+
+Each `X` placed this way hangs off one atom.  A chelate's point --
+one `X` for two atoms -- is made with *Mark as one connection point*
+above.
 
 ## Drawing a block for a slot
 
@@ -193,7 +227,9 @@ more open than it would with its real neighbours ({doc}`molecule-builder`).
 
 For a molecule already open in a tab -- one you marked by hand --
 *File ▸* {ref}`Save as a building block… <cmd-save_building_block>`
-writes it to the same folder.  Its dialog shows everything that stops
+writes it to the folder its dialog names, which starts as the MOF
+builder's *Extra building blocks* folder, not the workspace's
+`blocks/`.  Its dialog shows everything that stops
 the structure being a block *before* you press Save: a point that is
 bonded to another point, members too far apart, two molecules in the
 cell, no connection points at all.

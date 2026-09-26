@@ -116,6 +116,10 @@ now gives
 a = 18.988  b = 18.988  c = 6.533 A
 ```
 
+The cell has lost 45 % of its volume, nearly all of it along *c*.
+That is expected: the framework is flexible, and this is not the
+trimer or the linker coming apart.
+
 The cell is hexagonal to the last figure, and the hint under the
 report says why you should not read too much into it: *A cell relaxed
 under UFF is a UFF cell: for a framework it is routinely a few percent
@@ -275,7 +279,7 @@ point symbol           4^2.8^4
 ```
 
 Two kinds of 4-connected vertex: each nickel meets four linkers, and
-each linker's marker meets four nickels, two at each end.  *View ▸
+each linker meets four nickels.  *View ▸
 Style ▸* {ref}`Net only <cmd-style_net>` draws the net and nothing
 else ({numref}`fig-first-build-net-ssa`).
 
@@ -289,11 +293,12 @@ the ring centroids, drawn on its own with *Net only*.
 
 The crystal has not changed between the two nets.  The same
 atoms, the same cell, the same space group, and two names for the
-net, both right.  **A net is a choice of vertices, not a property of
-the crystal**: the cluster taken whole is a 6-connected node and the
-framework is **acs**; the cluster taken apart into its metals is
-three 4-connected nodes and the framework is **ssa**.  The *Net*
-panel names what you drew, and drawing it is where the chemistry is.
+net, both right.  **A net is an arbitrary choice of vertices, not a
+property of the crystal**: the cluster taken whole is a 6-connected
+node and the framework is **acs**; the cluster taken apart into its
+metals is three 4-connected nodes and the framework is **ssa**.  The
+*Net* panel names what you drew, and drawing it is where the
+chemistry is.
 
 Save the result with {kbd}`Ctrl+S`.  The framework becomes
 `acs-N134-benzene.xtalproj` beside its CIF, with the net, the marker

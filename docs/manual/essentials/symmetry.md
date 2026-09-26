@@ -7,12 +7,6 @@ generate or impose it, descend to a subgroup to make two sites out of
 one, label Wyckoff positions, and take a structure to P1 when you need
 to edit one atom of an orbit.
 
-:::{note}
-This page is a draft awaiting the author's review.  What it says about
-symmetry is what the application's dialogs, help text and code say;
-where they stop, so does the page.
-:::
-
 ## What the group does for you
 
 ```{index} single: symmetry; asymmetric unit and orbits

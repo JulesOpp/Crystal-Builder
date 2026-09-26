@@ -46,7 +46,7 @@ $$ (d3bj)
 
 % Checked 2026-09-25 against the rational-damping form in the ORCA 6.1
 % manual, eqs. 3.11-3.13 (a sum over A<B there, which is half the sum
-% over A != B here).  Julius to confirm against Grimme 2011.
+% over A != B here).  Confirmed by the author, 2026-09-26.
 
 where $C_6^{AB}$ and $C_8^{AB}$ are the pair coefficients, $s_6$ and
 $s_8$ scale the two orders, and $a_1$, $a_2$ are the damping

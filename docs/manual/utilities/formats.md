@@ -292,13 +292,20 @@ character of line one -- a perfect CIF was *expected block header*, a
 perfect XYZ *must be an atom count*.  Every reader here strips the
 mark; a CIF that starts with one is decoded first and handed to gemmi
 as text, and one without it is handed over as the file.  A text file
-that is not UTF-8 at all -- a pre-2010 CIF or XYZ written in Latin-1
--- is refused with the file named and the byte located, rather than
-with a decoder's offset:
+that is not UTF-8 at all -- an XYZ or POSCAR written in Latin-1 -- is
+refused with the file named and the byte located, rather than with a
+decoder's offset:
 
 ```text
 café.xyz is not UTF-8 text (byte 61 is 0xe9); re-save it as UTF-8
 ```
+
+A CIF without a mark is the exception, because gemmi reads its bytes
+itself.  A Latin-1 character inside a quoted value or a comment -- an
+author's name, usually, in a pre-2010 CIF -- is read without
+complaint and the structure is unaffected; one in an unquoted value,
+such as an atom label, is gemmi's *parse error* at that line.  Re-save
+such a file as UTF-8.
 
 ## The project file (.xtalproj)
 

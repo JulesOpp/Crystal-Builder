@@ -295,12 +295,12 @@ this chapter; quoting it from {doc}`there </quickstart/first-build>`:
 
 > The crystal has not changed between the two nets.  The same atoms,
 > the same cell, the same space group, and two names for the net,
-> both right.  **A net is a choice of vertices, not a property of the
-> crystal**: the cluster taken whole is a 6-connected node and the
-> framework is **acs**; the cluster taken apart into its metals is
-> three 4-connected nodes and the framework is **ssa**.  The *Net*
-> panel names what you drew, and drawing it is where the chemistry
-> is.
+> both right.  **A net is an arbitrary choice of vertices, not a
+> property of the crystal**: the cluster taken whole is a
+> 6-connected node and the framework is **acs**; the cluster taken
+> apart into its metals is three 4-connected nodes and the framework
+> is **ssa**.  The *Net* panel names what you drew, and drawing it is
+> where the chemistry is.
 
 ## Settings
 

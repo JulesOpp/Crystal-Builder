@@ -487,9 +487,9 @@ them.
   particular framework, and a node the framework-node test does not
   recognise, or a metal in a coordination its type table has no row
   for, is typed by coordination and marked as such.
-- No torsion is placed about a bond to a metal (the code's decision:
-  UFF names one type per metal after its commonest geometry, and a
-  dihedral about a bond to a six-coordinate centre says nothing).
+- No torsion is placed about a bond to a metal.  That is the method's
+  rule: UFF names one type per metal after its commonest geometry, and
+  a dihedral about a bond to a six-coordinate centre says nothing.
 - Electrostatics are not part of the published parametrisation, and
   the charges the application can equilibrate are estimates to look
   over ({doc}`charges`).

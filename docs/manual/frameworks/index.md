@@ -27,9 +27,10 @@ how a drawn net is identified against the RCSR {cite}`okeeffe2008rcsr`.
 Two ideas run through every page.  A **building block** is a molecule
 with connection points, and a block fits a slot of the net when it has
 as many connection points as the slot is coordinated -- that is the
-only rule.  And a **net** is a choice of vertices and edges made over
-a crystal, not a property the crystal has on its own; the builder
-records the choice it built on, and you can make a different one.
+only rule.  And a **net** is an arbitrary choice of vertices and
+edges made over a crystal, not a property the crystal has on its
+own; the builder records the choice it built on, and you can make a
+different one.
 
 ```{toctree}
 :maxdepth: 1

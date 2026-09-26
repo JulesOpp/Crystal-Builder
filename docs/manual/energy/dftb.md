@@ -94,8 +94,10 @@ optional refinement.  The choices are *None*, **DFT-D3 with
 Becke-Johnson damping** {cite}`grimme2010d3` {cite}`grimme2011bj`, and
 a **Lennard-Jones** term with UFF's radii {cite}`rappe1992uff`.  With
 D3(BJ) the application writes DFTB+'s `DftD3` block with
-$s_6 = 1.0$, $s_8 = 0.5883$, $a_1 = 0.5719$ and $a_2 = 3.6017$; see
-{doc}`dispersion` for what the parameters mean.
+$s_6 = 1.0$, $s_8 = 0.5883$, $a_1 = 0.5719$ and $a_2 = 3.6017$, the
+set fitted for DFTB3 with hydrogen damping
+{cite}`brandenburg2014dftb`; see {doc}`dispersion` for what the
+parameters mean.
 
 ## k-points and filling
 

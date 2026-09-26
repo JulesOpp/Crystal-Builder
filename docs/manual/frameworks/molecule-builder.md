@@ -58,7 +58,8 @@ connection point carries -- is right.  The one caveat is sterics: a
 hydrogen is smaller than the carboxylate it stands in for, so a
 crowded *ortho*-substituted linker relaxes a little more open than it
 would with its real neighbours.  Guessing at the substituent would be
-worse than being slightly loose.
+worse than being slightly loose; optimise the framework you build
+from it afterwards in any case.
 
 ## Building a molecule
 
