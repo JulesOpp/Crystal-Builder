@@ -120,6 +120,21 @@ def test_the_residual_stress_ignores_a_strain_the_mask_forbids(
     assert free.residual_stress(pressure) > 0.1
 
 
+def test_a_squeezed_cell_at_constant_volume_converges(quartz):
+    """The residual stress must be read in the cell the run is at, as
+    the gradient is.  Read in the starting cell, the hydrostatic part
+    of a large stress was projected out along the wrong direction and
+    a few per cent of it leaked through: quartz squeezed to 105 A^3
+    stopped at 500 steps with |F|max 0.0000 and 0.059 GPa "left", the
+    shape as relaxed as it could be, marked a hole in its scan."""
+    squeezed = quartz.copy()
+    squeezed.lattice = quartz.lattice.scaled_to_volume(105.0)
+    result = _relaxed(squeezed, CellFreedom.constant_volume(),
+                      steps=500)
+    assert result.converged
+    assert result.stress <= optimize.DEFAULT_STRESS_TOLERANCE
+
+
 def test_a_mask_is_a_projector(quartz):
     """Applied twice it must do no more than applied once, or the
     strain the optimiser reads back depends on how many times it was

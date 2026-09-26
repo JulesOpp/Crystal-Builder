@@ -128,6 +128,23 @@ def test_the_residual_force_ignores_the_direction_being_held(zif8):
     assert np.abs(whole).max() > 1.5 * np.abs(projected).max()
 
 
+def test_a_held_distance_converges_once_the_rest_has_relaxed(quartz):
+    """The run must judge |F|max with the held direction taken out,
+    as the step does.  Judged on the whole gradient, quartz's Si-O
+    held at 1.60 A ran all 500 steps reporting 9.7 kcal/mol/A -- the
+    force the constraint holds against -- while what could still move
+    had been still since long before, and every point of every
+    internal-coordinate scan came back "not converged"."""
+    cell, matrix, positions = _cell_of(quartz)
+    distance = co.internal(quartz, cell, "distance", [(0,), (3,)])
+    result = optimize.run(
+        ENGINES.build("uff", quartz), quartz, method="lbfgs",
+        max_steps=500, constraints=Holonomic(((distance, 1.60),)))
+    assert result.converged
+    assert result.steps < 500
+    assert result.max_force <= optimize.DEFAULT_FORCE_TOLERANCE
+
+
 def test_holding_a_distance_leaves_more_atoms_free_than_freezing_them(
         zif8):
     """The reason this machinery exists at all.

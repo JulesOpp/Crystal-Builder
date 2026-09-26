@@ -494,7 +494,7 @@ class SymmetryDOF:
             return self.matrix
         return self.matrix @ self.deformation(x)
 
-    def residual_stress(self, stress) -> float:
+    def residual_stress(self, stress, x=None) -> float:
         """The largest stress the cell can still relax, in GPa.
 
         The external pressure is added first -- a cell at 5 GPa is
@@ -502,10 +502,19 @@ class SymmetryDOF:
         -- and the part the space group forbids is projected away,
         because no allowed strain can remove it and a criterion on it
         could never be met.
+
+        Carried into the variables' frame at ``x`` first, as
+        :meth:`strain_gradient` does, because the mask was made in the
+        starting cell.  Projected without it, a held volume removed
+        the hydrostatic stress along the wrong direction and a few per
+        cent of it leaked through: quartz squeezed by 7 % stopped with
+        0.059 GPa "left" and nothing it could move.
         """
         total = np.asarray(stress, dtype=float)
         if self.pressure:
             total = total + self.pressure * GPA * np.eye(3)
+        if x is not None and self.relax_cell:
+            total = np.linalg.inv(self.deformation(x)).T @ total
         return float(np.abs(self.project_strain(total)).max()) / GPA
 
     def pressure_energy(self, x) -> float:
@@ -646,6 +655,19 @@ class SymmetryDOF:
             return x
         return self.constraints.restore(self, x)
 
+    def unheld(self, gradient, x) -> np.ndarray:
+        """``gradient`` without the part along a held coordinate.
+
+        What is left is what the variables can still relax, which is
+        what a residual is measured on and what a direction rule has
+        to learn curvature from: the held part is the force the
+        constraint answers, and it changes with every step without
+        saying anything about the directions the run may take.
+        """
+        if self.constraints is None:
+            return gradient
+        return self.constraints.project(self, gradient, x)
+
     def hold_at(self, x) -> None:
         """Where to linearise a constraint for the next projection.
 
@@ -752,7 +774,7 @@ class _Problem:
         stress = result.stress
         if stress is None:
             stress = self.calculator.numeric_stress(positions, matrix)
-        self.stress = self.dof.residual_stress(stress)
+        self.stress = self.dof.residual_stress(stress, x)
         energy = result.energy + self.dof.pressure_energy(x)
         return energy, self.dof.gradient(-result.forces, x=x,
                                          stress=stress)
@@ -797,7 +819,13 @@ def _step(iteration: int, energy: float, gradient, x, dof, problem,
     under a stress is not a relaxed structure, however still its atoms
     are.  The cell's half is the residual stress in GPa, which is the
     number that says whether the lattice constant is still moving.
+
+    **A held coordinate's own force is not a residual.**  The step
+    never goes along it, so it is taken out here too; left in, it sat
+    in |F|max for the whole run and no point of an internal-coordinate
+    scan ever converged.
     """
+    gradient = dof.unheld(gradient, x)
     peak, rms = problem.forces(gradient)
     cell = problem.cell_force(gradient)
     stress = problem.stress if dof.relax_cell else 0.0
@@ -1217,8 +1245,9 @@ def _descend(calculator, structure, dof, rule_for, max_steps,
             return
 
         dof.hold_at(x)
+        free = dof.unheld(gradient, x)
         found = _line_search(problem, x, energy, gradient,
-                             dof.project(rule.direction(x, gradient)),
+                             dof.project(rule.direction(x, free)),
                              max_step, rule.first_length())
         if found is None:
             rule.reset()
@@ -1233,7 +1262,8 @@ def _descend(calculator, structure, dof, rule_for, max_steps,
                 "tolerance is tighter than this engine can reach"))
             return
         new_x, new_energy, new_gradient, length = found
-        rule.learn(x, gradient, new_x, new_gradient, length)
+        rule.learn(x, free, new_x, dof.unheld(new_gradient, new_x),
+                   length)
         x, energy, gradient = new_x, new_energy, new_gradient
 
 
