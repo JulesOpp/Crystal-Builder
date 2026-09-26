@@ -25,8 +25,10 @@ class _Stub(QWidget):
 
 @pytest.fixture
 def window(qtbot, tmp_path, monkeypatch):
-    # Never the developer's own ~/.claude.
+    # Never the developer's own ~/.claude.  USERPROFILE as well as
+    # HOME: it is what Path.home() reads on Windows.
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
     settings = AppSettings("CrystalBuilderTest", f"Skill{tmp_path.name}")
     settings.clear_window()
     settings.last_directory = str(tmp_path)
@@ -52,8 +54,8 @@ def test_the_entry_installs_the_skill_where_claude_code_reads_it(
     window.actions_["install_ai_skill"].trigger()
     installed = tmp_path / "home" / ".claude" / "skills" / \
         "crystal-builder" / "SKILL.md"
-    assert installed.read_text() == \
-        (skill.source() / "SKILL.md").read_text()
+    assert installed.read_text(encoding="utf-8") == \
+        (skill.source() / "SKILL.md").read_text(encoding="utf-8")
 
 
 def test_an_edited_copy_is_kept_when_the_answer_is_no(window, tmp_path,

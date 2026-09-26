@@ -21,7 +21,8 @@ from xtal.agent.diagnostics import CODES
 from xtal.agent.session import Session
 
 ROOT = skill.source()
-PAGES = {str(name): (ROOT / name).read_text(encoding="utf-8")
+# ``as_posix``: a relative path is ``references\api.md`` on Windows.
+PAGES = {name.as_posix(): (ROOT / name).read_text(encoding="utf-8")
          for name in skill.shipped_files()}
 ALL_TEXT = "\n".join(PAGES.values())
 
@@ -48,7 +49,7 @@ def _parameters(function) -> tuple[set, bool]:
 
 
 def test_the_skill_ships_in_the_package_data():
-    names = {str(n) for n in skill.shipped_files()}
+    names = {n.as_posix() for n in skill.shipped_files()}
     assert "SKILL.md" in names
     assert {f"references/{r}" for r in REFERENCES} <= names
     config = tomllib.loads(Path("pyproject.toml").read_text())
@@ -146,7 +147,8 @@ def test_every_xtal_command_the_skill_shows_exists():
 def test_skill_install_writes_to_the_directory_it_was_given(tmp_path):
     target = skill.install(project=tmp_path)
     assert target == tmp_path / ".claude" / "skills" / "crystal-builder"
-    assert (target / "SKILL.md").read_text() == PAGES["SKILL.md"]
+    assert (target / "SKILL.md").read_text(encoding="utf-8") == \
+        PAGES["SKILL.md"]
     assert (target / "references" / "api.md").exists()
 
 
@@ -162,7 +164,7 @@ def test_installing_twice_is_harmless_and_an_edited_copy_is_kept(
         skill.install(project=tmp_path)
     assert edited.read_text() == "my own notes"
     skill.install(project=tmp_path, force=True)
-    assert edited.read_text() == PAGES["SKILL.md"]
+    assert edited.read_text(encoding="utf-8") == PAGES["SKILL.md"]
 
 
 def test_skill_install_from_the_command_line(tmp_path, capsys):
