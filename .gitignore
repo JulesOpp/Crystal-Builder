@@ -13,6 +13,7 @@ dist/
 *.xtalproj
 resources/PTBP/
 resources/test/
+resources/pxrd/
 archive/
 JulesWork/
 

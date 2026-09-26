@@ -1195,15 +1195,80 @@ atoms, so Delete and Bond type act on those bonds alone.
 
 ---
 
-## 11. What this plan does not do
+## 11. Powder refinement: peaks, indexing, Pawley, Rietveld, energies
+
+Planned 2026-09-25.  Julius asked for refinements against a measured
+pattern, TOPAS Academic the model: peak fitting, indexing over a
+chosen set of Bravais lattices or space groups, Pawley, Rietveld that
+can be watched, an automatic run through all of them, and Rietveld
+with energies plus a Pareto search for its weight, as Materials
+Studio has.  **The physics is wrapped, not written**: RietX 1.5
+(MIT, pip, numpy/scipy/numba, `rx.Refinement`, `rietx.indexing`), as
+a `refine` extra pinned below 1.6 -- 95 k lines is not a thing to
+vendor.  Julius's TOPAS inputs are in `resources/pxrd/` (ignored).
+The full plan, with its measurements, is
+`~/.claude/plans/powder-refinement.md`.  Branch
+`features/powder-refinement`, off `main`.
+
+What the measurements decided, on RietX's own fluorapatite (lab Cu
+Kα doublet, 5753 channels, swap at 13.5 GB so upper bounds):
+
+* **Peak picking is seconds, indexing is a minute, Rietveld is two
+  seconds.**  `pick_peaks` 6.6 s for 191 peaks; `index_pattern`
+  restricted to hexagonal with a 60 s budget 62.6 s, top candidate
+  a = 9.374, c = 6.888; a staged Rietveld 1.4-2.0 s.  So indexing is a
+  worker with a budget box and Stop, never the GUI thread.
+* **RietX will not name a winner its engines disagree on**:
+  `best_or_none()` was None with the right cell ranked first.  The
+  table shows its confidence column rather than inventing one.
+* **An `eval` event carries the free values, never y_calc**, so a
+  live frame is a shadow model's `predict`, throttled to the Force
+  Field panel's preview interval; the atoms move through
+  `Document.preview_positions`, as an optimisation's do.
+* **There is no custom cost term in RietX's solver**, so Rietveld
+  with energies is our L-BFGS over `SymmetryDOF`, the pattern term's
+  gradient from RietX's (private) analytic Jacobian and the energy's
+  from the Force Field panel's engine.  Only `xtal/powder/bridge.py`
+  imports rietx.
+* **RietX writes `.rietx/runs` into the working directory unless told
+  otherwise**; every call is told the run folder, and a test holds it.
+
+Julius's answers: RietX as an extra; a **Refinement workbench** window
+(steps down the side, obs/calc/difference in the middle, the form on
+the right); R+E moves the **atoms only** by default, the cell held;
+the automatic run **stops at the ranked Pawley table** unless *Continue
+to Rietveld* is ticked.
+
+| Phase | Delivers | Main files | Size |
+|---|---|---|---|
+| **1 — Data, radiation, bridge** | `.xy` in, Cu / Cu Kα1 / Mo / Co / synchrotron + λ, Structure ⇄ RietX site for site, the `refine` extra detected without an import | `xtal/powder/data.py`, `xtal/powder/bridge.py`, `pyproject.toml` | S-M |
+| **2 — Workbench and peak fitting** | Modules ▸ PXRD ▸ *Refine against a measured pattern…*; the plot; peak fitting after `a_peak.inp`, with a per-peak *use for indexing* box; `Job.on_update` for live payloads; `powder` module entries for `xtal run` | `xtalapp/refine/`, `xtal/powder/peaks.py`, `xtal/modules/powder.py` | M-L |
+| **3 — Indexing** | Bravais checkboxes, a space-group list, zero error, volume and time budgets; the table TOPAS's `.ndx` is | `xtal/powder/index.py` | M |
+| **4 — Pawley** | After `c_paw.inp`; Rwp/GoF, refined cell ± esd, hkl list; *apply this cell* (one undo step) or *new structure from this cell* | `xtal/powder/pawley.py` | M |
+| **5 — Rietveld, live** | Free-parameter boxes and RietX's plans; calc and difference redrawn and atoms moved while it runs; one undo step, Stop restores | `xtal/powder/rietveld.py` | L |
+| **6 — Automatic** | peaks → index → top cells × extinction classes → Pawley → ranked table, optionally → Rietveld on a matching open structure | `xtal/powder/auto.py` | M |
+| **7 — Rietveld with energies** | `(1−w)·χ²/χ²₀ + w·(E−E₀)/ΔE` over the asymmetric unit, any engine the Force Field panel has | `xtal/powder/energy.py` | L |
+| **8 — Pareto** | A weight sweep written point by point, the non-dominated front, the knee suggested; a point opens its structure | `xtal/modules/powder.py` | M |
+| **9 — Packaging, CI, docs** | rietx and its data in the bundle, `NUMBA_CACHE_DIR` writable, `--selftest`; CI installs `refine` if the tests stay short | `packaging/`, `.github/workflows/ci.yml` | S-M |
+
+What the phases must keep: a refinement moves atoms and never adds,
+removes or bonds them (site count asserted, `hold_perception`); dummy
+atoms held back at the door; the result goes to the document the run
+started from; a sweep writes each point as it finishes and an
+unconverged one is NaN; R+E reads the engine, it does not configure
+one.
+
+---
+
+## 12. What this plan does not do
 
 * It does not touch the design principles in
   [docs/PLAN.md](PLAN.md) § 1.  Every phase keeps the core Qt-free,
   keeps every mutation a command, and adds capability through
   registries.
-* It does not schedule volumetric data, SHELX round-trips or Rietveld.
-  Those are [docs/PLAN.md](PLAN.md) § 12 and stay there until they are
-  asked for.
+* It does not schedule volumetric data or SHELX round-trips.  Those
+  are [docs/PLAN.md](PLAN.md) § 12 and stay there until they are asked
+  for.  Rietveld was asked for, and is § 11.
 * It does not schedule the relaxed scan: that was asked for and built
   on 2026-09-15, outside this plan, and is
   [docs/PLAN.md](PLAN.md) § 12a.  What it left undone is in
