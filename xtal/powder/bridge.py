@@ -42,7 +42,9 @@ import rietx as rx
 from xtal.core import elements as el
 from xtal.powder.data import PowderData, PowderError, Radiation
 
-__all__ = ["apply_phase", "fit", "instrument", "pattern", "phase_of",
+__all__ = ["apply_phase", "cancel_token", "extinction_classes", "fit",
+           "index_pattern", "instrument", "lattice_lines", "pattern",
+           "phase_of",
            "predict", "space_group_symbol", "to_rietx"]
 
 #: B = 8π²U.  RietX refines B, as TOPAS does; a CIF and this
@@ -266,3 +268,86 @@ def fit_peaks_at(data: PowderData, radiation: Radiation, positions):
         raise PowderError(str(exc)) from None
     det = pick.detect_peaks(rx_pattern, rx_instrument)
     return native, np.asarray(det.two_theta), np.asarray(det.envelope)
+
+
+# ======================================================================
+#  INDEXING
+# ======================================================================
+
+def cancel_token(cancellation=None) -> rx.CancelToken:
+    """RietX's token, set when ``cancellation`` is.
+
+    RietX reads its own token between units of work; the job's
+    :class:`~xtal.modules.job.Cancellation` is what Stop sets.  Linking
+    the two rather than handing RietX ours keeps the question of what
+    a token must answer (``bool``, ``is_set``) upstream's.
+    """
+    token = rx.CancelToken()
+    if cancellation is not None:
+        cancellation.when_cancelled(token.cancel)
+    return token
+
+
+def index_pattern(peak_list, data: PowderData, radiation: Radiation, *,
+                  systems, centrings, shift_allowance: float = 0.0,
+                  max_volume: float | None = None,
+                  max_axis: float = 25.0, budget: float = 60.0,
+                  prior_space_groups=(), cancel=None, on_stage=None):
+    """RietX's cell search over the lattices named.
+
+    ``systems`` and ``centrings`` are RietX's own words (``"tetragonal"``,
+    ``{"tetragonal": ("P",)}``).  ``budget`` is the whole run's ceiling,
+    search and validation together.  ``on_stage(label, index, total)``
+    is called as each unit of search or validation starts.
+    """
+    from rietx.indexing import SearchSpec
+
+    spec = SearchSpec(
+        systems=tuple(systems), centrings=dict(centrings),
+        shift_allowance_deg=float(shift_allowance),
+        max_volume=max_volume, max_d_axis=float(max_axis),
+        total_budget_seconds=float(budget),
+        prior_spacegroups=tuple(prior_space_groups))
+
+    def events(event):
+        if on_stage is None or event.get("kind") != "stage_start":
+            return
+        body = event.get("data", {})
+        on_stage(str(body.get("stage", "")), int(body.get("index", 0)),
+                 int(body.get("n_stages", 0)))
+
+    lo, hi = data.range
+    # A candidate whose covariance is singular (a line list short of
+    # the metric's freedoms) fills its esds with NaN, and says so in
+    # its own diagnostics; numpy's warning about it says nothing more.
+    with np.errstate(invalid="ignore"):
+        return rx.index_pattern(
+            peak_list, data=pattern(data),
+            instrument=instrument(radiation), spec=spec,
+            two_theta_limits=(lo, hi), events=events, cancel=cancel)
+
+
+def extinction_classes(peak_list, data: PowderData, radiation: Radiation,
+                       candidate, cancel=None):
+    """RietX's ranking of the extinction classes a cell admits."""
+    lo, hi = data.range
+    return rx.determine_extinction_symbol(
+        pattern(data), candidate, instrument(radiation),
+        peaks=peak_list, two_theta_limits=(lo, hi), cancel=cancel)
+
+
+def lattice_lines(cell, system: str, centring: str, wavelength: float,
+                  two_theta_min: float, two_theta_max: float):
+    """``(hkl, two_theta)``: every line a lattice allows in a range.
+
+    One entry per distinct line, not per orbit -- what a person
+    compares against the peaks to judge a cell by eye.
+    """
+    from rietx.indexing.fom import predicted_lines
+
+    hkl, q = predicted_lines(tuple(float(v) for v in cell), system,
+                             centring, float(wavelength),
+                             float(two_theta_max), float(two_theta_min))
+    s = np.clip(float(wavelength) * np.sqrt(np.asarray(q)) / 2.0,
+                0.0, 1.0)
+    return np.asarray(hkl), 2.0 * np.degrees(np.arcsin(s))

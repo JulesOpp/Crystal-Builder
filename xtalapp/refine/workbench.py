@@ -20,16 +20,19 @@ answer :meth:`xtalapp.module_runner.ModuleRunner._entry_for` gives a
 module that builds from nothing.
 
 **No crystallography here.**  The form values go to the module's
-``run``, and the :class:`~xtal.powder.peaks.PeakFit` that comes back
-is drawn and tabled; nothing in this file computes a number.
+``run``, and the :class:`~xtal.powder.peaks.PeakFit` or
+:class:`~xtal.powder.index.IndexResult` that comes back is drawn and
+tabled; nothing in this file computes a number.
 """
 
 from __future__ import annotations
 
+import dataclasses
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QFileDialog,
     QGroupBox,
     QHBoxLayout,
@@ -54,6 +57,7 @@ from xtal.modules.job import Job
 from xtal.powder.data import PowderData, PowderError
 from xtalapp.dialogs.module_form import ParamForm
 from xtalapp.docks import scrolling
+from xtalapp.refine.bravais import BravaisBox
 from xtalapp.refine.plot import RefinementPlot
 from xtalapp.widgets.tone import HINT, WARNING, set_tone
 from xtalapp.workers import ModuleWorker, start_in_thread
@@ -61,7 +65,7 @@ from xtalapp.workers import ModuleWorker, start_in_thread
 __all__ = ["RefinementWorkbench"]
 
 #: ``(action name, list label)``, in the order a refinement goes.
-STEPS = (("peaks", "Peaks"),)
+STEPS = (("peaks", "Peaks"), ("index", "Index"))
 
 PEAK_HEADERS = ("Use", "2θ (°)", "esd", "d (Å)", "Area", "FWHM (°)",
                 "Flags")
@@ -80,6 +84,8 @@ class RefinementWorkbench(QMainWindow):
         self.document = document
         self.data: PowderData | None = None
         self.peaks = None                   # xtal.powder.peaks.PeakFit
+        self.cells = None                   # xtal.powder.index.IndexResult
+        self._running = ""
         self.worker: ModuleWorker | None = None
         self._folder = None
         self._entry = None
@@ -102,9 +108,23 @@ class RefinementWorkbench(QMainWindow):
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.verticalHeader().setVisible(False)
         self.table.itemChanged.connect(self._on_use_changed)
+        self.cell_table = QTableWidget(0, len(steps.INDEX_COLUMNS))
+        self.cell_table.setHorizontalHeaderLabels(steps.INDEX_COLUMNS)
+        self.cell_table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeToContents)
+        self.cell_table.horizontalHeader().setStretchLastSection(True)
+        self.cell_table.verticalHeader().setVisible(False)
+        self.cell_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.cell_table.setSelectionMode(
+            QAbstractItemView.SingleSelection)
+        self.cell_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.cell_table.itemSelectionChanged.connect(self._on_cell_chosen)
+        self.tables = QStackedWidget()
+        self.tables.addWidget(self.table)
+        self.tables.addWidget(self.cell_table)
         middle = QSplitter(Qt.Vertical)
         middle.addWidget(self.plot)
-        middle.addWidget(self.table)
+        middle.addWidget(self.tables)
         middle.setStretchFactor(0, 3)
         middle.setStretchFactor(1, 1)
 
@@ -116,6 +136,7 @@ class RefinementWorkbench(QMainWindow):
         splitter.setSizes([120, 660, 420])
         self.setCentralWidget(splitter)
         self.steps.currentRowChanged.connect(self.forms.setCurrentIndex)
+        self.steps.currentRowChanged.connect(self.tables.setCurrentIndex)
         self.steps.setCurrentRow(0)
         self.resize(1200, 760)
         self._on_radiation()
@@ -150,12 +171,17 @@ class RefinementWorkbench(QMainWindow):
         layout.addWidget(data_box)
 
         self.forms = QStackedWidget()
+        self.step_forms: dict[str, ParamForm] = {}
+        self.bravais = BravaisBox()
         for name, label in STEPS:
-            action = self.module.action(name)
-            params = [p for p in action.params
-                      if p not in steps.DATA_PARAMS]
+            params = [p for p in steps.STEP_PARAMS[name]
+                      if p.name != "bravais"]
             box = QGroupBox(label)
-            QVBoxLayout(box).addWidget(ParamForm(params))
+            box_layout = QVBoxLayout(box)
+            if name == "index":
+                box_layout.addWidget(self.bravais)
+            self.step_forms[name] = ParamForm(params)
+            box_layout.addWidget(self.step_forms[name])
             self.forms.addWidget(box)
         layout.addWidget(self.forms)
 
@@ -207,7 +233,7 @@ class RefinementWorkbench(QMainWindow):
         except (OSError, PowderError) as exc:
             self.say(str(exc), warn=True)
             return False
-        self.data, self.peaks = data, None
+        self.data, self.peaks, self.cells = data, None, None
         self._folder = None
         self.pattern_label.setText(
             f"{data.name}: {len(data)} points, "
@@ -216,6 +242,7 @@ class RefinementWorkbench(QMainWindow):
         self.plot.show_observed(data.two_theta, data.intensity,
                                 label=data.name)
         self._fill_table()
+        self._fill_cells()
         self.say(f"loaded {Path(path).name}")
         self._refresh()
         return True
@@ -227,14 +254,19 @@ class RefinementWorkbench(QMainWindow):
         return STEPS[max(self.steps.currentRow(), 0)][0]
 
     def values(self, step: str | None = None) -> dict:
-        """Everything the step's ``run`` is handed."""
-        index = [name for name, _l in STEPS].index(
-            step or self.current_step)
-        form = self.forms.widget(index).findChild(ParamForm)
+        """Everything the step's ``run`` is handed.
+
+        Indexing is handed the peak form's values too: with no peaks
+        fitted yet it fits them itself, as the Peaks step would.
+        """
+        step = step or self.current_step
         values = {"xy": str(self.data.path) if self.data is not None
                   and self.data.path is not None else ""}
         values.update(self.data_form.values())
-        values.update(form.values())
+        if step == "index":
+            values.update(self.step_forms["peaks"].values())
+            values["bravais"] = self.bravais.value()
+        values.update(self.step_forms[step].values())
         return values
 
     def run_step(self) -> None:
@@ -249,15 +281,25 @@ class RefinementWorkbench(QMainWindow):
         values = self.values(name)
         folder = self._open_folder(action, values)
         job = Job(structure=None, params=values, folder=folder,
-                  label=f"pxrd.{name}")
+                  label=f"pxrd.{name}", given=self._given(name))
         worker = ModuleWorker(self.module, action, job)
         worker.progressed.connect(self.say)
         worker.finished.connect(self._on_finished)
         worker.failed.connect(self._on_failed)
-        self.worker, self._folder = worker, folder
+        self.worker, self._folder, self._running = worker, folder, name
         self.say(f"running {action.label.lower()}...")
         self._refresh()
         start_in_thread(worker, self)
+
+    def _given(self, name: str):
+        """What the step before hands this one: for indexing, the
+        peaks as they are ticked now.  A copy of the ticks, so an
+        untick made while the search runs is the next run's."""
+        if name != "index" or self.peaks is None:
+            return None
+        return dataclasses.replace(
+            self.peaks,
+            peaks=[dataclasses.replace(p) for p in self.peaks.peaks])
 
     def stop(self) -> None:
         if self.worker is not None:
@@ -298,16 +340,24 @@ class RefinementWorkbench(QMainWindow):
     def _on_finished(self, result) -> None:
         module_record.close_run(self._folder, result)
         self.worker = None
-        if result.ok and not result.cancelled and result.answer:
-            self.peaks = result.answer
+        step, self._running = self._running, ""
+        answer = result.answer if result.ok else None
+        if step == "peaks" and answer and not result.cancelled:
+            self.peaks, self.cells = answer, None
             self._show_peaks()
+            self._fill_cells()
+        elif step == "index" and answer is not None:
+            # Stop keeps what the search reached; that is the point
+            # of stopping a search that already looks right.
+            self.cells = answer
+            self._fill_cells()
         self.say(result.summary(), warn=not result.ok)
         self._refresh()
         self.stepFinished.emit(result)
 
     def _on_failed(self, message: str) -> None:
         module_record.close_run(self._folder, error=message)
-        self.worker = None
+        self.worker, self._running = None, ""
         self.say(message, warn=True)
         self._refresh()
 
@@ -354,6 +404,47 @@ class RefinementWorkbench(QMainWindow):
         self.plot.set_ticks(self._used_positions())
         self.say(f"{self.peaks.n_used} of {len(self.peaks.peaks)} "
                  f"lines in use for indexing")
+
+    def _fill_cells(self) -> None:
+        rows = self.cells.rows if self.cells is not None else []
+        self.cell_table.blockSignals(True)
+        self.cell_table.clearSelection()
+        self.cell_table.setRowCount(len(rows))
+        confidence = steps.INDEX_COLUMNS.index("Confidence")
+        groups = steps.INDEX_COLUMNS.index("Space groups")
+        for r, row in enumerate(rows):
+            for column, text in enumerate(steps.index_cells(row)):
+                item = QTableWidgetItem(text)
+                if column not in (1, 2, confidence, groups):
+                    item.setTextAlignment(Qt.AlignRight
+                                          | Qt.AlignVCenter)
+                if column == confidence and row.caveats:
+                    item.setToolTip("Not higher because: "
+                                    + ", ".join(row.caveats))
+                if column == groups and row.classes:
+                    item.setToolTip("\n".join(
+                        f"{c.symbol}: {', '.join(c.space_groups)}"
+                        + (" (refuted)" if c.refuted else "")
+                        for c in row.classes))
+                self.cell_table.setItem(r, column, item)
+        self.cell_table.blockSignals(False)
+        self.plot.set_reflections(())
+        if rows:
+            self.cell_table.selectRow(0)
+
+    def _on_cell_chosen(self) -> None:
+        """Draw the chosen cell's lines under the peaks."""
+        if self.cells is None:
+            return
+        chosen = self.cell_table.selectionModel().selectedRows()
+        if not chosen:
+            self.plot.set_reflections(())
+            return
+        from xtal.powder.index import lines_of
+
+        row = self.cells.rows[chosen[0].row()]
+        self.plot.set_reflections(lines_of(
+            row, self.cells.wavelength, self.cells.two_theta_range))
 
     # -- the rest ------------------------------------------------------
 

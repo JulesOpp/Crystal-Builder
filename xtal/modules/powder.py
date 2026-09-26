@@ -32,8 +32,9 @@ from xtal.modules.report import Curve, Report, Row, Table
 from xtal.params import Availability
 from xtal.powder.data import RADIATIONS, PowderData, PowderError, Radiation
 
-__all__ = ["DATA_PARAMS", "PEAK_PARAMS", "REFINE", "STEPS",
-           "radiation_of", "run_peaks"]
+__all__ = ["DATA_PARAMS", "INDEX_PARAMS", "PEAK_PARAMS", "REFINE",
+           "STEPS", "STEP_PARAMS", "radiation_of", "run_index",
+           "run_peaks"]
 
 
 def refine_available() -> Availability:
@@ -134,19 +135,8 @@ PEAK_COLUMNS = ("No.", "2θ (°)", "esd", "d (Å)", "Area", "FWHM (°)",
 
 def run_peaks(job) -> JobResult:
     """Fit every line, and leave ``peaks.csv`` and ``fit.xy``."""
-    from xtal.powder.peaks import PeakOptions, fit_peaks
-
-    values = job.params
     try:
-        data = _data_of(values)
-        radiation = radiation_of(values)
-        start = float(values.get("start", 0.0) or 0.0)
-        finish = float(values.get("finish", 0.0) or 0.0)
-        fit = fit_peaks(data, radiation, PeakOptions(
-            start=start or None, finish=finish or None,
-            shoulders=bool(values.get("shoulders", True)),
-            flag_ghosts=bool(values.get("flag_ghosts", True)),
-            positions=_positions(values.get("positions", ""))))
+        data, radiation, fit = _fit_peaks(job.params)
     except PowderError as exc:
         return JobResult.failure(str(exc))
     job.say(f"{len(fit.peaks)} lines, {fit.n_used} usable for "
@@ -159,6 +149,22 @@ def run_peaks(job) -> JobResult:
                  f"{fit.n_used} usable for indexing"),
         artifacts=tuple(artifacts), report=peaks_report(fit, data.name),
         answer=fit)
+
+
+def _fit_peaks(values: dict):
+    """``(data, radiation, fit)`` from the peak step's parameters."""
+    from xtal.powder.peaks import PeakOptions, fit_peaks
+
+    data = _data_of(values)
+    radiation = radiation_of(values)
+    start = float(values.get("start", 0.0) or 0.0)
+    finish = float(values.get("finish", 0.0) or 0.0)
+    fit = fit_peaks(data, radiation, PeakOptions(
+        start=start or None, finish=finish or None,
+        shoulders=bool(values.get("shoulders", True)),
+        flag_ghosts=bool(values.get("flag_ghosts", True)),
+        positions=_positions(values.get("positions", ""))))
+    return data, radiation, fit
 
 
 def peaks_report(fit, name: str = "") -> Report:
@@ -219,6 +225,183 @@ def _write_fit(path, fit, what: str):
 
 
 # ======================================================================
+#  INDEXING
+# ======================================================================
+
+INDEX_PARAMS = (
+    Param("bravais", "Bravais lattices", kind="text", default="all",
+          help="Which lattices to search, TOPAS's Bravais_*_sgs: aP mP "
+               "mC oP oC oI oF tP tI hP hR cP cI cF, separated by "
+               "commas, or all.  hP is hexagonal and trigonal P "
+               "together.  Leaving out the low symmetries saves most "
+               "of the time."),
+    Param("space_groups", "Space groups", kind="text", default="",
+          help="Only these groups, by symbol or number, separated by "
+               "commas (C2221, Ccc2).  The search is kept to their "
+               "lattices and only the extinction classes holding one "
+               "are listed.  Empty is every group."),
+    Param("zero_error", "Zero error allowance", kind="float",
+          default=0.0, minimum=0.0, maximum=1.0, decimals=3,
+          suffix=" °",
+          help="How far a systematic 2θ shift may move the lines, "
+               "TOPAS's index_zero_error.  0 lets RietX measure it "
+               "from line pairs, or assume 0.05°."),
+    Param("max_volume", "Largest volume", kind="float", default=0.0,
+          minimum=0.0, maximum=1e6, decimals=0, suffix=" Å³",
+          help="The largest cell to report.  0 takes the bound from "
+               "the number of lines and their positions."),
+    Param("longest_axis", "Longest axis", kind="float", default=25.0,
+          minimum=5.0, maximum=100.0, decimals=1, suffix=" Å",
+          help="The longest cell axis searched (strictly, d(100)).  A "
+               "framework's cell is often longer than 25 Å; raising "
+               "this costs time, lowering it saves a lot."),
+    Param("budget", "Time budget", kind="float", default=60.0,
+          minimum=1.0, maximum=3600.0, decimals=0, suffix=" s",
+          help="The most the search and its validation may take.  "
+               "What was reached when it runs out is reported, with "
+               "the systems it did not finish named."),
+    Param("rank_groups", "Rank space groups for the top", kind="int",
+          default=3, minimum=0, maximum=20, suffix=" cells",
+          help="Fit each extinction class of this many of the best "
+               "cells, to say which space groups the absences allow.  "
+               "About a second a cell for a small one; 0 skips it."),
+)
+
+INDEX_COLUMNS = ("Rank", "System", "Lattice", "a", "b", "c", "α", "β",
+                 "γ", "V (Å³)", "FoM", "Unindexed", "Confidence",
+                 "Le Bail Rwp", "Space groups")
+
+
+#: RietX's figure-of-merit keys as the literature writes them.
+FOM_NAMES = {"m20": "M20", "f_n": "F_N", "m_sym": "M_sym",
+             "m_rev": "M_rev"}
+
+
+def index_options(values: dict):
+    """The :class:`~xtal.powder.index.IndexOptions` the form says."""
+    from xtal.powder.index import IndexOptions, parse_bravais
+
+    return IndexOptions(
+        bravais=parse_bravais(values.get("bravais", "all")),
+        space_groups=str(values.get("space_groups", "") or ""),
+        zero_error=float(values.get("zero_error", 0.0) or 0.0),
+        max_volume=float(values.get("max_volume", 0.0) or 0.0),
+        longest_axis=float(values.get("longest_axis", 25.0) or 25.0),
+        budget=float(values.get("budget", 60.0) or 60.0),
+        rank_groups=int(values.get("rank_groups", 3)))
+
+
+def run_index(job) -> JobResult:
+    """Search for the cell; leave ``cells.csv``.
+
+    The peaks are the ones the job was handed -- the workbench's, with
+    the user's unticks -- or, run on its own, fitted here with the
+    peak step's parameters.
+    """
+    from xtal.powder.index import index
+
+    values = job.params
+    try:
+        options = index_options(values)
+        if job.given is not None:
+            fit = job.given
+            data = _data_of(values).window(*_range_of(fit))
+            radiation = fit.radiation
+        else:
+            job.say("fitting the peaks first")
+            _data, radiation, fit = _fit_peaks(values)
+            data = _data.window(*_range_of(fit))
+        peak_list = fit.for_indexing()
+        job.say(f"indexing {len(peak_list.usable())} lines over "
+                f"{', '.join(sorted(options.bravais))}")
+        result = index(peak_list, data, radiation, options,
+                       cancel=job.cancel, say=job.say)
+    except PowderError as exc:
+        return JobResult.failure(str(exc))
+    for note in result.notes:
+        job.note(note)
+    artifacts = []
+    if job.folder is not None:
+        artifacts.append(_write_cells(job.file("cells.csv"), result))
+        job.note("wrote cells.csv")
+    top = result.rows[0] if result.rows else None
+    if top is None:
+        message = "no cell indexes these lines in the lattices searched"
+    else:
+        a, b, c = top.cell[:3]
+        message = (f"{len(result.rows)} cells; the first is "
+                   f"{top.bravais} {a:.4f} {b:.4f} {c:.4f} Å, "
+                   f"{top.confidence} confidence")
+    if result.stopped:
+        message = "stopped -- " + message
+    return JobResult(message=message, artifacts=tuple(artifacts),
+                     report=index_report(result, data.name),
+                     answer=result, cancelled=result.stopped)
+
+
+def _range_of(fit) -> tuple[float, float]:
+    return float(fit.two_theta[0]), float(fit.two_theta[-1])
+
+
+def index_cells(row) -> tuple[str, ...]:
+    """A row's cell, as the table writes it."""
+    a, b, c, alpha, beta, gamma = row.cell
+    fom = f"{FOM_NAMES[row.fom[0]]} {row.fom[1]:.1f}" if row.fom \
+        else "--"
+    rwp = f"{100 * row.lebail_rwp:.2f} %" \
+        if row.lebail_rwp is not None else "not validated"
+    return (str(row.rank), row.system, row.bravais, f"{a:.5f}",
+            f"{b:.5f}", f"{c:.5f}", f"{alpha:.3f}", f"{beta:.3f}",
+            f"{gamma:.3f}", f"{row.volume:.2f}", fom,
+            str(row.unindexed), row.confidence, rwp,
+            row.space_groups if row.classes is not None else "--")
+
+
+def index_report(result, name: str = "") -> Report:
+    rows = tuple(Row.of(*index_cells(row)) for row in result.rows)
+    if result.best is not None:
+        verdict = (f"RietX names cell {result.best + 1}: every engine "
+                   f"found it and nothing refuted it.")
+    else:
+        verdict = ("RietX names no cell -- the engines, the figures of "
+                   "merit or the whole-pattern fit did not agree well "
+                   "enough.  The ranking is still the ranking; the "
+                   "confidence column says why each is not higher.")
+    unfinished = [s for s, done in result.complete.items() if not done]
+    if unfinished:
+        verdict += ("  Not searched to the end: "
+                    + ", ".join(unfinished) + ".")
+    return Report(
+        title=f"Indexing, {name}" if name else "Indexing",
+        blocks=(Table(title=f"Cells ({len(rows)})",
+                      columns=INDEX_COLUMNS, rows=rows,
+                      note="Space groups are the most likely "
+                           "extinction class's, all of them: a powder "
+                           "pattern cannot tell groups in one class "
+                           "apart."),),
+        note=verdict)
+
+
+def _write_cells(path, result):
+    """TOPAS's ``.ndx``, as a table anything can read."""
+    lines = ["rank,system,lattice,a,b,c,alpha,beta,gamma,volume,"
+             "fom,unindexed,confidence,lebail_rwp,space_groups"]
+    for row in result.rows:
+        a, b, c, alpha, beta, gamma = row.cell
+        fom = f"{row.fom[0]} {row.fom[1]:.3f}" if row.fom else ""
+        rwp = "" if row.lebail_rwp is None else f"{row.lebail_rwp:.5f}"
+        groups = row.space_groups.replace(",", ";") \
+            if row.classes is not None else ""
+        lines.append(
+            f"{row.rank},{row.system},{row.bravais},{a:.6f},{b:.6f},"
+            f"{c:.6f},{alpha:.4f},{beta:.4f},{gamma:.4f},"
+            f"{row.volume:.3f},{fom},{row.unindexed},{row.confidence},"
+            f"{rwp},{groups}")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
+# ======================================================================
 #  THE ENTRIES
 # ======================================================================
 
@@ -239,4 +422,14 @@ STEPS = (
            params=DATA_PARAMS + PEAK_PARAMS, run=run_peaks,
            needs_structure=False, listed=False,
            check=refine_available),
+    Action(name="index", label="Index",
+           tip="Find the unit cells that explain the fitted lines",
+           params=DATA_PARAMS + PEAK_PARAMS + INDEX_PARAMS,
+           run=run_index, needs_structure=False, listed=False,
+           check=refine_available),
 )
+
+#: What each step's own form shows in the workbench: the pattern and
+#: radiation are shown once above the steps, and indexing reads the
+#: peaks the Peaks step fitted, so neither is asked again.
+STEP_PARAMS = {"peaks": PEAK_PARAMS, "index": INDEX_PARAMS}

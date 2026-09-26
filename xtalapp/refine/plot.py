@@ -121,20 +121,35 @@ class RefinementPlot(QWidget):
         self.canvas.draw_idle()
 
     def set_ticks(self, positions) -> None:
-        """Where the peaks (or reflections) are: a comb under zero."""
+        """Where the peaks are: a comb under zero."""
+        self._comb("ticks", positions, 0, COLORS[4])
+
+    def set_reflections(self, positions) -> None:
+        """Where a candidate cell puts its lines: a second comb under
+        the peaks', so a peak with no line beneath it is seen at once
+        -- how a person judges a cell by eye."""
+        self._comb("reflections", positions, 1, COLORS[1])
+
+    def _comb(self, name: str, positions, row: int, color) -> None:
         if self.figure is None:
             return
-        old = self._lines.pop("ticks", None)
+        old = self._lines.pop(name, None)
         if old is not None:
             old.remove()
         positions = np.asarray(positions, dtype=float)
         if positions.size and self._observed.size:
             top = float(self._observed.max())
             depth = 0.04 * top
-            self._lines["ticks"] = self.axes.vlines(
-                positions, -2.0 * depth, -depth, colors=COLORS[4],
+            upper = -depth * (1.0 + 1.5 * row)
+            self._lines[name] = self.axes.vlines(
+                positions, upper - depth, upper, colors=color,
                 linewidths=0.8)
-            self.axes.set_ylim(-2.5 * depth, 1.05 * top)
+        combs = [k for k in ("ticks", "reflections") if k in self._lines]
+        if combs and self._observed.size:
+            top = float(self._observed.max())
+            rows = 2 if "reflections" in combs else 1
+            self.axes.set_ylim(-(1.0 + 1.5 * rows) * 0.04 * top,
+                               1.05 * top)
         self.canvas.draw_idle()
 
     def show_calculated(self, calculated) -> None:

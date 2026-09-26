@@ -147,6 +147,11 @@ class Job:
     #: the worker thread like ``on_progress``, so the shell's is a
     #: signal emission; the module throttles, not the receiver.
     on_update: Callable[[Any], None] | None = None
+    #: What the step before handed on, for a module that is one step
+    #: of several -- the peaks the refinement workbench just fitted
+    #: and the user unticked, which indexing reads.  Not a parameter,
+    #: because parameters are written into the run's log as text.
+    given: Any = None
     label: str = ""                     # "stub: count", for messages
 
     # -- where it writes -----------------------------------------------

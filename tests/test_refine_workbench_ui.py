@@ -133,3 +133,69 @@ def test_the_wavelength_box_is_live_only_for_a_synchrotron(bench):
     assert not wavelength.isEnabled()
     bench.data_form.set_values({"radiation": "synchrotron"})
     assert wavelength.isEnabled()
+
+
+# -- indexing -----------------------------------------------------------
+
+def test_the_bravais_boxes_are_the_fourteen_lattices(bench):
+    from xtal.powder.index import BRAVAIS
+
+    assert list(bench.bravais.boxes) == [s for s, _l in BRAVAIS]
+    assert bench.values("index")["bravais"] == "all"
+    for symbol in ("aP", "mP", "mC"):
+        bench.bravais.boxes[symbol].setChecked(False)
+    assert "aP" not in bench.values("index")["bravais"]
+    assert "oC" in bench.values("index")["bravais"]
+
+
+def test_unticking_every_lattice_is_refused_not_read_as_all(bench):
+    """Empty is what ``xtal run`` reads as every lattice; a search of
+    everything is the opposite of what unticking all of them meant."""
+    from xtal.modules import powder as steps
+    from xtal.powder.data import PowderError
+    from xtal.powder.index import _lattices
+
+    for box in bench.bravais.boxes.values():
+        box.setChecked(False)
+    options = steps.index_options(bench.values("index"))
+    with pytest.raises(PowderError, match="tick at least one"):
+        _lattices(options.bravais, ())
+
+
+def test_indexing_is_handed_the_peaks_as_they_are_ticked(
+        bench, qtbot, rutile_xy):
+    """TOPAS's "comment out a peak" reaches the search -- and a copy
+    of it, so an untick made while the search runs is the next run's."""
+    _run_peaks(bench, qtbot, rutile_xy)
+    row = next(r for r, p in enumerate(bench.peaks.peaks) if p.use)
+    bench.table.item(row, 0).setCheckState(Qt.Unchecked)
+    given = bench._given("index")
+    assert not given.peaks[row].use
+    assert len(given.for_indexing().usable()) == bench.peaks.n_used
+    bench.table.item(row, 0).setCheckState(Qt.Checked)
+    assert not given.peaks[row].use
+    assert bench._given("peaks") is None
+
+
+@pytest.mark.slow
+def test_an_index_run_fills_the_cell_table_and_draws_the_chosen_cell(
+        bench, qtbot, rutile_xy):
+    _run_peaks(bench, qtbot, rutile_xy)
+    bench.steps.setCurrentRow(1)
+    assert bench.current_step == "index"
+    assert bench.tables.currentWidget() is bench.cell_table
+    for symbol, box in bench.bravais.boxes.items():
+        box.setChecked(symbol == "tP")
+    bench.step_forms["index"].set_values(
+        {"longest_axis": 6.0, "budget": 10.0, "rank_groups": 0})
+    with qtbot.waitSignal(bench.stepFinished, timeout=120000) as blocker:
+        bench.run_step()
+    result = blocker.args[0]
+    assert result.ok, result.message
+    assert bench.cell_table.rowCount() == len(bench.cells.rows) > 0
+    assert bench.cell_table.item(0, 2).text() == "tP"
+    assert bench.cell_table.selectionModel().selectedRows()[0].row() == 0
+    if bench.plot.available:
+        assert "reflections" in bench.plot.traces
+    # the peaks survive an index run: the next search reads them again
+    assert bench.peaks is not None

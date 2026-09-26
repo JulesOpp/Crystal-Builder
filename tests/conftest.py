@@ -376,6 +376,10 @@ QUARTZ_SI_O = 1.61          # Angstrom
 @pytest.fixture
 def rutile() -> Structure:
     """TiO2, P4_2/mnm (#136).  Ti on 2a, O on 4f."""
+    return _rutile()
+
+
+def _rutile() -> Structure:
     return Structure.from_arrays(
         Lattice.from_parameters(4.5940, 4.5940, 2.9590, 90, 90, 90),
         ["Ti", "O"],
@@ -419,6 +423,17 @@ def rutile_xy(tmp_path, rutile):
     positions the pattern was made from -- and small, so a refinement
     test runs in a second.  Needs the ``refine`` extra.
     """
+    return _rutile_xy(tmp_path, rutile)
+
+
+@pytest.fixture(scope="module")
+def rutile_xy_shared(tmp_path_factory):
+    """:func:`rutile_xy`, made once for a module whose tests share one
+    slow run over it -- an indexing search is seconds, not one."""
+    return _rutile_xy(tmp_path_factory.mktemp("pattern"), _rutile())
+
+
+def _rutile_xy(folder, structure):
     pytest.importorskip("rietx")
     import numpy as np
 
@@ -427,9 +442,9 @@ def rutile_xy(tmp_path, rutile):
     from xtal.powder.data import Radiation
 
     two_theta = np.arange(20.0, 80.0, 0.02)
-    y = bridge.predict(rutile, Radiation("cu"), two_theta)
+    y = bridge.predict(structure, Radiation("cu"), two_theta)
     counts = np.random.default_rng(0).poisson(y / y.max() * 5000 + 100)
-    return write_xy(two_theta, counts, tmp_path / "rutile.xy",
+    return write_xy(two_theta, counts, folder / "rutile.xy",
                     header="synthetic rutile, Cu Ka1+Ka2")
 
 
