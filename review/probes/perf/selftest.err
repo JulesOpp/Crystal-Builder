@@ -1,0 +1,23 @@
+2026-09-18 20:46:56 INFO    xtalapp: Crystal Builder 0.2.1 starting
+/Users/sam/Projects/Jules/Crystal-Builder/.venv/lib/python3.12/site-packages/scipy/spatial/transform/_rotation.py:2576: UserWarning: Optimal rotation is not uniquely or poorly defined for the given sets of vectors.
+  q, rssd, sensitivity = backend.align_vectors(a, b, weights, return_sensitivity)
+2026-09-18 20:46:57.776 python[28589:9876557] +[IMKClient subclass]: chose IMKClient_Legacy
+2026-09-18 20:46:57.776 python[28589:9876557] +[IMKInputSession subclass]: chose IMKInputSession_Legacy
+        4.62 real         2.42 user         0.67 sys
+           372719616  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               49191  page reclaims
+                9110  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   2  messages sent
+                   0  messages received
+                   0  signals received
+                5667  voluntary context switches
+               11573  involuntary context switches
+         34038417923  instructions retired
+         10123264399  cycles elapsed
+           349638080  peak memory footprint

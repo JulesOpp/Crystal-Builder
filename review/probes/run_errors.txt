@@ -1,0 +1,41 @@
+2026-09-18 20:14:48.666 python[23926:9807754] +[IMKClient subclass]: chose IMKClient_Legacy
+2026-09-18 20:14:48.667 python[23926:9807754] +[IMKInputSession subclass]: chose IMKInputSession_Legacy
+== missing file: review/probes/does-not-exist.cif
+   >>> QMessageBox.warning['Could not open the file', 'does-not-exist.cif\n\n[Errno 2] unable to open() file review/probes/does-not-exist.cif for reading: No such file or directory']
+   status_label / message / selection: ("'No structure open'", "'workspace: /Users/sam/Projects/Jules/Crystal-Builder/review/shots/scratch3/workspace'", "''")
+   tabs: 0
+== corrupt CIF: review/probes/corrupt.cif
+   >>> QMessageBox.warning['Could not open the file', 'corrupt.cif\n\nreview/probes/corrupt.cif:6:0(95): Wrong number of values in loop _atom_site_*']
+   status_label / message / selection: ("'No structure open'", "'workspace: /Users/sam/Projects/Jules/Crystal-Builder/review/shots/scratch3/workspace'", "''")
+   tabs: 0
+== empty CIF: review/probes/empty.cif
+   >>> QMessageBox.warning['Could not open the file', 'empty.cif\n\nno structure found in review/probes/empty.cif']
+   status_label / message / selection: ("'No structure open'", "'workspace: /Users/sam/Projects/Jules/Crystal-Builder/review/shots/scratch3/workspace'", "''")
+   tabs: 0
+== a python file as a structure: review/probes/errors.py
+   >>> QMessageBox.warning['Could not open the file', "errors.py\n\nno format is registered for '.py'"]
+   status_label / message / selection: ("'No structure open'", "'workspace: /Users/sam/Projects/Jules/Crystal-Builder/review/shots/scratch3/workspace'", "''")
+   tabs: 0
+== status bar overlap: a transient message over the permanent line
+   status_label visible: False
+   permanent text: 'No structure open'
+   temporary text: 'workspace: /somewhere/long/path/workspace'
+== open the same file twice
+   tabs: 1 ['MOF-5.cif']
+   tabs after re-open: 1 ['MOF-5.cif']
+== selection summary
+   selection_label: '424 atoms (C192 H96 O104 Zn32), 512 bonds'
+   status_label: 'C24H12O13Zn4  ·  Z = 8  ·  P1 (#1)  ·  424 sites / 424 atoms  ·  V = 17305.33 A^3  ·  0.591 g/cm^3'
+== a module whose binary is missing (Zeo++)
+   registry: AttributeError("'ModuleRegistry' object has no attribute 'items'")
+   module.zeopp.volume: enabled=True tip='How much of the cell a gas molecule can occupy, which is the pore volume a paper quotes'
+   module.dftb.charges: enabled=True tip='A charge on every atom, and the atoms coloured by it'
+   module.pxrd.simulate: enabled=True tip='Calculate a powder diffraction pattern from this structure'
+   module.scan.run: enabled=True tip='Map the energy landscape over one or two coordinates'
+== log dock
+   log dock class: QWidget
+== unsaved-change / quit warning while a run is going
+   confirm_quit: True closeEvent overridden: True
+   autosave attrs: []
+seen dialogs: [('warning', ['Could not open the file', 'does-not-exist.cif\n\n[Errno 2] unable to open() file review/probes/does-not-exist.cif for reading: No such file or directory']), ('warning', ['Could not open the file', 'corrupt.cif\n\nreview/probes/corrupt.cif:6:0(95): Wrong number of values in loop _atom_site_*']), ('warning', ['Could not open the file', 'empty.cif\n\nno structure found in review/probes/empty.cif']), ('warning', ['Could not open the file', "errors.py\n\nno format is registered for '.py'"])]
+ran errors.py
