@@ -189,7 +189,7 @@ then at an environment variable, then on `PATH`:
 | The Slater-Koster parameters, a folder of `.skf` files from dftb.org | Every DFTB+ run; the pairs present are checked before anything is launched | `DFTB_PREFIX` |
 | tblite | GFN1-xTB and GFN2-xTB in the xTB engine; GFN2 under a periodic cell is tblite's alone | `XTAL_TBLITE` |
 | xtb {cite}`bannwarth2021xtb` | GFN-FF, which tblite does not implement | `XTAL_XTB` |
-| Blender, with the Atomic Blender add-on | *File ▸ Export as STL* | -- (`/Applications/Blender.app` is looked in on its own) |
+| Blender, with the Atomic Blender add-on | *File ▸ Export as STL* | `XTAL_BLENDER` (and `/Applications/Blender.app` is looked in on its own) |
 
 *Preferences ▸ Engines* ({ref}`Preferences… <cmd-preferences>`,
 {kbd}`Ctrl+,`) has a row per program ({numref}`fig-preferences-engines`).

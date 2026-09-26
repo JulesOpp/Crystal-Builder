@@ -206,4 +206,35 @@ Systematic absence
 Transitivity
   Four numbers [p q r s]: how many kinds of vertex, edge, face and
   tile a net has, from the RCSR.
+
+Autosave
+  A side file under the workspace's `.autosave/` folder holding a tab's
+  unsaved edits.  It is offered back when the file is opened, never
+  applied on its own.
+
+Entry
+  One structure's folder in a workspace: its copy of the file, and the
+  runs made on it underneath.
+
+Extended XYZ
+  XYZ with the cell (`Lattice="..."`) and the per-atom columns
+  (`Properties=...`) on the comment line, as ASE, OVITO and VMD write
+  it.
+
+Perceived bonds
+  The bonds found from distances, stored with the rules they were
+  found under, and replaced only by *Recalculate bonds*.
+
+Project file
+  A `.xtalproj`: a zip of readable text parts -- the structure as a
+  CIF, its bonds, its view and its session -- holding what a CIF
+  cannot.
+
+Report
+  What the Results panel shows after a run.  Modules whose report is
+  small also save it in the run folder as `report.json`.
+
+Run folder
+  The folder a calculation leaves inside an entry, named
+  `<module>-<kind>-<nnn>` and numbered in the order the runs happened.
 ```

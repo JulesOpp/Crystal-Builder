@@ -1,16 +1,25 @@
 # Workflows and the Command Line
 
-Running what the window runs without the window: the `xtal` command, workspaces and the run folders every calculation leaves behind, and how to repeat a result.
+Everything the window runs, the `xtal` command runs without it -- into
+the same workspace, leaving the same files.  This chapter is where a
+scripting user starts: the command and each of its subcommands, what
+a workspace and a run folder look like on disk, what a run leaves
+behind and how to read it from a script, the core as a Python
+library, and what to record so that a result can be repeated.
 
-:::{note}
-This chapter is being written.  Until it is, the generated reference
-in {ref}`the appendix <reference-appendix>` describes every command,
-module and setting the application offers.
-:::
+The science is in the chapters before this one.  Where a command here
+runs a method -- a force field, a relaxation, a scan, a builder -- the
+page links to the chapter that explains it rather than repeating it:
+{doc}`energy models </energy/index>`, {doc}`structure and
+optimisation </structure/index>`, {doc}`porosity and properties
+</porosity/index>` and {doc}`frameworks and nets </frameworks/index>`.
 
-## What this chapter will cover
+```{toctree}
+:maxdepth: 1
 
-- The `xtal` command
-- Workspaces, entries and run folders
-- Reports and landscapes
-- Reproducing a run
+cli
+workspaces
+reports
+scripting
+reproducing
+```
