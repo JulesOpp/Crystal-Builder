@@ -14,16 +14,27 @@ exactly the misfit the difference curve is there to show.
 **The traces are updated, not redrawn**, so a live refinement can
 send twenty frames a second without the axes, the zoom or the
 toolbar noticing: :meth:`show_calculated` sets new y data on lines
-that already exist.
+that already exist.  Nothing but a new pattern or a new fit resets
+the view: ticking a peak in or out redraws a comb and the lines, and
+a person zoomed into one peak to decide about it stays there.
+
+**The combs have a strip of their own** between the pattern and the
+difference, rather than hanging below zero on the pattern's axis.
+Below zero was fine on counts; on a logarithmic axis there is no
+below zero, and on any axis the comb's depth was a second intensity
+scale that zooming stretched.
 """
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+
 import numpy as np
-from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from xtal import install
 from xtalapp.dialogs.pattern import _figure_canvas, installed
+from xtalapp.widgets.intensity_scale import apply_scale, scale_box
 from xtalapp.widgets.tone import WARNING, set_tone
 
 __all__ = ["RefinementPlot"]
@@ -59,14 +70,23 @@ class RefinementPlot(QWidget):
         # blank and cut the difference axis's label off.
         self.figure = figure_class(figsize=(7.0, 4.5),
                                    layout="constrained")
-        grid = self.figure.add_gridspec(2, 1, height_ratios=(4, 1))
+        grid = self.figure.add_gridspec(3, 1,
+                                        height_ratios=(4, 0.4, 1))
         self.axes = self.figure.add_subplot(grid[0])
-        self.difference = self.figure.add_subplot(grid[1],
+        self.strip = self.figure.add_subplot(grid[1], sharex=self.axes)
+        self.difference = self.figure.add_subplot(grid[2],
                                                   sharex=self.axes)
         self.canvas = canvas_class(self.figure)
         self.canvas.setMinimumSize(360, 240)
         self.toolbar = toolbar_class(self.canvas, self)
-        layout.addWidget(self.toolbar)
+        self.scale_box = scale_box()
+        self.scale_box.currentIndexChanged.connect(
+            lambda _i: self.set_scale(self.scale_box.currentData()))
+        top = QHBoxLayout()
+        top.addWidget(self.toolbar, 1)
+        top.addWidget(QLabel("Intensity"))
+        top.addWidget(self.scale_box)
+        layout.addLayout(top)
         layout.addWidget(self.canvas, 1)
         self._x = np.zeros(0)
         self._observed = np.zeros(0)
@@ -78,13 +98,45 @@ class RefinementPlot(QWidget):
         if self.figure is None:
             return
         self.axes.clear()
+        self.strip.clear()
         self.difference.clear()
         self._lines = {}
         self.axes.set_ylabel("counts")
         self.difference.set_xlabel(r"2$\theta$ (degrees)")
         self.difference.set_ylabel("obs - calc")
         self.axes.tick_params(labelbottom=False)
+        self.strip.tick_params(labelbottom=False, left=False,
+                               labelleft=False)
+        # row 0 (the peaks) on top, row 1 (a cell's lines) under it
+        self.strip.set_ylim(2.0, 0.0)
         self.canvas.draw_idle()
+
+    @property
+    def scale(self) -> str:
+        return self.scale_box.currentData() if self.figure is not None \
+            else "linear"
+
+    def set_scale(self, key: str) -> None:
+        """Linear, square-root or logarithmic counts on the pattern's
+        axis; the difference stays linear, where its sign is."""
+        if self.figure is None:
+            return
+        index = self.scale_box.findData(key)
+        if index != self.scale_box.currentIndex():
+            self.scale_box.setCurrentIndex(index)   # comes back here
+            return
+        apply_scale(self.axes, key)
+        self.canvas.draw_idle()
+
+    @contextmanager
+    def _view_kept(self):
+        """Whatever is redrawn inside, the zoom stays where it was."""
+        xlim, ylim = self.axes.get_xlim(), self.axes.get_ylim()
+        try:
+            yield
+        finally:
+            self.axes.set_xlim(*xlim)
+            self.axes.set_ylim(*ylim)
 
     def show_observed(self, x, y, label: str = "observed") -> None:
         """A measurement on its own: the first thing after loading."""
@@ -98,6 +150,7 @@ class RefinementPlot(QWidget):
             label=label)
         self.axes.legend(loc="upper right", frameon=False, fontsize=9)
         self.axes.margins(x=0.01)
+        apply_scale(self.axes, self.scale)
         self.canvas.draw_idle()
 
     def show_fit(self, x, observed, calculated, background=None,
@@ -119,6 +172,7 @@ class RefinementPlot(QWidget):
         self.difference.axhline(0.0, lw=0.5, color="0.5")
         self.set_ticks(ticks)
         self.axes.legend(loc="upper right", frameon=False, fontsize=9)
+        apply_scale(self.axes, self.scale)
         self.canvas.draw_idle()
 
     def set_ticks(self, positions) -> None:
@@ -138,19 +192,11 @@ class RefinementPlot(QWidget):
         if old is not None:
             old.remove()
         positions = np.asarray(positions, dtype=float)
-        if positions.size and self._observed.size:
-            top = float(self._observed.max())
-            depth = 0.04 * top
-            upper = -depth * (1.0 + 1.5 * row)
-            self._lines[name] = self.axes.vlines(
-                positions, upper - depth, upper, colors=color,
-                linewidths=0.8)
-        combs = [k for k in ("ticks", "reflections") if k in self._lines]
-        if combs and self._observed.size:
-            top = float(self._observed.max())
-            rows = 2 if "reflections" in combs else 1
-            self.axes.set_ylim(-(1.0 + 1.5 * rows) * 0.04 * top,
-                               1.05 * top)
+        if positions.size:
+            with self._view_kept():
+                self._lines[name] = self.strip.vlines(
+                    positions, row + 0.15, row + 0.85, colors=color,
+                    linewidths=0.8)
         self.canvas.draw_idle()
 
     def set_components(self, background, curves) -> None:
@@ -184,8 +230,10 @@ class RefinementPlot(QWidget):
             collection = LineCollection(segments, colors=COLORS[5],
                                         linewidths=0.8, alpha=0.9)
             collection.set_visible(self._components_shown)
+            # inside the observed trace's own limits, so nothing to
+            # rescale to -- and a rescale would throw the zoom away
             self._lines["components"] = self.axes.add_collection(
-                collection)
+                collection, autolim=False)
         self.canvas.draw_idle()
 
     def show_components(self, shown: bool) -> None:

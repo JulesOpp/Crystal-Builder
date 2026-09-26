@@ -210,8 +210,8 @@ def _run_pawley(bench, qtbot, cell="4.5948 4.5948 2.9572",
                 group="P42/mnm"):
     bench.steps.setCurrentRow(2)
     assert bench.current_step == "pawley"
-    bench.step_forms["pawley"].set_values({"cell": cell,
-                                           "space_group": group})
+    bench.step_forms["pawley"].set_values({"space_group": group})
+    bench.cell_box.set_value(cell)
     with qtbot.waitSignal(bench.stepFinished, timeout=60000) as blocker:
         bench.run_step()
     return blocker.args[0]
@@ -349,13 +349,13 @@ def test_loading_through_the_dialog_keeps_the_workbench_in_front(
 
 def test_the_forms_start_at_the_defaults_asked_for(bench):
     index, pawley = bench.values("index"), bench.values("pawley")
-    assert index["zero_error"] == 1.0
+    assert index["zero_error"] == pytest.approx(0.3)
     assert bench.step_forms["index"].widgets["zero_error"] \
         .singleStep() == pytest.approx(0.1)
     assert index["longest_axis"] == 50.0
-    assert (pawley["zero"], pawley["displacement"], pawley["refine_cell"],
+    assert (pawley["zero"], pawley["displacement"], pawley["hold"],
             pawley["size"], pawley["strain"]) == \
-        (False, True, True, True, True)
+        (False, True, "", True, True)
     assert "background_terms" in bench.values("peaks")
     assert "positions" not in bench.step_forms["peaks"].widgets
 
@@ -454,3 +454,185 @@ def test_sorting_the_cells_reorders_the_table_and_the_choice_follows(
         bench.sort_box.findData("gof"))
     assert bench.cell_table.item(0, 0).text() == "2"
     assert bench.values("pawley")["cell"].split()[2] == "5.91440"
+
+
+# -- the cell, and what a fit refined ----------------------------------
+
+def test_the_pawley_cell_offers_only_the_numbers_the_group_leaves_free(
+        bench):
+    """A cubic group takes one length and a monoclinic one three and
+    an angle; the rest follow and have no switch of their own."""
+    box = bench.cell_box
+    bench.step_forms["pawley"].set_values({"space_group": "Fm-3m"})
+    assert box.free() == ("a",)
+    assert box.spins["a"].isEnabled()
+    assert not box.spins["b"].isEnabled()
+    assert box.boxes["b"].isHidden()
+    box.spins["a"].setValue(5.64)
+    assert bench.values("pawley")["cell"].split() == \
+        ["5.64000", "5.64000", "5.64000", "90.000", "90.000", "90.000"]
+    bench.step_forms["pawley"].set_values({"space_group": "P21/c"})
+    assert box.free() == ("a", "b", "c", "beta")
+    assert box.spins["beta"].isEnabled()
+    assert not box.spins["alpha"].isEnabled()
+    box.boxes["beta"].setChecked(False)
+    assert bench.values("pawley")["hold"] == "beta"
+
+
+def test_a_pawley_fit_writes_each_refined_number_beside_its_box(
+        bench, qtbot, rutile_xy):
+    """Strain broadening freed is a Lorentzian and a Gaussian term;
+    a cell number freed is its refined value -- beside the switch, not
+    only in the summary."""
+    bench.load_pattern(rutile_xy)
+    assert _run_pawley(bench, qtbot).ok
+    notes = bench.step_forms["pawley"].notes
+    assert notes["strain"].text().startswith("L ")
+    assert " G " in notes["strain"].text()
+    assert "mm" in notes["displacement"].text()
+    assert notes["zero"].text() == ""               # held
+    assert bench.cell_box.notes["a"].text().startswith("4.59")
+    assert bench.cell_box.notes["b"].text() == "= a"
+
+
+# -- the plot ----------------------------------------------------------
+
+def test_ticking_a_peak_in_or_out_keeps_the_zoom(bench, qtbot, rutile_xy):
+    """A person zoomed into one peak to decide about it; unticking it
+    must not throw them back out to the whole pattern."""
+    if not bench.plot.available:
+        pytest.skip("needs matplotlib")
+    _run_peaks(bench, qtbot, rutile_xy)
+    bench.plot.axes.set_xlim(27.0, 28.0)
+    bench.plot.axes.set_ylim(50.0, 900.0)
+    bench.table.item(0, 0).setCheckState(Qt.Unchecked)
+    assert bench.plot.axes.get_xlim() == pytest.approx((27.0, 28.0))
+    assert bench.plot.axes.get_ylim() == pytest.approx((50.0, 900.0))
+    bench.table.item(0, 0).setCheckState(Qt.Checked)
+    assert bench.plot.axes.get_ylim() == pytest.approx((50.0, 900.0))
+
+
+def test_intensity_is_linear_square_root_or_logarithmic_and_the_difference_linear(  # noqa: E501
+        bench, qtbot, rutile_xy):
+    if not bench.plot.available:
+        pytest.skip("needs matplotlib")
+    _run_peaks(bench, qtbot, rutile_xy)
+    plot = bench.plot
+    plot.set_scale("log")
+    assert plot.axes.get_yscale() == "log"
+    assert plot.difference.get_yscale() == "linear"
+    plot.set_scale("sqrt")
+    assert plot.axes.get_yscale() == "function"
+    assert plot.scale_box.currentData() == "sqrt"
+    # the choice outlives a new fit being drawn
+    bench._show_peaks()
+    assert plot.axes.get_yscale() == "function"
+    plot.scale_box.setCurrentIndex(plot.scale_box.findData("linear"))
+    assert plot.axes.get_yscale() == "linear"
+
+
+# -- Rietveld ----------------------------------------------------------
+
+def _displaced_rutile_cif(tmp_path):
+    """Rutile with its oxygen 0.06 A off where the pattern has it."""
+    from xtal.core.lattice import Lattice
+    from xtal.core.structure import Structure
+    from xtal.io import write_cif
+
+    structure = Structure.from_arrays(
+        Lattice.from_parameters(4.5940, 4.5940, 2.9590, 90, 90, 90),
+        ["Ti", "O"], [[0.0, 0.0, 0.0], [0.29, 0.29, 0.0]],
+        space_group="P4_2/mnm")
+    path = tmp_path / "displaced.cif"
+    write_cif(structure, path)
+    return str(path)
+
+
+def _run_rietveld(bench, qtbot):
+    bench.steps.setCurrentRow(3)
+    assert bench.current_step == "rietveld"
+    with qtbot.waitSignal(bench.stepFinished, timeout=60000) as blocker:
+        bench.run_step()
+    return blocker.args[0]
+
+
+def test_rietveld_waits_for_a_structure(bench, rutile_xy):
+    bench.load_pattern(rutile_xy)
+    bench.steps.setCurrentRow(3)
+    assert not bench.run_button.isEnabled()
+    assert "structure" in bench.run_button.toolTip()
+
+
+def test_rietveld_frames_move_the_atoms_without_touching_the_undo_stack(
+        window, qtbot, tmp_path, rutile_xy):
+    window.settings.preview_interval = 0       # every accepted step
+    document = window.open_path(_displaced_rutile_cif(tmp_path))
+    bench = window.open_refine_workbench()
+    bench.load_pattern(rutile_xy)
+    done = len(document.stack._done)
+    seen = []
+    document.previewChanged.connect(lambda: seen.append(
+        (len(document.stack._done), document.modified,
+         float(document.structure.sites[1].frac[0]))))
+    assert _run_rietveld(bench, qtbot).ok
+    assert seen
+    assert all(n == done and not modified for n, modified, _x in seen)
+    assert any(x != pytest.approx(0.29) for _n, _m, x in seen)
+
+
+def test_a_finished_rietveld_is_one_undo_step_on_the_document_it_started_from(  # noqa: E501
+        window, qtbot, tmp_path, rutile_xy, quartz_cif):
+    """Opened over the displaced rutile, run with quartz in front:
+    the rutile is refined and the quartz never touched."""
+    document = window.open_path(_displaced_rutile_cif(tmp_path))
+    bench = window.open_refine_workbench()
+    bench.load_pattern(rutile_xy)
+    other = window.open_path(quartz_cif)
+    assert window.current_document() is other
+    quartz_before = other.structure.frac.copy()
+    done = len(document.stack._done)
+    result = _run_rietveld(bench, qtbot)
+    assert result.ok, result.message
+    assert len(document.stack._done) == done + 1
+    assert document.undo_label == "Rietveld refinement"
+    assert document.structure.sites[1].frac[0] == pytest.approx(0.3053,
+                                                                abs=2e-3)
+    assert len(document.structure.sites) == 2
+    assert other.structure.frac == pytest.approx(quartz_before)
+    assert bench.rietveld_label.text().startswith("Rwp")
+    assert bench.step_forms["rietveld"].notes["positions"].text() \
+        .startswith("furthest")
+    assert bench.refined_table.rowCount() == len(bench.rietveld.refined)
+    document.undo()
+    assert document.structure.sites[1].frac[0] == pytest.approx(0.29)
+
+
+def test_stopping_a_rietveld_run_puts_the_atoms_back(
+        window, tmp_path, rutile_xy):
+    """A frame moved the oxygen; a stopped run commits nothing and the
+    atoms are where they were before it started."""
+    import numpy as np
+
+    from xtal.powder.rietveld import RietveldFrame
+
+    document = window.open_path(_displaced_rutile_cif(tmp_path))
+    bench = window.open_refine_workbench()
+    bench.load_pattern(rutile_xy)
+    structure = document.structure
+    bench._running = "rietveld"
+    bench._before = (structure.frac.copy(),
+                     structure.lattice.matrix.copy())
+    moved = structure.frac.copy()
+    moved[1] = [0.31, 0.31, 0.0]
+    x = bench.data.two_theta
+    bench._on_frame(RietveldFrame("positions", x, bench.data.intensity,
+                                  bench.data.intensity * 0.9, moved,
+                                  structure.lattice.matrix.copy()))
+    assert document.structure.sites[1].frac[0] == pytest.approx(0.31)
+    done = len(document.stack._done)
+    bench._running = ""
+    bench._finish_rietveld(None)
+    assert document.structure.sites[1].frac[0] == pytest.approx(0.29)
+    assert len(document.stack._done) == done
+    assert not document.modified
+    assert np.isfinite(document.structure.frac).all()

@@ -32,7 +32,7 @@ import numpy as np
 from xtal.powder.data import PowderData, PowderError, Radiation
 
 __all__ = ["PawleyFit", "PawleyOptions", "Reflection",
-           "cell_fits_structure", "parse_cell", "pawley"]
+           "cell_fits_structure", "parse_cell", "parse_hold", "pawley"]
 
 
 @dataclass(frozen=True)
@@ -45,6 +45,9 @@ class PawleyOptions:
     (constant, and cos θ); they are correlated, and freeing both on a
     short range can trade one for the other.  ``size`` and ``strain``
     are TOPAS's ``CS_L``/``CS_G`` and ``Strain_L``/``Strain_G``.
+    ``hold_cell`` names the cell numbers held at the value given
+    (``"a"``, ``"beta"``) while the others the group leaves free
+    refine -- TOPAS's ``a 4.59`` beside ``b @ 9.23``.
     """
 
     start: float | None = None
@@ -52,7 +55,7 @@ class PawleyOptions:
     background_terms: int = 8
     zero: bool = False
     displacement: bool = True
-    refine_cell: bool = True
+    hold_cell: tuple[str, ...] = ()
     size: bool = True
     strain: bool = True
 
@@ -67,8 +70,7 @@ class PawleyOptions:
             out.append("zero")
         if self.displacement and not radiation.is_synchrotron:
             out.append("displacement")
-        if self.refine_cell:
-            out.append("cell")
+        out.append("cell")
         if self.size:
             out.append("size")
         if self.strain:
@@ -111,6 +113,8 @@ class PawleyFit:
     radiation: Radiation
     zero: float = 0.0
     displacement: float = 0.0
+    #: ``{path: (value, esd)}`` of every number refined, RietX's paths
+    refined: dict = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
 
     @property
@@ -148,6 +152,27 @@ def parse_cell(text) -> tuple[float, float, float, float, float, float]:
     return tuple(numbers)
 
 
+def parse_hold(text) -> tuple[str, ...]:
+    """Cell numbers to hold: ``"a, beta"``, or ``"cell"`` for all six.
+
+    The Greek letters are read too, as the form writes them.
+    """
+    from xtal.powder.cell import NAMES
+
+    greek = {"α": "alpha", "β": "beta", "γ": "gamma"}
+    words = str(text or "").replace(",", " ").split()
+    out = []
+    for word in words:
+        word = greek.get(word, word.lower())
+        if word in ("cell", "all"):
+            return NAMES
+        if word not in NAMES:
+            raise PowderError(f"{word!r} is not a cell number -- a b c "
+                              f"alpha beta gamma, or cell")
+        out.append(word)
+    return tuple(out)
+
+
 def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
            options: PawleyOptions | None = None, *, cancel=None,
            folder=None) -> PawleyFit:
@@ -168,7 +193,8 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
     refinement, result = bridge.pawley(
         window, radiation, parse_cell(cell), symbol,
         background_terms=options.background_terms,
-        free=options.free(radiation), folder=folder,
+        free=options.free(radiation), hold_cell=options.hold_cell,
+        folder=folder,
         cancel=bridge.cancel_token(cancel))
     refined = refinement.structure.phases[0].cell
     names = ("a", "b", "c", "alpha", "beta", "gamma")
@@ -195,6 +221,7 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
         zero=instrument_value("instrument.zero_shift"),
         displacement=instrument_value(
             "instrument.geometry.sample_displacement"),
+        refined=bridge.refined_values(result),
         notes=[d.message for d in result.diagnostics])
 
 

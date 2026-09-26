@@ -116,3 +116,40 @@ def test_a_pawley_step_with_no_cell_says_what_it_needs(rutile_xy_shared):
     result = steps.run_pawley(Job(params={"xy": str(rutile_xy_shared)}))
     assert not result.ok
     assert "cell and a space group" in result.message
+
+
+def test_a_held_cell_number_stays_where_it_was_given(rutile_xy_shared):
+    """TOPAS's ``c 2.9572`` beside ``a @ 4.5948``: c is held, a still
+    refines."""
+    from xtal.modules.powder import refined_notes
+
+    fit = pawley(PowderData.from_xy(rutile_xy_shared), Radiation("cu"),
+                 INDEXED, "P42/mnm", PawleyOptions(hold_cell=("c",)))
+    assert fit.cell[2] == pytest.approx(2.9572, abs=1e-9)
+    assert fit.cell[0] == pytest.approx(4.5940, abs=1e-3)
+    notes = refined_notes(fit)
+    assert "a" in notes and "c" not in notes
+
+
+def test_holding_reads_the_greek_letters_and_the_whole_cell():
+    from xtal.powder.pawley import parse_hold
+
+    assert parse_hold("") == ()
+    assert parse_hold("a, β") == ("a", "beta")
+    assert parse_hold("cell") == ("a", "b", "c", "alpha", "beta",
+                                  "gamma")
+    with pytest.raises(PowderError, match="'d'"):
+        parse_hold("d")
+
+
+def test_a_fit_lists_the_numbers_each_box_refined(fit):
+    """Strain broadening freed is a Lorentzian and a Gaussian term;
+    both are written beside the box, with their esds."""
+    from xtal.modules.powder import refined_notes
+
+    notes = refined_notes(fit)
+    assert notes["strain"].startswith("L ") and " G " in notes["strain"]
+    assert notes["size"].startswith("L ")
+    assert "mm" in notes["displacement"]
+    assert "zero" not in notes                  # held by default
+    assert notes["a"].startswith("4.59")

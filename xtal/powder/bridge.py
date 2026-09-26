@@ -47,11 +47,13 @@ from xtal.powder.data import (
     Radiation,
 )
 
-__all__ = ["apply_phase", "cancel_token", "extinction_classes", "fit",
+__all__ = ["RIETVELD_PRESETS", "apply_phase", "cancel_token",
+           "extinction_classes", "fit", "free_cell_paths",
            "index_pattern", "instrument", "lattice_lines", "pattern",
            "observed_peak", "pawley", "peak_list", "phase_of",
-           "reflections", "space_group_named",
-           "predict", "space_group_symbol", "to_rietx"]
+           "predict", "reflections", "refined_values", "rietveld",
+           "rietveld_plan", "space_group_named", "space_group_symbol",
+           "to_rietx"]
 
 #: B = 8π²U.  RietX refines B, as TOPAS does; a CIF and this
 #: application's sites carry U.
@@ -416,21 +418,48 @@ def lattice_lines(cell, system: str, centring: str, wavelength: float,
 _PAWLEY_FREES = {
     "zero": ["instrument.zero_shift"],
     "displacement": ["instrument.geometry.sample_displacement"],
-    "cell": ["phases.*.cell.*"],
+    "cell": [],                 # free_cell_paths: one by one
     "size": ["phases.*.lor_size", "phases.*.gauss_size"],
     "strain": ["phases.*.lor_strain", "phases.*.gauss_strain"],
 }
 
 
+def _with_background(radiation: Radiation, terms: int) -> rx.Instrument:
+    return instrument(radiation).model_copy(update={
+        "background": rx.BackgroundChebyshev.with_terms(
+            max(int(terms), 1))})
+
+
+def free_cell_paths(refinement, hold=()) -> list[str]:
+    """The cell numbers RietX lets move, less the ones held.
+
+    Asked of RietX's own table rather than of the group, so that what
+    is freed is exactly what it ties: ``b`` on a tetragonal cell is
+    RietX's to follow ``a``, and naming it here would be refused.
+    """
+    hold = set(hold)
+    return [row.path for row in refinement.parameters()
+            if ".cell." in row.path and not row.locked
+            and row.tie is None and row.path.rsplit(".", 1)[1] not in hold]
+
+
+def refined_values(result) -> dict[str, tuple[float, float]]:
+    """``{path: (value, esd)}`` of every number a fit refined."""
+    return {p.path: (float(p.value), float(p.stderr or 0.0))
+            for p in result.parameters}
+
+
 def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
            *, background_terms: int = 8, free=("zero", "cell"),
-           folder: Path | None = None, cancel=None):
+           hold_cell=(), folder: Path | None = None, cancel=None):
     """``(refinement, result)``: a Pawley fit of one cell to ``data``.
 
     The phase is RietX's own Le Bail scaffold -- a cell, a group and a
     dummy atom it never refines -- and the plan is its
     ``pawley_default`` order (background, positions, widths), with
     each stage present only when what it frees was asked for.
+    ``hold_cell`` names cell numbers (``"a"``, ``"beta"``) held at the
+    value given while the rest of the cell refines.
     """
     from rietx.schemas.structure import lebail_scaffold
 
@@ -439,16 +468,17 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
     if unknown:
         raise PowderError(f"cannot free {', '.join(sorted(unknown))}")
     structure = lebail_scaffold(space_group, tuple(cell), name="pawley")
-    ins = instrument(radiation).model_copy(update={
-        "background": rx.BackgroundChebyshev.with_terms(
-            max(int(background_terms), 1))})
+    ins = _with_background(radiation, background_terms)
+    refinement = rx.Refinement(structure, ins, history=False)
     positions = [path for key in ("zero", "displacement")
                  if key in free for path in _PAWLEY_FREES[key]]
     stages = [rx.Stage("bkg", ["instrument.background.*"])]
     if positions:
         stages.append(rx.Stage("zero", positions))
-    if "cell" in free:
-        stages.append(rx.Stage("cell", _PAWLEY_FREES["cell"]))
+    cell_paths = free_cell_paths(refinement, hold_cell) \
+        if "cell" in free else []
+    if cell_paths:
+        stages.append(rx.Stage("cell", cell_paths))
     stages.append(rx.Stage("profile_w", ["instrument.profile.w"]))
     stages.append(rx.Stage("profile", [
         "instrument.profile.u", "instrument.profile.v",
@@ -457,7 +487,6 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
               for path in _PAWLEY_FREES[key]]
     if sample:
         stages.append(rx.Stage("sample_profile", sample))
-    refinement = rx.Refinement(structure, ins, history=False)
     try:
         result = fit(refinement, data, folder=folder, mode="pawley",
                      plan=rx.RefinementPlan(stages=stages),
@@ -485,3 +514,178 @@ def space_group_named(name: str) -> str:
     if found is None:
         raise PowderError(f"{name!r} is not a space group")
     return found.xhm()
+
+
+# ======================================================================
+#  RIETVELD
+# ======================================================================
+
+#: What each Rietveld box frees, as RietX's globs.  The cell is freed
+#: number by number (:func:`free_cell_paths`), and the profile's
+#: Caglioti terms go in two stages, W first, as McCusker orders them.
+_RIETVELD_FREES = {
+    "background": ["instrument.background.*"],
+    "zero": ["instrument.zero_shift"],
+    "displacement": ["instrument.geometry.sample_displacement"],
+    "cell": [],
+    "profile": ["instrument.profile.u", "instrument.profile.v",
+                "instrument.profile.x", "instrument.profile.y"],
+    "size": _PAWLEY_FREES["size"],
+    "strain": _PAWLEY_FREES["strain"],
+    "positions": ["phases.*.atoms.*.dof.*"],
+    "biso": ["phases.*.atoms.*.biso", "phases.*.atoms.*.adp.*"],
+    "occupancy": ["phases.*.atoms.*.occ"],
+    "preferred_orientation": ["phases.*.preferred_orientation.r"],
+}
+
+#: RietX's own plans a person may pick instead of the boxes.  The
+#: Pawley and Le Bail ones are left out: they free nothing a structure
+#: has.
+RIETVELD_PRESETS = ("mccusker_structural", "mccusker_default",
+                    "lab_bragg_brentano", "lab_sample_refine")
+
+
+def rietveld_plan(refinement, free, hold_cell=()) -> rx.RefinementPlan:
+    """The boxes as a plan in McCusker's order: scale and background,
+    the line positions, the cell, the widths, then the structure --
+    coordinates, displacements, occupancies, texture last."""
+    free = set(free)
+    unknown = free - set(_RIETVELD_FREES)
+    if unknown:
+        raise PowderError(f"cannot free {', '.join(sorted(unknown))}")
+
+    def paths(*keys):
+        return [p for k in keys if k in free for p in _RIETVELD_FREES[k]]
+
+    stages = [rx.Stage("scale_bkg", ["phases.*.scale",
+                                     *paths("background")])]
+    if paths("zero", "displacement"):
+        stages.append(rx.Stage("zero_disp", paths("zero",
+                                                  "displacement")))
+    cell = free_cell_paths(refinement, hold_cell) if "cell" in free \
+        else []
+    if cell:
+        stages.append(rx.Stage("cell", cell))
+    if "profile" in free:
+        stages.append(rx.Stage("profile_w", ["instrument.profile.w"]))
+        stages.append(rx.Stage("profile", paths("profile")))
+    if paths("size", "strain"):
+        stages.append(rx.Stage("sample_profile", paths("size", "strain")))
+    for key in ("positions", "biso", "occupancy",
+                "preferred_orientation"):
+        if key in free:
+            stages.append(rx.Stage(key, paths(key)))
+    return rx.RefinementPlan(stages=stages)
+
+
+class _Frames:
+    """RietX's ``eval`` events, turned into frames a person can watch.
+
+    An event carries the free values and nothing drawn from them, so a
+    second model of the same phase -- the shadow -- is set to those
+    values and asked for its pattern.  Only accepted steps, and no more
+    often than ``interval`` seconds or three times what the last frame
+    cost, whichever is longer: a frame is 5 ms on rutile and 0.7 s on
+    MFU-4l, so a fixed interval would double a framework's fit to
+    watch it, and this caps watching at a quarter.
+    """
+
+    def __init__(self, shadow, grid, on_frame, interval: float):
+        self.shadow, self.grid = shadow, grid
+        # A coordinate is refined as a step along its site's allowed
+        # directions from where the atom *is* (``dof``), so a shadow
+        # handed the same step twice walks twice as far.  Every frame
+        # puts the atoms back where the fit started them first.
+        self.start = _fractions(shadow.structure.phases[0])
+        self.on_frame, self.interval = on_frame, float(interval)
+        self.paths: list[str] = []
+        self.stage = ""
+        self.last = -math.inf
+        self.cost = 0.0
+
+    def __call__(self, event) -> None:
+        import time
+
+        kind, body = event.get("kind"), event.get("data", {})
+        if kind == "stage_start":
+            self.paths = list(body.get("free_paths", ()))
+            self.stage = str(body.get("stage", ""))
+            return
+        if kind != "eval" or not body.get("accepted"):
+            return
+        now = time.monotonic()
+        if now - self.last < max(self.interval, 3.0 * self.cost):
+            return
+        values = body.get("values") or ()
+        if len(values) != len(self.paths):
+            return
+        phase = self.shadow.structure.phases[0]
+        for atom, (x, y, z) in zip(phase.atoms, self.start, strict=True):
+            atom.x.value, atom.y.value, atom.z.value = x, y, z
+        try:
+            self.shadow.set_values({p: float(v) for p, v in
+                                    zip(self.paths, values, strict=True)})
+            y_calc = np.asarray(self.shadow.predict(self.grid))
+        except (ValueError, KeyError):
+            # a value a transform put on its bound: skip the frame,
+            # the fit itself is not affected
+            return
+        self.last = time.monotonic()
+        self.cost = self.last - now
+        self.on_frame(self.stage, y_calc, _fractions(phase),
+                      _cell_of(phase))
+
+
+def _fractions(phase) -> np.ndarray:
+    return np.array([[a.x.value, a.y.value, a.z.value]
+                     for a in phase.atoms], dtype=float)
+
+
+def _cell_of(phase) -> tuple[float, ...]:
+    cell = phase.cell
+    return tuple(float(getattr(cell, n).value) for n in
+                 ("a", "b", "c", "alpha", "beta", "gamma"))
+
+
+def rietveld(structure, data: PowderData, radiation: Radiation, *,
+             free=(), hold_cell=(), plan: str = "",
+             background_terms: int = 8, preferred_axis=None,
+             on_frame=None, frame_interval: float = 0.2,
+             folder: Path | None = None, cancel=None):
+    """``(refinement, result, indices)``: a Rietveld fit of a structure.
+
+    ``plan`` names one of :data:`RIETVELD_PRESETS`, or is empty for the
+    plan the ``free`` boxes make.  ``preferred_axis`` is the
+    March-Dollase direction as three integers, ``None`` for none.
+    ``on_frame(stage, y_calc, fractions, cell)`` is called from the
+    fitting thread as it goes; ``fractions`` is one row per atom of the
+    phase, in the order of ``indices``.
+    """
+    def build():
+        rx_structure, indices = to_rietx(structure)
+        if preferred_axis is not None:
+            rx_structure.phases[0].preferred_orientation = \
+                rx.PreferredOrientation(axis=tuple(int(v) for v in
+                                                   preferred_axis))
+        return rx.Refinement(rx_structure,
+                             _with_background(radiation, background_terms),
+                             history=False), indices
+
+    refinement, indices = build()
+    if plan:
+        if plan not in RIETVELD_PRESETS:
+            raise PowderError(f"{plan!r} is not one of RietX's Rietveld "
+                              f"plans")
+        chosen = plan
+    else:
+        chosen = rietveld_plan(refinement, free, hold_cell)
+    events = None
+    if on_frame is not None:
+        shadow, _same = build()
+        events = _Frames(shadow, data.two_theta, on_frame, frame_interval)
+    try:
+        result = fit(refinement, data, folder=folder, mode="rietveld",
+                     plan=chosen, events=events, cancel=cancel)
+    except (ValueError, KeyError) as exc:
+        raise PowderError(f"RietX refused the fit: {exc}") from None
+    return refinement, result, indices

@@ -138,7 +138,7 @@ class IndexOptions:
 
     bravais: frozenset[str] = frozenset(s for s, _l in BRAVAIS)
     space_groups: str = ""
-    zero_error: float = 1.0
+    zero_error: float = 0.3
     max_volume: float = 0.0
     longest_axis: float = 50.0
     budget: float = 60.0

@@ -33,8 +33,9 @@ from xtal.params import Availability
 from xtal.powder.data import RADIATIONS, PowderData, PowderError, Radiation
 
 __all__ = ["DATA_PARAMS", "INDEX_PARAMS", "PAWLEY_PARAMS", "PEAK_PARAMS",
-           "REFINE", "STEPS", "STEP_PARAMS", "radiation_of", "run_index",
-           "run_pawley", "run_peaks"]
+           "REFINE", "RIETVELD_PARAMS", "STEPS", "STEP_PARAMS",
+           "radiation_of", "refined_notes", "run_index", "run_pawley",
+           "run_peaks", "run_rietveld"]
 
 
 def refine_available() -> Availability:
@@ -290,7 +291,7 @@ INDEX_PARAMS = (
                "lattices and only the extinction classes holding one "
                "are listed.  Empty is every group."),
     Param("zero_error", "Zero error allowance", kind="float",
-          default=1.0, minimum=0.0, maximum=1.0, step=0.1, decimals=3,
+          default=0.3, minimum=0.0, maximum=1.0, step=0.1, decimals=3,
           suffix=" °",
           help="How far a systematic 2θ shift may move the lines, "
                "TOPAS's index_zero_error, from 0 to 1°.  0 lets RietX "
@@ -346,7 +347,7 @@ def index_options(values: dict):
     return IndexOptions(
         bravais=parse_bravais(values.get("bravais", "all")),
         space_groups=str(values.get("space_groups", "") or ""),
-        zero_error=float(values.get("zero_error", 1.0) or 0.0),
+        zero_error=float(values.get("zero_error", 0.3) or 0.0),
         max_volume=float(values.get("max_volume", 0.0) or 0.0),
         longest_axis=float(values.get("longest_axis", 50.0) or 50.0),
         budget=float(values.get("budget", 60.0) or 60.0),
@@ -521,9 +522,11 @@ PAWLEY_PARAMS = (
                "zero error and with the cell: free one of the two "
                "unless the range is wide.  Not refined for a "
                "synchrotron capillary."),
-    Param("refine_cell", "Refine the cell", kind="bool", default=True,
-          help="Off holds the cell as given and fits only the "
-               "profile and the intensities."),
+    Param("hold", "Hold", kind="text", default="",
+          help="Cell numbers held at the value given while the rest "
+               "refine: a b c alpha beta gamma, separated by commas, "
+               "or cell for all of them.  Empty refines every number "
+               "the space group leaves free."),
     Param("size", "Crystallite size broadening", kind="bool",
           default=True,
           help="Lorentzian and Gaussian size terms (TOPAS CS_L, "
@@ -538,7 +541,7 @@ REFLECTION_COLUMNS = ("h", "k", "l", "d (Å)", "2θ (°)", "m",
 
 
 def pawley_options(values: dict):
-    from xtal.powder.pawley import PawleyOptions
+    from xtal.powder.pawley import PawleyOptions, parse_hold
 
     start = float(values.get("start", 0.0) or 0.0)
     finish = float(values.get("finish", 0.0) or 0.0)
@@ -547,7 +550,7 @@ def pawley_options(values: dict):
         background_terms=int(values.get("background_terms", 8)),
         zero=bool(values.get("zero", False)),
         displacement=bool(values.get("displacement", True)),
-        refine_cell=bool(values.get("refine_cell", True)),
+        hold_cell=parse_hold(values.get("hold", "")),
         size=bool(values.get("size", True)),
         strain=bool(values.get("strain", True)))
 
@@ -644,6 +647,243 @@ def _write_reflections(path, fit):
 
 
 # ======================================================================
+#  WHAT A FIT REFINED
+# ======================================================================
+
+#: What each box of a form refined, as ``(RietX path, label, unit)``:
+#: the numbers written beside the box once a fit has run.
+_SHOWN = {
+    "zero": (("instrument.zero_shift", "", "°"),),
+    "displacement": (("instrument.geometry.sample_displacement", "",
+                      " mm"),),
+    "size": (("phases.0.lor_size", "L", "°"),
+             ("phases.0.gauss_size", "G", "°²")),
+    "strain": (("phases.0.lor_strain", "L", "°"),
+               ("phases.0.gauss_strain", "G", "°²")),
+    "profile": tuple((f"instrument.profile.{t}", t.upper(), "")
+                     for t in "uvwxy"),
+    "preferred_axis": (("phases.0.preferred_orientation.r", "r", ""),),
+}
+
+#: The per-atom boxes: the label of the atom is the path's middle.
+_PER_ATOM = {"biso": "biso", "occupancy": "occ"}
+
+
+def refined_notes(fit) -> dict[str, str]:
+    """``{box: text}``: what a fit refined, to write beside each box
+    that freed it -- ``4.594(1)`` beside a cell number, ``L 0.12(1)
+    G 0.03(2)`` beside strain broadening.  A box that refined nothing
+    has no entry.
+    """
+    refined = getattr(fit, "refined", None) or {}
+    out = {}
+    for box, rows in _SHOWN.items():
+        words = [f"{label} {_with_esd(*refined[path])}{unit}".strip()
+                 for path, label, unit in rows if path in refined]
+        if words:
+            # three to a line: five profile terms on one ran off the
+            # side of the form
+            out[box] = "\n".join("   ".join(words[i:i + 3])
+                                  for i in range(0, len(words), 3))
+    background = [k for k in refined if k.startswith(
+        "instrument.background.")]
+    if background:
+        out["background_terms"] = f"{len(background)} refined"
+    for n, name in enumerate(("a", "b", "c", "alpha", "beta", "gamma")):
+        path = f"phases.0.cell.{name}"
+        if path in refined:
+            out[name] = _with_esd(fit.cell[n], fit.cell_esd[n])
+    labels = getattr(fit, "atom_labels", ())
+    for box, key in _PER_ATOM.items():
+        words = []
+        for path, (value, esd) in refined.items():
+            parts = path.split(".")
+            if len(parts) == 5 and parts[2] == "atoms" \
+                    and parts[4] == key:
+                k = int(parts[3])
+                label = labels[k] if k < len(labels) else f"#{k + 1}"
+                words.append(f"{label} {_with_esd(value, esd)}")
+        if words:
+            out[box] = ", ".join(words[:4]) + (
+                f" (+{len(words) - 4})" if len(words) > 4 else "")
+    moved = getattr(fit, "moved", None)
+    if moved is not None and any(".dof." in k for k in refined):
+        out["positions"] = f"furthest {moved:.3f} Å"
+    return out
+
+
+# ======================================================================
+#  RIETVELD
+# ======================================================================
+
+RIETVELD_PARAMS = (
+    Param("plan", "Plan", kind="choice", default="",
+          choices=(("", "The boxes below"),
+                   ("mccusker_structural", "RietX: McCusker, structural"),
+                   ("mccusker_default", "RietX: McCusker, profile"),
+                   ("lab_bragg_brentano", "RietX: lab Bragg-Brentano"),
+                   ("lab_sample_refine", "RietX: sample on a calibrated "
+                                         "instrument")),
+          help="What is freed, and in what order.  The boxes below "
+               "free in McCusker's order: background and scale, line "
+               "positions, cell, widths, then the atoms.  RietX's own "
+               "plans ignore the boxes."),
+    Param("start", "2θ from", kind="float", default=0.0, minimum=0.0,
+          maximum=180.0, decimals=2, suffix=" °",
+          help="Where the fit starts (TOPAS start_X).  0 is the start "
+               "of the file."),
+    Param("finish", "2θ to", kind="float", default=0.0, minimum=0.0,
+          maximum=180.0, decimals=2, suffix=" °",
+          help="Where it stops (TOPAS finish_X).  0 is the end of the "
+               "file."),
+    Param("background_terms", "Background terms", kind="int",
+          default=8, minimum=1, maximum=30,
+          help="Coefficients of the Chebyshev background, TOPAS's bkg "
+               "line."),
+    Param("background", "Refine the background", kind="bool",
+          default=True,
+          help="The Chebyshev coefficients.  The scale is always "
+               "refined: a Rietveld fit with it held fits nothing."),
+    Param("zero", "Refine zero error", kind="bool", default=False,
+          help="A constant shift of every line (TOPAS Zero_Error).  "
+               "Strongly correlated with specimen displacement."),
+    Param("displacement", "Refine specimen displacement", kind="bool",
+          default=True,
+          help="A shift that falls off as cos θ (TOPAS "
+               "Specimen_Displacement).  Not refined for a synchrotron "
+               "capillary."),
+    Param("cell", "Refine the cell", kind="bool", default=True,
+          help="The numbers the space group leaves free, less any held "
+               "below."),
+    Param("hold", "Hold", kind="text", default="",
+          help="Cell numbers held while the rest refine: a b c alpha "
+               "beta gamma, separated by commas.  Empty refines every "
+               "free one."),
+    Param("profile", "Refine the peak shape", kind="bool", default=True,
+          help="The instrument's Caglioti U V W and Lorentzian X Y, W "
+               "first."),
+    Param("size", "Crystallite size broadening", kind="bool",
+          default=False,
+          help="Lorentzian and Gaussian size terms (TOPAS CS_L, CS_G)."),
+    Param("strain", "Strain broadening", kind="bool", default=False,
+          help="Lorentzian and Gaussian strain terms (TOPAS Strain_L, "
+               "Strain_G)."),
+    Param("positions", "Refine atom positions", kind="bool",
+          default=True,
+          help="Each atom along the directions its site allows: an "
+               "atom on a special position stays on it."),
+    Param("biso", "Refine displacement parameters", kind="bool",
+          default=True,
+          help="Biso of each atom (8π²U), or its anisotropic U where "
+               "the structure has one."),
+    Param("occupancy", "Refine occupancies", kind="bool", default=False,
+          help="Off unless the model says a site is partly filled: an "
+               "occupancy trades against the displacement parameter "
+               "and the scale."),
+    Param("preferred_axis", "Preferred orientation", kind="text",
+          default="",
+          help="The March-Dollase axis as h k l -- 0 0 1 for plates "
+               "lying on their c face.  Empty is no texture."),
+)
+
+
+def rietveld_options(values: dict):
+    from xtal.powder.pawley import parse_hold
+    from xtal.powder.rietveld import RietveldOptions, parse_axis
+
+    start = float(values.get("start", 0.0) or 0.0)
+    finish = float(values.get("finish", 0.0) or 0.0)
+    return RietveldOptions(
+        start=start or None, finish=finish or None,
+        background_terms=int(values.get("background_terms", 8)),
+        plan=str(values.get("plan", "") or ""),
+        background=bool(values.get("background", True)),
+        zero=bool(values.get("zero", False)),
+        displacement=bool(values.get("displacement", True)),
+        cell=bool(values.get("cell", True)),
+        hold_cell=parse_hold(values.get("hold", "")),
+        profile=bool(values.get("profile", True)),
+        size=bool(values.get("size", False)),
+        strain=bool(values.get("strain", False)),
+        positions=bool(values.get("positions", True)),
+        biso=bool(values.get("biso", True)),
+        occupancy=bool(values.get("occupancy", False)),
+        preferred_axis=parse_axis(values.get("preferred_axis", "")))
+
+
+def run_rietveld(job) -> JobResult:
+    """Refine the structure; leave ``fit.xy`` and ``refined.cif``.
+
+    Frames go out through ``job.update`` as the fit runs, no more often
+    than ``frame_interval`` seconds (the window's preview interval; not
+    a parameter of the fit, and negative for none); the refined
+    structure is the result's, for the window to commit.
+    """
+    from xtal.powder.data import PowderStopped
+    from xtal.powder.rietveld import rietveld
+
+    values = job.params
+    structure = job.structure
+    if structure is None or not structure.sites:
+        return JobResult.failure("Rietveld needs a structure: open one "
+                                 "and refine it from its window")
+    try:
+        data = _data_of(values)
+        options = rietveld_options(values)
+        job.say(f"Rietveld fit of {len(structure.sites)} sites")
+        interval = float(values.get("frame_interval", 0.2))
+        fit = rietveld(structure, data, radiation_of(values), options,
+                       on_frame=job.update if interval >= 0 else None,
+                       frame_interval=max(interval, 0.0),
+                       cancel=job.cancel, folder=job.path)
+    except PowderStopped:
+        return JobResult.stopped("Rietveld fit stopped")
+    except PowderError as exc:
+        return JobResult.failure(str(exc))
+    for note in fit.notes:
+        job.note(note)
+    artifacts = []
+    if job.folder is not None:
+        from xtal.io import write_cif
+
+        artifacts = [_write_fit(job.file("fit.xy"), fit, "Rietveld fit")]
+        path = job.file("refined.cif")
+        write_cif(fit.structure, path)
+        artifacts.append(path)
+        job.note("wrote fit.xy and refined.cif")
+    message = (f"Rietveld Rwp {100 * fit.rwp:.2f} %, GoF {fit.gof:.2f}; "
+               f"the furthest atom moved {fit.moved:.3f} Å")
+    if not fit.converged:
+        message += f" ({fit.status}, not converged)"
+    return JobResult(message=message, artifacts=tuple(artifacts),
+                     report=rietveld_report(fit, data.name), answer=fit)
+
+
+def rietveld_summary(fit) -> str:
+    """The fit's figures, as the result box shows them."""
+    names = ("a", "b", "c", "α", "β", "γ")
+    cell = "   ".join(
+        f"{n} {_with_esd(v, e)}" for n, v, e in
+        zip(names, fit.cell, fit.cell_esd, strict=True))
+    return (f"Rwp {100 * fit.rwp:.2f} %   Rp {100 * fit.rp:.2f} %   "
+            f"Rexp {100 * fit.rexp:.2f} %   GoF {fit.gof:.3f}\n"
+            f"{cell}\nthe furthest atom moved {fit.moved:.3f} Å"
+            + ("" if fit.converged else f"\n{fit.status}: not converged"))
+
+
+def rietveld_report(fit, name: str = "") -> Report:
+    rows = tuple(Row.of(path, f"{value:.6g}", f"{esd:.2g}" if esd else "")
+                 for path, (value, esd) in fit.refined.items())
+    return Report(
+        title=f"Rietveld, {name}" if name else "Rietveld",
+        blocks=(fit_curve(fit, "Rietveld fit", "reflections"),
+                Table(title=f"Refined ({len(rows)})",
+                      columns=("Parameter", "Value", "esd"), rows=rows)),
+        note=rietveld_summary(fit).replace("\n", ".  ")
+        + ("  " + "  ".join(fit.notes) if fit.notes else ""))
+
+
+# ======================================================================
 #  THE ENTRIES
 # ======================================================================
 
@@ -680,6 +920,10 @@ STEPS = (
            params=DATA_PARAMS + PAWLEY_PARAMS, run=run_pawley,
            needs_structure=False, listed=False,
            check=refine_available),
+    Action(name="rietveld", label="Rietveld",
+           tip="Refine a structure's atoms against the whole pattern",
+           params=DATA_PARAMS + RIETVELD_PARAMS, run=run_rietveld,
+           listed=False, check=refine_available),
 )
 
 #: What each step's own form shows in the workbench: the pattern and
@@ -691,4 +935,5 @@ STEP_PARAMS = {"peaks": tuple(p for p in PEAK_PARAMS
                               if p.name != "positions")
                + REFINE_PEAK_PARAMS,
                "index": INDEX_PARAMS,
-               "pawley": PAWLEY_PARAMS}
+               "pawley": PAWLEY_PARAMS,
+               "rietveld": RIETVELD_PARAMS}
