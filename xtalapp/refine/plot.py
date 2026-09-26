@@ -28,8 +28,8 @@ from xtalapp.widgets.tone import WARNING, set_tone
 
 __all__ = ["RefinementPlot"]
 
-#: Observed, calculated, background, difference, ticks.
-COLORS = ("0.15", "#d0473a", "0.6", "#3a6fb0", "#2f8f4e")
+#: Observed, calculated, background, difference, ticks, single lines.
+COLORS = ("0.15", "#d0473a", "0.6", "#3a6fb0", "#2f8f4e", "#8a5cc2")
 
 
 class RefinementPlot(QWidget):
@@ -42,6 +42,7 @@ class RefinementPlot(QWidget):
         self.available = installed()
         self.figure = None
         self._lines: dict = {}
+        self._components_shown = True
         if not self.available:
             label = QLabel(
                 f"The plot needs matplotlib: {install.command('pxrd')}"
@@ -151,6 +152,49 @@ class RefinementPlot(QWidget):
             self.axes.set_ylim(-(1.0 + 1.5 * rows) * 0.04 * top,
                                1.05 * top)
         self.canvas.draw_idle()
+
+    def set_components(self, background, curves) -> None:
+        """Each fitted line drawn on its own over the background, so a
+        person can see which line is carrying which part of a peak.
+
+        ``curves`` is one array per line on the observed grid, ``None``
+        for a line not drawn.  Drawn as one collection, and each line
+        only where it rises above a thousandth of its height: a list
+        of a hundred lines is a hundred short strokes, not a hundred
+        full-width traces.
+        """
+        if self.figure is None:
+            return
+        from matplotlib.collections import LineCollection
+
+        old = self._lines.pop("components", None)
+        if old is not None:
+            old.remove()
+        background = np.asarray(background, dtype=float)
+        segments = []
+        for curve in curves:
+            if curve is None or not np.any(curve > 0):
+                continue
+            curve = np.asarray(curve, dtype=float)
+            keep = np.flatnonzero(curve > 1e-3 * curve.max())
+            sl = slice(max(keep[0] - 1, 0), keep[-1] + 2)
+            segments.append(np.column_stack(
+                [self._x[sl], background[sl] + curve[sl]]))
+        if segments:
+            collection = LineCollection(segments, colors=COLORS[5],
+                                        linewidths=0.8, alpha=0.9)
+            collection.set_visible(self._components_shown)
+            self._lines["components"] = self.axes.add_collection(
+                collection)
+        self.canvas.draw_idle()
+
+    def show_components(self, shown: bool) -> None:
+        """The individual lines on or off, all together."""
+        self._components_shown = bool(shown)
+        collection = self._lines.get("components")
+        if collection is not None:
+            collection.set_visible(self._components_shown)
+            self.canvas.draw_idle()
 
     def show_calculated(self, calculated) -> None:
         """A new calculated curve on the same grid -- a live frame.

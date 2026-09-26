@@ -49,7 +49,8 @@ from xtal.powder.data import (
 
 __all__ = ["apply_phase", "cancel_token", "extinction_classes", "fit",
            "index_pattern", "instrument", "lattice_lines", "pattern",
-           "pawley", "phase_of", "reflections", "space_group_named",
+           "observed_peak", "pawley", "peak_list", "phase_of",
+           "reflections", "space_group_named",
            "predict", "space_group_symbol", "to_rietx"]
 
 #: B = 8π²U.  RietX refines B, as TOPAS does; a CIF and this
@@ -263,6 +264,48 @@ def pick_peaks(data: PowderData, radiation: Radiation, *,
         pattern(data), instrument(radiation), shoulders=shoulders,
         flag_contamination=flag_ghosts)
     return native, np.asarray(det.two_theta), np.asarray(det.envelope)
+
+
+def observed_peak(two_theta: float, two_theta_esd: float, area: float,
+                  area_esd: float, fwhm: float, eta: float,
+                  wavelength: float, *, group: int = 0, flags=(),
+                  origin: str = "fitted", chi2_red: float = 1.0):
+    """One line as RietX's indexing engines read it.
+
+    For a line this application fitted or a person placed, rather than
+    one RietX's detector found.  ``q`` is 1/d^2 and its esd follows
+    from the position's; a line with no esd yet (placed, not fitted)
+    is given 0.01 deg and flagged ``sigma_assumed``, RietX's own word
+    for that.
+    """
+    from rietx.schemas.indexing import ObservedPeak
+
+    flags = list(flags)
+    if not (two_theta_esd > 0 and np.isfinite(two_theta_esd)):
+        two_theta_esd = 0.01
+        flags.append("sigma_assumed")
+    theta = np.radians(two_theta / 2.0)
+    q = (2.0 * np.sin(theta) / wavelength) ** 2
+    dq = 2.0 * np.sin(2.0 * theta) / wavelength ** 2 * np.radians(1.0)
+    return ObservedPeak(
+        two_theta=float(two_theta), two_theta_esd=float(two_theta_esd),
+        intensity=float(area),
+        intensity_esd=float(area_esd) if np.isfinite(area_esd) else 0.0,
+        q=float(q), q_esd=float(abs(dq) * two_theta_esd),
+        fwhm=float(fwhm), eta=float(eta), group=int(group),
+        n_in_group=1, chi2_red=float(chi2_red), flags=flags,
+        origin=origin)
+
+
+def peak_list(lines, wavelength: float, two_theta_min: float,
+              two_theta_max: float):
+    """RietX's peak list from lines made by :func:`observed_peak`."""
+    from rietx.schemas.indexing import PeakList
+
+    return PeakList(peaks=list(lines), wavelength=float(wavelength),
+                    two_theta_min=float(two_theta_min),
+                    two_theta_max=float(two_theta_max),
+                    source="positions", diagnostics=[])
 
 
 def fit_peaks_at(data: PowderData, radiation: Radiation, positions):

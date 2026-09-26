@@ -33,11 +33,15 @@ from pathlib import Path
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
+    QCheckBox,
+    QComboBox,
     QFileDialog,
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QLineEdit,
     QListWidget,
     QMainWindow,
     QPushButton,
@@ -67,6 +71,10 @@ __all__ = ["RefinementWorkbench"]
 #: ``(action name, list label)``, in the order a refinement goes.
 STEPS = (("peaks", "Peaks"), ("index", "Index"), ("pawley", "Pawley"))
 
+#: What the Run button says on each step.
+RUN_LABELS = {"peaks": "Find peaks", "index": "Index",
+              "pawley": "Fit Pawley"}
+
 PEAK_HEADERS = ("Use", "2θ (°)", "esd", "d (Å)", "Area", "FWHM (°)",
                 "Flags")
 
@@ -87,6 +95,7 @@ class RefinementWorkbench(QMainWindow):
         self.cells = None                   # xtal.powder.index.IndexResult
         self.pawley = None                  # xtal.powder.pawley.PawleyFit
         self._running = ""
+        self._cell_rows: list = []
         self.worker: ModuleWorker | None = None
         self._folder = None
         self._entry = None
@@ -124,13 +133,13 @@ class RefinementWorkbench(QMainWindow):
         splitter.addWidget(middle)
         splitter.addWidget(self._side())
         splitter.setStretchFactor(1, 1)
-        splitter.setSizes([120, 660, 420])
+        splitter.setSizes([120, 1150, 450])
         self.setCentralWidget(splitter)
         self.steps.currentRowChanged.connect(self.forms.setCurrentIndex)
         self.steps.currentRowChanged.connect(self.tables.setCurrentIndex)
         self.steps.currentRowChanged.connect(self._redraw)
         self.steps.setCurrentRow(0)
-        self.resize(1200, 760)
+        self.resize(*_default_size())
         self._fill_from_structure()
         self._show_pawley_result()
         self._on_radiation()
@@ -176,14 +185,24 @@ class RefinementWorkbench(QMainWindow):
                 box_layout.addWidget(self.bravais)
             self.step_forms[name] = ParamForm(params)
             box_layout.addWidget(self.step_forms[name])
+            if name == "peaks":
+                box_layout.addWidget(self._peaks_box())
+            if name == "index":
+                box_layout.addLayout(self._index_box())
             if name == "pawley":
+                # six numbers to three and five decimals
+                self.step_forms[name].widgets["cell"].setMinimumWidth(
+                    self.fontMetrics().horizontalAdvance("0" * 44))
                 box_layout.addWidget(self._pawley_box())
+            # the stack is as tall as its tallest step; a shorter one
+            # sits at the top rather than spread down the column
+            box_layout.addStretch(1)
             self.forms.addWidget(box)
         layout.addWidget(self.forms)
 
         buttons = QHBoxLayout()
-        self.run_button = QPushButton("Run")
-        self.run_button.clicked.connect(self.run_step)
+        self.run_button = QPushButton(RUN_LABELS["peaks"])
+        self.run_button.clicked.connect(lambda: self.run_step())
         self.stop_button = QPushButton("Stop")
         self.stop_button.clicked.connect(self.stop)
         buttons.addWidget(self.run_button)
@@ -203,6 +222,65 @@ class RefinementWorkbench(QMainWindow):
                              + area.verticalScrollBar().sizeHint().width())
         return area
 
+    def _peaks_box(self) -> QWidget:
+        """Lines placed by hand, Refine, and the single-line overlay."""
+        box = QWidget()
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(0, 0, 0, 0)
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Add peaks at"))
+        self.add_edit = QLineEdit()
+        self.add_edit.setPlaceholderText("2θ, separated by commas")
+        self.add_edit.setToolTip(
+            "Place lines by hand where Find peaks missed one -- a "
+            "shoulder, a weak line.  They are fitted by Refine.")
+        self.add_edit.returnPressed.connect(self.add_peaks)
+        row.addWidget(self.add_edit, 1)
+        self.add_button = QPushButton("Add")
+        self.add_button.clicked.connect(self.add_peaks)
+        row.addWidget(self.add_button)
+        layout.addLayout(row)
+        self.refine_button = QPushButton("Refine peaks")
+        self.refine_button.setToolTip(
+            "Fit the lines in use together over the whole range, on a "
+            "Chebyshev background of the terms above: position, area "
+            "and width of each.  Lines out of use are removed.")
+        self.refine_button.clicked.connect(
+            lambda: self.run_step("refine_peaks"))
+        layout.addWidget(self.refine_button)
+        self.components_box = QCheckBox("Show individual peaks")
+        self.components_box.setChecked(True)
+        self.components_box.setToolTip(
+            "Draw each line in use on its own over the background")
+        self.components_box.toggled.connect(self.plot.show_components)
+        layout.addWidget(self.components_box)
+        return box
+
+    def _index_box(self) -> QVBoxLayout:
+        """How the cell table is ordered, and where a row goes."""
+        layout = QVBoxLayout()
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Sort cells by"))
+        self.sort_box = QComboBox()
+        for key, label in steps.INDEX_SORTS:
+            self.sort_box.addItem(label, key)
+        self.sort_box.setToolTip(
+            "GoF ranks by how well the line positions are explained; "
+            "GoF / (unindexed + 1) makes a cell pay for each line it "
+            "leaves unexplained, as TOPAS's second ordering does.  "
+            "RietX's rank weighs its whole figure-of-merit panel and "
+            "whether its engines agree.")
+        self.sort_box.currentIndexChanged.connect(
+            lambda _i: self._fill_cells())
+        row.addWidget(self.sort_box, 1)
+        layout.addLayout(row)
+        hint = QLabel("The highlighted cell and its space group are "
+                      "copied into the Pawley step.")
+        hint.setWordWrap(True)
+        set_tone(hint, HINT)
+        layout.addWidget(hint)
+        return layout
+
     def _pawley_box(self) -> QGroupBox:
         """The fit's figures, and the two things a cell is for."""
         box = QGroupBox("Result")
@@ -221,6 +299,18 @@ class RefinementWorkbench(QMainWindow):
         self.new_button.clicked.connect(self.new_structure)
         layout.addWidget(self.apply_button)
         layout.addWidget(self.new_button)
+        explain = QLabel(
+            "A Pawley fit has no atoms: it refines a cell, and each "
+            "reflection's intensity is a free number.  <b>Apply cell to "
+            "the structure</b> puts the refined a, b, c, α, β, γ on the "
+            "structure this window was opened over, its atoms kept at "
+            "the same fractional coordinates -- one undo step.  "
+            "<b>New structure from this cell</b> opens an empty "
+            "structure in a new tab, with this cell and space group "
+            "and no atoms, to build or solve a structure in.")
+        explain.setWordWrap(True)
+        set_tone(explain, HINT)
+        layout.addWidget(explain)
         return box
 
     def _on_radiation(self) -> None:
@@ -239,6 +329,11 @@ class RefinementWorkbench(QMainWindow):
         path, _filter = QFileDialog.getOpenFileName(
             self, "Load a measured pattern", start,
             "Powder pattern (*.xy *.xye);;All files (*)")
+        # A native file dialog hands activation back to the main
+        # window when it closes, which then stands in front of this one
+        # as though it had closed.
+        self.raise_()
+        self.activateWindow()
         if path:
             self.load_pattern(path)
 
@@ -262,6 +357,10 @@ class RefinementWorkbench(QMainWindow):
         self._fill_cells()
         self._fill_reflections()
         self._show_pawley_result()
+        # the range a fit runs over starts as the whole measurement
+        lo, hi = data.range
+        for step in ("peaks", "pawley"):
+            self.step_forms[step].set_values({"start": lo, "finish": hi})
         self.say(f"loaded {Path(path).name}")
         self._refresh()
         return True
@@ -272,13 +371,18 @@ class RefinementWorkbench(QMainWindow):
     def current_step(self) -> str:
         return STEPS[max(self.steps.currentRow(), 0)][0]
 
+    def _form_of(self, action: str) -> str:
+        """The step whose form an action reads: Refine peaks is the
+        Peaks step's second button."""
+        return "peaks" if action == "refine_peaks" else action
+
     def values(self, step: str | None = None) -> dict:
         """Everything the step's ``run`` is handed.
 
         Indexing is handed the peak form's values too: with no peaks
         fitted yet it fits them itself, as the Peaks step would.
         """
-        step = step or self.current_step
+        step = self._form_of(step or self.current_step)
         values = {"xy": str(self.data.path) if self.data is not None
                   and self.data.path is not None else ""}
         values.update(self.data_form.values())
@@ -288,10 +392,15 @@ class RefinementWorkbench(QMainWindow):
         values.update(self.step_forms[step].values())
         return values
 
-    def run_step(self) -> None:
+    def run_step(self, name: str | None = None) -> None:
+        """Run a step's action -- the current step's, or ``name``."""
         if self.worker is not None or self.data is None:
             return
-        name = self.current_step
+        name = name or self.current_step
+        if name == "refine_peaks" and self.peaks is None:
+            self.say("Find peaks (or add some) before refining them",
+                     warn=True)
+            return
         action = self.module.action(name)
         available = action.availability()
         if not available:
@@ -314,7 +423,7 @@ class RefinementWorkbench(QMainWindow):
         """What the step before hands this one: for indexing, the
         peaks as they are ticked now.  A copy of the ticks, so an
         untick made while the search runs is the next run's."""
-        if name != "index" or self.peaks is None:
+        if name not in ("index", "refine_peaks") or self.peaks is None:
             return None
         return dataclasses.replace(
             self.peaks,
@@ -361,7 +470,8 @@ class RefinementWorkbench(QMainWindow):
         self.worker = None
         step, self._running = self._running, ""
         answer = result.answer if result.ok else None
-        if step == "peaks" and answer and not result.cancelled:
+        if step in ("peaks", "refine_peaks") and answer \
+                and not result.cancelled:
             self.peaks, self.cells = answer, None
             self._show_peaks()
             self._fill_cells()
@@ -391,6 +501,7 @@ class RefinementWorkbench(QMainWindow):
         fit = self.peaks
         self.plot.show_fit(fit.two_theta, fit.y_obs, fit.y_calc,
                            fit.y_background, self._used_positions())
+        self.plot.set_components(fit.y_background, fit.curves())
         self._fill_table()
 
     def _used_positions(self):
@@ -426,11 +537,23 @@ class RefinementWorkbench(QMainWindow):
         self.peaks.peaks[item.row()].use = \
             item.checkState() == Qt.Checked
         self.plot.set_ticks(self._used_positions())
+        self.plot.set_components(self.peaks.y_background,
+                                 self.peaks.curves())
         self.say(f"{self.peaks.n_used} of {len(self.peaks.peaks)} "
                  f"lines in use for indexing")
 
     def _fill_cells(self) -> None:
-        rows = self.cells.rows if self.cells is not None else []
+        rows = [] if self.cells is None else steps.sorted_rows(
+            self.cells, self.sort_box.currentData() or "rank")
+        self._cell_rows = rows
+        gof = self.cell_table.horizontalHeaderItem(
+            steps.INDEX_COLUMNS.index("GoF"))
+        name = steps.gof_name(self.cells) if self.cells is not None \
+            else "--"
+        gof.setToolTip(
+            f"{name}: how well the cell explains the line positions, "
+            f"higher better -- the figure TOPAS calls GOF.  M20 when "
+            f"20 or more lines are in use, RietX's M_sym below that.")
         self.cell_table.blockSignals(True)
         self.cell_table.clearSelection()
         self.cell_table.setRowCount(len(rows))
@@ -466,7 +589,7 @@ class RefinementWorkbench(QMainWindow):
             return
         from xtal.powder.index import lines_of
 
-        row = self.cells.rows[chosen[0].row()]
+        row = self._cell_rows[chosen[0].row()]
         self.plot.set_reflections(lines_of(
             row, self.cells.wavelength, self.cells.two_theta_range))
         a, b, c, alpha, beta, gamma = row.cell
@@ -474,6 +597,35 @@ class RefinementWorkbench(QMainWindow):
             "cell": f"{a:.5f} {b:.5f} {c:.5f} {alpha:.3f} {beta:.3f} "
                     f"{gamma:.3f}",
             "space_group": row.fit_group})
+
+    def add_peaks(self) -> None:
+        """Lines placed by hand at the typed 2θ, in use and unfitted."""
+        if self.data is None:
+            return
+        try:
+            positions = steps._positions(self.add_edit.text())
+            if not positions:
+                return
+            if self.peaks is None:
+                from xtal.powder.peaks import empty_fit
+
+                self.peaks = empty_fit(self.data,
+                                       steps.radiation_of(self.values()),
+                                       *self._peak_range())
+            added = self.peaks.add(positions, self.data)
+        except PowderError as exc:
+            self.say(str(exc), warn=True)
+            return
+        self.add_edit.clear()
+        self._show_peaks()
+        self.say(f"added {len(added)} line(s) -- Refine peaks fits them")
+        self._refresh()
+
+    def _peak_range(self) -> tuple[float, float]:
+        values = self.step_forms["peaks"].values()
+        lo, hi = self.data.range
+        return (max(float(values.get("start") or lo), lo),
+                min(float(values.get("finish") or hi), hi))
 
     # -- Pawley --------------------------------------------------------
 
@@ -591,6 +743,10 @@ class RefinementWorkbench(QMainWindow):
         self.run_button.setEnabled(can_run and not running)
         self.stop_button.setEnabled(running)
         self.load_button.setEnabled(not running)
+        self.run_button.setText(RUN_LABELS[self.current_step])
+        self.refine_button.setEnabled(can_run and not running
+                                      and self.peaks is not None)
+        self.add_button.setEnabled(self.data is not None and not running)
         if not powder.available():
             self.run_button.setToolTip(powder.missing())
         elif self.data is None:
@@ -618,3 +774,15 @@ def _table(headers, rows: bool = False) -> QTableWidget:
         table.setSelectionMode(QAbstractItemView.SingleSelection)
         table.setEditTriggers(QAbstractItemView.NoEditTriggers)
     return table
+
+
+def _default_size() -> tuple[int, int]:
+    """Wide enough for every column of the cell table beside the form,
+    and never larger than the screen it opens on."""
+    width, height = 1720, 1000
+    screen = QApplication.primaryScreen()
+    if screen is not None:
+        available = screen.availableGeometry()
+        width = min(width, int(0.95 * available.width()))
+        height = min(height, int(0.92 * available.height()))
+    return width, height

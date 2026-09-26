@@ -106,3 +106,96 @@ def test_the_steps_stay_out_of_the_modules_menu():
         ["simulate", "refine"]
     assert not pxrd.action("peaks").listed
     assert pxrd.action("refine").shell == "refine_workbench"
+
+
+# -- refining ------------------------------------------------------------
+
+def test_refining_keeps_only_the_lines_in_use_and_fits_the_pattern(
+        fit, rutile_xy, rutile):
+    """Refine is what a person does once the list is the list: an
+    unticked line is one they have said is not there."""
+    from xtal.powder.peaks import refine_peaks
+
+    weakest = min((p for p in fit.peaks if p.use), key=lambda p: p.area)
+    weakest.use = False
+    refined = refine_peaks(PowderData.from_xy(rutile_xy), Radiation("cu"),
+                           fit, background_terms=6)
+    assert len(refined.peaks) == fit.n_used
+    assert all(abs(p.two_theta - weakest.two_theta) > 1e-3
+               for p in refined.peaks)
+    residual = refined.y_obs - refined.y_calc
+    assert np.sqrt(np.mean(residual ** 2)) < 0.01 * refined.y_obs.max()
+    assert refined.rwp < 0.12
+    used = np.array([p.two_theta for p in refined.peaks])
+    for expected in _rutile_lines(rutile):
+        assert np.min(np.abs(used - expected)) < 0.005, expected
+    assert all(0 < p.two_theta_esd < 0.05 for p in refined.peaks
+               if p.area > 50)
+
+
+def test_a_line_added_by_hand_is_fitted_and_reaches_indexing(
+        fit, rutile_xy):
+    """Where Find missed a line, a person places it; Refine fits it,
+    and indexing is told it was placed by hand."""
+    from xtal.powder.peaks import refine_peaks
+
+    data = PowderData.from_xy(rutile_xy)
+    strongest = max(fit.peaks, key=lambda p: p.area)
+    strongest.use = False
+    without = refine_peaks(data, Radiation("cu"), fit)
+    assert all(abs(p.two_theta - 27.434) > 0.05 for p in without.peaks)
+    (placed,) = without.add([27.40], data)
+    assert placed.use and placed.origin == "manual"
+    refined = refine_peaks(data, Radiation("cu"), without)
+    again = min(refined.peaks, key=lambda p: abs(p.two_theta - 27.434))
+    assert again.two_theta == pytest.approx(27.434, abs=0.003)
+    assert again.origin == "manual"
+    line = next(line for line in refined.for_indexing().peaks
+                if abs(line.two_theta - again.two_theta) < 1e-9)
+    assert line.origin == "manual"
+
+
+def test_a_line_placed_outside_the_range_is_refused(fit, rutile_xy):
+    from xtal.powder.data import PowderError
+
+    with pytest.raises(PowderError, match="outside"):
+        fit.add([95.0], PowderData.from_xy(rutile_xy))
+
+
+def test_each_line_is_drawn_alone_and_one_out_of_use_not_at_all(
+        fit, rutile_xy):
+    """The overlay: the lines in use sum, over the background, to the
+    calculated curve; an unticked line has no curve to draw."""
+    from xtal.powder.peaks import refine_peaks
+
+    refined = refine_peaks(PowderData.from_xy(rutile_xy), Radiation("cu"),
+                           fit)
+    curves = refined.curves()
+    # the fit evaluates each line out to 15 widths, the overlay the
+    # whole range: the tails beyond differ by less than the noise
+    summed = refined.y_background + np.sum(curves, axis=0)
+    assert np.max(np.abs(summed - refined.y_calc)) < \
+        1e-3 * refined.y_calc.max()
+    refined.peaks[0].use = False
+    assert refined.curves()[0] is None
+
+
+def test_refining_with_no_line_in_use_is_refused(fit, rutile_xy):
+    from xtal.powder.data import PowderError
+    from xtal.powder.peaks import refine_peaks
+
+    for peak in fit.peaks:
+        peak.use = False
+    with pytest.raises(PowderError, match="tick at least one"):
+        refine_peaks(PowderData.from_xy(rutile_xy), Radiation("cu"), fit)
+
+
+def test_peak_refinement_runs_headless(rutile_xy, tmp_path, capsys):
+    from xtal.cli import main
+
+    workspace = tmp_path / "ws"
+    assert main(["run", "pxrd.refine_peaks", "-p", f"xy={rutile_xy}",
+                 "-p", "background_terms=5", "--workspace",
+                 str(workspace), "-q"]) == 0
+    assert "Rwp" in capsys.readouterr().out
+    assert list(workspace.rglob("peaks.csv"))

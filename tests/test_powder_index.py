@@ -20,8 +20,10 @@ from xtal.powder.index import (  # noqa: E402
 from xtal.powder.peaks import PeakOptions, fit_peaks  # noqa: E402
 
 #: Rutile's cell is 4.594 x 2.959 A, so a 6 A bound on the search
-#: holds it and costs seconds rather than the minute 25 A does.
-SMALL = dict(longest_axis=6.0, budget=20.0)
+#: holds it and costs seconds rather than the minutes 50 A does.  The
+#: allowance is RietX's own measured one: the 1° default ranks a wrong
+#: cell first on this pattern, from 0.5° up.
+SMALL = dict(longest_axis=6.0, budget=20.0, zero_error=0.0)
 
 
 def _peaks(path):
@@ -126,7 +128,8 @@ def test_leaving_tetragonal_unticked_never_returns_a_tetragonal_cell(
     finds it -- and must not wander back into the lattice that was
     left unticked."""
     result = _index(rutile_xy_shared, bravais=frozenset({"oP"}),
-                    rank_groups=0, longest_axis=6.0, budget=8.0)
+                    rank_groups=0, longest_axis=6.0, budget=8.0,
+                    zero_error=0.0)
     assert result.rows
     assert {row.system for row in result.rows} == {"orthorhombic"}
     assert result.systems_searched == ("orthorhombic",)
@@ -179,8 +182,33 @@ def test_the_index_step_runs_headless_and_leaves_its_table(
     assert main(["run", "pxrd.index", "-p", f"xy={rutile_xy_shared}",
                  "-p", "bravais=tP", "-p", "longest_axis=6",
                  "-p", "budget=10", "-p", "rank_groups=0",
+                 "-p", "zero_error=0",
                  "--workspace", str(workspace), "-q"]) == 0
     assert "Cells (" in capsys.readouterr().out
     cells = next(workspace.rglob("cells.csv")).read_text().splitlines()
     assert cells[0].startswith("rank,system,lattice,a,b,c")
     assert cells[1].split(",")[2] == "tP"
+
+
+def test_cells_sort_by_gof_or_by_gof_over_the_unindexed_lines():
+    """TOPAS's two orderings.  The one is so that a cell indexing
+    every line is not a division by zero."""
+    from xtal.modules.powder import sorted_rows
+    from xtal.powder.index import IndexResult, IndexRow
+
+    def row(rank, gof, unindexed):
+        return IndexRow(rank=rank, system="cubic", centring="P",
+                        cell=(5, 5, 5, 90, 90, 90), cell_esd=(0,) * 6,
+                        volume=125, fom=("m20", gof), n_indexed=20,
+                        n_lines=20 + unindexed, confidence="low",
+                        caveats=(), lebail_rwp=None, found_by=())
+
+    rows = [row(1, 10.0, 0), row(2, 30.0, 4), row(3, 20.0, 1)]
+    result = IndexResult(rows=rows, best=None, stopped=False,
+                         systems_searched=(), complete={}, wavelength=1.5,
+                         two_theta_range=(5, 50))
+    assert [r.rank for r in sorted_rows(result, "gof")] == [2, 3, 1]
+    assert [r.rank for r in sorted_rows(result, "gof_unindexed")] == \
+        [1, 3, 2]
+    assert [r.rank for r in sorted_rows(result)] == [1, 2, 3]
+    assert rows[1].gof_per_unindexed == pytest.approx(6.0)

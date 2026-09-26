@@ -128,18 +128,19 @@ class IndexOptions:
     ``zero_error`` is the systematic 2θ allowance the matching must
     span, TOPAS's ``index_zero_error``; 0 lets RietX measure one from
     line pairs or assume its own.  ``max_volume`` 0 takes the envelope
-    from the data.  ``longest_axis`` bounds the search's d(100); a
-    framework's cell is often longer than RietX's 25 A, and raising
-    it costs time.  ``budget`` is the whole run's ceiling in seconds.
+    from the data.  ``longest_axis`` bounds the search's d(100); 50 A
+    holds a framework's cell, where RietX's own 25 A does not, and
+    lowering it for a small cell saves most of the time.  ``budget``
+    is the whole run's ceiling in seconds.
     ``rank_groups`` is how many of the top cells get their extinction
     classes ranked -- one Le Bail fit per class each.
     """
 
     bravais: frozenset[str] = frozenset(s for s, _l in BRAVAIS)
     space_groups: str = ""
-    zero_error: float = 0.0
+    zero_error: float = 1.0
     max_volume: float = 0.0
-    longest_axis: float = 25.0
+    longest_axis: float = 50.0
     budget: float = 60.0
     rank_groups: int = 3
 
@@ -192,6 +193,20 @@ class IndexRow:
     @property
     def unindexed(self) -> int:
         return self.n_lines - self.n_indexed
+
+    @property
+    def gof(self) -> float | None:
+        """The figure of merit, as TOPAS's indexing GOF: higher is a
+        cell that explains the line positions better."""
+        return None if self.fom is None else float(self.fom[1])
+
+    @property
+    def gof_per_unindexed(self) -> float | None:
+        """GoF over (unindexed lines + 1), TOPAS's second ordering: a
+        cell that leaves lines unexplained pays for each.  The one is
+        so a cell indexing everything is not a division by zero."""
+        gof = self.gof
+        return None if gof is None else gof / (self.unindexed + 1)
 
     @property
     def fit_group(self) -> str:

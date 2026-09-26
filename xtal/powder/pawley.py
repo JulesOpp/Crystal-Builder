@@ -50,11 +50,11 @@ class PawleyOptions:
     start: float | None = None
     finish: float | None = None
     background_terms: int = 8
-    zero: bool = True
-    displacement: bool = False
+    zero: bool = False
+    displacement: bool = True
     refine_cell: bool = True
-    size: bool = False
-    strain: bool = False
+    size: bool = True
+    strain: bool = True
 
     def free(self, radiation: Radiation) -> tuple[str, ...]:
         """The RietX groups freed, in the bridge's words.

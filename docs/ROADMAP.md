@@ -1251,6 +1251,22 @@ to Rietveld* is ticked.
 | **8 — Pareto** | A weight sweep written point by point, the non-dominated front, the knee suggested; a point opens its structure | `xtal/modules/powder.py` | M |
 | **9 — Packaging, CI, docs** | rietx and its data in the bundle, `NUMBA_CACHE_DIR` writable, `--selftest`; CI installs `refine` if the tests stay short | `packaging/`, `.github/workflows/ci.yml` | S-M |
 
+Revised 2026-09-25 after Julius used phases 1-4.  The Peaks step
+gained *Refine peaks* -- one least-squares fit of the lines in use
+over a Chebyshev background of *Background terms*, the unticked lines
+dropped (`peaks.refine_peaks`, ours on `scipy`: RietX has no
+whole-pattern peak fit without a cell) -- lines placed by hand at typed
+2θ, and each line drawn on its own with a toggle; *Run* says what the
+step does.  Indexing: a box per crystal system, the zero allowance
+0-1° in 0.1° steps defaulting to 1°, the longest axis to 50 Å, a GoF
+column (M20, or M_sym under twenty lines) and sorting by GoF or GoF /
+(unindexed + 1).  **Measured: at a 1° allowance a wrong cell ranks
+first on rutile** (right up to 0.3°, wrong from 0.5°), and the tests
+pin 0.  Pawley defaults to displacement, cell, size and strain free
+and zero held.  Fit ranges start at the data's own.  The window no
+longer falls behind the main one after Load .xy (a native dialog hands
+activation back).
+
 What the phases must keep: a refinement moves atoms and never adds,
 removes or bonds them (site count asserted, `hold_perception`); dummy
 atoms held back at the door; the result goes to the document the run

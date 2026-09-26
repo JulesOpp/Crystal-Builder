@@ -95,6 +95,18 @@ PEAK_PARAMS = (
 )
 
 
+#: What Refine adds to the peak step.
+REFINE_PEAK_PARAMS = (
+    Param("background_terms", "Background terms", kind="int",
+          default=8, minimum=1, maximum=30,
+          help="Coefficients of the Chebyshev background Refine fits "
+               "under the lines (TOPAS's bkg line).  More follow a "
+               "curved or humped background; too many start fitting "
+               "the tails of broad peaks.  Find peaks draws its own "
+               "background and does not read this."),
+)
+
+
 def radiation_of(values: dict) -> Radiation:
     """The :class:`Radiation` a step's parameters describe."""
     monochromator = float(values.get("monochromator", 0.0) or 0.0)
@@ -149,6 +161,44 @@ def run_peaks(job) -> JobResult:
                  f"{fit.n_used} usable for indexing"),
         artifacts=tuple(artifacts), report=peaks_report(fit, data.name),
         answer=fit)
+
+
+def run_refine_peaks(job) -> JobResult:
+    """Refine the lines in use together; leave ``peaks.csv`` and
+    ``fit.xy``.
+
+    The lines are the ones the job was handed -- the workbench's,
+    with its unticks and the lines added by hand -- or, run on its
+    own, found here first (or fitted at ``positions``).
+    """
+    from xtal.powder.data import PowderStopped
+    from xtal.powder.peaks import refine_peaks
+
+    values = job.params
+    try:
+        if job.given is not None:
+            fit, radiation = job.given, job.given.radiation
+            data = _data_of(values)
+        else:
+            job.say("finding the peaks first")
+            data, radiation, fit = _fit_peaks(values)
+        job.say(f"refining {fit.n_used} lines together")
+        refined = refine_peaks(
+            data, radiation, fit,
+            int(values.get("background_terms", 8)), cancel=job.cancel)
+    except PowderStopped:
+        return JobResult.stopped("peak refinement stopped")
+    except PowderError as exc:
+        return JobResult.failure(str(exc))
+    for note in refined.notes:
+        job.note(note)
+    artifacts = _write_peaks(job, refined) \
+        if job.folder is not None else []
+    return JobResult(
+        message=(f"{len(refined.peaks)} peaks refined in {data.name}, "
+                 f"Rwp {100 * refined.rwp:.2f} %"),
+        artifacts=tuple(artifacts),
+        report=peaks_report(refined, data.name), answer=refined)
 
 
 def _fit_peaks(values: dict):
@@ -240,20 +290,26 @@ INDEX_PARAMS = (
                "lattices and only the extinction classes holding one "
                "are listed.  Empty is every group."),
     Param("zero_error", "Zero error allowance", kind="float",
-          default=0.0, minimum=0.0, maximum=1.0, decimals=3,
+          default=1.0, minimum=0.0, maximum=1.0, step=0.1, decimals=3,
           suffix=" °",
           help="How far a systematic 2θ shift may move the lines, "
-               "TOPAS's index_zero_error.  0 lets RietX measure it "
-               "from line pairs, or assume 0.05°."),
+               "TOPAS's index_zero_error, from 0 to 1°.  0 lets RietX "
+               "measure it from line pairs, or assume 0.05°.  A wide "
+               "allowance finds a cell through a badly aligned "
+               "sample and lets wrong cells match too: on a clean "
+               "rutile pattern the right cell ranks first up to 0.3° "
+               "and a wrong one does from 0.5°."),
     Param("max_volume", "Largest volume", kind="float", default=0.0,
           minimum=0.0, maximum=1e6, decimals=0, suffix=" Å³",
           help="The largest cell to report.  0 takes the bound from "
                "the number of lines and their positions."),
-    Param("longest_axis", "Longest axis", kind="float", default=25.0,
+    Param("longest_axis", "Longest axis", kind="float", default=50.0,
           minimum=5.0, maximum=100.0, decimals=1, suffix=" Å",
-          help="The longest cell axis searched (strictly, d(100)).  A "
-               "framework's cell is often longer than 25 Å; raising "
-               "this costs time, lowering it saves a lot."),
+          help="The longest cell axis searched (strictly, d(100)).  "
+               "50 Å holds most frameworks' cells.  The search grows "
+               "fast with it: a cell known to be small is found in "
+               "seconds with this lowered, and 50 Å over the low "
+               "symmetries can use the whole time budget."),
     Param("budget", "Time budget", kind="float", default=60.0,
           minimum=1.0, maximum=3600.0, decimals=0, suffix=" s",
           help="The most the search and its validation may take.  "
@@ -267,8 +323,15 @@ INDEX_PARAMS = (
 )
 
 INDEX_COLUMNS = ("Rank", "System", "Lattice", "a", "b", "c", "α", "β",
-                 "γ", "V (Å³)", "FoM", "Unindexed", "Confidence",
-                 "Le Bail Rwp", "Space groups")
+                 "γ", "V (Å³)", "GoF", "Unindexed", "GoF/(Unind.+1)",
+                 "Confidence", "Le Bail Rwp", "Space groups")
+
+#: How the cell table can be ordered: ``(key, label)``.  TOPAS sorts
+#: its .ndx by GOF or by GOF over the unindexed lines; RietX's own
+#: rank weighs its whole figure-of-merit panel and the engines'
+#: agreement.
+INDEX_SORTS = (("rank", "RietX's rank"), ("gof", "GoF"),
+               ("gof_unindexed", "GoF / (unindexed + 1)"))
 
 
 #: RietX's figure-of-merit keys as the literature writes them.
@@ -283,9 +346,9 @@ def index_options(values: dict):
     return IndexOptions(
         bravais=parse_bravais(values.get("bravais", "all")),
         space_groups=str(values.get("space_groups", "") or ""),
-        zero_error=float(values.get("zero_error", 0.0) or 0.0),
+        zero_error=float(values.get("zero_error", 1.0) or 0.0),
         max_volume=float(values.get("max_volume", 0.0) or 0.0),
-        longest_axis=float(values.get("longest_axis", 25.0) or 25.0),
+        longest_axis=float(values.get("longest_axis", 50.0) or 50.0),
         budget=float(values.get("budget", 60.0) or 60.0),
         rank_groups=int(values.get("rank_groups", 3)))
 
@@ -342,17 +405,37 @@ def _range_of(fit) -> tuple[float, float]:
     return float(fit.two_theta[0]), float(fit.two_theta[-1])
 
 
+def gof_name(result) -> str:
+    """Which figure the GoF column is, for its header: one figure for
+    every row of a run, because every row was scored on the same
+    lines."""
+    names = {row.fom[0] for row in result.rows if row.fom}
+    return ", ".join(FOM_NAMES[n] for n in sorted(names)) or "--"
+
+
+def sorted_rows(result, key: str = "rank") -> list:
+    """The rows in the order ``key`` (an :data:`INDEX_SORTS` key) asks,
+    best first; a row with no figure goes last."""
+    rows = list(result.rows)
+    if key == "gof":
+        return sorted(rows, key=lambda r: -(r.gof or -1.0))
+    if key == "gof_unindexed":
+        return sorted(rows, key=lambda r: -(r.gof_per_unindexed or -1.0))
+    return sorted(rows, key=lambda r: r.rank)
+
+
 def index_cells(row) -> tuple[str, ...]:
     """A row's cell, as the table writes it."""
     a, b, c, alpha, beta, gamma = row.cell
-    fom = f"{FOM_NAMES[row.fom[0]]} {row.fom[1]:.1f}" if row.fom \
-        else "--"
+    fom = f"{row.gof:.2f}" if row.gof is not None else "--"
+    per = f"{row.gof_per_unindexed:.2f}" \
+        if row.gof_per_unindexed is not None else "--"
     rwp = f"{100 * row.lebail_rwp:.2f} %" \
         if row.lebail_rwp is not None else "not validated"
     return (str(row.rank), row.system, row.bravais, f"{a:.5f}",
             f"{b:.5f}", f"{c:.5f}", f"{alpha:.3f}", f"{beta:.3f}",
             f"{gamma:.3f}", f"{row.volume:.2f}", fom,
-            str(row.unindexed), row.confidence, rwp,
+            str(row.unindexed), per, row.confidence, rwp,
             row.space_groups if row.classes is not None else "--")
 
 
@@ -374,7 +457,9 @@ def index_report(result, name: str = "") -> Report:
         title=f"Indexing, {name}" if name else "Indexing",
         blocks=(Table(title=f"Cells ({len(rows)})",
                       columns=INDEX_COLUMNS, rows=rows,
-                      note="Space groups are the most likely "
+                      note=f"GoF is {gof_name(result)}: how well the "
+                           "cell explains the line positions, higher "
+                           "better.  Space groups are the most likely "
                            "extinction class's, all of them: a powder "
                            "pattern cannot tell groups in one class "
                            "apart."),),
@@ -384,7 +469,7 @@ def index_report(result, name: str = "") -> Report:
 def _write_cells(path, result):
     """TOPAS's ``.ndx``, as a table anything can read."""
     lines = ["rank,system,lattice,a,b,c,alpha,beta,gamma,volume,"
-             "fom,unindexed,confidence,lebail_rwp,space_groups"]
+             "gof,unindexed,confidence,lebail_rwp,space_groups"]
     for row in result.rows:
         a, b, c, alpha, beta, gamma = row.cell
         fom = f"{row.fom[0]} {row.fom[1]:.3f}" if row.fom else ""
@@ -425,10 +510,12 @@ PAWLEY_PARAMS = (
           help="Coefficients of the Chebyshev background, TOPAS's bkg "
                "line.  More follow a curved or humped background; too "
                "many start fitting the tails of broad peaks."),
-    Param("zero", "Refine zero error", kind="bool", default=True,
-          help="A constant shift of every line (TOPAS Zero_Error)."),
+    Param("zero", "Refine zero error", kind="bool", default=False,
+          help="A constant shift of every line (TOPAS Zero_Error).  "
+               "Strongly correlated with specimen displacement: free "
+               "one of the two unless the range is wide."),
     Param("displacement", "Refine specimen displacement", kind="bool",
-          default=False,
+          default=True,
           help="A shift that falls off as cos θ (TOPAS "
                "Specimen_Displacement).  Strongly correlated with the "
                "zero error and with the cell: free one of the two "
@@ -438,10 +525,10 @@ PAWLEY_PARAMS = (
           help="Off holds the cell as given and fits only the "
                "profile and the intensities."),
     Param("size", "Crystallite size broadening", kind="bool",
-          default=False,
+          default=True,
           help="Lorentzian and Gaussian size terms (TOPAS CS_L, "
                "CS_G): widths that grow as 1/cos θ."),
-    Param("strain", "Strain broadening", kind="bool", default=False,
+    Param("strain", "Strain broadening", kind="bool", default=True,
           help="Lorentzian and Gaussian strain terms (TOPAS Strain_L, "
                "Strain_G): widths that grow as tan θ."),
 )
@@ -458,11 +545,11 @@ def pawley_options(values: dict):
     return PawleyOptions(
         start=start or None, finish=finish or None,
         background_terms=int(values.get("background_terms", 8)),
-        zero=bool(values.get("zero", True)),
-        displacement=bool(values.get("displacement", False)),
+        zero=bool(values.get("zero", False)),
+        displacement=bool(values.get("displacement", True)),
         refine_cell=bool(values.get("refine_cell", True)),
-        size=bool(values.get("size", False)),
-        strain=bool(values.get("strain", False)))
+        size=bool(values.get("size", True)),
+        strain=bool(values.get("strain", True)))
 
 
 def run_pawley(job) -> JobResult:
@@ -577,6 +664,12 @@ STEPS = (
            params=DATA_PARAMS + PEAK_PARAMS, run=run_peaks,
            needs_structure=False, listed=False,
            check=refine_available),
+    Action(name="refine_peaks", label="Refine peaks",
+           tip="Refine the lines in use together over a Chebyshev "
+               "background",
+           params=DATA_PARAMS + PEAK_PARAMS + REFINE_PEAK_PARAMS,
+           run=run_refine_peaks, needs_structure=False, listed=False,
+           check=refine_available),
     Action(name="index", label="Index",
            tip="Find the unit cells that explain the fitted lines",
            params=DATA_PARAMS + PEAK_PARAMS + INDEX_PARAMS,
@@ -592,5 +685,10 @@ STEPS = (
 #: What each step's own form shows in the workbench: the pattern and
 #: radiation are shown once above the steps, and indexing reads the
 #: peaks the Peaks step fitted, so neither is asked again.
-STEP_PARAMS = {"peaks": PEAK_PARAMS, "index": INDEX_PARAMS,
+#: The peak form leaves out "Fit only at": the workbench places lines
+#: by hand and refines them instead, and ``xtal run`` keeps it.
+STEP_PARAMS = {"peaks": tuple(p for p in PEAK_PARAMS
+                              if p.name != "positions")
+               + REFINE_PEAK_PARAMS,
+               "index": INDEX_PARAMS,
                "pawley": PAWLEY_PARAMS}
