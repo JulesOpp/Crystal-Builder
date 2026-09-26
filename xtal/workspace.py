@@ -197,6 +197,7 @@ class Artifact:
 
     kind: str               # "structure" | "trajectory" | "log" |
                             # "final" | "project" | "image" |
+                            # "pattern" |
                             # "report" | "file"
     path: Path
     label: str = ""
@@ -230,6 +231,11 @@ def classify(path) -> str:
         # picture into a structure, and dispatching on the extension
         # would have tried.
         return "image"
+    if suffix in (".xy", ".xye"):
+        # A powder pattern -- measured, or one a run calculated.  It
+        # opens in the refinement workbench; open as a structure it
+        # was an error message.
+        return "pattern"
     if path.stem == "final":
         return "final"
     if suffix in (".cif", ".mcif", ".xyz", ".gen", ".cssr", ".res"):
@@ -666,7 +672,10 @@ class Workspace:
         if name.startswith("."):
             raise ValueError(f"'{name}' would hide the file")
         target = path.with_name(name)
-        if target == path:
+        # Compared by name and never as paths: a WindowsPath equals
+        # its own name in another case, so ``target == path`` took a
+        # change of case for no change and renamed nothing.
+        if target.name == path.name:
             return path
         if target.exists() and not target.samefile(path):
             raise ValueError(f"there is already a {name} here")

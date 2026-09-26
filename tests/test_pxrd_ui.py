@@ -205,7 +205,7 @@ def test_the_window_plots_the_curve_and_its_reflections(qtbot):
     qtbot.addWidget(window)
 
     assert len(window.axes.lines) == 1
-    assert len(window.axes.collections) == 2   # allowed, forbidden
+    assert len(window.comb_axes.collections) == 2  # allowed, forbidden
     assert "% of maximum" in window.axes.get_ylabel()
 
 
@@ -309,13 +309,14 @@ def test_the_two_combs_are_two_colours(qtbot):
     window = pattern_window.PatternDialog(a_pattern())
     qtbot.addWidget(window)
 
-    allowed, forbidden = window.axes.collections
+    allowed, forbidden = window.comb_axes.collections
     assert allowed.get_label() == "allowed"
     assert forbidden.get_label() == "forbidden"
     assert not np.allclose(allowed.get_colors(),
                            forbidden.get_colors())
-    # Stacked, not on top of each other.
-    assert forbidden.get_segments()[0][0][1] < \
+    # Stacked, not on top of each other: the strip counts rows down.
+    assert window.comb_axes.yaxis_inverted()
+    assert forbidden.get_segments()[0][0][1] > \
         allowed.get_segments()[0][0][1]
 
 
@@ -504,3 +505,22 @@ def test_the_pattern_is_written_as_two_columns(qtbot, monkeypatch,
 
     assert len(x) == curve.n_points
     assert y.max() == pytest.approx(curve.y.max())
+
+
+@needs_matplotlib
+def test_a_pattern_can_be_drawn_on_a_square_root_or_logarithmic_axis(
+        qtbot):
+    """The weak lines that decide a space group are flat along the
+    bottom of a linear axis.  The combs keep their own strip, which a
+    logarithmic axis -- with no below zero -- would otherwise lose."""
+    window = pattern_window.PatternDialog(a_pattern())
+    qtbot.addWidget(window)
+    window.axes.set_xlim(12.0, 20.0)
+    window.scale_box.setCurrentIndex(window.scale_box.findData("log"))
+    assert window.axes.get_yscale() == "log"
+    assert window.axes.get_xlim() == pytest.approx((12.0, 20.0))
+    assert len(window.comb_axes.collections) == 2
+    window.scale_box.setCurrentIndex(window.scale_box.findData("sqrt"))
+    assert window.axes.get_yscale() == "function"
+    window.replot()
+    assert window.axes.get_yscale() == "function"

@@ -190,7 +190,23 @@ HIDDEN_IMPORTS = [
 #:
 #: Off the list, ``--selftest`` still builds pcu inside the bundle,
 #: and the ``.app`` is 16 MB smaller.
-COLLECT = ["rdkit", "rdeditor", "qdarktheme", "matplotlib"]
+#:
+#: ``rietx`` is the powder workbench's physics (ROADMAP 11, phase 9):
+#: collected whole for its ``data/`` -- the f0 and f'f'' tables every
+#: calculated pattern reads by path -- and its submodules, which its
+#: plans and engines import by name.  Its sources go in as files as
+#: well as bytecode (:data:`MODULE_COLLECTION_MODE`).
+COLLECT = ["rdkit", "rdeditor", "qdarktheme", "matplotlib", "rietx"]
+
+#: PyInstaller's ``module_collection_mode``: packages whose ``.py``
+#: files must exist on disk in the bundle.  numba's kernel cache is
+#: keyed on the source file's path and modification time, and a
+#: kernel whose module exists only inside the PYZ archive has no file
+#: to key on -- ``cache=True`` then fails at the first refinement.
+#: The cache itself is written where
+#: :func:`xtalapp.extras.writable_numba_cache` points it, never into
+#: the signed bundle.
+MODULE_COLLECTION_MODE = {"rietx": "pyz+py"}
 
 #: Bundled with nothing to collect: the import analysis finds them,
 #: for the reason given for ``ase`` above.  Named so that what

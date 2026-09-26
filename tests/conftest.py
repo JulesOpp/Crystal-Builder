@@ -58,6 +58,12 @@ _WORKSPACE = tempfile.mkdtemp(prefix="xtal-test-workspace-")
 atexit.register(shutil.rmtree, _WORKSPACE, ignore_errors=True)
 os.environ.setdefault("XTAL_WORKSPACE_ROOT", _WORKSPACE)
 
+# RietX splits its compiled kernels over min(8, cores) threads unless
+# told otherwise, and under xdist that is eight threads in each of
+# three workers on an eight-core machine.  The parallelism is already
+# one rank up, which is the case its own setting exists for.
+os.environ.setdefault("RIETX_COMPILED_THREADS", "1")
+
 
 
 def _settings_into_a_scratch_directory() -> None:
@@ -370,6 +376,10 @@ QUARTZ_SI_O = 1.61          # Angstrom
 @pytest.fixture
 def rutile() -> Structure:
     """TiO2, P4_2/mnm (#136).  Ti on 2a, O on 4f."""
+    return _rutile()
+
+
+def _rutile() -> Structure:
     return Structure.from_arrays(
         Lattice.from_parameters(4.5940, 4.5940, 2.9590, 90, 90, 90),
         ["Ti", "O"],
@@ -402,6 +412,40 @@ def dry_ice() -> Structure:
     return Structure.from_arrays(
         Lattice.cubic(5.624), ["C", "O"],
         [[0.0, 0.0, 0.0], [0.118, 0.118, 0.118]], space_group="Pa-3")
+
+
+@pytest.fixture
+def rutile_xy(tmp_path, rutile):
+    """A "measured" rutile pattern: Cu Kα doublet, 20-80°, Poisson
+    noise on a flat background, calculated by RietX from the fixture.
+
+    Synthetic so that the answer is known exactly -- the cell and the
+    positions the pattern was made from -- and small, so a refinement
+    test runs in a second.  Needs the ``refine`` extra.
+    """
+    return _rutile_xy(tmp_path, rutile)
+
+
+@pytest.fixture(scope="module")
+def rutile_xy_shared(tmp_path_factory):
+    """:func:`rutile_xy`, made once for a module whose tests share one
+    slow run over it -- an indexing search is seconds, not one."""
+    return _rutile_xy(tmp_path_factory.mktemp("pattern"), _rutile())
+
+
+def _rutile_xy(folder, structure):
+    pytest.importorskip("rietx")
+    import numpy as np
+
+    from xtal.io.xy import write_xy
+    from xtal.powder import bridge
+    from xtal.powder.data import Radiation
+
+    two_theta = np.arange(20.0, 80.0, 0.02)
+    y = bridge.predict(structure, Radiation("cu"), two_theta)
+    counts = np.random.default_rng(0).poisson(y / y.max() * 5000 + 100)
+    return write_xy(two_theta, counts, folder / "rutile.xy",
+                    header="synthetic rutile, Cu Ka1+Ka2")
 
 
 @pytest.fixture

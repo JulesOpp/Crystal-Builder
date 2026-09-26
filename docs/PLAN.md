@@ -622,15 +622,6 @@ schedule has it in [ROADMAP.md](ROADMAP.md).
   occupancy *view* has shipped as the occupancy pie style.
 
 **Later (already anticipated by the plugin API)**
-* Rietveld / Pawley refinement, on top of the machinery PXRD
-  simulation now provides. The first two thirds of this entry have
-  shipped — structure factors, Lorentz-polarisation and profile
-  functions in `xtal/analysis/pxrd.py`, the indexed reflection list
-  and its systematic absences, and the experimental overlay in
-  `xtalapp/dialogs/pattern.py` — and what is left is the fitting,
-  which is a different kind of work: a refinement is a least-squares
-  problem over the cell, the profile and the atoms, and it wants an
-  answer to "which parameters are free" that nothing here has yet.
 * Electron/neutron diffraction patterns and reciprocal-space views.
 * Volumetric data (CHGCAR/CUBE) import + isosurfaces (VESTA's other
   signature feature) with the same glyph/scene infrastructure.

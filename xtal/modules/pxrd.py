@@ -33,6 +33,7 @@ it.
 from __future__ import annotations
 
 from xtal.analysis import pxrd
+from xtal.modules import powder
 from xtal.modules.job import JobResult
 from xtal.modules.registry import MODULES, Action, Module, Param
 from xtal.modules.report import Curve, Report, Row, Table
@@ -303,6 +304,8 @@ PXRD = Module(
                kind="pxrd",
                params=PARAMS,
                run=simulate_pattern),
+        powder.REFINE,
+        *powder.STEPS,
     ),
 )
 

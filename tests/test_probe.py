@@ -157,6 +157,17 @@ def test_a_package_that_warns_on_import_still_shows_its_version():
     assert asked.timeout == 60
 
 
+def test_a_version_read_on_windows_carries_no_carriage_return():
+    """The headline's ``.*$`` took the \\r of Windows' \\r\\n with it,
+    and the version shown under Test ended in one."""
+    asked = probe.probe_for_package("mace.calculators")
+
+    ok, sentence = probe.summarise(asked, 0, "mace 0.3.14\r\n")
+
+    assert ok
+    assert sentence == "mace 0.3.14"
+
+
 def test_a_module_inside_a_package_is_what_gets_imported():
     """``import mace`` never touches torch; the submodule does."""
     ok, sentence = probe.run(probe.probe_for_package("email.mime"))

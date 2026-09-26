@@ -40,7 +40,7 @@ offered a Run button for a method the machine cannot run.
 
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -69,10 +69,14 @@ class ParamForm(QWidget):
     #: cares reads :meth:`values`.
     changed = Signal()
 
-    def __init__(self, params, parent=None):
+    def __init__(self, params, parent=None, notes: bool = False):
         super().__init__(parent)
         self.params = tuple(params)
         self.widgets: dict = {}
+        #: With ``notes``, a label to the right of each row for what a
+        #: run made of it -- a refinement writes the refined number
+        #: beside the box that freed it.  See :meth:`set_note`.
+        self.notes: dict[str, QLabel] = {}
         layout = QFormLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         for param in self.params:
@@ -81,14 +85,48 @@ class ParamForm(QWidget):
             _on_change(widget, self.changed.emit)
             if param.help:
                 widget.setToolTip(param.help)
+            note = None
+            if notes:
+                note = QLabel("")
+                note.setTextInteractionFlags(Qt.TextSelectableByMouse)
+                set_tone(note, HINT)
+                self.notes[param.name] = note
             # A checkbox carries its own label; giving it a second one
             # in the left column says the same word twice.
             if param.kind == "bool":
-                layout.addRow(widget)
+                if note is None:
+                    layout.addRow(widget)
+                else:
+                    layout.addRow(widget, note)
             else:
                 label = QLabel(param.title)
                 label.setToolTip(param.help)
-                layout.addRow(label, widget)
+                if note is None:
+                    layout.addRow(label, widget)
+                else:
+                    row = QHBoxLayout()
+                    row.addWidget(widget)
+                    row.addWidget(note, 1)
+                    layout.addRow(label, row)
+
+    def set_note(self, name: str, text: str) -> None:
+        """What a run made of this row, to its right; ``""`` clears."""
+        note = self.notes.get(name)
+        if note is not None:
+            note.setText(text)
+            # A label on a page already laid out keeps the width its
+            # empty text was given, and showed "L" for "L 0.12(1) ...";
+            # wrapping lets a long one (five profile terms) take rows.
+            note.setWordWrap(True)
+            widest = max((note.fontMetrics().horizontalAdvance(line)
+                          for line in text.splitlines()), default=0)
+            note.setMinimumWidth(min(widest + 12, 420))
+            self.layout().invalidate()
+
+    def set_notes(self, notes: dict) -> None:
+        """Every row's note: the ones named, and the rest cleared."""
+        for name in self.notes:
+            self.set_note(name, notes.get(name, ""))
 
     def _widget(self, param) -> QWidget:
         if param.kind == "bool":

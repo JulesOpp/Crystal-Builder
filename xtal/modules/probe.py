@@ -194,6 +194,10 @@ def summarise(probe: Probe, code: int | None, output: str,
                        f"{probe.timeout:g} s, so it was stopped.")
     if code is None:
         return False, f"{probe.name} could not be started: {error}"
+    # Windows ends a line in \r\n, and a headline's ``.*$`` takes the
+    # \r with it: "rdkit 2024.3\r" under the button, and in any
+    # comparison against the version.
+    output = output.replace("\r\n", "\n")
     lines = useful_lines(output)
     if probe.headline is not None:
         found = probe.headline.search(output)

@@ -1195,15 +1195,138 @@ atoms, so Delete and Bond type act on those bonds alone.
 
 ---
 
-## 11. What this plan does not do
+## 11. Powder refinement: peaks, indexing, Pawley, Rietveld, energies
+
+Planned 2026-09-25.  Julius asked for refinements against a measured
+pattern, TOPAS Academic the model: peak fitting, indexing over a
+chosen set of Bravais lattices or space groups, Pawley, Rietveld that
+can be watched, an automatic run through all of them, and Rietveld
+with energies plus a Pareto search for its weight, as Materials
+Studio has.  **The physics is wrapped, not written**: RietX 1.5
+(MIT, pip, numpy/scipy/numba, `rx.Refinement`, `rietx.indexing`), as
+a `refine` extra pinned below 1.6 -- 95 k lines is not a thing to
+vendor.  Julius's TOPAS inputs are in `resources/pxrd/` (ignored).
+The full plan, with its measurements, is
+`~/.claude/plans/powder-refinement.md`.  Branch
+`features/powder-refinement`, off `main`.
+
+What the measurements decided, on RietX's own fluorapatite (lab Cu
+Kα doublet, 5753 channels, swap at 13.5 GB so upper bounds):
+
+* **Peak picking is seconds, indexing is a minute, Rietveld is two
+  seconds.**  `pick_peaks` 6.6 s for 191 peaks; `index_pattern`
+  restricted to hexagonal with a 60 s budget 62.6 s, top candidate
+  a = 9.374, c = 6.888; a staged Rietveld 1.4-2.0 s.  So indexing is a
+  worker with a budget box and Stop, never the GUI thread.
+* **RietX will not name a winner its engines disagree on**:
+  `best_or_none()` was None with the right cell ranked first.  The
+  table shows its confidence column rather than inventing one.
+* **An `eval` event carries the free values, never y_calc**, so a
+  live frame is a shadow model's `predict`, throttled to the Force
+  Field panel's preview interval; the atoms move through
+  `Document.preview_positions`, as an optimisation's do.
+* **There is no custom cost term in RietX's solver**, so Rietveld
+  with energies is our L-BFGS over `SymmetryDOF`, the pattern term's
+  gradient from RietX's (private) analytic Jacobian and the energy's
+  from the Force Field panel's engine.  Only `xtal/powder/bridge.py`
+  imports rietx.
+* **RietX writes `.rietx/runs` into the working directory unless told
+  otherwise**; every call is told the run folder, and a test holds it.
+
+Julius's answers: RietX as an extra; a **Refinement workbench** window
+(steps down the side, obs/calc/difference in the middle, the form on
+the right); R+E moves the **atoms only** by default, the cell held;
+the automatic run **stops at the ranked Pawley table** unless *Continue
+to Rietveld* is ticked.
+
+| Phase | Delivers | Main files | Size |
+|---|---|---|---|
+| **1 — Data, radiation, bridge** | Shipped 2026-09-25. `PowderData.from_xy` (σ from a third column only when every row has a positive one), `Radiation` onto RietX's own presets (no wavelength table of ours), `bridge.phase_of` / `apply_phase` site for site with dummies left out and remembered, `bridge.fit` never recording into the cwd. Re-measured: FAP's `mccusker_default` fit is 1.5 s (the 992 s was swap) -- **and that plan frees no atoms**, so Phase 5 builds on `mccusker_structural` or its own stages | `xtal/powder/data.py`, `xtal/powder/bridge.py`, `pyproject.toml` | S-M |
+| **2 — Workbench and peak fitting** | Shipped 2026-09-25. Modules ▸ PXRD ▸ *Refine against a measured pattern…* (`refine_workbench`, one window per document; a `.xy` double-clicked in the workspace opens there too); obs/calc/background/difference on counts with a tick comb, updated in place for live frames; peak fitting after `a_peak.inp` (range, shoulders, Kβ/W flags, *fit only at*), a *Use* box per line that reaches indexing as RietX's own `excluded`. The steps are PXRD entries with `listed=False`, so `xtal run pxrd.peaks` runs headless; `Job.update` / `ModuleWorker.updated` carry frames; `JobResult.answer` carries the fit back. Found: RietX's windows can fit one line twice (rutile's 101) and can stop short of a Kα2, so a twin is flagged `duplicate` and the curve is redrawn from the fitted lines with the doublet put back -- rms 0.2 % of the tallest peak. TOPAS's background order and size/strain are Pawley's options, not this step's | `xtalapp/refine/`, `xtal/powder/peaks.py`, `xtal/modules/powder.py` | M-L |
+| **3 — Indexing** | Shipped 2026-09-25. The workbench's *Index* step and `xtal run pxrd.index`: fourteen Bravais boxes (hP is RietX's hexagonal and trigonal P together), a space-group list that narrows the search to its lattices and keeps only the extinction classes holding a chosen group (compared by number, so C2221 matches A 21 2 2), zero-error allowance, largest volume, **longest axis** (RietX's 25 A default is short for a framework -- 31.5 A in Julius's b_indy -- and 6 A searches rutile in seconds), a time budget, and space groups ranked for the top *N* cells. The table is TOPAS's `.ndx` (`cells.csv`); a chosen row draws its lattice's lines under the peaks. RietX's `best_or_none` is the only winner shown, and on synthetic rutile it names none with the right cell first. `Job.given` hands the ticked peaks from one step to the next; Stop keeps the cells reached. Measured under 14 GB swap: tetragonal to 25 A 25 s, to 6 A 8 s; six systems to 10 A 58 s | `xtal/powder/index.py`, `xtalapp/refine/bravais.py` | M |
+| **4 — Pawley** | Shipped 2026-09-25. The workbench's *Pawley* step and `xtal run pxrd.pawley`, after `c_paw.inp`: cell and group (filled from the chosen indexing row -- its best class's group, or the lattice's own when none was ranked -- or from the open structure), 2θ range, Chebyshev terms (8), zero (on), specimen displacement (off: RietX reports it ρ = 1.000 with zero on rutile, and never for a capillary), cell, size and strain. RietX's Le Bail scaffold, a plan in `pawley_default`'s order with only the asked stages. Result: Rwp/Rp/Rexp/GoF, the cell with esds in the last digit, the hkl list (`reflections.csv`, `fit.xy`). *Apply cell to the structure* is one undo step, fractional coordinates kept, offered only for the same system, centring and setting (every length within 5 %, every angle within 2°); *New structure from this cell* is File ▸ New with that cell and group. Rutile from indexing's 4.5948 / 2.9572: 4.59398(4) / 2.95897(3) against 4.594 / 2.959, GoF 1.02, 0.6-2 s | `xtal/powder/pawley.py` | M |
+| **5 — Rietveld, live** | Shipped 2026-09-26. The workbench's *Rietveld* step and `xtal run pxrd.rietveld`, after `d_riet.inp`: boxes free, in McCusker's order, background (scale always), zero, displacement, the cell number by number, the peak shape, size, strain, positions (along each site's allowed directions), Biso, occupancies (off) and March-Dollase texture about a typed axis -- or one of RietX's four structural plans instead. Frames: a shadow model set to each accepted `eval`'s free values, **the atoms put back to the start first** (a coordinate is a step from where the atom is, so a shadow handed one step twice walked twice as far), throttled to the preview interval or three times the last frame's cost -- a frame is 5 ms on rutile and 0.7 s on MFU-4l under 13 GB swap. The atoms move by `preview_positions`; a finished fit is one `replace_structure` undo step on the document the window was opened over, Stop or a failure puts them back; site count and bonds checked, dummies never sent. Rutile from x(O) = 0.29: 0.3053, GoF 1.02, 0.2 s. Every box that refined something has its numbers beside it (`refined_notes`), the Pawley step too. | `xtal/powder/rietveld.py` | L |
+| **6 — Automatic** | Shipped 2026-09-26. The workbench's *Automatic* step and `xtal run pxrd.auto`: peaks → index → the top *N* cells (5) × each one's top *M* surviving extinction classes (3) → a Pawley fit of each, one folder apiece (`pawley-01`...) → a table ranked by Rwp (`ranked.csv`). **Fits within 1 % of each other's Rwp keep indexing's order** (`auto.RWP_TIE`): rutile's tP cell and the oP one with a and c swapped both fit at 9.49 %, and ranking them by the fifth digit ranked noise. Every stage asks its own step's form -- lattices and budget on Index, broadening on Pawley, plan and boxes on Rietveld -- and `xtal run` takes the last two under `pawley_` / `rietveld_`. A failed fit is a row with its reason. It stops at the table unless *Continue to Rietveld* is ticked; then the structure is refined, in the best matching row's Pawley cell, only when its cell is that row's to 1 % and 1° in the same setting and **no class the pattern refutes** holds its group -- not "its group is the top class": a pattern from 20° shows none of P4₂/mnm's absences and puts rutile's class twelfth, refuting none. One undo step and a History row, as the Rietveld step. A row chosen in the table draws its fit and becomes the Pawley step's answer. Rutile, tP to 6 Å: 7-9 s; five lattices 28 s under 14 GB swap | `xtal/powder/auto.py` | M |
+| **7 — Rietveld with energies** | Shipped 2026-09-26. The workbench's *With energy* step and `xtal run pxrd.energy`: `(1−w)·χ²/χ²₀ + w·(E−E₀)/ΔE`, ΔE the fall of one relaxation under the energy alone (the w = 1 end, floored at 0.1 kcal/mol). The Rietveld step's boxes fit the scale, background and peak shape first, atoms and cell held, and are then held themselves; scipy L-BFGS over **RietX's own variables** -- each atom a step along its site's allowed directions, so a special position cannot be left -- scaled to Å. The pattern's gradient is `2 Jᵀr` from RietX's private residual and Jacobian (`bridge.PatternTerm`, one compile, windows frozen as within a stage), the energy's the engine's forces carried over each orbit, and with *Let the cell move* its stress. The engine is the Force Field panel's, read, markers held back. Frames, one undo step, a History row (*with energy, w 0.2*), and a table of the two ends and the fit (`ends.csv`). Rutile at w = 0: x(O) 0.30538 against RietX's own 0.30530; quartz at w = 1: UFF's own minimum to 1e-3 kcal/mol. **Measured on ZIF-8 in P1** (306 coordinates, 13 GB swap): the pattern's gradient 2.75 s an evaluation, UFF's energy 8 ms -- the pattern is the cost, not the engine; torch's reverse mode gives it in 0.48 s ([TODO](TODO.md) § Powder refinement). Rutile and quartz: under a second | `xtal/powder/energy.py` | L |
+| **8 — Pareto** | Shipped 2026-09-26. The workbench's *Pareto* step and `xtal run pxrd.pareto`: With energy at a list of weights (0, 0.05, 0.1, 0.2 ... 1), **one problem minimised at every weight** (`energy.EnergyProblem`) -- the scale, background and peak shape fitted once, so every point is on the same objective family; refitting them per point would put each on its own. The relaxation that sets ΔE is the w = 1 point and finishes first; the rest walk upwards, each from the one below. A CIF and a `points.csv` row per weight as it finishes, so Stop keeps them; an unconverged point keeps its CIF and has no numbers. The front is the points no other beats on Rwp and E; the **knee** is the front point furthest from the chord between its ends, both axes scaled to the front's range, none for under three points or a straight front (`xtal/powder/pareto.py`). `report.json` holds Rwp against E, front and knee drawn, each point opening its CIF; in the workbench a row draws its fit, a double-click opens it as a tab, *Use this weight* fills With energy, *Show the front* puts the curve in Results. A sweep returns no structure: the atoms move as it runs and go back. Rutile, 12 weights: 0.3 s, knee w = 0.1 | `xtal/powder/pareto.py`, `xtal/modules/powder.py` | M |
+| **9 — Packaging, CI, docs** | Shipped 2026-09-26. RietX is in `bundle.COLLECT` (its f0/f′f″ tables are data found by path) and in `MODULE_COLLECTION_MODE` as `pyz+py`, which both specs pass: numba keys its kernel cache on the source file, and a module only inside the PYZ has none. A packaged build points `NUMBA_CACHE_DIR` into its own data folder (`extras.writable_numba_cache`, before numba is imported; RietX would otherwise use `~/.rietx`). *Powder refinement* is a bundled row on Preferences ▸ Engines. `--selftest` gained `check_powder`: rutile's pattern simulated, Pawley from 4.5948 to 4.5940 Å and Rietveld from x(O) 0.29 to 0.3053, 4 s from the checkout, in a scratch folder; skipped in a checkout without the extra, a failure in a bundle. **CI's test job does not install `refine`**: the powder tests are 150 tests and ~13 CPU-minutes (2.5 min on three workers under 14 GB swap), far over the 30 s rule, so they run locally like the ML engines; the bundle job installs `refine` and `pxrd`. Not verified: a local bundle, since this machine's Anaconda carries PyQt5 beside PySide6 and PyInstaller refuses both -- the first CI bundle on `main` is the check | `packaging/`, `xtalapp/selftest.py`, `.github/workflows/ci.yml` | S-M |
+
+Revised 2026-09-25 after Julius used phases 1-4.  The Peaks step
+gained *Refine peaks* -- one least-squares fit of the lines in use
+over a Chebyshev background of *Background terms*, the unticked lines
+dropped (`peaks.refine_peaks`, ours on `scipy`: RietX has no
+whole-pattern peak fit without a cell) -- lines placed by hand at typed
+2θ, and each line drawn on its own with a toggle; *Run* says what the
+step does.  Indexing: a box per crystal system, the zero allowance
+0-1° in 0.1° steps defaulting to 1°, the longest axis to 50 Å, a GoF
+column (M20, or M_sym under twenty lines) and sorting by GoF or GoF /
+(unindexed + 1).  **Measured: at a 1° allowance a wrong cell ranks
+first on rutile** (right up to 0.3°, wrong from 0.5°), and the tests
+pin 0.  Pawley defaults to displacement, cell, size and strain free
+and zero held.  Fit ranges start at the data's own.  The window no
+longer falls behind the main one after Load .xy (a native dialog hands
+activation back).
+
+Revised again 2026-09-26, with Phase 5.  The zero allowance defaults to
+0.3°, the widest that ranked rutile's right cell first.  Every plot --
+the workbench's and the PXRD pattern window -- draws intensity linear,
+square root (signed, so a dip below zero survives) or logarithmic; the
+difference stays linear, and the tick combs moved to a strip of their
+own, because a logarithm has no below zero to hang them in.  Ticking a
+peak in or out keeps the zoom.  The Pawley cell is the numbers the
+group leaves free (`xtal/powder/cell.py`: one length for cubic, three
+and the unique angle for monoclinic, gemmi's qualifier saying which),
+each with a Refine switch -- `hold` on the command line -- and the
+tied ones derived; RietX is asked which cell paths are untied rather
+than told, so a held number is never one it would refuse.
+
+Revised a third time 2026-09-26, after Julius used Phase 5.  *Refine
+peaks* has its Jacobian written out and stops at a part in 1e5 of
+chi-squared: differenced, at scipy's 1e-8, 29 lines on a 4700-point
+MOF pattern reached their Rwp in 24 steps and then ran into the
+12 400-evaluation cap (25 s here, minutes under swap) -- now 0.8 s.
+Indexing's "stall on the last validation" is RietX's sweep for sub-
+and supercells, run after validation with no event and the clock read
+only between cells (9 s past a 60 s budget on the same pattern); the
+status now names it, and every running step shows its elapsed time.
+The right-hand form is as tall as the step shown, not Rietveld's, and
+Run / Stop sit below it outside the scroll.  The intensity axis is
+fitted to the measurement alone: a Rietveld run's first frame is at
+scale 1 (2.5 million counts against 5000 on rutile) and the axis sized
+to it drew the data flat for the whole run.  Under the Plan box, a
+note says what the plan frees, stage by stage, and whether the atoms
+move (RietX's own `PLAN_INFO`; two of its four plans move none).  A
+*History* tab beside *Refined* lists the start and every fit with
+Rwp, Rp, GoF, plan and furthest move, SHELXLE-style: restoring a row
+is one undo step that puts back its atoms, cell and boxes, and the
+later rows stay.  The history is of one pattern and in memory; each
+fit's run folder still holds its `refined.cif`.
+
+Revised with Phase 6.  On the Rietveld step, choosing one of RietX's plans greys out the boxes it decides for itself (`powder.PLAN_DECIDES`, the cell's Refine switches too): a plan never reads them, and a live box beside one claimed a say it did not have. The range and the background's order stay live.  The plan note is as tall as its text at the column's width, and the page is re-measured when it changes: a four-sentence note was measured as one line, and in a short window was squeezed and cut off.
+
+Revised with Phase 7, at Julius's request.  The Pawley step says in the window what the workbench is for: Pawley (or Automatic) finds a cell and group; the nets consistent with them are searched in the MOF builder, models built from the linker and the expected SBU, and each tested here by Rietveld or With energy, or by a simulated pattern laid over the measured one.  Structure solution by charge flipping (Superflip) is possible and not planned.  It also says that **a wider 2θ range is not a better cell**: measured on a 14 × 17 Å cell, 4-30° is 35 reflections and 1.3 s, 4-60° is 199 and 144 s with *a* 0.04 Å further off.  Le Bail in the same plan diverged; what might make the long range fast is in [TODO](TODO.md) § Powder refinement.
+
+Revised with Phase 9, after Julius's fourth list.  The right-hand column is folds (`xtalapp/refine/sections.py`: a step's flat parameter list read and written as one form, shown as titled `ParamForm`s in `Collapsible`s) -- range, what is refined, result -- with each step's explanations in a closed *About*; forms are left-aligned, and a stack is as tall as the page shown (`_PageStack`: a stack asked every page's height-for-width once any wrapped).  The plot and the table under it start half and half, and intensity starts logarithmic.  **Peaks**: *Flag Kβ and tungsten lines* off by default (a filtered tube has none, and the flag took real lines out); a line's 2θ, area and width typed into the table are its start for Refine peaks (`PeakFit.edit`: esds and RietX's record dropped, flagged `edited`).  **Index**: a *Time budget* box, unticked by default -- 0 is no limit, RietX's `full` preset, since an unset ceiling is its `quick` preset's 120 s; a rule between the row boxes and the lattices; the cell table sized to its text and scrolling sideways, where the space groups were cut off.  **Pawley / Le Bail**: a *Method* box -- RietX's `lebail` mode over the same plan, the Run button and the summary naming it; rutile's cell to 5e-4 Å.  The Peaks step's 2θ range is handed to Pawley, Rietveld, With energy and Pareto, each following it until given its own.  **With energy and Pareto** have a range of their own (sent as `rietveld_start` / `rietveld_finish`), an engine box sharing the Force Field panel's model and choice with *Options...* to show that panel (Julius: setting it in another window was confusing), and a *What is refined* note naming both stages (`powder.energy_refines_note`).  **Pareto** draws Rwp and E against the weight on twin axes and Rwp against E beside its table (`xtalapp/refine/pareto_plot.py`); a point clicked chooses its row, and the chosen row is ringed; the Results panel keeps its copy.
+
+What the phases must keep: a refinement moves atoms and never adds,
+removes or bonds them (site count asserted, `hold_perception`); dummy
+atoms held back at the door; the result goes to the document the run
+started from; a sweep writes each point as it finishes and an
+unconverged one is NaN; R+E uses the Force Field panel's engine --
+chosen there or in the workbench, one choice -- and never keeps a
+second configuration of its own.
+
+---
+
+## 12. What this plan does not do
 
 * It does not touch the design principles in
   [docs/PLAN.md](PLAN.md) § 1.  Every phase keeps the core Qt-free,
   keeps every mutation a command, and adds capability through
   registries.
-* It does not schedule volumetric data, SHELX round-trips or Rietveld.
-  Those are [docs/PLAN.md](PLAN.md) § 12 and stay there until they are
-  asked for.
+* It does not schedule volumetric data or SHELX round-trips.  Those
+  are [docs/PLAN.md](PLAN.md) § 12 and stay there until they are asked
+  for.  Rietveld was asked for, and is § 11.
 * It does not schedule the relaxed scan: that was asked for and built
   on 2026-09-15, outside this plan, and is
   [docs/PLAN.md](PLAN.md) § 12a.  What it left undone is in

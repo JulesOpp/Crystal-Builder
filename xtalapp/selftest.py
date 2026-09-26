@@ -339,6 +339,73 @@ def check_mof_builder(report) -> None:
             "75, 3.2384 and hcb.")
 
 
+def check_powder(report) -> None:
+    """The refinement workbench refines, in this build.
+
+    RietX is collected whole (``packaging/bundle.py``): its scattering
+    tables are data files found by path, its kernels are numba's, and
+    numba caches them keyed on source files that a bundle carries only
+    because it was told to.  Any of the three can be lost with the
+    import still succeeding, so this simulates rutile's pattern -- the
+    tables -- and Pawley and Rietveld fits it -- the kernels and their
+    cache -- in a scratch folder, and asks whether the answers are
+    rutile's: a from 4.5948 to 4.594 Å, and the oxygen from x = 0.29
+    to 0.3053.  About three seconds, most of it the first compile.
+
+    A checkout without the ``refine`` extra is not a build that
+    promised it, so there it is skipped; a bundle without it fails.
+    """
+    from xtal import powder
+    from xtalapp import extras
+
+    if not powder.available():
+        if extras.frozen():
+            raise AssertionError(
+                "RietX is missing, but the extras page says the "
+                "refinement workbench is bundled")
+        report("RietX: not installed in this checkout, skipped")
+        return
+
+    import numpy as np
+
+    from xtal.core.lattice import Lattice
+    from xtal.core.structure import Structure
+    from xtal.powder import bridge
+    from xtal.powder.data import PowderData, Radiation
+    from xtal.powder.pawley import pawley
+    from xtal.powder.rietveld import RietveldOptions, rietveld
+
+    lattice = Lattice.from_parameters(4.594, 4.594, 2.959, 90, 90, 90)
+    true = Structure.from_arrays(lattice, ["Ti", "O"],
+                                 [[0, 0, 0], [0.3053, 0.3053, 0]],
+                                 space_group="P4_2/mnm")
+    radiation = Radiation("cu")
+    two_theta = np.arange(20.0, 80.0, 0.02)
+    counts = bridge.predict(true, radiation, two_theta)
+    data = PowderData(two_theta, counts / counts.max() * 5000 + 100,
+                      name="rutile")
+    cache = os.environ.get(extras.NUMBA_CACHE_VAR) or "beside the sources"
+    report(f"numba cache: {cache}")
+    with tempfile.TemporaryDirectory() as folder:
+        cell = pawley(data, radiation, "4.5948 4.5948 2.9572", "P42/mnm",
+                      folder=Path(folder))
+        if abs(cell.cell[0] - 4.594) > 1e-3:
+            raise AssertionError(f"Pawley put rutile's a at "
+                                 f"{cell.cell[0]:.4f} Å, not 4.594")
+        report(f"Pawley: a {cell.cell[0]:.4f} Å, Rwp "
+               f"{100 * cell.rwp:.2f} %")
+        start = true.copy()
+        start.sites[1].frac = np.array([0.29, 0.29, 0.0])
+        fit = rietveld(start, data, radiation,
+                       RietveldOptions(cell=False), folder=Path(folder))
+        x = float(fit.structure.sites[1].frac[0])
+        if abs(x - 0.3053) > 2e-3:
+            raise AssertionError(f"Rietveld put rutile's oxygen at "
+                                 f"x = {x:.4f}, not 0.3053")
+        report(f"Rietveld: x(O) 0.29 -> {x:.4f}, Rwp "
+               f"{100 * fit.rwp:.2f} %")
+
+
 def check_window(report, shot: Path | None) -> None:
     """Build the real window, open a sample, and draw it.
 
@@ -446,6 +513,7 @@ def run(shot: Path | None = None, out=None) -> int:
         ("bundled extras", check_extras),
         ("module dialogs", check_module_dialogs),
         ("MOF builder", check_mof_builder),
+        ("powder refinement", check_powder),
         ("window and 3D view", lambda r: check_window(r, shot)),
     ]
 

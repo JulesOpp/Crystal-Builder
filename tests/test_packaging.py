@@ -462,3 +462,15 @@ def test_pyside6_stays_below_6_10():
     assert Version("6.9.3") in pyside.specifier
     assert Version("6.10.0") not in pyside.specifier
     assert Version(version("PySide6")) < Version("6.10")
+
+
+def test_rietx_is_collected_with_its_sources_on_disk():
+    """RietX's scattering tables are data found by path, and numba keys
+    its kernel cache on the source file -- which a module living only
+    inside the PYZ archive does not have.  Both specs must say so."""
+    assert "rietx" in bundle.COLLECT
+    assert bundle.MODULE_COLLECTION_MODE["rietx"] == "pyz+py"
+    for spec in ("macos.spec", "windows.spec"):
+        text = (bundle.HERE / spec).read_text(encoding="utf-8")
+        assert "module_collection_mode=bundle.MODULE_COLLECTION_MODE" \
+            in text, spec
