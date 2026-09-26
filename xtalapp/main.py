@@ -140,6 +140,16 @@ def main(argv=None) -> int:
             shot = Path(argv[argv.index(SELFTEST_SHOT) + 1])
         return selftest.run(shot=shot)
 
+    # After the self-tests, which a Test press runs as a child of this
+    # process: that child inherits the PATH set here and has no
+    # terminal either, and asking the shell again would cost every
+    # press a login.  See :mod:`xtalapp.shellenv`.
+    from xtalapp import shellenv
+
+    adopted = shellenv.adopt()
+    if adopted is not None:
+        log.info("took the login shell's PATH: %s", adopted)
+
     app = Application(argv)
     app.setApplicationName(APP_NAME)
     app.setOrganizationName("CrystalBuilder")
