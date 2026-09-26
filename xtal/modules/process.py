@@ -129,13 +129,30 @@ class MissingProgram(RuntimeError):
         super().__init__(message)
 
 
+#: Where Homebrew and conda put the programs they install, tried after
+#: PATH and a program's own known places.  An application opened from
+#: Finder or the Dock is given the system's four folders as its PATH
+#: and none of these, so a program found from a terminal was "not
+#: found" from the Dock, with nothing to say why.  The conda folders
+#: are the bases, not their environments: an environment's program is
+#: the one the user activated, which only the PATH can say.
+USUAL_DIRS: tuple = () if sys.platform == "win32" else (
+    "/opt/homebrew/bin", "/usr/local/bin",
+    "~/miniforge3/bin", "~/mambaforge/bin", "~/miniconda3/bin",
+    "~/anaconda3/bin", "/opt/miniconda3/bin", "/opt/anaconda3/bin")
+
+#: How the status line names them: one place, not eight.
+USUAL_WHERE = "the usual Homebrew and conda folders"
+
+
 @dataclass(frozen=True)
 class Program:
     """An external binary the application knows how to look for.
 
-    Three places, in the order somebody would expect: an explicit path
-    the caller was given (a preference), the environment variable that
-    names it, and then PATH.
+    Places, in the order somebody would expect: an explicit path the
+    caller was given (a preference), the environment variable that
+    names it, PATH, where an ordinary install of this program goes,
+    and then :data:`USUAL_DIRS`.
     """
 
     name: str                       # the executable: "dftb+"
@@ -180,6 +197,11 @@ class Program:
             yield os.environ[self.env_var]
         yield self.name
         yield from self.known
+        yield from self._usual()
+
+    def _usual(self):
+        return (str(Path(folder).expanduser() / self.name)
+                for folder in USUAL_DIRS)
 
     def search(self, hint=None) -> tuple:
         """Every place that would be looked, and what is there.
@@ -204,6 +226,10 @@ class Program:
         out.append(("PATH", self.name, _executable(self.name)))
         for candidate in self.known:
             out.append(("known", candidate, _executable(candidate)))
+        if USUAL_DIRS:
+            found = next((path for path in map(_executable, self._usual())
+                          if path is not None), None)
+            out.append(("usual", USUAL_WHERE, found))
         return tuple(out)
 
     def resolve(self, hint=None) -> Path:
