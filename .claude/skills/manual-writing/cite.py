@@ -37,8 +37,9 @@ BIB = ROOT / "docs" / "manual" / "references.bib"
 AGENT = {"User-Agent": "CrystalBuilderManual/0.1 (cite.py)"}
 
 #: Braced in titles so a BibTeX style's sentence case keeps them.
-PROTECT = ["UFF", "UFF4MOF", "DFTB", "DFTB+", "DFTB3", "SCC-DFTB",
-           "GFN2-xTB", "GFN-FF", "RCSR", "COD", "GEMMI", "MACE",
+PROTECT = ["SMILES", "MMFF94", "Schläfli", "Delaney", "UFF", "UFF4MOF",
+           "DFTB", "DFTB+", "DFTB3", "SCC-DFTB", "GFN2-xTB", "GFN-FF",
+           "RCSR", "COD", "GEMMI", "MACE",
            "MOFSimBench", "MatterSim", "Orb-v3", "Spglib", "DFT-D",
            "Python", "Metal–Organic", "Metal—Organic", "Zeo++", "PXRD",
            "CIF", "MOF", "MOFs", "QEq", "EQeq"]
@@ -84,8 +85,10 @@ def from_doi(doi: str) -> tuple[str, dict]:
         sys.exit(f"Crossref returned no BibTeX for {doi}")
     fields = dict(re.findall(r"(\w+)=\{((?:[^{}]|\{[^{}]*\})*)\}",
                              match.group(2)))
-    kept = {k.lower(): _clean(v) for k, v in fields.items()
-            if k.lower() in FIELDS}
+    # A DOI is never cleaned: the old Wiley ones carry ``<490::AID-JCC1>``
+    # inside them, which the tag-stripper in ``_clean`` would eat.
+    kept = {k.lower(): (v.strip() if k.lower() == "doi" else _clean(v))
+            for k, v in fields.items() if k.lower() in FIELDS}
     kept["title"] = _protect(kept["title"])
     return match.group(1), kept
 

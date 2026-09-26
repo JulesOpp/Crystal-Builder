@@ -137,4 +137,73 @@ Suppressed bond
 Symmetry-adapted strain
   A strain of the cell that the space group's point group leaves
   unchanged: the only kind a cell relaxation may use.
+
+Accessible surface area
+  The area a probe's centre can touch, counted over the channels only.
+  Quoted against a probe radius.
+
+Attachment
+  One connection point together with the distinct atoms bonded to it:
+  monodentate with one atom, polydentate with several.
+
+Channel
+  A void a probe can reach from outside the cell: it continues into its
+  own periodic image.  A void that does not is a pocket.
+
+Coordination sequence
+  The number of vertices exactly *k* edges from a vertex of a net, for
+  *k* = 1, 2, 3 ..., on the infinite net.
+
+Distance grid
+  A field, on a grid over the cell, of the distance to the nearest atom
+  surface.  The grid-based porosity entries and the pore surface are
+  read off it.
+
+Face
+  The plane a connection point presents when its atom has exactly two
+  other neighbours.  Faces across a joint are scored, never bonded.
+
+Joint
+  Two connection points fused in a build, bonded with as many bonds as
+  the two ends have members.
+
+Largest free sphere
+  $D_f$: the diameter of the biggest sphere that can pass all the way
+  through the framework -- what decides what it will admit.
+
+Largest included sphere
+  $D_i$: the diameter of the biggest cavity in the crystal, reachable
+  or not.
+
+Layer net
+  A 2-periodic net.  A framework built on one is stacked along *c*
+  after the build, one spacing between the sheets' mean planes.
+
+Pocket
+  A void a probe cannot reach from outside the cell.  Its volume is
+  not counted as accessible.
+
+Point symbol
+  For each pair of edges at a vertex of a net, the size of the smallest
+  ring containing both, with multiplicities.
+
+Probe-occupiable volume
+  The volume a probe of a given radius occupies within the channels,
+  as distinct from the volume its centre can reach.
+
+Probe radius
+  The radius of the sphere standing for a gas molecule.  Every
+  porosity number is quoted against one.
+
+Slot
+  A node type, or a kind of edge, of a net, for which a building block
+  has to be chosen.
+
+Systematic absence
+  A reflection the space group's symmetry forbids: its intensity is
+  zero whatever the atoms.
+
+Transitivity
+  Four numbers [p q r s]: how many kinds of vertex, edge, face and
+  tile a net has, from the RCSR.
 ```
