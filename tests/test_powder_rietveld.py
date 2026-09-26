@@ -164,3 +164,19 @@ def test_a_rietveld_step_writes_what_each_box_refined(rutile_xy_shared):
     assert notes["positions"].startswith("furthest")
     assert notes["strain"].startswith("L ")
     assert "U " in notes["profile"]
+
+
+def test_every_plan_says_what_it_frees_and_whether_the_atoms_move():
+    """Two of RietX's four plans move no atom, which "lab
+    Bragg-Brentano" does not say by itself."""
+    from xtal.powder.bridge import RIETVELD_PRESETS, plan_notes
+
+    moves = {"mccusker_structural": True, "mccusker_default": False,
+             "lab_bragg_brentano": False, "lab_sample_refine": False}
+    for plan in RIETVELD_PRESETS:
+        note = plan_notes(plan)
+        assert "Stages: scale and background" in note
+        assert ("The atoms move." in note) is moves[plan], plan
+    boxes = plan_notes("", ("background", "cell", "positions"))
+    assert "cell → atom positions" in boxes
+    assert "peak shape" not in boxes

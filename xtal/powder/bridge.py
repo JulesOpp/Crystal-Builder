@@ -50,7 +50,7 @@ from xtal.powder.data import (
 __all__ = ["RIETVELD_PRESETS", "apply_phase", "cancel_token",
            "extinction_classes", "fit", "free_cell_paths",
            "index_pattern", "instrument", "lattice_lines", "pattern",
-           "observed_peak", "pawley", "peak_list", "phase_of",
+           "observed_peak", "pawley", "peak_list", "phase_of", "plan_notes",
            "predict", "reflections", "refined_values", "rietveld",
            "rietveld_plan", "space_group_named", "space_group_symbol",
            "to_rietx"]
@@ -364,11 +364,22 @@ def index_pattern(peak_list, data: PowderData, radiation: Radiation, *,
         prior_spacegroups=tuple(prior_space_groups))
 
     def events(event):
-        if on_stage is None or event.get("kind") != "stage_start":
-            return
+        kind = event.get("kind")
         body = event.get("data", {})
-        on_stage(str(body.get("stage", "")), int(body.get("index", 0)),
-                 int(body.get("n_stages", 0)))
+        if on_stage is None:
+            return
+        if kind == "stage_start":
+            on_stage(str(body.get("stage", "")),
+                     int(body.get("index", 0)),
+                     int(body.get("n_stages", 0)))
+        elif kind == "stage_end" and body.get("validation"):
+            # After the last validation RietX sweeps the leading cells
+            # for sub- and supercells, announcing nothing and reading
+            # the clock only between cells: 9 s past a 60 s budget on
+            # a MOF pattern, with the last validation still on screen.
+            # Until another stage starts, that sweep is what is running.
+            on_stage("ambiguity:", int(body.get("index", 0)),
+                     int(body.get("n_stages", 0)))
 
     lo, hi = data.range
     # A candidate whose covariance is singular (a line list short of
@@ -549,6 +560,15 @@ def rietveld_plan(refinement, free, hold_cell=()) -> rx.RefinementPlan:
     """The boxes as a plan in McCusker's order: scale and background,
     the line positions, the cell, the widths, then the structure --
     coordinates, displacements, occupancies, texture last."""
+    cell = free_cell_paths(refinement, hold_cell) if "cell" in free \
+        else []
+    return rx.RefinementPlan(stages=[
+        rx.Stage(name, paths) for name, paths in _box_stages(free, cell)])
+
+
+def _box_stages(free, cell) -> list[tuple[str, list[str]]]:
+    """``[(stage, paths)]`` the boxes free, ``cell`` the cell's paths:
+    the plan, and what its note names, from one list."""
     free = set(free)
     unknown = free - set(_RIETVELD_FREES)
     if unknown:
@@ -557,25 +577,77 @@ def rietveld_plan(refinement, free, hold_cell=()) -> rx.RefinementPlan:
     def paths(*keys):
         return [p for k in keys if k in free for p in _RIETVELD_FREES[k]]
 
-    stages = [rx.Stage("scale_bkg", ["phases.*.scale",
-                                     *paths("background")])]
+    stages = [("scale_bkg", ["phases.*.scale", *paths("background")])]
     if paths("zero", "displacement"):
-        stages.append(rx.Stage("zero_disp", paths("zero",
-                                                  "displacement")))
-    cell = free_cell_paths(refinement, hold_cell) if "cell" in free \
-        else []
+        stages.append(("zero_disp", paths("zero", "displacement")))
     if cell:
-        stages.append(rx.Stage("cell", cell))
+        stages.append(("cell", list(cell)))
     if "profile" in free:
-        stages.append(rx.Stage("profile_w", ["instrument.profile.w"]))
-        stages.append(rx.Stage("profile", paths("profile")))
+        stages.append(("profile_w", ["instrument.profile.w"]))
+        stages.append(("profile", paths("profile")))
     if paths("size", "strain"):
-        stages.append(rx.Stage("sample_profile", paths("size", "strain")))
+        stages.append(("sample_profile", paths("size", "strain")))
     for key in ("positions", "biso", "occupancy",
                 "preferred_orientation"):
         if key in free:
-            stages.append(rx.Stage(key, paths(key)))
-    return rx.RefinementPlan(stages=stages)
+            stages.append((key, paths(key)))
+    return stages
+
+
+#: A stage's name, as the plan's note says it.
+_STAGE_WORDS = {
+    "scale_bkg": "scale and background", "zero": "zero error",
+    "zero_disp": "zero and specimen displacement",
+    "disp": "specimen displacement", "cell": "cell",
+    "profile_w": "peak width W", "profile": "peak shape U V X Y",
+    "sample_profile": "size and strain",
+    "lines_axial": "Kα2 ratio and axial divergence",
+    "extra_components": "background humps",
+    "coordinates": "atom positions", "positions": "atom positions",
+    "biso": "displacement parameters", "occupancy": "occupancies",
+    "preferred_orientation": "preferred orientation",
+    "extinction": "extinction", "roughness": "surface roughness",
+}
+
+#: Stages that free something only where the model declares it, which
+#: nothing this application builds does, except texture when an axis
+#: is typed.
+_DECLARED_ONLY = {"extra_components", "extinction", "roughness"}
+
+
+def plan_notes(plan: str, free=()) -> str:
+    """What a Rietveld plan does, in the order it does it.
+
+    ``plan`` is one of :data:`RIETVELD_PRESETS`, described from RietX's
+    own ``PLAN_INFO`` and its stages; empty is the plan the ``free``
+    boxes make.  Whether the atoms move is said outright: two of
+    RietX's four plans free none, which is easy to miss from a name.
+    """
+    if plan:
+        preset = getattr(rx.RefinementPlan, plan)()
+        names = [stage.name for stage in preset.stages]
+        info = rx.PLAN_INFO[plan]
+        head = f"{info.title}.  {info.description.replace('**', '')}"
+        tail = info.when_to_use
+    else:
+        names = [name for name, _paths in _box_stages(
+            free, ["cell"] if "cell" in set(free) else [])]
+        head = "The boxes below, freed in McCusker's order."
+        tail = ""
+    shown = [n for n in names if n not in _DECLARED_ONLY
+             and (n != "preferred_orientation" or not plan)]
+    order = " → ".join(_STAGE_WORDS.get(n, n) for n in shown)
+    moves = any(n in ("coordinates", "positions") for n in names)
+    lines = [head, f"Stages: {order}.",
+             "The atoms move." if moves else
+             "The atoms stay where they are."]
+    if plan == "lab_sample_refine":
+        lines.append("No calibrated instrument is loaded here, so the "
+                     "instrument's widths stay at RietX's defaults and "
+                     "the size and strain absorb them.")
+    if tail:
+        lines.append(tail)
+    return "\n".join(lines)
 
 
 class _Frames:

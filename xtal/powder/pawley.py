@@ -225,13 +225,15 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
         notes=[d.message for d in result.diagnostics])
 
 
-def cell_fits_structure(fit: PawleyFit, structure) -> str:
+def cell_fits_structure(fit: PawleyFit, structure, *,
+                        length: float = 0.05, angle: float = 2.0) -> str:
     """Why this cell cannot go onto ``structure``, or ``""`` if it can.
 
     Putting a cell on a structure keeps its fractional coordinates, so
     it is only meaningful for the *same lattice in the same setting*:
     the same crystal system and centring, and every length and angle
-    within a few percent of what the structure has.  A cell indexed
+    within a few percent of what the structure has (``length``, a
+    fraction, and ``angle``, degrees).  A cell indexed
     with its axes in another order passes every figure of merit and
     would shear the structure into nonsense.
     """
@@ -251,13 +253,13 @@ def cell_fits_structure(fit: PawleyFit, structure) -> str:
                 f"structure {theirs.centring_type()}-centred")
     own = [float(v) for v in structure.lattice.parameters]
     for name, new, old in zip("abc", fit.cell[:3], own[:3], strict=True):
-        if abs(new - old) > 0.05 * old:
+        if abs(new - old) > length * old:
             return (f"{name} is {new:.3f} Å in the fit and {old:.3f} Å "
                     f"in the structure -- another setting, or another "
                     f"cell")
     for name, new, old in zip(("α", "β", "γ"), fit.cell[3:], own[3:],
                               strict=True):
-        if abs(new - old) > 2.0:
+        if abs(new - old) > angle:
             return (f"{name} is {new:.2f}° in the fit and {old:.2f}° in "
                     f"the structure")
     return ""

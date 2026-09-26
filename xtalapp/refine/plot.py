@@ -34,7 +34,11 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from xtal import install
 from xtalapp.dialogs.pattern import _figure_canvas, installed
-from xtalapp.widgets.intensity_scale import apply_scale, scale_box
+from xtalapp.widgets.intensity_scale import (
+    FOLLOWS,
+    apply_scale,
+    scale_box,
+)
 from xtalapp.widgets.tone import WARNING, set_tone
 
 __all__ = ["RefinementPlot"]
@@ -159,13 +163,17 @@ class RefinementPlot(QWidget):
         if self.figure is None:
             return
         self.show_observed(x, observed)
+        # The intensity axis is the measurement's, at every scale: a
+        # Rietveld run's first frame comes before the scale is refined,
+        # 2.5 million counts against 5000 on rutile, and an axis sized
+        # to it left the data a flat line under every later frame.
         if background is not None:
             (self._lines["background"],) = self.axes.plot(
                 self._x, np.asarray(background, dtype=float), lw=0.8,
-                color=COLORS[2], label="background")
+                color=COLORS[2], label="background", scaley=False, gid=FOLLOWS)
         (self._lines["calculated"],) = self.axes.plot(
             self._x, np.asarray(calculated, dtype=float), lw=1.0,
-            color=COLORS[1], label="calculated")
+            color=COLORS[1], label="calculated", scaley=False, gid=FOLLOWS)
         (self._lines["difference"],) = self.difference.plot(
             self._x, self._observed - np.asarray(calculated, dtype=float),
             lw=0.8, color=COLORS[3])

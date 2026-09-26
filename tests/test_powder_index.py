@@ -155,6 +155,21 @@ def test_a_space_group_selection_ranks_only_classes_that_contain_it(
 
 
 @pytest.mark.slow
+def test_the_pass_after_the_last_validation_is_named_while_it_runs(
+        rutile_xy_shared):
+    """RietX's sweep for sub- and supercells runs after the last
+    validation and announces nothing: 9 s past a 60 s budget on a MOF
+    pattern, with "validating cubic P, 12 of 26" on screen as though
+    that had stalled."""
+    said = []
+    _index(rutile_xy_shared, bravais=frozenset({"tP"}), rank_groups=0,
+           say=said.append, **SMALL)
+    last = max(k for k, text in enumerate(said)
+               if text.startswith("validating"))
+    assert "sub- and supercells" in said[last + 1]
+
+
+@pytest.mark.slow
 def test_stop_returns_the_candidates_reached_so_far(rutile_xy_shared):
     """An indexing run is a minute; Stop is pressed when the list
     already looks right, and must not throw that list away."""

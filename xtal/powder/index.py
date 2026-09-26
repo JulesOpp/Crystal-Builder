@@ -286,6 +286,11 @@ def index(peak_list, data: PowderData, radiation: Radiation,
 
     def on_stage(label, k, total):
         what, _sep, where = label.partition(":")
+        if what == "ambiguity":
+            say("checking the leading cells for sub- and supercells -- "
+                "RietX's last pass, which Stop can only end between "
+                "cells")
+            return
         verb = "validating" if what == "validate" else \
             "agreeing on" if what == "consensus" else f"searching ({what})"
         say(f"{verb} {where}, {k} of {total}")

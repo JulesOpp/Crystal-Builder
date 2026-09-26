@@ -325,6 +325,9 @@ def _lines_profile(grid: np.ndarray, lines, emission) -> np.ndarray:
 #: 0.1 % of its height, below the noise of any real pattern.
 _REACH_FWHM = 15.0
 
+#: Steps a peak refinement may take; it converges in tens.
+_MAX_STEPS = 400
+
 
 def _width_at(fit: PeakFit, x: float) -> float:
     """The full width at half maximum of the data's peak nearest ``x``,
@@ -364,7 +367,7 @@ def refine_peaks(data: PowderData, radiation: Radiation, fit: PeakFit,
     """
     from numpy.polynomial import chebyshev
     from scipy.optimize import least_squares
-    from scipy.sparse import lil_matrix
+    from scipy.sparse import csr_matrix
 
     from xtal.powder import bridge
     from xtal.powder.data import PowderStopped
@@ -416,13 +419,42 @@ def refine_peaks(data: PowderData, radiation: Radiation, fit: PeakFit,
             raise PowderStopped("stopped")
         return (model(params)[0] - y) / sigma
 
-    sparsity = lil_matrix((len(x), len(x0)), dtype=int)
-    sparsity[:, :n_bkg] = 1
-    for j, sl in enumerate(rows):
-        sparsity[sl, n_bkg + 4 * j:n_bkg + 4 * j + 4] = 1
-    solution = least_squares(residual, x0, bounds=(lower, upper),
-                             jac_sparsity=sparsity, method="trf",
-                             x_scale="jac")
+    # The Jacobian is written out rather than differenced.  Differenced,
+    # every Jacobian cost a dozen model evaluations and the bounded
+    # trust region took hundreds of them: 29 lines on 4700 points ran
+    # into scipy's cap of 100 evaluations per parameter, 25 s here and
+    # minutes on a busier machine, without converging.
+    bkg_block = basis / sigma[:, None]
+
+    def jacobian(params):
+        blocks = []
+        for j, sl in enumerate(rows):
+            at, area, width, eta = params[n_bkg + 4 * j:n_bkg + 4 * j + 4]
+            derivs = _doublet_derivatives(x[sl], at, width, eta, emission)
+            blocks.append(np.column_stack(
+                [area * derivs[0], derivs[1], area * derivs[2],
+                 area * derivs[3]]) / sigma[sl, None])
+        values = [bkg_block.ravel()]
+        rows_of = [np.repeat(np.arange(len(x)), n_bkg)]
+        cols_of = [np.tile(np.arange(n_bkg), len(x))]
+        for j, (sl, block) in enumerate(zip(rows, blocks, strict=True)):
+            values.append(block.ravel())
+            rows_of.append(np.repeat(np.arange(sl.start, sl.stop), 4))
+            cols_of.append(np.tile(n_bkg + 4 * j + np.arange(4),
+                                   sl.stop - sl.start))
+        return csr_matrix((np.concatenate(values),
+                           (np.concatenate(rows_of),
+                            np.concatenate(cols_of))),
+                          shape=(len(x), len(x0)))
+
+    # And it stops when chi-squared stops moving by a part in 1e5.
+    # scipy's 1e-8 is past where the fit is: the same pattern reached
+    # its Rwp in 24 steps and spent thousands more shaving parts per
+    # million off chi-squared with lines sitting on their bounds.
+    solution = least_squares(residual, x0, jac=jacobian,
+                             bounds=(lower, upper), method="trf",
+                             x_scale="jac", ftol=1e-5,
+                             max_nfev=_MAX_STEPS)
     params = solution.x
     calc, background = model(params)
     esd = _esds(solution, len(x))
@@ -467,6 +499,44 @@ def _doublet(x, at: float, width: float, eta: float, emission):
             total += weight * profile(x, 2.0 * np.degrees(np.arcsin(s)),
                                       width, "pseudo-voigt", eta)
     return total
+
+
+def _doublet_derivatives(x, at: float, width: float, eta: float,
+                         emission):
+    """``(d/dat, value, d/dwidth, d/deta)`` of :func:`_doublet`.
+
+    The pseudo-Voigt of :func:`xtal.analysis.pxrd.profile`, taken
+    apart: each emission line's position moves with the Kα1's by
+    ``r cos(θ1) / cos(θk)``, which is Bragg's law differentiated.
+    """
+    from xtal.analysis.pxrd import GAUSSIAN_FWHM_TO_SIGMA
+
+    primary = emission[0][0]
+    half_rad = np.radians(at / 2.0)
+    sin_theta, cos_theta = np.sin(half_rad), np.cos(half_rad)
+    sigma = width * GAUSSIAN_FWHM_TO_SIGMA
+    half = width / 2.0
+    d_at, value, d_width, d_eta = (np.zeros_like(x) for _ in range(4))
+    for wavelength, weight in emission:
+        ratio = wavelength / primary
+        s = sin_theta * ratio
+        if s >= 1.0:
+            continue
+        centre = 2.0 * np.degrees(np.arcsin(s))
+        moves = ratio * cos_theta / np.sqrt(1.0 - s * s)
+        dx = x - centre
+        u = dx / sigma
+        gauss = np.exp(-0.5 * u * u) / (sigma * np.sqrt(2.0 * np.pi))
+        denom = dx * dx + half * half
+        lorentz = half / (np.pi * denom)
+        dg_dc, dl_dc = gauss * u / sigma, lorentz * 2.0 * dx / denom
+        dg_dw = gauss * (u * u - 1.0) / width
+        dl_dw = 0.5 * lorentz * (1.0 / half - 2.0 * half / denom)
+        value += weight * (eta * lorentz + (1.0 - eta) * gauss)
+        d_at += weight * moves * (eta * dl_dc + (1.0 - eta) * dg_dc)
+        d_width += weight * (eta * dl_dw + (1.0 - eta) * dg_dw)
+        d_eta += weight * (lorentz - gauss)
+    return d_at, value, d_width, d_eta
 
 
 def _doublet_span(two_theta: float, emission) -> float:

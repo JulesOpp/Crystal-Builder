@@ -199,3 +199,48 @@ def test_peak_refinement_runs_headless(rutile_xy, tmp_path, capsys):
                  str(workspace), "-q"]) == 0
     assert "Rwp" in capsys.readouterr().out
     assert list(workspace.rglob("peaks.csv"))
+
+
+def test_the_peak_jacobian_is_the_derivative_of_the_peak():
+    """Refine peaks is handed the Jacobian rather than differencing
+    it; a wrong one converges somewhere wrong without saying so."""
+    from xtal.powder.peaks import _doublet, _doublet_derivatives
+
+    emission = [(1.5405929, 1.0), (1.5444274, 0.5)]
+    x = np.linspace(20.0, 24.0, 801)
+    at, width, eta, h = 22.0, 0.1, 0.4, 1e-6
+    d_at, value, d_width, d_eta = _doublet_derivatives(
+        x, at, width, eta, emission)
+    assert value == pytest.approx(_doublet(x, at, width, eta, emission))
+    for analytic, shifted in (
+            (d_at, lambda e: _doublet(x, at + e, width, eta, emission)),
+            (d_width, lambda e: _doublet(x, at, width + e, eta,
+                                         emission)),
+            (d_eta, lambda e: _doublet(x, at, width, eta + e, emission))):
+        numeric = (shifted(h) - shifted(-h)) / (2.0 * h)
+        assert np.max(np.abs(analytic - numeric)) \
+            < 1e-6 * np.max(np.abs(numeric))
+
+
+def test_refining_peaks_converges_in_tens_of_steps(fit, rutile_xy,
+                                                  monkeypatch):
+    """Differenced, with scipy's 1e-8 tolerance, 29 lines of a MOF
+    pattern ran into the 12 400-evaluation cap -- minutes, and "did
+    not converge" at the end of it."""
+    import scipy.optimize
+
+    from xtal.powder.peaks import refine_peaks
+
+    calls = []
+    real = scipy.optimize.least_squares
+
+    def counted(*args, **kwargs):
+        solution = real(*args, **kwargs)
+        calls.append(solution.nfev)
+        return solution
+
+    monkeypatch.setattr(scipy.optimize, "least_squares", counted)
+    refined = refine_peaks(PowderData.from_xy(rutile_xy), Radiation("cu"),
+                           fit)
+    assert calls and calls[0] < 100
+    assert not any("did not converge" in n for n in refined.notes)

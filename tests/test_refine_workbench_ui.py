@@ -636,3 +636,212 @@ def test_stopping_a_rietveld_run_puts_the_atoms_back(
     assert len(document.stack._done) == done
     assert not document.modified
     assert np.isfinite(document.structure.frac).all()
+
+
+def test_a_frame_before_the_scale_is_refined_leaves_the_axis_on_the_data(
+        bench, rutile_xy):
+    """RietX's first frame is at scale 1: 2.5 million counts against
+    5000 on rutile.  The axis sized to it and kept that size for every
+    later frame, which drew the measurement as a flat line."""
+    bench.load_pattern(rutile_xy)
+    x, y = bench.data.two_theta, bench.data.intensity
+    bench.plot.show_fit(x, y, y * 500.0)
+    assert bench.plot.axes.get_ylim()[1] < 2.0 * y.max()
+    bench.plot.set_scale("sqrt")
+    assert bench.plot.axes.get_ylim()[1] < 2.0 * y.max()
+    bench.plot.set_scale("log")
+    assert bench.plot.axes.get_ylim()[1] < 2.0 * y.max()
+
+
+def test_each_rietveld_fit_joins_the_history_and_any_row_can_be_restored(
+        window, qtbot, tmp_path, rutile_xy):
+    """SHELXLE's walk back along the .res files: the start and every
+    fit are rows, and restoring one is one undo step that puts back
+    its atoms and its boxes -- the later rows stay."""
+    document = window.open_path(_displaced_rutile_cif(tmp_path))
+    bench = window.open_refine_workbench()
+    bench.load_pattern(rutile_xy)
+    form = bench.step_forms["rietveld"]
+    form.set_values({"positions": False, "biso": False})
+    assert _run_rietveld(bench, qtbot).ok
+    form.set_values({"positions": True, "biso": True})
+    assert _run_rietveld(bench, qtbot).ok
+    assert [e.fit is None for e in bench.history] == [True, False, False]
+    assert bench.history_table.rowCount() == 3
+    assert bench.history_table.item(0, 7).text() == "start"
+    assert float(bench.history_table.item(2, 2).text()) \
+        < float(bench.history_table.item(1, 2).text())
+    refined = float(document.structure.sites[1].frac[0])
+    assert refined == pytest.approx(0.3053, abs=2e-3)
+
+    done = len(document.stack._done)
+    assert bench.restore_history(1)
+    assert len(document.stack._done) == done + 1
+    assert document.structure.sites[1].frac[0] == pytest.approx(0.29)
+    assert not form.values()["positions"]
+    assert bench.rietveld is bench.history[1].fit
+    assert bench.history_table.rowCount() == 3
+    assert bench.history_table.item(1, 0).font().bold()
+
+    assert bench.restore_history(0)
+    assert bench.rietveld is None
+    document.undo()
+    document.undo()
+    assert document.structure.sites[1].frac[0] == pytest.approx(refined)
+
+
+def test_loading_another_pattern_starts_a_new_history(bench, rutile_xy):
+    bench.history.append(object())
+    bench.load_pattern(rutile_xy)
+    assert bench.history == []
+    assert bench.history_table.rowCount() == 0
+    assert not bench.restore_button.isEnabled()
+
+
+def test_the_plan_note_says_what_the_chosen_plan_frees(bench):
+    """Two of RietX's four plans move no atom, which a name like
+    "lab Bragg-Brentano" does not say."""
+    form = bench.step_forms["rietveld"]
+    assert "atom positions" in bench.plan_note.text()
+    assert "The atoms move" in bench.plan_note.text()
+    form.set_values({"positions": False})
+    assert "atom positions" not in bench.plan_note.text()
+    for plan, moves in (("mccusker_structural", True),
+                        ("mccusker_default", False),
+                        ("lab_bragg_brentano", False),
+                        ("lab_sample_refine", False)):
+        form.set_values({"plan": plan})
+        text = bench.plan_note.text()
+        assert text.startswith(("Standard", "Lab"))
+        assert ("The atoms move" in text) is moves, plan
+
+
+def test_run_and_stop_stay_in_sight_on_every_step(bench):
+    """The form stack was as tall as Rietveld's page, which put Run
+    below the bottom of the window on Peaks and Index; and Run lives
+    outside the scrolling form, however long the form is."""
+    from PySide6.QtWidgets import QApplication, QScrollArea
+
+    bench.steps.setCurrentRow(0)
+    QApplication.processEvents()
+    rietveld = bench.forms.widget(3).sizeHint().height()
+    assert bench.forms.sizeHint().height() \
+        == bench.forms.widget(0).sizeHint().height() < rietveld / 2
+    widget = bench.run_button
+    while widget is not None:
+        assert not isinstance(widget, QScrollArea)
+        widget = widget.parentWidget()
+
+
+def test_a_rietx_plan_greys_out_the_boxes_it_decides_for_itself(bench):
+    """RietX's plans never read the boxes, so a box left live beside
+    one looked like a say over the fit that it did not have.  The
+    range and the background's order still count, and stay live."""
+    form = bench.step_forms["rietveld"]
+    form.set_values({"plan": "mccusker_default"})
+    for name in ("background", "zero", "profile", "positions", "biso",
+                 "preferred_axis"):
+        assert not form.widgets[name].isEnabled(), name
+    assert not bench.rietveld_cell.isEnabled()
+    for name in ("start", "finish", "background_terms", "plan"):
+        assert form.widgets[name].isEnabled(), name
+    form.set_values({"plan": ""})
+    assert form.widgets["positions"].isEnabled()
+    assert bench.rietveld_cell.isEnabled()
+
+
+def test_a_plan_note_is_drawn_whole_however_narrow_the_column(
+        bench, qtbot):
+    """The page was measured with the boxes' one-line note and never
+    again, so in a window too short to show the whole form the page
+    was handed that height and a plan's four-sentence note was
+    squeezed and cut off, and the rows below it with it."""
+    from PySide6.QtWidgets import QApplication
+
+    bench.resize(1000, 500)
+    bench.show()
+    bench.steps.setCurrentRow(3)
+    QApplication.processEvents()
+    bench.step_forms["rietveld"].set_values({"plan": "mccusker_default"})
+    QApplication.processEvents()
+    note = bench.plan_note
+    assert note.minimumHeight() >= note.heightForWidth(note.width()) > 0
+    page = bench.forms.currentWidget()
+    assert bench.forms.sizeHint().height() \
+        >= page.minimumSizeHint().height()
+
+
+# -- automatic -------------------------------------------------------------
+
+def _run_auto(bench, qtbot, **form):
+    bench.steps.setCurrentRow(4)
+    assert bench.current_step == "auto"
+    bench.bravais.set_value("tP")
+    bench.step_forms["index"].set_values(
+        {"longest_axis": 6.0, "budget": 10.0, "zero_error": 0.0})
+    bench.step_forms["auto"].set_values(
+        {"cells": 1, "classes": 2, **form})
+    with qtbot.waitSignal(bench.stepFinished, timeout=120000) as blocker:
+        bench.run_step()
+    return blocker.args[0]
+
+
+def test_the_automatic_run_asks_every_steps_own_form(bench, rutile_xy):
+    """One set of questions, asked once: the automatic run reads the
+    lattices off Index and the broadening off Pawley, never a second
+    copy of them that could disagree."""
+    bench.load_pattern(rutile_xy)
+    bench.bravais.set_value("tP")
+    bench.step_forms["pawley"].set_values({"strain": False,
+                                           "background_terms": 5})
+    bench.step_forms["rietveld"].set_values({"plan": "mccusker_default"})
+    values = bench.values("auto")
+    assert values["bravais"] == "tP"
+    assert values["pawley_strain"] is False
+    assert values["pawley_background_terms"] == 5
+    assert values["rietveld_plan"] == "mccusker_default"
+    assert "pawley_cell" not in values and "cell" not in values
+    assert values["cells"] == 5 and values["continue_rietveld"] is False
+    bench.steps.setCurrentRow(4)
+    assert bench.run_button.text() == "Run all"
+
+
+@pytest.mark.slow
+def test_an_automatic_run_fills_every_steps_answer_and_ranks_the_fits(
+        bench, qtbot, rutile_xy):
+    """The peaks land on Peaks and the cells on Index, as if each step
+    had been run; a row of the table is its own fit, and becomes the
+    Pawley step's answer so Apply cell applies the one looked at."""
+    bench.load_pattern(rutile_xy)
+    result = _run_auto(bench, qtbot)
+    assert result.ok, result.message
+    assert bench.peaks is not None and bench.table.rowCount() > 5
+    assert bench.cells is not None and bench.cell_table.rowCount()
+    rows = bench.auto.rows
+    assert bench.auto_table.rowCount() == len(rows) >= 1
+    assert bench.pawley is rows[0].fit
+    assert bench.auto_label.text().startswith("Best: row 1")
+    if len(rows) > 1:
+        bench.auto_table.selectRow(1)
+        assert bench.pawley is rows[1].fit
+
+
+@pytest.mark.slow
+def test_continuing_to_rietveld_is_one_undo_step_on_the_structure(
+        window, qtbot, tmp_path, rutile_xy):
+    """Asked to go on, the run refines the structure the window was
+    opened over in the Pawley cell, and the whole of it -- cell and
+    atoms -- is one Ctrl+Z, and a row of the History."""
+    document = window.open_path(_displaced_rutile_cif(tmp_path))
+    bench = window.open_refine_workbench()
+    bench.load_pattern(rutile_xy)
+    done = len(document.stack._done)
+    result = _run_auto(bench, qtbot, continue_rietveld=True)
+    assert result.ok, result.message
+    assert bench.auto.rietveld is not None
+    assert len(document.stack._done) == done + 1
+    assert document.structure.sites[1].frac[0] == pytest.approx(0.3053,
+                                                                abs=2e-3)
+    assert [e.fit is None for e in bench.history] == [True, False]
+    document.undo()
+    assert document.structure.sites[1].frac[0] == pytest.approx(0.29)

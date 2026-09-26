@@ -787,6 +787,15 @@ RIETVELD_PARAMS = (
 )
 
 
+#: The boxes a RietX plan decides for itself: with one chosen they are
+#: never read, and a box left live beside it says it is.  The range
+#: and the background's order still count, since the plan refines
+#: over whatever pattern and background it is handed.
+PLAN_DECIDES = ("background", "zero", "displacement", "cell", "hold",
+                "profile", "size", "strain", "positions", "biso",
+                "occupancy", "preferred_axis")
+
+
 def rietveld_options(values: dict):
     from xtal.powder.pawley import parse_hold
     from xtal.powder.rietveld import RietveldOptions, parse_axis
@@ -809,6 +818,22 @@ def rietveld_options(values: dict):
         biso=bool(values.get("biso", True)),
         occupancy=bool(values.get("occupancy", False)),
         preferred_axis=parse_axis(values.get("preferred_axis", "")))
+
+
+def rietveld_plan_note(values: dict) -> str:
+    """What the plan the form names does, stage by stage -- the note
+    under the Plan box.  ``""`` without the ``refine`` extra."""
+    if not powder.available():
+        return ""
+    from xtal.powder import bridge
+
+    try:
+        options = rietveld_options(values)
+    except PowderError:
+        # an axis half typed: the note is about the plan, not the axis
+        options = rietveld_options({**values, "preferred_axis": ""})
+    return bridge.plan_notes(options.plan,
+                             options.free(radiation_of(values)))
 
 
 def run_rietveld(job) -> JobResult:
@@ -884,6 +909,178 @@ def rietveld_report(fit, name: str = "") -> Report:
 
 
 # ======================================================================
+#  AUTOMATIC
+# ======================================================================
+
+AUTO_PARAMS = (
+    Param("cells", "Pawley the top", kind="int", default=5, minimum=1,
+          maximum=20, suffix=" cells",
+          help="How many of indexing's leading cells are Pawley fitted."),
+    Param("classes", "In each cell's top", kind="int", default=3,
+          minimum=1, maximum=10, suffix=" space-group classes",
+          help="How many extinction classes of each cell are fitted, "
+               "refuted ones left out: a Pawley fit per class, which is "
+               "what says whether the absences are real."),
+    Param("continue_rietveld", "Continue to Rietveld", kind="bool",
+          default=False,
+          help="Go on from the ranked table to refine the open "
+               "structure, when its cell is a row's to 1 % and 1° and "
+               "the pattern refutes none of its space group.  "
+               "Unticked, the run stops at the table."),
+)
+
+
+def _prefixed(params, prefix: str, leave=()) -> tuple:
+    """A step's parameters under ``prefix``: the automatic run asks the
+    Pawley and Rietveld steps' own questions, whose names -- the range,
+    the zero -- would otherwise collide with the peak step's."""
+    import dataclasses
+
+    return tuple(dataclasses.replace(p, name=prefix + p.name)
+                 for p in params if p.name not in leave)
+
+
+def _unprefixed(values: dict, prefix: str) -> dict:
+    return {k[len(prefix):]: v for k, v in values.items()
+            if k.startswith(prefix)}
+
+
+#: Everything ``xtal run pxrd.auto`` takes: the pattern, the peak and
+#: index steps' questions as they are, the Pawley and Rietveld steps'
+#: under ``pawley_`` and ``rietveld_``, and the run's own.
+AUTO_RUN_PARAMS = (
+    DATA_PARAMS
+    + tuple(p for p in PEAK_PARAMS if p.name != "positions")
+    + INDEX_PARAMS + AUTO_PARAMS
+    + _prefixed(PAWLEY_PARAMS, "pawley_", ("cell", "space_group",
+                                           "hold"))
+    + _prefixed(RIETVELD_PARAMS, "rietveld_"))
+
+AUTO_COLUMNS = ("Rank", "Cell", "Lattice", "Space group", "Class", "a",
+                "b", "c", "α", "β", "γ", "V (Å³)", "Rwp (%)", "GoF")
+
+
+def auto_options(values: dict):
+    from xtal.powder.auto import AutoOptions
+    from xtal.powder.peaks import PeakOptions
+
+    start = float(values.get("start", 0.0) or 0.0)
+    finish = float(values.get("finish", 0.0) or 0.0)
+    return AutoOptions(
+        peaks=PeakOptions(
+            start=start or None, finish=finish or None,
+            shoulders=bool(values.get("shoulders", True)),
+            flag_ghosts=bool(values.get("flag_ghosts", True))),
+        index=index_options(values),
+        pawley=pawley_options(_unprefixed(values, "pawley_")),
+        cells=int(values.get("cells", 5)),
+        classes=int(values.get("classes", 3)),
+        rietveld=bool(values.get("continue_rietveld", False)),
+        rietveld_options=rietveld_options(
+            _unprefixed(values, "rietveld_")))
+
+
+def run_auto(job) -> JobResult:
+    """Peaks, index, Pawley the leading cells in their leading classes,
+    rank them; leave ``ranked.csv``, and a folder per stage."""
+    from xtal.powder.auto import auto
+
+    values = job.params
+    structure = job.structure
+    try:
+        data = _data_of(values)
+        options = auto_options(values)
+        interval = float(values.get("frame_interval", 0.2))
+        result = auto(data, radiation_of(values), options,
+                      structure=structure, cancel=job.cancel,
+                      say=job.say, folder=job.path,
+                      on_frame=job.update if interval >= 0 else None,
+                      frame_interval=max(interval, 0.0))
+    except PowderError as exc:
+        return JobResult.failure(str(exc))
+    for note in result.notes:
+        job.note(note)
+    if result.rietveld_refused:
+        job.note(result.rietveld_refused)
+    artifacts = []
+    if job.folder is not None:
+        artifacts.append(_write_ranked(job.file("ranked.csv"), result))
+        if result.rietveld is not None:
+            from xtal.io import write_cif
+
+            path = job.file("refined.cif")
+            write_cif(result.rietveld.structure, path)
+            artifacts.append(path)
+        job.note("wrote ranked.csv")
+    best = result.best
+    if best is None:
+        message = "no cell was Pawley fitted" if result.cells is None \
+            or not result.cells.rows else "every Pawley fit failed"
+    else:
+        a, b, c = best.fit.cell[:3]
+        message = (f"{len(result.rows)} Pawley fits; the best is "
+                   f"{best.bravais} {a:.4f} {b:.4f} {c:.4f} Å in "
+                   f"{best.fit.space_group}, Rwp "
+                   f"{100 * best.rwp:.2f} %")
+    if result.rietveld is not None:
+        message += (f"; Rietveld Rwp {100 * result.rietveld.rwp:.2f} %, "
+                    f"GoF {result.rietveld.gof:.2f}")
+    elif result.rietveld_refused:
+        message += "; not refined: see the log"
+    if result.stopped:
+        message = "stopped -- " + message
+    return JobResult(message=message, artifacts=tuple(artifacts),
+                     report=auto_report(result, data.name),
+                     answer=result, cancelled=result.stopped)
+
+
+def auto_cells(row) -> tuple[str, ...]:
+    """A row of the ranked table, as it is written."""
+    cell = row.fit.cell if row.fit is not None else row.cell
+    a, b, c, alpha, beta, gamma = cell
+    rwp = f"{100 * row.rwp:.2f}" if row.fit is not None else "--"
+    gof = f"{row.gof:.3f}" if row.fit is not None else row.error
+    return (str(row.rank), str(row.cell_rank), row.bravais,
+            row.fit.space_group if row.fit is not None
+            else row.space_group, row.class_symbol, f"{a:.5f}",
+            f"{b:.5f}", f"{c:.5f}", f"{alpha:.3f}", f"{beta:.3f}",
+            f"{gamma:.3f}", f"{row.volume:.2f}", rwp, gof)
+
+
+def auto_report(result, name: str = "") -> Report:
+    rows = tuple(Row.of(*auto_cells(row)) for row in result.rows)
+    note = ""
+    if result.rietveld is not None:
+        note = ("Rietveld on the structure, in the cell of row "
+                f"{result.rietveld_row.rank}: "
+                + rietveld_summary(result.rietveld).replace("\n", ".  "))
+    elif result.rietveld_refused:
+        note = result.rietveld_refused
+    return Report(
+        title=f"Automatic, {name}" if name else "Automatic",
+        blocks=(Table(title=f"Pawley fits ({len(rows)})",
+                      columns=AUTO_COLUMNS, rows=rows,
+                      note="Ranked by Rwp; fits within 1 % of each "
+                           "other are in indexing's order.  Cell is "
+                           "indexing's rank of the cell."),),
+        note=note)
+
+
+def _write_ranked(path, result):
+    lines = ["rank,cell_rank,lattice,space_group,class,a,b,c,alpha,"
+             "beta,gamma,volume,rwp,gof,folder,error"]
+    for row in result.rows:
+        texts = auto_cells(row)
+        rwp = f"{row.rwp:.5f}" if row.fit is not None else ""
+        gof = f"{row.gof:.4f}" if row.fit is not None else ""
+        folder = row.folder.name if row.folder is not None else ""
+        lines.append(",".join(texts[:12]) + f",{rwp},{gof},{folder},"
+                     + row.error.replace(",", ";"))
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
+# ======================================================================
 #  THE ENTRIES
 # ======================================================================
 
@@ -920,6 +1117,13 @@ STEPS = (
            params=DATA_PARAMS + PAWLEY_PARAMS, run=run_pawley,
            needs_structure=False, listed=False,
            check=refine_available),
+    Action(name="auto", label="Automatic",
+           tip="Peaks, indexing and a Pawley fit of every leading cell "
+               "and space group, ranked -- and on into Rietveld when "
+               "asked",
+           params=AUTO_RUN_PARAMS, run=run_auto,
+           needs_structure=False, listed=False,
+           check=refine_available),
     Action(name="rietveld", label="Rietveld",
            tip="Refine a structure's atoms against the whole pattern",
            params=DATA_PARAMS + RIETVELD_PARAMS, run=run_rietveld,
@@ -936,4 +1140,5 @@ STEP_PARAMS = {"peaks": tuple(p for p in PEAK_PARAMS
                + REFINE_PEAK_PARAMS,
                "index": INDEX_PARAMS,
                "pawley": PAWLEY_PARAMS,
-               "rietveld": RIETVELD_PARAMS}
+               "rietveld": RIETVELD_PARAMS,
+               "auto": AUTO_PARAMS}

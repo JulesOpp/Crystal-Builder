@@ -63,7 +63,7 @@ def apply_scale(axes, key: str) -> None:
         # autoscale below zero, which a logarithm refuses with a
         # warning, and its tails reach 1e-12 of the peak.
         y = np.concatenate([np.asarray(line.get_ydata(), dtype=float)
-                            for line in axes.lines] or [np.ones(1)])
+                            for line in _sizing(axes)] or [np.ones(1)])
         y = y[np.isfinite(y) & (y > 0)]
         high = float(y.max()) if y.size else 10.0
         low = max(float(y.min()) if y.size else 1.0,
@@ -77,6 +77,22 @@ def apply_scale(axes, key: str) -> None:
                                                _signed_square))
     else:
         axes.set_yscale("linear")
-    axes.relim()
+    others = [line for line in axes.lines
+              if line not in _sizing(axes) and line.get_visible()]
+    for line in others:
+        line.set_visible(False)
+    axes.relim(visible_only=True)
+    for line in others:
+        line.set_visible(True)
     axes.autoscale(enable=True, axis="y")
     axes.autoscale_view(scalex=False)
+
+
+#: A line's gid that keeps it out of the axis's limits: it is drawn
+#: against the measurement, not sized with it.
+FOLLOWS = "follows"
+
+
+def _sizing(axes) -> list:
+    """The lines the intensity axis is fitted to."""
+    return [line for line in axes.lines if line.get_gid() != FOLLOWS]
