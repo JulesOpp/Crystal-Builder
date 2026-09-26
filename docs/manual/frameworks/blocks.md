@@ -181,6 +181,17 @@ carboxylate carbon:
    the folder the MOF builder reads your own blocks from, and press
    **Save**.  The block is in the picker from then on.
 
+Steps 3 and 4 are a shortcut: deleting everything that is not the
+cluster by hand comes to the same thing.
+
+:::{note}
+Pick a cluster that sits whole inside the cell.  After *Reduce to P1*
+each atom is the one image inside the cell, so a cluster that
+straddles a face comes out in pieces on opposite sides.  The remedy
+is to move the cell's origin in P1 until the cluster is whole, and
+the application has no command for that yet (`docs/TODO.md`).
+:::
+
 Each `X` placed this way hangs off one atom.  A chelate's point --
 one `X` for two atoms -- is made with *Mark as one connection point*
 above.

@@ -160,11 +160,10 @@ ZIF-8's cages 0.021 of the cell small.
 the union of probe spheres, never against Zeo++.**  The measurements
 in the code: MIL-53 0.659 against Zeo++'s 0.651, HKUST-1 0.677 against
 0.654, UiO-66 0.456 against 0.430.  Probe spheres centred on a 0.15 Å
-grid of open points -- every one a real probe position -- already
-cover 0.663 and 0.679 of the first two, so the true volume is at
-least that, and the grid's number sits just under it, as a union of
-real spheres must.  The shortfall is Zeo++'s, by up to 0.03 of the
-cell, and the report says so under the table.
+grid of open points -- every one a real probe position -- cover 0.663
+and 0.679 of the first two, and the grid's number sits just under
+that.  The two methods differ by up to 0.03 of the cell, and the
+report says so under the table.
 :::
 
 Against Zeo++ on the shipped samples, where the grid resolves the
@@ -218,7 +217,7 @@ Pockets                                0
 Density                           0.8791  g/cm^3
 Cell volume                      18280.8  A^3
 
-The fraction of a 0.4 A grid at a probe radius of 1.86 A.  This reads up to 0.03 of the cell above Zeo++'s -volpo: probe spheres centred on real probe positions cover at least this much, so the shortfall is Zeo++'s.
+The fraction of a 0.4 A grid at a probe radius of 1.86 A.  This reads up to 0.03 of the cell above Zeo++'s -volpo.
 
 radii from Zeo++'s own table
 run folder: ws/HKUST1/zeopp-volume-grid-002
@@ -322,9 +321,8 @@ are the Zeo++ entries' own.  From the command line they are
 - The two entries give the surface area and the volume.  The three
   pore diameters, the channel dimensionality and the pore size
   distribution are Zeo++'s alone.
-- POAV is deliberately not matched to Zeo++'s `-volpo`, which falls
-  short of the union of probe spheres; the two will differ by up to
-  0.03 of the cell on the same structure.
+- POAV is deliberately not matched to Zeo++'s `-volpo`; the two will
+  differ by up to 0.03 of the cell on the same structure.
 - Surface area from points on the spheres agrees with Zeo++ to within
   1 % on the shipped samples at 1000 points per atom; a different
   radii table changes both.
