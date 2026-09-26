@@ -91,6 +91,11 @@ class PeakFit:
     native: Any = None
 
     @property
+    def ticks(self) -> np.ndarray:
+        """Where the lines in use are, for the comb under the plot."""
+        return np.array([p.two_theta for p in self.peaks if p.use])
+
+    @property
     def n_used(self) -> int:
         return sum(1 for peak in self.peaks if peak.use)
 

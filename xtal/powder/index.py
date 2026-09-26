@@ -153,6 +153,8 @@ class GroupClass:
     delta_bic: float
     refuted: bool
     conditions: tuple[str, ...] = ()
+    #: the group RietX fitted the class as, in the cell's setting
+    representative: str = ""
 
 
 @dataclass
@@ -177,6 +179,9 @@ class IndexRow:
     caveats: tuple[str, ...]
     lebail_rwp: float | None
     found_by: tuple[str, ...]
+    #: the lattice's absence-free group (``P 4/m m m``), what a cell
+    #: is fitted in before its absences are known
+    lattice_group: str = ""
     classes: list[GroupClass] | None = None
     native: Any = None
 
@@ -187,6 +192,15 @@ class IndexRow:
     @property
     def unindexed(self) -> int:
         return self.n_lines - self.n_indexed
+
+    @property
+    def fit_group(self) -> str:
+        """The group to fit this cell in next: the top surviving
+        class's, or the lattice's own when no class was ranked."""
+        alive = [c for c in self.classes or () if not c.refuted]
+        if alive and alive[0].representative:
+            return alive[0].representative
+        return self.lattice_group
 
     @property
     def space_groups(self) -> str:
@@ -319,7 +333,8 @@ def _row(rank: int, candidate) -> IndexRow:
         confidence=str(candidate.confidence),
         caveats=tuple(candidate.confidence_caveats),
         lebail_rwp=None if lebail is None else float(lebail.rwp),
-        found_by=tuple(candidate.found_by), native=candidate)
+        found_by=tuple(candidate.found_by),
+        lattice_group=str(candidate.lattice_group), native=candidate)
 
 
 def _class(candidate) -> GroupClass:
@@ -328,7 +343,8 @@ def _class(candidate) -> GroupClass:
         space_groups=tuple(candidate.space_groups),
         delta_bic=float(candidate.delta_bic),
         refuted=bool(candidate.refuted),
-        conditions=tuple(candidate.conditions))
+        conditions=tuple(candidate.conditions),
+        representative=str(candidate.representative))
 
 
 def _numbers(group_class: GroupClass) -> set[int]:

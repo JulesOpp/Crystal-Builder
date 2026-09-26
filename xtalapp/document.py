@@ -1616,10 +1616,11 @@ class Document(QObject):
     def wrap_into_cell(self):
         return self.operate(cell_commands.WrapIntoCell())
 
-    def set_lattice(self, lattice, keep: str = "fractional") -> str:
+    def set_lattice(self, lattice, keep: str = "fractional",
+                    label: str = "Edit unit cell") -> str:
         """Change the cell parameters, keeping either the fractional or
         the cartesian coordinates -- never both, and never a guess."""
-        self.run(cell_commands.SetLattice(lattice, keep))
+        self.run(cell_commands.SetLattice(lattice, keep, label=label))
         a, b, c, al, be, ga = lattice.parameters
         return (f"cell {a:.4f} {b:.4f} {c:.4f} "
                 f"{al:.3f} {be:.3f} {ga:.3f} ({keep} kept)")

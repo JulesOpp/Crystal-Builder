@@ -40,11 +40,16 @@ import numpy as np
 import rietx as rx
 
 from xtal.core import elements as el
-from xtal.powder.data import PowderData, PowderError, Radiation
+from xtal.powder.data import (
+    PowderData,
+    PowderError,
+    PowderStopped,
+    Radiation,
+)
 
 __all__ = ["apply_phase", "cancel_token", "extinction_classes", "fit",
            "index_pattern", "instrument", "lattice_lines", "pattern",
-           "phase_of",
+           "pawley", "phase_of", "reflections", "space_group_named",
            "predict", "space_group_symbol", "to_rietx"]
 
 #: B = 8π²U.  RietX refines B, as TOPAS does; a CIF and this
@@ -209,7 +214,11 @@ def fit(refinement: rx.Refinement, data: PowderData, *,
     """
     kwargs.pop("telemetry", None)
     telemetry = False if folder is None else str(Path(folder) / "rietx")
-    return refinement.fit(pattern(data), telemetry=telemetry, **kwargs)
+    try:
+        return refinement.fit(pattern(data), telemetry=telemetry,
+                              **kwargs)
+    except rx.RefinementCancelled:
+        raise PowderStopped("stopped") from None
 
 
 def predict(structure, radiation: Radiation, two_theta) -> np.ndarray:
@@ -351,3 +360,85 @@ def lattice_lines(cell, system: str, centring: str, wavelength: float,
     s = np.clip(float(wavelength) * np.sqrt(np.asarray(q)) / 2.0,
                 0.0, 1.0)
     return np.asarray(hkl), 2.0 * np.degrees(np.arcsin(s))
+
+
+# ======================================================================
+#  PAWLEY
+# ======================================================================
+
+#: What each Pawley option frees, as RietX's parameter globs.  The
+#: profile's Caglioti and Lorentzian terms are always free: a Pawley
+#: fit that could not fit the widths would put every misfit into the
+#: intensities.
+_PAWLEY_FREES = {
+    "zero": ["instrument.zero_shift"],
+    "displacement": ["instrument.geometry.sample_displacement"],
+    "cell": ["phases.*.cell.*"],
+    "size": ["phases.*.lor_size", "phases.*.gauss_size"],
+    "strain": ["phases.*.lor_strain", "phases.*.gauss_strain"],
+}
+
+
+def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
+           *, background_terms: int = 8, free=("zero", "cell"),
+           folder: Path | None = None, cancel=None):
+    """``(refinement, result)``: a Pawley fit of one cell to ``data``.
+
+    The phase is RietX's own Le Bail scaffold -- a cell, a group and a
+    dummy atom it never refines -- and the plan is its
+    ``pawley_default`` order (background, positions, widths), with
+    each stage present only when what it frees was asked for.
+    """
+    from rietx.schemas.structure import lebail_scaffold
+
+    free = set(free)
+    unknown = free - set(_PAWLEY_FREES)
+    if unknown:
+        raise PowderError(f"cannot free {', '.join(sorted(unknown))}")
+    structure = lebail_scaffold(space_group, tuple(cell), name="pawley")
+    ins = instrument(radiation).model_copy(update={
+        "background": rx.BackgroundChebyshev.with_terms(
+            max(int(background_terms), 1))})
+    positions = [path for key in ("zero", "displacement")
+                 if key in free for path in _PAWLEY_FREES[key]]
+    stages = [rx.Stage("bkg", ["instrument.background.*"])]
+    if positions:
+        stages.append(rx.Stage("zero", positions))
+    if "cell" in free:
+        stages.append(rx.Stage("cell", _PAWLEY_FREES["cell"]))
+    stages.append(rx.Stage("profile_w", ["instrument.profile.w"]))
+    stages.append(rx.Stage("profile", [
+        "instrument.profile.u", "instrument.profile.v",
+        "instrument.profile.x", "instrument.profile.y"]))
+    sample = [path for key in ("size", "strain") if key in free
+              for path in _PAWLEY_FREES[key]]
+    if sample:
+        stages.append(rx.Stage("sample_profile", sample))
+    refinement = rx.Refinement(structure, ins, history=False)
+    try:
+        result = fit(refinement, data, folder=folder, mode="pawley",
+                     plan=rx.RefinementPlan(stages=stages),
+                     cancel=cancel)
+    except (ValueError, KeyError) as exc:
+        raise PowderError(f"RietX refused the fit: {exc}") from None
+    return refinement, result
+
+
+def reflections(refinement):
+    """``[(hkl, d, two_theta, multiplicity, intensity), ...]`` of the
+    last fit, the primary emission line's only."""
+    return [((row.h, row.k, row.l), float(row.d), float(row.two_theta),
+             int(row.multiplicity), float(row.intensity))
+            for row in refinement.reflection_table() if row.line == 0]
+
+
+def space_group_named(name: str) -> str:
+    """A typed space group as the extended symbol RietX resolves.
+
+    ``C2221``, ``C 2 2 21`` and ``20`` all name one group; RietX looks
+    groups up by gemmi's extended symbol, which also says the setting.
+    """
+    found = gemmi.find_spacegroup_by_name(str(name).strip())
+    if found is None:
+        raise PowderError(f"{name!r} is not a space group")
+    return found.xhm()

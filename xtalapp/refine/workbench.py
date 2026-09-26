@@ -65,7 +65,7 @@ from xtalapp.workers import ModuleWorker, start_in_thread
 __all__ = ["RefinementWorkbench"]
 
 #: ``(action name, list label)``, in the order a refinement goes.
-STEPS = (("peaks", "Peaks"), ("index", "Index"))
+STEPS = (("peaks", "Peaks"), ("index", "Index"), ("pawley", "Pawley"))
 
 PEAK_HEADERS = ("Use", "2θ (°)", "esd", "d (Å)", "Area", "FWHM (°)",
                 "Flags")
@@ -85,6 +85,7 @@ class RefinementWorkbench(QMainWindow):
         self.data: PowderData | None = None
         self.peaks = None                   # xtal.powder.peaks.PeakFit
         self.cells = None                   # xtal.powder.index.IndexResult
+        self.pawley = None                  # xtal.powder.pawley.PawleyFit
         self._running = ""
         self.worker: ModuleWorker | None = None
         self._folder = None
@@ -101,27 +102,17 @@ class RefinementWorkbench(QMainWindow):
         self.steps.setMaximumWidth(140)
 
         self.plot = RefinementPlot()
-        self.table = QTableWidget(0, len(PEAK_HEADERS))
-        self.table.setHorizontalHeaderLabels(PEAK_HEADERS)
-        self.table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setStretchLastSection(True)
-        self.table.verticalHeader().setVisible(False)
+        self.table = _table(PEAK_HEADERS)
         self.table.itemChanged.connect(self._on_use_changed)
-        self.cell_table = QTableWidget(0, len(steps.INDEX_COLUMNS))
-        self.cell_table.setHorizontalHeaderLabels(steps.INDEX_COLUMNS)
-        self.cell_table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeToContents)
-        self.cell_table.horizontalHeader().setStretchLastSection(True)
-        self.cell_table.verticalHeader().setVisible(False)
-        self.cell_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.cell_table.setSelectionMode(
-            QAbstractItemView.SingleSelection)
-        self.cell_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.cell_table = _table(steps.INDEX_COLUMNS, rows=True)
         self.cell_table.itemSelectionChanged.connect(self._on_cell_chosen)
+        self.reflection_table = _table(steps.REFLECTION_COLUMNS)
+        self.reflection_table.setEditTriggers(
+            QAbstractItemView.NoEditTriggers)
         self.tables = QStackedWidget()
         self.tables.addWidget(self.table)
         self.tables.addWidget(self.cell_table)
+        self.tables.addWidget(self.reflection_table)
         middle = QSplitter(Qt.Vertical)
         middle.addWidget(self.plot)
         middle.addWidget(self.tables)
@@ -137,8 +128,11 @@ class RefinementWorkbench(QMainWindow):
         self.setCentralWidget(splitter)
         self.steps.currentRowChanged.connect(self.forms.setCurrentIndex)
         self.steps.currentRowChanged.connect(self.tables.setCurrentIndex)
+        self.steps.currentRowChanged.connect(self._redraw)
         self.steps.setCurrentRow(0)
         self.resize(1200, 760)
+        self._fill_from_structure()
+        self._show_pawley_result()
         self._on_radiation()
         self._refresh()
 
@@ -182,6 +176,8 @@ class RefinementWorkbench(QMainWindow):
                 box_layout.addWidget(self.bravais)
             self.step_forms[name] = ParamForm(params)
             box_layout.addWidget(self.step_forms[name])
+            if name == "pawley":
+                box_layout.addWidget(self._pawley_box())
             self.forms.addWidget(box)
         layout.addWidget(self.forms)
 
@@ -206,6 +202,26 @@ class RefinementWorkbench(QMainWindow):
         area.setMinimumWidth(side.sizeHint().width()
                              + area.verticalScrollBar().sizeHint().width())
         return area
+
+    def _pawley_box(self) -> QGroupBox:
+        """The fit's figures, and the two things a cell is for."""
+        box = QGroupBox("Result")
+        layout = QVBoxLayout(box)
+        self.pawley_label = QLabel("")
+        self.pawley_label.setWordWrap(True)
+        self.pawley_label.setTextInteractionFlags(
+            Qt.TextSelectableByMouse)
+        layout.addWidget(self.pawley_label)
+        self.apply_button = QPushButton("Apply cell to the structure")
+        self.apply_button.clicked.connect(self.apply_cell)
+        self.new_button = QPushButton("New structure from this cell")
+        self.new_button.setToolTip(
+            "An empty structure with this cell and space group, filed "
+            "in the workspace like File > New")
+        self.new_button.clicked.connect(self.new_structure)
+        layout.addWidget(self.apply_button)
+        layout.addWidget(self.new_button)
+        return box
 
     def _on_radiation(self) -> None:
         """A wavelength box only when the radiation is a synchrotron:
@@ -234,6 +250,7 @@ class RefinementWorkbench(QMainWindow):
             self.say(str(exc), warn=True)
             return False
         self.data, self.peaks, self.cells = data, None, None
+        self.pawley = None
         self._folder = None
         self.pattern_label.setText(
             f"{data.name}: {len(data)} points, "
@@ -243,6 +260,8 @@ class RefinementWorkbench(QMainWindow):
                                 label=data.name)
         self._fill_table()
         self._fill_cells()
+        self._fill_reflections()
+        self._show_pawley_result()
         self.say(f"loaded {Path(path).name}")
         self._refresh()
         return True
@@ -351,6 +370,11 @@ class RefinementWorkbench(QMainWindow):
             # of stopping a search that already looks right.
             self.cells = answer
             self._fill_cells()
+        elif step == "pawley" and answer and not result.cancelled:
+            self.pawley = answer
+            self._draw_pawley()
+            self._fill_reflections()
+            self._show_pawley_result()
         self.say(result.summary(), warn=not result.ok)
         self._refresh()
         self.stepFinished.emit(result)
@@ -445,6 +469,115 @@ class RefinementWorkbench(QMainWindow):
         row = self.cells.rows[chosen[0].row()]
         self.plot.set_reflections(lines_of(
             row, self.cells.wavelength, self.cells.two_theta_range))
+        a, b, c, alpha, beta, gamma = row.cell
+        self.step_forms["pawley"].set_values({
+            "cell": f"{a:.5f} {b:.5f} {c:.5f} {alpha:.3f} {beta:.3f} "
+                    f"{gamma:.3f}",
+            "space_group": row.fit_group})
+
+    # -- Pawley --------------------------------------------------------
+
+    def _fill_from_structure(self) -> None:
+        """The open structure's cell and group, as the Pawley step's
+        starting point: refining a known phase's cell against a new
+        measurement needs no indexing."""
+        structure = self.document.structure \
+            if self.document is not None else None
+        if structure is None or not structure.sites:
+            return
+        a, b, c, alpha, beta, gamma = (
+            float(v) for v in structure.lattice.parameters)
+        self.step_forms["pawley"].set_values({
+            "cell": f"{a:.5f} {b:.5f} {c:.5f} {alpha:.3f} {beta:.3f} "
+                    f"{gamma:.3f}",
+            "space_group": structure.space_group.hm})
+
+    def _draw_pawley(self) -> None:
+        fit = self.pawley
+        self.plot.show_fit(fit.two_theta, fit.y_obs, fit.y_calc,
+                           fit.y_background, fit.ticks)
+
+    def _fill_reflections(self) -> None:
+        rows = self.pawley.reflections if self.pawley is not None \
+            else []
+        self.reflection_table.setRowCount(len(rows))
+        for r, reflection in enumerate(rows):
+            h, k, m = reflection.hkl
+            cells = (str(h), str(k), str(m), f"{reflection.d:.5f}",
+                     f"{reflection.two_theta:.4f}",
+                     str(reflection.multiplicity),
+                     f"{reflection.intensity:.2f}")
+            for column, text in enumerate(cells):
+                item = QTableWidgetItem(text)
+                item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self.reflection_table.setItem(r, column, item)
+
+    def _show_pawley_result(self) -> None:
+        fit = self.pawley
+        self.pawley_label.setText(
+            steps.pawley_summary(fit) if fit is not None
+            else "Run a Pawley fit to refine a cell.")
+        set_tone(self.pawley_label,
+                 HINT if fit is None or fit.converged else WARNING)
+        reason = self._apply_refused()
+        self.apply_button.setEnabled(not reason)
+        self.apply_button.setToolTip(
+            reason or "Put this cell on the open structure, fractional "
+                      "coordinates kept: one undo step")
+        self.new_button.setEnabled(fit is not None)
+
+    def _apply_refused(self) -> str:
+        from xtal.powder.pawley import cell_fits_structure
+
+        if self.pawley is None:
+            return "Run a Pawley fit first"
+        if self.document is None or not self.document.structure.sites:
+            return "No structure is open to put the cell on"
+        reason = cell_fits_structure(self.pawley, self.document.structure)
+        return f"Not this structure's cell: {reason}" if reason else ""
+
+    def apply_cell(self) -> None:
+        """The refined cell onto the structure the workbench is for."""
+        reason = self._apply_refused()
+        if reason:
+            self.say(reason, warn=True)
+            return
+        from xtal.core.lattice import Lattice
+
+        text = self.document.set_lattice(
+            Lattice.from_parameters(*self.pawley.cell),
+            keep="fractional", label="Apply Pawley cell")
+        self.say(f"applied the Pawley {text}")
+
+    def new_structure(self):
+        """An empty structure in the fitted cell and group, filed in
+        the workspace the way File > New files one."""
+        if self.pawley is None:
+            return None
+        from xtal.core.lattice import Lattice
+        from xtal.core.structure import Structure
+
+        structure = Structure.from_arrays(
+            Lattice.from_parameters(*self.pawley.cell), [], [],
+            space_group=self.pawley.space_group)
+        name = f"{self.data.name}-pawley" if self.data is not None \
+            else "pawley"
+        document = self.window_.document_set.new_document(structure,
+                                                          name=name)
+        self.say(f"new structure {document.title.rstrip('*')} in "
+                 f"{self.pawley.space_group}")
+        return document
+
+    def _redraw(self, row: int) -> None:
+        """Show the chosen step's own last answer, if it has one."""
+        step = STEPS[max(row, 0)][0]
+        if step == "pawley" and self.pawley is not None:
+            self._draw_pawley()
+        elif step in ("peaks", "index") and self.peaks is not None:
+            self._show_peaks()
+            if step == "index":
+                self._on_cell_chosen()
+        self._refresh()
 
     # -- the rest ------------------------------------------------------
 
@@ -471,3 +604,17 @@ class RefinementWorkbench(QMainWindow):
         # waits for it if the whole application is going.
         self.stop()
         super().closeEvent(event)
+
+
+def _table(headers, rows: bool = False) -> QTableWidget:
+    table = QTableWidget(0, len(headers))
+    table.setHorizontalHeaderLabels(headers)
+    table.horizontalHeader().setSectionResizeMode(
+        QHeaderView.ResizeToContents)
+    table.horizontalHeader().setStretchLastSection(True)
+    table.verticalHeader().setVisible(False)
+    if rows:
+        table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        table.setSelectionMode(QAbstractItemView.SingleSelection)
+        table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+    return table

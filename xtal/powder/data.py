@@ -23,11 +23,20 @@ import numpy as np
 
 from xtal.io.xy import read_columns
 
-__all__ = ["RADIATIONS", "PowderData", "PowderError", "Radiation"]
+__all__ = ["RADIATIONS", "PowderData", "PowderError", "PowderStopped",
+           "Radiation"]
 
 
 class PowderError(ValueError):
     """A pattern or a radiation no refinement can be run against."""
+
+
+class PowderStopped(Exception):
+    """A fit was stopped before it finished.
+
+    Not a :class:`PowderError`: nothing was wrong with what was asked,
+    and a step reports it as stopped rather than failed.
+    """
 
 
 #: What the radiation box offers: ``(key, label, RietX preset)``.

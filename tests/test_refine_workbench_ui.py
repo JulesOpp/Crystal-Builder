@@ -3,6 +3,8 @@ step and reading its answer back."""
 
 from __future__ import annotations
 
+import dataclasses
+
 import pytest
 
 pytest.importorskip("PySide6")
@@ -199,3 +201,120 @@ def test_an_index_run_fills_the_cell_table_and_draws_the_chosen_cell(
         assert "reflections" in bench.plot.traces
     # the peaks survive an index run: the next search reads them again
     assert bench.peaks is not None
+
+
+# -- Pawley -------------------------------------------------------------
+
+def _run_pawley(bench, qtbot, cell="4.5948 4.5948 2.9572",
+                group="P42/mnm"):
+    bench.steps.setCurrentRow(2)
+    assert bench.current_step == "pawley"
+    bench.step_forms["pawley"].set_values({"cell": cell,
+                                           "space_group": group})
+    with qtbot.waitSignal(bench.stepFinished, timeout=60000) as blocker:
+        bench.run_step()
+    return blocker.args[0]
+
+
+def test_choosing_a_cell_fills_the_pawley_form(bench, rutile_xy):
+    """Indexing's table is the Pawley step's input: the chosen row's
+    cell, fitted in its best class's group -- or its lattice's own
+    when no class was ranked."""
+    from xtal.powder.index import GroupClass, IndexResult, IndexRow
+
+    bench.load_pattern(rutile_xy)
+    row = IndexRow(rank=1, system="tetragonal", centring="P",
+                   cell=(4.5948, 4.5948, 2.9572, 90, 90, 90),
+                   cell_esd=(0,) * 6, volume=62.4, fom=None, n_indexed=15,
+                   n_lines=15, confidence="medium", caveats=(),
+                   lebail_rwp=None, found_by=(),
+                   lattice_group="P 4/m m m")
+    other = dataclasses.replace(row, rank=2, classes=[GroupClass(
+        "P 42/- n m", ("P 42/m n m",), 0.0, False,
+        representative="P 42/m n m")])
+    bench.cells = IndexResult(rows=[row, other], best=None, stopped=False,
+                              systems_searched=("tetragonal",),
+                              complete={}, wavelength=1.5406,
+                              two_theta_range=(20.0, 80.0))
+    bench._fill_cells()
+    values = bench.values("pawley")
+    assert values["cell"].split()[:3] == ["4.59480", "4.59480", "2.95720"]
+    assert values["space_group"] == "P 4/m m m"
+    bench.cell_table.selectRow(1)
+    assert bench.values("pawley")["space_group"] == "P 42/m n m"
+
+
+def test_the_pawley_form_starts_from_the_open_structure(window,
+                                                        rutile_cif):
+    """Refining a known phase's cell against a new measurement needs
+    no indexing."""
+    window.open_path(rutile_cif)
+    bench = window.open_refine_workbench()
+    values = bench.values("pawley")
+    assert values["cell"].split()[0] == "4.59400"
+    assert "42" in values["space_group"]
+
+
+def test_a_pawley_fit_fills_the_result_and_the_reflection_list(
+        bench, qtbot, rutile_xy):
+    bench.load_pattern(rutile_xy)
+    result = _run_pawley(bench, qtbot)
+    assert result.ok, result.message
+    assert bench.tables.currentWidget() is bench.reflection_table
+    assert bench.reflection_table.rowCount() == \
+        len(bench.pawley.reflections) > 10
+    assert "GoF" in bench.pawley_label.text()
+    assert "a 4.5939" in bench.pawley_label.text()
+    # no structure open: nothing to apply to, but a new one can start
+    assert not bench.apply_button.isEnabled()
+    assert "No structure" in bench.apply_button.toolTip()
+    assert bench.new_button.isEnabled()
+
+
+def test_applying_a_pawley_cell_is_one_undo_step(
+        window, qtbot, rutile_cif, rutile_xy):
+    """On the document the workbench was opened for, fractional
+    coordinates kept, and undone in one Ctrl+Z."""
+    document = window.open_path(rutile_cif)
+    bench = window.open_refine_workbench()
+    bench.load_pattern(rutile_xy)
+    before = document.structure.lattice.parameters
+    fracs = [site.frac.copy() for site in document.structure.sites]
+    steps_before = len(document.stack._done)
+    assert _run_pawley(bench, qtbot).ok
+    assert bench.apply_button.isEnabled(), bench.apply_button.toolTip()
+    bench.apply_cell()
+    assert len(document.stack._done) == steps_before + 1
+    assert document.undo_label == "Apply Pawley cell"
+    after = document.structure.lattice.parameters
+    assert after[0] == pytest.approx(bench.pawley.cell[0])
+    for site, frac in zip(document.structure.sites, fracs, strict=True):
+        assert site.frac == pytest.approx(frac)
+    document.undo()
+    assert document.structure.lattice.parameters == pytest.approx(before)
+
+
+def test_a_cell_of_another_lattice_is_not_offered_to_the_structure(
+        window, qtbot, quartz_cif, rutile_xy):
+    window.open_path(quartz_cif)
+    bench = window.open_refine_workbench()
+    bench.load_pattern(rutile_xy)
+    assert _run_pawley(bench, qtbot).ok
+    assert not bench.apply_button.isEnabled()
+    assert "Not this structure's cell" in bench.apply_button.toolTip()
+
+
+def test_a_new_structure_from_the_cell_opens_in_a_tab_of_its_own(
+        bench, window, qtbot, rutile_xy):
+    bench.load_pattern(rutile_xy)
+    assert _run_pawley(bench, qtbot).ok
+    tabs = window.tabs.count()
+    document = bench.new_structure()
+    assert window.tabs.count() == tabs + 1
+    structure = document.structure
+    assert not structure.sites
+    assert structure.space_group.number == 136
+    assert structure.lattice.parameters[2] == \
+        pytest.approx(bench.pawley.cell[2])
+    assert document.entry is not None
+    assert document.entry.name.startswith("rutile-pawley")

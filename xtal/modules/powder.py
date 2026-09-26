@@ -32,9 +32,9 @@ from xtal.modules.report import Curve, Report, Row, Table
 from xtal.params import Availability
 from xtal.powder.data import RADIATIONS, PowderData, PowderError, Radiation
 
-__all__ = ["DATA_PARAMS", "INDEX_PARAMS", "PEAK_PARAMS", "REFINE",
-           "STEPS", "STEP_PARAMS", "radiation_of", "run_index",
-           "run_peaks"]
+__all__ = ["DATA_PARAMS", "INDEX_PARAMS", "PAWLEY_PARAMS", "PEAK_PARAMS",
+           "REFINE", "STEPS", "STEP_PARAMS", "radiation_of", "run_index",
+           "run_pawley", "run_peaks"]
 
 
 def refine_available() -> Availability:
@@ -184,7 +184,7 @@ def peaks_report(fit, name: str = "") -> Report:
         note="  ".join(fit.notes))
 
 
-def fit_curve(fit, title: str) -> Curve:
+def fit_curve(fit, title: str, ticks: str = "peaks") -> Curve:
     """Observed, calculated and their difference, on counts."""
     return Curve(
         title=title, x=fit.two_theta, y=fit.y_obs,
@@ -192,8 +192,7 @@ def fit_curve(fit, title: str) -> Curve:
         series=(("calculated", fit.y_calc),
                 ("background", fit.y_background),
                 ("difference", fit.y_obs - fit.y_calc)),
-        tick_sets=(("peaks", np.array([p.two_theta for p in fit.peaks
-                                       if p.use])),),
+        tick_sets=((ticks, np.asarray(fit.ticks)),),
         normalised=False)
 
 
@@ -402,6 +401,162 @@ def _write_cells(path, result):
 
 
 # ======================================================================
+#  PAWLEY
+# ======================================================================
+
+PAWLEY_PARAMS = (
+    Param("cell", "Cell", kind="text", default="",
+          help="a b c, or a b c α β γ, in Å and degrees -- a row of "
+               "the indexing table, or the open structure's."),
+    Param("space_group", "Space group", kind="text", default="",
+          help="By symbol or number.  A group with fewer absences "
+               "than the true one fits as well and says less; one with "
+               "more leaves real lines unfitted."),
+    Param("start", "2θ from", kind="float", default=0.0, minimum=0.0,
+          maximum=180.0, decimals=2, suffix=" °",
+          help="Where the fit starts (TOPAS start_X).  0 is the start "
+               "of the file."),
+    Param("finish", "2θ to", kind="float", default=0.0, minimum=0.0,
+          maximum=180.0, decimals=2, suffix=" °",
+          help="Where it stops (TOPAS finish_X).  0 is the end of the "
+               "file."),
+    Param("background_terms", "Background terms", kind="int",
+          default=8, minimum=1, maximum=30,
+          help="Coefficients of the Chebyshev background, TOPAS's bkg "
+               "line.  More follow a curved or humped background; too "
+               "many start fitting the tails of broad peaks."),
+    Param("zero", "Refine zero error", kind="bool", default=True,
+          help="A constant shift of every line (TOPAS Zero_Error)."),
+    Param("displacement", "Refine specimen displacement", kind="bool",
+          default=False,
+          help="A shift that falls off as cos θ (TOPAS "
+               "Specimen_Displacement).  Strongly correlated with the "
+               "zero error and with the cell: free one of the two "
+               "unless the range is wide.  Not refined for a "
+               "synchrotron capillary."),
+    Param("refine_cell", "Refine the cell", kind="bool", default=True,
+          help="Off holds the cell as given and fits only the "
+               "profile and the intensities."),
+    Param("size", "Crystallite size broadening", kind="bool",
+          default=False,
+          help="Lorentzian and Gaussian size terms (TOPAS CS_L, "
+               "CS_G): widths that grow as 1/cos θ."),
+    Param("strain", "Strain broadening", kind="bool", default=False,
+          help="Lorentzian and Gaussian strain terms (TOPAS Strain_L, "
+               "Strain_G): widths that grow as tan θ."),
+)
+
+REFLECTION_COLUMNS = ("h", "k", "l", "d (Å)", "2θ (°)", "m",
+                      "Intensity")
+
+
+def pawley_options(values: dict):
+    from xtal.powder.pawley import PawleyOptions
+
+    start = float(values.get("start", 0.0) or 0.0)
+    finish = float(values.get("finish", 0.0) or 0.0)
+    return PawleyOptions(
+        start=start or None, finish=finish or None,
+        background_terms=int(values.get("background_terms", 8)),
+        zero=bool(values.get("zero", True)),
+        displacement=bool(values.get("displacement", False)),
+        refine_cell=bool(values.get("refine_cell", True)),
+        size=bool(values.get("size", False)),
+        strain=bool(values.get("strain", False)))
+
+
+def run_pawley(job) -> JobResult:
+    """Fit the cell; leave ``fit.xy`` and ``reflections.csv``."""
+    from xtal.powder.data import PowderStopped
+    from xtal.powder.pawley import pawley
+
+    values = job.params
+    try:
+        data = _data_of(values)
+        radiation = radiation_of(values)
+        cell = str(values.get("cell", "") or "")
+        group = str(values.get("space_group", "") or "").strip()
+        if not cell.strip() or not group:
+            raise PowderError("a Pawley fit needs a cell and a space "
+                              "group -- choose a row of the indexing "
+                              "table, or type them")
+        job.say(f"Pawley fit of {cell} in {group}")
+        fit = pawley(data, radiation, cell, group,
+                     pawley_options(values), cancel=job.cancel,
+                     folder=job.path)
+    except PowderStopped:
+        return JobResult.stopped("Pawley fit stopped")
+    except PowderError as exc:
+        return JobResult.failure(str(exc))
+    for note in fit.notes:
+        job.note(note)
+    artifacts = []
+    if job.folder is not None:
+        artifacts = [_write_fit(job.file("fit.xy"), fit, "Pawley fit"),
+                     _write_reflections(job.file("reflections.csv"),
+                                        fit)]
+        job.note("wrote fit.xy and reflections.csv")
+    a, b, c = fit.cell[:3]
+    message = (f"Pawley Rwp {100 * fit.rwp:.2f} %, GoF {fit.gof:.2f}: "
+               f"{a:.5f} {b:.5f} {c:.5f} Å in {fit.space_group}")
+    if not fit.converged:
+        message += f" ({fit.status}, not converged)"
+    return JobResult(message=message, artifacts=tuple(artifacts),
+                     report=pawley_report(fit, data.name), answer=fit)
+
+
+def pawley_summary(fit) -> str:
+    """The fit's figures and cell, as the result box shows them."""
+    names = ("a", "b", "c", "α", "β", "γ")
+    cell = "   ".join(
+        f"{n} {_with_esd(v, e)}" for n, v, e in
+        zip(names, fit.cell, fit.cell_esd, strict=True))
+    return (f"Rwp {100 * fit.rwp:.2f} %   Rp {100 * fit.rp:.2f} %   "
+            f"Rexp {100 * fit.rexp:.2f} %   GoF {fit.gof:.3f}\n"
+            f"{cell}\nV {fit.volume:.2f} Å³, {fit.space_group}"
+            + ("" if fit.converged else f"\n{fit.status}: not converged"))
+
+
+def _with_esd(value: float, esd: float) -> str:
+    """``4.59398(4)``: the esd in the last digit, as a paper writes it."""
+    if not esd or not np.isfinite(esd):
+        # held by the symmetry: 90, not 90.0000
+        return f"{value:g}" if float(value).is_integer() \
+            else f"{value:.4f}"
+    digits = max(0, min(6, 1 - int(np.floor(np.log10(esd)))))
+    scaled = int(round(esd * 10 ** digits))
+    if scaled >= 20 and digits > 0:
+        digits -= 1
+        scaled = int(round(esd * 10 ** digits))
+    return f"{value:.{digits}f}({scaled})"
+
+
+def pawley_report(fit, name: str = "") -> Report:
+    rows = tuple(Row.of(*r.hkl, f"{r.d:.5f}", f"{r.two_theta:.4f}",
+                        r.multiplicity, f"{r.intensity:.2f}")
+                 for r in fit.reflections)
+    return Report(
+        title=f"Pawley, {name}" if name else "Pawley",
+        blocks=(fit_curve(fit, "Pawley fit", "reflections"),
+                Table(title=f"Reflections ({len(rows)})",
+                      columns=REFLECTION_COLUMNS, rows=rows,
+                      note="Intensities are the Pawley fit's, "
+                           "multiplicity included, at Kα1.")),
+        note=pawley_summary(fit).replace("\n", ".  ")
+        + ("  " + "  ".join(fit.notes) if fit.notes else ""))
+
+
+def _write_reflections(path, fit):
+    """TOPAS's ``hkl_Is`` list."""
+    lines = ["h,k,l,d,two_theta,multiplicity,intensity"]
+    lines += [f"{h},{k},{m},{r.d:.6f},{r.two_theta:.5f},"
+              f"{r.multiplicity},{r.intensity:.5f}"
+              for r in fit.reflections for h, k, m in [r.hkl]]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
+# ======================================================================
 #  THE ENTRIES
 # ======================================================================
 
@@ -427,9 +582,15 @@ STEPS = (
            params=DATA_PARAMS + PEAK_PARAMS + INDEX_PARAMS,
            run=run_index, needs_structure=False, listed=False,
            check=refine_available),
+    Action(name="pawley", label="Pawley",
+           tip="Fit a cell and space group to the whole pattern",
+           params=DATA_PARAMS + PAWLEY_PARAMS, run=run_pawley,
+           needs_structure=False, listed=False,
+           check=refine_available),
 )
 
 #: What each step's own form shows in the workbench: the pattern and
 #: radiation are shown once above the steps, and indexing reads the
 #: peaks the Peaks step fitted, so neither is asked again.
-STEP_PARAMS = {"peaks": PEAK_PARAMS, "index": INDEX_PARAMS}
+STEP_PARAMS = {"peaks": PEAK_PARAMS, "index": INDEX_PARAMS,
+               "pawley": PAWLEY_PARAMS}
