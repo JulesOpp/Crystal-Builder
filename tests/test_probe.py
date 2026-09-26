@@ -157,12 +157,14 @@ def test_a_package_that_warns_on_import_still_shows_its_version():
     assert asked.timeout == 60
 
 
-def test_a_version_read_on_windows_carries_no_carriage_return():
-    """The headline's ``.*$`` took the \\r of Windows' \\r\\n with it,
-    and the version shown under Test ended in one."""
+def test_a_windows_line_ending_is_not_shown_under_the_button():
+    """A child on Windows writes \r\n, and the headline pattern stops
+    at the \n: the version shown came back as 'mace 0.3.14\r'.  Held
+    here on every platform rather than only on the Windows runner."""
     asked = probe.probe_for_package("mace.calculators")
+    output = "warning: something on the way in\r\nmace 0.3.14\r\n"
 
-    ok, sentence = probe.summarise(asked, 0, "mace 0.3.14\r\n")
+    ok, sentence = probe.summarise(asked, 0, output)
 
     assert ok
     assert sentence == "mace 0.3.14"
