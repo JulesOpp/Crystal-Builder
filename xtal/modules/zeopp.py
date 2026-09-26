@@ -944,9 +944,7 @@ ZEOPP = Module(
                                   "rather than the volume its centre "
                                   "can reach: the pore volume a paper "
                                   "quotes.  It reads up to 0.03 of the "
-                                  "cell above Zeo++'s -volpo, which "
-                                  "falls short of the union of probe "
-                                  "spheres."),
+                                  "cell above Zeo++'s -volpo."),
                        Param("draw", "Draw the accessible surface",
                              kind="bool", default=True,
                              help="Put the channels' surface into the "
