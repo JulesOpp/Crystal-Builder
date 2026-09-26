@@ -937,6 +937,9 @@ class Document(QObject):
         if not sites:
             return "nothing to delete"
         atoms = sum(self.cell.multiplicity(s) for s in sites)
+        # First: the selection names atoms by number, and after the
+        # delete those numbers belong to the atoms that came after.
+        self.select_none()
         self.run(atom_commands.DeleteSites(sites))
         return f"deleted {len(sites)} site(s) ({atoms} atoms)"
 

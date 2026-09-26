@@ -69,6 +69,20 @@ def test_undo_and_redo_through_the_document(qtbot, rutile_cif):
     assert document.structure.sites[0].element == "Zr"
 
 
+def test_nothing_is_selected_after_a_delete(rutile_cif):
+    """The deleted atoms' numbers go to the atoms after them, so a
+    selection kept by number lit up atoms nobody chose: delete rutile's
+    titanium and two oxygens came out selected, ready for the next Del
+    to take them too."""
+    document = Document.load(rutile_cif)
+    document.select_element("Ti")
+    assert document.selection.atoms
+
+    document.delete_selection()
+
+    assert not document.selection.atoms
+
+
 def test_undo_restores_deleted_atoms(rutile_cif):
     document = Document.load(rutile_cif)
     before = document.structure.copy()
