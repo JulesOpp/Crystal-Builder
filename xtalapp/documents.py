@@ -250,7 +250,32 @@ class DocumentSet:
         self.window.place_in_workspace(document, path)
         self._announce_warnings(document)
         self.window.autosaver.offer(document)
+        self._announce_agent(document)
         return document
+
+    def _announce_agent(self, document) -> None:
+        """Say so when the entry was built or edited by an AI assistant.
+
+        The status line and not the notice bar: the bar may be asking
+        about an autosave, and that question is worth more than this
+        sentence.  The log itself is a file in the entry, which the
+        Workspace panel shows.
+        """
+        from xtal.agent.session import LOG_NAME, summarise_log
+
+        entry = getattr(document, "entry", None)
+        if entry is None:
+            return
+        summary = summarise_log(entry.path / LOG_NAME)
+        if not summary:
+            return
+        steps, warnings = summary
+        said = (f"{entry.name} was worked on by an AI assistant: "
+                f"{steps} step(s)")
+        if warnings:
+            said += f", {warnings} warning(s)"
+        self.window.show_message(f"{said} -- {LOG_NAME} in the entry "
+                                 f"lists them", 12000)
 
     def open_sample(self, name: str) -> Document | None:
         """Open one of the structures that ship with the application.
