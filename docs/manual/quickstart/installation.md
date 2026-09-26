@@ -87,7 +87,7 @@ their own licences and citation terms, and several are conda
 packages.  Install them however you normally would and point at them
 in *Preferences ▸ Engines* (see {ref}`external-programs`).
 
-**Plugins installed with `pip` do not load in a packaged build.**  A
+**Plug-ins installed with `pip` do not load in a packaged build.**  A
 frozen application has no `pip` and nowhere to install one to, so the
 shipped build runs its own modules only.  *Preferences ▸ Engines*
 names a folder that is added to the import path at start-up --
@@ -109,7 +109,7 @@ worth reporting.
 ```
 
 The source install is for anybody who wants the machine-learned
-engines, a plugin, or the `xtal` command line.  It needs Python 3.11
+engines, a plug-in, or the `xtal` command line.  It needs Python 3.11
 or later.  The core installs four packages -- numpy, scipy, gemmi
 {cite}`wojdyr2022gemmi` and spglib {cite}`togo2024spglib` -- and
 everything else is an *extra*:

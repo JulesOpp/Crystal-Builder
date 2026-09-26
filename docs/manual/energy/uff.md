@@ -187,7 +187,7 @@ table of expected coordination numbers.
 Three things decide a type:
 
 - **coordination**, from the bond graph -- so the types are only as
-  good as the bonds, and *Recalculate Bonds* is the first thing to
+  good as the bonds, and *Recalculate bonds* is the first thing to
   check when a type looks wrong;
 - **geometry**, from the coordinates -- the angle at a two-coordinate
   atom is what tells a nitrile from an ether, and the sum of the
@@ -209,7 +209,8 @@ usually has none, so a benzene carbon has two neighbours rather than
 three and a methyl carbon has one.  The rules are written to survive
 that and to say so in the reason when it is what they assumed
 ("hydrogens are probably missing").  *Structure ▸ Prepare for
-simulation…* places the hydrogens the file never located.
+simulation…* ({doc}`/structure/prepare`) places the hydrogens the
+file never located.
 
 ### The confidence column
 
@@ -420,7 +421,7 @@ on the command line, and choose where the charges come from:
   zero is given a uniform neutralising background, and the run says
   that too.
 - **Equilibrate (QEq)** and **Equilibrate (EQeq)** -- charges from the
-  geometry, by charge equilibration; see {doc}`charges`.
+  geometry, by {term}`charge equilibration`; see {doc}`charges`.
 - **All zero**.
 
 Under a cell the Coulomb sum is evaluated by Ewald summation: a
@@ -459,7 +460,7 @@ for fewer rebuilds.
   no type for in that coordination; a *likely* row is an assumption
   the reason names.
 - Types follow the bonds.  If a type is wrong, the bond graph is the
-  first suspect: *Recalculate Bonds*, or set the bond by hand -- a
+  first suspect: *Recalculate bonds*, or set the bond by hand -- a
   manually set bond type takes precedence over any distance-based one,
   and the typer reads stated bond orders (an amide C--N is 1.41 in
   UFF, not 1).

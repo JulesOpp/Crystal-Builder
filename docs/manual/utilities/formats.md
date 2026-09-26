@@ -223,8 +223,9 @@ open without its bonds, not a file to refuse.
 ```
 
 Bonds are recalculated only when you ask, so what a CIF normally
-records is the bonds you drew; the distance-perceived graph is worked
-out again when the file opens.  A point of a {term}`relaxed scan`
+records is the bonds you drew; the {term}`perceived graph <perceived
+bonds>` is worked out again when the file opens.  A point of a
+{term}`relaxed scan`
 ({doc}`/structure/scans`) is the one file for which that is wrong: its
 cell is not the one the bonds were perceived at, and opening it would
 perceive again at the stretched geometry.  Measured on the shipped
@@ -311,6 +312,9 @@ a CIF becomes the `.xtalproj` of the same name on its first save
 ({doc}`/essentials/file`).  The file is a zip of small, readable
 parts -- a project should still be openable in five years and
 diffable today, and every part can be read with an editor:
+
+```{tabularcolumns} |\Y{0.2}|\Y{0.8}|
+```
 
 | Part | What it holds |
 |---|---|
@@ -415,7 +419,8 @@ pymatgen Molecule, not a Structure*).
 ```
 
 Plain XYZ carries no cell, so a crystal through it loses the lattice.
-The extended form, with `Lattice="..."` on the comment line, is what
+The {term}`extended form <extended XYZ>`, with `Lattice="..."` on the
+comment line, is what
 ASE {cite}`larsen2017ase`, OVITO and VMD write, and it round-trips.
 What is written is the expanded cell in cartesian Å with a
 `Properties=species:S:1:pos:R:3:occupancy:R:1` column list, so the

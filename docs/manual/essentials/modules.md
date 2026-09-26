@@ -11,8 +11,9 @@ this manual each calculation is described.
 ```
 
 The menu is built from the module registry and nothing else, so a
-module installed as a plugin appears in it without the application
-changing.  Each submenu is a module -- *Forcefield*, *DFTB+*,
+module installed as a {term}`plug-in` appears in it without the
+application changing.  Each submenu is a {term}`module` --
+*Forcefield*, *DFTB+*,
 *Porosity*, *MOF builder*, *Molecule builder*, *PXRD*, *Energy scan*,
 *Net builder*, *Blender* -- and each entry inside it is one thing that
 module does.  The same tree, with the *Stop* button for the run in

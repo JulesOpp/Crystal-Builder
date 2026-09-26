@@ -102,6 +102,9 @@ menu.  {ref}`Reset layout <cmd-reset_layout>` puts them back where
 they started.  These are the fourteen, with where each opens; the
 {doc}`panels reference </reference/panels>` describes each one.
 
+```{tabularcolumns} |\Y{0.17}|\Y{0.13}|\Y{0.70}|
+```
+
 | Panel | Opens on the | What it is for |
 |---|---|---|
 | {ref}`Structure <panel-info_dock>` | left | A read-only summary of the active document: formula, cell, space group, hand, and the asymmetric unit |
@@ -161,28 +164,12 @@ structure in a tab, a trajectory in the transport bar, a log in the
 *Log* panel.
 
 Two things about workspaces are worth knowing before they surprise
-you:
-
-:::{note}
-**Changing workspace closes every tab.**  A tab belongs to the
-workspace it was opened in, because its runs are filed there.
-*File ▸ Open Workspace…* asks once about unsaved work, then closes
-everything and opens the new folder -- which brings back the tabs
-*it* was left with, because a workspace remembers its own.
-:::
-
-:::{note}
-**Save File converts.**  {ref}`Save File <cmd-save>` ({kbd}`Ctrl+S`)
-writes the session over the file the tab is, without asking where.
-A document opened as a CIF becomes the `.xtalproj` of the same name
-beside it on its first save, and the CIF is left exactly where it
-is: a CIF cannot hold a measurement, a plane or the view you were
-looking at it in.  {ref}`Export… <cmd-export>` is the way to write a
-file for something else to read, and it never becomes the document's
-file.
-:::
-
-Work is not lost between saves either: every two minutes each edited
-tab is autosaved to a side file under `.autosave/` in the workspace,
-and a newer autosave is offered back when the file is opened.  The
-interval is in *Preferences ▸ General*; 0 turns it off.
+you, and the {doc}`File menu page </essentials/file>` explains both:
+**changing workspace closes every tab**, because a tab belongs to the
+workspace its runs are filed in, and **{ref}`Save File <cmd-save>`
+converts** -- a document opened as a CIF becomes the `.xtalproj` of
+the same name beside it on its first save, and the CIF is left where
+it is.  Work is not lost between saves either: every two minutes each
+edited tab is autosaved to a side file under `.autosave/` in the
+workspace, and a newer autosave is offered back when the file is
+opened.

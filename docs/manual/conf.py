@@ -107,7 +107,10 @@ latex_elements = {
     "printindex": r"\footnotesize\raggedright\printindex",
     # No icons in the admonition titles: TeX Live before 2020 has no
     # FontAwesome font XeLaTeX can find, and the words say it anyway.
-    "sphinxsetup": "iconpackage=none",
+    # verbatimforcewraps lets a literal line with no space in it -- the
+    # {info,symmetry,...,run} token of `xtal --help` -- break instead
+    # of running off the page.
+    "sphinxsetup": "iconpackage=none,verbatimforcewraps=true",
 }
 latex_show_urls = "footnote"
 # makeindex, not xindy: the xindy in TeX Live 2016 is a binary macOS no

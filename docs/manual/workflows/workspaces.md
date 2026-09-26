@@ -113,8 +113,8 @@ Reading it from the top:
   `session` key (below).
 
 `MIL-53/`, `MOF-5/`, `MOF-5-2/`, `pcu-N16-E14/`
-: One **entry** per structure, named after the file it came from (or
-  after what was built).  The entry folder holds a copy of the
+: One **{term}`entry`** per structure, named after the file it came
+  from (or after what was built).  The entry folder holds a copy of the
   structure -- `MIL-53/MIL-53.cif` -- so that the workspace is whole
   on its own, and, once the window has saved it, the session beside it
   as `MIL-53.xtalproj` ({doc}`Save converts </essentials/file>`).
@@ -148,14 +148,11 @@ Reading it from the top:
 
 :::{note}
 **Every document has an entry, whichever door it came through.**
-A file opened from outside is copied in and the tab follows the
-copy; where it came from is remembered and still names the tab when
-that file is opened again.  *File ▸ New* makes `untitled`, then
-`untitled-2`, at once, because a structure with nowhere to be is one
-whose first run has nowhere to land.  *Open Sample* copies the
-bundled CIF in and opens the copy.  A build is filed as one entry
-named after what was built.  On the command line, `--workspace` on
-`energy`, `optimize` and `run` does the same copying and filing.
+In the window every door -- *New*, *Open…*, *Open Sample*, a build --
+ends with a copy of the structure filed under an entry of its own;
+the {doc}`File menu page </essentials/file>` goes through them.
+On the command line, `--workspace` on `energy`, `optimize` and `run`
+does the same copying and filing.
 :::
 
 :::{note}
@@ -227,13 +224,11 @@ Two things about run folders follow from the window's side:
 ## Autosaves
 
 :::{note}
-**An autosave is a side file, never the document.**  Every two
-minutes (*Preferences ▸ General*; 0 is off) each tab edited since the
-last tick is written as a project into `.autosave/`, mirroring its
-place in the workspace and never where Save writes.  It is deleted
-when the document is clean again -- saved, or undone back to the file
--- and when unsaved work is deliberately discarded, so what is left is
-exactly the work nobody chose to lose.  It is offered back, never
-applied: opening a file with a newer autosave shows a notice bar, and
-*Restore* is one undo step.
+**An autosave is a side file, never the document.**  Each tab edited
+since the last tick is written as a project into `.autosave/`,
+mirroring its place in the workspace and never where Save writes, and
+it is deleted when the document is clean again or its work is
+deliberately discarded -- so what is left is exactly the work nobody
+chose to lose.  The interval, and how an autosave is offered back, are
+on the {doc}`File menu page </essentials/file>`.
 :::

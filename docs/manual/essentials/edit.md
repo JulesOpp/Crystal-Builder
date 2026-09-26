@@ -17,7 +17,7 @@ when symmetry ties atoms together.
    centroid*.
 2. Every change to the structure is one step, however much it
    touched: a symmetry operation that rewrote every site, a
-   preparation for simulation with its five stages, an optimisation.
+   preparation for simulation with its seven steps, an optimisation.
    A gesture that repeats -- a drag in *Move* mode, a held arrow in
    the *Move* panel -- merges into one step while it lasts, so forty
    nudges come back on one {kbd}`Ctrl+Z`.

@@ -35,8 +35,9 @@ strain components sit beside the site coordinates in one flat vector,
 so every optimiser of {doc}`optimisation` relaxes a lattice constant
 without knowing that is what it is doing.
 
-**The strain is symmetry-adapted**, by the same argument that keeps an
-atom on its special position, one rank up.  A displacement transforms
+**The strain is {term}`symmetry-adapted <symmetry-adapted strain>`**,
+by the same argument that keeps an atom on its special position, one
+rank up.  A displacement transforms
 as $u\,W$ and a strain, being a rank-2 tensor, as $W^\mathsf{T} e\, W$;
 the average of that over the point group is the projector onto the
 strains every operation preserves.  It needs no table of crystal
@@ -85,8 +86,8 @@ pay the twelve ({doc}`/energy/choosing` has the table).
 
 A run with the cell free is converged when **both halves** are: the
 largest force on any atom is below the force tolerance *and* the
-**residual stress** is below the stress tolerance, 0.05 GPa by
-default.  The residual stress is the largest component of the stress
+**{term}`residual stress`** is below the stress tolerance, 0.05 GPa
+by default.  The residual stress is the largest component of the stress
 the cell can still relax, in GPa: the external pressure is added first
 -- a cell at 5 GPa is relaxed when its own stress balances it, not when
 it is zero -- and the part the space group forbids is projected away,

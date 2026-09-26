@@ -21,10 +21,10 @@ structures came from.
 
 ## What is wrong with a deposited cell
 
-- **Disorder.**  A site with an occupancy of 0.5 is an atom that is
-  there in half the cells.  An engine given it computes a whole atom
-  -- and where two half-atoms are alternatives 0.4 Å apart, a pair
-  nobody has ever seen.
+- **{term}`Disorder`.**  A site with an {term}`occupancy` of 0.5 is an
+  atom that is there in half the cells.  An engine given it computes
+  a whole atom -- and where two half-atoms are alternatives 0.4 Å
+  apart, a pair nobody has ever seen.
 - **Solvent.**  The pores of an as-made framework hold whatever it was
   crystallised from, often with no hydrogens found.
 - **Deuterium**, from a neutron experiment.

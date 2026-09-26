@@ -110,7 +110,7 @@ title          MIL-53_prepared
 ### `xtal symmetry`
 
 Detects the space group of the atoms as they stand, whatever group
-the file declares -- {ref}`Find Symmetry <cmd-find_symmetry>` from
+the file declares -- {ref}`Find symmetry… <cmd-find_symmetry>` from
 the command line -- and can list the Wyckoff letters or the subgroups
 that need no new cell.  `-o` writes the structure symmetrised:
 reduced to the asymmetric unit of the group it found, in the standard

@@ -31,13 +31,10 @@ appendix holds without leaving the application.
    puts every panel back where it started.  *Preferences ▸ General*
    has the same button.
 
-:::{note}
-**A panel never holds its column open.**  A dock area is as wide as
-the widest minimum of any panel in it, tabbed behind or not, and no
-panel asks for more than 200 px; a tall form scrolls instead.  If a
-column looks squeezed, drag its divider; if the layout is beyond
-rescue, *Reset layout*.
-:::
+A panel never holds its column open -- a tall form scrolls, and a dock
+area is only as wide as the widest minimum of the panels in it -- so a
+squeezed column is a divider to drag, and a layout beyond rescue is
+*Reset layout* ({doc}`the GUI </quickstart/gui>` explains the rule).
 
 ## Help
 

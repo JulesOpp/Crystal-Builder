@@ -34,8 +34,9 @@ efficient methods for carrying out atomistic quantum mechanical
 simulations" by "approximating density functional theory", and "being
 considerably faster for typical simulations than the respective ab
 initio methods".  Everything a DFTB calculation needs about a pair of
-elements is in a **Slater-Koster** file, and those files are separate
-downloads from [dftb.org](https://dftb.org), per parameter set.
+elements is in a **{term}`Slater-Koster <Slater-Koster file>`** file,
+and those files are separate downloads from
+[dftb.org](https://dftb.org), per parameter set.
 
 ## The Hamiltonian
 

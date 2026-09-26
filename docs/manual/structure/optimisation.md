@@ -59,7 +59,7 @@ A site is on a special position when its coordinates say it is, to
 the same tolerance, so a site written a rounding place off its mirror
 is treated as *on* the mirror and relaxed along it, rather than
 walked off it and tripled.  Snapping a site exactly onto its position
-is idealisation, which is what {ref}`Standardize <cmd-standardize>`
+is idealisation, which is what {ref}`Standardise cell <cmd-standardize>`
 is for.
 :::
 

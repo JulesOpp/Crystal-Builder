@@ -62,7 +62,8 @@ the bond counts are what they were: MOF-5 keeps its 48 joints, one bond
 each.
 :::
 
-Faces are why MOF-5's clusters alternate.  A tetrahedral Zn{sub}`4`O
+{term}`Faces <face>` are why MOF-5's clusters alternate.  A tetrahedral
+Zn{sub}`4`O
 node's opposite carboxylates are a quarter turn apart, so two
 neighbouring nodes the *same* way round meet a linker with its two
 carboxylates at 90°; in the crystal they are at 0° across all 24

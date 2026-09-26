@@ -27,8 +27,9 @@ pattern over the calculation.
 ## What the code calculates
 
 Peak *positions* need only the cell and the {term}`space group`'s
-systematic absences.  Peak *intensities* need the atoms, and they are
-the reason to calculate a pattern rather than a comb of tick marks: a
+{term}`systematic absences <systematic absence>`.  Peak *intensities*
+need the atoms, and they are the reason to calculate a pattern rather
+than a comb of tick marks: a
 phase is identified by which peaks are strong, not only by where they
 are.  The application's code records where its science came from: the
 Lorentz-polarisation factor, the multiplicity count, the Debye-Waller
@@ -206,10 +207,10 @@ right while intensities are not.
 The panel draws the pattern with nothing installed.  Under it, **Plot
 and overlay data…** opens the pattern window
 ({numref}`fig-pattern-window-hkust1`), which needs the `pxrd` extra
-(matplotlib {cite}`hunter2007matplotlib`; `pip install
-'crystal-builder[pxrd]'`).  Without it the button is greyed with the
-reason: *matplotlib is not installed, so a pattern can be looked at
-in the panel but not zoomed, overlaid or exported as a figure*,
+(matplotlib {cite}`hunter2007matplotlib`; see
+{doc}`/quickstart/installation`).  Without it the button is greyed
+with the reason: *matplotlib is not installed, so a pattern can be
+looked at in the panel but not zoomed, overlaid or exported as a figure*,
 followed by the install command.  *Preferences* lists the extra as
 *Pattern plot window*.
 

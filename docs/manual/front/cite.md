@@ -25,9 +25,15 @@ calculation should cite the work behind it.  Cite what you used:
 | MatterSim | {cite}`yang2024mattersim` |
 | The machine-learned engines, through ASE | {cite}`larsen2017ase` |
 | D3 dispersion | {cite}`grimme2010d3`, with Becke--Johnson damping {cite}`grimme2011bj` |
+| The optimisers: L-BFGS, FIRE, ABNR | {cite}`liu1989lbfgs`, {cite}`bitzek2006fire`, {cite}`brooks1983charmm` |
+| A relaxed scan's held coordinate | the projection-and-restore constraint of SHAKE {cite}`ryckaert1977shake` |
+| Interpenetration, Class Ia and Class II | {cite}`blatov2004interpenetration` |
 | Porosity with Zeo++ | {cite}`willems2012zeopp` |
-| The MOF builder (PORMAKE) | {cite}`lee2021pormake` |
-| Net names, transitivity and layer nets from the RCSR | {cite}`okeeffe2008rcsr` |
+| Porosity from the grid entries | SciPy's KD-tree {cite}`virtanen2020scipy` |
+| A powder pattern | the pseudo-Voigt profile {cite}`wertheim1974pseudovoigt` and the Caglioti width relation {cite}`caglioti1958width`; structure factors through gemmi {cite}`wojdyr2022gemmi` |
+| The MOF builder (PORMAKE) | {cite}`lee2021pormake`; the block fit is Kabsch's {cite}`kabsch1976` |
+| The molecule builder | SMILES {cite}`weininger1988smiles`, the ETKDG embedding {cite}`riniker2015etkdg` and MMFF {cite}`halgren1996mmff`, through RDKit |
+| Net names, transitivity and layer nets from the RCSR | {cite}`okeeffe2008rcsr`; coordination sequences and point symbols as defined in {cite}`blatov2010symbols` |
 | Net identification by Systre | {cite}`delgadofriedrichs2003systre` |
 
 The {doc}`bibliography </back/bibliography>` gives every reference in

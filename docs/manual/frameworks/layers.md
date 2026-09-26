@@ -16,8 +16,9 @@ than by it, and read what the log says about the layer it stacked.
 ## The layers are the RCSR's
 
 PORMAKE's own database holds 3-periodic nets only.  The application's
-layer nets are the RCSR's {cite}`okeeffe2008rcsr`: every 2-periodic
-net in the RCSR's file that PORMAKE can build on -- 196 of the 200;
+{term}`layer nets <layer net>` are the RCSR's {cite}`okeeffe2008rcsr`:
+every 2-periodic net in the RCSR's file that PORMAKE can build on --
+196 of the 200;
 the four it cannot (**fzh**, **mtb-a**, **mtc-a**, **sde**) are left
 out by name.  Each is written flat in the layer group of its plane
 group, in a cell 10 units tall, and held as text; PORMAKE is handed a
@@ -204,10 +205,11 @@ the Force Field panel is where the joint is pulled back.
 
 ## Settings
 
-*Interlayer spacing* and *Stacking offset* are two parameters of
-{ref}`Build a framework… <mod-mof-build>`, `-p spacing=3.24` and
-`-p offset="1/3, 2/3"` on the command line; *Repeat the net* is the
-third that matters here.
+*Layer spacing* and *Stacking offset* in the dialog are the
+**Interlayer spacing** and **Stacking offset** parameters of
+{ref}`Build a framework… <mod-mof-build>` in the reference,
+`-p spacing=3.24` and `-p offset="1/3, 2/3"` on the command line;
+*Repeat the net* is the third that matters here.
 
 ## Limitations
 

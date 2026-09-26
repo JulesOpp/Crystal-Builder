@@ -37,15 +37,15 @@ any of the four registries" -- file formats, draw styles, engines and
 modules.  Two rules govern the loading, "both learned from
 applications that got this wrong":
 
-- **A plugin that raises must not take the application with it.**  A
-  broken or half-installed plugin is a warning in the log and an entry
+- **A plug-in that raises must not take the application with it.**  A
+  broken or half-installed plug-in is a warning in the log and an entry
   in the load report's `failures`, "not a window that will not open".
 - **Loading happens once and is idempotent.**  It is called from the
   window's start-up (`xtalapp/main.py`, after the optional-packages
   folder below has gone on the import path) and from the command line
   (`xtal modules` and `xtal run`), and a second call is free.
 
-A plugin's module gets everything an in-tree one gets: the menu entry
+A plug-in's module gets everything an in-tree one gets: the menu entry
 and the Modules panel leaf, the generated form, the worker thread, the
 run folder, the live log and Stop -- and the greying-out, because the
 Preferences paths are pushed into the core's lookup before the menu

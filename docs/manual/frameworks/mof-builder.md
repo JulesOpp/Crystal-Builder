@@ -68,7 +68,7 @@ transitivity, and are described with the Net builder in
 Choosing a topology draws a few cells of it on the right, with one
 colour per kind of vertex, and describes it: *hcb p6mm, 2 vertices and
 3 edges in the cell, node 1: 3-connected, 1 kind(s) of edge*.  Under
-**Building blocks** one row appears per **slot** the net has -- one
+**Building blocks** one row appears per **{term}`slot`** the net has -- one
 for each kind of node, and one for each kind of edge, named for the
 node types it joins (*Node 1, 6-connected*; *Linker at node 1*).  A
 node type is a `NODE` line of the net's file, in the file's order,
@@ -107,7 +107,7 @@ connection points are from where the net wanted them as an **RMSD**
 per block.  The net's cell is then scaled so that neighbouring blocks'
 connection points coincide, which is the **cell relaxation** in the
 results table.  Where two blocks meet, their two connection points are
-fused into one **joint** and the atoms they stood for are bonded.
+fused into one **{term}`joint`** and the atoms they stood for are bonded.
 
 :::{note}
 **A joint is as many bonds as its two ends have members.**  A

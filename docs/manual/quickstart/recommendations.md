@@ -27,8 +27,10 @@ is about to hit.
 not when you edit the cell, not when an atom is placed, and not after
 a relaxation.  After a build or a long optimisation, look at the bonds
 before you trust anything that depends on them, and press
-{ref}`Recalculate bonds <cmd-recompute_bonds>` ({kbd}`Ctrl+B`) if the
-geometry has moved far enough to change them.  *Structure ▸ Bond rules…*
+{ref}`Recalculate bonds <cmd-recompute_bonds>` if the geometry has
+moved far enough to change them ({kbd}`Ctrl+B` is
+{ref}`Reset bonds to automatic <cmd-reset_bonds>`, which also drops
+the bonds you drew).  *Structure ▸* {ref}`Bond rules… <cmd-bond_rules>`
 previews what a change to the criteria would add and remove before it
 does it, and a bond type you set by hand always wins over the
 distance rule.
@@ -49,7 +51,8 @@ the framework-fitted rows changed.
 **The relaxation keeps the space group.**  The variables are the sites
 of the asymmetric unit, so an atom on a special position stays on it.
 To relax every atom independently, {ref}`Reduce to P1 <cmd-reduce_p1>`
-first -- and then *Find symmetry* afterwards to see what the atoms
+first -- and then {ref}`Find symmetry… <cmd-find_symmetry>`
+afterwards to see what the atoms
 settled into, as the {doc}`first build <first-build>` does.
 
 **Watch the tolerance when you find symmetry.**  The same coordinates

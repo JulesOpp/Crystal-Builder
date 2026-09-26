@@ -5,13 +5,18 @@ installs Crystal Builder and walks through a first build.  The
 {doc}`essential elements </essentials/index>` follow, one section per
 menu.  The chapters after that are organised by what you are trying to
 do -- compute an energy, find a structure, measure a pore, build a
-framework, run things from a script -- and the appendices hold the
-reference.
+framework, run things from a script, extend the program -- and the
+appendices hold the reference.
 
 A section on a method starts with a short outline of the theory and
 its references, gives practical advice, works an example on one of
 the sample structures, and ends with the method's settings and its
-limitations.
+limitations.  The four method chapters -- energy models, structure
+and optimisation, porosity and properties, frameworks and nets --
+each open with a note that they are drafts awaiting the author's
+review: what they say about the science is what the cited papers,
+the application's own code and help text, and the measurements
+recorded in the repository say, and no more.
 
 ## The reference is generated
 

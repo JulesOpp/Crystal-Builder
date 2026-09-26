@@ -31,8 +31,9 @@ A machine-learned interatomic potential is a model fitted to the
 energies and forces of first-principles calculations, which then
 evaluates an energy and its gradient at a cost far below the
 calculations it was fitted to.  Early models had to be fitted per
-system; the ones offered here are **foundation models**, fitted once
-over a public dataset of many materials -- in the words of the
+system; the ones offered here are **{term}`foundation models <foundation
+model>`**, fitted once over a public dataset of many materials -- in
+the words of the
 MACE-MP-0 paper {cite}`batatia2025macemp0`, "a general-purpose
 atomistic ML model, trained on a public dataset of moderate size,
 that is capable of running stable molecular dynamics for a wide range
@@ -245,7 +246,7 @@ model file -- are listed under {ref}`MACE <engine-mace>`,
 
 ## Limitations
 
-- **No dispersion correction on the foundation models** other than
+- **No {term}`dispersion correction` on the foundation models** other than
   MACE-MP-MOF0, which has it inside.  A relaxed framework's volume
   from ORB-v3 or MatterSim is the bare model's, not the benchmark's;
   see {doc}`dispersion`.

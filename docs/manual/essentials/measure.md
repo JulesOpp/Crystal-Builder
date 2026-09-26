@@ -31,8 +31,9 @@ bond length* over a bond and *Measure 11 bond lengths* over eleven.
 The *Measure* mouse mode takes the same measurements by clicking; see
 {doc}`mouse modes <mouse-modes>`.
 
-A distance is the minimum-image one, like every other measurement: a
-bond you drew to a further image reports the near distance, and says
+A distance is the {term}`minimum-image <minimum image>` one, like every
+other measurement: a bond you drew to a further image reports the
+near distance, and says
 so by being a distance rather than claiming to be that bond.  Two
 bonds between the same pair in different images give one row.
 

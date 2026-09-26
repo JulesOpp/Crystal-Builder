@@ -1,7 +1,7 @@
 # Interpenetration
 
-Interpenetration threads copies of a framework through its own pores.
-After this section you know why the application enumerates placements
+{term}`Interpenetration` threads copies of a framework through its own
+pores.  After this section you know why the application enumerates placements
 rather than predicting them, how each placement is scored and when one
 is refused, what the copies carry with them, how the result is
 verified, and how to make a two-fold MOF-5 from the *Structure* menu or

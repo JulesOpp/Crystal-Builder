@@ -37,8 +37,9 @@ four atoms, and the application can -- but that removes twelve degrees
 of freedom to constrain one, and the profile that comes back is the
 constraint's, biased upward by however much the frozen atoms wanted to
 move for reasons that had nothing to do with the dihedral.  So the
-coordinate is held properly, by the two halves every constrained
-minimiser has had since SHAKE {cite}`ryckaert1977shake`:
+coordinate is held properly, as a {term}`holonomic constraint`, by
+the two halves every constrained minimiser has had since SHAKE
+{cite}`ryckaert1977shake`:
 
 - the search direction is **projected** onto the subspace that leaves
   the coordinate alone, so a step does not try to change it; and
@@ -138,8 +139,8 @@ neighbour and from the original input differed by 2.6 kcal/mol.  So
 the seed is a setting (**Restart from this structure** is the other),
 **both directions are walked by default**, and the two branches are
 reported side by side rather than averaged into one curve.  The way
-back starts where the way out finished, and the hysteresis between
-them is the interesting part.
+back starts where the way out finished, and the {term}`hysteresis`
+between them is the interesting part.
 
 **A point that did not finish is not a number.**  One whose optimiser
 failed, that was stopped in the middle, or whose relaxed cell came out

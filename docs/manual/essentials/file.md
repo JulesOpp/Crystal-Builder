@@ -56,7 +56,7 @@ is what the tab is; the original is never touched again.
    measurements -- over the file the tab is.  It does not ask where.
 2. {ref}`Save As… <cmd-save_as>` ({kbd}`Ctrl+Shift+S`) writes the same
    session under another name.  Whatever extension you type, the file
-   written is a project.
+   written is a {term}`project file`.
 
 :::{note}
 **Save File converts, and never asks where.**  A document opened as a
@@ -69,7 +69,8 @@ file* adds a confirmation, and only ever for a file that already
 exists.
 :::
 
-Between saves, every tab edited since the last tick is autosaved.
+Between saves, every tab edited since the last tick is
+{term}`autosaved <autosave>`.
 The interval is *Preferences ▸ General ▸ Keep unsaved changes every …
 min* (two minutes to start with; *never* turns it off), and the copy
 goes to the workspace's `.autosave/` folder, mirroring the file's
@@ -126,9 +127,9 @@ the document's file.
    the open molecule into the workspace's `blocks/` folder, where the
    MOF builder's picker reads it beside the 867 blocks PORMAKE ships.
    It needs {term}`connection points <connection point>` on the
-   molecule, and the dialog says what is missing; the
-   {doc}`frameworks chapter </frameworks/index>` is where blocks are
-   made.
+   molecule, and the dialog says what is missing; {doc}`Building
+   blocks and connection points </frameworks/blocks>` is where blocks
+   are made.
 
 :::{note}
 **The workspace copy carries what the export cleans.**  The CIF in the

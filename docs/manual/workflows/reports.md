@@ -191,8 +191,8 @@ the CSV, NaN and hatched in the panel -- never a zero.
 ```{index} single: Results panel; reopening a report
 ```
 
-A report is what the {ref}`Results panel <panel-results_dock>` shows
-after a run: tables, profiles, a landscape.  It is presentation, but
+A {term}`report` is what the {ref}`Results panel <panel-results_dock>`
+shows after a run: tables, profiles, a landscape.  It is presentation, but
 for a scan it is also the only place the landscape exists as a picture
 somebody can click through, so a module whose report is worth
 reopening writes it into its run folder as `report.json`.  Not every

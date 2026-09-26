@@ -38,9 +38,9 @@ occupancies and labels, never interprets the crystal.
 `-res` and `-chan`.  It reports three diameters, in Å, which the
 application labels in the table exactly as its code defines them:
 
-- **D_i, the largest included sphere**: the biggest cavity in the
+- **D_i, the {term}`largest included sphere`**: the biggest cavity in the
   crystal, reachable or not.
-- **D_f, the largest free sphere**: the biggest sphere that can pass
+- **D_f, the {term}`largest free sphere`**: the biggest sphere that can pass
   all the way through -- what decides what the framework will admit.
   It is always the smallest of the three.
 - **D_if, the included sphere along the free path**: the widest point
@@ -63,8 +63,9 @@ dimensionality is a number no other Zeo++ output carries.
 probe of the chosen radius can touch, sampled by Monte Carlo points on
 each atom's sphere (**Samples per atom**, 2000 by default).  It is
 reported in m²/g, m²/cm³ and Å² per cell, split into the
-**accessible** area (ASA), which belongs to channels connected to the
-outside, and the **non-accessible** area (NASA), which belongs to
+**{term}`accessible <accessible surface area>`** area (ASA), which
+belongs to channels connected to the outside, and the
+**non-accessible** area (NASA), which belongs to
 pockets.  A nitrogen probe is the default because a BET measurement
 sees nitrogen, and the accessible half is the one an isotherm can
 reproduce.
@@ -72,7 +73,7 @@ reproduce.
 ### Accessible volume
 
 {ref}`Accessible volume… <mod-zeopp-volume>` is `-vol` or `-volpo`,
-by the **Probe-occupiable volume** switch.  `-vol` reports the volume
+by the **{term}`Probe-occupiable volume`** switch.  `-vol` reports the volume
 the probe's *centre* can reach (AV); `-volpo` reports the volume the
 probe *occupies* (POAV), which is always the larger and is what a
 paper means by pore volume.  The switch is on by default for that
@@ -102,7 +103,8 @@ on a framework and enough to see the shape; the published figures use
 ```
 
 **A radius quoted without the probe it was measured with means
-nothing**, so the probe is a named gas with its radius in the label:
+nothing**, so the probe is a named gas with its {term}`radius <probe
+radius>` in the label:
 nitrogen 1.86 Å, argon 1.72 Å, carbon dioxide 1.65 Å, hydrogen
 1.48 Å, helium 1.30 Å, methane 1.86 Å, or *Use the radius below*.  The
 radii are half the kinetic diameter (nitrogen's 3.72 Å halves to the

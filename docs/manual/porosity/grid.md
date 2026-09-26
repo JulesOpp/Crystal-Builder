@@ -2,8 +2,9 @@
 
 The two entries marked *(faster)* -- {ref}`Surface area (faster)…
 <mod-zeopp-surface-area-grid>` and {ref}`Accessible volume (faster)…
-<mod-zeopp-volume-grid>` -- read the same numbers off a distance grid
-the application builds itself, in a second or two and with no binary
+<mod-zeopp-volume-grid>` -- read the same numbers off a
+{term}`distance grid` the application builds itself, in a second or
+two and with no binary
 installed.  After this section you know how the grid is built, how it
 tells a channel from a pocket and when it says it cannot, how the area
 and the volume are read off it and how they compare with Zeo++, and
@@ -83,7 +84,8 @@ The field says where a probe's centre can *sit*: everywhere
 $d \ge r$.  It does not say where the probe can *go*.  A sealed cage
 is as roomy as a channel and holds nothing an isotherm will ever put
 there, so Zeo++ splits every number into the part a probe can reach
-from outside (a **channel**) and the part it cannot (a **pocket**),
+from outside (a **{term}`channel`**) and the part it cannot (a
+**{term}`pocket`**),
 and the grid makes the same split.
 
 **Two grid points are joined only if the probe can travel the

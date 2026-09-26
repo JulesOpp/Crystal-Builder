@@ -93,7 +93,7 @@ chapter loses 45 % of its volume.
 
 **A scan was stopped and cannot be carried on.**  `scan.csv` in the
 run folder holds every finished point, but there is no resume in this
-release; a stopped scan is restarted.
+release; a stopped scan is restarted ({doc}`/structure/scans`).
 
 **The application crashed and its program is still running.**  Stop,
 {kbd}`Ctrl+C` and a normal quit all end a run's external program.  A
@@ -108,7 +108,7 @@ runs GFN1 and GFN2 under a cell; tblite 0.6.0 segfaults on GFN2;
 xtb refuses periodic GFN2 (*Multipoles not available with PBC*) and
 segfaults on periodic GFN1.  So GFN1 and GFN2 go to tblite, GFN-FF to
 xtb, and GFN2 needs a tblite that works.  Both crashes are the
-programs' own.
+programs' own ({doc}`/energy/xtb`).
 
 ## Symmetry
 
@@ -130,7 +130,7 @@ site far enough off a special position for the group to generate two
 of it is invisible to *Merge duplicate sites…*, which compares a site
 against *other* sites' images and never against its own, at any
 tolerance.  *Standardise cell* is what snaps a site onto its
-position.
+position ({doc}`/essentials/symmetry`).
 
 ## Interface
 
@@ -163,7 +163,7 @@ which leaves mattersim's own dependencies out.
 ## Reporting something
 
 *Help ▸* {ref}`Show Log <cmd-show_log>` reveals a rotating log file
-that records start-up, plugin failures, external process output and
+that records start-up, plug-in failures, external process output and
 any uncaught exception's traceback.  Attaching it to a report turns
 "it closed" into something that can be fixed.  The version to quote
 is in *Help ▸ About Crystal Builder*.

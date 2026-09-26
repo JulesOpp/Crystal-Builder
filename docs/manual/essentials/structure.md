@@ -81,15 +81,17 @@ net, the point a connection is made at.
    structure in larger ways -- guests placed where they touch nothing,
    copies of a framework threaded through its own pores, a deposited
    structure made ready for a calculation in one undo step.  Each has
-   a section of its own in {doc}`Structure and Optimisation
-   </structure/index>`.
+   a section of its own: {doc}`filling pores
+   </frameworks/molecule-builder>`, {doc}`interpenetration
+   </structure/interpenetration>` and {doc}`preparing a deposited
+   structure </structure/prepare>`.
 4. {ref}`Mark connection points <cmd-mark_connection_points>` and
    {ref}`Mark as one connection point <cmd-mark_one_connection_point>`
    turn selected atoms into the {term}`connection points <connection
    point>` a {term}`building block` is joined by.  There is no
    *Unmark*: an `X` does not remember what it was, so the way back is
-   {kbd}`Ctrl+Z`.  Drawing blocks is in {doc}`Frameworks and Nets
-   </frameworks/index>`.
+   {kbd}`Ctrl+Z`.  Drawing blocks is in {doc}`Building blocks and
+   connection points </frameworks/blocks>`.
 
 ## Bonds
 

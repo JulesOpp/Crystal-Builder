@@ -4,8 +4,8 @@
 Every change to a structure in the window goes through one object,
 the Document, which runs it as a command, pushes one undo step and
 tells the panels what kind of thing changed.  After this page you know
-why Undo is one step for a whole selection, what the `Change` flag on
-a command decides, and why the window has three separate refresh
+why Undo is one step for a whole selection, what the {term}`Change flag`
+on a command decides, and why the window has three separate refresh
 paths rather than one.
 
 ```{index} single: Document

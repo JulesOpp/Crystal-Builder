@@ -102,14 +102,14 @@ The **headline** is the name.  Under it: the coordination and
 periodicity, then a block per kind of vertex with the two invariants
 the RCSR names a net by {cite}`okeeffe2008rcsr,blatov2010symbols`:
 
-Coordination sequence
+{term}`Coordination sequence`
 : How many vertices lie exactly *k* edges from a vertex, for *k* from
   1 to 10, counted on the infinite net: **pcu** is 6, 18, 38, 66, …
   and, as the code notes, nothing else is.  It is the same for a net
   described in a larger cell, which is what lets a **pcu** drawn on
   eight vertices be recognised against the RCSR's one.
 
-Point symbol
+{term}`Point symbol`
 : For every pair of edges meeting at the vertex, the size of the
   smallest ring containing that angle, collected with multiplicities:
   `4^12.6^3` for **pcu**.  A vertex of degree *n* has *n(n−1)/2*
@@ -220,7 +220,7 @@ Spg #
 : The space group number, a list (`191,194`) or a range (`221-230`).
   A layer answers to its **plane group** number, 1 to 17.
 
-Transitivity
+{term}`Transitivity`
 : `p q r s` -- the kinds of vertex, edge, face and tile -- as the RCSR
   gives them: `1 1 1 1`, `1,2`, `[1 1 1 1]` or packed as `11**`.  `*`
   matches anything.
@@ -279,7 +279,7 @@ wrote hcb-net.cif
 ```
 
 :::{warning}
-**Recalculate Bonds cannot give a drawn net back.**  Its edges are
+**Recalculate bonds cannot give a drawn net back.**  Its edges are
 written from the net's own edge list, not perceived from distances,
 and no distance rule would do the same job: in **rht** two beads on
 *different* edges are 0.82 Å apart while a bond along an edge is

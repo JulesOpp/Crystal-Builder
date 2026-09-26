@@ -56,7 +56,7 @@ them back.  Net edges and measurements take them like any atom.
 ```{index} single: connection point; polydentate
 ```
 
-**An attachment is one `X` plus the distinct atoms bonded to it.**
+**An {term}`attachment` is one `X` plus the distinct atoms bonded to it.**
 Most connection points hang off one atom -- a carboxylate carbon, a
 ring carbon -- and until September 2026 every one did.  Two real
 materials showed why that is not enough.  MFU-4l's Zn{sub}`5`Cl{sub}`4`

@@ -6,7 +6,7 @@ get right, it costs seconds rather than milliseconds or minutes, and
 it answers for a metal node that UFF has to be extended to describe at
 all.  After this section you know what each of the three methods is
 for, which program runs it, and why a cell relaxation with them costs
-twelve evaluations a step.
+twelve extra evaluations a step.
 
 ```{index} single: xTB
 ```
@@ -113,7 +113,7 @@ strain down to $10^{-5}$.  Ten per cent is not noise and not a sign
 convention; it is a normalisation the application does not
 understand.  A stress that is quietly wrong relaxes a cell to the
 wrong volume while reporting that it converged, so the numeric stress
-is used and its twelve evaluations a step are paid -- exactly as for
+is used and its twelve extra evaluations a step are paid -- exactly as for
 DFTB+, for exactly the same reason.  Finding the normalisation is an
 open item in `docs/TODO.md`; until then, *Relax the cell as well* with
 this engine costs thirteen evaluations a step.
