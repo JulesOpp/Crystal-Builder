@@ -17,6 +17,12 @@ from xtal import powder  # noqa: E402
 from xtalapp.mainwindow import MainWindow  # noqa: E402
 from xtalapp.settings import AppSettings  # noqa: E402
 
+#: CI's test job does not install ``refine``: without it the Run
+#: button names the extra and the plan notes, which are RietX's own
+#: descriptions of its plans, are empty.
+needs_rietx = pytest.mark.skipif(not powder.available(),
+                                 reason="needs the refine extra")
+
 
 class _Stub(QWidget):
     """Stands in for the VTK viewport."""
@@ -62,7 +68,10 @@ def test_the_workbench_greys_out_naming_the_refine_extra(
     assert install.command("refine") in bench.run_button.toolTip()
 
 
+@needs_rietx
 def test_run_waits_for_a_pattern(bench):
+    """Without RietX the tooltip names the extra instead, which is the
+    test above."""
     assert not bench.run_button.isEnabled()
     assert "Load a pattern" in bench.run_button.toolTip()
 
@@ -698,6 +707,7 @@ def test_loading_another_pattern_starts_a_new_history(bench, rutile_xy):
     assert not bench.restore_button.isEnabled()
 
 
+@needs_rietx
 def test_the_plan_note_says_what_the_chosen_plan_frees(bench):
     """Two of RietX's four plans move no atom, which a name like
     "lab Bragg-Brentano" does not say."""
@@ -750,6 +760,7 @@ def test_a_rietx_plan_greys_out_the_boxes_it_decides_for_itself(bench):
     assert bench.rietveld_cell.isEnabled()
 
 
+@needs_rietx
 def test_a_plan_note_is_drawn_whole_however_narrow_the_column(
         bench, qtbot):
     """The page was measured with the boxes' one-line note and never

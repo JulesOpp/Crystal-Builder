@@ -672,7 +672,10 @@ class Workspace:
         if name.startswith("."):
             raise ValueError(f"'{name}' would hide the file")
         target = path.with_name(name)
-        if target == path:
+        # Compared by name and never as paths: a WindowsPath equals
+        # its own name in another case, so ``target == path`` took a
+        # change of case for no change and renamed nothing.
+        if target.name == path.name:
             return path
         if target.exists() and not target.samefile(path):
             raise ValueError(f"there is already a {name} here")
