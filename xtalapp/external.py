@@ -216,6 +216,8 @@ def _source(source: str) -> str:
         return "on PATH"
     if source == "known":
         return "where it is usually installed"
+    if source == "usual":
+        return "where Homebrew or conda puts it"
     return f"named by {source}"
 
 
@@ -226,6 +228,8 @@ def _missing(source: str, candidate: str) -> str:
         return "on PATH"
     if source == "known":
         return f"at {candidate}"
+    if source == "usual":
+        return f"in {candidate}"
     return (f"at {source}, which is not set" if not candidate
             else f"at {source} ({candidate})")
 
