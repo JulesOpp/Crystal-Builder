@@ -774,7 +774,7 @@ def test_a_plan_note_is_drawn_whole_however_narrow_the_column(
 # -- automatic -------------------------------------------------------------
 
 def _run_auto(bench, qtbot, **form):
-    bench.steps.setCurrentRow(4)
+    bench.steps.setCurrentRow(6)
     assert bench.current_step == "auto"
     bench.bravais.set_value("tP")
     bench.step_forms["index"].set_values(
@@ -802,7 +802,7 @@ def test_the_automatic_run_asks_every_steps_own_form(bench, rutile_xy):
     assert values["rietveld_plan"] == "mccusker_default"
     assert "pawley_cell" not in values and "cell" not in values
     assert values["cells"] == 5 and values["continue_rietveld"] is False
-    bench.steps.setCurrentRow(4)
+    bench.steps.setCurrentRow(6)
     assert bench.run_button.text() == "Run all"
 
 
@@ -845,3 +845,319 @@ def test_continuing_to_rietveld_is_one_undo_step_on_the_structure(
     assert [e.fit is None for e in bench.history] == [True, False]
     document.undo()
     assert document.structure.sites[1].frac[0] == pytest.approx(0.29)
+
+
+# -- Rietveld with energy ------------------------------------------------
+
+def _run_energy(bench, qtbot, weight=0.2):
+    bench.steps.setCurrentRow(4)
+    assert bench.current_step == "energy"
+    bench.step_forms["energy"].set_values({"weight": weight})
+    with qtbot.waitSignal(bench.stepFinished, timeout=60000) as blocker:
+        bench.run_step()
+    return blocker.args[0]
+
+
+def test_the_energy_engine_is_chosen_here_and_in_the_force_field_panel_at_once(  # noqa: E501
+        bench, window):
+    """Julius found it confusing to set the engine in another window.
+    The box here shares the Force Field panel's model and choice, so
+    choosing in either chooses in both and the two can never differ."""
+    bench.steps.setCurrentRow(4)
+    assert bench.run_button.text() == "Refine"
+    assert "engine" not in bench.step_forms["energy"].widgets
+    here, there = bench.engine_boxes["energy"], window.ff_dock.engine
+    assert here.model() is there.model()
+    assert here.currentData() == there.currentData() == "uff"
+    values = bench.values("energy")
+    assert values["engine"] == "uff"
+    assert isinstance(values["engine_options"], dict)
+    other = next(k for k in range(there.count())
+                 if there.itemData(k) != "uff")
+    there.setCurrentIndex(other)
+    assert here.currentIndex() == other
+    assert bench.engine_boxes["pareto"].currentIndex() == other
+    assert bench.values("pareto")["engine"] == there.itemData(other)
+    first = here.findData("uff")
+    here.activated.emit(first)          # what a person choosing does
+    assert there.currentData() == "uff"
+    # the fit of everything but the atoms is the Rietveld step's boxes
+    bench.step_forms["rietveld"].set_values({"background_terms": 6})
+    assert bench.values("energy")["rietveld_background_terms"] == 6
+
+
+def test_rietveld_with_energy_waits_for_a_structure(bench, rutile_xy):
+    bench.load_pattern(rutile_xy)
+    bench.steps.setCurrentRow(4)
+    assert not bench.run_button.isEnabled()
+
+
+def test_rietveld_with_energy_is_one_undo_step_and_joins_the_history(
+        window, qtbot, tmp_path, rutile_xy):
+    document = window.open_path(_displaced_rutile_cif(tmp_path))
+    bench = window.open_refine_workbench()
+    bench.load_pattern(rutile_xy)
+    done = len(document.stack._done)
+    result = _run_energy(bench, qtbot, weight=0.2)
+    assert result.ok, result.message
+    assert len(document.stack._done) == done + 1
+    assert document.undo_label == "Rietveld with energy"
+    oxygen = document.structure.sites[1].frac
+    assert oxygen[0] != pytest.approx(0.29)
+    assert oxygen[0] == pytest.approx(oxygen[1])
+    assert bench.energy is not None and bench.rietveld is None
+    assert bench.energy_label.text().startswith("Rwp")
+    assert bench.ends_table.rowCount() == 3
+    assert bench.ends_table.item(2, 1).text() == "0.2"
+    assert bench.history_table.rowCount() == 2
+    assert bench.history_table.item(1, 5).text() == "with energy, w 0.2"
+    document.undo()
+    assert document.structure.sites[1].frac[0] == pytest.approx(0.29)
+
+
+# -- Pareto ----------------------------------------------------------------
+
+def _run_pareto(bench, qtbot, weights=""):
+    bench.steps.setCurrentRow(5)
+    assert bench.current_step == "pareto"
+    if weights:
+        bench.step_forms["pareto"].set_values({"weights": weights})
+    with qtbot.waitSignal(bench.stepFinished, timeout=60000) as blocker:
+        bench.run_step()
+    return blocker.args[0]
+
+
+def test_a_pareto_sweep_leaves_the_structure_as_it_was(
+        window, qtbot, tmp_path, rutile_xy):
+    """A sweep returns no structure -- the points are files -- so the
+    atoms it moved while running go back, and nothing is an undo
+    step."""
+    document = window.open_path(_displaced_rutile_cif(tmp_path))
+    bench = window.open_refine_workbench()
+    bench.load_pattern(rutile_xy)
+    done = len(document.stack._done)
+    result = _run_pareto(bench, qtbot)
+    assert result.ok, result.message
+    assert len(document.stack._done) == done
+    assert document.structure.sites[1].frac[0] == pytest.approx(0.29)
+    assert bench.pareto_table.rowCount() == 12
+    assert bench.history == []
+    # drawn in this window too, against the weight and as the front
+    drawn = bench.pareto_plots.series
+    assert len(drawn["weight"]) == len(drawn["rwp"]) == 12
+    assert drawn["weight"][0] == 0.0 and drawn["weight"][-1] == 1.0
+    bench.pareto_plots.pointPicked.emit(3)
+    assert bench.pareto_table.selectionModel().selectedRows()[0].row() \
+        == 3
+
+
+def test_the_suggested_weight_goes_to_the_with_energy_step(
+        window, qtbot, tmp_path, rutile_xy):
+    """Use this weight is the step from the sweep to refining at its
+    answer: the weight is filled in and With energy is shown."""
+    window.open_path(_displaced_rutile_cif(tmp_path))
+    bench = window.open_refine_workbench()
+    bench.load_pattern(rutile_xy)
+    _run_pareto(bench, qtbot)
+    knee = bench.pareto.knee
+    assert knee is not None
+    assert bench.pareto_table.item(knee, 3).text() == "knee"
+    # the knee's own fit is the one drawn and chosen
+    assert bench.pareto_table.selectionModel().selectedRows()[0].row() \
+        == knee
+    assert bench.use_knee_button.isEnabled()
+    bench.use_knee()
+    assert bench.current_step == "energy"
+    assert bench.step_forms["energy"].values()["weight"] == \
+        pytest.approx(bench.pareto.points[knee].weight)
+
+
+def test_a_pareto_point_opens_as_a_tab_of_its_own(
+        window, qtbot, tmp_path, rutile_xy):
+    document = window.open_path(_displaced_rutile_cif(tmp_path))
+    bench = window.open_refine_workbench()
+    bench.load_pattern(rutile_xy)
+    _run_pareto(bench, qtbot, weights="0, 1")
+    opened = bench.open_pareto_point(0)
+    assert opened is not None and opened is not document
+    assert opened.structure.sites[1].frac[0] != pytest.approx(0.29)
+    assert len(opened.structure.sites) == 2
+    # the front in the Results panel, its points the same files
+    shown = []
+    window.results_dock.show_report = \
+        lambda report, title="": shown.append(report)
+    bench.show_front()
+    assert shown[0].curves[0].path_at(0, 0).endswith(".cif")
+
+
+def test_the_pawley_step_says_what_a_cell_is_for_and_what_range_to_fit(
+        bench):
+    """Two things Julius asked to be told in the window: a wider range
+    is not a better cell, and how a cell becomes a structure here."""
+    from xtalapp.refine import workbench
+
+    texts = [label.text() for label in
+             bench.forms.widget(2).findChildren(workbench.QLabel)]
+    assert workbench.PAWLEY_RANGE_NOTE in texts
+    assert workbench.CELL_TO_STRUCTURE_NOTE in texts
+    assert "MOF builder" in workbench.CELL_TO_STRUCTURE_NOTE
+    assert "slower" in bench.step_forms["pawley"].widgets["finish"] \
+        .toolTip()
+
+
+# -- Julius's fourth list ----------------------------------------------------
+
+def test_the_pattern_is_drawn_logarithmic_to_start_with(bench):
+    if not bench.plot.available:
+        pytest.skip("needs matplotlib")
+    assert bench.plot.scale == "log"
+
+
+def test_the_plot_and_the_table_under_it_start_half_and_half(bench):
+    from PySide6.QtWidgets import QApplication
+
+    bench.show()
+    QApplication.processEvents()
+    top, bottom = bench.middle.sizes()
+    assert abs(top - bottom) <= 2
+
+
+def test_every_section_of_the_right_column_folds(bench):
+    """Each step's column is folds of a few rows each -- range, what is
+    refined, the result -- and a fold closed takes its rows with it."""
+    from xtalapp.docks.columns import Collapsible
+
+    for k in range(bench.forms.count()):
+        folds = bench.forms.widget(k).findChildren(Collapsible)
+        assert len(folds) >= 2, k
+    peaks = bench.forms.widget(0).findChildren(Collapsible)[0]
+    assert peaks.is_open()
+    peaks.set_open(False)
+    assert not peaks.body.isVisibleTo(bench)
+    # the explanations are there, folded away until asked for
+    about = [f for f in bench.forms.widget(2).findChildren(Collapsible)
+             if f.title() == "About"]
+    assert about and not about[0].is_open()
+
+
+def test_the_index_time_budget_is_off_until_its_box_is_ticked(bench):
+    spin = bench.step_forms["index"].widgets["budget"]
+    assert not bench.budget_box.isChecked()
+    assert not spin.isEnabled()
+    assert bench.values("index")["budget"] == 0.0
+    assert spin.text() == "no limit"
+    bench.budget_box.setChecked(True)
+    assert spin.isEnabled()
+    assert bench.values("index")["budget"] == 60.0
+    spin.setValue(25.0)
+    bench.budget_box.setChecked(False)
+    assert bench.values("index")["budget"] == 0.0
+    bench.budget_box.setChecked(True)
+    assert bench.values("index")["budget"] == 25.0
+
+
+def test_a_rule_stands_between_the_row_boxes_and_the_lattices(bench):
+    from xtalapp.refine.bravais import ROWS
+
+    grid = bench.bravais.layout()
+    row, column, rows, _columns = grid.getItemPosition(
+        grid.indexOf(bench.bravais.rule))
+    assert (row, column, rows) == (0, 2, len(ROWS))
+    whole = grid.getItemPosition(grid.indexOf(bench.bravais.rows["Cubic"]))
+    first = grid.getItemPosition(grid.indexOf(bench.bravais.boxes["cP"]))
+    assert whole[1] < column < first[1]
+
+
+def test_the_cell_tables_space_groups_are_not_cut_off(bench):
+    """Stretched to what was left of the width, the last column cut a
+    row's list of classes short."""
+    header = bench.cell_table.horizontalHeader()
+    assert not header.stretchLastSection()
+    assert bench.cell_table.textElideMode() == Qt.ElideNone
+
+
+def test_the_peaks_range_is_carried_on_until_a_step_is_given_its_own(
+        bench, rutile_xy):
+    bench.load_pattern(rutile_xy)
+    bench.step_forms["peaks"].set_values({"start": 25.0, "finish": 60.0})
+    for step in ("pawley", "rietveld", "energy", "pareto"):
+        values = bench.step_forms[step].values()
+        assert (values["start"], values["finish"]) == (25.0, 60.0), step
+    bench.step_forms["pawley"].set_values({"start": 30.0})
+    bench.step_forms["peaks"].set_values({"start": 27.0})
+    assert bench.step_forms["pawley"].values()["start"] == 30.0
+    assert bench.step_forms["rietveld"].values()["start"] == 27.0
+
+
+def test_with_energy_and_pareto_fit_over_their_own_range(bench):
+    bench.step_forms["rietveld"].set_values({"start": 22.0})
+    bench.step_forms["pareto"].set_values({"start": 30.0, "finish": 50.0})
+    values = bench.values("pareto")
+    assert (values["rietveld_start"], values["rietveld_finish"]) == \
+        (30.0, 50.0)
+    assert "start" not in values
+    assert bench.values("energy")["rietveld_start"] != 30.0
+
+
+def test_with_energy_and_pareto_say_what_they_refine(bench):
+    """The first stage is the Rietveld step's boxes, on another page;
+    without this nobody pressing Refine here could tell what it fits."""
+    note = bench.refines_notes["pareto"]
+    assert "background" in note.text()
+    assert "atom positions" in note.text()
+    assert "cell's free numbers" not in note.text()
+    bench.step_forms["rietveld"].set_values({"background": False})
+    assert "background" not in note.text()
+    bench.step_forms["pareto"].set_values({"energy_cell": True})
+    assert "cell's free numbers" in note.text()
+    assert "cell's free numbers" not in bench.refines_notes["energy"].text()
+
+
+def test_the_kbeta_flag_starts_off_and_le_bail_is_a_pawley_method(bench):
+    assert bench.values("peaks")["flag_ghosts"] is False
+    bench.steps.setCurrentRow(2)
+    assert bench.run_button.text() == "Fit Pawley"
+    bench.step_forms["pawley"].set_values({"method": "lebail"})
+    assert bench.run_button.text() == "Fit Le Bail"
+    assert bench.values("pawley")["method"] == "lebail"
+
+
+def test_a_peak_can_be_moved_and_resized_by_hand_before_refining(
+        bench, rutile_xy):
+    """A better start for Refine peaks than the one found: the numbers
+    typed into the table are the line's."""
+    from PySide6.QtWidgets import QApplication
+
+    bench.load_pattern(rutile_xy)
+    bench.add_edit.setText("27.4, 36.1")
+    bench.add_peaks()
+    first = bench.table.item(0, 1)
+    assert first.flags() & Qt.ItemIsEditable
+    assert not bench.table.item(0, 3).flags() & Qt.ItemIsEditable
+    first.setText("27.45")
+    QApplication.processEvents()
+    peak = bench.peaks.peaks[0]
+    assert peak.two_theta == pytest.approx(27.45)
+    assert "edited" in peak.flags
+    bench.table.item(1, 4).setText("1234.5")
+    QApplication.processEvents()
+    assert bench.peaks.peaks[1].area == pytest.approx(1234.5)
+    bench.table.item(1, 5).setText("wide")
+    QApplication.processEvents()
+    assert "not a number" in bench.status.text()
+    assert bench.table.item(1, 5).text() != "wide"
+
+
+def test_a_le_bail_fit_is_the_pawley_steps_answer(bench, qtbot, rutile_xy):
+    bench.load_pattern(rutile_xy)
+    bench.steps.setCurrentRow(2)
+    bench.step_forms["pawley"].set_values(
+        {"method": "lebail", "space_group": "P4_2/mnm"})
+    bench.cell_box.set_value("4.59 4.59 2.96")
+    with qtbot.waitSignal(bench.stepFinished, timeout=60000) as blocker:
+        bench.run_step()
+    result = blocker.args[0]
+    assert result.ok, result.message
+    assert result.message.startswith("Le Bail")
+    assert bench.pawley.method == "lebail"
+    assert bench.pawley_label.text().startswith("Le Bail")

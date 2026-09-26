@@ -47,13 +47,13 @@ from xtal.powder.data import (
     Radiation,
 )
 
-__all__ = ["RIETVELD_PRESETS", "apply_phase", "cancel_token",
-           "extinction_classes", "fit", "free_cell_paths",
+__all__ = ["RIETVELD_PRESETS", "PatternTerm", "apply_phase",
+           "cancel_token", "extinction_classes", "fit", "free_cell_paths",
            "index_pattern", "instrument", "lattice_lines", "pattern",
-           "observed_peak", "pawley", "peak_list", "phase_of", "plan_notes",
-           "predict", "reflections", "refined_values", "rietveld",
-           "rietveld_plan", "space_group_named", "space_group_symbol",
-           "to_rietx"]
+           "observed_peak", "pattern_term", "pawley", "peak_list",
+           "phase_of", "plan_notes", "predict", "reflections",
+           "refined_values", "rietveld", "rietveld_plan",
+           "space_group_named", "space_group_symbol", "to_rietx"]
 
 #: B = 8π²U.  RietX refines B, as TOPAS does; a CIF and this
 #: application's sites carry U.
@@ -253,7 +253,7 @@ def emission_lines(radiation: Radiation) -> list[tuple[float, float]]:
 
 
 def pick_peaks(data: PowderData, radiation: Radiation, *,
-               shoulders: bool = True, flag_ghosts: bool = True):
+               shoulders: bool = True, flag_ghosts: bool = False):
     """``(peak_list, grid, envelope)``: RietX's peak search.
 
     ``grid`` and ``envelope`` are the 2θ points detection kept and the
@@ -351,8 +351,11 @@ def index_pattern(peak_list, data: PowderData, radiation: Radiation, *,
 
     ``systems`` and ``centrings`` are RietX's own words (``"tetragonal"``,
     ``{"tetragonal": ("P",)}``).  ``budget`` is the whole run's ceiling,
-    search and validation together.  ``on_stage(label, index, total)``
-    is called as each unit of search or validation starts.
+    search and validation together; 0 is none at all -- RietX's
+    ``full`` preset, since leaving its ceiling unset hands the run to
+    its ``quick`` preset's two minutes instead.
+    ``on_stage(label, index, total)`` is called as each unit of search
+    or validation starts.
     """
     from rietx.indexing import SearchSpec
 
@@ -360,7 +363,7 @@ def index_pattern(peak_list, data: PowderData, radiation: Radiation, *,
         systems=tuple(systems), centrings=dict(centrings),
         shift_allowance_deg=float(shift_allowance),
         max_volume=max_volume, max_d_axis=float(max_axis),
-        total_budget_seconds=float(budget),
+        total_budget_seconds=float(budget) if budget else None,
         prior_spacegroups=tuple(prior_space_groups))
 
     def events(event):
@@ -389,6 +392,7 @@ def index_pattern(peak_list, data: PowderData, radiation: Radiation, *,
         return rx.index_pattern(
             peak_list, data=pattern(data),
             instrument=instrument(radiation), spec=spec,
+            preset=None if budget else "full",
             two_theta_limits=(lo, hi), events=events, cancel=cancel)
 
 
@@ -462,8 +466,10 @@ def refined_values(result) -> dict[str, tuple[float, float]]:
 
 def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
            *, background_terms: int = 8, free=("zero", "cell"),
-           hold_cell=(), folder: Path | None = None, cancel=None):
-    """``(refinement, result)``: a Pawley fit of one cell to ``data``.
+           hold_cell=(), folder: Path | None = None, cancel=None,
+           mode: str = "pawley"):
+    """``(refinement, result)``: a Pawley fit of one cell to ``data``,
+    or with ``mode="lebail"`` a Le Bail fit over the same plan.
 
     The phase is RietX's own Le Bail scaffold -- a cell, a group and a
     dummy atom it never refines -- and the plan is its
@@ -499,7 +505,7 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
     if sample:
         stages.append(rx.Stage("sample_profile", sample))
     try:
-        result = fit(refinement, data, folder=folder, mode="pawley",
+        result = fit(refinement, data, folder=folder, mode=mode,
                      plan=rx.RefinementPlan(stages=stages),
                      cancel=cancel)
     except (ValueError, KeyError) as exc:
@@ -761,3 +767,152 @@ def rietveld(structure, data: PowderData, radiation: Radiation, *,
     except (ValueError, KeyError) as exc:
         raise PowderError(f"RietX refused the fit: {exc}") from None
     return refinement, result, indices
+
+
+# ======================================================================
+#  THE PATTERN AS A TERM
+# ======================================================================
+
+#: The paths a pattern term frees: every atom along the directions its
+#: site allows.  A site's ``x``, ``y``, ``z`` are locked in RietX and
+#: follow from these.
+_TERM_ATOMS = "phases.*.atoms.*.dof.*"
+
+
+class PatternTerm:
+    """χ² of a fitted refinement as a function of its atoms, and of its
+    cell when asked -- the pattern half of Rietveld with energies.
+
+    RietX's solver takes no cost of anyone else's, so the minimiser
+    here is ours and RietX is asked only for what it computes best:
+    the weighted residual and its analytic Jacobian, from the model it
+    compiles for a fit (``least_squares._make_residual`` and
+    ``_jacobian_for``, which are private -- a test holds the gradient
+    against central differences, and breaks if they change meaning).
+    Everything else the refinement fitted -- scale, background, zero,
+    the peak shape -- is held where it is.
+
+    The variables are RietX's own vector ``theta`` over the free
+    paths: a step along each allowed direction, in fractions, and the
+    free cell numbers, in Å and degrees.  Both are identity transforms
+    and every tie is linear, so the atoms' fractions and the cell are
+    affine in ``theta`` and :attr:`frac_basis` and :attr:`cell_basis`
+    are constant.  **The model is compiled once**, with its hkl list
+    and peak windows frozen at the start, as RietX freezes them within
+    a stage: good for the atoms, which move no line, and for a cell
+    that moves a few hundredths of an Å.
+    """
+
+    def __init__(self, refinement: rx.Refinement, data: PowderData,
+                 cell: bool = False, extra_parameters: int = 0):
+        from rietx.model.forward import compile_model
+        from rietx.optimize import least_squares
+        from rietx.params.vector import ParameterTable
+
+        table = ParameterTable(refinement.structure, refinement.instrument)
+        table.set_vary(list(table.free_paths), False)
+        table.set_vary([_TERM_ATOMS], True)
+        if cell:
+            table.set_vary(free_cell_paths(refinement, ()), True)
+        self.paths = list(table.free_paths)
+        if not self.paths:
+            raise PowderError("no atom here may move: every site is on a "
+                              "position its symmetry fixes")
+        self._table = table
+        self._model = compile_model(
+            refinement.structure, refinement.instrument, pattern(data),
+            mode="rietveld", moving_paths=set(table.moving_paths))
+        self._residual = least_squares._make_residual(self._model, table)
+        self._jacobian = least_squares._jacobian_for(self._model, table,
+                                                     "numpy")
+        self.theta0 = np.asarray(table.x0(), dtype=float)
+        self.n_atoms = len(refinement.structure.phases[0].atoms)
+        self.two_theta = np.asarray(self._model.tt, dtype=float)
+        self.y_obs = np.asarray(self._model.y_obs, dtype=float)
+        self._weight = 1.0 / np.asarray(self._model.sigma, dtype=float)
+        self._parameters = len(self.paths) + int(extra_parameters)
+        self.frac0, self.cell0 = self._decode(self.theta0)
+        # affine, so one step per column is the whole derivative
+        step = 1e-3
+        self.frac_basis = np.zeros((len(self.paths), self.n_atoms, 3))
+        self.cell_basis = np.zeros((len(self.paths), 6))
+        for k in range(len(self.paths)):
+            theta = self.theta0.copy()
+            theta[k] += step
+            frac, cells = self._decode(theta)
+            self.frac_basis[k] = (frac - self.frac0) / step
+            self.cell_basis[k] = (cells - self.cell0) / step
+        self._at, self._value = None, None
+
+    def _decode(self, theta) -> tuple[np.ndarray, np.ndarray]:
+        values = self._table.decode(np.asarray(theta, dtype=float))
+        frac = np.array([[values[f"phases.0.atoms.{k}.{axis}"]
+                          for axis in "xyz"]
+                         for k in range(self.n_atoms)], dtype=float)
+        cells = np.array([values[f"phases.0.cell.{name}"] for name in
+                          ("a", "b", "c", "alpha", "beta", "gamma")],
+                         dtype=float)
+        return frac, cells
+
+    def fractions(self, theta) -> np.ndarray:
+        """The phase's atoms at ``theta``, one row each."""
+        step = np.asarray(theta, dtype=float) - self.theta0
+        return self.frac0 + np.tensordot(step, self.frac_basis, axes=1)
+
+    def cell(self, theta) -> np.ndarray:
+        """``(a, b, c, alpha, beta, gamma)`` at ``theta``."""
+        step = np.asarray(theta, dtype=float) - self.theta0
+        return self.cell0 + step @ self.cell_basis
+
+    def __call__(self, theta) -> tuple[float, np.ndarray]:
+        """``(chi2, gradient)`` at ``theta``."""
+        theta = np.asarray(theta, dtype=float)
+        if self._at is None or not np.array_equal(theta, self._at):
+            residual = np.asarray(self._residual(theta), dtype=float)
+            jacobian = np.asarray(self._jacobian(theta), dtype=float)
+            self._value = (float(residual @ residual),
+                           2.0 * (jacobian.T @ residual))
+            self._at = theta.copy()
+        return self._value
+
+    def y_calc(self, theta) -> np.ndarray:
+        return np.asarray(self._model.evaluate(
+            self._table.decode(np.asarray(theta, dtype=float))),
+            dtype=float)
+
+    def statistics(self, theta) -> dict[str, float]:
+        """Rwp, Rp, Rexp and GoF at ``theta``, over the data alone."""
+        y_calc = self.y_calc(theta)
+        w = self._weight ** 2
+        obs = self.y_obs
+        chi2 = float(np.sum(w * (obs - y_calc) ** 2))
+        scale = float(np.sum(w * obs ** 2))
+        dof = max(len(obs) - self._parameters, 1)
+        return {"rwp": math.sqrt(chi2 / scale) if scale else 0.0,
+                "rp": float(np.sum(np.abs(obs - y_calc))
+                            / max(float(np.sum(np.abs(obs))), 1e-300)),
+                "rexp": math.sqrt(dof / scale) if scale else 0.0,
+                "gof": math.sqrt(chi2 / dof)}
+
+
+def pattern_term(structure, data: PowderData, radiation: Radiation, *,
+                 free=(), background_terms: int = 8, preferred_axis=None,
+                 cell: bool = False, folder: Path | None = None,
+                 cancel=None):
+    """``(term, result, indices, refinement)``: the pattern as a
+    function of the atoms, after a Rietveld fit of everything else.
+
+    The fit frees what ``free`` names -- the Rietveld step's boxes,
+    less the atoms and the cell, which are the term's -- so the scale,
+    background and peak shape are the pattern's before the atoms are
+    asked to move.
+    """
+    held = {"positions", "cell", "occupancy"}
+    refinement, result, indices = rietveld(
+        structure, data, radiation,
+        free=tuple(k for k in free if k not in held),
+        background_terms=background_terms, preferred_axis=preferred_axis,
+        folder=folder, cancel=cancel)
+    term = PatternTerm(refinement, data, cell=cell,
+                       extra_parameters=len(refined_values(result)))
+    return term, result, indices, refinement

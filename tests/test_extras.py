@@ -321,3 +321,29 @@ def test_an_ml_engine_row_cites_what_the_force_field_panel_does():
         engine = ENGINES.get(name)
         assert extra(package).references == engine.sources(
             **engine.defaults())
+
+
+def test_a_bundle_keeps_numbas_kernel_cache_in_its_own_folder(
+        monkeypatch, tmp_path):
+    """numba caches beside the source by default -- inside a signed
+    bundle -- and RietX would move it to ~/.rietx; a packaged build
+    keeps it beside its own log instead.  A checkout, and a variable
+    somebody set, are left alone."""
+    from xtalapp import applog
+
+    monkeypatch.setattr(applog, "app_data", lambda: tmp_path / "data")
+    environ = {}
+    assert extras.writable_numba_cache(False, environ) is None
+    assert environ == {}
+    where = extras.writable_numba_cache(True, environ)
+    assert where == str(tmp_path / "data" / extras.NUMBA_CACHE)
+    assert environ[extras.NUMBA_CACHE_VAR] == where
+    assert (tmp_path / "data" / extras.NUMBA_CACHE).is_dir()
+    theirs = {extras.NUMBA_CACHE_VAR: "/somewhere/else"}
+    assert extras.writable_numba_cache(True, theirs) is None
+    assert theirs[extras.NUMBA_CACHE_VAR] == "/somewhere/else"
+
+
+def test_the_refinement_workbench_is_an_extra_a_build_carries():
+    row = next(e for e in extras.EXTRAS if e.package == "rietx")
+    assert row.extra == "refine" and row.bundled

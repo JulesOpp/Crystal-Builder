@@ -52,7 +52,7 @@ class PeakOptions:
     start: float | None = None
     finish: float | None = None
     shoulders: bool = True
-    flag_ghosts: bool = True
+    flag_ghosts: bool = False
     positions: tuple[float, ...] = ()
 
 
@@ -189,6 +189,42 @@ class PeakFit:
                             key=lambda p: p.two_theta)
         self.native = None
         return added
+
+    def edit(self, index: int, *, two_theta: float | None = None,
+             area: float | None = None,
+             fwhm: float | None = None) -> Peak:
+        """Line ``index`` moved, resized or re-weighted by hand: a
+        better start for :func:`refine_peaks` than the one found.
+
+        A line a person has set is no longer RietX's record of what it
+        found, so indexing reads it afresh, and its esds -- which were
+        the fit's -- are gone until it is refined again.
+        """
+        peak = self.peaks[index]
+        lo, hi = float(self.two_theta[0]), float(self.two_theta[-1])
+        if two_theta is not None:
+            two_theta = float(two_theta)
+            if not lo <= two_theta <= hi:
+                raise PowderError(f"{two_theta:g}° is outside the fitted "
+                                  f"range {lo:g}-{hi:g}°")
+            peak.two_theta = two_theta
+            peak.two_theta_esd = np.nan
+            peak.d = self.wavelength / (
+                2.0 * np.sin(np.radians(two_theta / 2.0)))
+        if area is not None:
+            if not float(area) >= 0.0:
+                raise PowderError("an area cannot be negative")
+            peak.area, peak.area_esd = float(area), np.nan
+        if fwhm is not None:
+            if not float(fwhm) > 0.0:
+                raise PowderError("a width must be more than zero")
+            peak.fwhm = float(fwhm)
+        if "edited" not in peak.flags:
+            peak.flags = (*peak.flags, "edited")
+        peak.line = None
+        self.native = None
+        self.peaks.sort(key=lambda p: p.two_theta)
+        return peak
 
 
 def fit_peaks(data: PowderData, radiation: Radiation,

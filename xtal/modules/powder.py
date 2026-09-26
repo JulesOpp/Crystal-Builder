@@ -26,15 +26,20 @@ from __future__ import annotations
 import numpy as np
 
 from xtal import powder
+from xtal.ff.registry import ENGINES
 from xtal.modules.job import JobResult
 from xtal.modules.registry import Action, Param
-from xtal.modules.report import Curve, Report, Row, Table
+from xtal.modules.report import REPORT_NAME, Curve, Report, Row, Table
+from xtal.modules.report import save as save_report
 from xtal.params import Availability
 from xtal.powder.data import RADIATIONS, PowderData, PowderError, Radiation
+from xtal.powder.pawley import METHODS
 
-__all__ = ["DATA_PARAMS", "INDEX_PARAMS", "PAWLEY_PARAMS", "PEAK_PARAMS",
-           "REFINE", "RIETVELD_PARAMS", "STEPS", "STEP_PARAMS",
-           "radiation_of", "refined_notes", "run_index", "run_pawley",
+__all__ = ["DATA_PARAMS", "ENERGY_PARAMS", "INDEX_PARAMS",
+           "PARETO_PARAMS", "PAWLEY_PARAMS", "PEAK_PARAMS", "REFINE",
+           "RIETVELD_PARAMS", "STEPS", "STEP_PARAMS",
+           "energy_refines_note", "radiation_of", "refined_notes",
+           "run_energy", "run_index", "run_pareto", "run_pawley",
            "run_peaks", "run_rietveld"]
 
 
@@ -84,10 +89,12 @@ PEAK_PARAMS = (
                "is hiding in its flank.  A seed that does not pay for "
                "itself is dropped again."),
     Param("flag_ghosts", "Flag Kβ and tungsten lines", kind="bool",
-          default=True,
+          default=False,
           help="Mark lines that sit where a strong line's Kβ or a "
                "tungsten-contaminated tube would put one, and keep "
-               "them out of indexing."),
+               "them out of indexing.  Off by default: a filtered or "
+               "monochromated tube has no such lines, and the flag "
+               "then takes real ones out."),
     Param("positions", "Fit only at", kind="text", default="",
           help="2θ positions, separated by commas, to fit exactly -- "
                "TOPAS's hand-written xo_Is list.  Empty finds the "
@@ -213,7 +220,7 @@ def _fit_peaks(values: dict):
     fit = fit_peaks(data, radiation, PeakOptions(
         start=start or None, finish=finish or None,
         shoulders=bool(values.get("shoulders", True)),
-        flag_ghosts=bool(values.get("flag_ghosts", True)),
+        flag_ghosts=bool(values.get("flag_ghosts", False)),
         positions=_positions(values.get("positions", ""))))
     return data, radiation, fit
 
@@ -311,11 +318,12 @@ INDEX_PARAMS = (
                "fast with it: a cell known to be small is found in "
                "seconds with this lowered, and 50 Å over the low "
                "symmetries can use the whole time budget."),
-    Param("budget", "Time budget", kind="float", default=60.0,
-          minimum=1.0, maximum=3600.0, decimals=0, suffix=" s",
+    Param("budget", "Time budget", kind="float", default=0.0,
+          minimum=0.0, maximum=3600.0, decimals=0, suffix=" s",
           help="The most the search and its validation may take.  "
                "What was reached when it runs out is reported, with "
-               "the systems it did not finish named."),
+               "the systems it did not finish named.  0 is no limit: "
+               "the search runs until it is done or stopped."),
     Param("rank_groups", "Rank space groups for the top", kind="int",
           default=3, minimum=0, maximum=20, suffix=" cells",
           help="Fit each extinction class of this many of the best "
@@ -350,7 +358,7 @@ def index_options(values: dict):
         zero_error=float(values.get("zero_error", 0.3) or 0.0),
         max_volume=float(values.get("max_volume", 0.0) or 0.0),
         longest_axis=float(values.get("longest_axis", 50.0) or 50.0),
-        budget=float(values.get("budget", 60.0) or 60.0),
+        budget=float(values.get("budget", 0.0) or 0.0),
         rank_groups=int(values.get("rank_groups", 3)))
 
 
@@ -491,6 +499,14 @@ def _write_cells(path, result):
 # ======================================================================
 
 PAWLEY_PARAMS = (
+    Param("method", "Method", kind="choice", default="pawley",
+          choices=(("pawley", "Pawley"), ("lebail", "Le Bail")),
+          help="How each reflection's intensity is found.  Pawley makes "
+               "every intensity a least-squares variable, with esds; "
+               "Le Bail re-partitions the observed pattern between "
+               "cycles, cheaper over a long range and with no "
+               "intensity esds.  The cell, range and boxes below are "
+               "the same for both."),
     Param("cell", "Cell", kind="text", default="",
           help="a b c, or a b c α β γ, in Å and degrees -- a row of "
                "the indexing table, or the open structure's."),
@@ -505,7 +521,9 @@ PAWLEY_PARAMS = (
     Param("finish", "2θ to", kind="float", default=0.0, minimum=0.0,
           maximum=180.0, decimals=2, suffix=" °",
           help="Where it stops (TOPAS finish_X).  0 is the end of the "
-               "file."),
+               "file.  Wider is not better for a cell: every "
+               "reflection is a free intensity, so a long range is "
+               "much slower and adds lines too crowded to pin it."),
     Param("background_terms", "Background terms", kind="int",
           default=8, minimum=1, maximum=30,
           help="Coefficients of the Chebyshev background, TOPAS's bkg "
@@ -552,7 +570,8 @@ def pawley_options(values: dict):
         displacement=bool(values.get("displacement", True)),
         hold_cell=parse_hold(values.get("hold", "")),
         size=bool(values.get("size", True)),
-        strain=bool(values.get("strain", True)))
+        strain=bool(values.get("strain", True)),
+        method=str(values.get("method", "pawley") or "pawley"))
 
 
 def run_pawley(job) -> JobResult:
@@ -561,33 +580,36 @@ def run_pawley(job) -> JobResult:
     from xtal.powder.pawley import pawley
 
     values = job.params
+    method = METHODS.get(str(values.get("method", "pawley")), "Pawley")
     try:
         data = _data_of(values)
         radiation = radiation_of(values)
         cell = str(values.get("cell", "") or "")
         group = str(values.get("space_group", "") or "").strip()
         if not cell.strip() or not group:
-            raise PowderError("a Pawley fit needs a cell and a space "
-                              "group -- choose a row of the indexing "
-                              "table, or type them")
-        job.say(f"Pawley fit of {cell} in {group}")
+            raise PowderError(f"a {method} fit needs a cell and a space "
+                              f"group -- choose a row of the indexing "
+                              f"table, or type them")
+        job.say(f"{method} fit of {cell} in {group}")
         fit = pawley(data, radiation, cell, group,
                      pawley_options(values), cancel=job.cancel,
                      folder=job.path)
     except PowderStopped:
-        return JobResult.stopped("Pawley fit stopped")
+        return JobResult.stopped(f"{method} fit stopped")
     except PowderError as exc:
         return JobResult.failure(str(exc))
     for note in fit.notes:
         job.note(note)
     artifacts = []
     if job.folder is not None:
-        artifacts = [_write_fit(job.file("fit.xy"), fit, "Pawley fit"),
+        artifacts = [_write_fit(job.file("fit.xy"), fit,
+                                f"{fit.method_name} fit"),
                      _write_reflections(job.file("reflections.csv"),
                                         fit)]
         job.note("wrote fit.xy and reflections.csv")
     a, b, c = fit.cell[:3]
-    message = (f"Pawley Rwp {100 * fit.rwp:.2f} %, GoF {fit.gof:.2f}: "
+    message = (f"{fit.method_name} Rwp {100 * fit.rwp:.2f} %, GoF "
+               f"{fit.gof:.2f}: "
                f"{a:.5f} {b:.5f} {c:.5f} Å in {fit.space_group}")
     if not fit.converged:
         message += f" ({fit.status}, not converged)"
@@ -601,8 +623,10 @@ def pawley_summary(fit) -> str:
     cell = "   ".join(
         f"{n} {_with_esd(v, e)}" for n, v, e in
         zip(names, fit.cell, fit.cell_esd, strict=True))
-    return (f"Rwp {100 * fit.rwp:.2f} %   Rp {100 * fit.rp:.2f} %   "
-            f"Rexp {100 * fit.rexp:.2f} %   GoF {fit.gof:.3f}\n"
+    method = "" if getattr(fit, "method", "pawley") == "pawley" \
+        else f"{fit.method_name}:  "
+    return (f"{method}Rwp {100 * fit.rwp:.2f} %   Rp {100 * fit.rp:.2f} %"
+            f"   Rexp {100 * fit.rexp:.2f} %   GoF {fit.gof:.3f}\n"
             f"{cell}\nV {fit.volume:.2f} Å³, {fit.space_group}"
             + ("" if fit.converged else f"\n{fit.status}: not converged"))
 
@@ -625,12 +649,13 @@ def pawley_report(fit, name: str = "") -> Report:
     rows = tuple(Row.of(*r.hkl, f"{r.d:.5f}", f"{r.two_theta:.4f}",
                         r.multiplicity, f"{r.intensity:.2f}")
                  for r in fit.reflections)
+    method = fit.method_name
     return Report(
-        title=f"Pawley, {name}" if name else "Pawley",
-        blocks=(fit_curve(fit, "Pawley fit", "reflections"),
+        title=f"{method}, {name}" if name else method,
+        blocks=(fit_curve(fit, f"{method} fit", "reflections"),
                 Table(title=f"Reflections ({len(rows)})",
                       columns=REFLECTION_COLUMNS, rows=rows,
-                      note="Intensities are the Pawley fit's, "
+                      note=f"Intensities are the {method} fit's, "
                            "multiplicity included, at Kα1.")),
         note=pawley_summary(fit).replace("\n", ".  ")
         + ("  " + "  ".join(fit.notes) if fit.notes else ""))
@@ -970,7 +995,7 @@ def auto_options(values: dict):
         peaks=PeakOptions(
             start=start or None, finish=finish or None,
             shoulders=bool(values.get("shoulders", True)),
-            flag_ghosts=bool(values.get("flag_ghosts", True))),
+            flag_ghosts=bool(values.get("flag_ghosts", False))),
         index=index_options(values),
         pawley=pawley_options(_unprefixed(values, "pawley_")),
         cells=int(values.get("cells", 5)),
@@ -1081,6 +1106,450 @@ def _write_ranked(path, result):
 
 
 # ======================================================================
+#  RIETVELD WITH ENERGIES
+# ======================================================================
+
+ENERGY_PARAMS = (
+    Param("weight", "Energy weight w", kind="float", default=0.1,
+          minimum=0.0, maximum=1.0, decimals=3,
+          help="How much the energy counts against the pattern: 0 is "
+               "the pattern alone, 1 the force field alone.  Each term "
+               "is scaled by where it starts and how far it can fall, "
+               "so 0.5 is an even split whatever the units."),
+    Param("energy_cell", "Let the cell move", kind="bool", default=False,
+          help="Refine the cell's free numbers with the atoms, against "
+               "both terms -- the energy's pull on them is the engine's "
+               "stress.  Off holds the cell where it is."),
+    Param("max_steps", "Steps", kind="int", default=500, minimum=1,
+          maximum=100000,
+          help="The most L-BFGS steps, for the relaxation that sets the "
+               "energy's scale and again for the fit."),
+    Param("engine", "Engine", kind="choice", default="uff",
+          choices=tuple((e.name, e.label) for e in ENGINES),
+          help="The energy engine.  In the workbench, choosing one "
+               "chooses it in the Force Field panel, where its options "
+               "are set."),
+)
+
+#: The Rietveld step's boxes that mean nothing here: the atoms and the
+#: cell are the energy step's own variables, a plan frees the atoms,
+#: and an occupancy is not something a force field has a view on.
+_ENERGY_LEAVES = ("plan", "positions", "occupancy", "cell", "hold")
+
+#: Everything ``xtal run pxrd.energy`` takes: the pattern, the step's
+#: own questions, and the Rietveld step's boxes under ``rietveld_`` for
+#: the fit of the scale, background and peak shape that comes first.
+#: The engine's own options arrive as ``engine_options``, as a scan's.
+ENERGY_RUN_PARAMS = (DATA_PARAMS + ENERGY_PARAMS
+                     + _prefixed(RIETVELD_PARAMS, "rietveld_",
+                                 _ENERGY_LEAVES))
+
+
+def energy_options(values: dict):
+    from xtal.powder.energy import EnergyOptions
+
+    boxes = rietveld_options({**_unprefixed(values, "rietveld_"),
+                              "positions": False, "cell": False,
+                              "occupancy": False, "plan": ""})
+    return EnergyOptions(weight=float(values.get("weight", 0.1)),
+                         cell=bool(values.get("energy_cell", False)),
+                         max_steps=int(values.get("max_steps", 500)),
+                         rietveld=boxes)
+
+
+#: What each freed group is called in the note that says what a run
+#: with energy refines, in the order the fit frees them.
+_FREED_WORDS = (("background", "background"), ("zero", "zero error"),
+                ("displacement", "specimen displacement"),
+                ("profile", "peak shape"),
+                ("size", "size broadening"),
+                ("strain", "strain broadening"),
+                ("biso", "displacement parameters"),
+                ("preferred_orientation", "preferred orientation"))
+
+
+def energy_refines_note(values: dict) -> str:
+    """What a run with energy refines, in its two stages -- the note
+    under the With energy and Pareto forms.
+
+    The first stage is the Rietveld step's boxes and it lives on
+    another page, so without this a person pressing Refine here could
+    not tell what was being fitted before the atoms were asked to move.
+    """
+    try:
+        boxes = energy_options(values).rietveld
+    except PowderError:
+        boxes = energy_options({**values,
+                                "rietveld_preferred_axis": ""}).rietveld
+    freed = set(boxes.free(radiation_of(values)))
+    first = ["scale"] + [word for key, word in _FREED_WORDS
+                         if key in freed]
+    second = ("the atom positions, each along the directions its site "
+              "allows")
+    if values.get("energy_cell"):
+        second += ", and the cell's free numbers"
+    return (f"<b>First</b>, with the atoms and the cell where they are: "
+            f"{', '.join(first)} -- the Rietveld step's boxes.  "
+            f"<b>Then</b>, with those held: {second}, against the "
+            f"pattern and the energy together.")
+
+
+def run_energy(job) -> JobResult:
+    """Refine the atoms against the pattern and an energy; leave
+    ``fit.xy``, ``refined.cif`` and ``ends.csv``."""
+    from xtal.ff.registry import ENGINES as engines
+    from xtal.modules.scan import engine_settings
+    from xtal.powder.data import PowderStopped
+    from xtal.powder.energy import rietveld_with_energy
+
+    values = job.params
+    structure = job.structure
+    if structure is None or not structure.sites:
+        return JobResult.failure("Rietveld with energy needs a "
+                                 "structure: open one and refine it "
+                                 "from its window")
+    engine = str(values.get("engine", "uff") or "uff")
+    if engine not in engines:
+        return JobResult.failure(f"{engine!r} is not an energy engine")
+    settings = engine_settings(job, engine)
+    available = engines.get(engine).availability(**settings)
+    if not available:
+        return JobResult.failure(f"{engines.get(engine).label} cannot "
+                                 f"run: {available.reason}")
+    label = engines.get(engine).label
+    try:
+        data = _data_of(values)
+        options = energy_options(values)
+        interval = float(values.get("frame_interval", 0.2))
+        fit = rietveld_with_energy(
+            structure, data, radiation_of(values),
+            lambda s: engines.build(engine, s, **settings), options,
+            engine=label, on_frame=job.update if interval >= 0 else None,
+            frame_interval=max(interval, 0.0), cancel=job.cancel,
+            folder=job.path, say=job.say)
+    except PowderStopped:
+        return JobResult.stopped("Rietveld with energy stopped")
+    except PowderError as exc:
+        return JobResult.failure(str(exc))
+    except Exception as exc:                        # noqa: BLE001
+        # an engine's own refusal -- a missing type, a binary that
+        # failed -- is the engine's message, not a crash of the step
+        from xtal.ff.api import CalculatorError
+
+        if not isinstance(exc, CalculatorError):
+            raise
+        return JobResult.failure(f"{label}: {exc}")
+    for note in fit.notes:
+        job.note(note)
+    artifacts = []
+    if job.folder is not None:
+        from xtal.io import write_cif
+
+        artifacts = [_write_fit(job.file("fit.xy"), fit,
+                                "Rietveld with energy")]
+        path = job.file("refined.cif")
+        write_cif(fit.structure, path)
+        artifacts.append(path)
+        artifacts.append(_write_ends(job.file("ends.csv"), fit))
+        job.note("wrote fit.xy, refined.cif and ends.csv")
+    message = (f"Rietveld with energy, w {fit.weight:g}: Rwp "
+               f"{100 * fit.rwp:.2f} %, E {fit.energy:.2f} kcal/mol; "
+               f"the furthest atom moved {fit.moved:.3f} Å")
+    if not fit.converged:
+        message += f" ({fit.status}, not converged)"
+    return JobResult(message=message, artifacts=tuple(artifacts),
+                     report=energy_report(fit, data.name), answer=fit)
+
+
+ENERGY_COLUMNS = ("", "w", "Rwp (%)", "E (kcal/mol)")
+
+
+def energy_ends(fit) -> list[tuple[str, ...]]:
+    """The rows of the ends table: where the run started, the energy
+    alone, and this fit -- the two ends a weight is between, and where
+    this one landed."""
+    scale = fit.scale
+
+    def row(name, weight, rwp, energy):
+        return (name, weight,
+                "--" if np.isnan(rwp) else f"{100 * rwp:.2f}",
+                "--" if np.isnan(energy) else f"{energy:.3f}")
+
+    return [row("As given", "", scale.rwp, scale.energy),
+            row("Energy alone", "1", scale.relaxed_rwp, scale.relaxed),
+            row("This fit", f"{fit.weight:g}", fit.rwp, fit.energy)]
+
+
+def energy_summary(fit) -> str:
+    """The fit's figures, as the result box shows them."""
+    scale = fit.scale
+    engine = fit.engine or "the engine"
+    lines = [f"Rwp {100 * fit.rwp:.2f} %   Rp {100 * fit.rp:.2f} %   "
+             f"GoF {fit.gof:.3f}",
+             f"E {fit.energy:.3f} kcal/mol with {engine}, w "
+             f"{fit.weight:g}",
+             f"as given: Rwp {100 * scale.rwp:.2f} %, E "
+             f"{scale.energy:.3f}"]
+    if not np.isnan(scale.relaxed):
+        lines.append(f"energy alone: Rwp {100 * scale.relaxed_rwp:.2f} "
+                     f"%, E {scale.relaxed:.3f}")
+    lines.append(f"the furthest atom moved {fit.moved:.3f} Å")
+    if not fit.converged:
+        lines.append(f"{fit.status}: not converged")
+    return "\n".join(lines)
+
+
+def energy_report(fit, name: str = "") -> Report:
+    rows = tuple(Row.of(path, f"{value:.6g}", f"{esd:.2g}" if esd else "")
+                 for path, (value, esd) in fit.refined.items())
+    return Report(
+        title=f"Rietveld with energy, {name}" if name
+        else "Rietveld with energy",
+        blocks=(fit_curve(fit, "Rietveld with energy", "reflections"),
+                Table(title="The two ends, and this fit",
+                      columns=ENERGY_COLUMNS,
+                      rows=tuple(Row.of(*r) for r in energy_ends(fit))),
+                Table(title=f"Refined ({len(rows)})",
+                      columns=("Parameter", "Value", "esd"), rows=rows)),
+        note=energy_summary(fit).replace("\n", ".  ")
+        + ("  " + "  ".join(fit.notes) if fit.notes else ""))
+
+
+def _write_ends(path, fit):
+    lines = ["point,weight,rwp,energy"]
+    for name, weight, rwp, energy in energy_ends(fit):
+        lines.append(f"{name},{weight},{rwp},{energy}")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
+# ======================================================================
+#  PARETO: WHICH WEIGHT
+# ======================================================================
+
+PARETO_PARAMS = (
+    Param("weights", "Weights", kind="text",
+          default="0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, "
+                  "0.9, 1",
+          help="The weights to refine at, from 0 (the pattern alone) "
+               "to 1 (the energy alone), separated by commas.  Each "
+               "starts from the one below it; denser near 0, where a "
+               "little energy changes the answer most."),
+    Param("energy_cell", "Let the cell move", kind="bool", default=False,
+          help="Refine the cell's free numbers with the atoms at every "
+               "weight.  Off holds the cell where it is."),
+    Param("max_steps", "Steps", kind="int", default=500, minimum=1,
+          maximum=100000,
+          help="The most L-BFGS steps at each weight.  A point that "
+               "runs out is not converged, and has no numbers."),
+    Param("engine", "Engine", kind="choice", default="uff",
+          choices=tuple((e.name, e.label) for e in ENGINES),
+          help="The energy engine.  In the workbench, choosing one "
+               "chooses it in the Force Field panel, where its options "
+               "are set."),
+)
+
+#: Everything ``xtal run pxrd.pareto`` takes -- the With energy step's
+#: shape, a list of weights in place of the one.
+PARETO_RUN_PARAMS = (DATA_PARAMS + PARETO_PARAMS
+                     + _prefixed(RIETVELD_PARAMS, "rietveld_",
+                                 _ENERGY_LEAVES))
+
+PARETO_COLUMNS = ("w", "Rwp (%)", "E (kcal/mol)", "Front", "Moved (Å)",
+                  "Status")
+
+
+def pareto_rows(result) -> list[tuple[str, ...]]:
+    """The points table: one row a weight, the front and the knee
+    marked, an unconverged point with no numbers."""
+    on, bend = set(result.front), result.knee
+    rows = []
+    for k, point in enumerate(result.points):
+        fit = point.fit
+        mark = "knee" if k == bend else "yes" if k in on else ""
+        rows.append((
+            f"{point.weight:g}",
+            "--" if np.isnan(point.rwp) else f"{100 * point.rwp:.3f}",
+            "--" if np.isnan(point.energy) else f"{point.energy:.3f}",
+            mark, "" if fit is None else f"{fit.moved:.3f}",
+            point.status))
+    return rows
+
+
+def pareto_summary(result) -> str:
+    """What the sweep found, as the result box shows it."""
+    done = len(result.points)
+    lines = [f"{done} weights refined"
+             + (", stopped" if result.stopped else "")]
+    holes = sum(1 for p in result.points if not p.converged)
+    if holes:
+        lines.append(f"{holes} did not converge and have no numbers")
+    bend = result.knee
+    if bend is not None:
+        point = result.points[bend]
+        lines.append(f"suggested weight {point.weight:g}: Rwp "
+                     f"{100 * point.rwp:.2f} %, E {point.energy:.3f} "
+                     f"kcal/mol")
+    else:
+        lines.append("no knee: the front has fewer than three points "
+                     "or does not bend")
+    return "\n".join(lines)
+
+
+def pareto_report(result, name: str = "") -> Report:
+    """The front as a curve -- Rwp against the energy, every point, the
+    front and the knee -- and the table of points.  A point on the
+    curve opens its structure."""
+    points = result.points
+    order = sorted(range(len(points)),
+                   key=lambda k: (np.nan_to_num(points[k].energy,
+                                                nan=np.inf),
+                                  points[k].weight))
+    x = np.array([points[k].energy for k in order])
+    rwp = np.array([100 * points[k].rwp for k in order])
+    on, bend = set(result.front), result.knee
+    front_y = np.array([rwp[j] if k in on else np.nan
+                        for j, k in enumerate(order)])
+    knee_y = np.array([rwp[j] if k == bend else np.nan
+                       for j, k in enumerate(order)])
+    paths = tuple(points[k].path for k in order)
+    blocks = []
+    if len(points) > 1:
+        blocks.append(Curve(
+            title="Rwp against energy", x=x, y=rwp,
+            x_label="E (kcal/mol)", y_label="every weight",
+            series=(("front", front_y), ("knee", knee_y)),
+            normalised=False, paths=(paths, paths, paths),
+            note="Each point is one weight; the front is the points no "
+                 "other beats on both, and the knee is where it bends "
+                 "most.  Click a point to open its structure."))
+    blocks.append(Table(title=f"Weights ({len(points)})",
+                        columns=PARETO_COLUMNS,
+                        rows=tuple(Row.of(*r)
+                                   for r in pareto_rows(result))))
+    return Report(title=f"Pareto, {name}" if name else "Pareto",
+                  blocks=tuple(blocks),
+                  note=pareto_summary(result).replace("\n", ".  "))
+
+
+class _ParetoFiles:
+    """A CIF and a ``points.csv`` row per weight, written as it
+    finishes -- a sweep is a run to leave overnight, as a scan is."""
+
+    def __init__(self, job):
+        self.job, self.artifacts = job, []
+        self._csv = None
+        if job.folder is not None:
+            self._csv = job.file("points.csv").open("w",
+                                                    encoding="utf-8")
+            self._csv.write("weight,rwp,energy,converged,steps,moved,"
+                            "status,file\n")
+            self._csv.flush()
+
+    def wrote(self, point) -> None:
+        from xtal.io import FORMATS
+
+        fit = point.fit
+        name = f"w-{point.weight:.3f}.cif"
+        rwp = "" if np.isnan(point.rwp) else f"{point.rwp:.6f}"
+        energy = "" if np.isnan(point.energy) else f"{point.energy:.6f}"
+        self.job.say(f"w = {point.weight:g}: Rwp "
+                     f"{100 * fit.rwp:.2f} %, E {fit.energy:.3f}"
+                     + ("" if point.converged else " (not converged)"))
+        if self._csv is None:
+            return
+        path = self.job.file(name)
+        # with the bonds the fit was scored over, as a scan's point is
+        FORMATS.write(fit.structure, path, perception=True)
+        point.path = str(path)
+        self.artifacts.append(path)
+        self._csv.write(f"{point.weight:g},{rwp},{energy},"
+                        f"{point.converged},{fit.steps},{fit.moved:.6f},"
+                        f"{fit.status.replace(',', ';')},{name}\n")
+        self._csv.flush()
+
+    def close(self, report=None) -> None:
+        """Close ``points.csv``, and keep ``report`` beside it."""
+        if self._csv is None:
+            return
+        self._csv.close()
+        if report is None:
+            self.artifacts.insert(0, self.job.file("points.csv"))
+            return
+        path = self.job.file(REPORT_NAME)
+        save_report(report, path)
+        self.artifacts[:0] = [path, self.job.file("points.csv")]
+        self.job.note("wrote points.csv, report.json and one CIF per "
+                      "weight")
+
+
+def run_pareto(job) -> JobResult:
+    """Refine at every weight; leave a CIF and a ``points.csv`` row per
+    weight as each finishes, and the front as ``report.json``."""
+    from xtal.ff.registry import ENGINES as engines
+    from xtal.modules.scan import engine_settings
+    from xtal.powder.data import PowderStopped
+    from xtal.powder.pareto import parse_weights, sweep
+
+    values = job.params
+    structure = job.structure
+    if structure is None or not structure.sites:
+        return JobResult.failure("a weight sweep needs a structure: "
+                                 "open one and refine it from its "
+                                 "window")
+    engine = str(values.get("engine", "uff") or "uff")
+    if engine not in engines:
+        return JobResult.failure(f"{engine!r} is not an energy engine")
+    settings = engine_settings(job, engine)
+    available = engines.get(engine).availability(**settings)
+    if not available:
+        return JobResult.failure(f"{engines.get(engine).label} cannot "
+                                 f"run: {available.reason}")
+    label = engines.get(engine).label
+    files = _ParetoFiles(job)
+    try:
+        weights = parse_weights(str(values.get("weights", "")))
+        data = _data_of(values)
+        options = energy_options(values)
+        interval = float(values.get("frame_interval", 0.2))
+        result = sweep(
+            structure, data, radiation_of(values),
+            lambda s: engines.build(engine, s, **settings), options,
+            weights, engine=label, on_point=files.wrote,
+            on_frame=job.update if interval >= 0 else None,
+            frame_interval=max(interval, 0.0), cancel=job.cancel,
+            folder=job.path, say=job.say)
+    except PowderStopped:
+        files.close()
+        return JobResult.stopped("the weight sweep stopped before its "
+                                 "first point")
+    except PowderError as exc:
+        files.close()
+        return JobResult.failure(str(exc))
+    except Exception as exc:                        # noqa: BLE001
+        from xtal.ff.api import CalculatorError
+
+        files.close()
+        if not isinstance(exc, CalculatorError):
+            raise
+        return JobResult.failure(f"{label}: {exc}")
+    report = pareto_report(result, data.name)
+    files.close(report)
+    bend = result.knee
+    message = f"{len(result.points)} of {len(weights)} weights refined"
+    if bend is not None:
+        point = result.points[bend]
+        message += (f"; the knee is w {point.weight:g}, Rwp "
+                    f"{100 * point.rwp:.2f} %, E {point.energy:.2f} "
+                    f"kcal/mol")
+    if result.stopped:
+        message = "stopped -- " + message
+    return JobResult(message=message, artifacts=tuple(files.artifacts),
+                     report=report, answer=result,
+                     cancelled=result.stopped)
+
+
+# ======================================================================
 #  THE ENTRIES
 # ======================================================================
 
@@ -1128,6 +1597,16 @@ STEPS = (
            tip="Refine a structure's atoms against the whole pattern",
            params=DATA_PARAMS + RIETVELD_PARAMS, run=run_rietveld,
            listed=False, check=refine_available),
+    Action(name="energy", label="Rietveld with energy",
+           tip="Refine a structure's atoms against the pattern and a "
+               "force field at once, the weight between them yours",
+           params=ENERGY_RUN_PARAMS, run=run_energy, listed=False,
+           check=refine_available),
+    Action(name="pareto", label="Pareto",
+           tip="Refine with energy at a list of weights, and suggest "
+               "the one where the fit and the energy trade best",
+           params=PARETO_RUN_PARAMS, run=run_pareto, listed=False,
+           check=refine_available),
 )
 
 #: What each step's own form shows in the workbench: the pattern and
@@ -1135,10 +1614,19 @@ STEPS = (
 #: peaks the Peaks step fitted, so neither is asked again.
 #: The peak form leaves out "Fit only at": the workbench places lines
 #: by hand and refines them instead, and ``xtal run`` keeps it.
+#: The range a run with energy fits over, asked on its own page in the
+#: workbench rather than only on Rietveld's: ``xtal run`` takes it as
+#: ``rietveld_start`` / ``rietveld_finish``, which is what the
+#: workbench hands on.
+ENERGY_RANGE_PARAMS = tuple(p for p in RIETVELD_PARAMS
+                            if p.name in ("start", "finish"))
+
 STEP_PARAMS = {"peaks": tuple(p for p in PEAK_PARAMS
                               if p.name != "positions")
                + REFINE_PEAK_PARAMS,
                "index": INDEX_PARAMS,
                "pawley": PAWLEY_PARAMS,
                "rietveld": RIETVELD_PARAMS,
+               "energy": ENERGY_RANGE_PARAMS + ENERGY_PARAMS,
+               "pareto": ENERGY_RANGE_PARAMS + PARETO_PARAMS,
                "auto": AUTO_PARAMS}

@@ -12,7 +12,13 @@ minute on wants to see all fourteen and untick the ones it cannot be.
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QCheckBox, QGridLayout, QGroupBox, QLabel
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QFrame,
+    QGridLayout,
+    QGroupBox,
+    QLabel,
+)
 
 from xtal.powder.index import parse_bravais
 
@@ -56,13 +62,19 @@ class BravaisBox(QGroupBox):
                 lambda _on, row=label: self._toggle_row(row))
             self.rows[label] = whole
             grid.addWidget(whole, r, 1)
-            for c, symbol in enumerate(symbols, start=2):
+            for c, symbol in enumerate(symbols, start=3):
                 box = QCheckBox(symbol)
                 box.setChecked(True)
                 box.setToolTip(_TIPS.get(symbol, ""))
                 box.toggled.connect(lambda _on: self._on_toggled())
                 self.boxes[symbol] = box
                 grid.addWidget(box, r, c)
+        # a rule between the row boxes and the lattices, so a box that
+        # ticks a whole row is not read as one more lattice
+        self.rule = QFrame()
+        self.rule.setFrameShape(QFrame.VLine)
+        self.rule.setFrameShadow(QFrame.Sunken)
+        grid.addWidget(self.rule, 0, 2, len(ROWS), 1)
         self._sync_rows()
 
     def _toggle_row(self, label: str) -> None:

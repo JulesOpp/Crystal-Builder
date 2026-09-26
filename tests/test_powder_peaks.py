@@ -244,3 +244,39 @@ def test_refining_peaks_converges_in_tens_of_steps(fit, rutile_xy,
                            fit)
     assert calls and calls[0] < 100
     assert not any("did not converge" in n for n in refined.notes)
+
+
+def test_a_line_set_by_hand_is_refined_from_where_it_was_put(
+        fit, rutile_xy):
+    """A person moves a line, or gives it an area, for a better start
+    than the one found; the fit's esds and RietX's own record of the
+    line no longer describe it, so both go."""
+    from xtal.powder.data import PowderError
+    from xtal.powder.peaks import refine_peaks
+
+    k = next(k for k, p in enumerate(fit.peaks)
+             if abs(p.two_theta - 27.434) < 0.05)
+    peak = fit.edit(k, two_theta=27.40, area=5000.0, fwhm=0.2)
+    assert peak.two_theta == 27.40 and peak.area == 5000.0
+    assert peak.d == pytest.approx(CU_KA1 / (2 * np.sin(np.radians(13.7))))
+    assert np.isnan(peak.two_theta_esd) and np.isnan(peak.area_esd)
+    assert peak.line is None and fit.native is None
+    assert "edited" in peak.flags
+    with pytest.raises(PowderError, match="outside"):
+        fit.edit(k, two_theta=5.0)
+    with pytest.raises(PowderError, match="negative"):
+        fit.edit(k, area=-1.0)
+    refined = refine_peaks(PowderData.from_xy(rutile_xy), Radiation("cu"),
+                           fit)
+    again = min(refined.peaks, key=lambda p: abs(p.two_theta - 27.434))
+    assert again.two_theta == pytest.approx(27.434, abs=0.003)
+
+
+def test_kbeta_and_tungsten_lines_are_not_flagged_unless_asked():
+    """A filtered or monochromated tube has no such lines, and the flag
+    then took real ones out of indexing."""
+    from xtal.modules.powder import PEAK_PARAMS
+
+    assert PeakOptions().flag_ghosts is False
+    flag = next(p for p in PEAK_PARAMS if p.name == "flag_ghosts")
+    assert flag.default is False

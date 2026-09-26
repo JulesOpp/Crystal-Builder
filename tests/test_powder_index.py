@@ -3,6 +3,7 @@ their absences allow, and what Stop leaves behind."""
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 pytest.importorskip("rietx")
@@ -227,3 +228,29 @@ def test_cells_sort_by_gof_or_by_gof_over_the_unindexed_lines():
         [1, 3, 2]
     assert [r.rank for r in sorted_rows(result)] == [1, 2, 3]
     assert rows[1].gof_per_unindexed == pytest.approx(6.0)
+
+
+def test_a_budget_of_zero_is_no_limit_rather_than_riet_xs_two_minutes(
+        monkeypatch):
+    """Left unset, RietX's ceiling falls to its quick preset's 120 s;
+    no limit is its full preset, asked by name."""
+    from xtal.powder import bridge
+
+    seen = {}
+
+    def index_pattern(peaks, **kwargs):
+        seen.update(kwargs)
+        raise RuntimeError("enough")
+
+    monkeypatch.setattr(bridge.rx, "index_pattern", index_pattern)
+    x = np.arange(20.0, 30.0, 0.02)
+    data = PowderData(two_theta=x, intensity=np.ones_like(x))
+    for budget, preset, ceiling in ((0.0, "full", None),
+                                    (30.0, None, 30.0)):
+        with pytest.raises(RuntimeError):
+            bridge.index_pattern(None, data, Radiation("cu"),
+                                 systems=["cubic"],
+                                 centrings={"cubic": ("P",)},
+                                 budget=budget)
+        assert seen["preset"] == preset
+        assert seen["spec"].total_budget_seconds == ceiling

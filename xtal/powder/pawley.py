@@ -31,8 +31,12 @@ import numpy as np
 
 from xtal.powder.data import PowderData, PowderError, Radiation
 
-__all__ = ["PawleyFit", "PawleyOptions", "Reflection",
+__all__ = ["METHODS", "PawleyFit", "PawleyOptions", "Reflection",
            "cell_fits_structure", "parse_cell", "parse_hold", "pawley"]
+
+#: How a whole-pattern fit without atoms finds its intensities, by
+#: RietX's mode name.
+METHODS = {"pawley": "Pawley", "lebail": "Le Bail"}
 
 
 @dataclass(frozen=True)
@@ -47,7 +51,11 @@ class PawleyOptions:
     are TOPAS's ``CS_L``/``CS_G`` and ``Strain_L``/``Strain_G``.
     ``hold_cell`` names the cell numbers held at the value given
     (``"a"``, ``"beta"``) while the others the group leaves free
-    refine -- TOPAS's ``a 4.59`` beside ``b @ 9.23``.
+    refine -- TOPAS's ``a 4.59`` beside ``b @ 9.23``.  ``method`` is
+    ``"pawley"`` (every intensity a least-squares variable) or
+    ``"lebail"`` (the intensities re-partitioned from the observed
+    pattern between cycles, and never variables): the same plan either
+    way, so the two are compared on one footing.
     """
 
     start: float | None = None
@@ -58,6 +66,7 @@ class PawleyOptions:
     hold_cell: tuple[str, ...] = ()
     size: bool = True
     strain: bool = True
+    method: str = "pawley"
 
     def free(self, radiation: Radiation) -> tuple[str, ...]:
         """The RietX groups freed, in the bridge's words.
@@ -116,10 +125,16 @@ class PawleyFit:
     #: ``{path: (value, esd)}`` of every number refined, RietX's paths
     refined: dict = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
+    #: ``"pawley"`` or ``"lebail"``: how the intensities were found
+    method: str = "pawley"
 
     @property
     def converged(self) -> bool:
         return self.status == "converged"
+
+    @property
+    def method_name(self) -> str:
+        return METHODS.get(self.method, self.method)
 
     @property
     def volume(self) -> float:
@@ -186,6 +201,9 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
     from xtal.powder import bridge
 
     options = options or PawleyOptions()
+    if options.method not in METHODS:
+        raise PowderError(f"{options.method!r} is not a method -- "
+                          f"{' or '.join(METHODS)}")
     window = data.window(options.start or None, options.finish or None)
     symbol = bridge.space_group_named(space_group)
     if not isinstance(cell, str):
@@ -194,7 +212,7 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
         window, radiation, parse_cell(cell), symbol,
         background_terms=options.background_terms,
         free=options.free(radiation), hold_cell=options.hold_cell,
-        folder=folder,
+        folder=folder, mode=options.method,
         cancel=bridge.cancel_token(cancel))
     refined = refinement.structure.phases[0].cell
     names = ("a", "b", "c", "alpha", "beta", "gamma")
@@ -222,7 +240,8 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
         displacement=instrument_value(
             "instrument.geometry.sample_displacement"),
         refined=bridge.refined_values(result),
-        notes=[d.message for d in result.diagnostics])
+        notes=[d.message for d in result.diagnostics],
+        method=options.method)
 
 
 def cell_fits_structure(fit: PawleyFit, structure, *,

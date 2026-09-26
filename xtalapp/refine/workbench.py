@@ -48,7 +48,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFileDialog,
-    QGroupBox,
+    QFormLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -73,36 +73,116 @@ from xtal.modules import powder as steps
 from xtal.modules import record as module_record
 from xtal.modules.job import Job
 from xtal.powder.data import PowderData, PowderError
+from xtal.powder.pawley import METHODS
 from xtalapp.dialogs.module_form import ParamForm
 from xtalapp.docks import scrolling
 from xtalapp.refine.bravais import BravaisBox
 from xtalapp.refine.cell import CellBox
+from xtalapp.refine.pareto_plot import ParetoPlots
 from xtalapp.refine.plot import RefinementPlot
+from xtalapp.refine.sections import SectionedForm, fold
 from xtalapp.widgets.tone import HINT, WARNING, set_tone
 from xtalapp.workers import ModuleWorker, start_in_thread
 
 __all__ = ["RefinementWorkbench"]
 
 #: ``(action name, list label)``, in the order a refinement goes.
-STEPS = (("peaks", "Peaks"), ("index", "Index"), ("pawley", "Pawley"),
-         ("rietveld", "Rietveld"), ("auto", "Automatic"))
+STEPS = (("peaks", "Peaks"), ("index", "Index"),
+         ("pawley", "Pawley / Le Bail"),
+         ("rietveld", "Rietveld"), ("energy", "With energy"),
+         ("pareto", "Pareto"), ("auto", "Automatic"))
 
 #: What the Run button says on each step.
 RUN_LABELS = {"peaks": "Find peaks", "index": "Index",
               "pawley": "Fit Pawley", "rietveld": "Refine",
+              "energy": "Refine", "pareto": "Sweep",
               "auto": "Run all"}
+
+#: How each step's form is folded in the right-hand column:
+#: ``(section title, parameter names)``.  Rietveld's cell and the
+#: Pawley cell are boxes of their own, placed in their sections by the
+#: page that builds them.
+GROUPS = {
+    "peaks": (("Range", ("start", "finish")),
+              ("Finding peaks", ("shoulders", "flag_ghosts")),
+              ("Refining peaks", ("background_terms",))),
+    "index": (("Search", ("space_groups", "zero_error", "max_volume",
+                          "longest_axis", "budget")),
+              ("Space groups", ("rank_groups",))),
+    "pawley": (("Method", ("method",)),
+               ("Cell and space group", ("space_group",)),
+               ("Range and background", ("start", "finish",
+                                         "background_terms")),
+               ("Refined", ("zero", "displacement", "size", "strain"))),
+    "rietveld": (("Plan", ("plan",)),
+                 ("Range and background", ("start", "finish",
+                                           "background_terms")),
+                 ("Refined: instrument and peak shape",
+                  ("background", "zero", "displacement", "profile",
+                   "size", "strain")),
+                 ("Refined: atoms", ("positions", "biso", "occupancy",
+                                     "preferred_axis"))),
+    "energy": (("Range", ("start", "finish")),
+               ("Energy", ("weight", "energy_cell", "max_steps"))),
+    "pareto": (("Range", ("start", "finish")),
+               ("Sweep", ("weights", "energy_cell", "max_steps"))),
+    "auto": (("Automatic", ("cells", "classes", "continue_rietveld")),),
+}
+
+#: The steps that fit over a 2θ range of their own, which starts as
+#: the Peaks step's and follows it until it is changed.
+_RANGED = ("pawley", "rietveld", "energy", "pareto")
 
 #: Parameters a step declares for ``xtal run`` that the workbench asks
 #: through a widget of its own rather than the form: the cell box
 #: writes ``cell`` and ``hold``.
 _NOT_IN_FORM = {"index": ("bravais",), "pawley": ("cell", "hold"),
-                "rietveld": ("cell", "hold")}
+                "rietveld": ("cell", "hold"), "energy": ("engine",),
+                "pareto": ("engine",)}
+
+#: The steps that move the document's atoms as they run, and land as
+#: one undo step.
+_MOVES_ATOMS = ("rietveld", "energy")
+
+#: The steps that refine the document's atoms: a Pareto sweep moves
+#: them as it runs and puts them back, since it returns no structure
+#: -- the points are files, and the weight chosen is With energy's.
+_REFINES_ATOMS = (*_MOVES_ATOMS, "pareto")
+
+#: Measured 2026-09-26 on a 14 x 17 Å hexagonal cell (Cu Kα, a 0.3 %
+#: wrong start): 4-30° is 35 reflections and 1.3 s, 4-45° 97 and 19 s,
+#: 4-60° 199 and 144 s -- and the widest put a 0.04 Å further from the
+#: truth.  A Pawley intensity is a free number per reflection, so the
+#: cost grows faster than the count.
+PAWLEY_RANGE_NOTE = (
+    "<b>A wider 2θ range is not a better cell.</b>  Every reflection "
+    "is one more free intensity, and a framework's reflections crowd "
+    "together with angle: on a 14 × 17 Å cell, 4-30° was 35 of them "
+    "and a second; 4-60° was 199 and more than two minutes, and its "
+    "cell came out further off.  Fit the low-angle range where the "
+    "lines are resolved, and widen it only if there are too few.")
+
+CELL_TO_STRUCTURE_NOTE = (
+    "<b>From a cell to a structure.</b>  The idea here is that Pawley "
+    "(or Automatic) finds a cell and space group that match; then the "
+    "nets consistent with them -- the MOF builder's search by "
+    "coordination and space group number -- are built into models "
+    "with your linker and the SBU you expect (Modules > MOF builder), "
+    "and each model is tested against this pattern: refined here with "
+    "Rietveld or With energy, or its simulated pattern laid over this "
+    "one as a phase match (Modules > PXRD > Simulate a pattern).  "
+    "Solving a structure from the pattern alone, by charge flipping, "
+    "is not part of this application.")
 
 HISTORY_HEADERS = ("#", "Time", "Rwp (%)", "Rp (%)", "GoF", "Plan",
                    "Moved (Å)", "Status")
 
 PEAK_HEADERS = ("Use", "2θ (°)", "esd", "d (Å)", "Area", "FWHM (°)",
                 "Flags")
+
+#: The peak table's columns a person may type into, and the
+#: :meth:`~xtal.powder.peaks.PeakFit.edit` keyword each one sets.
+PEAK_EDITS = {1: "two_theta", 4: "area", 5: "fwhm"}
 
 
 class RefinementWorkbench(QMainWindow):
@@ -121,6 +201,8 @@ class RefinementWorkbench(QMainWindow):
         self.cells = None                   # xtal.powder.index.IndexResult
         self.pawley = None                  # xtal.powder.pawley.PawleyFit
         self.rietveld = None            # xtal.powder.rietveld.RietveldFit
+        self.energy = None                  # xtal.powder.energy.EnergyFit
+        self.pareto = None               # xtal.powder.pareto.ParetoResult
         self.auto = None                    # xtal.powder.auto.AutoResult
         #: where the atoms were when a Rietveld run started: what Stop
         #: puts back, and what the one undo step undoes to
@@ -138,6 +220,10 @@ class RefinementWorkbench(QMainWindow):
         self._ticker.setInterval(1000)
         self._ticker.timeout.connect(self._tick)
         self._run_values: dict = {}
+        #: the 2θ range last handed from Peaks to the steps after it: a
+        #: step still showing it follows Peaks, one changed by hand
+        #: keeps its own
+        self._range_given: tuple[float, float] | None = None
         self._framed = False
         self._running = ""
         self._cell_rows: list = []
@@ -158,7 +244,16 @@ class RefinementWorkbench(QMainWindow):
         self.plot = RefinementPlot()
         self.table = _table(PEAK_HEADERS)
         self.table.itemChanged.connect(self._on_use_changed)
+        for column, _key in PEAK_EDITS.items():
+            self.table.horizontalHeaderItem(column).setToolTip(
+                "Double-click a number to set it by hand, as a start "
+                "for Refine peaks")
         self.cell_table = _table(steps.INDEX_COLUMNS, rows=True)
+        # A row's classes are a long list; stretched to what was left of
+        # the width, the last column cut them off.  Sized to its text,
+        # the table scrolls sideways instead.
+        self.cell_table.horizontalHeader().setStretchLastSection(False)
+        self.cell_table.setTextElideMode(Qt.ElideNone)
         self.cell_table.itemSelectionChanged.connect(self._on_cell_chosen)
         self.reflection_table = _table(steps.REFLECTION_COLUMNS)
         self.reflection_table.setEditTriggers(
@@ -174,6 +269,28 @@ class RefinementWorkbench(QMainWindow):
         self.rietveld_tabs.addTab(self.refined_table, "Refined")
         self.rietveld_tabs.addTab(self._history_page(), "History")
         self.tables.addWidget(self.rietveld_tabs)
+        self.ends_table = _table(steps.ENERGY_COLUMNS)
+        self.ends_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.ends_table.setToolTip(
+            "Where the run started, the atoms under the energy alone "
+            "(w = 1), and this fit: the two ends a weight is between")
+        self.tables.addWidget(self.ends_table)
+        self.pareto_table = _table(steps.PARETO_COLUMNS, rows=True)
+        self.pareto_table.setToolTip(
+            "One row a weight.  Choose one to draw its fit; "
+            "double-click to open its structure.  Front is a point no "
+            "other beats on both Rwp and energy.")
+        self.pareto_table.itemSelectionChanged.connect(
+            self._draw_pareto_row)
+        self.pareto_table.cellDoubleClicked.connect(
+            lambda row, _column: self.open_pareto_point(row))
+        self.pareto_plots = ParetoPlots()
+        self.pareto_plots.pointPicked.connect(self.pareto_table.selectRow)
+        pareto = QSplitter(Qt.Horizontal)
+        pareto.addWidget(self.pareto_table)
+        pareto.addWidget(self.pareto_plots)
+        pareto.setSizes([400, 600])
+        self.tables.addWidget(pareto)
         self.auto_table = _table(steps.AUTO_COLUMNS, rows=True)
         self.auto_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.auto_table.setToolTip(
@@ -185,8 +302,12 @@ class RefinementWorkbench(QMainWindow):
         middle = QSplitter(Qt.Vertical)
         middle.addWidget(self.plot)
         middle.addWidget(self.tables)
-        middle.setStretchFactor(0, 3)
+        # half and half: the table under a fit is read as much as the
+        # fit is looked at
+        middle.setStretchFactor(0, 1)
         middle.setStretchFactor(1, 1)
+        middle.setSizes([500, 500])
+        self.middle = middle
 
         splitter = QSplitter(Qt.Horizontal)
         splitter.addWidget(self.steps)
@@ -203,16 +324,20 @@ class RefinementWorkbench(QMainWindow):
         self._fill_from_structure()
         self._show_pawley_result()
         self._show_rietveld_result()
+        self._show_energy_result()
+        self._show_pareto_result()
         self._on_radiation()
         self._show_plan_note()
+        self._show_refines_note()
         self._fill_history()
         self._show_auto_result()
         self._refresh()
 
     def _side(self) -> QWidget:
-        """The data group, the step's form, and Run / Stop."""
+        """The pattern, the step's sections, and Run / Stop."""
         side = QWidget()
         layout = QVBoxLayout(side)
+        layout.setSpacing(4)
 
         self.missing = QLabel(powder.missing())
         self.missing.setWordWrap(True)
@@ -220,8 +345,6 @@ class RefinementWorkbench(QMainWindow):
         self.missing.setVisible(bool(powder.missing()))
         layout.addWidget(self.missing)
 
-        data_box = QGroupBox("Pattern")
-        data_layout = QVBoxLayout(data_box)
         row = QHBoxLayout()
         self.load_button = QPushButton("Load .xy...")
         self.load_button.setToolTip("Read the measured pattern to "
@@ -229,63 +352,57 @@ class RefinementWorkbench(QMainWindow):
         self.load_button.clicked.connect(self.choose_pattern)
         row.addWidget(self.load_button)
         self.pattern_label = QLabel("no pattern loaded")
+        self.pattern_label.setWordWrap(True)
         set_tone(self.pattern_label, HINT)
         row.addWidget(self.pattern_label, 1)
-        data_layout.addLayout(row)
         self.data_form = ParamForm(steps.DATA_PARAMS[1:])
         self.data_form.changed.connect(self._on_radiation)
-        data_layout.addWidget(self.data_form)
-        layout.addWidget(data_box)
+        self.data_form.layout().setLabelAlignment(Qt.AlignLeft
+                                                  | Qt.AlignVCenter)
+        self.data_form.layout().setFormAlignment(Qt.AlignLeft | Qt.AlignTop)
+        self.pattern_fold = self._fold("Pattern", row, self.data_form)
+        layout.addWidget(self.pattern_fold)
 
-        self.forms = QStackedWidget()
-        self.step_forms: dict[str, ParamForm] = {}
+        self.forms = _PageStack()
+        self.step_forms: dict[str, SectionedForm] = {}
+        self.engine_boxes: dict[str, QComboBox] = {}
+        self.refines_notes: dict[str, _Paragraph] = {}
         self.bravais = BravaisBox()
-        self.cell_box = CellBox("Cell")
+        self.bravais.setTitle("")
+        self.bravais.setFlat(True)
+        self.cell_box = CellBox("")
+        self.cell_box.setFlat(True)
         self.cell_box.setToolTip(
             "The numbers the space group leaves free; the rest follow "
             "from them.  Untick Refine to hold one at the value given.")
-        self.rietveld_cell = CellBox("Cell of the structure",
-                                     editable=False)
+        self.rietveld_cell = CellBox("", editable=False)
+        self.rietveld_cell.setFlat(True)
         self.rietveld_cell.setToolTip(
             "The structure's own cell, refined number by number: "
             "untick Refine to hold one")
-        for name, label in STEPS:
+        for name, _label in STEPS:
             params = [p for p in steps.STEP_PARAMS[name]
                       if p.name not in _NOT_IN_FORM.get(name, ())]
-            box = QGroupBox(label)
-            box_layout = QVBoxLayout(box)
-            if name == "index":
-                box_layout.addWidget(self.bravais)
-            refines = name in ("pawley", "rietveld")
-            form = ParamForm(params, notes=refines)
+            form = SectionedForm(params, GROUPS[name],
+                                 notes=name in ("pawley", "rietveld"),
+                                 parent=self)
             self.step_forms[name] = form
-            box_layout.addWidget(form)
-            if name == "peaks":
-                box_layout.addWidget(self._peaks_box())
-            if name == "index":
-                box_layout.addLayout(self._index_box())
-            if name == "pawley":
-                # the group decides which numbers the cell has, so the
-                # cell sits under it
-                form.layout().insertRow(1, self.cell_box)
-                form.widgets["space_group"].textChanged.connect(
-                    self.cell_box.set_space_group)
-                box_layout.addWidget(self._pawley_box())
-            if name == "auto":
-                box_layout.addWidget(self._auto_box())
-            if name == "rietveld":
-                # what the plan chosen above it does, stage by stage
-                self.plan_note = _Paragraph("")
-                set_tone(self.plan_note, HINT)
-                form.layout().insertRow(1, self.plan_note)
-                form.changed.connect(self._show_plan_note)
-                form.layout().insertRow(
-                    form.layout().rowCount(), self.rietveld_cell)
-                box_layout.addWidget(self._rietveld_box())
+            page = QWidget()
+            page_layout = QVBoxLayout(page)
+            page_layout.setContentsMargins(0, 0, 0, 0)
+            page_layout.setSpacing(2)
+            for section in getattr(self, f"_{name}_sections")(form):
+                page_layout.addWidget(section)
             # the stack is as tall as its tallest step; a shorter one
             # sits at the top rather than spread down the column
-            box_layout.addStretch(1)
-            self.forms.addWidget(box)
+            page_layout.addStretch(1)
+            self.forms.addWidget(page)
+        self.step_forms["peaks"].changed.connect(self._on_peaks_changed)
+        for name in ("energy", "pareto"):
+            self.step_forms[name].changed.connect(self._show_refines_note)
+        self.step_forms["rietveld"].changed.connect(
+            self._show_refines_note)
+        self.step_forms["pawley"].changed.connect(self._refresh)
         layout.addWidget(self.forms)
         layout.addStretch(1)
         # A stack is as tall as its tallest page, which is Rietveld's;
@@ -314,10 +431,11 @@ class RefinementWorkbench(QMainWindow):
         bottom.setContentsMargins(9, 0, 9, 9)
         buttons = QHBoxLayout()
         self.run_button = QPushButton(RUN_LABELS["peaks"])
+        self.run_button.setDefault(True)
         self.run_button.clicked.connect(lambda: self.run_step())
         self.stop_button = QPushButton("Stop")
         self.stop_button.clicked.connect(self.stop)
-        buttons.addWidget(self.run_button)
+        buttons.addWidget(self.run_button, 1)
         buttons.addWidget(self.stop_button)
         bottom.addLayout(buttons)
         self.status = QLabel("")
@@ -327,22 +445,30 @@ class RefinementWorkbench(QMainWindow):
         column_layout.addLayout(bottom)
         return column
 
+    def _fold(self, title: str, *widgets, open_: bool = True):
+        """A section of the column that folds, and re-measures the page
+        when it does."""
+        return fold(title, *widgets, open_=open_,
+                    on_toggle=lambda: self._fit_form(
+                        self.forms.currentIndex()))
+
     def _fit_form(self, index: int) -> None:
         """The stack as tall as the page shown, not the tallest one."""
-        for k in range(self.forms.count()):
+        forms = getattr(self, "forms", None)
+        if forms is None or index < 0:
+            return
+        for k in range(forms.count()):
             policy = QSizePolicy.Preferred if k == index \
                 else QSizePolicy.Ignored
-            self.forms.widget(k).setSizePolicy(policy, policy)
+            forms.widget(k).setSizePolicy(policy, policy)
         # the stack caches its hint; a policy changed under it is not
         # news to it until it is told
-        self.forms.layout().invalidate()
-        self.forms.updateGeometry()
+        forms.layout().invalidate()
+        forms.updateGeometry()
 
-    def _peaks_box(self) -> QWidget:
-        """Lines placed by hand, Refine, and the single-line overlay."""
-        box = QWidget()
-        layout = QVBoxLayout(box)
-        layout.setContentsMargins(0, 0, 0, 0)
+    # -- each step's sections ------------------------------------------
+
+    def _peaks_sections(self, form):
         row = QHBoxLayout()
         row.addWidget(QLabel("Add peaks at"))
         self.add_edit = QLineEdit()
@@ -355,7 +481,6 @@ class RefinementWorkbench(QMainWindow):
         self.add_button = QPushButton("Add")
         self.add_button.clicked.connect(self.add_peaks)
         row.addWidget(self.add_button)
-        layout.addLayout(row)
         self.refine_button = QPushButton("Refine peaks")
         self.refine_button.setToolTip(
             "Fit the lines in use together over the whole range, on a "
@@ -363,18 +488,23 @@ class RefinementWorkbench(QMainWindow):
             "and width of each.  Lines out of use are removed.")
         self.refine_button.clicked.connect(
             lambda: self.run_step("refine_peaks"))
-        layout.addWidget(self.refine_button)
         self.components_box = QCheckBox("Show individual peaks")
         self.components_box.setChecked(True)
         self.components_box.setToolTip(
             "Draw each line in use on its own over the background")
         self.components_box.toggled.connect(self.plot.show_components)
-        layout.addWidget(self.components_box)
-        return box
+        hint = _hint("A line's 2θ, area and width can be typed into "
+                     "the table (double-click the number), to give "
+                     "Refine peaks a better start than the one found.")
+        return (self._fold("Range", form.part("Range")),
+                self._fold("Finding peaks", form.part("Finding peaks")),
+                self._fold("Refining peaks", form.part("Refining peaks"),
+                           row, self.refine_button, self.components_box,
+                           hint))
 
-    def _index_box(self) -> QVBoxLayout:
-        """How the cell table is ordered, and where a row goes."""
-        layout = QVBoxLayout()
+    def _index_sections(self, form):
+        search = form.part("Search")
+        self._add_budget_switch(search)
         row = QHBoxLayout()
         row.addWidget(QLabel("Sort cells by"))
         self.sort_box = QComboBox()
@@ -389,23 +519,61 @@ class RefinementWorkbench(QMainWindow):
         self.sort_box.currentIndexChanged.connect(
             lambda _i: self._fill_cells())
         row.addWidget(self.sort_box, 1)
-        layout.addLayout(row)
-        hint = QLabel("The highlighted cell and its space group are "
-                      "copied into the Pawley step.")
-        hint.setWordWrap(True)
-        set_tone(hint, HINT)
-        layout.addWidget(hint)
-        return layout
+        hint = _hint("The highlighted cell and its space group are "
+                     "copied into the Pawley step.")
+        return (self._fold("Bravais lattices", self.bravais),
+                self._fold("Search", search),
+                self._fold("Space groups", form.part("Space groups")),
+                self._fold("Cell table", row, hint))
 
-    def _pawley_box(self) -> QGroupBox:
-        """The fit's figures, and the two things a cell is for."""
-        box = QGroupBox("Result")
-        layout = QVBoxLayout(box)
-        self.pawley_label = QLabel("")
-        self.pawley_label.setWordWrap(True)
-        self.pawley_label.setTextInteractionFlags(
-            Qt.TextSelectableByMouse)
-        layout.addWidget(self.pawley_label)
+    def _add_budget_switch(self, search) -> None:
+        """A box beside the time budget that turns it off, off to start
+        with: a budget is a way to stop a search, and Stop is another.
+        The spin box shows "no limit" at 0, which is what an unticked
+        box sends."""
+        spin = search.widgets["budget"]
+        spin.setSpecialValueText("no limit")
+        self.budget_box = QCheckBox("Time budget")
+        self.budget_box.setToolTip(
+            "Stop the search after this long, reporting what it "
+            "reached.  Unticked, it runs until it is done or Stop is "
+            "pressed.")
+        layout = search.layout()
+        row, _role = layout.getWidgetPosition(spin)
+        old = layout.itemAt(row, QFormLayout.LabelRole).widget()
+        layout.removeWidget(old)
+        old.deleteLater()
+        layout.setWidget(row, QFormLayout.LabelRole, self.budget_box)
+        self._budget_seconds = 60.0
+
+        def switched(on: bool) -> None:
+            if on and spin.value() == 0:
+                spin.setValue(self._budget_seconds)
+            elif not on and spin.value() > 0:
+                self._budget_seconds = spin.value()
+                spin.setValue(0.0)
+            spin.setEnabled(on)
+
+        def edited(value: float) -> None:
+            # a number set from outside (a saved form, a test) turns
+            # the budget on; 0 typed into the box turns it off
+            self.budget_box.blockSignals(True)
+            self.budget_box.setChecked(value > 0)
+            self.budget_box.blockSignals(False)
+            spin.setEnabled(value > 0)
+
+        self.budget_box.toggled.connect(switched)
+        spin.valueChanged.connect(edited)
+        edited(spin.value())
+
+    def _pawley_sections(self, form):
+        group = form.part("Cell and space group")
+        # the group decides which numbers the cell has, so the cell
+        # sits under it
+        group.layout().addRow(self.cell_box)
+        form.widgets["space_group"].textChanged.connect(
+            self.cell_box.set_space_group)
+        self.pawley_label = _result_label()
         self.apply_button = QPushButton("Apply cell to the structure")
         self.apply_button.clicked.connect(self.apply_cell)
         self.new_button = QPushButton("New structure from this cell")
@@ -413,61 +581,159 @@ class RefinementWorkbench(QMainWindow):
             "An empty structure with this cell and space group, filed "
             "in the workspace like File > New")
         self.new_button.clicked.connect(self.new_structure)
-        layout.addWidget(self.apply_button)
-        layout.addWidget(self.new_button)
-        explain = QLabel(
-            "A Pawley fit has no atoms: it refines a cell, and each "
-            "reflection's intensity is a free number.  <b>Apply cell to "
-            "the structure</b> puts the refined a, b, c, α, β, γ on the "
-            "structure this window was opened over, its atoms kept at "
-            "the same fractional coordinates -- one undo step.  "
-            "<b>New structure from this cell</b> opens an empty "
-            "structure in a new tab, with this cell and space group "
-            "and no atoms, to build or solve a structure in.")
-        explain.setWordWrap(True)
-        set_tone(explain, HINT)
-        layout.addWidget(explain)
-        return box
+        buttons = QHBoxLayout()
+        buttons.addWidget(self.apply_button)
+        buttons.addWidget(self.new_button)
+        explain = _hint(
+            "A Pawley or Le Bail fit has no atoms: it refines a cell, "
+            "and each reflection's intensity is found from the pattern "
+            "-- a free number in Pawley, shared out from the observed "
+            "counts in Le Bail.  <b>Apply cell to the structure</b> "
+            "puts the refined a, b, c, α, β, γ on the structure this "
+            "window was opened over, its atoms kept at the same "
+            "fractional coordinates -- one undo step.  <b>New "
+            "structure from this cell</b> opens an empty structure in "
+            "a new tab, with this cell and space group and no atoms, "
+            "to build or solve a structure in.")
+        # Two things a person asked to be told, and would otherwise
+        # learn by waiting: that a wider range is not a better cell,
+        # and what a cell is for here.
+        return (self._fold("Method", form.part("Method")),
+                self._fold("Cell and space group", group),
+                self._fold("Range and background",
+                           form.part("Range and background")),
+                self._fold("Refined", form.part("Refined")),
+                self._fold("Result", self.pawley_label, buttons),
+                self._fold("About", explain, _hint(PAWLEY_RANGE_NOTE),
+                           _hint(CELL_TO_STRUCTURE_NOTE), open_=False))
 
-    def _rietveld_box(self) -> QGroupBox:
-        """The fit's figures, and what finishing did to the document."""
-        box = QGroupBox("Result")
-        layout = QVBoxLayout(box)
-        self.rietveld_label = QLabel("")
-        self.rietveld_label.setWordWrap(True)
-        self.rietveld_label.setTextInteractionFlags(
-            Qt.TextSelectableByMouse)
-        layout.addWidget(self.rietveld_label)
-        explain = QLabel(
+    def _rietveld_sections(self, form):
+        plan = form.part("Plan")
+        # what the plan chosen above it does, stage by stage
+        self.plan_note = _Paragraph("")
+        set_tone(self.plan_note, HINT)
+        plan.layout().addRow(self.plan_note)
+        form.changed.connect(self._show_plan_note)
+        self.rietveld_label = _result_label()
+        explain = _hint(
             "Refines the atoms of the structure this window was opened "
             "over.  The atoms move in the viewer as it runs; a finished "
             "fit is one undo step, and Stop puts them back.  Atoms are "
             "never added, removed or bonded.")
-        explain.setWordWrap(True)
-        set_tone(explain, HINT)
-        layout.addWidget(explain)
-        return box
+        return (self._fold("Plan", plan),
+                self._fold("Range and background",
+                           form.part("Range and background")),
+                self._fold("Refined: instrument and peak shape",
+                           form.part("Refined: instrument and peak "
+                                     "shape")),
+                self._fold("Refined: cell", self.rietveld_cell),
+                self._fold("Refined: atoms", form.part("Refined: atoms")),
+                self._fold("Result", self.rietveld_label),
+                self._fold("About", explain, open_=False))
 
-    def _auto_box(self) -> QGroupBox:
-        """What the run reads from the other steps, and what it found."""
-        box = QGroupBox("Result")
-        layout = QVBoxLayout(box)
-        self.auto_label = QLabel("")
-        self.auto_label.setWordWrap(True)
-        self.auto_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        layout.addWidget(self.auto_label)
-        explain = QLabel(
-            "Fits the peaks, indexes them, and Pawley fits the leading "
-            "cells in their leading space-group classes, ranked by "
-            "Rwp.  Each stage asks what its own step's form says: the "
-            "lattices and budget on Index, the range and broadening on "
-            "Pawley, the plan and boxes on Rietveld.  It stops at the "
-            "table unless Continue to Rietveld is ticked, and then "
-            "refines the structure only if its cell is a row's.")
-        explain.setWordWrap(True)
-        set_tone(explain, HINT)
-        layout.addWidget(explain)
-        return box
+    def _engine_section(self, step: str):
+        """The energy engine, chosen here -- and in the same choice as
+        the Force Field panel's, whose model the box shares, so the
+        two windows can never name different engines.  The engine's
+        own options stay in that panel, one button away."""
+        box = QComboBox()
+        box.setToolTip("The engine the energy term is computed with.  "
+                       "Choosing one here chooses it in the Force Field "
+                       "panel too.")
+        dock = getattr(self.window_, "ff_dock", None)
+        chooser = getattr(dock, "engine", None)
+        if chooser is not None:
+            box.setModel(chooser.model())
+            box.setCurrentIndex(chooser.currentIndex())
+            chooser.currentIndexChanged.connect(box.setCurrentIndex)
+            box.activated.connect(chooser.setCurrentIndex)
+            chooser.currentIndexChanged.connect(
+                lambda _i: self._show_refines_note())
+        else:
+            from xtal.ff.registry import ENGINES
+
+            for engine in ENGINES:
+                box.addItem(engine.label, engine.name)
+        self.engine_boxes[step] = box
+        options = QPushButton("Options...")
+        options.setToolTip("Show the Force Field panel, where the "
+                           "engine's parameter set, model and charges "
+                           "are set")
+        options.clicked.connect(self._show_engine_options)
+        options.setEnabled(hasattr(self.window_, "show_force_field"))
+        row = QHBoxLayout()
+        row.addWidget(box, 1)
+        row.addWidget(options)
+        hint = _hint("Shared with the Force Field panel: its options "
+                     "(parameter set, model, charges) are set there.")
+        return self._fold("Energy engine", row, hint)
+
+    def _refines_section(self, step: str):
+        note = _Paragraph("")
+        set_tone(note, HINT)
+        self.refines_notes[step] = note
+        return self._fold("What is refined", note)
+
+    def _energy_sections(self, form):
+        self.energy_label = _result_label()
+        explain = _hint(
+            "Minimises (1 − w) χ²/χ²₀ + w (E − E₀)/ΔE, where ΔE is how "
+            "far the energy falls with the atoms answering to it alone. "
+            " An atom on a special position stays on it.  A finished "
+            "fit is one undo step, and Stop puts the atoms back.")
+        return (self._engine_section("energy"),
+                self._fold("Range", form.part("Range")),
+                self._fold("Energy", form.part("Energy")),
+                self._refines_section("energy"),
+                self._fold("Result", self.energy_label),
+                self._fold("About", explain, open_=False))
+
+    def _pareto_sections(self, form):
+        self.pareto_label = _result_label()
+        self.use_knee_button = QPushButton("Use this weight")
+        self.use_knee_button.setToolTip(
+            "Put the suggested weight in the With energy step, to "
+            "refine the structure at it")
+        self.use_knee_button.clicked.connect(self.use_knee)
+        self.front_button = QPushButton("Show in Results")
+        self.front_button.setToolTip(
+            "Rwp against energy in the main window's Results panel as "
+            "well, where a point opens its structure")
+        self.front_button.clicked.connect(self.show_front)
+        buttons = QHBoxLayout()
+        buttons.addWidget(self.use_knee_button)
+        buttons.addWidget(self.front_button)
+        buttons.addStretch(1)
+        explain = _hint(
+            "Refines with energy at every weight listed, each from the "
+            "one below it, with the scale, background and peak shape "
+            "fitted once for all of them.  The front is the weights no "
+            "other beats on both Rwp and energy; the suggested weight "
+            "is where it bends most.  Every point is written as it "
+            "finishes, so Stop keeps them.  The structure is put back "
+            "afterwards: refine at the weight you choose with With "
+            "energy.")
+        return (self._engine_section("pareto"),
+                self._fold("Range", form.part("Range")),
+                self._fold("Sweep", form.part("Sweep")),
+                self._refines_section("pareto"),
+                self._fold("Result", self.pareto_label, buttons),
+                self._fold("About", explain, open_=False))
+
+    def _auto_sections(self, form):
+        self.auto_label = _result_label()
+        explain = _hint(
+            "Fits the peaks, indexes them, and fits the leading cells "
+            "in their leading space-group classes by the Pawley step's "
+            "method, ranked by Rwp.  Each stage asks what its own "
+            "step's form says: the lattices and budget on Index, the "
+            "range and broadening on Pawley, the plan and boxes on "
+            "Rietveld.  It stops at the table unless Continue to "
+            "Rietveld is ticked, and then refines the structure only "
+            "if its cell is a row's.")
+        return (self._fold("Automatic", form.part("Automatic")),
+                self._fold("Result", self.auto_label),
+                self._fold("About", explain, open_=False))
 
     def _history_page(self) -> QWidget:
         """Every fit reached, with its figures, and the way back."""
@@ -564,8 +830,12 @@ class RefinementWorkbench(QMainWindow):
         self._show_rietveld_result()
         # the range a fit runs over starts as the whole measurement
         lo, hi = data.range
-        for step in ("peaks", "pawley", "rietveld"):
+        self._range_given = None
+        for step in ("peaks", *_RANGED):
             self.step_forms[step].set_values({"start": lo, "finish": hi})
+        # as the boxes hold it, rounded to their decimals
+        given = self.step_forms["peaks"].values()
+        self._range_given = (float(given["start"]), float(given["finish"]))
         self.say(f"loaded {Path(path).name}")
         self._refresh()
         return True
@@ -593,6 +863,8 @@ class RefinementWorkbench(QMainWindow):
         values.update(self.data_form.values())
         if step == "auto":
             return self._auto_values(values)
+        if step in ("energy", "pareto"):
+            return self._energy_values(values, step)
         if step == "index":
             values.update(self.step_forms["peaks"].values())
             values["bravais"] = self.bravais.value()
@@ -634,6 +906,77 @@ class RefinementWorkbench(QMainWindow):
             values.update({f"{step}_{k}": v for k, v in own.items()})
         return values
 
+    def _energy_values(self, values: dict, step: str = "energy") -> dict:
+        """The step's own form, the engine it names (which is the Force
+        Field panel's), and the Rietveld step's boxes under
+        ``rietveld_`` for the fit of everything but the atoms that
+        comes first -- for With energy and for a Pareto sweep of it
+        alike.  The range is the step's own, not Rietveld's."""
+        from xtalapp.docks.ff_panel import panel_options
+
+        own_form = self.step_forms[step].values()
+        span = {k: own_form.pop(k) for k in ("start", "finish")
+                if k in own_form}
+        values.update(own_form)
+        engine = self.engine_name()
+        values["engine"] = engine
+        values["engine_options"] = panel_options(self.window_, engine)
+        own = self.values("rietveld")
+        for name in ("xy", *self.data_form.values()):
+            own.pop(name, None)
+        interval = own.pop("frame_interval", None)
+        if interval is not None:
+            values["frame_interval"] = interval
+        values.update({f"rietveld_{k}": v for k, v in own.items()})
+        values.update({f"rietveld_{k}": v for k, v in span.items()})
+        return values
+
+    def engine_name(self) -> str:
+        """The energy engine: the Force Field panel's, which the boxes
+        here share; the box's own choice only with no panel."""
+        from xtalapp.docks.ff_panel import panel_engine
+
+        if getattr(self.window_, "ff_dock", None) is not None:
+            return panel_engine(self.window_)
+        box = self.engine_boxes.get("energy")
+        return str(box.currentData()) if box is not None and \
+            box.currentData() else "uff"
+
+    def _show_engine_options(self) -> None:
+        show = getattr(self.window_, "show_force_field", None)
+        if show is not None:
+            show()
+
+    def _show_refines_note(self) -> None:
+        """What a run with energy fits first and what it moves after:
+        the first stage is the Rietveld step's boxes, on another page."""
+        notes = getattr(self, "refines_notes", {})
+        for step, note in notes.items():
+            try:
+                note.setText(steps.energy_refines_note(self.values(step)))
+            except PowderError as exc:
+                note.setText(str(exc))
+        if notes:
+            self._fit_form(self.forms.currentIndex())
+
+    def _on_peaks_changed(self) -> None:
+        """The Peaks step's range, handed on to every step that fits
+        over one and still shows the range it was last handed -- a
+        range set on Pawley by hand is Pawley's."""
+        if self._range_given is None:
+            return
+        values = self.step_forms["peaks"].values()
+        new = (float(values["start"]), float(values["finish"]))
+        if new == self._range_given:
+            return
+        old, self._range_given = self._range_given, None
+        for step in _RANGED:
+            form = self.step_forms[step]
+            own = form.values()
+            if (float(own["start"]), float(own["finish"])) == old:
+                form.set_values({"start": new[0], "finish": new[1]})
+        self._range_given = new
+
     def run_step(self, name: str | None = None) -> None:
         """Run a step's action -- the current step's, or ``name``."""
         if self.worker is not None or self.data is None:
@@ -643,7 +986,8 @@ class RefinementWorkbench(QMainWindow):
             self.say("Find peaks (or add some) before refining them",
                      warn=True)
             return
-        refused = self._rietveld_refused() if name == "rietveld" else ""
+        refused = self._rietveld_refused() if name in _REFINES_ATOMS \
+            else ""
         if refused:
             self.say(refused, warn=True)
             return
@@ -660,6 +1004,17 @@ class RefinementWorkbench(QMainWindow):
             structure = self._start_rietveld(self.values("rietveld"))
         if name == "rietveld":
             structure = self._start_rietveld(values)
+        if name == "energy":
+            # the history's boxes are the Rietveld step's, which is the
+            # form a restored row puts back
+            structure = self._start_rietveld(
+                {**self.values("rietveld"),
+                 "energy_weight": values.get("weight", 0.0)})
+        if name == "pareto":
+            structure = self.document.structure.copy()
+            self._before = (structure.frac.copy(),
+                            structure.lattice.matrix.copy())
+            self._framed = False
         job = Job(structure=structure, params=values, folder=folder,
                   label=f"pxrd.{name}", given=self._given(name))
         worker = ModuleWorker(self.module, action, job)
@@ -768,9 +1123,15 @@ class RefinementWorkbench(QMainWindow):
             self._show_pawley_result()
         if step == "auto" and answer is not None:
             self._take_auto(answer)
-        if step == "rietveld":
+        if step == "pareto":
+            self._put_back()
+            if answer is not None:
+                # Stop keeps the points reached: each is an answer
+                self.pareto = answer
+                self._fill_pareto()
+        if step in _MOVES_ATOMS:
             self._finish_rietveld(answer if not result.cancelled
-                                  else None)
+                                  else None, step)
         if step == "auto" and self._before is not None:
             self._finish_rietveld(
                 answer.rietveld if answer is not None
@@ -785,8 +1146,10 @@ class RefinementWorkbench(QMainWindow):
         module_record.close_run(self._folder, error=message)
         step, self.worker, self._running = self._running, None, ""
         self._ticker.stop()
-        if step == "rietveld" or self._before is not None:
-            self._finish_rietveld(None)
+        if step == "pareto":
+            self._put_back()
+        elif step in _MOVES_ATOMS or self._before is not None:
+            self._finish_rietveld(None, step)
         self.say(message, warn=True)
         self._refresh()
 
@@ -803,7 +1166,7 @@ class RefinementWorkbench(QMainWindow):
     def _on_frame(self, frame) -> None:
         """One moment of a running fit: the curve redrawn in place and
         the atoms moved, neither of them an edit."""
-        if self._running not in ("rietveld", "auto") \
+        if self._running not in (*_REFINES_ATOMS, "auto") \
                 or self.document is None:
             return
         if not self._framed:
@@ -814,11 +1177,14 @@ class RefinementWorkbench(QMainWindow):
         else:
             self.plot.show_calculated(frame.y_calc)
         self.document.preview_positions(frame.frac, frame.matrix)
-        self._progress(f"Rietveld: {frame.stage}...")
+        what = {"energy": "With energy", "pareto": "Pareto"}.get(
+            self._running, "Rietveld")
+        self._progress(f"{what}: {frame.stage}...")
 
-    def _finish_rietveld(self, fit) -> None:
+    def _finish_rietveld(self, fit, step: str = "rietveld") -> None:
         """Put the atoms back where the run started, and then -- for a
-        fit that finished -- commit it as one undo step."""
+        fit that finished -- commit it as one undo step.  ``step`` is
+        which step's answer it is: Rietveld's, or with energy."""
         before, self._before = self._before, None
         if self.document is None:
             return
@@ -831,22 +1197,59 @@ class RefinementWorkbench(QMainWindow):
             return
         if before is not None:
             self.document.preview_positions(*before)
+        energy = step == "energy"
         if fit is None:
-            if self.rietveld is not None:
+            if energy and self.energy is not None:
+                self._draw_energy()
+            elif not energy and self.rietveld is not None:
                 self._draw_rietveld()
             return
-        self.rietveld = fit
+        if energy:
+            self.energy = fit
+        else:
+            self.rietveld = fit
         self.document.replace_structure(
-            fit.structure.copy(), "Rietveld refinement",
+            fit.structure.copy(),
+            "Rietveld with energy" if energy else "Rietveld refinement",
             Change.POSITIONS | Change.CELL | Change.METADATA)
         self.history.append(HistoryEntry(
             structure=fit.structure.copy(), values=self._run_values,
             fit=fit, when=datetime.datetime.now(), folder=self._folder))
         self._history_at = len(self.history) - 1
         self._fill_history()
-        self._draw_rietveld()
         self._fill_rietveld_cell()
+        if energy:
+            self._draw_energy()
+            self._show_energy_result()
+            return
+        self._draw_rietveld()
         self._show_rietveld_result()
+
+    def _draw_energy(self) -> None:
+        fit = self.energy
+        if fit is None:
+            self._draw_rietveld()
+            return
+        self.plot.show_fit(fit.two_theta, fit.y_obs, fit.y_calc,
+                           fit.y_background, fit.ticks)
+
+    def _show_energy_result(self) -> None:
+        fit = self.energy
+        self.energy_label.setText(
+            steps.energy_summary(fit) if fit is not None
+            else "Run to refine the structure against the pattern and "
+                 "the energy.")
+        set_tone(self.energy_label,
+                 HINT if fit is None or fit.converged else WARNING)
+        rows = steps.energy_ends(fit) if fit is not None else []
+        self.ends_table.setRowCount(len(rows))
+        for r, row in enumerate(rows):
+            for column, text in enumerate(row):
+                item = QTableWidgetItem(text)
+                if column:
+                    item.setTextAlignment(Qt.AlignRight
+                                          | Qt.AlignVCenter)
+                self.ends_table.setItem(r, column, item)
 
     def _draw_rietveld(self) -> None:
         fit = self.rietveld
@@ -870,6 +1273,8 @@ class RefinementWorkbench(QMainWindow):
             fit = entry.fit
             status = "start" if fit is None else fit.status
             plan = plans.get(entry.values.get("plan", ""), "")
+            if "energy_weight" in entry.values:
+                plan = f"with energy, w {entry.values['energy_weight']:g}"
             texts = (str(r), entry.when.strftime("%H:%M:%S"),
                      _percent(fit and fit.rwp), _percent(fit and fit.rp),
                      f"{fit.gof:.3f}" if fit is not None else "--",
@@ -976,12 +1381,16 @@ class RefinementWorkbench(QMainWindow):
             use.setCheckState(Qt.Checked if peak.use else Qt.Unchecked)
             use.setToolTip("Untick to keep this line out of indexing")
             self.table.setItem(row, 0, use)
-            cells = (f"{peak.two_theta:.4f}", f"{peak.two_theta_esd:.4f}",
+            cells = (f"{peak.two_theta:.4f}", _number(peak.two_theta_esd,
+                                                      ".4f"),
                      f"{peak.d:.5f}", f"{peak.area:.1f}",
                      f"{peak.fwhm:.4f}", ", ".join(peak.flags))
             for column, text in enumerate(cells, start=1):
                 item = QTableWidgetItem(text)
-                item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+                flags = Qt.ItemIsEnabled | Qt.ItemIsSelectable
+                if column in PEAK_EDITS:
+                    flags |= Qt.ItemIsEditable
+                item.setFlags(flags)
                 if column < len(cells):
                     item.setTextAlignment(Qt.AlignRight
                                           | Qt.AlignVCenter)
@@ -989,7 +1398,12 @@ class RefinementWorkbench(QMainWindow):
         self.table.blockSignals(False)
 
     def _on_use_changed(self, item) -> None:
-        if self.peaks is None or item.column() != 0:
+        if self.peaks is None:
+            return
+        if item.column() in PEAK_EDITS:
+            self._on_peak_edited(item)
+            return
+        if item.column() != 0:
             return
         self.peaks.peaks[item.row()].use = \
             item.checkState() == Qt.Checked
@@ -998,6 +1412,32 @@ class RefinementWorkbench(QMainWindow):
                                  self.peaks.curves())
         self.say(f"{self.peaks.n_used} of {len(self.peaks.peaks)} "
                  f"lines in use for indexing")
+
+    def _on_peak_edited(self, item) -> None:
+        """A number typed into the peak table: the line moved or resized
+        there, drawn where it now is, and refined from there next."""
+        key = PEAK_EDITS[item.column()]
+        try:
+            value = float(item.text().strip())
+            self.peaks.edit(item.row(), **{key: value})
+        except ValueError:
+            self.say(f"{item.text()!r} is not a number", warn=True)
+        except PowderError as exc:
+            self.say(str(exc), warn=True)
+        else:
+            self.say("line set by hand -- Refine peaks starts from it")
+        # after the editor has closed: the table is rebuilt, and an
+        # edit to 2θ may have put the line somewhere else in the order
+        QTimer.singleShot(0, self._redraw_lines)
+
+    def _redraw_lines(self) -> None:
+        """The table, the comb and the single lines, the zoom kept."""
+        if self.peaks is None:
+            return
+        self._fill_table()
+        self.plot.set_ticks(self._used_positions())
+        self.plot.set_components(self.peaks.y_background,
+                                 self.peaks.curves())
 
     def _fill_cells(self) -> None:
         rows = [] if self.cells is None else steps.sorted_rows(
@@ -1184,6 +1624,13 @@ class RefinementWorkbench(QMainWindow):
             self._fill_rietveld_cell()
         if step == "rietveld" and self.rietveld is not None:
             self._draw_rietveld()
+        elif step == "energy":
+            self._show_energy_result()
+            if self.energy is not None:
+                self._draw_energy()
+        elif step == "pareto":
+            self._show_pareto_result()
+            self._draw_pareto_row()
         elif step == "pawley" and self.pawley is not None:
             self._draw_pawley()
         elif step == "auto" and self.auto is not None:
@@ -1284,6 +1731,108 @@ class RefinementWorkbench(QMainWindow):
             self.pawley = row.fit
             self._draw_pawley()
 
+    # -- Pareto --------------------------------------------------------
+
+    def _put_back(self) -> None:
+        """The atoms where the sweep started: it returns no structure."""
+        before, self._before = self._before, None
+        if before is None or self.document is None:
+            return
+        if len(before[0]) != len(self.document.structure.sites):
+            self.say("the structure was edited while the sweep ran",
+                     warn=True)
+            return
+        self.document.preview_positions(*before)
+
+    def _fill_pareto(self) -> None:
+        result = self.pareto
+        rows = steps.pareto_rows(result) if result is not None else []
+        table = self.pareto_table
+        table.blockSignals(True)
+        table.clearSelection()
+        table.setRowCount(len(rows))
+        for r, row in enumerate(rows):
+            for column, text in enumerate(row):
+                item = QTableWidgetItem(text)
+                if column < 3 or column == 4:
+                    item.setTextAlignment(Qt.AlignRight
+                                          | Qt.AlignVCenter)
+                table.setItem(r, column, item)
+        table.blockSignals(False)
+        self.pareto_plots.show_result(result)
+        self._show_pareto_result()
+        if result is not None and result.points:
+            bend = result.knee
+            table.selectRow(bend if bend is not None else 0)
+
+    def _show_pareto_result(self) -> None:
+        result = self.pareto
+        if result is None:
+            self.pareto_label.setText(
+                "Sweep to refine at every weight and find the one "
+                "where the fit and the energy trade best.")
+            set_tone(self.pareto_label, HINT)
+        else:
+            self.pareto_label.setText(steps.pareto_summary(result))
+            set_tone(self.pareto_label,
+                     HINT if result.knee is not None else WARNING)
+        self.use_knee_button.setEnabled(
+            result is not None and result.knee is not None)
+        self.front_button.setEnabled(
+            result is not None and bool(result.points))
+
+    def _chosen_pareto_point(self):
+        if self.pareto is None:
+            return None
+        chosen = self.pareto_table.selectionModel().selectedRows()
+        if not chosen:
+            return None
+        return self.pareto.points[chosen[0].row()]
+
+    def _draw_pareto_row(self) -> None:
+        chosen = self.pareto_table.selectionModel().selectedRows()
+        self.pareto_plots.mark(chosen[0].row() if chosen else None)
+        point = self._chosen_pareto_point()
+        if point is None or point.fit is None or self.worker is not None:
+            return
+        fit = point.fit
+        self.plot.show_fit(fit.two_theta, fit.y_obs, fit.y_calc,
+                           fit.y_background, fit.ticks)
+
+    def open_pareto_point(self, row: int):
+        """Open the structure refined at row ``row``'s weight as a tab
+        of the main window -- the answer's geometry, not a preview."""
+        if self.pareto is None or not 0 <= row < len(self.pareto.points):
+            return None
+        path = self.pareto.points[row].path
+        if not path or not Path(path).exists():
+            self.say("that weight left no structure behind: the sweep "
+                     "ran with no workspace to write into", warn=True)
+            return None
+        return self.window_.open_path(path)
+
+    def use_knee(self) -> None:
+        """The suggested weight into With energy, and that step shown:
+        refining the structure at it is one more click."""
+        result = self.pareto
+        if result is None or result.knee is None:
+            return
+        weight = result.points[result.knee].weight
+        self.step_forms["energy"].set_values({"weight": weight})
+        self.steps.setCurrentRow([s for s, _l in STEPS].index("energy"))
+
+    def show_front(self) -> None:
+        """The front in the Results panel, where a point opens its
+        structure as a scan's profile does."""
+        dock = getattr(self.window_, "results_dock", None)
+        if self.pareto is None or dock is None:
+            return
+        name = self.data.name if self.data is not None else ""
+        dock.show_report(steps.pareto_report(self.pareto, name),
+                         "Pareto")
+        dock.show()
+        dock.raise_()
+
     # -- the rest ------------------------------------------------------
 
     def say(self, text: str, warn: bool = False) -> None:
@@ -1296,14 +1845,18 @@ class RefinementWorkbench(QMainWindow):
         self.run_button.setEnabled(can_run and not running)
         self.stop_button.setEnabled(running)
         self.load_button.setEnabled(not running)
-        self.run_button.setText(RUN_LABELS[self.current_step])
+        label = RUN_LABELS[self.current_step]
+        if self.current_step == "pawley":
+            method = self.step_forms["pawley"].values().get("method")
+            label = f"Fit {METHODS.get(method, 'Pawley')}"
+        self.run_button.setText(label)
         self.refine_button.setEnabled(can_run and not running
                                       and self.peaks is not None)
         self.restore_button.setEnabled(bool(self.history)
                                        and not running)
         self.add_button.setEnabled(self.data is not None and not running)
         refused = self._rietveld_refused() \
-            if self.current_step == "rietveld" else ""
+            if self.current_step in _REFINES_ATOMS else ""
         if refused:
             self.run_button.setEnabled(False)
         if not powder.available():
@@ -1319,6 +1872,36 @@ class RefinementWorkbench(QMainWindow):
         # waits for it if the whole application is going.
         self.stop()
         super().closeEvent(event)
+
+
+class _PageStack(QStackedWidget):
+    """A stack as tall as the page it shows.
+
+    A stack asks every page for its height at a width once any page
+    wraps text, whatever their size policies say, so Peaks was given
+    Index's height as soon as Index's hints wrapped.  Only the page
+    shown is asked here.
+    """
+
+    def _page(self):
+        return self.currentWidget()
+
+    def sizeHint(self):                                  # noqa: N802
+        page = self._page()
+        return page.sizeHint() if page is not None else super().sizeHint()
+
+    def minimumSizeHint(self):                           # noqa: N802
+        page = self._page()
+        return page.minimumSizeHint() if page is not None \
+            else super().minimumSizeHint()
+
+    def hasHeightForWidth(self) -> bool:                 # noqa: N802
+        page = self._page()
+        return page is not None and page.hasHeightForWidth()
+
+    def heightForWidth(self, width: int) -> int:         # noqa: N802
+        page = self._page()
+        return page.heightForWidth(width) if page is not None else -1
 
 
 class _Paragraph(QLabel):
@@ -1362,6 +1945,27 @@ class HistoryEntry:
     fit: object
     when: datetime.datetime
     folder: Path | None = None
+
+
+def _hint(text: str) -> QLabel:
+    """A paragraph in the hint tone, wrapping to the column."""
+    label = QLabel(text)
+    label.setWordWrap(True)
+    set_tone(label, HINT)
+    return label
+
+
+def _result_label() -> QLabel:
+    """Where a step's figures go: selectable, so they can be copied."""
+    label = QLabel("")
+    label.setWordWrap(True)
+    label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+    return label
+
+
+def _number(value: float, spec: str) -> str:
+    """A number, or blank for the NaN of one nobody has measured."""
+    return "" if value != value else format(value, spec)
 
 
 def _percent(value) -> str:

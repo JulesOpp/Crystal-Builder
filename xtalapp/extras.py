@@ -80,6 +80,41 @@ NAME = "packages"
 DIR_VAR = "XTAL_PACKAGES_DIR"
 
 
+#: numba's own variable for where it keeps compiled kernels, and the
+#: folder under the application's data directory it is pointed at in
+#: a packaged build.
+NUMBA_CACHE_VAR = "NUMBA_CACHE_DIR"
+NUMBA_CACHE = "numba-cache"
+
+
+def writable_numba_cache(is_frozen: bool | None = None,
+                         environ=None) -> str | None:
+    """Point numba's kernel cache into this application's own folder in
+    a packaged build, and say where; ``None`` when nothing was changed.
+
+    RietX compiles its kernels with ``cache=True``.  numba's own
+    default is beside the module's source -- inside a signed bundle,
+    which cannot be written, so every launch would compile again --
+    and RietX redirects it to ``~/.rietx`` unless the variable is
+    already set.  An application a person installed from a disk image
+    keeps what it writes in its own folder, beside its log, where
+    deleting the application's data deletes this too.  A checkout, and
+    a variable somebody set themselves, are left alone.  Called before
+    anything imports numba, which reads the variable once.
+    """
+    environ = os.environ if environ is None else environ
+    if not (frozen() if is_frozen is None else is_frozen) \
+            or environ.get(NUMBA_CACHE_VAR):
+        return None
+    folder = applog.app_data() / NUMBA_CACHE
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return None
+    environ[NUMBA_CACHE_VAR] = str(folder)
+    return str(folder)
+
+
 def frozen() -> bool:
     """Whether this is a packaged build rather than a checkout.
 
@@ -182,6 +217,16 @@ EXTRAS = (
           "without it.", True,
           references=(Reference("matplotlib.org",
                                 "https://matplotlib.org"),)),
+    Extra("Powder refinement", "rietx", "refine",
+          "The refinement workbench: fit peaks, index, and Pawley, Le "
+          "Bail and Rietveld fits against a measured .xy pattern, with "
+          "an energy beside the pattern if asked.  RietX does the "
+          "physics; it brings numba, whose first refinement compiles "
+          "for a few seconds.", True,
+          module="rietx", timeout=30.0,
+          references=(github("yue-here/rietx"),
+                      Reference("rietx.org",
+                                "https://rietx.org/manual.html"))),
     Extra("MOF builder", "ase", "ase",
           "Build a framework from a net, a node and a linker.  PORMAKE "
           "is part of this application; ASE is what it is written "

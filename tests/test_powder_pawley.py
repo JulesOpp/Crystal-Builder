@@ -153,3 +153,22 @@ def test_a_fit_lists_the_numbers_each_box_refined(fit):
     assert "mm" in notes["displacement"]
     assert "zero" not in notes                  # held by default
     assert notes["a"].startswith("4.59")
+
+
+def test_le_bail_over_the_same_plan_recovers_the_same_cell(
+        rutile_xy_shared):
+    """Le Bail is the Pawley step's other method: the intensities
+    shared out from the observed counts rather than refined, the cell
+    and the boxes the same."""
+    fit = pawley(PowderData.from_xy(rutile_xy_shared), Radiation("cu"),
+                 INDEXED, "P42/mnm", PawleyOptions(method="lebail"))
+    assert fit.method == "lebail" and fit.method_name == "Le Bail"
+    assert fit.cell[0] == pytest.approx(4.5940, abs=5e-4)
+    assert fit.cell[2] == pytest.approx(2.9590, abs=5e-4)
+    assert fit.rwp < 0.2
+
+
+def test_a_method_that_is_neither_is_refused(rutile_xy_shared):
+    with pytest.raises(PowderError, match="not a method"):
+        pawley(PowderData.from_xy(rutile_xy_shared), Radiation("cu"),
+               INDEXED, "P42/mnm", PawleyOptions(method="rietveld"))

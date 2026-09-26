@@ -41,7 +41,10 @@ from xtalapp.widgets.intensity_scale import (
 )
 from xtalapp.widgets.tone import WARNING, set_tone
 
-__all__ = ["RefinementPlot"]
+__all__ = ["DEFAULT_SCALE", "RefinementPlot"]
+
+#: The intensity scale a new plot starts on.
+DEFAULT_SCALE = "log"
 
 #: Observed, calculated, background, difference, ticks, single lines.
 COLORS = ("0.15", "#d0473a", "0.6", "#3a6fb0", "#2f8f4e", "#8a5cc2")
@@ -84,6 +87,11 @@ class RefinementPlot(QWidget):
         self.canvas.setMinimumSize(360, 240)
         self.toolbar = toolbar_class(self.canvas, self)
         self.scale_box = scale_box()
+        # logarithmic to start with: the weak lines and the background
+        # are what a refinement is judged by, and on counts they are a
+        # flat line along the bottom
+        self.scale_box.setCurrentIndex(self.scale_box.findData(
+            DEFAULT_SCALE))
         self.scale_box.currentIndexChanged.connect(
             lambda _i: self.set_scale(self.scale_box.currentData()))
         top = QHBoxLayout()
