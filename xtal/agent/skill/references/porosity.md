@@ -24,9 +24,8 @@ Rules:
    without "to N2 (1.86 Å), Zeo++'s radii" means nothing. The report
    says both; carry them into your answer.
 2. **POAV from the grid reads up to 0.03 of the cell above Zeo++'s
-   `-volpo`.** That is Zeo++ falling short of the union of probe
-   spheres, not an error here. Do not "correct" one number to match the
-   other; say which one you quote.
+   `-volpo`.** Do not "correct" one number to match the other; say
+   which one you quote.
 3. **Channels and pockets.** Accessible volume is the channels'. A
    pocket is space the probe cannot reach from outside.
 4. **A borderline window** (within half a grid step of the probe) is

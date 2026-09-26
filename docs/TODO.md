@@ -62,6 +62,24 @@ expansion and a scene that update the atoms that changed rather than
 being rebuilt. That is a real change to `p1.expand` and
 `viewport/builder.py`, not a tweak, and it has not been designed.
 
+### No Close All for the structure tabs
+
+Somebody who opens a few dozen structures -- a folder of CIFs, a
+scan's points -- closes them one tab at a time.  A *Close All* (the
+File menu, and the tab bar's context menu) should ask the unsaved
+question once for the lot, as switching workspace already does
+(`may_discard_unsaved` then `close_all_documents`).  Asked for by
+Julius, 2026-09-26.
+
+### Save as a building block and Draw put blocks in different places
+
+*Draw…* in the MOF builder writes to `<workspace>/blocks/`, which the
+catalogue always reads.  *File > Save as a building block…* defaults
+to the *Extra building blocks* folder (`settings.mof_bb_dir`) and,
+with that unset, will not save until a folder is typed.  Found writing
+the manual's recipe for cutting a node out of a crystal; whether the
+second should default to `blocks/` as well is a decision, not a fix.
+
 ## Symmetry
 
 ### Merge duplicates cannot see a site duplicated by its own group
@@ -81,6 +99,16 @@ is for the preview to say "Zn1 is 0.06 A off its mirror and the group
 is making three of it" and point at Standardize, not to offer a merge
 that cannot happen.  Wanted with whatever finally reports a site
 sitting just off a special position, which nothing does today.
+
+### No way to move the cell's origin
+
+Cutting a node out of a crystal (the manual's recipe: Reduce to P1,
+select the cluster, invert the selection, delete, draw the connection
+points, save as a building block) fails when the cluster straddles a
+face of the cell, because the atoms kept are the images inside it.
+The remedy is to translate the origin first, in P1, so the cluster
+sits whole inside; there is no command for that.  Wanted under the
+Structure menu (Julius, 2026-09-26).
 
 ## Force fields
 
