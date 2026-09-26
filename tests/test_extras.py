@@ -85,10 +85,14 @@ def test_a_missing_package_s_row_offers_its_command_to_copy(
     assert commands == [extra("rdkit").command()]
 
 
-def test_the_command_is_this_interpreter_s_pip():
+def test_the_command_is_this_interpreter_s_pip(monkeypatch):
     """A bare ``pip`` is whichever is first on the PATH, which is
     often not the Python the application is running in -- and the
     package lands somewhere the application never looks."""
+    from xtal import install
+
+    monkeypatch.setattr(install, "has_pip", lambda: True)
+
     assert extra("rdkit").command().startswith(
         f'"{sys.executable}" -m pip install')
 
@@ -110,6 +114,7 @@ def test_an_installed_copy_names_the_package(monkeypatch):
     from xtal import install
 
     monkeypatch.setattr(install, "checkout", lambda: None)
+    monkeypatch.setattr(install, "has_pip", lambda: True)
 
     assert extra("mace").command().endswith(
         'pip install "crystal-builder[mace]"')
