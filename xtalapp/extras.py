@@ -277,6 +277,14 @@ def add_to_path() -> Path | None:
     return path
 
 
+def on_path() -> list[str]:
+    """The packages folder, if :func:`add_to_path` put it on this
+    interpreter's path -- for a Test button, whose fresh interpreter
+    must look where this one does."""
+    text = str(folder())
+    return [text] if text in sys.path else []
+
+
 def target_command(package: str = "<package>") -> str:
     """``pip install --target`` into that folder, ready to paste."""
     return f'pip install --target "{folder()}" {package}'

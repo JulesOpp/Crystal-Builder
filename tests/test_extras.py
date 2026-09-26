@@ -270,6 +270,30 @@ def test_testing_an_ml_engine_imports_its_model_code(page):
     assert probe.timeout >= 30
 
 
+def test_testing_a_package_looks_in_the_folder_the_application_does(
+        page, tmp_path, monkeypatch):
+    """The application put its packages folder first on its own path,
+    so Test's fresh interpreter has to as well, or it answers for a
+    different copy of the package than the one that would be used."""
+    where = tmp_path / "packages"
+    where.mkdir()
+    monkeypatch.setenv(extras.DIR_VAR, str(where))
+    monkeypatch.syspath_prepend(str(where))
+
+    assert repr(str(where)) in page._probe("ase").argv[-1]
+
+
+def test_testing_a_package_adds_no_folder_the_application_did_not(
+        page, tmp_path, monkeypatch):
+    """A window built without ``main`` never added the folder, and
+    Test must not claim a path the application is not using."""
+    where = tmp_path / "packages"
+    where.mkdir()
+    monkeypatch.setenv(extras.DIR_VAR, str(where))
+
+    assert str(where) not in page._probe("ase").argv[-1]
+
+
 def test_the_folder_command_is_offered_with_its_warning(page):
     """The box used to offer two routes to a PORMAKE that was not in
     the bundle.  PORMAKE is vendored, so what is left is the one thing
