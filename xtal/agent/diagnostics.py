@@ -37,6 +37,11 @@ CODES: dict[str, Code] = {
         WARNING, "The reader could not take the file exactly as "
                  "written; check the named sites before relying on "
                  "the structure."),
+    "PROJECT_EXISTS": Code(
+        WARNING, "This entry already holds a saved project, which is "
+                 "where earlier work was kept. Open the .xtalproj to "
+                 "continue from it; opening the CIF starts again from "
+                 "the deposited structure."),
     "COINCIDENT_ATOMS": Code(
         ERROR, "Run merge_duplicates(), or prepare() which starts with "
                "it. Until then symmetry, bonds and every energy are "

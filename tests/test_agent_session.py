@@ -283,3 +283,24 @@ def test_the_log_summary_counts_steps_and_warnings_not_opens_and_saves(
     assert steps == 2
     assert warnings >= 1
     assert summarise_log(tmp_path / "nothing.jsonl") is None
+
+
+def test_reopening_the_cif_after_a_save_points_at_the_project(
+        tmp_path, rutile):
+    """An agent that runs one script per step and reopens the CIF each
+    time redoes everything before it -- seen end to end: six opens and
+    six prepares for one prepared structure."""
+    cif = tmp_path / "rutile.cif"
+    write_cif(rutile, cif)
+    first = Session.open(cif, workspace=tmp_path / "ws")
+    first.set_element([0], "Sn")
+    project = first.save()
+
+    again = Session.open(first.entry.path / "rutile.cif")
+    codes = [d.code for d in again.opened.diagnostics]
+    assert codes == ["PROJECT_EXISTS"]
+    assert again.opened.diagnostics[0].where == str(project)
+
+    resumed = Session.open(project)
+    assert resumed.opened.diagnostics == []
+    assert resumed.structure.sites[0].element == "Sn"

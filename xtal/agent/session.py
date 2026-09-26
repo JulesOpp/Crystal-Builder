@@ -76,6 +76,8 @@ class Session:
         # agent that opened and saved it must hand them back as found.
         self._view = view or {}
         self._project_session = project_session or {}
+        #: What opening said, for a session made by :meth:`open`.
+        self.opened: VerbResult | None = None
 
     # ------------------------------------------------------------------
     #  GETTING ONE
@@ -114,9 +116,23 @@ class Session:
             structure.meta.setdefault("source", str(path))
             path = entry.path / path.name
         session = cls(structure, path, entry, view, project_session)
-        session._record("open", {"path": str(path)},
-                        VerbResult("open", True, f"opened {path.name}",
-                                   atoms_after=session.n_atoms))
+        notes = []
+        project = path.with_suffix(PROJECT_EXTENSION)
+        if not is_project(path) and project.is_file():
+            # A session lives as long as its process.  An agent that
+            # runs one script per step and reopens the CIF each time
+            # repeats every step before it -- measured: six opens and
+            # six prepares for one prepared structure.
+            saved = time.localtime(project.stat().st_mtime)
+            notes.append(Diagnostic(
+                "PROJECT_EXISTS",
+                f"{project.name} was saved here "
+                f"{time.strftime('%Y-%m-%d %H:%M', saved)}",
+                where=str(project)))
+        session.opened = VerbResult("open", True, f"opened {path.name}",
+                                    atoms_after=session.n_atoms,
+                                    diagnostics=notes)
+        session._record("open", {"path": str(path)}, session.opened)
         return session
 
     @classmethod
@@ -231,6 +247,7 @@ class Session:
         answer = render(self.structure, path, view=view, size=size,
                         style=style, highlight=highlight,
                         show_cell=show_cell)
+        answer.atoms_before = answer.atoms_after = self.n_atoms
         self._record("render", {"path": str(path), "view": view},
                      answer)
         return answer
@@ -584,17 +601,26 @@ class Session:
                 "energy": float(result.energy),
                 "max_force": float(result.max_force),
                 "max_displacement": float(moved)}
+        # Said as start and end rather than the core's summary, whose
+        # first number is the *change*: "-2774 kcal/mol to 3076" read
+        # as two energies to an agent seeing it for the first time.
+        said = (f"{'converged' if result.converged else 'NOT converged'}"
+                f" after {result.steps} steps: energy "
+                f"{result.initial_energy:.4f} -> {result.energy:.4f} "
+                f"kcal/mol, |F|max {result.max_force:.4f} kcal/mol/A")
+        if result.matrix is not None:
+            said += f", volume {result.volume_change * 100:+.2f}%"
         if moved < 1e-9:
             ff_record.close_run(recorder, result, final=self.structure)
             answer = VerbResult(
-                "optimize", True, f"{result.summary()}; nothing moved",
+                "optimize", True, f"{said}; nothing moved",
                 atoms_before=self.n_atoms, atoms_after=self.n_atoms,
                 data=data, diagnostics=notes)
             self._record("optimize", args, answer)
             return answer
         answer = self._push("optimize", command,
-                            f"{result.summary()}; the furthest atom "
-                            f"moved {moved:.3f} A", args, notes=notes,
+                            f"{said}; the furthest atom moved "
+                            f"{moved:.3f} A", args, notes=notes,
                             data=data)
         ff_record.close_run(recorder, result, final=self.structure)
         if recorder is not None:

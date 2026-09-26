@@ -29,6 +29,10 @@ A classmethod. Opens a structure file (CIF, POSCAR, XYZ, PDB …) or a
 workspace and the session follows the copy; the original is recorded in
 `structure.meta["source"]`. A file already inside a workspace is used
 where it is. A project keeps its view and selection through a save.
+`session.opened` is the open's own `VerbResult`: opening a CIF whose
+entry already holds a saved project carries `PROJECT_EXISTS`, because
+the project is where earlier work was kept. To continue across
+processes, open the `.xtalproj` that `save()` returned.
 
 ### `new(a, b, c, alpha, beta, gamma, space_group, name, workspace)`
 

@@ -11,6 +11,7 @@ tell the person. An **info** is context: report it where it matters.
 | Code | Level | Fires when | What to do |
 |---|---|---|---|
 | `READ_WARNING` | warning | the reader had to reinterpret something in the file (a malformed Hall symbol, a site it could not place) | The reader could not take the file exactly as written; check the named sites before relying on the structure. |
+| `PROJECT_EXISTS` | warning | `Session.open` of a CIF whose entry already holds a saved project; on `session.opened` | This entry already holds a saved project, which is where earlier work was kept. Open the .xtalproj to continue from it; opening the CIF starts again from the deposited structure. |
 | `COINCIDENT_ATOMS` | error | two atoms of the P1 cell are within 0.05 A: the file writes symmetry copies as sites | Run merge_duplicates(), or prepare() which starts with it. Until then symmetry, bonds and every energy are for a crystal with extra copies in it. |
 | `DUPLICATE_SITES` | warning | sites of one element that the group maps onto each other | Sites are symmetry copies of others. merge_duplicates() or prepare(steps=['duplicates']). |
 | `DISORDER` | warning | partial occupancies, two orientations at full occupancy, or an atom too close to its own image | An engine counts every partial site as a whole atom. prepare() orders the disorder into whole components. |

@@ -78,6 +78,15 @@ lists them). **Bond verbs take atom indices** of the P1 cell, because a
 bond joins two drawn atoms, not two orbits. `inspect()` gives both: each
 site row carries `first_atom`.
 
+**A session lives as long as its Python process.** Do a multi-step
+job in one script where you can. Where you cannot (one shell call per
+step), end each script with `save()` and start the next with
+`Session.open` of the **`.xtalproj`** it returned, never the original
+CIF: reopening the CIF starts again from the deposited structure and
+repeats every step (`PROJECT_EXISTS` on `session.opened` says so). The
+undo stack does not survive between processes; the project and the log
+do.
+
 A refusal is an answer, not an exception: a bad space group, a
 placement that collides, an engine missing an extra all come back as
 `ok=False` with a coded diagnostic. A wrong argument *type* still
