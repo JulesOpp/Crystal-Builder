@@ -237,4 +237,24 @@ Report
 Run folder
   The folder a calculation leaves inside an entry, named
   `<module>-<kind>-<nnn>` and numbered in the order the runs happened.
+
+Change flag
+  The value a command carries saying what it touched -- the atoms, the
+  cell, the symmetry, the view -- which decides what is redrawn and
+  refreshed after it.
+
+Engine
+  Something that answers an energy, forces and, where it can, a
+  stress, chosen in the Force Field panel or with `--engine`: UFF, xTB,
+  DFTB+, MACE, ORB-v3, MatterSim.
+
+Module
+  Something that runs and leaves results behind in a run folder, from
+  a submenu of *Modules*: porosity, DFTB+'s runs, PXRD, scans, the
+  builders.
+
+Plug-in
+  A package installed beside Crystal Builder whose
+  `crystal_builder.plugins` entry point registers formats, engines or
+  modules when the program starts.
 ```
