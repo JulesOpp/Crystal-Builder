@@ -68,6 +68,13 @@ jobs:
       # `sketch` and `pxrd` too: without them about sixty tests skip
       # themselves on every run, and the selftest below refuses to
       # pass without rdeditor, because the extras page promises it.
+      # `refine` (RietX) is NOT here, as the ML engines are not: the
+      # powder tests are 150 tests and about thirteen CPU-minutes
+      # (2026-09-26, 2.5 min on three workers under swap), and the
+      # rule ROADMAP 11 set was "under ~30 s or run locally".  Without
+      # it they skip themselves, and the selftest from the checkout
+      # skips its powder check.  The bundle job below installs it,
+      # and the bundle's selftest refines rutile inside the build.
       - name: Install
         run: |
           python -m pip install --upgrade pip
@@ -175,12 +182,15 @@ jobs:
       # spglib 2.7.0 has no Intel wheel, and the sdist built on
       # macos-15-intel needed macOS 15.  It is the
       # LSMinimumSystemVersion in macos.spec; Windows ignores it.
+      #
+      # `refine` likewise: the refinement workbench is on the extras
+      # page as bundled, and the selftest fails a build without it.
       - name: Install
         env:
           MACOSX_DEPLOYMENT_TARGET: "12.3"
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[gui,build,sketch,ase]" pyinstaller
+          pip install -e ".[gui,build,sketch,ase,pxrd,refine]" pyinstaller
 
       # numpy and scipy each publish a macOS 14 wheel on the new
       # Accelerate beside a macOS 12 one on OpenBLAS, and pip on a

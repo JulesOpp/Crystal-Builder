@@ -100,6 +100,8 @@ class ModuleTree(QTreeView):
         if not blocked:
             item.appendRow([_why(module.name, blocked.reason)])
         for action in module.actions:
+            if not action.listed:
+                continue
             entry = action.availability() if available else available
             leaf = _row(action.label, module.name, action.name,
                         enabled=bool(entry))[0]

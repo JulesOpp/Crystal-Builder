@@ -313,6 +313,46 @@ MACE alone took 467 s; UFF4MOF first (80 and 73 steps) then MACE took
 a 7x7 grid of a 1152-atom framework, where the neighbour it starts from
 is already close, is the thing the overnight run should also answer.
 
+## Powder refinement
+
+### Pawley over a long 2θ range is minutes, and no better a cell
+
+Measured 2026-09-26 on a 14 x 17 Å hexagonal cell (Cu Kα, the cell
+started 0.3 % off, 13 GB of swap in use): 4-30° is 35 reflections and
+1.3 s, 4-45° 97 and 19 s, 4-60° 199 and 144 s -- and the widest put
+*a* 0.04 Å further from the truth.  Every reflection is a free
+intensity, so the Jacobian and the solve grow faster than the count.
+The workbench says so under Pawley and on *2θ to*.  Le Bail is now
+the Pawley step's second *Method* (2026-09-26), over the same plan --
+fine on rutile, but that plan in Le Bail mode diverged on the wide
+range above (a → -59 885 Å) when tried once, so offering it is not
+the fix.  Ways to make it fast, none tried: Le Bail with
+a plan of its own for the wide range, or refine the cell at low angle
+and extend with the cell held.
+
+### Rietveld with energy: the pattern's gradient could be one reverse pass
+
+`bridge.PatternTerm` builds the whole Jacobian with RietX's numpy code
+to take one gradient, `2 J^T r`.  On ZIF-8 in P1 (306 free
+coordinates) that is 2.75 s an evaluation, against 8 ms for UFF's
+energy and 5 ms for the residual alone.  Torch's reverse mode over
+RietX's own traced residual (`backend.torch_backend`,
+`make_traced_residual`) gives the same gradient to 1e-12 in 0.48 s.
+Torch is not in the `refine` extra, and loading it into a process is
+what CLAUDE.md's "Aborted runs" warns about, so it would be an option
+used when installed and tested in a subprocess.  A framework in its
+own space group has tens of variables, not hundreds, and does not
+need it.
+
+### Structure solution from the pattern alone (Superflip)
+
+Charge flipping would take a Pawley cell and intensities to a density
+map without a model.  Possible, but the way this application is meant
+to reach a structure is by building one -- a net consistent with the
+cell and group, the linker and SBU in the MOF builder, then Rietveld,
+With energy, or a simulated pattern laid over the measured one -- so
+it is not planned unless somebody asks for it.
+
 ## Testing
 
 ### CI never runs a test that needs mace, orb or mattersim

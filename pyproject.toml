@@ -90,6 +90,13 @@ sketch = ["rdeditor>=0.5"]
 # module runs, the panel draws the pattern and the .xy is written, and
 # only the plot window is greyed out naming this extra.
 pxrd = ["matplotlib>=3.7"]
+# Refinement against a measured pattern: peak fitting, indexing,
+# Pawley and Rietveld are RietX's (MIT; numpy, scipy, numba, gemmi,
+# spglib), and xtal/powder/bridge.py is the only module that imports
+# it.  Pinned below the next minor because its API is young and the
+# bridge reads more of it than the top-level names -- a release that
+# moves one should fail the bridge's tests, not a user's refinement.
+refine = ["rietx>=1.5,<1.6"]
 # The MACE engine, and the heaviest thing this project can be asked to
 # install: mace-torch brings torch, which is gigabytes of wheel and
 # platform-specific about how it wants to arrive (CPU, CUDA, mps).
@@ -121,7 +128,7 @@ mattersim = ["mattersim>=1.2.5", "ase>=3.23"]
 # test skips itself, and CI installs [gui,test] -- so the GUI half of
 # the suite was passing by not running.
 test = ["pytest>=8", "pytest-qt>=4", "pytest-xdist>=3"]
-dev = ["crystal-builder[gui,ase,build,sketch,pxrd,test]", "ruff",
+dev = ["crystal-builder[gui,ase,build,sketch,pxrd,refine,test]", "ruff",
        "pyinstaller>=6"]
 
 [project.scripts]

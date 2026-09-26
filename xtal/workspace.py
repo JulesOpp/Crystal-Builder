@@ -197,6 +197,7 @@ class Artifact:
 
     kind: str               # "structure" | "trajectory" | "log" |
                             # "final" | "project" | "image" |
+                            # "pattern" |
                             # "report" | "file"
     path: Path
     label: str = ""
@@ -230,6 +231,11 @@ def classify(path) -> str:
         # picture into a structure, and dispatching on the extension
         # would have tried.
         return "image"
+    if suffix in (".xy", ".xye"):
+        # A powder pattern -- measured, or one a run calculated.  It
+        # opens in the refinement workbench; open as a structure it
+        # was an error message.
+        return "pattern"
     if path.stem == "final":
         return "final"
     if suffix in (".cif", ".mcif", ".xyz", ".gen", ".cssr", ".res"):

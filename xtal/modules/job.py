@@ -142,6 +142,16 @@ class Job:
     #: shell's implementation must be a signal emission and nothing
     #: heavier.
     on_progress: Callable[[str], None] | None = None
+    #: Something to draw while the run is still going -- a refinement's
+    #: calculated curve and positions, one frame at a time.  Called on
+    #: the worker thread like ``on_progress``, so the shell's is a
+    #: signal emission; the module throttles, not the receiver.
+    on_update: Callable[[Any], None] | None = None
+    #: What the step before handed on, for a module that is one step
+    #: of several -- the peaks the refinement workbench just fitted
+    #: and the user unticked, which indexing reads.  Not a parameter,
+    #: because parameters are written into the run's log as text.
+    given: Any = None
     label: str = ""                     # "stub: count", for messages
 
     # -- where it writes -----------------------------------------------
@@ -182,6 +192,11 @@ class Job:
             log.write(text)
         if self.on_progress is not None:
             self.on_progress(text)
+
+    def update(self, payload) -> None:
+        """Hand a frame to whatever is watching, if anything is."""
+        if self.on_update is not None:
+            self.on_update(payload)
 
     def note(self, text: str) -> None:
         """Into the log only -- for the detail a status bar cannot
@@ -261,6 +276,12 @@ class JobResult:
     #: than into the undo stack, against the document the run was
     #: started from.
     trajectory: Any = None
+    #: The module's own answer, for a caller that knows the module --
+    #: the refinement workbench reads a peak list back from here to
+    #: fill its table and hand to indexing.  Untyped for the reason
+    #: :attr:`overlay` is: nothing else reads it, and the report is
+    #: what the Results panel shows.
+    answer: Any = None
 
     @classmethod
     def stopped(cls, message: str = "stopped") -> JobResult:

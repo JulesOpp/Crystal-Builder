@@ -101,6 +101,7 @@ analysis = Analysis(
     excludes=bundle.EXCLUDES,
     noarchive=False,
     optimize=0,
+    module_collection_mode=bundle.MODULE_COLLECTION_MODE,
 )
 
 pyz = PYZ(analysis.pure)

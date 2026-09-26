@@ -103,6 +103,9 @@ def main(argv=None) -> int:
     applog.start()
     log = logging.getLogger("xtalapp")
     log.info("%s %s starting", APP_NAME, __version__)
+    cache = extras.writable_numba_cache()
+    if cache is not None:
+        log.info("numba caches its kernels in %s", cache)
 
     # Before the plugins, because a package the user installed into
     # that folder is one they may have installed a plugin *from*, and
