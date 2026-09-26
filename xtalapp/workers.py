@@ -307,6 +307,7 @@ class ModuleWorker(QObject):
     """
 
     progressed = Signal(str)
+    updated = Signal(object)        # a module's frame, see Job.update
     finished = Signal(object)       # xtal.modules.job.JobResult
     failed = Signal(str)
 
@@ -316,6 +317,7 @@ class ModuleWorker(QObject):
         self.action = action
         self.job = job
         self.job.on_progress = self.progressed.emit
+        self.job.on_update = self.updated.emit
         self._running = False
 
     @property

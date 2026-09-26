@@ -40,5 +40,6 @@ def missing() -> str:
     """Why a refinement cannot run here, or ``""`` when it can."""
     if available():
         return ""
-    return (f"Refinement needs RietX: pip install "
-            f"'crystal-builder[{EXTRA}]'")
+    from xtal import install
+
+    return f"Refinement needs RietX: {install.command(EXTRA)}"

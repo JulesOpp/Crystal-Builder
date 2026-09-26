@@ -411,6 +411,29 @@ def dry_ice() -> Structure:
 
 
 @pytest.fixture
+def rutile_xy(tmp_path, rutile):
+    """A "measured" rutile pattern: Cu Kα doublet, 20-80°, Poisson
+    noise on a flat background, calculated by RietX from the fixture.
+
+    Synthetic so that the answer is known exactly -- the cell and the
+    positions the pattern was made from -- and small, so a refinement
+    test runs in a second.  Needs the ``refine`` extra.
+    """
+    pytest.importorskip("rietx")
+    import numpy as np
+
+    from xtal.io.xy import write_xy
+    from xtal.powder import bridge
+    from xtal.powder.data import Radiation
+
+    two_theta = np.arange(20.0, 80.0, 0.02)
+    y = bridge.predict(rutile, Radiation("cu"), two_theta)
+    counts = np.random.default_rng(0).poisson(y / y.max() * 5000 + 100)
+    return write_xy(two_theta, counts, tmp_path / "rutile.xy",
+                    header="synthetic rutile, Cu Ka1+Ka2")
+
+
+@pytest.fixture
 def rutile_cif(tmp_path, rutile) -> str:
     from xtal.io import write_cif
     path = tmp_path / "rutile.cif"

@@ -831,6 +831,26 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         self.show_force_field()
         self.ff_dock.start()
 
+    def open_refine_workbench(self):
+        """The refinement workbench for the structure in front.
+
+        One per document, raised if it is already open: a second
+        window over the same structure would file a second set of
+        runs against it with nothing to say which answer is current.
+        """
+        from xtalapp.refine.workbench import RefinementWorkbench
+
+        document = self.current_document()
+        benches = self.__dict__.setdefault("_workbenches", {})
+        bench = benches.get(id(document))
+        if bench is None or bench.document is not document:
+            bench = RefinementWorkbench(self, document)
+            benches[id(document)] = bench
+        bench.show()
+        bench.raise_()
+        bench.activateWindow()
+        return bench
+
     def show_dftb_panel(self) -> None:
         self.dftb_dock.show()
         self.dftb_dock.raise_()

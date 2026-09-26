@@ -90,4 +90,16 @@ def test_the_refine_extra_is_detected_without_importing_rietx():
 
 def test_the_missing_reason_names_the_extra(monkeypatch):
     monkeypatch.setattr(powder, "available", lambda: False)
-    assert "crystal-builder[refine]" in powder.missing()
+    from xtal import install
+
+    assert install.command("refine") in powder.missing()
+
+
+def test_a_pattern_in_the_workspace_is_a_pattern_and_not_a_file(
+        tmp_path):
+    """So a double-click opens the workbench; opened as a structure it
+    was an error message."""
+    from xtal.workspace import classify
+
+    assert classify(tmp_path / "sample.xy") == "pattern"
+    assert classify(tmp_path / "run" / "fit.xye") == "pattern"

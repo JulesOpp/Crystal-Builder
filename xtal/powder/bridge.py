@@ -223,3 +223,46 @@ def predict(structure, radiation: Radiation, two_theta) -> np.ndarray:
                                history=False)
     return np.asarray(refinement.predict(np.asarray(two_theta,
                                                     dtype=float)))
+
+
+# ======================================================================
+#  PEAKS
+# ======================================================================
+
+def emission_lines(radiation: Radiation) -> list[tuple[float, float]]:
+    """``[(wavelength, weight), ...]``, the primary line first at 1."""
+    lines = instrument(radiation).source.lines
+    out = [(float(line.wavelength.value), float(line.weight.value))
+           for line in lines]
+    out[0] = (out[0][0], 1.0)
+    return out
+
+
+def pick_peaks(data: PowderData, radiation: Radiation, *,
+               shoulders: bool = True, flag_ghosts: bool = True):
+    """``(peak_list, grid, envelope)``: RietX's peak search.
+
+    ``grid`` and ``envelope`` are the 2θ points detection kept and the
+    background it drew under them, which is what a fitted line is
+    measured from.
+    """
+    from rietx.indexing import pick
+
+    native, det, _fits = pick.pick_peaks_with_state(
+        pattern(data), instrument(radiation), shoulders=shoulders,
+        flag_contamination=flag_ghosts)
+    return native, np.asarray(det.two_theta), np.asarray(det.envelope)
+
+
+def fit_peaks_at(data: PowderData, radiation: Radiation, positions):
+    """``(peak_list, grid, envelope)`` for lines at named positions."""
+    from rietx.indexing import pick
+
+    rx_pattern, rx_instrument = pattern(data), instrument(radiation)
+    try:
+        native = pick.fit_peaks(rx_pattern, rx_instrument,
+                                list(positions))
+    except ValueError as exc:
+        raise PowderError(str(exc)) from None
+    det = pick.detect_peaks(rx_pattern, rx_instrument)
+    return native, np.asarray(det.two_theta), np.asarray(det.envelope)

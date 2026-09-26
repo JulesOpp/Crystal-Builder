@@ -508,6 +508,11 @@ def build_actions(window):
     add("show_dftb", "DFTB&+ panel", window.show_dftb_panel,
         tip="Hamiltonian, parameter set, dispersion, and how the "
             "run is going")
+    add("refine_workbench", "Refine against a measured pattern...",
+        window.open_refine_workbench,
+        tip="Fit peaks and refine against a measured .xy pattern, in "
+            "a window of its own; the runs go under the structure in "
+            "front, or under the pattern's name if none is open")
 
     add("reset_layout", "Reset &layout", window.reset_layout,
         tip="Put the panels back where they started")
@@ -749,8 +754,9 @@ def build_modules_menu(window) -> None:
         entry = submenu(menu, module.label)
         window._module_submenus[module.name] = entry
         for action in module.actions:
-            entry.addAction(module_action(window, module,
-                                          action))
+            if action.listed:
+                entry.addAction(module_action(window, module,
+                                              action))
     if not MODULES.names():                     # pragma: no cover
         menu.addAction("Nothing registered").setEnabled(False)
     menu.aboutToShow.connect(window._refresh_module_availability)
