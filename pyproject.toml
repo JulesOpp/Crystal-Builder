@@ -143,6 +143,7 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
             "xtal.modules", "xtal.modules.dftb_runs", "xtal.analysis",
             "xtal.mof", "xtal.mof.pormake", "xtal.mof.library",
             "xtal.build", "xtal.build.data",
+            "xtal.agent", "xtal.agent.skill",
             "xtalapp", "xtalapp.viewport", "xtalapp.docks",
             "xtalapp.dialogs", "xtalapp.widgets"]
 
@@ -180,6 +181,11 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
 # cannot build MFU-4l.  The layer nets are not here: they are the
 # RCSR's, from xtal.analysis's gzipped .cgd.
 "xtal.mof.library" = ["blocks/*.xyz"]
+# The skill an AI assistant reads to drive this program.  Shipped in
+# the wheel, as rietx ships its own, so `xtal skill install` copies
+# the text that matches the installed API rather than whatever a web
+# page says this week; a test holds the names in it to the code.
+"xtal.agent.skill" = ["SKILL.md", "references/*.md"]
 
 [tool.setuptools_scm]        # version from git tags; no version file to bump
 

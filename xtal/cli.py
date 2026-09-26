@@ -17,6 +17,10 @@ here (and in the Python console) rather than to automate the widgets.
     xtal optimize quartz.cif -o relaxed.cif
     xtal modules
     xtal run stub.count quartz.cif --workspace ./ws -p steps=3
+    xtal inspect quartz.cif --json
+    xtal render quartz.cif quartz.png --view c
+    xtal capabilities
+    xtal skill install
 """
 
 from __future__ import annotations
@@ -63,11 +67,80 @@ def _apply_transforms(structure, args):
 #  COMMANDS
 # ======================================================================
 
+def _emit_json(value) -> None:
+    """``--json``: one document on stdout, and nothing else there.
+
+    Warnings still go to stderr, where :func:`_load` puts them, so a
+    caller parsing stdout is never handed a line of prose.
+    """
+    from xtal.agent.diagnostics import to_json
+    print(to_json(value))
+
+
 def cmd_info(args) -> int:
     structure = _load(args.file)
-    print(properties.info(structure).text())
+    info = properties.info(structure)
+    if args.json:
+        from dataclasses import asdict
+        _emit_json({**asdict(info),
+                    "title": structure.meta.get("title", "")})
+        return 0
+    print(info.text())
     if structure.meta.get("title"):
         print(f"title          {structure.meta['title']}")
+    return 0
+
+
+def cmd_inspect(args) -> int:
+    """Everything worth knowing about a structure, and what is wrong
+    with it -- :func:`xtal.agent.inspect.inspect`."""
+    from xtal.agent.inspect import inspect
+
+    found = inspect(_load(args.file), symprec=args.symprec)
+    if args.json:
+        _emit_json(found.to_dict())
+    else:
+        print(found)
+    return 1 if found.worst == "error" else 0
+
+
+def cmd_render(args) -> int:
+    """A PNG of the structure, drawn as the viewport draws it."""
+    from xtal.agent.render import render
+
+    view = args.view
+    if "," in view:
+        view = [float(x) for x in view.split(",")]
+    width, _, height = args.size.partition("x")
+    answer = render(_load(args.file), args.output, view=view,
+                    size=(int(width), int(height or width)),
+                    style=args.style)
+    print(answer.to_json() if args.json else answer)
+    return 0 if answer.ok else 1
+
+
+def cmd_capabilities(args) -> int:
+    """What this install can run: engines, modules, rendering."""
+    from xtal.agent.capabilities import capabilities, help_for
+
+    if args.name:
+        print(help_for(args.name))
+        return 0
+    found = capabilities()
+    print(found.to_json() if args.json else found)
+    return 0
+
+
+def cmd_skill(args) -> int:
+    """Where the AI skill is, or copy it where an assistant reads it."""
+    from xtal.agent import skill
+
+    if args.skill_command == "path":
+        print(skill.source())
+        return 0
+    target = skill.install(user=args.user, project=args.project,
+                           force=args.force)
+    print(f"installed the crystal-builder skill in {target}")
     return 0
 
 
@@ -115,6 +188,22 @@ def cmd_symmetry(args) -> int:
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
+
+    if args.json:
+        found = {
+            "space_group": info.international, "number": info.number,
+            "hall": info.hall, "point_group": info.pointgroup,
+            "operations": info.n_operations, "orbits": info.n_orbits,
+            "standard_setting": bool(info.is_standard_setting),
+            "current_group": structure.space_group.short_name,
+            "current_number": structure.space_group.number,
+            "symprec": args.symprec,
+        }
+        if args.wyckoff:
+            found["wyckoff"] = list(info.wyckoffs)
+            found["site_symmetry"] = list(info.site_symmetry)
+        _emit_json(found)
+        return 0
 
     print(f"space group    {info.international} (#{info.number})")
     print(f"Hall           {info.hall}")
@@ -208,6 +297,23 @@ def cmd_bonds(args) -> int:
     graph = bonding.graph(structure)
     coordination = graph.coordination()
 
+    if args.json:
+        _emit_json({
+            "n_bonds": len(graph.bonds),
+            "atoms": [{"atom": k, "element": cell.elements[k],
+                       "site": int(cell.site_idx[k]),
+                       "coordination": int(coordination[k]),
+                       "neighbours": [[int(j), round(b.distance, 4)]
+                                      for j, b in zip(
+                                          graph.neighbors(k),
+                                          graph.bonds_of(k),
+                                          strict=True)]}
+                      for k in range(cell.n_atoms)],
+            "fragments": [{"kind": f.kind, "n_atoms": len(f)}
+                          for f in graph.fragments()],
+        })
+        return 0
+
     print(f"{len(graph.bonds)} bonds in the cell\n")
     print("atom      coordination  neighbours")
     for k in range(cell.n_atoms):
@@ -284,6 +390,15 @@ def cmd_types(args) -> int:
     cell = p1.expand(structure)
     typing = typer.assign(structure)
 
+    if args.json:
+        _emit_json({
+            "types": [{"atom": k, "element": cell.elements[k],
+                       "type": atom.name, "confidence": atom.confidence,
+                       "reason": atom.reason}
+                      for k, atom in enumerate(typing.types)],
+            "summary": typing.summary()})
+        return 0
+
     print("atom       type    confidence  why")
     for index, atom in enumerate(typing.types):
         name = f"{cell.elements[index]}{index}"
@@ -303,16 +418,25 @@ def cmd_energy(args) -> int:
     cell = p1.expand(structure)
     result = calculator.compute(cell.cart, structure.lattice.matrix)
 
+    recorder = _recorder(args, structure, calculator, "single-point")
+    if recorder is not None:
+        ff_record.write_single_point(recorder, result)
+    if args.json:
+        _emit_json({
+            "engine": calculator.summary(),
+            "energy": result.energy, "max_force": result.max_force,
+            "rms_force": result.rms_force, "terms": result.terms,
+            "warnings": list(calculator.warnings),
+            "run": str(recorder.folder.path) if recorder else ""})
+        return 0
+
     print(calculator.summary())
     print()
     print(result.breakdown())
     print()
     print(f"max force      {result.max_force:.5f} kcal/mol/A")
     print(f"rms force      {result.rms_force:.5f} kcal/mol/A")
-
-    recorder = _recorder(args, structure, calculator, "single-point")
     if recorder is not None:
-        ff_record.write_single_point(recorder, result)
         print(f"wrote {recorder.folder.path}")
     return 0
 
@@ -341,19 +465,22 @@ def cmd_optimize(args) -> int:
     from xtal.ff import optimize
     from xtal.ff import record as ff_record
 
+    # With --json the running commentary goes to stderr, so stdout is
+    # the one document a caller parses.
+    say = _stderr if args.json else print
     structure = _load(args.file)
     calculator = _calculator(structure, args)
     recorder = _recorder(args, structure, calculator, "optimise")
-    print(calculator.summary())
-    print()
-    print("step          energy            max force")
+    say(calculator.summary())
+    say()
+    say("step          energy            max force")
     if recorder is not None:
         recorder.begin_steps()
 
     def trace(step):
         if recorder is not None:
             recorder.step(step)
-        if args.quiet:
+        if args.quiet or args.json:
             return True
         print(step.line())
         return True
@@ -365,8 +492,8 @@ def cmd_optimize(args) -> int:
         relax_cell=args.relax_cell, pressure=args.pressure,
         callback=trace)
 
-    print()
-    print(result.summary())
+    say()
+    say(result.summary())
     if not result.converged:
         print("note: the geometry is where the optimiser stopped, not "
               "a minimum", file=sys.stderr)
@@ -377,17 +504,31 @@ def cmd_optimize(args) -> int:
         from xtal.core.lattice import Lattice
         structure.lattice = Lattice(result.matrix)
         a, b, c, al, be, ga = structure.lattice.parameters
-        print(f"cell           {a:.4f} {b:.4f} {c:.4f}  "
-              f"{al:.3f} {be:.3f} {ga:.3f}   "
-              f"({structure.lattice.volume:.2f} A^3)")
+        say(f"cell           {a:.4f} {b:.4f} {c:.4f}  "
+            f"{al:.3f} {be:.3f} {ga:.3f}   "
+            f"({structure.lattice.volume:.2f} A^3)")
     structure.touch()
     if recorder is not None:
         ff_record.close_run(recorder, result, final=structure)
-        print(f"wrote {recorder.folder.path}")
+        say(f"wrote {recorder.folder.path}")
     if args.output:
         FORMATS.write(structure, args.output)
-        print(f"wrote {args.output}")
+        say(f"wrote {args.output}")
+    if args.json:
+        _emit_json({
+            "converged": result.converged, "steps": result.steps,
+            "initial_energy": result.initial_energy,
+            "energy": result.energy, "max_force": result.max_force,
+            "summary": result.summary(),
+            "cell": list(structure.lattice.parameters),
+            "warnings": list(calculator.warnings),
+            "run": str(recorder.folder.path) if recorder else "",
+            "output": args.output or ""})
     return 0 if result.converged else 2
+
+
+def _stderr(*values) -> None:
+    print(*values, file=sys.stderr)
 
 
 # ----------------------------------------------------------------------
@@ -481,7 +622,7 @@ def cmd_run(args) -> int:
                                         structure)
     job = Job(structure=structure, params=params, folder=folder,
               label=args.action,
-              on_progress=None if args.quiet else _echo)
+              on_progress=None if args.quiet or args.json else _echo)
     try:
         result = action.run(job)
     except KeyboardInterrupt as exc:
@@ -496,6 +637,7 @@ def cmd_run(args) -> int:
         return Terminated.status if terminated else 130
     module_record.close_run(folder, result)
     run_path = folder.path if folder is not None else None
+    filed_path = None
     if workspace is not None and not action.needs_structure \
             and result.ok and result.structure is not None:
         # A build is filed the way the window files one: an entry
@@ -505,7 +647,21 @@ def cmd_run(args) -> int:
             result.structure, run=run_path,
             artifacts=getattr(result, "artifacts", ()))
         run_path = filed.run or run_path
-        print(f"filed as {filed.path}")
+        filed_path = filed.path
+        if not args.json:
+            print(f"filed as {filed.path}")
+    if args.output and result.structure is not None:
+        FORMATS.write(result.structure, args.output)
+    if args.json:
+        from xtal.agent.session import _report_data
+        _emit_json({"ok": bool(result.ok), "summary": result.summary(),
+                    "detail": result.detail,
+                    "filed": str(filed_path) if filed_path else "",
+                    "run": str(run_path) if run_path else "",
+                    "output": (args.output if args.output and
+                               result.structure is not None else ""),
+                    **_report_data(result)})
+        return 0 if result.ok else 2
     print(result.summary())
     # A run whose whole answer is a table has to print the table:
     # "peak at 18.75 A" is a headline, not a result.
@@ -515,7 +671,6 @@ def cmd_run(args) -> int:
     if result.detail:
         print(result.detail, file=sys.stderr)
     if args.output and result.structure is not None:
-        FORMATS.write(result.structure, args.output)
         print(f"wrote {args.output}")
     if run_path is not None:
         print(f"run folder: {run_path}")
@@ -580,7 +735,60 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("info", help="cell, formula, density")
     p.add_argument("file")
+    _json_flag(p)
     p.set_defaults(func=cmd_info)
+
+    from xtal.agent.inspect import DEFAULT_SYMPREC as INSPECT_SYMPREC
+    p = sub.add_parser(
+        "inspect", help="what a structure is and what is wrong with "
+                        "it: composition, symmetry, coordination, and "
+                        "coded diagnostics with their remedies")
+    p.add_argument("file")
+    p.add_argument("--symprec", type=float, default=INSPECT_SYMPREC,
+                   help="tolerance the group is detected at "
+                        "(default: %(default)g)")
+    _json_flag(p)
+    p.set_defaults(func=cmd_inspect)
+
+    p = sub.add_parser("render", help="draw the structure to a PNG, as "
+                                      "the viewport would")
+    p.add_argument("file")
+    p.add_argument("output", help="the .png to write")
+    p.add_argument("--view", default="diagonal",
+                   help="diagonal, a, b, c, or a lattice direction "
+                        "u,v,w (default: %(default)s)")
+    p.add_argument("--style", default="ball_stick",
+                   help="a viewport style: ball_stick, stick, "
+                        "spacefill, wireframe, polyhedra ... "
+                        "(default: %(default)s)")
+    p.add_argument("--size", default="800x600", metavar="WxH")
+    _json_flag(p)
+    p.set_defaults(func=cmd_render)
+
+    p = sub.add_parser("capabilities",
+                       help="what this install can run: engines, "
+                            "modules, rendering")
+    p.add_argument("name", nargs="?",
+                   help="a verb, engine or MODULE.ACTION to describe")
+    _json_flag(p)
+    p.set_defaults(func=cmd_capabilities)
+
+    p = sub.add_parser("skill", help="the AI assistant skill that "
+                                     "drives this program")
+    skill_sub = p.add_subparsers(dest="skill_command", required=True)
+    q = skill_sub.add_parser("path", help="where the shipped skill is")
+    q.set_defaults(func=cmd_skill)
+    q = skill_sub.add_parser(
+        "install", help="copy the skill where an assistant reads it: "
+                        "~/.claude/skills, or a project's own")
+    where = q.add_mutually_exclusive_group()
+    where.add_argument("--user", action="store_true",
+                       help="for every project (the default)")
+    where.add_argument("--project", metavar="DIR",
+                       help="for one project, in DIR/.claude/skills")
+    q.add_argument("--force", action="store_true",
+                   help="replace an installed copy that differs")
+    q.set_defaults(func=cmd_skill)
 
     p = sub.add_parser("symmetry", help="detect the space group")
     p.add_argument("file")
@@ -601,6 +809,7 @@ def build_parser() -> argparse.ArgumentParser:
                         "would split")
     p.add_argument("-o", "--output",
                    help="write the symmetrised structure here")
+    _json_flag(p)
     p.set_defaults(func=cmd_symmetry)
 
     p = sub.add_parser("convert", help="convert and transform")
@@ -632,11 +841,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("bonds", help="bonds, coordination, fragments")
     p.add_argument("file")
+    _json_flag(p)
     p.set_defaults(func=cmd_bonds)
 
     p = sub.add_parser("types",
                        help="UFF atom types and why each was chosen")
     p.add_argument("file")
+    _json_flag(p)
     p.set_defaults(func=cmd_types)
 
     from xtal.ff.uff.calculator import CHARGE_SOURCES
@@ -666,6 +877,7 @@ def build_parser() -> argparse.ArgumentParser:
                             "folder with the log, the trajectory and "
                             "the final structure, in the layout the "
                             "application reads")
+        _json_flag(p)
         if name == "optimize":
             p.add_argument("-o", "--output",
                            help="write the relaxed structure here")
@@ -726,8 +938,15 @@ def build_parser() -> argparse.ArgumentParser:
                         "produced one")
     p.add_argument("-q", "--quiet", action="store_true",
                    help="do not echo the run's progress")
+    _json_flag(p)
     p.set_defaults(func=cmd_run)
     return parser
+
+
+def _json_flag(parser) -> None:
+    parser.add_argument("--json", action="store_true",
+                        help="print one JSON document on stdout "
+                             "instead of text")
 
 
 def _engine_names() -> list[str]:

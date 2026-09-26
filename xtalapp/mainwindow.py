@@ -979,6 +979,35 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         self._help_window.raise_()
         self._help_window.activateWindow()
 
+    def install_ai_skill(self) -> None:
+        """Copy the shipped skill to ``~/.claude/skills``.
+
+        The skill is the core's (:mod:`xtal.agent.skill`); this is only
+        the door to it for somebody who never opens a terminal.  An
+        installed copy that differs is somebody's edits, so replacing
+        it is a question, never a default.
+        """
+        from xtal.agent import skill
+
+        try:
+            target = skill.install(user=True)
+        except FileExistsError:
+            answer = QMessageBox.question(
+                self, "Replace the AI assistant skill?",
+                f"{skill.target()} holds a copy that differs from this "
+                f"version's -- perhaps one you edited.  Replace it?",
+                QMessageBox.Yes | QMessageBox.No)
+            if answer != QMessageBox.Yes:
+                self.show_status("the installed skill was left as it "
+                                 "was")
+                return
+            target = skill.install(user=True, force=True)
+        except OSError as exc:
+            self.show_status(f"could not install the skill: {exc}")
+            return
+        self.show_status(f"AI assistant skill installed in {target}; "
+                         f"Claude Code reads it from there")
+
     def show_about(self) -> None:
         from xtal import __version__
         QMessageBox.about(

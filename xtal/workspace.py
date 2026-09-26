@@ -666,7 +666,10 @@ class Workspace:
         if name.startswith("."):
             raise ValueError(f"'{name}' would hide the file")
         target = path.with_name(name)
-        if target == path:
+        # The names and not the paths: a Windows path compares without
+        # case, so ``rutile.cif`` equalled ``Rutile.cif`` and a change
+        # of case alone returned here having renamed nothing.
+        if target.name == path.name:
             return path
         if target.exists() and not target.samefile(path):
             raise ValueError(f"there is already a {name} here")

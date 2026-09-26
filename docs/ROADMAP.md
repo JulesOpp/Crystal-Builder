@@ -1195,7 +1195,37 @@ atoms, so Delete and Bond type act on those bonds alone.
 
 ---
 
-## 11. What this plan does not do
+## 11. An AI assistant drives the builder
+
+Built 2026-09-26 on `claude/gallant-hawking-ml241m`, prompted by the
+rietx skill: a protocol shipped in the wheel, over one typed API whose
+answers carry coded diagnostics.  CLAUDE.md's invariant *An agent edits
+through the same commands as a person* is the design.
+
+| Delivers | Main files |
+|---|---|
+| `Session`: a structure, its `CommandStack` and its entry, changed only by verbs -- each the command the window pushes, one undo step, logged to `<entry>/agent-session.jsonl`.  Refusals are `ok=False` answers, not exceptions | `xtal/agent/session.py` |
+| `inspect()`: composition, cell, declared and detected group (at 0.01 A, where MFU-4l is the Fm-3m it was deposited in), per-site coordination, fragments, and closed diagnostic codes each with its remedy, capped at eight a code | `xtal/agent/inspect.py`, `xtal/agent/diagnostics.py` |
+| `render()`: the viewport's scene drawn to a PNG with no Qt, **in a subprocess**, because a machine with no GL segfaults rather than raising | `xtal/agent/render.py` |
+| `capabilities()` / `help_for()`: what this install can run, from the registries | `xtal/agent/capabilities.py` |
+| The skill itself, in the wheel, and a test holding every verb, keyword, module action, code and command it names to the code; `xtal skill install`, Help ▸ Set up an AI assistant | `xtal/agent/skill/`, `tests/test_agent_skill.py` |
+| `xtal inspect`, `xtal render`, `xtal capabilities`, and `--json` on `info`, `symmetry`, `bonds`, `types`, `energy`, `optimize`, `run` | `xtal/cli.py` |
+| Opening an entry an assistant worked on says so on the status line, with its step and warning count | `xtalapp/documents.py` |
+
+**Still owed**, in this order:
+
+- **A live link to the window**: a local MCP server inside a running
+  window, turned on explicitly, whose tools are the same verbs over
+  `Document.run` rather than a `Session` -- so the person watches each
+  edit land as an undo step in the tab they have open.  The verbs need
+  no change; what is new is marshalling every call onto the GUI thread
+  and refusing while a trajectory plays.
+- **A manual chapter**, *Working with an AI assistant*, once
+  `docs/manual/` exists (Phase 4 above).
+
+---
+
+## 12. What this plan does not do
 
 * It does not touch the design principles in
   [docs/PLAN.md](PLAN.md) § 1.  Every phase keeps the core Qt-free,

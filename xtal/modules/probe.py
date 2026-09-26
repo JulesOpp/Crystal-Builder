@@ -194,6 +194,10 @@ def summarise(probe: Probe, code: int | None, output: str,
                        f"{probe.timeout:g} s, so it was stopped.")
     if code is None:
         return False, f"{probe.name} could not be started: {error}"
+    # A Windows program ends its lines \r\n, and the headline pattern
+    # stops at the \n: the \r rode along into the sentence shown
+    # under the button.
+    output = output.replace("\r\n", "\n")
     lines = useful_lines(output)
     if probe.headline is not None:
         found = probe.headline.search(output)

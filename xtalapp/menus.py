@@ -544,6 +544,13 @@ def build_actions(window):
     add("show_log", "Show &Log", window.show_log,
         tip="Reveal the file this application writes its warnings "
             "and its crashes to")
+    add("install_ai_skill", "Set up an &AI assistant",
+        window.install_ai_skill,
+        tip="Put the crystal-builder skill where Claude Code reads it "
+            "(~/.claude/skills), so an assistant can open, prepare, "
+            "build, inspect and relax structures in your workspace "
+            "through the same commands as this window.  A copy you "
+            "have edited is replaced only if you say so.")
     add("help_contents", f"{APP_NAME} &Help", window.show_help,
         QKeySequence.StandardKey.HelpContents,
         tip="Every command and every module setting, generated from "
@@ -669,7 +676,8 @@ def build_menus(window):
 
     help_menu = submenu(bar, "&Help")
     window.actions_.fill_menu(help_menu, ["help_contents", None,
-                                          "show_log", None, "about"])
+                                          "install_ai_skill", "show_log",
+                                          None, "about"])
 
 def build_sample_menu(window) -> None:
     """The structures that ship with the application, as one submenu.

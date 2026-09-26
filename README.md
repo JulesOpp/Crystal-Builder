@@ -167,6 +167,36 @@ bundle.  The folder exists because it is the only way a
 frozen build can be given a package at all — a plugin installed with
 pip registers an entry point that a bundle cannot see.
 
+## Driving it with an AI assistant
+
+The headless core has a session API an assistant such as Claude Code
+can drive: open or build a structure, prepare it, edit it, relax it,
+measure it and look at it, each step one undo step through the same
+commands the window uses, with every finding a coded diagnostic that
+names its remedy.  The protocol it follows ships in the package:
+
+```bash
+xtal skill install              # into ~/.claude/skills/crystal-builder
+xtal skill install --project .  # or into one project's .claude/skills
+```
+
+(or Help ▸ Set up an AI assistant).  Then ask for what you want --
+"prepare Ni2Cl2BTDD.cif for DFT and tell me what changed", "build
+MOF-5 on pcu and give me its pore volume" -- and open the project it
+saves in the window.  The same pieces from a script:
+
+```python
+from xtal.agent import Session
+s = Session.open("MOF-5.cif", workspace="~/Crystal Builder")
+print(s.inspect())              # numbers, then diagnostics
+print(s.prepare())              # a VerbResult; s.undo() takes it back
+s.render("mof5.png", view="a")
+s.save()
+```
+
+and from a shell, `xtal inspect FILE`, `xtal render FILE OUT.png`,
+`xtal capabilities`, with `--json` on every inspecting command.
+
 ## Running the application
 
 ```bash
