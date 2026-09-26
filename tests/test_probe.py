@@ -173,6 +173,23 @@ def test_a_package_that_will_not_import_says_why():
     assert "No module named" in sentence
 
 
+def test_a_package_is_looked_for_where_the_application_looks(tmp_path):
+    """The application puts its packages folder first on its import
+    path at start-up; a fresh interpreter does not.  Asked without it,
+    Test answered for a different copy of a package than the one the
+    application would load -- or said "No module named" for one that
+    was only in the folder, under a row that said Working."""
+    (tmp_path / "only_in_the_folder").mkdir()
+    (tmp_path / "only_in_the_folder" / "__init__.py").write_text(
+        "__version__ = '1.2.3'\n")
+
+    ok, sentence = probe.run(probe.probe_for_package(
+        "only_in_the_folder", prepend=[str(tmp_path)]))
+
+    assert ok
+    assert sentence == "only_in_the_folder 1.2.3"
+
+
 def test_a_frozen_build_is_asked_through_its_own_flag():
     asked = probe.probe_for_package("rdkit", frozen=True,
                                     executable="/Apps/Crystal Builder")

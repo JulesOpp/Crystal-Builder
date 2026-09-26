@@ -85,10 +85,14 @@ def test_a_missing_package_s_row_offers_its_command_to_copy(
     assert commands == [extra("rdkit").command()]
 
 
-def test_the_command_is_this_interpreter_s_pip():
+def test_the_command_is_this_interpreter_s_pip(monkeypatch):
     """A bare ``pip`` is whichever is first on the PATH, which is
     often not the Python the application is running in -- and the
     package lands somewhere the application never looks."""
+    from xtal import install
+
+    monkeypatch.setattr(install, "has_pip", lambda: True)
+
     assert extra("rdkit").command().startswith(
         f'"{sys.executable}" -m pip install')
 
@@ -110,6 +114,7 @@ def test_an_installed_copy_names_the_package(monkeypatch):
     from xtal import install
 
     monkeypatch.setattr(install, "checkout", lambda: None)
+    monkeypatch.setattr(install, "has_pip", lambda: True)
 
     assert extra("mace").command().endswith(
         'pip install "crystal-builder[mace]"')
@@ -268,6 +273,30 @@ def test_testing_an_ml_engine_imports_its_model_code(page):
 
     assert "import mace.calculators" in probe.argv[-1]
     assert probe.timeout >= 30
+
+
+def test_testing_a_package_looks_in_the_folder_the_application_does(
+        page, tmp_path, monkeypatch):
+    """The application put its packages folder first on its own path,
+    so Test's fresh interpreter has to as well, or it answers for a
+    different copy of the package than the one that would be used."""
+    where = tmp_path / "packages"
+    where.mkdir()
+    monkeypatch.setenv(extras.DIR_VAR, str(where))
+    monkeypatch.syspath_prepend(str(where))
+
+    assert repr(str(where)) in page._probe("ase").argv[-1]
+
+
+def test_testing_a_package_adds_no_folder_the_application_did_not(
+        page, tmp_path, monkeypatch):
+    """A window built without ``main`` never added the folder, and
+    Test must not claim a path the application is not using."""
+    where = tmp_path / "packages"
+    where.mkdir()
+    monkeypatch.setenv(extras.DIR_VAR, str(where))
+
+    assert str(where) not in page._probe("ase").argv[-1]
 
 
 def test_the_folder_command_is_offered_with_its_warning(page):
