@@ -74,6 +74,23 @@ def test_the_tree_order_is_the_declared_one(registry):
     assert registry.names() == ["first", "second", "third"]
 
 
+def test_the_energy_modules_come_first_and_the_builders_together():
+    """Orders chosen one module at a time put Energy scan among the
+    builders and PXRD between two of them.  If this fails, a module
+    has an order that lands it inside another group."""
+    from xtal.modules import MODULES
+
+    built_in = [(m.group, m.label) for m in MODULES
+                if m.name != "stub"]
+    assert built_in == [
+        ("energy", "Forcefield"), ("energy", "DFTB+"),
+        ("energy", "Energy scan"),
+        ("build", "MOF builder"), ("build", "Net builder"),
+        ("build", "Molecule builder"),
+        ("characterise", "Porosity"), ("characterise", "PXRD"),
+        ("export", "Blender")]
+
+
 def test_an_action_needs_something_to_do():
     with pytest.raises(ModuleError, match="run callable"):
         Action(name="nothing", label="Nothing")

@@ -141,7 +141,7 @@ BUILD = Module(
     description="Build a molecule from a SMILES string, with RDKit.  "
                 "It opens in a tab of its own, in a box with enough "
                 "vacuum around it to relax in.",
-    order=50,
+    order=22, group="build",
     check=available,
     provides=frozenset({"structure"}),
     actions=(

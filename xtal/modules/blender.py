@@ -211,7 +211,7 @@ BLENDER = Module(
     name="blender", label="Blender",
     description="Blender, run headless, for what it can make of a "
                 "structure.",
-    order=80, check=available, actions=(EXPORT_STL,))
+    order=80, group="export", check=available, actions=(EXPORT_STL,))
 
 
 def register(registry=MODULES) -> Module:

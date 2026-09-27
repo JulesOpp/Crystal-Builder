@@ -83,7 +83,7 @@ NET = Module(
                 "and not chemistry.  It opens in a tab of its own, "
                 "with coordination polyhedra ready to draw over the "
                 "vertices.",
-    order=60,
+    order=21, group="build",
     provides=frozenset({"structure"}),
     actions=(
         Action(name="draw", label="Draw a net...",

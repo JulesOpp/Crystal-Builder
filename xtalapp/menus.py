@@ -743,6 +743,9 @@ def build_modules_menu(window) -> None:
     promised everything that computes.  This one has a submenu per
     module and knows the name of none of them, so a module
     installed as a plugin appears here without this file changing.
+    A separator falls wherever :attr:`Module.group` changes, which is
+    all the grouping there is: a submenu per group would put every
+    entry three levels down.
 
     The structure is built once; whether each module *can* run is
     asked again every time the menu opens
@@ -758,7 +761,11 @@ def build_modules_menu(window) -> None:
     menu.setToolTipsVisible(True)
     window._module_actions = []
     window._module_submenus = {}
+    previous = None
     for module in MODULES:
+        if previous is not None and module.group != previous:
+            menu.addSeparator()
+        previous = module.group
         entry = submenu(menu, module.label)
         window._module_submenus[module.name] = entry
         for action in module.actions:

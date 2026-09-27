@@ -832,7 +832,7 @@ ZEOPP = Module(
                 "structure -- by Zeo++'s Voronoi decomposition, or, "
                 "for the entries marked (faster), off this "
                 "application's own distance grid.",
-    order=30,
+    order=30, group="characterise",
     provides=frozenset({"porosity", "table", "histogram"}),
     actions=(
         Action(name="diameters",

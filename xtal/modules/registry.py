@@ -190,9 +190,17 @@ class Module:
     #: installed.  Called every time the tree is rebuilt, so it has to
     #: be cheap; ``shutil.which`` is the intended cost.
     check: Callable[[], Availability] | None = None
-    #: Where it sits in the tree.  Forcefield is 10 because it is the
-    #: one that was there before there was a tree.
+    #: Where it sits in the tree.  Each group has its decade -- energy
+    #: 10s, builders 20s, characterisation 30s, export 80s -- because
+    #: orders chosen one module at a time had put Energy scan among
+    #: the builders and PXRD between two of them.
     order: int = 100
+    #: What kind of thing it is.  The menu draws a separator where the
+    #: group changes, so a plugin joins a group, or starts its own,
+    #: without the menu knowing its name.  A separator and not a
+    #: submenu: every module already is one, and a third level would
+    #: put every entry a click further away for nothing.
+    group: str = ""
     provides: frozenset = field(default_factory=frozenset)
 
     def availability(self) -> Availability:

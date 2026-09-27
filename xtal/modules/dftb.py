@@ -218,7 +218,7 @@ DFTB = Module(
     description="Density-functional tight binding: atom types have "
                 "no place in it, but the energy, the forces and the "
                 "geometry optimisation are asked for the same way.",
-    order=11,
+    order=11, group="energy",
     check=_available,
     provides=frozenset({"energy", "forces", "structure",
                         "trajectory"}),

@@ -47,7 +47,7 @@ def run_it(job) -> JobResult:
 
 MODULE = Module(
     name="thing", label="Thing", description="One or two sentences.",
-    order=70, check=_available,
+    order=32, group="characterise", check=_available,
     actions=(Action(name="measure", label="Measure...", tip="...",
                     params=PARAMS, run=run_it),),
 )
@@ -60,6 +60,14 @@ Then import it and call `register()` in `xtal/modules/__init__.py`, in
 order with the others. That is the only existing file a module
 touches; the menu, the dock, the form and the worker are built from
 the declaration.
+
+- `group` and `order` place it. The Modules menu puts a separator
+  where `group` changes, and each group has a decade: `energy` 10s
+  (Forcefield, DFTB+, Energy scan), `build` 20s (MOF, net, molecule),
+  `characterise` 30s (Porosity, PXRD), `export` 80s (Blender). Choose
+  an order inside your group's decade, or a new group gets its own.
+  `tests/test_modules.py::test_the_energy_modules_come_first_and_the_builders_together`
+  pins the built-in list, so add yours to it.
 
 - `Param.kind` is one of `bool int float choice text path`. `help` is
   mandatory in practice, since `tests/test_help_ui.py` renders it.
