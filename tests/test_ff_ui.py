@@ -402,6 +402,35 @@ def test_stopping_a_run_leaves_the_document_where_it_started(
     assert np.allclose(document.structure.frac, before)
 
 
+def test_switching_tabs_mid_run_leaves_the_other_tab_untouched(
+        qtbot, slow, quartz):
+    """A tab switch stops the run, but the worker's last step and its
+    finish arrive after the panel has been rebound to the new tab.
+
+    They were applied to whichever tab was in front: with a different
+    atom count that was a ``zip`` error in ``preview_positions`` and
+    the run's result was lost; with the same count the geometry would
+    have been committed, silently, into the wrong crystal.
+    """
+    window, document, dock = slow
+    before = document.structure.frac.copy()
+    other = Document(quartz)
+    other_before = other.structure.frac.copy()
+
+    dock.start()
+    dock.worker.pause()
+    window.add_document(other)              # the switch stops the run
+    wait_for_the_run(qtbot, dock)
+
+    assert dock.document is other
+    assert other.stack.depth == 0
+    assert np.allclose(other.structure.frac, other_before)
+    assert document.stack.depth <= 1
+    if document.can_undo:
+        document.undo()
+    assert np.allclose(document.structure.frac, before)
+
+
 def test_a_finished_run_reports_convergence_and_the_breakdown(qtbot,
                                                               window):
     document = Document(water(oh=1.10, angle=100.0))
