@@ -256,7 +256,7 @@ The same volume in a second or two -- MFU-4l's occupiable volume is 1.7 s here a
 |---|---|---|---|
 | **Probe** | one of Nitrogen, N2 (1.86 A), Argon, Ar (1.72 A), Carbon dioxide, CO2 (1.65 A), Hydrogen, H2 (1.48 A), Helium, He (1.30 A), Methane, CH4 (1.86 A), Use the radius below | `n2` | Nitrogen is what a pore volume is usually quoted to.  A radius quoted without the probe it was measured with means nothing. |
 | **Probe radius** | float, 0 to 10 A | `1.86` | Used only when the probe above is set to 'Use the radius below' |
-| **Probe-occupiable volume** | bool | `True` | The volume the probe occupies rather than the volume its centre can reach: the pore volume a paper quotes.  It reads up to 0.03 of the cell above Zeo++'s -volpo, which falls short of the union of probe spheres. |
+| **Probe-occupiable volume** | bool | `True` | The volume the probe occupies rather than the volume its centre can reach: the pore volume a paper quotes.  It reads up to 0.03 of the cell above Zeo++'s -volpo. |
 | **Draw the accessible surface** | bool | `True` | Put the channels' surface into the 3D view: the same grid the numbers come from. |
 | **Grid spacing** | float, 0.2 to 1 A | `0.4` | Finer is slower and resolves narrower windows: 0.4 A is a second or two on MFU-4l.  A window within half a step of the probe's size is flagged in the table rather than guessed. |
 | **Atom radii** | one of Zeo++'s own table (what its papers used), Van der Waals radii (this application's table), Covalent radii (this application's table) | `builtin` | Every number Zeo++ returns is a function of how big it thinks the atoms are.  Whichever is chosen is written into the log. |
@@ -362,6 +362,251 @@ Calculate a powder diffraction pattern from this structure
 | **Caglioti W** | float, 0 to 1 | `0.01` | The constant term, which is most of the width at low angle. |
 | **Overall B** | float, 0 to 20 A^2 | `0.0` | One thermal displacement parameter for every atom: exp(-2 B sin^2(theta) / lambda^2).  Left at zero the high-angle peaks come out systematically too strong against a published pattern; 1 to 3 A^2 is typical. |
 | **Mark systematic absences** | bool | `False` | Draw a second comb under the pattern, in its own colour, where this space group forbids a reflection.  An unexpected peak is either an impurity or the wrong space group, and which one depends on whether it sits over a forbidden position.  A structure in P1 has none, because P1 forbids nothing. |
+
+(mod-pxrd-refine)=
+### Refine against a measured pattern...
+
+Open the refinement workbench: fit peaks, index, and refine against a measured .xy pattern
+
+No settings.
+
+(mod-pxrd-peaks)=
+### Fit peaks
+
+Fit every line in a measured pattern
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Measured pattern** | path |  | The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one. |
+| **Radiation** | one of Cu Kα1 + Kα2 (laboratory), Cu Kα1 only (monochromated), Mo Kα1 + Kα2 (laboratory), Mo Kα1 only (monochromated), Co Kα1 + Kα2 (laboratory), Co Kα1 only (monochromated), Synchrotron (the wavelength below) | `cu` | What the pattern was measured with.  A laboratory tube is a Kα1/Kα2 doublet unless a monochromator removed Kα2; the wavelengths are the standard ones. |
+| **Wavelength** | float, 0 to 5 Å | `0.0` | A synchrotron's wavelength, from the beamline's calibration.  Read only for Synchrotron: the cell is only as right as this number. |
+| **Monochromator 2θ** | float, 0 to 90 ° | `0.0` | A diffracted-beam monochromator's angle, which changes the polarisation correction (TOPAS LP_Factor).  0 is none; 26.6 is graphite (002) with Cu. |
+| **2θ from** | float, 0 to 180 ° | `0.0` | Where the fit starts (TOPAS start_X).  0 is the start of the file. |
+| **2θ to** | float, 0 to 180 ° | `0.0` | Where it stops (TOPAS finish_X).  0 is the end of the file.  High-angle lines are weak and overlapped, and indexing does better without them. |
+| **Look for shoulders** | bool | `True` | Seed a second line where a peak's curvature says one is hiding in its flank.  A seed that does not pay for itself is dropped again. |
+| **Flag Kβ and tungsten lines** | bool | `False` | Mark lines that sit where a strong line's Kβ or a tungsten-contaminated tube would put one, and keep them out of indexing.  Off by default: a filtered or monochromated tube has no such lines, and the flag then takes real ones out. |
+| **Fit only at** | text |  | 2θ positions, separated by commas, to fit exactly -- TOPAS's hand-written xo_Is list.  Empty finds the peaks.  A position with nothing at it comes back flagged, not dropped. |
+
+(mod-pxrd-refine_peaks)=
+### Refine peaks
+
+Refine the lines in use together over a Chebyshev background
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Measured pattern** | path |  | The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one. |
+| **Radiation** | one of Cu Kα1 + Kα2 (laboratory), Cu Kα1 only (monochromated), Mo Kα1 + Kα2 (laboratory), Mo Kα1 only (monochromated), Co Kα1 + Kα2 (laboratory), Co Kα1 only (monochromated), Synchrotron (the wavelength below) | `cu` | What the pattern was measured with.  A laboratory tube is a Kα1/Kα2 doublet unless a monochromator removed Kα2; the wavelengths are the standard ones. |
+| **Wavelength** | float, 0 to 5 Å | `0.0` | A synchrotron's wavelength, from the beamline's calibration.  Read only for Synchrotron: the cell is only as right as this number. |
+| **Monochromator 2θ** | float, 0 to 90 ° | `0.0` | A diffracted-beam monochromator's angle, which changes the polarisation correction (TOPAS LP_Factor).  0 is none; 26.6 is graphite (002) with Cu. |
+| **2θ from** | float, 0 to 180 ° | `0.0` | Where the fit starts (TOPAS start_X).  0 is the start of the file. |
+| **2θ to** | float, 0 to 180 ° | `0.0` | Where it stops (TOPAS finish_X).  0 is the end of the file.  High-angle lines are weak and overlapped, and indexing does better without them. |
+| **Look for shoulders** | bool | `True` | Seed a second line where a peak's curvature says one is hiding in its flank.  A seed that does not pay for itself is dropped again. |
+| **Flag Kβ and tungsten lines** | bool | `False` | Mark lines that sit where a strong line's Kβ or a tungsten-contaminated tube would put one, and keep them out of indexing.  Off by default: a filtered or monochromated tube has no such lines, and the flag then takes real ones out. |
+| **Fit only at** | text |  | 2θ positions, separated by commas, to fit exactly -- TOPAS's hand-written xo_Is list.  Empty finds the peaks.  A position with nothing at it comes back flagged, not dropped. |
+| **Background terms** | int, 1 to 30 | `8` | Coefficients of the Chebyshev background Refine fits under the lines (TOPAS's bkg line).  More follow a curved or humped background; too many start fitting the tails of broad peaks.  Find peaks draws its own background and does not read this. |
+
+(mod-pxrd-index)=
+### Index
+
+Find the unit cells that explain the fitted lines
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Measured pattern** | path |  | The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one. |
+| **Radiation** | one of Cu Kα1 + Kα2 (laboratory), Cu Kα1 only (monochromated), Mo Kα1 + Kα2 (laboratory), Mo Kα1 only (monochromated), Co Kα1 + Kα2 (laboratory), Co Kα1 only (monochromated), Synchrotron (the wavelength below) | `cu` | What the pattern was measured with.  A laboratory tube is a Kα1/Kα2 doublet unless a monochromator removed Kα2; the wavelengths are the standard ones. |
+| **Wavelength** | float, 0 to 5 Å | `0.0` | A synchrotron's wavelength, from the beamline's calibration.  Read only for Synchrotron: the cell is only as right as this number. |
+| **Monochromator 2θ** | float, 0 to 90 ° | `0.0` | A diffracted-beam monochromator's angle, which changes the polarisation correction (TOPAS LP_Factor).  0 is none; 26.6 is graphite (002) with Cu. |
+| **2θ from** | float, 0 to 180 ° | `0.0` | Where the fit starts (TOPAS start_X).  0 is the start of the file. |
+| **2θ to** | float, 0 to 180 ° | `0.0` | Where it stops (TOPAS finish_X).  0 is the end of the file.  High-angle lines are weak and overlapped, and indexing does better without them. |
+| **Look for shoulders** | bool | `True` | Seed a second line where a peak's curvature says one is hiding in its flank.  A seed that does not pay for itself is dropped again. |
+| **Flag Kβ and tungsten lines** | bool | `False` | Mark lines that sit where a strong line's Kβ or a tungsten-contaminated tube would put one, and keep them out of indexing.  Off by default: a filtered or monochromated tube has no such lines, and the flag then takes real ones out. |
+| **Fit only at** | text |  | 2θ positions, separated by commas, to fit exactly -- TOPAS's hand-written xo_Is list.  Empty finds the peaks.  A position with nothing at it comes back flagged, not dropped. |
+| **Bravais lattices** | text | `all` | Which lattices to search, TOPAS's Bravais_*_sgs: aP mP mC oP oC oI oF tP tI hP hR cP cI cF, separated by commas, or all.  hP is hexagonal and trigonal P together.  Leaving out the low symmetries saves most of the time. |
+| **Space groups** | text |  | Only these groups, by symbol or number, separated by commas (C2221, Ccc2).  The search is kept to their lattices and only the extinction classes holding one are listed.  Empty is every group. |
+| **Zero error allowance** | float, 0 to 1 ° | `0.3` | How far a systematic 2θ shift may move the lines, TOPAS's index_zero_error, from 0 to 1°.  0 lets RietX measure it from line pairs, or assume 0.05°.  A wide allowance finds a cell through a badly aligned sample and lets wrong cells match too: on a clean rutile pattern the right cell ranks first up to 0.3° and a wrong one does from 0.5°. |
+| **Largest volume** | float, 0 to 1000000 Å³ | `0.0` | The largest cell to report.  0 takes the bound from the number of lines and their positions. |
+| **Longest axis** | float, 5 to 100 Å | `50.0` | The longest cell axis searched (strictly, d(100)).  50 Å holds most frameworks' cells.  The search grows fast with it: a cell known to be small is found in seconds with this lowered, and 50 Å over the low symmetries can use the whole time budget. |
+| **Time budget** | float, 0 to 3600 s | `0.0` | The most the search and its validation may take.  What was reached when it runs out is reported, with the systems it did not finish named.  0 is no limit: the search runs until it is done or stopped. |
+| **Rank space groups for the top** | int, 0 to 20 cells | `3` | Fit each extinction class of this many of the best cells, to say which space groups the absences allow.  About a second a cell for a small one; 0 skips it. |
+
+(mod-pxrd-pawley)=
+### Pawley
+
+Fit a cell and space group to the whole pattern
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Measured pattern** | path |  | The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one. |
+| **Radiation** | one of Cu Kα1 + Kα2 (laboratory), Cu Kα1 only (monochromated), Mo Kα1 + Kα2 (laboratory), Mo Kα1 only (monochromated), Co Kα1 + Kα2 (laboratory), Co Kα1 only (monochromated), Synchrotron (the wavelength below) | `cu` | What the pattern was measured with.  A laboratory tube is a Kα1/Kα2 doublet unless a monochromator removed Kα2; the wavelengths are the standard ones. |
+| **Wavelength** | float, 0 to 5 Å | `0.0` | A synchrotron's wavelength, from the beamline's calibration.  Read only for Synchrotron: the cell is only as right as this number. |
+| **Monochromator 2θ** | float, 0 to 90 ° | `0.0` | A diffracted-beam monochromator's angle, which changes the polarisation correction (TOPAS LP_Factor).  0 is none; 26.6 is graphite (002) with Cu. |
+| **Method** | one of Pawley, Le Bail | `pawley` | How each reflection's intensity is found.  Pawley makes every intensity a least-squares variable, with esds; Le Bail re-partitions the observed pattern between cycles, cheaper over a long range and with no intensity esds.  The cell, range and boxes below are the same for both. |
+| **Cell** | text |  | a b c, or a b c α β γ, in Å and degrees -- a row of the indexing table, or the open structure's. |
+| **Space group** | text |  | By symbol or number.  A group with fewer absences than the true one fits as well and says less; one with more leaves real lines unfitted. |
+| **2θ from** | float, 0 to 180 ° | `0.0` | Where the fit starts (TOPAS start_X).  0 is the start of the file. |
+| **2θ to** | float, 0 to 180 ° | `0.0` | Where it stops (TOPAS finish_X).  0 is the end of the file.  Wider is not better for a cell: every reflection is a free intensity, so a long range is much slower and adds lines too crowded to pin it. |
+| **Background terms** | int, 1 to 30 | `8` | Coefficients of the Chebyshev background, TOPAS's bkg line.  More follow a curved or humped background; too many start fitting the tails of broad peaks. |
+| **Refine zero error** | bool | `False` | A constant shift of every line (TOPAS Zero_Error).  Strongly correlated with specimen displacement: free one of the two unless the range is wide. |
+| **Refine specimen displacement** | bool | `True` | A shift that falls off as cos θ (TOPAS Specimen_Displacement).  Strongly correlated with the zero error and with the cell: free one of the two unless the range is wide.  Not refined for a synchrotron capillary. |
+| **Hold** | text |  | Cell numbers held at the value given while the rest refine: a b c alpha beta gamma, separated by commas, or cell for all of them.  Empty refines every number the space group leaves free. |
+| **Crystallite size broadening** | bool | `True` | Lorentzian and Gaussian size terms (TOPAS CS_L, CS_G): widths that grow as 1/cos θ. |
+| **Strain broadening** | bool | `True` | Lorentzian and Gaussian strain terms (TOPAS Strain_L, Strain_G): widths that grow as tan θ. |
+
+(mod-pxrd-auto)=
+### Automatic
+
+Peaks, indexing and a Pawley fit of every leading cell and space group, ranked -- and on into Rietveld when asked
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Measured pattern** | path |  | The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one. |
+| **Radiation** | one of Cu Kα1 + Kα2 (laboratory), Cu Kα1 only (monochromated), Mo Kα1 + Kα2 (laboratory), Mo Kα1 only (monochromated), Co Kα1 + Kα2 (laboratory), Co Kα1 only (monochromated), Synchrotron (the wavelength below) | `cu` | What the pattern was measured with.  A laboratory tube is a Kα1/Kα2 doublet unless a monochromator removed Kα2; the wavelengths are the standard ones. |
+| **Wavelength** | float, 0 to 5 Å | `0.0` | A synchrotron's wavelength, from the beamline's calibration.  Read only for Synchrotron: the cell is only as right as this number. |
+| **Monochromator 2θ** | float, 0 to 90 ° | `0.0` | A diffracted-beam monochromator's angle, which changes the polarisation correction (TOPAS LP_Factor).  0 is none; 26.6 is graphite (002) with Cu. |
+| **2θ from** | float, 0 to 180 ° | `0.0` | Where the fit starts (TOPAS start_X).  0 is the start of the file. |
+| **2θ to** | float, 0 to 180 ° | `0.0` | Where it stops (TOPAS finish_X).  0 is the end of the file.  High-angle lines are weak and overlapped, and indexing does better without them. |
+| **Look for shoulders** | bool | `True` | Seed a second line where a peak's curvature says one is hiding in its flank.  A seed that does not pay for itself is dropped again. |
+| **Flag Kβ and tungsten lines** | bool | `False` | Mark lines that sit where a strong line's Kβ or a tungsten-contaminated tube would put one, and keep them out of indexing.  Off by default: a filtered or monochromated tube has no such lines, and the flag then takes real ones out. |
+| **Bravais lattices** | text | `all` | Which lattices to search, TOPAS's Bravais_*_sgs: aP mP mC oP oC oI oF tP tI hP hR cP cI cF, separated by commas, or all.  hP is hexagonal and trigonal P together.  Leaving out the low symmetries saves most of the time. |
+| **Space groups** | text |  | Only these groups, by symbol or number, separated by commas (C2221, Ccc2).  The search is kept to their lattices and only the extinction classes holding one are listed.  Empty is every group. |
+| **Zero error allowance** | float, 0 to 1 ° | `0.3` | How far a systematic 2θ shift may move the lines, TOPAS's index_zero_error, from 0 to 1°.  0 lets RietX measure it from line pairs, or assume 0.05°.  A wide allowance finds a cell through a badly aligned sample and lets wrong cells match too: on a clean rutile pattern the right cell ranks first up to 0.3° and a wrong one does from 0.5°. |
+| **Largest volume** | float, 0 to 1000000 Å³ | `0.0` | The largest cell to report.  0 takes the bound from the number of lines and their positions. |
+| **Longest axis** | float, 5 to 100 Å | `50.0` | The longest cell axis searched (strictly, d(100)).  50 Å holds most frameworks' cells.  The search grows fast with it: a cell known to be small is found in seconds with this lowered, and 50 Å over the low symmetries can use the whole time budget. |
+| **Time budget** | float, 0 to 3600 s | `0.0` | The most the search and its validation may take.  What was reached when it runs out is reported, with the systems it did not finish named.  0 is no limit: the search runs until it is done or stopped. |
+| **Rank space groups for the top** | int, 0 to 20 cells | `3` | Fit each extinction class of this many of the best cells, to say which space groups the absences allow.  About a second a cell for a small one; 0 skips it. |
+| **Pawley the top** | int, 1 to 20 cells | `5` | How many of indexing's leading cells are Pawley fitted. |
+| **In each cell's top** | int, 1 to 10 space-group classes | `3` | How many extinction classes of each cell are fitted, refuted ones left out: a Pawley fit per class, which is what says whether the absences are real. |
+| **Continue to Rietveld** | bool | `False` | Go on from the ranked table to refine the open structure, when its cell is a row's to 1 % and 1° and the pattern refutes none of its space group.  Unticked, the run stops at the table. |
+| **Method** | one of Pawley, Le Bail | `pawley` | How each reflection's intensity is found.  Pawley makes every intensity a least-squares variable, with esds; Le Bail re-partitions the observed pattern between cycles, cheaper over a long range and with no intensity esds.  The cell, range and boxes below are the same for both. |
+| **2θ from** | float, 0 to 180 ° | `0.0` | Where the fit starts (TOPAS start_X).  0 is the start of the file. |
+| **2θ to** | float, 0 to 180 ° | `0.0` | Where it stops (TOPAS finish_X).  0 is the end of the file.  Wider is not better for a cell: every reflection is a free intensity, so a long range is much slower and adds lines too crowded to pin it. |
+| **Background terms** | int, 1 to 30 | `8` | Coefficients of the Chebyshev background, TOPAS's bkg line.  More follow a curved or humped background; too many start fitting the tails of broad peaks. |
+| **Refine zero error** | bool | `False` | A constant shift of every line (TOPAS Zero_Error).  Strongly correlated with specimen displacement: free one of the two unless the range is wide. |
+| **Refine specimen displacement** | bool | `True` | A shift that falls off as cos θ (TOPAS Specimen_Displacement).  Strongly correlated with the zero error and with the cell: free one of the two unless the range is wide.  Not refined for a synchrotron capillary. |
+| **Crystallite size broadening** | bool | `True` | Lorentzian and Gaussian size terms (TOPAS CS_L, CS_G): widths that grow as 1/cos θ. |
+| **Strain broadening** | bool | `True` | Lorentzian and Gaussian strain terms (TOPAS Strain_L, Strain_G): widths that grow as tan θ. |
+| **Plan** | one of The boxes below, RietX: McCusker, structural, RietX: McCusker, profile, RietX: lab Bragg-Brentano, RietX: sample on a calibrated instrument |  | What is freed, and in what order.  The boxes below free in McCusker's order: background and scale, line positions, cell, widths, then the atoms.  RietX's own plans ignore the boxes. |
+| **2θ from** | float, 0 to 180 ° | `0.0` | Where the fit starts (TOPAS start_X).  0 is the start of the file. |
+| **2θ to** | float, 0 to 180 ° | `0.0` | Where it stops (TOPAS finish_X).  0 is the end of the file. |
+| **Background terms** | int, 1 to 30 | `8` | Coefficients of the Chebyshev background, TOPAS's bkg line. |
+| **Refine the background** | bool | `True` | The Chebyshev coefficients.  The scale is always refined: a Rietveld fit with it held fits nothing. |
+| **Refine zero error** | bool | `False` | A constant shift of every line (TOPAS Zero_Error).  Strongly correlated with specimen displacement. |
+| **Refine specimen displacement** | bool | `True` | A shift that falls off as cos θ (TOPAS Specimen_Displacement).  Not refined for a synchrotron capillary. |
+| **Refine the cell** | bool | `True` | The numbers the space group leaves free, less any held below. |
+| **Hold** | text |  | Cell numbers held while the rest refine: a b c alpha beta gamma, separated by commas.  Empty refines every free one. |
+| **Refine the peak shape** | bool | `True` | The instrument's Caglioti U V W and Lorentzian X Y, W first. |
+| **Crystallite size broadening** | bool | `False` | Lorentzian and Gaussian size terms (TOPAS CS_L, CS_G). |
+| **Strain broadening** | bool | `False` | Lorentzian and Gaussian strain terms (TOPAS Strain_L, Strain_G). |
+| **Refine atom positions** | bool | `True` | Each atom along the directions its site allows: an atom on a special position stays on it. |
+| **Refine displacement parameters** | bool | `True` | Biso of each atom (8π²U), or its anisotropic U where the structure has one. |
+| **Refine occupancies** | bool | `False` | Off unless the model says a site is partly filled: an occupancy trades against the displacement parameter and the scale. |
+| **Preferred orientation** | text |  | The March-Dollase axis as h k l -- 0 0 1 for plates lying on their c face.  Empty is no texture. |
+
+(mod-pxrd-rietveld)=
+### Rietveld
+
+Refine a structure's atoms against the whole pattern
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Measured pattern** | path |  | The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one. |
+| **Radiation** | one of Cu Kα1 + Kα2 (laboratory), Cu Kα1 only (monochromated), Mo Kα1 + Kα2 (laboratory), Mo Kα1 only (monochromated), Co Kα1 + Kα2 (laboratory), Co Kα1 only (monochromated), Synchrotron (the wavelength below) | `cu` | What the pattern was measured with.  A laboratory tube is a Kα1/Kα2 doublet unless a monochromator removed Kα2; the wavelengths are the standard ones. |
+| **Wavelength** | float, 0 to 5 Å | `0.0` | A synchrotron's wavelength, from the beamline's calibration.  Read only for Synchrotron: the cell is only as right as this number. |
+| **Monochromator 2θ** | float, 0 to 90 ° | `0.0` | A diffracted-beam monochromator's angle, which changes the polarisation correction (TOPAS LP_Factor).  0 is none; 26.6 is graphite (002) with Cu. |
+| **Plan** | one of The boxes below, RietX: McCusker, structural, RietX: McCusker, profile, RietX: lab Bragg-Brentano, RietX: sample on a calibrated instrument |  | What is freed, and in what order.  The boxes below free in McCusker's order: background and scale, line positions, cell, widths, then the atoms.  RietX's own plans ignore the boxes. |
+| **2θ from** | float, 0 to 180 ° | `0.0` | Where the fit starts (TOPAS start_X).  0 is the start of the file. |
+| **2θ to** | float, 0 to 180 ° | `0.0` | Where it stops (TOPAS finish_X).  0 is the end of the file. |
+| **Background terms** | int, 1 to 30 | `8` | Coefficients of the Chebyshev background, TOPAS's bkg line. |
+| **Refine the background** | bool | `True` | The Chebyshev coefficients.  The scale is always refined: a Rietveld fit with it held fits nothing. |
+| **Refine zero error** | bool | `False` | A constant shift of every line (TOPAS Zero_Error).  Strongly correlated with specimen displacement. |
+| **Refine specimen displacement** | bool | `True` | A shift that falls off as cos θ (TOPAS Specimen_Displacement).  Not refined for a synchrotron capillary. |
+| **Refine the cell** | bool | `True` | The numbers the space group leaves free, less any held below. |
+| **Hold** | text |  | Cell numbers held while the rest refine: a b c alpha beta gamma, separated by commas.  Empty refines every free one. |
+| **Refine the peak shape** | bool | `True` | The instrument's Caglioti U V W and Lorentzian X Y, W first. |
+| **Crystallite size broadening** | bool | `False` | Lorentzian and Gaussian size terms (TOPAS CS_L, CS_G). |
+| **Strain broadening** | bool | `False` | Lorentzian and Gaussian strain terms (TOPAS Strain_L, Strain_G). |
+| **Refine atom positions** | bool | `True` | Each atom along the directions its site allows: an atom on a special position stays on it. |
+| **Refine displacement parameters** | bool | `True` | Biso of each atom (8π²U), or its anisotropic U where the structure has one. |
+| **Refine occupancies** | bool | `False` | Off unless the model says a site is partly filled: an occupancy trades against the displacement parameter and the scale. |
+| **Preferred orientation** | text |  | The March-Dollase axis as h k l -- 0 0 1 for plates lying on their c face.  Empty is no texture. |
+
+(mod-pxrd-energy)=
+### Rietveld with energy
+
+Refine a structure's atoms against the pattern and a force field at once, the weight between them yours
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Measured pattern** | path |  | The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one. |
+| **Radiation** | one of Cu Kα1 + Kα2 (laboratory), Cu Kα1 only (monochromated), Mo Kα1 + Kα2 (laboratory), Mo Kα1 only (monochromated), Co Kα1 + Kα2 (laboratory), Co Kα1 only (monochromated), Synchrotron (the wavelength below) | `cu` | What the pattern was measured with.  A laboratory tube is a Kα1/Kα2 doublet unless a monochromator removed Kα2; the wavelengths are the standard ones. |
+| **Wavelength** | float, 0 to 5 Å | `0.0` | A synchrotron's wavelength, from the beamline's calibration.  Read only for Synchrotron: the cell is only as right as this number. |
+| **Monochromator 2θ** | float, 0 to 90 ° | `0.0` | A diffracted-beam monochromator's angle, which changes the polarisation correction (TOPAS LP_Factor).  0 is none; 26.6 is graphite (002) with Cu. |
+| **Energy weight w** | float, 0 to 1 | `0.1` | How much the energy counts against the pattern: 0 is the pattern alone, 1 the force field alone.  Each term is scaled by where it starts and how far it can fall, so 0.5 is an even split whatever the units. |
+| **Let the cell move** | bool | `False` | Refine the cell's free numbers with the atoms, against both terms -- the energy's pull on them is the engine's stress.  Off holds the cell where it is. |
+| **Steps** | int, 1 to 100000 | `500` | The most L-BFGS steps, for the relaxation that sets the energy's scale and again for the fit. |
+| **Engine** | one of | `uff` | The energy engine.  In the workbench, choosing one chooses it in the Force Field panel, where its options are set. |
+| **2θ from** | float, 0 to 180 ° | `0.0` | Where the fit starts (TOPAS start_X).  0 is the start of the file. |
+| **2θ to** | float, 0 to 180 ° | `0.0` | Where it stops (TOPAS finish_X).  0 is the end of the file. |
+| **Background terms** | int, 1 to 30 | `8` | Coefficients of the Chebyshev background, TOPAS's bkg line. |
+| **Refine the background** | bool | `True` | The Chebyshev coefficients.  The scale is always refined: a Rietveld fit with it held fits nothing. |
+| **Refine zero error** | bool | `False` | A constant shift of every line (TOPAS Zero_Error).  Strongly correlated with specimen displacement. |
+| **Refine specimen displacement** | bool | `True` | A shift that falls off as cos θ (TOPAS Specimen_Displacement).  Not refined for a synchrotron capillary. |
+| **Refine the peak shape** | bool | `True` | The instrument's Caglioti U V W and Lorentzian X Y, W first. |
+| **Crystallite size broadening** | bool | `False` | Lorentzian and Gaussian size terms (TOPAS CS_L, CS_G). |
+| **Strain broadening** | bool | `False` | Lorentzian and Gaussian strain terms (TOPAS Strain_L, Strain_G). |
+| **Refine displacement parameters** | bool | `True` | Biso of each atom (8π²U), or its anisotropic U where the structure has one. |
+| **Preferred orientation** | text |  | The March-Dollase axis as h k l -- 0 0 1 for plates lying on their c face.  Empty is no texture. |
+
+(mod-pxrd-pareto)=
+### Pareto
+
+Refine with energy at a list of weights, and suggest the one where the fit and the energy trade best
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Measured pattern** | path |  | The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one. |
+| **Radiation** | one of Cu Kα1 + Kα2 (laboratory), Cu Kα1 only (monochromated), Mo Kα1 + Kα2 (laboratory), Mo Kα1 only (monochromated), Co Kα1 + Kα2 (laboratory), Co Kα1 only (monochromated), Synchrotron (the wavelength below) | `cu` | What the pattern was measured with.  A laboratory tube is a Kα1/Kα2 doublet unless a monochromator removed Kα2; the wavelengths are the standard ones. |
+| **Wavelength** | float, 0 to 5 Å | `0.0` | A synchrotron's wavelength, from the beamline's calibration.  Read only for Synchrotron: the cell is only as right as this number. |
+| **Monochromator 2θ** | float, 0 to 90 ° | `0.0` | A diffracted-beam monochromator's angle, which changes the polarisation correction (TOPAS LP_Factor).  0 is none; 26.6 is graphite (002) with Cu. |
+| **Weights** | text | 0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1 | The weights to refine at, from 0 (the pattern alone) to 1 (the energy alone), separated by commas.  Each starts from the one below it; denser near 0, where a little energy changes the answer most. |
+| **Let the cell move** | bool | `False` | Refine the cell's free numbers with the atoms at every weight.  Off holds the cell where it is. |
+| **Steps** | int, 1 to 100000 | `500` | The most L-BFGS steps at each weight.  A point that runs out is not converged, and has no numbers. |
+| **Engine** | one of | `uff` | The energy engine.  In the workbench, choosing one chooses it in the Force Field panel, where its options are set. |
+| **2θ from** | float, 0 to 180 ° | `0.0` | Where the fit starts (TOPAS start_X).  0 is the start of the file. |
+| **2θ to** | float, 0 to 180 ° | `0.0` | Where it stops (TOPAS finish_X).  0 is the end of the file. |
+| **Background terms** | int, 1 to 30 | `8` | Coefficients of the Chebyshev background, TOPAS's bkg line. |
+| **Refine the background** | bool | `True` | The Chebyshev coefficients.  The scale is always refined: a Rietveld fit with it held fits nothing. |
+| **Refine zero error** | bool | `False` | A constant shift of every line (TOPAS Zero_Error).  Strongly correlated with specimen displacement. |
+| **Refine specimen displacement** | bool | `True` | A shift that falls off as cos θ (TOPAS Specimen_Displacement).  Not refined for a synchrotron capillary. |
+| **Refine the peak shape** | bool | `True` | The instrument's Caglioti U V W and Lorentzian X Y, W first. |
+| **Crystallite size broadening** | bool | `False` | Lorentzian and Gaussian size terms (TOPAS CS_L, CS_G). |
+| **Strain broadening** | bool | `False` | Lorentzian and Gaussian strain terms (TOPAS Strain_L, Strain_G). |
+| **Refine displacement parameters** | bool | `True` | Biso of each atom (8π²U), or its anisotropic U where the structure has one. |
+| **Preferred orientation** | text |  | The March-Dollase axis as h k l -- 0 0 1 for plates lying on their c face.  Empty is no texture. |
 
 (mod-scan)=
 ## Energy scan

@@ -62,6 +62,7 @@ from PySide6.QtWidgets import (
 
 from xtal import install
 from xtal.io.xy import read_xy, write_xy
+from xtalapp.widgets.intensity_scale import apply_scale, scale_box
 from xtalapp.widgets.tone import HINT, set_tone
 
 MISSING = ("matplotlib is not installed, so a pattern can be looked "
@@ -94,12 +95,11 @@ RASTER_DPI = 300
 #: Filters for a two-column file that is not a diffraction pattern.
 DATA_FILTER = "Two-column data (*.xy *.dat *.txt);;All files (*)"
 
-#: Where the tick combs are drawn, in percent of the tallest peak.
-#: Below the traces rather than over them, one row per set: the rows
-#: are what tell an unexpected peak sitting over a *forbidden*
-#: position apart from one sitting over nothing.
-COMB_TOP = -2.0
-COMB_ROW = 5.0
+#: The tick combs are drawn in a strip of their own under the traces,
+#: one row per set: the rows are what tell an unexpected peak sitting
+#: over a *forbidden* position apart from one sitting over nothing.
+#: Not below zero on the pattern's own axis, which a logarithmic
+#: intensity axis does not have.
 
 #: The colours the combs are drawn in, in the order the sets arrive:
 #: allowed, then forbidden.  Matched to :data:`xtalapp.curve.TICK_COLORS`
@@ -157,7 +157,17 @@ class PatternDialog(QDialog):
 
         canvas_class, toolbar_class, figure_class = _figure_canvas()
         self.figure = figure_class(figsize=(7.0, 4.2))
-        self.axes = self.figure.add_subplot(111)
+        #: the strip the combs are drawn in, or None with no combs
+        self.comb_axes = None
+        n_combs = sum(1 for _l, p in curve.tick_sets if len(p))
+        if n_combs:
+            grid = self.figure.add_gridspec(
+                2, 1, height_ratios=(8, 0.35 * n_combs))
+            self.axes = self.figure.add_subplot(grid[0])
+            self.comb_axes = self.figure.add_subplot(grid[1],
+                                                     sharex=self.axes)
+        else:
+            self.axes = self.figure.add_subplot(111)
         self.canvas = canvas_class(self.figure)
         self.canvas.setMinimumSize(560, 320)
         # So that clicking the plot takes the focus off a range box
@@ -205,6 +215,14 @@ class PatternDialog(QDialog):
 
         top = QHBoxLayout()
         top.addWidget(self.toolbar, 1)
+        # a scan's profile is energies, and a logarithm of those is
+        # not a view of anything
+        self.scale_box = scale_box()
+        self.scale_box.setVisible(self.pattern)
+        self.scale_box.currentIndexChanged.connect(self._on_scale)
+        if self.pattern:
+            top.addWidget(QLabel("Intensity"))
+            top.addWidget(self.scale_box)
         top.addWidget(QLabel(
             "2-theta" if self.pattern
             else _quantity(curve.x_label) or "x"))
@@ -234,6 +252,8 @@ class PatternDialog(QDialog):
         had_limits = bool(self.axes.lines)
         limits = (self.axes.get_xlim(), self.axes.get_ylim())
         self.axes.clear()
+        if self.comb_axes is not None:
+            self.comb_axes.clear()
         curve = self.curve
 
         x = np.asarray(curve.x, dtype=float)
@@ -250,17 +270,24 @@ class PatternDialog(QDialog):
                            label=label)
 
         self._draw_ticks()
+        bottom = self.comb_axes if self.comb_axes is not None \
+            else self.axes
         if self.pattern:
-            self.axes.set_xlabel(curve.x_label
-                                 or r"2$\theta$ (degrees)")
+            bottom.set_xlabel(curve.x_label or r"2$\theta$ (degrees)")
             self.axes.set_ylabel("intensity (% of maximum)")
         else:
-            self.axes.set_xlabel(curve.x_label or "x")
+            bottom.set_xlabel(curve.x_label or "x")
             self.axes.set_ylabel(curve.y_label or "y")
         if curve.title:
             self.axes.set_title(curve.title)
-        self.axes.legend(loc="upper right", frameon=False, fontsize=9)
+        handles, labels = self.axes.get_legend_handles_labels()
+        if self.comb_axes is not None:
+            more = self.comb_axes.get_legend_handles_labels()
+            handles, labels = handles + more[0], labels + more[1]
+        self.axes.legend(handles, labels, loc="upper right",
+                         frameon=False, fontsize=9)
         self.axes.margins(x=0.01)
+        apply_scale(self.axes, self.scale_box.currentData())
         self.figure.tight_layout()
         if had_limits:
             self.axes.set_xlim(*limits[0])
@@ -276,28 +303,37 @@ class PatternDialog(QDialog):
             else np.asarray(values, dtype=float)
 
     def _draw_ticks(self) -> None:
-        """The reflection positions, as combs below the traces.
+        """The reflection positions, as combs in the strip under the
+        traces.
 
-        Below zero rather than on the curve: a reflection's height on
-        this axis would be a second intensity scale, and where it is
-        is the only thing a comb is for.  One row per set, each in its
-        own colour, so an unexpected peak can be read against the
-        allowed positions and the forbidden ones at once.
+        Not on the curve: a reflection's height on this axis would be
+        a second intensity scale, and where it is is the only thing a
+        comb is for.  One row per set, each in its own colour, so an
+        unexpected peak can be read against the allowed positions and
+        the forbidden ones at once.
         """
         rows = [(label, np.asarray(positions, dtype=float))
                 for label, positions in self.curve.tick_sets]
         rows = [(label, positions) for label, positions in rows
                 if positions.size]
-        if not rows:
+        if not rows or self.comb_axes is None:
             return
         for index, (label, positions) in enumerate(rows):
-            top = COMB_TOP - index * COMB_ROW
-            self.axes.vlines(
-                positions, top - COMB_ROW + 1.0, top,
+            self.comb_axes.vlines(
+                positions, index + 0.15, index + 0.85,
                 colors=COMB_COLORS[index % len(COMB_COLORS)],
                 linewidths=0.8, label=label)
-        self.axes.set_ylim(COMB_TOP - len(rows) * COMB_ROW - 2.0,
-                           105.0)
+        self.comb_axes.set_ylim(len(rows), 0.0)
+        self.comb_axes.tick_params(left=False, labelleft=False)
+        self.axes.tick_params(labelbottom=False)
+
+    def _on_scale(self, _index=None) -> None:
+        """A new intensity scale is a new view of the traces: the
+        zoom along 2θ stays, the height is fitted again."""
+        xlim = self.axes.get_xlim()
+        apply_scale(self.axes, self.scale_box.currentData())
+        self.axes.set_xlim(*xlim)
+        self.canvas.draw_idle()
 
     def _sentence(self) -> str:
         if not self.pattern:

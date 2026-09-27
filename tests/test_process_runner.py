@@ -83,6 +83,47 @@ def test_a_directory_is_not_a_program(tmp_path):
     assert Program("definitely-not-installed").locate(tmp_path) is None
 
 
+@pytest.mark.skipif(sys.platform == "win32",
+                    reason="Homebrew and conda's folders are POSIX ones")
+def test_a_program_off_the_path_is_found_where_homebrew_puts_it(
+        tmp_path, monkeypatch):
+    """An application opened from Finder or the Dock gets the system's
+    four folders as its PATH, without Homebrew's or conda's, so a
+    program installed the ordinary way was found from a terminal and
+    not otherwise -- "Test doesn't find it always"."""
+    from xtal.modules import process
+
+    usual = tmp_path / "homebrew" / "bin"
+    usual.mkdir(parents=True)
+    binary = usual / "definitely-not-installed"
+    binary.write_text("#!/bin/sh\n")
+    binary.chmod(0o755)
+    monkeypatch.setenv("PATH", str(tmp_path / "nothing-here"))
+    monkeypatch.setattr(process, "USUAL_DIRS", (str(usual),))
+
+    program = Program("definitely-not-installed")
+
+    assert program.locate() == binary
+    assert program.search()[-1] == ("usual", process.USUAL_WHERE,
+                                    binary)
+
+
+def test_the_usual_folders_are_one_place_in_what_was_tried(
+        tmp_path, monkeypatch):
+    """Eight folders listed one by one would bury the sentence the
+    status line exists for."""
+    from xtal.modules import process
+
+    monkeypatch.setenv("PATH", str(tmp_path / "nothing-here"))
+    monkeypatch.setattr(process, "USUAL_DIRS",
+                        (str(tmp_path / "a"), str(tmp_path / "b")))
+
+    sources = [s for s, _c, _f in Program("definitely-not-installed")
+               .search()]
+
+    assert sources.count("usual") == 1
+
+
 # ------------------------------------------------------- the run
 
 def test_the_output_goes_into_the_log_as_it_arrives(folder):

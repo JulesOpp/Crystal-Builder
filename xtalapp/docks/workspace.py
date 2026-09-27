@@ -39,12 +39,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QDockWidget,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
+    QLineEdit,
     QMenu,
     QPushButton,
     QStackedWidget,
@@ -275,6 +277,28 @@ class WorkspaceTree(QTreeView):
             self.setExpanded(index, not self.isExpanded(index))
             return
         self.artifactActivated.emit(str(kind), str(path))
+
+
+def ask_new_name(parent, name: str) -> str | None:
+    """The name a file should have instead, or ``None`` for Cancel.
+
+    Opened on the whole name with the stem selected, as Finder does:
+    typing replaces ``MFU4l`` and keeps ``.cif``, and the extension is
+    still there to change on purpose.  A function of its own so tests
+    patch it -- ``QDialog.exec`` raises under the suite.
+    """
+    dialog = QInputDialog(parent)
+    dialog.setWindowTitle("Rename")
+    dialog.setLabelText(f"New name for {name}:")
+    dialog.setTextValue(name)
+    edit = dialog.findChild(QLineEdit)
+    if edit is not None:
+        stem = Path(name).stem if Path(name).suffix else name
+        # After the dialog is up: showing it selects the whole text.
+        QTimer.singleShot(0, lambda: edit.setSelection(0, len(stem)))
+    if not dialog.exec():
+        return None
+    return dialog.textValue()
 
 
 def _label(artifact) -> str:

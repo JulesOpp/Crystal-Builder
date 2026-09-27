@@ -299,29 +299,22 @@ xtal.ff.scan.ScanError: b is not free in SpaceGroup(P3221 #154): b = a, alpha = 
 % dialog shows the sentence.  Reported.
 
 The same cell over an internal coordinate -- the Si0--O3 distance,
-1.604 Å in the input -- ran every point to the 500-step limit in this
-draft's test, with the largest force reported at 10 to 80 kcal/mol/Å,
-while the cell scans above converged in 11 to 19 steps:
+1.604 Å in the input -- converges in 8 to 12 steps a point:
 
 ```console
 $ xtal run scan.run quartz.cif -p "axis1=distance 0, 3" -p axis1_start=1.55 -p axis1_stop=1.65 -p axis1_steps=3 -p direction=forward --workspace ws
 3 points on UFF (uff4mof)
-[1/3] distance 0-3 1.55: -18.8197 kcal/mol (not converged)
-[2/3] distance 0-3 1.6: -25.4568 kcal/mol (not converged)
-[3/3] distance 0-3 1.65: -13.7216 kcal/mol (not converged)
-3 of 3 points relaxed; 3 did not reach the force tolerance and are marked apart
+[1/3] distance 0-3 1.55: -18.8197 kcal/mol
+[2/3] distance 0-3 1.6: -25.4568 kcal/mol
+[3/3] distance 0-3 1.65: -13.7216 kcal/mol
+3 of 3 points relaxed
 [...]
 ```
 
-Whether the reaction force of the held distance is being counted in
-|F|max -- which would make a held internal coordinate converge only
-where the constraint happens to be slack -- is a question for the
-author, listed with this draft.
-
-% TODO(Sam): question for Julius -- the distance scan on quartz never
-% converges; the convergence test in xtal/ff/optimize.py reads the
-% unprojected gradient.  Is |F|max meant to exclude the constraint
-% force?
+A distance held at 1.55 Å is a bond pulled 0.05 Å short, and the
+force the constraint holds against is large.  It is not a residual:
+|F|max is read with the held direction taken out, as the step is, so
+it reports what the atoms could still relax and nothing else.
 
 ## Settings
 
@@ -358,5 +351,3 @@ axis1_start=… -p axis1_stop=… -p axis1_steps=… [--workspace DIR]`, with
   the quasi-harmonic route Cockayne took for MIL-53(Cr)
   {cite}`cockayne2017mil53` needs a phonon calculation this application
   does not have.
-- An internal-coordinate scan's convergence is the open question
-  above.

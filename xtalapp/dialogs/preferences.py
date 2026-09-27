@@ -682,7 +682,7 @@ class EnginesPage(QWidget):
         if extra is not None:
             return probes.probe_for_package(
                 extra.module or extra.package, frozen=extras.frozen(),
-                timeout=extra.timeout)
+                timeout=extra.timeout, prepend=extras.on_path())
         tool = next(t for t in external.TOOLS if t.key == key)
         path = external.locate(self.settings, tool)
         if path is None:

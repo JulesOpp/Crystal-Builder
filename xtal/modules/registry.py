@@ -145,6 +145,13 @@ class Action:
     #: whole module for it would hide what works.  ``find_spec``, not
     #: an import: it is asked every time the menu is refreshed.
     check: Callable[[], Availability] | None = None
+    #: Whether it appears in the Modules menu and panel.  No, for a
+    #: step of a window that runs it -- the refinement workbench's
+    #: peak fit, indexing and Pawley are entries so that ``xtal run``
+    #: and the run folder, log and worker come with them, but a form
+    #: in a menu is the wrong way in to a step whose input is the one
+    #: before it.  ``xtal modules`` and Help still list it.
+    listed: bool = True
 
     def availability(self) -> Availability:
         if self.check is None:
@@ -211,6 +218,8 @@ class Module:
         if not available:
             return available
         for action in self.actions:
+            if not action.listed:
+                continue                # its window says, not the tree
             entry = action.availability()
             if not entry:
                 return entry

@@ -261,6 +261,69 @@ def test_a_document_entry_is_reused_and_a_built_one_is_not(workspace):
             != workspace.new_document("Maker").path)
 
 
+# --------------------------------------------------------- renaming
+
+def test_a_file_is_renamed_in_its_own_folder(workspace, entry):
+    renamed = workspace.rename(entry.structure_path, "rutile-100K.cif")
+
+    assert renamed == entry.path / "rutile-100K.cif"
+    assert renamed.is_file()
+    assert not (entry.path / "rutile.cif").exists()
+    assert entry.structure_path == renamed
+
+
+def test_a_rename_never_writes_over_another_file(workspace, entry):
+    """``Path.rename`` replaces the target without a word on POSIX, so
+    a name already taken would silently lose the file that had it."""
+    other = entry.path / "notes.txt"
+    other.write_text("keep me")
+
+    with pytest.raises(ValueError, match="already"):
+        workspace.rename(entry.structure_path, "notes.txt")
+
+    assert other.read_text() == "keep me"
+    assert entry.structure_path.name == "rutile.cif"
+
+
+def test_a_change_of_case_alone_is_a_rename(workspace, entry):
+    """On macOS the "file that is already there" is this one."""
+    renamed = workspace.rename(entry.structure_path, "Rutile.cif")
+
+    assert [p.name for p in entry.path.iterdir()
+            if p.suffix == ".cif"] == ["Rutile.cif"]
+    assert renamed.name == "Rutile.cif"
+
+
+@pytest.mark.parametrize("name", ["", "  ", "a/b.cif", "a:b.cif",
+                                  ".hidden.cif", ".."])
+def test_a_name_that_is_not_a_file_name_is_refused(workspace, entry,
+                                                   name):
+    with pytest.raises(ValueError):
+        workspace.rename(entry.structure_path, name)
+
+    assert entry.structure_path.name == "rutile.cif"
+
+
+def test_the_workspace_marker_keeps_its_name(workspace):
+    with pytest.raises(ValueError):
+        workspace.rename(workspace.root / WORKSPACE_FILE, "other.json")
+
+    assert Workspace.is_workspace(workspace.root)
+
+
+def test_the_autosave_follows_the_file_it_belongs_to(workspace, entry):
+    """An autosave is kept by path: left behind, it is offered back to
+    a file that no longer exists and never to the one that does."""
+    saved = workspace.autosave_path(entry.structure_path)
+    saved.parent.mkdir(parents=True)
+    saved.write_text("{}")
+
+    renamed = workspace.rename(entry.structure_path, "anatase.cif")
+
+    assert not saved.exists()
+    assert workspace.autosave_path(renamed).read_text() == "{}"
+
+
 def test_a_name_that_would_not_survive_a_filesystem(workspace):
     assert safe_name("Fe(bpy)3 2+") == "Fe_bpy_3_2+"
     assert safe_name("///") == "structure"

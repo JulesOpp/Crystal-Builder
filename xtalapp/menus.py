@@ -508,6 +508,11 @@ def build_actions(window):
     add("show_dftb", "DFTB&+ panel", window.show_dftb_panel,
         tip="Hamiltonian, parameter set, dispersion, and how the "
             "run is going")
+    add("refine_workbench", "Refine against a measured pattern...",
+        window.open_refine_workbench,
+        tip="Fit peaks and refine against a measured .xy pattern, in "
+            "a window of its own; the runs go under the structure in "
+            "front, or under the pattern's name if none is open")
 
     add("reset_layout", "Reset &layout", window.reset_layout,
         tip="Put the panels back where they started")
@@ -533,6 +538,10 @@ def build_actions(window):
         window.copy_selected_artifact_path,
         tip="Put the full path of what is selected on the clipboard, "
             "for a script or a terminal.")
+    add("workspace_rename", "Re&name...", window.rename_selected_artifact,
+        tip="Give the selected file a new name in the same folder.  A "
+            "tab open on it follows, and a name already taken is "
+            "refused rather than written over.")
     add("workspace_trash", "Move to &Trash", window.trash_selected_run,
         tip="Put a run's folder in the desktop's wastebasket.  Only a "
             "run: the structure it was run on stays, and nothing here "
@@ -540,6 +549,13 @@ def build_actions(window):
     add("show_log", "Show &Log", window.show_log,
         tip="Reveal the file this application writes its warnings "
             "and its crashes to")
+    add("install_ai_skill", "Set up an &AI assistant",
+        window.install_ai_skill,
+        tip="Put the crystal-builder skill where Claude Code reads it "
+            "(~/.claude/skills), so an assistant can open, prepare, "
+            "build, inspect and relax structures in your workspace "
+            "through the same commands as this window.  A copy you "
+            "have edited is replaced only if you say so.")
     add("help_contents", f"{APP_NAME} &Help", window.show_help,
         QKeySequence.StandardKey.HelpContents,
         tip="Every command and every module setting, generated from "
@@ -665,7 +681,8 @@ def build_menus(window):
 
     help_menu = submenu(bar, "&Help")
     window.actions_.fill_menu(help_menu, ["help_contents", None,
-                                          "show_log", None, "about"])
+                                          "install_ai_skill", "show_log",
+                                          None, "about"])
 
 def build_sample_menu(window) -> None:
     """The structures that ship with the application, as one submenu.
@@ -745,8 +762,9 @@ def build_modules_menu(window) -> None:
         entry = submenu(menu, module.label)
         window._module_submenus[module.name] = entry
         for action in module.actions:
-            entry.addAction(module_action(window, module,
-                                          action))
+            if action.listed:
+                entry.addAction(module_action(window, module,
+                                              action))
     if not MODULES.names():                     # pragma: no cover
         menu.addAction("Nothing registered").setEnabled(False)
     menu.aboutToShow.connect(window._refresh_module_availability)

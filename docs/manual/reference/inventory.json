@@ -1369,6 +1369,14 @@
    "checkable": false
   },
   {
+   "key": "refine_workbench",
+   "section": "Modules",
+   "path": "PXRD ▸ Refine against a measured pattern...",
+   "shortcut": "",
+   "tip": "Fit peaks and refine against a measured .xy pattern, in a window of its own; the runs go under the structure in front, or under the pattern's name if none is open",
+   "checkable": false
+  },
+  {
    "key": "module.scan.run",
    "section": "Modules",
    "path": "Energy scan ▸ Relaxed scan...",
@@ -1406,6 +1414,14 @@
    "path": "Crystal Builder Help",
    "shortcut": "Ctrl+?",
    "tip": "Every command and every module setting, generated from the application itself",
+   "checkable": false
+  },
+  {
+   "key": "install_ai_skill",
+   "section": "Help",
+   "path": "Set up an AI assistant",
+   "shortcut": "",
+   "tip": "Put the crystal-builder skill where Claude Code reads it (~/.claude/skills), so an assistant can open, prepare, build, inspect and relax structures in your workspace through the same commands as this window.  A copy you have edited is replaced only if you say so.",
    "checkable": false
   },
   {
@@ -1454,6 +1470,14 @@
    "path": "Copy Path",
    "shortcut": "",
    "tip": "Put the full path of what is selected on the clipboard, for a script or a terminal.",
+   "checkable": false
+  },
+  {
+   "key": "workspace_rename",
+   "section": "Elsewhere",
+   "path": "Rename...",
+   "shortcut": "",
+   "tip": "Give the selected file a new name in the same folder.  A tab open on it follows, and a name already taken is refused rather than written over.",
    "checkable": false
   },
   {
@@ -2070,7 +2094,7 @@
        "label": "Probe-occupiable volume",
        "accepts": "bool",
        "default": "True",
-       "help": "The volume the probe occupies rather than the volume its centre can reach: the pore volume a paper quotes.  It reads up to 0.03 of the cell above Zeo++'s -volpo, which falls short of the union of probe spheres."
+       "help": "The volume the probe occupies rather than the volume its centre can reach: the pore volume a paper quotes.  It reads up to 0.03 of the cell above Zeo++'s -volpo."
       },
       {
        "name": "draw",
@@ -2387,6 +2411,1136 @@
        "accepts": "bool",
        "default": "False",
        "help": "Draw a second comb under the pattern, in its own colour, where this space group forbids a reflection.  An unexpected peak is either an impurity or the wrong space group, and which one depends on whether it sits over a forbidden position.  A structure in P1 has none, because P1 forbids nothing."
+      }
+     ]
+    },
+    {
+     "name": "refine",
+     "label": "Refine against a measured pattern...",
+     "tip": "Open the refinement workbench: fit peaks, index, and refine against a measured .xy pattern",
+     "dialog": "",
+     "shell": "refine_workbench",
+     "params": []
+    },
+    {
+     "name": "peaks",
+     "label": "Fit peaks",
+     "tip": "Fit every line in a measured pattern",
+     "dialog": "",
+     "shell": "",
+     "params": [
+      {
+       "name": "xy",
+       "label": "Measured pattern",
+       "accepts": "path",
+       "default": "",
+       "help": "The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one."
+      },
+      {
+       "name": "radiation",
+       "label": "Radiation",
+       "accepts": "one of Cu Kα1 + Kα2 (laboratory), Cu Kα1 only (monochromated), Mo Kα1 + Kα2 (laboratory), Mo Kα1 only (monochromated), Co Kα1 + Kα2 (laboratory), Co Kα1 only (monochromated), Synchrotron (the wavelength below)",
+       "default": "cu",
+       "help": "What the pattern was measured with.  A laboratory tube is a Kα1/Kα2 doublet unless a monochromator removed Kα2; the wavelengths are the standard ones."
+      },
+      {
+       "name": "wavelength",
+       "label": "Wavelength",
+       "accepts": "float, 0 to 5 Å",
+       "default": "0.0",
+       "help": "A synchrotron's wavelength, from the beamline's calibration.  Read only for Synchrotron: the cell is only as right as this number."
+      },
+      {
+       "name": "monochromator",
+       "label": "Monochromator 2θ",
+       "accepts": "float, 0 to 90 °",
+       "default": "0.0",
+       "help": "A diffracted-beam monochromator's angle, which changes the polarisation correction (TOPAS LP_Factor).  0 is none; 26.6 is graphite (002) with Cu."
+      },
+      {
+       "name": "start",
+       "label": "2θ from",
+       "accepts": "float, 0 to 180 °",
+       "default": "0.0",
+       "help": "Where the fit starts (TOPAS start_X).  0 is the start of the file."
+      },
+      {
+       "name": "finish",
+       "label": "2θ to",
+       "accepts": "float, 0 to 180 °",
+       "default": "0.0",
+       "help": "Where it stops (TOPAS finish_X).  0 is the end of the file.  High-angle lines are weak and overlapped, and indexing does better without them."
+      },
+      {
+       "name": "shoulders",
+       "label": "Look for shoulders",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Seed a second line where a peak's curvature says one is hiding in its flank.  A seed that does not pay for itself is dropped again."
+      },
+      {
+       "name": "flag_ghosts",
+       "label": "Flag Kβ and tungsten lines",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Mark lines that sit where a strong line's Kβ or a tungsten-contaminated tube would put one, and keep them out of indexing.  Off by default: a filtered or monochromated tube has no such lines, and the flag then takes real ones out."
+      },
+      {
+       "name": "positions",
+       "label": "Fit only at",
+       "accepts": "text",
+       "default": "",
+       "help": "2θ positions, separated by commas, to fit exactly -- TOPAS's hand-written xo_Is list.  Empty finds the peaks.  A position with nothing at it comes back flagged, not dropped."
+      }
+     ]
+    },
+    {
+     "name": "refine_peaks",
+     "label": "Refine peaks",
+     "tip": "Refine the lines in use together over a Chebyshev background",
+     "dialog": "",
+     "shell": "",
+     "params": [
+      {
+       "name": "xy",
+       "label": "Measured pattern",
+       "accepts": "path",
+       "default": "",
+       "help": "The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one."
+      },
+      {
+       "name": "radiation",
+       "label": "Radiation",
+       "accepts": "one of Cu Kα1 + Kα2 (laboratory), Cu Kα1 only (monochromated), Mo Kα1 + Kα2 (laboratory), Mo Kα1 only (monochromated), Co Kα1 + Kα2 (laboratory), Co Kα1 only (monochromated), Synchrotron (the wavelength below)",
+       "default": "cu",
+       "help": "What the pattern was measured with.  A laboratory tube is a Kα1/Kα2 doublet unless a monochromator removed Kα2; the wavelengths are the standard ones."
+      },
+      {
+       "name": "wavelength",
+       "label": "Wavelength",
+       "accepts": "float, 0 to 5 Å",
+       "default": "0.0",
+       "help": "A synchrotron's wavelength, from the beamline's calibration.  Read only for Synchrotron: the cell is only as right as this number."
+      },
+      {
+       "name": "monochromator",
+       "label": "Monochromator 2θ",
+       "accepts": "float, 0 to 90 °",
+       "default": "0.0",
+       "help": "A diffracted-beam monochromator's angle, which changes the polarisation correction (TOPAS LP_Factor).  0 is none; 26.6 is graphite (002) with Cu."
+      },
+      {
+       "name": "start",
+       "label": "2θ from",
+       "accepts": "float, 0 to 180 °",
+       "default": "0.0",
+       "help": "Where the fit starts (TOPAS start_X).  0 is the start of the file."
+      },
+      {
+       "name": "finish",
+       "label": "2θ to",
+       "accepts": "float, 0 to 180 °",
+       "default": "0.0",
+       "help": "Where it stops (TOPAS finish_X).  0 is the end of the file.  High-angle lines are weak and overlapped, and indexing does better without them."
+      },
+      {
+       "name": "shoulders",
+       "label": "Look for shoulders",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Seed a second line where a peak's curvature says one is hiding in its flank.  A seed that does not pay for itself is dropped again."
+      },
+      {
+       "name": "flag_ghosts",
+       "label": "Flag Kβ and tungsten lines",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Mark lines that sit where a strong line's Kβ or a tungsten-contaminated tube would put one, and keep them out of indexing.  Off by default: a filtered or monochromated tube has no such lines, and the flag then takes real ones out."
+      },
+      {
+       "name": "positions",
+       "label": "Fit only at",
+       "accepts": "text",
+       "default": "",
+       "help": "2θ positions, separated by commas, to fit exactly -- TOPAS's hand-written xo_Is list.  Empty finds the peaks.  A position with nothing at it comes back flagged, not dropped."
+      },
+      {
+       "name": "background_terms",
+       "label": "Background terms",
+       "accepts": "int, 1 to 30",
+       "default": "8",
+       "help": "Coefficients of the Chebyshev background Refine fits under the lines (TOPAS's bkg line).  More follow a curved or humped background; too many start fitting the tails of broad peaks.  Find peaks draws its own background and does not read this."
+      }
+     ]
+    },
+    {
+     "name": "index",
+     "label": "Index",
+     "tip": "Find the unit cells that explain the fitted lines",
+     "dialog": "",
+     "shell": "",
+     "params": [
+      {
+       "name": "xy",
+       "label": "Measured pattern",
+       "accepts": "path",
+       "default": "",
+       "help": "The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one."
+      },
+      {
+       "name": "radiation",
+       "label": "Radiation",
+       "accepts": "one of Cu Kα1 + Kα2 (laboratory), Cu Kα1 only (monochromated), Mo Kα1 + Kα2 (laboratory), Mo Kα1 only (monochromated), Co Kα1 + Kα2 (laboratory), Co Kα1 only (monochromated), Synchrotron (the wavelength below)",
+       "default": "cu",
+       "help": "What the pattern was measured with.  A laboratory tube is a Kα1/Kα2 doublet unless a monochromator removed Kα2; the wavelengths are the standard ones."
+      },
+      {
+       "name": "wavelength",
+       "label": "Wavelength",
+       "accepts": "float, 0 to 5 Å",
+       "default": "0.0",
+       "help": "A synchrotron's wavelength, from the beamline's calibration.  Read only for Synchrotron: the cell is only as right as this number."
+      },
+      {
+       "name": "monochromator",
+       "label": "Monochromator 2θ",
+       "accepts": "float, 0 to 90 °",
+       "default": "0.0",
+       "help": "A diffracted-beam monochromator's angle, which changes the polarisation correction (TOPAS LP_Factor).  0 is none; 26.6 is graphite (002) with Cu."
+      },
+      {
+       "name": "start",
+       "label": "2θ from",
+       "accepts": "float, 0 to 180 °",
+       "default": "0.0",
+       "help": "Where the fit starts (TOPAS start_X).  0 is the start of the file."
+      },
+      {
+       "name": "finish",
+       "label": "2θ to",
+       "accepts": "float, 0 to 180 °",
+       "default": "0.0",
+       "help": "Where it stops (TOPAS finish_X).  0 is the end of the file.  High-angle lines are weak and overlapped, and indexing does better without them."
+      },
+      {
+       "name": "shoulders",
+       "label": "Look for shoulders",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Seed a second line where a peak's curvature says one is hiding in its flank.  A seed that does not pay for itself is dropped again."
+      },
+      {
+       "name": "flag_ghosts",
+       "label": "Flag Kβ and tungsten lines",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Mark lines that sit where a strong line's Kβ or a tungsten-contaminated tube would put one, and keep them out of indexing.  Off by default: a filtered or monochromated tube has no such lines, and the flag then takes real ones out."
+      },
+      {
+       "name": "positions",
+       "label": "Fit only at",
+       "accepts": "text",
+       "default": "",
+       "help": "2θ positions, separated by commas, to fit exactly -- TOPAS's hand-written xo_Is list.  Empty finds the peaks.  A position with nothing at it comes back flagged, not dropped."
+      },
+      {
+       "name": "bravais",
+       "label": "Bravais lattices",
+       "accepts": "text",
+       "default": "all",
+       "help": "Which lattices to search, TOPAS's Bravais_*_sgs: aP mP mC oP oC oI oF tP tI hP hR cP cI cF, separated by commas, or all.  hP is hexagonal and trigonal P together.  Leaving out the low symmetries saves most of the time."
+      },
+      {
+       "name": "space_groups",
+       "label": "Space groups",
+       "accepts": "text",
+       "default": "",
+       "help": "Only these groups, by symbol or number, separated by commas (C2221, Ccc2).  The search is kept to their lattices and only the extinction classes holding one are listed.  Empty is every group."
+      },
+      {
+       "name": "zero_error",
+       "label": "Zero error allowance",
+       "accepts": "float, 0 to 1 °",
+       "default": "0.3",
+       "help": "How far a systematic 2θ shift may move the lines, TOPAS's index_zero_error, from 0 to 1°.  0 lets RietX measure it from line pairs, or assume 0.05°.  A wide allowance finds a cell through a badly aligned sample and lets wrong cells match too: on a clean rutile pattern the right cell ranks first up to 0.3° and a wrong one does from 0.5°."
+      },
+      {
+       "name": "max_volume",
+       "label": "Largest volume",
+       "accepts": "float, 0 to 1000000 Å³",
+       "default": "0.0",
+       "help": "The largest cell to report.  0 takes the bound from the number of lines and their positions."
+      },
+      {
+       "name": "longest_axis",
+       "label": "Longest axis",
+       "accepts": "float, 5 to 100 Å",
+       "default": "50.0",
+       "help": "The longest cell axis searched (strictly, d(100)).  50 Å holds most frameworks' cells.  The search grows fast with it: a cell known to be small is found in seconds with this lowered, and 50 Å over the low symmetries can use the whole time budget."
+      },
+      {
+       "name": "budget",
+       "label": "Time budget",
+       "accepts": "float, 0 to 3600 s",
+       "default": "0.0",
+       "help": "The most the search and its validation may take.  What was reached when it runs out is reported, with the systems it did not finish named.  0 is no limit: the search runs until it is done or stopped."
+      },
+      {
+       "name": "rank_groups",
+       "label": "Rank space groups for the top",
+       "accepts": "int, 0 to 20 cells",
+       "default": "3",
+       "help": "Fit each extinction class of this many of the best cells, to say which space groups the absences allow.  About a second a cell for a small one; 0 skips it."
+      }
+     ]
+    },
+    {
+     "name": "pawley",
+     "label": "Pawley",
+     "tip": "Fit a cell and space group to the whole pattern",
+     "dialog": "",
+     "shell": "",
+     "params": [
+      {
+       "name": "xy",
+       "label": "Measured pattern",
+       "accepts": "path",
+       "default": "",
+       "help": "The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one."
+      },
+      {
+       "name": "radiation",
+       "label": "Radiation",
+       "accepts": "one of Cu Kα1 + Kα2 (laboratory), Cu Kα1 only (monochromated), Mo Kα1 + Kα2 (laboratory), Mo Kα1 only (monochromated), Co Kα1 + Kα2 (laboratory), Co Kα1 only (monochromated), Synchrotron (the wavelength below)",
+       "default": "cu",
+       "help": "What the pattern was measured with.  A laboratory tube is a Kα1/Kα2 doublet unless a monochromator removed Kα2; the wavelengths are the standard ones."
+      },
+      {
+       "name": "wavelength",
+       "label": "Wavelength",
+       "accepts": "float, 0 to 5 Å",
+       "default": "0.0",
+       "help": "A synchrotron's wavelength, from the beamline's calibration.  Read only for Synchrotron: the cell is only as right as this number."
+      },
+      {
+       "name": "monochromator",
+       "label": "Monochromator 2θ",
+       "accepts": "float, 0 to 90 °",
+       "default": "0.0",
+       "help": "A diffracted-beam monochromator's angle, which changes the polarisation correction (TOPAS LP_Factor).  0 is none; 26.6 is graphite (002) with Cu."
+      },
+      {
+       "name": "method",
+       "label": "Method",
+       "accepts": "one of Pawley, Le Bail",
+       "default": "pawley",
+       "help": "How each reflection's intensity is found.  Pawley makes every intensity a least-squares variable, with esds; Le Bail re-partitions the observed pattern between cycles, cheaper over a long range and with no intensity esds.  The cell, range and boxes below are the same for both."
+      },
+      {
+       "name": "cell",
+       "label": "Cell",
+       "accepts": "text",
+       "default": "",
+       "help": "a b c, or a b c α β γ, in Å and degrees -- a row of the indexing table, or the open structure's."
+      },
+      {
+       "name": "space_group",
+       "label": "Space group",
+       "accepts": "text",
+       "default": "",
+       "help": "By symbol or number.  A group with fewer absences than the true one fits as well and says less; one with more leaves real lines unfitted."
+      },
+      {
+       "name": "start",
+       "label": "2θ from",
+       "accepts": "float, 0 to 180 °",
+       "default": "0.0",
+       "help": "Where the fit starts (TOPAS start_X).  0 is the start of the file."
+      },
+      {
+       "name": "finish",
+       "label": "2θ to",
+       "accepts": "float, 0 to 180 °",
+       "default": "0.0",
+       "help": "Where it stops (TOPAS finish_X).  0 is the end of the file.  Wider is not better for a cell: every reflection is a free intensity, so a long range is much slower and adds lines too crowded to pin it."
+      },
+      {
+       "name": "background_terms",
+       "label": "Background terms",
+       "accepts": "int, 1 to 30",
+       "default": "8",
+       "help": "Coefficients of the Chebyshev background, TOPAS's bkg line.  More follow a curved or humped background; too many start fitting the tails of broad peaks."
+      },
+      {
+       "name": "zero",
+       "label": "Refine zero error",
+       "accepts": "bool",
+       "default": "False",
+       "help": "A constant shift of every line (TOPAS Zero_Error).  Strongly correlated with specimen displacement: free one of the two unless the range is wide."
+      },
+      {
+       "name": "displacement",
+       "label": "Refine specimen displacement",
+       "accepts": "bool",
+       "default": "True",
+       "help": "A shift that falls off as cos θ (TOPAS Specimen_Displacement).  Strongly correlated with the zero error and with the cell: free one of the two unless the range is wide.  Not refined for a synchrotron capillary."
+      },
+      {
+       "name": "hold",
+       "label": "Hold",
+       "accepts": "text",
+       "default": "",
+       "help": "Cell numbers held at the value given while the rest refine: a b c alpha beta gamma, separated by commas, or cell for all of them.  Empty refines every number the space group leaves free."
+      },
+      {
+       "name": "size",
+       "label": "Crystallite size broadening",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Lorentzian and Gaussian size terms (TOPAS CS_L, CS_G): widths that grow as 1/cos θ."
+      },
+      {
+       "name": "strain",
+       "label": "Strain broadening",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Lorentzian and Gaussian strain terms (TOPAS Strain_L, Strain_G): widths that grow as tan θ."
+      }
+     ]
+    },
+    {
+     "name": "auto",
+     "label": "Automatic",
+     "tip": "Peaks, indexing and a Pawley fit of every leading cell and space group, ranked -- and on into Rietveld when asked",
+     "dialog": "",
+     "shell": "",
+     "params": [
+      {
+       "name": "xy",
+       "label": "Measured pattern",
+       "accepts": "path",
+       "default": "",
+       "help": "The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one."
+      },
+      {
+       "name": "radiation",
+       "label": "Radiation",
+       "accepts": "one of Cu Kα1 + Kα2 (laboratory), Cu Kα1 only (monochromated), Mo Kα1 + Kα2 (laboratory), Mo Kα1 only (monochromated), Co Kα1 + Kα2 (laboratory), Co Kα1 only (monochromated), Synchrotron (the wavelength below)",
+       "default": "cu",
+       "help": "What the pattern was measured with.  A laboratory tube is a Kα1/Kα2 doublet unless a monochromator removed Kα2; the wavelengths are the standard ones."
+      },
+      {
+       "name": "wavelength",
+       "label": "Wavelength",
+       "accepts": "float, 0 to 5 Å",
+       "default": "0.0",
+       "help": "A synchrotron's wavelength, from the beamline's calibration.  Read only for Synchrotron: the cell is only as right as this number."
+      },
+      {
+       "name": "monochromator",
+       "label": "Monochromator 2θ",
+       "accepts": "float, 0 to 90 °",
+       "default": "0.0",
+       "help": "A diffracted-beam monochromator's angle, which changes the polarisation correction (TOPAS LP_Factor).  0 is none; 26.6 is graphite (002) with Cu."
+      },
+      {
+       "name": "start",
+       "label": "2θ from",
+       "accepts": "float, 0 to 180 °",
+       "default": "0.0",
+       "help": "Where the fit starts (TOPAS start_X).  0 is the start of the file."
+      },
+      {
+       "name": "finish",
+       "label": "2θ to",
+       "accepts": "float, 0 to 180 °",
+       "default": "0.0",
+       "help": "Where it stops (TOPAS finish_X).  0 is the end of the file.  High-angle lines are weak and overlapped, and indexing does better without them."
+      },
+      {
+       "name": "shoulders",
+       "label": "Look for shoulders",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Seed a second line where a peak's curvature says one is hiding in its flank.  A seed that does not pay for itself is dropped again."
+      },
+      {
+       "name": "flag_ghosts",
+       "label": "Flag Kβ and tungsten lines",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Mark lines that sit where a strong line's Kβ or a tungsten-contaminated tube would put one, and keep them out of indexing.  Off by default: a filtered or monochromated tube has no such lines, and the flag then takes real ones out."
+      },
+      {
+       "name": "bravais",
+       "label": "Bravais lattices",
+       "accepts": "text",
+       "default": "all",
+       "help": "Which lattices to search, TOPAS's Bravais_*_sgs: aP mP mC oP oC oI oF tP tI hP hR cP cI cF, separated by commas, or all.  hP is hexagonal and trigonal P together.  Leaving out the low symmetries saves most of the time."
+      },
+      {
+       "name": "space_groups",
+       "label": "Space groups",
+       "accepts": "text",
+       "default": "",
+       "help": "Only these groups, by symbol or number, separated by commas (C2221, Ccc2).  The search is kept to their lattices and only the extinction classes holding one are listed.  Empty is every group."
+      },
+      {
+       "name": "zero_error",
+       "label": "Zero error allowance",
+       "accepts": "float, 0 to 1 °",
+       "default": "0.3",
+       "help": "How far a systematic 2θ shift may move the lines, TOPAS's index_zero_error, from 0 to 1°.  0 lets RietX measure it from line pairs, or assume 0.05°.  A wide allowance finds a cell through a badly aligned sample and lets wrong cells match too: on a clean rutile pattern the right cell ranks first up to 0.3° and a wrong one does from 0.5°."
+      },
+      {
+       "name": "max_volume",
+       "label": "Largest volume",
+       "accepts": "float, 0 to 1000000 Å³",
+       "default": "0.0",
+       "help": "The largest cell to report.  0 takes the bound from the number of lines and their positions."
+      },
+      {
+       "name": "longest_axis",
+       "label": "Longest axis",
+       "accepts": "float, 5 to 100 Å",
+       "default": "50.0",
+       "help": "The longest cell axis searched (strictly, d(100)).  50 Å holds most frameworks' cells.  The search grows fast with it: a cell known to be small is found in seconds with this lowered, and 50 Å over the low symmetries can use the whole time budget."
+      },
+      {
+       "name": "budget",
+       "label": "Time budget",
+       "accepts": "float, 0 to 3600 s",
+       "default": "0.0",
+       "help": "The most the search and its validation may take.  What was reached when it runs out is reported, with the systems it did not finish named.  0 is no limit: the search runs until it is done or stopped."
+      },
+      {
+       "name": "rank_groups",
+       "label": "Rank space groups for the top",
+       "accepts": "int, 0 to 20 cells",
+       "default": "3",
+       "help": "Fit each extinction class of this many of the best cells, to say which space groups the absences allow.  About a second a cell for a small one; 0 skips it."
+      },
+      {
+       "name": "cells",
+       "label": "Pawley the top",
+       "accepts": "int, 1 to 20 cells",
+       "default": "5",
+       "help": "How many of indexing's leading cells are Pawley fitted."
+      },
+      {
+       "name": "classes",
+       "label": "In each cell's top",
+       "accepts": "int, 1 to 10 space-group classes",
+       "default": "3",
+       "help": "How many extinction classes of each cell are fitted, refuted ones left out: a Pawley fit per class, which is what says whether the absences are real."
+      },
+      {
+       "name": "continue_rietveld",
+       "label": "Continue to Rietveld",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Go on from the ranked table to refine the open structure, when its cell is a row's to 1 % and 1° and the pattern refutes none of its space group.  Unticked, the run stops at the table."
+      },
+      {
+       "name": "pawley_method",
+       "label": "Method",
+       "accepts": "one of Pawley, Le Bail",
+       "default": "pawley",
+       "help": "How each reflection's intensity is found.  Pawley makes every intensity a least-squares variable, with esds; Le Bail re-partitions the observed pattern between cycles, cheaper over a long range and with no intensity esds.  The cell, range and boxes below are the same for both."
+      },
+      {
+       "name": "pawley_start",
+       "label": "2θ from",
+       "accepts": "float, 0 to 180 °",
+       "default": "0.0",
+       "help": "Where the fit starts (TOPAS start_X).  0 is the start of the file."
+      },
+      {
+       "name": "pawley_finish",
+       "label": "2θ to",
+       "accepts": "float, 0 to 180 °",
+       "default": "0.0",
+       "help": "Where it stops (TOPAS finish_X).  0 is the end of the file.  Wider is not better for a cell: every reflection is a free intensity, so a long range is much slower and adds lines too crowded to pin it."
+      },
+      {
+       "name": "pawley_background_terms",
+       "label": "Background terms",
+       "accepts": "int, 1 to 30",
+       "default": "8",
+       "help": "Coefficients of the Chebyshev background, TOPAS's bkg line.  More follow a curved or humped background; too many start fitting the tails of broad peaks."
+      },
+      {
+       "name": "pawley_zero",
+       "label": "Refine zero error",
+       "accepts": "bool",
+       "default": "False",
+       "help": "A constant shift of every line (TOPAS Zero_Error).  Strongly correlated with specimen displacement: free one of the two unless the range is wide."
+      },
+      {
+       "name": "pawley_displacement",
+       "label": "Refine specimen displacement",
+       "accepts": "bool",
+       "default": "True",
+       "help": "A shift that falls off as cos θ (TOPAS Specimen_Displacement).  Strongly correlated with the zero error and with the cell: free one of the two unless the range is wide.  Not refined for a synchrotron capillary."
+      },
+      {
+       "name": "pawley_size",
+       "label": "Crystallite size broadening",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Lorentzian and Gaussian size terms (TOPAS CS_L, CS_G): widths that grow as 1/cos θ."
+      },
+      {
+       "name": "pawley_strain",
+       "label": "Strain broadening",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Lorentzian and Gaussian strain terms (TOPAS Strain_L, Strain_G): widths that grow as tan θ."
+      },
+      {
+       "name": "rietveld_plan",
+       "label": "Plan",
+       "accepts": "one of The boxes below, RietX: McCusker, structural, RietX: McCusker, profile, RietX: lab Bragg-Brentano, RietX: sample on a calibrated instrument",
+       "default": "",
+       "help": "What is freed, and in what order.  The boxes below free in McCusker's order: background and scale, line positions, cell, widths, then the atoms.  RietX's own plans ignore the boxes."
+      },
+      {
+       "name": "rietveld_start",
+       "label": "2θ from",
+       "accepts": "float, 0 to 180 °",
+       "default": "0.0",
+       "help": "Where the fit starts (TOPAS start_X).  0 is the start of the file."
+      },
+      {
+       "name": "rietveld_finish",
+       "label": "2θ to",
+       "accepts": "float, 0 to 180 °",
+       "default": "0.0",
+       "help": "Where it stops (TOPAS finish_X).  0 is the end of the file."
+      },
+      {
+       "name": "rietveld_background_terms",
+       "label": "Background terms",
+       "accepts": "int, 1 to 30",
+       "default": "8",
+       "help": "Coefficients of the Chebyshev background, TOPAS's bkg line."
+      },
+      {
+       "name": "rietveld_background",
+       "label": "Refine the background",
+       "accepts": "bool",
+       "default": "True",
+       "help": "The Chebyshev coefficients.  The scale is always refined: a Rietveld fit with it held fits nothing."
+      },
+      {
+       "name": "rietveld_zero",
+       "label": "Refine zero error",
+       "accepts": "bool",
+       "default": "False",
+       "help": "A constant shift of every line (TOPAS Zero_Error).  Strongly correlated with specimen displacement."
+      },
+      {
+       "name": "rietveld_displacement",
+       "label": "Refine specimen displacement",
+       "accepts": "bool",
+       "default": "True",
+       "help": "A shift that falls off as cos θ (TOPAS Specimen_Displacement).  Not refined for a synchrotron capillary."
+      },
+      {
+       "name": "rietveld_cell",
+       "label": "Refine the cell",
+       "accepts": "bool",
+       "default": "True",
+       "help": "The numbers the space group leaves free, less any held below."
+      },
+      {
+       "name": "rietveld_hold",
+       "label": "Hold",
+       "accepts": "text",
+       "default": "",
+       "help": "Cell numbers held while the rest refine: a b c alpha beta gamma, separated by commas.  Empty refines every free one."
+      },
+      {
+       "name": "rietveld_profile",
+       "label": "Refine the peak shape",
+       "accepts": "bool",
+       "default": "True",
+       "help": "The instrument's Caglioti U V W and Lorentzian X Y, W first."
+      },
+      {
+       "name": "rietveld_size",
+       "label": "Crystallite size broadening",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Lorentzian and Gaussian size terms (TOPAS CS_L, CS_G)."
+      },
+      {
+       "name": "rietveld_strain",
+       "label": "Strain broadening",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Lorentzian and Gaussian strain terms (TOPAS Strain_L, Strain_G)."
+      },
+      {
+       "name": "rietveld_positions",
+       "label": "Refine atom positions",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Each atom along the directions its site allows: an atom on a special position stays on it."
+      },
+      {
+       "name": "rietveld_biso",
+       "label": "Refine displacement parameters",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Biso of each atom (8π²U), or its anisotropic U where the structure has one."
+      },
+      {
+       "name": "rietveld_occupancy",
+       "label": "Refine occupancies",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Off unless the model says a site is partly filled: an occupancy trades against the displacement parameter and the scale."
+      },
+      {
+       "name": "rietveld_preferred_axis",
+       "label": "Preferred orientation",
+       "accepts": "text",
+       "default": "",
+       "help": "The March-Dollase axis as h k l -- 0 0 1 for plates lying on their c face.  Empty is no texture."
+      }
+     ]
+    },
+    {
+     "name": "rietveld",
+     "label": "Rietveld",
+     "tip": "Refine a structure's atoms against the whole pattern",
+     "dialog": "",
+     "shell": "",
+     "params": [
+      {
+       "name": "xy",
+       "label": "Measured pattern",
+       "accepts": "path",
+       "default": "",
+       "help": "The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one."
+      },
+      {
+       "name": "radiation",
+       "label": "Radiation",
+       "accepts": "one of Cu Kα1 + Kα2 (laboratory), Cu Kα1 only (monochromated), Mo Kα1 + Kα2 (laboratory), Mo Kα1 only (monochromated), Co Kα1 + Kα2 (laboratory), Co Kα1 only (monochromated), Synchrotron (the wavelength below)",
+       "default": "cu",
+       "help": "What the pattern was measured with.  A laboratory tube is a Kα1/Kα2 doublet unless a monochromator removed Kα2; the wavelengths are the standard ones."
+      },
+      {
+       "name": "wavelength",
+       "label": "Wavelength",
+       "accepts": "float, 0 to 5 Å",
+       "default": "0.0",
+       "help": "A synchrotron's wavelength, from the beamline's calibration.  Read only for Synchrotron: the cell is only as right as this number."
+      },
+      {
+       "name": "monochromator",
+       "label": "Monochromator 2θ",
+       "accepts": "float, 0 to 90 °",
+       "default": "0.0",
+       "help": "A diffracted-beam monochromator's angle, which changes the polarisation correction (TOPAS LP_Factor).  0 is none; 26.6 is graphite (002) with Cu."
+      },
+      {
+       "name": "plan",
+       "label": "Plan",
+       "accepts": "one of The boxes below, RietX: McCusker, structural, RietX: McCusker, profile, RietX: lab Bragg-Brentano, RietX: sample on a calibrated instrument",
+       "default": "",
+       "help": "What is freed, and in what order.  The boxes below free in McCusker's order: background and scale, line positions, cell, widths, then the atoms.  RietX's own plans ignore the boxes."
+      },
+      {
+       "name": "start",
+       "label": "2θ from",
+       "accepts": "float, 0 to 180 °",
+       "default": "0.0",
+       "help": "Where the fit starts (TOPAS start_X).  0 is the start of the file."
+      },
+      {
+       "name": "finish",
+       "label": "2θ to",
+       "accepts": "float, 0 to 180 °",
+       "default": "0.0",
+       "help": "Where it stops (TOPAS finish_X).  0 is the end of the file."
+      },
+      {
+       "name": "background_terms",
+       "label": "Background terms",
+       "accepts": "int, 1 to 30",
+       "default": "8",
+       "help": "Coefficients of the Chebyshev background, TOPAS's bkg line."
+      },
+      {
+       "name": "background",
+       "label": "Refine the background",
+       "accepts": "bool",
+       "default": "True",
+       "help": "The Chebyshev coefficients.  The scale is always refined: a Rietveld fit with it held fits nothing."
+      },
+      {
+       "name": "zero",
+       "label": "Refine zero error",
+       "accepts": "bool",
+       "default": "False",
+       "help": "A constant shift of every line (TOPAS Zero_Error).  Strongly correlated with specimen displacement."
+      },
+      {
+       "name": "displacement",
+       "label": "Refine specimen displacement",
+       "accepts": "bool",
+       "default": "True",
+       "help": "A shift that falls off as cos θ (TOPAS Specimen_Displacement).  Not refined for a synchrotron capillary."
+      },
+      {
+       "name": "cell",
+       "label": "Refine the cell",
+       "accepts": "bool",
+       "default": "True",
+       "help": "The numbers the space group leaves free, less any held below."
+      },
+      {
+       "name": "hold",
+       "label": "Hold",
+       "accepts": "text",
+       "default": "",
+       "help": "Cell numbers held while the rest refine: a b c alpha beta gamma, separated by commas.  Empty refines every free one."
+      },
+      {
+       "name": "profile",
+       "label": "Refine the peak shape",
+       "accepts": "bool",
+       "default": "True",
+       "help": "The instrument's Caglioti U V W and Lorentzian X Y, W first."
+      },
+      {
+       "name": "size",
+       "label": "Crystallite size broadening",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Lorentzian and Gaussian size terms (TOPAS CS_L, CS_G)."
+      },
+      {
+       "name": "strain",
+       "label": "Strain broadening",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Lorentzian and Gaussian strain terms (TOPAS Strain_L, Strain_G)."
+      },
+      {
+       "name": "positions",
+       "label": "Refine atom positions",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Each atom along the directions its site allows: an atom on a special position stays on it."
+      },
+      {
+       "name": "biso",
+       "label": "Refine displacement parameters",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Biso of each atom (8π²U), or its anisotropic U where the structure has one."
+      },
+      {
+       "name": "occupancy",
+       "label": "Refine occupancies",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Off unless the model says a site is partly filled: an occupancy trades against the displacement parameter and the scale."
+      },
+      {
+       "name": "preferred_axis",
+       "label": "Preferred orientation",
+       "accepts": "text",
+       "default": "",
+       "help": "The March-Dollase axis as h k l -- 0 0 1 for plates lying on their c face.  Empty is no texture."
+      }
+     ]
+    },
+    {
+     "name": "energy",
+     "label": "Rietveld with energy",
+     "tip": "Refine a structure's atoms against the pattern and a force field at once, the weight between them yours",
+     "dialog": "",
+     "shell": "",
+     "params": [
+      {
+       "name": "xy",
+       "label": "Measured pattern",
+       "accepts": "path",
+       "default": "",
+       "help": "The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one."
+      },
+      {
+       "name": "radiation",
+       "label": "Radiation",
+       "accepts": "one of Cu Kα1 + Kα2 (laboratory), Cu Kα1 only (monochromated), Mo Kα1 + Kα2 (laboratory), Mo Kα1 only (monochromated), Co Kα1 + Kα2 (laboratory), Co Kα1 only (monochromated), Synchrotron (the wavelength below)",
+       "default": "cu",
+       "help": "What the pattern was measured with.  A laboratory tube is a Kα1/Kα2 doublet unless a monochromator removed Kα2; the wavelengths are the standard ones."
+      },
+      {
+       "name": "wavelength",
+       "label": "Wavelength",
+       "accepts": "float, 0 to 5 Å",
+       "default": "0.0",
+       "help": "A synchrotron's wavelength, from the beamline's calibration.  Read only for Synchrotron: the cell is only as right as this number."
+      },
+      {
+       "name": "monochromator",
+       "label": "Monochromator 2θ",
+       "accepts": "float, 0 to 90 °",
+       "default": "0.0",
+       "help": "A diffracted-beam monochromator's angle, which changes the polarisation correction (TOPAS LP_Factor).  0 is none; 26.6 is graphite (002) with Cu."
+      },
+      {
+       "name": "weight",
+       "label": "Energy weight w",
+       "accepts": "float, 0 to 1",
+       "default": "0.1",
+       "help": "How much the energy counts against the pattern: 0 is the pattern alone, 1 the force field alone.  Each term is scaled by where it starts and how far it can fall, so 0.5 is an even split whatever the units."
+      },
+      {
+       "name": "energy_cell",
+       "label": "Let the cell move",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Refine the cell's free numbers with the atoms, against both terms -- the energy's pull on them is the engine's stress.  Off holds the cell where it is."
+      },
+      {
+       "name": "max_steps",
+       "label": "Steps",
+       "accepts": "int, 1 to 100000",
+       "default": "500",
+       "help": "The most L-BFGS steps, for the relaxation that sets the energy's scale and again for the fit."
+      },
+      {
+       "name": "engine",
+       "label": "Engine",
+       "accepts": "one of ",
+       "default": "uff",
+       "help": "The energy engine.  In the workbench, choosing one chooses it in the Force Field panel, where its options are set."
+      },
+      {
+       "name": "rietveld_start",
+       "label": "2θ from",
+       "accepts": "float, 0 to 180 °",
+       "default": "0.0",
+       "help": "Where the fit starts (TOPAS start_X).  0 is the start of the file."
+      },
+      {
+       "name": "rietveld_finish",
+       "label": "2θ to",
+       "accepts": "float, 0 to 180 °",
+       "default": "0.0",
+       "help": "Where it stops (TOPAS finish_X).  0 is the end of the file."
+      },
+      {
+       "name": "rietveld_background_terms",
+       "label": "Background terms",
+       "accepts": "int, 1 to 30",
+       "default": "8",
+       "help": "Coefficients of the Chebyshev background, TOPAS's bkg line."
+      },
+      {
+       "name": "rietveld_background",
+       "label": "Refine the background",
+       "accepts": "bool",
+       "default": "True",
+       "help": "The Chebyshev coefficients.  The scale is always refined: a Rietveld fit with it held fits nothing."
+      },
+      {
+       "name": "rietveld_zero",
+       "label": "Refine zero error",
+       "accepts": "bool",
+       "default": "False",
+       "help": "A constant shift of every line (TOPAS Zero_Error).  Strongly correlated with specimen displacement."
+      },
+      {
+       "name": "rietveld_displacement",
+       "label": "Refine specimen displacement",
+       "accepts": "bool",
+       "default": "True",
+       "help": "A shift that falls off as cos θ (TOPAS Specimen_Displacement).  Not refined for a synchrotron capillary."
+      },
+      {
+       "name": "rietveld_profile",
+       "label": "Refine the peak shape",
+       "accepts": "bool",
+       "default": "True",
+       "help": "The instrument's Caglioti U V W and Lorentzian X Y, W first."
+      },
+      {
+       "name": "rietveld_size",
+       "label": "Crystallite size broadening",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Lorentzian and Gaussian size terms (TOPAS CS_L, CS_G)."
+      },
+      {
+       "name": "rietveld_strain",
+       "label": "Strain broadening",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Lorentzian and Gaussian strain terms (TOPAS Strain_L, Strain_G)."
+      },
+      {
+       "name": "rietveld_biso",
+       "label": "Refine displacement parameters",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Biso of each atom (8π²U), or its anisotropic U where the structure has one."
+      },
+      {
+       "name": "rietveld_preferred_axis",
+       "label": "Preferred orientation",
+       "accepts": "text",
+       "default": "",
+       "help": "The March-Dollase axis as h k l -- 0 0 1 for plates lying on their c face.  Empty is no texture."
+      }
+     ]
+    },
+    {
+     "name": "pareto",
+     "label": "Pareto",
+     "tip": "Refine with energy at a list of weights, and suggest the one where the fit and the energy trade best",
+     "dialog": "",
+     "shell": "",
+     "params": [
+      {
+       "name": "xy",
+       "label": "Measured pattern",
+       "accepts": "path",
+       "default": "",
+       "help": "The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one."
+      },
+      {
+       "name": "radiation",
+       "label": "Radiation",
+       "accepts": "one of Cu Kα1 + Kα2 (laboratory), Cu Kα1 only (monochromated), Mo Kα1 + Kα2 (laboratory), Mo Kα1 only (monochromated), Co Kα1 + Kα2 (laboratory), Co Kα1 only (monochromated), Synchrotron (the wavelength below)",
+       "default": "cu",
+       "help": "What the pattern was measured with.  A laboratory tube is a Kα1/Kα2 doublet unless a monochromator removed Kα2; the wavelengths are the standard ones."
+      },
+      {
+       "name": "wavelength",
+       "label": "Wavelength",
+       "accepts": "float, 0 to 5 Å",
+       "default": "0.0",
+       "help": "A synchrotron's wavelength, from the beamline's calibration.  Read only for Synchrotron: the cell is only as right as this number."
+      },
+      {
+       "name": "monochromator",
+       "label": "Monochromator 2θ",
+       "accepts": "float, 0 to 90 °",
+       "default": "0.0",
+       "help": "A diffracted-beam monochromator's angle, which changes the polarisation correction (TOPAS LP_Factor).  0 is none; 26.6 is graphite (002) with Cu."
+      },
+      {
+       "name": "weights",
+       "label": "Weights",
+       "accepts": "text",
+       "default": "0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1",
+       "help": "The weights to refine at, from 0 (the pattern alone) to 1 (the energy alone), separated by commas.  Each starts from the one below it; denser near 0, where a little energy changes the answer most."
+      },
+      {
+       "name": "energy_cell",
+       "label": "Let the cell move",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Refine the cell's free numbers with the atoms at every weight.  Off holds the cell where it is."
+      },
+      {
+       "name": "max_steps",
+       "label": "Steps",
+       "accepts": "int, 1 to 100000",
+       "default": "500",
+       "help": "The most L-BFGS steps at each weight.  A point that runs out is not converged, and has no numbers."
+      },
+      {
+       "name": "engine",
+       "label": "Engine",
+       "accepts": "one of ",
+       "default": "uff",
+       "help": "The energy engine.  In the workbench, choosing one chooses it in the Force Field panel, where its options are set."
+      },
+      {
+       "name": "rietveld_start",
+       "label": "2θ from",
+       "accepts": "float, 0 to 180 °",
+       "default": "0.0",
+       "help": "Where the fit starts (TOPAS start_X).  0 is the start of the file."
+      },
+      {
+       "name": "rietveld_finish",
+       "label": "2θ to",
+       "accepts": "float, 0 to 180 °",
+       "default": "0.0",
+       "help": "Where it stops (TOPAS finish_X).  0 is the end of the file."
+      },
+      {
+       "name": "rietveld_background_terms",
+       "label": "Background terms",
+       "accepts": "int, 1 to 30",
+       "default": "8",
+       "help": "Coefficients of the Chebyshev background, TOPAS's bkg line."
+      },
+      {
+       "name": "rietveld_background",
+       "label": "Refine the background",
+       "accepts": "bool",
+       "default": "True",
+       "help": "The Chebyshev coefficients.  The scale is always refined: a Rietveld fit with it held fits nothing."
+      },
+      {
+       "name": "rietveld_zero",
+       "label": "Refine zero error",
+       "accepts": "bool",
+       "default": "False",
+       "help": "A constant shift of every line (TOPAS Zero_Error).  Strongly correlated with specimen displacement."
+      },
+      {
+       "name": "rietveld_displacement",
+       "label": "Refine specimen displacement",
+       "accepts": "bool",
+       "default": "True",
+       "help": "A shift that falls off as cos θ (TOPAS Specimen_Displacement).  Not refined for a synchrotron capillary."
+      },
+      {
+       "name": "rietveld_profile",
+       "label": "Refine the peak shape",
+       "accepts": "bool",
+       "default": "True",
+       "help": "The instrument's Caglioti U V W and Lorentzian X Y, W first."
+      },
+      {
+       "name": "rietveld_size",
+       "label": "Crystallite size broadening",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Lorentzian and Gaussian size terms (TOPAS CS_L, CS_G)."
+      },
+      {
+       "name": "rietveld_strain",
+       "label": "Strain broadening",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Lorentzian and Gaussian strain terms (TOPAS Strain_L, Strain_G)."
+      },
+      {
+       "name": "rietveld_biso",
+       "label": "Refine displacement parameters",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Biso of each atom (8π²U), or its anisotropic U where the structure has one."
+      },
+      {
+       "name": "rietveld_preferred_axis",
+       "label": "Preferred orientation",
+       "accepts": "text",
+       "default": "",
+       "help": "The March-Dollase axis as h k l -- 0 0 1 for plates lying on their c face.  Empty is no texture."
       }
      ]
     }

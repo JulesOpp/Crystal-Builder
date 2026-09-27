@@ -75,8 +75,7 @@ def volume(job) -> JobResult:
            f"radius of {setup.probe:.2f} A.")
     if occupiable:
         how += ("  This reads up to 0.03 of the cell above Zeo++'s "
-                "-volpo: probe spheres centred on real probe positions "
-                "cover at least this much, so the shortfall is Zeo++'s.")
+                "-volpo.")
     job.check()
     overlay = (zeopp.channel_overlay(job, setup.field, setup.split)
                if job.param("draw", True) else None)

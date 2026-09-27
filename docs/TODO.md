@@ -62,6 +62,24 @@ expansion and a scene that update the atoms that changed rather than
 being rebuilt. That is a real change to `p1.expand` and
 `viewport/builder.py`, not a tweak, and it has not been designed.
 
+### No Close All for the structure tabs
+
+Somebody who opens a few dozen structures -- a folder of CIFs, a
+scan's points -- closes them one tab at a time.  A *Close All* (the
+File menu, and the tab bar's context menu) should ask the unsaved
+question once for the lot, as switching workspace already does
+(`may_discard_unsaved` then `close_all_documents`).  Asked for by
+Julius, 2026-09-26.
+
+### Save as a building block and Draw put blocks in different places
+
+*Draw…* in the MOF builder writes to `<workspace>/blocks/`, which the
+catalogue always reads.  *File > Save as a building block…* defaults
+to the *Extra building blocks* folder (`settings.mof_bb_dir`) and,
+with that unset, will not save until a folder is typed.  Found writing
+the manual's recipe for cutting a node out of a crystal; whether the
+second should default to `blocks/` as well is a decision, not a fix.
+
 ## Symmetry
 
 ### Merge duplicates cannot see a site duplicated by its own group
@@ -81,6 +99,16 @@ is for the preview to say "Zn1 is 0.06 A off its mirror and the group
 is making three of it" and point at Standardize, not to offer a merge
 that cannot happen.  Wanted with whatever finally reports a site
 sitting just off a special position, which nothing does today.
+
+### No way to move the cell's origin
+
+Cutting a node out of a crystal (the manual's recipe: Reduce to P1,
+select the cluster, invert the selection, delete, draw the connection
+points, save as a building block) fails when the cluster straddles a
+face of the cell, because the atoms kept are the images inside it.
+The remedy is to translate the origin first, in P1, so the cluster
+sits whole inside; there is no command for that.  Wanted under the
+Structure menu (Julius, 2026-09-26).
 
 ## Force fields
 
@@ -312,6 +340,46 @@ MACE alone took 467 s; UFF4MOF first (80 and 73 steps) then MACE took
 196 s, and landed 0.02 and 0.08 kcal/mol lower.  Whether that holds on
 a 7x7 grid of a 1152-atom framework, where the neighbour it starts from
 is already close, is the thing the overnight run should also answer.
+
+## Powder refinement
+
+### Pawley over a long 2θ range is minutes, and no better a cell
+
+Measured 2026-09-26 on a 14 x 17 Å hexagonal cell (Cu Kα, the cell
+started 0.3 % off, 13 GB of swap in use): 4-30° is 35 reflections and
+1.3 s, 4-45° 97 and 19 s, 4-60° 199 and 144 s -- and the widest put
+*a* 0.04 Å further from the truth.  Every reflection is a free
+intensity, so the Jacobian and the solve grow faster than the count.
+The workbench says so under Pawley and on *2θ to*.  Le Bail is now
+the Pawley step's second *Method* (2026-09-26), over the same plan --
+fine on rutile, but that plan in Le Bail mode diverged on the wide
+range above (a → -59 885 Å) when tried once, so offering it is not
+the fix.  Ways to make it fast, none tried: Le Bail with
+a plan of its own for the wide range, or refine the cell at low angle
+and extend with the cell held.
+
+### Rietveld with energy: the pattern's gradient could be one reverse pass
+
+`bridge.PatternTerm` builds the whole Jacobian with RietX's numpy code
+to take one gradient, `2 J^T r`.  On ZIF-8 in P1 (306 free
+coordinates) that is 2.75 s an evaluation, against 8 ms for UFF's
+energy and 5 ms for the residual alone.  Torch's reverse mode over
+RietX's own traced residual (`backend.torch_backend`,
+`make_traced_residual`) gives the same gradient to 1e-12 in 0.48 s.
+Torch is not in the `refine` extra, and loading it into a process is
+what CLAUDE.md's "Aborted runs" warns about, so it would be an option
+used when installed and tested in a subprocess.  A framework in its
+own space group has tens of variables, not hundreds, and does not
+need it.
+
+### Structure solution from the pattern alone (Superflip)
+
+Charge flipping would take a Pawley cell and intensities to a density
+map without a model.  Possible, but the way this application is meant
+to reach a structure is by building one -- a net consistent with the
+cell and group, the linker and SBU in the MOF builder, then Rietveld,
+With energy, or a simulated pattern laid over the measured one -- so
+it is not planned unless somebody asks for it.
 
 ## Testing
 

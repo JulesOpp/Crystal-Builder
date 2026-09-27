@@ -127,7 +127,7 @@ def probe_for(key: str, path) -> Probe | None:
 
 def probe_for_package(package: str, frozen: bool = False,
                       executable: str | None = None,
-                      timeout: float = 0.0) -> Probe:
+                      timeout: float = 0.0, prepend=()) -> Probe:
     """How to ask whether a Python package imports.
 
     In a fresh interpreter, never this one: a package whose compiled
@@ -139,6 +139,11 @@ def probe_for_package(package: str, frozen: bool = False,
     ``package`` may be a module inside one (``mace.calculators``),
     where importing the top alone would prove nothing; the version
     printed is the top's, since a submodule has none.
+
+    ``prepend`` is what the application put ahead of the interpreter's
+    own import path -- its packages folder -- so that the fresh
+    interpreter finds the copy the application would load, and not
+    another one or none.
     """
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.]*", package):
         raise ValueError(f"not a package name: {package!r}")
@@ -150,6 +155,9 @@ def probe_for_package(package: str, frozen: bool = False,
     top = package.split(".")[0]
     line = (f"import {package}; import {top}; "
             f"print({top!r}, getattr({top}, '__version__', ''))")
+    if prepend:
+        line = f"import sys; sys.path[:0] = {list(map(str, prepend))!r}; " \
+            + line
     # The line this prints, found wherever it is: torch-based packages
     # warn on import, and the first two lines were a UserWarning about
     # ``torch.load`` where the version should have been.
@@ -186,6 +194,10 @@ def summarise(probe: Probe, code: int | None, output: str,
                        f"{probe.timeout:g} s, so it was stopped.")
     if code is None:
         return False, f"{probe.name} could not be started: {error}"
+    # A Windows program ends its lines \r\n, and the headline pattern
+    # stops at the \n: the \r rode along into the sentence shown
+    # under the button.
+    output = output.replace("\r\n", "\n")
     lines = useful_lines(output)
     if probe.headline is not None:
         found = probe.headline.search(output)

@@ -937,6 +937,9 @@ class Document(QObject):
         if not sites:
             return "nothing to delete"
         atoms = sum(self.cell.multiplicity(s) for s in sites)
+        # First: the selection names atoms by number, and after the
+        # delete those numbers belong to the atoms that came after.
+        self.select_none()
         self.run(atom_commands.DeleteSites(sites))
         return f"deleted {len(sites)} site(s) ({atoms} atoms)"
 
@@ -1616,10 +1619,11 @@ class Document(QObject):
     def wrap_into_cell(self):
         return self.operate(cell_commands.WrapIntoCell())
 
-    def set_lattice(self, lattice, keep: str = "fractional") -> str:
+    def set_lattice(self, lattice, keep: str = "fractional",
+                    label: str = "Edit unit cell") -> str:
         """Change the cell parameters, keeping either the fractional or
         the cartesian coordinates -- never both, and never a guess."""
-        self.run(cell_commands.SetLattice(lattice, keep))
+        self.run(cell_commands.SetLattice(lattice, keep, label=label))
         a, b, c, al, be, ga = lattice.parameters
         return (f"cell {a:.4f} {b:.4f} {c:.4f} "
                 f"{al:.3f} {be:.3f} {ga:.3f} ({keep} kept)")

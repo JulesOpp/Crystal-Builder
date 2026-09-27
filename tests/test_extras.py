@@ -85,10 +85,14 @@ def test_a_missing_package_s_row_offers_its_command_to_copy(
     assert commands == [extra("rdkit").command()]
 
 
-def test_the_command_is_this_interpreter_s_pip():
+def test_the_command_is_this_interpreter_s_pip(monkeypatch):
     """A bare ``pip`` is whichever is first on the PATH, which is
     often not the Python the application is running in -- and the
     package lands somewhere the application never looks."""
+    from xtal import install
+
+    monkeypatch.setattr(install, "has_pip", lambda: True)
+
     assert extra("rdkit").command().startswith(
         f'"{sys.executable}" -m pip install')
 
@@ -110,6 +114,7 @@ def test_an_installed_copy_names_the_package(monkeypatch):
     from xtal import install
 
     monkeypatch.setattr(install, "checkout", lambda: None)
+    monkeypatch.setattr(install, "has_pip", lambda: True)
 
     assert extra("mace").command().endswith(
         'pip install "crystal-builder[mace]"')
@@ -270,6 +275,30 @@ def test_testing_an_ml_engine_imports_its_model_code(page):
     assert probe.timeout >= 30
 
 
+def test_testing_a_package_looks_in_the_folder_the_application_does(
+        page, tmp_path, monkeypatch):
+    """The application put its packages folder first on its own path,
+    so Test's fresh interpreter has to as well, or it answers for a
+    different copy of the package than the one that would be used."""
+    where = tmp_path / "packages"
+    where.mkdir()
+    monkeypatch.setenv(extras.DIR_VAR, str(where))
+    monkeypatch.syspath_prepend(str(where))
+
+    assert repr(str(where)) in page._probe("ase").argv[-1]
+
+
+def test_testing_a_package_adds_no_folder_the_application_did_not(
+        page, tmp_path, monkeypatch):
+    """A window built without ``main`` never added the folder, and
+    Test must not claim a path the application is not using."""
+    where = tmp_path / "packages"
+    where.mkdir()
+    monkeypatch.setenv(extras.DIR_VAR, str(where))
+
+    assert str(where) not in page._probe("ase").argv[-1]
+
+
 def test_the_folder_command_is_offered_with_its_warning(page):
     """The box used to offer two routes to a PORMAKE that was not in
     the bundle.  PORMAKE is vendored, so what is left is the one thing
@@ -321,3 +350,29 @@ def test_an_ml_engine_row_cites_what_the_force_field_panel_does():
         engine = ENGINES.get(name)
         assert extra(package).references == engine.sources(
             **engine.defaults())
+
+
+def test_a_bundle_keeps_numbas_kernel_cache_in_its_own_folder(
+        monkeypatch, tmp_path):
+    """numba caches beside the source by default -- inside a signed
+    bundle -- and RietX would move it to ~/.rietx; a packaged build
+    keeps it beside its own log instead.  A checkout, and a variable
+    somebody set, are left alone."""
+    from xtalapp import applog
+
+    monkeypatch.setattr(applog, "app_data", lambda: tmp_path / "data")
+    environ = {}
+    assert extras.writable_numba_cache(False, environ) is None
+    assert environ == {}
+    where = extras.writable_numba_cache(True, environ)
+    assert where == str(tmp_path / "data" / extras.NUMBA_CACHE)
+    assert environ[extras.NUMBA_CACHE_VAR] == where
+    assert (tmp_path / "data" / extras.NUMBA_CACHE).is_dir()
+    theirs = {extras.NUMBA_CACHE_VAR: "/somewhere/else"}
+    assert extras.writable_numba_cache(True, theirs) is None
+    assert theirs[extras.NUMBA_CACHE_VAR] == "/somewhere/else"
+
+
+def test_the_refinement_workbench_is_an_extra_a_build_carries():
+    row = next(e for e in extras.EXTRAS if e.package == "rietx")
+    assert row.extra == "refine" and row.bundled

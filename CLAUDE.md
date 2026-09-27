@@ -12,7 +12,9 @@ bonding, run force field / DFTB+ / Zeo++ calculations on the result.
 | `xtal/io/` | CIF and project (`.xtalproj`) read/write |
 | `xtal/commands/` | Undoable operations on a structure |
 | `xtal/ff/`, `xtal/modules/` | Calculators (UFF with UFF4MOF, xTB, DFTB+, MACE, ORB-v3, MatterSim) and the module/job registry (Zeo++). The ML engines (MACE, ORB-v3, MatterSim) run in process on `ase_engine.ASECalculator` rather than as a binary; each needs its own extra (`mace`, `orb`, `mattersim`), and `_load_model` is the seam their tests replace. |
+| `xtal/powder/` | Refinement against a measured `.xy`: peaks, indexing, Pawley, Rietveld (the workbench, `xtalapp/refine/`). **RietX does the physics**, via the `refine` extra pinned below 1.6, and `bridge.py` is the only module that imports it; every fit is told its run folder, never the cwd. A refinement moves atoms and never adds, removes or bonds them; its live frames are `preview_positions` and its finish one undo step on the document the window was opened over. Rietveld with energies (`energy.py`) is our L-BFGS over RietX's own variables, the pattern's gradient from its private residual and Jacobian (`bridge.PatternTerm`, a test holds it against differences), and **uses the Force Field panel's engine**: the workbench's engine box shares that panel's model and choice, so choosing in either chooses in both, and the engine's options stay in the panel. RietX is bundled (`packaging/bundle.py` collects it with its sources on disk, for numba's cache) and `--selftest` refines rutile inside the build; CI's test job does not install `refine` -- the powder tests are minutes, not seconds -- so they run locally. A Pareto sweep (`pareto.py`) is one `EnergyProblem` minimised at every weight, each point written as it finishes, and returns no structure. |
 | `xtal/mof/`, `xtal/build/` | PORMAKE frameworks (`orient.py` is which way round a node goes), and SMILES to a molecule. **PORMAKE is vendored** at `xtal/mof/pormake/` — MIT, trimmed of `jax`, `pymatgen` and `networkx`; see its `PROVENANCE.md`, and do not reformat it. The MOF builder needs the `ase` extra, the molecule builder the `build` one; the check is `find_spec` and never an import, and the entries grey out naming the extra. |
+| `xtal/agent/` | The surface an AI assistant (or a script) drives: `Session` (verbs over a `CommandStack`, logged to the entry), `inspect` (closed diagnostic codes, each with its remedy), `render` (a PNG in a subprocess), `capabilities`. The skill the assistant reads ships in `xtal/agent/skill/`, and `tests/test_agent_skill.py` holds every name in it to the code. |
 | `xtalapp/` | The Qt/PySide6 + VTK GUI shell. Holds no crystallography of its own. |
 | `xtalapp/mainwindow.py` | The shell: menus, docks, tabs, and three mixins it inherits -- `shell_state.ShellRefresh` (refreshing and enabling), `symmetry_actions.SymmetryActions`, `edit_actions.EditActions`. See "Working in mainwindow" below. |
 | `xtalapp/document.py` | `Document` — a structure plus its undo stack. The GUI asks the Document to change things; it does not edit structures directly. |
@@ -26,6 +28,7 @@ python -m pytest -q -n 3 -m "not gui"  # headless core only, ~1 min
 python -m pytest -q -m "not slow"      # skips the ones marked slow
 python -m pytest -q --durations=20     # what the run is actually spending
 ruff check .                           # lint (check only — see below)
+xtal inspect FILE --json               # what an agent reads first
 crystal-builder                        # launch the GUI
 ```
 
@@ -621,6 +624,20 @@ stress case).
   It is an ordinary directory of the workspace, so the tree shows it
   without being taught to; and because there is always a workspace,
   Draw no longer demands a folder be named before it will save.
+- **An agent edits through the same commands as a person.** Every
+  `xtal.agent.Session` verb pushes the command the window pushes for
+  that gesture -- one undo step, bonds only on `recalculate_bonds()`,
+  markers held back by the engine registry, `cap` never by default --
+  and appends a line to `<entry>/agent-session.jsonl`, which is how a
+  person opening the entry learns an assistant worked on it. A refusal
+  is a `VerbResult` with `ok=False` and a coded `Diagnostic`, never an
+  exception and never a no-op left on the stack. **Diagnostic codes
+  are closed** (`diagnostics.CODES`): a new finding gets a code, a
+  level and a remedy there and a row in the skill's `diagnostics.md`,
+  or the skill test fails. **A render runs in a subprocess**: with no
+  GL, VTK segfaults rather than raising, and an agent's session is
+  worth more than a picture. When a verb, parameter or code changes,
+  the shipped skill changes in the same commit.
 - Structure edits go through `Document.apply(...)` with a `Change`
   flag, so they land as one undo step and refresh only the panels that
   care. Do not mutate a structure behind the Document's back.

@@ -1730,6 +1730,16 @@ Calculate a powder diffraction pattern from this structure
 ```{index} Simulate a pattern...
 ```
 
+(cmd-refine_workbench)=
+### PXRD ▸ Refine against a measured pattern...
+
+`refine_workbench`
+
+Fit peaks and refine against a measured .xy pattern, in a window of its own; the runs go under the structure in front, or under the pattern's name if none is open
+
+```{index} Refine against a measured pattern...
+```
+
 (cmd-module.scan.run)=
 ### Energy scan ▸ Relaxed scan...
 
@@ -1782,6 +1792,16 @@ Put the panels back where they started
 Every command and every module setting, generated from the application itself
 
 ```{index} Crystal Builder Help
+```
+
+(cmd-install_ai_skill)=
+### Set up an AI assistant
+
+`install_ai_skill`
+
+Put the crystal-builder skill where Claude Code reads it (~/.claude/skills), so an assistant can open, prepare, build, inspect and relax structures in your workspace through the same commands as this window.  A copy you have edited is replaced only if you say so.
+
+```{index} Set up an AI assistant
 ```
 
 (cmd-show_log)=
@@ -1844,6 +1864,16 @@ Show the selected file or run folder in the desktop's own file browser.
 Put the full path of what is selected on the clipboard, for a script or a terminal.
 
 ```{index} Copy Path
+```
+
+(cmd-workspace_rename)=
+### Rename...
+
+`workspace_rename`
+
+Give the selected file a new name in the same folder.  A tab open on it follows, and a name already taken is refused rather than written over.
+
+```{index} Rename...
 ```
 
 (cmd-workspace_trash)=

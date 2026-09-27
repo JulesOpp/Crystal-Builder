@@ -1115,6 +1115,92 @@ def test_a_trash_that_fails_says_so_and_keeps_the_run(opened,
     assert folder.is_dir()
 
 
+def test_a_file_can_be_renamed_but_a_run_or_an_entry_cannot(opened):
+    """An entry's folder is the structure's name and a run's is how
+    the run is read back, so only a file is offered the rename."""
+    window, document = opened
+    folder = _run_folder(document)
+
+    _select(window, folder)
+    window._refresh_workspace_actions()
+    assert not window.actions_["workspace_rename"].isEnabled()
+
+    _select(window, document.entry.path)
+    window._refresh_workspace_actions()
+    assert not window.actions_["workspace_rename"].isEnabled()
+
+    _select(window, folder / "run.log")
+    window._refresh_workspace_actions()
+    assert window.actions_["workspace_rename"].isEnabled()
+
+
+def test_renaming_the_open_file_takes_its_tab_along(opened,
+                                                    monkeypatch):
+    """Left on the old path, the tab's next Save would write the old
+    name back beside the new one."""
+    import xtalapp.mainwindow as mainwindow
+    window, document = opened
+    old = document.path
+    monkeypatch.setattr(mainwindow, "ask_new_name",
+                        lambda parent, name: "anatase.cif")
+    _select(window, old)
+
+    window.actions_["workspace_rename"].trigger()
+
+    assert not old.exists()
+    assert document.path == old.with_name("anatase.cif")
+    assert document.path.is_file()
+    assert window.selected_artifact()[1] == document.path
+
+
+def test_renaming_the_open_file_renames_the_window_too(opened,
+                                                     monkeypatch):
+    """The tab followed the rename and the title bar did not, so the
+    window went on naming a file that was no longer there."""
+    import xtalapp.mainwindow as mainwindow
+    window, document = opened
+    monkeypatch.setattr(mainwindow, "ask_new_name",
+                        lambda parent, name: "anatase.cif")
+    _select(window, document.path)
+
+    window.actions_["workspace_rename"].trigger()
+
+    assert window.windowTitle().startswith("anatase.cif")
+    tab = window.tabs.tabText(window.documents.index(document))
+    assert tab == "anatase.cif"
+
+
+def test_a_rename_onto_a_taken_name_keeps_both_files(opened,
+                                                     monkeypatch):
+    import xtalapp.mainwindow as mainwindow
+    window, document = opened
+    folder = _run_folder(document)
+    log = folder / "run.log"
+    other = folder / "notes.txt"
+    other.write_text("keep me", encoding="utf-8")
+    monkeypatch.setattr(mainwindow, "ask_new_name",
+                        lambda parent, name: "notes.txt")
+    _select(window, log)
+
+    window.actions_["workspace_rename"].trigger()
+
+    assert log.read_text(encoding="utf-8") == "ran\n"
+    assert other.read_text(encoding="utf-8") == "keep me"
+
+
+def test_cancelling_the_rename_changes_nothing(opened, monkeypatch):
+    import xtalapp.mainwindow as mainwindow
+    window, document = opened
+    old = document.path
+    monkeypatch.setattr(mainwindow, "ask_new_name",
+                        lambda parent, name: None)
+    _select(window, old)
+
+    window.actions_["workspace_rename"].trigger()
+
+    assert document.path == old and old.is_file()
+
+
 def test_reveal_asks_the_desktop_for_the_folder_not_the_file(opened,
                                                              monkeypatch):
     """Opening a run.log in whatever has claimed .log is not what

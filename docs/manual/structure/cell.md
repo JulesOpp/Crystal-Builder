@@ -227,29 +227,26 @@ the shape is free, so *c/a* changes from point to point:
 ```console
 $ xtal run scan.run quartz.cif -p axis1=volume -p axis1_start=105 -p axis1_stop=120 -p axis1_steps=3 -p direction=forward --workspace ws
 3 points on UFF (uff4mof)
-[1/3] volume 105: -23.7861 kcal/mol (not converged)
+[1/3] volume 105: -23.7861 kcal/mol
 [2/3] volume 112.5: -25.9038 kcal/mol
 [3/3] volume 120: -20.5473 kcal/mol
-3 of 3 points relaxed; 1 did not reach the force tolerance and are marked apart
+3 of 3 points relaxed
 
 Relaxed scan
 
 Every point
 volume (A^3)  branch   E (kcal/mol)  dE       steps  |F|max  a       c       converged
-    104.9923  forward      -23.7861  +2.1176    500  0.0000  4.8181  5.2224  no
-    112.4996  forward      -25.9038  +0.0000     16  0.0483  4.9247  5.3563  yes
-    119.9996  forward      -20.5473  +5.3564     19  0.0360  5.0264  5.4844  yes
+    104.9923  forward      -23.7861  +2.1176     16  0.0384  4.8181  5.2224  yes
+    112.4996  forward      -25.9038  +0.0000     16  0.0458  4.9247  5.3563  yes
+    119.9996  forward      -20.5473  +5.3564     19  0.0361  5.0264  5.4844  yes
 [...]
 ```
 
-The first point ran to the step limit with the forces on the atoms at
-zero, so it is the cell's half of the criterion that was not met, and
-the table marks it apart rather than plotting it as a number
-({doc}`scans`).
-
-% TODO(Sam): why the 105 A^3 point does not converge -- 500 steps,
-% |F|max 0.0000, stress not shown in the table -- is a question for
-% Julius; the scan table has no residual-stress column to say.
+The squeezed point is 7 % below the relaxed volume, and its cell is
+under a large hydrostatic stress that the held volume forbids it to
+relieve.  That part of the stress is not a residual: the criterion
+reads only the stress an allowed strain could still remove, measured
+in the cell the run has reached.
 
 ## Settings
 

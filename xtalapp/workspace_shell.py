@@ -361,6 +361,8 @@ class WorkspaceShell:
                     f"could not open {target.name}")
         elif kind == "report":
             self.open_report(target)
+        elif kind == "pattern":
+            self.window.open_refine_workbench().load_pattern(target)
         elif kind in ("structure", "final", "project", "file"):
             self.window.open_path(target)
 

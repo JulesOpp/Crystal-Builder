@@ -19,7 +19,13 @@ is wrong twice over on the only kind of installation there is:
   followed it.
 
 So the command names this interpreter, and installs the checkout
-itself, which rewrites the metadata on the way.  One function, here in
+itself, which rewrites the metadata on the way.
+
+**And not every interpreter has pip.**  An environment made by ``uv``
+has none, and ``python -m pip`` there fails at once with "No module
+named pip".  Such an environment is installed into with ``uv pip
+install --python`` naming this interpreter; with neither, pip is put
+there first with ``ensurepip``.  One function, here in
 the headless core, because the hints are in both halves: the Force
 Field panel's reason comes from :mod:`xtal.ff`, the Engines page from
 :mod:`xtalapp.extras`, and a second spelling is how they drifted.
@@ -27,6 +33,8 @@ Field panel's reason comes from :mod:`xtal.ff`, the Engines page from
 
 from __future__ import annotations
 
+import importlib.util
+import shutil
 import sys
 from pathlib import Path
 
@@ -37,12 +45,28 @@ def checkout() -> Path | None:
     return root if (root / "pyproject.toml").is_file() else None
 
 
+def has_pip() -> bool:
+    """Whether this interpreter can run ``-m pip``."""
+    return importlib.util.find_spec("pip") is not None
+
+
+def installer() -> str:
+    """The start of an install command into this interpreter."""
+    python = f'"{sys.executable}"'
+    if has_pip():
+        return f"{python} -m pip install"
+    uv = shutil.which("uv")
+    if uv is not None:
+        return f'"{uv}" pip install --python {python}'
+    return f"{python} -m ensurepip && {python} -m pip install"
+
+
 def command(extra: str) -> str:
     """What to type to get the ``extra`` into this Python."""
     root = checkout()
     target = (f'-e "{root}[{extra}]"' if root is not None
               else f'"crystal-builder[{extra}]"')
-    return f'"{sys.executable}" -m pip install {target}'
+    return f"{installer()} {target}"
 
 
 def packages(names, no_deps: bool = False) -> str:
@@ -50,5 +74,5 @@ def packages(names, no_deps: bool = False) -> str:
     than an extra -- for the one case where the extra's own
     dependencies are what would break something already installed."""
     flags = " --no-deps" if no_deps else ""
-    return (f'"{sys.executable}" -m pip install{flags} '
+    return (f"{installer()}{flags} "
             + " ".join(f'"{name}"' for name in names))
