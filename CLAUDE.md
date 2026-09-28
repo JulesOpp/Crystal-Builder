@@ -783,7 +783,8 @@ structure loses interactivity.
 
 ## Planning documents
 
-`docs/PLAN.md` is the phase roadmap, `docs/ROADMAP.md` the delivery
-order, `docs/TODO.md` everything raised while using the app that is
+`docs/PLAN.md` is the architecture and the phases that built it;
+`docs/TODO.md` is everything still owed -- the scheduled phases first,
+in delivery order, then everything raised while using the app that is
 not yet scheduled. An entry is **deleted when it ships, not ticked**.
 Keep them current — they are how work survives between sessions.
