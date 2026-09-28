@@ -202,7 +202,7 @@ $ xtal energy resources/samples/prepared/ZIF-8.cif --engine dftb -p method=dftb3
 $ xtal run dftb.dos resources/samples/prepared/ZIF-8.cif -p spacing=0.1 --workspace ~/Crystal\ Builder
 ```
 
-DFTB+ is not installed on the machine this draft was written on:
+DFTB+ was not installed on the machine this manual was written on:
 
 ```console
 $ xtal energy resources/samples/prepared/ZIF-8.cif --engine dftb

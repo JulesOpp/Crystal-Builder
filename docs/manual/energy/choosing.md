@@ -31,7 +31,7 @@ with them in front of you.
 still relaxes a cell, by twelve extra energy evaluations a step
 ({ref}`xTB <engine-xtb>` and {ref}`DFTB+ <engine-dftb>`; and UFF
 itself when electrostatics are on).  UFF's own evaluation on the same
-424-atom MOF-5 cell, measured for this draft, is about 5 ms once the
+424-atom MOF-5 cell, measured for this manual, is about 5 ms once the
 topology is built.
 
 ## What the sources say about each

@@ -226,8 +226,8 @@ $ xtal optimize resources/samples/prepared/MOF-5.cif --engine orb -o MOF-5_orb.c
 $ xtal energy resources/samples/prepared/MOF-5.cif --engine mattersim -p model=MatterSim-v1.0.0-1M
 ```
 
-None of the three extras is installed on the machine this draft was
-written on, and each engine says what to do:
+None of the three extras was installed on the machine this manual
+was written on, and each engine says what to do:
 
 ```console
 $ xtal energy resources/samples/prepared/MOF-5.cif --engine mace

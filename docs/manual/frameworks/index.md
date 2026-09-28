@@ -8,14 +8,6 @@ did not, stack a layered framework at the spacing you want, draw a net
 over a crystal and have it named, and build a molecule from a SMILES
 string to use as a linker or a guest.
 
-:::{note}
-This chapter is a draft awaiting the author's review.  Every statement
-about the science in it is taken from the cited papers, from the
-application's own code and help text, or from measurements recorded
-in the repository; where those sources stop, the chapter stops, and
-the open questions have been listed for the author.
-:::
-
 The {doc}`first-build tutorial </quickstart/first-build>` walks one
 build from start to finish -- **acs** on **N134** with a drawn benzene
 linker -- and ends by naming its net twice.  This chapter does not

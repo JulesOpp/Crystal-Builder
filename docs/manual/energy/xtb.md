@@ -127,7 +127,7 @@ $ xtal energy resources/samples/prepared/MIL-53.cif --engine xtb -p method=gfn2
 $ xtal optimize resources/samples/prepared/MIL-53.cif --engine xtb -p method=gfnff -o MIL-53_gfnff.cif
 ```
 
-Neither tblite nor xtb is installed on the machine this draft was
+Neither tblite nor xtb was installed on the machine this manual was
 written on, and the application says so before anything runs:
 
 ```console

@@ -8,14 +8,6 @@ map an energy landscape over one or two coordinates, turn a deposited
 CIF into whole atoms a calculation can use, and thread copies of a
 framework through its own pores.
 
-:::{note}
-This chapter is a draft awaiting the author's review.  Every statement
-about the science in it is taken from the cited papers, from the
-application's own code and help text, or from measurements recorded
-in the repository; where those sources stop, the chapter stops, and
-the open questions have been listed for the author.
-:::
-
 Each section has the same shape: what the operation is and what it is
 for, the theory the code implements with its references, practical
 notes, a worked example on a sample structure with the output it

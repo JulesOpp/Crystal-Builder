@@ -7,14 +7,6 @@ Field or DFTB+ panel or on the `xtal` command line, read what it
 reports, and know which of its numbers to trust and which to check
 against another model.
 
-:::{note}
-This chapter is a draft awaiting the author's review.  Every statement
-about the science in it is taken from the cited papers, from the
-application's own code and help text, or from measurements recorded
-in the repository; where those sources stop, the chapter stops, and
-the open questions have been listed for the author.
-:::
-
 Each section has the same shape: what the model is and what it is for,
 its energy expression and references, practical notes, a worked
 example on a sample structure with the output it actually printed,

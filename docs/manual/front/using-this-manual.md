@@ -16,12 +16,11 @@ equations need a connection, to fetch the script that draws them.
 A section on a method starts with a short outline of the theory and
 its references, gives practical advice, works an example on one of
 the sample structures, and ends with the method's settings and its
-limitations.  The four method chapters -- energy models, structure
-and optimisation, porosity and properties, frameworks and nets --
-each open with a note that they are drafts awaiting the author's
-review: what they say about the science is what the cited papers,
-the application's own code and help text, and the measurements
-recorded in the repository say, and no more.
+limitations.  What the four method chapters -- energy models,
+structure and optimisation, porosity and properties, frameworks and
+nets -- say about the science is what the cited papers, the
+application's own code and help text, and the measurements recorded
+in the repository say, and no more.
 
 ## The reference is generated
 
