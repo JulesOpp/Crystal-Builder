@@ -305,6 +305,139 @@ their `--json`.  **Still owed**, in this order:
 
 ---
 
+## The TODO of 2026-09-26 and 2026-09-28
+
+Planned 2026-09-28 on `features/todo-0928`, after the substituted
+linkers above, which go first.  The full plan, with its measurements, is
+`~/.claude/plans/make-a-plan-to-structured-treasure.md`.  Six entries
+that were unscheduled, moved here with Julius's answers; *No Close
+All* was dropped, because `close_all_tabs` (Ctrl+Shift+W) has existed
+since 2026-09-08.
+
+| Phase | Delivers | Main files | Size |
+|---|---|---|---|
+| **B1 — Change element is fast on a large cell** | Under 1 s from 5.1 s on MIL-101 in P1 | `xtalapp/docks/ff_panel.py`, `xtalapp/widgets/atom_types.py`, `xtal/core/bonding.py` | M |
+| **C1 — A wrap keeps drawn bonds; the origin moves in P1 only** | `Bond.image` rebased on every fold; `shift_origin` refuses outside P1 | `xtal/core/supercell.py`, `xtal/core/structure.py`, `xtal/commands/cell.py` | S |
+| **C2 — Cell ▸ Move origin…** | A dialog of a, b, c and *Centre the selection* | `xtalapp/dialogs/origin.py`, `xtalapp/menus.py`, `xtalapp/shell_state.py` | M |
+| **C3 — Save as a building block goes to `blocks/`** | The folder Draw writes to, and no write-back to `mof_bb_dir` | `xtalapp/dialogs/save_block.py`, `xtalapp/edit_actions.py` | S |
+| **B2 — A Selection dialog** | Rules × replace/add/remove/intersect, *Grow to neighbours only*, `Session.select` | `xtal/core/selection.py`, `xtalapp/dialogs/select.py` | M-L |
+| **B3 — Render in Blender** | `scene.blend` and `render.png` from Julius's scene | `xtal/modules/blender.py`, `xtal/modules/data/render_scene.py` | M |
+| **B4 — Zeo++ from GitHub** | Measured against the reference, then found beside 0.3 or replacing it | `xtal/modules/zeopp.py` | S-M |
+
+### B1 — Change element is fast on a large P1 cell
+
+Asked for by Julius: MIL-101 in P1, *Change element* on a selection, is
+slow enough to notice.  **Measured 2026-09-28** in the real window
+(COD MIL-101 reduced to P1, 16 000 atoms, 200 O to S): 5.12 s, of
+which the viewport's `build_scene` is 2.41 s (bond orders and
+`find_rings`, which runs **twice**, 1.1-1.5 s; re-perception 0.56 s),
+`FFPanel.refresh` filling the atom-types table 2.09 s (UFF typing
+1.03 s, 16 000 rows 0.7 s) and VTK's `Render` 0.38 s.  The command
+itself is nothing: headless, `p1.expand` is 0.01 s.
+
+- The table fills only when it is visible (stale while hidden, filled
+  on show).
+- Rings and orders are computed once per structure stamp, behind
+  `Structure.cached`.
+- `SetElement` is `Change.TOPOLOGY` and the graph is perceived again
+  by distance.  Whether an element change may do that is a question
+  for **Bonds are recalculated only when the user presses Recalculate
+  Bonds** -- ask before changing it.
+- Then delete, Set Bond Type and a property edit on the same cell; it
+  is likely the same cost as *A drag and a Supercell still rebuild
+  from scratch* below.
+
+### C1-C3 — Moving the origin, and one folder for blocks
+
+Cutting a node out of a crystal (the manual's recipe: Reduce to P1,
+select the cluster, invert, delete, mark the connection points, save
+as a building block) fails when the cluster straddles a face of the
+cell.  The remedy is to move the origin first, in P1 -- and
+`ShiftOrigin`, `supercell.shift_origin` and `Document.shift_origin`
+already exist, with no menu entry.  **Measured 2026-09-28**, they are
+wrong twice:
+
+- In a group, the operations are kept while the sites move: rutile
+  shifted by (0.1, 0.2, 0.05) expands to 32 atoms, not 6.  gemmi
+  cannot name a group at a shifted origin, so the command is **P1
+  only**, greyed with the reason elsewhere.
+- A wrap does not rebase `Bond.image`: MFU-4l in P1 with a drawn bond
+  across a face comes out with that bond 32.28 A long.  Perceived
+  bonds are fine (`bonding.rebase`).  `WrapIntoCell` has the same
+  hole for any site written outside [0, 1).  The fix is
+  image' = image + n_i - R_op n_j for a site folded by n_k.
+
+*Centre the selection* uses `measure.centroid`, which gathers across
+the boundary.  Julius chose the Cell menu, beside *Wrap atoms into the
+cell*.
+
+*Draw…* in the MOF builder writes to `<workspace>/blocks/`; *Save as a
+building block…* defaulted to `settings.mof_bb_dir` and would not save
+until a folder was typed.  Decided: it defaults to `blocks/` and no
+longer writes `mof_bb_dir` back.
+
+### B2 — A Selection dialog
+
+Julius's scope, 2026-09-28:
+
+- **Grow to neighbours only**: the bonded shell with the old
+  selection dropped, also as a Grow menu entry.
+- Element, label pattern, site.
+- Coordination and bonding: *n* neighbours, bonded to X, within *n*
+  bonds.
+- Geometry: within *r* A, inside a fractional box, in the cell only.
+- Bonds by element pair, order, length range, and kind.
+
+Each rule is a pure function in `xtal/core/selection.py`.  The dialog
+previews the count, combines by replace, add, remove or intersect, and
+applies through the Document's selection.  `Session.select` gives the
+agent the same rules.
+
+### B3 — Render a scene in Blender
+
+Send the structure to Blender for rendered images, reusing everything
+*Export as STL* has: the program lookup, the run folder, Stop, the
+greyed entry, and the cell cut to a PDB with a CONECT per bond.  The
+scene is **Julius's settings, 2026-09-28**, built to exactly:
+
+- Remove every object from the scene.
+- Import the `.pdb` with Atomic Blender.
+- An area light, scaled up 100, at z = 25, power 100 000.
+- Cycles: 10 max samples in the viewport, 50 max samples to render.
+- Simplify on, and Render Region on.
+- A camera of 40 mm focal length at rotation (70.7437, 0.000522,
+  146.958) degrees.
+  - It sits at (42.0251, 64.6089, 26.9517) m **unless it can be set
+    automatically to take in the whole object**.
+  - The plan frames it automatically along that direction, and keeps
+    the fixed place as a fallback.
+
+The scene script is ours, so it is linted, unlike the vendored STL
+script.
+
+### B4 — Zeo++ from its GitHub source
+
+The Porosity module looks for one program, `network` (`XTAL_ZEOPP`,
+Preferences, PATH, then `resources/zeo++-0.3/network`).  Zeo++ 0.3 is
+built by hand, and has faults this application works around:
+`-gridGAI` aborts on MFU-4l, and `-gridG` writes nothing.
+
+The candidates:
+- [lsmo-epfl/zeopp-lsmo](https://github.com/lsmo-epfl/zeopp-lsmo),
+  the maintained fork, on conda-forge as `zeopp-lsmo` and still a
+  `network` binary.
+- [nomad-coe/pyzeo](https://github.com/nomad-coe/pyzeo), bindings with
+  wheels.
+
+Measure each in a scratch environment against
+`tests/data/zeopp_reference.json` and the two faults, and check that
+`porosity.ZEO_RADII` matches what it compiles in.  Then either have
+`binary()` find either one, saying which in the greyed entry and
+Preferences ▸ Engines, or replace 0.3.  Bindings only if the numbers
+favour them clearly.
+
+---
+
 # Not scheduled
 
 Raised while using the application; no phase yet.
@@ -320,32 +453,6 @@ readable in either theme -- but which theme it is in is the system's
 choice alone.  Wanted: a Preferences setting for light, dark or follow
 the system, applied to the whole application and restyled live through
 `tone.retone`, without overwriting a colour chosen by hand.
-
-### Change element is slow on a large P1 cell
-
-Asked for by Julius, 2026-09-28: take MIL-101 in P1 (about 16 000
-atoms; it opens in 2.9 s) and *Change element* on a selection, and the
-edit is slow enough to notice.  The path is `EditActions.change_element`
-→ `Document.set_selection_element` → one `atom_commands.SetElement`, so
-it is already one command and one batch; the time is somewhere after
-it -- the refresh, the expansion, the scene, the Sites table, or the
-undo step's copy.  **Measure first** (`--durations`, a profile of the
-one call in the real window through run-app), then fix what the
-measurement names.  It is probably the same cost as *A drag and a
-Supercell still rebuild from scratch* below, and any edit of a few
-sites on a large cell (delete, set bond type, a property) should be
-checked with it.
-
-### A Selection dialog
-
-Asked for by Julius, 2026-09-28: a dialog that selects atoms or bonds
-with more flexibility than clicking, *Select ▸ Bonds between
-elements…* and the selection commands allow today.  **Julius will give
-the details when it is implemented**; nothing is designed yet.  Where
-it lands: beside the Select menu's commands (`EditActions`), through
-the Document's selection so the panels and the enabling rules
-(`shell_state.selection_states`) follow, and with a `Session` verb if
-the agent should have it too.
 
 ### Dragging a panel has not been tried with a real mouse
 
@@ -398,24 +505,6 @@ expansion and a scene that update the atoms that changed rather than
 being rebuilt. That is a real change to `p1.expand` and
 `viewport/builder.py`, not a tweak, and it has not been designed.
 
-### No Close All for the structure tabs
-
-Somebody who opens a few dozen structures -- a folder of CIFs, a
-scan's points -- closes them one tab at a time.  A *Close All* (the
-File menu, and the tab bar's context menu) should ask the unsaved
-question once for the lot, as switching workspace already does
-(`may_discard_unsaved` then `close_all_documents`).  Asked for by
-Julius, 2026-09-26.
-
-### Save as a building block and Draw put blocks in different places
-
-*Draw…* in the MOF builder writes to `<workspace>/blocks/`, which the
-catalogue always reads.  *File > Save as a building block…* defaults
-to the *Extra building blocks* folder (`settings.mof_bb_dir`) and,
-with that unset, will not save until a folder is typed.  Found writing
-the manual's recipe for cutting a node out of a crystal; whether the
-second should default to `blocks/` as well is a decision, not a fix.
-
 ## Symmetry
 
 ### Merge duplicates cannot see a site duplicated by its own group
@@ -435,16 +524,6 @@ is for the preview to say "Zn1 is 0.06 A off its mirror and the group
 is making three of it" and point at Standardize, not to offer a merge
 that cannot happen.  Wanted with whatever finally reports a site
 sitting just off a special position, which nothing does today.
-
-### No way to move the cell's origin
-
-Cutting a node out of a crystal (the manual's recipe: Reduce to P1,
-select the cluster, invert the selection, delete, draw the connection
-points, save as a building block) fails when the cluster straddles a
-face of the cell, because the atoms kept are the images inside it.
-The remedy is to translate the origin first, in P1, so the cluster
-sits whole inside; there is no command for that.  Wanted under the
-Structure menu (Julius, 2026-09-26).
 
 ## Force fields
 
@@ -547,38 +626,6 @@ row the 1992 paper prints is a different decision from adding ninety-one
 new ones, and `tests/test_uff_params.py` asserts the published value.
 
 ## Modules
-
-### Zeo++ from its GitHub source, not only the binary
-
-The Porosity module looks for one program, `network`
-(`xtal/modules/zeopp.py` `PROGRAM`: `XTAL_ZEOPP`, then the
-Preferences path, then PATH, then `resources/zeo++-0.3/network` in a
-checkout).  Zeo++ 0.3 is a download from zeoplusplus.org that the
-user builds by hand, and it has known faults this application works
-around (`-gridGAI` aborts on MFU-4l, `-gridG` writes nothing).
-Investigate a GitHub-hosted Zeo++ -- which one is maintained, whether
-it installs by pip or conda rather than by hand, whether its Python
-bindings would replace running a binary at all, and whether it fixes
-those faults -- then either **replace** the binary the module looks
-for, or have `binary()` **search for either** (the GitHub install,
-then the binary) and say in the greyed entry and Preferences ▸
-Engines which one it found.  Whatever is chosen, the Zeo++ entries'
-numbers must still match `tests/data/zeopp_reference.json`, and
-`porosity.ZEO_RADII` must still match the radii that copy compiles in.
-
-### Export a scene to Blender for rendered images
-
-Asked for by Julius, 2026-09-28: send the structure as it is drawn to
-Blender to make good-looking rendered images.  Blender imports `.pdb`
-and `.xyz` through its Atomic Blender add-on, which *File ▸ Export as
-STL* already drives headless (`xtal/modules/blender.py`: the cell cut
-with `cellcut.cut_cell`, written with `xtal.io.pdb` and a CONECT per
-bond, then `blender --background --python`), so the program lookup,
-the run folder, Stop and the greyed entry are there to reuse.  What
-is new is a scene rather than a mesh: the view's camera, the style's
-radii and colours, and lights and materials.  **Julius will provide
-the settings for the setup when it is implemented**; build to those,
-not to guesses.
 
 ### A crash of the application still leaves its program running
 
