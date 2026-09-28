@@ -560,6 +560,12 @@ def build_actions(window):
         QKeySequence.StandardKey.HelpContents,
         tip="Every command and every module setting, generated from "
             "the application itself")
+    add("user_manual", "User &Manual", window.show_manual,
+        tip="The user manual in your browser: a quickstart, the tasks "
+            "chapter by chapter, and each method's theory and "
+            "references.  It is the copy that came with this "
+            "application; only its equations need a connection, to "
+            "fetch MathJax.")
 
 def build_menus(window):
     bar = window.menuBar()
@@ -680,8 +686,9 @@ def build_menus(window):
     window.window_menu = submenu(bar, "&Window")
 
     help_menu = submenu(bar, "&Help")
-    window.actions_.fill_menu(help_menu, ["help_contents", None,
-                                          "install_ai_skill", "show_log",
+    window.actions_.fill_menu(help_menu, ["help_contents", "user_manual",
+                                          None, "install_ai_skill",
+                                          "show_log",
                                           None, "about"])
 
 def build_sample_menu(window) -> None:

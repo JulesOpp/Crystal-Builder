@@ -37,7 +37,7 @@ already look.
 
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -50,6 +50,15 @@ ICONS = HERE / "icons"
 #: checkouts and ``--selftest`` has nothing to open; and the workspace
 #: chooser, the first thing a launch shows, draws its side panel from
 #: ``resources/chooser``.
+#: The user manual as HTML, which the bundle job builds before it runs
+#: PyInstaller (``sphinx-build -b html docs/manual build/manual/html``,
+#: the manual job's own command) and which lands in ``manual/``, where
+#: :mod:`xtalapp.manual` looks.  Built, not committed: 11 MB of pages
+#: made from ``docs/manual`` are not worth a second copy in the tree.
+#: Its equations are MathJax, fetched from a CDN when a page opens.
+#: Absent, nothing is collected and ``--selftest`` fails the build.
+MANUAL = ROOT / "build" / "manual" / "html"
+
 RESOURCES = {
     "resources/samples":
         "File > Open Sample, and what --selftest opens.  270 KB.",
@@ -357,6 +366,16 @@ def project_datas() -> list[tuple[str, str]]:
                     part.startswith(".")
                     for part in path.relative_to(folder).parts):
                 destination = path.parent.relative_to(ROOT)
+                datas.append((str(path), destination.as_posix()))
+
+    if MANUAL.is_dir():
+        for path in sorted(MANUAL.rglob("*")):
+            relative = path.relative_to(MANUAL)
+            # Not `.doctrees` or `.buildinfo`: Sphinx's own bookkeeping
+            # for the next incremental build, which no page links to.
+            if path.is_file() and not any(
+                    part.startswith(".") for part in relative.parts):
+                destination = PurePosixPath("manual", *relative.parent.parts)
                 datas.append((str(path), destination.as_posix()))
 
     for package, patterns in sorted(PACKAGE_DATA.items()):

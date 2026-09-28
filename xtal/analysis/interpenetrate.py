@@ -20,7 +20,7 @@ candidates, measures each one, and says which of them leave room.
 * :func:`candidates` -- every Class Ia placement that the structure's
   own lattice admits at a given fold, one per orbit of the structure's
   point group, and for an acentric structure the Class II inversions
-  through the quarter-cell points.
+  through the eighth-cell points.
   Each is scored by its shortest contact between copies.
 * :func:`build` -- the array, with **the bonds each copy had**.  Nothing
   is perceived: the copies carry the explicit bonds, the stored

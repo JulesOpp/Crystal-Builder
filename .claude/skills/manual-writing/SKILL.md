@@ -24,6 +24,8 @@ docs/manual/
   conf.py                  Sphinx: myst_parser, sphinxcontrib.bibtex, sphinx.ext.intersphinx
   index.md                 master toctree
   front/                   foreword.md  highlights.md  cite.md  using-this-manual.md
+  <chapter>/index.md       quickstart essentials energy structure porosity
+                           frameworks workflows utilities architecture
   quickstart/              about.md  installation.md  gui.md  first-build.md
                            recommendations.md  troubleshooting.md
   essentials/              file.md edit.md select.md structure.md symmetry.md
@@ -33,14 +35,24 @@ docs/manual/
   back/                    glossary.md  bibliography.md  genindex (generated)
   reference/               GENERATED: commands.md modules.md engines.md panels.md inventory.json
   figures/                 GENERATED PNGs, one folder per chapter
-  shots.py                 the screenshot script
+  shots/<chapter>.py       one screenshot script per chapter
   references.bib           every citation
 ```
 
-Toolchain, installed only with the user's agreement:
-`pip install sphinx myst-parser sphinxcontrib-bibtex furo`; PDF needs
-a LaTeX install (`make latexpdf`). Build with
-`sphinx-build -b html docs/manual build/manual` (`/build/` is ignored).
+Toolchain: the `docs` extra (`pip install -e ".[docs]"`: Sphinx,
+MyST, sphinxcontrib-bibtex, furo). Build the HTML with
+`sphinx-build -n -W -b html docs/manual build/manual/html`; CI builds
+it the same way, so a broken `{ref}` fails the job. The PDF is XeLaTeX:
+`sphinx-build -M latexpdf docs/manual build/manual` in CI, but **not
+on this Mac**: it runs `make`, which here is the stub that asks to
+install Xcode's developer tools. Locally, `sphinx-build -b latex
+docs/manual build/manual/latex`, then `latexmk -pdfxe` in that
+folder. The
+TeX is `/usr/local/texlive/2016/bin/x86_64-darwin` (put it on `PATH`),
+which is why `conf.py` turns off admonition icons and xindy; CI uses a
+current TeX Live and uploads the PDF as an artifact. `/build/` is
+ignored. There is no PDF renderer here: to look at a page, split it
+out with pypdf and `sips -s format png` it.
 
 ## The sources, in the order to trust them
 
@@ -87,12 +99,20 @@ manuals (paraphrase an idea, never copy), guesses about defaults.
 5. **Glossary**: a term defined in `back/glossary.md` is linked with
    ``{term}`Wyckoff position` ``; add the term there if it is new.
 6. **Citations**: every method, program, force field and database used
-   gets a `references.bib` entry and ``{cite}`rappe1992` `` at first use.
-   Verify the entry (DOI) and do not cite from memory; if it cannot be
-   checked, leave `TODO-cite` and list it for the user.
-7. Figures: add the shot to `shots.py`, regenerate, and look at the
+   gets a `references.bib` entry and ``{cite}`rappe1992uff` `` at first
+   use. **Add entries only with `cite.py`** (`cite.py KEY DOI` or
+   `cite.py KEY arXiv:ID`), which fetches the record and prints it: read
+   the title against the paper you mean before citing it. Never type an
+   entry, and never cite from memory; prefer the published version of
+   a preprint (`cite.py --check` finds them). If a source cannot be
+   found, leave `TODO-cite` and list it for the user.
+7. **Every factual claim has a source** you could point to: the
+   generated reference, a scripted run, a docstring, a cited paper. A
+   claim about the science that none of them makes is not written; it
+   is a question for Julius.
+8. Figures: add the shot to `shots/<chapter>.py`, regenerate, and look at the
    PNG before referencing it.
-8. Build the HTML, fix warnings (broken refs are warnings), and report
+9. Build the HTML, fix warnings (broken refs are warnings), and report
    the chapter's word count and the open TODO-cites.
 
 Style: second person, present tense, British spelling as the
@@ -100,14 +120,14 @@ application uses (*optimise*, *colour*), units as the app shows them
 (Å, kcal/mol/Å, GPa). Say what a control does and why a user would
 choose it; the reference already says what values it takes.
 
-## Screenshots: `docs/manual/shots.py`
+## Screenshots: `docs/manual/shots/<chapter>.py`
 
 A `run-app --script` file, run with a scratch profile so every figure
 is a first-run window at a fixed size:
 
 ```bash
 python .claude/skills/run-app/drive.py --scratch build/manual-shots \
-  --script docs/manual/shots.py
+  --script docs/manual/shots/<chapter>.py
 ```
 
 Inside, one function per figure writes
@@ -153,15 +173,27 @@ check.
   vertices, not a property of the crystal) · General recommendations ·
   Troubleshooting (from TODO.md limitations, RELEASE_NOTES known
   issues, and the app's own error sentences)
-- **2 Essential calculation elements**: one page per menu, in
-  menu-bar order: task-oriented prose, then an include of that
-  section of `reference/commands.md`; plus mouse modes and shortcuts
-- **3 Modules**: one page per module: what it is for, when to use it
-  over the alternatives, a worked example on a sample, reading the
-  results, its settings (include from `reference/modules.md` /
-  `engines.md`), limitations, citations
-- **Back**: Glossary · Bibliography (`{bibliography}`) · Index
-  (generated)
+- **2 Essential elements**: one section per menu, in menu-bar order:
+  task-oriented prose, then the menu's commands from
+  `reference/commands.md`; plus mouse modes and shortcuts
+- **3-9, by task, as the ORCA manual groups its methods**: 3 Energy
+  models (UFF/UFF4MOF, charges, xTB, DFTB+, MACE, ORB-v3, MatterSim,
+  dispersion, choosing one) · 4 Structure and optimisation
+  (optimisers, the cell, scans, Prepare for simulation,
+  interpenetration) · 5 Porosity and properties (Zeo++, the grid
+  entries, the pore surface, PXRD) · 6 Frameworks and nets (MOF
+  builder, blocks, layer nets, drawing a net, net search, molecule
+  builder) · 7 Workflows and the command line · 8 Utilities and export
+  · 9 Architecture
+- **A method section has one shape**, the ORCA manual's: a short
+  outline of the theory with its equations and numbered citations;
+  practical advice as a few bullets; a worked example on a sample --
+  an `xtal` command and the output it actually printed, or the steps
+  in the window and what they showed; the settings (link the
+  generated reference, never retype it); limitations. The theory and
+  advice are chemistry, and Julius signs each one off before it ships.
+- **Appendices**: A Reference (generated) · B Change log (the
+  release notes, included) · C Glossary · D Bibliography · Index
 
 ## Keeping it current
 
