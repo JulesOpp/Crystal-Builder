@@ -64,6 +64,11 @@ class ExternalCalculator(Calculator):
     #: The scratch directory's prefix, so one left behind by a crash
     #: says whose it was.
     scratch_prefix = "external-"
+    #: Whether the program's speed is OpenMP's, so that it is started
+    #: on the performance cores -- see
+    #: :func:`xtal.modules.process.openmp_environment`.  Only where it
+    #: was measured.
+    openmp = False
 
     def _prepare(self, structure, options) -> None:
         """The prologue every such engine starts with: the options,
@@ -131,10 +136,12 @@ class ExternalCalculator(Calculator):
         :class:`CalculatorError` with ``why(outcome)`` as the sentence,
         which is the part each program words for itself.
         """
-        from xtal.modules.process import ExternalProcess
+        from xtal.modules.process import ExternalProcess, openmp_environment
 
         log = ProgramLog(self.log_path)
-        process = ExternalProcess(argv, cwd=self.directory, log=log)
+        process = ExternalProcess(
+            argv, cwd=self.directory, log=log,
+            env=openmp_environment() if self.openmp else None)
         outcome = process.run(cancel=self.cancel)
         self.calls += 1
         self.seconds += outcome.seconds

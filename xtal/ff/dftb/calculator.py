@@ -206,6 +206,7 @@ class DFTBCalculator(ExternalCalculator):
     provides_forces = True
     #: DFTB+'s own, negated -- see the module docstring.
     provides_stress = True
+    openmp = True
 
     def __init__(self, structure, options: DFTBOptions | None = None):
         self._prepare(structure, options or DFTBOptions())
