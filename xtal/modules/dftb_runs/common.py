@@ -16,7 +16,7 @@ from xtal.ff.dftb import hsd
 from xtal.ff.dftb.calculator import PROGRAM, DFTBOptions
 from xtal.io.gen import gen_string
 from xtal.modules.job import JobResult
-from xtal.modules.process import ExternalProcess
+from xtal.modules.process import ExternalProcess, openmp_environment
 
 GEOMETRY_NAME = "geo.gen"
 INPUT_NAME = "dftb_in.hsd"
@@ -87,7 +87,8 @@ def invoke(job, directory: Path, structure, text: str,
                                            encoding="utf-8")
     (directory / INPUT_NAME).write_text(text, encoding="utf-8")
     process = ExternalProcess([PROGRAM.name], cwd=directory,
-                              log=job.log, on_line=on_line)
+                              log=job.log, on_line=on_line,
+                              env=openmp_environment())
     result = process.run(cancel=job.cancel, program=PROGRAM)
     if result.cancelled:
         raise RunFailed(JobResult.stopped("DFTB+ was stopped"))

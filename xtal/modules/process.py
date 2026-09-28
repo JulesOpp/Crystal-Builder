@@ -343,6 +343,51 @@ class ProcessResult:
         return "\n".join(parts)
 
 
+def _sysctl(name: str) -> str:
+    return subprocess.run(["sysctl", "-n", name], capture_output=True,
+                          text=True, check=True, timeout=5).stdout.strip()
+
+
+def performance_cores(sysctl=_sysctl,
+                      platform: str | None = None) -> int | None:
+    """The fast cores of a Mac that has two kinds, or ``None``.
+
+    An OpenMP program divides a loop evenly between its threads and
+    waits for the last, and on Apple silicon the last is an efficiency
+    core: DFTB+ on an M2 ran 20-45 % faster on its four performance
+    cores than on all eight, at every size measured
+    (``tests/test_openmp_threads.py`` has the table).  ``None`` where
+    there is one kind of core, off macOS, or when sysctl will not say
+    -- nothing was measured there, and OpenMP's default stands.
+    """
+    platform = sys.platform if platform is None else platform
+    if platform != "darwin":
+        return None
+    try:
+        if int(sysctl("hw.nperflevels")) < 2:
+            return None
+        cores = int(sysctl("hw.perflevel0.physicalcpu"))
+    except (OSError, ValueError, KeyError,
+            subprocess.SubprocessError):
+        return None
+    return cores if cores > 0 else None
+
+
+def openmp_environment() -> dict | None:
+    """The environment to start an OpenMP program in, or ``None`` to
+    let it inherit this one.
+
+    ``OMP_NUM_THREADS`` set to :func:`performance_cores` -- unless the
+    user set it, which is theirs to decide.
+    """
+    if os.environ.get("OMP_NUM_THREADS"):
+        return None
+    cores = performance_cores()
+    if cores is None:
+        return None
+    return {**os.environ, "OMP_NUM_THREADS": str(cores)}
+
+
 class ExternalProcess:
     """One child process, streamed into a log and stoppable.
 
