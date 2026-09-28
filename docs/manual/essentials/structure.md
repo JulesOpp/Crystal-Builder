@@ -75,7 +75,19 @@ net, the point a connection is made at.
    greyed and its tooltip says what to install.  The dialog says by
    how much a group with symmetry will multiply the molecule before
    you press the button.
-3. {ref}`Fill pores with molecules… <cmd-fill_pores>`,
+3. *Substitute hydrogens…* replaces hydrogens with a group -- NH2,
+   OH, OMe, NO2, a halogen, a methyl or a phenyl -- either the ones
+   selected or one on every aromatic ring, which is how MOF-5 becomes
+   IRMOF-3.  The group's first atom goes a bond's length out along the
+   old X-H and the rest is turned to where it has the most room; it is
+   bonded to itself and to that atom and to nothing else.  A selected
+   hydrogen stands for every copy of itself the space group makes, and
+   the group is kept if the substituent keeps that symmetry; otherwise,
+   and always for one per ring, the structure is reduced to P1 in the
+   same undo step and you are told.  Right-click on selected hydrogens
+   ▸ *Replace with group* does the same for one group without the
+   dialog.  It needs the molecule builder's optional package.
+4. {ref}`Fill pores with molecules… <cmd-fill_pores>`,
    {ref}`Interpenetrate… <cmd-interpenetrate>` and
    {ref}`Prepare for simulation… <cmd-prepare_simulation>` rebuild the
    structure in larger ways -- guests placed where they touch nothing,
@@ -85,7 +97,7 @@ net, the point a connection is made at.
    </frameworks/molecule-builder>`, {doc}`interpenetration
    </structure/interpenetration>` and {doc}`preparing a deposited
    structure </structure/prepare>`.
-4. {ref}`Mark connection points <cmd-mark_connection_points>` and
+5. {ref}`Mark connection points <cmd-mark_connection_points>` and
    {ref}`Mark as one connection point <cmd-mark_one_connection_point>`
    turn selected atoms into the {term}`connection points <connection
    point>` a {term}`building block` is joined by.  There is no

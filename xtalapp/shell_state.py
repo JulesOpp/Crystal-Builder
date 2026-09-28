@@ -337,6 +337,16 @@ class ShellRefresh:
         tip = NO_RDKIT if not has_rdkit else menus.INSERT_MOLECULE_TIP
         action.setToolTip(tip)
         action.setStatusTip(tip)
+        # A substituent is embedded from its SMILES, so the same
+        # extra and the same sentence.
+        substitute = self.actions_.get("substitute_rings")
+        if substitute is not None:
+            if not hasattr(self, "_substitute_tip"):
+                self._substitute_tip = substitute.toolTip()
+            substitute.setEnabled(editable and has_rdkit)
+            tip = NO_RDKIT if not has_rdkit else self._substitute_tip
+            substitute.setToolTip(tip)
+            substitute.setStatusTip(tip)
 
     def _refresh_shell(self) -> None:
         """Menus, toolbar and status bar for the current document."""
@@ -362,6 +372,7 @@ class ShellRefresh:
         self.actions_.set_enabled(
             ["reduce_p1", "paste", "add_atom_dialog", "add_hydrogens",
              "fill_pores", "interpenetrate", "prepare_simulation",
+             "substitute_rings",
              "find_symmetry", "set_space_group", "standardize",
              "primitive", "wyckoff", "merge_duplicates", "subgroup",
              "invert", "supercell",

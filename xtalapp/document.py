@@ -2119,6 +2119,20 @@ class Document(QObject):
         self.select(_atoms_of_sites(self.cell, command.indices))
         return placement.message()
 
+    def substitute(self, group, per_ring: bool = False):
+        """Replace the selected hydrogens -- or, ``per_ring``, one
+        hydrogen of every aromatic ring -- with ``group``, as one undo
+        step.  Returns the report: its message, and the warnings a
+        reduction to P1 or a group with no room owes the user.
+
+        See :class:`xtal.commands.atoms.SubstituteHydrogens` for what
+        a space group allows, and :mod:`xtal.build.substitute` for
+        where the group goes.
+        """
+        atoms = () if per_ring else sorted(self.selection.atoms)
+        return self.operate(atom_commands.SubstituteHydrogens(
+            group, atoms, per_ring=per_ring))
+
     def duplicate_selection(self, offset=None) -> str:
         fragment = self.copy_selection()
         if fragment.is_empty:

@@ -460,6 +460,44 @@ class Session:
         return self._push("add_hydrogens", command, plan.message(),
                           {"xray": xray})
 
+    def substitute(self, group: str, atoms=None,
+                   per_ring: bool = False) -> VerbResult:
+        """Replace hydrogens with ``group`` -- a library name
+        (``"Amino"``), a formula (``"NH2"``) or a SMILES string with
+        one connection point -- as one undo step.
+
+        ``atoms`` are P1 hydrogens, each standing for its whole orbit;
+        or ``per_ring`` puts one on every aromatic ring.  What a
+        reduction to P1 or a group with no room owes the caller comes
+        back as diagnostics.  Nothing is perceived.
+        """
+        from xtal.build.substitute import SubstituteError
+        from xtal.commands.atoms import SubstituteHydrogens
+
+        args = {"group": group, "atoms": atoms, "per_ring": per_ring}
+        chosen = [] if atoms is None else [int(a) for a in atoms]
+        for atom in chosen:
+            self._check_atom(atom)
+        if not per_ring and not chosen:
+            return self._refused("substitute", args,
+                                 "name the hydrogens, or per_ring=True",
+                                 "NOTHING_TO_DO")
+        try:
+            command = SubstituteHydrogens(group, chosen,
+                                          per_ring=per_ring)
+        except SubstituteError as exc:
+            return self._refused("substitute", args, str(exc))
+        answer = self._operate("substitute", command, args)
+        if not answer.ok:
+            return answer
+        for warning in command.report.warnings:
+            code = ("SYMMETRY_NOTE" if warning.startswith("reduced")
+                    else "CLOSE_CONTACT" if " A from an atom " in warning
+                    else "NOTHING_TO_DO")
+            answer.diagnostics.append(Diagnostic(code, warning))
+        self._rewrite_last_log(answer)
+        return answer
+
     def fill_pores(self, guest: str, count: int = 20, beside=None,
                    near=None, overlap_scale: float | None = None,
                    seed: int = 0) -> VerbResult:

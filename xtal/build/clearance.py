@@ -74,6 +74,7 @@ class Surroundings:
                  reach: float | None = None):
         self.matrix = np.asarray(matrix, dtype=float)
         self.shifts = _shifts(self.matrix)
+        self._lengths = np.linalg.norm(self.shifts, axis=1)
         points = np.asarray(environment, dtype=float).reshape(-1, 3)
         images = (points[None, :, :]
                   + self.shifts[:, None, :]).reshape(-1, 3)
@@ -96,11 +97,21 @@ class Surroundings:
         closest = float("inf")
         if self._tree is not None:
             distances, _ = self._tree.query(group, k=1)
-            closest = float(np.min(distances))
-        own = cKDTree(group)
-        for shift in self.shifts[1:]:
+            closest = float(distances.min())
+        # An image one cell over can only be closer than what was found
+        # if the cell is shorter than that plus the group's own width --
+        # never, in a framework, and skipping the rest is exact.  It was
+        # 26 queries on every call, and most of a one-per-ring plan.
+        width = float(np.linalg.norm(np.ptp(group, axis=0)))
+        own = None
+        for shift, length in zip(self.shifts[1:], self._lengths[1:],
+                                 strict=True):
+            if length - width >= closest:
+                continue
+            if own is None:
+                own = cKDTree(group)
             distances, _ = own.query(group + shift, k=1)
-            closest = min(closest, float(np.min(distances)))
+            closest = min(closest, float(distances.min()))
         return closest
 
 
@@ -119,7 +130,8 @@ def turn(points, axis, origin, angle) -> np.ndarray:
 
 
 def clearest_angle(surroundings: Surroundings, group, axis, origin,
-                   preferred: float = 0.0) -> tuple[float, float]:
+                   preferred: float = 0.0,
+                   keep_clear: bool = True) -> tuple[float, float]:
     """``(angle, clearance)``: the turn about the axis that gives the
     group room, and how much room it gives.
 
@@ -131,9 +143,13 @@ def clearest_angle(surroundings: Surroundings, group, axis, origin,
     degrees, every angle within :data:`SLACK` of the best clearance is
     admissible, and of those the one nearest ``preferred`` is taken --
     the preference breaking clearance's ties, never overruling it.
+
+    ``keep_clear=False`` searches whatever the preferred angle has:
+    a substituent has nothing to be faithful to, and the angle with
+    the most room is simply the answer (:mod:`xtal.build.substitute`).
     """
     at = surroundings.clearance(turn(group, axis, origin, preferred))
-    if at >= CLEAR:
+    if keep_clear and at >= CLEAR:
         return preferred, at
     angles = [preferred] + [np.radians(STEP * k)
                             for k in range(int(round(360 / STEP)))]

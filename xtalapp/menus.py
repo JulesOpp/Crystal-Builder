@@ -287,6 +287,12 @@ def build_actions(window):
         window.add_hydrogens_dialog,
         tip="Complete every main-group coordination with the "
             "hydrogens an X-ray structure never had")
+    add("substitute_rings", "Su&bstitute hydrogens...",
+        window.substitute_dialog,
+        tip="Replace the selected hydrogens, or one on every aromatic "
+            "ring, with a group -- NH2, OH, OMe, NO2, a halogen, a "
+            "phenyl -- bonded to the atom the hydrogen was on and to "
+            "nothing else")
     add("fill_pores", "&Fill pores with molecules...",
         window.fill_pores_dialog,
         tip="Put copies of a molecule -- from another tab or a file "
@@ -610,7 +616,8 @@ def build_menus(window):
     structure_menu = submenu(bar, "S&tructure")
     window.actions_.fill_menu(structure_menu, [
         "add_atom_dialog", "add_centroid", "merge_atoms",
-        "add_hydrogens", "insert_molecule", "fill_pores",
+        "add_hydrogens", "substitute_rings", "insert_molecule",
+        "fill_pores",
         "interpenetrate", "prepare_simulation",
         "mark_connection_points", "mark_one_connection_point", None,
         "bond_rules", "recompute_bonds", "reset_bonds",
@@ -950,6 +957,8 @@ def context_menu(window, kind: str):
             add_bond_type_menu(window, menu)
         elif name == window.BOUNDARY_MENU:
             add_boundary_menu(window, menu)
+        elif name == window.GROUP_MENU:
+            add_group_menu(window, menu)
         elif name == window.MEASURE_ENTRY:
             add_measure(window, menu, count, kind)
         elif name in window.COUNTED_ACTIONS and count > 1:
@@ -961,6 +970,33 @@ def context_menu(window, kind: str):
         window.actions_.fill_menu(
             style, [f"style_{n}" for n in styles.names()])
     return menu
+
+def add_group_menu(window, menu):
+    """Replace with group: one entry per group in the library.
+
+    Enabled only when every selected atom is a hydrogen and RDKit is
+    there to embed the group -- a submenu that opened on a carbon
+    would offer an edit that could only refuse.  Fresh actions rather
+    than registry ones, because the list is the library's and grows
+    with it; what they call is the registry's own
+    ``substitute_rings`` rule for everything else.
+    """
+    from xtal.build import installed as rdkit_installed
+    from xtal.build import substitute
+
+    entry = submenu(menu, "Replace with &group")
+    document = window.current_document()
+    atoms = sorted(document.selection.atoms) if document else []
+    hydrogens = bool(atoms) and all(
+        document.cell.elements[a] == "H" for a in atoms)
+    entry.setEnabled(hydrogens and rdkit_installed()
+                     and window.actions_["substitute_rings"].isEnabled())
+    for name in substitute.names():
+        action = entry.addAction(name)
+        action.triggered.connect(
+            lambda _checked=False, n=name: window.replace_with_group(n))
+    return entry
+
 
 def add_boundary_menu(window, menu):
     """The three boundary answers, wherever they are wanted."""

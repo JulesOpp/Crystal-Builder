@@ -342,3 +342,35 @@ def test_fill_pores_refuses_a_guest_it_cannot_read(rutile):
     assert not answer.ok
     assert "neither an element nor a file" in answer.message
     assert s.stack.is_clean
+
+
+def test_substitute_turns_mof5_into_irmof3_in_one_step(tmp_path):
+    """The same command the dialog pushes: one amine per ring, and the
+    edit is one undo step with nothing to report."""
+    from collections import Counter
+    from pathlib import Path
+
+    from xtal.build import installed as rdkit_installed
+
+    if not rdkit_installed():
+        pytest.skip("the build extra")
+    sample = (Path(__file__).resolve().parents[1] / "resources"
+              / "samples" / "MOF-5.cif")
+    s = Session.open(sample, workspace=tmp_path / "ws")
+
+    answer = s.substitute("NH2", per_ring=True)
+
+    assert answer.ok, answer.message
+    assert Counter(s.cell.elements)["N"] == 24
+    assert s.history()[-1] == "Substitute rings with Amino"
+    s.undo()
+    assert "N" not in s.cell.elements
+
+
+def test_substitute_refuses_what_is_not_a_group(rutile):
+    s = Session(rutile)
+    answer = s.substitute("[*]C[*]", per_ring=True)
+
+    assert not answer.ok
+    assert "is not a group" in answer.message
+    assert s.stack.is_clean

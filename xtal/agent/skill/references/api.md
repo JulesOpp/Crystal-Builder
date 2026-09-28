@@ -156,6 +156,21 @@ that bonds what it adds. Refused with `NOTHING_TO_DO` when nothing is
 missing. For a deposited structure, prefer `prepare()`, which places
 cluster and water hydrogens by rule where valence alone would guess.
 
+### `substitute(group, atoms, per_ring)`
+
+Replaces hydrogens with a group, as one undo step: the group's first
+atom a bond's length out along the old X-H, turned for the most room,
+bonded to itself and to that atom and to nothing else. `group` is a
+library name (`"Amino"`, `"Methoxy"`, `"Nitro"`, `"Phenyl"` ...), a
+formula (`"NH2"`, `"OMe"`, `"NO2"`, `"F"`, `"Br"`) or SMILES with one
+`*`. `atoms` are P1 hydrogens, each standing for its orbit: the group is
+kept if the substituent keeps the site symmetry, else the cell is
+reduced to P1 (`SYMMETRY_NOTE`). `per_ring=True` puts one on every
+aromatic ring -- MOF-5 to IRMOF-3 is
+`s.substitute("NH2", per_ring=True)` -- and always reduces to P1. A
+group left under 1.5 Å from anything is `CLOSE_CONTACT`: the ring would
+have to turn, and nothing turns it. Needs the `build` extra.
+
 ### `fill_pores(guest, count, beside, near, overlap_scale, seed)`
 
 Copies of a molecule into the empty space, each clear of the host and

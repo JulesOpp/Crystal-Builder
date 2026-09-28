@@ -444,6 +444,21 @@ stress case).
   present. Every build that was clear writes the CIF it wrote before,
   to the byte (a test holds MOF-5 2x2x2 under both rules), and
   2-phenyl-BDC on pcu/N16 goes from 0.37 A as found to 1.77.
+- **A hydrogen is replaced by a whole group, bonded as built.**
+  `xtal/build/substitute.py` puts the group's attaching atom
+  `bond_distance` out along the old X-H and turns the rest about that
+  bond for the most room (`clearance.clearest_angle(keep_clear=False)`,
+  its own images counted); `SubstituteHydrogens` removes the H sites
+  and adds the group in one expansion, holding the stored graph
+  through both halves -- the group's bonds and the one to its parent
+  are explicit, and nothing is perceived. A selected hydrogen stands
+  for its orbit: the space group is kept when the substituent keeps
+  the site symmetry (F on MOF-5 keeps Fm-3m), and otherwise -- and
+  always for *one per ring* -- the cell is reduced to P1 inside the
+  step and the report says so. The ring is never turned, so a group
+  with under `clearance.CLEAR` of room is a warning, not a refusal (a
+  phenyl on every MOF-5 ring). The groups are the library's `Group`
+  category; embedding them needs the `build` extra.
 - **A layer net is stacked after it is built, never by the builder.**
   The layers are the RCSR's own: every 2-periodic net in its file
   that PORMAKE can build on (196 of 200; `catalog.PORMAKE_REJECTS`

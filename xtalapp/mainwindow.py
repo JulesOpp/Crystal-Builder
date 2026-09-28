@@ -647,6 +647,8 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
 
     #: The same, for the three boundary answers.
     BOUNDARY_MENU = "@boundary"
+    #: Replace with group: its entries are the library's groups.
+    GROUP_MENU = "@group"
 
     #: The measurement the selection admits, whichever it is.
     #: Built at click time because it depends on what was clicked and
@@ -663,7 +665,8 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
     #: whatever was clicked, so ``edit_cell`` and ``display_range``
     #: end all three lists rather than only the one for empty space.
     CONTEXT_MENUS = {
-        "atom": ["change_element", "delete_selection", None,
+        "atom": ["change_element", GROUP_MENU, "delete_selection",
+                 None,
                  "expand_bonded", "expand_fragment", "expand_orbit",
                  "select_same", None, "copy", "cut", "duplicate",
                  "add_centroid", MEASURE_ENTRY, None,
