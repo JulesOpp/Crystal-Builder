@@ -273,6 +273,12 @@ filterwarnings = [
     "error::DeprecationWarning",
     'ignore:Setting the shape on a NumPy array:DeprecationWarning:ase\.atoms',
     'ignore:`torch\.jit\.:DeprecationWarning',
+    # matplotlib's Qt toolbar asks for this attribute every time it
+    # paints an icon, and PySide 6.9 calls it deprecated.  Raised as
+    # an error inside QIconEngine::paint on a real display, it left
+    # the GIL held and the refinement workbench's tests hung for ever
+    # with nothing printed (offscreen CI never paints the icons).
+    "ignore:Enum value 'Qt.+AA_UseHighDpiPixmaps' is marked:DeprecationWarning",
 ]
 markers = [
     # Seconds rather than milliseconds, and worth it: a variable-cell

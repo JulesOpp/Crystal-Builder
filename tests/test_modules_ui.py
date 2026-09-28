@@ -107,9 +107,28 @@ def test_the_menu_bar_has_modules_where_calculate_was(window):
 def test_the_menu_is_built_from_the_registry(window):
     """Nothing in the window names a module.  A module registered
     before it opens appears without this file changing."""
-    submenus = [a.text() for a in window.modules_menu.actions()]
+    submenus = [a.text() for a in window.modules_menu.actions()
+                if not a.isSeparator()]
     assert submenus == [m.label for m in MODULES]
     assert "Stub" in submenus
+
+
+def test_modules_of_one_kind_sit_together_between_separators(window):
+    """A separator where the group changes, and nowhere else.  If this
+    fails, the menu is a flat list again, or a group is split in
+    two."""
+    group = {m.label: m.group for m in MODULES}
+    runs = [[]]
+    for action in window.modules_menu.actions():
+        if action.isSeparator():
+            runs.append([])
+        else:
+            runs[-1].append(group[action.text()])
+    assert all(run for run in runs)
+    assert all(len(set(run)) == 1 for run in runs)
+    kinds = [run[0] for run in runs]
+    assert len(kinds) == len(set(kinds))
+    assert kinds[:4] == ["energy", "build", "characterise", "export"]
 
 
 def _submenu(menu, title):

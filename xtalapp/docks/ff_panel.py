@@ -170,6 +170,10 @@ class ForceFieldDock(QDockWidget):
         self._thread = None
         self._before: np.ndarray | None = None
         self._before_matrix: np.ndarray | None = None
+        # The document the run was started on.  A tab switch rebinds
+        # ``document`` at once, but the worker's last step and its
+        # finish are still queued, and they belong to this one.
+        self._run_document = None
         self._recorder = None
 
         self.engines = (list(ENGINES) if engines is None
@@ -733,6 +737,7 @@ class ForceFieldDock(QDockWidget):
 
         self._before = document.structure.frac.copy()
         self._before_matrix = document.structure.lattice.matrix.copy()
+        self._run_document = document
         frozen = document.frozen_sites() if self.freeze.isChecked() \
             else ()
         if self.freeze.isChecked() and \
@@ -822,14 +827,18 @@ class ForceFieldDock(QDockWidget):
     # -- signals from the worker ---------------------------------------
 
     def _on_step(self, step) -> None:
-        self.plot.append(step.iteration, step.energy, step.max_force)
-        if self.document is not None:
-            self.document.preview_positions(step.frac, step.matrix)
-        self.statusMessage.emit(step.line())
+        document = self._run_document
+        if document is None:                        # pragma: no cover
+            return
+        document.preview_positions(step.frac, step.matrix)
+        if document is self.document:
+            self.plot.append(step.iteration, step.energy,
+                             step.max_force)
+            self.statusMessage.emit(step.line())
 
     def _on_finished(self, result) -> None:
         self._set_running(False)
-        document = self.document
+        document, self._run_document = self._run_document, None
         if document is None:                        # pragma: no cover
             return
         if self._before is not None:
@@ -839,6 +848,13 @@ class ForceFieldDock(QDockWidget):
                                        self._before_matrix)
         message = document.apply_optimization(result,
                                               before=self._before)
+        if document is not self.document:
+            # The run landed on the tab it was started on; this panel
+            # now shows another, and none of what follows is about it.
+            self.statusMessage.emit(message)
+            self._close_run(result, document.structure)
+            self.worker = None
+            return
         self.plot.set_history(result.history)
         self.report.setPlainText(
             f"{result.summary()}\n\n"
@@ -901,9 +917,10 @@ class ForceFieldDock(QDockWidget):
 
     def _on_failed(self, message: str) -> None:
         self._set_running(False)
-        if self.document is not None and self._before is not None:
-            self.document.preview_positions(self._before,
-                                            self._before_matrix)
+        document, self._run_document = self._run_document, None
+        if document is not None and self._before is not None:
+            document.preview_positions(self._before,
+                                       self._before_matrix)
         self.report.setPlainText(f"the optimisation failed: {message}")
         self.statusMessage.emit(f"optimisation failed: {message}")
         self._finish_run(error=message)

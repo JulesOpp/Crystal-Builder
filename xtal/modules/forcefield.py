@@ -58,7 +58,7 @@ FORCEFIELD = Module(
     label="Forcefield",
     description="Universal Force Field: atom types, energies and "
                 "geometry optimisation, under the space group.",
-    order=10,
+    order=10, group="energy",
     check=_available,
     provides=frozenset({"energy", "forces", "structure",
                         "trajectory"}),

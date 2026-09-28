@@ -296,7 +296,7 @@ PXRD = Module(
                 "structure factors.  The pattern is written as .xy "
                 "beside the indexed reflection list, and a measured "
                 "pattern can be overlaid on it.",
-    order=50,
+    order=31, group="characterise",
     actions=(
         Action(name="simulate", label="Simulate a pattern...",
                tip="Calculate a powder diffraction pattern from this "

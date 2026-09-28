@@ -624,7 +624,7 @@ SCAN = Module(
                 "constraint rather than by freezing the atoms that "
                 "define it.  Every point is left behind as a "
                 "structure to open.",
-    order=60,
+    order=12, group="energy",
     actions=(
         Action(name="run", label="Relaxed scan...",
                tip="Map the energy landscape over one or two "
