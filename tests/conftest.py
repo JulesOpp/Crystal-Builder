@@ -488,3 +488,36 @@ def rcsr_catalogue():
         return catalogue()
     except RcsrError as exc:
         pytest.skip(str(exc))
+
+
+#: 2-phenyl-BDC: the phenyl ring lands on a neighbouring linker on
+#: pcu/N16 built as found -- 0.37 A, with five hydrogens that were
+#: once perceived bonded to two atoms each.
+PHENYL_BDC = "[*:1]c1ccc([*:2])c(c2ccccc2)c1"
+
+#: 2,5-dimethoxy-BDC: 1.34 A under consistent and 1.27 A as found,
+#: before a linker was turned for room.
+DIMETHOXY_BDC = "[*:1]c1cc(OC)c([*:2])cc1OC"
+
+
+@pytest.fixture
+def phenyl_catalog(tmp_path):
+    """A catalogue with two substituted BDCs beside PORMAKE's own,
+    ``UPh`` and ``UOMe``: the linkers that used to build on top of
+    their neighbours on pcu/N16 (``test_mof_builder.py``,
+    ``test_mof_orientation.py``)."""
+    from xtal.build import MISSING, from_smiles
+    from xtal.build import installed as rdkit_installed
+    from xtal.mof import Catalog, database_root
+    from xtal.mof.block import write_building_block
+
+    if database_root() is None:
+        pytest.skip("the vendored PORMAKE database is missing")
+    if not rdkit_installed():
+        pytest.skip(MISSING)
+    folder = tmp_path / "blocks"
+    for name, smiles in (("UPh", PHENYL_BDC), ("UOMe", DIMETHOXY_BDC)):
+        write_building_block(
+            from_smiles(smiles, name=name).to_structure(),
+            folder / f"{name}.xyz")
+    return Catalog.default(also_blocks=(str(folder),))

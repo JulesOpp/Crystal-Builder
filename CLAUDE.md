@@ -434,7 +434,16 @@ stress case).
   ring lies flat on both carboxylates it meets; under `as-found` no
   shipped block is on that list. Ni3(HITP)2's own blocks come back
   wanting 6e-08 radians, which is the crystal's angle and below
-  `_STILL`.
+  `_STILL`. **Room comes first, and the closed form breaks its ties**
+  (`xtal/build/clearance.py`, since 2026-09-28): an angle whose atoms
+  come no closer than `clearance.CLEAR` (1.5 A) to anything, the
+  block's own images included, is kept as it is. Otherwise a full turn
+  is sampled every 10 degrees, and of the angles within 0.1 A of the
+  best clearance the one nearest φ* is taken. So a block with a
+  substituent is turnable under either rule, even with no face to
+  present. Every build that was clear writes the CIF it wrote before,
+  to the byte (a test holds MOF-5 2x2x2 under both rules), and
+  2-phenyl-BDC on pcu/N16 goes from 0.37 A as found to 1.77.
 - **A layer net is stacked after it is built, never by the builder.**
   The layers are the RCSR's own: every 2-periodic net in its file
   that PORMAKE can build on (196 of 200; `catalog.PORMAKE_REJECTS`

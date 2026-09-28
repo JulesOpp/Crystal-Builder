@@ -976,3 +976,50 @@ def test_a_face_is_never_a_member():
 
     assert members_of(connections, bonds) == {3: (0,)}
     assert presents_face(connections, bonds, positions)
+
+
+# ------------------------------------------------ turned for room
+
+@needs_builder
+@pytest.mark.slow
+@pytest.mark.parametrize("linker", ["UPh", "UOMe"])
+@pytest.mark.parametrize("rule", ["consistent", "as-found"])
+def test_an_ortho_substituted_linker_is_turned_clear_of_the_node(
+        tmp_path, phenyl_catalog, linker, rule):
+    """The faces were the only thing a linker's angle answered to, so a
+    substituent went wherever they put it: 2-phenyl-BDC landed 0.37 A
+    from its neighbour as found, and 2,5-dimethoxy-BDC at 1.27.  Room
+    comes first now, under either rule."""
+    from xtal.build.clearance import CLEAR
+
+    outcome = build(BuildRequest.parse("pcu", "N16", linker,
+                                       orientation=rule),
+                    tmp_path, phenyl_catalog)
+
+    assert outcome.closest >= CLEAR
+    assert outcome.overlaps == ()
+
+
+@needs_builder
+@pytest.mark.slow
+@pytest.mark.parametrize("rule", ["consistent", "as-found"])
+def test_an_unsubstituted_linker_turns_exactly_as_before(
+        tmp_path, catalog, monkeypatch, rule):
+    """An angle with room is never turned away from, so MOF-5 writes
+    the CIF it wrote before there was a search -- ``as-found`` still
+    PORMAKE's build and ``consistent`` still the faces' -- to the
+    byte.  ``CLEAR`` at zero is every angle having room, which is the
+    builder with the search taken out."""
+    from xtal.build import clearance
+
+    def written(folder):
+        outcome = build(BuildRequest.parse("pcu", "N16", "E14", "2x2x2",
+                                           orientation=rule),
+                        _fresh(folder), catalog)
+        return [line for line in outcome.cif.read_text().splitlines()
+                if not line.startswith("#")
+                and "creation_date" not in line]
+
+    searched = written(tmp_path / "a")
+    monkeypatch.setattr(clearance, "CLEAR", 0.0)
+    assert written(tmp_path / "b") == searched

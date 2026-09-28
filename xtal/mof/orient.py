@@ -938,14 +938,25 @@ def align_edges(framework, log=None, faces: bool = False) -> int:
                                     framework.info["permutations"]):
         partner[here] = there
         partner[there] = here
+    matrix = np.asarray(framework.atoms.cell.array, dtype=float)
     turned: set[int] = set()
+    cleared: set[int] = set()
     for _sweep in range(_SWEEPS):
         moved = False
         for slot in turnable:
             angle, axis, origin = _axial(blocks, partner, slot,
                                          faces)
-            if angle is None or abs(angle) < _STILL:
+            if axis is None:
+                axis, origin = _axis(blocks[slot])
+                if axis is None:                    # pragma: no cover
+                    continue
+            preferred = 0.0 if angle is None else angle
+            angle, room = _clear(blocks, partner, slot, axis, origin,
+                                 preferred, matrix)
+            if abs(angle) < _STILL:
                 continue
+            if abs(angle - preferred) >= _STILL:
+                cleared.add(slot)
             _turn(blocks[slot], axis, origin, angle)
             turned.add(slot)
             moved = True
@@ -955,7 +966,89 @@ def align_edges(framework, log=None, faces: bool = False) -> int:
         _write_back(framework, blocks, turned)
         _say(log, f"settled {len(turned)} block(s) about their own "
                   f"axis, of {len(turnable)} that could turn")
+    if cleared:
+        _say(log, f"turned {len(cleared)} of them to give their atoms "
+                  f"room, rather than to where their ends agree")
     return len(turned)
+
+
+#: An atom nearer the axis than this does not move when the block
+#: turns, so it has nothing to say about which angle is clear.
+_ON_AXIS = 0.1
+
+
+def _axis(block):
+    """``(axis, origin)``: the line through a block's two connection
+    points, or two ``None``."""
+    positions = np.asarray(block.atoms.get_positions(), dtype=float)
+    first, second = (int(p) for p in block.connection_point_indices)
+    axis = positions[second] - positions[first]
+    length = float(np.linalg.norm(axis))
+    if length < _UNDECIDED:                         # pragma: no cover
+        return None, None
+    return axis / length, positions[first]
+
+
+def _moving(block, axis, origin) -> np.ndarray:
+    """The atoms a turn of this block moves, and that nothing is
+    bonded across a joint to: off the axis, not a connection point,
+    and not a member of one.  A member is bonded to its partner at a
+    bond's length on purpose, and measured as a contact it would be
+    the answer every time."""
+    positions = np.asarray(block.atoms.get_positions(), dtype=float)
+    points = [int(p) for p in block.connection_point_indices]
+    held = set(points)
+    for found in members_of(points, block.bonds).values():
+        held.update(int(m) for m in found)
+    offset = positions - origin
+    off = np.linalg.norm(offset - np.outer(offset @ axis, axis), axis=1)
+    symbols = block.atoms.get_chemical_symbols()
+    return np.array([i for i in range(len(positions))
+                     if i not in held and off[i] > _ON_AXIS
+                     and symbols[i] != "X"], dtype=int)
+
+
+def _clear(blocks, partner, slot, axis, origin, preferred, matrix):
+    """``(angle, room)`` for one block: ``preferred`` where it already
+    has room, else the clearest angle nearest it -- see
+    :func:`xtal.build.clearance.clearest_angle`.
+
+    What the block is measured against is every other block's atoms,
+    less the connection points and the members its own points are
+    fused to, and its own images in the cells around it.  Positions
+    are the *located* blocks', in the one frame the framework is built
+    in, before anything is wrapped.
+    """
+    from xtal.build.clearance import CLEAR, Surroundings, clearest_angle
+
+    block = blocks[slot]
+    moving = _moving(block, axis, origin)
+    if not len(moving):
+        return preferred, float("inf")
+    fused: dict[int, set[int]] = {}
+    for point in block.connection_point_indices:
+        met = partner.get((slot, int(point)))
+        if met is None:
+            continue
+        other, there = met
+        found = members_of(blocks[other].connection_point_indices,
+                           blocks[other].bonds).get(int(there), ())
+        fused.setdefault(other, set()).update(int(m) for m in found)
+    environment = []
+    for other, placed in enumerate(blocks):
+        if placed is None or other == slot:
+            continue
+        symbols = placed.atoms.get_chemical_symbols()
+        positions = np.asarray(placed.atoms.get_positions(), dtype=float)
+        skip = fused.get(other, set())
+        environment.extend(positions[i] for i in range(len(positions))
+                           if symbols[i] != "X" and i not in skip)
+    group = np.asarray(block.atoms.get_positions(), dtype=float)[moving]
+    centre = origin + axis * float(np.mean((group - origin) @ axis))
+    radius = float(np.max(np.linalg.norm(group - centre, axis=1)))
+    surroundings = Surroundings(environment, matrix, centre=centre,
+                                reach=radius + CLEAR + 2.0)
+    return clearest_angle(surroundings, group, axis, origin, preferred)
 
 
 def _turnable(blocks, faces: bool = False) -> list[int]:
@@ -974,6 +1067,15 @@ def _turnable(blocks, faces: bool = False) -> list[int]:
     they are not on.  With ``faces`` -- under ``consistent`` -- a ring
     or a carboxylate at either end is a face, and E14 turns until its
     ring lies flat against both carboxylates it meets.
+
+    **And any block with atoms off its axis, under either rule.**  A
+    substituent is off the axis, and a linker that carries one can
+    land it on the block beside it: 2-phenyl-BDC on pcu/N16, as found,
+    put a ring 0.37 A from its neighbour's.  Such a block is turned
+    only when its angle has no room (:func:`_clear`) -- every block
+    that was built clear is left at the angle it had, which is what
+    keeps ``as-found`` byte for byte PORMAKE's wherever PORMAKE's was
+    clear.
     """
     out = []
     for slot, block in enumerate(blocks):
@@ -982,14 +1084,17 @@ def _turnable(blocks, faces: bool = False) -> list[int]:
         points = np.asarray(block.connection_point_indices, dtype=int)
         if len(points) != 2 or not readable(block):
             continue
-        if faces:
-            if presents_face(points, block.bonds,
-                             block.atoms.get_positions()):
-                out.append(slot)
-            continue
         members = members_of(points, block.bonds)
-        if any(len(found) > 1 for found in members.values()):
+        if faces and presents_face(points, block.bonds,
+                                   block.atoms.get_positions()):
             out.append(slot)
+        elif not faces and any(len(found) > 1
+                               for found in members.values()):
+            out.append(slot)
+        else:
+            axis, origin = _axis(block)
+            if axis is not None and len(_moving(block, axis, origin)):
+                out.append(slot)
     return out
 
 
