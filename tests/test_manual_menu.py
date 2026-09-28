@@ -3,6 +3,8 @@ browser from the copy that ships with the application."""
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 pytest.importorskip("PySide6")
@@ -78,7 +80,9 @@ def test_the_manual_opens_at_its_front_page_in_the_browser(
 
     window.actions_["user_manual"].trigger()
 
-    assert [u.toLocalFile() for u in opened] == [str(page)]
+    # As paths: on Windows the URL spells it C:/Users/..., the same
+    # file with the other separator.
+    assert [Path(u.toLocalFile()) for u in opened] == [page]
 
 
 def test_a_checkout_that_never_built_it_is_told_how(
