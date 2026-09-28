@@ -1,6 +1,6 @@
 ---
 name: plan-feature
-description: Write an implementation plan for Crystal Builder in the shape this project uses - context, measurements before decisions, invariants checked, phases with files and tests, run-app verification, docs to update. Use whenever asked to make, write or describe a plan, to "describe the changes" in a ROADMAP phase or TODO entry, to plan items from docs/TODO.md, or before implementing anything non-trivial. Planning only; no source edits.
+description: Write an implementation plan for Crystal Builder in the shape this project uses - context, measurements before decisions, invariants checked, phases with files and tests, run-app verification, docs to update. Use whenever asked to make, write or describe a plan, to "describe the changes" in a scheduled phase or TODO entry, to plan items from docs/TODO.md, or before implementing anything non-trivial. Planning only; no source edits.
 ---
 
 # Planning a change
@@ -13,7 +13,7 @@ a green suite. This skill is that shape. It produces a plan, not code:
 
 ## 1. Gather, cheaply
 
-- The request's source: the TODO entry, the ROADMAP phase, or the
+- The request's source: the TODO entry, the scheduled phase, or the
   user's list. Quote it back in the plan's Context in one or two lines.
 - `CLAUDE.md` **Invariants**. For each one the change comes near, say
   in the plan how it is kept. These are product decisions: bonds only
@@ -67,8 +67,8 @@ and what the screenshot or printed output must show. Plus
 once at the end.
 
 ## Docs
-Which TODO entries are deleted when this ships, whether ROADMAP
-changes, whether CLAUDE.md gains or changes an invariant, and whether
+Which TODO entries are deleted when this ships, whether a
+scheduled phase in TODO.md changes, whether CLAUDE.md gains or changes an invariant, and whether
 docs/MENUS.md or a skill is now out of date.
 
 ## Suggested order
@@ -101,6 +101,7 @@ Wrong before missing, small before large. One commit per phase.
 In plan mode the plan is written to the plan file the harness names;
 otherwise to `~/.claude/plans/<short-name>.md`. Tell the user the
 path. When the user approves a multi-phase plan that will span
-sessions, also schedule it in `docs/ROADMAP.md` (a phase table and one
-section per phase) so the next session can find it. Delete the
-section when the phase ships, as the ROADMAP's own header says.
+sessions, also schedule it under *Scheduled* in `docs/TODO.md` (a
+phase table and one section per phase) so the next session can find
+it. Delete the section when the phase ships, as TODO.md's own header
+says.
