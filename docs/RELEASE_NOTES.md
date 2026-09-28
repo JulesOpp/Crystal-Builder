@@ -4,52 +4,47 @@ Build, manipulate, analyse and export crystal structures. Read and
 write CIF, edit symmetry and bonding, run a force field, DFTB+ or
 Zeo++ on the result.
 
-## New since 0.2.1
+## New since 0.3.0
 
-- **Three more machine-learned potentials**: ORB-v3 and MatterSim
-  beside MACE, and **EQeq charges** for the force field.
-  *Preferences → Engines* lists every package a feature needs, with
-  an install command that works for the Python it is running in.
-- **A library of real frameworks**: sixteen MOFs from the
-  Crystallography Open Database (CC0), under *From the COD* in Open
-  Sample.
-- **The MOF builder builds chelating blocks.** A connection point can
-  be several atoms (*Mark as one connection point*), so MFU-4l and
-  Ni3(HITP)2 build from their own nodes. Symmetric nodes are turned
-  so that the faces across every edge agree, which builds MOF-5 with
-  its clusters alternating. Blocks and nets can be searched by name,
-  denticity and MOF+ fields, and the RCSR's layer nets can be built
-  and stacked.
-- **Interpenetration**: *Structure ▸ Interpenetrate…*, or ask the MOF
-  builder for it. Copies closer than a bond are refused by name.
-- **More file formats**: POSCAR/CONTCAR, mmCIF, pymatgen's JSON, and
-  ASE trajectories in the playback bar.
-- **Work is not lost.** Every two minutes, edited tabs are autosaved
-  to a side file, and a newer autosave is offered back when the file
-  is opened. Quitting asks before it stops a running calculation.
-  Each workspace reopens the tabs it had.
-- **The first minute**: a start pane while no tab is open, a wider
-  viewport in the first window, and a reason given for anything
-  greyed out, converted or refused.
-- **Faster and leaner**: a cell relaxation step is one evaluation, a
-  drag on MFU-4l is a third quicker, the pore surface takes a quarter
-  of the memory, and Ball and stick (occupancy) turns as fast as
-  plain Ball and stick. A structure with no view of its own now
-  opens in that style, and the optimiser starts on *Smart*.
+- **Powder refinement.** Open a measured `.xy` in the refinement
+  workbench: fit peaks, index the pattern, then Pawley and Rietveld,
+  with the atoms moving live in the viewport. *Rietveld with
+  energies* adds the Force Field panel's engine to the fit, and a
+  Pareto sweep traces the trade between the two. RietX does the
+  physics and is bundled.
+- **Prepare for simulation**: *Structure ▸ Prepare for simulation…*
+  and `xtal prepare` turn a deposited CIF into a model a calculation
+  can run on (duplicate sites merged, primitive cell, disorder
+  ordered, solvent out, hydrogens) and say what each step chose.
+  Anything that adds chemistry the file never located is left off
+  unless asked for. *Open Sample ▸ Prepared for simulation* has the
+  COD frameworks already done.
+- **Faster porosity**: surface area and accessible volume read off
+  the distance grid, with no Zeo++ needed, and the pore surface is
+  drawn over channels only.
+- **An AI assistant can drive the builder**: a session API, coded
+  diagnostics and a skill that ship with the package, with every
+  edit one undo step logged to the structure's entry.
+- **The user manual ships with the application**: *Help ▸ User
+  Manual* opens it, no network needed.
+- Smaller things: *Select ▸ Bonds between elements…*, *Rename…* in
+  the workspace panel, MACE-MP-MOF0 as a model choice, and nets
+  searchable by their RCSR transitivity.
 
-## Fixed in 0.3.0
+## Fixed in 0.4.0
 
-- **A finished calculation no longer hangs or aborts the
-  application.** The worker-thread teardown race listed as a known
-  issue in 0.2 is fixed.
-- Stop works under an engine that computes in this process.
-- During playback, editing commands stay greyed out.
-- A symmetry copy of a bond joins the atoms it found, not their
-  wrapped positions. A label the CIF grammar cannot carry bare no
-  longer damages the file. A file whose own symmetry repeats its
-  atoms says so when it opens.
-- A repeated net is drawn through every cell it tiles, without
-  diagonals across the box.
+- A Force Field run lands on the tab it was started on, not the one
+  in front when it finishes.
+- A scan holding a coordinate and the volume together converges.
+- Nothing stays selected after a delete.
+- ORB-v3 and MatterSim in double precision really are double
+  precision. EQeq handles every metal's oxidation states.
+- Engines are found where Homebrew and conda put them, including when
+  the app is launched from the Finder.
+- A program started by a calculation does not outlive it.
+- Deuterium is computed as hydrogen.
+- After atoms move, a bond keeps its stated order.
+- Windows: renaming a file by its case alone works.
 
 ## Downloads
 
