@@ -217,7 +217,16 @@ class DeleteSites(Command):
 
 
 class SetElement(Command):
-    """Retype sites."""
+    """Retype sites, keeping the bonds they had.
+
+    It used to perceive the whole cell again, because a stored graph
+    over other elements reads as another crystal -- so turning oxygens
+    into sulfur could bond them to whatever the new cutoffs reached.
+    The graph is carried across instead
+    (:func:`xtal.core.bonding.hold_through_retype`) and put back as it
+    was on undo; Recalculate Bonds is how to ask what the new elements
+    bond to.
+    """
 
     change = Change.TOPOLOGY
 
@@ -226,19 +235,25 @@ class SetElement(Command):
         self.symbol = el.parse_symbol(symbol)
         self.label = f"Change element to {self.symbol}"
         self._old: list[str] = []
+        self._perceived = None          # see AddSites._perceived
 
     def do(self, host) -> None:
         structure = host.structure
+        bonding.prepare_hold(structure)
+        self._perceived = structure.perceived
+        before = p1.expand(structure)
         self._old = [structure.sites[i].element for i in self.indices]
         for index in self.indices:
             structure.sites[index].element = self.symbol
         structure.touch(Change.TOPOLOGY)
+        bonding.hold_through_retype(structure, before)
 
     def undo(self, host) -> None:
         structure = host.structure
         for index, symbol in zip(self.indices, self._old, strict=True):
             structure.sites[index].element = symbol
         structure.touch(Change.TOPOLOGY)
+        structure.perceived = self._perceived
 
 
 class SetSiteProperties(Command):

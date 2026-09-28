@@ -238,8 +238,11 @@ stress case).
 
 - **Bonds are recalculated only when the user presses Recalculate
   Bonds.** Not on cell edits, not on load, not after an optimisation,
-  and **not when an atom is placed** — an atom arrives with the bonds
-  the user gave it (Add atom draws one to its anchor) and no others.
+  **not when an atom is placed** — an atom arrives with the bonds
+  the user gave it (Add atom draws one to its anchor) and no others —
+  and **not when an element changes**: O to S keeps the oxygen's
+  bonds (`bonding.hold_through_retype`), except that an atom made a
+  dummy loses its perceived ones.
   `AddSites(perceive=False)` and `bonding.hold_perception` are how;
   Add hydrogens is the deliberate exception, because bonding what it
   adds is the whole operation.

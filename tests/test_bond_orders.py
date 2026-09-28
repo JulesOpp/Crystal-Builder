@@ -176,6 +176,27 @@ def test_the_force_field_reads_the_same_numbers():
         list(bonding.orders(structure))
 
 
+def test_rings_are_found_once_per_change(monkeypatch):
+    """The orders and the typer each searched for the aromatic rings,
+    over a geometry each built for itself: two ring searches per edit,
+    1.2 s of a Change element on MIL-101 in P1.  They read one memo
+    now, and an edit that changes the chemistry asks again once."""
+    from xtal.ff.uff import typer
+    searches = []
+    search = bonding.aromatic_rings
+    monkeypatch.setattr(bonding, "aromatic_rings",
+                        lambda *args: searches.append(1) or search(*args))
+    structure = benzene()
+    typer.assign(structure)
+    bonding.orders(structure)
+    assert len(searches) == 1
+    structure.touch(Change.TOPOLOGY)
+    bonding.orders(structure)
+    typer.assign(structure)
+    assert len(searches) == 2
+    assert list(bonding.orders(structure)).count(1.5) == 6
+
+
 # ========================================================== the picture
 
 def test_a_double_bond_is_drawn_as_two_tubes():

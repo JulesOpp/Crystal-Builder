@@ -15,6 +15,8 @@ import numpy as np
 import pytest
 
 from xtal import Lattice, Structure
+from xtal.commands import CommandStack, Host
+from xtal.commands import atoms as atom_commands
 from xtal.core import bonding, p1
 from xtal.core.structure import Bond, Change
 
@@ -310,3 +312,51 @@ def test_a_copy_carries_the_graph_without_perceiving_it_again(rutile):
     copy = rutile.copy()
     assert copy.perceived is not rutile.perceived
     assert copy.perceived.bonds == rutile.perceived.bonds
+
+
+def test_changing_an_element_does_not_re_perceive_the_bonds(
+        rutile, monkeypatch):
+    """Bonds change when the user presses Recalculate Bonds.  An element
+    change used to perceive the whole cell again, because the stored
+    graph was over other elements -- so O to S on MIL-101 in P1 could
+    bond the sulfur to whatever its cutoffs reached, and cost 0.4 s to
+    do it.  Fluorine is too small to reach rutile's oxygens, so the
+    graph a fresh perception would give is not the one kept."""
+    before = list(bonding.perceive(rutile))
+    host, stack = Host(rutile), CommandStack()
+
+    def refuse(*_args, **_kwargs):
+        raise AssertionError("perceived again")
+
+    monkeypatch.setattr(bonding, "_search", refuse)
+    stack.push(atom_commands.SetElement([0], "F"), host)
+    assert bonding.perceive(rutile) == before
+    assert rutile.perceived.elements == ("F", "F", "O", "O", "O", "O")
+    monkeypatch.undo()
+    fresh = rutile.copy()
+    fresh.clear_perceived()
+    assert bonding.perceive(fresh) == []
+
+
+def test_undoing_an_element_change_puts_the_graph_back(rutile):
+    bonding.perceive(rutile)
+    stored = rutile.perceived
+    host, stack = Host(rutile), CommandStack()
+    stack.push(atom_commands.SetElement([1], "S"), host)
+    bonding.perceive(rutile)            # the viewport reads it at once
+    stack.undo(host)
+    assert rutile.perceived is stored
+
+
+def test_an_atom_changed_into_a_marker_loses_its_bonds(rutile):
+    """Perception never bonds a dummy, so keeping the graph across the
+    change must not either: the marker would be drawn with the bonds
+    of the atom it replaced.  The rest of the graph is kept."""
+    from xtal.core import symmetry
+    cell = symmetry.reduce_to_p1(rutile)
+    before = list(bonding.perceive(cell))
+    host, stack = Host(cell), CommandStack()
+    stack.push(atom_commands.SetElement([2], "X"), host)
+    assert bonding.perceive(cell) == [
+        bond for bond in before if 2 not in (bond.i, bond.j)]
+    assert len(bonding.perceive(cell)) == len(before) - 3

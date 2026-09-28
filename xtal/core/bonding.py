@@ -428,6 +428,37 @@ def hold_through_removal(structure, before, removed) -> bool:
     return True
 
 
+def hold_through_retype(structure, before) -> bool:
+    """Carry the stored perception across a change of element.  Says
+    whether it could.
+
+    Changing an atom's element leaves the cell's atoms where they were
+    and changes only what they are called, which is enough to make
+    :func:`_by_distance` read the stored graph as a different crystal
+    and perceive every bond again -- 0.4 s on MIL-101 in P1, and with a
+    new element's cutoffs it could add bonds or take them away.  Bonds
+    change when the user asks (:data:`xtal.core.structure.CHEMISTRY`),
+    so the graph is kept, bond for bond.  The one thing dropped is a
+    bond to an atom that is now a dummy: perception never bonds one,
+    and a marker drawn with the bonds of the carbon it replaced would
+    be read as chemistry by nothing, but drawn as if it were.
+
+    ``before`` is the P1 cell as it was before the elements changed.
+    """
+    stored = structure.perceived
+    if stored is None or stored.elements != tuple(before.elements):
+        return False
+    cell = p1.expand(structure)
+    if cell.n_atoms != stored.n_atoms:
+        return False
+    dummy = [el.is_dummy(symbol) for symbol in cell.elements]
+    kept = [bond for bond in stored.bonds
+            if not (dummy[bond.i] or dummy[bond.j])]
+    structure.set_perceived(rebase(kept, stored.tau, cell.tau),
+                            stored.signature, cell)
+    return True
+
+
 def _appended_to(before, after) -> bool:
     return (len(after) > len(before)
             and after[:len(before)] == tuple(before))
@@ -851,6 +882,9 @@ class Geometry:
         self.matrix = cell.lattice.matrix
         self._vectors: dict[int, np.ndarray] = {}
         self._partners: dict[int, list[int]] = {}
+        # Asked of the same atom by the typer and the bond orders, and
+        # twice by each: 8 000 calls of a Change element on MIL-101.
+        self._angles: dict[int, np.ndarray] = {}
 
     def partners(self, i: int) -> list[int]:
         if i not in self._partners:
@@ -881,16 +915,18 @@ class Geometry:
 
     def angles(self, i: int) -> np.ndarray:
         """Every neighbour-i-neighbour angle, in degrees."""
+        if i in self._angles:
+            return self._angles[i]
         v = self.vectors(i)
-        if len(v) < 2:
-            return np.zeros(0)
-        unit = v / np.linalg.norm(v, axis=1)[:, None]
         out = []
-        for a in range(len(unit)):
-            for b in range(a + 1, len(unit)):
-                out.append(np.degrees(np.arccos(
-                    np.clip(float(unit[a] @ unit[b]), -1.0, 1.0))))
-        return np.array(out)
+        if len(v) >= 2:
+            unit = v / np.linalg.norm(v, axis=1)[:, None]
+            for a in range(len(unit)):
+                for b in range(a + 1, len(unit)):
+                    out.append(np.degrees(np.arccos(
+                        np.clip(float(unit[a] @ unit[b]), -1.0, 1.0))))
+        self._angles[i] = np.array(out)
+        return self._angles[i]
 
     def max_angle(self, i: int) -> float:
         angles = self.angles(i)
@@ -968,6 +1004,33 @@ def aromatic_rings(cell, graph, geo=None) -> list[tuple[int, ...]]:
     return out
 
 
+def rings_of(structure, rules: BondRules | None = None
+             ) -> list[tuple[int, ...]]:
+    """:func:`aromatic_rings` of ``structure``'s P1 cell, memoised.
+
+    The bond orders and the UFF typer both need the aromatic rings, and
+    each used to find them for itself over a geometry of its own -- two
+    ring searches per edit, 1.2 s of a Change element on MIL-101 in P1.
+    One search, over the one memoised :func:`geometry`, also means the
+    two can never disagree about which ring is flat.
+    """
+    key = f"aromatic-rings:{rules.signature() if rules else ''}"
+
+    def build():
+        geo = geometry(structure, rules)
+        return geo.cell.n_atoms, aromatic_rings(
+            geo.cell, graph(structure, rules), geo)
+
+    n_atoms, rings = structure.cached(key, build,
+                                      invalidated_by=CHEMISTRY)
+    if n_atoms != p1.expand(structure).n_atoms:
+        # The graph underneath was re-perceived over a cell of another
+        # size -- see :func:`geometry`.
+        structure.drop_cache(key)
+        _n, rings = structure.cached(key, build, invalidated_by=CHEMISTRY)
+    return rings
+
+
 def find_rings(graph, candidates: set, max_size: int) -> list[list]:
     """Simple cycles of at most ``max_size`` atoms, within
     ``candidates``, that close with no net lattice translation.
@@ -983,6 +1046,14 @@ def find_rings(graph, candidates: set, max_size: int) -> list[list]:
     the caller lay the ring out in space when it closes through a cell
     face.
     """
+    # Shifts as tuples of ints and an adjacency cut down to the
+    # candidates: the walk visits a million path steps on MIL-101 in
+    # P1, and turning a numpy translation into a tuple at each one was
+    # a fifth of the time it took.
+    adjacency = {
+        i: [(int(j), tuple(t.tolist()))
+            for j, t, _k in graph._adj[i] if j in candidates]
+        for i in candidates}
     rings: list[list] = []
     seen: set[frozenset] = set()
 
@@ -991,14 +1062,13 @@ def find_rings(graph, candidates: set, max_size: int) -> list[list]:
         stack = [[origin]]
         while stack:
             path = stack.pop()
-            node = path[-1]
+            node, (a, b, c) = path[-1]
             if len(path) > max_size:
                 continue
-            for j, shift in graph.neighbors_with_images(node[0]):
-                if j not in candidates or j < start:
+            for j, (x, y, z) in adjacency[node]:
+                if j < start:
                     continue
-                nxt = (j, tuple(int(v) for v in
-                                np.asarray(node[1]) + shift))
+                nxt = (j, (a + x, b + y, c + z))
                 if nxt == origin:
                     if len(path) >= 3:
                         key = frozenset(path)
@@ -1251,10 +1321,8 @@ def _infer_orders(structure, rules) -> np.ndarray:
     bonds = graph(structure, rules).bonds
     if not bonds:
         return np.zeros(0)
-    geo = Geometry(cell, graph(structure, rules))
-    aromatic = {i for ring in aromatic_rings(cell, graph(structure, rules),
-                                             geo)
-                for i in ring}
+    geo = geometry(structure, rules)
+    aromatic = {i for ring in rings_of(structure, rules) for i in ring}
 
     out = np.ones(len(bonds))
     spare = {i: _pi_capacity(i, cell, geo) for i in range(cell.n_atoms)}

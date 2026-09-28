@@ -102,3 +102,9 @@ every bond you drew as well.
 2. The same edit is one click away in the *Inspector* panel, which
    shows the selected site's element, label, coordinates, occupancy,
    U{sub}`iso` and charge.
+
+The atoms keep the bonds they had.  Turning oxygen into sulfur does
+not ask what sulfur would bond to at these distances --
+{ref}`Recalculate Bonds <cmd-recompute_bonds>` is how to ask that.  The
+one exception is an atom turned into a dummy `X`, which loses its
+perceived bonds, because perception never bonds a marker.

@@ -177,36 +177,12 @@ since 2026-09-08.
 
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
-| **B1 — Change element is fast on a large cell** | Under 1 s from 5.1 s on MIL-101 in P1 | `xtalapp/docks/ff_panel.py`, `xtalapp/widgets/atom_types.py`, `xtal/core/bonding.py` | M |
 | **C1 — A wrap keeps drawn bonds; the origin moves in P1 only** | `Bond.image` rebased on every fold; `shift_origin` refuses outside P1 | `xtal/core/supercell.py`, `xtal/core/structure.py`, `xtal/commands/cell.py` | S |
 | **C2 — Cell ▸ Move origin…** | A dialog of a, b, c and *Centre the selection* | `xtalapp/dialogs/origin.py`, `xtalapp/menus.py`, `xtalapp/shell_state.py` | M |
 | **C3 — Save as a building block goes to `blocks/`** | The folder Draw writes to, and no write-back to `mof_bb_dir` | `xtalapp/dialogs/save_block.py`, `xtalapp/edit_actions.py` | S |
 | **B2 — A Selection dialog** | Rules × replace/add/remove/intersect, *Grow to neighbours only*, `Session.select` | `xtal/core/selection.py`, `xtalapp/dialogs/select.py` | M-L |
 | **B3 — Render in Blender** | `scene.blend` and `render.png` from Julius's scene | `xtal/modules/blender.py`, `xtal/modules/data/render_scene.py` | M |
 | **B4 — Zeo++ from GitHub** | Measured against the reference, then found beside 0.3 or replacing it | `xtal/modules/zeopp.py` | S-M |
-
-### B1 — Change element is fast on a large P1 cell
-
-Asked for by Julius: MIL-101 in P1, *Change element* on a selection, is
-slow enough to notice.  **Measured 2026-09-28** in the real window
-(COD MIL-101 reduced to P1, 16 000 atoms, 200 O to S): 5.12 s, of
-which the viewport's `build_scene` is 2.41 s (bond orders and
-`find_rings`, which runs **twice**, 1.1-1.5 s; re-perception 0.56 s),
-`FFPanel.refresh` filling the atom-types table 2.09 s (UFF typing
-1.03 s, 16 000 rows 0.7 s) and VTK's `Render` 0.38 s.  The command
-itself is nothing: headless, `p1.expand` is 0.01 s.
-
-- The table fills only when it is visible (stale while hidden, filled
-  on show).
-- Rings and orders are computed once per structure stamp, behind
-  `Structure.cached`.
-- `SetElement` is `Change.TOPOLOGY` and the graph is perceived again
-  by distance.  Whether an element change may do that is a question
-  for **Bonds are recalculated only when the user presses Recalculate
-  Bonds** -- ask before changing it.
-- Then delete, Set Bond Type and a property edit on the same cell; it
-  is likely the same cost as *A drag and a Supercell still rebuild
-  from scratch* below.
 
 ### C1-C3 — Moving the origin, and one folder for blocks
 
@@ -365,6 +341,14 @@ thread, now with a wait cursor. Both want the same thing: an
 expansion and a scene that update the atoms that changed rather than
 being rebuilt. That is a real change to `p1.expand` and
 `viewport/builder.py`, not a tweak, and it has not been designed.
+
+Measured again 2026-09-28 on COD MIL-101 in P1 (16 000 atoms), after
+Change element was brought from 4.1-5.1 s to about 1.0 s: Delete of
+200 sites 1.1 s, its undo 1.0 s, an occupancy or label edit of one
+site 1.4-1.8 s, Set Bond Type on 6528 C-C bonds 2.0 s.  A property
+edit is `Change.TOPOLOGY`, so the scene re-derives every bond order
+(0.47 s, half of it the ring search) and VTK uploads the whole scene
+again (0.35 s) -- for a number that changes neither.
 
 ## Symmetry
 

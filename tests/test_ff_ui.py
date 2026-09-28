@@ -80,6 +80,57 @@ def wait_for_the_run(qtbot, dock):
 
 # --------------------------------------------------------- the panel
 
+def test_a_hidden_force_field_panel_does_not_type_the_cell(
+        window, qtbot, rutile_cif, monkeypatch):
+    """The table was typed and filled on every chemistry edit whether
+    anybody could see it or not -- 1.7 s of a Change element on
+    MIL-101 in P1, with the panel closed, which it is by default.  It
+    is marked stale instead and filled when the panel is shown."""
+    typed = []
+    site_types = Document.site_types
+    monkeypatch.setattr(Document, "site_types", lambda self, *args: (
+        typed.append(1) or site_types(self, *args)))
+    window.show()
+    qtbot.waitExposed(window)
+    dock = window.ff_dock
+    dock.hide()
+    document = window.open_path(rutile_cif)
+    document.select([0])
+    document.set_selection_element("Zr")
+    assert typed == []
+    window.show_force_field()
+    qtbot.waitUntil(lambda: dock.table.rowCount() == 2)
+    assert dock.table.item(0, TYPE).text().startswith("Zr")
+    assert len(typed) == 1
+
+
+def test_a_panel_tabbed_behind_another_catches_up_when_raised(
+        window, qtbot, rutile_cif):
+    """Qt never hides a dock tabbed behind another -- it only covers
+    it -- so raising the tab sends no show event, and a panel waiting
+    for one would show the element it had before the edit."""
+    from PySide6.QtWidgets import QTabBar
+    window.show()
+    qtbot.waitExposed(window)
+    dock, other = window.ff_dock, window.inspector_dock
+    dock.show()
+    other.show()
+    window.tabifyDockWidget(other, dock)
+    document = window.open_path(rutile_cif)
+    bar = next(bar for bar in window.findChildren(QTabBar)
+               if dock.windowTitle() in [bar.tabText(i)
+                                         for i in range(bar.count())])
+    titles = [bar.tabText(i) for i in range(bar.count())]
+    bar.setCurrentIndex(titles.index(other.windowTitle()))
+    qtbot.waitUntil(lambda: dock.visibleRegion().isEmpty())
+    document.select([0])
+    document.set_selection_element("Zr")
+    assert dock.table.item(0, TYPE).text().startswith("Ti")
+    bar.setCurrentIndex(titles.index(dock.windowTitle()))
+    qtbot.waitUntil(
+        lambda: dock.table.item(0, TYPE).text().startswith("Zr"))
+
+
 def test_the_panel_lists_a_row_per_site(opened):
     _window, document = opened
     dock = _window.ff_dock
