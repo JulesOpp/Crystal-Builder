@@ -25,7 +25,7 @@ VERBS = (
     "set_cell", "supercell", "reduce_to_p1", "find_symmetry",
     "standardize", "set_space_group", "merge_duplicates",
     "recalculate_bonds", "add_bond", "remove_bond", "set_bond_type",
-    "add_hydrogens", "prepare", "interpenetrate",
+    "add_hydrogens", "fill_pores", "prepare", "interpenetrate",
     "energy", "optimize", "run",
     "undo", "redo", "save", "export",
 )

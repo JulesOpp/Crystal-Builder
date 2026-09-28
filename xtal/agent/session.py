@@ -460,6 +460,58 @@ class Session:
         return self._push("add_hydrogens", command, plan.message(),
                           {"xray": xray})
 
+    def fill_pores(self, guest: str, count: int = 20, beside=None,
+                   near=None, overlap_scale: float | None = None,
+                   seed: int = 0) -> VerbResult:
+        """Copies of a molecule where there is room -- or, ``beside``,
+        one by each of those P1 atoms: the counter-ions of a charged
+        framework.
+
+        ``guest`` is an element symbol, for an ion or an atom, or the
+        path of a structure whose first discrete molecule is taken.
+        One undo step, a symmetric host reduced to P1 inside it, and
+        nothing bonded -- see :func:`xtal.build.fill.place`.  An atom
+        with no room beside it is named in ``data["missed"]``.
+        """
+        from xtal.build import fill
+        from xtal.commands.clipboard import InsertMolecules
+
+        args = {"guest": guest, "count": count, "beside": beside,
+                "near": near, "overlap_scale": overlap_scale,
+                "seed": seed}
+        try:
+            molecule = _guest(guest)
+        except ValueError as exc:
+            return self._refused("fill_pores", args, str(exc))
+        anchors = None
+        if beside is not None:
+            anchors = [int(a) for a in beside]
+            for atom in anchors:
+                self._check_atom(atom)
+            if not anchors:
+                return self._refused("fill_pores", args,
+                                     "beside names no atoms",
+                                     "NOTHING_TO_DO")
+        placement = fill.place(
+            self.structure, molecule, count, anchors=anchors,
+            near=fill.NEAR if near is None else tuple(near),
+            overlap_scale=(fill.DEFAULT_OVERLAP_SCALE
+                           if overlap_scale is None else overlap_scale),
+            seed=seed)
+        if not placement.placed:
+            return self._refused(
+                "fill_pores", args,
+                f"no room was found for {molecule.formula}")
+        return self._push(
+            "fill_pores",
+            InsertMolecules(molecule, placement.positions),
+            placement.message(), args,
+            notes=[Diagnostic("BONDS_NOT_RECALCULATED",
+                              "what was placed is bonded to nothing "
+                              "but itself")],
+            data={"placed": placement.placed,
+                  "missed": list(placement.missed)})
+
     # ------------------------------------------------------------------
     #  WHOLE-STRUCTURE OPERATIONS
     # ------------------------------------------------------------------
@@ -954,6 +1006,33 @@ def _as_strings(params: dict) -> dict:
 def _engine_notes(calculator) -> list[Diagnostic]:
     return [Diagnostic("ENGINE_NOTE", str(w))
             for w in getattr(calculator, "warnings", []) or []]
+
+
+def _guest(spec: str):
+    """What :meth:`Session.fill_pores` places: one atom of an element,
+    or the first molecule in a file."""
+    from xtal.build import fill
+    from xtal.commands.clipboard import Fragment
+    from xtal.core import elements as el
+    from xtal.io import FORMATS
+
+    text = str(spec).strip()
+    try:
+        symbol = el.parse_symbol(text)
+    except (ValueError, KeyError):
+        symbol = None
+    # Exactly a symbol: the parser reads a label (``Na1``) or a stray
+    # suffix as an element too, and a mistyped path is not sodium.
+    if symbol is not None and symbol == text.capitalize():
+        return Fragment(elements=(symbol,), cart=np.zeros((1, 3)),
+                        occupancies=(1.0,), labels=(f"{symbol}1",))
+    path = Path(text).expanduser()
+    if not path.is_file():
+        raise ValueError(f"{text!r} is neither an element nor a file")
+    molecules = fill.guest_molecules(FORMATS.read(path))
+    if not molecules:
+        raise ValueError(f"{path.name} has no discrete molecule in it")
+    return molecules[0]
 
 
 def _result_warnings(result) -> list[Diagnostic]:

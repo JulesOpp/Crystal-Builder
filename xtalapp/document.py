@@ -2088,8 +2088,11 @@ class Document(QObject):
 
     def fill_pores(self, guest: Fragment, count: int,
                    overlap_scale: float = fill.DEFAULT_OVERLAP_SCALE,
-                   seed: int | None = None) -> str:
-        """Put up to ``count`` copies of ``guest`` into the empty space.
+                   seed: int | None = None, beside: bool = False,
+                   near=fill.NEAR) -> str:
+        """Put up to ``count`` copies of ``guest`` into the empty space
+        -- or, ``beside``, one by each selected atom, and ``count`` is
+        not read.
 
         One undo step, the reduction to P1 a symmetric host needs
         included, and the new molecules left selected so that what
@@ -2097,12 +2100,21 @@ class Document(QObject):
         empty entry on the stack makes Ctrl+Z lie.  Bonds are not
         recalculated -- see :class:`InsertMolecules`.
         """
+        anchors = sorted(self.selection.atoms) if beside else None
+        if beside and not anchors:
+            return "select the atoms to put one beside first"
         placement = fill.place(self._structure, guest, count,
-                               overlap_scale=overlap_scale, seed=seed)
+                               overlap_scale=overlap_scale, seed=seed,
+                               anchors=anchors, near=near)
         if not placement.placed:
+            if beside:
+                return (f"no room was found for {guest.formula} beside "
+                        f"any of the {len(anchors)} selected atom(s)")
             return (f"no room was found for {guest.formula}"
                     if count else "nothing to place")
-        command = InsertMolecules(guest, placement.positions)
+        label = (f"Place {placement.placed} {guest.formula} beside "
+                 f"atoms" if beside else None)
+        command = InsertMolecules(guest, placement.positions, label)
         self.run(command)
         self.select(_atoms_of_sites(self.cell, command.indices))
         return placement.message()

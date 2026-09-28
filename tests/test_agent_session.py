@@ -304,3 +304,41 @@ def test_reopening_the_cif_after_a_save_points_at_the_project(
     resumed = Session.open(project)
     assert resumed.opened.diagnostics == []
     assert resumed.structure.sites[0].element == "Sn"
+
+
+def test_fill_pores_puts_one_ion_beside_each_named_atom(tmp_path):
+    """A script gets the counter-ion mode through the same command the
+    dialog pushes: one undo step, one ion per atom, none bonded."""
+    from pathlib import Path
+
+    sample = (Path(__file__).resolve().parents[1] / "resources"
+              / "samples" / "MOF-5.cif")
+    s = Session.open(sample, workspace=tmp_path / "ws")
+    s.reduce_to_p1()
+    graph = bonding.graph(s.structure)
+    oxygens = [i for i, e in enumerate(s.cell.elements)
+               if e == "O" and any(s.cell.elements[j] == "C"
+                                   for j in graph.neighbors(i))][:4]
+    before = s.n_atoms
+
+    answer = s.fill_pores("Na", beside=oxygens, seed=1)
+
+    assert answer.ok, answer.message
+    assert answer.data == {"placed": 4, "missed": []}
+    assert s.n_atoms == before + 4
+    ions = range(before, s.n_atoms)
+    assert all(bonding.graph(s.structure).neighbors(i) == []
+               for i in ions)
+    s.undo()
+    assert s.n_atoms == before
+
+
+def test_fill_pores_refuses_a_guest_it_cannot_read(rutile):
+    """Neither an element nor a file is a refusal with a sentence, not
+    an exception and not sodium."""
+    s = Session(rutile)
+    answer = s.fill_pores("Nax", count=3)
+
+    assert not answer.ok
+    assert "neither an element nor a file" in answer.message
+    assert s.stack.is_clean

@@ -124,3 +124,44 @@ def test_fill_pores_is_an_edit_and_greys_with_the_others(window):
     assert not action.isEnabled()               # no document
     window.new_document()
     assert action.isEnabled()
+
+
+def test_one_beside_each_atom_needs_a_selection_and_greys_the_count(
+        window, qtbot, sparse, dry_ice):
+    """The count is the selection's in this mode, so its box is not
+    the question; and with nothing selected there is nothing to put a
+    copy beside, which is said rather than discovered after Fill."""
+    from xtalapp.dialogs.fill_pores import BESIDE
+
+    host, _solvent = _host_and_solvent(window, sparse, dry_ice)
+    dialog = _dialog(window, qtbot, host)
+    assert not dialog.near.isEnabled()
+
+    dialog.where.setCurrentText(BESIDE)
+
+    assert not dialog.count.isEnabled()
+    assert dialog.near.isEnabled()
+    assert "select the atoms" in dialog.headline.text()
+    assert not dialog.buttons.button(QDialogButtonBox.Ok).isEnabled()
+
+
+def test_filling_beside_the_selection_places_one_each_in_one_step(
+        window, qtbot, sparse, dry_ice):
+    """Two of the four sodiums selected: two CO2, one by each, and one
+    Ctrl+Z takes them and the reduction to P1 back together."""
+    from xtalapp.dialogs.fill_pores import BESIDE
+
+    host, _solvent = _host_and_solvent(window, sparse, dry_ice)
+    host.select([0, 1])
+    dialog = _dialog(window, qtbot, host)
+    dialog.where.setCurrentText(BESIDE)
+    assert "beside each of 2 selected atom(s)" in dialog.headline.text()
+
+    message = dialog.fill()
+
+    assert message == "placed 2 CO2, one beside each of 2 atom(s)"
+    assert host.structure.space_group.is_p1
+    assert host.structure.n_sites == 4 + 6
+    host.undo()
+    assert host.structure.space_group.short_name == "Fm-3m"
+    assert not host.can_undo

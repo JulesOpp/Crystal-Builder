@@ -156,6 +156,18 @@ that bonds what it adds. Refused with `NOTHING_TO_DO` when nothing is
 missing. For a deposited structure, prefer `prepare()`, which places
 cluster and water hydrogens by rule where valence alone would guess.
 
+### `fill_pores(guest, count, beside, near, overlap_scale, seed)`
+
+Copies of a molecule into the empty space, each clear of the host and
+of each other, as one undo step (a symmetric host is reduced to P1
+inside it). `guest` is an element symbol (`"Na"`) or a structure file
+whose first molecule is taken. With `beside` -- a list of P1 atoms --
+one copy goes by each, its centre `near` (default 3.5 to 5.0 Å) from
+the atom, and `count` is not read: that is how counter-ions go by a
+charged framework's sites, e.g. `s.fill_pores("Na", beside=oxygens)`.
+Nothing is bonded. An atom with no room beside it is named in
+`data["missed"]`; no room at all is refused.
+
 ## Whole-structure operations
 
 ### `prepare(steps)`

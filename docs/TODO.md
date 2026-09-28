@@ -196,11 +196,10 @@ extend what is there.
 
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
-| **3 — Counter-ions beside each selected atom** | `fill.place(..., anchors=, near=(3.5, 5.0))`: one guest per anchor, drawn from a shell around it, clear of everything and of each other; an anchor with no room named in the message.  The Fill Pores dialog gains the mode; `Session.fill_pores` (no fill verb exists yet) | `xtal/build/fill.py`, `xtalapp/document.py`, `xtalapp/dialogs/fill_pores.py`, `xtal/agent/session.py` | S-M |
 | **4 — Substitute H with a group** | `xtal/build/substitute.py` plans placements (the group's attaching atom on the old C-H direction at `bond_distance`, turned for the most room); `SubstituteHydrogens` is one undo step that removes the H sites, adds the group with its own bonds and the bond to its carbon, perceiving nothing.  Right-click on H ▸ *Replace with group*, Structure ▸ *Substitute rings…*, `Session.substitute`.  Group fragments gain NH2, OH, OMe, NO2, F, Br | `xtal/build/substitute.py`, `xtal/commands/atoms.py`, `xtalapp/menus.py`, `xtal/build/data/fragments.json` | L |
 
-Counter-ions go before Substitute: small before large, and neither
-needs the other.
+Counter-ions (phase 3) shipped 2026-09-28 as Fill Pores ▸ *One beside
+each selected atom* and `Session.fill_pores`.
 
 #### Invariants these come near
 
@@ -219,23 +218,15 @@ needs the other.
   the ring itself turn -- which a bulky group next to a carboxylate
   needs -- moves atoms nobody selected, so it is an option and off by
   default.
-- **An agent edits through the same commands**: `fill_pores`,
-  `substitute` enter the shipped skill in the commits that add
-  them, as `BUILD_OVERLAP` did.
+- **An agent edits through the same commands**: `substitute` enters
+  the shipped skill in the commit that adds it, as `BUILD_OVERLAP` and
+  `fill_pores` did.
 
 #### Tests, by phase
 
 Every test runs on MOF-5 (`resources/samples/MOF-5.cif`), a pcu/N16
 build, or a conftest fixture.
 
-3. `tests/test_fill.py`, with Na+ beside selected O atoms:
-   - `test_one_guest_is_placed_beside_each_anchor`
-   - `test_a_guest_beside_an_anchor_bonds_to_nothing`
-   - `test_an_anchor_with_no_room_is_named_not_skipped`
-   - `test_guests_beside_anchors_keep_clear_of_each_other`
-
-   `tests/test_fill_ui.py`: the mode greys the count and needs a
-   selection.
 4. `tests/test_substitute.py`, on MOF-5:
    - `test_a_substituted_hydrogen_becomes_the_group_bonded_to_its_carbon`
    - `test_a_substitution_is_one_undo_step_and_undo_restores_the_graph`
@@ -250,12 +241,10 @@ build, or a conftest fixture.
 
 #### Done when
 
-- The pcu/N16 table reruns with every linker at 1.5 A or more under
-  both orientations, and BDC unchanged.
 - In the window: MOF-5, *Substitute rings…* with NH2 one per ring,
-  gives IRMOF-3's composition with every N bonded to its ring.
-  Selecting atoms and choosing Fill Pores ▸ *one beside each selected
-  atom* places one ion each, with no bond to anything.
+  gives IRMOF-3's composition with every N bonded to its ring.  (The
+  pcu/N16 table at 1.5 A or more, and Fill Pores' counter-ions in the
+  window, are done.)
 - Then CLAUDE.md's builder invariants, docs/MENUS.md and the
   MOF-builder and editing chapters of the manual are brought up to
   date.
