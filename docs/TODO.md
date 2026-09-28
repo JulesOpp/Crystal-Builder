@@ -112,6 +112,24 @@ Structure menu (Julius, 2026-09-26).
 
 ## Force fields
 
+### DFTB+'s k-point spacing oversamples frameworks
+
+`hsd.DEFAULT_SPACING` is 0.25 A^-1.  Measured with DFTB+ 25.1 and
+3ob-3-1 (DFTB3, 300 K), against a denser mesh at the same geometry,
+four threads on an M2:
+
+| framework | mesh at 0.25 | time | mesh at 0.35 | time | largest force error at 0.35 |
+|---|---|---|---|---|---|
+| MOF-74, 54 atoms | 4x4x4 | 5.9 s | 3x3x3 | 2.8 s | 0.0009 kcal/mol/A |
+| MOF-5, 106 atoms | 2x2x2 | 3.1 s | Gamma | 0.9 s | 0.003 kcal/mol/A |
+| ZIF-8, 138 atoms | 2x2x2 | 3.7 s | 2x2x2 | 3.4 s | 0 |
+
+Energies agree to 1e-4 kcal/mol per atom in every row.  0.35 would
+cost nothing measurable and halve to quarter a small framework's
+evaluations; anything coarser is not safe -- MOF-74 on Gamma alone is
+off by 3.3 kcal/mol/A in a force.  A numerical default, so it is
+Julius's to change or not.
+
 ### UFF4MOF's O_2_z has no rule behind it
 
 The type is in the table and is reachable only through the per-atom
