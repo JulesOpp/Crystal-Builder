@@ -139,6 +139,11 @@ CODES: dict[str, Code] = {
     "MODULE_UNAVAILABLE": Code(
         ERROR, "Install what the message names; capabilities() lists "
                "what this install can run."),
+    "BUILD_OVERLAP": Code(
+        WARNING, "A framework was built with atoms on top of one "
+                 "another; they are not bonded, and the message names "
+                 "the blocks. Rebuild with the other orientation, a "
+                 "larger repeat or a different block before relaxing."),
     "MODULE_FAILED": Code(
         ERROR, "The run did not produce an answer. A refusal before "
                "the first step is the answer; do not retry unchanged."),

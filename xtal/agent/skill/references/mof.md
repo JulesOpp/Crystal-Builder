@@ -54,6 +54,11 @@ to read:
 1. **Largest RMSD** near 0 Å: the blocks fit their slots. Several
    tenths of an Å means a strained framework.
 2. **Closest contact** above ~1.5 Å: no atoms on top of one another.
+   Below 1.0 Å the build also answers `BUILD_OVERLAP`, naming the two
+   atoms and their blocks. Overlapping atoms are *not* bonded: a
+   build's bonds are its blocks' own and its joints, never perceived
+   by distance, so a clean build has exactly the graph perception
+   would give and a bad one does not hide its overlaps as bonds.
 3. **The net that came out** equals the one asked for. If `Built` is
    not `Asked for`, the framework is not the one requested.
 4. **Joints bonded**: the count in the headline. MOF-5 on `pcu` 2x2x2

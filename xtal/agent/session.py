@@ -957,8 +957,16 @@ def _engine_notes(calculator) -> list[Diagnostic]:
 
 
 def _result_warnings(result) -> list[Diagnostic]:
-    return [Diagnostic("ENGINE_NOTE", str(w))
-            for w in getattr(result, "warnings", []) or []]
+    """A run's warnings as diagnostics: a ``(code, sentence)`` pair
+    keeps its code, and a bare sentence is an engine's note."""
+    out = []
+    for warning in getattr(result, "warnings", ()) or ():
+        if isinstance(warning, tuple):
+            code, said = warning
+            out.append(Diagnostic(str(code), str(said)))
+        else:
+            out.append(Diagnostic("ENGINE_NOTE", str(warning)))
+    return out
 
 
 def _report_data(result) -> dict:

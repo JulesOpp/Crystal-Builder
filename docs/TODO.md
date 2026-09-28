@@ -196,7 +196,6 @@ extend what is there.
 
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
-| **1 — Overlaps are warnings; built bonds come from the blocks** | The stored graph is `_intra_block_bonds` plus the joints, written with `set_perceived` and never re-perceived (`Workspace.adopt_build` writes it with `perception=True`); pairs under 1.0 A are a warning naming the blocks, a `_check` row, and `BUILD_OVERLAP` for an agent | `xtal/mof/build.py`, `xtal/workspace.py`, `xtal/agent/diagnostics.py` | M |
 | **2 — The twist that clears** | `align_edges` samples the angle every 10 degrees, keeps those within 0.1 A of the best clearance, and takes the one nearest the closed-form angle; `_turnable` admits a faceless block with atoms off its axis, which is the substituted linker under `as-found`.  The clearance margin lives in `xtal/build/clearance.py` for phase 4 | `xtal/mof/orient.py`, `xtal/build/clearance.py` | M |
 | **3 — Counter-ions beside each selected atom** | `fill.place(..., anchors=, near=(3.5, 5.0))`: one guest per anchor, drawn from a shell around it, clear of everything and of each other; an anchor with no room named in the message.  The Fill Pores dialog gains the mode; `Session.fill_pores` (no fill verb exists yet) | `xtal/build/fill.py`, `xtalapp/document.py`, `xtalapp/dialogs/fill_pores.py`, `xtal/agent/session.py` | S-M |
 | **4 — Substitute H with a group** | `xtal/build/substitute.py` plans placements (the group's attaching atom on the old C-H direction at `bond_distance`, turned for the most room); `SubstituteHydrogens` is one undo step that removes the H sites, adds the group with its own bonds and the bond to its carbon, perceiving nothing.  Right-click on H ▸ *Replace with group*, Structure ▸ *Substitute rings…*, `Session.substitute`.  Group fragments gain NH2, OH, OMe, NO2, F, Br | `xtal/build/substitute.py`, `xtal/commands/atoms.py`, `xtalapp/menus.py`, `xtal/build/data/fragments.json` | L |
@@ -212,9 +211,9 @@ needs the other.
   the cell or an X-to-X coincidence -- and a block with nothing off its
   axis is clear at every angle, so BDC builds **byte for byte** as
   before.  Phase 2 rewrites the paragraph in CLAUDE.md.
-- **Bonds only on Recalculate Bonds.**  Phase 1 makes a build keep it
-  better: the builder's bonds become its statement, not a distance
-  guess at read time.  A substitution arrives with its own bonds and
+- **Bonds only on Recalculate Bonds.**  Phase 1 shipped 2026-09-28:
+  a build's bonds are its blocks' own and its joints, and overlaps are
+  a warning (CLAUDE.md, *A built framework's bonds*).  A substitution arrives with its own bonds and
   the one to its carbon (`AddSites(perceive=False)`,
   `hold_perception`), and a counter-ion with none.
 - **One batch per selection.**  Substituting every ring of a large
@@ -228,19 +227,14 @@ needs the other.
   needs -- moves atoms nobody selected, so it is an option and off by
   default.
 - **An agent edits through the same commands**: `fill_pores`,
-  `substitute` and `BUILD_OVERLAP` enter the shipped skill in the
-  commits that add them.
+  `substitute` enter the shipped skill in the commits that add
+  them, as `BUILD_OVERLAP` did.
 
 #### Tests, by phase
 
 Every test runs on MOF-5 (`resources/samples/MOF-5.cif`), a pcu/N16
 build, or a conftest fixture.
 
-1. `tests/test_mof_builder.py`:
-   - `test_a_built_framework_bonds_only_what_its_blocks_and_joints_bonded`
-     (2,5-dimethoxy-terephthalate on pcu/N16)
-   - `test_an_overlapping_build_says_so_as_a_warning`
-   - `test_a_clean_build_carries_the_same_bonds_perception_would`
 2. `tests/test_mof_orientation.py`:
    - `test_an_ortho_substituted_linker_is_turned_clear_of_the_node`
      (2,5-dimethoxy and 2-phenyl, at least 1.5 A)

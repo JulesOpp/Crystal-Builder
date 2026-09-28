@@ -453,6 +453,20 @@ stress case).
   -- because asking 2400 graphs is ten seconds, and the picker's
   3D / 2D boxes need the answer for every row. The RCSR's layers are
   told the opposite, and re-derived the same way.
+- **A built framework's bonds are its blocks' own and its joints',
+  never perceived.** `build.state_bonds` stores the blocks' bond
+  lists as the graph (`set_perceived`, against the structure's own
+  rules) and the joints stay `bond_joints`' explicit bonds;
+  `Workspace.adopt_build` writes the CIF with `perception=True` so
+  reopening it does not perceive either. Reading PORMAKE's CIF back
+  and perceiving it bonded whatever overlapped -- 2-phenyl-BDC on
+  pcu/N16 as found gave five hydrogens two partners each. A clean
+  build states exactly what perception finds (a test holds MOF-5 to
+  it); an unbonded pair under `build.OVERLAP` (1.0 A) is a warning
+  naming both blocks -- the verdict, an *Atoms overlap* report row,
+  the new tab's notice, and `BUILD_OVERLAP` for an agent -- and never
+  a refusal. Recalculate Bonds is still how a person asks for
+  distance instead.
 - **An interpenetrated framework carries the bonds its copies had,
   and the detector says whether it worked.**
   `xtal/analysis/interpenetrate.py` enumerates rather than theorises

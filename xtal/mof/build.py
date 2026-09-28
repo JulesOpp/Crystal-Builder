@@ -65,6 +65,15 @@ from xtal.mof.catalog import Catalog, CatalogError, Slot
 #: every sample that has one is under 2.2 A.
 CONTACT_CUTOFF = 3.0
 
+#: Two atoms of a built framework closer than this, and not bonded,
+#: are on top of one another.  Not a threshold on a good build --
+#: :func:`closest_contact` is that number and has none -- but the
+#: point below which no pair of real atoms sits: an O-H bond is
+#: 0.96 A, and every sample in `resources/samples` has its shortest
+#: unbonded contact above 1.99 A.  A substituent landing on a node is
+#: 0.37 A on 2-phenyl-BDC on pcu/N16, built as found.
+OVERLAP = 1.0
+
 #: PORMAKE's own name for the atoms that mark where a block connects.
 #: They are removed from the framework, which is what makes the atom
 #: ordering below need stating rather than assuming.
@@ -419,6 +428,10 @@ class BuildOutcome:
     #: had no room: ``pcu`` x 1x1x1 on N16 is 6.0 over 3, because its
     #: one slot cannot alternate, and the same net x 2x2x2 is 0.
     twist: tuple | None = None
+    #: Every unbonded pair closer than :data:`OVERLAP`, closest first,
+    #: as ``(distance, one atom, the other)`` -- each atom named with
+    #: the block it came from.  See :func:`overlaps`.
+    overlaps: tuple = ()
 
     @property
     def net_name(self) -> str:
@@ -478,7 +491,30 @@ class BuildOutcome:
             said.append(f"{self.joints} joint(s) bonded")
         if self.longest_joint:
             said.append(f"longest joint {self.longest_joint:.2f} A")
+        if self.overlaps:
+            said.append(f"{len(self.overlaps)} pair(s) of atoms "
+                        f"overlapping")
         return " -- " + ", ".join(said)
+
+    def warning(self) -> str:
+        """The overlaps as a sentence a person acts on, or ``""``.
+
+        A warning and not a refusal: the framework is what the blocks
+        and the net make, and whether a substituent sitting on a node
+        is a wrong linker, a wrong orientation or a geometry to relax
+        is the user's call.  What it must not be is *silent*, which it
+        was -- the overlapping atoms were perceived as bonded, and a
+        hydrogen bonded to a node oxygen reads as chemistry.
+        """
+        if not self.overlaps:
+            return ""
+        distance, first, second = self.overlaps[0]
+        more = len(self.overlaps) - 1
+        tail = f", and {more} more pair(s)" if more else ""
+        return (f"atoms overlap in the built framework: {first} and "
+                f"{second} are {distance:.2f} A apart{tail} -- a "
+                f"substituent landing on another block.  Try the other "
+                f"orientation, a larger repeat, or a different block")
 
 
 def build(request: BuildRequest, directory, catalog: Catalog | None
@@ -539,8 +575,16 @@ def build(request: BuildRequest, directory, catalog: Catalog | None
     outcome.twist = framework.info.get("joint_twist")
     outcome.joints, outcome.longest_joint = bond_joints(
         structure, framework)
+    # Before anything asks for the graph: the first read would
+    # otherwise perceive by distance, and bond whatever overlaps.
+    state_bonds(structure, framework)
     outcome.closest = closest_contact(structure)
+    outcome.overlaps = overlaps(structure, framework)
     _say(log, f"bonded {outcome.joints} joint(s) between blocks")
+    if outcome.overlaps:
+        _say(log, outcome.warning())
+        structure.meta.setdefault("warnings", []).append(
+            outcome.warning())
     drawn = draw_net(structure, framework)
     # Said before rather than after, because it is not free: naming a
     # net walks ten shells of an infinite graph and looks for the
@@ -1029,6 +1073,105 @@ def bond_joints(structure, framework) -> tuple[int, float]:
     return len(fresh), longest
 
 
+def state_bonds(structure, framework) -> int:
+    """Store the blocks' own bonds as the framework's graph.  Returns
+    how many.
+
+    A built framework is read back from the CIF PORMAKE writes, and
+    the first thing to ask for its bonds used to *perceive* them by
+    distance -- which bonds whatever overlaps.  A substituent turned
+    onto a node came out with its hydrogens bonded to the node's
+    oxygens: five hydrogens bonded twice on 2-phenyl-BDC on pcu/N16,
+    built as found, and a graph like that reads as chemistry.
+
+    But the builder knows the bonds.  Every block brought its own, and
+    the joints are :func:`bond_joints`' explicit bonds; that is the
+    whole of the framework's connectivity, so it is *stated* here as
+    the stored graph and never guessed at.  A clean build states what
+    perception would have found.  One whose atoms overlap now says so
+    (:func:`overlaps`) rather than bonding them.
+
+    Stored the way Recalculate Bonds stores its answer, against the
+    structure's own rules, so everything downstream -- a save with its
+    graph, the copies of an interpenetrated array -- carries it, and
+    pressing Recalculate is still how a person asks for distance
+    instead.
+    """
+    from xtal.core import p1
+    from xtal.core.bonding import BondRules
+    from xtal.core.structure import CellBond
+
+    cell = p1.expand(structure)
+    atom_of = _cell_atoms(structure, framework, cell)
+    matrix = np.asarray(structure.lattice.matrix, dtype=float)
+    found: dict[tuple, CellBond] = {}
+    for i, j in _intra_block_bonds(framework.info["located_bbs"]):
+        a, b = atom_of.get(i), atom_of.get(j)
+        if a is None or b is None:                  # pragma: no cover
+            continue
+        image = tuple(int(v) for v in np.round(cell.frac[a]
+                                               - cell.frac[b]))
+        separation = cell.frac[b] + np.asarray(image) - cell.frac[a]
+        a, b, image = CellBond(a, b, image, 0.0).key()
+        found[(a, b, image)] = CellBond(
+            a, b, image, float(np.linalg.norm(separation @ matrix)))
+    rules = BondRules.from_dict(structure.bond_rules)
+    structure.set_perceived(sorted(found.values(),
+                                   key=lambda b: (b.i, b.j, b.image)),
+                            rules.signature(), cell)
+    return len(found)
+
+
+def overlaps(structure, framework) -> tuple:
+    """Every unbonded pair closer than :data:`OVERLAP`, closest first.
+
+    Each is ``(distance, one atom, the other)``, the atoms named by
+    label and by the block they came from -- ``H41 (UPh)`` -- because
+    what a person does about an overlap depends on which two blocks
+    met, and a label alone does not say.
+    """
+    from xtal.core import p1
+
+    cell = p1.expand(structure)
+    near = sorted(_contacts(structure, OVERLAP))
+    if not near:
+        return ()
+    blocks = framework.info["located_bbs"]
+    slot_of = _block_of_atoms(blocks)
+    index_of = {atom: index for index, atom
+                in _cell_atoms(structure, framework, cell).items()}
+
+    def name(atom: int) -> str:
+        label = cell.labels[atom] or cell.elements[atom]
+        slot = slot_of.get(index_of.get(atom, -1))
+        block = blocks[slot] if slot is not None else None
+        return f"{label} ({block.name})" if block is not None else label
+
+    return tuple((distance, name(i), name(j))
+                 for distance, i, j in near)
+
+
+def _cell_atoms(structure, framework, cell) -> dict[int, int]:
+    """Framework atom index -> the atom of the P1 cell it became.
+
+    By label, as :func:`bond_joints` maps it and for its reason: the
+    CIF keeps the framework's order and its labels say so, and a
+    reader that ever reorders should leave an atom unfound rather than
+    bond the wrong one.
+    """
+    symbols = framework.atoms.symbols
+    site_of = {site.label: index
+               for index, site in enumerate(structure.sites)}
+    out: dict[int, int] = {}
+    for index in range(len(symbols)):
+        site = site_of.get(f"{symbols[index]}{index}")
+        if site is not None:
+            atoms = cell.indices_of_site(site)
+            if len(atoms):
+                out[index] = int(atoms[0])
+    return out
+
+
 def _is_polydentate(block) -> bool:
     """Whether any connection point of this placed block stands for
     more than one atom."""
@@ -1481,14 +1624,21 @@ def closest_contact(structure) -> float:
     ``inf`` when no unbonded pair is within :data:`CONTACT_CUTOFF` at
     all, which is an open framework rather than a good or a bad one.
     """
+    near = _contacts(structure, CONTACT_CUTOFF)
+    return float(min(d for d, _i, _j in near)) if near else float("inf")
+
+
+def _contacts(structure, cutoff: float) -> list[tuple[float, int, int]]:
+    """Every pair of unbonded atoms within ``cutoff``, as ``(distance,
+    atom, atom)`` in the P1 cell, markers left out."""
     from xtal.core import bonding, elements, p1
     from xtal.core.neighbors import neighbor_pairs
 
     cell = p1.expand(structure)
-    pairs = neighbor_pairs(cell.frac, structure.lattice, CONTACT_CUTOFF,
+    pairs = neighbor_pairs(cell.frac, structure.lattice, cutoff,
                            min_distance=0.0)
     if not len(pairs):
-        return float("inf")
+        return []
     dummy = np.array([elements.is_dummy(str(e))
                       for e in cell.elements])
     keep = ~(dummy[pairs.i] | dummy[pairs.j])
@@ -1497,8 +1647,8 @@ def closest_contact(structure) -> float:
     keep &= np.array([_contact_key(int(i), int(j), im) not in bonded
                       for i, j, im in zip(pairs.i, pairs.j, pairs.image,
                                           strict=True)])
-    near = pairs.distance[keep]
-    return float(near.min()) if len(near) else float("inf")
+    return [(float(pairs.distance[k]), int(pairs.i[k]),
+             int(pairs.j[k])) for k in np.flatnonzero(keep)]
 
 
 def _contact_key(i: int, j: int, image) -> tuple:
