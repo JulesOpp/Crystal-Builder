@@ -263,6 +263,21 @@ jobs:
               "scipy==$(python -c 'import scipy; print(scipy.__version__)')"
           pip install --force-reinstall --no-deps floor-wheels/*.whl
 
+      # Help > User Manual opens the HTML built here, which
+      # packaging/bundle.py collects into manual/ and --selftest
+      # insists on.  In a venv of its own, so that Sphinx's
+      # requirements cannot move a wheel the bundle is pinned to.
+      - name: The user manual
+        shell: bash
+        run: |
+          python -m venv "$RUNNER_TEMP/docs"
+          py="$RUNNER_TEMP/docs/bin/python"
+          [ -x "$py" ] || py="$RUNNER_TEMP/docs/Scripts/python.exe"
+          "$py" -m pip install -q "sphinx>=7" "myst-parser>=3" \
+              "sphinxcontrib-bibtex>=2.6" "furo>=2024.1"
+          "$py" -m sphinx -q -b html docs/manual build/manual/html
+          test -f build/manual/html/index.html
+
       - name: Build
         env:
           QT_API: pyside6

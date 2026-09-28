@@ -162,6 +162,116 @@ Velocity Verlet, with a thermostat; the frames go to the transport bar
 | **Write every** | int, 1 to 100000 steps | `10` | A frame for the transport bar, and a line of md.out |
 | **Hold the frozen sites still** | bool | `True` | The sites frozen in the structure are left out of DFTB+'s MovedAtoms |
 
+(mod-scan)=
+## Energy scan
+
+Walk one or two coordinates and relax everything else at each point, to map the energy landscape of a flexible structure.  An axis is a lattice parameter, the cell volume, or an internal coordinate -- a distance, an angle, a dihedral, or the angle between two planes -- and it is held by a constraint rather than by freezing the atoms that define it.  Every point is left behind as a structure to open.
+
+```{index} Energy scan
+```
+
+(mod-scan-run)=
+### Relaxed scan...
+
+Map the energy landscape over one or two coordinates
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Engine** | one of | `uff` | Which energy engine relaxes each point.  For a flexible framework a machine-learned potential is the better choice: UFF4MOF was never fitted to reproduce a breathing double well. |
+| **First axis** | text | `volume` | A cell parameter (a, b, c, alpha, beta, gamma), 'volume', or an internal coordinate over P1 atom indices: 'distance 0, 5', 'angle 0, 1, 2', 'torsion 0, 1, 2, 3', 'plane 0+1+2, 6+7+8'.  Atoms joined by '+' are their centroid, and it follows them. |
+| **From** | float | `0.0` |  |
+| **To** | float | `0.0` |  |
+| **Points** | int, 1 to 201 | `9` |  |
+| **Second axis** | text |  | Leave empty for a one-dimensional scan.  A cell parameter (a, b, c, alpha, beta, gamma), 'volume', or an internal coordinate over P1 atom indices: 'distance 0, 5', 'angle 0, 1, 2', 'torsion 0, 1, 2, 3', 'plane 0+1+2, 6+7+8'.  Atoms joined by '+' are their centroid, and it follows them. |
+| **From** | float | `0.0` |  |
+| **To** | float | `0.0` |  |
+| **Points** | int, 1 to 201 | `9` |  |
+| **Starting geometry** | one of Carry on from the nearest point, Restart from this structure | `previous` | Carrying the last relaxed geometry into the next cell is what makes a scan affordable, and it is also what makes it path-dependent: near a transition the optimiser stays in the basin it arrived in. |
+| **Direction** | one of Both, and report each, Forwards only, Backwards only | `both` | Walking the grid both ways and drawing both is how hysteresis shows up instead of hiding in one curve. |
+| **Optimiser** | one of abnr, conjugate_gradient, fire, lbfgs, quasi_newton, smart, steepest_descent | `smart` | Smart descends steeply at first and changes rule as the forces fall, which is what a scan wants: every point after the first starts near a minimum, but the first one may not. |
+| **Steps per point** | int, 1 to 100000 | `500` | A point that stops at the limit is reported as not converged and drawn apart, so this is a ceiling rather than a target. |
+| **Force tolerance** | float, at least 1e-06 kcal/mol/A | `0.05` |  |
+| **Pre-relax with** | one of Nothing |  | A cheaper engine run at every point before the one the landscape is of -- UFF4MOF ahead of MACE, say.  A volume step moves every atom with the cell, and this spends the long walk back at the cheap price.  Only the main engine's energy is reported. |
+| **Pre-relaxation steps** | int, 1 to 100000 | `500` |  |
+| **Pre-relaxation tolerance** | float, at least 1e-06 kcal/mol/A | `0.5` | Loose on purpose: the cheap engine's minimum is not the one wanted, so converging to it tightly buys nothing. |
+
+(mod-mof)=
+## MOF builder
+
+Build a framework from a topology, a metal node and a linker, with PORMAKE.  The result opens in a new tab with its net already drawn.
+
+```{index} MOF builder
+```
+
+(mod-mof-build)=
+### Build a framework...
+
+Pick a net, a node and a linker; the framework opens in a new tab
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Topology** | text | `pcu` | The net to build on, by its RCSR name -- pcu, tbo, soc.  2399 of them ship with PORMAKE. |
+| **Node building blocks** | text |  | Which block goes in which node slot: 'N59' when the net has one kind of node, or '0=N19,1=N59' when it has more.  A block fits a slot only when it has as many connection points as the slot is coordinated. |
+| **Linkers** | text |  | Which linker goes on which kind of edge: 'E32', or '0-0=E32,0-1=E14'.  Left empty the nodes are joined directly, which is what PORMAKE builds for a net with no linker in it. |
+| **Repeat the net** | text | `1x1x1` | How many times to tile the net before anything is placed on it -- '2x2x2', or '2' for the same in all three.  A framework built on a repeated net is the same material in a larger cell, which is what a defect, a guest or an interpenetrated pair needs room for.  Leave it at 1x1x1 for the net itself. |
+| **Node orientation** | one of Consistent across every joint, As found by the fit | `consistent` | Which way round the node blocks go.  A symmetric node fits its slot equally well two dozen ways.  By default each node is turned so that the faces at the two ends of every linker agree -- carboxylate against carboxylate, chelate against chelate -- which is what makes MOF-5's clusters alternate on a 2x2x2 net, and only where that is measurably better than what the fit chose.  'As found' keeps whatever the fit reached first, exactly as PORMAKE builds it. |
+| **Interlayer spacing** | text |  | How far apart the sheets of a layer net are stacked, in Angstrom.  Left empty it is 3.4, which is where pi-stacked sheets sit -- Ni3(HITP)2 is 3.24.  Only a layer net such as hcb, hxl, sql or kgm has sheets to stack, and a spacing given for any other net is refused. |
+| **Stacking offset** | text |  | Where each sheet sits over the one below, as two fractions of the net's own a and b -- '1/3, 2/3', or '0.5, 0'.  Left empty the sheets are eclipsed, one directly over the next.  Layer nets only, like the spacing. |
+| **Interpenetration** | int, 1 to 6 | `1` | How many copies of the framework, threaded through one another -- 2 for two-fold.  The copies go where the most room is, measured by the closest contact between them, and a framework too dense for any placement is refused rather than built crowded.  Structure > Interpenetrate lists every placement. |
+| **Extra topologies** | path |  | A folder of your own .cgd nets, read alongside the ones PORMAKE ships |
+| **Extra building blocks** | path |  | A folder of your own .xyz building blocks, whose connection points are listed on the second line |
+
+(mod-net)=
+## Net builder
+
+Draw a named RCSR net -- a vertex is a hydrogen and an edge is a string of heliums, which is notation and not chemistry.  It opens in a tab of its own, with coordination polyhedra ready to draw over the vertices.
+
+```{index} Net builder
+```
+
+(mod-net-draw)=
+### Draw a net...
+
+Draw a named RCSR net; it opens in a new tab
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Net** | text | `pcu` | The RCSR's own name for it -- pcu, dia, srs, acs, sod, rht, hcb.  2926 of them can be drawn, the 200 layers among them; the four with no cell cannot. |
+| **Cell scale** | float, 1 to 40 | `8.0` | The .cgd cells are normalised so an edge is about one unit long.  Eight puts the atoms along an edge about 1 A apart, which is what makes the edges read as rods. |
+| **Atoms per edge** | int, 2 to 24 | `8` | Counting the two nodes.  More is a smoother rod and a bigger structure; the atom next to a node is what a coordination polyhedron is drawn over, so there has to be at least one between them. |
+
+(mod-build)=
+## Molecule builder
+
+Build a molecule from a SMILES string, with RDKit.  It opens in a tab of its own, in a box with enough vacuum around it to relax in.
+
+```{index} Molecule builder
+```
+
+(mod-build-molecule)=
+### Molecule from SMILES...
+
+Build a molecule; it opens in a new tab
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **SMILES** | text |  | The molecule, as SMILES -- c1ccccc1C(=O)[O-] is benzoate.  A '*' marks a connection point, and [*:1] and [*:2] say which is which. |
+| **Name** | text |  | What to call it, in the tab and in the block file.  The SMILES string itself when this is left empty. |
+| **Relax it** | bool | `True` | Relax the embedded geometry with MMFF, or UFF where MMFF has no parameters for it.  The force field in this application takes it further. |
+| **Conformer seed** | int, 0 to 2147483647 | `61453` | Which conformer comes out.  Fixed rather than random so that the same string twice is the same molecule; change it to be offered another one. |
+
 (mod-zeopp)=
 ## Porosity
 
@@ -279,58 +389,6 @@ How much of the pore space sits at each diameter, as a histogram
 | **Atom radii** | one of Zeo++'s own table (what its papers used), Van der Waals radii (this application's table), Covalent radii (this application's table) | `builtin` | Every number Zeo++ returns is a function of how big it thinks the atoms are.  Whichever is chosen is written into the log. |
 | **Radii file** | path |  | Your own two-column table (element, radius in A), which overrides the choice above when it is set |
 | **High accuracy** | bool | `True` | Zeo++'s -ha: add Voronoi vertices so that atoms of different radii are treated properly.  Slower, and what the documentation recommends. |
-
-(mod-mof)=
-## MOF builder
-
-Build a framework from a topology, a metal node and a linker, with PORMAKE.  The result opens in a new tab with its net already drawn.
-
-```{index} MOF builder
-```
-
-(mod-mof-build)=
-### Build a framework...
-
-Pick a net, a node and a linker; the framework opens in a new tab
-
-```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
-```
-
-| Setting | Accepts | Default | What it is |
-|---|---|---|---|
-| **Topology** | text | `pcu` | The net to build on, by its RCSR name -- pcu, tbo, soc.  2399 of them ship with PORMAKE. |
-| **Node building blocks** | text |  | Which block goes in which node slot: 'N59' when the net has one kind of node, or '0=N19,1=N59' when it has more.  A block fits a slot only when it has as many connection points as the slot is coordinated. |
-| **Linkers** | text |  | Which linker goes on which kind of edge: 'E32', or '0-0=E32,0-1=E14'.  Left empty the nodes are joined directly, which is what PORMAKE builds for a net with no linker in it. |
-| **Repeat the net** | text | `1x1x1` | How many times to tile the net before anything is placed on it -- '2x2x2', or '2' for the same in all three.  A framework built on a repeated net is the same material in a larger cell, which is what a defect, a guest or an interpenetrated pair needs room for.  Leave it at 1x1x1 for the net itself. |
-| **Node orientation** | one of Consistent across every joint, As found by the fit | `consistent` | Which way round the node blocks go.  A symmetric node fits its slot equally well two dozen ways.  By default each node is turned so that the faces at the two ends of every linker agree -- carboxylate against carboxylate, chelate against chelate -- which is what makes MOF-5's clusters alternate on a 2x2x2 net, and only where that is measurably better than what the fit chose.  'As found' keeps whatever the fit reached first, exactly as PORMAKE builds it. |
-| **Interlayer spacing** | text |  | How far apart the sheets of a layer net are stacked, in Angstrom.  Left empty it is 3.4, which is where pi-stacked sheets sit -- Ni3(HITP)2 is 3.24.  Only a layer net such as hcb, hxl, sql or kgm has sheets to stack, and a spacing given for any other net is refused. |
-| **Stacking offset** | text |  | Where each sheet sits over the one below, as two fractions of the net's own a and b -- '1/3, 2/3', or '0.5, 0'.  Left empty the sheets are eclipsed, one directly over the next.  Layer nets only, like the spacing. |
-| **Interpenetration** | int, 1 to 6 | `1` | How many copies of the framework, threaded through one another -- 2 for two-fold.  The copies go where the most room is, measured by the closest contact between them, and a framework too dense for any placement is refused rather than built crowded.  Structure > Interpenetrate lists every placement. |
-| **Extra topologies** | path |  | A folder of your own .cgd nets, read alongside the ones PORMAKE ships |
-| **Extra building blocks** | path |  | A folder of your own .xyz building blocks, whose connection points are listed on the second line |
-
-(mod-build)=
-## Molecule builder
-
-Build a molecule from a SMILES string, with RDKit.  It opens in a tab of its own, in a box with enough vacuum around it to relax in.
-
-```{index} Molecule builder
-```
-
-(mod-build-molecule)=
-### Molecule from SMILES...
-
-Build a molecule; it opens in a new tab
-
-```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
-```
-
-| Setting | Accepts | Default | What it is |
-|---|---|---|---|
-| **SMILES** | text |  | The molecule, as SMILES -- c1ccccc1C(=O)[O-] is benzoate.  A '*' marks a connection point, and [*:1] and [*:2] say which is which. |
-| **Name** | text |  | What to call it, in the tab and in the block file.  The SMILES string itself when this is left empty. |
-| **Relax it** | bool | `True` | Relax the embedded geometry with MMFF, or UFF where MMFF has no parameters for it.  The force field in this application takes it further. |
-| **Conformer seed** | int, 0 to 2147483647 | `61453` | Which conformer comes out.  Fixed rather than random so that the same string twice is the same molecule; change it to be offered another one. |
 
 (mod-pxrd)=
 ## PXRD
@@ -607,64 +665,6 @@ Refine with energy at a list of weights, and suggest the one where the fit and t
 | **Strain broadening** | bool | `False` | Lorentzian and Gaussian strain terms (TOPAS Strain_L, Strain_G). |
 | **Refine displacement parameters** | bool | `True` | Biso of each atom (8π²U), or its anisotropic U where the structure has one. |
 | **Preferred orientation** | text |  | The March-Dollase axis as h k l -- 0 0 1 for plates lying on their c face.  Empty is no texture. |
-
-(mod-scan)=
-## Energy scan
-
-Walk one or two coordinates and relax everything else at each point, to map the energy landscape of a flexible structure.  An axis is a lattice parameter, the cell volume, or an internal coordinate -- a distance, an angle, a dihedral, or the angle between two planes -- and it is held by a constraint rather than by freezing the atoms that define it.  Every point is left behind as a structure to open.
-
-```{index} Energy scan
-```
-
-(mod-scan-run)=
-### Relaxed scan...
-
-Map the energy landscape over one or two coordinates
-
-```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
-```
-
-| Setting | Accepts | Default | What it is |
-|---|---|---|---|
-| **Engine** | one of | `uff` | Which energy engine relaxes each point.  For a flexible framework a machine-learned potential is the better choice: UFF4MOF was never fitted to reproduce a breathing double well. |
-| **First axis** | text | `volume` | A cell parameter (a, b, c, alpha, beta, gamma), 'volume', or an internal coordinate over P1 atom indices: 'distance 0, 5', 'angle 0, 1, 2', 'torsion 0, 1, 2, 3', 'plane 0+1+2, 6+7+8'.  Atoms joined by '+' are their centroid, and it follows them. |
-| **From** | float | `0.0` |  |
-| **To** | float | `0.0` |  |
-| **Points** | int, 1 to 201 | `9` |  |
-| **Second axis** | text |  | Leave empty for a one-dimensional scan.  A cell parameter (a, b, c, alpha, beta, gamma), 'volume', or an internal coordinate over P1 atom indices: 'distance 0, 5', 'angle 0, 1, 2', 'torsion 0, 1, 2, 3', 'plane 0+1+2, 6+7+8'.  Atoms joined by '+' are their centroid, and it follows them. |
-| **From** | float | `0.0` |  |
-| **To** | float | `0.0` |  |
-| **Points** | int, 1 to 201 | `9` |  |
-| **Starting geometry** | one of Carry on from the nearest point, Restart from this structure | `previous` | Carrying the last relaxed geometry into the next cell is what makes a scan affordable, and it is also what makes it path-dependent: near a transition the optimiser stays in the basin it arrived in. |
-| **Direction** | one of Both, and report each, Forwards only, Backwards only | `both` | Walking the grid both ways and drawing both is how hysteresis shows up instead of hiding in one curve. |
-| **Optimiser** | one of abnr, conjugate_gradient, fire, lbfgs, quasi_newton, smart, steepest_descent | `smart` | Smart descends steeply at first and changes rule as the forces fall, which is what a scan wants: every point after the first starts near a minimum, but the first one may not. |
-| **Steps per point** | int, 1 to 100000 | `500` | A point that stops at the limit is reported as not converged and drawn apart, so this is a ceiling rather than a target. |
-| **Force tolerance** | float, at least 1e-06 kcal/mol/A | `0.05` |  |
-| **Pre-relax with** | one of Nothing |  | A cheaper engine run at every point before the one the landscape is of -- UFF4MOF ahead of MACE, say.  A volume step moves every atom with the cell, and this spends the long walk back at the cheap price.  Only the main engine's energy is reported. |
-| **Pre-relaxation steps** | int, 1 to 100000 | `500` |  |
-| **Pre-relaxation tolerance** | float, at least 1e-06 kcal/mol/A | `0.5` | Loose on purpose: the cheap engine's minimum is not the one wanted, so converging to it tightly buys nothing. |
-
-(mod-net)=
-## Net builder
-
-Draw a named RCSR net -- a vertex is a hydrogen and an edge is a string of heliums, which is notation and not chemistry.  It opens in a tab of its own, with coordination polyhedra ready to draw over the vertices.
-
-```{index} Net builder
-```
-
-(mod-net-draw)=
-### Draw a net...
-
-Draw a named RCSR net; it opens in a new tab
-
-```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
-```
-
-| Setting | Accepts | Default | What it is |
-|---|---|---|---|
-| **Net** | text | `pcu` | The RCSR's own name for it -- pcu, dia, srs, acs, sod, rht, hcb.  2926 of them can be drawn, the 200 layers among them; the four with no cell cannot. |
-| **Cell scale** | float, 1 to 40 | `8.0` | The .cgd cells are normalised so an edge is about one unit long.  Eight puts the atoms along an edge about 1 A apart, which is what makes the edges read as rods. |
-| **Atoms per edge** | int, 2 to 24 | `8` | Counting the two nodes.  More is a smoother rod and a bigger structure; the atom next to a node is what a coordination polyhedron is drawn over, so there has to be at least one between them. |
 
 (mod-blender)=
 ## Blender

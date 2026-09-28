@@ -8,6 +8,11 @@ do -- compute an energy, find a structure, measure a pore, build a
 framework, run things from a script, extend the program -- and the
 appendices hold the reference.
 
+The application carries this manual: *Help ▸*
+{ref}`User Manual <cmd-user_manual>` opens it in your browser, from
+the copy that was built with the version you are running.  Only the
+equations need a connection, to fetch the script that draws them.
+
 A section on a method starts with a short outline of the theory and
 its references, gives practical advice, works an example on one of
 the sample structures, and ends with the method's settings and its

@@ -88,6 +88,35 @@ def test_the_samples_land_where_the_application_looks_for_them(
     assert set(destinations.values()) >= {relative.as_posix()}
 
 
+def test_the_built_manual_lands_where_the_application_looks(
+        tmp_path, monkeypatch):
+    """Help > User Manual opens ``manual/index.html`` beside the
+    package, so the HTML the bundle job builds goes there, every
+    subfolder with it -- the pages link their figures and stylesheet
+    relative to themselves."""
+    from xtalapp import manual
+
+    built = tmp_path / "html"
+    (built / "_static").mkdir(parents=True)
+    (built / "index.html").write_text("<html></html>", encoding="utf-8")
+    (built / "_static" / "furo.css").write_text("", encoding="utf-8")
+    monkeypatch.setattr(bundle, "MANUAL", built)
+
+    landed = {PurePosixPath(destination) / Path(source).name
+              for source, destination in bundle.project_datas()
+              if Path(source).is_relative_to(built)}
+    folder = PurePosixPath(*manual.BUNDLED)
+    assert landed == {folder / "index.html",
+                      folder / "_static" / "furo.css"}
+
+
+def test_an_unbuilt_manual_adds_nothing(tmp_path, monkeypatch):
+    """The bundle job builds it first; a local pyinstaller run that
+    did not is caught by --selftest, not by a crash here."""
+    monkeypatch.setattr(bundle, "MANUAL", tmp_path / "not-built")
+    assert bundle.project_datas()
+
+
 def test_the_chooser_art_travels_with_the_application(destinations):
     """The chooser is the first thing a launch shows, and it is drawn
     from files: without them a bundle opens on a side panel with a

@@ -1640,6 +1640,46 @@ Velocity Verlet, with a thermostat; the frames go to the transport bar
 ```{index} Molecular dynamics...
 ```
 
+(cmd-module.scan.run)=
+### Energy scan ▸ Relaxed scan...
+
+`module.scan.run`
+
+Map the energy landscape over one or two coordinates
+
+```{index} Relaxed scan...
+```
+
+(cmd-module.mof.build)=
+### MOF builder ▸ Build a framework...
+
+`module.mof.build`
+
+Pick a net, a node and a linker; the framework opens in a new tab
+
+```{index} Build a framework...
+```
+
+(cmd-module.net.draw)=
+### Net builder ▸ Draw a net...
+
+`module.net.draw`
+
+Draw a named RCSR net; it opens in a new tab
+
+```{index} Draw a net...
+```
+
+(cmd-module.build.molecule)=
+### Molecule builder ▸ Molecule from SMILES...
+
+`module.build.molecule`
+
+Build a molecule; it opens in a new tab
+
+```{index} Molecule from SMILES...
+```
+
 (cmd-module.zeopp.diameters)=
 ### Porosity ▸ Pore diameters and channels...
 
@@ -1700,26 +1740,6 @@ Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set).  It is at https:
 ```{index} Pore size distribution...
 ```
 
-(cmd-module.mof.build)=
-### MOF builder ▸ Build a framework...
-
-`module.mof.build`
-
-Pick a net, a node and a linker; the framework opens in a new tab
-
-```{index} Build a framework...
-```
-
-(cmd-module.build.molecule)=
-### Molecule builder ▸ Molecule from SMILES...
-
-`module.build.molecule`
-
-Build a molecule; it opens in a new tab
-
-```{index} Molecule from SMILES...
-```
-
 (cmd-module.pxrd.simulate)=
 ### PXRD ▸ Simulate a pattern...
 
@@ -1738,26 +1758,6 @@ Calculate a powder diffraction pattern from this structure
 Fit peaks and refine against a measured .xy pattern, in a window of its own; the runs go under the structure in front, or under the pattern's name if none is open
 
 ```{index} Refine against a measured pattern...
-```
-
-(cmd-module.scan.run)=
-### Energy scan ▸ Relaxed scan...
-
-`module.scan.run`
-
-Map the energy landscape over one or two coordinates
-
-```{index} Relaxed scan...
-```
-
-(cmd-module.net.draw)=
-### Net builder ▸ Draw a net...
-
-`module.net.draw`
-
-Draw a named RCSR net; it opens in a new tab
-
-```{index} Draw a net...
 ```
 
 (cmd-module.blender.export-stl)=
@@ -1792,6 +1792,16 @@ Put the panels back where they started
 Every command and every module setting, generated from the application itself
 
 ```{index} Crystal Builder Help
+```
+
+(cmd-user_manual)=
+### User Manual
+
+`user_manual`
+
+The user manual in your browser: a quickstart, the tasks chapter by chapter, and each method's theory and references.  It is the copy that came with this application; only its equations need a connection, to fetch MathJax.
+
+```{index} User Manual
 ```
 
 (cmd-install_ai_skill)=

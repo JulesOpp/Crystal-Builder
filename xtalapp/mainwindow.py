@@ -1028,6 +1028,17 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         self.show_status(f"AI assistant skill installed in {target}; "
                          f"Claude Code reads it from there")
 
+    def show_manual(self) -> None:
+        """Open the user manual in the browser -- see
+        :mod:`xtalapp.manual` for where it is looked for."""
+        from xtalapp import manual
+
+        page = manual.index()
+        if page is None:
+            self.show_message(manual.MISSING, 15000)
+        elif not QDesktopServices.openUrl(QUrl.fromLocalFile(str(page))):
+            self.show_message(f"could not open {page}")
+
     def show_about(self) -> None:
         from xtal import __version__
         QMessageBox.about(

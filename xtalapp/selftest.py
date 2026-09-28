@@ -145,6 +145,26 @@ def check_samples(report) -> None:
             f"{', '.join(missing)}")
 
 
+def check_manual(report) -> None:
+    """Help > User Manual has a manual to open.
+
+    The bundle job builds the HTML and :mod:`packaging.bundle` collects
+    it; a build made without that step would ship a menu entry that
+    says the manual was never built, to somebody who cannot build it.
+    """
+    from xtalapp import extras, manual
+
+    page = manual.index()
+    if page is not None:
+        report(f"manual: {page}")
+        return
+    if extras.frozen():
+        raise AssertionError(
+            f"the user manual is not in this build: looked for "
+            f"{manual.root().joinpath(*manual.BUNDLED, 'index.html')}")
+    report("manual: not built in this checkout, skipped")
+
+
 def check_extras(report) -> None:
     """The optional packages a packaged build promises are there.
 
@@ -510,6 +530,7 @@ def run(shot: Path | None = None, out=None) -> int:
         ("RCSR index", check_rcsr_index),
         ("fragment library", check_fragment_library),
         ("samples", check_samples),
+        ("user manual", check_manual),
         ("bundled extras", check_extras),
         ("module dialogs", check_module_dialogs),
         ("MOF builder", check_mof_builder),
