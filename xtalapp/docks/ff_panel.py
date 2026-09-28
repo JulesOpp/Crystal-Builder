@@ -293,13 +293,14 @@ class ForceFieldDock(QDockWidget):
 
         # The cell as a variable.  Off by default, and it says what it
         # costs: twelve extra energy evaluations a step for an engine
-        # with no analytic stress, which UFF is.
+        # with no stress of its own, which of the shipped ones is xTB.
         self.relax_cell = QCheckBox("Relax the cell as well")
         self.relax_cell.setToolTip(
             "Relax the lattice under a symmetry-adapted strain, so a "
             "cubic cell stays cubic and a hexagonal one hexagonal. "
-            "Costs twelve extra energy evaluations a step, because "
-            "UFF has no analytic stress.")
+            "UFF, DFTB+ and the machine-learned engines give their own "
+            "stress; xTB does not, and costs twelve extra energy "
+            "evaluations a step for it.")
         self.relax_cell.toggled.connect(self._on_relax_cell)
         # Its own tolerance, in the units a cell is talked about in.
         # The per-atom strain gradient that was the whole of the cell's

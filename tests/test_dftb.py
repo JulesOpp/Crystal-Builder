@@ -17,6 +17,7 @@ one that fails.
 """
 
 from itertools import product
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -26,6 +27,8 @@ from xtal.ff import ENGINES
 from xtal.ff.api import CalculatorError
 from xtal.ff.dftb import calculator as dftb
 from xtal.ff.dftb import hsd, params
+
+DATA = Path(__file__).parent / "data" / "dftb"
 
 #: One energy and two forces, in the layout DFTB+ writes them.
 DETAILED = """
@@ -307,6 +310,53 @@ def test_forces_come_back_in_kcal_per_mole_per_angstrom(
     assert result.forces[1, 2] == pytest.approx(-expected)
 
 
+#: What DFTB+ 24.1 printed for quartz (``data/dftb``), in Hartree/Bohr^3.
+QUARTZ_STRESS = np.array([[0.000826201108, 0.0, 0.0],
+                          [0.0, 0.000826201108, 0.0],
+                          [0.0, -0.000000000070, 0.000818119134]])
+
+
+def test_the_stress_dftb_prints_is_read():
+    text = (DATA / "quartz_mulliken_detailed.out").read_text()
+    assert np.allclose(dftb.parse_stress(text), QUARTZ_STRESS)
+
+
+def test_an_output_without_a_stress_has_none():
+    assert dftb.parse_stress(DETAILED) is None
+
+
+def test_the_stress_comes_back_with_the_sign_the_optimiser_uses(
+        two_atoms, parameters, tmp_path, monkeypatch):
+    """dE/de over the volume, in kcal/mol/A^3: the negative of what
+    DFTB+ prints.  Measured, not assumed -- against
+    :meth:`~xtal.ff.api.Calculator.numeric_stress` on MOF-5 and ZIF-8
+    under an uneven strain and a shear, every component agreeing to
+    1e-6 once negated (and see the slow test below, which asks the
+    real binary).  A wrong sign relaxes a cell the wrong way and
+    reports converging while it does it."""
+    block = "\nTotal stress tensor\n" + "\n".join(
+        "  ".join(f"{v:.12f}" for v in row) for row in QUARTZ_STRESS)
+    script = write_program(tmp_path, "dftb+",
+                           f"OUTPUT = {DETAILED + block!r}\n" + FAKE)
+    monkeypatch.setenv("XTAL_DFTB", str(script))
+    engine = build(two_atoms, parameters)
+    assert engine.provides_stress
+
+    result = engine.compute(engine.cell.cart, two_atoms.lattice.matrix)
+
+    expected = -QUARTZ_STRESS * dftb.HARTREE / dftb.BOHR ** 3
+    assert np.allclose(result.stress, expected)
+
+
+def test_a_run_that_printed_no_stress_leaves_it_to_differences(
+        two_atoms, parameters, fake_dftb):
+    """``None`` is what sends the optimiser to the numeric stress, so an
+    output without the block costs time rather than a wrong cell."""
+    engine = build(two_atoms, parameters)
+    result = engine.compute(engine.cell.cart, two_atoms.lattice.matrix)
+    assert result.stress is None
+
+
 def test_forces_are_read_for_every_atom():
     assert dftb.parse_forces(DETAILED, 2).shape == (2, 3)
     assert dftb.parse_forces(DETAILED, 3) is None
@@ -471,13 +521,6 @@ def test_every_declared_option_reaches_the_calculation():
     known = {f.name for f in fields(dftb.DFTBOptions)}
     for param in dftb.OPTIONS:
         assert param.name in known
-
-
-def test_it_does_not_claim_an_analytic_stress():
-    """DFTB+ prints one and its conventions are not something to
-    guess at: a stress with the wrong sign relaxes a cell in the
-    wrong direction and reports converging while it does it."""
-    assert dftb.DFTBCalculator.provides_stress is False
 
 
 def test_the_summary_names_the_parameter_set(two_atoms, parameters,

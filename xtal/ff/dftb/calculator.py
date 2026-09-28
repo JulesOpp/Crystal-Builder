@@ -204,9 +204,8 @@ class DFTBCalculator(ExternalCalculator):
     geometry_name = GEOMETRY_NAME
     scratch_prefix = "dftb-"
     provides_forces = True
-    #: See the module docstring: DFTB+ prints a stress and its
-    #: conventions are not something to guess at.
-    provides_stress = False
+    #: DFTB+'s own, negated -- see the module docstring.
+    provides_stress = True
 
     def __init__(self, structure, options: DFTBOptions | None = None):
         self._prepare(structure, options or DFTBOptions())
@@ -293,10 +292,10 @@ class DFTBCalculator(ExternalCalculator):
             read_charges=self._have_charges, k_points=self.k_points),
             encoding="utf-8")
         result = self._launch()
-        energy, forces = self._read(result)
+        energy, forces, stress = self._read(result)
         self._have_charges = self.options.method != "non-scc"
         return Result(energy=energy, forces=forces,
-                      terms={"dftb": energy})
+                      terms={"dftb": energy}, stress=stress)
 
     def _launch(self):
         return self._run([self.binary],
@@ -322,7 +321,9 @@ class DFTBCalculator(ExternalCalculator):
                 "DFTB+ printed an energy and no forces.  The "
                 "optimiser needs both; this usually means the input "
                 "lost its Analysis block.")
-        return energy * HARTREE, forces * (HARTREE / BOHR)
+        stress = parse_stress(text)
+        return (energy * HARTREE, forces * (HARTREE / BOHR),
+                None if stress is None else -stress * (HARTREE / BOHR**3))
 
 
 # ======================================================================
@@ -359,6 +360,25 @@ def parse_forces(text: str, n_atoms: int) -> np.ndarray | None:
                 break
         if len(rows) == n_atoms:
             return np.array(rows, dtype=float)
+    return None
+
+
+def parse_stress(text) -> np.ndarray | None:
+    """The ``Total stress tensor`` in Hartree/Bohr^3, as DFTB+ printed
+    it, or ``None``.  Its sign is the opposite of this application's;
+    :meth:`DFTBCalculator._read` turns it round."""
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        if line.strip() == "Total stress tensor":
+            try:
+                rows = [[float(v) for v in row.split()]
+                        for row in lines[index + 1:index + 4]]
+            except ValueError:
+                return None
+            block = np.array(rows) if len(rows) == 3 else None
+            if block is not None and block.shape == (3, 3):
+                return block
+            return None
     return None
 
 
