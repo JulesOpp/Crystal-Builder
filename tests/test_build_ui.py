@@ -829,3 +829,59 @@ def test_choosing_a_fragment_fills_the_boxes_and_draws_it(window,
     assert dialog.values()["name"] == "Phenylene"
     assert dialog.molecule.n_connections == 2
     assert "2 connection point(s)" in dialog.footer.text()
+
+
+# ------------------------------------------- connection points as X
+
+def _dummy_labels(mol):
+    return [atom.GetProp("dummyLabel") for atom in mol.GetAtoms()
+            if atom.GetAtomicNum() == 0]
+
+
+@needs_rdeditor
+def test_a_connection_point_typed_in_the_box_is_labelled_x_on_the_canvas(
+        window, qtbot):
+    """rdeditor labels a dummy ``R`` on the way in, which is a third
+    name for one thing the box calls ``*`` and the structure ``X``."""
+    dialog = BuildMoleculeDialog(BUILD, BUILD.action("molecule"),
+                                 window)
+    qtbot.addWidget(dialog)
+    typed(dialog, qtbot, "*c1ccc(*)cc1")
+
+    assert _dummy_labels(dialog.sketch.view.mol) == ["X", "X"]
+
+
+@needs_rdeditor
+def test_a_connection_point_drawn_with_the_tool_is_labelled_x(
+        window, qtbot):
+    """The tool makes its atom through ``getNewAtom``, which is the
+    second place rdeditor writes ``R``."""
+    dialog = BuildMoleculeDialog(BUILD, BUILD.action("molecule"),
+                                 window)
+    qtbot.addWidget(dialog)
+    drawn(dialog, qtbot, 0)
+
+    assert _dummy_labels(dialog.sketch.view.mol) == ["X"]
+
+
+@needs_rdeditor
+def test_labelling_a_connection_point_x_leaves_the_smiles_a_star(
+        window, qtbot):
+    """The label is a drawing property.  Were it written into the
+    SMILES, the box would fill with something ``from_smiles`` does
+    not read as a connection point."""
+    dialog = BuildMoleculeDialog(BUILD, BUILD.action("molecule"),
+                                 window)
+    qtbot.addWidget(dialog)
+    drawn(dialog, qtbot, 0)
+
+    assert dialog.form.widgets["smiles"].text() == "*"
+
+
+@needs_rdkit
+def test_the_picture_labels_a_connection_point_x_too():
+    from rdkit import Chem
+
+    mol = sketch.label_connection_points(Chem.MolFromSmiles("*C[*]"))
+    assert _dummy_labels(mol) == ["X", "X"]
+    assert Chem.MolToSmiles(mol) == "*C*"

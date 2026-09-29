@@ -425,7 +425,8 @@ class _Sketch(QWidget):
         except ImportError:                         # pragma: no cover
             return ""
         with rdBase.BlockLogs():
-            mol = Chem.MolFromSmiles(text)
+            mol = sketch.label_connection_points(
+                Chem.MolFromSmiles(text))
             if mol is None:
                 return ""
             try:
