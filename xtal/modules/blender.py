@@ -11,16 +11,20 @@ corners included, and the bonds the document has rather than any a
 reader might guess (:func:`xtal.core.cellcut.cut_cell`) -- and written
 as a PDB with a CONECT record for every bond
 (:mod:`xtal.io.pdb`).  Blender then runs ``pdb_to_printable_stl.py``
-headless: the Atomic Blender add-on imports balls and sticks, the
-instances are baked into one mesh, and a voxel remesh welds it into a
-single watertight solid.
+headless, through ``printable_stl.py`` beside it: the Atomic Blender
+add-on imports balls and sticks, the instances are baked into one
+mesh, and a voxel remesh welds it into a single watertight solid.
 
 **The script is somebody else's, and ships unchanged** in
 ``xtal/modules/data/``.  It is excluded from this project's lint for
 the reason the vendored PORMAKE is: it is a tool with its own
 conventions and its own command line, and a copy reformatted to 79
 columns is one that can no longer be compared with the one its author
-keeps.
+keeps.  What this project needs of it that its author's command line
+does not offer -- the importer told not to centre the PDB, which is
+written already centred off the origin (:data:`OFF_CENTRE`) -- is
+``printable_stl.py``, ours and linted, which loads it and replaces
+that one function before running its ``main``.
 
 **A run like any other module run**, which is what gives it a run
 folder holding the PDB, the log and the STL, a Stop that reaches
@@ -63,7 +67,8 @@ PROGRAM = Program(
     known=("/Applications/Blender.app/Contents/MacOS/Blender",))
 
 DATA = Path(__file__).resolve().parent / "data"
-SCRIPT = DATA / "pdb_to_printable_stl.py"
+VENDORED = DATA / "pdb_to_printable_stl.py"
+SCRIPT = DATA / "printable_stl.py"
 RENDER_SCRIPT = DATA / "render_scene.py"
 
 INPUT_NAME = "structure.pdb"
@@ -71,11 +76,12 @@ OUTPUT_NAME = "structure.stl"
 SCENE_NAME = "scene.blend"
 IMAGE_NAME = "render.png"
 
-#: Where the render's PDB puts the cut's mean, in Angstrom: near enough
-#: the origin for the scene's light at z = 25 to mean what it says, and
+#: Where both PDBs put the cut's mean, in Angstrom: near enough the
+#: origin for the render's light at z = 25 to mean what it says, and
 #: far enough off every symmetry line that no stick's line passes
 #: through the origin, which Atomic Blender divides by zero on (see
-#: ``render_scene.import_pdb``).  Three decimals, as the PDB writes.
+#: ``render_scene.import_pdb`` and ``printable_stl.py``).  Three
+#: decimals, as the PDB writes.
 OFF_CENTRE = (0.013, 0.029, 0.047)
 
 
@@ -185,9 +191,18 @@ def export_stl(job) -> JobResult:
         return _export(job, cut, Path(scratch), destination)
 
 
+def centred(cut):
+    """The cut with its mean at :data:`OFF_CENTRE`."""
+    if not cut.n_atoms:
+        return cut
+    cart = np.asarray(cut.cart, dtype=float)
+    return dataclasses.replace(
+        cut, cart=cart - cart.mean(axis=0) + np.asarray(OFF_CENTRE))
+
+
 def _export(job, cut, directory: Path, destination: Path) -> JobResult:
     directory.mkdir(parents=True, exist_ok=True)
-    pdb = write_pdb(cut, directory / INPUT_NAME)
+    pdb = write_pdb(centred(cut), directory / INPUT_NAME)
     stl = directory / OUTPUT_NAME
     job.say(f"cut one cell: {cut.n_atoms} atoms, {len(cut.bonds)} "
             f"bonds")
@@ -259,15 +274,6 @@ def render_arguments(job, pdb: Path, blend: Path,
     if not job.param("frame", True):
         argv.append("--no-frame")
     return argv
-
-
-def centred(cut):
-    """The cut with its mean at :data:`OFF_CENTRE`."""
-    if not cut.n_atoms:
-        return cut
-    cart = np.asarray(cut.cart, dtype=float)
-    return dataclasses.replace(
-        cut, cart=cart - cart.mean(axis=0) + np.asarray(OFF_CENTRE))
 
 
 def render(job) -> JobResult:
