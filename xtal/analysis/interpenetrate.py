@@ -49,6 +49,8 @@ from fractions import Fraction
 
 import numpy as np
 
+from xtal.core import bonding
+
 #: The largest fold offered.  Real frameworks stop well before it --
 #: ten-fold ``dia`` is the record -- and the index-*n* sublattices grow
 #: faster than *n*, so this is a bound on the list and not on the
@@ -201,7 +203,7 @@ def candidates(structure, n: int) -> list[Placement]:
     n = _fold(n)
     from xtal.analysis.topology import net_of
 
-    one = _flat(structure)
+    one = bonding.flat_with_graph(structure)
     # The chemistry or a net drawn over it: a net drawn on its own,
     # vertices and nothing else, is a framework waiting for blocks.
     if copies(one) == 0 and _net_copies(net_of(one)) == 0:
@@ -409,7 +411,7 @@ def _spell(vector) -> str:
 def score(structure, placement: Placement) -> Placement:
     """``placement`` with its shortest contact between copies, and the
     reason it collides if it does."""
-    return _Measure(_flat(structure))(placement)
+    return _Measure(bonding.flat_with_graph(structure))(placement)
 
 
 class _Measure:
@@ -521,7 +523,7 @@ def build(structure, placement: Placement):
         raise InterpenetrationError(
             f"{placement.name} {placement.collision}")
 
-    one = _flat(structure)
+    one = bonding.flat_with_graph(structure)
     stored = one.perceived
     n_atoms = one.n_sites
     zero = np.zeros((n_atoms, 3), dtype=int)
@@ -577,24 +579,6 @@ def build(structure, placement: Placement):
                 f"cop{'y' if after == 1 else 'ies'} where there were "
                 f"{before}, so copies have landed on one another")
     return out, placement
-
-
-def _flat(structure):
-    """The structure in P1 with its perceived graph written down.
-
-    Perceived first, on a copy, and then expanded with the graph
-    carried -- :func:`xtal.core.symmetry.reduce_to_p1` carries a stored
-    graph and would otherwise leave the array to be perceived from
-    scratch, which is exactly how two copies close together would end
-    up bonded to each other.
-    """
-    from xtal.core import bonding, symmetry
-
-    held = structure.copy()
-    bonding.graph(held)
-    one = held if held.is_p1 else symmetry.reduce_to_p1(held)
-    bonding.graph(one)
-    return one
 
 
 # ======================================================================

@@ -214,6 +214,24 @@ def graph(structure, rules: BondRules | None = None) -> BondGraph:
     return _drawn(structure, rules, True).graph
 
 
+def flat_with_graph(structure):
+    """The structure in P1 with its perceived graph written down.
+
+    Perceived first, on a copy, and then expanded with the graph
+    carried -- :func:`xtal.core.symmetry.reduce_to_p1` carries a stored
+    graph and would otherwise leave the copy to be perceived from
+    scratch, which is exactly how two copies close together would end
+    up bonded to each other.
+    """
+    from xtal.core import symmetry
+
+    held = structure.copy()
+    graph(held)
+    one = held if held.is_p1 else symmetry.reduce_to_p1(held)
+    graph(one)
+    return one
+
+
 class _Drawn:
     """One perception, and the graph over it, as the cell is wrapped
     *now*.
