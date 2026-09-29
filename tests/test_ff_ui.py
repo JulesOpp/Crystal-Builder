@@ -482,6 +482,29 @@ def test_switching_tabs_mid_run_leaves_the_other_tab_untouched(
     assert np.allclose(document.structure.frac, before)
 
 
+def test_a_switch_before_the_thread_starts_still_stops_the_run(
+        qtbot, slow, quartz, monkeypatch):
+    """Optimise then a tab switch, before the worker's thread has got
+    as far as ``run``.  The panel asked the worker whether it was
+    running, and a worker that has not started says no -- so the
+    switch stopped nothing, the paused run waited on its Resume for
+    ever, and on a slow CI machine the test above timed out.  A run
+    is going from the moment Optimise starts one."""
+    from xtalapp.docks import ff_panel
+
+    held = []
+    monkeypatch.setattr(ff_panel, "start_in_thread",
+                        lambda worker, parent=None: held.append(worker))
+    window, document, dock = slow
+    dock.start()
+    assert dock.is_running
+    dock.worker.pause()
+    window.add_document(Document(quartz))
+    worker, = held
+    assert worker._stop.requested
+    assert not worker.is_paused
+
+
 def test_a_finished_run_reports_convergence_and_the_breakdown(qtbot,
                                                               window):
     document = Document(water(oh=1.10, angle=100.0))

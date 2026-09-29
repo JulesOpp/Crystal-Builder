@@ -701,7 +701,13 @@ class ForceFieldDock(QDockWidget):
 
     @property
     def is_running(self) -> bool:
-        return self.worker is not None and self.worker.is_running
+        """From Optimise until the run's result has been handled.
+
+        Not the worker's own flag, which goes up only once its thread
+        has reached ``run``: a tab switch in that gap stopped nothing,
+        and a run paused there waited on its Resume for ever.
+        """
+        return self.worker is not None
 
     def _open_run(self, kind: str, calculator):
         """A run folder in the workspace, when the document has one.
