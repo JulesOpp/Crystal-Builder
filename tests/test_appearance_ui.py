@@ -825,7 +825,7 @@ def test_a_saved_all_nodes_session_opens_as_every_node():
 
 def test_the_pore_spheres_can_be_hidden_from_the_show_group(
         window, rutile_cif):
-    """The sphere alone: the skeleton stays, and the choice of which
+    """The sphere alone: the network stays, and the choice of which
     sphere greys while there is none to choose."""
     document = window.open_path(rutile_cif)
     dock = window.style_dock
@@ -841,8 +841,8 @@ def test_the_pore_spheres_can_be_hidden_from_the_show_group(
 
 def test_the_pore_network_box_and_the_view_menu_are_one_setting(
         window, rutile_cif):
-    """Either one ticks the other; off, the sphere has nothing to be
-    shown in and its controls grey."""
+    """Either one ticks the other, and neither touches the sphere:
+    the two are independent, so a sphere can be seen alone."""
     document = window.open_path(rutile_cif)
     dock = window.style_dock
     menu = window.actions_["show_pores"]
@@ -851,11 +851,11 @@ def test_the_pore_network_box_and_the_view_menu_are_one_setting(
     dock.pore_network.setChecked(False)
     assert not document.view.show_pores
     assert not menu.isChecked()
-    assert not dock.pore_sphere_box.isEnabled()
-    assert not dock.pore_spheres.isEnabled()
+    assert document.view.show_pore_spheres
+    assert dock.pore_sphere_box.isEnabled()
+    assert dock.pore_spheres.isEnabled()
 
     menu.trigger()
     assert document.view.show_pores
     assert dock.pore_network.isChecked()
-    assert dock.pore_sphere_box.isEnabled()
     assert not document.modified

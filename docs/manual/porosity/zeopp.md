@@ -173,7 +173,8 @@ network is hundreds of nodes in one cell and thousands across a
 display range, and a translucent ball at each would hide the crystal
 it is about.  The rest of the pore space is the skeleton, thin enough
 to see through.  *View ▸ Show ▸* {ref}`Pore network <cmd-show_pores>`
-hides and shows the whole drawing.
+hides and shows the skeleton and the surface; the sphere has its own
+box, below.
 
 The Style panel's **Pore sphere** chooses which sphere that is:
 
@@ -188,10 +189,12 @@ The Style panel's **Pore sphere** chooses which sphere that is:
 There is no D_f choice, for the reason above. The panel's **Show**
 group has two boxes for the drawing:
 
-- *Pore network* is the same setting as the View menu's; ticking
-  either one ticks the other.
-- *Pore spheres* hides the sphere and leaves the channel skeleton and
-  the surface in place.
+- *Pore network* is the channel skeleton and the surface. It is the
+  same setting as the View menu's; ticking either one ticks the other.
+- *Pore spheres* is the sphere.
+
+The two are independent, so the sphere can be shown without the
+network, or the network without the sphere.
 
 The network lives on the document beside the planes, and it follows
 four rules:

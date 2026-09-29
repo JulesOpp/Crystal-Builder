@@ -1125,7 +1125,7 @@
    "section": "View",
    "path": "Show ▸ Pore network",
    "shortcut": "",
-   "tip": "Draw what a porosity run found: the largest pore where it sits, and the channels it belongs to.  Nothing is drawn until Modules > Zeo++ has answered",
+   "tip": "Draw the channel skeleton and the surface a porosity run found.  The pore sphere is its own box in the Style panel.  Nothing is drawn until Modules > Zeo++ has answered",
    "checkable": true
   },
   {

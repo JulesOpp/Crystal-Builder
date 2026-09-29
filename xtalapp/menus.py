@@ -267,9 +267,10 @@ def build_actions(window):
     add("show_pores", "Pore network",
         lambda v: window.set_view(show_pores=v), checkable=True,
         checked=True,
-        tip="Draw what a porosity run found: the largest pore where "
-            "it sits, and the channels it belongs to.  Nothing is "
-            "drawn until Modules > Zeo++ has answered")
+        tip="Draw the channel skeleton and the surface a porosity "
+            "run found.  The pore sphere is its own box in the Style "
+            "panel.  Nothing is drawn until Modules > Zeo++ has "
+            "answered")
     add("clear_overlays", "Clear c&harges and orbital",
         window.clear_overlays,
         tip="Take a DFTB+ run's atom colouring and orbital lobes off "

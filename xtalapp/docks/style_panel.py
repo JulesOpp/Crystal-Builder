@@ -391,20 +391,19 @@ class StylePanelDock(QDockWidget):
             "underneath")
         self.topology.toggled.connect(
             lambda v: self._set(show_topology=v))
-        # The whole drawing, as *View > Show > Pore network* has it --
-        # the same setting, so either one ticks the other.
+        # The same setting as *View > Show > Pore network*, so either
+        # one ticks the other.  The sphere is not part of it.
         self.pore_network = QCheckBox("Pore network")
         self.pore_network.setToolTip(
-            "Draw where a porosity run found the pores: the sphere, the "
-            "channel skeleton and the surface")
+            "Draw the channel skeleton and the surface a porosity run "
+            "found")
         self.pore_network.toggled.connect(
             lambda v: self._set(show_pores=v))
-        # The sphere alone, and here beside the other things a picture
-        # can leave out: the channel skeleton and the surface stay.
+        # The sphere, on or off whatever the network is doing.
         self.pore_sphere_box = QCheckBox("Pore spheres")
         self.pore_sphere_box.setToolTip(
-            "Draw the pore sphere a porosity run found.  Off leaves the "
-            "channel skeleton and the surface")
+            "Draw the pore sphere a porosity run found, with or without "
+            "the network")
         self.pore_sphere_box.toggled.connect(
             lambda v: self._set(show_pore_spheres=v))
         for check in (self.cell_box, self.cell_axes, self.topology,
@@ -580,10 +579,7 @@ class StylePanelDock(QDockWidget):
         self._choose(self.pore_spheres, view.pore_spheres)
         self.pore_network.setChecked(view.show_pores)
         self.pore_sphere_box.setChecked(view.show_pore_spheres)
-        # Nothing of the network drawn is no sphere to hide or choose.
-        self.pore_sphere_box.setEnabled(view.show_pores)
-        self.pore_spheres.setEnabled(view.show_pores
-                                     and view.show_pore_spheres)
+        self.pore_spheres.setEnabled(view.show_pore_spheres)
         self._refreshing = False
         self._fill_elements()
 

@@ -204,10 +204,10 @@ class ViewSettings:
     #: in a cell and thousands across a display range, and a
     #: translucent ball at each is a fog over the crystal it is about.
     pore_spheres: str = "largest"
-    #: Whether that sphere is drawn at all.  Off leaves the channel
-    #: skeleton and the surface: the sphere is the one part of the
-    #: drawing that hides the framework behind it, and the path is
-    #: often the question.  *View > Show > Pore network* is the whole.
+    #: Whether that sphere is drawn.  Independent of ``show_pores``,
+    #: which is the channel skeleton and the surface: either can be
+    #: wanted without the other -- where the cavity is, or the path
+    #: through it with nothing hiding the framework.
     show_pore_spheres: bool = True
     pore_color: tuple[int, int, int] = PORE_COLOR
     pore_edge_color: tuple[int, int, int] = PORE_EDGE_COLOR

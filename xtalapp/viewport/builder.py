@@ -175,7 +175,8 @@ def build_scene(structure, settings, selection=None,
     faces = (_emit_planes(planes, cell, lattice, settings)
              if settings.show_planes else _no_planes())
     pore = (_emit_pores(pores, lattice, settings)
-            if settings.show_pores else _no_pores())
+            if settings.show_pores or settings.show_pore_spheres
+            else _no_pores())
     if orbital is not None and orbital.n_faces:
         pore = _with_orbital(pore, orbital, lattice)
 
@@ -1378,8 +1379,15 @@ def _emit_pores(network, lattice, settings):
 
     centres, sizes = _repeat_nodes(frac, radii, lattice, settings,
                                    shifts)
-    starts, ends = _repeat_edges(network, lattice, settings, shifts)
-    points, faces = _repeat_surface(network, lattice, settings, shifts)
+    if settings.show_pores:
+        starts, ends = _repeat_edges(network, lattice, settings, shifts)
+        points, faces = _repeat_surface(network, lattice, settings,
+                                        shifts)
+    else:
+        # The sphere on its own, which is somebody asking where the
+        # cavity is without the skeleton drawn through it.
+        starts = ends = points = np.zeros((0, 3), np.float32)
+        faces = np.zeros((0, 3), int)
     return (centres, sizes,
             np.tile(color, (len(centres), 1)),
             starts, ends,

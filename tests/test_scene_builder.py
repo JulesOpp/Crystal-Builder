@@ -820,8 +820,18 @@ def test_nothing_is_drawn_without_a_run(rutile):
 def test_the_pores_can_be_turned_off(rutile):
     settings = ViewSettings()
     settings.show_pores = False
+    settings.show_pore_spheres = False
     scene = build_scene(rutile, settings, pores=_network())
     assert scene.n_pore_spheres == 0
+    assert scene.n_pore_edges == 0
+
+
+def test_the_sphere_can_be_shown_without_the_network(rutile):
+    """Where the cavity is, with no skeleton drawn through it."""
+    settings = ViewSettings()
+    settings.show_pores = False
+    scene = build_scene(rutile, settings, pores=_network())
+    assert scene.n_pore_spheres == 1
     assert scene.n_pore_edges == 0
 
 
@@ -894,7 +904,7 @@ def test_one_cell_of_range_is_one_copy_of_the_surface(rutile):
     assert scene.n_pore_surface_faces == 4
 
 
-def test_the_surface_can_be_turned_off_with_the_rest(rutile):
+def test_the_surface_is_turned_off_with_the_network(rutile):
     settings = ViewSettings()
     settings.show_pores = False
     scene = build_scene(rutile, settings, pores=_surface())
