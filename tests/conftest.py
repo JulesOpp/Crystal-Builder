@@ -500,28 +500,32 @@ PHENYL_BDC = "[*:1]c1ccc([*:2])c(c2ccccc2)c1"
 #: consistent and 1.27 A as found, before a linker was turned for room.
 DIMETHOXY_BDC = "[*:1]c1cc(OC)c([*:2])cc1OC"
 
-#: The two blocks as RDKit 2026.03 embedded them on Apple silicon.
-#: Recorded rather than embedded per run: a seeded ETKDG conformer is
-#: the same only on one platform, and on macOS Intel and Windows the
-#: phenyl came out turned clear of its neighbour, so the overlap the
-#: tests are about was not there.  ``from_smiles(SMILES, name=name)``
-#: through ``write_building_block`` rewrites them.
+#: 2,3,5,6-tetraphenyl-BDC: no angle about its axis clears the
+#: neighbouring linkers on pcu/N16, so it overlaps whatever the fit's
+#: rounding does -- the build ``test_mof_builder.py`` needs one of.
+TETRAPHENYL_BDC = ("[*:1]c1c(c2ccccc2)c(c2ccccc2)c([*:2])"
+                   "c(c2ccccc2)c1c1ccccc1")
+
+#: The blocks as RDKit 2026.03 embedded them, recorded so that a test
+#: of the builder needs no RDKit and builds one geometry everywhere.
+#: ``from_smiles(SMILES, name=name)`` through ``write_building_block``
+#: rewrites them.
 RECORDED_BLOCKS = os.path.join(os.path.dirname(__file__), "data", "blocks")
 
 
 @pytest.fixture
 def phenyl_catalog(tmp_path):
-    """A catalogue with two substituted BDCs beside PORMAKE's own,
-    ``UPh`` and ``UOMe``: the linkers that used to build on top of
-    their neighbours on pcu/N16 (``test_mof_builder.py``,
-    ``test_mof_orientation.py``)."""
+    """A catalogue with three substituted BDCs beside PORMAKE's own,
+    ``UPh``, ``UOMe`` and ``U4Ph``: the linkers that build, or used to
+    build, on top of their neighbours on pcu/N16
+    (``test_mof_builder.py``, ``test_mof_orientation.py``)."""
     from xtal.mof import Catalog, database_root
 
     if database_root() is None:
         pytest.skip("the vendored PORMAKE database is missing")
     folder = tmp_path / "blocks"
     folder.mkdir()
-    for name in ("UPh", "UOMe"):
+    for name in ("UPh", "UOMe", "U4Ph"):
         shutil.copyfile(os.path.join(RECORDED_BLOCKS, f"{name}.xyz"),
                         folder / f"{name}.xyz")
     return Catalog.default(also_blocks=(str(folder),))

@@ -1047,17 +1047,25 @@ def test_a_block_with_no_bonds_is_drawn_by_the_applications_rule():
 # ------------------------------- a build states its bonds, and its overlaps
 
 def _phenyl_build(tmp_path, catalog, monkeypatch):
-    """Built as found with no turn for room, which is the build that
-    overlaps -- :mod:`xtal.build.clearance` is what now prevents it,
-    and these tests are about what is said when nothing does."""
+    """Tetraphenyl-BDC with no turn for room, which is a build that
+    overlaps -- :mod:`xtal.build.clearance` is what now prevents it
+    where it can, and these tests are about what is said when nothing
+    does.
+
+    Not 2-phenyl-BDC as found, which was the case first measured
+    (0.37 A): which way its one phenyl points is the turn a Kabsch fit
+    on two vectors leaves undefined, so it is rounding noise -- a
+    1e-9 A nudge to the block takes the overlaps from seven to none,
+    and so did OpenBLAS on macOS Intel and Windows.  Four phenyls have
+    no angle clear of the neighbours, and under ``consistent`` the
+    faces settle it to the same 0.83 A every time.
+    """
     from xtal.build import clearance
 
     monkeypatch.setattr(clearance, "CLEAR", 0.0)
     out = tmp_path / "run"
     out.mkdir()
-    return build(BuildRequest.parse("pcu", "N16", "UPh",
-                                    orientation="as-found"),
-                 out, catalog)
+    return build(BuildRequest.parse("pcu", "N16", "U4Ph"), out, catalog)
 
 
 def _neighbour_counts(structure):
@@ -1105,7 +1113,7 @@ def test_an_overlapping_build_says_so_as_a_warning(
 
     distance, first, second = outcome.overlaps[0]
     assert distance < OVERLAP
-    assert "(UPh)" in first and "(UPh)" in second
+    assert "(U4Ph)" in first and "(U4Ph)" in second
     assert "overlapping" in outcome.verdict()
     assert outcome.warning() in outcome.structure.meta["warnings"]
     rows = [row for table in _report(outcome).tables
