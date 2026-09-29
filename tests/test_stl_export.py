@@ -7,13 +7,18 @@ sentence when the add-on is missing.  ``conftest_program`` is how the
 stand-in starts on Windows as well.
 """
 
+import importlib.util
 import json
+import sys
 import threading
+import types
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from tests.conftest_program import write_program
+from xtal.core import cellcut
 from xtal.modules import MODULES, Cancellation, Job, blender, process
 
 FAKE = r'''
@@ -98,6 +103,73 @@ def test_the_mesh_is_copied_to_where_it_was_asked_for(fake_blender,
     assert (tmp_path / "prints" / "halite.stl").is_file()
     assert (run / blender.OUTPUT_NAME).is_file()        # and kept
     assert "27 atoms" in result.message
+
+
+def _pdb_positions(path):
+    return np.array([[float(line[30:38]), float(line[38:46]),
+                      float(line[46:54])]
+                     for line in path.read_text().splitlines()
+                     if line.startswith(("ATOM", "HETATM"))])
+
+
+def test_the_pdb_is_centred_off_the_origin(fake_blender, tmp_path,
+                                           halite):
+    """Atomic Blender divides by the part of an atom's position
+    perpendicular to its stick, which is zero when the stick's line
+    runs through the origin; centred on its mean, MOF-5's cell cut has
+    such lines and Blender stopped with ZeroDivisionError.  The PDB
+    arrives centred a generic distance off the origin instead, and the
+    atoms keep their places relative to one another."""
+    run = tmp_path / "run"
+    result, _job = _run(halite, _Folder(run), tmp_path / "out.stl")
+    assert result.ok, result.detail
+    written = _pdb_positions(run / blender.INPUT_NAME)
+    assert np.allclose(written.mean(axis=0), blender.OFF_CENTRE,
+                       atol=2e-3)
+    cut = cellcut.cut_cell(halite)
+    assert np.allclose(written - written[0], cut.cart - cut.cart[0],
+                       atol=2e-3)
+
+
+@pytest.fixture
+def stl_scripts(monkeypatch):
+    """The wrapper and the vendored script, loaded over a stand-in for
+    Blender's ``bpy`` whose PDB importer has every property the
+    script might name."""
+    names = dict.fromkeys(["use_center", "use_sticks", "ball",
+                           "scale_ballradius", "use_camera",
+                           "use_light"])
+    importer = types.SimpleNamespace(get_rna_type=lambda: types.
+                                     SimpleNamespace(properties=names))
+    bpy = types.ModuleType("bpy")
+    bpy.app = types.SimpleNamespace(background=True)
+    bpy.ops = types.SimpleNamespace(
+        import_mesh=types.SimpleNamespace(pdb=importer))
+    monkeypatch.setitem(sys.modules, "bpy", bpy)
+    spec = importlib.util.spec_from_file_location("printable_stl",
+                                                  blender.SCRIPT)
+    wrapper = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(wrapper)
+    return wrapper, wrapper.load()
+
+
+def test_the_vendored_script_is_told_not_to_centre(stl_scripts,
+                                                  monkeypatch):
+    """The vendored script centres on the mean, which would undo the
+    offset the PDB was written at.  The wrapper replaces its
+    ``build_import_kwargs`` before its ``main`` runs, so the import
+    ``process_one`` makes is the uncentred one."""
+    wrapper, script = stl_scripts
+    assert blender.VENDORED.is_file()
+    assert script.build_import_kwargs(script.CONFIG)["use_center"]
+
+    def main():
+        return script.build_import_kwargs(script.CONFIG)
+    monkeypatch.setattr(script, "main", main)
+    monkeypatch.setattr(wrapper, "load", lambda: script)
+    kwargs = wrapper.main()
+    assert kwargs["use_center"] is False
+    assert kwargs["use_sticks"] is script.CONFIG["use_sticks"]
 
 
 def test_with_no_workspace_it_still_exports(fake_blender, tmp_path,
