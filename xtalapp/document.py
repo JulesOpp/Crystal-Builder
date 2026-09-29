@@ -805,6 +805,9 @@ class Document(QObject):
             atoms = sel.expand_fragment(self.graph, atoms)
         elif how == "orbit":
             atoms = sel.symmetry_orbit(self.cell, atoms)
+        elif how == "neighbours":
+            self.select(sel.neighbours_only(self.graph, atoms), "set")
+            return
         elif how == "radius":
             atoms = sel.within_radius(self.cell,
                                       self._structure.lattice, atoms,
@@ -812,6 +815,35 @@ class Document(QObject):
         else:
             raise ValueError(f"unknown expansion {how!r}")
         self.select(atoms, "set", with_bonds=True)
+
+    def pick(self, rule: str, how: str = "replace", **args):
+        """The selection one rule would leave, combined ``how`` with
+        this one -- without applying it.
+
+        The Select dialog's live count asks this, and
+        :meth:`select_by` applies exactly what it returns, so the
+        number beside the button is the number the button selects.
+        """
+        extra = {}
+        if rule == "bonds" and args.get("order") is not None:
+            extra["orders"] = bonding.orders(self._structure)
+        if rule == "net":
+            extra["topology"] = bonding.topology_graph(self._structure)
+        picked = sel.pick(rule, self.cell, self.graph,
+                          self._structure.lattice,
+                          self.selection.atoms, **extra, **args)
+        return sel.combine(self.selection, picked, how)
+
+    def select_by(self, rule: str, how: str = "replace", **args) -> str:
+        """Apply one rule of the Select dialog; returns what it left
+        selected, for the status bar.  Not an undo step, as no
+        selection is."""
+        chosen = self.pick(rule, how, **args)
+        self.selection.set_atoms(chosen.order)
+        self.selection.bonds = chosen.bonds
+        self.selection.topology = chosen.topology
+        self.selectionChanged.emit()
+        return self.selection_summary()
 
     def selected_sites(self) -> set:
         return sel.sites_for(self.cell, self.selection.atoms)

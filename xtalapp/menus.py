@@ -441,8 +441,16 @@ def build_actions(window):
         window.select_bonds_between,
         tip="Select every bond joining two elements, and no atoms -- "
             "so Delete and Bond type act on those bonds alone")
+    add("select_dialog", "&Select...", window.open_select_dialog,
+        tip="Select by label, coordination, what an atom is bonded "
+            "to, a box, a point, or bonds by length and order -- and "
+            "add, remove or intersect with what is held")
     add("expand_bonded", "Grow to &bonded neighbours",
         lambda: window.expand_selection("shell"), "Ctrl+G")
+    add("expand_neighbours", "Grow to &neighbours only",
+        lambda: window.expand_selection("neighbours"),
+        tip="The atoms one bond from the selection, and the "
+            "selection let go")
     add("expand_fragment", "Grow to whole &fragment",
         lambda: window.expand_selection("fragment"),
         "Ctrl+Shift+G")
@@ -618,10 +626,11 @@ def build_menus(window):
     select_menu = submenu(bar, "&Select")
     window.actions_.fill_menu(select_menu, [
         "select_all", "select_none", "invert_selection", None,
-        "select_same", "select_bonds"])
+        "select_same", "select_bonds", "select_dialog"])
     window.element_menu = submenu(select_menu, "By &element")
     grow_menu = submenu(select_menu, "&Grow")
     window.actions_.fill_menu(grow_menu, ["expand_bonded",
+                                        "expand_neighbours",
                                         "expand_fragment",
                                         "expand_orbit"])
 

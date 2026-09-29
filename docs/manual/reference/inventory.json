@@ -545,11 +545,27 @@
    "checkable": false
   },
   {
+   "key": "select_dialog",
+   "section": "Select",
+   "path": "Select...",
+   "shortcut": "",
+   "tip": "Select by label, coordination, what an atom is bonded to, a box, a point, or bonds by length and order -- and add, remove or intersect with what is held",
+   "checkable": false
+  },
+  {
    "key": "expand_bonded",
    "section": "Select",
    "path": "Grow ▸ Grow to bonded neighbours",
    "shortcut": "Ctrl+G",
    "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "expand_neighbours",
+   "section": "Select",
+   "path": "Grow ▸ Grow to neighbours only",
+   "shortcut": "",
+   "tip": "The atoms one bond from the selection, and the selection let go",
    "checkable": false
   },
   {

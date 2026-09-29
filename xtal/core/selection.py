@@ -258,6 +258,271 @@ def bonds_between_elements(graph, cell, first: str,
     return keys
 
 
+def neighbours_only(graph, atoms) -> set:
+    """The atoms one bond from the selection, and not the selection.
+
+    Grow to bonded neighbours keeps what it grew from, which is right
+    for "the linker and what holds it" and wrong for "the oxygens on
+    these zinc": that second question is a shell, not a ball.
+    """
+    held = {int(a) for a in atoms}
+    return expand_shell(graph, held, 1) - held
+
+
+def by_label(cell, pattern: str) -> set:
+    """Every image of every site whose label matches ``pattern``.
+
+    Shell wildcards, case and all: ``O1*`` is O1, O1A and O12, and not
+    o1, because a CIF's labels are case-sensitive names.  The label is
+    the site's, so a match takes the whole orbit.
+    """
+    from fnmatch import fnmatchcase
+    if not pattern:
+        return set()
+    return {k for k in range(cell.n_atoms)
+            if fnmatchcase(cell.labels[k], pattern)}
+
+
+#: How a coordination count is compared, as the dialog writes it.
+COMPARISONS = ("=", ">=", "<=")
+
+
+def by_coordination(graph, cell, symbol: str | None, op: str,
+                    n: int) -> set:
+    """Atoms of ``symbol`` (any element for ``None``) with ``n`` bonds
+    -- or at least, or at most, that many.
+
+    The count is the bond graph's, so it is whatever the bonds say
+    now: a zinc the user left three-coordinate is three-coordinate
+    here, whatever its distances might suggest.
+    """
+    if op not in COMPARISONS:
+        raise ValueError(f"unknown comparison {op!r}")
+    counts = graph.coordination()
+    if op == "=":
+        hits = counts == n
+    elif op == ">=":
+        hits = counts >= n
+    else:
+        hits = counts <= n
+    return {int(k) for k in np.flatnonzero(hits)
+            if symbol is None or cell.elements[k] == symbol}
+
+
+def bonded_to(graph, cell, symbol: str) -> set:
+    """Every atom bonded to at least one atom of ``symbol``."""
+    out = set()
+    for bond in graph.bonds:
+        if cell.elements[bond.i] == symbol:
+            out.add(int(bond.j))
+        if cell.elements[bond.j] == symbol:
+            out.add(int(bond.i))
+    return out
+
+
+def near_point(cell, lattice, point, radius: float) -> set:
+    """Every atom within ``radius`` Angstrom of a fractional point,
+    minimum-image aware -- the cell's middle, say, or a pore."""
+    if cell.n_atoms == 0:
+        return set()
+    d = cell.frac - np.asarray(point, dtype=float)
+    d -= np.round(d)
+    dist = np.linalg.norm(d @ lattice.matrix, axis=1)
+    return {int(k) for k in np.flatnonzero(dist <= radius)}
+
+
+def in_box(cell, lower, upper) -> set:
+    """Atoms whose fractional coordinates lie inside a box, faces
+    included.
+
+    Read against the cell as it is wrapped, [0, 1) on every axis, so a
+    box from 0.5 to 1 is the upper half of the cell and nothing across
+    the face; a box reaching past 1 takes nothing more.
+    """
+    if cell.n_atoms == 0:
+        return set()
+    lower = np.asarray(lower, dtype=float)
+    upper = np.asarray(upper, dtype=float)
+    inside = np.all((cell.frac >= lower) & (cell.frac <= upper), axis=1)
+    return {int(k) for k in np.flatnonzero(inside)}
+
+
+#: Which bonds :func:`bonds_where` looks at, by where they came from.
+BOND_KINDS = ("any", "explicit", "perceived")
+
+
+def bonds_where(graph, cell, lattice, first: str | None = None,
+                second: str | None = None, order: float | None = None,
+                orders=None, shortest: float | None = None,
+                longest: float | None = None,
+                kind: str = "any") -> set:
+    """Keys of the bonds that pass every test given; a test left at
+    ``None`` passes everything.
+
+    ``first`` and ``second`` are the elements at the two ends, either
+    way round, as in :func:`bonds_between_elements`.  ``order`` is
+    compared against ``orders`` -- one per bond of the graph, in its
+    order, which is what :func:`xtal.core.bonding.orders` returns --
+    and against each bond's stated order without it.  The length is
+    the bond's *now* (:meth:`CellBond.length`), not what it measured
+    when it was perceived, because a range is asked about what is on
+    screen.  ``kind`` is ``explicit`` for the bonds somebody drew and
+    ``perceived`` for the ones the rules found.
+    """
+    if kind not in BOND_KINDS:
+        raise ValueError(f"unknown bond kind {kind!r}")
+    elements = cell.elements
+    matrix = lattice.matrix
+    keys = set()
+    for k, bond in enumerate(graph.bonds):
+        if kind == "explicit" and not bond.explicit:
+            continue
+        if kind == "perceived" and bond.explicit:
+            continue
+        if first is not None:
+            pair = [elements[bond.i], elements[bond.j]]
+            if first not in pair:
+                continue
+            pair.remove(first)
+            if second is not None and pair[0] != second:
+                continue
+        elif second is not None and second not in (
+                elements[bond.i], elements[bond.j]):
+            continue
+        if order is not None:
+            said = orders[k] if orders is not None else bond.order
+            if abs(float(said) - float(order)) > 1e-6:
+                continue
+        if shortest is not None or longest is not None:
+            length = bond.length(cell.frac, matrix)
+            if shortest is not None and length < shortest:
+                continue
+            if longest is not None and length > longest:
+                continue
+        keys.add(bond.key())
+    return keys
+
+
+# ======================================================================
+#  RULES -- the Select dialog's, and the agent's
+# ======================================================================
+
+#: Every rule :func:`pick` knows, and whether it names a *region*.  A
+#: region brings the bonds inside it, as the Grow commands do (see
+#: ``Document.select``); a rule that names atoms by what they are
+#: leaves the bonds alone, and a bond rule takes bonds and no atoms.
+RULES = {
+    "element": False, "label": False, "site": False,
+    "coordination": False, "bonded_to": False, "neighbours": False,
+    "shell": True, "radius": True, "point": True, "box": True,
+    "bonds": False, "net": False,
+}
+
+#: How a picked set meets what is already held.
+COMBINE = ("replace", "add", "remove", "intersect")
+
+
+def pick(rule: str, cell, graph, lattice, atoms=(), *,
+         orders=None, topology=None, **args) -> Selection:
+    """What one rule selects, as a :class:`Selection`.
+
+    ``atoms`` are the ones already held, which ``shell``,
+    ``neighbours`` and ``radius`` grow from.  ``orders`` are the
+    graph's bond orders for a ``bonds`` rule that asks for one, and
+    ``topology`` the drawn net's graph for ``net``.  The arguments are
+    each rule's own:
+
+    ============== =============================================
+    element        ``symbols``
+    label          ``pattern``
+    site           ``site``
+    coordination   ``element`` (or None), ``op``, ``n``
+    bonded_to      ``element``
+    neighbours     --
+    shell          ``depth``
+    radius         ``radius``
+    point          ``point`` (fractional), ``radius``
+    box            ``lower``, ``upper`` (fractional)
+    bonds          as :func:`bonds_where`
+    net            ``shortest``, ``longest``
+    ============== =============================================
+
+    One function and not twelve, so the window and a script ask the
+    same question by the same name and get the same answer.
+    """
+    if rule not in RULES:
+        raise ValueError(f"unknown selection rule {rule!r}; "
+                         f"one of {', '.join(RULES)}")
+    out = Selection()
+    held = {int(a) for a in atoms}
+    if rule == "bonds":
+        out.bonds = bonds_where(graph, cell, lattice, orders=orders,
+                                **args)
+        return out
+    if rule == "net":
+        if topology is not None:
+            out.topology = bonds_where(topology, cell, lattice, **args)
+        return out
+    if rule == "element":
+        found = by_element(cell, *args["symbols"])
+    elif rule == "label":
+        found = by_label(cell, args["pattern"])
+    elif rule == "site":
+        found = by_site(cell, int(args["site"]))
+    elif rule == "coordination":
+        found = by_coordination(graph, cell, args.get("element"),
+                                args.get("op", "="), int(args["n"]))
+    elif rule == "bonded_to":
+        found = bonded_to(graph, cell, args["element"])
+    elif rule == "neighbours":
+        found = neighbours_only(graph, held)
+    elif rule == "shell":
+        found = (expand_shell(graph, held, int(args.get("depth", 1)))
+                 if held else set())
+    elif rule == "radius":
+        found = within_radius(cell, lattice, held,
+                              float(args["radius"]))
+    elif rule == "point":
+        found = near_point(cell, lattice, args["point"],
+                           float(args["radius"]))
+    else:
+        found = in_box(cell, args["lower"], args["upper"])
+    out.set_atoms(found)
+    if RULES[rule]:
+        out.bonds = bonds_within(graph, found)
+    return out
+
+
+def combine(held: Selection, picked: Selection, how: str) -> Selection:
+    """``picked`` laid over ``held``: replacing it, added to it, taken
+    out of it, or intersected with it.
+
+    Taking atoms out takes out the bonds that hang off them too, as
+    ``Document.select`` does: a bond left selected after its atom was
+    let go is what the next Bond type would quietly act on.
+    """
+    if how not in COMBINE:
+        raise ValueError(f"unknown combination {how!r}")
+    if how == "replace":
+        return picked.copy()
+    out = held.copy()
+    if how == "add":
+        out.add_atoms(picked.order)
+        out.bonds |= picked.bonds
+        out.topology |= picked.topology
+    elif how == "remove":
+        out.remove_atoms(picked.atoms)
+        out.bonds = {b for b in out.bonds - picked.bonds
+                     if b[0] not in picked.atoms
+                     and b[1] not in picked.atoms}
+        out.topology -= picked.topology
+    else:
+        out.set_atoms([a for a in held.order if a in picked.atoms])
+        out.bonds &= picked.bonds
+        out.topology &= picked.topology
+    return out
+
+
 # ======================================================================
 #  MAPPING BACK TO THE ASYMMETRIC UNIT
 # ======================================================================

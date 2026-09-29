@@ -57,8 +57,25 @@ included.  Both are on the {doc}`mouse modes <mouse-modes>` page.
    molecule or framework; {ref}`Grow to symmetry orbit
    <cmd-expand_orbit>` adds every image of every site touched.  A
    grown selection takes the bonds inside it too.
+   {ref}`Grow to neighbours only <cmd-expand_neighbours>` takes the
+   atoms one bond away and lets go of the ones you had: select the
+   zinc, and it leaves the oxygens on them.
+7. {ref}`Select… <cmd-select_dialog>` is everything else, one rule at
+   a time: an element or several, a label pattern (`O1*`, where the
+   case counts), every image of one site, atoms with *n* bonds (or at
+   least, or at most), atoms bonded to an element, atoms within *n*
+   bonds or *r* Å of the selection, near a point, or inside a
+   fractional box -- 0 to 1 on every axis is the whole cell -- and
+   bonds or net edges by their elements, order, length and whether
+   you drew them.  Below the rule, choose whether it *replaces* the
+   selection, *adds* to it, *removes* from it or *intersects* with
+   it: the four-coordinate zinc, then *Intersect* with a box, is the
+   zinc of one layer.  The count beside *Apply* is what *Apply* will
+   leave selected, and the dialog stays open for the next rule.
+   Counts of bonds are the bond graph's, so they say what the bonds
+   say now; lengths are the bonds' as the atoms stand.
 
-The three *Grow* entries and *Select same element* are also in the
+The four *Grow* entries and *Select same element* are also in the
 context menu of an atom, and *Select All* and *Select None* in the
 context menu of the background.
 

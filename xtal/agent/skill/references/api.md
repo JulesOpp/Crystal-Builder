@@ -66,6 +66,34 @@ A PNG, drawn as the viewport draws it, in a subprocess. `view` is
 draw selected. Orthographic, so a straight channel looks straight. Comes
 back `ok=False` with `RENDER_UNAVAILABLE` where there is no OpenGL.
 
+### `select(rule, atoms, **args)`
+
+Finds P1 atoms, bonds or net edges by one rule and changes nothing --
+the rules of the window's Select dialog. The answer is in
+`data["atoms"]`, `data["bonds"]` and `data["net_edges"]` (a bond is
+`[i, j, [image]]`), ready for `substitute`, `fill_pores` or
+`add_bond`. `atoms` are what the growing rules grow from.
+
+| `rule` | Arguments |
+|---|---|
+| `element` | `symbols` (a list) |
+| `label` | `pattern` -- `*` and `?`, case counts (`"O1*"`) |
+| `site` | `site`: every image of that site |
+| `coordination` | `element` (or None), `op` (`"="`, `">="`, `"<="`), `n` |
+| `bonded_to` | `element` |
+| `neighbours` | -- the atoms one bond from `atoms`, without them |
+| `shell` | `depth`: within that many bonds of `atoms` |
+| `radius` | `radius` in Å of `atoms` |
+| `point` | `point` (fractional), `radius` |
+| `box` | `lower`, `upper` (fractional, faces included) |
+| `bonds` | `first`, `second`, `order`, `shortest`, `longest`, `kind` (`any`, `explicit`, `perceived`) |
+| `net` | `shortest`, `longest` |
+
+Every Zn with four bonds is `s.select("coordination", element="Zn",
+op="=", n=4)`; lengths are the bonds' now, not when perceived. The
+counts are the bond graph's, so they say what the bonds say --
+`recalculate_bonds()` first if that is in doubt.
+
 ## Atoms
 
 ### `add_atom(element, frac, cart, bonded_to, occupancy, label)`

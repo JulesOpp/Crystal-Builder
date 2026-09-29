@@ -252,6 +252,43 @@ class Session:
                      answer)
         return answer
 
+    def select(self, rule: str, atoms=(), **args) -> VerbResult:
+        """P1 atoms, bonds or net edges by one rule -- the rules of the
+        window's Select dialog (:func:`xtal.core.selection.pick`).
+
+        Changes nothing: the answer is ``data["atoms"]``,
+        ``data["bonds"]`` and ``data["net_edges"]``, to hand to a verb
+        that takes atoms.  ``atoms`` are what ``shell``, ``neighbours``
+        and ``radius`` grow from.  An unknown rule raises, as any
+        wrong argument does.
+        """
+        from xtal.core import selection as sel
+
+        for atom in atoms:
+            self._check_atom(atom)
+        extra = {}
+        if rule == "bonds" and args.get("order") is not None:
+            extra["orders"] = bonding.orders(self.structure)
+        if rule == "net":
+            extra["topology"] = bonding.topology_graph(self.structure)
+        chosen = sel.pick(rule, self.cell, bonding.graph(self.structure),
+                          self.structure.lattice, atoms, **extra, **args)
+        data = {"atoms": sorted(chosen.atoms),
+                "bonds": [list(key) for key in sorted(chosen.bonds)],
+                "net_edges": [list(key)
+                              for key in sorted(chosen.topology)]}
+        count = len(chosen.atoms) + len(chosen.bonds) + len(
+            chosen.topology)
+        message = (f"{len(chosen.atoms)} atoms, {len(chosen.bonds)} "
+                   f"bonds, {len(chosen.topology)} net edges"
+                   if count else "nothing matched")
+        answer = VerbResult("select", True, message,
+                            atoms_before=self.n_atoms,
+                            atoms_after=self.n_atoms, data=data)
+        self._record("select", {"rule": rule, "atoms": list(atoms),
+                                **args}, answer)
+        return answer
+
     # ------------------------------------------------------------------
     #  ATOMS
     # ------------------------------------------------------------------

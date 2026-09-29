@@ -178,7 +178,6 @@ since 2026-09-08.
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
 | **C3 — Save as a building block goes to `blocks/`** | The folder Draw writes to, and no write-back to `mof_bb_dir` | `xtalapp/dialogs/save_block.py`, `xtalapp/edit_actions.py` | S |
-| **B2 — A Selection dialog** | Rules × replace/add/remove/intersect, *Grow to neighbours only*, `Session.select` | `xtal/core/selection.py`, `xtalapp/dialogs/select.py` | M-L |
 | **B3 — Render in Blender** | `scene.blend` and `render.png` from Julius's scene | `xtal/modules/blender.py`, `xtal/modules/data/render_scene.py` | M |
 | **B4 — Zeo++ from GitHub** | Measured against the reference, then found beside 0.3 or replacing it | `xtal/modules/zeopp.py` | S-M |
 
@@ -192,23 +191,6 @@ Move origin…* -- ends by saving it as a building block.
 building block…* defaulted to `settings.mof_bb_dir` and would not save
 until a folder was typed.  Decided: it defaults to `blocks/` and no
 longer writes `mof_bb_dir` back.
-
-### B2 — A Selection dialog
-
-Julius's scope, 2026-09-28:
-
-- **Grow to neighbours only**: the bonded shell with the old
-  selection dropped, also as a Grow menu entry.
-- Element, label pattern, site.
-- Coordination and bonding: *n* neighbours, bonded to X, within *n*
-  bonds.
-- Geometry: within *r* A, inside a fractional box, in the cell only.
-- Bonds by element pair, order, length range, and kind.
-
-Each rule is a pure function in `xtal/core/selection.py`.  The dialog
-previews the count, combines by replace, add, remove or intersect, and
-applies through the Document's selection.  `Session.select` gives the
-agent the same rules.
 
 ### B3 — Render a scene in Blender
 

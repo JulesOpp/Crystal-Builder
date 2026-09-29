@@ -374,3 +374,21 @@ def test_substitute_refuses_what_is_not_a_group(rutile):
     assert not answer.ok
     assert "is not a group" in answer.message
     assert s.stack.is_clean
+
+
+def test_select_answers_with_atoms_and_pushes_nothing(rutile):
+    """A selection is a question, not an edit: an agent that got one
+    onto the undo stack would undo its last real change by asking."""
+    session = Session(rutile)
+    answer = session.select("coordination", element="Ti", op="=", n=6)
+    assert answer.ok and answer.data["atoms"] == [0, 1]
+    assert session.history() == []
+    shell = session.select("neighbours", atoms=[0])
+    assert 0 not in shell.data["atoms"] and shell.data["atoms"]
+    bonds = session.select("bonds", first="Ti", second="O",
+                           longest=1.96)
+    assert len(bonds.data["bonds"]) == 8 and not bonds.data["atoms"]
+    assert session.select("label", pattern="Zn*").message == \
+        "nothing matched"
+    with pytest.raises(ValueError):
+        session.select("colour")

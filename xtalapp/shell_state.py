@@ -26,8 +26,8 @@ from xtalapp.viewport.view_settings import BOUNDARIES
 
 # Reading the selection: allowed during playback, because none of
 # these changes the crystal.
-READING = ("select_same", "expand_bonded", "expand_fragment",
-           "expand_orbit", "copy")
+READING = ("select_same", "expand_bonded", "expand_neighbours",
+           "expand_fragment", "expand_orbit", "copy")
 # Editing with at least one atom held.
 EDITING_ATOMS = ("change_element", "cut", "duplicate",
                  "mark_connection_points")
@@ -361,7 +361,8 @@ class ShellRefresh:
         self._update_history_actions()
         self.actions_.set_enabled(
             ["select_all", "select_none", "invert_selection",
-             "select_bonds", "display_range", "bond_rules"],
+             "select_bonds", "select_dialog", "display_range",
+             "bond_rules"],
             has_document)
         # Everything that changes the crystal is off while a
         # trajectory is being played: the atoms are showing a frame,

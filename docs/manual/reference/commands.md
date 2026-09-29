@@ -688,6 +688,16 @@ Select every bond joining two elements, and no atoms -- so Delete and Bond type 
 ```{index} Bonds between elements...
 ```
 
+(cmd-select_dialog)=
+### Select...
+
+`select_dialog`
+
+Select by label, coordination, what an atom is bonded to, a box, a point, or bonds by length and order -- and add, remove or intersect with what is held
+
+```{index} Select...
+```
+
 (cmd-expand_bonded)=
 ### Grow ▸ Grow to bonded neighbours
 
@@ -696,6 +706,16 @@ Select every bond joining two elements, and no atoms -- so Delete and Bond type 
 *No description yet.*
 
 ```{index} Grow to bonded neighbours
+```
+
+(cmd-expand_neighbours)=
+### Grow ▸ Grow to neighbours only
+
+`expand_neighbours`
+
+The atoms one bond from the selection, and the selection let go
+
+```{index} Grow to neighbours only
 ```
 
 (cmd-expand_fragment)=
