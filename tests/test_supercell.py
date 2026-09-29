@@ -145,10 +145,13 @@ def test_delaunay_reduction_preserves_the_crystal(rutile):
 
 
 def test_origin_shift_moves_every_atom(rutile):
-    shifted = supercell.shift_origin(rutile, [0.25, 0.0, 0.0])
+    """In P1: a group kept while its sites move is another crystal."""
+    cell = symmetry.reduce_to_p1(rutile)
+    shifted = supercell.shift_origin(cell, [0.25, 0.0, 0.0])
     assert shifted.sites[0].frac[0] == pytest.approx(0.75)
-    assert shifted.lattice == rutile.lattice
-    assert shifted.space_group == rutile.space_group
+    assert shifted.lattice == cell.lattice
+    assert shifted.is_p1
+    assert p1.expand(shifted).n_atoms == 6
 
 
 def test_wrap_into_cell():

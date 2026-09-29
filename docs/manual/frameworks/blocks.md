@@ -185,11 +185,13 @@ Steps 3 and 4 are a shortcut: deleting everything that is not the
 cluster by hand comes to the same thing.
 
 :::{note}
-Pick a cluster that sits whole inside the cell.  After *Reduce to P1*
-each atom is the one image inside the cell, so a cluster that
-straddles a face comes out in pieces on opposite sides.  The remedy
-is to move the cell's origin in P1 until the cluster is whole, and
-the application has no command for that yet (`docs/TODO.md`).
+After *Reduce to P1* each atom is the one image inside the cell, so a
+cluster that straddles a face comes out in pieces on opposite sides.
+Between steps 2 and 3, choose *Cell ▸* {ref}`Move origin…
+<cmd-move_origin>` and press **Centre the selection**: the middle of
+the selected atoms becomes the middle of the cell, every atom is folded
+back in with its bonds, and the cluster is whole.  It needs P1, which
+step 1 has already given you.
 :::
 
 Each `X` placed this way hangs off one atom.  A chelate's point --

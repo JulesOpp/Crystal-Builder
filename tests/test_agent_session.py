@@ -304,3 +304,91 @@ def test_reopening_the_cif_after_a_save_points_at_the_project(
     resumed = Session.open(project)
     assert resumed.opened.diagnostics == []
     assert resumed.structure.sites[0].element == "Sn"
+
+
+def test_fill_pores_puts_one_ion_beside_each_named_atom(tmp_path):
+    """A script gets the counter-ion mode through the same command the
+    dialog pushes: one undo step, one ion per atom, none bonded."""
+    from pathlib import Path
+
+    sample = (Path(__file__).resolve().parents[1] / "resources"
+              / "samples" / "MOF-5.cif")
+    s = Session.open(sample, workspace=tmp_path / "ws")
+    s.reduce_to_p1()
+    graph = bonding.graph(s.structure)
+    oxygens = [i for i, e in enumerate(s.cell.elements)
+               if e == "O" and any(s.cell.elements[j] == "C"
+                                   for j in graph.neighbors(i))][:4]
+    before = s.n_atoms
+
+    answer = s.fill_pores("Na", beside=oxygens, seed=1)
+
+    assert answer.ok, answer.message
+    assert answer.data == {"placed": 4, "missed": []}
+    assert s.n_atoms == before + 4
+    ions = range(before, s.n_atoms)
+    assert all(bonding.graph(s.structure).neighbors(i) == []
+               for i in ions)
+    s.undo()
+    assert s.n_atoms == before
+
+
+def test_fill_pores_refuses_a_guest_it_cannot_read(rutile):
+    """Neither an element nor a file is a refusal with a sentence, not
+    an exception and not sodium."""
+    s = Session(rutile)
+    answer = s.fill_pores("Nax", count=3)
+
+    assert not answer.ok
+    assert "neither an element nor a file" in answer.message
+    assert s.stack.is_clean
+
+
+def test_substitute_turns_mof5_into_irmof3_in_one_step(tmp_path):
+    """The same command the dialog pushes: one amine per ring, and the
+    edit is one undo step with nothing to report."""
+    from collections import Counter
+    from pathlib import Path
+
+    from xtal.build import installed as rdkit_installed
+
+    if not rdkit_installed():
+        pytest.skip("the build extra")
+    sample = (Path(__file__).resolve().parents[1] / "resources"
+              / "samples" / "MOF-5.cif")
+    s = Session.open(sample, workspace=tmp_path / "ws")
+
+    answer = s.substitute("NH2", per_ring=True)
+
+    assert answer.ok, answer.message
+    assert Counter(s.cell.elements)["N"] == 24
+    assert s.history()[-1] == "Substitute rings with Amino"
+    s.undo()
+    assert "N" not in s.cell.elements
+
+
+def test_substitute_refuses_what_is_not_a_group(rutile):
+    s = Session(rutile)
+    answer = s.substitute("[*]C[*]", per_ring=True)
+
+    assert not answer.ok
+    assert "is not a group" in answer.message
+    assert s.stack.is_clean
+
+
+def test_select_answers_with_atoms_and_pushes_nothing(rutile):
+    """A selection is a question, not an edit: an agent that got one
+    onto the undo stack would undo its last real change by asking."""
+    session = Session(rutile)
+    answer = session.select("coordination", element="Ti", op="=", n=6)
+    assert answer.ok and answer.data["atoms"] == [0, 1]
+    assert session.history() == []
+    shell = session.select("neighbours", atoms=[0])
+    assert 0 not in shell.data["atoms"] and shell.data["atoms"]
+    bonds = session.select("bonds", first="Ti", second="O",
+                           longest=1.96)
+    assert len(bonds.data["bonds"]) == 8 and not bonds.data["atoms"]
+    assert session.select("label", pattern="Zn*").message == \
+        "nothing matched"
+    with pytest.raises(ValueError):
+        session.select("colour")

@@ -252,6 +252,43 @@ class Session:
                      answer)
         return answer
 
+    def select(self, rule: str, atoms=(), **args) -> VerbResult:
+        """P1 atoms, bonds or net edges by one rule -- the rules of the
+        window's Select dialog (:func:`xtal.core.selection.pick`).
+
+        Changes nothing: the answer is ``data["atoms"]``,
+        ``data["bonds"]`` and ``data["net_edges"]``, to hand to a verb
+        that takes atoms.  ``atoms`` are what ``shell``, ``neighbours``
+        and ``radius`` grow from.  An unknown rule raises, as any
+        wrong argument does.
+        """
+        from xtal.core import selection as sel
+
+        for atom in atoms:
+            self._check_atom(atom)
+        extra = {}
+        if rule == "bonds" and args.get("order") is not None:
+            extra["orders"] = bonding.orders(self.structure)
+        if rule == "net":
+            extra["topology"] = bonding.topology_graph(self.structure)
+        chosen = sel.pick(rule, self.cell, bonding.graph(self.structure),
+                          self.structure.lattice, atoms, **extra, **args)
+        data = {"atoms": sorted(chosen.atoms),
+                "bonds": [list(key) for key in sorted(chosen.bonds)],
+                "net_edges": [list(key)
+                              for key in sorted(chosen.topology)]}
+        count = len(chosen.atoms) + len(chosen.bonds) + len(
+            chosen.topology)
+        message = (f"{len(chosen.atoms)} atoms, {len(chosen.bonds)} "
+                   f"bonds, {len(chosen.topology)} net edges"
+                   if count else "nothing matched")
+        answer = VerbResult("select", True, message,
+                            atoms_before=self.n_atoms,
+                            atoms_after=self.n_atoms, data=data)
+        self._record("select", {"rule": rule, "atoms": list(atoms),
+                                **args}, answer)
+        return answer
+
     # ------------------------------------------------------------------
     #  ATOMS
     # ------------------------------------------------------------------
@@ -459,6 +496,96 @@ class Session:
                                  plan.message(), "NOTHING_TO_DO")
         return self._push("add_hydrogens", command, plan.message(),
                           {"xray": xray})
+
+    def substitute(self, group: str, atoms=None,
+                   per_ring: bool = False) -> VerbResult:
+        """Replace hydrogens with ``group`` -- a library name
+        (``"Amino"``), a formula (``"NH2"``) or a SMILES string with
+        one connection point -- as one undo step.
+
+        ``atoms`` are P1 hydrogens, each standing for its whole orbit;
+        or ``per_ring`` puts one on every aromatic ring.  What a
+        reduction to P1 or a group with no room owes the caller comes
+        back as diagnostics.  Nothing is perceived.
+        """
+        from xtal.build.substitute import SubstituteError
+        from xtal.commands.atoms import SubstituteHydrogens
+
+        args = {"group": group, "atoms": atoms, "per_ring": per_ring}
+        chosen = [] if atoms is None else [int(a) for a in atoms]
+        for atom in chosen:
+            self._check_atom(atom)
+        if not per_ring and not chosen:
+            return self._refused("substitute", args,
+                                 "name the hydrogens, or per_ring=True",
+                                 "NOTHING_TO_DO")
+        try:
+            command = SubstituteHydrogens(group, chosen,
+                                          per_ring=per_ring)
+        except SubstituteError as exc:
+            return self._refused("substitute", args, str(exc))
+        answer = self._operate("substitute", command, args)
+        if not answer.ok:
+            return answer
+        for warning in command.report.warnings:
+            code = ("SYMMETRY_NOTE" if warning.startswith("reduced")
+                    else "CLOSE_CONTACT" if " A from an atom " in warning
+                    else "NOTHING_TO_DO")
+            answer.diagnostics.append(Diagnostic(code, warning))
+        self._rewrite_last_log(answer)
+        return answer
+
+    def fill_pores(self, guest: str, count: int = 20, beside=None,
+                   near=None, overlap_scale: float | None = None,
+                   seed: int = 0) -> VerbResult:
+        """Copies of a molecule where there is room -- or, ``beside``,
+        one by each of those P1 atoms: the counter-ions of a charged
+        framework.
+
+        ``guest`` is an element symbol, for an ion or an atom, or the
+        path of a structure whose first discrete molecule is taken.
+        One undo step, a symmetric host reduced to P1 inside it, and
+        nothing bonded -- see :func:`xtal.build.fill.place`.  An atom
+        with no room beside it is named in ``data["missed"]``.
+        """
+        from xtal.build import fill
+        from xtal.commands.clipboard import InsertMolecules
+
+        args = {"guest": guest, "count": count, "beside": beside,
+                "near": near, "overlap_scale": overlap_scale,
+                "seed": seed}
+        try:
+            molecule = _guest(guest)
+        except ValueError as exc:
+            return self._refused("fill_pores", args, str(exc))
+        anchors = None
+        if beside is not None:
+            anchors = [int(a) for a in beside]
+            for atom in anchors:
+                self._check_atom(atom)
+            if not anchors:
+                return self._refused("fill_pores", args,
+                                     "beside names no atoms",
+                                     "NOTHING_TO_DO")
+        placement = fill.place(
+            self.structure, molecule, count, anchors=anchors,
+            near=fill.NEAR if near is None else tuple(near),
+            overlap_scale=(fill.DEFAULT_OVERLAP_SCALE
+                           if overlap_scale is None else overlap_scale),
+            seed=seed)
+        if not placement.placed:
+            return self._refused(
+                "fill_pores", args,
+                f"no room was found for {molecule.formula}")
+        return self._push(
+            "fill_pores",
+            InsertMolecules(molecule, placement.positions),
+            placement.message(), args,
+            notes=[Diagnostic("BONDS_NOT_RECALCULATED",
+                              "what was placed is bonded to nothing "
+                              "but itself")],
+            data={"placed": placement.placed,
+                  "missed": list(placement.missed)})
 
     # ------------------------------------------------------------------
     #  WHOLE-STRUCTURE OPERATIONS
@@ -956,9 +1083,44 @@ def _engine_notes(calculator) -> list[Diagnostic]:
             for w in getattr(calculator, "warnings", []) or []]
 
 
+def _guest(spec: str):
+    """What :meth:`Session.fill_pores` places: one atom of an element,
+    or the first molecule in a file."""
+    from xtal.build import fill
+    from xtal.commands.clipboard import Fragment
+    from xtal.core import elements as el
+    from xtal.io import FORMATS
+
+    text = str(spec).strip()
+    try:
+        symbol = el.parse_symbol(text)
+    except (ValueError, KeyError):
+        symbol = None
+    # Exactly a symbol: the parser reads a label (``Na1``) or a stray
+    # suffix as an element too, and a mistyped path is not sodium.
+    if symbol is not None and symbol == text.capitalize():
+        return Fragment(elements=(symbol,), cart=np.zeros((1, 3)),
+                        occupancies=(1.0,), labels=(f"{symbol}1",))
+    path = Path(text).expanduser()
+    if not path.is_file():
+        raise ValueError(f"{text!r} is neither an element nor a file")
+    molecules = fill.guest_molecules(FORMATS.read(path))
+    if not molecules:
+        raise ValueError(f"{path.name} has no discrete molecule in it")
+    return molecules[0]
+
+
 def _result_warnings(result) -> list[Diagnostic]:
-    return [Diagnostic("ENGINE_NOTE", str(w))
-            for w in getattr(result, "warnings", []) or []]
+    """A run's warnings as diagnostics: a ``(code, sentence)`` pair
+    keeps its code, and a bare sentence is an engine's note."""
+    out = []
+    for warning in getattr(result, "warnings", ()) or ():
+        if isinstance(warning, tuple):
+            code, said = warning
+            out.append(Diagnostic(str(code), str(said)))
+        else:
+            out.append(Diagnostic("ENGINE_NOTE", str(warning)))
+    return out
 
 
 def _report_data(result) -> dict:

@@ -26,8 +26,8 @@ from xtalapp.viewport.view_settings import BOUNDARIES
 
 # Reading the selection: allowed during playback, because none of
 # these changes the crystal.
-READING = ("select_same", "expand_bonded", "expand_fragment",
-           "expand_orbit", "copy")
+READING = ("select_same", "expand_bonded", "expand_neighbours",
+           "expand_fragment", "expand_orbit", "copy")
 # Editing with at least one atom held.
 EDITING_ATOMS = ("change_element", "cut", "duplicate",
                  "mark_connection_points")
@@ -337,6 +337,16 @@ class ShellRefresh:
         tip = NO_RDKIT if not has_rdkit else menus.INSERT_MOLECULE_TIP
         action.setToolTip(tip)
         action.setStatusTip(tip)
+        # A substituent is embedded from its SMILES, so the same
+        # extra and the same sentence.
+        substitute = self.actions_.get("substitute_rings")
+        if substitute is not None:
+            if not hasattr(self, "_substitute_tip"):
+                self._substitute_tip = substitute.toolTip()
+            substitute.setEnabled(editable and has_rdkit)
+            tip = NO_RDKIT if not has_rdkit else self._substitute_tip
+            substitute.setToolTip(tip)
+            substitute.setStatusTip(tip)
 
     def _refresh_shell(self) -> None:
         """Menus, toolbar and status bar for the current document."""
@@ -351,7 +361,8 @@ class ShellRefresh:
         self._update_history_actions()
         self.actions_.set_enabled(
             ["select_all", "select_none", "invert_selection",
-             "select_bonds", "display_range", "bond_rules"],
+             "select_bonds", "select_dialog", "display_range",
+             "bond_rules"],
             has_document)
         # Everything that changes the crystal is off while a
         # trajectory is being played: the atoms are showing a frame,
@@ -362,6 +373,7 @@ class ShellRefresh:
         self.actions_.set_enabled(
             ["reduce_p1", "paste", "add_atom_dialog", "add_hydrogens",
              "fill_pores", "interpenetrate", "prepare_simulation",
+             "substitute_rings",
              "find_symmetry", "set_space_group", "standardize",
              "primitive", "wyckoff", "merge_duplicates", "subgroup",
              "invert", "supercell",
@@ -370,6 +382,16 @@ class ShellRefresh:
              "single_point", "optimize", "dftb_single_point",
              "dftb_optimize", "recompute_bonds", "reset_bonds"],
             editable)
+        # Greyed in a group, with the reason rather than without one:
+        # the operations are written about the origin.
+        in_p1 = editable and document.structure.is_p1
+        move_origin = self.actions_.get("move_origin")
+        if move_origin is not None:
+            move_origin.setEnabled(in_p1)
+            tip = (menus.MOVE_ORIGIN_NEEDS_P1 if editable and not in_p1
+                   else menus.MOVE_ORIGIN_TIP)
+            move_origin.setToolTip(tip)
+            move_origin.setStatusTip(tip)
         # Reading a net is not editing one, so a trajectory playing
         # does not take this away.
         self.actions_.set_enabled(
@@ -456,4 +478,5 @@ class ShellRefresh:
                 self.actions_[name].setToolTip(available.reason)
             elif action.tip:
                 self.actions_[name].setToolTip(action.tip)
-        self.actions_.set_enabled(["export_stl"], idle and editable)
+        self.actions_.set_enabled(["export_stl", "render_blender"],
+                                  idle and editable)

@@ -267,7 +267,9 @@ def build_framework(job) -> JobResult:
             message=f"{outcome.n_atoms} atoms; {outcome.verdict()}",
             structure=outcome.structure, report=report,
             artifacts=artifacts,
-            detail="" if outcome.net_agrees else outcome.verdict())
+            detail="" if outcome.net_agrees else outcome.verdict(),
+            warnings=((("BUILD_OVERLAP", outcome.warning()),)
+                      if outcome.overlaps else ()))
     except MofError as exc:
         # A request that does not describe a buildable framework is a
         # failed run and not a crash: it is nearly always a block in
@@ -352,7 +354,7 @@ def _report(outcome) -> Report:
                        "resources/samples sits between 1.996 and "
                        "2.170 A, and blocks that do not fit their net "
                        "come out below that", "", decimals=3),
-        ) + joint_row,
+        ) + joint_row + _overlap_rows(outcome),
         note="The first three are PORMAKE's own numbers and say "
              "whether the geometry is strained; the fourth is ours "
              "and says whether atoms ended up on top of one another.  "
@@ -362,6 +364,20 @@ def _report(outcome) -> Report:
         title=f"{outcome.request.title()}",
         blocks=(what, fit, _check(outcome)),
         note=outcome.verdict())
+
+
+def _overlap_rows(outcome) -> tuple:
+    """A row per overlapping pair, the closest first, when there are
+    any.  Appended rather than always there, like the joint rows: no
+    row is no overlap, and a table reading "0 overlaps" on every clean
+    build is a row nobody would read the one time it mattered."""
+    return tuple(
+        Row.number("Atoms overlap", distance, "A",
+                   f"{first} and {second}, not bonded -- a build's "
+                   f"bonds are its blocks' own and its joints, so "
+                   f"atoms on top of one another stay apart in the "
+                   f"graph and are said here instead", "", decimals=3)
+        for distance, first, second in outcome.overlaps[:5])
 
 
 def _check(outcome) -> Table:

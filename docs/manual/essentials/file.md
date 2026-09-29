@@ -118,6 +118,9 @@ the document's file.
 3. {ref}`Export as STL… <cmd-export_stl>` turns one unit cell with its
    bonds into a mesh a 3D printer can take.  Blender does the meshing,
    so it has to be installed and named in *Preferences ▸ Engines*.
+   {ref}`Render in Blender… <cmd-render_blender>`, beside it, renders
+   the same cell in a lit scene and keeps `scene.blend` to open in
+   Blender ({doc}`/utilities/render`).
 4. {ref}`Export Net for Systre… <cmd-export_net>` writes the
    {term}`net` drawn over the structure as a `.cgd` file for Systre
    {cite}`delgadofriedrichs2003systre` to name -- a second opinion on

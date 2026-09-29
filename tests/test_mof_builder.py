@@ -1042,3 +1042,121 @@ def test_a_block_with_no_bonds_is_drawn_by_the_applications_rule():
     assert (0, 1) not in pairs                  # never Zn-Zn
     assert (0, 2) in pairs and (1, 2) in pairs
     assert (2, 3) in pairs                      # the point's stalk
+
+
+# ------------------------------- a build states its bonds, and its overlaps
+
+def _phenyl_build(tmp_path, catalog, monkeypatch):
+    """Tetraphenyl-BDC with no turn for room, which is a build that
+    overlaps -- :mod:`xtal.build.clearance` is what now prevents it
+    where it can, and these tests are about what is said when nothing
+    does.
+
+    Not 2-phenyl-BDC as found, which was the case first measured
+    (0.37 A): which way its one phenyl points is the turn a Kabsch fit
+    on two vectors leaves undefined, so it is rounding noise -- a
+    1e-9 A nudge to the block takes the overlaps from seven to none,
+    and so did OpenBLAS on macOS Intel and Windows.  Four phenyls have
+    no angle clear of the neighbours, and under ``consistent`` the
+    faces settle it to the same 0.83 A every time.
+    """
+    from xtal.build import clearance
+
+    monkeypatch.setattr(clearance, "CLEAR", 0.0)
+    out = tmp_path / "run"
+    out.mkdir()
+    return build(BuildRequest.parse("pcu", "N16", "U4Ph"), out, catalog)
+
+
+def _neighbour_counts(structure):
+    from xtal.core import bonding, p1
+
+    graph = bonding.graph(structure)
+    cell = p1.expand(structure)
+    return cell, graph, [len(graph.neighbors(i))
+                         for i in range(cell.n_atoms)]
+
+
+@needs_builder
+@pytest.mark.slow
+def test_a_built_framework_bonds_only_what_its_blocks_and_joints_bonded(
+        tmp_path, phenyl_catalog, monkeypatch):
+    """Reading the built CIF back used to perceive its bonds by
+    distance, so atoms a substituent put on top of another block came
+    out bonded to it -- a hydrogen with two partners reads as
+    chemistry.  The graph is the blocks' own bonds and the joints."""
+    outcome = _phenyl_build(tmp_path, phenyl_catalog, monkeypatch)
+    cell, graph, counts = _neighbour_counts(outcome.structure)
+
+    hydrogens = [n for n, e in zip(counts, cell.elements, strict=True)
+                 if e == "H"]
+    assert hydrogens and max(hydrogens) == 1
+    assert outcome.overlaps
+    for _distance, first, second in outcome.overlaps:
+        a = cell.labels.index(first.split()[0])
+        b = cell.labels.index(second.split()[0])
+        assert b not in graph.neighbors(a)
+
+
+@needs_builder
+@pytest.mark.slow
+def test_an_overlapping_build_says_so_as_a_warning(
+        tmp_path, phenyl_catalog, monkeypatch):
+    """Not bonding the overlap would leave it silent, so it is said:
+    in the verdict, in the report, in the notice the new tab shows,
+    and as ``BUILD_OVERLAP`` for an agent.  The framework is still
+    built -- which block to change is the person's call."""
+    from xtal.modules.mof import _report
+    from xtal.mof.build import OVERLAP
+
+    outcome = _phenyl_build(tmp_path, phenyl_catalog, monkeypatch)
+
+    distance, first, second = outcome.overlaps[0]
+    assert distance < OVERLAP
+    assert "(U4Ph)" in first and "(U4Ph)" in second
+    assert "overlapping" in outcome.verdict()
+    assert outcome.warning() in outcome.structure.meta["warnings"]
+    rows = [row for table in _report(outcome).tables
+            for row in table.rows if row.label == "Atoms overlap"]
+    assert rows and first in rows[0].note
+
+
+@needs_builder
+@pytest.mark.slow
+def test_a_clean_build_carries_the_same_bonds_perception_would(
+        tmp_path, catalog):
+    """Stating the bonds must not change a build that was right:
+    MOF-5's own blocks, bonded as built, are exactly what distance
+    perception finds -- so every framework that built cleanly before
+    opens with the same graph now."""
+    from xtal.core import bonding
+
+    outcome = build(BuildRequest.parse("pcu", "N16", "E14"), tmp_path,
+                    catalog)
+    stated = {b.key() for b in bonding.graph(outcome.structure).bonds}
+    fresh = outcome.structure.copy()
+    fresh.clear_perceived()
+    perceived = {b.key() for b in bonding.graph(fresh).bonds}
+
+    assert outcome.overlaps == ()
+    assert stated == perceived
+
+
+@needs_builder
+@pytest.mark.slow
+def test_a_filed_build_opens_with_the_graph_it_was_built_with(
+        tmp_path, phenyl_catalog, monkeypatch):
+    """The workspace copy is the document.  Written without its graph
+    it perceives on open, and the overlaps the build left apart are
+    bonded again the first time anybody reopens it."""
+    from xtal.io import FORMATS
+    from xtal.workspace import Workspace
+
+    outcome = _phenyl_build(tmp_path, phenyl_catalog, monkeypatch)
+    filed = Workspace.create(tmp_path / "ws").adopt_build(
+        outcome.structure)
+    reopened = FORMATS.read(filed.path)
+
+    _cell, _graph, counts = _neighbour_counts(reopened)
+    _cell, _graph, built = _neighbour_counts(outcome.structure)
+    assert counts == built

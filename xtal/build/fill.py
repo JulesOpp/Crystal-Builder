@@ -58,6 +58,12 @@ DEFAULT_ATTEMPTS = 500
 #: then tested exactly.
 SPACING = 0.5
 
+#: Where a copy put beside an atom goes: its centre this far from the
+#: atom, in Angstrom.  The inner edge is past a contact -- Na and O at
+#: the default overlap scale touch at 3.0 A -- and the outer is still
+#: the atom's neighbourhood rather than the next pore over.
+NEAR = (3.5, 5.0)
+
 
 def guest_molecules(structure) -> list[Fragment]:
     """Every distinct discrete molecule in ``structure``.
@@ -93,6 +99,12 @@ class Placement:
     guest: Fragment
     positions: tuple
     requested: int
+    #: With anchors, the ones no copy could be put beside, by label --
+    #: named rather than counted, because which atom is left without
+    #: its counter-ion is the thing somebody goes and looks at.
+    missed: tuple = ()
+    #: Whether each copy was put beside an atom rather than anywhere.
+    beside: bool = False
 
     @property
     def placed(self) -> int:
@@ -100,6 +112,16 @@ class Placement:
 
     def message(self) -> str:
         formula = self.guest.formula
+        if self.beside:
+            head = (f"placed {self.placed} {formula}, one beside each "
+                    f"of {self.requested} atom(s)")
+            if not self.missed:
+                return head
+            names = ", ".join(self.missed[:8])
+            more = (f" and {len(self.missed) - 8} more"
+                    if len(self.missed) > 8 else "")
+            return (f"placed {self.placed} of {self.requested} "
+                    f"{formula}: no room beside {names}{more}")
         if self.placed == self.requested:
             return f"placed {self.placed} {formula}"
         return (f"placed {self.placed} of {self.requested} {formula}: "
@@ -131,29 +153,37 @@ def place(host, guest: Fragment, count: int, *,
           overlap_scale: float = DEFAULT_OVERLAP_SCALE,
           seed: int | None = None,
           max_attempts: int = DEFAULT_ATTEMPTS,
-          radius_of=el.vdw_radius) -> Placement:
+          radius_of=el.vdw_radius,
+          anchors=None, near=NEAR) -> Placement:
     """Put up to ``count`` copies of ``guest`` into ``host`` where
     each touches nothing.  Changes nothing; see :class:`Placement`.
 
     The same ``seed`` places the same molecules in the same places,
     which is what lets a dialog's preview and its OK agree, and a test
     say where something went.
+
+    ``anchors`` -- atoms of the P1 cell -- asks a different question:
+    one copy *beside each*, its centre between ``near[0]`` and
+    ``near[1]`` Angstrom from the atom, and ``count`` is then how many
+    anchors there are.  It is what putting a counter-ion by every
+    charged site of a framework is: the cations of an anionic MOF sit
+    by its carboxylates, not anywhere there is room.  Every copy is
+    tested exactly as a pore's solvent is, against the host, the
+    copies already placed and its own images, so an ion is never put
+    on the one beside the next anchor.  An anchor with no room is
+    named (:attr:`Placement.missed`) and the rest still get theirs.
     """
+    if anchors is not None:
+        return _beside(host, guest, [int(a) for a in anchors], near,
+                       overlap_scale, seed, max_attempts, radius_of)
     count = max(0, int(count))
     if guest.is_empty or count == 0:
         return Placement(guest, (), count)
     rng = np.random.default_rng(seed)
     lattice = host.lattice
     scale = float(overlap_scale)
-    guest_r = scale * np.array([radius_of(e) for e in guest.elements])
-
-    cell = p1.expand(host)
-    solid = [k for k, e in enumerate(cell.elements)
-             if not el.is_dummy(e)]
-    host_r = scale * np.array([radius_of(cell.elements[k])
-                               for k in solid])
-    reach = float(guest_r.max()) + float(host_r.max(initial=0.0))
-    host_space = _Periodic(lattice, cell.frac[solid], host_r, reach)
+    guest_r, host_space, self_images = _spaces(host, guest, scale,
+                                               radius_of)
 
     field = _free_space(host, scale, radius_of)
     # Every atom of the guest has to clear the host, and none is
@@ -168,8 +198,6 @@ def place(host, guest: Fragment, count: int, *,
     if not len(candidates):
         return Placement(guest, (), count)
 
-    extent = 2.0 * float(np.linalg.norm(guest.cart, axis=1).max())
-    self_images = _self_images(lattice, extent + 2.0 * guest_r.max())
     placed: list[np.ndarray] = []
     guests = None
     failures = 0
@@ -179,19 +207,85 @@ def place(host, guest: Fragment, count: int, *,
         frac -= np.floor(frac)
         trial = (guest.cart @ _random_rotation(rng).T
                  + lattice.to_cart(frac))
-        clear = (host_space.clear(trial, guest_r)
-                 and (guests is None or guests.clear(trial, guest_r))
-                 and _clear_of_itself(trial, guest_r, self_images))
-        if not clear:
+        if not _fits(trial, guest_r, host_space, guests, self_images):
             failures += 1
             continue
         failures = 0
         placed.append(trial)
-        every = np.concatenate(placed)
-        guests = _Periodic(lattice, lattice.to_frac(every),
-                           np.tile(guest_r, len(placed)),
-                           2.0 * float(guest_r.max()))
+        guests = _placed(lattice, placed, guest_r)
     return Placement(guest, tuple(placed), count)
+
+
+def _beside(host, guest: Fragment, anchors, near, overlap_scale, seed,
+            max_attempts, radius_of) -> Placement:
+    """:func:`place` with anchors: one copy in a shell around each."""
+    if guest.is_empty or not anchors:
+        return Placement(guest, (), len(anchors), beside=True)
+    inner, outer = sorted(float(r) for r in near)
+    rng = np.random.default_rng(seed)
+    lattice = host.lattice
+    guest_r, host_space, self_images = _spaces(host, guest,
+                                               float(overlap_scale),
+                                               radius_of)
+    cell = p1.expand(host)
+    placed: list[np.ndarray] = []
+    missed: list[str] = []
+    guests = None
+    for anchor in anchors:
+        centre = lattice.to_cart(cell.frac[anchor])
+        for _attempt in range(max(1, int(max_attempts))):
+            direction = rng.normal(size=3)
+            direction /= float(np.linalg.norm(direction)) or 1.0
+            # Uniform in the shell's volume, not in its radius: drawn
+            # by radius the inner surface would be tried as often as
+            # the outer, which is three times the area.
+            radius = np.cbrt(rng.uniform(inner ** 3, outer ** 3))
+            trial = (guest.cart @ _random_rotation(rng).T
+                     + centre + radius * direction)
+            if _fits(trial, guest_r, host_space, guests, self_images):
+                # Whole, with its centre in the cell, as a pore's
+                # solvent is placed: the atom may sit on a face.
+                middle = lattice.to_frac(trial.mean(axis=0))
+                trial = trial - lattice.to_cart(np.floor(middle))
+                placed.append(trial)
+                guests = _placed(lattice, placed, guest_r)
+                break
+        else:
+            missed.append(cell.labels[anchor] or cell.elements[anchor])
+    return Placement(guest, tuple(placed), len(anchors),
+                     missed=tuple(missed), beside=True)
+
+
+def _spaces(host, guest: Fragment, scale: float, radius_of):
+    """``(guest radii, the host as a periodic obstacle, the lattice
+    vectors a copy could meet itself along)`` -- what either kind of
+    placing tests a trial against."""
+    lattice = host.lattice
+    guest_r = scale * np.array([radius_of(e) for e in guest.elements])
+    cell = p1.expand(host)
+    solid = [k for k, e in enumerate(cell.elements)
+             if not el.is_dummy(e)]
+    host_r = scale * np.array([radius_of(cell.elements[k])
+                               for k in solid])
+    reach = float(guest_r.max()) + float(host_r.max(initial=0.0))
+    host_space = _Periodic(lattice, cell.frac[solid], host_r, reach)
+    extent = 2.0 * float(np.linalg.norm(guest.cart, axis=1).max())
+    self_images = _self_images(lattice, extent + 2.0 * guest_r.max())
+    return guest_r, host_space, self_images
+
+
+def _fits(trial, guest_r, host_space, guests, self_images) -> bool:
+    return (host_space.clear(trial, guest_r)
+            and (guests is None or guests.clear(trial, guest_r))
+            and _clear_of_itself(trial, guest_r, self_images))
+
+
+def _placed(lattice, placed, guest_r):
+    """The copies placed so far, as the next trial's obstacle."""
+    every = np.concatenate(placed)
+    return _Periodic(lattice, lattice.to_frac(every),
+                     np.tile(guest_r, len(placed)),
+                     2.0 * float(guest_r.max()))
 
 
 # ----------------------------------------------------------------------

@@ -15,6 +15,7 @@ from xtalapp.dialogs.fill_pores import FillPoresDialog
 from xtalapp.dialogs.find_symmetry import FindSymmetryDialog
 from xtalapp.dialogs.interpenetrate import InterpenetrateDialog
 from xtalapp.dialogs.merge_duplicates import MergeDuplicatesDialog
+from xtalapp.dialogs.origin import OriginDialog
 from xtalapp.dialogs.prepare import PrepareDialog
 from xtalapp.dialogs.spacegroup import SpaceGroupDialog
 from xtalapp.dialogs.subgroup import SubgroupDialog
@@ -136,6 +137,22 @@ class SymmetryActions:
         if message:
             self.statusBar().showMessage(message, 8000)
 
+    def substitute_dialog(self) -> None:
+        """Structure > Substitute rings: a group, on the selected
+        hydrogens or on every aromatic ring."""
+        from xtalapp.dialogs.substitute import SubstituteDialog
+
+        document = self.current_document()
+        if document is not None:
+            self._report(SubstituteDialog.ask(document, self),
+                         "Substitute")
+
+    def replace_with_group(self, name: str) -> None:
+        """Right-click on hydrogens > Replace with group > ``name``."""
+        document = self.current_document()
+        if document is not None:
+            self._report(document.substitute(name), "Substitute")
+
     def fill_pores_dialog(self) -> None:
         document = self.current_document()
         if document is None:
@@ -186,6 +203,11 @@ class SymmetryActions:
     def wrap_into_cell(self) -> None:
         self._run(lambda d: d.wrap_into_cell())
 
+    def move_origin_dialog(self) -> None:
+        document = self.current_document()
+        if document is not None:
+            self._report(OriginDialog.ask(document, self), "Move origin")
+
     def _run(self, operation) -> None:
         """Run a symmetry or cell operation on the current document and
         say what happened -- including when it declined to happen."""
@@ -197,13 +219,13 @@ class SymmetryActions:
         except ValueError as exc:
             QMessageBox.warning(self, "The operation failed", str(exc))
 
-    def _report(self, report) -> None:
+    def _report(self, report, title: str = "Symmetry") -> None:
         if report is None:
             return
         self.statusBar().showMessage(report.message, 8000)
         if report.warnings or not report.ok:
             QMessageBox.warning(
-                self, "Symmetry",
+                self, title,
                 "\n\n".join([report.message] + list(report.warnings)))
 
     def _announce(self, document) -> None:

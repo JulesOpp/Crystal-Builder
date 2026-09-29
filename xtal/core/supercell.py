@@ -22,10 +22,10 @@ import itertools
 import numpy as np
 import spglib
 
-from xtal.core import p1
+from xtal.core import measure, p1
 from xtal.core.lattice import Lattice
 from xtal.core.spacegroup import SpaceGroup
-from xtal.core.structure import Structure
+from xtal.core.structure import Change, Structure
 
 # Two generated positions closer than this (in Angstrom) are the same
 # atom, written twice.  **Cartesian, and not 1e-6 fractional**, which
@@ -289,14 +289,44 @@ def delaunay_reduce(structure: Structure, eps: float = 1e-5
 
 def shift_origin(structure: Structure, shift) -> Structure:
     """Move the origin by ``shift`` (fractional): every atom moves by
-    ``-shift``.  Keeps the space group, which is only meaningful for a
-    shift the group allows -- re-detect if in doubt."""
+    ``-shift`` and is folded back into the cell, its bonds with it.
+
+    P1 only.  The group's operations are written about the origin, so
+    keeping them while the sites move makes another crystal: rutile
+    shifted by (0.1, 0.2, 0.05) expanded to 32 atoms, not 6.  The group
+    at the new origin is the same group with its translations changed,
+    and gemmi cannot name that setting, so a structure with symmetry is
+    refused rather than broken -- Reduce to P1 first.
+    """
+    if not structure.is_p1:
+        raise ValueError("moving the origin needs P1 -- Reduce to P1 "
+                         "first")
     delta = np.asarray(shift, dtype=float).reshape(3)
     out = structure.copy()
     for s in out.sites:
-        s.frac = p1._wrap(s.frac - delta)
-    out.touch()
+        s.frac = s.frac - delta
+    # Moved but not yet folded: the fold reads the expansion of this
+    # arrangement to know which way each atom jumps.
+    out.touch(Change.POSITIONS)
+    out.fold_sites([p1._wrap(s.frac) for s in out.sites])
     return out
+
+
+def centring_shift(structure: Structure, atoms) -> np.ndarray:
+    """The origin shift that puts the middle of ``atoms`` (P1 cell
+    indices) at the centre of the cell, each component in [-0.5, 0.5).
+
+    The middle is :func:`xtal.core.measure.centroid`, gathered across
+    the boundary -- which is the point: the cluster this is asked about
+    is the one a face cuts in two, and the mean of its wrapped
+    coordinates is somewhere in the pore.  A whole number of cells is
+    no shift at all, so it is taken off.
+    """
+    cell = p1.expand(structure)
+    middle = structure.lattice.to_frac(
+        measure.centroid(cell, structure.lattice, atoms))
+    shift = np.asarray(middle, dtype=float) - 0.5
+    return shift - np.floor(shift + 0.5)
 
 
 def wrap_into_cell(structure: Structure) -> Structure:

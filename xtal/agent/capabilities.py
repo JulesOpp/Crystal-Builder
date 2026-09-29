@@ -20,12 +20,12 @@ from xtal.agent.diagnostics import to_json
 
 #: The public verbs of a session, in the order the skill teaches them.
 VERBS = (
-    "open", "new", "build", "inspect", "render",
+    "open", "new", "build", "inspect", "render", "select",
     "add_atom", "delete_sites", "set_element", "move_sites",
     "set_cell", "supercell", "reduce_to_p1", "find_symmetry",
     "standardize", "set_space_group", "merge_duplicates",
     "recalculate_bonds", "add_bond", "remove_bond", "set_bond_type",
-    "add_hydrogens", "prepare", "interpenetrate",
+    "add_hydrogens", "substitute", "fill_pores", "prepare", "interpenetrate",
     "energy", "optimize", "run",
     "undo", "redo", "save", "export",
 )

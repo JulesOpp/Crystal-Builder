@@ -189,8 +189,11 @@ def _assign(structure, rules, parameter_set) -> Typing:
                                    kept, rules, parameter_set)
 
     _refuse_unknown_elements(cell)
-    geometry = Geometry(cell, graph)
-    rings = bonding.aromatic_rings(cell, graph, geometry)
+    # The memoised geometry and rings, which the bond orders read too:
+    # finding the rings twice per edit was a second of Change element
+    # on a 16 000-atom cell.
+    geometry = bonding.geometry(structure, rules)
+    rings = bonding.rings_of(structure, rules)
     aromatic = {i for ring in rings for i in ring}
 
     overrides = _overrides(structure, cell)

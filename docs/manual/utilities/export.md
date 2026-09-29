@@ -138,6 +138,8 @@ that joins the wrong one describes a different net.
   view: {doc}`images`.
 - {ref}`Export as STL… <cmd-export_stl>` writes one cell as a mesh
   through Blender: {doc}`stl`.
+- {ref}`Render in Blender… <cmd-render_blender>` renders the same cell
+  with Blender's Cycles and keeps the scene: {doc}`render`.
 - {ref}`Save as a building block… <cmd-save_building_block>` writes
   the open molecule, with its {term}`connection points <connection
   point>`, into the workspace's `blocks/` folder for the MOF builder:

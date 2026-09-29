@@ -725,7 +725,11 @@ class Workspace:
         entry = self.new_document(
             str(structure.meta.get("title") or ""))
         path = entry.path / f"{entry.name}.cif"
-        FORMATS.write(structure, path)
+        # With its graph.  A build's bonds are stated by the builder
+        # (``xtal.mof.build.state_bonds``), never perceived, and a CIF
+        # without them perceives on open -- bonding every overlap the
+        # build took care to leave apart and report.
+        FORMATS.write(structure, path, perception=True)
         # Before the move, while these paths are still where the
         # module left them.
         for artifact in artifacts or ():

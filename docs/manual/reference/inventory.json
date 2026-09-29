@@ -369,6 +369,14 @@
    "checkable": false
   },
   {
+   "key": "render_blender",
+   "section": "File",
+   "path": "Render in Blender...",
+   "shortcut": "",
+   "tip": "One unit cell with its bonds, lit and rendered by Blender, the scene kept beside the picture.  Blender has to be installed -- see Preferences > Engines",
+   "checkable": false
+  },
+  {
    "key": "export_net",
    "section": "File",
    "path": "Export Net for Systre...",
@@ -545,11 +553,27 @@
    "checkable": false
   },
   {
+   "key": "select_dialog",
+   "section": "Select",
+   "path": "Select...",
+   "shortcut": "",
+   "tip": "Select by label, coordination, what an atom is bonded to, a box, a point, or bonds by length and order -- and add, remove or intersect with what is held",
+   "checkable": false
+  },
+  {
    "key": "expand_bonded",
    "section": "Select",
    "path": "Grow ▸ Grow to bonded neighbours",
    "shortcut": "Ctrl+G",
    "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "expand_neighbours",
+   "section": "Select",
+   "path": "Grow ▸ Grow to neighbours only",
+   "shortcut": "",
+   "tip": "The atoms one bond from the selection, and the selection let go",
    "checkable": false
   },
   {
@@ -601,6 +625,14 @@
    "checkable": false
   },
   {
+   "key": "substitute_rings",
+   "section": "Structure",
+   "path": "Substitute hydrogens...",
+   "shortcut": "",
+   "tip": "Replace the selected hydrogens, or one on every aromatic ring, with a group -- NH2, OH, OMe, NO2, a halogen, a phenyl -- bonded to the atom the hydrogen was on and to nothing else",
+   "checkable": false
+  },
+  {
    "key": "insert_molecule",
    "section": "Structure",
    "path": "Insert molecule...",
@@ -613,7 +645,7 @@
    "section": "Structure",
    "path": "Fill pores with molecules...",
    "shortcut": "",
-   "tip": "Put copies of a molecule -- from another tab or a file -- into the empty space of this structure, each where it touches nothing.  A host with symmetry is reduced to P1 first, and bonds are not recalculated",
+   "tip": "Put copies of a molecule -- from another tab or a file -- into the empty space of this structure, each where it touches nothing -- or one beside each selected atom, for a charged framework's counter-ions.  A host with symmetry is reduced to P1 first, and bonds are not recalculated",
    "checkable": false
   },
   {
@@ -886,6 +918,14 @@
    "path": "Wrap atoms into the cell",
    "shortcut": "",
    "tip": "",
+   "checkable": false
+  },
+  {
+   "key": "move_origin",
+   "section": "Cell",
+   "path": "Move origin...",
+   "shortcut": "",
+   "tip": "Put the cell's corner somewhere else, so that a cluster cut in two by a face comes out whole: every atom moves and is folded back into the cell, its bonds with it.  P1 only.",
    "checkable": false
   },
   {
@@ -1269,7 +1309,7 @@
    "section": "Modules",
    "path": "DFTB+ ▸ Orbital...",
    "shortcut": "",
-   "tip": "waveplot is not installed, or not on PATH (XTAL_WAVEPLOT is not set).  It is at https://dftbplus.org (it ships with DFTB+)",
+   "tip": "One state as its two lobes, through waveplot; needs the parameter set's wfc.*.hsd",
    "checkable": false
   },
   {
@@ -1285,7 +1325,7 @@
    "section": "Modules",
    "path": "DFTB+ ▸ Vibrational modes...",
    "shortcut": "",
-   "tip": "modes is not installed, or not on PATH (XTAL_MODES is not set).  It is at https://dftbplus.org (it ships with DFTB+)",
+   "tip": "The Hessian by finite differences and its modes.  It costs six evaluations per free atom, and a structure that has not been relaxed first gives imaginary modes that mean nothing",
    "checkable": false
   },
   {
@@ -1333,7 +1373,7 @@
    "section": "Modules",
    "path": "Porosity ▸ Pore diameters and channels...",
    "shortcut": "",
-   "tip": "Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set).  It is at https://www.zeoplusplus.org/",
+   "tip": "The largest included and free spheres -- D_i, D_f and D_if -- and the channels they run through",
    "checkable": false
   },
   {
@@ -1341,7 +1381,7 @@
    "section": "Modules",
    "path": "Porosity ▸ Surface area...",
    "shortcut": "",
-   "tip": "Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set).  It is at https://www.zeoplusplus.org/",
+   "tip": "The area a gas molecule can touch, which is what a BET measurement sees",
    "checkable": false
   },
   {
@@ -1357,7 +1397,7 @@
    "section": "Modules",
    "path": "Porosity ▸ Accessible volume...",
    "shortcut": "",
-   "tip": "Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set).  It is at https://www.zeoplusplus.org/",
+   "tip": "How much of the cell a gas molecule can occupy, which is the pore volume a paper quotes",
    "checkable": false
   },
   {
@@ -1373,7 +1413,7 @@
    "section": "Modules",
    "path": "Porosity ▸ Pore size distribution...",
    "shortcut": "",
-   "tip": "Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set).  It is at https://www.zeoplusplus.org/",
+   "tip": "How much of the pore space sits at each diameter, as a histogram",
    "checkable": false
   },
   {
@@ -1398,6 +1438,14 @@
    "path": "Blender ▸ Export as STL...",
    "shortcut": "",
    "tip": "One unit cell with its bonds, turned into a printable mesh by Blender",
+   "checkable": false
+  },
+  {
+   "key": "module.blender.render",
+   "section": "Modules",
+   "path": "Blender ▸ Render in Blender...",
+   "shortcut": "",
+   "tip": "One unit cell with its bonds, lit and rendered by Blender's Cycles; the scene is kept beside the picture",
    "checkable": false
   },
   {
@@ -3800,6 +3848,64 @@
        "accepts": "float, 0 to 10000 mm",
        "default": "0.0",
        "help": "Scale the model so its longest side is this.  0 leaves one Angstrom as one millimetre"
+      }
+     ]
+    },
+    {
+     "name": "render",
+     "label": "Render in Blender...",
+     "tip": "One unit cell with its bonds, lit and rendered by Blender's Cycles; the scene is kept beside the picture",
+     "dialog": "blender-render",
+     "shell": "",
+     "params": [
+      {
+       "name": "output",
+       "label": "Save as",
+       "accepts": "path",
+       "default": "",
+       "help": "Where the PNG goes.  The run folder keeps a copy, and the scene.blend it was rendered from, to open in Blender and take further"
+      },
+      {
+       "name": "bonded_partners",
+       "label": "Complete bonds across the cell faces",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Bring in the atom at the far end of every bond that leaves the cell, so a linker cut by a face is drawn with both its ends"
+      },
+      {
+       "name": "width",
+       "label": "Width",
+       "accepts": "int, 16 to 16384 px",
+       "default": "1920",
+       "help": "The picture's width.  The camera's 40 mm lens spans the longer side"
+      },
+      {
+       "name": "height",
+       "label": "Height",
+       "accepts": "int, 16 to 16384 px",
+       "default": "1080",
+       "help": "The picture's height"
+      },
+      {
+       "name": "samples",
+       "label": "Render samples",
+       "accepts": "int, 1 to 10000",
+       "default": "50",
+       "help": "Cycles' samples a pixel for the picture.  More is less noise, and time in proportion"
+      },
+      {
+       "name": "viewport_samples",
+       "label": "Viewport samples",
+       "accepts": "int, 1 to 10000",
+       "default": "10",
+       "help": "Cycles' samples in Blender's own rendered view, for when scene.blend is opened"
+      },
+      {
+       "name": "frame",
+       "label": "Frame the whole structure",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Move the camera along its view until every atom is in the picture.  Off stands it at the scene's fixed place, which suits a cell of MOF-5's size"
       }
      ]
     }

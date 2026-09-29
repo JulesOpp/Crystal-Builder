@@ -489,6 +489,11 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         export is looked for.  See :mod:`xtal.modules.blender`."""
         self.run_module_action("blender", "export-stl")
 
+    def render_in_blender(self) -> None:
+        """A module run from File, beside Export as STL.  See
+        :mod:`xtal.modules.blender`."""
+        self.run_module_action("blender", "render")
+
     def close_current(self) -> None:
         self.document_set.close_current()
 
@@ -647,6 +652,8 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
 
     #: The same, for the three boundary answers.
     BOUNDARY_MENU = "@boundary"
+    #: Replace with group: its entries are the library's groups.
+    GROUP_MENU = "@group"
 
     #: The measurement the selection admits, whichever it is.
     #: Built at click time because it depends on what was clicked and
@@ -663,9 +670,11 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
     #: whatever was clicked, so ``edit_cell`` and ``display_range``
     #: end all three lists rather than only the one for empty space.
     CONTEXT_MENUS = {
-        "atom": ["change_element", "delete_selection", None,
-                 "expand_bonded", "expand_fragment", "expand_orbit",
-                 "select_same", None, "copy", "cut", "duplicate",
+        "atom": ["change_element", GROUP_MENU, "delete_selection",
+                 None,
+                 "expand_bonded", "expand_neighbours",
+                 "expand_fragment", "expand_orbit", "select_same",
+                 None, "copy", "cut", "duplicate",
                  "add_centroid", MEASURE_ENTRY, None,
                  "recompute_bonds", None,
                  "edit_cell", "display_range"],

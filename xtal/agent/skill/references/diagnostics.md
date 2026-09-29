@@ -39,6 +39,7 @@ tell the person. An **info** is context: report it where it matters.
 | `CALCULATION_REFUSED` | error | the engine cannot give this structure an energy (an element with no parameters, coincident atoms) | The engine cannot give this structure an energy. The message says why; fix the structure, not the engine. |
 | `NOT_CONVERGED` | warning | an optimisation stopped at its step limit | The geometry is where the optimiser stopped, not a minimum. Do not report its energy as one. More steps, or check the structure first. |
 | `MODULE_UNAVAILABLE` | error | a module or action whose binary or extra is missing, or one only the window performs | Install what the message names; capabilities() lists what this install can run. |
+| `BUILD_OVERLAP` | warning | a built framework with two unbonded atoms closer than 1.0 Å, named with the blocks they came from | A framework was built with atoms on top of one another; they are not bonded, and the message names the blocks. Rebuild with the other orientation, a larger repeat or a different block before relaxing. |
 | `MODULE_FAILED` | error | a module run that produced no answer; a refusal before the first step is the answer | The run did not produce an answer. A refusal before the first step is the answer; do not retry unchanged. |
 | `RENDER_UNAVAILABLE` | error | no OpenGL context could be made, or the gui extra is missing | No picture is possible here. Work from inspect(); the numbers are what the judgement rests on anyway. |
 

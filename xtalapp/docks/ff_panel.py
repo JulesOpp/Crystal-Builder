@@ -59,6 +59,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QMainWindow,
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
@@ -175,6 +176,16 @@ class ForceFieldDock(QDockWidget):
         # finish are still queued, and they belong to this one.
         self._run_document = None
         self._recorder = None
+        # The type table was typed and filled on every chemistry edit
+        # whether or not anybody could see it -- 1.7 s of a Change
+        # element on MIL-101 in P1, with the panel closed.  Out of
+        # sight it is only marked stale, and filled when it is shown.
+        self._stale = False
+        if isinstance(parent, QMainWindow):
+            # A dock tabbed behind another is never hidden, so raising
+            # its tab sends it no show event; this is what says so.
+            parent.tabifiedDockWidgetActivated.connect(
+                self._on_tab_raised)
 
         self.engines = (list(ENGINES) if engines is None
                         else [ENGINES.get(name) for name in engines])
@@ -511,6 +522,9 @@ class ForceFieldDock(QDockWidget):
             self.table.setRowCount(0)
             self._say("")
             return
+        self._stale = self._out_of_sight()
+        if self._stale:
+            return
         try:
             rows = self.table.fill(self.document,
                                    self.parameter_set.currentData())
@@ -518,6 +532,30 @@ class ForceFieldDock(QDockWidget):
             self._say(str(exc))
             return
         self._say(warnings_text(rows))
+
+    def _out_of_sight(self) -> bool:
+        """Closed, or tabbed behind another panel, in a window that is
+        on screen.  A window that has never been shown -- every widget
+        test builds one -- fills its table as it always did.
+
+        Behind a tab is an empty visible region and not ``isVisible``:
+        Qt leaves a dock tabbed behind another shown, and only covers
+        it.
+        """
+        window = self.parentWidget()
+        return (window is not None and window.isVisible()
+                and (not self.isVisible()
+                     or self.visibleRegion().isEmpty()))
+
+    def showEvent(self, event) -> None:      # noqa: N802  (Qt's name)
+        """Catch up on whatever happened while nobody was looking."""
+        super().showEvent(event)
+        if self._stale:
+            self.refresh()
+
+    def _on_tab_raised(self, dock) -> None:
+        if dock is self and self._stale:
+            self.refresh()
 
     def _say(self, text: str) -> None:
         self.notes.setText(text)
@@ -664,7 +702,13 @@ class ForceFieldDock(QDockWidget):
 
     @property
     def is_running(self) -> bool:
-        return self.worker is not None and self.worker.is_running
+        """From Optimise until the run's result has been handled.
+
+        Not the worker's own flag, which goes up only once its thread
+        has reached ``run``: a tab switch in that gap stopped nothing,
+        and a run paused there waited on its Resume for ever.
+        """
+        return self.worker is not None
 
     def _open_run(self, kind: str, calculator):
         """A run folder in the workspace, when the document has one.

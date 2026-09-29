@@ -711,19 +711,35 @@ def _substituents(graph) -> np.ndarray:
         return _SUBSTITUENTS[graph]
     except (KeyError, TypeError):
         pass
-    rows = []
-    for k, bond in enumerate(graph.bonds):
-        image = tuple(int(v) for v in bond.image)
-        back = tuple(-v for v in image)
-        for n, t in graph.neighbors_with_images(bond.i):
-            t = tuple(int(v) for v in t)
-            if not (n == bond.j and t == image):
-                rows.append((k, n, *t, 0))
-        for n, t in graph.neighbors_with_images(bond.j):
-            t = tuple(int(v) for v in t)
-            if not (n == bond.i and t == back):
-                rows.append((k, n, *t, 1))
-    table = np.array(rows, dtype=int).reshape(-1, 6)
+    # Arrays rather than a loop over the bonds: the loop was 0.23 s of
+    # every rebuild on MIL-101 in P1.  The rows come out in the order
+    # the loop made them -- by bond, end i before end j, each end's
+    # neighbours in adjacency order -- so the sums over them are too.
+    ends, images = _bond_ends(graph)
+    n_bonds = len(ends)
+    if not n_bonds:
+        return np.zeros((0, 6), dtype=int)
+    # Half-edges: h = k runs i -> j and h = n_bonds + k runs j -> i,
+    # which is the order BondGraph appends them to each adjacency list.
+    src = np.concatenate([ends[:, 0], ends[:, 1]])
+    dst = np.concatenate([ends[:, 1], ends[:, 0]])
+    shift = np.concatenate([images, -images])
+    bond = np.tile(np.arange(n_bonds), 2)
+    back = np.repeat([0, 1], n_bonds)
+    adjacency = np.lexsort((back, bond, src))
+    degree = np.bincount(src, minlength=graph.n_atoms)
+    first = np.concatenate([[0], np.cumsum(degree)[:-1]])
+
+    atom = ends.reshape(-1)             # (k, end) pairs, k major
+    count = degree[atom]
+    start = np.repeat(np.cumsum(count) - count, count)
+    half = adjacency[np.repeat(first[atom], count)
+                     + np.arange(count.sum()) - start]
+    pair = np.repeat(np.arange(len(atom)), count)
+    k, at_j = pair // 2, pair % 2
+    # Everything but the half-edge of the bond itself, leaving that end.
+    keep = half != k + at_j * n_bonds
+    table = np.column_stack([k, dst[half], shift[half], at_j])[keep]
     try:
         _SUBSTITUENTS[graph] = table
     except TypeError:                           # pragma: no cover

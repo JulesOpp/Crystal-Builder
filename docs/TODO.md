@@ -1,15 +1,234 @@
 # TODO
-# In preferences add an option for dark mode
 
-Work that is wanted but not yet scheduled into a phase.
-[docs/PLAN.md](PLAN.md) holds the architecture;
-[docs/ROADMAP.md](ROADMAP.md) schedules what is in here.  This file
-holds everything that came up while using the application.  An entry
-gets deleted when it ships, not ticked.
+Everything still owed, in one place: the work that is scheduled, in
+the order it is to be done, and then everything that came up while
+using the application and has not been scheduled.
+[docs/PLAN.md](PLAN.md) holds the architecture and the phases that
+built it.  An entry is **deleted when it ships, not ticked**; a
+scheduled phase that ships is deleted with it.  What shipped is in
+`git log -- docs/TODO.md docs/ROADMAP.md` (the roadmap was folded in
+here on 2026-09-28).
+
+Sizes are orders of magnitude, not estimates: **S** is a day or less,
+**M** a few days, **L** a week or more.  Every phase ends with
+something runnable and a green suite, the rule
+[docs/PLAN.md](PLAN.md) § 16 works to.
 
 ---
 
+# Scheduled
+
+## The interface stretch
+
+Planned 2026-09-13: one phase per session, in
+this order, because each one changes what the next one photographs,
+names or links to.  Phases 1 and 2 change what is on screen and what it
+is called; phase 3 anchors help to those names, and phase 4 writes and
+photographs them.  The full plan, with its measurements, is
+`~/.claude/plans/interface-stretch.md`; the sections below are enough to
+start a phase from its name.
+
+| Phase | Delivers | Main files | Size |
+|---|---|---|---|
+| **Phase 2 — Text pass** | Every visible string in the user's own words, missing tips and help first | `.claude/skills/ui-text/uitext.py`, then the app a window at a time | M |
+| **Phase 3 — Help is the manual** | A "?" on every panel and dialog opening the manual at its anchor; the manual's skeleton and generated reference | `xtalapp/help_links.py`, `.claude/skills/manual-writing/reference.py`, `packaging/bundle.py` | M |
+| **Phase 4 — User manual** | The manual, one chapter (or page group) per session, M0-M11 | `docs/manual/` | L |
+
+Phase 1 (Styles, Preferences and the chooser) shipped on 2026-09-14;
+`git log -- docs/ROADMAP.md` has what it delivered.  **Before each
+phase**: commit or stash what the last session left uncommitted, so
+each phase's diff is only its own.
+
+Every phase runs targeted test files while iterating and the full suite
+once, in the background, with `sysctl vm.swapusage` looked at first.
+
+### Phase 2 — Text pass
+
+The user rewrites the text; this phase is the plumbing either side.
+**No string is reworded by us.**  Phase 1 has landed, so its new
+strings -- the Style groups, the Engines page, the chooser -- are in
+the sheet.
+
+The missing tips and help got rows at the top of the sheet
+(2026-09-14, c90c6ea), and the sheet, `build/ui-text-2026-09.csv`,
+went to the user the same day with the batch order: missing tips and
+help; menus and toolbar; Preferences; Style; chooser; each dock;
+dialogs; module and engine settings; status and error sentences.
+**Waiting on the user's first batch.**  Then:
+
+1. **Apply each batch as it comes back**: `--dry-run`, apply, fix the
+   tests that quote old wording in the same commit, grab the windows
+   touched and report anything clipped or newly scrolling, commit as
+   *Reword the <window>*, re-extract.
+2. **Close**: `reference.py` reports 0 commands and 0 settings
+   missing; `docs/MENUS.md`
+   updated; full suite once.
+
+Registry keys and `Param` names never change: phase 3's anchors are
+built from them.
+
+---
+
+### Phase 3 — Help is the manual
+
+The help a "?" opens is the manual's own content, never a second copy.
+Decided with the user: the **Sphinx HTML is built into the bundle and
+opened in the system browser** at the anchor; a panel's "?" is a
+**small flat button at the top right of its contents**, plus F1;
+dialogs get `QDialogButtonBox.Help`.
+
+1. **Skeleton.**  Ask before `pip install sphinxcontrib-bibtex furo`
+   (Sphinx 8.2.3 and MyST 5.1.0 are present).  `docs/manual/conf.py`,
+   `index.md`, stubs for the agreed outline, empty `references.bib`,
+   the generated `reference/`; `sphinx-build -W` clean.
+2. **One list of topics.**  `xtalapp/help_links.py` `TOPICS` maps
+   every dock (`panel-<attr>`), every dialog with a Help button
+   (`dlg-<key>`, including Preferences pages) and every module action
+   (`mod-...`) to its anchor.  `reference.py` reads it and writes
+   `reference/dialogs.md`, so an anchor the app opens is one the
+   generator wrote.
+3. **Opening it.**  `open_help(parent, anchor)` finds the built manual
+   (`_internal/docs/manual/html` in a bundle, `build/manual/html` in a
+   checkout), maps the anchor to its page through
+   `reference/inventory.json`, and opens `file://...#anchor`.  With no
+   built manual it opens `HelpWindow` and scrolls to the same anchor,
+   which its generated pages now carry, plus a Panels tab.
+4. **Buttons.**  `docks.help_corner(dock, anchor)` is an overlay that
+   adds nothing to any minimum; dialogs connect `helpRequested`; a
+   registry action `help_on_panel` on F1.  `bundle.py` requires the
+   built manual and ships it.
+- Tests (`tests/test_help_links.py`): `test_every_dock_has_a_help_topic`,
+  `test_every_help_topic_is_an_anchor_the_reference_wrote`,
+  `test_help_opens_the_built_manual_at_the_anchor`,
+  `test_without_a_built_manual_help_scrolls_the_generated_window_there`,
+  `test_the_help_corner_adds_nothing_to_a_panel_s_minimum`,
+  `test_f1_opens_help_for_the_panel_with_focus`,
+  `test_a_dialog_s_help_button_opens_its_own_topic`;
+  `test_the_generated_help_carries_the_manual_s_anchors`
+  (`test_help_ui.py`); `test_a_bundle_carries_the_built_manual`
+  (`test_packaging.py`).
+- Docs: CLAUDE.md gains the invariant *help is the manual*
+  (`TOPICS` is the one list, anchors are registry keys); the
+  manual-writing, add-action and add-module skills say a new panel or
+  dialog needs a topic; `PACKAGING.md` says the manual is built first.
+
+---
+
+### Phase 4 — User manual
+
+Written with the `manual-writing` skill, which holds the outline, the
+layout, the screenshot script and the style.  One session each; a
+top-level chapter too large for one session is split by page.
+Installed first: phase 3's toolchain.  TeX is at `/Library/TeX/texbin`
+(check `latexmk` in M0).  `ase`, `rdkit`, `rdeditor`, `mace` and
+`matplotlib` import; DFTB+ 24.1 and tblite are on PATH; **xTB is not**,
+so ask in M6 whether GFN-FF gets figures.
+
+| Session | Delivers |
+|---|---|
+| M0 | `tutorial_check.py` proving the MIL-88b build (acs, N134, drawn `*c1ccc(*)cc1`; UFF4MOF, relax cell, Smart; P6₃/mmc; acs, then ssa) and the `shots.py` skeleton.  No prose; a wrong answer stops the session. |
+| M1 | Quickstart ▸ Your first crystal build |
+| M2 | Quickstart ▸ About, Installation, The GUI |
+| M3 | Essentials ▸ File, Edit, Select |
+| M4 | Essentials ▸ Structure, Symmetry, Cell |
+| M5 | Essentials ▸ Measure, View, Window, mouse modes, shortcuts |
+| M6 | Modules ▸ Force field (UFF/UFF4MOF, xTB, MACE) |
+| M7 | Modules ▸ Zeo++, PXRD |
+| M8 | Modules ▸ MOF builder, Molecule builder, Net builder |
+| M9 | Modules ▸ Energy scan (landscapes, held coordinates, reading a heat map), Blender export; Quickstart ▸ Recommendations, Troubleshooting |
+| M10 | Front matter, Glossary, Bibliography, Index, PDF |
+| M11 | Modules ▸ DFTB+ -- only after the postponed DFTB+ phase (*What is deliberately not scheduled*, at the end) |
+
+Each session regenerates the reference, builds with `-W` clean, and
+reports its word count and open `TODO-cite`s.
+
+---
+
+## An AI assistant drives the builder: what is still owed
+
+Built 2026-09-26 on `claude/gallant-hawking-ml241m`, prompted by the
+rietx skill: a protocol shipped in the wheel, over one typed API whose
+answers carry coded diagnostics.  CLAUDE.md's invariant *An agent edits
+through the same commands as a person* is the design.
+
+It shipped: `xtal/agent/` (`Session`, `inspect`, `render`,
+`capabilities`), the skill in the wheel, the `xtal` commands and
+their `--json`.  **Still owed**, in this order:
+
+- **A live link to the window**: a local MCP server inside a running
+  window, turned on explicitly, whose tools are the same verbs over
+  `Document.run` rather than a `Session` -- so the person watches each
+  edit land as an undo step in the tab they have open.  The verbs need
+  no change; what is new is marshalling every call onto the GUI thread
+  and refusing while a trajectory plays.
+- **A manual chapter**, *Working with an AI assistant*, once
+  `docs/manual/` exists (interface stretch, phase 4).
+
+---
+
+## The TODO of 2026-09-26 and 2026-09-28
+
+Planned 2026-09-28 on `features/todo-0928`, after the substituted
+linkers (A1-A4), which shipped first and are in `git log`.  The full plan, with its measurements, is
+`~/.claude/plans/make-a-plan-to-structured-treasure.md`.  Six entries
+that were unscheduled, moved here with Julius's answers; *No Close
+All* was dropped, because `close_all_tabs` (Ctrl+Shift+W) has existed
+since 2026-09-08.
+
+| Phase | Delivers | Main files | Size |
+|---|---|---|---|
+| **C3 — Save as a building block goes to `blocks/`** | The folder Draw writes to, and no write-back to `mof_bb_dir` | `xtalapp/dialogs/save_block.py`, `xtalapp/edit_actions.py` | S |
+| **B4 — Zeo++ from GitHub** | Measured against the reference, then found beside 0.3 or replacing it | `xtal/modules/zeopp.py` | S-M |
+
+### C3 — One folder for blocks
+
+Cutting a node out of a crystal -- the manual's recipe, which since C1
+and C2 (2026-09-28) centres a cluster a face cuts through with *Cell ▸
+Move origin…* -- ends by saving it as a building block.
+
+*Draw…* in the MOF builder writes to `<workspace>/blocks/`; *Save as a
+building block…* defaulted to `settings.mof_bb_dir` and would not save
+until a folder was typed.  Decided: it defaults to `blocks/` and no
+longer writes `mof_bb_dir` back.
+
+### B4 — Zeo++ from its GitHub source
+
+The Porosity module looks for one program, `network` (`XTAL_ZEOPP`,
+Preferences, PATH, then `resources/zeo++-0.3/network`).  Zeo++ 0.3 is
+built by hand, and has faults this application works around:
+`-gridGAI` aborts on MFU-4l, and `-gridG` writes nothing.
+
+The candidates:
+- [lsmo-epfl/zeopp-lsmo](https://github.com/lsmo-epfl/zeopp-lsmo),
+  the maintained fork, on conda-forge as `zeopp-lsmo` and still a
+  `network` binary.
+- [nomad-coe/pyzeo](https://github.com/nomad-coe/pyzeo), bindings with
+  wheels.
+
+Measure each in a scratch environment against
+`tests/data/zeopp_reference.json` and the two faults, and check that
+`porosity.ZEO_RADII` matches what it compiles in.  Then either have
+`binary()` find either one, saying which in the greyed entry and
+Preferences ▸ Engines, or replace 0.3.  Bindings only if the numbers
+favour them clearly.
+
+---
+
+# Not scheduled
+
+Raised while using the application; no phase yet.
+
 ## Interface
+
+### A dark mode in Preferences
+
+The viewport's background already follows the system theme (*View ▸
+Background ▸ Follow the system*), and every tone nobody chose is worked
+out from the palette (`xtalapp.widgets.tone`), so the application is
+readable in either theme -- but which theme it is in is the system's
+choice alone.  Wanted: a Preferences setting for light, dark or follow
+the system, applied to the whole application and restyled live through
+`tone.retone`, without overwriting a colour chosen by hand.
 
 ### Dragging a panel has not been tried with a real mouse
 
@@ -62,23 +281,13 @@ expansion and a scene that update the atoms that changed rather than
 being rebuilt. That is a real change to `p1.expand` and
 `viewport/builder.py`, not a tweak, and it has not been designed.
 
-### No Close All for the structure tabs
-
-Somebody who opens a few dozen structures -- a folder of CIFs, a
-scan's points -- closes them one tab at a time.  A *Close All* (the
-File menu, and the tab bar's context menu) should ask the unsaved
-question once for the lot, as switching workspace already does
-(`may_discard_unsaved` then `close_all_documents`).  Asked for by
-Julius, 2026-09-26.
-
-### Save as a building block and Draw put blocks in different places
-
-*Draw…* in the MOF builder writes to `<workspace>/blocks/`, which the
-catalogue always reads.  *File > Save as a building block…* defaults
-to the *Extra building blocks* folder (`settings.mof_bb_dir`) and,
-with that unset, will not save until a folder is typed.  Found writing
-the manual's recipe for cutting a node out of a crystal; whether the
-second should default to `blocks/` as well is a decision, not a fix.
+Measured again 2026-09-28 on COD MIL-101 in P1 (16 000 atoms), after
+Change element was brought from 4.1-5.1 s to about 1.0 s: Delete of
+200 sites 1.1 s, its undo 1.0 s, an occupancy or label edit of one
+site 1.4-1.8 s, Set Bond Type on 6528 C-C bonds 2.0 s.  A property
+edit is `Change.TOPOLOGY`, so the scene re-derives every bond order
+(0.47 s, half of it the ring search) and VTK uploads the whole scene
+again (0.35 s) -- for a number that changes neither.
 
 ## Symmetry
 
@@ -99,16 +308,6 @@ is for the preview to say "Zn1 is 0.06 A off its mirror and the group
 is making three of it" and point at Standardize, not to offer a merge
 that cannot happen.  Wanted with whatever finally reports a site
 sitting just off a special position, which nothing does today.
-
-### No way to move the cell's origin
-
-Cutting a node out of a crystal (the manual's recipe: Reduce to P1,
-select the cluster, invert the selection, delete, draw the connection
-points, save as a building block) fails when the cluster straddles a
-face of the cell, because the atoms kept are the images inside it.
-The remedy is to translate the origin first, in P1, so the cluster
-sits whole inside; there is no command for that.  Wanted under the
-Structure menu (Julius, 2026-09-26).
 
 ## Force fields
 
@@ -412,3 +611,24 @@ Either a CI job with the extras (torch is gigabytes of wheel, and
 mace and mattersim cannot share an environment -- see `pyproject.toml`)
 or a stated rule that a change under `xtal/ff/` runs its engine's tests
 locally before merging.
+
+---
+
+# What is deliberately not scheduled
+
+* Nothing here touches the design principles in
+  [docs/PLAN.md](PLAN.md) § 1.  Every phase keeps the core Qt-free,
+  keeps every mutation a command, and adds capability through
+  registries.
+* Volumetric data and SHELX round-trips are
+  [docs/PLAN.md](PLAN.md) § 12 and stay there until they are asked
+  for.  Rietveld was asked for, and has shipped.
+* The relaxed scan was built on 2026-09-15 and is
+  [docs/PLAN.md](PLAN.md) § 12a.  What it left undone is in § Scans
+  above, and M9 has a chapter for it.
+* **DFTB+ — split, then merge** is postponed, not dropped.  The
+  manual's DFTB+ chapter (M11) waits for it, because writing it first
+  would photograph panels that phase changes.
+* Dragging a panel with a real mouse (§ Interface above) needs a
+  person's pointer.  The stretch's phase 3 leaves every dock title bar
+  as Qt draws it, so as not to make it worse.

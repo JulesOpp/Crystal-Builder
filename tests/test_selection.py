@@ -184,6 +184,115 @@ def test_bonds_to_any_element_are_every_bond_it_makes(rutile):
     assert sel.bonds_between_elements(graph, cell, "Ti", None) == every
 
 
+def test_coordination_selects_only_atoms_with_that_many_neighbours(
+        rutile):
+    """Rutile's Ti are six-coordinate and its O three: a count that
+    let the element or the comparison slip would take the other."""
+    graph = bonding.graph(rutile)
+    cell = p1.expand(rutile)
+    assert sel.by_coordination(graph, cell, "Ti", "=", 6) == {0, 1}
+    assert sel.by_coordination(graph, cell, "O", "=", 6) == set()
+    assert sel.by_coordination(graph, cell, None, "=", 3) == {2, 3, 4, 5}
+    assert sel.by_coordination(graph, cell, None, ">=", 4) == {0, 1}
+    assert sel.by_coordination(graph, cell, None, "<=", 6) == set(range(6))
+
+
+def test_a_label_pattern_selects_every_image_of_matching_sites(rutile):
+    """The label is the site's, so a match is the whole orbit -- and
+    the case is part of the name."""
+    rutile.ensure_labels()
+    cell = p1.expand(rutile)
+    oxygens = sel.by_element(cell, "O")
+    assert sel.by_label(cell, "O1*") == oxygens
+    assert sel.by_label(cell, "Ti?") == {0, 1}
+    assert sel.by_label(cell, "o1") == set()
+
+
+def test_a_box_selects_only_atoms_inside_it(rutile):
+    """Rutile's cell is two layers along c, at z = 0 and z = 1/2."""
+    cell = p1.expand(rutile)
+    assert sel.in_box(cell, (0, 0, 0), (1, 1, 0.25)) == {0, 2, 4}
+    assert sel.in_box(cell, (0, 0, 0.25), (1, 1, 1)) == {1, 3, 5}
+    assert sel.in_box(cell, (0.25, 0.25, 0), (0.75, 0.75, 1)) == \
+        {1, 2, 4}
+
+
+def test_bonds_by_length_select_only_bonds_in_the_range(rutile):
+    """Rutile's octahedron is eight bonds of 1.947 A and four of
+    1.984 A in the cell; the range is read from where the atoms are
+    now, not from when the bonds were perceived."""
+    graph = bonding.graph(rutile)
+    cell = p1.expand(rutile)
+    short = sel.bonds_where(graph, cell, rutile.lattice, longest=1.96)
+    long = sel.bonds_where(graph, cell, rutile.lattice, shortest=1.96)
+    assert len(short) == 8 and len(long) == 4
+    assert short | long == {b.key() for b in graph.bonds}
+    assert sel.bonds_where(graph, cell, rutile.lattice, first="O",
+                           second="O") == set()
+    assert sel.bonds_where(graph, cell, rutile.lattice,
+                           kind="explicit") == set()
+    assert len(sel.bonds_where(graph, cell, rutile.lattice,
+                               order=1.0)) == 12
+
+
+def test_grow_to_neighbours_only_drops_the_old_selection(rutile):
+    graph = bonding.graph(rutile)
+    cell = p1.expand(rutile)
+    shell = sel.neighbours_only(graph, {0})
+    assert 0 not in shell
+    assert shell == set(graph.neighbors(0))
+    assert all(cell.elements[a] == "O" for a in shell)
+
+
+def test_bonded_to_takes_every_atom_touching_that_element(rutile):
+    graph = bonding.graph(rutile)
+    cell = p1.expand(rutile)
+    assert sel.bonded_to(graph, cell, "Ti") == {2, 3, 4, 5}
+    assert sel.bonded_to(graph, cell, "O") == {0, 1}
+    assert sel.bonded_to(graph, cell, "Xe") == set()
+
+
+def test_a_point_selects_atoms_near_it_across_the_faces(rutile):
+    """The corner is every corner: a Ti at the origin is as near the
+    point (1, 1, 1) as to (0, 0, 0)."""
+    cell = p1.expand(rutile)
+    assert sel.near_point(cell, rutile.lattice, (1, 1, 1), 0.5) == {0}
+    assert sel.near_point(cell, rutile.lattice, (0.5, 0.5, 0.5),
+                          2.1) == sel.within_radius(
+        cell, rutile.lattice, {1}, 2.1)
+
+
+def test_a_region_rule_brings_its_bonds_and_an_atom_rule_does_not(
+        rutile):
+    graph = bonding.graph(rutile)
+    cell = p1.expand(rutile)
+    region = sel.pick("radius", cell, graph, rutile.lattice, {0},
+                      radius=2.1)
+    assert region.bonds == sel.bonds_within(graph, region.atoms)
+    assert region.bonds
+    named = sel.pick("element", cell, graph, rutile.lattice,
+                     symbols=["Ti", "O"])
+    assert named.atoms == set(range(6)) and not named.bonds
+    bonds = sel.pick("bonds", cell, graph, rutile.lattice, first="Ti")
+    assert not bonds.atoms and len(bonds.bonds) == 12
+
+
+def test_combining_replaces_adds_removes_and_intersects():
+    held = Selection()
+    held.set_atoms([1, 2, 3])
+    held.bonds = {(1, 2, (0, 0, 0)), (3, 4, (0, 0, 0))}
+    picked = Selection()
+    picked.set_atoms([3, 4])
+    assert sel.combine(held, picked, "replace").atoms == {3, 4}
+    assert sel.combine(held, picked, "add").order == [1, 2, 3, 4]
+    removed = sel.combine(held, picked, "remove")
+    assert removed.atoms == {1, 2}
+    assert removed.bonds == {(1, 2, (0, 0, 0))}     # 3-4 hung off 3
+    common = sel.combine(held, picked, "intersect")
+    assert common.atoms == {3} and not common.bonds
+    assert held.atoms == {1, 2, 3}                  # untouched
+
+
 def test_describe(rutile):
     cell = p1.expand(rutile)
     s = Selection()

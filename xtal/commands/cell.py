@@ -130,20 +130,25 @@ class ReduceCell(StructureOperation):
 
 
 class ShiftOrigin(StructureOperation):
-    """Move the origin: every atom moves by ``-shift``.
-
-    The group is kept, which is only meaningful for a shift the group
-    allows -- find the symmetry again if in doubt.
+    """Move the origin: every atom moves by ``-shift``, folded back into
+    the cell with its bonds.  P1 only -- see
+    :func:`xtal.core.supercell.shift_origin` -- and a structure with
+    symmetry is a refused report, never an undo step.
     """
 
     change = Change.POSITIONS
-    label = "Shift origin"
+    label = "Move origin"
 
     def __init__(self, shift):
         super().__init__()
         self.shift = np.asarray(shift, dtype=float).reshape(3)
 
     def apply_to(self, structure):
+        if not structure.is_p1:
+            from xtal.core.symmetry import SymmetryReport
+            return structure, SymmetryReport(
+                ok=False,
+                message="moving the origin needs P1 -- Reduce to P1 first")
         out = sc.shift_origin(structure, self.shift)
         x, y, z = self.shift
         return out, _report(

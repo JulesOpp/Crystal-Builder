@@ -134,6 +134,17 @@ Source, Molecule
   formula.  A framework in the source is not offered: it never
   closes, so it is not something a pore can hold.
 
+Where
+: *In the pores*, anywhere there is room, or *One beside each selected
+  atom* -- a counter-ion by every charged site of a framework, a
+  sodium by each carboxylate oxygen of an anionic MOF, which random
+  insertion has no reason to put there.  Select the atoms first; the
+  count is then the selection's and its box greys out.  Each copy's
+  centre goes *Distance* (3.5 to 5.0 Å by default) from its atom,
+  clear of everything, the other copies included, and bonded to
+  nothing.  An atom with no room beside it is named afterwards, and
+  the rest still get theirs.
+
 Count
 : How many copies to try to place (20 by default).  The dialog quotes
   the most there could be room for, from the free volume; fewer are

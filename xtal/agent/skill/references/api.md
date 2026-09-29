@@ -66,6 +66,34 @@ A PNG, drawn as the viewport draws it, in a subprocess. `view` is
 draw selected. Orthographic, so a straight channel looks straight. Comes
 back `ok=False` with `RENDER_UNAVAILABLE` where there is no OpenGL.
 
+### `select(rule, atoms, **args)`
+
+Finds P1 atoms, bonds or net edges by one rule and changes nothing --
+the rules of the window's Select dialog. The answer is in
+`data["atoms"]`, `data["bonds"]` and `data["net_edges"]` (a bond is
+`[i, j, [image]]`), ready for `substitute`, `fill_pores` or
+`add_bond`. `atoms` are what the growing rules grow from.
+
+| `rule` | Arguments |
+|---|---|
+| `element` | `symbols` (a list) |
+| `label` | `pattern` -- `*` and `?`, case counts (`"O1*"`) |
+| `site` | `site`: every image of that site |
+| `coordination` | `element` (or None), `op` (`"="`, `">="`, `"<="`), `n` |
+| `bonded_to` | `element` |
+| `neighbours` | -- the atoms one bond from `atoms`, without them |
+| `shell` | `depth`: within that many bonds of `atoms` |
+| `radius` | `radius` in Å of `atoms` |
+| `point` | `point` (fractional), `radius` |
+| `box` | `lower`, `upper` (fractional, faces included) |
+| `bonds` | `first`, `second`, `order`, `shortest`, `longest`, `kind` (`any`, `explicit`, `perceived`) |
+| `net` | `shortest`, `longest` |
+
+Every Zn with four bonds is `s.select("coordination", element="Zn",
+op="=", n=4)`; lengths are the bonds' now, not when perceived. The
+counts are the bond graph's, so they say what the bonds say --
+`recalculate_bonds()` first if that is in doubt.
+
 ## Atoms
 
 ### `add_atom(element, frac, cart, bonded_to, occupancy, label)`
@@ -155,6 +183,33 @@ Completes main-group valences, as one undo step, bonded. The one edit
 that bonds what it adds. Refused with `NOTHING_TO_DO` when nothing is
 missing. For a deposited structure, prefer `prepare()`, which places
 cluster and water hydrogens by rule where valence alone would guess.
+
+### `substitute(group, atoms, per_ring)`
+
+Replaces hydrogens with a group, as one undo step: the group's first
+atom a bond's length out along the old X-H, turned for the most room,
+bonded to itself and to that atom and to nothing else. `group` is a
+library name (`"Amino"`, `"Methoxy"`, `"Nitro"`, `"Phenyl"` ...), a
+formula (`"NH2"`, `"OMe"`, `"NO2"`, `"F"`, `"Br"`) or SMILES with one
+`*`. `atoms` are P1 hydrogens, each standing for its orbit: the group is
+kept if the substituent keeps the site symmetry, else the cell is
+reduced to P1 (`SYMMETRY_NOTE`). `per_ring=True` puts one on every
+aromatic ring -- MOF-5 to IRMOF-3 is
+`s.substitute("NH2", per_ring=True)` -- and always reduces to P1. A
+group left under 1.5 Å from anything is `CLOSE_CONTACT`: the ring would
+have to turn, and nothing turns it. Needs the `build` extra.
+
+### `fill_pores(guest, count, beside, near, overlap_scale, seed)`
+
+Copies of a molecule into the empty space, each clear of the host and
+of each other, as one undo step (a symmetric host is reduced to P1
+inside it). `guest` is an element symbol (`"Na"`) or a structure file
+whose first molecule is taken. With `beside` -- a list of P1 atoms --
+one copy goes by each, its centre `near` (default 3.5 to 5.0 Å) from
+the atom, and `count` is not read: that is how counter-ions go by a
+charged framework's sites, e.g. `s.fill_pores("Na", beside=oxygens)`.
+Nothing is bonded. An atom with no room beside it is named in
+`data["missed"]`; no room at all is refused.
 
 ## Whole-structure operations
 

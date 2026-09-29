@@ -89,6 +89,16 @@ REVEAL_LABEL = ("&Reveal in Finder" if sys.platform == "darwin"
 #: The tooltip on ``Insert molecule...`` when it is available.  Named
 #: because the window puts :data:`xtal.build.MISSING` there instead
 #: when RDKit is not installed, and has to be able to put this back.
+MOVE_ORIGIN_TIP = (
+    "Put the cell's corner somewhere else, so that a cluster cut in "
+    "two by a face comes out whole: every atom moves and is folded "
+    "back into the cell, its bonds with it.  P1 only.")
+#: Why Move origin is greyed: the group's operations are written about
+#: the origin, and the group at a new one cannot be named.
+MOVE_ORIGIN_NEEDS_P1 = (
+    "Moving the origin needs P1: the space group's operations are "
+    "written about this origin.  Symmetry > Reduce to P1 first.")
+
 INSERT_MOLECULE_TIP = (
     "Build a molecule from a SMILES string and paste it into this "
     "structure.  It arrives with the bonds the builder gave it and "
@@ -149,6 +159,10 @@ def build_actions(window):
         tip="One unit cell with its bonds, as a mesh a 3D printer can "
             "take.  Blender does the meshing, so it has to be "
             "installed -- see Preferences > Engines")
+    add("render_blender", "Render in &Blender...", window.render_in_blender,
+        tip="One unit cell with its bonds, lit and rendered by "
+            "Blender, the scene kept beside the picture.  Blender has "
+            "to be installed -- see Preferences > Engines")
     add("open_workspace", "&Open Workspace...",
         window.open_workspace_dialog,
         tip="A folder that structures and their calculations live "
@@ -287,12 +301,19 @@ def build_actions(window):
         window.add_hydrogens_dialog,
         tip="Complete every main-group coordination with the "
             "hydrogens an X-ray structure never had")
+    add("substitute_rings", "Su&bstitute hydrogens...",
+        window.substitute_dialog,
+        tip="Replace the selected hydrogens, or one on every aromatic "
+            "ring, with a group -- NH2, OH, OMe, NO2, a halogen, a "
+            "phenyl -- bonded to the atom the hydrogen was on and to "
+            "nothing else")
     add("fill_pores", "&Fill pores with molecules...",
         window.fill_pores_dialog,
         tip="Put copies of a molecule -- from another tab or a file "
             "-- into the empty space of this structure, each where it "
-            "touches nothing.  A host with symmetry is reduced to P1 "
-            "first, and bonds are not recalculated")
+            "touches nothing -- or one beside each selected atom, for "
+            "a charged framework's counter-ions.  A host with symmetry "
+            "is reduced to P1 first, and bonds are not recalculated")
     add("interpenetrate", "Interpe&netrate...",
         window.interpenetrate_dialog,
         tip="Thread copies of this framework through its own pores: "
@@ -424,8 +445,16 @@ def build_actions(window):
         window.select_bonds_between,
         tip="Select every bond joining two elements, and no atoms -- "
             "so Delete and Bond type act on those bonds alone")
+    add("select_dialog", "&Select...", window.open_select_dialog,
+        tip="Select by label, coordination, what an atom is bonded "
+            "to, a box, a point, or bonds by length and order -- and "
+            "add, remove or intersect with what is held")
     add("expand_bonded", "Grow to &bonded neighbours",
         lambda: window.expand_selection("shell"), "Ctrl+G")
+    add("expand_neighbours", "Grow to &neighbours only",
+        lambda: window.expand_selection("neighbours"),
+        tip="The atoms one bond from the selection, and the "
+            "selection let go")
     add("expand_fragment", "Grow to whole &fragment",
         lambda: window.expand_selection("fragment"),
         "Ctrl+Shift+G")
@@ -480,6 +509,8 @@ def build_actions(window):
         lambda: window.reduce_cell("delaunay"))
     add("wrap_cell", "&Wrap atoms into the cell",
         window.wrap_into_cell)
+    add("move_origin", "Move &origin...", window.move_origin_dialog,
+        tip=MOVE_ORIGIN_TIP)
     add("display_range", "Display &range...",
         window.display_range_dialog, "Ctrl+R",
         tip="How much of the crystal to draw")
@@ -581,7 +612,8 @@ def build_menus(window):
     build_sample_menu(window)
     window.actions_.fill_menu(file_menu, [
         None, "save", "save_as",
-        None, "export", "export_image", "export_stl", "export_net",
+        None, "export", "export_image", "export_stl", "render_blender",
+        "export_net",
         "save_building_block",
         None, "new_workspace", "open_workspace",
         None, "close_tab", "close_all_tabs"])
@@ -599,17 +631,19 @@ def build_menus(window):
     select_menu = submenu(bar, "&Select")
     window.actions_.fill_menu(select_menu, [
         "select_all", "select_none", "invert_selection", None,
-        "select_same", "select_bonds"])
+        "select_same", "select_bonds", "select_dialog"])
     window.element_menu = submenu(select_menu, "By &element")
     grow_menu = submenu(select_menu, "&Grow")
     window.actions_.fill_menu(grow_menu, ["expand_bonded",
+                                        "expand_neighbours",
                                         "expand_fragment",
                                         "expand_orbit"])
 
     structure_menu = submenu(bar, "S&tructure")
     window.actions_.fill_menu(structure_menu, [
         "add_atom_dialog", "add_centroid", "merge_atoms",
-        "add_hydrogens", "insert_molecule", "fill_pores",
+        "add_hydrogens", "substitute_rings", "insert_molecule",
+        "fill_pores",
         "interpenetrate", "prepare_simulation",
         "mark_connection_points", "mark_one_connection_point", None,
         "bond_rules", "recompute_bonds", "reset_bonds",
@@ -634,7 +668,7 @@ def build_menus(window):
     cell_menu = submenu(bar, "&Cell")
     window.actions_.fill_menu(cell_menu, [
         "edit_cell", "supercell", None,
-        "niggli", "delaunay", None, "wrap_cell"])
+        "niggli", "delaunay", None, "wrap_cell", "move_origin"])
 
     measure_menu = submenu(bar, "&Measure")
     window.actions_.fill_menu(measure_menu, [
@@ -949,6 +983,8 @@ def context_menu(window, kind: str):
             add_bond_type_menu(window, menu)
         elif name == window.BOUNDARY_MENU:
             add_boundary_menu(window, menu)
+        elif name == window.GROUP_MENU:
+            add_group_menu(window, menu)
         elif name == window.MEASURE_ENTRY:
             add_measure(window, menu, count, kind)
         elif name in window.COUNTED_ACTIONS and count > 1:
@@ -960,6 +996,33 @@ def context_menu(window, kind: str):
         window.actions_.fill_menu(
             style, [f"style_{n}" for n in styles.names()])
     return menu
+
+def add_group_menu(window, menu):
+    """Replace with group: one entry per group in the library.
+
+    Enabled only when every selected atom is a hydrogen and RDKit is
+    there to embed the group -- a submenu that opened on a carbon
+    would offer an edit that could only refuse.  Fresh actions rather
+    than registry ones, because the list is the library's and grows
+    with it; what they call is the registry's own
+    ``substitute_rings`` rule for everything else.
+    """
+    from xtal.build import installed as rdkit_installed
+    from xtal.build import substitute
+
+    entry = submenu(menu, "Replace with &group")
+    document = window.current_document()
+    atoms = sorted(document.selection.atoms) if document else []
+    hydrogens = bool(atoms) and all(
+        document.cell.elements[a] == "H" for a in atoms)
+    entry.setEnabled(hydrogens and rdkit_installed()
+                     and window.actions_["substitute_rings"].isEnabled())
+    for name in substitute.names():
+        action = entry.addAction(name)
+        action.triggered.connect(
+            lambda _checked=False, n=name: window.replace_with_group(n))
+    return entry
+
 
 def add_boundary_menu(window, menu):
     """The three boundary answers, wherever they are wanted."""

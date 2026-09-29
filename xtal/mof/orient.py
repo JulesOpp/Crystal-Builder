@@ -38,7 +38,8 @@ safe rather than a second fit:
   where a node has a frame -- several atoms at a point, or the plane
   its one atom presents (:func:`xtal.mof.attach.face_of`), which is
   what makes MOF-5's clusters alternate -- and :data:`AS_FOUND`
-  returns nothing at all, byte for byte what PORMAKE builds.
+  returns nothing at all: which way round each node goes is what
+  PORMAKE chose.
 
 **What is scored is the two nodes at the ends of an edge, not a node
 against its linker.**  A linker's angle about its own axis is a
@@ -90,8 +91,9 @@ from xtal.mof.build import (
     point_at,
 )
 
-#: The primary fit chooses, and nothing here runs: byte for byte what
-#: PORMAKE builds.
+#: The primary fit chooses which way round each node goes, and nothing
+#: here overrides it.  A linker's turn about its own axis the fit
+#: never chose, and it is drawn as written (:func:`as_drawn`).
 AS_FOUND = "as-found"
 
 #: Minimise the disagreement between the two ends of every edge.  The
@@ -928,8 +930,20 @@ def align_edges(framework, log=None, faces: bool = False) -> int:
     A C2-symmetric linker gives two equal minima half a turn apart and
     either is correct; which one comes back is decided by the sum
     above and so is the same on two runs of one build.
+
+    **Where nothing decides the angle, the block is drawn as it was
+    written** (:func:`as_drawn`) -- under ``as-found``, which counts
+    no faces, and under either rule for a linker with no face at
+    either end.  It used to be left where the fit put it, and the fit
+    never put it anywhere: Kabsch onto an edge's two opposite
+    directions is a rank-one problem, and the turn it returns about
+    the axis is the SVD's completion of a null space.  A 1e-9 A nudge
+    to E14 moved MOF-5's atoms by up to 5 A as found, and OpenBLAS on
+    macOS Intel and Windows built 2-phenyl-BDC with its ring on the
+    other side from Accelerate.
     """
     blocks = framework.info["located_bbs"]
+    drawn = framework.info.get("drawn_bbs") or ()
     turnable = _turnable(blocks, faces)
     if not turnable:
         return 0
@@ -938,14 +952,39 @@ def align_edges(framework, log=None, faces: bool = False) -> int:
                                     framework.info["permutations"]):
         partner[here] = there
         partner[there] = here
+    matrix = np.asarray(framework.atoms.cell.array, dtype=float)
     turned: set[int] = set()
+    cleared: set[int] = set()
+
+    def preference(slot):
+        angle, axis, origin = _axial(blocks, partner, slot, faces)
+        if axis is None:
+            axis, origin = _axis(blocks[slot])
+        if axis is not None and angle is None and slot < len(drawn):
+            angle = as_drawn(drawn[slot], blocks[slot], axis)
+        return (0.0 if angle is None else angle), axis, origin
+
+    # Every block to where it is preferred first, and only then the
+    # search for room: a block's room is measured against its
+    # neighbours, and one measured against neighbours still where the
+    # fit's rounding left them came out different on another BLAS.
+    for slot in turnable:
+        preferred, axis, origin = preference(slot)
+        if axis is not None and abs(preferred) >= _STILL:
+            _turn(blocks[slot], axis, origin, preferred)
+            turned.add(slot)
     for _sweep in range(_SWEEPS):
         moved = False
         for slot in turnable:
-            angle, axis, origin = _axial(blocks, partner, slot,
-                                         faces)
-            if angle is None or abs(angle) < _STILL:
+            preferred, axis, origin = preference(slot)
+            if axis is None:                        # pragma: no cover
                 continue
+            angle, room = _clear(blocks, partner, slot, axis, origin,
+                                 preferred, matrix)
+            if abs(angle) < _STILL:
+                continue
+            if abs(angle - preferred) >= _STILL:
+                cleared.add(slot)
             _turn(blocks[slot], axis, origin, angle)
             turned.add(slot)
             moved = True
@@ -955,7 +994,89 @@ def align_edges(framework, log=None, faces: bool = False) -> int:
         _write_back(framework, blocks, turned)
         _say(log, f"settled {len(turned)} block(s) about their own "
                   f"axis, of {len(turnable)} that could turn")
+    if cleared:
+        _say(log, f"turned {len(cleared)} of them to give their atoms "
+                  f"room, rather than to where their ends agree")
     return len(turned)
+
+
+#: An atom nearer the axis than this does not move when the block
+#: turns, so it has nothing to say about which angle is clear.
+_ON_AXIS = 0.1
+
+
+def _axis(block):
+    """``(axis, origin)``: the line through a block's two connection
+    points, or two ``None``."""
+    positions = np.asarray(block.atoms.get_positions(), dtype=float)
+    first, second = (int(p) for p in block.connection_point_indices)
+    axis = positions[second] - positions[first]
+    length = float(np.linalg.norm(axis))
+    if length < _UNDECIDED:                         # pragma: no cover
+        return None, None
+    return axis / length, positions[first]
+
+
+def _moving(block, axis, origin) -> np.ndarray:
+    """The atoms a turn of this block moves, and that nothing is
+    bonded across a joint to: off the axis, not a connection point,
+    and not a member of one.  A member is bonded to its partner at a
+    bond's length on purpose, and measured as a contact it would be
+    the answer every time."""
+    positions = np.asarray(block.atoms.get_positions(), dtype=float)
+    points = [int(p) for p in block.connection_point_indices]
+    held = set(points)
+    for found in members_of(points, block.bonds).values():
+        held.update(int(m) for m in found)
+    offset = positions - origin
+    off = np.linalg.norm(offset - np.outer(offset @ axis, axis), axis=1)
+    symbols = block.atoms.get_chemical_symbols()
+    return np.array([i for i in range(len(positions))
+                     if i not in held and off[i] > _ON_AXIS
+                     and symbols[i] != "X"], dtype=int)
+
+
+def _clear(blocks, partner, slot, axis, origin, preferred, matrix):
+    """``(angle, room)`` for one block: ``preferred`` where it already
+    has room, else the clearest angle nearest it -- see
+    :func:`xtal.build.clearance.clearest_angle`.
+
+    What the block is measured against is every other block's atoms,
+    less the connection points and the members its own points are
+    fused to, and its own images in the cells around it.  Positions
+    are the *located* blocks', in the one frame the framework is built
+    in, before anything is wrapped.
+    """
+    from xtal.build.clearance import CLEAR, Surroundings, clearest_angle
+
+    block = blocks[slot]
+    moving = _moving(block, axis, origin)
+    if not len(moving):
+        return preferred, float("inf")
+    fused: dict[int, set[int]] = {}
+    for point in block.connection_point_indices:
+        met = partner.get((slot, int(point)))
+        if met is None:
+            continue
+        other, there = met
+        found = members_of(blocks[other].connection_point_indices,
+                           blocks[other].bonds).get(int(there), ())
+        fused.setdefault(other, set()).update(int(m) for m in found)
+    environment = []
+    for other, placed in enumerate(blocks):
+        if placed is None or other == slot:
+            continue
+        symbols = placed.atoms.get_chemical_symbols()
+        positions = np.asarray(placed.atoms.get_positions(), dtype=float)
+        skip = fused.get(other, set())
+        environment.extend(positions[i] for i in range(len(positions))
+                           if symbols[i] != "X" and i not in skip)
+    group = np.asarray(block.atoms.get_positions(), dtype=float)[moving]
+    centre = origin + axis * float(np.mean((group - origin) @ axis))
+    radius = float(np.max(np.linalg.norm(group - centre, axis=1)))
+    surroundings = Surroundings(environment, matrix, centre=centre,
+                                reach=radius + CLEAR + 2.0)
+    return clearest_angle(surroundings, group, axis, origin, preferred)
 
 
 def _turnable(blocks, faces: bool = False) -> list[int]:
@@ -974,6 +1095,13 @@ def _turnable(blocks, faces: bool = False) -> list[int]:
     they are not on.  With ``faces`` -- under ``consistent`` -- a ring
     or a carboxylate at either end is a face, and E14 turns until its
     ring lies flat against both carboxylates it meets.
+
+    **And any block with atoms off its axis, under either rule.**  A
+    substituent is off the axis, and a linker that carries one can
+    land it on the block beside it: 2-phenyl-BDC on pcu/N16, as found,
+    put a ring 0.37 A from its neighbour's.  Such a block is turned
+    only when its angle has no room (:func:`_clear`) -- every block
+    that is clear where it is preferred is left there.
     """
     out = []
     for slot, block in enumerate(blocks):
@@ -982,14 +1110,17 @@ def _turnable(blocks, faces: bool = False) -> list[int]:
         points = np.asarray(block.connection_point_indices, dtype=int)
         if len(points) != 2 or not readable(block):
             continue
-        if faces:
-            if presents_face(points, block.bonds,
-                             block.atoms.get_positions()):
-                out.append(slot)
-            continue
         members = members_of(points, block.bonds)
-        if any(len(found) > 1 for found in members.values()):
+        if faces and presents_face(points, block.bonds,
+                                   block.atoms.get_positions()):
             out.append(slot)
+        elif not faces and any(len(found) > 1
+                               for found in members.values()):
+            out.append(slot)
+        else:
+            axis, origin = _axis(block)
+            if axis is not None and len(_moving(block, axis, origin)):
+                out.append(slot)
     return out
 
 
@@ -1023,7 +1154,10 @@ def _axial(blocks, partner, slot, faces: bool = False):
             ends.append((mine, theirs))
     if not ends:
         return None, None, None
-    return _angle(axis, ends), axis, positions[first]
+    angle = _angle(axis, ends)
+    if angle is None:
+        return None, None, None
+    return angle, axis, positions[first]
 
 
 def _attachment_at(blocks, slot, point, faces: bool = False):
@@ -1057,7 +1191,7 @@ def _attachment_at(blocks, slot, point, faces: bool = False):
                       positions[list(members)] - positions[point])
 
 
-def _angle(axis, ends) -> float:
+def _angle(axis, ends) -> float | None:
     """The turn about ``axis`` that brings these ends onto the ones
     they meet, in closed form.
 
@@ -1081,11 +1215,76 @@ def _angle(axis, ends) -> float:
             # The two ends' frames cancel each other out, which is a
             # linker whose members are symmetric about its axis
             # meeting a node whose are too.  Every angle then costs
-            # exactly the same and there is nothing to choose, so the
-            # block is left where the fit put it.
-            return 0.0
+            # exactly the same and there is nothing to choose here --
+            # which is not the same as the fit having chosen.
+            return None
         angle = -float(np.angle(total))
     return angle
+
+
+#: How far a placed block may sit from a rotation of the block as
+#: drawn, in A, and still be read as one.  A block the fit mirrored
+#: (``substitute_mirrored``) is not a rotation of it at all.
+_DRAWN_FIT = 1e-3
+
+
+def as_drawn(drawn, placed, axis) -> float | None:
+    """The turn about ``axis`` that puts ``placed`` back the way round
+    ``drawn`` was written, or ``None`` where that cannot be read.
+
+    The placed block is a rotation ``R`` of the drawn one.  Of all the
+    rotations that take the drawn axis onto the placed one, the
+    smallest, ``S``, adds no turn about the axis; ``R`` differs from it
+    by exactly such a turn, and this is minus that turn.  It depends
+    on nothing but the two geometries, so it is the same on every
+    machine.  A drawn axis pointing exactly the other way has no
+    smallest rotation; half a turn about a fixed perpendicular
+    (:func:`_across`) stands in for it, so that case is decided the
+    same way everywhere too.
+    """
+    if drawn is None or placed is None:
+        return None
+    before = np.asarray(drawn.atoms.get_positions(), dtype=float)
+    after = np.asarray(placed.atoms.get_positions(), dtype=float)
+    if before.shape != after.shape or len(before) < 3:
+        return None
+    first, second = (int(p) for p in placed.connection_point_indices)
+    was = before[second] - before[first]
+    length = float(np.linalg.norm(was))
+    if length < _UNDECIDED:                         # pragma: no cover
+        return None
+    was = was / length
+    fit = _kabsch(before - before.mean(axis=0),
+                  after - after.mean(axis=0))
+    if fit is None:
+        return None
+    swing = _smallest(was, axis)
+    reference = _across(was)[0]
+    now = fit @ reference
+    wanted = swing @ reference
+    return float(np.arctan2(axis @ np.cross(now, wanted), now @ wanted))
+
+
+def _kabsch(before, after):
+    """The proper rotation taking ``before`` onto ``after``, or
+    ``None`` when no rotation does to :data:`_DRAWN_FIT`."""
+    u, _s, vt = np.linalg.svd(before.T @ after)
+    sign = np.sign(np.linalg.det(u @ vt)) or 1.0
+    rotation = (u @ np.diag([1.0, 1.0, sign]) @ vt).T
+    misfit = np.abs(before @ rotation.T - after).max()
+    return rotation if misfit <= _DRAWN_FIT else None
+
+
+def _smallest(start, end) -> np.ndarray:
+    """The smallest rotation taking unit ``start`` onto unit ``end``."""
+    turn = np.cross(start, end)
+    sine = float(np.linalg.norm(turn))
+    cosine = float(start @ end)
+    if sine < 1e-6:
+        if cosine > 0.0:
+            return np.eye(3)
+        return _rotation(_across(start)[0], np.pi)
+    return _rotation(turn / sine, float(np.arctan2(sine, cosine)))
 
 
 def _across(axis):

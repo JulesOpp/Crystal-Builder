@@ -150,7 +150,55 @@
       "name": "Methyl",
       "smiles": "[*:1]C",
       "category": "Group",
-      "description": "One connection point, for testing that a block writes"
+      "description": "CH3, on a ring or anywhere a hydrogen was"
+    },
+    {
+      "name": "Amino",
+      "smiles": "[*:1]N",
+      "category": "Group",
+      "description": "NH2 -- IRMOF-3 is MOF-5 with one on every ring"
+    },
+    {
+      "name": "Hydroxy",
+      "smiles": "[*:1]O",
+      "category": "Group",
+      "description": "OH"
+    },
+    {
+      "name": "Methoxy",
+      "smiles": "[*:1]OC",
+      "category": "Group",
+      "description": "OCH3, turned where it has room"
+    },
+    {
+      "name": "Nitro",
+      "smiles": "[*:1][N+](=O)[O-]",
+      "category": "Group",
+      "description": "NO2, written as the zwitterion so every atom has its valence"
+    },
+    {
+      "name": "Fluoro",
+      "smiles": "[*:1]F",
+      "category": "Group",
+      "description": "F"
+    },
+    {
+      "name": "Chloro",
+      "smiles": "[*:1]Cl",
+      "category": "Group",
+      "description": "Cl"
+    },
+    {
+      "name": "Bromo",
+      "smiles": "[*:1]Br",
+      "category": "Group",
+      "description": "Br"
+    },
+    {
+      "name": "Phenyl",
+      "smiles": "[*:1]c1ccccc1",
+      "category": "Group",
+      "description": "C6H5 -- bulky enough to need the room it is turned for"
     },
     {
       "name": "Amino-phenylene",

@@ -965,7 +965,7 @@ def test_a_repeat_asked_for_last_time_is_not_hidden(qtbot, window):
 @needs_database
 def test_the_orientation_form_offers_consistent_first(dialog):
     """``consistent`` is the default, and a form offers the default
-    first; ``as-found`` stays, one down, for PORMAKE's own build."""
+    first; ``as-found`` stays, one down, for PORMAKE's own choice."""
     offered = [dialog.orientation.itemData(i)
                for i in range(dialog.orientation.count())]
 

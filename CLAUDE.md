@@ -238,8 +238,11 @@ stress case).
 
 - **Bonds are recalculated only when the user presses Recalculate
   Bonds.** Not on cell edits, not on load, not after an optimisation,
-  and **not when an atom is placed** — an atom arrives with the bonds
-  the user gave it (Add atom draws one to its anchor) and no others.
+  **not when an atom is placed** — an atom arrives with the bonds
+  the user gave it (Add atom draws one to its anchor) and no others —
+  and **not when an element changes**: O to S keeps the oxygen's
+  bonds (`bonding.hold_through_retype`), except that an atom made a
+  dummy loses its perceived ones.
   `AddSites(perceive=False)` and `bonding.hold_perception` are how;
   Add hydrogens is the deliberate exception, because bonding what it
   adds is the whole operation.
@@ -398,9 +401,11 @@ stress case).
   block "fitting" to 1e-4. `build._build` returns
   at pass 1 unless some *node* presents a frame -- several atoms at a
   point, or a face -- so a build of faceless nodes is what PORMAKE
-  made. `as-found` stays, one down in the form, and is byte for byte
-  PORMAKE's build; the upstream comparison in `test_mof_vendored.py`
-  asks for it by name. The results table's *Joint twist left* is
+  made. `as-found` stays, one down in the form, and is PORMAKE's
+  choice of which way round every node goes; its linkers are drawn as
+  written (below), which PORMAKE left to rounding. The upstream
+  comparison in `test_mof_vendored.py` asks for it by name, and reads
+  nothing a linker's turn changes. The results table's *Joint twist left* is
   what the rule could not fix: `pcu` x 1x1x1 on N16 is 6.0 over 3,
   because one slot cannot alternate.
 - **A face is scored, never bonded.** A connection point standing for
@@ -434,7 +439,44 @@ stress case).
   ring lies flat on both carboxylates it meets; under `as-found` no
   shipped block is on that list. Ni3(HITP)2's own blocks come back
   wanting 6e-08 radians, which is the crystal's angle and below
-  `_STILL`.
+  `_STILL`. **Room comes first, and the closed form breaks its ties**
+  (`xtal/build/clearance.py`, since 2026-09-28): an angle whose atoms
+  come no closer than `clearance.CLEAR` (1.5 A) to anything, the
+  block's own images included, is kept as it is. Otherwise a full turn
+  is sampled every 10 degrees, and of the angles within 0.1 A of the
+  best clearance the one nearest φ* is taken. So a block with a
+  substituent is turnable under either rule, even with no face to
+  present. The search samples from the preferred angle, not from
+  wherever the block sits, and a build that was clear with the search
+  writes what it wrote with it off, to the byte (a test holds MOF-5
+  2x2x2 under both rules). **Where nothing prefers an angle, the
+  linker is drawn as it was written** (`orient.as_drawn`, since
+  2026-09-29): under `as-found`, and under `consistent` for a linker
+  with no face at either end. Every linker is settled there before
+  any is searched for room, so none is measured against a neighbour
+  the fit left. It used to stay where the fit put it, and the fit
+  never put it anywhere: Kabsch onto an edge's two opposite
+  directions is rank one, and the turn it returns is the SVD's
+  completion of a null space -- a 1e-9 A nudge to E14 moved MOF-5's
+  atoms by up to 5 A as found, and OpenBLAS (macOS Intel, Windows)
+  built 2-phenyl-BDC with its ring on the other side from
+  Accelerate. `test_a_rounding_error_in_a_linker_does_not_turn_it_
+  as_found` holds it.
+- **A hydrogen is replaced by a whole group, bonded as built.**
+  `xtal/build/substitute.py` puts the group's attaching atom
+  `bond_distance` out along the old X-H and turns the rest about that
+  bond for the most room (`clearance.clearest_angle(keep_clear=False)`,
+  its own images counted); `SubstituteHydrogens` removes the H sites
+  and adds the group in one expansion, holding the stored graph
+  through both halves -- the group's bonds and the one to its parent
+  are explicit, and nothing is perceived. A selected hydrogen stands
+  for its orbit: the space group is kept when the substituent keeps
+  the site symmetry (F on MOF-5 keeps Fm-3m), and otherwise -- and
+  always for *one per ring* -- the cell is reduced to P1 inside the
+  step and the report says so. The ring is never turned, so a group
+  with under `clearance.CLEAR` of room is a warning, not a refusal (a
+  phenyl on every MOF-5 ring). The groups are the library's `Group`
+  category; embedding them needs the `build` extra.
 - **A layer net is stacked after it is built, never by the builder.**
   The layers are the RCSR's own: every 2-periodic net in its file
   that PORMAKE can build on (196 of 200; `catalog.PORMAKE_REJECTS`
@@ -453,6 +495,20 @@ stress case).
   -- because asking 2400 graphs is ten seconds, and the picker's
   3D / 2D boxes need the answer for every row. The RCSR's layers are
   told the opposite, and re-derived the same way.
+- **A built framework's bonds are its blocks' own and its joints',
+  never perceived.** `build.state_bonds` stores the blocks' bond
+  lists as the graph (`set_perceived`, against the structure's own
+  rules) and the joints stay `bond_joints`' explicit bonds;
+  `Workspace.adopt_build` writes the CIF with `perception=True` so
+  reopening it does not perceive either. Reading PORMAKE's CIF back
+  and perceiving it bonded whatever overlapped -- 2-phenyl-BDC on
+  pcu/N16 as found gave five hydrogens two partners each. A clean
+  build states exactly what perception finds (a test holds MOF-5 to
+  it); an unbonded pair under `build.OVERLAP` (1.0 A) is a warning
+  naming both blocks -- the verdict, an *Atoms overlap* report row,
+  the new tab's notice, and `BUILD_OVERLAP` for an agent -- and never
+  a refusal. Recalculate Bonds is still how a person asks for
+  distance instead.
 - **An interpenetrated framework carries the bonds its copies had,
   and the detector says whether it worked.**
   `xtal/analysis/interpenetrate.py` enumerates rather than theorises
@@ -783,7 +839,8 @@ structure loses interactivity.
 
 ## Planning documents
 
-`docs/PLAN.md` is the phase roadmap, `docs/ROADMAP.md` the delivery
-order, `docs/TODO.md` everything raised while using the app that is
+`docs/PLAN.md` is the architecture and the phases that built it;
+`docs/TODO.md` is everything still owed -- the scheduled phases first,
+in delivery order, then everything raised while using the app that is
 not yet scheduled. An entry is **deleted when it ships, not ticked**.
 Keep them current — they are how work survives between sessions.

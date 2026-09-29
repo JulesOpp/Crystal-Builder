@@ -17,6 +17,13 @@ for, and when the host has symmetry the dialog says it will be reduced
 to P1 first -- a structure that changes space group on the way to
 having solvent put in it should not be a surprise found afterwards.
 
+**Or one beside each selected atom** -- a counter-ion by every charged
+site of a framework, which random insertion has no reason to put
+there.  The count is then the selection's, so its box greys out, and
+the dialog says which atoms before anything is placed.  It is a mode
+of this dialog and not a command of its own because everything else
+about it is the same question: which molecule, and does it fit.
+
 Nothing is placed until Fill is pressed.  Placing is random and a
 second or so, and a preview that re-ran it on every spinbox step would
 be a dialog that stutters for an answer the user has not asked for.
@@ -38,12 +45,17 @@ from PySide6.QtWidgets import (
     QPushButton,
     QSpinBox,
     QVBoxLayout,
+    QWidget,
 )
 
 from xtal.build import fill
 from xtal.io import FORMATS
 
 DEFAULT_COUNT = 20
+
+#: The two answers to *Where*.
+IN_THE_PORES = "In the pores"
+BESIDE = "One beside each selected atom"
 
 
 class FillPoresDialog(QDialog):
@@ -76,6 +88,25 @@ class FillPoresDialog(QDialog):
             "Each distinct molecule in the source, by formula.  A "
             "framework is not listed: it never closes, so it is not "
             "something a pore can hold")
+
+        self.where = QComboBox()
+        self.where.addItems([IN_THE_PORES, BESIDE])
+        self.where.setToolTip(
+            "Anywhere there is room, or one copy by each atom that is "
+            "selected -- a counter-ion beside every charged site")
+
+        self.inner = self._distance(fill.NEAR[0])
+        self.outer = self._distance(fill.NEAR[1])
+        near_row = QHBoxLayout()
+        near_row.addWidget(self.inner)
+        near_row.addWidget(QLabel("to"))
+        near_row.addWidget(self.outer)
+        near_row.addWidget(QLabel("A"))
+        self.near = QWidget()
+        self.near.setLayout(near_row)
+        near_row.setContentsMargins(0, 0, 0, 0)
+        self.near.setToolTip(
+            "How far each copy's centre is put from its atom")
 
         self.count = QSpinBox()
         self.count.setRange(1, 100000)
@@ -115,6 +146,8 @@ class FillPoresDialog(QDialog):
         form = QFormLayout()
         form.addRow("Source", source_row)
         form.addRow("Molecule", self.molecule)
+        form.addRow("Where", self.where)
+        form.addRow("Distance", self.near)
         form.addRow("Count", self.count)
         form.addRow("Overlap scale", self.scale)
         form.addRow("Seed", self.seed)
@@ -131,8 +164,25 @@ class FillPoresDialog(QDialog):
         self.source.currentIndexChanged.connect(self._source_changed)
         self.molecule.currentIndexChanged.connect(self._preview)
         self.count.valueChanged.connect(self._preview)
+        self.where.currentIndexChanged.connect(self._preview)
+        self.inner.valueChanged.connect(self._preview)
+        self.outer.valueChanged.connect(self._preview)
         self.scale.valueChanged.connect(self._preview)
         self._source_changed()
+
+    @staticmethod
+    def _distance(value: float) -> QDoubleSpinBox:
+        box = QDoubleSpinBox()
+        box.setRange(1.0, 15.0)
+        box.setSingleStep(0.5)
+        box.setDecimals(1)
+        box.setValue(value)
+        return box
+
+    @property
+    def beside(self) -> bool:
+        """Whether each copy goes by a selected atom."""
+        return self.where.currentText() == BESIDE
 
     # -- sources -------------------------------------------------------
 
@@ -231,6 +281,11 @@ class FillPoresDialog(QDialog):
                 else "")
             ok.setEnabled(False)
             return
+        self.count.setEnabled(not self.beside)
+        self.near.setEnabled(self.beside)
+        if self.beside:
+            self._preview_beside(guest, ok)
+            return
         room = self.capacity()
         count = self.count.value()
         self.headline.setText(
@@ -253,6 +308,34 @@ class FillPoresDialog(QDialog):
         self.detail.setText("  ".join(notes))
         ok.setEnabled(True)
 
+    def _preview_beside(self, guest, ok) -> None:
+        selected = len(self.document.selection.atoms)
+        if not selected:
+            self.headline.setText(
+                "select the atoms to put one beside first")
+            self.detail.setText(
+                "One copy goes by each selected atom -- a carboxylate "
+                "oxygen for a cation, say.  Close this, select them, "
+                "and open it again.")
+            ok.setEnabled(False)
+            return
+        self.headline.setText(
+            f"will place one {guest.formula} beside each of "
+            f"{selected} selected atom(s)")
+        notes = ["An atom with no room within the distance is named "
+                 "afterwards, and the others still get theirs."]
+        group = self.document.structure.space_group
+        if not group.is_p1:
+            notes.append(
+                f"The host is {group.short_name}: it will be reduced "
+                f"to P1 first, in the same undo step, and only the "
+                f"atoms selected get one -- not their symmetry "
+                f"copies.")
+        notes.append("Nothing is bonded: each copy sits beside its "
+                     "atom, not on it.")
+        self.detail.setText("  ".join(notes))
+        ok.setEnabled(self.inner.value() < self.outer.value())
+
     def fill(self) -> str:
         """Run it, with what the dialog shows."""
         guest = self.guest()
@@ -260,7 +343,9 @@ class FillPoresDialog(QDialog):
             return ""
         return self.document.fill_pores(
             guest, self.count.value(),
-            overlap_scale=self.scale.value(), seed=self.seed.value())
+            overlap_scale=self.scale.value(), seed=self.seed.value(),
+            beside=self.beside,
+            near=(self.inner.value(), self.outer.value()))
 
     @classmethod
     def ask(cls, document, sources=(), parent=None,

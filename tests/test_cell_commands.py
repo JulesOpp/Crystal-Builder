@@ -5,6 +5,8 @@ command will do, and undoing any of them puts the original structure
 back untouched.
 """
 
+from dataclasses import replace
+
 import numpy as np
 import pytest
 
@@ -258,6 +260,7 @@ def test_set_lattice_keeps_fractional_or_cartesian(host, stack):
 
 
 def test_shift_origin_and_wrap(host, stack):
+    stack.push(symmetry_commands.ReduceToP1(), host)
     stack.push(cell_commands.ShiftOrigin([0.5, 0.0, 0.0]), host)
     assert host.structure.sites[0].frac[0] == pytest.approx(0.5)
 
@@ -268,6 +271,120 @@ def test_shift_origin_and_wrap(host, stack):
     stack.undo(host)
     stack.undo(host)
     assert host.structure.sites[0].frac[0] == pytest.approx(0.0)
+
+
+def drawn_length(structure, bond) -> float:
+    """How long a stored bond is, read the way the viewport reads it:
+    from the sites' written coordinates, the operation and the image."""
+    op = structure.space_group.operations[bond.op]
+    far = op.apply(structure.sites[bond.j].frac) + np.array(bond.image)
+    return float(np.linalg.norm(structure.lattice.to_cart(
+        far - structure.sites[bond.i].frac)))
+
+
+@pytest.fixture
+def p1_rutile_with_a_drawn_bond(rutile):
+    """Rutile in P1 with a Ti-O bond drawn by hand across two faces:
+    Ti at the origin to the O at (0.695, 0.695, 0) one cell back."""
+    from xtal.core import symmetry
+    from xtal.core.structure import Bond
+    structure = symmetry.reduce_to_p1(rutile)
+    structure.set_bonds([Bond(0, 4, (-1, -1, 0))])
+    return structure
+
+
+def test_moving_the_origin_keeps_a_drawn_bond_its_length(
+        p1_rutile_with_a_drawn_bond):
+    """Ti folds across three faces and its O across one; a bond whose
+    image stayed put was drawn 7.4 A long (MFU-4l's was 32.28 A)."""
+    structure = p1_rutile_with_a_drawn_bond
+    before = drawn_length(structure, structure.bonds[0])
+    host, stack = Host(structure), CommandStack()
+    stack.push(cell_commands.ShiftOrigin([0.1, 0.1, 0.1]), host)
+    moved = host.structure
+    assert moved.sites[0].frac == pytest.approx([0.9, 0.9, 0.9])
+    assert drawn_length(moved, moved.bonds[0]) == pytest.approx(before)
+    assert before == pytest.approx(1.984, abs=1e-3)
+
+
+def test_moving_the_origin_keeps_every_perceived_bond(rutile):
+    from xtal.core import bonding, symmetry
+    structure = symmetry.reduce_to_p1(rutile)
+    lengths = sorted(round(b.distance, 6)
+                     for b in bonding.perceive(structure))
+    host, stack = Host(structure), CommandStack()
+    stack.push(cell_commands.ShiftOrigin([0.37, 0.61, 0.2]), host)
+    moved = host.structure
+    cell = p1.expand(moved)
+    drawn = sorted(
+        round(float(np.linalg.norm(moved.lattice.to_cart(
+            cell.frac[b.j] + np.array(b.image) - cell.frac[b.i]))), 6)
+        for b in bonding.perceive(moved))
+    assert drawn == lengths
+
+
+def test_moving_the_origin_outside_p1_is_refused_not_broken(host,
+                                                            stack):
+    """Keeping the operations while the sites move made rutile shifted
+    by (0.1, 0.2, 0.05) expand to 32 atoms, not 6."""
+    command = cell_commands.ShiftOrigin([0.1, 0.2, 0.05])
+    same, report = command.preview(host.structure)
+    assert not report.ok
+    assert "Reduce to P1" in report.message
+    assert same is host.structure
+    from xtal.core import supercell
+    with pytest.raises(ValueError, match="P1"):
+        supercell.shift_origin(host.structure, [0.1, 0.2, 0.05])
+
+
+def test_wrapping_a_site_written_outside_the_cell_keeps_its_bonds(
+        p1_rutile_with_a_drawn_bond):
+    """A CIF may write a site at 1.2 or -0.3; folding it in must not
+    stretch the bonds it was drawn with."""
+    structure = p1_rutile_with_a_drawn_bond
+    structure.sites[4].frac = structure.sites[4].frac + [2, -1, 1]
+    structure.set_bonds([replace(structure.bonds[0],
+                                 image=(-3, 0, -1))])
+    before = drawn_length(structure, structure.bonds[0])
+    host, stack = Host(structure), CommandStack()
+    stack.push(cell_commands.WrapIntoCell(), host)
+    wrapped = host.structure
+    assert np.all(wrapped.sites[4].frac < 1)
+    assert drawn_length(wrapped, wrapped.bonds[0]) == pytest.approx(
+        before)
+    assert wrapped.bonds[0].image == (-1, -1, 0)
+
+
+def test_wrapping_keeps_the_perceived_graph_of_a_folded_site(rutile):
+    """The stored graph reads a changed wrap as an atom that drifted
+    across a face and moves its bonds' images; a fold is the written
+    coordinate jumping with the atom still, and must not be read so."""
+    from xtal.core import bonding, symmetry
+    structure = symmetry.reduce_to_p1(rutile)
+    structure.sites[3].frac = structure.sites[3].frac + [1, 0, -2]
+    structure.touch(Change.POSITIONS)   # as a CIF may write it
+    lengths = sorted(round(b.distance, 6)
+                     for b in bonding.perceive(structure))
+    structure.wrap_sites()
+    cell = p1.expand(structure)
+    drawn = sorted(
+        round(float(np.linalg.norm(structure.lattice.to_cart(
+            cell.frac[b.j] + np.array(b.image) - cell.frac[b.i]))), 6)
+        for b in bonding.perceive(structure))
+    assert drawn == lengths
+
+
+def test_a_fold_through_an_operation_keeps_the_bond(rutile):
+    """In a group the far end is op(j) + image, so a fold of j moves
+    it by the operation's rotation of the fold, not the fold itself."""
+    from xtal.core.structure import Bond
+    ops = rutile.space_group.operations
+    k = next(k for k, op in enumerate(ops)
+             if not np.allclose(op.rot, np.eye(3)))
+    rutile.set_bonds([Bond(0, 1, (0, 0, 0), op=k)])
+    before = drawn_length(rutile, rutile.bonds[0])
+    rutile.fold_sites([s.frac + [1, -2, 3] for s in rutile.sites])
+    assert drawn_length(rutile, rutile.bonds[0]) == pytest.approx(before)
 
 
 # ----------------------------------------------------------- the table

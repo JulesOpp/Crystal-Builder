@@ -805,6 +805,9 @@ class Document(QObject):
             atoms = sel.expand_fragment(self.graph, atoms)
         elif how == "orbit":
             atoms = sel.symmetry_orbit(self.cell, atoms)
+        elif how == "neighbours":
+            self.select(sel.neighbours_only(self.graph, atoms), "set")
+            return
         elif how == "radius":
             atoms = sel.within_radius(self.cell,
                                       self._structure.lattice, atoms,
@@ -812,6 +815,35 @@ class Document(QObject):
         else:
             raise ValueError(f"unknown expansion {how!r}")
         self.select(atoms, "set", with_bonds=True)
+
+    def pick(self, rule: str, how: str = "replace", **args):
+        """The selection one rule would leave, combined ``how`` with
+        this one -- without applying it.
+
+        The Select dialog's live count asks this, and
+        :meth:`select_by` applies exactly what it returns, so the
+        number beside the button is the number the button selects.
+        """
+        extra = {}
+        if rule == "bonds" and args.get("order") is not None:
+            extra["orders"] = bonding.orders(self._structure)
+        if rule == "net":
+            extra["topology"] = bonding.topology_graph(self._structure)
+        picked = sel.pick(rule, self.cell, self.graph,
+                          self._structure.lattice,
+                          self.selection.atoms, **extra, **args)
+        return sel.combine(self.selection, picked, how)
+
+    def select_by(self, rule: str, how: str = "replace", **args) -> str:
+        """Apply one rule of the Select dialog; returns what it left
+        selected, for the status bar.  Not an undo step, as no
+        selection is."""
+        chosen = self.pick(rule, how, **args)
+        self.selection.set_atoms(chosen.order)
+        self.selection.bonds = chosen.bonds
+        self.selection.topology = chosen.topology
+        self.selectionChanged.emit()
+        return self.selection_summary()
 
     def selected_sites(self) -> set:
         return sel.sites_for(self.cell, self.selection.atoms)
@@ -1616,6 +1648,16 @@ class Document(QObject):
     def shift_origin(self, shift):
         return self.operate(cell_commands.ShiftOrigin(shift))
 
+    def selection_centring_shift(self):
+        """The origin shift that centres the selected atoms in the
+        cell, or ``None`` with nothing selected -- what *Centre the
+        selection* in the Move origin dialog fills in."""
+        from xtal.core import supercell
+        atoms = sorted(self.selection.atoms)
+        if not atoms:
+            return None
+        return supercell.centring_shift(self._structure, atoms)
+
     def wrap_into_cell(self):
         return self.operate(cell_commands.WrapIntoCell())
 
@@ -2088,8 +2130,11 @@ class Document(QObject):
 
     def fill_pores(self, guest: Fragment, count: int,
                    overlap_scale: float = fill.DEFAULT_OVERLAP_SCALE,
-                   seed: int | None = None) -> str:
-        """Put up to ``count`` copies of ``guest`` into the empty space.
+                   seed: int | None = None, beside: bool = False,
+                   near=fill.NEAR) -> str:
+        """Put up to ``count`` copies of ``guest`` into the empty space
+        -- or, ``beside``, one by each selected atom, and ``count`` is
+        not read.
 
         One undo step, the reduction to P1 a symmetric host needs
         included, and the new molecules left selected so that what
@@ -2097,15 +2142,38 @@ class Document(QObject):
         empty entry on the stack makes Ctrl+Z lie.  Bonds are not
         recalculated -- see :class:`InsertMolecules`.
         """
+        anchors = sorted(self.selection.atoms) if beside else None
+        if beside and not anchors:
+            return "select the atoms to put one beside first"
         placement = fill.place(self._structure, guest, count,
-                               overlap_scale=overlap_scale, seed=seed)
+                               overlap_scale=overlap_scale, seed=seed,
+                               anchors=anchors, near=near)
         if not placement.placed:
+            if beside:
+                return (f"no room was found for {guest.formula} beside "
+                        f"any of the {len(anchors)} selected atom(s)")
             return (f"no room was found for {guest.formula}"
                     if count else "nothing to place")
-        command = InsertMolecules(guest, placement.positions)
+        label = (f"Place {placement.placed} {guest.formula} beside "
+                 f"atoms" if beside else None)
+        command = InsertMolecules(guest, placement.positions, label)
         self.run(command)
         self.select(_atoms_of_sites(self.cell, command.indices))
         return placement.message()
+
+    def substitute(self, group, per_ring: bool = False):
+        """Replace the selected hydrogens -- or, ``per_ring``, one
+        hydrogen of every aromatic ring -- with ``group``, as one undo
+        step.  Returns the report: its message, and the warnings a
+        reduction to P1 or a group with no room owes the user.
+
+        See :class:`xtal.commands.atoms.SubstituteHydrogens` for what
+        a space group allows, and :mod:`xtal.build.substitute` for
+        where the group goes.
+        """
+        atoms = () if per_ring else sorted(self.selection.atoms)
+        return self.operate(atom_commands.SubstituteHydrogens(
+            group, atoms, per_ring=per_ring))
 
     def duplicate_selection(self, offset=None) -> str:
         fragment = self.copy_selection()

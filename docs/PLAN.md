@@ -107,8 +107,7 @@ Crystal-Builder/
 ├── .github/workflows/ci.yml  # ruff + pytest, offscreen Qt on Linux
 ├── docs/
 │   ├── PLAN.md               # this file: the architecture, and the phases that built it
-│   ├── ROADMAP.md            # the delivery plan for TODO.md — phases A onwards
-│   └── TODO.md               # raised by using the app; an entry is deleted when it ships
+│   └── TODO.md               # everything owed, scheduled first; deleted when it ships
 ├── xtal/                     # ---- CORE (no Qt, no VTK) ----
 │   ├── core/
 │   │   ├── elements.py       # Z, symbol, mass, covalent/vdW radii, CPK+VESTA colours, valence
@@ -600,7 +599,7 @@ measurement table, the structure info panel, labels, recent files and
 drag-and-drop, merge duplicates, `.xtalproj`, tabs, the polyhedral
 style, the cell transformation dialog and the Zeo++ bridge were all
 here and are all in. What is below has not been built, and what has a
-schedule has it in [ROADMAP.md](ROADMAP.md).
+schedule has it in [TODO.md](TODO.md) § Scheduled.
 
 **High value, cheap**
 * Bond-length/angle listing and coordination table, exportable to CSV.
@@ -732,10 +731,10 @@ and Zeo++ and DFTB+ went in through it and through
 the claim phase 9 was to prove. What it still owes is
 `docs/extending.md` and a plugin shipped from outside the tree.
 
-Work that came out of using the application, and has not been scheduled
-into a phase yet, lives in [TODO.md](TODO.md); the plan for delivering
-it -- phases A to N, and where phase 8 above falls among them -- is
-[ROADMAP.md](ROADMAP.md).
+Work that came out of using the application lives in
+[TODO.md](TODO.md), scheduled phases first.  The delivery plan that
+ran phases A to N was `docs/ROADMAP.md`, folded into TODO.md on
+2026-09-28; `git log -- docs/ROADMAP.md` has it.
 
 ---
 

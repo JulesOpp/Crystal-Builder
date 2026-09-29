@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from xtal.commands.base import Command
+from xtal.commands.base import Command, StructureOperation
 from xtal.core import bonding, p1, transforms
 from xtal.core import elements as el
 from xtal.core.site import Site
@@ -217,7 +217,16 @@ class DeleteSites(Command):
 
 
 class SetElement(Command):
-    """Retype sites."""
+    """Retype sites, keeping the bonds they had.
+
+    It used to perceive the whole cell again, because a stored graph
+    over other elements reads as another crystal -- so turning oxygens
+    into sulfur could bond them to whatever the new cutoffs reached.
+    The graph is carried across instead
+    (:func:`xtal.core.bonding.hold_through_retype`) and put back as it
+    was on undo; Recalculate Bonds is how to ask what the new elements
+    bond to.
+    """
 
     change = Change.TOPOLOGY
 
@@ -226,19 +235,25 @@ class SetElement(Command):
         self.symbol = el.parse_symbol(symbol)
         self.label = f"Change element to {self.symbol}"
         self._old: list[str] = []
+        self._perceived = None          # see AddSites._perceived
 
     def do(self, host) -> None:
         structure = host.structure
+        bonding.prepare_hold(structure)
+        self._perceived = structure.perceived
+        before = p1.expand(structure)
         self._old = [structure.sites[i].element for i in self.indices]
         for index in self.indices:
             structure.sites[index].element = self.symbol
         structure.touch(Change.TOPOLOGY)
+        bonding.hold_through_retype(structure, before)
 
     def undo(self, host) -> None:
         structure = host.structure
         for index, symbol in zip(self.indices, self._old, strict=True):
             structure.sites[index].element = symbol
         structure.touch(Change.TOPOLOGY)
+        structure.perceived = self._perceived
 
 
 class SetSiteProperties(Command):
@@ -559,3 +574,136 @@ def new_site(element: str, frac, occupancy: float = 1.0,
 
 def _copy_value(value):
     return value.copy() if isinstance(value, np.ndarray) else value
+
+
+class SubstituteHydrogens(StructureOperation):
+    """Hydrogens replaced by a group, as one undo step.
+
+    ``atoms`` are P1 atoms, each a hydrogen; or ``per_ring`` takes one
+    hydrogen of every aromatic ring, the one whose group has the most
+    room.  The placing is :mod:`xtal.build.substitute`; this decides
+    what a space group allows and says what it did.
+
+    **A selected hydrogen stands for its site**, as every edit of a
+    site does, so in a cell with a group the whole orbit is
+    substituted and the group is kept -- provided the group keeps the
+    hydrogen's own site symmetry.  One that does not (an NH2 whose
+    hydrogens are off the mirror its carbon sits on) would be
+    multiplied onto itself, so then the cell is reduced to P1 inside
+    this step, every image substituted one by one, and the report
+    says so.  **One per ring** can never keep a group -- one
+    hydrogen of four is not an orbit of anything -- and always
+    reduces, saying so.
+    """
+
+    change = Change.ALL
+
+    def __init__(self, group, atoms=(), per_ring: bool = False):
+        super().__init__()
+        from xtal.build import substitute
+
+        self.group = (group if isinstance(group, substitute.Group)
+                      else substitute.group(group))
+        self.atoms = tuple(sorted({int(a) for a in atoms}))
+        self.per_ring = bool(per_ring)
+        self.label = (f"Substitute rings with {self.group.name}"
+                      if per_ring else
+                      f"Replace H with {self.group.name}")
+
+    def apply_to(self, structure):
+        from xtal.build import substitute
+        from xtal.core.symmetry import SymmetryReport, reduce_to_p1
+
+        before = p1.expand(structure).n_atoms
+        notes: list[str] = []
+        if structure.space_group.is_p1:
+            out = structure.copy()
+            plan = substitute.plan(out, self.group, self.atoms,
+                                   self.per_ring)
+        elif self.per_ring:
+            out = reduce_to_p1(structure)
+            plan = substitute.plan(out, self.group, per_ring=True)
+            notes.append(f"reduced from {structure.space_group.short_name}"
+                         f" to P1 first: one group per ring is not an "
+                         f"orbit of any group")
+        else:
+            out, plan = self._keeping_the_group(structure)
+            if out is None:
+                out = reduce_to_p1(structure)
+                plan = substitute.plan(out, self.group,
+                                       self._orbits(structure))
+                notes.append(
+                    f"reduced from {structure.space_group.short_name} to "
+                    f"P1 first: {self.group.name} does not keep the "
+                    f"symmetry of the site it replaces, and would have "
+                    f"been multiplied onto itself")
+            else:
+                return out, self._said(structure, out, plan, before,
+                                       notes, applied=True)
+        if not plan.placements:
+            said = ("no aromatic ring with a hydrogen on it"
+                    if self.per_ring else "nothing to substitute")
+            if plan.skipped:
+                said += ": " + "; ".join(plan.skipped[:4])
+            return structure, SymmetryReport(ok=False, message=said)
+        return out, self._said(structure, out, plan, before, notes)
+
+    def _keeping_the_group(self, structure):
+        """``(result, plan)`` with the group kept, or ``(None, None)``
+        when the group would not survive it."""
+        from xtal.build import substitute
+
+        cell = p1.expand(structure)
+        chosen: dict[int, int] = {}
+        for atom in self.atoms:
+            chosen.setdefault(int(cell.site_idx[atom]), atom)
+        out = structure.copy()
+        plan = substitute.plan(out, self.group, sorted(chosen.values()),
+                               representatives=True)
+        if not plan.placements:
+            return out, plan
+        orbit = {site: len(cell.indices_of_site(site))
+                 for site in (int(cell.site_idx[p.hydrogen])
+                              for p in plan.placements)}
+        expected = cell.n_atoms + sum(
+            orbit[int(cell.site_idx[p.hydrogen])] * (self.group.n_atoms - 1)
+            for p in plan.placements)
+        self._sites = substitute.apply(out, plan)
+        self._replaced = sum(orbit.values())
+        if p1.expand(out).n_atoms != expected:
+            return None, None
+        return out, plan
+
+    def _orbits(self, structure) -> list[int]:
+        """Every image of every selected hydrogen's site -- the atoms
+        that are the same P1 atoms once the cell is reduced."""
+        cell = p1.expand(structure)
+        sites = {int(cell.site_idx[a]) for a in self.atoms}
+        return sorted(int(k) for site in sites
+                      for k in cell.indices_of_site(site))
+
+    def _said(self, structure, out, plan, before, notes,
+              applied: bool = False):
+        from xtal.build import substitute
+        from xtal.build.clearance import CLEAR
+        from xtal.core.symmetry import SymmetryReport
+
+        sites = self._sites if applied else substitute.apply(out, plan)
+        room = substitute.closest_approach(out, sites)
+        after = p1.expand(out).n_atoms
+        message = (f"replaced {len(plan.placements)} H with "
+                   f"{self.group.name} ({self.group.formula})")
+        if applied:
+            message = (f"replaced {self._replaced} H with "
+                       f"{self.group.name} ({self.group.formula}), "
+                       f"{len(plan.placements)} site(s), keeping "
+                       f"{structure.space_group.short_name}")
+        warnings = list(notes) + list(plan.skipped)
+        if room < CLEAR:
+            warnings.append(
+                f"a {self.group.name} comes {room:.2f} A from an atom it "
+                f"is not bonded to: the ring it is on would have to "
+                f"turn to make room, and nothing turns it")
+        return SymmetryReport(ok=True, message=message,
+                              warnings=warnings, n_before=before,
+                              n_after=after)

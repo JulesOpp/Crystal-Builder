@@ -232,3 +232,99 @@ def test_a_stated_bond_type_on_the_guest_stays_stated(dry_ice):
                         host)
     assert sorted(b.stated for b in host.structure.bonds) == \
         [False, True]
+
+
+# ---------------------------------------------- one beside each atom
+
+@pytest.fixture
+def sodium():
+    from xtal.commands.clipboard import Fragment
+
+    return Fragment(elements=("Na",), cart=np.zeros((1, 3)),
+                    occupancies=(1.0,), labels=("Na1",))
+
+
+def _carboxylate_oxygens(structure, n):
+    """The first ``n`` oxygens of the P1 cell that are bonded to a
+    carbon -- MOF-5's carboxylates, not its mu4-O."""
+    cell = p1.expand(structure)
+    graph = bonding.graph(structure)
+    return [i for i, e in enumerate(cell.elements)
+            if e == "O" and any(cell.elements[j] == "C"
+                                for j in graph.neighbors(i))][:n]
+
+
+def _minimum_image(lattice, a, b):
+    d = lattice.to_frac(np.asarray(b) - np.asarray(a))
+    d -= np.round(d)
+    return float(np.linalg.norm(lattice.to_cart(d)))
+
+
+def test_one_guest_is_placed_beside_each_anchor(mof5, sodium):
+    """A counter-ion goes by the site it balances, not wherever a pore
+    has room: one per selected atom, each inside the shell around its
+    own."""
+    anchors = _carboxylate_oxygens(mof5, 12)
+    placement = fill.place(mof5, sodium, 0, anchors=anchors, seed=1)
+
+    assert placement.placed == 12 and placement.missed == ()
+    cell = p1.expand(mof5)
+    inner, outer = fill.NEAR
+    for anchor, ion in zip(anchors, placement.positions, strict=True):
+        at = mof5.lattice.to_cart(cell.frac[anchor])
+        assert inner - 1e-9 <= _minimum_image(mof5.lattice, at,
+                                              ion[0]) <= outer + 1e-9
+    assert "one beside each of 12 atom(s)" in placement.message()
+
+
+def test_a_guest_beside_an_anchor_bonds_to_nothing(mof5, sodium):
+    """Placed beside, never bonded to: the ion arrives with no bonds,
+    and the framework's graph is what it was."""
+    host = Host(mof5)
+    before = p1.expand(mof5).n_atoms
+    bonds_before = len(bonding.graph(mof5).bonds)
+    placement = fill.place(mof5, sodium, 0,
+                           anchors=_carboxylate_oxygens(mof5, 6), seed=2)
+    CommandStack().push(InsertMolecules(sodium, placement.positions),
+                        host)
+
+    graph = bonding.graph(host.structure)
+    ions = range(before, p1.expand(host.structure).n_atoms)
+    assert len(ions) == 6
+    assert all(graph.neighbors(i) == [] for i in ions)
+    assert len(graph.bonds) == bonds_before
+
+
+def test_an_anchor_with_no_room_is_named_not_skipped(dry_ice, sodium):
+    """Dry ice has no room for a sodium anywhere near an oxygen, and
+    being told "placed 0" says nothing about *which* site is left
+    unbalanced -- so the site is named."""
+    cell = p1.expand(dry_ice)
+    oxygen = cell.elements.index("O")
+    placement = fill.place(dry_ice, sodium, 0, anchors=[oxygen], seed=3,
+                           max_attempts=200)
+
+    assert placement.placed == 0
+    assert placement.missed == (cell.labels[oxygen] or "O",)
+    assert f"no room beside {placement.missed[0]}" in placement.message()
+
+
+def test_guests_beside_anchors_keep_clear_of_each_other(mof5, sodium):
+    """Both oxygens of one carboxylate, 2.2 A apart: the two ions share
+    a neighbourhood, and the second is tested against the first
+    exactly as a pore's solvent is."""
+    graph = bonding.graph(mof5)
+    cell = p1.expand(mof5)
+    first = _carboxylate_oxygens(mof5, 1)[0]
+    carbon = next(j for j in graph.neighbors(first)
+                  if cell.elements[j] == "C")
+    second = next(j for j in graph.neighbors(carbon)
+                  if cell.elements[j] == "O" and j != first)
+    placement = fill.place(mof5, sodium, 0, anchors=[first, second],
+                           seed=4)
+
+    assert placement.placed == 2
+    one, other = placement.positions
+    radius = _radii(["Na"])
+    assert _closest_contact(one, other, mof5.lattice, radius,
+                            radius) >= fill.DEFAULT_OVERLAP_SCALE - 1e-9

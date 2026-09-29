@@ -282,6 +282,12 @@ class JobResult:
     #: :attr:`overlay` is: nothing else reads it, and the report is
     #: what the Results panel shows.
     answer: Any = None
+    #: What a run that *succeeded* still has to say, as ``(code,
+    #: sentence)`` pairs -- a build whose atoms overlap is a framework
+    #: and a warning, not a failure.  The code is one of the agent's
+    #: closed set (:data:`xtal.agent.diagnostics.CODES`), which is how
+    #: a script is told the same thing a person is.
+    warnings: tuple = ()
 
     @classmethod
     def stopped(cls, message: str = "stopped") -> JobResult:

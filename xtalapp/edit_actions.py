@@ -15,6 +15,7 @@ from xtal.commands.clipboard import Fragment
 from xtalapp.dialogs.add_atom import AddAtomDialog
 from xtalapp.dialogs.add_centroid import AddCentroidDialog
 from xtalapp.dialogs.bond_rules import BondRulesDialog
+from xtalapp.dialogs.select import SelectDialog
 from xtalapp.dialogs.select_bonds import SelectBondsDialog
 
 
@@ -308,6 +309,29 @@ class EditActions:
         if answer is not None:
             self.show_status(document.select_bonds_between(
                 answer["first"], answer["second"]))
+
+    def open_select_dialog(self) -> None:
+        """Select by a rule, over the tab in front.
+
+        Modeless, and one at a time: a second press brings the open
+        one forward if it is over this tab, and replaces it if not, so
+        a rule is never applied to a structure other than the one the
+        form was filled in for.
+        """
+        document = self.current_document()
+        if document is None:
+            return
+        dialog = getattr(self, "_select_dialog", None)
+        try:
+            if dialog is not None and dialog.isVisible():
+                if dialog.document is document:
+                    dialog.raise_()
+                    dialog.activateWindow()
+                    return
+                dialog.close()
+        except RuntimeError:        # deleted on close
+            pass
+        self._select_dialog = SelectDialog.open_for(document, self)
 
     def expand_selection(self, how: str) -> None:
         document = self.current_document()

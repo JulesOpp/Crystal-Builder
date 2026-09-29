@@ -1,7 +1,8 @@
 """
 xtalapp.dialogs.stl_export
 ==========================
-Where the STL goes, and how the model is built.
+Where the STL goes, and how the model is built; and, the same form,
+where Render in Blender's picture goes.
 
 The generated form with two things it cannot do: Browse asks where to
 *save*, and the path starts filled in -- the structure's own name, in
@@ -26,14 +27,18 @@ from xtalapp.dialogs.module_form import ModuleDialog
 
 class StlExportDialog(ModuleDialog):
 
+    TITLE = "Export as STL"
+    FILTER = "STL meshes (*.stl)"
+    SUFFIX = ".stl"
+
     def __init__(self, module, action, parent=None, initial=None):
         super().__init__(module, action, parent, initial)
-        self.setWindowTitle("Export as STL")
+        self.setWindowTitle(self.TITLE)
         self.output = self.form.widgets["output"]
         self.output.save = True
-        self.output.filter = "STL meshes (*.stl)"
+        self.output.filter = self.FILTER
         if not self.output.text().strip():
-            self.output.setText(str(suggested_path(parent)))
+            self.output.setText(str(suggested_path(parent, self.SUFFIX)))
         self.form.changed.connect(self._refresh)
         self._refresh()
 
@@ -49,8 +54,16 @@ class StlExportDialog(ModuleDialog):
         return dialog.values()
 
 
-def suggested_path(window) -> Path | str:
-    """``<last directory>/<structure name>.stl``, or nothing to go on.
+class RenderDialog(StlExportDialog):
+
+    TITLE = "Render in Blender"
+    FILTER = "PNG images (*.png)"
+    SUFFIX = ".png"
+
+
+def suggested_path(window, suffix: str = ".stl") -> Path | str:
+    """``<last directory>/<structure name><suffix>``, or nothing to go
+    on.
 
     Read defensively off whatever the dialog was parented to: the
     Modules tree and the File menu both pass the window, a test may
@@ -64,4 +77,4 @@ def suggested_path(window) -> Path | str:
     stem = Path(document.title.rstrip("*")).stem or "structure"
     settings = getattr(window, "settings", None)
     folder = Path(getattr(settings, "last_directory", "") or Path.home())
-    return folder / f"{stem}.stl"
+    return folder / f"{stem}{suffix}"
