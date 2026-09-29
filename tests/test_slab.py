@@ -53,6 +53,19 @@ def test_a_rutile_110_slab_has_c_normal_to_the_plane_and_the_vacuum_asked_for(  
     assert slab.structure.is_p1
 
 
+def test_no_atom_sits_on_the_face_of_the_cell(halite):
+    """The cut passes through a plane of atoms, and an atom on the
+    cell's face is drawn at both faces: the bottom layer again at the
+    top of the vacuum, floating."""
+    slab = make_slab(halite, (1, 0, 0), layers=2, vacuum=15.0)
+    height = np.linalg.norm(slab.structure.lattice.matrix[2])
+    z = slab.structure.frac[:, 2] * height
+    assert z.min() == pytest.approx(0.5)
+    assert z.max() < 0.5 + slab.thickness
+    # And the gap to the next slab up is the vacuum asked for.
+    assert height - slab.thickness == pytest.approx(15.0)
+
+
 @pytest.mark.parametrize("hkl, layers", [((1, 0, 0), 2), ((1, 1, 1), 3)])
 def test_the_atom_count_is_layers_times_the_cell(halite, hkl, layers):
     slab = make_slab(halite, hkl, layers=layers, vacuum=10.0)

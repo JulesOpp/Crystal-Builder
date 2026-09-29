@@ -194,7 +194,12 @@ class SymmetryActions:
     def slab_dialog(self) -> None:
         document = self.current_document()
         if document is not None:
-            self._report(SlabDialog.ask(document, self), "Slab")
+            report = SlabDialog.ask(document, self)
+            self._report(report, "Slab")
+            # A slab's cell is a different shape along a different
+            # normal, and a camera framing the crystal frames it badly.
+            if report is not None and report.ok:
+                self.reset_view()
 
     def edit_cell(self) -> None:
         document = self.current_document()

@@ -31,11 +31,13 @@ from math import gcd
 
 import numpy as np
 
-from xtal.core import bonding, p1
-from xtal.core.elements import is_dummy as el_is_dummy
+from xtal.core import bonding, elements, p1
 from xtal.core.lattice import Lattice
 from xtal.core.spacegroup import SpaceGroup
 from xtal.core.structure import Structure
+
+#: How far above the bottom of the cell the slab starts, in Angstrom.
+SLAB_FLOOR = 0.5
 
 
 @dataclass(frozen=True)
@@ -146,6 +148,12 @@ def make_slab(structure: Structure, hkl, layers: int = 1,
                             rcond=None)[0]
     thickness = abs(rise) * layers
     height = thickness + float(vacuum)
+    # Off the floor, by a little of the vacuum.  The cut plane passes
+    # through atoms, and an atom on the face of the cell is drawn at
+    # both faces -- the bottom layer again at the top of the vacuum.
+    # Moving the origin is free: the gap between one slab and the
+    # next is the vacuum asked for either way.
+    floor = min(SLAB_FLOOR, float(vacuum) / 2) / height
     lattice = Lattice(np.array([a, b, normal * np.sign(rise) * height]))
 
     def place(k, m):
@@ -155,8 +163,8 @@ def make_slab(structure: Structure, hkl, layers: int = 1,
         z = first[k, 2] + m
         plane = first[k, :2] + along * z
         cell = np.floor(plane + 1e-9).astype(int)
-        return (np.array([*(plane - cell), z * abs(rise) / height]),
-                cell)
+        return (np.array([*(plane - cell),
+                          floor + z * abs(rise) / height]), cell)
 
     sites, cells = [], {}
     for m in range(layers):
@@ -199,7 +207,7 @@ def make_slab(structure: Structure, hkl, layers: int = 1,
     stored = one.perceived
     zero = np.zeros((n, 3), dtype=int)
     base = bonding.rebase(stored.bonds, stored.tau, zero)
-    dummy = [el_is_dummy(site.element) for site in one.sites]
+    dummy = [elements.is_dummy(site.element) for site in one.sites]
     perceived, cut = [], 0
     for bond in base:
         chemical = not (dummy[bond.i] or dummy[bond.j])
