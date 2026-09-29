@@ -34,6 +34,7 @@ from __future__ import annotations
 import os
 import sys
 
+from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QComboBox,
@@ -266,9 +267,10 @@ def build_actions(window):
     add("show_pores", "Pore network",
         lambda v: window.set_view(show_pores=v), checkable=True,
         checked=True,
-        tip="Draw what a porosity run found: the largest pore where "
-            "it sits, and the channels it belongs to.  Nothing is "
-            "drawn until Modules > Zeo++ has answered")
+        tip="Draw the channel skeleton and the surface a porosity "
+            "run found.  The pore sphere is its own box in the Style "
+            "panel.  Nothing is drawn until Modules > Zeo++ has "
+            "answered")
     add("clear_overlays", "Clear c&harges and orbital",
         window.clear_overlays,
         tip="Take a DFTB+ run's atom colouring and orbital lobes off "
@@ -499,6 +501,9 @@ def build_actions(window):
 
     add("supercell", "&Supercell...", window.supercell_dialog,
         tip="na x nb x nc, or a general integer transformation")
+    add("slab", "S&lab...", window.slab_dialog,
+        tip="Cut a slab along a lattice plane (hkl), with vacuum "
+            "above it")
     add("edit_cell", "&Edit cell...", window.edit_cell,
         tip="Change the cell parameters, keeping fractional or "
             "cartesian coordinates")
@@ -667,7 +672,7 @@ def build_menus(window):
 
     cell_menu = submenu(bar, "&Cell")
     window.actions_.fill_menu(cell_menu, [
-        "edit_cell", "supercell", None,
+        "edit_cell", "supercell", "slab", None,
         "niggli", "delaunay", None, "wrap_cell", "move_origin"])
 
     measure_menu = submenu(bar, "&Measure")
@@ -943,8 +948,41 @@ def build_toolbar(window):
         action = window.actions_[name]
         action.setIconText(axis)
         bar.addAction(action)
+    # A box the toolbar holds is not where a keystroke is aimed unless
+    # it was clicked: an editable field keeps its own Ctrl+Z, and the
+    # element combo held the focus from startup and again after every
+    # dialog closed -- so Ctrl+Z undid the letter C and never the
+    # slab.  Clicked into, it still hands Undo and Redo to the window.
+    window._undo_goes_to_the_window = _UndoGoesToTheWindow(window)
+    for box in (window.element_combo, *window.cell_spins):
+        box.setFocusPolicy(Qt.ClickFocus)
+        field = box.lineEdit()
+        field.setFocusPolicy(Qt.ClickFocus)
+        # Both: a combo answers the override for its field itself.
+        for widget in (box, field):
+            widget.installEventFilter(window._undo_goes_to_the_window)
     window.addToolBar(bar)
     window.toolbar = bar
+
+
+class _UndoGoesToTheWindow(QObject):
+    """Refuse a text field's claim on Undo and Redo, so the window's
+    actions get them.
+
+    A line edit accepts the *ShortcutOverride* for the undo keys, which
+    is Qt for "this key is mine, do not fire the shortcut".  Swallowing
+    that one event leaves it unaccepted, and the window's Undo fires.
+    For a field that holds an element symbol or a cell count, undoing
+    the typing is worth nothing next to undoing the structure.
+    """
+
+    KEYS = (QKeySequence.Undo, QKeySequence.Redo)
+
+    def eventFilter(self, watched, event):              # noqa: N802
+        if (event.type() == QEvent.ShortcutOverride
+                and any(event.matches(k) for k in self.KEYS)):
+            return True
+        return super().eventFilter(watched, event)
 
 def popup(menu, position) -> None:
     """Raise a context menu and wait on it, in one place.

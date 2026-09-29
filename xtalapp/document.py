@@ -356,11 +356,15 @@ class Document(QObject):
         clears the modified flag, and never pretends the format kept
         what it has nowhere to put.
         """
-        FORMATS.write(self.exportable(selection_only), Path(path),
-                      **kwargs)
+        fmt = (FORMATS.get(kwargs["fmt"]) if kwargs.get("fmt")
+               else FORMATS.by_extension(path))
+        FORMATS.write(self.exportable(selection_only,
+                                      clean=not fmt.settles_bonds),
+                      Path(path), **kwargs)
         return Path(path)
 
-    def exportable(self, selection_only: bool = False) -> Structure:
+    def exportable(self, selection_only: bool = False,
+                   clean: bool = True) -> Structure:
         """What an export would write.
 
         Cleaned, which is the other half of the workspace keeping
@@ -368,11 +372,13 @@ class Document(QObject):
         markers the user placed and the net drawn over a framework,
         and the file somebody else opens carries neither.  See
         :func:`xtal.io.export.for_export` for why each goes.
+        ``clean=False`` is for a format that reads the bond graph and
+        drops the markers itself (``Format.settles_bonds``).
         """
-        if not selection_only:
-            return for_export(self._structure)
-        return for_export(sel.substructure(
-            self._structure, self.cell, self.selection.atoms))
+        structure = (self._structure if not selection_only
+                     else sel.substructure(self._structure, self.cell,
+                                           self.selection.atoms))
+        return for_export(structure) if clean else structure
 
     # ==================================================================
     #  STRUCTURE
@@ -1638,6 +1644,11 @@ class Document(QObject):
 
     def make_supercell(self, na: int, nb: int, nc: int):
         return self.operate(cell_commands.Supercell(na, nb, nc))
+
+    def make_slab(self, hkl, layers: int = 1, vacuum: float = 15.0,
+                  shift: float = 0.0):
+        return self.operate(
+            cell_commands.MakeSlab(hkl, layers, vacuum, shift))
 
     def transform_cell(self, p_matrix):
         return self.operate(cell_commands.TransformCell(p_matrix))

@@ -90,7 +90,7 @@ rather than something two files happen to produce.
 | 4 | Structure | add atom/centroid/hydrogens/molecule, substitute hydrogens, fill pores, mark connection points, bonds, bond type, **and the six mouse modes** |
 | 5 | Measure | measure selection, planes |
 | 6 | Symmetry | find, set group, subgroup, standardise, primitive, Wyckoff, merge, invert, P1 |
-| 7 | Cell | edit cell, supercell, Niggli, Delaunay, wrap |
+| 7 | Cell | edit cell, supercell, slab, Niggli, Delaunay, wrap |
 | 8 | Modules | one submenu per registered module, a separator between `Module.group`s (energy · build · characterise · export) |
 | 9 | View | style, show, clear charges and orbital, background, display range, boundary, projection, axis views |
 | 10 | Help | log, about |

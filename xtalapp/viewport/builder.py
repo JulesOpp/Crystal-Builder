@@ -175,7 +175,8 @@ def build_scene(structure, settings, selection=None,
     faces = (_emit_planes(planes, cell, lattice, settings)
              if settings.show_planes else _no_planes())
     pore = (_emit_pores(pores, lattice, settings)
-            if settings.show_pores else _no_pores())
+            if settings.show_pores or settings.show_pore_spheres
+            else _no_pores())
     if orbital is not None and orbital.n_faces:
         pore = _with_orbital(pore, orbital, lattice)
 
@@ -1338,13 +1339,15 @@ def _emit_pores(network, lattice, settings):
     is worth drawing is the widest -- twice its radius is D_i, the
     number in the table beside it -- and the rest of the pore space is
     said by the skeleton, which is thin enough to see through.
-    ``settings.pore_all_nodes`` draws them all for somebody who wants
-    the fog.
+    ``settings.pore_spheres`` chooses instead the sphere D_if is --
+    the widest point of the channel the free sphere squeezes through,
+    which is also a node -- or every node, for somebody who wants the
+    fog.
 
     **The largest *free* sphere is not drawn and cannot be.**  D_f is
     the width of a bottleneck along an edge, and Zeo++ reports no edge
-    radii, so the honest picture is the largest *included* sphere at
-    its node and the path the free sphere travels along.  See
+    radii, so the honest picture is the included spheres at their
+    nodes and the path the free sphere travels along.  See
     :class:`xtal.analysis.porosity.PoreNetwork`.
     """
     if network is None or not (network.n_nodes
@@ -1355,22 +1358,36 @@ def _emit_pores(network, lattice, settings):
         return _no_pores()
 
     color = np.array(settings.pore_color, np.uint8)
-    largest = network.largest()
-    if settings.pore_all_nodes:
-        frac = np.asarray(network.nodes)
-        radii = np.asarray(network.radii)
-    elif largest is None:
-        # A surface-only network -- what the volume run produces.
+    if not settings.show_pore_spheres:
         frac = np.zeros((0, 3))
         radii = np.zeros(0)
+    elif settings.pore_spheres == "all":
+        frac = np.asarray(network.nodes)
+        radii = np.asarray(network.radii)
     else:
-        frac = np.asarray(largest[0], float).reshape(1, 3)
-        radii = np.array([largest[1]], float)
+        # None for a surface-only network -- what the volume run
+        # produces -- and for a D_if no node matches.
+        one = (network.along_free()
+               if settings.pore_spheres == "along_free"
+               else network.largest())
+        if one is None:
+            frac = np.zeros((0, 3))
+            radii = np.zeros(0)
+        else:
+            frac = np.asarray(one[0], float).reshape(1, 3)
+            radii = np.array([one[1]], float)
 
     centres, sizes = _repeat_nodes(frac, radii, lattice, settings,
                                    shifts)
-    starts, ends = _repeat_edges(network, lattice, settings, shifts)
-    points, faces = _repeat_surface(network, lattice, settings, shifts)
+    if settings.show_pores:
+        starts, ends = _repeat_edges(network, lattice, settings, shifts)
+        points, faces = _repeat_surface(network, lattice, settings,
+                                        shifts)
+    else:
+        # The sphere on its own, which is somebody asking where the
+        # cavity is without the skeleton drawn through it.
+        starts = ends = points = np.zeros((0, 3), np.float32)
+        faces = np.zeros((0, 3), int)
     return (centres, sizes,
             np.tile(color, (len(centres), 1)),
             starts, ends,

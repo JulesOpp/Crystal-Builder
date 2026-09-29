@@ -17,6 +17,7 @@ from xtalapp.dialogs.interpenetrate import InterpenetrateDialog
 from xtalapp.dialogs.merge_duplicates import MergeDuplicatesDialog
 from xtalapp.dialogs.origin import OriginDialog
 from xtalapp.dialogs.prepare import PrepareDialog
+from xtalapp.dialogs.slab import SlabDialog
 from xtalapp.dialogs.spacegroup import SpaceGroupDialog
 from xtalapp.dialogs.subgroup import SubgroupDialog
 from xtalapp.dialogs.supercell import SupercellDialog
@@ -189,6 +190,16 @@ class SymmetryActions:
         document = self.current_document()
         if document is not None:
             self._report(SupercellDialog.ask(document, self))
+
+    def slab_dialog(self) -> None:
+        document = self.current_document()
+        if document is not None:
+            report = SlabDialog.ask(document, self)
+            self._report(report, "Slab")
+            # A slab's cell is a different shape along a different
+            # normal, and a camera framing the crystal frames it badly.
+            if report is not None and report.ok:
+                self.reset_view()
 
     def edit_cell(self) -> None:
         document = self.current_document()

@@ -245,7 +245,11 @@ stress case).
   dummy loses its perceived ones.
   `AddSites(perceive=False)` and `bonding.hold_perception` are how;
   Add hydrogens is the deliberate exception, because bonding what it
-  adds is the whole operation.
+  adds is the whole operation. **A slab carries its graph**
+  (`xtal/core/slab.py`, Cell ▸ Slab…). Each bond goes to every copy of
+  its first atom and is kept where its partner is in the slab too, so
+  the bonds the surfaces cut are simply gone, and counted. A supercell
+  still perceives afresh.
 - **A site is on a special position when its coordinates say it is,
   to the precision they were written at.** `p1.SPECIAL_POSITION_TOL`
   is 0.05 A and is not a numerical tolerance: four decimal places on a
@@ -615,7 +619,10 @@ stress case).
   to know where D_f is.** Zeo++'s `-visVoro` gives every accessible
   Voronoi node with the radius that fits at it, so the largest
   *included* sphere is drawn at its node exactly — twice that radius
-  is the D_i in the table beside it. D_f is the width of a bottleneck
+  is the D_i in the table beside it. The Style panel can draw D_if
+  instead. It is also a node: the one whose diameter matches the
+  `.res` value to `porosity.DIF_TOL`, never the channel rows, which
+  gave HKUST-1 a D_if equal to its D_i. No match means no sphere. D_f is the width of a bottleneck
   on an *edge* and no Zeo++ output carries edge radii, so what is
   drawn for it is the path it travels along and the report says so.
   The network lives on the Document beside the planes: put there by a
@@ -667,7 +674,12 @@ stress case).
   nearly always a refinement's distance table, and reading one would
   bond a structure on open, which is what Recalculate Bonds exists to
   stay in charge of. `xtal.io.export.for_export` is the one door out:
-  no dummy atoms, no net edges, no suppressions. **A scan point's CIF
+  no dummy atoms, no net edges, no suppressions. The exception is a
+  format that writes bonds from the graph itself: the LAMMPS data file
+  (`xtal/io/lammps.py`, `Format.settles_bonds`). It is handed the
+  structure uncleaned, because once the suppressions are gone the
+  graph is perceived again. It drops the markers itself, as
+  `cellcut.cut_cell` does. **A scan point's CIF
   also carries the perceived graph** (`write_cif(perception=True)`,
   an `_xtal_perceived_bond_*` loop of P1 bonds), because its cell is
   not the one the bonds were perceived at and opening it would

@@ -209,14 +209,13 @@ RINGS = (("Benzene", "benzene"), ("Cyclohexane", "cyclohexane"))
 #: and needs no special case anywhere below it: ``*`` is what RDKit
 #: writes for one, ``*`` is what the box already accepts, and
 #: :func:`xtal.build.from_smiles` already turns it into
-#: :data:`~xtal.build.chem.CONNECTION`.
-#:
-#: rdeditor draws it ``R`` and there is no talking it out of that --
-#: its ``mol`` setter relabels every zero-atomic-number atom on the
-#: way in.  So the tooltip says so, rather than leaving somebody to
-#: work out why the canvas disagrees with the box and the tab.
+#: :data:`~xtal.build.chem.CONNECTION`.  It is drawn ``X``, as the
+#: structure names it -- see :func:`label_connection_points`.
 CONNECTION_TIP = ("Connection point -- an X in the structure and a "
-                  "* in the box; rdeditor draws it R")
+                  "* in the box")
+
+#: What a connection point is drawn as, on the canvas and the picture.
+CONNECTION_LABEL = "X"
 
 
 class _Tools(QWidget):
@@ -379,11 +378,34 @@ def _canvas():
     module docstring for what ``import rdeditor`` executes.
     """
     from rdeditor.molEditWidget import MolEditWidget
+    from rdeditor.molViewWidget import MolWidget
+
+    class _Canvas(MolEditWidget):
+        """rdeditor's canvas, drawing a connection point ``X``.
+
+        rdeditor labels every zero-atomic-number atom ``R``, in two
+        places: each atom its tools make comes from
+        :meth:`getNewAtom`, and the ``mol`` setter relabels any dummy
+        that arrives with no label or with ``*``.  A dummy already
+        labelled is left alone, so labelling it first is enough --
+        and the label is a drawing property that SMILES never writes,
+        so the box still reads ``*``.
+        """
+
+        def getNewAtom(self, chemEntity):          # noqa: N802, N803
+            atom = super().getNewAtom(chemEntity)
+            if atom.GetAtomicNum() == 0:
+                atom.SetProp("dummyLabel", CONNECTION_LABEL)
+            return atom
+
+        @MolWidget.mol.setter
+        def mol(self, mol):
+            MolWidget.mol.fset(self, label_connection_points(mol))
 
     root = logging.getLogger()
     level, handlers = root.level, list(root.handlers)
     try:
-        return MolEditWidget()
+        return _Canvas()
     finally:
         root.setLevel(level)
         root.handlers = handlers
@@ -436,6 +458,24 @@ def _raw_smiles(mol) -> str:
         return ""
 
 
+def label_connection_points(mol):
+    """``mol`` with every connection point labelled ``X``, in place.
+
+    Only an unlabelled dummy, or one labelled ``*`` or ``R`` -- the
+    two things RDKit and rdeditor call one -- so a label somebody
+    chose on purpose survives.  ``None`` passes through.
+    """
+    if mol is None:
+        return None
+    for atom in mol.GetAtoms():
+        if atom.GetAtomicNum() != 0:
+            continue
+        if (not atom.HasProp("dummyLabel")
+                or atom.GetProp("dummyLabel") in ("*", "R")):
+            atom.SetProp("dummyLabel", CONNECTION_LABEL)
+    return mol
+
+
 def canonical(text: str) -> str:
     """The string as RDKit would write it, or the string itself.
 
@@ -448,5 +488,6 @@ def canonical(text: str) -> str:
     return _raw_smiles(mol) if mol is not None else text
 
 
-__all__ = ["ACTIONS", "BONDS", "ELEMENTS", "MISSING", "RINGS",
-           "SketchEditor", "canonical", "installed", "is_dark"]
+__all__ = ["ACTIONS", "BONDS", "CONNECTION_LABEL", "ELEMENTS",
+           "MISSING", "RINGS", "SketchEditor", "canonical", "installed",
+           "is_dark", "label_connection_points"]

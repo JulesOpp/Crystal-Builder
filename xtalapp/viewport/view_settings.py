@@ -52,6 +52,20 @@ DEFAULT_STYLE = "ball_stick_occupancy"
 #: and only falls back for a value from a *newer* version.
 BOUNDARIES = ("in_range", "bonded", "half")
 
+#: Which pore sphere a porosity run's network is drawn with:
+#: ``(value, label, tooltip)``.  D_f is not among them and cannot be --
+#: see :class:`xtal.analysis.porosity.PoreNetwork`.
+PORE_SPHERES = (
+    ("largest", "Largest included (D_i)",
+     "One sphere, at the widest accessible node: D_i"),
+    ("along_free", "Along the free path (D_if)",
+     "One sphere, at the node that is the widest point of the channel "
+     "the free sphere squeezes through: D_if"),
+    ("all", "Every node",
+     "A sphere at every accessible Voronoi node.  Hundreds of them in "
+     "a cell"),
+)
+
 #: The net is drawn over the chemistry rather than in place of it, so
 #: it opens in one flat colour that is nobody's element, and the user
 #: can move it from there.
@@ -185,11 +199,16 @@ class ViewSettings:
     # until a run has answered, so a structure nobody has measured is
     # unaffected by the default.
     show_pores: bool = True
-    #: One sphere, at the widest node, or one at every node.  Off: a
-    #: framework's accessible network is hundreds of nodes in a cell
-    #: and thousands across a display range, and a translucent ball at
-    #: each is a fog over the crystal it is about.
-    pore_all_nodes: bool = False
+    #: Which sphere: one of :data:`PORE_SPHERES`.  One sphere by
+    #: default: a framework's accessible network is hundreds of nodes
+    #: in a cell and thousands across a display range, and a
+    #: translucent ball at each is a fog over the crystal it is about.
+    pore_spheres: str = "largest"
+    #: Whether that sphere is drawn.  Independent of ``show_pores``,
+    #: which is the channel skeleton and the surface: either can be
+    #: wanted without the other -- where the cavity is, or the path
+    #: through it with nothing hiding the framework.
+    show_pore_spheres: bool = True
     pore_color: tuple[int, int, int] = PORE_COLOR
     pore_edge_color: tuple[int, int, int] = PORE_EDGE_COLOR
     #: Fainter than a polyhedron and for the same reason a plane is:
@@ -309,7 +328,8 @@ class ViewSettings:
             "show_planes": self.show_planes,
             "plane_color": list(self.plane_color),
             "show_pores": self.show_pores,
-            "pore_all_nodes": self.pore_all_nodes,
+            "pore_spheres": self.pore_spheres,
+            "show_pore_spheres": self.show_pore_spheres,
             "pore_color": list(self.pore_color),
             "pore_edge_color": list(self.pore_edge_color),
             "pore_opacity": self.pore_opacity,
@@ -343,7 +363,8 @@ class ViewSettings:
         for key in ("style", "atom_scale", "bond_radius", "show_atoms",
                     "show_bonds", "show_cell", "show_axes",
                     "show_bond_orders", "show_topology",
-                    "show_planes", "show_pores", "pore_all_nodes",
+                    "show_planes", "show_pores", "pore_spheres",
+                    "show_pore_spheres",
                     "pore_opacity", "show_scale_bar", "depth_cue",
                     "depth_cue_strength", "depth_cue_start",
                     "depth_cue_end", "ellipsoid_probability",
@@ -356,6 +377,12 @@ class ViewSettings:
                 setattr(s, key, d[key])
         if s.boundary not in BOUNDARIES:
             s.boundary = cls.boundary
+        # A session saved before the choice had three values held a
+        # yes-or-no for every node.
+        if d.get("pore_all_nodes") and "pore_spheres" not in d:
+            s.pore_spheres = "all"
+        if s.pore_spheres not in {v for v, _l, _t in PORE_SPHERES}:
+            s.pore_spheres = cls.pore_spheres
         if "polyhedron_centres" in d:
             s.polyhedron_centres = tuple(d["polyhedron_centres"])
         for key in ("range_a", "range_b", "range_c"):

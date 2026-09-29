@@ -1134,6 +1134,16 @@ na x nb x nc, or a general integer transformation
 ```{index} Supercell...
 ```
 
+(cmd-slab)=
+### Slab...
+
+`slab`
+
+Cut a slab along a lattice plane (hkl), with vacuum above it
+
+```{index} Slab...
+```
+
 (cmd-niggli)=
 ### Niggli reduction
 
@@ -1413,7 +1423,7 @@ Draw a translucent quad at every plane in the Measure panel, with its normal on 
 
 `show_pores` · toggle
 
-Draw what a porosity run found: the largest pore where it sits, and the channels it belongs to.  Nothing is drawn until Modules > Zeo++ has answered
+Draw the channel skeleton and the surface a porosity run found.  The pore sphere is its own box in the Style panel.  Nothing is drawn until Modules > Zeo++ has answered
 
 ```{index} Pore network
 ```

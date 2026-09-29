@@ -107,6 +107,45 @@ class TransformCell(StructureOperation):
             f"transformed the basis (det P = {det})")
 
 
+class MakeSlab(StructureOperation):
+    """A slab cut along (hkl), ``layers`` spacings thick, with
+    ``vacuum`` Angstrom above it -- see :mod:`xtal.core.slab`.  The
+    bonds are carried, and the ones the surfaces cut are counted."""
+
+    change = Change.CELL | Change.SYMMETRY | Change.TOPOLOGY
+
+    def __init__(self, hkl, layers: int = 1, vacuum: float = 15.0,
+                 shift: float = 0.0):
+        super().__init__()
+        self.hkl = tuple(int(v) for v in hkl)
+        self.layers = int(layers)
+        self.vacuum = float(vacuum)
+        self.shift = float(shift)
+        self.label = "Slab ({} {} {})".format(*self.hkl)
+
+    def apply_to(self, structure):
+        from xtal.core.slab import make_slab
+
+        made = make_slab(structure, self.hkl, self.layers, self.vacuum,
+                         self.shift)
+        plane = " ".join(str(v) for v in made.hkl)
+        report = _report(
+            structure, made.structure,
+            f"({plane}) slab, {made.layers} layer"
+            f"{'s' if made.layers != 1 else ''}, "
+            f"{made.thickness:.2f} A thick under {made.vacuum:g} A of "
+            f"vacuum")
+        if made.cut:
+            # Said, not fixed: capping a cut atom is chemistry, and
+            # Add hydrogens is the user's to press.  In the message
+            # and not a warning, because a slab of anything bonded
+            # cuts bonds and a box every time would be noise.
+            report.message += (
+                f"; {made.cut} bond{'s' if made.cut != 1 else ''} cut "
+                f"at the surfaces, left unsaturated")
+        return made.structure, report
+
+
 class ReduceCell(StructureOperation):
     """Niggli- or Delaunay-reduce the cell: the same crystal on the
     shortest, most nearly orthogonal basis there is."""

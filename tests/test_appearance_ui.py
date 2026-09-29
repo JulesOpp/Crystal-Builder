@@ -100,6 +100,36 @@ def test_element_colours_and_radii_can_be_overridden(window,
     assert not document.modified
 
 
+def test_a_dummy_atom_can_be_given_a_radius_larger_than_any_element(
+        window, rutile, tmp_path, monkeypatch):
+    """A marker the size of a pore is one of the things a dummy is
+    for, and the 5 A ceiling an element has refused it."""
+    from xtal.core.site import Site
+    from xtal.io import write_cif
+
+    marked = rutile.copy()
+    marked.sites.append(Site("X", (0.25, 0.25, 0.25), label="X1"))
+    path = tmp_path / "marked.cif"
+    write_cif(marked, path)
+    document = window.open_path(path)
+    dock = window.style_dock
+    symbols = [dock.elements.item(r, 0).text()
+               for r in range(dock.elements.rowCount())]
+    asked = {}
+
+    def get_double(parent, title, label, value, low, high, decimals):
+        asked[title] = high
+        return 12.0, True
+
+    monkeypatch.setattr(QInputDialog, "getDouble", get_double)
+    dock._on_element_cell(symbols.index("X"), 2)
+    dock._on_element_cell(symbols.index("Ti"), 2)
+
+    assert document.view.element_radii["X"] == pytest.approx(12.0)
+    assert asked["X radius"] >= 1000
+    assert asked["Ti radius"] == pytest.approx(5.0)
+
+
 def test_the_net_and_plane_colours_are_chosen_from_the_style_dock(
         window, rutile_cif, monkeypatch):
     """Both were module constants, which meant a net drawn over a
@@ -150,9 +180,10 @@ def test_the_style_panel_is_headed_groups_in_the_agreed_order(window):
     homes = {"Drawing": (dock.style, dock.atom_scale, dock.bond_radius,
                          dock.ellipsoid_probability, dock.octants),
              "Transparency": (dock.opacity, dock.pore_opacity),
-             "Scene": (dock.background, dock.labels, dock.legend),
+             "Scene": (dock.background, dock.labels, dock.legend,
+                       dock.pore_spheres),
              "Show": (dock.cell_box, dock.cell_axes, dock.topology,
-                      dock.pore_nodes),
+                      dock.pore_network, dock.pore_sphere_box),
              "Colours": tuple(dock.flat.values()),
              "Depth cue": (dock.depth_cue, dock.depth_cue_start,
                            dock.depth_cue_end, dock.depth_cue_strength,
@@ -767,3 +798,64 @@ def _click(mode, document, model, atom):
         (float(x), float(y), float(z) - 500.0), (0.0, 0.0, 1.0)))
 
 
+
+
+def test_the_pore_sphere_choice_follows_the_document(window,
+                                                     rutile_cif):
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    dock.pore_spheres.setCurrentIndex(
+        dock.pore_spheres.findData("along_free"))
+    assert document.view.pore_spheres == "along_free"
+    assert not document.modified
+
+
+def test_a_saved_all_nodes_session_opens_as_every_node():
+    """A session saved while the choice was a checkbox keeps its look
+    rather than falling back to one sphere."""
+    from xtalapp.viewport.view_settings import ViewSettings
+
+    old = ViewSettings().to_dict()
+    del old["pore_spheres"]
+    old["pore_all_nodes"] = True
+    assert ViewSettings.from_dict(old).pore_spheres == "all"
+    old["pore_all_nodes"] = False
+    assert ViewSettings.from_dict(old).pore_spheres == "largest"
+
+
+def test_the_pore_spheres_can_be_hidden_from_the_show_group(
+        window, rutile_cif):
+    """The sphere alone: the network stays, and the choice of which
+    sphere greys while there is none to choose."""
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    assert dock.pore_sphere_box.isChecked()
+    dock.pore_sphere_box.setChecked(False)
+    assert not document.view.show_pore_spheres
+    assert document.view.show_pores
+    assert not dock.pore_spheres.isEnabled()
+    assert not document.modified
+    dock.pore_sphere_box.setChecked(True)
+    assert dock.pore_spheres.isEnabled()
+
+
+def test_the_pore_network_box_and_the_view_menu_are_one_setting(
+        window, rutile_cif):
+    """Either one ticks the other, and neither touches the sphere:
+    the two are independent, so a sphere can be seen alone."""
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    menu = window.actions_["show_pores"]
+    assert dock.pore_network.isChecked() and menu.isChecked()
+
+    dock.pore_network.setChecked(False)
+    assert not document.view.show_pores
+    assert not menu.isChecked()
+    assert document.view.show_pore_spheres
+    assert dock.pore_sphere_box.isEnabled()
+    assert dock.pore_spheres.isEnabled()
+
+    menu.trigger()
+    assert document.view.show_pores
+    assert dock.pore_network.isChecked()
+    assert not document.modified

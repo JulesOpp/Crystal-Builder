@@ -685,6 +685,14 @@ def parse_voro_edges(text: str, lattice) -> tuple:
             lattice.to_frac(cart[pairs[:, 1]]))
 
 
+#: How close, in Angstrom, a node's diameter must come to the ``.res``
+#: D_if to be the place D_if is.  The nodes file writes a radius to
+#: 0.001 A and the ``.res`` a diameter to 0.00001, so a node that *is*
+#: that sphere comes within 0.002; HKUST-1's D_if is 13.1857 against
+#: a D_i of 13.1919, and its node reads 13.1860.
+DIF_TOL = 0.005
+
+
 @dataclass(frozen=True)
 class PoreNetwork:
     """Where the pores are, as something that can be drawn.
@@ -723,6 +731,11 @@ class PoreNetwork:
         default_factory=lambda: np.zeros((0, 3), int))
     probe: float = 0.0
     channels: tuple = ()
+    #: D_if as the ``.res`` gives it, which is where the sphere along
+    #: the free path is found.  Not from the channel rows: on HKUST-1
+    #: they give D_if equal to D_i, which it is not.  ``None`` for a
+    #: network saved before this was kept, or read with no ``.res``.
+    included_along_free: float | None = None
 
     @property
     def n_nodes(self) -> int:
@@ -745,6 +758,25 @@ class PoreNetwork:
         if not len(self.radii):
             return None
         best = int(np.argmax(self.radii))
+        return self.nodes[best], float(self.radii[best])
+
+    def along_free(self):
+        """``(frac, radius)`` of the node that is D_if, or ``None``.
+
+        D_if is attained at a node of the Voronoi network, so the
+        sphere is exact where it is found at all: the node whose
+        diameter matches the ``.res`` value to :data:`DIF_TOL`.  None
+        does when the drawing was made at a different probe from the
+        one that measured it, and then nothing is drawn -- a ball at
+        the nearest-sized node would be a guess drawn as an answer.
+        """
+        if self.included_along_free is None or not len(self.radii):
+            return None
+        miss = np.abs(2.0 * np.asarray(self.radii)
+                      - self.included_along_free)
+        best = int(np.argmin(miss))
+        if miss[best] > DIF_TOL:
+            return None
         return self.nodes[best], float(self.radii[best])
 
     def summary(self) -> str:
@@ -775,6 +807,7 @@ class PoreNetwork:
             "edge_starts": np.asarray(self.edge_starts).tolist(),
             "edge_ends": np.asarray(self.edge_ends).tolist(),
             "probe": float(self.probe),
+            "included_along_free": self.included_along_free,
             "channels": [
                 {"index": c.index, "dimensionality": c.dimensionality,
                  "included": c.included, "free": c.free,
@@ -794,6 +827,9 @@ class PoreNetwork:
             surface_points=array("surface_points", 3),
             surface_faces=array("surface_faces", 3, int),
             probe=float(data.get("probe", 0.0)),
+            included_along_free=(
+                None if data.get("included_along_free") is None
+                else float(data["included_along_free"])),
             channels=tuple(Channel(**row)
                            for row in data.get("channels", ())))
 

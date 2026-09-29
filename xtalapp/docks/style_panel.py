@@ -47,7 +47,7 @@ from xtalapp import docks
 from xtalapp.docks.columns import Collapsible, ReflowColumns
 from xtalapp.viewport import styles
 from xtalapp.viewport.scene import CUE_MIN_SPAN, cue_fraction
-from xtalapp.viewport.view_settings import BACKGROUNDS
+from xtalapp.viewport.view_settings import BACKGROUNDS, PORE_SPHERES
 
 #: The flat colours that belong to no element: the net a chemist drew
 #: over the framework, the planes the user defined, and the pore
@@ -55,6 +55,13 @@ from xtalapp.viewport.view_settings import BACKGROUNDS
 #: they are the same kind of thing -- a note about the crystal rather
 #: than part of it -- and because the picture they are chosen against
 #: is the same picture.
+#: The largest radius an element can be drawn at, in Angstrom.
+ELEMENT_RADIUS_MAX = 5.0
+#: A dummy atom is a marker and not an atom, and a marker the size of
+#: a pore is one of the things it is for -- so it has no ceiling worth
+#: the name.  Qt needs a number.
+DUMMY_RADIUS_MAX = 1e4
+
 FLAT_COLORS = [("topology_color", "Net", "The colour of the topology "
                                          "net drawn over the bonds"),
                ("plane_color", "Planes", "The colour of every plane "
@@ -337,6 +344,25 @@ class StylePanelDock(QDockWidget):
             lambda: self._set(label_mode=self.labels.currentData()))
         form.addRow("Labels", self.labels)
 
+        # Which pore sphere, here rather than in the View menu, because
+        # it is a question about how much of a measurement to draw and
+        # not about whether to draw it -- and because what every node
+        # does to a framework has to be looked at to be believed.
+        self.pore_spheres = QComboBox()
+        for value, label, tip in PORE_SPHERES:
+            self.pore_spheres.addItem(label, value)
+            self.pore_spheres.setItemData(
+                self.pore_spheres.count() - 1, tip, Qt.ToolTipRole)
+        self.pore_spheres.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.pore_spheres.setMinimumContentsLength(8)
+        self.pore_spheres.setToolTip(
+            "Which sphere a porosity run's pores are drawn with")
+        self.pore_spheres.currentIndexChanged.connect(
+            lambda: self._set(
+                pore_spheres=self.pore_spheres.currentData()))
+        form.addRow("Pore sphere", self.pore_spheres)
+
         self.legend = QCheckBox("Element legend")
         self.legend.toggled.connect(
             lambda v: self._set(show_legend=v))
@@ -365,19 +391,23 @@ class StylePanelDock(QDockWidget):
             "underneath")
         self.topology.toggled.connect(
             lambda v: self._set(show_topology=v))
-        # Every accessible Voronoi node rather than only the widest.
-        # Off, and here rather than in the View menu, because it is a
-        # question about how much of a measurement to draw and not
-        # about whether to draw it -- and because what it does to a
-        # framework has to be looked at to be believed.
-        self.pore_nodes = QCheckBox("All pore nodes")
-        self.pore_nodes.setToolTip(
-            "Draw a sphere at every accessible Voronoi node instead "
-            "of only at the widest one.  Hundreds of them in a cell")
-        self.pore_nodes.toggled.connect(
-            lambda v: self._set(pore_all_nodes=v))
+        # The same setting as *View > Show > Pore network*, so either
+        # one ticks the other.  The sphere is not part of it.
+        self.pore_network = QCheckBox("Pore network")
+        self.pore_network.setToolTip(
+            "Draw the channel skeleton and the surface a porosity run "
+            "found")
+        self.pore_network.toggled.connect(
+            lambda v: self._set(show_pores=v))
+        # The sphere, on or off whatever the network is doing.
+        self.pore_sphere_box = QCheckBox("Pore spheres")
+        self.pore_sphere_box.setToolTip(
+            "Draw the pore sphere a porosity run found, with or without "
+            "the network")
+        self.pore_sphere_box.toggled.connect(
+            lambda v: self._set(show_pore_spheres=v))
         for check in (self.cell_box, self.cell_axes, self.topology,
-                      self.pore_nodes):
+                      self.pore_network, self.pore_sphere_box):
             column.addWidget(check)
         return box
 
@@ -546,7 +576,10 @@ class StylePanelDock(QDockWidget):
         self.cell_box.setChecked(view.show_cell)
         self.cell_axes.setChecked(view.show_axes)
         self.topology.setChecked(view.show_topology)
-        self.pore_nodes.setChecked(view.pore_all_nodes)
+        self._choose(self.pore_spheres, view.pore_spheres)
+        self.pore_network.setChecked(view.show_pores)
+        self.pore_sphere_box.setChecked(view.show_pore_spheres)
+        self.pore_spheres.setEnabled(view.show_pore_spheres)
         self._refreshing = False
         self._fill_elements()
 
@@ -691,7 +724,9 @@ class StylePanelDock(QDockWidget):
         view = self.document.view
         value, ok = QInputDialog.getDouble(
             self, f"{symbol} radius", "Radius (A):",
-            view.base_radius(symbol, "covalent"), 0.05, 5.0, 3)
+            view.base_radius(symbol, "covalent"), 0.05,
+            DUMMY_RADIUS_MAX if el.is_dummy(symbol)
+            else ELEMENT_RADIUS_MAX, 3)
         if not ok:
             return
         radii = dict(view.element_radii)

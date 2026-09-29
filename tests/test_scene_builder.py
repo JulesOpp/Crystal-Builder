@@ -758,9 +758,49 @@ def test_one_sphere_is_drawn_at_the_widest_node(rutile):
 
 def test_every_node_is_drawn_when_that_is_asked_for(rutile):
     settings = ViewSettings()
-    settings.pore_all_nodes = True
+    settings.pore_spheres = "all"
     scene = build_scene(rutile, settings, pores=_network())
     assert scene.n_pore_spheres == 2
+
+
+def test_the_free_path_choice_draws_one_sphere_at_the_d_if_node(
+        rutile):
+    """D_if is a node of its own, and on HKUST-1 not the widest one:
+    the choice has to move the sphere, not just resize it."""
+    from dataclasses import replace
+
+    network = replace(_network(), included_along_free=3.0)
+    settings = ViewSettings()
+    settings.pore_spheres = "along_free"
+    scene = build_scene(rutile, settings, pores=network)
+    assert scene.n_pore_spheres == 1
+    assert scene.pore_radii[0] < 1.5
+    widest = build_scene(rutile, ViewSettings(), pores=network)
+    assert not np.allclose(scene.pore_centres, widest.pore_centres)
+
+
+def test_a_d_if_no_node_matches_draws_no_sphere(rutile):
+    from dataclasses import replace
+
+    settings = ViewSettings()
+    settings.pore_spheres = "along_free"
+    for network in (_network(),
+                    replace(_network(), included_along_free=5.0)):
+        scene = build_scene(rutile, settings, pores=network)
+        assert scene.n_pore_spheres == 0
+        assert scene.n_pore_edges == 1
+
+
+def test_hiding_the_pore_spheres_keeps_the_skeleton(rutile):
+    settings = ViewSettings()
+    settings.show_pore_spheres = False
+    for choice in ("largest", "along_free", "all"):
+        settings.pore_spheres = choice
+        scene = build_scene(rutile, settings, pores=_network())
+        assert scene.n_pore_spheres == 0
+        assert scene.n_pore_edges == 1
+    assert not ViewSettings.from_dict(
+        settings.to_dict()).show_pore_spheres
 
 
 def test_the_channel_skeleton_is_drawn_as_segments(rutile):
@@ -780,8 +820,18 @@ def test_nothing_is_drawn_without_a_run(rutile):
 def test_the_pores_can_be_turned_off(rutile):
     settings = ViewSettings()
     settings.show_pores = False
+    settings.show_pore_spheres = False
     scene = build_scene(rutile, settings, pores=_network())
     assert scene.n_pore_spheres == 0
+    assert scene.n_pore_edges == 0
+
+
+def test_the_sphere_can_be_shown_without_the_network(rutile):
+    """Where the cavity is, with no skeleton drawn through it."""
+    settings = ViewSettings()
+    settings.show_pores = False
+    scene = build_scene(rutile, settings, pores=_network())
+    assert scene.n_pore_spheres == 1
     assert scene.n_pore_edges == 0
 
 
@@ -854,7 +904,7 @@ def test_one_cell_of_range_is_one_copy_of_the_surface(rutile):
     assert scene.n_pore_surface_faces == 4
 
 
-def test_the_surface_can_be_turned_off_with_the_rest(rutile):
+def test_the_surface_is_turned_off_with_the_network(rutile):
     settings = ViewSettings()
     settings.show_pores = False
     scene = build_scene(rutile, settings, pores=_surface())
