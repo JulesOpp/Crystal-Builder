@@ -1616,6 +1616,16 @@ class Document(QObject):
     def shift_origin(self, shift):
         return self.operate(cell_commands.ShiftOrigin(shift))
 
+    def selection_centring_shift(self):
+        """The origin shift that centres the selected atoms in the
+        cell, or ``None`` with nothing selected -- what *Centre the
+        selection* in the Move origin dialog fills in."""
+        from xtal.core import supercell
+        atoms = sorted(self.selection.atoms)
+        if not atoms:
+            return None
+        return supercell.centring_shift(self._structure, atoms)
+
     def wrap_into_cell(self):
         return self.operate(cell_commands.WrapIntoCell())
 

@@ -137,7 +137,7 @@ class ShiftOrigin(StructureOperation):
     """
 
     change = Change.POSITIONS
-    label = "Shift origin"
+    label = "Move origin"
 
     def __init__(self, shift):
         super().__init__()

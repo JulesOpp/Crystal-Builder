@@ -177,26 +177,16 @@ since 2026-09-08.
 
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
-| **C2 — Cell ▸ Move origin…** | A dialog of a, b, c and *Centre the selection* | `xtalapp/dialogs/origin.py`, `xtalapp/menus.py`, `xtalapp/shell_state.py` | M |
 | **C3 — Save as a building block goes to `blocks/`** | The folder Draw writes to, and no write-back to `mof_bb_dir` | `xtalapp/dialogs/save_block.py`, `xtalapp/edit_actions.py` | S |
 | **B2 — A Selection dialog** | Rules × replace/add/remove/intersect, *Grow to neighbours only*, `Session.select` | `xtal/core/selection.py`, `xtalapp/dialogs/select.py` | M-L |
 | **B3 — Render in Blender** | `scene.blend` and `render.png` from Julius's scene | `xtal/modules/blender.py`, `xtal/modules/data/render_scene.py` | M |
 | **B4 — Zeo++ from GitHub** | Measured against the reference, then found beside 0.3 or replacing it | `xtal/modules/zeopp.py` | S-M |
 
-### C2-C3 — Moving the origin, and one folder for blocks
+### C3 — One folder for blocks
 
-Cutting a node out of a crystal (the manual's recipe: Reduce to P1,
-select the cluster, invert, delete, mark the connection points, save
-as a building block) fails when the cluster straddles a face of the
-cell.  The remedy is to move the origin first, in P1.
-`ShiftOrigin`, `supercell.shift_origin` and `Document.shift_origin`
-exist and, since C1 (2026-09-28), refuse anything but P1 and fold
-every site with its drawn and perceived bonds (`Structure.fold_sites`)
--- but have no menu entry.
-
-*Centre the selection* uses `measure.centroid`, which gathers across
-the boundary.  Julius chose the Cell menu, beside *Wrap atoms into the
-cell*.
+Cutting a node out of a crystal -- the manual's recipe, which since C1
+and C2 (2026-09-28) centres a cluster a face cuts through with *Cell ▸
+Move origin…* -- ends by saving it as a building block.
 
 *Draw…* in the MOF builder writes to `<workspace>/blocks/`; *Save as a
 building block…* defaulted to `settings.mof_bb_dir` and would not save

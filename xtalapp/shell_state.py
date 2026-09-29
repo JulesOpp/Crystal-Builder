@@ -381,6 +381,16 @@ class ShellRefresh:
              "single_point", "optimize", "dftb_single_point",
              "dftb_optimize", "recompute_bonds", "reset_bonds"],
             editable)
+        # Greyed in a group, with the reason rather than without one:
+        # the operations are written about the origin.
+        in_p1 = editable and document.structure.is_p1
+        move_origin = self.actions_.get("move_origin")
+        if move_origin is not None:
+            move_origin.setEnabled(in_p1)
+            tip = (menus.MOVE_ORIGIN_NEEDS_P1 if editable and not in_p1
+                   else menus.MOVE_ORIGIN_TIP)
+            move_origin.setToolTip(tip)
+            move_origin.setStatusTip(tip)
         # Reading a net is not editing one, so a trajectory playing
         # does not take this away.
         self.actions_.set_enabled(

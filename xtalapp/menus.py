@@ -89,6 +89,16 @@ REVEAL_LABEL = ("&Reveal in Finder" if sys.platform == "darwin"
 #: The tooltip on ``Insert molecule...`` when it is available.  Named
 #: because the window puts :data:`xtal.build.MISSING` there instead
 #: when RDKit is not installed, and has to be able to put this back.
+MOVE_ORIGIN_TIP = (
+    "Put the cell's corner somewhere else, so that a cluster cut in "
+    "two by a face comes out whole: every atom moves and is folded "
+    "back into the cell, its bonds with it.  P1 only.")
+#: Why Move origin is greyed: the group's operations are written about
+#: the origin, and the group at a new one cannot be named.
+MOVE_ORIGIN_NEEDS_P1 = (
+    "Moving the origin needs P1: the space group's operations are "
+    "written about this origin.  Symmetry > Reduce to P1 first.")
+
 INSERT_MOLECULE_TIP = (
     "Build a molecule from a SMILES string and paste it into this "
     "structure.  It arrives with the bonds the builder gave it and "
@@ -487,6 +497,8 @@ def build_actions(window):
         lambda: window.reduce_cell("delaunay"))
     add("wrap_cell", "&Wrap atoms into the cell",
         window.wrap_into_cell)
+    add("move_origin", "Move &origin...", window.move_origin_dialog,
+        tip=MOVE_ORIGIN_TIP)
     add("display_range", "Display &range...",
         window.display_range_dialog, "Ctrl+R",
         tip="How much of the crystal to draw")
@@ -642,7 +654,7 @@ def build_menus(window):
     cell_menu = submenu(bar, "&Cell")
     window.actions_.fill_menu(cell_menu, [
         "edit_cell", "supercell", None,
-        "niggli", "delaunay", None, "wrap_cell"])
+        "niggli", "delaunay", None, "wrap_cell", "move_origin"])
 
     measure_menu = submenu(bar, "&Measure")
     window.actions_.fill_menu(measure_menu, [

@@ -22,7 +22,7 @@ import itertools
 import numpy as np
 import spglib
 
-from xtal.core import p1
+from xtal.core import measure, p1
 from xtal.core.lattice import Lattice
 from xtal.core.spacegroup import SpaceGroup
 from xtal.core.structure import Change, Structure
@@ -310,6 +310,23 @@ def shift_origin(structure: Structure, shift) -> Structure:
     out.touch(Change.POSITIONS)
     out.fold_sites([p1._wrap(s.frac) for s in out.sites])
     return out
+
+
+def centring_shift(structure: Structure, atoms) -> np.ndarray:
+    """The origin shift that puts the middle of ``atoms`` (P1 cell
+    indices) at the centre of the cell, each component in [-0.5, 0.5).
+
+    The middle is :func:`xtal.core.measure.centroid`, gathered across
+    the boundary -- which is the point: the cluster this is asked about
+    is the one a face cuts in two, and the mean of its wrapped
+    coordinates is somewhere in the pore.  A whole number of cells is
+    no shift at all, so it is taken off.
+    """
+    cell = p1.expand(structure)
+    middle = structure.lattice.to_frac(
+        measure.centroid(cell, structure.lattice, atoms))
+    shift = np.asarray(middle, dtype=float) - 0.5
+    return shift - np.floor(shift + 0.5)
 
 
 def wrap_into_cell(structure: Structure) -> Structure:

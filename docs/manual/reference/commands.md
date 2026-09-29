@@ -760,6 +760,16 @@ Complete every main-group coordination with the hydrogens an X-ray structure nev
 ```{index} Add hydrogens...
 ```
 
+(cmd-substitute_rings)=
+### Substitute hydrogens...
+
+`substitute_rings`
+
+Replace the selected hydrogens, or one on every aromatic ring, with a group -- NH2, OH, OMe, NO2, a halogen, a phenyl -- bonded to the atom the hydrogen was on and to nothing else
+
+```{index} Substitute hydrogens...
+```
+
 (cmd-insert_molecule)=
 ### Insert molecule...
 
@@ -775,7 +785,7 @@ Build a molecule from a SMILES string and paste it into this structure.  It arri
 
 `fill_pores`
 
-Put copies of a molecule -- from another tab or a file -- into the empty space of this structure, each where it touches nothing.  A host with symmetry is reduced to P1 first, and bonds are not recalculated
+Put copies of a molecule -- from another tab or a file -- into the empty space of this structure, each where it touches nothing -- or one beside each selected atom, for a charged framework's counter-ions.  A host with symmetry is reduced to P1 first, and bonds are not recalculated
 
 ```{index} Fill pores with molecules...
 ```
@@ -1122,6 +1132,16 @@ The shortest, most orthogonal basis for this cell
 *No description yet.*
 
 ```{index} Wrap atoms into the cell
+```
+
+(cmd-move_origin)=
+### Move origin...
+
+`move_origin`
+
+Put the cell's corner somewhere else, so that a cluster cut in two by a face comes out whole: every atom moves and is folded back into the cell, its bonds with it.  P1 only.
+
+```{index} Move origin...
 ```
 
 ## Measure
@@ -1605,7 +1625,7 @@ A charge on every atom, and the atoms coloured by it
 
 `module.dftb.orbital`
 
-waveplot is not installed, or not on PATH (XTAL_WAVEPLOT is not set).  It is at https://dftbplus.org (it ships with DFTB+)
+One state as its two lobes, through waveplot; needs the parameter set's wfc.*.hsd
 
 ```{index} Orbital...
 ```
@@ -1625,7 +1645,7 @@ One DFTB+ run relaxes the atoms, and the cell if asked; the answer is mapped bac
 
 `module.dftb.modes`
 
-modes is not installed, or not on PATH (XTAL_MODES is not set).  It is at https://dftbplus.org (it ships with DFTB+)
+The Hessian by finite differences and its modes.  It costs six evaluations per free atom, and a structure that has not been relaxed first gives imaginary modes that mean nothing
 
 ```{index} Vibrational modes...
 ```
@@ -1685,7 +1705,7 @@ Build a molecule; it opens in a new tab
 
 `module.zeopp.diameters`
 
-Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set).  It is at https://www.zeoplusplus.org/
+The largest included and free spheres -- D_i, D_f and D_if -- and the channels they run through
 
 ```{index} Pore diameters and channels...
 ```
@@ -1695,7 +1715,7 @@ Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set).  It is at https:
 
 `module.zeopp.surface-area`
 
-Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set).  It is at https://www.zeoplusplus.org/
+The area a gas molecule can touch, which is what a BET measurement sees
 
 ```{index} Surface area...
 ```
@@ -1715,7 +1735,7 @@ The same area in a second or two rather than several: sampled here on this appli
 
 `module.zeopp.volume`
 
-Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set).  It is at https://www.zeoplusplus.org/
+How much of the cell a gas molecule can occupy, which is the pore volume a paper quotes
 
 ```{index} Accessible volume...
 ```
@@ -1735,7 +1755,7 @@ The same volume in a second or two -- MFU-4l's occupiable volume is 1.7 s here a
 
 `module.zeopp.psd`
 
-Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set).  It is at https://www.zeoplusplus.org/
+How much of the pore space sits at each diameter, as a histogram
 
 ```{index} Pore size distribution...
 ```

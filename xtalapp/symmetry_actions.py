@@ -15,6 +15,7 @@ from xtalapp.dialogs.fill_pores import FillPoresDialog
 from xtalapp.dialogs.find_symmetry import FindSymmetryDialog
 from xtalapp.dialogs.interpenetrate import InterpenetrateDialog
 from xtalapp.dialogs.merge_duplicates import MergeDuplicatesDialog
+from xtalapp.dialogs.origin import OriginDialog
 from xtalapp.dialogs.prepare import PrepareDialog
 from xtalapp.dialogs.spacegroup import SpaceGroupDialog
 from xtalapp.dialogs.subgroup import SubgroupDialog
@@ -201,6 +202,11 @@ class SymmetryActions:
 
     def wrap_into_cell(self) -> None:
         self._run(lambda d: d.wrap_into_cell())
+
+    def move_origin_dialog(self) -> None:
+        document = self.current_document()
+        if document is not None:
+            self._report(OriginDialog.ask(document, self), "Move origin")
 
     def _run(self, operation) -> None:
         """Run a symmetry or cell operation on the current document and
