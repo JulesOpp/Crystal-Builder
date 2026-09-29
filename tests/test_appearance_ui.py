@@ -100,6 +100,36 @@ def test_element_colours_and_radii_can_be_overridden(window,
     assert not document.modified
 
 
+def test_a_dummy_atom_can_be_given_a_radius_larger_than_any_element(
+        window, rutile, tmp_path, monkeypatch):
+    """A marker the size of a pore is one of the things a dummy is
+    for, and the 5 A ceiling an element has refused it."""
+    from xtal.core.site import Site
+    from xtal.io import write_cif
+
+    marked = rutile.copy()
+    marked.sites.append(Site("X", (0.25, 0.25, 0.25), label="X1"))
+    path = tmp_path / "marked.cif"
+    write_cif(marked, path)
+    document = window.open_path(path)
+    dock = window.style_dock
+    symbols = [dock.elements.item(r, 0).text()
+               for r in range(dock.elements.rowCount())]
+    asked = {}
+
+    def get_double(parent, title, label, value, low, high, decimals):
+        asked[title] = high
+        return 12.0, True
+
+    monkeypatch.setattr(QInputDialog, "getDouble", get_double)
+    dock._on_element_cell(symbols.index("X"), 2)
+    dock._on_element_cell(symbols.index("Ti"), 2)
+
+    assert document.view.element_radii["X"] == pytest.approx(12.0)
+    assert asked["X radius"] >= 1000
+    assert asked["Ti radius"] == pytest.approx(5.0)
+
+
 def test_the_net_and_plane_colours_are_chosen_from_the_style_dock(
         window, rutile_cif, monkeypatch):
     """Both were module constants, which meant a net drawn over a

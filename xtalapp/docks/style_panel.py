@@ -55,6 +55,13 @@ from xtalapp.viewport.view_settings import BACKGROUNDS
 #: they are the same kind of thing -- a note about the crystal rather
 #: than part of it -- and because the picture they are chosen against
 #: is the same picture.
+#: The largest radius an element can be drawn at, in Angstrom.
+ELEMENT_RADIUS_MAX = 5.0
+#: A dummy atom is a marker and not an atom, and a marker the size of
+#: a pore is one of the things it is for -- so it has no ceiling worth
+#: the name.  Qt needs a number.
+DUMMY_RADIUS_MAX = 1e4
+
 FLAT_COLORS = [("topology_color", "Net", "The colour of the topology "
                                          "net drawn over the bonds"),
                ("plane_color", "Planes", "The colour of every plane "
@@ -691,7 +698,9 @@ class StylePanelDock(QDockWidget):
         view = self.document.view
         value, ok = QInputDialog.getDouble(
             self, f"{symbol} radius", "Radius (A):",
-            view.base_radius(symbol, "covalent"), 0.05, 5.0, 3)
+            view.base_radius(symbol, "covalent"), 0.05,
+            DUMMY_RADIUS_MAX if el.is_dummy(symbol)
+            else ELEMENT_RADIUS_MAX, 3)
         if not ok:
             return
         radii = dict(view.element_radii)
