@@ -297,6 +297,42 @@ def test_a_pore_network_round_trips_through_a_dict():
     assert back.probe == 1.2
 
 
+def _hkust_like(along_free):
+    """Three nodes, as HKUST-1's: D_i 13.1919 at the widest, and D_if
+    13.1857 at a node that reads 13.186."""
+    nodes = np.array([(0.5, 0.5, 0.5), (0.25, 0.25, 0.25),
+                      (0.1, 0.2, 0.3)])
+    radii = np.array([6.596, 6.593, 2.0])
+    return porosity.PoreNetwork(nodes=nodes, radii=radii,
+                                included_along_free=along_free)
+
+
+def test_the_free_path_sphere_is_the_node_matching_the_res_d_if():
+    node, radius = _hkust_like(13.18565).along_free()
+    assert 2 * radius == pytest.approx(13.186)
+    assert np.allclose(node, (0.25, 0.25, 0.25))
+    assert np.allclose(_hkust_like(13.18565).largest()[0],
+                       (0.5, 0.5, 0.5))
+
+
+def test_no_node_within_tolerance_draws_no_free_path_sphere():
+    """A ball at the nearest-sized node would be a guess drawn as an
+    answer."""
+    assert _hkust_like(12.0).along_free() is None
+    assert _hkust_like(None).along_free() is None
+    assert porosity.PoreNetwork(
+        included_along_free=13.0).along_free() is None
+
+
+def test_d_if_round_trips_and_an_old_network_without_it_reads_back():
+    net = _hkust_like(13.18565)
+    back = porosity.PoreNetwork.from_dict(net.to_dict())
+    assert back.included_along_free == pytest.approx(13.18565)
+    old = net.to_dict()
+    del old["included_along_free"]
+    assert porosity.PoreNetwork.from_dict(old).included_along_free is None
+
+
 def test_an_empty_pore_network_has_no_largest_sphere():
     assert porosity.PoreNetwork().largest() is None
     assert porosity.PoreNetwork().n_nodes == 0

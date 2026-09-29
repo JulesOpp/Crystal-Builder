@@ -393,7 +393,8 @@ def _radius_function(job):
     return elements.covalent_radius, ""
 
 
-def _read_network(job, directory: Path, channels, probe: float):
+def _read_network(job, directory: Path, channels, probe: float,
+                  along_free: float | None = None):
     """The accessible pore network, as something the viewport can draw.
 
     Only the *accessible* half is read.  ``-visVoro`` also writes the
@@ -425,8 +426,13 @@ def _read_network(job, directory: Path, channels, probe: float):
         segments = {"edge_starts": starts, "edge_ends": ends}
     network = porosity.PoreNetwork(
         nodes=frac, radii=radii, probe=float(probe),
-        channels=tuple(channels), **segments)
+        channels=tuple(channels), included_along_free=along_free,
+        **segments)
     job.note(network.summary())
+    if along_free is not None and network.along_free() is None:
+        job.note(f"no accessible node is {along_free:.3f} A across, so "
+                 f"the sphere along the free path cannot be drawn -- "
+                 f"D_if above is unaffected")
     return network
 
 
@@ -503,7 +509,8 @@ def pore_diameters(job) -> JobResult:
             _read(directory / output, "diameter"))
         channels = porosity.parse_chan(
             _read(directory / chan, "channel"))
-        network = (_read_network(job, directory, channels, reach)
+        network = (_read_network(job, directory, channels, reach,
+                                 found.included_along_free)
                    if drawing else None)
         return _answer(
             job,

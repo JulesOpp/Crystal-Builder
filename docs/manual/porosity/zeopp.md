@@ -175,6 +175,18 @@ it is about.  The rest of the pore space is the skeleton, thin enough
 to see through.  *View ▸ Show ▸* {ref}`Pore network <cmd-show_pores>`
 hides and shows the whole drawing.
 
+The Style panel's **Pore sphere** chooses which sphere that is:
+
+- *Largest included (D_i)*, the default.
+- *Along the free path (D_if)*. This is the widest point of the
+  channel the free sphere squeezes through. It is a node too, found
+  by matching its diameter to the D_if in the table to within
+  0.005 Å. If no node matches, nothing is drawn and the run's log
+  says so.
+- *Every node*.
+
+There is no D_f choice, for the reason above.
+
 The network lives on the document beside the planes, and it follows
 four rules:
 

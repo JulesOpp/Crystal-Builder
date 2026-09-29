@@ -180,9 +180,9 @@ def test_the_style_panel_is_headed_groups_in_the_agreed_order(window):
     homes = {"Drawing": (dock.style, dock.atom_scale, dock.bond_radius,
                          dock.ellipsoid_probability, dock.octants),
              "Transparency": (dock.opacity, dock.pore_opacity),
-             "Scene": (dock.background, dock.labels, dock.legend),
-             "Show": (dock.cell_box, dock.cell_axes, dock.topology,
-                      dock.pore_nodes),
+             "Scene": (dock.background, dock.labels, dock.legend,
+                       dock.pore_spheres),
+             "Show": (dock.cell_box, dock.cell_axes, dock.topology),
              "Colours": tuple(dock.flat.values()),
              "Depth cue": (dock.depth_cue, dock.depth_cue_start,
                            dock.depth_cue_end, dock.depth_cue_strength,
@@ -797,3 +797,26 @@ def _click(mode, document, model, atom):
         (float(x), float(y), float(z) - 500.0), (0.0, 0.0, 1.0)))
 
 
+
+
+def test_the_pore_sphere_choice_follows_the_document(window,
+                                                     rutile_cif):
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    dock.pore_spheres.setCurrentIndex(
+        dock.pore_spheres.findData("along_free"))
+    assert document.view.pore_spheres == "along_free"
+    assert not document.modified
+
+
+def test_a_saved_all_nodes_session_opens_as_every_node():
+    """A session saved while the choice was a checkbox keeps its look
+    rather than falling back to one sphere."""
+    from xtalapp.viewport.view_settings import ViewSettings
+
+    old = ViewSettings().to_dict()
+    del old["pore_spheres"]
+    old["pore_all_nodes"] = True
+    assert ViewSettings.from_dict(old).pore_spheres == "all"
+    old["pore_all_nodes"] = False
+    assert ViewSettings.from_dict(old).pore_spheres == "largest"

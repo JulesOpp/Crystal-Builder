@@ -47,7 +47,7 @@ from xtalapp import docks
 from xtalapp.docks.columns import Collapsible, ReflowColumns
 from xtalapp.viewport import styles
 from xtalapp.viewport.scene import CUE_MIN_SPAN, cue_fraction
-from xtalapp.viewport.view_settings import BACKGROUNDS
+from xtalapp.viewport.view_settings import BACKGROUNDS, PORE_SPHERES
 
 #: The flat colours that belong to no element: the net a chemist drew
 #: over the framework, the planes the user defined, and the pore
@@ -344,6 +344,25 @@ class StylePanelDock(QDockWidget):
             lambda: self._set(label_mode=self.labels.currentData()))
         form.addRow("Labels", self.labels)
 
+        # Which pore sphere, here rather than in the View menu, because
+        # it is a question about how much of a measurement to draw and
+        # not about whether to draw it -- and because what every node
+        # does to a framework has to be looked at to be believed.
+        self.pore_spheres = QComboBox()
+        for value, label, tip in PORE_SPHERES:
+            self.pore_spheres.addItem(label, value)
+            self.pore_spheres.setItemData(
+                self.pore_spheres.count() - 1, tip, Qt.ToolTipRole)
+        self.pore_spheres.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.pore_spheres.setMinimumContentsLength(8)
+        self.pore_spheres.setToolTip(
+            "Which sphere a porosity run's pores are drawn with")
+        self.pore_spheres.currentIndexChanged.connect(
+            lambda: self._set(
+                pore_spheres=self.pore_spheres.currentData()))
+        form.addRow("Pore sphere", self.pore_spheres)
+
         self.legend = QCheckBox("Element legend")
         self.legend.toggled.connect(
             lambda v: self._set(show_legend=v))
@@ -372,19 +391,7 @@ class StylePanelDock(QDockWidget):
             "underneath")
         self.topology.toggled.connect(
             lambda v: self._set(show_topology=v))
-        # Every accessible Voronoi node rather than only the widest.
-        # Off, and here rather than in the View menu, because it is a
-        # question about how much of a measurement to draw and not
-        # about whether to draw it -- and because what it does to a
-        # framework has to be looked at to be believed.
-        self.pore_nodes = QCheckBox("All pore nodes")
-        self.pore_nodes.setToolTip(
-            "Draw a sphere at every accessible Voronoi node instead "
-            "of only at the widest one.  Hundreds of them in a cell")
-        self.pore_nodes.toggled.connect(
-            lambda v: self._set(pore_all_nodes=v))
-        for check in (self.cell_box, self.cell_axes, self.topology,
-                      self.pore_nodes):
+        for check in (self.cell_box, self.cell_axes, self.topology):
             column.addWidget(check)
         return box
 
@@ -553,7 +560,7 @@ class StylePanelDock(QDockWidget):
         self.cell_box.setChecked(view.show_cell)
         self.cell_axes.setChecked(view.show_axes)
         self.topology.setChecked(view.show_topology)
-        self.pore_nodes.setChecked(view.pore_all_nodes)
+        self._choose(self.pore_spheres, view.pore_spheres)
         self._refreshing = False
         self._fill_elements()
 

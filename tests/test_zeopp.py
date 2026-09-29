@@ -270,6 +270,18 @@ def test_the_run_comes_back_with_something_to_draw(
     assert len(node) == 3
 
 
+def test_the_network_carries_d_if_from_the_res_file(
+        fake_network, rutile, workspace):
+    """Not from the channel rows, which on HKUST-1 give D_if equal to
+    D_i.  The fake's nodes have none 18.722 A across, so the log says
+    the sphere along the free path cannot be drawn."""
+    result, folder = run("diameters", rutile, workspace)
+    assert result.overlay.included_along_free == pytest.approx(18.72243)
+    assert result.overlay.along_free() is None
+    assert "along the free path cannot be drawn" in (
+        folder.run.log_path.read_text())
+
+
 def test_the_drawing_can_be_turned_off(fake_network, rutile,
                                        workspace):
     """-visVoro writes six files and reads the whole Voronoi network

@@ -758,9 +758,37 @@ def test_one_sphere_is_drawn_at_the_widest_node(rutile):
 
 def test_every_node_is_drawn_when_that_is_asked_for(rutile):
     settings = ViewSettings()
-    settings.pore_all_nodes = True
+    settings.pore_spheres = "all"
     scene = build_scene(rutile, settings, pores=_network())
     assert scene.n_pore_spheres == 2
+
+
+def test_the_free_path_choice_draws_one_sphere_at_the_d_if_node(
+        rutile):
+    """D_if is a node of its own, and on HKUST-1 not the widest one:
+    the choice has to move the sphere, not just resize it."""
+    from dataclasses import replace
+
+    network = replace(_network(), included_along_free=3.0)
+    settings = ViewSettings()
+    settings.pore_spheres = "along_free"
+    scene = build_scene(rutile, settings, pores=network)
+    assert scene.n_pore_spheres == 1
+    assert scene.pore_radii[0] < 1.5
+    widest = build_scene(rutile, ViewSettings(), pores=network)
+    assert not np.allclose(scene.pore_centres, widest.pore_centres)
+
+
+def test_a_d_if_no_node_matches_draws_no_sphere(rutile):
+    from dataclasses import replace
+
+    settings = ViewSettings()
+    settings.pore_spheres = "along_free"
+    for network in (_network(),
+                    replace(_network(), included_along_free=5.0)):
+        scene = build_scene(rutile, settings, pores=network)
+        assert scene.n_pore_spheres == 0
+        assert scene.n_pore_edges == 1
 
 
 def test_the_channel_skeleton_is_drawn_as_segments(rutile):

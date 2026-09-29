@@ -615,7 +615,10 @@ stress case).
   to know where D_f is.** Zeo++'s `-visVoro` gives every accessible
   Voronoi node with the radius that fits at it, so the largest
   *included* sphere is drawn at its node exactly — twice that radius
-  is the D_i in the table beside it. D_f is the width of a bottleneck
+  is the D_i in the table beside it. The Style panel can draw D_if
+  instead. It is also a node: the one whose diameter matches the
+  `.res` value to `porosity.DIF_TOL`, never the channel rows, which
+  gave HKUST-1 a D_if equal to its D_i. No match means no sphere. D_f is the width of a bottleneck
   on an *edge* and no Zeo++ output carries edge radii, so what is
   drawn for it is the path it travels along and the report says so.
   The network lives on the Document beside the planes: put there by a
