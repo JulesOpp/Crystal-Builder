@@ -177,32 +177,22 @@ since 2026-09-08.
 
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
-| **C1 — A wrap keeps drawn bonds; the origin moves in P1 only** | `Bond.image` rebased on every fold; `shift_origin` refuses outside P1 | `xtal/core/supercell.py`, `xtal/core/structure.py`, `xtal/commands/cell.py` | S |
 | **C2 — Cell ▸ Move origin…** | A dialog of a, b, c and *Centre the selection* | `xtalapp/dialogs/origin.py`, `xtalapp/menus.py`, `xtalapp/shell_state.py` | M |
 | **C3 — Save as a building block goes to `blocks/`** | The folder Draw writes to, and no write-back to `mof_bb_dir` | `xtalapp/dialogs/save_block.py`, `xtalapp/edit_actions.py` | S |
 | **B2 — A Selection dialog** | Rules × replace/add/remove/intersect, *Grow to neighbours only*, `Session.select` | `xtal/core/selection.py`, `xtalapp/dialogs/select.py` | M-L |
 | **B3 — Render in Blender** | `scene.blend` and `render.png` from Julius's scene | `xtal/modules/blender.py`, `xtal/modules/data/render_scene.py` | M |
 | **B4 — Zeo++ from GitHub** | Measured against the reference, then found beside 0.3 or replacing it | `xtal/modules/zeopp.py` | S-M |
 
-### C1-C3 — Moving the origin, and one folder for blocks
+### C2-C3 — Moving the origin, and one folder for blocks
 
 Cutting a node out of a crystal (the manual's recipe: Reduce to P1,
 select the cluster, invert, delete, mark the connection points, save
 as a building block) fails when the cluster straddles a face of the
-cell.  The remedy is to move the origin first, in P1 -- and
+cell.  The remedy is to move the origin first, in P1.
 `ShiftOrigin`, `supercell.shift_origin` and `Document.shift_origin`
-already exist, with no menu entry.  **Measured 2026-09-28**, they are
-wrong twice:
-
-- In a group, the operations are kept while the sites move: rutile
-  shifted by (0.1, 0.2, 0.05) expands to 32 atoms, not 6.  gemmi
-  cannot name a group at a shifted origin, so the command is **P1
-  only**, greyed with the reason elsewhere.
-- A wrap does not rebase `Bond.image`: MFU-4l in P1 with a drawn bond
-  across a face comes out with that bond 32.28 A long.  Perceived
-  bonds are fine (`bonding.rebase`).  `WrapIntoCell` has the same
-  hole for any site written outside [0, 1).  The fix is
-  image' = image + n_i - R_op n_j for a site folded by n_k.
+exist and, since C1 (2026-09-28), refuse anything but P1 and fold
+every site with its drawn and perceived bonds (`Structure.fold_sites`)
+-- but have no menu entry.
 
 *Centre the selection* uses `measure.centroid`, which gathers across
 the boundary.  Julius chose the Cell menu, beside *Wrap atoms into the

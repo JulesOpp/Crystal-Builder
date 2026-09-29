@@ -23,7 +23,7 @@ Structure is picklable and holds no references to Qt, VTK, or files.
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import IntFlag
 
 import numpy as np
@@ -618,9 +618,64 @@ class Structure:
 
     def wrap_sites(self) -> None:
         """Fold every site into [0, 1)."""
-        for s in self.sites:
-            s.frac = np.mod(s.frac, 1.0)
-        self.touch(Change.POSITIONS)
+        self.fold_sites([np.mod(s.frac, 1.0) for s in self.sites])
+
+    def fold_sites(self, fracs) -> None:
+        """Put every site at ``fracs``, each a whole number of cells
+        from where it was, and keep every stored bond joining the atoms
+        it joined.
+
+        A bond is site ``i`` to ``op(j) + image``, read from the sites'
+        *written* coordinates, so a site moved by a lattice vector
+        ``n`` takes each bond's far end with it unless the image makes
+        up the difference: ``image + n_i - R_op n_j``.  Folding without
+        that left a bond drawn across a face of MFU-4l in P1 32.28 A
+        long after the origin was moved.
+
+        The perceived graph is read against the wrap each atom was
+        drawn at (``PerceivedBonds.tau``) and rebased whenever that
+        changes, on the understanding that a changed wrap means an atom
+        drifted across a face.  A fold is the opposite -- the written
+        coordinate jumps and the atom stays put -- so the stored wrap
+        takes up the jump, ``R_op n``, or the next read would move
+        every bond of a folded atom onto the wrong copy.
+        """
+        fracs = [np.asarray(f, dtype=float).reshape(3) for f in fracs]
+        if len(fracs) != len(self.sites):
+            raise ValueError("one position per site")
+        moved = np.array([f - s.frac for f, s in zip(fracs, self.sites,
+                                                     strict=True)])
+        n = (np.rint(moved).astype(int) if len(moved)
+             else np.zeros((0, 3), int))
+        if len(moved) and not np.allclose(moved, n, atol=1e-6):
+            raise ValueError("a fold moves a site by whole cells only")
+        ops = self.space_group.operations
+        stored = self.perceived
+        if stored is not None and len(self.sites):
+            from xtal.core import p1
+            cell = p1.expand(self)
+            if cell.n_atoms == stored.n_atoms:
+                jump = np.array([
+                    np.rint(ops[o].rot @ n[s]).astype(int)
+                    for s, o in zip(cell.site_idx, cell.op_idx,
+                                    strict=True)]).reshape(-1, 3)
+                self.perceived = replace(
+                    stored, tau=np.asarray(stored.tau, dtype=int) - jump)
+        if n.any():
+            # The drawn graph is memoised with the wrap it was drawn
+            # at and would take the jump for a drift just the same.
+            self.drop_cache("bonds:")
+        for site, frac in zip(self.sites, fracs, strict=True):
+            site.frac = frac
+        rebased = [
+            replace(bond, image=tuple(int(v) for v in (
+                np.asarray(bond.image) + n[bond.i]
+                - np.rint(ops[bond.op].rot @ n[bond.j]).astype(int))))
+            for bond in self.bonds]
+        changed = rebased != self.bonds
+        self.bonds = rebased
+        self.touch(Change.POSITIONS | Change.TOPOLOGY if changed
+                   else Change.POSITIONS)
 
     def ensure_labels(self) -> None:
         """Give every unlabelled site a unique CIF-style label
