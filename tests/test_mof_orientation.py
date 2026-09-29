@@ -37,6 +37,8 @@ same RMSD, with every pair coplanar afterwards -- because that holds
 wherever the tie falls.
 """
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -1006,10 +1008,10 @@ def test_an_ortho_substituted_linker_is_turned_clear_of_the_node(
 def test_an_unsubstituted_linker_turns_exactly_as_before(
         tmp_path, catalog, monkeypatch, rule):
     """An angle with room is never turned away from, so MOF-5 writes
-    the CIF it wrote before there was a search -- ``as-found`` still
-    PORMAKE's build and ``consistent`` still the faces' -- to the
-    byte.  ``CLEAR`` at zero is every angle having room, which is the
-    builder with the search taken out."""
+    the CIF it writes with the search off -- ``as-found`` as drawn
+    and ``consistent`` the faces' -- to the byte.  ``CLEAR`` at zero
+    is every angle having room, which is the builder with the search
+    taken out."""
     from xtal.build import clearance
 
     def written(folder):
@@ -1023,3 +1025,100 @@ def test_an_unsubstituted_linker_turns_exactly_as_before(
     searched = written(tmp_path / "a")
     monkeypatch.setattr(clearance, "CLEAR", 0.0)
     assert written(tmp_path / "b") == searched
+
+
+# ------------------------------------ a linker's turn about its axis
+
+def _nudged(source, folder, name, seed):
+    """``source`` written as block ``name`` with every atom moved by a
+    rounding error: 1e-9 A, far below anything the file can say."""
+    lines = source.read_text().splitlines()
+    count = int(lines[0])
+    rng = np.random.default_rng(seed)
+    out = lines[:2]
+    for line in lines[2:2 + count]:
+        symbol, *xyz = line.split()[:4]
+        moved = np.asarray(xyz, dtype=float)
+        if seed:
+            moved = moved + rng.normal(scale=1e-9, size=3)
+        out.append(f"{symbol} " + " ".join(f"{v:.12f}" for v in moved))
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / f"{name}.xyz").write_text(
+        "\n".join(out + lines[2 + count:]) + "\n")
+    return Catalog.default(also_blocks=(str(folder),))
+
+
+@needs_builder
+@pytest.mark.slow
+@pytest.mark.parametrize("linker", ["E14", "UPh"])
+def test_a_rounding_error_in_a_linker_does_not_turn_it_as_found(
+        tmp_path, linker):
+    """The fit leaves a linker's turn about its axis to the SVD of a
+    rank-one matrix, so a 1e-9 A nudge to E14 moved MOF-5's atoms by
+    up to 5 A as found, and OpenBLAS built 2-phenyl-BDC with its ring
+    on the other side from Accelerate.  Drawn as written, the turn is
+    the geometry's and not the arithmetic's."""
+    from scipy.spatial import cKDTree
+
+    from xtal.core import p1
+    from xtal.mof import database_root
+
+    if database_root() is None:
+        pytest.skip("the vendored PORMAKE database is missing")
+    source = (database_root() / "bbs" / f"{linker}.xyz"
+              if linker.startswith("E")
+              else Path(__file__).parent / "data" / "blocks"
+              / f"{linker}.xyz")
+    cells = []
+    for seed in range(3):
+        catalog = _nudged(source, tmp_path / f"blocks{seed}", "QLINK",
+                          seed)
+        outcome = build(BuildRequest.parse("pcu", "N16", "QLINK",
+                                           orientation="as-found"),
+                        _fresh(tmp_path / f"run{seed}"), catalog)
+        cells.append(p1.expand(outcome.structure).cart)
+    for other in cells[1:]:
+        assert len(other) == len(cells[0])
+        assert cKDTree(other).query(cells[0])[0].max() < 1e-4
+
+
+@needs_builder
+def test_as_drawn_undoes_any_turn_about_the_axis():
+    """Whatever the fit turned a linker by about its own axis, and
+    whichever way round it put the axis -- the exactly reversed case
+    included, which has no smallest rotation to measure against --
+    the block comes back to one orientation."""
+    from xtal.mof import database_root, orient
+    from xtal.mof.build import import_pormake
+
+    if database_root() is None:
+        pytest.skip("the vendored PORMAKE database is missing")
+    pormake = import_pormake()
+    drawn = pormake.BuildingBlock(str(database_root() / "bbs"
+                                      / "E14.xyz"))
+    first, second = (int(p) for p in drawn.connection_point_indices)
+    rng = np.random.default_rng(7)
+    swing = orient._rotation(
+        np.array([0.36, 0.48, 0.8]), 1.1)
+    flip = orient._smallest(
+        _unit(drawn, first, second), -_unit(drawn, first, second))
+    for fit in (swing, flip):
+        settled = []
+        for twist in rng.uniform(-np.pi, np.pi, size=3):
+            placed = drawn.copy()
+            positions = placed.atoms.get_positions() @ fit.T
+            placed.atoms.set_positions(positions)
+            axis = _unit(placed, first, second)
+            orient._turn(placed, axis, positions[first], twist)
+            angle = orient.as_drawn(drawn, placed, axis)
+            orient._turn(placed, axis,
+                         placed.atoms.get_positions()[first], angle)
+            settled.append(placed.atoms.get_positions())
+        for other in settled[1:]:
+            assert np.allclose(other, settled[0], atol=1e-9)
+
+
+def _unit(block, first, second):
+    positions = block.atoms.get_positions()
+    axis = positions[second] - positions[first]
+    return axis / np.linalg.norm(axis)

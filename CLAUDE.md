@@ -401,9 +401,11 @@ stress case).
   block "fitting" to 1e-4. `build._build` returns
   at pass 1 unless some *node* presents a frame -- several atoms at a
   point, or a face -- so a build of faceless nodes is what PORMAKE
-  made. `as-found` stays, one down in the form, and is byte for byte
-  PORMAKE's build; the upstream comparison in `test_mof_vendored.py`
-  asks for it by name. The results table's *Joint twist left* is
+  made. `as-found` stays, one down in the form, and is PORMAKE's
+  choice of which way round every node goes; its linkers are drawn as
+  written (below), which PORMAKE left to rounding. The upstream
+  comparison in `test_mof_vendored.py` asks for it by name, and reads
+  nothing a linker's turn changes. The results table's *Joint twist left* is
   what the rule could not fix: `pcu` x 1x1x1 on N16 is 6.0 over 3,
   because one slot cannot alternate.
 - **A face is scored, never bonded.** A connection point standing for
@@ -444,9 +446,22 @@ stress case).
   is sampled every 10 degrees, and of the angles within 0.1 A of the
   best clearance the one nearest φ* is taken. So a block with a
   substituent is turnable under either rule, even with no face to
-  present. Every build that was clear writes the CIF it wrote before,
-  to the byte (a test holds MOF-5 2x2x2 under both rules), and
-  2-phenyl-BDC on pcu/N16 goes from 0.37 A as found to 1.77.
+  present. The search samples from the preferred angle, not from
+  wherever the block sits, and a build that was clear with the search
+  writes what it wrote with it off, to the byte (a test holds MOF-5
+  2x2x2 under both rules). **Where nothing prefers an angle, the
+  linker is drawn as it was written** (`orient.as_drawn`, since
+  2026-09-29): under `as-found`, and under `consistent` for a linker
+  with no face at either end. Every linker is settled there before
+  any is searched for room, so none is measured against a neighbour
+  the fit left. It used to stay where the fit put it, and the fit
+  never put it anywhere: Kabsch onto an edge's two opposite
+  directions is rank one, and the turn it returns is the SVD's
+  completion of a null space -- a 1e-9 A nudge to E14 moved MOF-5's
+  atoms by up to 5 A as found, and OpenBLAS (macOS Intel, Windows)
+  built 2-phenyl-BDC with its ring on the other side from
+  Accelerate. `test_a_rounding_error_in_a_linker_does_not_turn_it_
+  as_found` holds it.
 - **A hydrogen is replaced by a whole group, bonded as built.**
   `xtal/build/substitute.py` puts the group's attaching atom
   `bond_distance` out along the old X-H and turns the rest about that

@@ -140,9 +140,10 @@ def clearest_angle(surroundings: Surroundings, group, axis, origin,
     already has :data:`CLEAR`, it is the answer and nothing is
     searched: that is the guarantee that a build which was right is
     not turned.  Otherwise a full turn is sampled every :data:`STEP`
-    degrees, every angle within :data:`SLACK` of the best clearance is
-    admissible, and of those the one nearest ``preferred`` is taken --
-    the preference breaking clearance's ties, never overruling it.
+    degrees from ``preferred``, every angle within :data:`SLACK` of the
+    best clearance is admissible, and of those the one nearest
+    ``preferred`` is taken -- the preference breaking clearance's ties,
+    never overruling it.
 
     ``keep_clear=False`` searches whatever the preferred angle has:
     a substituent has nothing to be faithful to, and the angle with
@@ -151,8 +152,12 @@ def clearest_angle(surroundings: Surroundings, group, axis, origin,
     at = surroundings.clearance(turn(group, axis, origin, preferred))
     if keep_clear and at >= CLEAR:
         return preferred, at
-    angles = [preferred] + [np.radians(STEP * k)
-                            for k in range(int(round(360 / STEP)))]
+    # Every STEP from the preferred angle, and not from the block's
+    # current one: where a linker happens to sit is the fit's rounding
+    # (see `xtal.mof.orient.as_drawn`), and a grid anchored there
+    # picked a different clear angle on a different BLAS.
+    angles = [preferred + np.radians(STEP * k)
+              for k in range(int(round(360 / STEP)))]
     scored = [(surroundings.clearance(turn(group, axis, origin, a)), a)
               for a in angles]
     best = max(score for score, _a in scored)

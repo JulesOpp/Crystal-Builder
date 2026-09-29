@@ -491,9 +491,10 @@ def rcsr_catalogue():
 
 
 #: 2-phenyl-BDC, ``[*:1]c1ccc([*:2])c(c2ccccc2)c1``: the phenyl ring
-#: lands on a neighbouring linker on pcu/N16 built as found -- 0.37 A,
-#: with five hydrogens that were once perceived bonded to two atoms
-#: each.
+#: landed on a neighbouring linker on pcu/N16 built as found -- 0.37 A
+#: where the fit's rounding happened to put it, with five hydrogens
+#: once perceived bonded to two atoms each.  Drawn as written it is
+#: 1.34 A with no search, and 1.77 with one.
 PHENYL_BDC = "[*:1]c1ccc([*:2])c(c2ccccc2)c1"
 
 #: 2,5-dimethoxy-BDC, ``[*:1]c1cc(OC)c([*:2])cc1OC``: 1.34 A under

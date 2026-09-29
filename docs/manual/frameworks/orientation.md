@@ -186,6 +186,15 @@ they meet.  This is a refinement and not a second fit: both connection
 points are on the axis, so a turn about it moves neither, and the RMSD,
 the relaxed cell and every fused point stay exactly what they were.
 
+Where nothing prefers an angle -- under *as-found*, which counts no
+faces, or for a linker with no face at either end -- the linker is
+turned back to the way round its block file was written, the smallest
+rotation that lays its axis along the edge and no turn about it.  Left
+where the fit put it, the angle was whatever the rounding of the
+best-fit rotation came to: moving a linker's atoms by a billionth of
+an ångström moved MOF-5's by up to 5 Å, and two computers built the
+same framework two ways.
+
 The angle is solved in closed form rather than scanned.  Writing each
 member's unit offset across the axis as a complex number $z$ in one
 basis shared by both ends, the turn that brings one end's members onto

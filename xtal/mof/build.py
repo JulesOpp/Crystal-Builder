@@ -113,9 +113,9 @@ class BuildRequest:
     #: Which way round the node blocks go: see :mod:`xtal.mof.orient`.
     #: ``"consistent"`` by default, because it is what builds MOF-5
     #: with its clusters alternating; ``"as-found"`` is what the
-    #: locator chose, byte for byte what PORMAKE makes.  Spelled out
-    #: here rather than imported, because :mod:`xtal.mof.orient`
-    #: imports this module.
+    #: locator chose, with each linker drawn as it was written.
+    #: Spelled out here rather than imported, because
+    #: :mod:`xtal.mof.orient` imports this module.
     orientation: str = "consistent"
     #: How far apart the sheets of a layer net are stacked, in
     #: Angstrom, or ``None`` for :data:`xtal.mof.layers.
@@ -700,6 +700,11 @@ def _build(topology, node_bbs, edge_bbs, log, repeat=(1, 1, 1),
     framework = builder.build_by_type(
         topology=topo, node_bbs=nodes,
         edge_bbs=edges or None)
+    # The blocks as written, slot by slot, for the one freedom the fit
+    # leaves undecided: a linker's turn about its own axis
+    # (`orient.as_drawn`).
+    framework.info["drawn_bbs"] = builder.make_bbs_by_type(
+        topo, nodes, edges or None)
 
     from xtal.mof import orient
 
@@ -712,7 +717,7 @@ def _build(topology, node_bbs, edge_bbs, log, repeat=(1, 1, 1),
     # the blocks as made, not as placed: a node placed with no linker
     # beside it comes back without its X atoms while still naming
     # them, so N59 on bare pcu has points 20-25 in a block of 20.
-    blocks = builder.make_bbs_by_type(topo, nodes, edges or None)
+    blocks = framework.info["drawn_bbs"]
     if not any(_presents_face(blocks[int(slot)])
                for slot in topo.node_indices):
         _say(log, "no connection point of a node here stands for more "
@@ -746,6 +751,7 @@ def _build(topology, node_bbs, edge_bbs, log, repeat=(1, 1, 1),
                   "round; keeping it")
         return framework
     turned = builder.build(topo, blocks, permutations=chosen)
+    turned.info["drawn_bbs"] = blocks
     # Pass 2 relaxes the cell again around the new orientations, and
     # nothing in the choice looked at how well the blocks would sit
     # afterwards.  A turn that agrees better across the joints and
