@@ -670,7 +670,12 @@ stress case).
   nearly always a refinement's distance table, and reading one would
   bond a structure on open, which is what Recalculate Bonds exists to
   stay in charge of. `xtal.io.export.for_export` is the one door out:
-  no dummy atoms, no net edges, no suppressions. **A scan point's CIF
+  no dummy atoms, no net edges, no suppressions. The exception is a
+  format that writes bonds from the graph itself: the LAMMPS data file
+  (`xtal/io/lammps.py`, `Format.settles_bonds`). It is handed the
+  structure uncleaned, because once the suppressions are gone the
+  graph is perceived again. It drops the markers itself, as
+  `cellcut.cut_cell` does. **A scan point's CIF
   also carries the perceived graph** (`write_cif(perception=True)`,
   an `_xtal_perceived_bond_*` loop of P1 bonds), because its cell is
   not the one the bonds were perceived at and opening it would

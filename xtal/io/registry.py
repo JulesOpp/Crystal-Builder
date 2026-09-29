@@ -44,6 +44,12 @@ class Format:
     # What survives a round trip, for the export dialog to be honest
     # about: {"symmetry", "occupancy", "adp", "bonds", "charges"}
     keeps: frozenset = field(default_factory=frozenset)
+    #: Whether the writer reads the bond graph itself and so is handed
+    #: the structure as it is, not :func:`xtal.io.export.for_export`'s
+    #: copy.  That copy drops the ``suppressed`` records, and a graph
+    #: read after that is perceived again -- every bond the user took
+    #: away back in the file.  Such a writer drops the markers itself.
+    settles_bonds: bool = False
 
     @property
     def can_read(self) -> bool:

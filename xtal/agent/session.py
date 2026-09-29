@@ -861,7 +861,9 @@ class Session:
         from xtal.io.export import for_export
 
         path = Path(path)
-        FORMATS.write(for_export(self.structure), path)
+        settled = FORMATS.by_extension(path).settles_bonds
+        FORMATS.write(self.structure if settled
+                      else for_export(self.structure), path)
         self._record("export", {"path": str(path)},
                      VerbResult("export", True, f"exported {path.name}",
                                 atoms_after=self.n_atoms))

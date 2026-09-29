@@ -982,6 +982,27 @@ def test_the_export_dialog_says_what_the_format_drops(opened):
     assert "symmetry" in keeps_text(FORMATS.get("cif"))
 
 
+def test_the_export_dialog_offers_lammps(opened, tmp_path):
+    """Through the registry and nothing else: the dialog learns the
+    format from ``FORMATS``, and the document hands a writer that
+    settles its own bonds the structure as it is drawn."""
+    from xtal.core import bonding
+    from xtalapp.dialogs.export import ExportDialog
+
+    window, document = opened
+    dialog = ExportDialog(document, window)
+    assert "lammps-data" in [f.name for f in dialog.formats]
+    # Rutile along c = 2.96 A bonds its Ti through two images of one
+    # oxygen, which LAMMPS cannot hold -- so refused, by name.
+    with pytest.raises(ValueError, match="supercell"):
+        document.export(tmp_path / "rutile.data")
+    document.make_supercell(1, 1, 2)
+    target = document.export(tmp_path / "rutile.data")
+    bonds = target.read_text().split("\nBonds\n")[1].strip()
+    assert len(bonds.splitlines()) == len(
+        bonding.graph(document.structure).bonds)
+
+
 def test_exporting_a_selection_writes_only_those_atoms(opened,
                                                        tmp_path):
     window, document = opened

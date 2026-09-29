@@ -269,7 +269,11 @@ it is. Returns the path.
 ### `export(path)`
 
 A copy for another program, in the format the suffix names: no markers,
-no net edges, no suppressions.
+no net edges, no suppressions. `.data` or `.lmp` writes a LAMMPS data
+file (`atom_style full`) with the bonds as they are drawn, the
+suppressed ones left out. It raises `ValueError` when a bond's partner
+is not its closest image, which happens in a cell too thin for LAMMPS;
+make a supercell first.
 
 ## The answers
 
