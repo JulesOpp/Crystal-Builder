@@ -34,6 +34,7 @@ from __future__ import annotations
 import os
 import sys
 
+from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QComboBox,
@@ -946,8 +947,41 @@ def build_toolbar(window):
         action = window.actions_[name]
         action.setIconText(axis)
         bar.addAction(action)
+    # A box the toolbar holds is not where a keystroke is aimed unless
+    # it was clicked: an editable field keeps its own Ctrl+Z, and the
+    # element combo held the focus from startup and again after every
+    # dialog closed -- so Ctrl+Z undid the letter C and never the
+    # slab.  Clicked into, it still hands Undo and Redo to the window.
+    window._undo_goes_to_the_window = _UndoGoesToTheWindow(window)
+    for box in (window.element_combo, *window.cell_spins):
+        box.setFocusPolicy(Qt.ClickFocus)
+        field = box.lineEdit()
+        field.setFocusPolicy(Qt.ClickFocus)
+        # Both: a combo answers the override for its field itself.
+        for widget in (box, field):
+            widget.installEventFilter(window._undo_goes_to_the_window)
     window.addToolBar(bar)
     window.toolbar = bar
+
+
+class _UndoGoesToTheWindow(QObject):
+    """Refuse a text field's claim on Undo and Redo, so the window's
+    actions get them.
+
+    A line edit accepts the *ShortcutOverride* for the undo keys, which
+    is Qt for "this key is mine, do not fire the shortcut".  Swallowing
+    that one event leaves it unaccepted, and the window's Undo fires.
+    For a field that holds an element symbol or a cell count, undoing
+    the typing is worth nothing next to undoing the structure.
+    """
+
+    KEYS = (QKeySequence.Undo, QKeySequence.Redo)
+
+    def eventFilter(self, watched, event):              # noqa: N802
+        if (event.type() == QEvent.ShortcutOverride
+                and any(event.matches(k) for k in self.KEYS)):
+            return True
+        return super().eventFilter(watched, event)
 
 def popup(menu, position) -> None:
     """Raise a context menu and wait on it, in one place.

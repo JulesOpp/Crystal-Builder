@@ -388,6 +388,33 @@ def test_the_ways_of_opening_a_file_are_together(window):
                           "Open Sample"]
 
 
+def test_undo_and_redo_are_the_windows_even_in_a_toolbar_box(window):
+    """An editable box claims Ctrl+Z for its own text, and the element
+    combo held the focus from startup and after every dialog -- so
+    Ctrl+Z undid a letter and never the slab, while the Edit menu's
+    Undo did.  A box still takes every other key, and none takes the
+    focus unless clicked."""
+    from PySide6.QtCore import QEvent, Qt
+    from PySide6.QtGui import QKeyEvent
+    from PySide6.QtWidgets import QApplication
+
+    def claimed(widget, key, modifiers):
+        event = QKeyEvent(QEvent.ShortcutOverride, key, modifiers)
+        event.ignore()
+        QApplication.sendEvent(widget, event)
+        return event.isAccepted()
+
+    control = Qt.ControlModifier
+    for box in (window.element_combo, *window.cell_spins):
+        assert box.focusPolicy() == Qt.ClickFocus
+        for widget in (box, box.lineEdit()):
+            assert not claimed(widget, Qt.Key_Z, control)
+            assert not claimed(widget, Qt.Key_Z,
+                               control | Qt.ShiftModifier)
+            # Select All stays the field's: only Undo and Redo move.
+            assert claimed(widget, Qt.Key_A, control)
+
+
 def test_the_element_combo_sits_with_the_mode_that_places_it(window):
     """It is the element Add atom places -- its own tooltip says so --
     and it stood beside Recalculate bonds, which it has nothing to do
