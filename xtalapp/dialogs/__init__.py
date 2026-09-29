@@ -37,6 +37,7 @@ _BY_NAME = {
                      "BuildMoleculeDialog"),
     "net-draw": ("xtalapp.dialogs.net_draw", "NetDrawDialog"),
     "stl-export": ("xtalapp.dialogs.stl_export", "StlExportDialog"),
+    "blender-render": ("xtalapp.dialogs.stl_export", "RenderDialog"),
     "band-structure": ("xtalapp.dialogs.dftb_run",
                        "BandStructureDialog"),
     "dftb-run": ("xtalapp.dialogs.dftb_run", "DftbRunDialog"),

@@ -369,6 +369,14 @@
    "checkable": false
   },
   {
+   "key": "render_blender",
+   "section": "File",
+   "path": "Render in Blender...",
+   "shortcut": "",
+   "tip": "One unit cell with its bonds, lit and rendered by Blender, the scene kept beside the picture.  Blender has to be installed -- see Preferences > Engines",
+   "checkable": false
+  },
+  {
    "key": "export_net",
    "section": "File",
    "path": "Export Net for Systre...",
@@ -1430,6 +1438,14 @@
    "path": "Blender ▸ Export as STL...",
    "shortcut": "",
    "tip": "One unit cell with its bonds, turned into a printable mesh by Blender",
+   "checkable": false
+  },
+  {
+   "key": "module.blender.render",
+   "section": "Modules",
+   "path": "Blender ▸ Render in Blender...",
+   "shortcut": "",
+   "tip": "One unit cell with its bonds, lit and rendered by Blender's Cycles; the scene is kept beside the picture",
    "checkable": false
   },
   {
@@ -3832,6 +3848,64 @@
        "accepts": "float, 0 to 10000 mm",
        "default": "0.0",
        "help": "Scale the model so its longest side is this.  0 leaves one Angstrom as one millimetre"
+      }
+     ]
+    },
+    {
+     "name": "render",
+     "label": "Render in Blender...",
+     "tip": "One unit cell with its bonds, lit and rendered by Blender's Cycles; the scene is kept beside the picture",
+     "dialog": "blender-render",
+     "shell": "",
+     "params": [
+      {
+       "name": "output",
+       "label": "Save as",
+       "accepts": "path",
+       "default": "",
+       "help": "Where the PNG goes.  The run folder keeps a copy, and the scene.blend it was rendered from, to open in Blender and take further"
+      },
+      {
+       "name": "bonded_partners",
+       "label": "Complete bonds across the cell faces",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Bring in the atom at the far end of every bond that leaves the cell, so a linker cut by a face is drawn with both its ends"
+      },
+      {
+       "name": "width",
+       "label": "Width",
+       "accepts": "int, 16 to 16384 px",
+       "default": "1920",
+       "help": "The picture's width.  The camera's 40 mm lens spans the longer side"
+      },
+      {
+       "name": "height",
+       "label": "Height",
+       "accepts": "int, 16 to 16384 px",
+       "default": "1080",
+       "help": "The picture's height"
+      },
+      {
+       "name": "samples",
+       "label": "Render samples",
+       "accepts": "int, 1 to 10000",
+       "default": "50",
+       "help": "Cycles' samples a pixel for the picture.  More is less noise, and time in proportion"
+      },
+      {
+       "name": "viewport_samples",
+       "label": "Viewport samples",
+       "accepts": "int, 1 to 10000",
+       "default": "10",
+       "help": "Cycles' samples in Blender's own rendered view, for when scene.blend is opened"
+      },
+      {
+       "name": "frame",
+       "label": "Frame the whole structure",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Move the camera along its view until every atom is in the picture.  Off stands it at the scene's fixed place, which suits a cell of MOF-5's size"
       }
      ]
     }

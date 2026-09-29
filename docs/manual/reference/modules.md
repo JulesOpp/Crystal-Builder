@@ -693,3 +693,21 @@ One unit cell with its bonds, turned into a printable mesh by Blender
 | **Voxel size** | float, 0.01 to 2 A | `0.1` | The remesh grid.  Smaller keeps more detail and costs memory as the cube of it |
 | **Triangle budget** | int, 0 to 100000000 | `1000000` | The remesh is coarsened until the mesh fits.  0 is no budget; a binary STL is about 50 bytes a triangle |
 | **Longest side** | float, 0 to 10000 mm | `0.0` | Scale the model so its longest side is this.  0 leaves one Angstrom as one millimetre |
+
+(mod-blender-render)=
+### Render in Blender...
+
+One unit cell with its bonds, lit and rendered by Blender's Cycles; the scene is kept beside the picture
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Save as** | path |  | Where the PNG goes.  The run folder keeps a copy, and the scene.blend it was rendered from, to open in Blender and take further |
+| **Complete bonds across the cell faces** | bool | `False` | Bring in the atom at the far end of every bond that leaves the cell, so a linker cut by a face is drawn with both its ends |
+| **Width** | int, 16 to 16384 px | `1920` | The picture's width.  The camera's 40 mm lens spans the longer side |
+| **Height** | int, 16 to 16384 px | `1080` | The picture's height |
+| **Render samples** | int, 1 to 10000 | `50` | Cycles' samples a pixel for the picture.  More is less noise, and time in proportion |
+| **Viewport samples** | int, 1 to 10000 | `10` | Cycles' samples in Blender's own rendered view, for when scene.blend is opened |
+| **Frame the whole structure** | bool | `True` | Move the camera along its view until every atom is in the picture.  Off stands it at the scene's fixed place, which suits a cell of MOF-5's size |

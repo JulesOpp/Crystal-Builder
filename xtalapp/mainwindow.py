@@ -489,6 +489,11 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         export is looked for.  See :mod:`xtal.modules.blender`."""
         self.run_module_action("blender", "export-stl")
 
+    def render_in_blender(self) -> None:
+        """A module run from File, beside Export as STL.  See
+        :mod:`xtal.modules.blender`."""
+        self.run_module_action("blender", "render")
+
     def close_current(self) -> None:
         self.document_set.close_current()
 

@@ -54,9 +54,9 @@ where the add-on lives in your Blender version.
 *Preferences ▸ Engines* ({ref}`Preferences… <cmd-preferences>`,
 {kbd}`Ctrl+,`) has a row for Blender among the programs the
 application shells out to, described there as *File > Export as STL,
-which turns one cell into a printable mesh.  It needs the Atomic
-Blender add-on: Blender 3.x ships it, 4.2 and later offer it under
-Get Extensions.*  Under the field a status line says whether Blender
+which turns one cell into a printable mesh, and File > Render in
+Blender.  Both need the Atomic Blender add-on: Blender 3.x ships it,
+4.2 and later offer it under Get Extensions.*  Under the field a status line says whether Blender
 was found and, if not, where it looked.  Three places are tried: the
 path set in this row, the environment variable `XTAL_BLENDER`, and
 the `PATH`; on macOS the standard location

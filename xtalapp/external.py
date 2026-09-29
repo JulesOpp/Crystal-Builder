@@ -112,8 +112,9 @@ TOOLS = (
           github("grimme-lab/xtb"))),
     Tool("tools/blender", "Blender", "file",
          "File > Export as STL, which turns one cell into a printable "
-         "mesh.  It needs the Atomic Blender add-on: Blender 3.x ships "
-         "it, 4.2 and later offer it under Get Extensions.",
+         "mesh, and File > Render in Blender.  Both need the Atomic "
+         "Blender add-on: Blender 3.x ships it, 4.2 and later offer it "
+         "under Get Extensions.",
          (Reference("blender.org", "https://www.blender.org"),)),
     Tool("tools/waveplot", "waveplot", "file",
          "DFTB+'s orbital plotter, for Modules > DFTB+ > Orbital.  It "

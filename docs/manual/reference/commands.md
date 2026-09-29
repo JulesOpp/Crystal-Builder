@@ -464,6 +464,16 @@ One unit cell with its bonds, as a mesh a 3D printer can take.  Blender does the
 ```{index} Export as STL...
 ```
 
+(cmd-render_blender)=
+### Render in Blender...
+
+`render_blender`
+
+One unit cell with its bonds, lit and rendered by Blender, the scene kept beside the picture.  Blender has to be installed -- see Preferences > Engines
+
+```{index} Render in Blender...
+```
+
 (cmd-export_net)=
 ### Export Net for Systre...
 
@@ -1808,6 +1818,16 @@ Fit peaks and refine against a measured .xy pattern, in a window of its own; the
 One unit cell with its bonds, turned into a printable mesh by Blender
 
 ```{index} Export as STL...
+```
+
+(cmd-module.blender.render)=
+### Blender ▸ Render in Blender...
+
+`module.blender.render`
+
+One unit cell with its bonds, lit and rendered by Blender's Cycles; the scene is kept beside the picture
+
+```{index} Render in Blender...
 ```
 
 ## Window

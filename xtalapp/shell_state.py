@@ -478,4 +478,5 @@ class ShellRefresh:
                 self.actions_[name].setToolTip(available.reason)
             elif action.tip:
                 self.actions_[name].setToolTip(action.tip)
-        self.actions_.set_enabled(["export_stl"], idle and editable)
+        self.actions_.set_enabled(["export_stl", "render_blender"],
+                                  idle and editable)

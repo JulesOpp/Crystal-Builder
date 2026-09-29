@@ -178,7 +178,6 @@ since 2026-09-08.
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
 | **C3 — Save as a building block goes to `blocks/`** | The folder Draw writes to, and no write-back to `mof_bb_dir` | `xtalapp/dialogs/save_block.py`, `xtalapp/edit_actions.py` | S |
-| **B3 — Render in Blender** | `scene.blend` and `render.png` from Julius's scene | `xtal/modules/blender.py`, `xtal/modules/data/render_scene.py` | M |
 | **B4 — Zeo++ from GitHub** | Measured against the reference, then found beside 0.3 or replacing it | `xtal/modules/zeopp.py` | S-M |
 
 ### C3 — One folder for blocks
@@ -191,28 +190,6 @@ Move origin…* -- ends by saving it as a building block.
 building block…* defaulted to `settings.mof_bb_dir` and would not save
 until a folder was typed.  Decided: it defaults to `blocks/` and no
 longer writes `mof_bb_dir` back.
-
-### B3 — Render a scene in Blender
-
-Send the structure to Blender for rendered images, reusing everything
-*Export as STL* has: the program lookup, the run folder, Stop, the
-greyed entry, and the cell cut to a PDB with a CONECT per bond.  The
-scene is **Julius's settings, 2026-09-28**, built to exactly:
-
-- Remove every object from the scene.
-- Import the `.pdb` with Atomic Blender.
-- An area light, scaled up 100, at z = 25, power 100 000.
-- Cycles: 10 max samples in the viewport, 50 max samples to render.
-- Simplify on, and Render Region on.
-- A camera of 40 mm focal length at rotation (70.7437, 0.000522,
-  146.958) degrees.
-  - It sits at (42.0251, 64.6089, 26.9517) m **unless it can be set
-    automatically to take in the whole object**.
-  - The plan frames it automatically along that direction, and keeps
-    the fixed place as a fallback.
-
-The scene script is ours, so it is linted, unlike the vendored STL
-script.
 
 ### B4 — Zeo++ from its GitHub source
 
