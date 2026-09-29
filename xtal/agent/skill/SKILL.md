@@ -133,8 +133,9 @@ already keep them; the failure is reaching around a verb to "help".
    different set of atoms**: `supercell`, `find_symmetry`,
    `standardize`, `set_space_group`, `prepare`. The stored graph cannot
    describe the new cell, so its bonds are perceived afresh (hand-drawn
-   bonds are carried). `reduce_to_p1`, `set_cell` and every move carry
-   the graph as it was. `inspect()` after any rebuild: an atom you left
+   bonds are carried). `reduce_to_p1`, `set_cell`, `slab` and every
+   move carry the graph as it was (a slab loses only the bonds its
+   surfaces cut). `inspect()` after any rebuild: an atom you left
    unbonded on purpose may not be any more.
 2. **A force field never changes the atoms or the bonds.** `optimize()`
    moves positions and, with `relax_cell=True`, the cell. If a

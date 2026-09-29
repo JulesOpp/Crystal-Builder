@@ -897,6 +897,14 @@
    "checkable": false
   },
   {
+   "key": "slab",
+   "section": "Cell",
+   "path": "Slab...",
+   "shortcut": "",
+   "tip": "Cut a slab along a lattice plane (hkl), with vacuum above it",
+   "checkable": false
+  },
+  {
    "key": "niggli",
    "section": "Cell",
    "path": "Niggli reduction",

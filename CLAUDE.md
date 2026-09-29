@@ -245,7 +245,11 @@ stress case).
   dummy loses its perceived ones.
   `AddSites(perceive=False)` and `bonding.hold_perception` are how;
   Add hydrogens is the deliberate exception, because bonding what it
-  adds is the whole operation.
+  adds is the whole operation. **A slab carries its graph**
+  (`xtal/core/slab.py`, Cell ▸ Slab…). Each bond goes to every copy of
+  its first atom and is kept where its partner is in the slab too, so
+  the bonds the surfaces cut are simply gone, and counted. A supercell
+  still perceives afresh.
 - **A site is on a special position when its coordinates say it is,
   to the precision they were written at.** `p1.SPECIAL_POSITION_TOL`
   is 0.05 A and is not a numerical tolerance: four decimal places on a

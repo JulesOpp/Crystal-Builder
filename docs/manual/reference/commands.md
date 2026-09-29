@@ -1134,6 +1134,16 @@ na x nb x nc, or a general integer transformation
 ```{index} Supercell...
 ```
 
+(cmd-slab)=
+### Slab...
+
+`slab`
+
+Cut a slab along a lattice plane (hkl), with vacuum above it
+
+```{index} Slab...
+```
+
 (cmd-niggli)=
 ### Niggli reduction
 

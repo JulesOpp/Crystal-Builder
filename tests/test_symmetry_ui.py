@@ -26,6 +26,7 @@ from xtalapp.dialogs.find_symmetry import (  # noqa: E402
 from xtalapp.dialogs.merge_duplicates import (  # noqa: E402
     MergeDuplicatesDialog,
 )
+from xtalapp.dialogs.slab import SlabDialog  # noqa: E402
 from xtalapp.dialogs.spacegroup import SpaceGroupDialog  # noqa: E402
 from xtalapp.dialogs.subgroup import (  # noqa: E402
     DETAIL_HEIGHT,
@@ -372,6 +373,47 @@ def test_a_singular_matrix_disables_ok(qtbot, document):
     assert dialog.preview.text()
 
 
+# ----------------------------------------------------------------- slab
+
+def test_the_slab_dialog_previews_and_builds_one_step(qtbot, document):
+    dialog = SlabDialog(document)
+    qtbot.addWidget(dialog)
+    for spin, value in zip(dialog.indices, (1, 1, 0), strict=True):
+        spin.setValue(value)
+    dialog.layers.setValue(3)
+    assert "(1 1 0) slab, 3 layers" in dialog.preview.text()
+    assert "18 atoms" in dialog.preview.text()
+
+    document.operate(dialog.command())
+    assert n_atoms(document) == 18
+    assert document.structure.space_group.is_p1
+    document.undo()
+    assert n_atoms(document) == 6
+
+
+def test_a_zero_plane_disables_ok_and_says_why(qtbot, document):
+    dialog = SlabDialog(document)
+    qtbot.addWidget(dialog)
+    dialog.indices[2].setValue(0)
+    assert not dialog.buttons.button(QDialogButtonBox.Ok).isEnabled()
+    assert "Miller" in dialog.preview.text()
+
+
+def test_the_slab_entry_reaches_the_document(window, rutile_cif,
+                                             monkeypatch):
+    from xtal.commands.cell import MakeSlab
+
+    document = window.open_path(rutile_cif)
+    assert window.actions_["slab"].isEnabled()
+    monkeypatch.setattr(
+        SlabDialog, "ask",
+        classmethod(lambda cls, doc, parent=None:
+                    doc.operate(MakeSlab((0, 0, 1), 2, 10.0))))
+    window.actions_["slab"].trigger()
+    assert n_atoms(document) == 12
+    assert document.stack.depth == 1
+
+
 # ------------------------------------------------------------ cell edit
 
 def test_cell_edit_dialog_offers_both_meanings(qtbot):
@@ -543,7 +585,8 @@ def test_the_symmetry_and_cell_menus_reach_the_document(window,
 
 def test_menu_actions_need_a_document(window):
     for name in ("find_symmetry", "set_space_group", "supercell",
-                 "edit_cell", "niggli", "wrap_cell", "display_range"):
+                 "slab", "edit_cell", "niggli", "wrap_cell",
+                 "display_range"):
         assert not window.actions_[name].isEnabled()
 
 

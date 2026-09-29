@@ -1,7 +1,8 @@
 # File formats
 
-Crystal Builder reads and writes seven structure formats, and each
-one keeps a different part of what a structure is.  After this page
+Crystal Builder reads and writes seven structure formats and writes
+an eighth, the LAMMPS data file. Each one keeps a different part of
+what a structure is.  After this page
 you know which format to reach for, what a round trip through it
 loses, why a CIF written here carries its bonds, and what a project
 file holds that no CIF can.
@@ -24,6 +25,7 @@ pmg-json yes   yes    .json
 cssr   yes   yes    .cssr
 gen    yes   yes    .gen
 xyz    yes   yes    .xyz .extxyz
+lammps-data  -    yes    .data .lmp
 ```
 
 The same registry builds the filter of {ref}`Open… <cmd-open>` and
@@ -61,6 +63,8 @@ table that could drift from it:
   parameters, charges, bonds and the view are not written.*
 - *XYZ keeps occupancy; symmetry, displacement parameters, charges,
   bonds and the view are not written.*
+- *LAMMPS-DATA keeps charges and bonds; symmetry, occupancy,
+  displacement parameters and the view are not written.*
 
 A project, which is not offered by *Export…* because it is what
 *Save* writes, keeps all six.  "Bonds are not written" is said of the
@@ -486,6 +490,36 @@ group, so it is P1 both ways.  It is also how a DFTB+ relaxation
 comes back ({doc}`/energy/dftb`): `geo_end.gen` is the final geometry
 in the same format as the input.  A structure with no atoms cannot be
 written to it, and the error says to add some or export to CIF.
+
+## LAMMPS data file (.data, .lmp)
+
+```{index} single: LAMMPS data file
+```
+
+*Export…* writes a LAMMPS data file in `atom_style full`: the box,
+the masses, every atom with a molecule ID and a charge, and the bonds.
+It is export only; nothing reads it back.
+
+- **Types.** Atom types are elements. Bond types are element pairs,
+  each named in a comment at the top of the file.
+- **No coefficients.** Choosing a force field is the input script's
+  job, not the file's.
+- **Molecule IDs.** Each molecule ID is one connected piece of the
+  bond graph. A framework is one molecule; each CO₂ in dry ice is its
+  own.
+- **Charges.** A structure with no charges set is written with
+  q = 0, and the file says so.
+- **Bonds.** The bonds are the ones on screen. A bond you removed
+  stays out, and nothing is perceived.
+- **Markers.** Dummy atoms and net edges are left out, as every
+  export leaves them.
+- **Box.** The box is LAMMPS's restricted triclinic one. Its tilts are
+  folded into half the box by a change of basis, which moves no atom.
+
+One refusal: LAMMPS joins a bond to the *closest* image of its
+partner. In a cell too thin for that to be the right one, the export
+names the bond and asks for a supercell. Rutile's 2.96 Å *c* is the
+usual case.
 
 ## Worked example: a round trip through two formats
 

@@ -614,7 +614,8 @@ schedule has it in [TODO.md](TODO.md) § Scheduled.
 **High value, moderate**
 * Embedded Python console driving the same command API (scriptability).
 * Symmetry-mode editing of Wyckoff free parameters only.
-* Slab/surface builder: cut along (hkl), set thickness + vacuum.
+* ~~Slab/surface builder: cut along (hkl), set thickness + vacuum.~~
+  Shipped 2026-09-29 as Cell ▸ Slab… (`xtal/core/slab.py`).
 * Molecule/fragment library for pasting common ligands — scheduled, as
   part of [ROADMAP.md](ROADMAP.md) phase N.
 * Distance-based site disorder tools (split sites) — the partial

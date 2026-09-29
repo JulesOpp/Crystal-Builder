@@ -499,6 +499,9 @@ def build_actions(window):
 
     add("supercell", "&Supercell...", window.supercell_dialog,
         tip="na x nb x nc, or a general integer transformation")
+    add("slab", "S&lab...", window.slab_dialog,
+        tip="Cut a slab along a lattice plane (hkl), with vacuum "
+            "above it")
     add("edit_cell", "&Edit cell...", window.edit_cell,
         tip="Change the cell parameters, keeping fractional or "
             "cartesian coordinates")
@@ -667,7 +670,7 @@ def build_menus(window):
 
     cell_menu = submenu(bar, "&Cell")
     window.actions_.fill_menu(cell_menu, [
-        "edit_cell", "supercell", None,
+        "edit_cell", "supercell", "slab", None,
         "niggli", "delaunay", None, "wrap_cell", "move_origin"])
 
     measure_menu = submenu(bar, "&Measure")

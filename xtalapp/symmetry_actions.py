@@ -17,6 +17,7 @@ from xtalapp.dialogs.interpenetrate import InterpenetrateDialog
 from xtalapp.dialogs.merge_duplicates import MergeDuplicatesDialog
 from xtalapp.dialogs.origin import OriginDialog
 from xtalapp.dialogs.prepare import PrepareDialog
+from xtalapp.dialogs.slab import SlabDialog
 from xtalapp.dialogs.spacegroup import SpaceGroupDialog
 from xtalapp.dialogs.subgroup import SubgroupDialog
 from xtalapp.dialogs.supercell import SupercellDialog
@@ -189,6 +190,11 @@ class SymmetryActions:
         document = self.current_document()
         if document is not None:
             self._report(SupercellDialog.ask(document, self))
+
+    def slab_dialog(self) -> None:
+        document = self.current_document()
+        if document is not None:
+            self._report(SlabDialog.ask(document, self), "Slab")
 
     def edit_cell(self) -> None:
         document = self.current_document()

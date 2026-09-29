@@ -60,6 +60,7 @@ def test_every_verb_is_one_undo_step(rutile):
         lambda: session.move_sites([1], frac_delta=[0.01, 0.01, 0]),
         lambda: session.set_cell(4.7, 4.7, 3.0, 90, 90, 90),
         lambda: session.supercell(1, 1, 2),
+        lambda: session.slab((1, 1, 0), layers=2, vacuum=10.0),
         lambda: session.recalculate_bonds(),
         lambda: session.reduce_to_p1(),
         lambda: session.delete_sites([0]),
@@ -94,6 +95,14 @@ def test_a_refused_operation_pushes_nothing(rutile):
     assert session.stack.depth == 0
     assert answer.diagnostics[0].code in ("NOTHING_TO_DO",
                                           "OPERATION_REFUSED")
+
+
+def test_a_slab_of_a_zero_plane_is_a_refusal_not_an_exception(rutile):
+    session = Session(rutile)
+    answer = session.slab((0, 0, 0))
+    assert not answer.ok
+    assert session.stack.depth == 0
+    assert answer.diagnostics[0].code == "OPERATION_REFUSED"
 
 
 def test_a_marker_is_held_back_from_an_optimisation_and_said_so(

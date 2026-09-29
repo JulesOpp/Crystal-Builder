@@ -389,6 +389,20 @@ class Session:
                              cell_commands.Supercell(na, nb, nc),
                              {"n": [na, nb, nc]})
 
+    def slab(self, hkl, layers: int = 1, vacuum: float = 15.0,
+             shift: float = 0.0) -> VerbResult:
+        """A slab along (hkl), ``layers`` spacings thick, with
+        ``vacuum`` Angstrom above.  The bonds are carried, never
+        perceived; the ones the surfaces cut are counted."""
+        args = {"hkl": [int(v) for v in hkl], "layers": layers,
+                "vacuum": vacuum, "shift": shift}
+        command = cell_commands.MakeSlab(hkl, layers, vacuum, shift)
+        try:
+            command.preview(self.structure)
+        except ValueError as exc:
+            return self._refused("slab", args, str(exc))
+        return self._operate("slab", command, args)
+
     def reduce_to_p1(self) -> VerbResult:
         return self._operate("reduce_to_p1",
                              symmetry_commands.ReduceToP1(), {})

@@ -1645,6 +1645,11 @@ class Document(QObject):
     def make_supercell(self, na: int, nb: int, nc: int):
         return self.operate(cell_commands.Supercell(na, nb, nc))
 
+    def make_slab(self, hkl, layers: int = 1, vacuum: float = 15.0,
+                  shift: float = 0.0):
+        return self.operate(
+            cell_commands.MakeSlab(hkl, layers, vacuum, shift))
+
     def transform_cell(self, p_matrix):
         return self.operate(cell_commands.TransformCell(p_matrix))
 

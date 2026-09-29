@@ -376,7 +376,7 @@ class ShellRefresh:
              "substitute_rings",
              "find_symmetry", "set_space_group", "standardize",
              "primitive", "wyckoff", "merge_duplicates", "subgroup",
-             "invert", "supercell",
+             "invert", "supercell", "slab",
              "edit_cell", "niggli", "delaunay", "wrap_cell",
              "save_building_block",
              "single_point", "optimize", "dftb_single_point",

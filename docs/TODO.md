@@ -457,6 +457,22 @@ does not do, and neither blocks anything:
   surface ever needs to be *written* -- an STL for a figure, or the
   project file it is deliberately kept out of.
 
+### Where D_f is, measured on our own grid
+
+The Style panel draws D_i or D_if, each exactly at its Voronoi node.
+It cannot draw D_f, because Zeo++ writes no edge radii, and the user
+postponed this on 2026-09-29. It could be measured on the distance
+grid `xtal/analysis/voids.py` already builds:
+
+- The widest probe that still percolates is D_f.
+- The link whose removal stops it percolating is the bottleneck, so
+  the sphere goes at that link's middle.
+- It is the maximin path over `_links`, with union-find carrying the
+  cell offsets as `_split` does.
+
+The drawn diameter would be the grid's value, which is within a grid
+step of Zeo++'s. The number beside the sphere has to say that.
+
 ### A chelate's joint comes out 0.3 A long, and the cell with it
 
 Measured in Phase 8, 2026-09-21.  Ni3(HITP)2 built on `hcb` has the

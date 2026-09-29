@@ -18,7 +18,8 @@ Conventions:
 - Bonds are perceived afresh only by `recalculate_bonds()` and by the
   verbs that rebuild the cell into a different set of atoms
   (`supercell`, `find_symmetry`, `standardize`, `set_space_group`,
-  `prepare`). Every other verb leaves the bond graph as it was.
+  `prepare`). Every other verb leaves the bond graph as it was, and
+  `slab` carries it, losing only the bonds its surfaces cut.
 
 ## Getting a session
 
@@ -126,6 +127,18 @@ drawn.
 (they stay put in space).
 
 ### `supercell(na, nb, nc)`
+
+### `slab(hkl, layers, vacuum, shift)`
+
+A slab cut along the plane `hkl`, a Miller index of the cell as it is
+(the conventional cell for a centred group). It is `layers` spacings
+d(hkl) thick, with `vacuum` Å above it along the normal. `shift` moves
+the cut up by that fraction of a layer, which chooses the termination.
+Defaults: one layer, 15 Å, no shift. The result is P1, with *c*
+along the plane normal. **The bonds are
+carried, not perceived**: a bond the surfaces cut is gone, and the
+message counts those bonds. The cut atoms are left unsaturated; add
+hydrogens yourself if that is what is wanted.
 
 ### `reduce_to_p1()`
 
