@@ -183,7 +183,7 @@ def test_the_style_panel_is_headed_groups_in_the_agreed_order(window):
              "Scene": (dock.background, dock.labels, dock.legend,
                        dock.pore_spheres),
              "Show": (dock.cell_box, dock.cell_axes, dock.topology,
-                      dock.pore_sphere_box),
+                      dock.pore_network, dock.pore_sphere_box),
              "Colours": tuple(dock.flat.values()),
              "Depth cue": (dock.depth_cue, dock.depth_cue_start,
                            dock.depth_cue_end, dock.depth_cue_strength,
@@ -837,3 +837,25 @@ def test_the_pore_spheres_can_be_hidden_from_the_show_group(
     assert not document.modified
     dock.pore_sphere_box.setChecked(True)
     assert dock.pore_spheres.isEnabled()
+
+
+def test_the_pore_network_box_and_the_view_menu_are_one_setting(
+        window, rutile_cif):
+    """Either one ticks the other; off, the sphere has nothing to be
+    shown in and its controls grey."""
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    menu = window.actions_["show_pores"]
+    assert dock.pore_network.isChecked() and menu.isChecked()
+
+    dock.pore_network.setChecked(False)
+    assert not document.view.show_pores
+    assert not menu.isChecked()
+    assert not dock.pore_sphere_box.isEnabled()
+    assert not dock.pore_spheres.isEnabled()
+
+    menu.trigger()
+    assert document.view.show_pores
+    assert dock.pore_network.isChecked()
+    assert dock.pore_sphere_box.isEnabled()
+    assert not document.modified

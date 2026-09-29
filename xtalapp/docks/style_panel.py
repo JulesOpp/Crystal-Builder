@@ -391,6 +391,14 @@ class StylePanelDock(QDockWidget):
             "underneath")
         self.topology.toggled.connect(
             lambda v: self._set(show_topology=v))
+        # The whole drawing, as *View > Show > Pore network* has it --
+        # the same setting, so either one ticks the other.
+        self.pore_network = QCheckBox("Pore network")
+        self.pore_network.setToolTip(
+            "Draw where a porosity run found the pores: the sphere, the "
+            "channel skeleton and the surface")
+        self.pore_network.toggled.connect(
+            lambda v: self._set(show_pores=v))
         # The sphere alone, and here beside the other things a picture
         # can leave out: the channel skeleton and the surface stay.
         self.pore_sphere_box = QCheckBox("Pore spheres")
@@ -400,7 +408,7 @@ class StylePanelDock(QDockWidget):
         self.pore_sphere_box.toggled.connect(
             lambda v: self._set(show_pore_spheres=v))
         for check in (self.cell_box, self.cell_axes, self.topology,
-                      self.pore_sphere_box):
+                      self.pore_network, self.pore_sphere_box):
             column.addWidget(check)
         return box
 
@@ -570,8 +578,12 @@ class StylePanelDock(QDockWidget):
         self.cell_axes.setChecked(view.show_axes)
         self.topology.setChecked(view.show_topology)
         self._choose(self.pore_spheres, view.pore_spheres)
+        self.pore_network.setChecked(view.show_pores)
         self.pore_sphere_box.setChecked(view.show_pore_spheres)
-        self.pore_spheres.setEnabled(view.show_pore_spheres)
+        # Nothing of the network drawn is no sphere to hide or choose.
+        self.pore_sphere_box.setEnabled(view.show_pores)
+        self.pore_spheres.setEnabled(view.show_pores
+                                     and view.show_pore_spheres)
         self._refreshing = False
         self._fill_elements()
 

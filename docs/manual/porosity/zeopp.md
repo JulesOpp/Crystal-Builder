@@ -185,9 +185,13 @@ The Style panel's **Pore sphere** chooses which sphere that is:
   says so.
 - *Every node*.
 
-There is no D_f choice, for the reason above. *Pore spheres* under
-the panel's **Show** hides the sphere and leaves the channel skeleton
-and the surface in place.
+There is no D_f choice, for the reason above. The panel's **Show**
+group has two boxes for the drawing:
+
+- *Pore network* is the same setting as the View menu's; ticking
+  either one ticks the other.
+- *Pore spheres* hides the sphere and leaves the channel skeleton and
+  the surface in place.
 
 The network lives on the document beside the planes, and it follows
 four rules:
