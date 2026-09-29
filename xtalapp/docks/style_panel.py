@@ -391,7 +391,16 @@ class StylePanelDock(QDockWidget):
             "underneath")
         self.topology.toggled.connect(
             lambda v: self._set(show_topology=v))
-        for check in (self.cell_box, self.cell_axes, self.topology):
+        # The sphere alone, and here beside the other things a picture
+        # can leave out: the channel skeleton and the surface stay.
+        self.pore_sphere_box = QCheckBox("Pore spheres")
+        self.pore_sphere_box.setToolTip(
+            "Draw the pore sphere a porosity run found.  Off leaves the "
+            "channel skeleton and the surface")
+        self.pore_sphere_box.toggled.connect(
+            lambda v: self._set(show_pore_spheres=v))
+        for check in (self.cell_box, self.cell_axes, self.topology,
+                      self.pore_sphere_box):
             column.addWidget(check)
         return box
 
@@ -561,6 +570,8 @@ class StylePanelDock(QDockWidget):
         self.cell_axes.setChecked(view.show_axes)
         self.topology.setChecked(view.show_topology)
         self._choose(self.pore_spheres, view.pore_spheres)
+        self.pore_sphere_box.setChecked(view.show_pore_spheres)
+        self.pore_spheres.setEnabled(view.show_pore_spheres)
         self._refreshing = False
         self._fill_elements()
 

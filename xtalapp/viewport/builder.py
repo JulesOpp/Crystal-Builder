@@ -1357,7 +1357,10 @@ def _emit_pores(network, lattice, settings):
         return _no_pores()
 
     color = np.array(settings.pore_color, np.uint8)
-    if settings.pore_spheres == "all":
+    if not settings.show_pore_spheres:
+        frac = np.zeros((0, 3))
+        radii = np.zeros(0)
+    elif settings.pore_spheres == "all":
         frac = np.asarray(network.nodes)
         radii = np.asarray(network.radii)
     else:

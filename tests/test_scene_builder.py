@@ -791,6 +791,18 @@ def test_a_d_if_no_node_matches_draws_no_sphere(rutile):
         assert scene.n_pore_edges == 1
 
 
+def test_hiding_the_pore_spheres_keeps_the_skeleton(rutile):
+    settings = ViewSettings()
+    settings.show_pore_spheres = False
+    for choice in ("largest", "along_free", "all"):
+        settings.pore_spheres = choice
+        scene = build_scene(rutile, settings, pores=_network())
+        assert scene.n_pore_spheres == 0
+        assert scene.n_pore_edges == 1
+    assert not ViewSettings.from_dict(
+        settings.to_dict()).show_pore_spheres
+
+
 def test_the_channel_skeleton_is_drawn_as_segments(rutile):
     scene = build_scene(rutile, ViewSettings(), pores=_network())
     assert scene.n_pore_edges == 1

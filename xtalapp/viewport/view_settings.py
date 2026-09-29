@@ -204,6 +204,11 @@ class ViewSettings:
     #: in a cell and thousands across a display range, and a
     #: translucent ball at each is a fog over the crystal it is about.
     pore_spheres: str = "largest"
+    #: Whether that sphere is drawn at all.  Off leaves the channel
+    #: skeleton and the surface: the sphere is the one part of the
+    #: drawing that hides the framework behind it, and the path is
+    #: often the question.  *View > Show > Pore network* is the whole.
+    show_pore_spheres: bool = True
     pore_color: tuple[int, int, int] = PORE_COLOR
     pore_edge_color: tuple[int, int, int] = PORE_EDGE_COLOR
     #: Fainter than a polyhedron and for the same reason a plane is:
@@ -324,6 +329,7 @@ class ViewSettings:
             "plane_color": list(self.plane_color),
             "show_pores": self.show_pores,
             "pore_spheres": self.pore_spheres,
+            "show_pore_spheres": self.show_pore_spheres,
             "pore_color": list(self.pore_color),
             "pore_edge_color": list(self.pore_edge_color),
             "pore_opacity": self.pore_opacity,
@@ -358,6 +364,7 @@ class ViewSettings:
                     "show_bonds", "show_cell", "show_axes",
                     "show_bond_orders", "show_topology",
                     "show_planes", "show_pores", "pore_spheres",
+                    "show_pore_spheres",
                     "pore_opacity", "show_scale_bar", "depth_cue",
                     "depth_cue_strength", "depth_cue_start",
                     "depth_cue_end", "ellipsoid_probability",

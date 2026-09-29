@@ -182,7 +182,8 @@ def test_the_style_panel_is_headed_groups_in_the_agreed_order(window):
              "Transparency": (dock.opacity, dock.pore_opacity),
              "Scene": (dock.background, dock.labels, dock.legend,
                        dock.pore_spheres),
-             "Show": (dock.cell_box, dock.cell_axes, dock.topology),
+             "Show": (dock.cell_box, dock.cell_axes, dock.topology,
+                      dock.pore_sphere_box),
              "Colours": tuple(dock.flat.values()),
              "Depth cue": (dock.depth_cue, dock.depth_cue_start,
                            dock.depth_cue_end, dock.depth_cue_strength,
@@ -820,3 +821,19 @@ def test_a_saved_all_nodes_session_opens_as_every_node():
     assert ViewSettings.from_dict(old).pore_spheres == "all"
     old["pore_all_nodes"] = False
     assert ViewSettings.from_dict(old).pore_spheres == "largest"
+
+
+def test_the_pore_spheres_can_be_hidden_from_the_show_group(
+        window, rutile_cif):
+    """The sphere alone: the skeleton stays, and the choice of which
+    sphere greys while there is none to choose."""
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    assert dock.pore_sphere_box.isChecked()
+    dock.pore_sphere_box.setChecked(False)
+    assert not document.view.show_pore_spheres
+    assert document.view.show_pores
+    assert not dock.pore_spheres.isEnabled()
+    assert not document.modified
+    dock.pore_sphere_box.setChecked(True)
+    assert dock.pore_spheres.isEnabled()
