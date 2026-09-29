@@ -31,7 +31,10 @@ found.  In order:
    `CONECT` and never works a bond out for itself.
 2. Blender runs headless (`--background --factory-startup`) on
    `pdb_to_printable_stl.py`, a script that ships unchanged with the
-   application.  Atomic Blender imports balls and sticks; the
+   application, with one thing declined: the importer's centring,
+   because the PDB is written already centred, a little off the
+   origin -- a stick whose line runs through the origin is one Atomic
+   Blender cannot draw.  Atomic Blender imports balls and sticks; the
    instances are baked into one mesh; a voxel remesh welds it into a
    single watertight solid; the STL is written.
 3. The STL is copied to where you asked for it.  A copy stays in the
