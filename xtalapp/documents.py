@@ -297,10 +297,12 @@ class DocumentSet:
         its own.
 
         Opening the same sample twice returns to the one entry,
-        because ``add_structure`` compares the bytes.  Opening it
-        again after editing and saving that entry does not: the bytes
-        differ, so a pristine copy is made beside it, and what opens
-        is what was clicked.
+        because ``add_structure`` compares the bytes -- and it still
+        does after the entry has been edited and saved, because Save
+        converts and never writes the CIF.  So what opens is the
+        **project** beside it when there is one.  Opening the CIF
+        there was a document whose ``Ctrl+S`` wrote the pristine
+        sample silently over the project holding the user's work.
 
         With no workspace it falls back to the pathless document it
         always was -- the folder-could-not-be-made path.
@@ -320,7 +322,10 @@ class DocumentSet:
                 self.window.show_message(
                     f"could not copy the sample in: {exc}")
             else:
-                return self.open_path(entry.path / path.name)
+                copy = entry.path / path.name
+                project = copy.with_suffix(PROJECT_EXTENSION)
+                return self.open_path(
+                    project if project.is_file() else copy)
         try:
             structure = FORMATS.read(path)
         except (ValueError, OSError, KeyError) as exc:   # pragma: no cover
