@@ -796,7 +796,7 @@ def plan_notes(plan: str, free=()) -> str:
     else:
         names = [name for name, _paths in _box_stages(
             free, ["cell"] if "cell" in set(free) else [])]
-        head = "The boxes below, freed in McCusker's order."
+        head = "What is flagged to refine, in McCusker's order."
         tail = ""
     shown = [n for n in names if n not in _DECLARED_ONLY
              and (n != "preferred_orientation" or not plan)]

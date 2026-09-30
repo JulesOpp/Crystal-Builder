@@ -279,6 +279,40 @@ def test_an_edited_structure_keeps_the_atoms_flags(start, rutile):
     assert again["Ti1_occ"].value == pytest.approx(0.9)
 
 
+
+def test_an_edited_structure_keeps_what_the_last_fit_found(start, rutile):
+    """The esd of a Biso the structure still has, and what RietX
+    holds: a Rietveld run commits its structure, and the table rebuilt
+    from it lost every atom's esd and showed a fixed Ti as free."""
+    start["Ti1_xyz"].held = "fixed by symmetry"
+    start["O2_biso"].esd = 0.03
+    start["Ti1_biso"].esd = 0.05
+    rutile.sites[0].u_iso = 0.02
+    again = p.with_structure(start, rutile)
+    assert again["Ti1_xyz"].held == "fixed by symmetry"
+    assert again["O2_biso"].esd == 0.03
+    assert again["Ti1_biso"].esd is None            # a new value
+
+
+def test_a_table_row_names_the_site_it_edits(rutile):
+    fields = p.site_fields(rutile)
+    assert fields["Ti1_biso"] == (0, "biso")
+    assert fields["O2_occ"] == (1, "occupancy")
+    assert set(fields) == {row.name for row in p.atom_rows(rutile)
+                           if row.value is not None}
+
+
+def test_a_run_log_names_the_set_in_one_line(start):
+    """A run's header lists what it was handed; the set's repr was a
+    Python object address, and the whole of it is a page."""
+    from xtal.workspace import readable_option
+
+    text = readable_option(start)
+    assert "\n" not in text
+    assert text.startswith(f"{len(start)} parameters, "
+                           f"{len(start.freed_paths())} refined")
+
+
 # --------------------------------------------------- against RietX
 
 def test_the_labels_are_the_ones_rietx_is_given(rutile):

@@ -134,6 +134,13 @@ class ParameterSet:
     def __len__(self) -> int:
         return len(self._rows)
 
+    def __str__(self) -> str:
+        """One line, as a run log's header lists what a run was handed:
+        the whole set is in ``parameters-start.txt`` beside it."""
+        flagged = len(self.freed_paths())
+        return (f"{len(self)} parameters, {flagged} refined "
+                f"(parameters-start.txt)")
+
     def __contains__(self, name) -> bool:
         return name in self._rows
 
@@ -432,15 +439,35 @@ def with_structure(parameters: ParameterSet, structure) -> ParameterSet:
     """``parameters`` with its atom rows made from ``structure`` again.
 
     The values are the structure's -- it is where they live -- and
-    what is refined is kept for every atom still called what it was,
-    so an edit to the structure does not undo a person's choices.
+    what is refined, and what the last fit found held, are kept for
+    every atom still called what it was, so an edit to the structure
+    does not undo a person's choices.  The esd goes with a value that
+    changed, since it described the old one.
     """
     out = parameters.copy()
-    old = {row.name: row.refine for row in out.in_group(ATOMS)}
+    old = {row.name: row for row in out.in_group(ATOMS)}
     rows = atom_rows(structure)
     for row in rows:
-        row.refine = old.get(row.name, row.refine)
+        was = old.get(row.name)
+        if was is None:
+            continue
+        row.refine, row.held = was.refine, was.held
+        # a Biso goes to the site as U and comes back, a rounding apart
+        if was.value is None or (row.value is not None and math.isclose(
+                was.value, row.value, rel_tol=1e-9)):
+            row.esd = was.esd
     out._put_group(ATOMS, rows)
+    return out
+
+
+def site_fields(structure) -> dict[str, tuple[int, str]]:
+    """``{row name: (site index, "biso" | "occupancy")}`` of the rows
+    whose number is a site's -- where an edit made in the table goes."""
+    out = {}
+    for index, label in site_labels(structure):
+        name = re.sub(r"\s+", "_", label)
+        out[f"{name}_biso"] = (index, "biso")
+        out[f"{name}_occ"] = (index, "occupancy")
     return out
 
 

@@ -230,17 +230,14 @@ opens a dialog in the workbench.
 
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
-| **3 — The table** | One table on every fitting step, Reset / Copy / Paste; the Refine boxes become its column | `xtalapp/refine/parameters.py`, `workbench.py` | L |
 | **4 — Iterations and tolerance** | Per step; 0 is an evaluation, never a fit (RietX refuses `max_iter=0`) | `bridge.py`, `energy.py` | M |
 | **5 — hkl on hover** | The reflection under the cursor on every comb | `xtalapp/refine/plot.py` | S-M |
 
-Done in the order 3, 4, 5; 0 (tests taking focus), 6 (Options…), 1
-(`xtal/powder/parameters.py`) and 2 (every run starts from the set and
-hands it back; `xtal run pxrd.* parameters=FILE`) shipped 2026-09-29.
-Phase 3 hands the workbench's set over as `values["parameters"]`;
-the run log's header writes every option through `readable_option`,
-which would print it as a bare object, so it wants a one-line form
-there (the run folder already has the whole set).
+Done in the order 4, 5; 0 (tests taking focus), 6 (Options…), 1
+(`xtal/powder/parameters.py`), 2 (every run starts from the set and
+hands it back; `xtal run pxrd.* parameters=FILE`) and 3 (the table,
+`xtalapp/refine/parameters.py`, with Reset / Copy / Paste; the Refine
+boxes are its column) shipped 2026-09-29/30.
 Follow-up, not planned: the set persists in the project rather than
 for the workbench's life and each run folder's `parameters.txt`.
 

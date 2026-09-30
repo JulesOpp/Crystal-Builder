@@ -207,6 +207,29 @@ def _read_parameters(path: str, radiation, data, structure, terms: int):
     return start
 
 
+def _is_set(value) -> bool:
+    from xtal.powder.parameters import ParameterSet
+
+    return isinstance(value, ParameterSet)
+
+
+def flagged_boxes(parameters, radiation: Radiation,
+                  preferred_axis=None) -> set[str]:
+    """The bridge's words for what ``parameters`` flags and RietX will
+    move: never a capillary's specimen displacement, and texture only
+    along an axis.  What a note says is refined, from the one place a
+    run reads it."""
+    from xtal.powder import parameters as ps
+
+    out = {ps.box_of(row.path) for row in parameters
+           if row.refine and not row.held} - {""}
+    if radiation.is_synchrotron:
+        out.discard("displacement")
+    if preferred_axis is None:
+        out.discard("preferred_orientation")
+    return out
+
+
 def _write_parameters(job, name: str, parameters):
     """``parameters`` in its text form in the run's folder -- where the
     run started, and where it ended -- or ``None`` with no folder."""
@@ -577,7 +600,7 @@ PAWLEY_PARAMS = (
                "every intensity a least-squares variable, with esds; "
                "Le Bail re-partitions the observed pattern between "
                "cycles, cheaper over a long range and with no "
-               "intensity esds.  The cell, range and boxes below are "
+               "intensity esds.  The cell, range and parameters are "
                "the same for both."),
     Param("cell", "Cell", kind="text", default="",
           help="a b c, or a b c α β γ, in Å and degrees -- a row of "
@@ -820,16 +843,18 @@ def refined_notes(fit) -> dict[str, str]:
 
 RIETVELD_PARAMS = (
     Param("plan", "Plan", kind="choice", default="",
-          choices=(("", "The boxes below"),
+          choices=(("", "The Refine flags"),
                    ("mccusker_structural", "RietX: McCusker, structural"),
                    ("mccusker_default", "RietX: McCusker, profile"),
                    ("lab_bragg_brentano", "RietX: lab Bragg-Brentano"),
                    ("lab_sample_refine", "RietX: sample on a calibrated "
                                          "instrument")),
-          help="What is freed, and in what order.  The boxes below "
-               "free in McCusker's order: background and scale, line "
-               "positions, cell, widths, then the atoms.  RietX's own "
-               "plans ignore the boxes."),
+          help="What is freed, and in what order.  The Refine flags "
+               "-- the workbench's parameter table, a parameters file, "
+               "or the boxes -- free in McCusker's order: background "
+               "and scale, line positions, cell, widths, then the "
+               "atoms.  RietX's own plans ignore the flags, and start "
+               "from the values."),
     Param("start", "2θ from", kind="float", default=0.0, minimum=0.0,
           maximum=180.0, decimals=2, suffix=" °",
           help="Where the fit starts (TOPAS start_X).  0 is the start "
@@ -934,8 +959,18 @@ def rietveld_plan_note(values: dict) -> str:
     except PowderError:
         # an axis half typed: the note is about the plan, not the axis
         options = rietveld_options({**values, "preferred_axis": ""})
-    return bridge.plan_notes(options.plan,
-                             options.free(radiation_of(values)))
+    try:
+        radiation = radiation_of(values)
+    except PowderError:
+        # a synchrotron with its wavelength still to be typed: the note
+        # is about the plan, and only asks whether it is a capillary
+        radiation = radiation_of({**values, "wavelength": 1.0})
+    free = options.free(radiation)
+    given = values.get("parameters")
+    if _is_set(given):
+        free = flagged_boxes(given, radiation, options.preferred_axis)
+        free = (free - {"scale"}) | ({"cell"} if options.cell else set())
+    return bridge.plan_notes(options.plan, free)
 
 
 def run_rietveld(job) -> JobResult:
@@ -1291,11 +1326,7 @@ def energy_refines_note(values: dict) -> str:
     if not isinstance(flags, ps.ParameterSet):
         flags = ps.defaults({})
         flags.flag_boxes(set(boxes.free(radiation)) | {"positions"})
-    flagged = {ps.box_of(row.path) for row in flags if row.refine}
-    if radiation.is_synchrotron:
-        flagged.discard("displacement")
-    if boxes.preferred_axis is None:
-        flagged.discard("preferred_orientation")
+    flagged = flagged_boxes(flags, radiation, boxes.preferred_axis)
     first = [word for key, word in _FREED_WORDS if key in flagged]
     atoms = [row for row in flags
              if ps.box_of(row.path) == "positions" and not row.held]
