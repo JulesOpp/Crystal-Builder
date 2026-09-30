@@ -40,8 +40,9 @@ import weakref
 import numpy as np
 
 from xtal.core import bonding, measure, p1
+from xtal.core import elements as el
 from xtalapp.viewport import scene as scene_model
-from xtalapp.viewport import styles, view_settings
+from xtalapp.viewport import sketch, styles, view_settings
 from xtalapp.viewport.scene import SceneModel
 
 RANGE_TOL = 1e-6
@@ -123,13 +124,28 @@ def build_scene(structure, settings, selection=None,
     cell = p1.expand(structure)
     lattice = structure.lattice
 
-    drawn = _emit_atoms(cell, settings, style)
+    # A label style decides what each atom is called before anything
+    # is drawn, because a hydrogen written into its neighbour's label
+    # is not drawn at all -- not as an atom, not as a bond, and not as
+    # a ghost completing a bond at the boundary.
+    graph = folding = None
+    folded = frozenset()
+    if cell.n_atoms and style.atom_render == "label":
+        graph = bonding.graph(structure, bond_rules)
+        folding = sketch.fold(cell.elements, _bond_ends(graph)[0],
+                              settings.sketch_explicit_carbon)
+        folded = frozenset(b.key() for b in graph.bonds
+                           if folding.hidden[b.i] or folding.hidden[b.j])
+
+    drawn = _emit_atoms(cell, settings, style,
+                        None if folding is None else folding.hidden)
     halves = _Halves()
     hulls = _Hulls()
     orders = frames = None
     if cell.n_atoms and (style.draw_polyhedra
                          or (settings.show_bonds and style.draw_bonds)):
-        graph = bonding.graph(structure, bond_rules)
+        if graph is None:
+            graph = bonding.graph(structure, bond_rules)
         # Polyhedra first, because what they consume the bonds must
         # not draw again: the edges from a centre to its own vertices
         # *are* the polyhedron, and drawing them as well leaves a cage
@@ -139,7 +155,7 @@ def build_scene(structure, settings, selection=None,
                       if style.draw_polyhedra else frozenset())
         if settings.show_bonds and style.draw_bonds:
             _emit_bonds(graph, cell, drawn, halves, settings, style,
-                        selection, skip=hull_edges)
+                        selection, skip=hull_edges | folded)
             if settings.show_bond_orders:
                 orders = bonding.orders(structure, bond_rules)
                 frames = _bond_frames(graph, cell, orders,
@@ -180,7 +196,20 @@ def build_scene(structure, settings, selection=None,
     if orbital is not None and orbital.n_faces:
         pore = _with_orbital(pore, orbital, lattice)
 
-    show_atoms = settings.show_atoms and style.radius_factor > 0
+    show_atoms = settings.show_atoms and (
+        style.radius_factor > 0 or style.atom_render == "label")
+    sketched = {}
+    if style.atom_render == "label":
+        sketched = _sketch_fields(cell, graph, folding, drawn, halves,
+                                  starts, ends, settings,
+                                  show_atoms and folding is not None)
+        ink = sketched.pop("ink")
+        if "radii" in sketched:
+            drawn.radius = sketched.pop("radii")
+            drawn.color = sketched.pop("colors")
+        if len(bond_colors):
+            bond_colors = np.tile(np.array(ink, np.uint8),
+                                  (len(bond_colors), 1))
     pies = (_emit_pies(cell, drawn, cart)
             if show_atoms and style.occupancy_pies else _no_pies())
     tensors, thermal = (
@@ -253,6 +282,7 @@ def build_scene(structure, settings, selection=None,
         labels=_labels(drawn, cell, lattice, settings),
         legend=_legend(drawn, cell, settings, style),
         background=tuple(settings.background),
+        **sketched,
     )
 
 
@@ -365,9 +395,13 @@ def _translations(settings) -> np.ndarray:
     return np.array(list(itertools.product(*spans)), dtype=int)
 
 
-def _emit_atoms(cell, settings, style) -> _Drawn:
+def _emit_atoms(cell, settings, style, hidden=None) -> _Drawn:
     """Every atom of the P1 cell, at every lattice translation that
-    puts it inside the display range."""
+    puts it inside the display range.
+
+    ``hidden`` (N,) names P1 atoms not to draw anywhere: the
+    hydrogens a label style has written into their neighbours.
+    """
     shifts = _translations(settings)
     if cell.n_atoms == 0 or not len(shifts):
         return _Drawn(np.zeros((0, 3)), np.zeros(0, int),
@@ -381,6 +415,8 @@ def _emit_atoms(cell, settings, style) -> _Drawn:
     lo = np.array([r[0] for r in settings.ranges]) - RANGE_TOL
     hi = np.array([r[1] for r in settings.ranges]) + RANGE_TOL
     inside = np.all((frac >= lo) & (frac <= hi), axis=2)
+    if hidden is not None:
+        inside &= ~np.asarray(hidden, bool)[None, :]
     where, atom = np.nonzero(inside)
 
     radius_of, color_of = _appearance(cell, settings, style)
@@ -411,6 +447,68 @@ def _appearance(cell, settings, style):
     color = np.array([colors[e] for e in cell.elements],
                      dtype=np.uint8).reshape(-1, 3)
     return radius, color
+
+
+def _sketch_fields(cell, graph, folding, drawn, halves, starts, ends,
+                   settings, labelled) -> dict:
+    """The scene model's label-style fields, and what a label style
+    puts in place of the radii and colours: a pick radius the size of
+    the label, and ink.
+
+    The sizes are fractions of the picture's own median bond
+    (:func:`sketch.bond_scale`), so a label is the same size against
+    its bonds in a framework and in a molecular crystal.
+    """
+    background = tuple(settings.background)
+    ink = (0, 0, 0) if sum(background) / 3 > 128 else (255, 255, 255)
+    out = {"ink": ink, "atom_render": "label"}
+    if not labelled:
+        return out
+    scale = sketch.bond_scale(starts, ends)
+    height = sketch.LABEL_HEIGHT * scale
+    pad = sketch.LABEL_PAD * scale
+    elements = list(cell.elements)
+    # Per P1 atom, once, and then indexed per drawn atom and per half.
+    table = np.array([sketch.label_extents(folding.text[k], elements[k],
+                                           height)
+                      for k in range(cell.n_atoms)], float)
+    colored = settings.sketch_color_labels
+    colors = np.array(
+        [settings.color_for(e) if colored and e not in ("C", "H")
+         and not el.is_dummy(e) else ink for e in elements],
+        np.uint8).reshape(-1, 3)
+    atoms = drawn.atom
+    extents = table[atoms]
+    pick = np.maximum(extents.max(axis=1), sketch.VERTEX_PICK * scale)
+
+    own, of_bond, first = halves.owners()
+    gaps = np.zeros((len(own), 4), np.float32)
+    from_centre = np.zeros(len(own), bool)
+    if len(own):
+        own_atom = atoms[own]
+        written = np.array([bool(folding.text[a]) for a in own_atom])
+        gaps[written] = table[own_atom[written]] + pad
+        ends_of_bond = _bond_ends(graph)[0]
+        centre_first = sketch.centres(elements, folding.degree,
+                                      ends_of_bond)
+        i, j = ends_of_bond[of_bond, 0], ends_of_bond[of_bond, 1]
+        centre = np.where(centre_first[of_bond], i, j)
+        # A bond from an atom to its own image has one atom at both
+        # ends, and the first half of the pair is the centre's.
+        from_centre = np.where(i == j, first, own_atom == centre)
+    return {
+        "ink": ink,
+        "radii": pick.astype(np.float32),
+        "colors": colors[atoms],
+        "atom_render": "label",
+        "label_text": tuple(folding.text[a] for a in atoms.tolist()),
+        "label_extents": extents.astype(np.float32),
+        "label_height": float(height),
+        "label_pad": float(pad),
+        "sketch_scale": float(scale),
+        "bond_gaps": gaps,
+        "bond_from_centre": from_centre,
+    }
 
 
 # ======================================================================
@@ -474,6 +572,21 @@ class _Halves:
         self.stub_flags.append(selected)
         self.stub_keys.append(key)
         self.stub_of_bond.append(bond)
+
+    def owners(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """``(drawn atom, graph bond, first of its pair)`` per half,
+        in the order :meth:`arrays` emits the halves."""
+        near = np.array(self.near, dtype=int)
+        own = np.empty(2 * len(near), dtype=int)
+        own[0::2] = near
+        own[1::2] = np.array(self.far, dtype=int)
+        first = np.zeros(2 * len(near), bool)
+        first[0::2] = True
+        return (np.concatenate([own, np.array(self.stub_near, int)]),
+                np.concatenate([np.repeat(np.array(self.of_bond, int), 2),
+                                np.array(self.stub_of_bond, int)]),
+                np.concatenate([first, np.ones(len(self.stub_near),
+                                               bool)]))
 
     def arrays(self, drawn, cell, lattice, orders=None, offsets=None):
         """(starts, ends, colours, flags, keys, orders, offsets).

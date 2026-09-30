@@ -57,6 +57,8 @@ HASH_MIN = 0.03
 HASH_SPACING = 0.12
 #: Distance between the lines of a double bond.
 LINE_SEPARATION = 0.16
+#: How far from a carbon left implicit a click still takes it.
+VERTEX_PICK = 0.12
 #: A bond tilted less than this out of the screen is a plain line.
 #: Every bond in a crystal tilts somewhat, and one wedged at 5 degrees
 #: claims a depth the reader cannot see.
@@ -402,3 +404,18 @@ def _rungs(starts, v, u0, u_cut, u1, projected, lateral, rows, scale):
         return np.zeros((0, 3)), np.zeros((0, 3)), np.zeros(0, int)
     return (np.vstack(out_a), np.vstack(out_b),
             np.concatenate(out_half).astype(int))
+
+
+def sketch_model(model, direction, view_up, eye=None) -> SketchBonds:
+    """:func:`sketch_bonds` over a scene model's own half-bonds."""
+    n = model.n_bond_halves
+    gaps = (model.bond_gaps if len(model.bond_gaps) == n
+            else np.zeros((n, 4)))
+    from_centre = (model.bond_from_centre
+                   if len(model.bond_from_centre) == n
+                   else np.ones(n, bool))
+    return sketch_bonds(
+        model.bond_starts, model.bond_ends, gaps, from_centre,
+        model.bond_orders, model.bond_offsets,
+        direction=direction, view_up=view_up, eye=eye,
+        scale=model.sketch_scale)

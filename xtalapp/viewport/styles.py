@@ -80,6 +80,11 @@ class DrawStyle:
     #: is drawn.  The report styles want pale atoms carrying a dark
     #: outline; everything else wants the palette as it is.
     tint: float = 0.0
+    #: What stands at an atom: ``"sphere"`` (a glyph at the radius
+    #: above, or an ellipsoid) or ``"label"`` -- the element written
+    #: there, ChemDraw's way, with the bonds stopping short of it.  A
+    #: label style still carries radii, which are what a click hits.
+    atom_render: str = "sphere"
     description: str = ""
 
     def atom_radius(self, element: str, settings) -> float:
@@ -228,4 +233,14 @@ register(DrawStyle(
     description="Flat colour inside a dark outline, and no shading at "
                 "all -- the one style that exports as plain circles "
                 "and strokes an illustrator can recolour",
+))
+register(DrawStyle(
+    name="skeletal", label="Skeletal",
+    radius_source="bond", radius_factor=0.0,
+    atom_render="label", bond_render="line", shading="flat",
+    description="A chemist's line drawing: the element written at "
+                "each atom, lines and wedges between them and the "
+                "back of the structure in grey.  Hydrogens are "
+                "written into their atom's label, so a hydrogen is "
+                "reached in any other style",
 ))

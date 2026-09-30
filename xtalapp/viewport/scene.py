@@ -259,6 +259,29 @@ class SceneModel:
     depth_cue_start: float = 0.3
     depth_cue_end: float = 1.0
 
+    # The Skeletal style.  ``atom_render`` is the style's: "label"
+    # writes ``label_text`` at each drawn atom (in ``colors``, which
+    # a label style fills with ink) instead of drawing a glyph, and
+    # ``radii`` are then only what a click hits.  ``label_extents``
+    # is (left, right, down, up) of each label about its atom, pad
+    # excluded, in Angstrom.  Per half-bond, ``bond_gaps`` is the
+    # same box at the half's own atom *with* the pad -- what the line
+    # stops short of -- and ``bond_from_centre`` says whether that
+    # atom is the end the bond's wedge grows from.  All of it is
+    # camera-free; :func:`xtalapp.viewport.sketch.sketch_model` turns
+    # it into ink for one camera.
+    atom_render: str = "sphere"
+    label_text: tuple = ()
+    label_extents: np.ndarray = field(
+        default_factory=lambda: np.zeros((0, 4), np.float32))
+    label_height: float = 0.5
+    label_pad: float = 0.1
+    sketch_scale: float = 1.5
+    bond_gaps: np.ndarray = field(
+        default_factory=lambda: np.zeros((0, 4), np.float32))
+    bond_from_centre: np.ndarray = field(
+        default_factory=lambda: np.zeros(0, bool))
+
     labels: tuple = ()                  # ((x, y, z), "text"), ...
     legend: tuple = ()                  # (("Fe", (r, g, b)), ...)
     background: tuple = (255, 255, 255)
@@ -380,6 +403,11 @@ class SceneModel:
     def center(self) -> np.ndarray:
         lo, hi = self.bounds()
         return (lo + hi) / 2.0
+
+    @property
+    def draws_labels(self) -> bool:
+        """Is each atom written as its element rather than drawn?"""
+        return self.atom_render == "label"
 
     @property
     def n_selected(self) -> int:

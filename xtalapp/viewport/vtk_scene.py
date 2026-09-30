@@ -1182,6 +1182,8 @@ class VtkScene:
                 and np.array_equal(model.bond_orders,
                                    current.bond_orders)
                 and model.bond_render == current.bond_render
+                and model.atom_render == current.atom_render
+                and model.label_text == current.label_text
                 and model.shading == current.shading
                 and model.outline == current.outline
                 and model.n_polyhedron_faces
@@ -1223,7 +1225,11 @@ class VtkScene:
         self._set_glyph_shape(model)
         self.atom_mapper.SetInputData(poly)
         self._apply_shading(self.atom_actor, model.shading, 0.3)
-        self.atom_actor.SetVisibility(model.n_atoms > 0)
+        # A label style writes each atom rather than drawing it; the
+        # glyph data is still uploaded, because it is the selection
+        # halo's and the drag's.
+        self.atom_actor.SetVisibility(model.n_atoms > 0
+                                      and not model.draws_labels)
 
     def _set_glyph_shape(self, model):
         mapper = self.atom_mapper
@@ -1456,14 +1462,27 @@ class VtkScene:
         for actor in self._label_actors:
             self.renderer.RemoveActor(actor)
         self._label_actors = []
-        for position, text in model.labels[:MAX_LABELS]:
+        lum = sum(model.background) / 3
+        ink = (0, 0, 0) if lum > 128 else (1, 1, 1)
+        wanted = [(p, text, ink) for p, text in model.labels]
+        if model.draws_labels:
+            # One actor a label until the Skeletal style has its own
+            # instanced one; it is capped like the other labels.
+            wanted += [(p, text, tuple(c / 255 for c in color))
+                       for p, text, color in zip(
+                           model.positions, model.label_text,
+                           model.colors.tolist(), strict=True)
+                       if text]
+        for position, text, color in wanted[:MAX_LABELS]:
             actor = vtkBillboardTextActor3D()
             actor.SetPosition(*[float(v) for v in position])
             actor.SetInput(str(text))
             prop = actor.GetTextProperty()
             prop.SetFontSize(14)
-            lum = sum(model.background) / 3
-            prop.SetColor((0, 0, 0) if lum > 128 else (1, 1, 1))
+            prop.SetColor(color)
+            if model.draws_labels:
+                prop.SetJustificationToCentered()
+                prop.SetVerticalJustificationToCentered()
             self.renderer.AddActor(actor)
             self._label_actors.append(actor)
 

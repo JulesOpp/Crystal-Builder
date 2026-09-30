@@ -313,6 +313,14 @@ stress case).
   `resources/samples/prepared/` holds the prepared models, written by
   `scripts/prepare_samples.py`, some relaxed with ORB-v3 + D3(BJ)
   because UFF made MIL-88B's linker geometry worse, not better.
+- **A style draws the structure; it never changes it.** The Skeletal
+  style (`xtalapp/viewport/sketch.py`) writes each atom as its element
+  and folds a hydrogen into its neighbour's label (`NH2`, `OH2`) --
+  the H is not drawn, its bond is not drawn, and it cannot be clicked,
+  but the site and the bond graph are untouched, and any other style
+  shows it. Labels are counted off the stored graph: nothing is
+  perceived to decide what an atom is called. A hydrogen on a metal,
+  a bridging one and one on an `X` stay atoms of their own.
 - **A dummy atom is a marker, not chemistry.** `X` — see
   `elements.DUMMY_ELEMENTS`. Perception never bonds one, and nothing
   that reasons chemically is ever handed one — it is **held back at

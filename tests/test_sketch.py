@@ -216,3 +216,123 @@ def test_the_bond_scale_is_the_median_bond():
     starts = np.zeros((3, 3))
     ends = np.array([[0.5, 0, 0], [0.7, 0, 0], [2.0, 0, 0]])
     assert sketch.bond_scale(starts, ends) == pytest.approx(1.4)
+
+
+# -- the style, and the scene model it builds -------------------------
+
+
+def _skeletal(**changes):
+    from xtalapp.viewport.view_settings import ViewSettings
+    settings = ViewSettings(style="skeletal")
+    for key, value in changes.items():
+        setattr(settings, key, value)
+    return settings
+
+
+def _scene(structure, **changes):
+    from xtalapp.viewport.builder import build_scene
+    return build_scene(structure, _skeletal(**changes))
+
+
+@pytest.fixture(scope="module")
+def mfu4l():
+    return read_cif(SAMPLES / "MFU4l.cif")
+
+
+def test_the_skeletal_style_is_listed_with_every_other_style():
+    from xtalapp.viewport import styles
+    assert "skeletal" in styles.names()
+    assert styles.get("skeletal").label == "Skeletal"
+    assert styles.get("skeletal").atom_render == "label"
+
+
+def test_a_skeletal_scene_labels_every_heteroatom_and_no_carbon(mfu4l):
+    """The count measured when the style was planned: 288 labels on
+    one cell of MFU-4l, and no hydrogen drawn at all."""
+    scene = _scene(mfu4l)
+    assert scene.draws_labels
+    written = Counter(t for t in scene.label_text if t)
+    assert written == {"N": 144, "O": 72, "Zn": 40, "Cl": 32}
+    assert len(scene.label_text) == scene.n_atoms
+    assert "" in scene.label_text                   # the carbons
+
+
+def test_explicit_carbon_labels_every_carbon(methylamine):
+    scene = _scene(methylamine, sketch_explicit_carbon=True)
+    assert sorted(scene.label_text) == ["CH3", "NH2"]
+
+
+def test_a_folded_hydrogen_is_not_drawn_and_nor_is_its_bond(methylamine):
+    scene = _scene(methylamine)
+    assert scene.n_atoms == 2
+    assert scene.n_bond_halves == 2                 # C-N, both halves
+
+
+def test_a_skeletal_bond_stops_short_of_its_label(methylamine):
+    """The nitrogen's half carries the gap of its label and the
+    implicit carbon's none."""
+    scene = _scene(methylamine)
+    n = scene.label_text.index("NH2")
+    at_n = np.all(np.isclose(scene.bond_starts, scene.positions[n]),
+                  axis=1)
+    assert np.all(scene.bond_gaps[at_n] > 0)
+    assert np.all(scene.bond_gaps[~at_n] == 0)
+    ink = sketch.sketch_model(scene, **DOWN)
+    gap = np.linalg.norm(ink.line_starts - scene.positions[n], axis=1)
+    assert gap.min() > scene.label_height / 2
+
+
+def test_the_wedge_grows_from_the_busier_end(methylamine):
+    """C-N with both hydrogens folded: the carbon has one drawn bond
+    and so has the nitrogen; the heavier nitrogen is the centre."""
+    scene = _scene(methylamine)
+    n = scene.label_text.index("NH2")
+    at_n = np.all(np.isclose(scene.bond_starts, scene.positions[n]),
+                  axis=1)
+    assert np.array_equal(scene.bond_from_centre, at_n)
+
+
+def test_a_skeletal_atom_can_still_be_picked_by_its_label(methylamine):
+    from xtalapp.viewport import picking
+    scene = _scene(methylamine)
+    n = scene.label_text.index("NH2")
+    target = scene.positions[n].astype(float)
+    # A ray passing just inside the label's corner.
+    origin = target + np.array([0.8 * scene.radii[n], 0.0, 10.0])
+    assert picking.pick_atom(scene, origin, (0, 0, -1)) == n
+
+
+def test_a_skeletal_picture_is_drawn_in_ink_on_either_ground(methylamine):
+    light = _scene(methylamine)
+    dark = _scene(methylamine, background=(0, 0, 0))
+    assert np.all(light.colors == 0) and np.all(light.bond_colors == 0)
+    assert np.all(dark.colors == 255) and np.all(dark.bond_colors == 255)
+
+
+def test_coloured_labels_colour_the_heteroatoms_and_not_the_carbon(
+        methylamine):
+    scene = _scene(methylamine, sketch_explicit_carbon=True,
+                   sketch_color_labels=True)
+    n = scene.label_text.index("NH2")
+    c = scene.label_text.index("CH3")
+    assert tuple(scene.colors[n]) != (0, 0, 0)
+    assert tuple(scene.colors[c]) == (0, 0, 0)
+    assert np.all(scene.bond_colors == 0)
+
+
+def test_the_sketch_options_survive_a_project_round_trip():
+    from xtalapp.viewport.view_settings import ViewSettings
+    settings = _skeletal(sketch_explicit_carbon=True,
+                         sketch_color_labels=True)
+    again = ViewSettings.from_dict(settings.to_dict())
+    assert again.style == "skeletal"
+    assert again.sketch_explicit_carbon and again.sketch_color_labels
+    assert not ViewSettings.from_dict({}).sketch_explicit_carbon
+
+
+def test_every_other_style_is_unchanged_by_the_label_fields(rutile):
+    from xtalapp.viewport.builder import build_scene
+    from xtalapp.viewport.view_settings import ViewSettings
+    scene = build_scene(rutile, ViewSettings())
+    assert not scene.draws_labels and scene.label_text == ()
+    assert not len(scene.bond_gaps)

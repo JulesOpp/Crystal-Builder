@@ -181,6 +181,12 @@ class ViewSettings:
     #: refinement.
     ellipsoid_octants: bool = True
     label_mode: str = "none"                # none | element | label | index
+    #: The Skeletal style: write every carbon as "C", or leave it
+    #: implicit where lines meet, as a chemist draws one.
+    sketch_explicit_carbon: bool = False
+    #: The Skeletal style: labels in their element's colour rather
+    #: than in ink.  Off, because the drawing it imitates is black.
+    sketch_color_labels: bool = False
 
     # A translucent quad at every plane the user has defined, with its
     # normal on it.  On, because a plane is defined by pressing a
@@ -341,6 +347,8 @@ class ViewSettings:
             "ellipsoid_probability": self.ellipsoid_probability,
             "ellipsoid_octants": self.ellipsoid_octants,
             "label_mode": self.label_mode,
+            "sketch_explicit_carbon": self.sketch_explicit_carbon,
+            "sketch_color_labels": self.sketch_color_labels,
             "range_a": list(self.range_a),
             "range_b": list(self.range_b),
             "range_c": list(self.range_c),
@@ -369,7 +377,8 @@ class ViewSettings:
                     "depth_cue_strength", "depth_cue_start",
                     "depth_cue_end", "ellipsoid_probability",
                     "ellipsoid_octants",
-                    "label_mode", "boundary", "projection",
+                    "label_mode", "sketch_explicit_carbon",
+                    "sketch_color_labels", "boundary", "projection",
                     "show_legend", "polyhedron_opacity",
                     "polyhedron_min_vertices",
                     "background_follows_theme"):
