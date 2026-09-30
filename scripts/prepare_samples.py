@@ -231,6 +231,30 @@ def _difference(shipped, fresh, tolerance=1e-4) -> str:
             f"to {np.round(b.frac[k], 4)}")
 
 
+def _trace(name) -> list[str]:
+    """Each step's cell for ``name``, fingerprinted: what it said, the
+    atom count, and a digest of the atoms as a set and in order -- to
+    compare line by line with the machine that wrote the file, and see
+    which step first chose differently."""
+    import hashlib
+
+    from xtal.core import p1, prepare
+    from xtal.io import FORMATS
+
+    lines = []
+    for k in range(1, len(prepare.STEPS) + 1):
+        structure = FORMATS.read(SOURCE / f"{name}.cif")
+        out, said = prepare.prepare(structure, prepare.STEPS[:k])
+        cell = p1.expand(out)
+        rows = [f"{e} {x:.3f} {y:.3f} {z:.3f}" for e, (x, y, z) in
+                zip(cell.elements, np.mod(cell.frac, 1.0), strict=True)]
+        digest = [hashlib.sha1("\n".join(r).encode()).hexdigest()[:8]
+                  for r in (sorted(rows), rows)]
+        lines.append(f"  {prepare.STEPS[k - 1]}: {len(rows)} atoms, set "
+                     f"{digest[0]}, order {digest[1]} -- {said[-1]}")
+    return lines
+
+
 def main(argv=None) -> int:
     from xtal.io import FORMATS
 
@@ -268,6 +292,7 @@ def main(argv=None) -> int:
             if why:
                 stale.append(name)
                 print(f"{name}: would change -- {why}")
+                print("\n".join(_trace(name)))
             continue
         FORMATS.write(fresh, target)
         print(f"{name}: wrote {target.relative_to(ROOT)}")
