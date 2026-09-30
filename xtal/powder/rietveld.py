@@ -36,6 +36,7 @@ from xtal.powder.pawley import (
     DEFAULT_ITERATIONS,
     DEFAULT_TOLERANCE,
     EVALUATED,
+    Reflection,
 )
 
 __all__ = ["RietveldFit", "RietveldFrame", "RietveldOptions",
@@ -131,6 +132,9 @@ class RietveldFit:
     notes: list[str] = field(default_factory=list)
     #: the set after the fit, for the next run to start from
     parameters: object = None
+    #: which reflection each tick is, in the order of ``ticks``; the
+    #: primary line's only, so Kα2 does not double every label
+    reflections: list[Reflection] = field(default_factory=list)
 
     @property
     def converged(self) -> bool:
@@ -220,6 +224,8 @@ def rietveld(structure, data: PowderData, radiation: Radiation,
     moved = np.linalg.norm(refined.lattice.to_cart(
         refined.frac - structure.frac), axis=1)
     stats = result.statistics
+    reflections = [Reflection(*row)
+                   for row in bridge.reflections(refinement)]
     return RietveldFit(
         structure=refined,
         cell=tuple(float(getattr(phase.cell, n).value) for n in names),
@@ -232,7 +238,8 @@ def rietveld(structure, data: PowderData, radiation: Radiation,
         two_theta=np.asarray(result.two_theta),
         y_obs=np.asarray(result.y_obs), y_calc=np.asarray(result.y_calc),
         y_background=np.asarray(result.y_background),
-        ticks=np.array([row[2] for row in bridge.reflections(refinement)]),
+        ticks=np.array([r.two_theta for r in reflections]),
+        reflections=reflections,
         radiation=radiation,
         refined={} if evaluated else bridge.refined_values(result),
         moved=float(moved.max()) if moved.size else 0.0,

@@ -677,18 +677,32 @@ def lines_of(structure, radiation: Radiation, two_theta_min: float,
     """2θ of every reflection ``structure``'s group allows in a range,
     at the primary line: the ticks under a pattern no fit has drawn --
     RietX keeps a reflection list only once a fit has run."""
+    return np.array([row[2] for row in allowed_reflections(
+        structure, radiation, two_theta_min, two_theta_max)])
+
+
+def allowed_reflections(structure, radiation: Radiation,
+                        two_theta_min: float, two_theta_max: float):
+    """``[(hkl, d, two_theta), ...]`` of :func:`lines_of`, in order of
+    angle: what a tick is when a person points at it."""
     cell = gemmi.UnitCell(*structure.lattice.parameters)
     group = gemmi.find_spacegroup_by_name(space_group_symbol(structure))
     wavelength = emission_lines(radiation)[0][0]
     s_max = min(math.sin(math.radians(two_theta_max) / 2.0), 1.0)
-    hkl = gemmi.make_miller_array(cell, group, wavelength / (2 * s_max),
-                                  unique=True)
     ops = group.operations()
-    d = np.array([cell.calculate_d(list(h)) for h in hkl
-                  if not ops.is_systematically_absent(list(h))])
-    two_theta = 2.0 * np.degrees(np.arcsin(
-        np.clip(wavelength / (2.0 * d), 0.0, 1.0)))
-    return np.sort(two_theta[two_theta >= two_theta_min])
+    out = []
+    for h in gemmi.make_miller_array(cell, group,
+                                     wavelength / (2 * s_max),
+                                     unique=True):
+        h = [int(v) for v in h]
+        if ops.is_systematically_absent(h):
+            continue
+        d = float(cell.calculate_d(h))
+        two_theta = 2.0 * math.degrees(math.asin(
+            min(max(wavelength / (2.0 * d), 0.0), 1.0)))
+        if two_theta >= two_theta_min:
+            out.append((tuple(h), d, two_theta))
+    return sorted(out, key=lambda row: row[2])
 
 
 def space_group_named(name: str) -> str:

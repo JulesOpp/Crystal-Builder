@@ -54,7 +54,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from xtal.powder.data import PowderData, PowderError, PowderStopped, Radiation
-from xtal.powder.pawley import EVALUATED
+from xtal.powder.pawley import EVALUATED, Reflection
 from xtal.powder.rietveld import RietveldFit, RietveldFrame, RietveldOptions
 
 __all__ = ["EnergyFit", "EnergyOptions", "EnergyProblem", "EnergyScale",
@@ -234,13 +234,18 @@ class EnergyProblem:
         self.parameters = after
         if result is None:
             self.background = bridge.background(refinement, window)
-            self.ticks = bridge.lines_of(structure, radiation,
-                                         window.two_theta[0],
-                                         window.two_theta[-1])
+            # no fit, so no reflection list of RietX's: the group's
+            # own lines, with no multiplicity or intensity to give
+            self.reflections = [
+                Reflection(hkl, d, two_theta, 0, math.nan)
+                for hkl, d, two_theta in bridge.allowed_reflections(
+                    structure, radiation, window.two_theta[0],
+                    window.two_theta[-1])]
         else:
             self.background = np.asarray(result.y_background)
-            self.ticks = np.array([row[2] for row
-                                   in bridge.reflections(refinement)])
+            self.reflections = [Reflection(*row) for row
+                                in bridge.reflections(refinement)]
+        self.ticks = np.array([r.two_theta for r in self.reflections])
         self.prepared = bridge.apply_phase(
             structure, refinement.structure.phases[0], indices)
         self.energy = _Energy(build(self.prepared), self.prepared,
@@ -356,7 +361,7 @@ class EnergyProblem:
             two_theta=term.two_theta, y_obs=term.y_obs,
             y_calc=term.y_calc(answer),
             y_background=self.background, ticks=self.ticks,
-            radiation=self.radiation,
+            reflections=list(self.reflections), radiation=self.radiation,
             refined=values,
             moved=float(moved.max()) if moved.size else 0.0,
             atom_labels=tuple(atom.label for atom in phase.atoms),

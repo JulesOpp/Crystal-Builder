@@ -385,10 +385,14 @@ def lines_of(row: IndexRow, wavelength: float, two_theta_range):
     extinction classes are for, and a comb that already left some out
     would hide the line a class is refuted by.
     """
+    return hkl_lines(row, wavelength, two_theta_range)[1]
+
+
+def hkl_lines(row: IndexRow, wavelength: float, two_theta_range):
+    """``(hkl, two_theta)`` of :func:`lines_of`: which line a tick of
+    the comb is, when a person points at it."""
     from xtal.powder import bridge
 
     lo, hi = two_theta_range
-    _hkl, two_theta = bridge.lattice_lines(row.cell, row.system,
-                                           row.centring, wavelength,
-                                           lo, hi)
-    return two_theta
+    return bridge.lattice_lines(row.cell, row.system, row.centring,
+                                wavelength, lo, hi)

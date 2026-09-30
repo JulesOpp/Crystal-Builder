@@ -214,36 +214,6 @@ favour them clearly.
 
 ---
 
-## The refinement workbench's parameters
-
-Planned 2026-09-29 on `features/pxrd-parameters`; the full plan, with
-its measurements, is `~/.claude/plans/pxrd-parameters.md`.  Asked
-from using the workbench: its tests steal focus, nothing a fit refines
-reaches the next run (every run starts from RietX's preset, and With
-energy runs a hidden Rietveld stage of its own first), no iteration
-or tolerance control, no hkl on the ticks, and *Options…* opens a
-panel behind the window.  Answers: a table with **Copy** / **Paste**
-in our own text form, `zero_error 0.0012 ± 0.0003 Refine` or
-`NoRefine`; one set shared by every fitting step, the cell kept per
-step; *Reset Parameters* resets instrument and profile only; Options
-opens a dialog in the workbench.
-
-| Phase | Delivers | Main files | Size |
-|---|---|---|---|
-| **5 — hkl on hover** | The reflection under the cursor on every comb | `xtalapp/refine/plot.py` | S-M |
-
-0 (tests taking focus), 6 (Options…), 1
-(`xtal/powder/parameters.py`), 2 (every run starts from the set and
-hands it back; `xtal run pxrd.* parameters=FILE`), 3 (the table,
-`xtalapp/refine/parameters.py`, with Reset / Copy / Paste; the Refine
-boxes are its column) and 4 (Max iterations and Tolerance on every
-fitting step and Refine peaks; 0 is an evaluation) shipped
-2026-09-29/30.
-Follow-up, not planned: the set persists in the project rather than
-for the workbench's life and each run folder's `parameters.txt`.
-
----
-
 # Not scheduled
 
 Raised while using the application; no phase yet.
@@ -616,6 +586,13 @@ a 7x7 grid of a 1152-atom framework, where the neighbour it starts from
 is already close, is the thing the overnight run should also answer.
 
 ## Powder refinement
+
+### The refinement parameters are not saved with the project
+
+The workbench's parameter set (every value, flag and esd) lives for
+the workbench's life and in each run folder's `parameters.txt`;
+closing the window loses it, and Paste of that file is the way back.
+It belongs in the `.xtalproj` beside the structure it refined.
 
 ### Pawley over a long 2θ range is minutes, and no better a cell
 

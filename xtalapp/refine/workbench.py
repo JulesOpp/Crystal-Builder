@@ -83,7 +83,11 @@ from xtalapp.refine.bravais import BravaisBox
 from xtalapp.refine.cell import CellBox
 from xtalapp.refine.parameters import ParameterTable
 from xtalapp.refine.pareto_plot import ParetoPlots
-from xtalapp.refine.plot import RefinementPlot
+from xtalapp.refine.plot import (
+    RefinementPlot,
+    reflection_label,
+    reflection_labels,
+)
 from xtalapp.refine.sections import SectionedForm, fold
 from xtalapp.widgets.tone import HINT, WARNING, set_tone
 from xtalapp.workers import ModuleWorker, start_in_thread
@@ -1481,13 +1485,19 @@ class RefinementWorkbench(QMainWindow):
         self._draw_rietveld()
         self._show_rietveld_result()
 
+    def _show_fit(self, fit) -> None:
+        """A fit on the plot, each tick named by its reflection."""
+        self.plot.show_fit(fit.two_theta, fit.y_obs, fit.y_calc,
+                           fit.y_background, fit.ticks,
+                           labels=reflection_labels(
+                               getattr(fit, "reflections", None)))
+
     def _draw_energy(self) -> None:
         fit = self.energy
         if fit is None:
             self._draw_rietveld()
             return
-        self.plot.show_fit(fit.two_theta, fit.y_obs, fit.y_calc,
-                           fit.y_background, fit.ticks)
+        self._show_fit(fit)
 
     def _show_energy_result(self) -> None:
         fit = self.energy
@@ -1515,8 +1525,7 @@ class RefinementWorkbench(QMainWindow):
                                         self.data.intensity,
                                         label=self.data.name)
             return
-        self.plot.show_fit(fit.two_theta, fit.y_obs, fit.y_calc,
-                           fit.y_background, fit.ticks)
+        self._show_fit(fit)
 
     # -- the history -----------------------------------------------------
 
@@ -1745,11 +1754,16 @@ class RefinementWorkbench(QMainWindow):
         if not chosen:
             self.plot.set_reflections(())
             return
-        from xtal.powder.index import lines_of
+        from xtal.powder.index import hkl_lines
 
         row = self._cell_rows[chosen[0].row()]
-        self.plot.set_reflections(lines_of(
-            row, self.cells.wavelength, self.cells.two_theta_range))
+        wavelength = self.cells.wavelength
+        hkl, two_theta = hkl_lines(row, wavelength,
+                                   self.cells.two_theta_range)
+        self.plot.set_reflections(two_theta, [
+            reflection_label(h, t, wavelength
+                             / (2.0 * math.sin(math.radians(t) / 2.0)))
+            for h, t in zip(hkl, two_theta, strict=True)])
         self.step_forms["pawley"].set_values(
             {"space_group": row.fit_group})
         self.cell_box.set_value(row.cell)
@@ -1801,8 +1815,7 @@ class RefinementWorkbench(QMainWindow):
 
     def _draw_pawley(self) -> None:
         fit = self.pawley
-        self.plot.show_fit(fit.two_theta, fit.y_obs, fit.y_calc,
-                           fit.y_background, fit.ticks)
+        self._show_fit(fit)
 
     def _fill_reflections(self) -> None:
         rows = self.pawley.reflections if self.pawley is not None \
@@ -2057,8 +2070,7 @@ class RefinementWorkbench(QMainWindow):
         if point is None or point.fit is None or self.worker is not None:
             return
         fit = point.fit
-        self.plot.show_fit(fit.two_theta, fit.y_obs, fit.y_calc,
-                           fit.y_background, fit.ticks)
+        self._show_fit(fit)
 
     def open_pareto_point(self, row: int):
         """Open the structure refined at row ``row``'s weight as a tab

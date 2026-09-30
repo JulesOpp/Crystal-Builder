@@ -1469,3 +1469,27 @@ def test_the_pawley_step_hides_the_atoms_and_the_scale(
     assert not table.item(ps.SCALE).isHidden()
     assert not table.unused_note.isVisibleTo(bench)
     assert bench.parameters["scale"].refine
+
+
+def test_hovering_a_rietveld_tick_names_its_reflection(
+        window, qtbot, tmp_path, rutile_xy):
+    """Rutile's first line is (1 1 0), near 27.4°: the fit's own
+    reflection list names it, at the primary line only."""
+    from matplotlib.backend_bases import MouseEvent
+
+    window.open_path(_displaced_rutile_cif(tmp_path))
+    bench = window.open_refine_workbench()
+    bench.load_pattern(rutile_xy)
+    assert _run_rietveld(bench, qtbot).ok
+    fit = bench.rietveld
+    assert len(fit.reflections) == len(fit.ticks)
+    first = min(fit.reflections, key=lambda r: r.two_theta)
+    assert sorted(abs(v) for v in first.hkl) == [0, 1, 1]
+    plot = bench.plot
+    plot.canvas.draw()
+    x, y = plot.strip.transData.transform((first.two_theta, 0.5))
+    plot.canvas.callbacks.process("motion_notify_event", MouseEvent(
+        "motion_notify_event", plot.canvas, x, y))
+    assert plot.hovered.startswith("(")
+    assert f"{first.two_theta:.2f}°" in plot.hovered
+    assert "Å" in plot.hovered
