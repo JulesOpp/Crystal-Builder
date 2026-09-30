@@ -32,6 +32,12 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from xtal.powder.data import PowderData, PowderError, Radiation
+from xtal.powder.pawley import (
+    DEFAULT_ITERATIONS,
+    DEFAULT_TOLERANCE,
+    EVALUATED,
+    Reflection,
+)
 
 __all__ = ["RietveldFit", "RietveldFrame", "RietveldOptions",
            "parse_axis", "rietveld"]
@@ -46,6 +52,8 @@ class RietveldOptions:
     (:data:`~xtal.powder.bridge.RIETVELD_PRESETS`), or empty for the
     plan the boxes make.  ``preferred_axis`` is the March-Dollase
     direction as three integers, ``None`` for no texture.
+    ``max_iterations`` and ``tolerance`` are every stage's, a plan's
+    too; 0 iterations evaluates at the values given and moves nothing.
     """
 
     start: float | None = None
@@ -64,6 +72,8 @@ class RietveldOptions:
     biso: bool = True
     occupancy: bool = False
     preferred_axis: tuple[int, int, int] | None = None
+    max_iterations: int = DEFAULT_ITERATIONS
+    tolerance: float = DEFAULT_TOLERANCE
 
     def free(self, radiation: Radiation) -> tuple[str, ...]:
         """The bridge's words for what is freed.  A capillary has no
@@ -120,10 +130,20 @@ class RietveldFit:
     #: RietX's label of each atom of the phase, in its order
     atom_labels: tuple[str, ...] = ()
     notes: list[str] = field(default_factory=list)
+    #: the set after the fit, for the next run to start from
+    parameters: object = None
+    #: which reflection each tick is, in the order of ``ticks``; the
+    #: primary line's only, so Kα2 does not double every label
+    reflections: list[Reflection] = field(default_factory=list)
 
     @property
     def converged(self) -> bool:
-        return self.status == "converged"
+        return self.status in ("converged", EVALUATED)
+
+    @property
+    def evaluated(self) -> bool:
+        """Zero cycles: the figures at the values it was handed."""
+        return self.status == EVALUATED
 
 
 def parse_axis(text) -> tuple[int, int, int] | None:
@@ -146,10 +166,16 @@ def parse_axis(text) -> tuple[int, int, int] | None:
 
 
 def rietveld(structure, data: PowderData, radiation: Radiation,
-             options: RietveldOptions | None = None, *, on_frame=None,
-             frame_interval: float = 0.2, cancel=None,
+             options: RietveldOptions | None = None, *, parameters=None,
+             on_frame=None, frame_interval: float = 0.2, cancel=None,
              folder=None) -> RietveldFit:
     """Refine ``structure`` against ``data``.
+
+    ``parameters`` is the set to start from, whose flags say what is
+    refined; ``None`` starts from RietX's preset with the boxes of
+    ``options`` as the flags.  The cell, its held numbers, the range,
+    the background's order, the texture axis and the plan are
+    ``options``' either way: the cell is each step's own.
 
     ``on_frame(RietveldFrame)`` is called from the fitting thread as
     the fit goes; ``cancel`` is a job's
@@ -163,6 +189,8 @@ def rietveld(structure, data: PowderData, radiation: Radiation,
     options = options or RietveldOptions()
     window = data.window(options.start or None, options.finish or None)
     start_frac = structure.frac.copy()
+    start = bridge.start_from(parameters, options, radiation, window,
+                              structure)
 
     frame_out = None
     if on_frame is not None:
@@ -176,13 +204,14 @@ def rietveld(structure, data: PowderData, radiation: Radiation,
 
     # the map is needed by the frames before the fit returns it
     _phase, indices = bridge.phase_of(structure)
-    refinement, result, indices = bridge.rietveld(
-        structure, window, radiation, free=options.free(radiation),
+    refinement, result, indices, after = bridge.rietveld(
+        structure, window, radiation, start=start, cell_free=options.cell,
         hold_cell=options.hold_cell, plan=options.plan,
-        background_terms=options.background_terms,
         preferred_axis=options.preferred_axis, on_frame=frame_out,
         frame_interval=frame_interval, folder=folder,
-        cancel=bridge.cancel_token(cancel))
+        cancel=bridge.cancel_token(cancel),
+        iterations=options.max_iterations, tolerance=options.tolerance)
+    evaluated = options.max_iterations == 0
     phase = refinement.structure.phases[0]
     refined = bridge.apply_phase(structure, phase, indices)
     if len(refined.sites) != len(structure.sites) \
@@ -195,18 +224,24 @@ def rietveld(structure, data: PowderData, radiation: Radiation,
     moved = np.linalg.norm(refined.lattice.to_cart(
         refined.frac - structure.frac), axis=1)
     stats = result.statistics
+    reflections = [Reflection(*row)
+                   for row in bridge.reflections(refinement)]
     return RietveldFit(
         structure=refined,
         cell=tuple(float(getattr(phase.cell, n).value) for n in names),
-        cell_esd=tuple(float(getattr(phase.cell, n).stderr or 0.0)
+        cell_esd=tuple(0.0 if evaluated
+                       else float(getattr(phase.cell, n).stderr or 0.0)
                        for n in names),
         rwp=float(stats.rwp), rp=float(stats.rp), rexp=float(stats.rexp),
-        gof=float(stats.gof), status=str(result.status),
+        gof=float(stats.gof),
+        status=EVALUATED if evaluated else str(result.status),
         two_theta=np.asarray(result.two_theta),
         y_obs=np.asarray(result.y_obs), y_calc=np.asarray(result.y_calc),
         y_background=np.asarray(result.y_background),
-        ticks=np.array([row[2] for row in bridge.reflections(refinement)]),
-        radiation=radiation, refined=bridge.refined_values(result),
+        ticks=np.array([r.two_theta for r in reflections]),
+        reflections=reflections,
+        radiation=radiation,
+        refined={} if evaluated else bridge.refined_values(result),
         moved=float(moved.max()) if moved.size else 0.0,
         atom_labels=tuple(atom.label for atom in phase.atoms),
-        notes=[d.message for d in result.diagnostics])
+        notes=[d.message for d in result.diagnostics], parameters=after)

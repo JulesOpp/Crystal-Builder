@@ -139,12 +139,16 @@ class AutoResult:
 
 def auto(data: PowderData, radiation: Radiation,
          options: AutoOptions | None = None, structure=None, *,
-         cancel=None, say=None, folder: Path | None = None,
-         on_frame=None, frame_interval: float = 0.2) -> AutoResult:
+         parameters=None, cancel=None, say=None,
+         folder: Path | None = None, on_frame=None,
+         frame_interval: float = 0.2) -> AutoResult:
     """Peaks, index, Pawley every leading (cell, class), rank; then,
     with ``options.rietveld`` and a ``structure`` that matches a row,
     Rietveld on it.
 
+    ``parameters`` is the set every Pawley fit starts from, and the
+    Rietveld run goes on from its row's Pawley fit -- the background
+    and peak shape it found, rather than the preset's again.
     ``folder`` is the run's: each stage writes into a sub-folder of
     it.  Stop between stages returns what was reached -- the peaks,
     the cells, the fits finished -- with ``stopped`` set; a Pawley fit
@@ -192,8 +196,8 @@ def auto(data: PowderData, radiation: Radiation,
         row.folder = _sub(folder, f"pawley-{k:02d}")
         try:
             row.fit = pawley(data, radiation, row.cell, row.space_group,
-                             options.pawley, cancel=cancel,
-                             folder=row.folder)
+                             options.pawley, parameters=parameters,
+                             cancel=cancel, folder=row.folder)
         except PowderStopped:
             result.stopped = True
             break
@@ -214,6 +218,7 @@ def auto(data: PowderData, radiation: Radiation,
         return result
     result.rietveld_row = row
     from xtal.core.lattice import Lattice
+    from xtal.powder.parameters import with_structure
     from xtal.powder.rietveld import RietveldOptions, rietveld
 
     start = structure.copy()
@@ -221,11 +226,17 @@ def auto(data: PowderData, radiation: Radiation,
     # were in it: what Apply cell does, and a better start than the
     # cell the structure was written with
     start.set_lattice(Lattice.from_parameters(*row.fit.cell))
+    # and the background and peak shape that Pawley fit found, freed
+    # as the parameters say -- or, with none, as the Rietveld boxes do
+    boxes = options.rietveld_options or RietveldOptions()
+    begin = row.fit.parameters
+    if parameters is None:
+        begin = with_structure(begin, start)
+        begin.flag_boxes(boxes.free(radiation))
     say(f"Rietveld on the structure, in the cell of row {row.rank}")
     try:
         result.rietveld = rietveld(
-            start, data, radiation,
-            options.rietveld_options or RietveldOptions(),
+            start, data, radiation, boxes, parameters=begin,
             on_frame=on_frame, frame_interval=frame_interval,
             cancel=cancel, folder=_sub(folder, "rietveld"))
     except PowderStopped:

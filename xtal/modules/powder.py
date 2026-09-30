@@ -23,6 +23,10 @@ way in, and is the one entry listed.
 
 from __future__ import annotations
 
+import math
+from dataclasses import replace
+from pathlib import Path
+
 import numpy as np
 
 from xtal import powder
@@ -36,7 +40,8 @@ from xtal.powder.data import RADIATIONS, PowderData, PowderError, Radiation
 from xtal.powder.pawley import METHODS
 
 __all__ = ["DATA_PARAMS", "ENERGY_PARAMS", "INDEX_PARAMS",
-           "PARETO_PARAMS", "PAWLEY_PARAMS", "PEAK_PARAMS", "REFINE",
+           "PARAMETERS_PARAM", "PARETO_PARAMS", "PAWLEY_PARAMS",
+           "PEAK_PARAMS", "REFINE",
            "RIETVELD_PARAMS", "STEPS", "STEP_PARAMS",
            "energy_refines_note", "radiation_of", "refined_notes",
            "run_energy", "run_index", "run_pareto", "run_pawley",
@@ -103,6 +108,36 @@ PEAK_PARAMS = (
 )
 
 
+def _iteration_params(tolerance: str, what: str, minimum: int = 0,
+                      default: int = 100) -> tuple:
+    """Max iterations and Tolerance, as every fitting step asks them."""
+    zero = ("  0 fits nothing: the pattern is calculated at the "
+            "parameters as they stand, and the R values say how well "
+            "they fit -- nothing moves and nothing is committed."
+            if minimum == 0 else "")
+    return (
+        Param("max_iterations", "Max iterations", kind="int",
+              default=default, minimum=minimum, maximum=100000,
+              help=f"The most iterations {what}." + zero),
+        Param("tolerance", "Tolerance", kind="text", default=tolerance,
+              help=_TOLERANCE_HELP[tolerance]))
+
+
+_TOLERANCE_HELP = {
+    "1e-5": "When the refinement is done: the relative fall in χ² "
+            "below which it stops (scipy's ftol).  Tighter spends "
+            "steps on parts per million the lines do not show.",
+    "1e-9": "When a fit is done: the relative fall in χ² below which "
+            "its last stage stops (RietX's ftol).  The stages before "
+            "it only seed the next one, and stop at 1e-6, or at this "
+            "if it is looser.",
+    "1e-6": "When the joint fit is done: the largest gradient of the "
+            "objective, whose two terms are each about 1 where the run "
+            "starts.  The relaxation that sets the energy's scale "
+            "stops at its own force tolerance.",
+}
+
+
 #: What Refine adds to the peak step.
 REFINE_PEAK_PARAMS = (
     Param("background_terms", "Background terms", kind="int",
@@ -112,6 +147,9 @@ REFINE_PEAK_PARAMS = (
                "curved or humped background; too many start fitting "
                "the tails of broad peaks.  Find peaks draws its own "
                "background and does not read this."),
+    # scipy's solver, not RietX's: it stops in tens of steps
+    *_iteration_params("1e-5", "the peak refinement takes", minimum=1,
+                       default=400),
 )
 
 
@@ -143,6 +181,113 @@ def _positions(text: str) -> tuple[float, ...]:
                 raise PowderError(
                     f"{word!r} is not a 2θ position") from None
     return tuple(out)
+
+
+# ======================================================================
+#  THE PARAMETERS A FIT STARTS FROM
+# ======================================================================
+
+#: What ``xtal run`` takes for the set a fit starts from.  Not on any
+#: form: the workbench hands its own set over as ``parameters``.
+PARAMETERS_PARAM = Param(
+    "parameters", "Parameters", kind="path", default="",
+    help="A file of parameters to start from, one a line as the "
+         "workbench's Copy writes them: name value ± esd Refine, or "
+         "NoRefine.  Its flags say what is refined and the Refine "
+         "boxes are not read; a row it leaves out starts from RietX's "
+         "preset.  Empty starts from the preset, freed as the boxes "
+         "say.")
+
+
+def _tolerance(values: dict, default: float) -> float:
+    """The Tolerance box as a number: blank is ``default``."""
+    text = str(values.get("tolerance", "") or "").strip()
+    if not text:
+        return default
+    try:
+        tolerance = float(text)
+    except ValueError:
+        raise PowderError(f"the tolerance is a number, like 1e-6, not "
+                          f"{text!r}") from None
+    if not tolerance > 0.0 or not math.isfinite(tolerance):
+        raise PowderError(f"the tolerance is more than 0, and "
+                          f"{text} is not")
+    return tolerance
+
+
+def _starting(values: dict, options, radiation: Radiation,
+              data: PowderData, structure=None, also=()):
+    """``(start, options)``: the set a step starts from -- the one the
+    workbench hands over, the file ``parameters`` names, or the preset
+    with the boxes as its flags -- and ``options`` with as many
+    background terms as a file named."""
+    from xtal.powder import bridge
+    from xtal.powder.parameters import ParameterSet
+
+    window = data.window(options.start or None, options.finish or None)
+    given = values.get("parameters")
+    if not isinstance(given, ParameterSet):
+        given = _read_parameters(str(given or "").strip(), radiation,
+                                 window, structure,
+                                 options.background_terms)
+        if given is not None:
+            options = replace(options,
+                              background_terms=given.background_terms)
+    return bridge.start_from(given, options, radiation, window,
+                             structure, also), options
+
+
+def _read_parameters(path: str, radiation, data, structure, terms: int):
+    """The file at ``path`` over the preset, ``None`` for no path."""
+    if not path:
+        return None
+    from xtal.powder import bridge
+
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except OSError as exc:
+        raise PowderError(f"cannot read the parameters: {exc}") from None
+    start = bridge.starting_parameters(radiation, data=data,
+                                       structure=structure,
+                                       background_terms=terms)
+    try:
+        start.paste(text)
+    except PowderError as exc:
+        raise PowderError(f"{Path(path).name}, {exc}") from None
+    return start
+
+
+def _is_set(value) -> bool:
+    from xtal.powder.parameters import ParameterSet
+
+    return isinstance(value, ParameterSet)
+
+
+def flagged_boxes(parameters, radiation: Radiation,
+                  preferred_axis=None) -> set[str]:
+    """The bridge's words for what ``parameters`` flags and RietX will
+    move: never a capillary's specimen displacement, and texture only
+    along an axis.  What a note says is refined, from the one place a
+    run reads it."""
+    from xtal.powder import parameters as ps
+
+    out = {ps.box_of(row.path) for row in parameters
+           if row.refine and not row.held} - {""}
+    if radiation.is_synchrotron:
+        out.discard("displacement")
+    if preferred_axis is None:
+        out.discard("preferred_orientation")
+    return out
+
+
+def _write_parameters(job, name: str, parameters):
+    """``parameters`` in its text form in the run's folder -- where the
+    run started, and where it ended -- or ``None`` with no folder."""
+    if job.folder is None or parameters is None:
+        return None
+    path = job.file(name)
+    path.write_text(parameters.to_text(), encoding="utf-8")
+    return path
 
 
 # ======================================================================
@@ -180,7 +325,7 @@ def run_refine_peaks(job) -> JobResult:
     own, found here first (or fitted at ``positions``).
     """
     from xtal.powder.data import PowderStopped
-    from xtal.powder.peaks import refine_peaks
+    from xtal.powder.peaks import MAX_STEPS, TOLERANCE, refine_peaks
 
     values = job.params
     try:
@@ -193,7 +338,9 @@ def run_refine_peaks(job) -> JobResult:
         job.say(f"refining {fit.n_used} lines together")
         refined = refine_peaks(
             data, radiation, fit,
-            int(values.get("background_terms", 8)), cancel=job.cancel)
+            int(values.get("background_terms", 8)), cancel=job.cancel,
+            max_iterations=int(values.get("max_iterations", MAX_STEPS)),
+            tolerance=_tolerance(values, TOLERANCE))
     except PowderStopped:
         return JobResult.stopped("peak refinement stopped")
     except PowderError as exc:
@@ -505,7 +652,7 @@ PAWLEY_PARAMS = (
                "every intensity a least-squares variable, with esds; "
                "Le Bail re-partitions the observed pattern between "
                "cycles, cheaper over a long range and with no "
-               "intensity esds.  The cell, range and boxes below are "
+               "intensity esds.  The cell, range and parameters are "
                "the same for both."),
     Param("cell", "Cell", kind="text", default="",
           help="a b c, or a b c α β γ, in Å and degrees -- a row of "
@@ -552,6 +699,8 @@ PAWLEY_PARAMS = (
     Param("strain", "Strain broadening", kind="bool", default=True,
           help="Lorentzian and Gaussian strain terms (TOPAS Strain_L, "
                "Strain_G): widths that grow as tan θ."),
+    *_iteration_params("1e-9", "each stage of the fit runs (TOPAS "
+                               "iters)"),
 )
 
 REFLECTION_COLUMNS = ("h", "k", "l", "d (Å)", "2θ (°)", "m",
@@ -559,7 +708,12 @@ REFLECTION_COLUMNS = ("h", "k", "l", "d (Å)", "2θ (°)", "m",
 
 
 def pawley_options(values: dict):
-    from xtal.powder.pawley import PawleyOptions, parse_hold
+    from xtal.powder.pawley import (
+        DEFAULT_ITERATIONS,
+        DEFAULT_TOLERANCE,
+        PawleyOptions,
+        parse_hold,
+    )
 
     start = float(values.get("start", 0.0) or 0.0)
     finish = float(values.get("finish", 0.0) or 0.0)
@@ -571,7 +725,10 @@ def pawley_options(values: dict):
         hold_cell=parse_hold(values.get("hold", "")),
         size=bool(values.get("size", True)),
         strain=bool(values.get("strain", True)),
-        method=str(values.get("method", "pawley") or "pawley"))
+        method=str(values.get("method", "pawley") or "pawley"),
+        max_iterations=int(values.get("max_iterations",
+                                      DEFAULT_ITERATIONS)),
+        tolerance=_tolerance(values, DEFAULT_TOLERANCE))
 
 
 def run_pawley(job) -> JobResult:
@@ -590,9 +747,12 @@ def run_pawley(job) -> JobResult:
             raise PowderError(f"a {method} fit needs a cell and a space "
                               f"group -- choose a row of the indexing "
                               f"table, or type them")
+        start, options = _starting(values, pawley_options(values),
+                                   radiation, data, job.structure)
+        _write_parameters(job, "parameters-start.txt", start)
         job.say(f"{method} fit of {cell} in {group}")
-        fit = pawley(data, radiation, cell, group,
-                     pawley_options(values), cancel=job.cancel,
+        fit = pawley(data, radiation, cell, group, options,
+                     parameters=start, cancel=job.cancel,
                      folder=job.path)
     except PowderStopped:
         return JobResult.stopped(f"{method} fit stopped")
@@ -605,13 +765,17 @@ def run_pawley(job) -> JobResult:
         artifacts = [_write_fit(job.file("fit.xy"), fit,
                                 f"{fit.method_name} fit"),
                      _write_reflections(job.file("reflections.csv"),
-                                        fit)]
-        job.note("wrote fit.xy and reflections.csv")
+                                        fit),
+                     _write_parameters(job, "parameters.txt",
+                                       fit.parameters)]
+        job.note("wrote fit.xy, reflections.csv and parameters.txt")
     a, b, c = fit.cell[:3]
     message = (f"{fit.method_name} Rwp {100 * fit.rwp:.2f} %, GoF "
                f"{fit.gof:.2f}: "
                f"{a:.5f} {b:.5f} {c:.5f} Å in {fit.space_group}")
-    if not fit.converged:
+    if fit.evaluated:
+        message += f" ({EVALUATED_NOTE})"
+    elif not fit.converged:
         message += f" ({fit.status}, not converged)"
     return JobResult(message=message, artifacts=tuple(artifacts),
                      report=pawley_report(fit, data.name), answer=fit)
@@ -628,7 +792,19 @@ def pawley_summary(fit) -> str:
     return (f"{method}Rwp {100 * fit.rwp:.2f} %   Rp {100 * fit.rp:.2f} %"
             f"   Rexp {100 * fit.rexp:.2f} %   GoF {fit.gof:.3f}\n"
             f"{cell}\nV {fit.volume:.2f} Å³, {fit.space_group}"
-            + ("" if fit.converged else f"\n{fit.status}: not converged"))
+            + _status_line(fit))
+
+
+#: What a result says of a run of zero cycles.
+EVALUATED_NOTE = "0 cycles: evaluated at the values shown"
+
+
+def _status_line(fit) -> str:
+    """The result box's last line: the zero cycles it ran, or the
+    reason it did not converge, or nothing."""
+    if getattr(fit, "evaluated", False):
+        return "\n" + EVALUATED_NOTE
+    return "" if fit.converged else f"\n{fit.status}: not converged"
 
 
 def _with_esd(value: float, esd: float) -> str:
@@ -743,16 +919,18 @@ def refined_notes(fit) -> dict[str, str]:
 
 RIETVELD_PARAMS = (
     Param("plan", "Plan", kind="choice", default="",
-          choices=(("", "The boxes below"),
+          choices=(("", "The Refine flags"),
                    ("mccusker_structural", "RietX: McCusker, structural"),
                    ("mccusker_default", "RietX: McCusker, profile"),
                    ("lab_bragg_brentano", "RietX: lab Bragg-Brentano"),
                    ("lab_sample_refine", "RietX: sample on a calibrated "
                                          "instrument")),
-          help="What is freed, and in what order.  The boxes below "
-               "free in McCusker's order: background and scale, line "
-               "positions, cell, widths, then the atoms.  RietX's own "
-               "plans ignore the boxes."),
+          help="What is freed, and in what order.  The Refine flags "
+               "-- the workbench's parameter table, a parameters file, "
+               "or the boxes -- free in McCusker's order: background "
+               "and scale, line positions, cell, widths, then the "
+               "atoms.  RietX's own plans ignore the flags, and start "
+               "from the values."),
     Param("start", "2θ from", kind="float", default=0.0, minimum=0.0,
           maximum=180.0, decimals=2, suffix=" °",
           help="Where the fit starts (TOPAS start_X).  0 is the start "
@@ -809,6 +987,8 @@ RIETVELD_PARAMS = (
           default="",
           help="The March-Dollase axis as h k l -- 0 0 1 for plates "
                "lying on their c face.  Empty is no texture."),
+    *_iteration_params("1e-9", "each stage of the fit runs (TOPAS "
+                               "iters), a RietX plan's stages too"),
 )
 
 
@@ -822,7 +1002,11 @@ PLAN_DECIDES = ("background", "zero", "displacement", "cell", "hold",
 
 
 def rietveld_options(values: dict):
-    from xtal.powder.pawley import parse_hold
+    from xtal.powder.pawley import (
+        DEFAULT_ITERATIONS,
+        DEFAULT_TOLERANCE,
+        parse_hold,
+    )
     from xtal.powder.rietveld import RietveldOptions, parse_axis
 
     start = float(values.get("start", 0.0) or 0.0)
@@ -842,7 +1026,10 @@ def rietveld_options(values: dict):
         positions=bool(values.get("positions", True)),
         biso=bool(values.get("biso", True)),
         occupancy=bool(values.get("occupancy", False)),
-        preferred_axis=parse_axis(values.get("preferred_axis", "")))
+        preferred_axis=parse_axis(values.get("preferred_axis", "")),
+        max_iterations=int(values.get("max_iterations",
+                                      DEFAULT_ITERATIONS)),
+        tolerance=_tolerance(values, DEFAULT_TOLERANCE))
 
 
 def rietveld_plan_note(values: dict) -> str:
@@ -857,8 +1044,18 @@ def rietveld_plan_note(values: dict) -> str:
     except PowderError:
         # an axis half typed: the note is about the plan, not the axis
         options = rietveld_options({**values, "preferred_axis": ""})
-    return bridge.plan_notes(options.plan,
-                             options.free(radiation_of(values)))
+    try:
+        radiation = radiation_of(values)
+    except PowderError:
+        # a synchrotron with its wavelength still to be typed: the note
+        # is about the plan, and only asks whether it is a capillary
+        radiation = radiation_of({**values, "wavelength": 1.0})
+    free = options.free(radiation)
+    given = values.get("parameters")
+    if _is_set(given):
+        free = flagged_boxes(given, radiation, options.preferred_axis)
+        free = (free - {"scale"}) | ({"cell"} if options.cell else set())
+    return bridge.plan_notes(options.plan, free)
 
 
 def run_rietveld(job) -> JobResult:
@@ -879,10 +1076,14 @@ def run_rietveld(job) -> JobResult:
                                  "and refine it from its window")
     try:
         data = _data_of(values)
-        options = rietveld_options(values)
+        radiation = radiation_of(values)
+        start, options = _starting(values, rietveld_options(values),
+                                   radiation, data, structure)
+        _write_parameters(job, "parameters-start.txt", start)
         job.say(f"Rietveld fit of {len(structure.sites)} sites")
         interval = float(values.get("frame_interval", 0.2))
-        fit = rietveld(structure, data, radiation_of(values), options,
+        fit = rietveld(structure, data, radiation, options,
+                       parameters=start,
                        on_frame=job.update if interval >= 0 else None,
                        frame_interval=max(interval, 0.0),
                        cancel=job.cancel, folder=job.path)
@@ -899,11 +1100,15 @@ def run_rietveld(job) -> JobResult:
         artifacts = [_write_fit(job.file("fit.xy"), fit, "Rietveld fit")]
         path = job.file("refined.cif")
         write_cif(fit.structure, path)
-        artifacts.append(path)
-        job.note("wrote fit.xy and refined.cif")
+        artifacts += [path, _write_parameters(job, "parameters.txt",
+                                              fit.parameters)]
+        job.note("wrote fit.xy, refined.cif and parameters.txt")
     message = (f"Rietveld Rwp {100 * fit.rwp:.2f} %, GoF {fit.gof:.2f}; "
                f"the furthest atom moved {fit.moved:.3f} Å")
-    if not fit.converged:
+    if fit.evaluated:
+        message = (f"Rietveld Rwp {100 * fit.rwp:.2f} %, GoF "
+                   f"{fit.gof:.2f} ({EVALUATED_NOTE})")
+    elif not fit.converged:
         message += f" ({fit.status}, not converged)"
     return JobResult(message=message, artifacts=tuple(artifacts),
                      report=rietveld_report(fit, data.name), answer=fit)
@@ -918,7 +1123,7 @@ def rietveld_summary(fit) -> str:
     return (f"Rwp {100 * fit.rwp:.2f} %   Rp {100 * fit.rp:.2f} %   "
             f"Rexp {100 * fit.rexp:.2f} %   GoF {fit.gof:.3f}\n"
             f"{cell}\nthe furthest atom moved {fit.moved:.3f} Å"
-            + ("" if fit.converged else f"\n{fit.status}: not converged"))
+            + _status_line(fit))
 
 
 def rietveld_report(fit, name: str = "") -> Report:
@@ -1014,10 +1219,17 @@ def run_auto(job) -> JobResult:
     structure = job.structure
     try:
         data = _data_of(values)
+        radiation = radiation_of(values)
         options = auto_options(values)
+        given = values.get("parameters")
+        if isinstance(given, str):
+            given = _read_parameters(given.strip(), radiation, data,
+                                     structure, options.pawley
+                                     .background_terms)
+        _write_parameters(job, "parameters-start.txt", given)
         interval = float(values.get("frame_interval", 0.2))
-        result = auto(data, radiation_of(values), options,
-                      structure=structure, cancel=job.cancel,
+        result = auto(data, radiation, options, structure=structure,
+                      parameters=given, cancel=job.cancel,
                       say=job.say, folder=job.path,
                       on_frame=job.update if interval >= 0 else None,
                       frame_interval=max(interval, 0.0))
@@ -1120,10 +1332,9 @@ ENERGY_PARAMS = (
           help="Refine the cell's free numbers with the atoms, against "
                "both terms -- the energy's pull on them is the engine's "
                "stress.  Off holds the cell where it is."),
-    Param("max_steps", "Steps", kind="int", default=500, minimum=1,
-          maximum=100000,
-          help="The most L-BFGS steps, for the relaxation that sets the "
-               "energy's scale and again for the fit."),
+    *_iteration_params("1e-6", "of L-BFGS, for the relaxation that "
+                               "sets the energy's scale and again for "
+                               "the fit", default=500),
     Param("engine", "Engine", kind="choice", default="uff",
           choices=tuple((e.name, e.label) for e in ENGINES),
           help="The energy engine.  In the workbench, choosing one "
@@ -1146,20 +1357,36 @@ ENERGY_RUN_PARAMS = (DATA_PARAMS + ENERGY_PARAMS
 
 
 def energy_options(values: dict):
-    from xtal.powder.energy import EnergyOptions
+    from xtal.powder.energy import FIT_TOLERANCE, EnergyOptions
 
     boxes = rietveld_options({**_unprefixed(values, "rietveld_"),
                               "positions": False, "cell": False,
                               "occupancy": False, "plan": ""})
+    # ``max_steps`` is what the box was called before it was every
+    # fitting step's Max iterations
+    steps = values.get("max_iterations", values.get("max_steps", 500))
     return EnergyOptions(weight=float(values.get("weight", 0.1)),
                          cell=bool(values.get("energy_cell", False)),
-                         max_steps=int(values.get("max_steps", 500)),
+                         max_steps=int(steps),
+                         tolerance=_tolerance(values, FIT_TOLERANCE),
                          rietveld=boxes)
+
+
+def _energy_start(job, values: dict, radiation: Radiation,
+                  data: PowderData):
+    """``(options, start)`` of a run with energy, the start written
+    into the run's folder."""
+    options = energy_options(values)
+    start, boxes = _starting(values, options.rietveld, radiation, data,
+                             job.structure, also=("positions",))
+    _write_parameters(job, "parameters-start.txt", start)
+    return replace(options, rietveld=boxes), start
 
 
 #: What each freed group is called in the note that says what a run
 #: with energy refines, in the order the fit frees them.
-_FREED_WORDS = (("background", "background"), ("zero", "zero error"),
+_FREED_WORDS = (("scale", "scale"), ("background", "background"),
+                ("zero", "zero error"),
                 ("displacement", "specimen displacement"),
                 ("profile", "peak shape"),
                 ("size", "size broadening"),
@@ -1172,24 +1399,46 @@ def energy_refines_note(values: dict) -> str:
     """What a run with energy refines, in its two stages -- the note
     under the With energy and Pareto forms.
 
-    The first stage is the Rietveld step's boxes and it lives on
-    another page, so without this a person pressing Refine here could
-    not tell what was being fitted before the atoms were asked to move.
+    What is fitted first is what the parameters flag beyond the atoms,
+    or the Rietveld step's boxes when no set is handed over; either
+    way it is decided somewhere else, so without this a person
+    pressing Refine here could not tell what was being fitted before
+    the atoms were asked to move -- or that nothing was.
     """
+    from xtal.powder import parameters as ps
+
     try:
         boxes = energy_options(values).rietveld
     except PowderError:
         boxes = energy_options({**values,
                                 "rietveld_preferred_axis": ""}).rietveld
-    freed = set(boxes.free(radiation_of(values)))
-    first = ["scale"] + [word for key, word in _FREED_WORDS
-                         if key in freed]
-    second = ("the atom positions, each along the directions its site "
-              "allows")
+    radiation = radiation_of(values)
+    flags = values.get("parameters")
+    if not isinstance(flags, ps.ParameterSet):
+        flags = ps.defaults({})
+        flags.flag_boxes(set(boxes.free(radiation)) | {"positions"})
+    flagged = flagged_boxes(flags, radiation, boxes.preferred_axis)
+    first = [word for key, word in _FREED_WORDS if key in flagged]
+    atoms = [row for row in flags
+             if ps.box_of(row.path) == "positions" and not row.held]
+    moving = [row for row in atoms if row.refine]
+    if not atoms or len(moving) == len(atoms):
+        second = "the atom positions"
+    elif not moving:
+        second = "no atom, since none is flagged"
+    else:
+        second = (f"the positions of {len(moving)} of the "
+                  f"{len(atoms)} atoms flagged")
+    second += ", each along the directions its site allows"
     if values.get("energy_cell"):
         second += ", and the cell's free numbers"
+    if not first:
+        return (f"<b>Nothing is fitted first</b>: the atoms start "
+                f"against the scale, background and peak shape as the "
+                f"parameters show them.  <b>Then</b>: {second}, against "
+                f"the pattern and the energy together.")
     return (f"<b>First</b>, with the atoms and the cell where they are: "
-            f"{', '.join(first)} -- the Rietveld step's boxes.  "
+            f"{', '.join(first)}, as the parameters flag them.  "
             f"<b>Then</b>, with those held: {second}, against the "
             f"pattern and the energy together.")
 
@@ -1219,12 +1468,14 @@ def run_energy(job) -> JobResult:
     label = engines.get(engine).label
     try:
         data = _data_of(values)
-        options = energy_options(values)
+        radiation = radiation_of(values)
+        options, start = _energy_start(job, values, radiation, data)
         interval = float(values.get("frame_interval", 0.2))
         fit = rietveld_with_energy(
-            structure, data, radiation_of(values),
+            structure, data, radiation,
             lambda s: engines.build(engine, s, **settings), options,
-            engine=label, on_frame=job.update if interval >= 0 else None,
+            parameters=start, engine=label,
+            on_frame=job.update if interval >= 0 else None,
             frame_interval=max(interval, 0.0), cancel=job.cancel,
             folder=job.path, say=job.say)
     except PowderStopped:
@@ -1251,11 +1502,18 @@ def run_energy(job) -> JobResult:
         write_cif(fit.structure, path)
         artifacts.append(path)
         artifacts.append(_write_ends(job.file("ends.csv"), fit))
-        job.note("wrote fit.xy, refined.cif and ends.csv")
+        artifacts.append(_write_parameters(job, "parameters.txt",
+                                           fit.parameters))
+        job.note("wrote fit.xy, refined.cif, ends.csv and "
+                 "parameters.txt")
     message = (f"Rietveld with energy, w {fit.weight:g}: Rwp "
                f"{100 * fit.rwp:.2f} %, E {fit.energy:.2f} kcal/mol; "
                f"the furthest atom moved {fit.moved:.3f} Å")
-    if not fit.converged:
+    if fit.evaluated:
+        message = (f"Rietveld with energy, w {fit.weight:g}: Rwp "
+                   f"{100 * fit.rwp:.2f} %, E {fit.energy:.2f} kcal/mol "
+                   f"({EVALUATED_NOTE})")
+    elif not fit.converged:
         message += f" ({fit.status}, not converged)"
     return JobResult(message=message, artifacts=tuple(artifacts),
                      report=energy_report(fit, data.name), answer=fit)
@@ -1294,9 +1552,7 @@ def energy_summary(fit) -> str:
         lines.append(f"energy alone: Rwp {100 * scale.relaxed_rwp:.2f} "
                      f"%, E {scale.relaxed:.3f}")
     lines.append(f"the furthest atom moved {fit.moved:.3f} Å")
-    if not fit.converged:
-        lines.append(f"{fit.status}: not converged")
-    return "\n".join(lines)
+    return "\n".join(lines) + _status_line(fit)
 
 
 def energy_report(fit, name: str = "") -> Report:
@@ -1338,10 +1594,9 @@ PARETO_PARAMS = (
     Param("energy_cell", "Let the cell move", kind="bool", default=False,
           help="Refine the cell's free numbers with the atoms at every "
                "weight.  Off holds the cell where it is."),
-    Param("max_steps", "Steps", kind="int", default=500, minimum=1,
-          maximum=100000,
-          help="The most L-BFGS steps at each weight.  A point that "
-               "runs out is not converged, and has no numbers."),
+    *_iteration_params("1e-6", "of L-BFGS at each weight.  A point "
+                               "that runs out is not converged, and has "
+                               "no numbers", minimum=1, default=500),
     Param("engine", "Engine", kind="choice", default="uff",
           choices=tuple((e.name, e.label) for e in ENGINES),
           help="The energy engine.  In the workbench, choosing one "
@@ -1510,12 +1765,14 @@ def run_pareto(job) -> JobResult:
     try:
         weights = parse_weights(str(values.get("weights", "")))
         data = _data_of(values)
-        options = energy_options(values)
+        radiation = radiation_of(values)
+        options, start = _energy_start(job, values, radiation, data)
         interval = float(values.get("frame_interval", 0.2))
         result = sweep(
-            structure, data, radiation_of(values),
+            structure, data, radiation,
             lambda s: engines.build(engine, s, **settings), options,
-            weights, engine=label, on_point=files.wrote,
+            weights, parameters=start, engine=label,
+            on_point=files.wrote,
             on_frame=job.update if interval >= 0 else None,
             frame_interval=max(interval, 0.0), cancel=job.cancel,
             folder=job.path, say=job.say)
@@ -1535,6 +1792,9 @@ def run_pareto(job) -> JobResult:
         return JobResult.failure(f"{label}: {exc}")
     report = pareto_report(result, data.name)
     files.close(report)
+    written = _write_parameters(job, "parameters.txt", result.parameters)
+    if written is not None:
+        files.artifacts.append(written)
     bend = result.knee
     message = f"{len(result.points)} of {len(weights)} weights refined"
     if bend is not None:
@@ -1583,29 +1843,33 @@ STEPS = (
            check=refine_available),
     Action(name="pawley", label="Pawley",
            tip="Fit a cell and space group to the whole pattern",
-           params=DATA_PARAMS + PAWLEY_PARAMS, run=run_pawley,
+           params=DATA_PARAMS + PAWLEY_PARAMS + (PARAMETERS_PARAM,),
+           run=run_pawley,
            needs_structure=False, listed=False,
            check=refine_available),
     Action(name="auto", label="Automatic",
            tip="Peaks, indexing and a Pawley fit of every leading cell "
                "and space group, ranked -- and on into Rietveld when "
                "asked",
-           params=AUTO_RUN_PARAMS, run=run_auto,
+           params=AUTO_RUN_PARAMS + (PARAMETERS_PARAM,), run=run_auto,
            needs_structure=False, listed=False,
            check=refine_available),
     Action(name="rietveld", label="Rietveld",
            tip="Refine a structure's atoms against the whole pattern",
-           params=DATA_PARAMS + RIETVELD_PARAMS, run=run_rietveld,
+           params=DATA_PARAMS + RIETVELD_PARAMS + (PARAMETERS_PARAM,),
+           run=run_rietveld,
            listed=False, check=refine_available),
     Action(name="energy", label="Rietveld with energy",
            tip="Refine a structure's atoms against the pattern and a "
                "force field at once, the weight between them yours",
-           params=ENERGY_RUN_PARAMS, run=run_energy, listed=False,
+           params=ENERGY_RUN_PARAMS + (PARAMETERS_PARAM,),
+           run=run_energy, listed=False,
            check=refine_available),
     Action(name="pareto", label="Pareto",
            tip="Refine with energy at a list of weights, and suggest "
                "the one where the fit and the energy trade best",
-           params=PARETO_RUN_PARAMS, run=run_pareto, listed=False,
+           params=PARETO_RUN_PARAMS + (PARAMETERS_PARAM,),
+           run=run_pareto, listed=False,
            check=refine_available),
 )
 

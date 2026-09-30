@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime
+import math
 import time
 from pathlib import Path
 
@@ -72,14 +73,21 @@ from xtal.modules import MODULES
 from xtal.modules import powder as steps
 from xtal.modules import record as module_record
 from xtal.modules.job import Job
+from xtal.powder import parameters as ps
 from xtal.powder.data import PowderData, PowderError
 from xtal.powder.pawley import METHODS
+from xtalapp import windows
 from xtalapp.dialogs.module_form import ParamForm
 from xtalapp.docks import scrolling
 from xtalapp.refine.bravais import BravaisBox
 from xtalapp.refine.cell import CellBox
+from xtalapp.refine.parameters import ParameterTable
 from xtalapp.refine.pareto_plot import ParetoPlots
-from xtalapp.refine.plot import RefinementPlot
+from xtalapp.refine.plot import (
+    RefinementPlot,
+    reflection_label,
+    reflection_labels,
+)
 from xtalapp.refine.sections import SectionedForm, fold
 from xtalapp.widgets.tone import HINT, WARNING, set_tone
 from xtalapp.workers import ModuleWorker, start_in_thread
@@ -105,7 +113,8 @@ RUN_LABELS = {"peaks": "Find peaks", "index": "Index",
 GROUPS = {
     "peaks": (("Range", ("start", "finish")),
               ("Finding peaks", ("shoulders", "flag_ghosts")),
-              ("Refining peaks", ("background_terms",))),
+              ("Refining peaks", ("background_terms", "max_iterations",
+                                  "tolerance"))),
     "index": (("Search", ("space_groups", "zero_error", "max_volume",
                           "longest_axis", "budget")),
               ("Space groups", ("rank_groups",))),
@@ -113,19 +122,18 @@ GROUPS = {
                ("Cell and space group", ("space_group",)),
                ("Range and background", ("start", "finish",
                                          "background_terms")),
-               ("Refined", ("zero", "displacement", "size", "strain"))),
+               ("Iterations", ("max_iterations", "tolerance"))),
     "rietveld": (("Plan", ("plan",)),
                  ("Range and background", ("start", "finish",
                                            "background_terms")),
-                 ("Refined: instrument and peak shape",
-                  ("background", "zero", "displacement", "profile",
-                   "size", "strain")),
-                 ("Refined: atoms", ("positions", "biso", "occupancy",
-                                     "preferred_axis"))),
+                 ("Preferred orientation", ("preferred_axis",)),
+                 ("Iterations", ("max_iterations", "tolerance"))),
     "energy": (("Range", ("start", "finish")),
-               ("Energy", ("weight", "energy_cell", "max_steps"))),
+               ("Energy", ("weight", "energy_cell", "max_iterations",
+                           "tolerance"))),
     "pareto": (("Range", ("start", "finish")),
-               ("Sweep", ("weights", "energy_cell", "max_steps"))),
+               ("Sweep", ("weights", "energy_cell", "max_iterations",
+                          "tolerance"))),
     "auto": (("Automatic", ("cells", "classes", "continue_rietveld")),),
 }
 
@@ -135,10 +143,28 @@ _RANGED = ("pawley", "rietveld", "energy", "pareto")
 
 #: Parameters a step declares for ``xtal run`` that the workbench asks
 #: through a widget of its own rather than the form: the cell box
-#: writes ``cell`` and ``hold``.
-_NOT_IN_FORM = {"index": ("bravais",), "pawley": ("cell", "hold"),
-                "rietveld": ("cell", "hold"), "energy": ("engine",),
-                "pareto": ("engine",)}
+#: writes ``cell`` and ``hold``, and the Refine column of the parameter
+#: table is what the "Refine ..." boxes were -- a run is handed the set,
+#: and a box left beside it would be a second answer never read.
+_NOT_IN_FORM = {
+    "index": ("bravais",),
+    "pawley": ("cell", "hold", "zero", "displacement", "size", "strain"),
+    "rietveld": ("cell", "hold", "background", "zero", "displacement",
+                 "profile", "size", "strain", "positions", "biso",
+                 "occupancy"),
+    "energy": ("engine",), "pareto": ("engine",)}
+
+#: The steps that fit, and so start from the parameter set and show it.
+_FITS = ("pawley", "rietveld", "energy", "pareto", "auto")
+
+#: The groups of the set a step never reads, hidden while it is in
+#: front, and why.  ``bridge.pawley`` leaves them out whatever is
+#: flagged; this is the same fact where a person looks.
+_UNUSED = {"pawley": ((ps.SCALE, ps.TEXTURE, ps.ATOMS),
+                      "A Pawley or Le Bail fit has no atoms and no "
+                      "scale -- the intensities stand in for both -- so "
+                      "their rows are hidden here, and kept for "
+                      "Rietveld.")}
 
 #: The steps that move the document's atoms as they run, and land as
 #: one undo step.
@@ -231,6 +257,18 @@ class RefinementWorkbench(QMainWindow):
         self._folder = None
         self._entry = None
         self.module = MODULES.get("pxrd")
+        #: the numbers every fitting step starts from, one set for all
+        #: of them; ``_parameters_own`` once a run or a person has
+        #: changed it, after which a new pattern or radiation no longer
+        #: rebuilds it from the preset
+        self.parameters: ps.ParameterSet | None = None
+        self._parameters_own = False
+        self.parameter_table = ParameterTable()
+        self.parameter_table.defaults = self._default_parameters
+        self.parameter_table.changed.connect(self._on_parameters_edited)
+        self.parameter_table.siteEdited.connect(self._edit_sites)
+        self.parameter_table.said.connect(self.say)
+        self._parameter_holders: dict[str, QVBoxLayout] = {}
         name = document.title.rstrip("*") if document is not None \
             else ""
         self.setWindowTitle("Refinement" + (f" — {name}" if name
@@ -319,9 +357,13 @@ class RefinementWorkbench(QMainWindow):
         self.steps.currentRowChanged.connect(self.forms.setCurrentIndex)
         self.steps.currentRowChanged.connect(self.tables.setCurrentIndex)
         self.steps.currentRowChanged.connect(self._redraw)
+        self.steps.currentRowChanged.connect(self._place_parameters)
         self.steps.setCurrentRow(0)
         self.resize(*_default_size())
         self._fill_from_structure()
+        self._rebuild_parameters()
+        if document is not None:
+            document.structureChanged.connect(self._on_structure_changed)
         self._show_pawley_result()
         self._show_rietveld_result()
         self._show_energy_result()
@@ -366,6 +408,8 @@ class RefinementWorkbench(QMainWindow):
         self.forms = _PageStack()
         self.step_forms: dict[str, SectionedForm] = {}
         self.engine_boxes: dict[str, QComboBox] = {}
+        self.engine_option_buttons: dict[str, QPushButton] = {}
+        self.engine_options = None
         self.refines_notes: dict[str, _Paragraph] = {}
         self.bravais = BravaisBox()
         self.bravais.setTitle("")
@@ -397,12 +441,17 @@ class RefinementWorkbench(QMainWindow):
             # sits at the top rather than spread down the column
             page_layout.addStretch(1)
             self.forms.addWidget(page)
+        # parented from the start, in the first step that shows it
+        self._parameter_holders["pawley"].addWidget(self.parameter_table)
         self.step_forms["peaks"].changed.connect(self._on_peaks_changed)
         for name in ("energy", "pareto"):
             self.step_forms[name].changed.connect(self._show_refines_note)
         self.step_forms["rietveld"].changed.connect(
             self._show_refines_note)
         self.step_forms["pawley"].changed.connect(self._refresh)
+        for name in ("pawley", "rietveld"):
+            self.step_forms[name].widgets["background_terms"] \
+                .valueChanged.connect(self._on_background_terms)
         layout.addWidget(self.forms)
         layout.addStretch(1)
         # A stack is as tall as its tallest page, which is Rietveld's;
@@ -602,7 +651,8 @@ class RefinementWorkbench(QMainWindow):
                 self._fold("Cell and space group", group),
                 self._fold("Range and background",
                            form.part("Range and background")),
-                self._fold("Refined", form.part("Refined")),
+                self._fold("Iterations", form.part("Iterations")),
+                self._parameters_section("pawley"),
                 self._fold("Result", self.pawley_label, buttons),
                 self._fold("About", explain, _hint(PAWLEY_RANGE_NOTE),
                            _hint(CELL_TO_STRUCTURE_NOTE), open_=False))
@@ -623,11 +673,11 @@ class RefinementWorkbench(QMainWindow):
         return (self._fold("Plan", plan),
                 self._fold("Range and background",
                            form.part("Range and background")),
-                self._fold("Refined: instrument and peak shape",
-                           form.part("Refined: instrument and peak "
-                                     "shape")),
+                self._parameters_section("rietveld"),
                 self._fold("Refined: cell", self.rietveld_cell),
-                self._fold("Refined: atoms", form.part("Refined: atoms")),
+                self._fold("Preferred orientation",
+                           form.part("Preferred orientation")),
+                self._fold("Iterations", form.part("Iterations")),
                 self._fold("Result", self.rietveld_label),
                 self._fold("About", explain, open_=False))
 
@@ -656,17 +706,28 @@ class RefinementWorkbench(QMainWindow):
                 box.addItem(engine.label, engine.name)
         self.engine_boxes[step] = box
         options = QPushButton("Options...")
-        options.setToolTip("Show the Force Field panel, where the "
-                           "engine's parameter set, model and charges "
-                           "are set")
+        options.setToolTip("The engine's parameter set, model and "
+                           "charges -- the Force Field panel's own "
+                           "controls, in a window over this one")
         options.clicked.connect(self._show_engine_options)
-        options.setEnabled(hasattr(self.window_, "show_force_field"))
+        options.setEnabled(dock is not None)
+        self.engine_option_buttons[step] = options
         row = QHBoxLayout()
         row.addWidget(box, 1)
         row.addWidget(options)
-        hint = _hint("Shared with the Force Field panel: its options "
-                     "(parameter set, model, charges) are set there.")
+        hint = _hint("Shared with the Force Field panel: Options... "
+                     "opens the panel's own controls over this "
+                     "window.")
         return self._fold("Energy engine", row, hint)
+
+    def _parameters_section(self, step: str):
+        """A fold the one parameter table moves into when ``step`` is
+        in front: every fitting step shows the same numbers."""
+        holder = QWidget()
+        layout = QVBoxLayout(holder)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self._parameter_holders[step] = layout
+        return self._fold("Parameters", holder)
 
     def _refines_section(self, step: str):
         note = _Paragraph("")
@@ -684,6 +745,7 @@ class RefinementWorkbench(QMainWindow):
         return (self._engine_section("energy"),
                 self._fold("Range", form.part("Range")),
                 self._fold("Energy", form.part("Energy")),
+                self._parameters_section("energy"),
                 self._refines_section("energy"),
                 self._fold("Result", self.energy_label),
                 self._fold("About", explain, open_=False))
@@ -716,6 +778,7 @@ class RefinementWorkbench(QMainWindow):
         return (self._engine_section("pareto"),
                 self._fold("Range", form.part("Range")),
                 self._fold("Sweep", form.part("Sweep")),
+                self._parameters_section("pareto"),
                 self._refines_section("pareto"),
                 self._fold("Result", self.pareto_label, buttons),
                 self._fold("About", explain, open_=False))
@@ -732,6 +795,7 @@ class RefinementWorkbench(QMainWindow):
             "Rietveld is ticked, and then refines the structure only "
             "if its cell is a row's.")
         return (self._fold("Automatic", form.part("Automatic")),
+                self._parameters_section("auto"),
                 self._fold("Result", self.auto_label),
                 self._fold("About", explain, open_=False))
 
@@ -768,6 +832,10 @@ class RefinementWorkbench(QMainWindow):
         values = self.values("rietveld")
         self.plan_note.setText(steps.rietveld_plan_note(values))
         planned = bool(values.get("plan"))
+        self.parameter_table.set_flags_enabled(
+            not (planned and self.current_step == "rietveld"),
+            "RietX's plan decides what is freed; it starts from the "
+            "values shown")
         form = self.step_forms["rietveld"]
         for name in steps.PLAN_DECIDES:
             widget = form.widgets.get(name)
@@ -786,6 +854,151 @@ class RefinementWorkbench(QMainWindow):
         values = self.data_form.values()
         self.data_form.widgets["wavelength"].setEnabled(
             values.get("radiation") == "synchrotron")
+        self._rebuild_parameters()
+
+    # -- the parameters --------------------------------------------------
+
+    def _structure(self):
+        """The structure the atom rows are of; ``None`` with none."""
+        if self.document is None or not self.document.structure.sites:
+            return None
+        return self.document.structure
+
+    def _default_parameters(self) -> ps.ParameterSet:
+        """Where a first run starts: RietX's preset for the radiation
+        shown, the background under the pattern loaded, and the
+        structure's atoms.  What Reset goes back to, too."""
+        from xtal.powder import bridge
+
+        radiation = steps.radiation_of(self.data_form.values())
+        terms = self.parameters.background_terms \
+            if self.parameters is not None else int(
+                self.step_forms["rietveld"].values()["background_terms"])
+        return bridge.starting_parameters(
+            radiation, data=self.data, structure=self._structure(),
+            background_terms=terms)
+
+    def _rebuild_parameters(self) -> None:
+        """The preset again, until a run or a person has made the set
+        theirs: the pattern and radiation chosen before the first run
+        are what it starts from, and after it they are not a reason to
+        throw a refined peak shape away -- Reset is."""
+        if self._parameters_own:
+            return
+        why = powder.missing()
+        parameters = None
+        if not why:
+            try:
+                parameters = self._default_parameters()
+            except PowderError as exc:
+                why = str(exc)
+        self.parameters = parameters
+        self.parameter_table.set_parameters(parameters, why=why)
+        self._on_parameters_changed()
+
+    def _on_parameters_edited(self) -> None:
+        self._parameters_own = True
+        self._on_parameters_changed()
+
+    def _on_parameters_changed(self) -> None:
+        """The notes that say what a run will refine read the flags."""
+        self._show_plan_note()
+        self._show_refines_note()
+
+    def _take_parameters(self, parameters, started=None) -> None:
+        """A finished run's set, the rows it moved since ``started``
+        (the set as it is, by default) marked: the next run starts
+        from it, whichever step that is."""
+        if parameters is None:
+            return
+        old = started if started is not None else self.parameters
+        moved = []
+        if old is not None:
+            for row in parameters:
+                before = old[row.name].value if row.name in old else None
+                if row.value is not None and before is not None and \
+                        not math.isclose(before, row.value, rel_tol=1e-9,
+                                         abs_tol=1e-12):
+                    moved.append(row.name)
+        structure = self._structure()
+        self.parameters = ps.with_structure(parameters, structure) \
+            if structure is not None else parameters.copy()
+        self._parameters_own = True
+        self.parameter_table.set_parameters(self.parameters, moved=moved)
+        self._on_parameters_changed()
+
+    def _on_structure_changed(self, _change=0) -> None:
+        """The atom rows follow the structure: its Biso and occupancy
+        are the structure's, and an atom added or taken away is a row
+        more or less."""
+        structure = self._structure()
+        if self.parameters is None or structure is None:
+            return
+        self.parameters = ps.with_structure(self.parameters, structure)
+        self.parameter_table.set_parameters(self.parameters)
+        self._on_parameters_changed()
+
+    def _edit_sites(self, values: dict) -> None:
+        """Numbers typed or pasted into an atom's rows.  They are the
+        site's own, so they are an edit of the Document -- one undo
+        step however many -- and the rows follow it from there."""
+        structure = self._structure()
+        if structure is None:
+            return
+        if self.worker is not None:
+            self.say("wait for the run to finish before editing the "
+                     "structure", warn=True)
+            return
+        fields = ps.site_fields(structure)
+        edits = []
+        for name, value in values.items():
+            if name not in fields:
+                continue
+            index, field = fields[name]
+            if field == "occupancy" and not 0.0 < value <= 1.0:
+                self.say(f"an occupancy is more than 0 and at most 1, "
+                         f"not {value:g}", warn=True)
+                return
+            if field == "biso" and value < 0.0:
+                self.say(f"a Biso is not negative, and {value:g} is",
+                         warn=True)
+                return
+            edits.append((index, _site_edit(structure.sites[index],
+                                            field, value)))
+        if not edits:
+            return
+        # two numbers typed one after the other are two steps, not
+        # one merged edit of the same field
+        self.document.break_merge()
+        try:
+            with self.document.transaction("Edit parameters"):
+                for index, change in edits:
+                    self.document.set_site_property(index, **change)
+        except Exception as exc:                        # noqa: BLE001
+            self.say(str(exc), warn=True)
+            self._on_structure_changed()
+            return
+        self.document.break_merge()
+
+    def _place_parameters(self, row: int) -> None:
+        """The one table into the step in front: switching step shows
+        the same numbers, never a copy of them."""
+        holder = self._parameter_holders.get(STEPS[max(row, 0)][0])
+        if holder is None:
+            return
+        holder.addWidget(self.parameter_table)
+        self.parameter_table.set_unused(*_UNUSED.get(STEPS[max(row, 0)][0],
+                                                     ((), "")))
+        self._show_plan_note()
+
+    def _on_background_terms(self, terms: int) -> None:
+        """The series the table shows as long as the box asks, the
+        coefficients it had kept."""
+        if self.parameters is None or \
+                terms == self.parameters.background_terms:
+            return
+        self.parameters.set_background_terms(int(terms))
+        self.parameter_table.set_parameters(self.parameters)
 
     # -- the pattern ---------------------------------------------------
 
@@ -798,8 +1011,7 @@ class RefinementWorkbench(QMainWindow):
         # A native file dialog hands activation back to the main
         # window when it closes, which then stands in front of this one
         # as though it had closed.
-        self.raise_()
-        self.activateWindow()
+        windows.present(self)
         if path:
             self.load_pattern(path)
 
@@ -836,6 +1048,7 @@ class RefinementWorkbench(QMainWindow):
         # as the boxes hold it, rounded to their decimals
         given = self.step_forms["peaks"].values()
         self._range_given = (float(given["start"]), float(given["finish"]))
+        self._rebuild_parameters()
         self.say(f"loaded {Path(path).name}")
         self._refresh()
         return True
@@ -855,9 +1068,17 @@ class RefinementWorkbench(QMainWindow):
         """Everything the step's ``run`` is handed.
 
         Indexing is handed the peak form's values too: with no peaks
-        fitted yet it fits them itself, as the Peaks step would.
+        fitted yet it fits them itself, as the Peaks step would.  A
+        fitting step is handed a copy of the parameter set, so a row
+        changed while it runs is the next run's.
         """
         step = self._form_of(step or self.current_step)
+        values = self._values(step)
+        if step in _FITS and self.parameters is not None:
+            values["parameters"] = self.parameters.copy()
+        return values
+
+    def _values(self, step: str) -> dict:
         values = {"xy": str(self.data.path) if self.data is not None
                   and self.data.path is not None else ""}
         values.update(self.data_form.values())
@@ -888,14 +1109,16 @@ class RefinementWorkbench(QMainWindow):
         """The automatic run asks every step's own form: peaks and index
         as they are, Pawley and Rietveld under their prefixes."""
         peaks = self.step_forms["peaks"].values()
+        # Refine peaks' own boxes: the automatic run only finds them
         values.update({k: v for k, v in peaks.items()
-                       if k != "background_terms"})
+                       if k not in ("background_terms", "max_iterations",
+                                    "tolerance")})
         values.update(self.step_forms["index"].values())
         values["bravais"] = self.bravais.value()
         values.update(self.step_forms["auto"].values())
         for step in ("pawley", "rietveld"):
             own = self.values(step)
-            for name in ("xy", *self.data_form.values()):
+            for name in ("xy", "parameters", *self.data_form.values()):
                 own.pop(name, None)
             if step == "pawley":
                 for name in ("cell", "space_group", "hold"):
@@ -922,7 +1145,7 @@ class RefinementWorkbench(QMainWindow):
         values["engine"] = engine
         values["engine_options"] = panel_options(self.window_, engine)
         own = self.values("rietveld")
-        for name in ("xy", *self.data_form.values()):
+        for name in ("xy", "parameters", *self.data_form.values()):
             own.pop(name, None)
         interval = own.pop("frame_interval", None)
         if interval is not None:
@@ -943,9 +1166,17 @@ class RefinementWorkbench(QMainWindow):
             box.currentData() else "uff"
 
     def _show_engine_options(self) -> None:
-        show = getattr(self.window_, "show_force_field", None)
-        if show is not None:
-            show()
+        """The engine's options over this window.  The panel they
+        are set in is in the main window, behind this one, which is
+        why raising it looked like nothing happening."""
+        dock = getattr(self.window_, "ff_dock", None)
+        if dock is None:
+            return
+        if self.engine_options is None:
+            from xtalapp.refine.engine_options import EngineOptionsDialog
+
+            self.engine_options = EngineOptionsDialog(dock, self)
+        windows.present(self.engine_options)
 
     def _show_refines_note(self) -> None:
         """What a run with energy fits first and what it moves after:
@@ -1036,12 +1267,19 @@ class RefinementWorkbench(QMainWindow):
         self._before = (structure.frac.copy(),
                         structure.lattice.matrix.copy())
         self._framed = False
-        self._run_values = dict(values)
+        # the set is the history's own, beside the form's values
+        self._run_values = {k: v for k, v in values.items()
+                            if k != "parameters"}
         if not self.history:
             self.history.append(HistoryEntry(
-                structure=structure.copy(), values=dict(values),
-                fit=None, when=datetime.datetime.now()))
+                structure=structure.copy(), values=dict(self._run_values),
+                fit=None, when=datetime.datetime.now(),
+                parameters=self._parameters_copy()))
         return structure
+
+    def _parameters_copy(self):
+        return self.parameters.copy() if self.parameters is not None \
+            else None
 
     def _given(self, name: str):
         """What the step before hands this one: for indexing, the
@@ -1118,6 +1356,8 @@ class RefinementWorkbench(QMainWindow):
             self._fill_cells()
         elif step == "pawley" and answer and not result.cancelled:
             self.pawley = answer
+            if not answer.evaluated:
+                self._take_parameters(answer.parameters)
             self._draw_pawley()
             self._fill_reflections()
             self._show_pawley_result()
@@ -1128,6 +1368,7 @@ class RefinementWorkbench(QMainWindow):
             if answer is not None:
                 # Stop keeps the points reached: each is an answer
                 self.pareto = answer
+                self._take_parameters(answer.parameters)
                 self._fill_pareto()
         if step in _MOVES_ATOMS:
             self._finish_rietveld(answer if not result.cancelled
@@ -1138,6 +1379,9 @@ class RefinementWorkbench(QMainWindow):
                 and not result.cancelled else None)
             if answer is not None and answer.rietveld is None:
                 self._draw_auto_row()
+        if step == "auto" and answer is not None and not result.cancelled \
+                and answer.rietveld is None and answer.best is not None:
+            self._take_parameters(answer.best.fit.parameters)
         self.say(result.summary(), warn=not result.ok)
         self._refresh()
         self.stepFinished.emit(result)
@@ -1208,13 +1452,29 @@ class RefinementWorkbench(QMainWindow):
             self.energy = fit
         else:
             self.rietveld = fit
+        if fit.evaluated:
+            # zero cycles moved nothing: no undo step, no history row,
+            # and the table keeps its values and their esds
+            if energy:
+                self._draw_energy()
+                self._show_energy_result()
+            else:
+                self._draw_rietveld()
+                self._show_rietveld_result()
+            return
+        # the rows it moved are measured against where the run
+        # started, and its atom rows against the structure it made --
+        # against the old one, every Biso's esd was of another value
+        started = self._parameters_copy()
         self.document.replace_structure(
             fit.structure.copy(),
             "Rietveld with energy" if energy else "Rietveld refinement",
             Change.POSITIONS | Change.CELL | Change.METADATA)
+        self._take_parameters(getattr(fit, "parameters", None), started)
         self.history.append(HistoryEntry(
             structure=fit.structure.copy(), values=self._run_values,
-            fit=fit, when=datetime.datetime.now(), folder=self._folder))
+            fit=fit, when=datetime.datetime.now(), folder=self._folder,
+            parameters=self._parameters_copy()))
         self._history_at = len(self.history) - 1
         self._fill_history()
         self._fill_rietveld_cell()
@@ -1225,13 +1485,19 @@ class RefinementWorkbench(QMainWindow):
         self._draw_rietveld()
         self._show_rietveld_result()
 
+    def _show_fit(self, fit) -> None:
+        """A fit on the plot, each tick named by its reflection."""
+        self.plot.show_fit(fit.two_theta, fit.y_obs, fit.y_calc,
+                           fit.y_background, fit.ticks,
+                           labels=reflection_labels(
+                               getattr(fit, "reflections", None)))
+
     def _draw_energy(self) -> None:
         fit = self.energy
         if fit is None:
             self._draw_rietveld()
             return
-        self.plot.show_fit(fit.two_theta, fit.y_obs, fit.y_calc,
-                           fit.y_background, fit.ticks)
+        self._show_fit(fit)
 
     def _show_energy_result(self) -> None:
         fit = self.energy
@@ -1259,8 +1525,7 @@ class RefinementWorkbench(QMainWindow):
                                         self.data.intensity,
                                         label=self.data.name)
             return
-        self.plot.show_fit(fit.two_theta, fit.y_obs, fit.y_calc,
-                           fit.y_background, fit.ticks)
+        self._show_fit(fit)
 
     # -- the history -----------------------------------------------------
 
@@ -1315,6 +1580,11 @@ class RefinementWorkbench(QMainWindow):
             Change.POSITIONS | Change.CELL | Change.METADATA)
         self.step_forms["rietveld"].set_values(entry.values)
         self.rietveld_cell.set_hold(entry.values.get("hold", ""))
+        if entry.parameters is not None:
+            self.parameters = ps.with_structure(entry.parameters,
+                                                self.document.structure)
+            self.parameter_table.set_parameters(self.parameters)
+            self._on_parameters_changed()
         self.rietveld = entry.fit
         self._history_at = row
         self._fill_rietveld_cell()
@@ -1484,11 +1754,16 @@ class RefinementWorkbench(QMainWindow):
         if not chosen:
             self.plot.set_reflections(())
             return
-        from xtal.powder.index import lines_of
+        from xtal.powder.index import hkl_lines
 
         row = self._cell_rows[chosen[0].row()]
-        self.plot.set_reflections(lines_of(
-            row, self.cells.wavelength, self.cells.two_theta_range))
+        wavelength = self.cells.wavelength
+        hkl, two_theta = hkl_lines(row, wavelength,
+                                   self.cells.two_theta_range)
+        self.plot.set_reflections(two_theta, [
+            reflection_label(h, t, wavelength
+                             / (2.0 * math.sin(math.radians(t) / 2.0)))
+            for h, t in zip(hkl, two_theta, strict=True)])
         self.step_forms["pawley"].set_values(
             {"space_group": row.fit_group})
         self.cell_box.set_value(row.cell)
@@ -1540,8 +1815,7 @@ class RefinementWorkbench(QMainWindow):
 
     def _draw_pawley(self) -> None:
         fit = self.pawley
-        self.plot.show_fit(fit.two_theta, fit.y_obs, fit.y_calc,
-                           fit.y_background, fit.ticks)
+        self._show_fit(fit)
 
     def _fill_reflections(self) -> None:
         rows = self.pawley.reflections if self.pawley is not None \
@@ -1796,8 +2070,7 @@ class RefinementWorkbench(QMainWindow):
         if point is None or point.fit is None or self.worker is not None:
             return
         fit = point.fit
-        self.plot.show_fit(fit.two_theta, fit.y_obs, fit.y_calc,
-                           fit.y_background, fit.ticks)
+        self._show_fit(fit)
 
     def open_pareto_point(self, row: int):
         """Open the structure refined at row ``row``'s weight as a tab
@@ -1845,6 +2118,9 @@ class RefinementWorkbench(QMainWindow):
         self.run_button.setEnabled(can_run and not running)
         self.stop_button.setEnabled(running)
         self.load_button.setEnabled(not running)
+        # a run is handed a copy and hands back its own; a row changed
+        # meanwhile would be overwritten without a word
+        self.parameter_table.setEnabled(not running)
         label = RUN_LABELS[self.current_step]
         if self.current_step == "pawley":
             method = self.step_forms["pawley"].values().get("method")
@@ -1871,6 +2147,8 @@ class RefinementWorkbench(QMainWindow):
         # to report; stop it.  MainWindow.closeEvent's workers.stop_all
         # waits for it if the whole application is going.
         self.stop()
+        if self.engine_options is not None:
+            self.engine_options.close()
         super().closeEvent(event)
 
 
@@ -1937,7 +2215,8 @@ class HistoryEntry:
 
     ``structure`` is the atoms and cell as they were, ``values`` the
     form that made them (the start's are the first run's), ``fit`` the
-    :class:`~xtal.powder.rietveld.RietveldFit`, ``None`` for the start.
+    :class:`~xtal.powder.rietveld.RietveldFit`, ``None`` for the start,
+    and ``parameters`` the set as it stood there.
     """
 
     structure: object
@@ -1945,6 +2224,22 @@ class HistoryEntry:
     fit: object
     when: datetime.datetime
     folder: Path | None = None
+    parameters: object = None
+
+
+def _site_edit(site, field: str, value: float) -> dict:
+    """The :class:`~xtal.commands.atoms.SetSiteProperties` values that
+    give ``site`` the Biso or occupancy typed.  An anisotropic site is
+    scaled, keeping its shape: its Biso is the trace's, and a Uiso set
+    beside the U^ij would change nothing a refinement reads."""
+    if field == "occupancy":
+        return {"occupancy": float(value)}
+    u = float(value) / ps.B_PER_U
+    old = site.u_equivalent
+    if site.u_aniso is not None and old:
+        return {"u_aniso": tuple(float(v) * u / old
+                                 for v in site.u_aniso)}
+    return {"u_iso": u}
 
 
 def _hint(text: str) -> QLabel:

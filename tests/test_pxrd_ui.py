@@ -524,3 +524,68 @@ def test_a_pattern_can_be_drawn_on_a_square_root_or_logarithmic_axis(
     assert window.axes.get_yscale() == "function"
     window.replot()
     assert window.axes.get_yscale() == "function"
+
+
+def _hover(plot, two_theta, row=0):
+    """A motion event over comb ``row`` at ``two_theta``, as matplotlib
+    delivers one from the mouse."""
+    from matplotlib.backend_bases import MouseEvent
+
+    plot.canvas.draw()
+    x, y = plot.strip.transData.transform((two_theta, row + 0.5))
+    plot.canvas.callbacks.process("motion_notify_event", MouseEvent(
+        "motion_notify_event", plot.canvas, x, y))
+    return plot.hovered
+
+
+def _labelled_plot(qtbot):
+    from xtalapp.refine.plot import RefinementPlot, reflection_label
+
+    plot = RefinementPlot()
+    qtbot.addWidget(plot)
+    plot.resize(900, 500)
+    x = np.linspace(20.0, 80.0, 601)
+    ticks = [27.43, 36.08, 36.10, 54.32]
+    plot.show_fit(x, x * 0 + 100, x * 0 + 100, x * 0 + 90, ticks,
+                  labels=[reflection_label(hkl, t, d) for hkl, t, d in (
+                      ((1, 1, 0), 27.43, 3.249), ((1, 0, 1), 36.08, 2.487),
+                      ((2, 0, 0), 36.10, 2.297), ((2, 1, 1), 54.32, 1.687))])
+    return plot
+
+
+@needs_matplotlib
+def test_hovering_a_tick_names_its_reflection_and_its_neighbours(qtbot):
+    """The cursor on a tick names it, and two lines too close to tell
+    apart on screen are named together -- the case a person hovers to
+    settle."""
+    plot = _labelled_plot(qtbot)
+    assert _hover(plot, 27.43) == "(1 1 0)  27.43°  d 3.249 Å"
+    both = _hover(plot, 36.09).splitlines()
+    assert both == ["(1 0 1)  36.08°  d 2.487 Å",
+                    "(2 0 0)  36.10°  d 2.297 Å"]
+
+
+@needs_matplotlib
+def test_hovering_between_ticks_shows_nothing(qtbot):
+    plot = _labelled_plot(qtbot)
+    assert _hover(plot, 27.43)
+    assert _hover(plot, 45.0) == ""
+    # nor over the pattern itself, even straight above a tick
+    from matplotlib.backend_bases import MouseEvent
+
+    x, y = plot.axes.transData.transform((27.43, 95.0))
+    plot.canvas.callbacks.process("motion_notify_event", MouseEvent(
+        "motion_notify_event", plot.canvas, x, y))
+    assert plot.hovered == ""
+
+
+@needs_matplotlib
+def test_a_peak_nothing_has_indexed_says_so(qtbot):
+    from xtalapp.refine.plot import RefinementPlot
+
+    plot = RefinementPlot()
+    qtbot.addWidget(plot)
+    x = np.linspace(20.0, 80.0, 601)
+    plot.show_observed(x, x * 0 + 100)
+    plot.set_ticks([27.43])
+    assert _hover(plot, 27.43) == "2θ 27.43°, not indexed"

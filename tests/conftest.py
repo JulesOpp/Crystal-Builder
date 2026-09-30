@@ -316,6 +316,21 @@ def _no_blocking_modal(monkeypatch):
 
     monkeypatch.setattr(menus, "popup", refuse_popup)
 
+    # A window brought forward takes the keyboard from whatever the
+    # developer is doing -- the workbench's tests did it 63 times a
+    # run.  It is still shown, so ``isVisible`` means what it says,
+    # but never drawn and never activated.
+    from PySide6.QtCore import Qt
+
+    from xtalapp import windows
+
+    def present_quietly(window):
+        window.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
+        window.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        window.show()
+
+    monkeypatch.setattr(windows, "present", present_quietly)
+
     # QMessageBox's conveniences are static and do not go through
     # QDialog.exec, so they need blocking separately -- and they are
     # the ones reached from an error path nobody expected to reach.

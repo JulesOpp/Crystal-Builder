@@ -83,6 +83,8 @@ class ParetoResult:
     points: list[ParetoPoint] = field(default_factory=list)
     scale: EnergyScale | None = None
     stopped: bool = False
+    #: the set after the fit that comes before every point
+    parameters: object = None
 
     @property
     def front(self) -> list[int]:
@@ -149,12 +151,14 @@ def knee(points) -> int | None:
 
 def sweep(structure, data: PowderData, radiation: Radiation, build,
           options: EnergyOptions | None = None,
-          weights=DEFAULT_WEIGHTS, *, engine: str = "", on_point=None,
+          weights=DEFAULT_WEIGHTS, *, parameters=None, engine: str = "",
+          on_point=None,
           on_frame=None, frame_interval: float = 0.2, cancel=None,
           folder=None, say=None) -> ParetoResult:
     """Refine ``structure`` at every weight in ``weights``.
 
-    ``options`` is the With energy step's, its own weight unread.
+    ``options`` is the With energy step's, its own weight unread, and
+    ``parameters`` the set every point starts from.
     ``on_point(point)`` is called as each point finishes -- the place
     to write it.  Stop returns what was reached with ``stopped`` set,
     rather than raising: every finished point is an answer.  A Stop
@@ -170,10 +174,12 @@ def sweep(structure, data: PowderData, radiation: Radiation, build,
             raise PowderError(f"a weight runs from 0 to 1; {w:g} does not")
     say = say or (lambda _text: None)
     problem = EnergyProblem(structure, data, radiation, build, options,
-                            engine=engine, on_frame=on_frame,
+                            parameters=parameters, engine=engine,
+                            on_frame=on_frame,
                             frame_interval=frame_interval,
                             cancel=cancel, folder=folder, say=say)
-    result = ParetoResult(scale=problem.scale)
+    result = ParetoResult(scale=problem.scale,
+                          parameters=problem.parameters)
     points = {}
     counted = [""]
     problem.say = lambda text: say(counted[0] + text)

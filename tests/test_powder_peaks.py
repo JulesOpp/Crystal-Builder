@@ -280,3 +280,28 @@ def test_kbeta_and_tungsten_lines_are_not_flagged_unless_asked():
     assert PeakOptions().flag_ghosts is False
     flag = next(p for p in PEAK_PARAMS if p.name == "flag_ghosts")
     assert flag.default is False
+
+
+def test_refine_peaks_takes_the_iterations_and_tolerance_asked_for(
+        fit, rutile_xy, monkeypatch):
+    """The step's two boxes reach scipy: a cap of 3 evaluations stops
+    it there, and says it did not converge."""
+    import scipy.optimize
+
+    from xtal.modules import powder as steps
+    from xtal.modules.job import Job
+
+    asked = []
+    real = scipy.optimize.least_squares
+
+    def seen(*args, **kwargs):
+        asked.append((kwargs["max_nfev"], kwargs["ftol"]))
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(scipy.optimize, "least_squares", seen)
+    result = steps.run_refine_peaks(Job(
+        params={"xy": str(rutile_xy), "max_iterations": 3,
+                "tolerance": "1e-12"}, given=fit))
+    assert result.ok, result.message
+    assert asked == [(3, 1e-12)]
+    assert any("did not converge" in n for n in result.answer.notes)

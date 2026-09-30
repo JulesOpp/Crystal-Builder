@@ -60,6 +60,14 @@ def _pattern(structure) -> PowderData:
     return PowderData(two_theta=two_theta, intensity=counts.astype(float))
 
 
+def _flagged(structure, data, *boxes):
+    """The preset, the background under ``data``, and every atom
+    flagged with what ``boxes`` free."""
+    start = bridge.starting_parameters(CU, data=data, structure=structure)
+    start.flag_boxes(boxes + ("positions",))
+    return start
+
+
 @pytest.fixture(scope="module")
 def quartz_data():
     return _pattern(_quartz())
@@ -114,7 +122,8 @@ def test_the_pattern_gradient_matches_central_differences(rutile_data):
     """Breaks if RietX's private residual or Jacobian changes meaning:
     the gradient R+E descends is 2 J^T r, read off them."""
     term, *_rest = bridge.pattern_term(
-        _rutile(), rutile_data, CU, free=("background", "profile"),
+        _rutile(), rutile_data, CU,
+        start=_flagged(_rutile(), rutile_data, "background", "profile"),
         cell=True)
     assert term.paths == ["phases.0.cell.a", "phases.0.cell.c",
                           "phases.0.atoms.1.dof.0"]
@@ -132,8 +141,9 @@ def test_the_energy_gradient_matches_central_differences(quartz_data):
     from xtal.powder.energy import _Energy
 
     structure = _quartz()
-    term, _result, indices, _refinement = bridge.pattern_term(
-        structure, quartz_data, CU, free=("background",), cell=True)
+    term, _result, indices, *_rest = bridge.pattern_term(
+        structure, quartz_data, CU,
+        start=_flagged(structure, quartz_data, "background"), cell=True)
     energy = _Energy(_uff(structure), structure, indices, term)
     theta = term.theta0 + 2e-3
     _e, gradient = energy(theta, cell=True)
@@ -268,3 +278,112 @@ def test_the_note_says_what_each_stage_of_a_run_with_energy_refines():
     assert "atom positions" in then and "cell" not in then
     assert "cell's free numbers" in energy_refines_note(
         {"energy_cell": True})
+
+
+def test_the_note_reads_the_flags_when_a_set_is_handed_over():
+    """With a parameter set, its flags are what the run frees -- and
+    with nothing flagged beyond the atoms the note says nothing is
+    fitted first, which is what the run then does."""
+    from xtal.modules.powder import energy_refines_note
+    from xtal.powder import parameters as ps
+
+    flags = ps.defaults({}, structure=_rutile(x=0.3))
+    for row in flags:
+        flags.set_refine(row.name, row.name == "O2_xyz")
+    note = energy_refines_note({"parameters": flags})
+    assert note.startswith("<b>Nothing is fitted first</b>")
+    assert "the positions of 1 of the 2 atoms" in note
+    flags.set_refine("W", True)
+    assert "peak shape" in energy_refines_note(
+        {"parameters": flags}).split("<b>Then</b>")[0]
+
+
+def test_with_energy_and_nothing_flagged_fits_nothing_first(rutile_data):
+    """Only the positions flagged: no fit comes first, the peak shape
+    the set gives is the one the atoms answer to, and the curve still
+    has its background and ticks.  Without it the start of a run with
+    energy is a Rietveld fit from RietX's preset nobody can see."""
+    first = rietveld(_rutile(), rutile_data, CU,
+                     RietveldOptions(cell=False))
+    start = first.parameters.copy()
+    for row in start:
+        start.set_refine(row.name, row.name.endswith("_xyz"))
+    said = []
+    fit = rietveld_with_energy(_rutile(), rutile_data, CU, _uff,
+                               EnergyOptions(weight=0.0),
+                               parameters=start, say=said.append)
+    assert fit.converged
+    assert not any(text.startswith("fitting") for text in said)
+    for name in ("scale", "W", "bkg_c0"):
+        assert fit.parameters[name].value == start[name].value
+    assert fit.y_background.shape == fit.y_obs.shape
+    assert fit.y_background.min() > 50
+    assert np.allclose(fit.ticks[:3], np.sort(first.ticks)[:3],
+                       atol=0.01)
+    assert fit.structure.sites[1].frac[0] == pytest.approx(0.3053,
+                                                           abs=0.002)
+
+
+def test_a_run_with_energy_moves_only_the_atoms_flagged(quartz_data):
+    """Si's position unflagged stays where it was given, and O's
+    moves.  Without it the flag on an atom is a label and not a
+    choice."""
+    from xtal.powder import bridge
+
+    start = bridge.starting_parameters(CU, data=quartz_data,
+                                       structure=_quartz())
+    start.set_refine("Si1_xyz", False)
+    given = _quartz()
+    given.set_frac(1, given.sites[1].frac + [0.01, 0.0, 0.0])
+    fit = rietveld_with_energy(given, quartz_data, CU, _uff,
+                               EnergyOptions(weight=0.0),
+                               parameters=start)
+    assert np.allclose(fit.structure.sites[0].frac, given.sites[0].frac)
+    assert not np.allclose(fit.structure.sites[1].frac,
+                           given.sites[1].frac)
+
+
+def test_with_energy_takes_the_tolerance_asked_for(rutile_data,
+                                                   monkeypatch):
+    """The joint fit stops at the Tolerance box's gradient, where it
+    was a hard-coded 1e-6; the relaxation keeps its own."""
+    from xtal.powder import energy
+
+    asked = []
+    real = energy._Variables.minimise
+
+    def minimise(self, function, max_steps, tolerance, callback,
+                 start=None):
+        asked.append((max_steps, tolerance))
+        return real(self, function, max_steps, tolerance, callback,
+                    start=start)
+
+    monkeypatch.setattr(energy._Variables, "minimise", minimise)
+    rietveld_with_energy(_rutile(), rutile_data, CU, _uff,
+                         EnergyOptions(weight=0.5, max_steps=40,
+                                       tolerance=1e-3))
+    assert asked == [(40, energy.RELAX_TOLERANCE), (40, 1e-3)]
+
+
+def test_with_energy_at_zero_iterations_fits_nothing_and_moves_nothing(
+        rutile_data, monkeypatch):
+    """Zero iterations evaluates the pattern and the energy where the
+    atoms are: no first fit of the scale, no relaxation, no step."""
+    from xtal.powder import energy
+
+    def refuse(*_args, **_kwargs):
+        raise AssertionError("nothing is fitted at zero iterations")
+
+    monkeypatch.setattr(bridge, "fit", refuse)
+    monkeypatch.setattr(energy._Variables, "minimise", refuse)
+    structure = _rutile()
+    fit = rietveld_with_energy(
+        structure, rutile_data, CU, _uff,
+        EnergyOptions(weight=0.5, max_steps=0),
+        parameters=_flagged(structure, rutile_data, "background",
+                            "profile"))
+    assert fit.evaluated and fit.converged
+    assert fit.steps == 0 and fit.moved == 0.0
+    assert fit.structure.frac == pytest.approx(structure.frac)
+    assert np.isfinite(fit.rwp) and np.isfinite(fit.energy)
+    assert np.isnan(fit.scale.relaxed)

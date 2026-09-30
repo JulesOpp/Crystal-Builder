@@ -114,6 +114,11 @@ CELL_WARNING = (
     "routinely a few percent out. Use it as a starting geometry, not "
     "as a measured lattice constant.")
 
+#: In place of the engine's options while the refinement workbench's
+#: Options... window has them, so the panel does not look broken.
+LENT_NOTE = ("These options are open in the refinement workbench's "
+             "Options window; they come back here when it closes.")
+
 
 #: Label -> preview redraw interval in milliseconds.  0 draws every
 #: step, -1 draws none of them.
@@ -382,13 +387,18 @@ class ForceFieldDock(QDockWidget):
         setup.setContentsMargins(0, 0, 0, 0)
         setup.addRow("Force field", self.engine)
         setup.addRow(self.engine_source)
-        setup.addRow("Parameters", self.parameter_set)
-        setup.addRow(self.coulomb)
-        setup.addRow(_uff_option("charges").title, self.charges)
-        setup.addRow("van der Waals cutoff", self.vdw_cutoff)
-        setup.addRow("Pair list skin", self.skin)
-        self.uff_rows = (self.parameter_set, self.coulomb, self.charges,
-                         self.vdw_cutoff, self.skin)
+        # UFF's rows in a box of their own, so that every engine's
+        # options are one widget -- the one the refinement workbench's
+        # Options... borrows.
+        uff = QFormLayout()
+        uff.setContentsMargins(0, 0, 0, 0)
+        uff.addRow("Parameters", self.parameter_set)
+        uff.addRow(self.coulomb)
+        uff.addRow(_uff_option("charges").title, self.charges)
+        uff.addRow("van der Waals cutoff", self.vdw_cutoff)
+        uff.addRow("Pair list skin", self.skin)
+        self.uff_box = QWidget()
+        self.uff_box.setLayout(uff)
         if len(self.engines) <= 1:
             # Nothing to choose between, so the row that would do the
             # choosing is one more thing standing between opening the
@@ -402,12 +412,20 @@ class ForceFieldDock(QDockWidget):
         model.setContentsMargins(0, 0, 0, 0)
         model.setSpacing(4)
         model.addLayout(setup)
+        model.addWidget(self.uff_box)
         for form in self.engine_forms.values():
             model.addWidget(form)
+        # Where the options were, while another window has them.
+        self.lent_note = QLabel(LENT_NOTE)
+        self.lent_note.setWordWrap(True)
+        set_tone(self.lent_note, HINT)
+        self.lent_note.setVisible(False)
+        model.addWidget(self.lent_note)
         model.addWidget(self.engine_note)
+        self.model_layout = model
+        self._lent: dict = {}
         setup_box = QGroupBox("Model")
         setup_box.setLayout(model)
-        self.setup_form = setup
 
         run = QFormLayout()
         run.setContentsMargins(0, 0, 0, 0)
@@ -592,11 +610,9 @@ class ForceFieldDock(QDockWidget):
         # ``engine.options`` hid all five of them the day UFF gained
         # them, with no form built to put in their place.
         generated = name in self.engine_forms
-        for widget in self.uff_rows:
-            widget.setVisible(not generated)
-            label = self.setup_form.labelForField(widget)
-            if label is not None:
-                label.setVisible(not generated)
+        self.uff_box.setVisible(not generated)
+        self.lent_note.setVisible(
+            self.options_widget(name) in self._lent)
         # With the options, because half of what an external engine
         # needs to be available is in them -- DFTB+ without a
         # parameter directory cannot run, and the box that names one
@@ -668,6 +684,38 @@ class ForceFieldDock(QDockWidget):
 
     def engine_name(self) -> str:
         return self.engine.currentData()
+
+    def options_widget(self, engine: str):
+        """The controls ``engine``'s options are set with here, or
+        ``None`` when this panel does not offer it or it has none."""
+        if engine == "uff" and any(e.name == "uff" for e in self.engines):
+            return self.uff_box
+        return self.engine_forms.get(engine)
+
+    def lend_options(self, engine: str):
+        """``engine``'s own controls, taken out of this panel for
+        another window to show until :meth:`take_back`.
+
+        Lent rather than copied, so that the two windows cannot
+        disagree: a copy has to be written back, and the one reader of
+        the options, :func:`panel_options`, would read whichever was
+        written last.  ``None`` when there is nothing to lend.
+        """
+        widget = self.options_widget(engine)
+        if widget is None or widget in self._lent:
+            return None
+        self._lent[widget] = self.model_layout.indexOf(widget)
+        self.model_layout.removeWidget(widget)
+        self._show_engine()
+        return widget
+
+    def take_back(self, widget) -> None:
+        """Put lent controls back where they were."""
+        index = self._lent.pop(widget, None)
+        if index is None:
+            return
+        self.model_layout.insertWidget(index, widget)
+        self._show_engine()
 
     def options_for(self, engine: str) -> dict | None:
         """What this panel has set up for ``engine``, or ``None`` when

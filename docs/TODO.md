@@ -596,6 +596,13 @@ is already close, is the thing the overnight run should also answer.
 
 ## Powder refinement
 
+### The refinement parameters are not saved with the project
+
+The workbench's parameter set (every value, flag and esd) lives for
+the workbench's life and in each run folder's `parameters.txt`;
+closing the window loses it, and Paste of that file is the way back.
+It belongs in the `.xtalproj` beside the structure it refined.
+
 ### Pawley over a long 2θ range is minutes, and no better a cell
 
 Measured 2026-09-26 on a 14 x 17 Å hexagonal cell (Cu Kα, the cell
