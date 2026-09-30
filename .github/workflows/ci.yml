@@ -16,10 +16,11 @@ jobs:
     # hour each to say so.  Twelve is still twice the longest honest
     # run, and `faulthandler_timeout` below names the test before the
     # cap is reached rather than leaving "The operation was canceled".
-    # Except on Intel macOS: its honest runs are 7-10 minutes and a
-    # slow runner takes 14, which cancelled three healthy runs at 70 %
-    # in a day and a half.  A hang is still caught per test at 180 s.
-    timeout-minutes: ${{ matrix.os == 'macos-15-intel' && 20 || 12 }}
+    # Except on Intel macOS and Windows, which are the slow runners:
+    # at 4000 tests an honest Windows run is 10-12 minutes and an
+    # Intel one 13-20, and both caps cancelled green suites at 100 %
+    # on 2026-09-30.  A hang is still caught per test at 180 s.
+    timeout-minutes: ${{ matrix.os == 'macos-15-intel' && 30 || matrix.os == 'windows-latest' && 20 || 12 }}
     strategy:
       fail-fast: false
       matrix:
