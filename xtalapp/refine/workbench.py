@@ -367,6 +367,8 @@ class RefinementWorkbench(QMainWindow):
         self.forms = _PageStack()
         self.step_forms: dict[str, SectionedForm] = {}
         self.engine_boxes: dict[str, QComboBox] = {}
+        self.engine_option_buttons: dict[str, QPushButton] = {}
+        self.engine_options = None
         self.refines_notes: dict[str, _Paragraph] = {}
         self.bravais = BravaisBox()
         self.bravais.setTitle("")
@@ -657,16 +659,18 @@ class RefinementWorkbench(QMainWindow):
                 box.addItem(engine.label, engine.name)
         self.engine_boxes[step] = box
         options = QPushButton("Options...")
-        options.setToolTip("Show the Force Field panel, where the "
-                           "engine's parameter set, model and charges "
-                           "are set")
+        options.setToolTip("The engine's parameter set, model and "
+                           "charges -- the Force Field panel's own "
+                           "controls, in a window over this one")
         options.clicked.connect(self._show_engine_options)
-        options.setEnabled(hasattr(self.window_, "show_force_field"))
+        options.setEnabled(dock is not None)
+        self.engine_option_buttons[step] = options
         row = QHBoxLayout()
         row.addWidget(box, 1)
         row.addWidget(options)
-        hint = _hint("Shared with the Force Field panel: its options "
-                     "(parameter set, model, charges) are set there.")
+        hint = _hint("Shared with the Force Field panel: Options... "
+                     "opens the panel's own controls over this "
+                     "window.")
         return self._fold("Energy engine", row, hint)
 
     def _refines_section(self, step: str):
@@ -943,9 +947,17 @@ class RefinementWorkbench(QMainWindow):
             box.currentData() else "uff"
 
     def _show_engine_options(self) -> None:
-        show = getattr(self.window_, "show_force_field", None)
-        if show is not None:
-            show()
+        """The engine's options over this window.  The panel they
+        are set in is in the main window, behind this one, which is
+        why raising it looked like nothing happening."""
+        dock = getattr(self.window_, "ff_dock", None)
+        if dock is None:
+            return
+        if self.engine_options is None:
+            from xtalapp.refine.engine_options import EngineOptionsDialog
+
+            self.engine_options = EngineOptionsDialog(dock, self)
+        windows.present(self.engine_options)
 
     def _show_refines_note(self) -> None:
         """What a run with energy fits first and what it moves after:
@@ -1871,6 +1883,8 @@ class RefinementWorkbench(QMainWindow):
         # to report; stop it.  MainWindow.closeEvent's workers.stop_all
         # waits for it if the whole application is going.
         self.stop()
+        if self.engine_options is not None:
+            self.engine_options.close()
         super().closeEvent(event)
 
 

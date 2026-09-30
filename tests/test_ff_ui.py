@@ -769,7 +769,7 @@ def test_choosing_xtb_hides_the_controls_that_are_uffs(opened):
     window, _ = opened
     dock = window.ff_dock
     dock.engine.setCurrentIndex(dock.engine.findData("xtb"))
-    assert dock.coulomb.isHidden()
+    assert dock.uff_box.isHidden()
     assert not dock.engine_forms["xtb"].isHidden()
 
 
@@ -785,10 +785,8 @@ def test_choosing_uff_shows_the_controls_that_are_uffs(opened):
     dock.engine.setCurrentIndex(dock.engine.findData("xtb"))
     dock.engine.setCurrentIndex(dock.engine.findData("uff"))
     assert "uff" not in dock.engine_forms
-    for widget in dock.uff_rows:
-        assert not widget.isHidden()
-        label = dock.setup_form.labelForField(widget)
-        assert label is None or not label.isHidden()
+    assert not dock.uff_box.isHidden()
+    assert dock.options_widget("uff") is dock.uff_box
 
 
 def test_a_method_the_machine_cannot_run_greys_out_as_it_is_chosen(

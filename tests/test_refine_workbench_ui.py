@@ -1172,3 +1172,66 @@ def test_a_le_bail_fit_is_the_pawley_steps_answer(bench, qtbot, rutile_xy):
     assert result.message.startswith("Le Bail")
     assert bench.pawley.method == "lebail"
     assert bench.pawley_label.text().startswith("Le Bail")
+
+
+# ------------------------------------------ the energy engine's options
+
+@pytest.fixture
+def options(window):
+    """The workbench's Options... opened over UFF, the dialog it
+    raised, and the panel it borrowed from."""
+    dock = window.ff_dock
+    dock.engine.setCurrentIndex(dock.engine.findData("uff"))
+    bench = window.open_refine_workbench()
+    bench.engine_option_buttons["energy"].click()
+    return bench, bench.engine_options, dock
+
+
+def test_options_opens_the_engines_options_over_the_workbench(options):
+    """It raised the Force Field panel, which is in the main window
+    behind the workbench, so the button looked as though it did
+    nothing."""
+    bench, dialog, dock = options
+    assert dialog.isVisible()
+    assert dialog.parent() is bench
+    assert dialog.isAncestorOf(dock.uff_box)
+    assert not dock.lent_note.isHidden()
+
+
+def test_closing_the_options_puts_the_panels_controls_back(options):
+    """Lent controls left in a closed window are a Force Field panel
+    with no way to choose UFF4MOF."""
+    _bench, dialog, dock = options
+    dialog.close()
+    assert dock.isAncestorOf(dock.uff_box)
+    assert not dock.uff_box.isHidden()
+    assert dock.lent_note.isHidden()
+
+
+def test_closing_the_workbench_gives_the_controls_back(options):
+    bench, _dialog, dock = options
+    bench.close()
+    assert dock.isAncestorOf(dock.uff_box)
+
+
+def test_an_option_changed_in_the_dialog_is_what_the_run_is_handed(
+        options):
+    """One set of controls, so With energy and the panel can never be
+    handed different options for the same engine."""
+    bench, _dialog, dock = options
+    box = dock.parameter_set
+    box.setCurrentIndex(1 - box.currentIndex())
+    handed = bench._energy_values({}, "energy")["engine_options"]
+    assert handed["parameter_set"] == box.currentData()
+
+
+def test_choosing_another_engine_swaps_the_controls_it_shows(options):
+    """Otherwise the window names one engine and shows another's
+    options, and UFF's never go home."""
+    _bench, dialog, dock = options
+    name = next(iter(dock.engine_forms))
+    dock.engine.setCurrentIndex(dock.engine.findData(name))
+    assert dialog.isAncestorOf(dock.engine_forms[name])
+    assert not dock.engine_forms[name].isHidden()
+    assert dock.isAncestorOf(dock.uff_box)
+
