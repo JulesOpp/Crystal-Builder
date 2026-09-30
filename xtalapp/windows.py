@@ -14,8 +14,14 @@ same bargain :func:`xtalapp.menus.popup` strikes for context menus.
 from __future__ import annotations
 
 
-def present(window) -> None:
-    """Show ``window``, raise it, and give it the keyboard."""
+def present(window, *, activate: bool = True) -> None:
+    """Show ``window``, raise it, and give it the keyboard.
+
+    ``activate=False`` raises without taking the keyboard: a window
+    that comes up on its own, like a run's progress, must not steal
+    typing from whatever the person is doing while they wait.
+    """
     window.show()
     window.raise_()
-    window.activateWindow()
+    if activate:
+        window.activateWindow()

@@ -41,7 +41,15 @@ class SourceLinks(QLabel):
     def set_references(self, references) -> None:
         references = tuple(references)
         self.setText(sources_html(references))
-        self.setVisible(bool(references))
+        if not references:
+            self.hide()
+        elif self.parentWidget() is not None:
+            self.show()
+        # With no parent yet, showing it would make it a window of its
+        # own: Preferences builds a row's links before adding them, and
+        # every row flashed up on screen and took the keyboard as the
+        # dialog opened.  Left alone, it is shown with whatever it is
+        # added to.
 
     def urls(self) -> list[str]:
         """Where the links go, for a test to read without parsing."""
