@@ -167,24 +167,46 @@ def test_another_style_hides_the_sketch():
     window.Finalize()
 
 
-@needs_offscreen_gl
-def test_thousands_of_labels_turn_at_an_interactive_rate():
-    """The measurement the atlas exists for: 2000 billboard labels
-    took 126 ms a frame.  2x2x2 MFU-4l with carbon written out is
-    4512 labels on 12 224 half-bonds, and turns in about 17 ms."""
+def _mfu4l(cells):
     settings = ViewSettings(style="skeletal", show_cell=False,
                             sketch_explicit_carbon=True)
-    settings.set_cells(2, 2, 2)
-    model = build_scene(read_cif(SAMPLES / "MFU4l.cif"), settings)
-    assert sum(1 for t in model.label_text if t) > 2000
-    scene, window = a_window(model, (800, 800),
+    settings.set_cells(cells, cells, cells)
+    return build_scene(read_cif(SAMPLES / "MFU4l.cif"), settings)
+
+
+@needs_offscreen_gl
+def test_thousands_of_labels_add_no_actors():
+    """What the atlas is for: 2000 billboard labels, an actor each,
+    took 126 ms a frame.  A 2x2x2 MFU-4l with carbon written out is
+    4512 labels, and the scene holds exactly the actors one cell's
+    288 need.  Actor count, not a frame time, because a frame on a
+    runner with no GPU measures its software GL and not this."""
+    one = _mfu4l(1)
+    eight = _mfu4l(2)
+    assert sum(1 for t in eight.label_text if t) > 4000
+    counts = []
+    for model in (one, eight):
+        scene, window = a_window(model, (200, 200))
+        counts.append(scene.renderer.GetActors().GetNumberOfItems())
+        window.Finalize()
+    assert counts[0] == counts[1]
+
+
+@needs_offscreen_gl
+def test_a_turn_recuts_thousands_of_labels_in_one_numpy_pass():
+    """The work a turn of the camera adds on the CPU: 12 224
+    half-bonds cut, wedged and faded, 4512 labels pointed at their
+    step of the fade.  About 14 ms here; the bound is ten times that,
+    for a slow runner, and a loop in Python per label or per bond
+    would still be well past it."""
+    scene, window = a_window(_mfu4l(2), (200, 200),
                              direction=(1.0, 0.4, -0.7))
     camera = scene.renderer.GetActiveCamera()
-    frames = []
+    times = []
     for _ in range(5):
         camera.Azimuth(7)
         start = time.perf_counter()
-        window.Render()
-        frames.append(time.perf_counter() - start)
-    assert np.median(frames) < 0.1
+        scene._refresh_sketch()
+        times.append(time.perf_counter() - start)
+    assert np.median(times) < 0.15
     window.Finalize()
