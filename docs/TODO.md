@@ -235,13 +235,13 @@ occupancy pies are.
 Phase 1 (the sketch geometry, `xtalapp/viewport/sketch.py`) shipped
 2026-09-30: 2x2x2 MFU-4l, 13 760 halves, is cut and wedged in 17 ms
 a camera.  Phase 2 (the `skeletal` style, its two settings and the
-scene model's label fields) shipped the same day; until Phase 3 its
-labels are the old one-actor-each billboards, capped at 400, and its
-aromatic dashes the wireframe's tubes.
+scene model's label fields) shipped the same day, and Phase 3 (the
+drawing: `label_atlas.py`, three actors in `vtk_scene.py`) with it --
+2x2x2 MFU-4l with carbon written out, 4512 labels, turns in 17 ms a
+frame against 126 ms for 2000 billboards.
 
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
-| **3 — Drawing it** | The label atlas and actor, lines, wedges and hashes recut as the camera turns, grey at the back | `vtk_scene.py`, `label_atlas.py` | L |
 | **4 — Style panel** | *Carbon* and *Colour labels by element*, enabled only for a style that draws labels | `xtalapp/docks/style_panel.py` | S |
 | **5 — SVG export** | Text labels, knockouts, wedge polygons and hashes from the same geometry | `xtalapp/viewport/svg_export.py` | M |
 

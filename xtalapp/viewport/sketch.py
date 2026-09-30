@@ -57,6 +57,12 @@ HASH_MIN = 0.03
 HASH_SPACING = 0.12
 #: Distance between the lines of a double bond.
 LINE_SEPARATION = 0.16
+#: How far towards the background the back of a skeletal drawing
+#: goes when the depth cue is off -- the grey the style is drawn with.
+#: The depth cue's own settings take over when it is on.
+BACK_GREY = 0.6
+#: Line weight on screen, in pixels.
+LINE_WIDTH = 1.6
 #: How far from a carbon left implicit a click still takes it.
 VERTEX_PICK = 0.12
 #: A bond tilted less than this out of the screen is a plain line.
@@ -68,14 +74,23 @@ WEDGE_TILT = math.radians(30.0)
 #: NH3 and CH4 -- the order chemists write them in.
 _HYDROGEN_FIRST = frozenset({"O", "S", "Se", "Te", "F", "Cl", "Br", "I"})
 
-# Helvetica's advance widths in em, near enough to leave the right
-# gap: the renderer measures the real font, and a line stopping a
-# hundredth of an Angstrom off is not something a reader sees.
-_CAP_HEIGHT = 0.718             # of the em
-_UPPER = 0.70
-_LOWER = 0.53
-_NARROW = {"l": 0.22, "i": 0.22, "I": 0.28, "f": 0.28, "r": 0.33,
-           "t": 0.28, "j": 0.22}
+# Arial's advance widths in em -- Helvetica's, to the thousandth --
+# so the box a line stops short of is the box the letters are set in
+# (``label_atlas`` renders Arial into exactly this box).
+_CAP_HEIGHT = 0.716             # of the em
+_ADVANCE = dict(zip(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    (0.667, 0.667, 0.722, 0.722, 0.667, 0.611, 0.778, 0.722, 0.278,
+     0.500, 0.667, 0.556, 0.833, 0.722, 0.778, 0.667, 0.778, 0.722,
+     0.667, 0.611, 0.722, 0.667, 0.944, 0.667, 0.667, 0.611),
+    strict=True))
+_ADVANCE.update(zip(
+    "abcdefghijklmnopqrstuvwxyz",
+    (0.556, 0.556, 0.500, 0.556, 0.556, 0.278, 0.556, 0.556, 0.222,
+     0.222, 0.500, 0.222, 0.833, 0.556, 0.556, 0.556, 0.556, 0.333,
+     0.500, 0.278, 0.556, 0.500, 0.722, 0.500, 0.500, 0.500),
+    strict=True))
+_DESCENDERS = frozenset("gjpqy")
 #: A subscript's size, relative to the letters it follows.
 SUBSCRIPT = 0.7
 
@@ -176,11 +191,9 @@ def centres(elements, degree, ends) -> np.ndarray:
 
 
 def _advance(char: str) -> float:
-    if char in _NARROW:
-        return _NARROW[char]
     if char.isdigit():
         return 0.556 * SUBSCRIPT
-    return _UPPER if char.isupper() else _LOWER
+    return _ADVANCE.get(char, 0.667)
 
 
 def text_width(text: str, height: float) -> float:
@@ -209,9 +222,30 @@ def label_extents(text: str, symbol: str, height: float,
         left, right = total - own / 2, own / 2
     else:
         left = right = total / 2
-    down = height / 2 + (0.25 * height if any(c.isdigit() for c in text)
-                         else 0.0)
+    # Below the letters: a subscript's drop, or the tail of a g or a
+    # y (Mg, Hg, Dy), whichever reaches further.
+    down = height / 2 + max(
+        0.25 * height if any(c.isdigit() for c in text) else 0.0,
+        0.30 * height if any(c in _DESCENDERS for c in text) else 0.0)
     return (left + pad, right + pad, down + pad, height / 2 + pad)
+
+
+def symbol_of(text: str) -> str:
+    """The element a label is written for: the first symbol in it
+    that is not a folded hydrogen -- ``N`` of ``NH2``, ``O`` of
+    ``H2O`` -- or ``H`` for a hydrogen drawn as itself."""
+    symbols, k = [], 0
+    while k < len(text):
+        if text[k].isupper():
+            end = k + 1
+            while end < len(text) and text[end].islower():
+                end += 1
+            symbols.append(text[k:end])
+            k = end
+        else:
+            k += 1
+    heavy = [s for s in symbols if s != "H"]
+    return heavy[0] if heavy else (symbols[0] if symbols else "")
 
 
 def bond_scale(starts, ends) -> float:
