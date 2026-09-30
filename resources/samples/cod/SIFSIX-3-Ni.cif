@@ -1,0 +1,313 @@
+#------------------------------------------------------------------------------
+#$Date: 2019-11-23 22:35:10 +0200 (Sat, 23 Nov 2019) $
+#$Revision: 235373 $
+#$URL: file:///home/coder/svn-repositories/_RELOADED_COD/cod-reloaded/cif/1/55/36/1553650.cif $
+#------------------------------------------------------------------------------
+#
+# This file is available in the Crystallography Open Database (COD),
+# http://www.crystallography.net/
+#
+# All data on this site have been placed in the public domain by the
+# contributors.
+#
+data_1553650
+loop_
+_publ_author_name
+'Elsaidi, Sameh K.'
+'Mohamed, Mona H.'
+'Simon, Cory M.'
+'Braun, Efrem'
+'Pham, Tony'
+'Forrest, Katherine A.'
+'Xu, Wenqian'
+'Banerjee, Debasis'
+'Space, Brian'
+'Zaworotko, Michael J.'
+'Thallapally, Praveen K.'
+_publ_section_title
+;
+ Effect of ring rotation upon gas adsorption in SIFSIX-3-M (M = Fe, Ni)
+ pillared square grid networks.
+;
+_journal_issue                   3
+_journal_name_full               'Chemical science'
+_journal_page_first              2373
+_journal_page_last               2380
+_journal_paper_doi               10.1039/c6sc05012c
+_journal_volume                  8
+_journal_year                    2017
+_chemical_formula_sum            'C8 H8 F6 N4 Ni Si'
+_chemical_formula_weight         360.95
+_chemical_name_common            SIFSIX-3-Ni
+_chemical_name_systematic        SIFSIX-3-Ni
+_space_group_IT_number           123
+_space_group_name_Hall           '-P 4 2'
+_space_group_name_H-M_alt        'P 4/m m m'
+_symmetry_cell_setting           tetragonal
+_symmetry_space_group_name_H-M   'P 4/m m m'
+_audit_creation_date             2016-04-09T10:47
+_audit_creation_method           'from EXP file using GSAS2CIF'
+_audit_update_record
+;
+2016-11-14 deposited with the CCDC.
+2016-12-19 downloaded from the CCDC.
+;
+_cell_angle_alpha                90.0
+_cell_angle_beta                 90.0
+_cell_angle_gamma                90.0
+_cell_formula_units_Z            1
+_cell_length_a                   6.99732(24)
+_cell_length_b                   6.99732
+_cell_length_c                   7.49177(27)
+_cell_measurement_temperature    298
+_cell_volume                     366.816(18)
+_computing_structure_refinement  GSAS
+_exptl_absorpt_correction_T_max  1.00000
+_exptl_absorpt_correction_T_min  1.00000
+_exptl_absorpt_process_details
+;   GSAS Absorption/surface roughness correction: function number 0
+ No correction is applied.
+;
+_pd_block_id                     2016-04-09T10:47|NI_HE_179|Wenqian_Xu|17-BM
+_pd_calc_method                  'Rietveld Refinement'
+_pd_instr_location               ' ?'
+_pd_meas_number_of_points        4500
+_pd_phase_name
+'from C:/GSAS/MyWork/2015-1/PNNL/NiSiF6/CoSIFSIX-3.cif'
+_pd_proc_info_datetime           2016-04-09T10:47:38
+_pd_proc_info_excluded_regions   ' ?'
+_pd_proc_ls_background_function
+;   GSAS Background function number 1 with 24 terms.
+ Shifted Chebyshev function of 1st kind
+      1:    2713.91     2:   -1784.23     3:    170.662     4:    295.011    
+      5:   -802.480     6:    675.556     7:   -86.9386     8:   -211.203    
+      9:    417.664    10:   -324.004    11:    49.0992    12:    99.2173    
+     13:   -159.697    14:    141.309    15:   -41.4845    16:   -26.9960    
+     17:    78.5553    18:   -65.1715    19:   -6.43067    20:    39.2188    
+     21:   -36.5903    22:    38.4781    23:   -41.6809    24:   6.347870E-02
+;
+_pd_proc_ls_peak_cutoff          0.00100
+_pd_proc_ls_profile_function
+;
+ CW Profile function number 3 with  19 terms
+ Pseudovoigt profile coefficients as parameterized in
+ P. Thompson, D.E. Cox & J.B. Hastings (1987). J. Appl. Cryst.,20,79-83.
+ Asymmetry correction of L.W. Finger, D.E. Cox & A. P. Jephcoat (1994).
+ J. Appl. Cryst.,27,892-900.
+ #1(GU)   =  171.383 #2(GV)   =    0.000 #3(GW)   =    8.772
+ #4(GP)   =    0.000 #5(LX)   =    0.000 #6(LY)   =   56.493
+ #7(S/L)  =   0.0005 #8(H/L)  =   0.0005
+ #9(trns) =     0.00 #10(shft)=   0.0000
+ #11(stec)=     0.00 #12(ptec)=     0.00 #13(sfec)=     0.00
+ #14(L11) =    0.000 #15(L22) =    0.000 #16(L33) =    0.000
+ #17(L12) =    0.000 #18(L13) =    0.000 #19(L23) =    0.000
+ Peak tails are ignored  where the intensity is below 0.0010 times the peak
+   Aniso. broadening axis   0.0   0.0   1.0
+;
+_pd_proc_ls_prof_R_factor        0.0350
+_pd_proc_ls_prof_wR_expected     0.0151
+_pd_proc_ls_prof_wR_factor       0.0521
+_pd_proc_number_of_points        4500
+_pd_spec_mounting                ' ?'
+_refine_ls_goodness_of_fit_all   3.50
+_refine_ls_matrix_type           full
+_refine_ls_number_parameters     44
+_refine_ls_number_restraints     8
+_refine_ls_R_Fsqd_factor         0.04738
+_refine_ls_shift/su_max          0.06
+_refine_ls_shift/su_mean         0.00
+_cod_data_source_file            c6sc05012c2.cif
+_cod_data_source_block           NI_HE_179_publ
+_cod_depositor_comments
+;
+The following automatic conversions were performed:
+
+data item '_geom_angle_publ_flag' value 'N' was changed to 'n' in
+accordance with the
+/home/saulius/struct/COD-crude-data/automatic-downloads/DataCite-retrospective/RSC/depositions/lib/dictionaries/cif_core.dic
+dictionary named 'cif_core.dic' version 2.4.2 last updated on
+2011-04-26 (41 times).
+
+data item '_geom_bond_publ_flag' value 'N' was changed to 'n' in
+accordance with the
+/home/saulius/struct/COD-crude-data/automatic-downloads/DataCite-retrospective/RSC/depositions/lib/dictionaries/cif_core.dic
+dictionary named 'cif_core.dic' version 2.4.2 last updated on
+2011-04-26 (51 times).
+
+Automatic conversion script
+Id: cif_fix_values 6909 2019-04-08 15:41:33Z antanas 
+;
+_cod_original_cell_volume        366.816(32)
+_cod_original_sg_symbol_H-M      'P 4/mmm'
+_cod_original_formula_sum        'C8.00 H8.00 F6 N4 Ni Si'
+_cod_database_code               1553650
+_gsas_exptl_extinct_corr_t_min   1.00000
+_gsas_exptl_extinct_corr_t_max   1.00000
+loop_
+_symmetry_equiv_pos_site_id
+_symmetry_equiv_pos_as_xyz
+1 +x,+y,+z
+2 -y,+x,+z
+3 -x,-y,+z
+4 +y,-x,+z
+5 -x,+y,+z
+6 -y,-x,+z
+7 +x,-y,+z
+8 +y,+x,+z
+-1 -x,-y,-z
+-2 +y,-x,-z
+-3 +x,+y,-z
+-4 -y,+x,-z
+-5 +x,-y,-z
+-6 +y,+x,-z
+-7 -x,+y,-z
+-8 -y,-x,-z
+loop_
+_atom_site_type_symbol
+_atom_site_label
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_occupancy
+_atom_site_thermal_displace_type
+_atom_site_U_iso_or_equiv
+Ni Ni1 0.5 0.5 0.5 1.0 Uiso 0.0144(12)
+Si Si2 0.5 0.5 1.0 1.0 Uiso 0.0480(26)
+F F3 0.5 0.5 0.7656(8) 1.0 Uiso 0.0155(18)
+F F4 0.6652(4) 0.6652(4) 1.0 1.0 Uiso 0.0606(20)
+N N5 0.8051(5) 0.5 0.5 1.0 Uiso 0.0197(25)
+C C6 0.90042(8) 0.4562(10) 0.64956(31) 0.5 Uiso 0.0553(32)
+H H6 0.8132(9) 0.4211(18) 0.7697(6) 0.5 Uiso 0.066(4)
+loop_
+_atom_type_symbol
+_atom_type_number_in_cell
+_atom_type_scat_dispersion_real
+_atom_type_scat_dispersion_imag
+_atom_type_scat_Cromer_Mann_a1
+_atom_type_scat_Cromer_Mann_a2
+_atom_type_scat_Cromer_Mann_a3
+_atom_type_scat_Cromer_Mann_a4
+_atom_type_scat_Cromer_Mann_b1
+_atom_type_scat_Cromer_Mann_b2
+_atom_type_scat_Cromer_Mann_b3
+_atom_type_scat_Cromer_Mann_b4
+_atom_type_scat_Cromer_Mann_c
+_atom_type_scat_source
+Ni 1.0 0.000 0.000 12.8376 3.87850 7.29200 0.25650 4.44380 12.1763 2.38000
+66.3421 1.03410 International_Tables_Vol_C
+Si 1.0 0.000 0.000 6.29150 2.43860 3.03530 32.3337 1.98910 0.67850 1.54100
+81.6937 1.14070 International_Tables_Vol_C
+F 6.0 0.000 0.000 3.53920 10.2825 2.64120 4.29440 1.51700 0.26150 1.02430
+26.1476 0.27760 International_Tables_Vol_C
+N 4.0 0.000 0.000 12.2126 0.00570 3.13220 9.89330 2.01250 28.9975 1.16630
+0.58260 -11.529 International_Tables_Vol_C
+C 8.0 0.000 0.000 2.31000 20.8439 1.02000 10.2075 1.58860 0.56870 0.86500
+51.6512 0.21560 International_Tables_Vol_C
+H 8.0 0.000 0.000 0.49300 10.5109 0.32291 26.1257 0.14019 3.14236 0.04081
+57.7997 0.00304 International_Tables_Vol_C
+loop_
+_geom_angle_atom_site_label_1
+_geom_angle_atom_site_label_2
+_geom_angle_atom_site_label_3
+_geom_angle
+_geom_angle_site_symmetry_1
+_geom_angle_site_symmetry_3
+_geom_angle_publ_flag
+F3 Ni1 F3 180.0 1_555 -1_666 n
+F3 Si2 F3 179.9406 1_555 -1_667 n
+F3 Si2 F4 90.0 1_555 1_555 n
+F3 Si2 F4 90.0 1_555 2_655 n
+F3 Si2 F4 90.0 1_555 3_665 n
+F3 Si2 F4 90.0 1_555 4_565 n
+F3 Si2 F4 90.0 -1_667 1_555 n
+F3 Si2 F4 90.0 -1_667 2_655 n
+F3 Si2 F4 90.0 -1_667 3_665 n
+F3 Si2 F4 90.0 -1_667 4_565 n
+F4 Si2 F4 90.0 1_555 2_655 n
+F4 Si2 F4 179.972 1_555 3_665 n
+F4 Si2 F4 90.0 1_555 4_565 n
+F4 Si2 F4 90.0 2_655 3_665 n
+F4 Si2 F4 179.9657 2_655 4_565 n
+F4 Si2 F4 90.0 3_665 4_565 n
+Ni1 F3 Si2 180.0 1_555 1_555 n
+C6 N5 C6 26.4(6) 1_555 7_565 n
+C6 N5 C6 113.6(4) 1_555 -3_556 n
+C6 N5 C6 120.29(34) 1_555 -5_566 n
+C6 N5 C6 120.29(34) 7_565 -3_556 n
+C6 N5 C6 113.6(4) 7_565 -5_566 n
+C6 N5 C6 26.4(6) -3_556 -5_566 n
+N5 C6 C6 111.3(4) 1_555 3_765 n
+N5 C6 C6 119.86(17) 1_555 5_755 n
+N5 C6 C6 76.78(31) 1_555 7_565 n
+N5 C6 H6 116.95(29) 1_555 1_555 n
+N5 C6 H6 100.5(6) 1_555 7_565 n
+C6 C6 C6 23.7(5) 3_765 5_755 n
+C6 C6 C6 66.3(5) 3_765 7_565 n
+C6 C6 H6 126.15(28) 3_765 1_555 n
+C6 C6 H6 98.9(8) 3_765 7_565 n
+C6 C6 C6 90.0 5_755 7_565 n
+C6 C6 H6 123.19(27) 5_755 1_555 n
+C6 C6 H6 116.15(32) 5_755 7_565 n
+C6 C6 H6 102.74(29) 7_565 1_555 n
+C6 C6 H6 51.7(7) 7_565 7_565 n
+H6 C6 H6 51.0(10) 1_555 7_565 n
+C6 H6 C6 25.5(4) 1_555 7_565 n
+C6 H6 H6 77.26(29) 1_555 7_565 n
+C6 H6 H6 51.7(7) 7_565 7_565 n
+loop_
+_geom_bond_atom_site_label_1
+_geom_bond_atom_site_label_2
+_geom_bond_distance
+_geom_bond_site_symmetry_2
+_geom_bond_publ_flag
+Ni1 F3 1.990(6) 1_555 n
+Ni1 F3 1.990(6) -1_666 n
+Ni1 N5 2.1351(35) 1_555 n
+Ni1 N5 2.1351(35) 2_655 n
+Ni1 N5 2.1351(35) 3_665 n
+Ni1 N5 2.1351(35) 4_565 n
+Si2 F3 1.756(6) 1_555 n
+Si2 F3 1.756(6) -1_667 n
+Si2 F4 1.635(4) 1_555 n
+Si2 F4 1.635(4) 2_655 n
+Si2 F4 1.635(4) 3_665 n
+Si2 F4 1.635(4) 4_565 n
+F3 Ni1 1.990(6) 1_555 n
+F3 Si2 1.756(6) 1_555 n
+F3 F4 2.399(4) 1_555 n
+F3 F4 2.399(4) 2_655 n
+F3 F4 2.399(4) 3_665 n
+F3 F4 2.399(4) 4_565 n
+F3 H6 2.260(7) 1_555 n
+F3 H6 2.260(7) 2_655 n
+F3 H6 2.260(7) 3_665 n
+F3 H6 2.260(7) 4_565 n
+F3 H6 2.260(7) 5_655 n
+F3 H6 2.260(7) 6_665 n
+F3 H6 2.260(7) 7_565 n
+F3 H6 2.260(7) 8_555 n
+F4 Si2 1.635(4) 1_555 n
+F4 F3 2.399(4) 1_555 n
+F4 F3 2.399(4) -1_667 n
+F4 F4 2.312(6) 2_655 n
+F4 F4 2.312(6) 4_565 n
+F4 H6 2.101(5) 2_655 n
+F4 H6 2.101(5) 7_565 n
+F4 H6 2.101(5) -4_657 n
+F4 H6 2.101(5) -5_567 n
+N5 Ni1 2.1351(35) 1_555 n
+N5 C6 1.3393(5) 1_555 n
+N5 C6 1.3393(5) 7_565 n
+N5 C6 1.3393(5) -3_556 n
+N5 C6 1.3393(5) -5_566 n
+C6 N5 1.3393(5) 1_555 n
+C6 C6 1.522(6) 3_765 n
+C6 C6 1.3936(11) 5_755 n
+C6 C6 0.612(14) 7_565 n
+C6 H6 1.115(4) 1_555 n
+C6 H6 1.386(12) 7_565 n
+H6 F3 2.260(7) 1_555 n
+H6 F4 2.101(5) 4_565 n
+H6 C6 1.115(4) 1_555 n
+H6 C6 1.386(12) 7_565 n
+H6 H6 1.104(25) 7_565 n

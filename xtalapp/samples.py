@@ -29,7 +29,7 @@ detail that makes a program feel like somebody else's export.
 The first seven are what this project was written against, and four
 of them carry the CCDC's header, which is a decision recorded in
 ``resources/samples/PROVENANCE.md`` rather than a licence.  The COD's
-thirteen are CC0 and exactly as deposited -- the asymmetric unit in its
+twenty are CC0 and exactly as deposited -- the asymmetric unit in its
 published group, less the reflections -- so a framework everybody
 cites is there in the form it was cited, disorder and all.  They are
 written by ``scripts/fetch_cod_samples.py``.
@@ -242,6 +242,32 @@ SAMPLES = (
             "Alezi et al., J. Am. Chem. Soc. 2015: Al3O trimers on the "
             "soc net in Pm-3n, 1208 atoms, with the chloride that "
             "balances the charge spread thin over its site")),
+    Sample(
+        "cod_uio67", "cod/UiO-67.cif", "UiO-67", group=COD,
+        cod_id=4132640, description=(
+            "Lee et al., J. Am. Chem. Soc. 2018: UiO-66's Zr6 "
+            "node on biphenyl-4,4'-dicarboxylate in Fm-3m, a 27 A "
+            "cell, with its linkers at 96 % and each ring over two "
+            "tilts")),
+    Sample(
+        "cod_pcn224", "cod/PCN-224.cif", "PCN-224", group=COD,
+        cod_id=1558028, description=(
+            "Zee et al., Chem. Sci. 2020: six-connected Zr6 nodes "
+            "capped with acetate and free-base porphyrin "
+            "tetracarboxylate in Im-3m, a 39 A cell")),
+    Sample(
+        "cod_sifsix3ni", "cod/SIFSIX-3-Ni.cif", "SIFSIX-3-Ni",
+        group=COD, cod_id=1553650, description=(
+            "Elsaidi et al., Chem. Sci. 2017: Ni(pyrazine)2 square "
+            "grids pillared by SiF6, one formula unit in P4/mmm, from "
+            "powder diffraction under helium -- each pyrazine over two "
+            "orientations")),
+    Sample(
+        "cod_sifsix1cu", "cod/SIFSIX-1-Cu.cif", "SIFSIX-1-Cu",
+        group=COD, cod_id=4117561, description=(
+            "Burd et al., J. Am. Chem. Soc. 2012: Cu(4,4'-bipyridine)2 "
+            "grids pillared by SiF6 in P4/mmm, the equatorial "
+            "fluorines turned over three orientations")),
 )
 
 
@@ -291,6 +317,17 @@ PREPARED_NOTES = {
                     "both at full occupancy -- a chloride per trimer "
                     "and three waters on it; relaxed with ORB-v3 + "
                     "D3(BJ)",
+    "UiO-67": "Zr6O4(OH)4(bpdc)6, the ideal framework, in the "
+              "primitive cell of 174 atoms: one tilt of each ring, and "
+              "the refinement's 4 % missing linkers not kept",
+    "PCN-224": "Zr6O4(OH)4(OAc)6 with 1.5 H2TCPP per node, as "
+               "deposited, in the primitive cell of 756 atoms: one "
+               "orientation of each acetate and the four mu3-OH",
+    "SIFSIX-3-Ni": "one orientation of each pyrazine, in P1: "
+                   "Ni(pyz)2SiF6 exactly",
+    "SIFSIX-1-Cu": "one orientation of the SiF6's equatorial square "
+                   "and of each bipyridine, in P1: Cu(bpy)2SiF6 "
+                   "exactly",
 }
 
 #: The COD frameworks again, prepared for simulation: ordered, the

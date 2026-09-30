@@ -254,6 +254,46 @@ Alezi et al., J. Am. Chem. Soc. 2015: Al3O trimers on the soc net in Pm-3n, 1208
 ```{index} Al-soc-MOF-1
 ```
 
+(cmd-sample_cod_uio67)=
+### Open Sample ▸ From the COD ▸ UiO-67
+
+`sample_cod_uio67`
+
+Lee et al., J. Am. Chem. Soc. 2018: UiO-66's Zr6 node on biphenyl-4,4'-dicarboxylate in Fm-3m, a 27 A cell, with its linkers at 96 % and each ring over two tilts
+
+```{index} UiO-67
+```
+
+(cmd-sample_cod_pcn224)=
+### Open Sample ▸ From the COD ▸ PCN-224
+
+`sample_cod_pcn224`
+
+Zee et al., Chem. Sci. 2020: six-connected Zr6 nodes capped with acetate and free-base porphyrin tetracarboxylate in Im-3m, a 39 A cell
+
+```{index} PCN-224
+```
+
+(cmd-sample_cod_sifsix3ni)=
+### Open Sample ▸ From the COD ▸ SIFSIX-3-Ni
+
+`sample_cod_sifsix3ni`
+
+Elsaidi et al., Chem. Sci. 2017: Ni(pyrazine)2 square grids pillared by SiF6, one formula unit in P4/mmm, from powder diffraction under helium -- each pyrazine over two orientations
+
+```{index} SIFSIX-3-Ni
+```
+
+(cmd-sample_cod_sifsix1cu)=
+### Open Sample ▸ From the COD ▸ SIFSIX-1-Cu
+
+`sample_cod_sifsix1cu`
+
+Burd et al., J. Am. Chem. Soc. 2012: Cu(4,4'-bipyridine)2 grids pillared by SiF6 in P4/mmm, the equatorial fluorines turned over three orientations
+
+```{index} SIFSIX-1-Cu
+```
+
 (cmd-sample_prep_mof5)=
 ### Open Sample ▸ Prepared for simulation ▸ MOF-5
 
@@ -412,6 +452,46 @@ COD 4130966 prepared for simulation: one acetate in six missing, as refined, eac
 COD 4129499 prepared for simulation: one tilt of each terphenyl ring -- the CIF gives both at full occupancy -- a chloride per trimer and three waters on it; relaxed with ORB-v3 + D3(BJ)
 
 ```{index} Al-soc-MOF-1
+```
+
+(cmd-sample_prep_uio67)=
+### Open Sample ▸ Prepared for simulation ▸ UiO-67
+
+`sample_prep_uio67`
+
+COD 4132640 prepared for simulation: Zr6O4(OH)4(bpdc)6, the ideal framework, in the primitive cell of 174 atoms: one tilt of each ring, and the refinement's 4 % missing linkers not kept
+
+```{index} UiO-67
+```
+
+(cmd-sample_prep_pcn224)=
+### Open Sample ▸ Prepared for simulation ▸ PCN-224
+
+`sample_prep_pcn224`
+
+COD 1558028 prepared for simulation: Zr6O4(OH)4(OAc)6 with 1.5 H2TCPP per node, as deposited, in the primitive cell of 756 atoms: one orientation of each acetate and the four mu3-OH
+
+```{index} PCN-224
+```
+
+(cmd-sample_prep_sifsix3ni)=
+### Open Sample ▸ Prepared for simulation ▸ SIFSIX-3-Ni
+
+`sample_prep_sifsix3ni`
+
+COD 1553650 prepared for simulation: one orientation of each pyrazine, in P1: Ni(pyz)2SiF6 exactly
+
+```{index} SIFSIX-3-Ni
+```
+
+(cmd-sample_prep_sifsix1cu)=
+### Open Sample ▸ Prepared for simulation ▸ SIFSIX-1-Cu
+
+`sample_prep_sifsix1cu`
+
+COD 4117561 prepared for simulation: one orientation of the SiF6's equatorial square and of each bipyridine, in P1: Cu(bpy)2SiF6 exactly
+
+```{index} SIFSIX-1-Cu
 ```
 
 (cmd-save)=

@@ -60,6 +60,10 @@ ENTRIES = {
     4134597: "cubic-EuHOTP.cif",
     4130966: "pbz-MOF-1.cif",
     4129499: "Al-soc-MOF-1.cif",
+    1553650: "SIFSIX-3-Ni.cif",
+    4117561: "SIFSIX-1-Cu.cif",
+    4132640: "UiO-67.cif",
+    1558028: "PCN-224.cif",
 }
 
 #: Tag prefixes whose items and loops are dropped.  Each describes the
@@ -70,7 +74,11 @@ STRIPPED = (
     "_shelx_",
     "_platon_squeeze",
     # A powder refinement's profile, point by point: measured,
-    # weighted, background and calculated intensities.
+    # weighted, background and calculated intensities, and the angle
+    # or the raw counts each is written against.
+    "_pd_meas_2theta_scan",
+    "_pd_proc_2theta_corrected",
+    "_pd_meas_counts",
     "_pd_meas_intensity",
     "_pd_proc_ls_weight",
     "_pd_proc_intensity",

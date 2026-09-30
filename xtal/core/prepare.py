@@ -109,6 +109,16 @@ SOURCE_SITE = "prepare_site"
 #: perceiver takes for an O-O bond.
 O_CLASH = 2.0
 
+#: Below this, two halogens are alternatives: no framework holds a
+#: halogen-halogen bond, and the closest real pair is a CF3's own, 2.14
+#: A.  SIFSIX-1-Cu's SiF6 turns its four equatorial fluorines over
+#: three orientations 0.6-1.3 A apart, which a bond perceiver takes for
+#: F-F bonds -- and one orientation joined to the next as a unit gave
+#: each silicon six equatorial fluorines where it has four.
+HALOGEN_CLASH = 1.9
+
+HALOGENS = frozenset({"F", "Cl", "Br", "I"})
+
 
 def _clash(a: str, b: str, distance: float) -> bool:
     """Whether two atoms are too close to both be there."""
@@ -116,8 +126,11 @@ def _clash(a: str, b: str, distance: float) -> bool:
         return distance < H_CLASH
     if a == "O" and b == "O":
         return distance < O_CLASH
-    return distance < HEAVY_CLASH * (el.covalent_radius(a)
-                                     + el.covalent_radius(b))
+    covalent = HEAVY_CLASH * (el.covalent_radius(a)
+                              + el.covalent_radius(b))
+    if a in HALOGENS and b in HALOGENS:
+        return distance < max(HALOGEN_CLASH, covalent)
+    return distance < covalent
 
 
 # ======================================================================
