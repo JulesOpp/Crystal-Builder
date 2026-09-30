@@ -52,7 +52,9 @@ them.  Which to choose:
   (`NH2`, `OH2`) rather than drawn, and carbon is left implicit where
   lines meet unless *Carbon* in the *Style* panel says *Shown as C*;
   *Colour by element* writes the other labels in their element's
-  colour.  Folding hides a hydrogen from the picture only -- another
+  colour.  *Bonds* set to *Plain lines* draws every single bond as a
+  line, with no wedges; doubles, triples and aromatic dashes stay.
+  Folding hides a hydrogen from the picture only -- another
   style shows it, and it is still in the structure.
 
 ## Show
