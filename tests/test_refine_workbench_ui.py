@@ -350,9 +350,9 @@ def test_loading_through_the_dialog_keeps_the_workbench_in_front(
     monkeypatch.setattr(module.QFileDialog, "getOpenFileName",
                         staticmethod(lambda *a, **k: (str(rutile_xy), "")))
     raised = []
-    monkeypatch.setattr(bench, "raise_", lambda: raised.append(True))
+    monkeypatch.setattr(module.windows, "present", raised.append)
     bench.choose_pattern()
-    assert raised
+    assert raised == [bench]
     assert bench.data is not None
 
 

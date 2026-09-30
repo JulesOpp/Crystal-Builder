@@ -40,7 +40,7 @@ from PySide6.QtWidgets import (
 
 from xtal.commands.clipboard import Fragment
 from xtal.workspace import resolved
-from xtalapp import external, layout, menus, workers
+from xtalapp import external, layout, menus, windows, workers
 from xtalapp.actions import ActionRegistry
 from xtalapp.autosave import Autosaver
 from xtalapp.dialogs.display_range import DisplayRangeDialog
@@ -300,8 +300,7 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         having happened.
         """
         document = self.open_path(path)
-        self.raise_()
-        self.activateWindow()
+        windows.present(self)
         return document
 
     # ==================================================================
@@ -858,9 +857,7 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         if bench is None or bench.document is not document:
             bench = RefinementWorkbench(self, document)
             benches[id(document)] = bench
-        bench.show()
-        bench.raise_()
-        bench.activateWindow()
+        windows.present(bench)
         return bench
 
     def show_dftb_panel(self) -> None:
@@ -1007,9 +1004,7 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         """
         if self._help_window is None:
             self._help_window = HelpWindow(self, self)
-        self._help_window.show()
-        self._help_window.raise_()
-        self._help_window.activateWindow()
+        windows.present(self._help_window)
 
     def install_ai_skill(self) -> None:
         """Copy the shipped skill to ``~/.claude/skills``.

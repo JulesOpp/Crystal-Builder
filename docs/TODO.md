@@ -214,6 +214,36 @@ favour them clearly.
 
 ---
 
+## The refinement workbench's parameters
+
+Planned 2026-09-29 on `features/pxrd-parameters`; the full plan, with
+its measurements, is `~/.claude/plans/pxrd-parameters.md`.  Asked
+from using the workbench: its tests steal focus, nothing a fit refines
+reaches the next run (every run starts from RietX's preset, and With
+energy runs a hidden Rietveld stage of its own first), no iteration
+or tolerance control, no hkl on the ticks, and *Options…* opens a
+panel behind the window.  Answers: a table with **Copy** / **Paste**
+in our own text form, `zero_error 0.0012 ± 0.0003 Refine` or
+`NoRefine`; one set shared by every fitting step, the cell kept per
+step; *Reset Parameters* resets instrument and profile only; Options
+opens a dialog in the workbench.
+
+| Phase | Delivers | Main files | Size |
+|---|---|---|---|
+| **6 — Options… opens the engine's options** | The Force Field panel's own controls, borrowed into a dialog over the workbench | `xtalapp/refine/engine_options.py` | M |
+| **1 — The parameter set** | Named values, Refine flags and esds over RietX's paths; defaults, reset, the text form | `xtal/powder/parameters.py` | M |
+| **2 — Runs start from the set** | Pawley, Rietveld and With energy start from it and write it back; no hidden first fit | `xtal/powder/bridge.py`, `xtal/modules/powder.py` | L |
+| **3 — The table** | One table on every fitting step, Reset / Copy / Paste; the Refine boxes become its column | `xtalapp/refine/parameters.py`, `workbench.py` | L |
+| **4 — Iterations and tolerance** | Per step; 0 is an evaluation, never a fit (RietX refuses `max_iter=0`) | `bridge.py`, `energy.py` | M |
+| **5 — hkl on hover** | The reflection under the cursor on every comb | `xtalapp/refine/plot.py` | S-M |
+
+Done in the order 6, 1, 2, 3, 4, 5 (0, tests taking focus, shipped
+2026-09-29).  Follow-up, not planned: the
+set persists in the project rather than for the workbench's life and
+each run folder's `parameters.txt`.
+
+---
+
 # Not scheduled
 
 Raised while using the application; no phase yet.

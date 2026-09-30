@@ -191,13 +191,13 @@ def test_opening_from_the_desktop_brings_the_window_forward(
     """Somebody who double-clicked a file is asking to look at it.
     Leaving the structure open behind whatever they clicked from is
     indistinguishable from nothing having happened."""
+    from xtalapp import windows
+
     raised = []
-    monkeypatch.setattr(window, "raise_", lambda: raised.append("raise"))
-    monkeypatch.setattr(window, "activateWindow",
-                        lambda: raised.append("activate"))
+    monkeypatch.setattr(windows, "present", raised.append)
     window.open_from_desktop(rutile_cif)
 
-    assert raised == ["raise", "activate"]
+    assert raised == [window]
 
 
 def test_the_command_line_still_opens_a_file(qtbot, tmp_path,

@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QInputDialog, QMessageBox
 
 from xtal.build import BuildError
 from xtal.commands.clipboard import Fragment
+from xtalapp import windows
 from xtalapp.dialogs.add_atom import AddAtomDialog
 from xtalapp.dialogs.add_centroid import AddCentroidDialog
 from xtalapp.dialogs.bond_rules import BondRulesDialog
@@ -325,8 +326,7 @@ class EditActions:
         try:
             if dialog is not None and dialog.isVisible():
                 if dialog.document is document:
-                    dialog.raise_()
-                    dialog.activateWindow()
+                    windows.present(dialog)
                     return
                 dialog.close()
         except RuntimeError:        # deleted on close

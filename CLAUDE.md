@@ -122,6 +122,14 @@ jobs 30 minutes each, cancelled at 98 % with nothing in the log saying
 which test it was, which is also why CI now caps at 12 minutes and
 dumps stacks at `faulthandler_timeout=180`.
 
+**A window is brought forward through `xtalapp.windows.present`**,
+and nowhere else (`test_windows.py` sweeps the source for
+`activateWindow(`). The same guard replaces it with a show that is
+`WA_DontShowOnScreen` and `WA_ShowWithoutActivating`: `isVisible()`
+is still true, but nothing is drawn and the keyboard stays where it
+was. Before it, the refinement workbench's tests took focus 63 times a
+run.
+
 A test that is *about* a prompt opts out with
 `monkeypatch.delenv("XTAL_NO_CONFIRM_CLOSE")` and patches
 `QMessageBox.question` itself — see

@@ -74,6 +74,7 @@ from xtal.modules import record as module_record
 from xtal.modules.job import Job
 from xtal.powder.data import PowderData, PowderError
 from xtal.powder.pawley import METHODS
+from xtalapp import windows
 from xtalapp.dialogs.module_form import ParamForm
 from xtalapp.docks import scrolling
 from xtalapp.refine.bravais import BravaisBox
@@ -798,8 +799,7 @@ class RefinementWorkbench(QMainWindow):
         # A native file dialog hands activation back to the main
         # window when it closes, which then stands in front of this one
         # as though it had closed.
-        self.raise_()
-        self.activateWindow()
+        windows.present(self)
         if path:
             self.load_pattern(path)
 
