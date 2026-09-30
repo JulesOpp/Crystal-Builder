@@ -54,11 +54,12 @@ Looked for again on 2026-09-29, and not taken:
   and as a vernier superstructure (1561582).
 - **MFU-4l**: only cobalt-exchanged (7107247); the zinc one ships
   from the CCDC, below.
-- **CFA-1** (7021651) is the same deposition as `CFA1.cif` below, CC0,
-  and could replace it.  Not added beside it: both acetates are
-  refined as averages that no ordering makes a molecule of (C-O 0.95
-  and 1.63 A on the one on the three-fold axis), and `zn_oac.cif` is
-  the ordered model already.
+- **CFA-1** (7021651) is the same deposition the CCDC's `CFA1.cif`
+  was, and replaced it (below) rather than joining this group: both
+  acetates are refined as averages that no ordering makes a molecule
+  of (C-O 0.95 and 1.63 A on the one on the three-fold axis), so it
+  has no prepared copy, and `zn_oac.cif` is the ordered model
+  already.
 
 ## Prepared for simulation (`prepared/`)
 
@@ -130,19 +131,26 @@ framework's own geometry had needed nothing.
 
 ### From the CCDC
 
-Three files carry the Cambridge Crystallographic Data Centre's header.
-`CFA1.cif`'s says it is for bona fide research and may not be copied
-or passed on; `MFU4l.cif`'s refers to the CCDC's access policy, and
+Two files carry the Cambridge Crystallographic Data Centre's header.
+`MFU4l.cif`'s refers to the CCDC's access policy, and
 `Ni2Cl2BTDD.cif`'s says neither.  **That is a risk this folder
 carries knowingly**: Julius chose on 2026-09-23 to keep them as they
-are and to add the COD set beside them rather than in their place.  MFU-4l is the project's stress
+are and to add the COD set beside them rather than in their place.
+A third, `CFA1.cif`, said it was for bona fide research and might not
+be copied or passed on; Julius chose on 2026-09-29 to replace it with
+the COD's copy of the same deposition, below.  MFU-4l is the project's stress
 case, and nothing in the COD replaces it.
 
 | File | Source |
 |---|---|
 | `MFU4l.cif` | CSD download, CCDC 776578 ([10.5517/ccv22xw](https://doi.org/10.5517/ccv22xw)); Denysenko et al., *Chem. Eur. J.* (2011), [10.1002/chem.201001872](https://doi.org/10.1002/chem.201001872).  Downloaded 2025-02-04 |
 | `Ni2Cl2BTDD.cif` | CSD refcode POSWUS, CCDC 1951829, exported by ConQuest; *J. Am. Chem. Soc.* **141**, 13858 (2019) |
-| `CFA1.cif` | CFA-1, the CCDC copy of the electronic supplementary material to a *Dalton Transactions* paper (2013) |
+
+### From the COD, under its old name
+
+| File | Source |
+|---|---|
+| `CFA1.cif` | COD [7021651](https://www.crystallography.net/cod/7021651.html), CC0, stripped as the `cod/` files are and written by the same script (its `REPLACED`); Schmieder et al., *Dalton Trans.* **42**, 10786 (2013), [10.1039/c3dt50787d](https://doi.org/10.1039/c3dt50787d).  The same crystal the CCDC copy it replaced held, site for site |
 
 ### From RASPA
 

@@ -66,6 +66,14 @@ ENTRIES = {
     1558028: "PCN-224.cif",
 }
 
+#: COD ID -> a file of the first group, beside ``cod/``, that the COD
+#: copy replaced.  ``CFA1.cif`` was the CCDC's, whose header says it
+#: may not be passed on; the COD's is the same deposition, CC0, and
+#: keeps the name every test and comment knows it by.
+REPLACED = {
+    7021651: "CFA1.cif",
+}
+
 #: Tag prefixes whose items and loops are dropped.  Each describes the
 #: measurement or the refinement program's files, never the structure.
 STRIPPED = (
@@ -212,14 +220,16 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
 
     changed = []
-    for cod_id, name in ENTRIES.items():
+    targets = [(i, TARGET / name) for i, name in ENTRIES.items()]
+    targets += [(i, TARGET.parent / name) for i, name in REPLACED.items()]
+    for cod_id, target in targets:
+        name = target.name
         if args.source is not None:
             raw = (args.source / f"{cod_id}.cif").read_text("utf-8")
         else:
             raw = fetch(cod_id)
         text = strip(raw)
-        target = TARGET / name
-        if target.is_file() and target.read_text("utf-8") == text:
+        if target.is_file() and target.read_bytes() == text.encode():
             continue
         changed.append(name)
         if not args.check:

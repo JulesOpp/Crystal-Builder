@@ -21,14 +21,15 @@ no path, Save asks where to put it, which is the honest answer to
 **The label is the name the sample is known by, not the CIF's data
 block.**  A document with no path takes its title from
 ``structure.meta["title"]``, and the blocks in these files say
-``VESTA_phase_1``, ``CSD_CIF_POSWUS`` and ``sen-116-ds1``.  Opening
+``VESTA_phase_1``, ``CSD_CIF_POSWUS`` and ``7021651``.  Opening
 *MOF-5* and getting a tab called ``VESTA_phase_1`` is the sort of
 detail that makes a program feel like somebody else's export.
 
 **Two groups, and the second is the Crystallography Open Database's.**
-The first seven are what this project was written against, and four
+The first seven are what this project was written against, and two
 of them carry the CCDC's header, which is a decision recorded in
-``resources/samples/PROVENANCE.md`` rather than a licence.  The COD's
+``resources/samples/PROVENANCE.md`` rather than a licence.  CFA-1
+among them is the COD's copy since 2026-09-29.  The COD's
 twenty are CC0 and exactly as deposited -- the asymmetric unit in its
 published group, less the reflections -- so a framework everybody
 cites is there in the form it was cited, disorder and all.  They are

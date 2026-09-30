@@ -263,6 +263,11 @@ def test_the_cod_samples_are_what_the_script_writes():
         assert re.search(
             rf"^_cod_database_code\s+{sample.cod_id}$", text,
             re.MULTILINE), sample.label
+    for cod_id, name in fetch.REPLACED.items():
+        text = (samples.folder() / name).read_text("utf-8")
+        assert fetch.strip(text) == text, name
+        assert re.search(rf"^_cod_database_code\s+{cod_id}$", text,
+                         re.MULTILINE), name
 
 
 def test_every_file_in_the_samples_folder_is_named_in_provenance():
