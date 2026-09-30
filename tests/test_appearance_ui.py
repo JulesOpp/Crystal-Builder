@@ -168,10 +168,12 @@ def test_the_carbon_choice_is_enabled_only_for_the_skeletal_style(
     dock = window.style_dock
     assert not dock.carbon.isEnabled()
     assert not dock.color_labels.isEnabled()
+    assert not dock.wedges.isEnabled()
     assert dock.atom_scale.isEnabled() and dock.bond_radius.isEnabled()
 
     document.update_view(style="skeletal")
     assert dock.carbon.isEnabled() and dock.color_labels.isEnabled()
+    assert dock.wedges.isEnabled()
     assert dock.carbon.currentData() is False
     assert not dock.atom_scale.isEnabled()
     assert not dock.bond_radius.isEnabled()
@@ -194,6 +196,22 @@ def test_choosing_explicit_carbon_changes_the_view_and_not_the_crystal(
                          sketch_color_labels=False)
     assert dock.carbon.currentData() is False
     assert not dock.color_labels.isChecked()
+
+
+def test_choosing_plain_bonds_changes_the_view_and_not_the_crystal(
+        window, rutile_cif):
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    document.update_view(style="skeletal")
+    assert dock.wedges.currentData() is True
+
+    dock.wedges.setCurrentIndex(dock.wedges.findData(False))
+    assert not document.view.sketch_wedges
+    assert not document.modified
+    assert not document.stack.can_undo
+
+    document.update_view(sketch_wedges=True)
+    assert dock.wedges.currentData() is True
 
 
 def _laid_out_at(qtbot, dock, width):

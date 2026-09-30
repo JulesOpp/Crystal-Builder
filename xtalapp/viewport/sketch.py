@@ -291,7 +291,8 @@ def camera_axes(direction, view_up) -> tuple[np.ndarray, np.ndarray,
 
 def sketch_bonds(starts, ends, extents, from_centre, orders, offsets,
                  *, direction, view_up, eye=None,
-                 scale: float = 1.5) -> SketchBonds:
+                 scale: float = 1.5,
+                 wedges: bool = True) -> SketchBonds:
     """Cut, wedge and hash every half-bond for one camera.
 
     ``starts``/``ends`` are the scene model's halves: a half runs from
@@ -305,6 +306,10 @@ def sketch_bonds(starts, ends, extents, from_centre, orders, offsets,
     ``eye`` makes a perspective camera: each half's tilt is then read
     along its own line of sight.  The gap is measured in the screen's
     own axes either way, because the label is drawn facing the screen.
+
+    ``wedges=False`` draws every single bond as a line, however far it
+    tilts; doubles, triples and an aromatic bond's dashed inner line
+    are drawn as they always are.
     """
     starts = np.asarray(starts, float).reshape(-1, 3)
     ends = np.asarray(ends, float).reshape(-1, 3)
@@ -351,6 +356,8 @@ def sketch_bonds(starts, ends, extents, from_centre, orders, offsets,
     length = np.maximum(np.linalg.norm(v, axis=1), 1e-12)
     along = np.einsum("ij,ij->i", outward, sight) / length
     tilted = np.abs(along) >= math.sin(WEDGE_TILT)
+    if not wedges:
+        tilted[:] = False
     single = orders <= SINGLE_MAX
     wedged = visible & single & tilted
     solid = wedged & (along < 0)            # towards the eye
@@ -482,4 +489,4 @@ def sketch_model(model, direction, view_up, eye=None) -> SketchBonds:
         model.bond_starts, model.bond_ends, gaps, from_centre,
         model.bond_orders, model.bond_offsets,
         direction=direction, view_up=view_up, eye=eye,
-        scale=model.sketch_scale)
+        scale=model.sketch_scale, wedges=model.sketch_wedges)

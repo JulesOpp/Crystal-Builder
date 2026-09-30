@@ -295,7 +295,7 @@ class StylePanelDock(QDockWidget):
         form.addRow("Ellipsoids", self.ellipsoid_probability)
         form.addRow("", self.octants)
 
-        # The Skeletal style's two choices, under the ellipsoids for
+        # The Skeletal style's choices, under the ellipsoids for
         # the same reason those are here: they belong to one style,
         # and are greyed under every other.
         self.carbon = QComboBox()
@@ -316,7 +316,20 @@ class StylePanelDock(QDockWidget):
             "ink; carbon and hydrogen stay ink")
         self.color_labels.toggled.connect(
             lambda v: self._set(sketch_color_labels=v))
+        self.wedges = QComboBox()
+        self.wedges.addItem("Wedges", True)
+        self.wedges.addItem("Plain lines", False)
+        self.wedges.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.wedges.setMinimumContentsLength(6)
+        self.wedges.setToolTip(
+            "Draw a bond tilted towards or away from the viewer as a "
+            "solid or hashed wedge, or every single bond as a plain "
+            "line")
+        self.wedges.currentIndexChanged.connect(
+            lambda: self._set(sketch_wedges=self.wedges.currentData()))
         form.addRow("Carbon", self.carbon)
+        form.addRow("Bonds", self.wedges)
         form.addRow("", self.color_labels)
         return box
 
@@ -585,6 +598,8 @@ class StylePanelDock(QDockWidget):
         labelled = styles.get(view.style).atom_render == "label"
         self._choose(self.carbon, view.sketch_explicit_carbon)
         self.carbon.setEnabled(labelled)
+        self._choose(self.wedges, view.sketch_wedges)
+        self.wedges.setEnabled(labelled)
         self.color_labels.setChecked(view.sketch_color_labels)
         self.color_labels.setEnabled(labelled)
         # A label style draws no sphere and no tube, so neither size

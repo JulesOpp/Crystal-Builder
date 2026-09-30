@@ -140,12 +140,12 @@ def test_a_label_sits_its_own_letters_on_the_vertex():
 
 
 def _one_half(direction, extents=(0.2, 0.2, 0.2, 0.2), from_centre=True,
-              order=1.0):
+              order=1.0, wedges=True):
     start = np.zeros((1, 3))
     end = np.asarray(direction, float).reshape(1, 3)
     return sketch.sketch_bonds(
         start, end, [extents], [from_centre], [order], [(0, 1, 0)],
-        scale=1.5, **DOWN)
+        scale=1.5, wedges=wedges, **DOWN)
 
 
 @pytest.mark.parametrize("tilt", [0.0, 15.0, 25.0])
@@ -210,6 +210,25 @@ def test_the_far_half_of_a_wedge_continues_the_near_one():
 def test_a_double_bond_is_two_lines_and_never_a_wedge():
     ink = _one_half((0.5, 0, 0.5), extents=(0, 0, 0, 0), order=2.0)
     assert len(ink.line_starts) == 2 and not len(ink.wedge_quads)
+
+
+@pytest.mark.parametrize("towards", [0.5, -0.5])
+def test_plain_bonds_draw_a_steeply_tilted_bond_as_a_line(towards):
+    """With wedges off, a bond that would be solid or hashed is one
+    plain line -- not a wedge drawn thin, and not left out."""
+    ink = _one_half((0.5, 0, towards), extents=(0, 0, 0, 0),
+                    wedges=False)
+    assert len(ink.line_starts) == 1
+    assert not len(ink.wedge_quads) and not len(ink.hash_starts)
+
+
+def test_plain_bonds_keep_an_aromatic_bonds_dashed_inner_line():
+    """Only the wedges go: an aromatic bond is still its line and the
+    dashes beside it, which say something a plain line does not."""
+    plain = _one_half((0.5, 0, 0.5), extents=(0, 0, 0, 0), order=1.5,
+                      wedges=False)
+    wedged = _one_half((0.5, 0, 0.5), extents=(0, 0, 0, 0), order=1.5)
+    assert len(plain.line_starts) == len(wedged.line_starts) > 1
 
 
 def test_the_bond_scale_is_the_median_bond():
@@ -328,6 +347,25 @@ def test_the_sketch_options_survive_a_project_round_trip():
     assert again.style == "skeletal"
     assert again.sketch_explicit_carbon and again.sketch_color_labels
     assert not ViewSettings.from_dict({}).sketch_explicit_carbon
+
+
+def test_plain_bonds_survive_a_project_round_trip_and_default_to_wedges():
+    """A session saved before the choice existed draws wedges, as it
+    did when it was saved."""
+    from xtalapp.viewport.view_settings import ViewSettings
+    settings = _skeletal(sketch_wedges=False)
+    assert not ViewSettings.from_dict(settings.to_dict()).sketch_wedges
+    assert ViewSettings.from_dict({}).sketch_wedges
+
+
+def test_a_plain_skeletal_scene_has_no_wedges(methylamine):
+    from xtalapp.viewport.builder import build_scene
+    model = build_scene(methylamine, _skeletal(sketch_wedges=False))
+    assert not model.sketch_wedges
+    for direction in ((0, 0, -1), (0, -1, 0), (-1, 0, 0), (1, 1, 1)):
+        up = (0, 1, 0) if direction[1] == 0 else (0, 0, 1)
+        ink = sketch.sketch_model(model, direction, up)
+        assert not len(ink.wedge_quads) and not len(ink.hash_starts)
 
 
 def test_every_other_style_is_unchanged_by_the_label_fields(rutile):

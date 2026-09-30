@@ -506,6 +506,7 @@ def _sketch_fields(cell, graph, folding, drawn, halves, starts, ends,
         "label_height": float(height),
         "label_pad": float(pad),
         "sketch_scale": float(scale),
+        "sketch_wedges": bool(settings.sketch_wedges),
         "bond_gaps": gaps,
         "bond_from_centre": from_centre,
     }
