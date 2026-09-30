@@ -866,6 +866,50 @@ def test_the_pore_sphere_choice_follows_the_document(window,
     assert not document.modified
 
 
+def _cages():
+    """Two copies of a 2.4 A cage in rutile's cell and one 1.6 A
+    cage, as a porosity run would leave them."""
+    import numpy as np
+
+    from xtal.analysis.porosity import PoreNetwork
+    return PoreNetwork(
+        nodes=np.array([(0, 0, 0), (0.5, 0.5, 0.5), (0.5, 0, 0)]),
+        radii=np.array([1.2, 1.2, 0.8]))
+
+
+def test_the_cavity_list_follows_the_documents_network(window,
+                                                       rutile_cif):
+    """Empty and greyed before a run; the network's cavities, widest
+    first and the first named D_i, once one has answered."""
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    assert dock.pore_cavity.count() == 0
+    assert not dock.pore_cavity.isEnabled()
+
+    document.set_pores(_cages())
+    assert [dock.pore_cavity.itemText(i) for i in range(2)] == [
+        "2.40 A (D_i)", "1.60 A"]
+    assert dock.pore_cavity.isEnabled()
+    assert [dock.pore_copy.itemText(i) for i in range(3)] == [
+        "1 of 2", "2 of 2", "All 2"]
+
+
+def test_choosing_a_cavity_and_a_copy_changes_the_view_only(
+        window, rutile_cif):
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    document.set_pores(_cages())
+    dock.pore_copy.setCurrentIndex(dock.pore_copy.findData(-1))
+    assert document.view.pore_copy == -1
+    dock.pore_cavity.setCurrentIndex(1)
+    assert document.view.pore_cavity == 1
+    # One copy of the smaller cage: nothing left to choose between.
+    assert dock.pore_copy.count() == 1
+    assert not dock.pore_copy.isEnabled()
+    assert not document.modified
+    assert not document.stack.can_undo
+
+
 def test_a_saved_all_nodes_session_opens_as_every_node():
     """A session saved while the choice was a checkbox keeps its look
     rather than falling back to one sphere."""

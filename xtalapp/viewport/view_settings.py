@@ -56,8 +56,9 @@ BOUNDARIES = ("in_range", "bonded", "half")
 #: ``(value, label, tooltip)``.  D_f is not among them and cannot be --
 #: see :class:`xtal.analysis.porosity.PoreNetwork`.
 PORE_SPHERES = (
-    ("largest", "Largest included (D_i)",
-     "One sphere, at the widest accessible node: D_i"),
+    ("largest", "By size",
+     "One sphere, at the middle of a cavity: the largest, D_i, unless "
+     "a smaller one is chosen below"),
     ("along_free", "Along the free path (D_if)",
      "One sphere, at the node that is the widest point of the channel "
      "the free sphere squeezes through: D_if"),
@@ -214,6 +215,14 @@ class ViewSettings:
     #: in a cell and thousands across a display range, and a
     #: translucent ball at each is a fog over the crystal it is about.
     pore_spheres: str = "largest"
+    #: Under ``largest``, which kind of cavity, widest first: 0 is
+    #: D_i.  See :meth:`xtal.analysis.porosity.PoreNetwork.cavities`
+    #: -- HKUST-1's D_i is at the corner and face centres, and the cage
+    #: at the body centre is the second kind.  Clamped where it is
+    #: drawn, so a network with fewer kinds draws its last.
+    pore_cavity: int = 0
+    #: Which copy of that sphere, most central first; -1 is every copy.
+    pore_copy: int = 0
     #: Whether that sphere is drawn.  Independent of ``show_pores``,
     #: which is the channel skeleton and the surface: either can be
     #: wanted without the other -- where the cavity is, or the path
@@ -339,6 +348,8 @@ class ViewSettings:
             "plane_color": list(self.plane_color),
             "show_pores": self.show_pores,
             "pore_spheres": self.pore_spheres,
+            "pore_cavity": self.pore_cavity,
+            "pore_copy": self.pore_copy,
             "show_pore_spheres": self.show_pore_spheres,
             "pore_color": list(self.pore_color),
             "pore_edge_color": list(self.pore_edge_color),
@@ -377,6 +388,7 @@ class ViewSettings:
                     "show_bonds", "show_cell", "show_axes",
                     "show_bond_orders", "show_topology",
                     "show_planes", "show_pores", "pore_spheres",
+                    "pore_cavity", "pore_copy",
                     "show_pore_spheres",
                     "pore_opacity", "show_scale_bar", "depth_cue",
                     "depth_cue_strength", "depth_cue_start",

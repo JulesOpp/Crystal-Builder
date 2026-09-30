@@ -692,6 +692,27 @@ def parse_voro_edges(text: str, lattice) -> tuple:
 #: a D_i of 13.1919, and its node reads 13.1860.
 DIF_TOL = 0.005
 
+#: How close, in Angstrom, two cavities' radii must be to be copies of
+#: one cavity.  Zeo++ writes radii to 0.001 and places a symmetry
+#: copy's node a few thousandths off its twin's, so HKUST-1's four
+#: 13.19 A cages come back at 6.596 and 6.593; its next cage is
+#: 5.554, nowhere near.
+CAVITY_TOL = 0.01
+
+
+@dataclass(frozen=True)
+class Cavity:
+    """One kind of cavity: every place in the cell a sphere this wide
+    fits, as the nodes Zeo++ found there.
+
+    ``copies`` are fractional, most central first, and each has its own
+    node's radius in ``radii`` -- a copy is drawn at its node with its
+    radius, never at its twin's."""
+
+    radius: float                   # the widest copy's
+    copies: np.ndarray              # (n,3) fractional
+    radii: np.ndarray               # (n,)
+
 
 @dataclass(frozen=True)
 class PoreNetwork:
@@ -736,6 +757,9 @@ class PoreNetwork:
     #: they give D_if equal to D_i, which it is not.  ``None`` for a
     #: network saved before this was kept, or read with no ``.res``.
     included_along_free: float | None = None
+    #: What :meth:`cavities` found, per lattice.  Derived, never saved.
+    _cache: dict = field(default_factory=dict, init=False, repr=False,
+                         compare=False)
 
     @property
     def n_nodes(self) -> int:
@@ -778,6 +802,44 @@ class PoreNetwork:
         if miss[best] > DIF_TOL:
             return None
         return self.nodes[best], float(self.radii[best])
+
+    def cavities(self, lattice) -> tuple[Cavity, ...]:
+        """Every kind of cavity, widest first; the first is D_i.
+
+        A cavity is a node no wider node lies inside -- the middle of a
+        cage, where the included sphere is locally largest -- and that
+        lies inside no wider cavity's sphere, which would make it a
+        corner of that cage or the window out of it.  Cavities as wide
+        as one another to :data:`CAVITY_TOL` are copies of one kind.
+        HKUST-1 has three cages, and its largest
+        (D_i, 13.19 A) sits at the corner and the three face centres:
+        the cage at the body centre is the 11.1 A one.  So the largest
+        sphere is off at the edge of the cell because that is where it
+        is, and choosing the second kind is how to draw the middle.
+
+        By geometry and not by the space group, so a cell reduced to
+        P1 finds the same copies.  The answer is kept per lattice: the
+        Style panel and every redraw ask again.
+        """
+        key = ("cavities", _lattice_key(lattice))
+        if key not in self._cache:
+            self._cache[key] = _cavities(self, lattice)
+        return self._cache[key]
+
+    def copies_of(self, diameter: float, lattice,
+                  tol: float = DIF_TOL) -> Cavity | None:
+        """Every place a node ``diameter`` across sits, as a
+        :class:`Cavity`, or ``None`` where no node matches to ``tol``.
+        The copies of D_if, matched as :meth:`along_free` matches the
+        one."""
+        key = ("copies", round(float(diameter), 6), float(tol),
+               _lattice_key(lattice))
+        if key not in self._cache:
+            radii = np.asarray(self.radii, float)
+            rows = np.flatnonzero(np.abs(2.0 * radii - diameter) <= tol)
+            self._cache[key] = (_distinct(self, rows, lattice)
+                                if len(rows) else None)
+        return self._cache[key]
 
     def summary(self) -> str:
         if self.n_surface_faces and not self.n_nodes:
@@ -832,6 +894,103 @@ class PoreNetwork:
                 else float(data["included_along_free"])),
             channels=tuple(Channel(**row)
                            for row in data.get("channels", ())))
+
+
+def _lattice_key(lattice) -> tuple:
+    return tuple(np.round(np.asarray(lattice.matrix, float), 6).ravel())
+
+
+def _images(frac, lattice):
+    """Every node in the cell and its 26 neighbours, cartesian, with
+    which node each image is."""
+    shifts = np.array([(i, j, k) for i in (-1, 0, 1) for j in (-1, 0, 1)
+                       for k in (-1, 0, 1)], float)
+    placed = (frac[None, :, :] + shifts[:, None, :]).reshape(-1, 3)
+    return (placed @ np.asarray(lattice.matrix, float),
+            np.tile(np.arange(len(frac)), len(shifts)))
+
+
+def _peaks(frac, radii, lattice) -> np.ndarray:
+    """The rows of the nodes no wider node lies inside.
+
+    The nearest sixteen neighbours decide almost every node -- on
+    MFU-4l all but 85 of 10 259 -- and only a node whose sixteen are
+    all inside it and none wider is asked about its whole sphere.
+    Asking every node about its whole sphere was 0.5 s there, most of
+    it in the few hundred balls of a large cage's crowd; this is 0.19.
+    """
+    from scipy.spatial import cKDTree
+
+    points, owner = _images(frac, lattice)
+    wide = radii[owner]
+    tree = cKDTree(points)
+    own = frac @ np.asarray(lattice.matrix, float)
+    k = min(16, len(points))
+    dist, idx = tree.query(own, k=k)
+    dist, idx = dist.reshape(len(own), -1), idx.reshape(len(own), -1)
+    inside = dist <= radii[:, None]
+    wider = wide[idx] > radii[:, None] + 1e-9
+    peak = ~np.any(inside & wider, axis=1)
+    for i in np.flatnonzero(peak & np.all(inside, axis=1)):
+        near = tree.query_ball_point(own[i], radii[i])
+        peak[i] = wide[near].max() <= radii[i] + 1e-9
+    return np.flatnonzero(peak)
+
+
+def _distinct(network, rows, lattice) -> Cavity:
+    """``rows`` as one cavity: a node inside a wider (or earlier,
+    equally wide) one's sphere is that one again, and what is left is
+    ordered most central first."""
+    frac = np.asarray(network.nodes, float)[rows] % 1.0
+    radii = np.asarray(network.radii, float)[rows]
+    matrix = np.asarray(lattice.matrix, float)
+    order = np.argsort(-radii, kind="stable")
+    kept = _suppressed(frac[order], radii[order], matrix)
+    kept_frac, kept_radii = frac[order][kept], radii[order][kept]
+    middle = np.linalg.norm((kept_frac - 0.5) @ matrix, axis=1)
+    # To a hundredth of an Angstrom, so symmetry copies tie and the
+    # tie goes the same way on every run.
+    rank = np.lexsort((kept_frac[:, 2], kept_frac[:, 1], kept_frac[:, 0],
+                       np.round(middle, 2)))
+    return Cavity(float(kept_radii.max()), kept_frac[rank],
+                  kept_radii[rank])
+
+
+def _suppressed(frac, radii, matrix) -> list[int]:
+    """The rows of ``frac`` (widest first) that lie inside no earlier
+    kept row's sphere.  One pass per row kept, which is a cavity count
+    and not a node count."""
+    shifts = np.array([(i, j, k) for i in (-1, 0, 1) for j in (-1, 0, 1)
+                       for k in (-1, 0, 1)], float)
+    alive = np.ones(len(frac), bool)
+    kept: list[int] = []
+    for i in range(len(frac)):
+        if not alive[i]:
+            continue
+        kept.append(i)
+        d = (frac - frac[i] + 0.5) % 1.0 - 0.5
+        apart = np.min(np.linalg.norm(
+            (d[:, None, :] + shifts[None]) @ matrix, axis=2), axis=1)
+        alive &= apart >= radii[i]
+    return kept
+
+
+def _cavities(network, lattice) -> tuple[Cavity, ...]:
+    radii = np.asarray(network.radii, float)
+    if not len(radii):
+        return ()
+    frac = np.asarray(network.nodes, float) % 1.0
+    peaks = _peaks(frac, radii, lattice)
+    peaks = peaks[np.argsort(-radii[peaks], kind="stable")]
+    peaks = peaks[_suppressed(frac[peaks], radii[peaks],
+                              np.asarray(lattice.matrix, float))]
+    groups: list[list[int]] = []
+    for i in peaks:
+        if groups and radii[groups[-1][0]] - radii[i] <= CAVITY_TOL:
+            groups[-1].append(i)
+        else:
+            groups.append([i])
+    return tuple(_distinct(network, np.array(g), lattice) for g in groups)
 
 
 # ======================================================================

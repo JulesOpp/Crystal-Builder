@@ -399,6 +399,28 @@ class StylePanelDock(QDockWidget):
             lambda: self._set(
                 pore_spheres=self.pore_spheres.currentData()))
         form.addRow("Pore sphere", self.pore_spheres)
+        # Which cavity and which copy of it, filled from the network in
+        # front: HKUST-1's D_i is at the corner and the face centres,
+        # and the cage at the body centre is its second kind.
+        self.pore_cavity = QComboBox()
+        self.pore_cavity.setToolTip(
+            "Which cavity, widest first: the first is D_i, the largest "
+            "included sphere")
+        self.pore_cavity.currentIndexChanged.connect(
+            lambda: self._set(pore_cavity=self.pore_cavity.currentData()))
+        self.pore_copy = QComboBox()
+        self.pore_copy.setToolTip(
+            "Which copy of that sphere in the cell, the most central "
+            "first -- or every copy")
+        self.pore_copy.currentIndexChanged.connect(
+            lambda: self._set(pore_copy=self.pore_copy.currentData()))
+        for combo in (self.pore_cavity, self.pore_copy):
+            combo.setSizeAdjustPolicy(
+                QComboBox.SizeAdjustPolicy
+                .AdjustToMinimumContentsLengthWithIcon)
+            combo.setMinimumContentsLength(8)
+        form.addRow("Cavity", self.pore_cavity)
+        form.addRow("Copy", self.pore_copy)
 
         self.legend = QCheckBox("Element legend")
         self.legend.toggled.connect(
@@ -628,6 +650,7 @@ class StylePanelDock(QDockWidget):
         self.pore_network.setChecked(view.show_pores)
         self.pore_sphere_box.setChecked(view.show_pore_spheres)
         self.pore_spheres.setEnabled(view.show_pore_spheres)
+        self._fill_pore_choices(document, view)
         self._refreshing = False
         self._fill_elements()
 
@@ -648,6 +671,53 @@ class StylePanelDock(QDockWidget):
             else "#fff"
         button.setStyleSheet(
             f"background-color: rgb({r},{g},{b}); color: {ink};")
+
+    def _fill_pore_choices(self, document, view) -> None:
+        """The cavities of the network in front, and the copies of the
+        one chosen; empty and greyed where there is nothing to choose
+        between."""
+        network = document.pores
+        lattice = document.structure.lattice
+        kinds = found = None
+        if network is not None and view.pore_spheres == "largest":
+            kinds = network.cavities(lattice)
+            if kinds:
+                found = kinds[min(max(view.pore_cavity, 0),
+                                  len(kinds) - 1)]
+        elif (network is not None and view.pore_spheres == "along_free"
+              and network.included_along_free is not None):
+            found = network.copies_of(network.included_along_free,
+                                      lattice)
+        for combo in (self.pore_cavity, self.pore_copy):
+            combo.blockSignals(True)
+            combo.clear()
+        for k, kind in enumerate(kinds or ()):
+            self.pore_cavity.addItem(
+                f"{2 * kind.radius:.2f} A" + (" (D_i)" if k == 0 else ""),
+                k)
+        if found is not None:
+            n = len(found.copies)
+            for k, place in enumerate(found.copies):
+                self.pore_copy.addItem(f"{k + 1} of {n}", k)
+                self.pore_copy.setItemData(
+                    k, "at " + ", ".join(f"{x:.3f}" for x in place),
+                    Qt.ToolTipRole)
+            if n > 1:
+                self.pore_copy.addItem(f"All {n}", -1)
+        self.pore_cavity.setCurrentIndex(
+            min(max(view.pore_cavity, 0), self.pore_cavity.count() - 1))
+        # Past the end is the last copy, as the drawing clamps it.
+        copies = 0 if found is None else len(found.copies)
+        every = self.pore_copy.findData(-1)
+        self.pore_copy.setCurrentIndex(
+            max(every, 0) if view.pore_copy < 0
+            else min(view.pore_copy, max(copies - 1, 0)))
+        for combo in (self.pore_cavity, self.pore_copy):
+            combo.blockSignals(False)
+        self.pore_cavity.setEnabled(view.show_pore_spheres
+                                    and self.pore_cavity.count() > 1)
+        self.pore_copy.setEnabled(view.show_pore_spheres
+                                  and self.pore_copy.count() > 1)
 
     @staticmethod
     def _choose(combo: QComboBox, value) -> None:

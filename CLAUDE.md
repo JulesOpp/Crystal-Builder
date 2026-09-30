@@ -660,8 +660,12 @@ stress case).
   is the D_i in the table beside it. The Style panel can draw D_if
   instead. It is also a node: the one whose diameter matches the
   `.res` value to `porosity.DIF_TOL`, never the channel rows, which
-  gave HKUST-1 a D_if equal to its D_i. No match means no sphere. D_f is the width of a bottleneck
-  on an *edge* and no Zeo++ output carries edge radii, so what is
+  gave HKUST-1 a D_if equal to its D_i. No match means no sphere.
+  The Style panel's *Cavity* and *Copy* choose among
+  `PoreNetwork.cavities` (nodes no wider node lies inside, classed by
+  radius) and their copies -- HKUST-1's D_i is at the F points, and
+  its body centre is the second cage -- and every one is still a node
+  at its node. D_f is the width of a bottleneck on an *edge* and no Zeo++ output carries edge radii, so what is
   drawn for it is the path it travels along and the report says so.
   The network lives on the Document beside the planes: put there by a
   run (`JobResult.overlay`), not an edit, not on the undo stack, not a
