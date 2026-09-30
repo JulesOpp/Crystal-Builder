@@ -358,6 +358,18 @@ def test_plain_bonds_survive_a_project_round_trip_and_default_to_wedges():
     assert ViewSettings.from_dict({}).sketch_wedges
 
 
+def test_the_label_box_choices_survive_a_round_trip_and_default_on_and_off():
+    """Boxes on, as ChemDraw sets them, and letting a pore sphere
+    through them."""
+    from xtalapp.viewport.view_settings import ViewSettings
+    fresh = ViewSettings.from_dict({})
+    assert fresh.sketch_label_box and not fresh.sketch_box_over_pores
+    settings = _skeletal(sketch_label_box=False,
+                         sketch_box_over_pores=True)
+    again = ViewSettings.from_dict(settings.to_dict())
+    assert not again.sketch_label_box and again.sketch_box_over_pores
+
+
 def test_a_plain_skeletal_scene_has_no_wedges(methylamine):
     from xtalapp.viewport.builder import build_scene
     model = build_scene(methylamine, _skeletal(sketch_wedges=False))

@@ -54,6 +54,10 @@ them.  Which to choose:
   *Colour by element* writes the other labels in their element's
   colour.  *Bonds* set to *Plain lines* draws every single bond as a
   line, with no wedges; doubles, triples and aromatic dashes stay.
+  *Label backgrounds* sets each label on a box of the background,
+  which interrupts whatever runs behind it; untick it for the letters
+  alone.  A pore sphere behind a label shows through its box unless
+  *Over pore spheres too* is ticked.
   Folding hides a hydrogen from the picture only -- another
   style shows it, and it is still in the structure.
 

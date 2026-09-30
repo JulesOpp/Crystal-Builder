@@ -328,9 +328,29 @@ class StylePanelDock(QDockWidget):
             "line")
         self.wedges.currentIndexChanged.connect(
             lambda: self._set(sketch_wedges=self.wedges.currentData()))
+        self.label_box = QCheckBox("Label backgrounds")
+        self.label_box.setToolTip(
+            "Set each label on a box of the background, which "
+            "interrupts whatever runs behind it; off writes the letters "
+            "alone")
+        self.label_box.toggled.connect(
+            lambda v: self._set(sketch_label_box=v))
+        self.box_over_pores = QCheckBox("Over pore spheres too")
+        self.box_over_pores.setToolTip(
+            "Let the boxes hide a pore sphere behind a label as well as "
+            "the bonds; off, the sphere shows through them")
+        self.box_over_pores.toggled.connect(
+            lambda v: self._set(sketch_box_over_pores=v))
         form.addRow("Carbon", self.carbon)
         form.addRow("Bonds", self.wedges)
         form.addRow("", self.color_labels)
+        form.addRow("", self.label_box)
+        # Indented under the box it qualifies.
+        indented = QWidget()
+        row = QHBoxLayout(indented)
+        row.setContentsMargins(18, 0, 0, 0)
+        row.addWidget(self.box_over_pores)
+        form.addRow("", indented)
         return box
 
     def _transparency_group(self) -> QGroupBox:
@@ -624,6 +644,10 @@ class StylePanelDock(QDockWidget):
         self.wedges.setEnabled(labelled)
         self.color_labels.setChecked(view.sketch_color_labels)
         self.color_labels.setEnabled(labelled)
+        self.label_box.setChecked(view.sketch_label_box)
+        self.label_box.setEnabled(labelled)
+        self.box_over_pores.setChecked(view.sketch_box_over_pores)
+        self.box_over_pores.setEnabled(labelled and view.sketch_label_box)
         # A label style draws no sphere and no tube, so neither size
         # means anything under it.
         self.atom_scale.setEnabled(not labelled)

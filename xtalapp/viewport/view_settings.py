@@ -192,6 +192,15 @@ class ViewSettings:
     #: or hashed wedge.  Off draws every single bond as a plain line,
     #: for a picture that wants the connectivity and not the depth.
     sketch_wedges: bool = True
+    #: The Skeletal style: each label on a box of the background, which
+    #: interrupts whatever runs behind it, as ChemDraw sets one.  Off
+    #: writes the letters alone.
+    sketch_label_box: bool = True
+    #: Whether that box hides a pore sphere behind the label too.  Off,
+    #: because a translucent sphere punched full of white rectangles
+    #: is a picture of the labels and not of the pore: the box then
+    #: interrupts bonds and still lets the sphere through.
+    sketch_box_over_pores: bool = False
 
     # A translucent quad at every plane the user has defined, with its
     # normal on it.  On, because a plane is defined by pressing a
@@ -365,6 +374,8 @@ class ViewSettings:
             "sketch_explicit_carbon": self.sketch_explicit_carbon,
             "sketch_color_labels": self.sketch_color_labels,
             "sketch_wedges": self.sketch_wedges,
+            "sketch_label_box": self.sketch_label_box,
+            "sketch_box_over_pores": self.sketch_box_over_pores,
             "range_a": list(self.range_a),
             "range_b": list(self.range_b),
             "range_c": list(self.range_c),
@@ -396,6 +407,7 @@ class ViewSettings:
                     "ellipsoid_octants",
                     "label_mode", "sketch_explicit_carbon",
                     "sketch_color_labels", "sketch_wedges",
+                    "sketch_label_box", "sketch_box_over_pores",
                     "boundary", "projection",
                     "show_legend", "polyhedron_opacity",
                     "polyhedron_min_vertices",

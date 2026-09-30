@@ -81,8 +81,9 @@ def test_the_letters_fit_inside_their_box():
                                  sketch.LABEL_PAD / sketch.LABEL_HEIGHT)
         edge = np.concatenate([image[0], image[-1], image[:, 0],
                                image[:, -1]])
-        assert edge.min() == 255, text
-        assert image.min() < 64, text               # and it has ink
+        assert edge[:, :3].min() == 255, text
+        assert edge[:, 3].max() == 0, text
+        assert image[:, :, :3].min() < 64, text     # and it has ink
 
 
 def test_the_fade_ends_at_the_background():
@@ -210,3 +211,91 @@ def test_a_turn_recuts_thousands_of_labels_in_one_numpy_pass():
         times.append(time.perf_counter() - start)
     assert np.median(times) < 0.15
     window.Finalize()
+
+
+# -- the box under each label, and a pore sphere behind it --------------
+
+
+def test_the_atlas_is_transparent_outside_the_letters():
+    """The alpha is the letters' coverage, which is what lets the
+    window draw them without their box."""
+    atlas = label_atlas.build([("NH2", "N", (0, 0, 0))],
+                              (255, 255, 255), 1.0, 0.2)
+    alpha = atlas.image[:, :, 3]
+    assert alpha.min() == 0 and alpha.max() > 200
+    assert (alpha > 0).mean() < 0.5
+
+
+def _pore_behind_the_nitrogen(**changes):
+    """Methylamine with a 2 A pore sphere 3 A behind its N, as the
+    camera looking down -z sees it."""
+    from xtal.analysis.porosity import PoreNetwork
+    settings = ViewSettings(style="skeletal", show_cell=False)
+    for key, value in changes.items():
+        setattr(settings, key, value)
+    pores = PoreNetwork(nodes=np.array([(0.5 + 1.47 / 12, 0.5,
+                                         0.5 - 3.0 / 12)]),
+                        radii=np.array([2.0]))
+    return build_scene(methylamine(), settings, pores=pores)
+
+
+def _box_corner_pixel(scene, window):
+    """The colour inside the N label's box, in its padding, where no
+    letter is."""
+    from vtkmodules.util.numpy_support import vtk_to_numpy
+    from vtkmodules.vtkRenderingCore import vtkWindowToImageFilter
+    model = scene.model
+    n = model.label_text.index("NH2")
+    left, right, down, up = model.label_extents[n]
+    pad = model.label_pad
+    corner = model.positions[n] + np.array(
+        [right + pad / 2, up + pad / 2, 0.0])
+    renderer = scene.renderer
+    renderer.SetWorldPoint(*corner, 1.0)
+    renderer.WorldToDisplay()
+    x, y, _z = renderer.GetDisplayPoint()
+    grab = vtkWindowToImageFilter()
+    grab.SetInput(window)
+    grab.Update()
+    image = grab.GetOutput()
+    w, h, _ = image.GetDimensions()
+    pixels = vtk_to_numpy(image.GetPointData().GetScalars()).reshape(
+        h, w, -1)
+    return pixels[int(round(y)), int(round(x)), :3].astype(int)
+
+
+@needs_offscreen_gl
+def test_a_pore_sphere_shows_through_the_box_by_default():
+    """The white rectangle a label left in a sphere behind it is what
+    this setting exists to take away."""
+    scene, window = a_window(_pore_behind_the_nitrogen())
+    assert scene.label_box_actor.GetVisibility()
+    r, g, b = _box_corner_pixel(scene, window)
+    assert b - r > 10                           # the sphere's blue
+
+
+@needs_offscreen_gl
+def test_a_box_over_pores_hides_the_sphere_as_it_always_did():
+    scene, window = a_window(
+        _pore_behind_the_nitrogen(sketch_box_over_pores=True))
+    assert tuple(_box_corner_pixel(scene, window)) == (255, 255, 255)
+    assert scene.renderer.GetUseOIT()
+
+
+@needs_offscreen_gl
+def test_without_backgrounds_there_is_no_box_actor():
+    scene, _window = a_window(
+        _pore_behind_the_nitrogen(sketch_label_box=False))
+    assert not scene.label_box_actor.GetVisibility()
+    assert scene.label_actor.GetVisibility()
+    assert scene.renderer.GetUseOIT()
+
+
+@needs_offscreen_gl
+def test_leaving_the_skeletal_style_turns_order_independence_back_on():
+    """It is off only while a box lets a sphere through: every other
+    picture's translucency is sorted by it."""
+    scene, window = a_window(_pore_behind_the_nitrogen())
+    assert not scene.renderer.GetUseOIT()
+    scene.set_model(build_scene(methylamine(), ViewSettings()))
+    assert scene.renderer.GetUseOIT()

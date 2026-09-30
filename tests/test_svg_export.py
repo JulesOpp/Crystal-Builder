@@ -418,3 +418,50 @@ def test_the_svg_is_grey_at_the_back_as_the_window_is():
     shades = {int(line.get("stroke")[1:3], 16)
               for line in by_class(root, "bond")}
     assert min(shades) < 40 and max(shades) > 120
+
+
+def _behind_the_nitrogen():
+    """A 2 A pore sphere 3 A behind methylamine's N, along the
+    camera's line of sight."""
+    from xtal.analysis.porosity import PoreNetwork
+    return PoreNetwork(nodes=np.array([(0.5 + 1.47 / 12, 0.5,
+                                        0.5 - 3.0 / 12)]),
+                       radii=np.array([2.0]))
+
+
+def _order(root, *classes):
+    """Each class's first element's place in document order, which is
+    painting order."""
+    elements = list(root.iter())
+    return [elements.index(by_class(root, c)[0]) for c in classes]
+
+
+def test_without_label_backgrounds_the_svg_has_no_knockouts():
+    model = _skeletal(_methylamine(), sketch_label_box=False)
+    root = parse(render_svg(model, _camera(model)))
+    assert not by_class(root, "knockout")
+    assert ["".join(t.itertext()) for t in by_class(root, "label")] == [
+        "NH2"]
+
+
+def test_a_pore_sphere_is_painted_over_the_knockout_in_front_of_it():
+    """As the window draws it: the box covers the bonds behind the
+    label and the sphere shows through it, and the letters are still
+    painted over the sphere."""
+    settings = ViewSettings(style="skeletal", show_cell=False)
+    model = build_scene(_methylamine(), settings,
+                        pores=_behind_the_nitrogen())
+    assert model.n_pore_spheres == 1
+    root = parse(render_svg(model, _camera(model)))
+    knockout, pore, label = _order(root, "knockout", "pore", "label")
+    assert knockout < pore < label
+
+
+def test_a_box_over_pores_hides_the_sphere_behind_it():
+    settings = ViewSettings(style="skeletal", show_cell=False,
+                            sketch_box_over_pores=True)
+    model = build_scene(_methylamine(), settings,
+                        pores=_behind_the_nitrogen())
+    root = parse(render_svg(model, _camera(model)))
+    knockout, pore = _order(root, "knockout", "pore")
+    assert pore < knockout
