@@ -414,6 +414,20 @@ def test_the_windows_version_is_four_integers():
     assert all(isinstance(n, int) and n >= 0 for n in numbers)
 
 
+def test_an_upgrade_clears_the_last_releases_bundle_first():
+    """Without it 0.4.0 installed over 0.2.0 keeps 0.2.0's dist-info
+    beside its own and says 0.2.0 on the start window.
+
+    Only ``_internal``: the executable is overwritten anyway, and
+    nothing of the user's is ever in ``{app}``.
+    """
+    script = (ROOT / "packaging" / "crystal-builder.iss").read_text(
+        encoding="utf-8")
+    section = script.split("[InstallDelete]", 1)[1].split("\n[", 1)[0]
+
+    assert 'Type: filesandordirs; Name: "{app}\\_internal"' in section
+
+
 def test_the_bundled_extras_are_the_ones_the_extras_page_promises():
     """Preferences > Engines tells the user which extras a
     packaged build includes.
