@@ -230,14 +230,13 @@ opens a dialog in the workbench.
 
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
-| **1 — The parameter set** | Named values, Refine flags and esds over RietX's paths; defaults, reset, the text form | `xtal/powder/parameters.py` | M |
 | **2 — Runs start from the set** | Pawley, Rietveld and With energy start from it and write it back; no hidden first fit | `xtal/powder/bridge.py`, `xtal/modules/powder.py` | L |
 | **3 — The table** | One table on every fitting step, Reset / Copy / Paste; the Refine boxes become its column | `xtalapp/refine/parameters.py`, `workbench.py` | L |
 | **4 — Iterations and tolerance** | Per step; 0 is an evaluation, never a fit (RietX refuses `max_iter=0`) | `bridge.py`, `energy.py` | M |
 | **5 — hkl on hover** | The reflection under the cursor on every comb | `xtalapp/refine/plot.py` | S-M |
 
-Done in the order 1, 2, 3, 4, 5; 0 (tests taking focus) and 6
-(Options…) shipped 2026-09-29.  Follow-up, not planned: the set
+Done in the order 2, 3, 4, 5; 0 (tests taking focus), 6 (Options…)
+and 1 (`xtal/powder/parameters.py`) shipped 2026-09-29.  Follow-up, not planned: the set
 persists in the project rather than for the workbench's life and each
 run folder's `parameters.txt`.
 

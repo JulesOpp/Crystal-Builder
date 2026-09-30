@@ -39,13 +39,13 @@ import gemmi
 import numpy as np
 import rietx as rx
 
-from xtal.core import elements as el
 from xtal.powder.data import (
     PowderData,
     PowderError,
     PowderStopped,
     Radiation,
 )
+from xtal.powder.parameters import B_PER_U, site_biso, site_labels
 
 __all__ = ["RIETVELD_PRESETS", "PatternTerm", "apply_phase",
            "cancel_token", "extinction_classes", "fit", "free_cell_paths",
@@ -54,16 +54,6 @@ __all__ = ["RIETVELD_PRESETS", "PatternTerm", "apply_phase",
            "phase_of", "plan_notes", "predict", "reflections",
            "refined_values", "rietveld", "rietveld_plan",
            "space_group_named", "space_group_symbol", "to_rietx"]
-
-#: B = 8π²U.  RietX refines B, as TOPAS does; a CIF and this
-#: application's sites carry U.
-_B_PER_U = 8.0 * math.pi ** 2
-
-#: The B RietX gives a site when nothing better is known.  A site with
-#: no displacement parameter is not at absolute zero; 0.5 A^2 is
-#: RietX's own default and a typical room-temperature value for a
-#: framework atom.
-DEFAULT_BISO = 0.5
 
 
 # ======================================================================
@@ -107,18 +97,11 @@ def phase_of(structure, name: str = "") -> tuple[rx.Phase, list[int]]:
                    gamma=rx.Parameter(value=gamma))
     atoms: list[rx.Atom] = []
     indices: list[int] = []
-    taken: set[str] = set()
-    for index, site in enumerate(structure.sites):
-        if el.is_dummy(site.element):
-            continue
-        label = site.label or f"{site.element}{index + 1}"
-        if label in taken:
-            # RietX addresses atoms by label in its parameter paths,
-            # so two sites called O1 would be one parameter.
-            label = f"{label}_{index + 1}"
-        taken.add(label)
-        u = site.u_equivalent
-        biso = DEFAULT_BISO if not u else float(u) * _B_PER_U
+    # The labels and Biso the parameter table shows, from the one
+    # function that makes them for both.
+    for index, label in site_labels(structure):
+        site = structure.sites[index]
+        biso = site_biso(site)
         x, y, z = (float(v) for v in site.frac)
         atoms.append(rx.Atom(
             label=label, species=site.element,
@@ -172,7 +155,7 @@ def apply_phase(structure, phase: rx.Phase, indices: list[int]):
             [atom.x.value, atom.y.value, atom.z.value], dtype=float))
         site.occupancy = float(atom.occ.value)
         if site.u_aniso is None:
-            site.u_iso = float(atom.biso.value) / _B_PER_U
+            site.u_iso = float(atom.biso.value) / B_PER_U
     return out
 
 
@@ -437,6 +420,29 @@ _PAWLEY_FREES = {
     "size": ["phases.*.lor_size", "phases.*.gauss_size"],
     "strain": ["phases.*.lor_strain", "phases.*.gauss_strain"],
 }
+
+
+def preset_parameters(radiation: Radiation,
+                      background_terms: int = 8) -> dict[str, float]:
+    """``{path: value}`` of RietX's preset for this radiation: the
+    instrument, and a phase's scale and broadening -- what
+    :func:`xtal.powder.parameters.defaults` starts a set from.
+
+    Read off a refinement over RietX's own empty scaffold, so the
+    numbers are exactly the ones a fit would have started from; about
+    a millisecond.
+    """
+    from rietx.schemas.structure import lebail_scaffold
+
+    scaffold = lebail_scaffold("P1", (5.0, 5.0, 5.0, 90.0, 90.0, 90.0),
+                               name="preset")
+    refinement = rx.Refinement(
+        scaffold, _with_background(radiation, background_terms),
+        history=False)
+    return {row.path: float(row.value) for row in refinement.parameters()
+            if row.path.startswith("instrument.")
+            or row.path.startswith("phases.0.")
+            and ".atoms." not in row.path and ".cell." not in row.path}
 
 
 def _with_background(radiation: Radiation, terms: int) -> rx.Instrument:
