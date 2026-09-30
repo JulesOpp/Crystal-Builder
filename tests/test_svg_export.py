@@ -302,3 +302,119 @@ def test_the_pore_surface_is_exported_as_faces(rutile):
     model = build_scene(rutile, ViewSettings(), pores=network)
     root = parse(render_svg(model, _fitted(model)))
     assert len(by_class(root, "pore-surface")) == 2
+
+
+# -- the Skeletal style --------------------------------------------------
+
+
+def _camera(model, direction=(0.0, 0.0, -1.0), up=(0.0, 1.0, 0.0),
+            size=(500, 500)) -> Projection:
+    """A parallel camera looking along ``direction`` at the model's
+    middle, one Angstrom the same number of pixels either way -- which
+    every real camera is, and which a gap measured on screen needs."""
+    from xtalapp.viewport import sketch
+    d, right, up = sketch.camera_axes(direction, up)
+    points = np.asarray(model.positions, float).reshape(-1, 3)
+    centre = points.mean(axis=0)
+    s = 2.0 / (float(np.ptp(points @ np.stack([right, up]).T,
+                            axis=0).max()) * 1.4 + 2.0)
+    matrix = np.eye(4)
+    for row, axis in enumerate((right, up, d)):
+        matrix[row, :3] = s * axis
+        matrix[row, 3] = -s * axis @ centre
+    return Projection(matrix=matrix, right=right, size=size, direction=d)
+
+
+def _methylamine():
+    from xtal import Lattice, Structure
+    edge = 12.0
+    cart = np.array([[0.0, 0.0, 0.0], [1.47, 0.0, 0.0],
+                     [-0.36, 1.03, 0.0], [-0.36, -0.51, 0.89],
+                     [-0.36, -0.51, -0.89],
+                     [1.81, -0.47, 0.82], [1.81, -0.47, -0.82]])
+    return Structure.from_arrays(
+        Lattice.cubic(edge), ["C", "N", "H", "H", "H", "H", "H"],
+        cart / edge + 0.5)
+
+
+def _skeletal(structure, **changes):
+    settings = ViewSettings(style="skeletal", show_cell=False)
+    for key, value in changes.items():
+        setattr(settings, key, value)
+    return build_scene(structure, settings)
+
+
+def test_a_skeletal_svg_has_text_labels_and_no_circles():
+    """Letters an editor can retype, on a knockout it can select, and
+    no atom drawn under them."""
+    model = _skeletal(_methylamine())
+    root = parse(render_svg(model, _camera(model)))
+    labels = by_class(root, "label")
+    assert ["".join(t.itertext()) for t in labels] == ["NH2"]
+    assert len(by_class(root, "knockout")) == 1
+    assert not by_class(root, "atom")
+    assert not any(e.tag.endswith("image") for e in root.iter())
+
+
+def test_a_subscript_is_a_tspan_that_drops_and_comes_back():
+    model = _skeletal(_methylamine(), sketch_explicit_carbon=True)
+    root = parse(render_svg(model, _camera(model)))
+    spans = {"".join(t.itertext()): list(t)
+             for t in by_class(root, "label")}
+    methyl = spans["CH3"]
+    assert [s.text for s in methyl] == ["CH", "3"]
+    assert methyl[0].get("dy") is None
+    assert float(methyl[1].get("dy")) > 0            # down the page
+    assert methyl[1].get("font-size")
+
+
+def test_a_skeletal_svg_bond_stops_short_of_its_label():
+    """The line and the knockout are one box apart and never overlap:
+    the gap on paper is the gap on screen."""
+    model = _skeletal(_methylamine())
+    root = parse(render_svg(model, _camera(model)))
+    box = by_class(root, "knockout")[0]
+    x0, y0 = float(box.get("x")), float(box.get("y"))
+    x1 = x0 + float(box.get("width"))
+    y1 = y0 + float(box.get("height"))
+    ends = []
+    for line in by_class(root, "bond"):
+        ends += [(float(line.get("x1")), float(line.get("y1"))),
+                 (float(line.get("x2")), float(line.get("y2")))]
+    assert ends
+    for x, y in ends:
+        assert not (x0 + 0.5 < x < x1 - 0.5 and y0 + 0.5 < y < y1 - 0.5)
+    # And it reaches the box: stopped at its edge, not short of it.
+    nearest = min(min(abs(x - x0), abs(x - x1)) for x, _y in ends)
+    assert nearest < 1.0
+
+
+def test_a_skeletal_svg_has_solid_and_hashed_wedges():
+    """MOF-5 from off every axis: the Zn-O bonds tilt both ways."""
+    from pathlib import Path
+
+    from xtal.io.cif_reader import read_cif
+    cif = (Path(__file__).resolve().parents[1] / "resources" / "samples"
+           / "MOF-5.cif")
+    model = _skeletal(read_cif(cif))
+    root = parse(render_svg(model, _camera(model, (1.0, 0.45, -0.7),
+                                           (0.0, 0.0, 1.0))))
+    wedges = by_class(root, "wedge")
+    assert wedges and all(len(w.get("points").split()) == 4
+                          for w in wedges)
+    assert by_class(root, "hash")
+
+
+def test_the_svg_is_grey_at_the_back_as_the_window_is():
+    """The front of the picture is ink and the back is lighter, written
+    as stroke colours an illustrator can select."""
+    from pathlib import Path
+
+    from xtal.io.cif_reader import read_cif
+    cif = (Path(__file__).resolve().parents[1] / "resources" / "samples"
+           / "MOF-5.cif")
+    model = _skeletal(read_cif(cif))
+    root = parse(render_svg(model, _camera(model, (0.2, 0.3, -1.0))))
+    shades = {int(line.get("stroke")[1:3], 16)
+              for line in by_class(root, "bond")}
+    assert min(shades) < 40 and max(shades) > 120

@@ -18,7 +18,7 @@ this menu.
 ```{index} single: drawing style
 ```
 
-*Style* holds eleven ways to draw the same atoms, one ticked at a
+*Style* holds twelve ways to draw the same atoms, one ticked at a
 time; the same submenu is in the context menu of the background, and
 the *Style* panel holds the sizes, colours and labels that go with
 them.  Which to choose:
@@ -44,6 +44,16 @@ them.  Which to choose:
 - {ref}`Cartoon <cmd-style_cartoon>` for a figure an illustrator will
   recolour: flat colour inside a dark outline, and the one style that
   exports to SVG as plain circles and strokes.
+- {ref}`Skeletal <cmd-style_skeletal>` for a chemist's line drawing,
+  as ChemDraw sets one: the element written at each atom, lines that
+  stop short of every label, a wedge for a bond coming towards you
+  and a hashed wedge for one going away, and the back of the
+  structure in grey.  A hydrogen is written into its atom's label
+  (`NH2`, `OH2`) rather than drawn, and carbon is left implicit where
+  lines meet unless *Carbon* in the *Style* panel says *Shown as C*;
+  *Colour by element* writes the other labels in their element's
+  colour.  Folding hides a hydrogen from the picture only -- another
+  style shows it, and it is still in the structure.
 
 ## Show
 

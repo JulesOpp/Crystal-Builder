@@ -1065,6 +1065,14 @@
    "checkable": true
   },
   {
+   "key": "style_skeletal",
+   "section": "View",
+   "path": "Style ▸ Skeletal",
+   "shortcut": "",
+   "tip": "A chemist's line drawing: the element written at each atom, lines and wedges between them and the back of the structure in grey.  Hydrogens are written into their atom's label, so a hydrogen is reached in any other style",
+   "checkable": true
+  },
+  {
    "key": "show_atoms",
    "section": "View",
    "path": "Show ▸ Atoms",

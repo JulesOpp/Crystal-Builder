@@ -32,6 +32,15 @@ name in the Layers panel, and ``class`` is what "select all the bonds"
 comes down to.  Atoms are named by their crystallographic label when
 the caller passes one.
 
+**A Skeletal drawing is text and strokes.**  Its labels are
+``<text>`` in Helvetica with the digits as subscript ``<tspan>``s, each
+on a ``<rect>`` of the background -- the knockout, the same box the
+lines stop short of -- and its bonds are ``<line>``s and wedge
+``<polygon>``s cut for this picture's camera by the same
+:func:`~xtalapp.viewport.sketch.sketch_model` the window cuts them
+with.  The grey at the back is written as each stroke's colour, so
+an illustrator can take it out with one selection.
+
 **A flat style is the file this module exists to write.**  A lit atom
 is a circle filled with a radial gradient, and a gradient is not a
 colour: selecting every carbon and recolouring it means editing one
@@ -50,6 +59,7 @@ from pathlib import Path
 
 import numpy as np
 
+from xtalapp.viewport import sketch
 from xtalapp.viewport.scene import (
     DASH_RADIUS,
     HIGHLIGHT_BOND_GROWTH,
@@ -57,6 +67,7 @@ from xtalapp.viewport.scene import (
     HIGHLIGHT_GROWTH,
     HIGHLIGHT_OPACITY,
     OCTANT_DARKEN,
+    fade_towards,
     split_by_order,
 )
 
@@ -609,6 +620,114 @@ def _normal_shapes(model, projection, out) -> None:
                           f"plane-normal-{i}", "plane-normal")))
 
 
+def _sketch_camera(projection):
+    """``(direction, view_up)`` of the camera a projection was taken
+    from: ``right`` is direction x up, so up is right x direction."""
+    direction = (np.asarray(projection.direction, float)
+                 if projection.direction is not None
+                 else np.array([0.0, 0.0, -1.0]))
+    direction = direction / np.linalg.norm(direction)
+    up = np.cross(np.asarray(projection.right, float), direction)
+    return direction, up / np.linalg.norm(up)
+
+
+def _sketch_shapes(model, projection, names, out) -> None:
+    """The Skeletal style: lines, wedges, hashes, and labels on their
+    knockouts, each painted at the depth of the atom it belongs to --
+    a half at its own atom's, as :func:`_bond_shapes` does, and a
+    label just in front of that, so it covers its own bonds' ends
+    and whatever runs behind it."""
+    direction, up = _sketch_camera(projection)
+    origin = np.zeros(3)
+    ink = sketch.sketch_model(model, direction, up)
+    cue = sketch.model_cue(model)
+    halves = model.n_bond_halves
+    if halves:
+        middles = 0.5 * (np.asarray(model.bond_starts, float)
+                         + np.asarray(model.bond_ends, float))
+        faded = fade_towards(model.bond_colors, model.background,
+                           sketch.fade(model.positions, model.radii,
+                                       middles, origin, direction, cue))
+        _xy, half_depth = projection.to_display(model.bond_starts)
+        a, _ = projection.to_display(ink.line_starts)
+        b, _ = projection.to_display(ink.line_ends)
+        for k, half in enumerate(ink.line_half):
+            out.append((half_depth[half], _line(
+                a[k][0], a[k][1], b[k][0], b[k][1], faded[half],
+                sketch.LINE_WIDTH, f"bond-{k}", "bond", cap="butt")))
+        a, _ = projection.to_display(ink.hash_starts)
+        b, _ = projection.to_display(ink.hash_ends)
+        for k, half in enumerate(ink.hash_half):
+            out.append((half_depth[half], _line(
+                a[k][0], a[k][1], b[k][0], b[k][1], faded[half],
+                sketch.LINE_WIDTH, f"hash-{k}", "hash", cap="butt")))
+        for k, half in enumerate(ink.wedge_half):
+            corners, _ = projection.to_display(ink.wedge_quads[k])
+            points = " ".join(f"{_n(x)},{_n(y)}" for x, y in corners)
+            out.append((half_depth[half],
+                        f'<polygon id="wedge-{k}" class="wedge" '
+                        f'points="{points}" fill="{_hex(faded[half])}" '
+                        f'stroke="{_hex(faded[half])}" '
+                        f'stroke-width="0.4" stroke-linejoin="round"/>'))
+
+    rows = [i for i, text in enumerate(model.label_text) if text]
+    if not rows:
+        return
+    rows = np.array(rows, dtype=int)
+    positions = np.asarray(model.positions, float)[rows]
+    centres, depth = projection.to_display(positions)
+    # Pixels per Angstrom at each label's own depth.
+    scale = projection.radii_at(positions, np.ones(len(rows)))
+    colors = fade_towards(np.asarray(model.colors)[rows], model.background,
+                        sketch.fade(model.positions, model.radii,
+                                    positions, origin, direction, cue))
+    height, pad = float(model.label_height), float(model.label_pad)
+    for k, i in enumerate(rows):
+        left, right, down, up_ = (float(v) for v in model.label_extents[i])
+        s = scale[k]
+        cx, cy = centres[k]
+        name = _atom_name(int(i), model, names).removeprefix("atom-")
+        # Just in front of the atom's own depth: over its bonds' ends
+        # and everything behind it, under anything nearer.
+        at = depth[k] - 1e-6
+        out.append((at, (
+            f'<rect id="knockout-{name}" class="knockout" '
+            f'x="{_n(cx - (left + pad) * s)}" '
+            f'y="{_n(cy - (up_ + pad) * s)}" '
+            f'width="{_n((left + right + 2 * pad) * s)}" '
+            f'height="{_n((up_ + down + 2 * pad) * s)}" '
+            f'fill="{_hex(model.background)}"/>')))
+        out.append((at, _sketch_text(
+            model.label_text[i], cx - left * s, cy + height * s / 2,
+            height * s, colors[k], f"label-{name}")))
+
+
+def _sketch_text(text, x, baseline, cap, color, name) -> str:
+    """One label, its digits set as subscripts that drop a quarter of
+    a capital -- ``dy`` there and back, which every editor reads."""
+    size = cap / sketch.CAP_HEIGHT
+    drop = 0.25 * cap
+    runs, low = [], False
+    for char in text:
+        sub = char.isdigit()
+        if runs and sub == low:
+            runs[-1][1] += char
+            continue
+        shift = drop if sub and not low else (-drop if low else 0.0)
+        runs.append([shift, char, sub])
+        low = sub
+    spans = []
+    for shift, chars, sub in runs:
+        attrs = f' dy="{_n(shift)}"' if shift else ""
+        if sub:
+            attrs += f' font-size="{_n(size * sketch.SUBSCRIPT)}"'
+        spans.append(f"<tspan{attrs}>{_escape(chars)}</tspan>")
+    return (f'<text id="{name}" class="label" x="{_n(x)}" '
+            f'y="{_n(baseline)}" fill="{_hex(color)}" '
+            f'font-family="Helvetica, Arial, sans-serif" '
+            f'font-size="{_n(size)}">{"".join(spans)}</text>')
+
+
 def _label_shapes(model, projection, out) -> None:
     if not model.labels:
         return
@@ -655,8 +774,11 @@ def render_svg(model, projection, names=None,
                  model.pore_surface_colors, model.pore_opacity,
                  projection, "pore-surface", shapes)
     _pore_shapes(model, projection, shapes)
-    _bond_shapes(model, projection, shapes)
-    _atom_shapes(model, projection, names, gradients, shapes)
+    if model.draws_labels:
+        _sketch_shapes(model, projection, names, shapes)
+    else:
+        _bond_shapes(model, projection, shapes)
+        _atom_shapes(model, projection, names, gradients, shapes)
     _label_shapes(model, projection, shapes)
 
     # Farthest first.  Python's sort is stable, so shapes at equal

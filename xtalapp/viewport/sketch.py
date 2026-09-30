@@ -31,6 +31,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from xtal.core import elements as el
+from xtalapp.viewport import scene as scene_model
 from xtalapp.viewport.scene import (
     AROMATIC_MAX,
     DASH_DUTY,
@@ -77,7 +78,7 @@ _HYDROGEN_FIRST = frozenset({"O", "S", "Se", "Te", "F", "Cl", "Br", "I"})
 # Arial's advance widths in em -- Helvetica's, to the thousandth --
 # so the box a line stops short of is the box the letters are set in
 # (``label_atlas`` renders Arial into exactly this box).
-_CAP_HEIGHT = 0.716             # of the em
+CAP_HEIGHT = 0.716             # of the em
 _ADVANCE = dict(zip(
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
     (0.667, 0.667, 0.722, 0.722, 0.667, 0.611, 0.778, 0.722, 0.278,
@@ -198,7 +199,7 @@ def _advance(char: str) -> float:
 
 def text_width(text: str, height: float) -> float:
     """How wide ``text`` is, set at cap height ``height``."""
-    em = height / _CAP_HEIGHT
+    em = height / CAP_HEIGHT
     return em * sum(_advance(c) for c in text)
 
 
@@ -438,6 +439,35 @@ def _rungs(starts, v, u0, u_cut, u1, projected, lateral, rows, scale):
         return np.zeros((0, 3)), np.zeros((0, 3)), np.zeros(0, int)
     return (np.vstack(out_a), np.vstack(out_b),
             np.concatenate(out_half).astype(int))
+
+
+def fade(positions, radii, points, eye, direction,
+         cue=None) -> np.ndarray:
+    """How far towards the background each of ``points`` is drawn.
+
+    ``cue`` is the depth cue's ``(start, end, strength)`` when it is
+    on; ``None`` is the style's own grey, :data:`BACK_GREY` over the
+    whole depth of the atoms.  The screen and the SVG both ask here,
+    so an exported sketch is grey where the window was.
+    """
+    start, end, strength = cue if cue is not None else (
+        0.0, 1.0, BACK_GREY)
+    eye = np.asarray(eye, float)
+    direction = np.asarray(direction, float)
+    near, far = scene_model.cue_depth_range(
+        positions, radii, eye, direction, start, end)
+    return scene_model.cue_fraction(
+        (np.asarray(points, float).reshape(-1, 3) - eye) @ direction,
+        near, far, strength)
+
+
+def model_cue(model):
+    """The model's depth cue as :func:`fade` takes it."""
+    if not model.depth_cue:
+        return None
+    start, end = scene_model.cue_ends(model.depth_cue_start,
+                                      model.depth_cue_end)
+    return start, end, float(model.depth_cue_strength)
 
 
 def sketch_model(model, direction, view_up, eye=None) -> SketchBonds:

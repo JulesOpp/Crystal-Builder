@@ -1348,6 +1348,16 @@ Flat colour inside a dark outline, and no shading at all -- the one style that e
 ```{index} Cartoon
 ```
 
+(cmd-style_skeletal)=
+### Style ▸ Skeletal
+
+`style_skeletal` · toggle
+
+A chemist's line drawing: the element written at each atom, lines and wedges between them and the back of the structure in grey.  Hydrogens are written into their atom's label, so a hydrogen is reached in any other style
+
+```{index} Skeletal
+```
+
 (cmd-show_atoms)=
 ### Show ▸ Atoms
 

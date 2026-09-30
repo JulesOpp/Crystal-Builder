@@ -1556,17 +1556,10 @@ class VtkScene:
         """How far towards the background each point is drawn: the
         depth cue's settings when it is on, the style's grey when it
         is off."""
-        model = self.model
-        if self._cue_on:
-            start, end, strength = (self._cue_start, self._cue_end,
-                                    self._cue_strength)
-        else:
-            start, end, strength = 0.0, 1.0, sketch.BACK_GREY
-        near, far = scene_model.cue_depth_range(
-            model.positions, model.radii, eye, direction, start, end)
-        return scene_model.cue_fraction(
-            (np.asarray(points, float) - eye) @ direction, near, far,
-            strength)
+        cue = ((self._cue_start, self._cue_end, self._cue_strength)
+               if self._cue_on else None)
+        return sketch.fade(self.model.positions, self.model.radii,
+                           points, eye, direction, cue)
 
     def _refresh_sketch(self) -> None:
         """Cut, wedge and grey the ink for the camera as it is now.
