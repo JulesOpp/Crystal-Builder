@@ -92,6 +92,19 @@ def test_it_appears_when_the_run_outlasts_the_delay(dialog, qtbot):
     assert dialog.title.text() == "Zeo++: Pore size distribution"
 
 
+def test_it_comes_up_without_taking_the_keyboard(dialog, monkeypatch):
+    """It appears on its own, seconds into a run, while the person may
+    be typing somewhere else; it raised itself straight onto their
+    screen and made the application the active one."""
+    from xtalapp import windows
+
+    presented = []
+    monkeypatch.setattr(windows, "present",
+                        lambda window, **how: presented.append(how))
+    dialog.start("Zeo++: Pore size distribution", delay_ms=0)
+    assert presented == [{"activate": False}]
+
+
 def test_it_shows_the_last_thing_the_binary_said(dialog):
     dialog.start("Zeo++", delay_ms=0)
     dialog.set_progress("Performing Voronoi decomposition.")

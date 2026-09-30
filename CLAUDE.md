@@ -122,13 +122,23 @@ jobs 30 minutes each, cancelled at 98 % with nothing in the log saying
 which test it was, which is also why CI now caps at 12 minutes and
 dumps stacks at `faulthandler_timeout=180`.
 
-**A window is brought forward through `xtalapp.windows.present`**,
-and nowhere else (`test_windows.py` sweeps the source for
-`activateWindow(`). The same guard replaces it with a show that is
-`WA_DontShowOnScreen` and `WA_ShowWithoutActivating`: `isVisible()`
-is still true, but nothing is drawn and the keyboard stays where it
-was. Before it, the refinement workbench's tests took focus 63 times a
-run.
+**No window the suite shows is ever drawn.** `qapp_cls` in
+`conftest.py` installs an event filter that marks every window
+`WA_DontShowOnScreen` and `WA_ShowWithoutActivating` on its Show
+event, which Qt sends before it makes the native window -- so it
+holds whoever calls `show()`, a test or the application. `isVisible()`
+is still true and layouts still run, but `isExposed()` never is: `with
+qtbot.waitExposed(...)` would time out (the bare `qtbot.waitExposed(w)`
+calls in the suite are no-ops, as they always were). Before it, 42
+tests drew docks, dialogs and windows over the developer's work.
+It costs about 25 ms a GUI test; `XTAL_SHOW_TEST_WINDOWS=1` turns it
+off to watch a test.
+Separately, **a window is brought forward through
+`xtalapp.windows.present`** and nowhere else (`test_windows.py` sweeps
+the source for `activateWindow(`), and the guard replaces it with a
+plain show, so nothing is activated either: the refinement
+workbench's tests took focus 63 times a run. A window that comes up
+on its own, like a run's progress, is `present(..., activate=False)`.
 
 A test that is *about* a prompt opts out with
 `monkeypatch.delenv("XTAL_NO_CONFIRM_CLOSE")` and patches
@@ -238,6 +248,7 @@ stress case).
 | `QT_QPA_PLATFORM=offscreen` | Run Qt with no display. CI only — see above. |
 | `QT_API=pyside6` | Must be set before VTK imports its Qt bridge |
 | `XTAL_NO_CONFIRM_CLOSE=1` | Close windows without the unsaved-changes prompt. **Set this whenever launching the app for a screenshot or a smoke run** — otherwise a modal nobody answers hangs the run. The test suite sets it for itself. |
+| `XTAL_SHOW_TEST_WINDOWS=1` | Let the suite draw its windows on screen, to watch a test while debugging it. Off, every window a test shows is kept off the screen (see Testing the GUI). |
 | `XTAL_STUB_MODULE=1` | Register a fake calculation module, for module-machinery tests |
 | `XTAL_WORKSPACE_ROOT` | Where the default workspace is made — the row the chooser offers on a first run, and what `restore_workspace` makes when a window is built without one. A test that let this answer with the real `~/Crystal Builder` would fill the developer's home folder, so `conftest.py` points it at a temp directory per test. |
 | `DFTB_PREFIX` | Where the DFTB+ Slater-Koster parameters live |

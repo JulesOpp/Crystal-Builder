@@ -268,7 +268,52 @@ def qapp_cls():
     only one Finder uses.
     """
     from xtalapp.application import Application
-    return Application
+
+    class OffScreen(Application):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            _keep_windows_off_screen(self)
+
+    return OffScreen
+
+
+def _keep_windows_off_screen(app) -> None:
+    """Every window the suite shows is shown but never drawn.
+
+    A window drawn on the developer's screen is a window that can take
+    the keyboard from them -- 42 tests did, from the tests' own
+    ``show()`` calls, a dialog's rows made as windows, and a progress
+    dialog that raised itself.  Qt sends a window its Show event before
+    it makes the native window, so marking it ``WA_DontShowOnScreen``
+    there keeps it off the screen whoever showed it.  ``isVisible()``
+    is still true and layouts still run; ``isExposed()`` never is, so
+    ``with qtbot.waitExposed(...)`` would time out.  Installed once.
+
+    An application-wide filter because nothing narrower holds:
+    replacing ``setVisible`` in Python misses every Python subclass, a
+    ``QMainWindow`` and a combo box's popup.  It is called for every
+    event, which costs about 25 ms a GUI test.
+    ``XTAL_SHOW_TEST_WINDOWS=1`` leaves it out, to watch a test's
+    windows while debugging one.
+    """
+    from PySide6.QtCore import QEvent, QObject, Qt
+
+    if getattr(app, "_off_screen", None) is not None \
+            or os.environ.get("XTAL_SHOW_TEST_WINDOWS"):
+        return
+
+    class Filter(QObject):
+        def eventFilter(self, watched, event):
+            if event.type() == QEvent.Type.Show \
+                    and watched.isWidgetType() and watched.isWindow():
+                watched.setAttribute(
+                    Qt.WidgetAttribute.WA_DontShowOnScreen)
+                watched.setAttribute(
+                    Qt.WidgetAttribute.WA_ShowWithoutActivating)
+            return False
+
+    app._off_screen = Filter()
+    app.installEventFilter(app._off_screen)
 
 
 @pytest.fixture(autouse=True)
@@ -287,9 +332,12 @@ def _no_blocking_modal(monkeypatch):
     test.
     """
     try:
-        from PySide6.QtWidgets import QDialog, QMessageBox
+        from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
     except ImportError:               # the headless half of the suite
         return
+    if QApplication.instance() is not None:
+        # Made by something other than the qapp fixture.
+        _keep_windows_off_screen(QApplication.instance())
 
     def refuse(self, *args, **kwargs):
         raise AssertionError(
@@ -318,15 +366,12 @@ def _no_blocking_modal(monkeypatch):
 
     # A window brought forward takes the keyboard from whatever the
     # developer is doing -- the workbench's tests did it 63 times a
-    # run.  It is still shown, so ``isVisible`` means what it says,
-    # but never drawn and never activated.
-    from PySide6.QtCore import Qt
-
+    # run.  It is still shown, so ``isVisible`` means what it says;
+    # the off-screen filter keeps it from being drawn, and this keeps
+    # it from being activated.
     from xtalapp import windows
 
-    def present_quietly(window):
-        window.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
-        window.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+    def present_quietly(window, *, activate=True):
         window.show()
 
     monkeypatch.setattr(windows, "present", present_quietly)

@@ -45,6 +45,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from xtalapp import windows
 from xtalapp.widgets.tone import HINT, set_tone
 
 #: How long a run has to have been going before the window appears.
@@ -154,8 +155,7 @@ class RunProgressDialog(QDialog):
     # -- inside ---------------------------------------------------------
 
     def _appear(self) -> None:
-        self.show()
-        self.raise_()
+        windows.present(self, activate=False)
 
     def _tick(self) -> None:
         seconds = time.monotonic() - self._started
