@@ -294,6 +294,30 @@ class StylePanelDock(QDockWidget):
             lambda v: self._set(ellipsoid_octants=v))
         form.addRow("Ellipsoids", self.ellipsoid_probability)
         form.addRow("", self.octants)
+
+        # The Skeletal style's two choices, under the ellipsoids for
+        # the same reason those are here: they belong to one style,
+        # and are greyed under every other.
+        self.carbon = QComboBox()
+        self.carbon.addItem("Implicit", False)
+        self.carbon.addItem("Shown as C", True)
+        self.carbon.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.carbon.setMinimumContentsLength(6)
+        self.carbon.setToolTip(
+            "Leave carbon unwritten where lines meet, as a chemist "
+            "draws it, or write every carbon as C")
+        self.carbon.currentIndexChanged.connect(
+            lambda: self._set(
+                sketch_explicit_carbon=self.carbon.currentData()))
+        self.color_labels = QCheckBox("Colour by element")
+        self.color_labels.setToolTip(
+            "Write each label in its element's colour rather than in "
+            "ink; carbon and hydrogen stay ink")
+        self.color_labels.toggled.connect(
+            lambda v: self._set(sketch_color_labels=v))
+        form.addRow("Carbon", self.carbon)
+        form.addRow("", self.color_labels)
         return box
 
     def _transparency_group(self) -> QGroupBox:
@@ -558,6 +582,15 @@ class StylePanelDock(QDockWidget):
         self.ellipsoid_probability.setEnabled(ellipsoids)
         self.octants.setChecked(view.ellipsoid_octants)
         self.octants.setEnabled(ellipsoids)
+        labelled = styles.get(view.style).atom_render == "label"
+        self._choose(self.carbon, view.sketch_explicit_carbon)
+        self.carbon.setEnabled(labelled)
+        self.color_labels.setChecked(view.sketch_color_labels)
+        self.color_labels.setEnabled(labelled)
+        # A label style draws no sphere and no tube, so neither size
+        # means anything under it.
+        self.atom_scale.setEnabled(not labelled)
+        self.bond_radius.setEnabled(not labelled)
         self.depth_cue.setChecked(view.depth_cue)
         self.depth_cue_strength.setValue(
             round(view.depth_cue_strength * 100))

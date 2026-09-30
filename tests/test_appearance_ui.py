@@ -159,6 +159,43 @@ def test_the_octant_switch_only_applies_where_there_are_ellipsoids(
     assert not document.modified
 
 
+def test_the_carbon_choice_is_enabled_only_for_the_skeletal_style(
+        window, rutile_cif):
+    """Greyed under every style that draws spheres, where it would
+    change nothing; and the two sizes those styles use are greyed
+    under the one that draws none."""
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    assert not dock.carbon.isEnabled()
+    assert not dock.color_labels.isEnabled()
+    assert dock.atom_scale.isEnabled() and dock.bond_radius.isEnabled()
+
+    document.update_view(style="skeletal")
+    assert dock.carbon.isEnabled() and dock.color_labels.isEnabled()
+    assert dock.carbon.currentData() is False
+    assert not dock.atom_scale.isEnabled()
+    assert not dock.bond_radius.isEnabled()
+
+
+def test_choosing_explicit_carbon_changes_the_view_and_not_the_crystal(
+        window, rutile_cif):
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    document.update_view(style="skeletal")
+
+    dock.carbon.setCurrentIndex(dock.carbon.findData(True))
+    assert document.view.sketch_explicit_carbon
+    dock.color_labels.setChecked(True)
+    assert document.view.sketch_color_labels
+    assert not document.modified
+    assert not document.stack.can_undo
+
+    document.update_view(sketch_explicit_carbon=False,
+                         sketch_color_labels=False)
+    assert dock.carbon.currentData() is False
+    assert not dock.color_labels.isChecked()
+
+
 def _laid_out_at(qtbot, dock, width):
     """The dock floated at ``width`` and shown, so its layouts have
     placed everything: a hidden widget has no geometry to assert on."""
@@ -178,7 +215,8 @@ def test_the_style_panel_is_headed_groups_in_the_agreed_order(window):
         "Drawing", "Transparency", "Scene", "Show", "Colours",
         "Depth cue"]
     homes = {"Drawing": (dock.style, dock.atom_scale, dock.bond_radius,
-                         dock.ellipsoid_probability, dock.octants),
+                         dock.ellipsoid_probability, dock.octants,
+                         dock.carbon, dock.color_labels),
              "Transparency": (dock.opacity, dock.pore_opacity),
              "Scene": (dock.background, dock.labels, dock.legend,
                        dock.pore_spheres),

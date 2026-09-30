@@ -238,11 +238,11 @@ a camera.  Phase 2 (the `skeletal` style, its two settings and the
 scene model's label fields) shipped the same day, and Phase 3 (the
 drawing: `label_atlas.py`, three actors in `vtk_scene.py`) with it --
 2x2x2 MFU-4l with carbon written out, 4512 labels, turns in 17 ms a
-frame against 126 ms for 2000 billboards.
+frame against 126 ms for 2000 billboards.  Phase 4 (the Style
+panel's *Carbon* and *Colour by element*) shipped the same day.
 
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
-| **4 — Style panel** | *Carbon* and *Colour labels by element*, enabled only for a style that draws labels | `xtalapp/docks/style_panel.py` | S |
 | **5 — SVG export** | Text labels, knockouts, wedge polygons and hashes from the same geometry | `xtalapp/viewport/svg_export.py` | M |
 
 Folding hides a hydrogen from the picture only: the structure, its
