@@ -161,7 +161,7 @@ def test_style_registry():
                                    "stick", "wireframe", "net",
                                    "spacefill", "polyhedra",
                                    "polyhedra_stick", "ortep",
-                                   "platon", "cartoon"}
+                                   "platon", "cartoon", "skeletal"}
     ball = styles.get("ball_stick")
     assert ball.draw_bonds and ball.bond_render == "tube"
     assert not styles.get("spacefill").draw_bonds

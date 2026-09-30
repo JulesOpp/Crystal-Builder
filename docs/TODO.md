@@ -300,6 +300,15 @@ edit is `Change.TOPOLOGY`, so the scene re-derives every bond order
 (0.47 s, half of it the ring search) and VTK uploads the whole scene
 again (0.35 s) -- for a number that changes neither.
 
+### The Skeletal style's rings and crossings
+
+The style (2026-09-30) draws an aromatic bond as a line and a dashed
+one, as every other style does; a Kekule ring with its second lines
+inside the ring is what the reference sketch has.  And a bond in
+front of another is not yet gapped where it crosses it -- ChemDraw
+breaks the one behind.  Both are `xtalapp/viewport/sketch.py`, and
+the SVG export draws whatever it cuts.
+
 ## Symmetry
 
 ### Merge duplicates cannot see a site duplicated by its own group

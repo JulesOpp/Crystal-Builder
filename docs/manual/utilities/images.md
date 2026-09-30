@@ -92,7 +92,13 @@ same picture as the screen.  The {ref}`Cartoon <cmd-style_cartoon>`
 style is the one this exporter exists for: a lit atom is a circle
 filled with a radial gradient, and a gradient is not a colour, while a
 cartoon atom is a solid fill and a stroke -- one selection to
-recolour.  The orientation axes, the element legend and the scale bar
+recolour.  A {ref}`Skeletal <cmd-style_skeletal>` drawing exports as
+text and strokes: each label is a `<text>` in Helvetica, its digits
+subscripts, on a rectangle of the background that interrupts
+whatever runs behind it, and each bond a line or a wedge polygon cut
+for the picture's own camera -- so the gaps and the wedges are where
+the window had them, and the grey at the back is each stroke's
+colour.  The orientation axes, the element legend and the scale bar
 are window chrome and stay behind.
 
 ## The view settings a figure carries
@@ -107,7 +113,7 @@ background.  All of them are set from the *View* menu and the *Style*
 panel, described in {doc}`/essentials/view`; the ones that most often
 decide whether a figure is usable are these.
 
-- **Style.**  *View ▸ Style* holds eleven ways to draw the same atoms.
+- **Style.**  *View ▸ Style* holds twelve ways to draw the same atoms.
   {ref}`Cartoon <cmd-style_cartoon>` -- flat colour inside a dark
   outline -- is the one meant for a figure an illustrator will
   recolour; {ref}`Space filling <cmd-style_spacefill>` for pores;

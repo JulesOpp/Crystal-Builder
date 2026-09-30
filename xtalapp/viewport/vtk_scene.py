@@ -33,7 +33,12 @@ Everything is drawn with as few actors as possible, because actor count
   like the polyhedra, with their normals in a ninth set of lines;
 * the cell is a tenth polydata of lines.
 
-Ten actors for the structure, however many atoms there are.
+Ten actors for the structure, however many atoms there are.  The
+Skeletal style draws three of its own in place of the atoms and the
+bonds -- its lines and hashes, its solid wedges, and every label as a
+quad into one texture (``label_atlas``) -- and recuts the first two
+whenever the camera turns, because where a line stops short of a
+label is a question about the screen.
 
 The scale bar is the one thing here that is not geometry.  It is two
 2-D actors in the corner and its length is a question about the
@@ -66,6 +71,7 @@ from vtkmodules.vtkCommonCore import (
 from vtkmodules.vtkCommonDataModel import (
     vtkCellArray,
     vtkDataObject,
+    vtkImageData,
     vtkPolyData,
 )
 from vtkmodules.vtkCommonTransforms import vtkTransform
@@ -91,9 +97,11 @@ from vtkmodules.vtkRenderingCore import (
     vtkRenderer,
     vtkRenderWindow,
     vtkTextActor,
+    vtkTexture,
     vtkWindowToImageFilter,
 )
 
+from xtalapp.viewport import label_atlas, sketch
 from xtalapp.viewport import scene as scene_model
 from xtalapp.viewport.builder import AXIS_COLORS
 from xtalapp.viewport.scene import (
@@ -242,6 +250,14 @@ PIE_POSITION_IMPL = """  vec4 pieMC = vertexMC + vec4(
   gl_Position = MCDCMatrix * pieMC;
 """
 PIE_NORMAL_IMPL = "  normalVCVSOutput = normalMC;\n"
+
+#: A Skeletal label turned to face the camera, exactly as a pie is:
+#: ``labelOffset`` is the corner's place about the atom in the
+#: camera's (right, up, towards), and the points uploaded are the
+#: label laid out in the world's frame.
+LABEL_OFFSET_DEC = PIE_OFFSET_DEC.replace("pieOffset", "labelOffset")
+LABEL_POSITION_IMPL = (PIE_POSITION_IMPL.replace("pieOffset", "labelOffset")
+                       .replace("pieMC", "labelMC"))
 
 
 def _to_uchar(colors: np.ndarray, name: str) -> vtkUnsignedCharArray:
@@ -477,6 +493,7 @@ class VtkScene:
         self._build_outline_actor()
         self._build_octant_actor()
         self._build_bond_actor()
+        self._build_sketch_actors()
         self._build_polyhedron_actor()
         self._build_pie_actor()
         self._build_topology_actor()
@@ -502,6 +519,16 @@ class VtkScene:
         self._octant_cue_state = None
         self._bar_on = False
         self._bar_observer = None
+        # The Skeletal style: its ink is cut for one camera, so it is
+        # recut from an observer while the style is drawn.
+        self._sketch_on = False
+        self._sketch_observer = None
+        self._sketch_state = None
+        self._atlas = None
+        self._atlas_key = None
+        self._label_rows = np.zeros(0, int)
+        self._label_keys: list = []
+        self._label_levels = np.zeros(0, int)
 
     # -- actor construction --------------------------------------------
 
@@ -657,6 +684,59 @@ class VtkScene:
         self.dash_actor.GetProperty().SetSpecular(0.2)
         self.dash_actor.SetVisibility(False)
         self.renderer.AddActor(self.dash_actor)
+
+    def _build_sketch_actors(self):
+        """The Skeletal style: its lines, its solid wedges and its
+        labels -- three actors however many atoms there are.
+
+        Lines are lines and not tubes: a chemist's drawing has one
+        weight of ink whatever the zoom.  The hashed wedges' rungs
+        are lines too, in the same actor.
+        """
+        self._sketch_line_poly = vtkPolyData()
+        self._sketch_wedge_poly = vtkPolyData()
+        self.sketch_line_actor = self._flat_actor(self._sketch_line_poly)
+        self.sketch_line_actor.GetProperty().SetLineWidth(
+            sketch.LINE_WIDTH)
+        self.sketch_wedge_actor = self._flat_actor(
+            self._sketch_wedge_poly)
+
+        self._label_poly = vtkPolyData()
+        mapper = vtkPolyDataMapper()
+        mapper.SetInputData(self._label_poly)
+        mapper.ScalarVisibilityOff()
+        # World units, as the pies' offsets are; see _build_pie_actor.
+        mapper.SetVBOShiftScaleMethod(0)
+        mapper.MapDataArrayToVertexAttribute(
+            "labelOffset", "labelOffset",
+            vtkDataObject.FIELD_ASSOCIATION_POINTS, -1)
+        self.label_actor = vtkActor()
+        self.label_actor.SetMapper(mapper)
+        prop = self.label_actor.GetProperty()
+        _flat(prop)
+        prop.SetColor(1.0, 1.0, 1.0)
+        shader = self.label_actor.GetShaderProperty()
+        shader.AddVertexShaderReplacement(
+            "//VTK::PositionVC::Dec", True, LABEL_OFFSET_DEC, False)
+        shader.AddVertexShaderReplacement(
+            "//VTK::PositionVC::Impl", True, LABEL_POSITION_IMPL, False)
+        self._label_texture = vtkTexture()
+        self._label_texture.InterpolateOn()
+        self.label_actor.SetTexture(self._label_texture)
+        self.label_actor.SetVisibility(False)
+        self.renderer.AddActor(self.label_actor)
+
+    def _flat_actor(self, poly) -> vtkActor:
+        mapper = vtkPolyDataMapper()
+        mapper.SetInputData(poly)
+        mapper.SetScalarModeToUseCellData()
+        mapper.SetColorModeToDirectScalars()
+        actor = vtkActor()
+        actor.SetMapper(mapper)
+        _flat(actor.GetProperty())
+        actor.SetVisibility(False)
+        self.renderer.AddActor(actor)
+        return actor
 
     def _build_polyhedron_actor(self):
         self._polyhedron_poly = vtkPolyData()
@@ -1076,6 +1156,7 @@ class VtkScene:
         self._set_outline(model)
         self._set_octants(model)
         self._set_bonds(model)
+        self._set_sketch(model)
         self._set_polyhedra(model)
         self._set_pies(model)
         self._set_topology(model)
@@ -1128,7 +1209,9 @@ class VtkScene:
             self._octant_poly.SetPoints(_points(self._octant_points))
             self._octant_poly.Modified()
             self._octant_cue_state = None
-        if model.n_bond_halves:
+        if model.draws_labels:
+            self._set_sketch(model)
+        elif model.n_bond_halves:
             solid, dashed = split_by_order(model)
             self._bond_poly.SetPoints(
                 _points(_interleave(solid[0], solid[1])))
@@ -1182,6 +1265,8 @@ class VtkScene:
                 and np.array_equal(model.bond_orders,
                                    current.bond_orders)
                 and model.bond_render == current.bond_render
+                and model.atom_render == current.atom_render
+                and model.label_text == current.label_text
                 and model.shading == current.shading
                 and model.outline == current.outline
                 and model.n_polyhedron_faces
@@ -1223,7 +1308,11 @@ class VtkScene:
         self._set_glyph_shape(model)
         self.atom_mapper.SetInputData(poly)
         self._apply_shading(self.atom_actor, model.shading, 0.3)
-        self.atom_actor.SetVisibility(model.n_atoms > 0)
+        # A label style writes each atom rather than drawing it; the
+        # glyph data is still uploaded, because it is the selection
+        # halo's and the drag's.
+        self.atom_actor.SetVisibility(model.n_atoms > 0
+                                      and not model.draws_labels)
 
     def _set_glyph_shape(self, model):
         mapper = self.atom_mapper
@@ -1346,7 +1435,8 @@ class VtkScene:
         which is plain arithmetic over the scene model and is tested
         without a render window.
         """
-        if not model.n_bond_halves:
+        if not model.n_bond_halves or model.draws_labels:
+            # A label style's bonds are its own ink: _set_sketch.
             self.bond_actor.SetVisibility(False)
             self.dash_actor.SetVisibility(False)
             self._line_colors = None
@@ -1383,6 +1473,164 @@ class VtkScene:
             self.dash_mapper.SetInputConnection(
                 self._dash_tube.GetOutputPort())
         self.dash_actor.SetVisibility(bool(len(dashed[0])))
+
+    def _set_sketch(self, model):
+        """The Skeletal style's labels, laid out once per model; the
+        ink between them is cut per camera by :meth:`_refresh_sketch`.
+        """
+        actors = (self.sketch_line_actor, self.sketch_wedge_actor,
+                  self.label_actor)
+        self._sketch_on = bool(model.draws_labels)
+        self._sketch_state = None
+        if not self._sketch_on:
+            for actor in actors:
+                actor.SetVisibility(False)
+            self._watch_camera()
+            return
+        rows = np.array([k for k, text in enumerate(model.label_text)
+                         if text], dtype=int)
+        self._label_rows = rows
+        inks = [tuple(int(c) for c in model.colors[k]) for k in rows]
+        texts = [model.label_text[k] for k in rows]
+        self._label_keys = list(zip(texts, inks, strict=True))
+        self._set_atlas(model, texts, inks)
+
+        # One quad per label: the box the lines stop short of, in the
+        # camera's frame about the atom.
+        box = (np.asarray(model.label_extents, float)[rows]
+               + float(model.label_pad))
+        left, right, down, up = (box[:, i] for i in range(4))
+        zero = np.zeros(len(rows))
+        corners = np.stack([
+            np.stack([-left, -down, zero], axis=1),
+            np.stack([right, -down, zero], axis=1),
+            np.stack([right, up, zero], axis=1),
+            np.stack([-left, up, zero], axis=1)], axis=1)
+        offsets = corners.reshape(-1, 3)
+        centres = np.repeat(np.asarray(model.positions, float)[rows], 4,
+                            axis=0)
+        poly = vtkPolyData()
+        poly.SetPoints(_points(centres + offsets))
+        cells = vtkCellArray()
+        cells.SetData(
+            numpy_to_vtkIdTypeArray(
+                np.arange(0, 4 * len(rows) + 1, 4, dtype=ID_TYPE),
+                deep=True),
+            numpy_to_vtkIdTypeArray(
+                np.arange(4 * len(rows), dtype=ID_TYPE), deep=True))
+        poly.SetPolys(cells)
+        poly.GetPointData().AddArray(_to_float(offsets, "labelOffset"))
+        self._label_poly = poly
+        self._label_levels = np.full(len(rows), -1)
+        self.label_actor.GetMapper().SetInputData(poly)
+        self.label_actor.SetVisibility(bool(len(rows)))
+        for actor in actors[:2]:
+            actor.SetVisibility(True)
+        self._refresh_sketch()
+        self._watch_camera()
+
+    def _set_atlas(self, model, texts, inks) -> None:
+        """Set every string of the picture once, at every step of the
+        fade -- reused while the strings, colours and ground stay."""
+        entries = tuple(sorted({(text, sketch.symbol_of(text), ink)
+                                for text, ink in zip(texts, inks,
+                                                     strict=True)}))
+        ratio = float(model.label_pad) / max(float(model.label_height),
+                                             1e-9)
+        key = (entries, tuple(model.background), round(ratio, 6))
+        if key == self._atlas_key:
+            return
+        self._atlas_key = key
+        self._atlas = label_atlas.build(entries, model.background, 1.0,
+                                        ratio)
+        image = self._atlas.image[::-1]         # VTK's rows run upwards
+        data = vtkImageData()
+        data.SetDimensions(image.shape[1], image.shape[0], 1)
+        data.GetPointData().SetScalars(
+            _to_uchar(np.ascontiguousarray(image).reshape(-1, 3),
+                      "atlas"))
+        self._label_texture.SetInputData(data)
+        self._label_texture.Modified()
+
+    def _sketch_fade(self, points, eye, direction) -> np.ndarray:
+        """How far towards the background each point is drawn: the
+        depth cue's settings when it is on, the style's grey when it
+        is off."""
+        cue = ((self._cue_start, self._cue_end, self._cue_strength)
+               if self._cue_on else None)
+        return sketch.fade(self.model.positions, self.model.radii,
+                           points, eye, direction, cue)
+
+    def _refresh_sketch(self) -> None:
+        """Cut, wedge and grey the ink for the camera as it is now.
+
+        Guarded on the camera, like the line fade: it runs before
+        every render, and a supercell's ink is ten thousand halves.
+        """
+        model = self.model
+        if not self._sketch_on or model is None:
+            return
+        camera = self.renderer.GetActiveCamera()
+        eye, direction = self._eye_and_direction()
+        view_up = np.array(camera.GetViewUp(), dtype=float)
+        parallel = bool(camera.GetParallelProjection())
+        state = (eye, direction, view_up, parallel, self._cue_on,
+                 self._cue_start, self._cue_end, self._cue_strength)
+        previous = self._sketch_state
+        if (previous is not None and previous[3:] == state[3:]
+                and all(np.allclose(a, b, atol=1e-9) for a, b
+                        in zip(state[:3], previous[:3], strict=True))):
+            return
+        self._sketch_state = state
+
+        ink = sketch.sketch_model(model, direction, view_up,
+                                  None if parallel else eye)
+        middles = 0.5 * (np.asarray(model.bond_starts, float)
+                         + np.asarray(model.bond_ends, float))
+        fade = (self._sketch_fade(middles, eye, direction)
+                if model.n_bond_halves else np.zeros(0))
+        base = np.asarray(model.bond_colors, np.uint8)
+
+        def colors(half):
+            return scene_model.fade_towards(base[half], model.background,
+                                            fade[half])
+
+        starts = np.vstack([ink.line_starts, ink.hash_starts])
+        ends = np.vstack([ink.line_ends, ink.hash_ends])
+        half = np.concatenate([ink.line_half, ink.hash_half]).astype(int)
+        self._sketch_line_poly.DeepCopy(
+            _line_polydata(starts, ends, colors(half)))
+        quads = ink.wedge_quads
+        faces = (np.arange(4 * len(quads)).reshape(-1, 4)
+                 [:, [0, 1, 2, 0, 2, 3]].reshape(-1, 3))
+        self._sketch_wedge_poly.DeepCopy(_triangle_polydata(
+            quads.reshape(-1, 3), faces,
+            np.repeat(colors(ink.wedge_half), 2, axis=0)))
+        self._refresh_label_levels(eye, direction)
+
+    def _refresh_label_levels(self, eye, direction) -> None:
+        """Point each label at the step of the fade its depth asks for.
+        Only the texture coordinates change, and only when a step
+        does."""
+        rows = self._label_rows
+        if not len(rows) or self._atlas is None:
+            return
+        levels = label_atlas.level_of(self._sketch_fade(
+            np.asarray(self.model.positions, float)[rows], eye,
+            direction))
+        if np.array_equal(levels, self._label_levels):
+            return
+        self._label_levels = levels
+        rects = np.array([self._atlas.rects[(text, ink, int(level))]
+                          for (text, ink), level
+                          in zip(self._label_keys, levels, strict=True)])
+        u0, v0, u1, v1 = (rects[:, i] for i in range(4))
+        tcoords = np.stack([np.stack([u0, v0], 1), np.stack([u1, v0], 1),
+                            np.stack([u1, v1], 1), np.stack([u0, v1], 1)],
+                           axis=1).reshape(-1, 2)
+        self._label_poly.GetPointData().SetTCoords(
+            _to_float(tcoords, "tcoords"))
+        self._label_poly.Modified()
 
     def _set_polyhedra(self, model):
         if not model.n_polyhedron_faces:
@@ -1456,14 +1704,15 @@ class VtkScene:
         for actor in self._label_actors:
             self.renderer.RemoveActor(actor)
         self._label_actors = []
+        lum = sum(model.background) / 3
+        ink = (0, 0, 0) if lum > 128 else (1, 1, 1)
         for position, text in model.labels[:MAX_LABELS]:
             actor = vtkBillboardTextActor3D()
             actor.SetPosition(*[float(v) for v in position])
             actor.SetInput(str(text))
             prop = actor.GetTextProperty()
             prop.SetFontSize(14)
-            lum = sum(model.background) / 3
-            prop.SetColor((0, 0, 0) if lum > 128 else (1, 1, 1))
+            prop.SetColor(ink)
             self.renderer.AddActor(actor)
             self._label_actors.append(actor)
 
@@ -1700,7 +1949,9 @@ class VtkScene:
         """
         for on, name, refresh in (
                 (self._cue_on, "_cue_observer", self._refresh_cue),
-                (self._bar_on, "_bar_observer", self._refresh_scale_bar)):
+                (self._bar_on, "_bar_observer", self._refresh_scale_bar),
+                (self._sketch_on, "_sketch_observer",
+                 self._refresh_sketch)):
             observer = getattr(self, name)
             if on and observer is None:
                 setattr(self, name, self.renderer.AddObserver(
