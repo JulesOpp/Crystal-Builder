@@ -23,6 +23,7 @@ way in, and is the one entry listed.
 
 from __future__ import annotations
 
+import math
 from dataclasses import replace
 from pathlib import Path
 
@@ -107,6 +108,36 @@ PEAK_PARAMS = (
 )
 
 
+def _iteration_params(tolerance: str, what: str, minimum: int = 0,
+                      default: int = 100) -> tuple:
+    """Max iterations and Tolerance, as every fitting step asks them."""
+    zero = ("  0 fits nothing: the pattern is calculated at the "
+            "parameters as they stand, and the R values say how well "
+            "they fit -- nothing moves and nothing is committed."
+            if minimum == 0 else "")
+    return (
+        Param("max_iterations", "Max iterations", kind="int",
+              default=default, minimum=minimum, maximum=100000,
+              help=f"The most iterations {what}." + zero),
+        Param("tolerance", "Tolerance", kind="text", default=tolerance,
+              help=_TOLERANCE_HELP[tolerance]))
+
+
+_TOLERANCE_HELP = {
+    "1e-5": "When the refinement is done: the relative fall in χ² "
+            "below which it stops (scipy's ftol).  Tighter spends "
+            "steps on parts per million the lines do not show.",
+    "1e-9": "When a fit is done: the relative fall in χ² below which "
+            "its last stage stops (RietX's ftol).  The stages before "
+            "it only seed the next one, and stop at 1e-6, or at this "
+            "if it is looser.",
+    "1e-6": "When the joint fit is done: the largest gradient of the "
+            "objective, whose two terms are each about 1 where the run "
+            "starts.  The relaxation that sets the energy's scale "
+            "stops at its own force tolerance.",
+}
+
+
 #: What Refine adds to the peak step.
 REFINE_PEAK_PARAMS = (
     Param("background_terms", "Background terms", kind="int",
@@ -116,6 +147,9 @@ REFINE_PEAK_PARAMS = (
                "curved or humped background; too many start fitting "
                "the tails of broad peaks.  Find peaks draws its own "
                "background and does not read this."),
+    # scipy's solver, not RietX's: it stops in tens of steps
+    *_iteration_params("1e-5", "the peak refinement takes", minimum=1,
+                       default=400),
 )
 
 
@@ -163,6 +197,22 @@ PARAMETERS_PARAM = Param(
          "boxes are not read; a row it leaves out starts from RietX's "
          "preset.  Empty starts from the preset, freed as the boxes "
          "say.")
+
+
+def _tolerance(values: dict, default: float) -> float:
+    """The Tolerance box as a number: blank is ``default``."""
+    text = str(values.get("tolerance", "") or "").strip()
+    if not text:
+        return default
+    try:
+        tolerance = float(text)
+    except ValueError:
+        raise PowderError(f"the tolerance is a number, like 1e-6, not "
+                          f"{text!r}") from None
+    if not tolerance > 0.0 or not math.isfinite(tolerance):
+        raise PowderError(f"the tolerance is more than 0, and "
+                          f"{text} is not")
+    return tolerance
 
 
 def _starting(values: dict, options, radiation: Radiation,
@@ -275,7 +325,7 @@ def run_refine_peaks(job) -> JobResult:
     own, found here first (or fitted at ``positions``).
     """
     from xtal.powder.data import PowderStopped
-    from xtal.powder.peaks import refine_peaks
+    from xtal.powder.peaks import MAX_STEPS, TOLERANCE, refine_peaks
 
     values = job.params
     try:
@@ -288,7 +338,9 @@ def run_refine_peaks(job) -> JobResult:
         job.say(f"refining {fit.n_used} lines together")
         refined = refine_peaks(
             data, radiation, fit,
-            int(values.get("background_terms", 8)), cancel=job.cancel)
+            int(values.get("background_terms", 8)), cancel=job.cancel,
+            max_iterations=int(values.get("max_iterations", MAX_STEPS)),
+            tolerance=_tolerance(values, TOLERANCE))
     except PowderStopped:
         return JobResult.stopped("peak refinement stopped")
     except PowderError as exc:
@@ -647,6 +699,8 @@ PAWLEY_PARAMS = (
     Param("strain", "Strain broadening", kind="bool", default=True,
           help="Lorentzian and Gaussian strain terms (TOPAS Strain_L, "
                "Strain_G): widths that grow as tan θ."),
+    *_iteration_params("1e-9", "each stage of the fit runs (TOPAS "
+                               "iters)"),
 )
 
 REFLECTION_COLUMNS = ("h", "k", "l", "d (Å)", "2θ (°)", "m",
@@ -654,7 +708,12 @@ REFLECTION_COLUMNS = ("h", "k", "l", "d (Å)", "2θ (°)", "m",
 
 
 def pawley_options(values: dict):
-    from xtal.powder.pawley import PawleyOptions, parse_hold
+    from xtal.powder.pawley import (
+        DEFAULT_ITERATIONS,
+        DEFAULT_TOLERANCE,
+        PawleyOptions,
+        parse_hold,
+    )
 
     start = float(values.get("start", 0.0) or 0.0)
     finish = float(values.get("finish", 0.0) or 0.0)
@@ -666,7 +725,10 @@ def pawley_options(values: dict):
         hold_cell=parse_hold(values.get("hold", "")),
         size=bool(values.get("size", True)),
         strain=bool(values.get("strain", True)),
-        method=str(values.get("method", "pawley") or "pawley"))
+        method=str(values.get("method", "pawley") or "pawley"),
+        max_iterations=int(values.get("max_iterations",
+                                      DEFAULT_ITERATIONS)),
+        tolerance=_tolerance(values, DEFAULT_TOLERANCE))
 
 
 def run_pawley(job) -> JobResult:
@@ -711,7 +773,9 @@ def run_pawley(job) -> JobResult:
     message = (f"{fit.method_name} Rwp {100 * fit.rwp:.2f} %, GoF "
                f"{fit.gof:.2f}: "
                f"{a:.5f} {b:.5f} {c:.5f} Å in {fit.space_group}")
-    if not fit.converged:
+    if fit.evaluated:
+        message += f" ({EVALUATED_NOTE})"
+    elif not fit.converged:
         message += f" ({fit.status}, not converged)"
     return JobResult(message=message, artifacts=tuple(artifacts),
                      report=pawley_report(fit, data.name), answer=fit)
@@ -728,7 +792,19 @@ def pawley_summary(fit) -> str:
     return (f"{method}Rwp {100 * fit.rwp:.2f} %   Rp {100 * fit.rp:.2f} %"
             f"   Rexp {100 * fit.rexp:.2f} %   GoF {fit.gof:.3f}\n"
             f"{cell}\nV {fit.volume:.2f} Å³, {fit.space_group}"
-            + ("" if fit.converged else f"\n{fit.status}: not converged"))
+            + _status_line(fit))
+
+
+#: What a result says of a run of zero cycles.
+EVALUATED_NOTE = "0 cycles: evaluated at the values shown"
+
+
+def _status_line(fit) -> str:
+    """The result box's last line: the zero cycles it ran, or the
+    reason it did not converge, or nothing."""
+    if getattr(fit, "evaluated", False):
+        return "\n" + EVALUATED_NOTE
+    return "" if fit.converged else f"\n{fit.status}: not converged"
 
 
 def _with_esd(value: float, esd: float) -> str:
@@ -911,6 +987,8 @@ RIETVELD_PARAMS = (
           default="",
           help="The March-Dollase axis as h k l -- 0 0 1 for plates "
                "lying on their c face.  Empty is no texture."),
+    *_iteration_params("1e-9", "each stage of the fit runs (TOPAS "
+                               "iters), a RietX plan's stages too"),
 )
 
 
@@ -924,7 +1002,11 @@ PLAN_DECIDES = ("background", "zero", "displacement", "cell", "hold",
 
 
 def rietveld_options(values: dict):
-    from xtal.powder.pawley import parse_hold
+    from xtal.powder.pawley import (
+        DEFAULT_ITERATIONS,
+        DEFAULT_TOLERANCE,
+        parse_hold,
+    )
     from xtal.powder.rietveld import RietveldOptions, parse_axis
 
     start = float(values.get("start", 0.0) or 0.0)
@@ -944,7 +1026,10 @@ def rietveld_options(values: dict):
         positions=bool(values.get("positions", True)),
         biso=bool(values.get("biso", True)),
         occupancy=bool(values.get("occupancy", False)),
-        preferred_axis=parse_axis(values.get("preferred_axis", "")))
+        preferred_axis=parse_axis(values.get("preferred_axis", "")),
+        max_iterations=int(values.get("max_iterations",
+                                      DEFAULT_ITERATIONS)),
+        tolerance=_tolerance(values, DEFAULT_TOLERANCE))
 
 
 def rietveld_plan_note(values: dict) -> str:
@@ -1020,7 +1105,10 @@ def run_rietveld(job) -> JobResult:
         job.note("wrote fit.xy, refined.cif and parameters.txt")
     message = (f"Rietveld Rwp {100 * fit.rwp:.2f} %, GoF {fit.gof:.2f}; "
                f"the furthest atom moved {fit.moved:.3f} Å")
-    if not fit.converged:
+    if fit.evaluated:
+        message = (f"Rietveld Rwp {100 * fit.rwp:.2f} %, GoF "
+                   f"{fit.gof:.2f} ({EVALUATED_NOTE})")
+    elif not fit.converged:
         message += f" ({fit.status}, not converged)"
     return JobResult(message=message, artifacts=tuple(artifacts),
                      report=rietveld_report(fit, data.name), answer=fit)
@@ -1035,7 +1123,7 @@ def rietveld_summary(fit) -> str:
     return (f"Rwp {100 * fit.rwp:.2f} %   Rp {100 * fit.rp:.2f} %   "
             f"Rexp {100 * fit.rexp:.2f} %   GoF {fit.gof:.3f}\n"
             f"{cell}\nthe furthest atom moved {fit.moved:.3f} Å"
-            + ("" if fit.converged else f"\n{fit.status}: not converged"))
+            + _status_line(fit))
 
 
 def rietveld_report(fit, name: str = "") -> Report:
@@ -1244,10 +1332,9 @@ ENERGY_PARAMS = (
           help="Refine the cell's free numbers with the atoms, against "
                "both terms -- the energy's pull on them is the engine's "
                "stress.  Off holds the cell where it is."),
-    Param("max_steps", "Steps", kind="int", default=500, minimum=1,
-          maximum=100000,
-          help="The most L-BFGS steps, for the relaxation that sets the "
-               "energy's scale and again for the fit."),
+    *_iteration_params("1e-6", "of L-BFGS, for the relaxation that "
+                               "sets the energy's scale and again for "
+                               "the fit", default=500),
     Param("engine", "Engine", kind="choice", default="uff",
           choices=tuple((e.name, e.label) for e in ENGINES),
           help="The energy engine.  In the workbench, choosing one "
@@ -1270,14 +1357,18 @@ ENERGY_RUN_PARAMS = (DATA_PARAMS + ENERGY_PARAMS
 
 
 def energy_options(values: dict):
-    from xtal.powder.energy import EnergyOptions
+    from xtal.powder.energy import FIT_TOLERANCE, EnergyOptions
 
     boxes = rietveld_options({**_unprefixed(values, "rietveld_"),
                               "positions": False, "cell": False,
                               "occupancy": False, "plan": ""})
+    # ``max_steps`` is what the box was called before it was every
+    # fitting step's Max iterations
+    steps = values.get("max_iterations", values.get("max_steps", 500))
     return EnergyOptions(weight=float(values.get("weight", 0.1)),
                          cell=bool(values.get("energy_cell", False)),
-                         max_steps=int(values.get("max_steps", 500)),
+                         max_steps=int(steps),
+                         tolerance=_tolerance(values, FIT_TOLERANCE),
                          rietveld=boxes)
 
 
@@ -1418,7 +1509,11 @@ def run_energy(job) -> JobResult:
     message = (f"Rietveld with energy, w {fit.weight:g}: Rwp "
                f"{100 * fit.rwp:.2f} %, E {fit.energy:.2f} kcal/mol; "
                f"the furthest atom moved {fit.moved:.3f} Å")
-    if not fit.converged:
+    if fit.evaluated:
+        message = (f"Rietveld with energy, w {fit.weight:g}: Rwp "
+                   f"{100 * fit.rwp:.2f} %, E {fit.energy:.2f} kcal/mol "
+                   f"({EVALUATED_NOTE})")
+    elif not fit.converged:
         message += f" ({fit.status}, not converged)"
     return JobResult(message=message, artifacts=tuple(artifacts),
                      report=energy_report(fit, data.name), answer=fit)
@@ -1457,9 +1552,7 @@ def energy_summary(fit) -> str:
         lines.append(f"energy alone: Rwp {100 * scale.relaxed_rwp:.2f} "
                      f"%, E {scale.relaxed:.3f}")
     lines.append(f"the furthest atom moved {fit.moved:.3f} Å")
-    if not fit.converged:
-        lines.append(f"{fit.status}: not converged")
-    return "\n".join(lines)
+    return "\n".join(lines) + _status_line(fit)
 
 
 def energy_report(fit, name: str = "") -> Report:
@@ -1501,10 +1594,9 @@ PARETO_PARAMS = (
     Param("energy_cell", "Let the cell move", kind="bool", default=False,
           help="Refine the cell's free numbers with the atoms at every "
                "weight.  Off holds the cell where it is."),
-    Param("max_steps", "Steps", kind="int", default=500, minimum=1,
-          maximum=100000,
-          help="The most L-BFGS steps at each weight.  A point that "
-               "runs out is not converged, and has no numbers."),
+    *_iteration_params("1e-6", "of L-BFGS at each weight.  A point "
+                               "that runs out is not converged, and has "
+                               "no numbers", minimum=1, default=500),
     Param("engine", "Engine", kind="choice", default="uff",
           choices=tuple((e.name, e.label) for e in ENGINES),
           help="The energy engine.  In the workbench, choosing one "

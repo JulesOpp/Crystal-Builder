@@ -1422,3 +1422,50 @@ def test_choosing_another_engine_swaps_the_controls_it_shows(options):
     assert not dock.engine_forms[name].isHidden()
     assert dock.isAncestorOf(dock.uff_box)
 
+
+
+def test_zero_cycles_is_no_undo_step(window, qtbot, tmp_path, rutile_xy):
+    """Max iterations 0 evaluates: the R values are shown and said to
+    be an evaluation, and the atoms, the undo stack, the history and
+    the table's numbers are all as they were."""
+    document = window.open_path(_displaced_rutile_cif(tmp_path))
+    bench = window.open_refine_workbench()
+    bench.load_pattern(rutile_xy)
+    bench.step_forms["rietveld"].set_values({"max_iterations": 0})
+    before = bench.parameters.to_text()
+    done = len(document.stack._done)
+    result = _run_rietveld(bench, qtbot)
+    assert result.ok, result.message
+    assert "0 cycles" in result.message
+    assert len(document.stack._done) == done
+    assert not document.modified
+    assert document.structure.sites[1].frac[0] == pytest.approx(0.29)
+    assert bench.rietveld.evaluated
+    assert "0 cycles: evaluated at the values shown" in \
+        bench.rietveld_label.text()
+    assert len(bench.history) <= 1
+    assert bench.parameters.to_text() == before
+
+
+def test_the_pawley_step_hides_the_atoms_and_the_scale(
+        window, tmp_path, rutile_xy):
+    """A Pawley fit has neither, and their rows shown ticked beside it
+    read as though it refined them.  They are hidden, not dropped:
+    Rietveld shows them again, flags and all."""
+    from xtal.powder import parameters as ps
+
+    window.open_path(_displaced_rutile_cif(tmp_path))
+    bench = window.open_refine_workbench()
+    bench.load_pattern(rutile_xy)
+    table = bench.parameter_table
+    bench.steps.setCurrentRow(2)
+    assert table.item(ps.ATOMS).isHidden()
+    assert table.item(ps.SCALE).isHidden()
+    assert not table.item(ps.PROFILE).isHidden()
+    assert table.unused_note.isVisibleTo(bench)
+    assert "no atoms" in table.unused_note.text()
+    bench.steps.setCurrentRow(3)
+    assert not table.item(ps.ATOMS).isHidden()
+    assert not table.item(ps.SCALE).isHidden()
+    assert not table.unused_note.isVisibleTo(bench)
+    assert bench.parameters["scale"].refine

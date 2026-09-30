@@ -54,6 +54,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from xtal.powder.data import PowderData, PowderError, PowderStopped, Radiation
+from xtal.powder.pawley import EVALUATED
 from xtal.powder.rietveld import RietveldFit, RietveldFrame, RietveldOptions
 
 __all__ = ["EnergyFit", "EnergyOptions", "EnergyProblem", "EnergyScale",
@@ -70,6 +71,11 @@ MIN_ENERGY_DROP = 0.1
 #: scaled to Å, so this is a force.
 RELAX_TOLERANCE = 1e-3
 
+#: When the joint fit counts as done: the largest gradient of the
+#: objective along any variable.  Both terms are of order one where
+#: the run starts, so this is a fraction of that, not a force.
+FIT_TOLERANCE = 1e-6
+
 
 @dataclass(frozen=True)
 class EnergyOptions:
@@ -80,12 +86,17 @@ class EnergyOptions:
     is the range, the background's order and the texture axis, and --
     when no parameter set is given -- the boxes that flag what the
     first fit frees; its cell and occupancies are never freed there,
-    and every atom moves.
+    and every atom moves.  ``max_steps`` is L-BFGS's most iterations,
+    for the relaxation and for the fit; 0 fits nothing, first stage
+    included, and evaluates the pattern and the energy where the atoms
+    are.  ``tolerance`` is the joint fit's (the largest gradient it
+    stops at); the relaxation stops at :data:`RELAX_TOLERANCE`.
     """
 
     weight: float = 0.1
     cell: bool = False
     max_steps: int = 500
+    tolerance: float = FIT_TOLERANCE
     rietveld: RietveldOptions = field(default_factory=RietveldOptions)
 
 
@@ -152,6 +163,13 @@ def rietveld_with_energy(structure, data: PowderData,
                             on_frame=on_frame,
                             frame_interval=frame_interval,
                             cancel=cancel, folder=folder, say=say)
+    if options.max_steps == 0:
+        # no relaxation either: its scale is for a fit, and there is
+        # none to weigh
+        problem.say("0 iterations: the pattern and the energy "
+                    "evaluated where the atoms are")
+        return problem.fit(problem.term.theta0, weight, 0, True,
+                           EVALUATED)
     relaxation = None
     if weight == 1.0 or (weight > 0.0 and problem.needs_relaxation):
         relaxation = problem.relax()
@@ -204,8 +222,10 @@ class EnergyProblem:
             structure, window, radiation, start=start,
             preferred_axis=boxes.preferred_axis, cell=options.cell,
             folder=folder, cancel=bridge.cancel_token(cancel),
-            say=self.say)
-        if result is None:
+            say=self.say,
+            iterations=0 if options.max_steps == 0
+            else boxes.max_iterations, tolerance=boxes.tolerance)
+        if result is None and options.max_steps != 0:
             self.say("nothing is flagged beyond the atoms: they start "
                      "against the parameters as they stand")
         self.term, self.result = term, result
@@ -291,7 +311,7 @@ class EnergyProblem:
             return value, gradient
 
         return self.variables.minimise(
-            joint, self.options.max_steps, 1e-6,
+            joint, self.options.max_steps, self.options.tolerance,
             lambda theta: self.frames(theta, f"w = {weight:g}"),
             start=start)
 
@@ -314,8 +334,9 @@ class EnergyProblem:
             refined.frac - structure.frac), axis=1)
         values = {} if self.result is None \
             else dict(bridge.refined_values(self.result))
-        values.update({path: (float(value), 0.0) for path, value
-                       in zip(term.paths, answer, strict=True)})
+        if why != EVALUATED:
+            values.update({path: (float(value), 0.0) for path, value
+                           in zip(term.paths, answer, strict=True)})
         phase = self.refinement.structure.phases[0]
         notes = [] if self.result is None \
             else [d.message for d in self.result.diagnostics]
@@ -330,7 +351,8 @@ class EnergyProblem:
             cell_esd=(0.0,) * 6,
             rwp=stats["rwp"], rp=stats["rp"], rexp=stats["rexp"],
             gof=stats["gof"],
-            status="converged" if converged else why,
+            status=EVALUATED if why == EVALUATED
+            else "converged" if converged else why,
             two_theta=term.two_theta, y_obs=term.y_obs,
             y_calc=term.y_calc(answer),
             y_background=self.background, ticks=self.ticks,

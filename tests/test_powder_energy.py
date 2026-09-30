@@ -341,3 +341,49 @@ def test_a_run_with_energy_moves_only_the_atoms_flagged(quartz_data):
     assert np.allclose(fit.structure.sites[0].frac, given.sites[0].frac)
     assert not np.allclose(fit.structure.sites[1].frac,
                            given.sites[1].frac)
+
+
+def test_with_energy_takes_the_tolerance_asked_for(rutile_data,
+                                                   monkeypatch):
+    """The joint fit stops at the Tolerance box's gradient, where it
+    was a hard-coded 1e-6; the relaxation keeps its own."""
+    from xtal.powder import energy
+
+    asked = []
+    real = energy._Variables.minimise
+
+    def minimise(self, function, max_steps, tolerance, callback,
+                 start=None):
+        asked.append((max_steps, tolerance))
+        return real(self, function, max_steps, tolerance, callback,
+                    start=start)
+
+    monkeypatch.setattr(energy._Variables, "minimise", minimise)
+    rietveld_with_energy(_rutile(), rutile_data, CU, _uff,
+                         EnergyOptions(weight=0.5, max_steps=40,
+                                       tolerance=1e-3))
+    assert asked == [(40, energy.RELAX_TOLERANCE), (40, 1e-3)]
+
+
+def test_with_energy_at_zero_iterations_fits_nothing_and_moves_nothing(
+        rutile_data, monkeypatch):
+    """Zero iterations evaluates the pattern and the energy where the
+    atoms are: no first fit of the scale, no relaxation, no step."""
+    from xtal.powder import energy
+
+    def refuse(*_args, **_kwargs):
+        raise AssertionError("nothing is fitted at zero iterations")
+
+    monkeypatch.setattr(bridge, "fit", refuse)
+    monkeypatch.setattr(energy._Variables, "minimise", refuse)
+    structure = _rutile()
+    fit = rietveld_with_energy(
+        structure, rutile_data, CU, _uff,
+        EnergyOptions(weight=0.5, max_steps=0),
+        parameters=_flagged(structure, rutile_data, "background",
+                            "profile"))
+    assert fit.evaluated and fit.converged
+    assert fit.steps == 0 and fit.moved == 0.0
+    assert fit.structure.frac == pytest.approx(structure.frac)
+    assert np.isfinite(fit.rwp) and np.isfinite(fit.energy)
+    assert np.isnan(fit.scale.relaxed)

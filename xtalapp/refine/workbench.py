@@ -109,22 +109,27 @@ RUN_LABELS = {"peaks": "Find peaks", "index": "Index",
 GROUPS = {
     "peaks": (("Range", ("start", "finish")),
               ("Finding peaks", ("shoulders", "flag_ghosts")),
-              ("Refining peaks", ("background_terms",))),
+              ("Refining peaks", ("background_terms", "max_iterations",
+                                  "tolerance"))),
     "index": (("Search", ("space_groups", "zero_error", "max_volume",
                           "longest_axis", "budget")),
               ("Space groups", ("rank_groups",))),
     "pawley": (("Method", ("method",)),
                ("Cell and space group", ("space_group",)),
                ("Range and background", ("start", "finish",
-                                         "background_terms"))),
+                                         "background_terms")),
+               ("Iterations", ("max_iterations", "tolerance"))),
     "rietveld": (("Plan", ("plan",)),
                  ("Range and background", ("start", "finish",
                                            "background_terms")),
-                 ("Preferred orientation", ("preferred_axis",))),
+                 ("Preferred orientation", ("preferred_axis",)),
+                 ("Iterations", ("max_iterations", "tolerance"))),
     "energy": (("Range", ("start", "finish")),
-               ("Energy", ("weight", "energy_cell", "max_steps"))),
+               ("Energy", ("weight", "energy_cell", "max_iterations",
+                           "tolerance"))),
     "pareto": (("Range", ("start", "finish")),
-               ("Sweep", ("weights", "energy_cell", "max_steps"))),
+               ("Sweep", ("weights", "energy_cell", "max_iterations",
+                          "tolerance"))),
     "auto": (("Automatic", ("cells", "classes", "continue_rietveld")),),
 }
 
@@ -147,6 +152,15 @@ _NOT_IN_FORM = {
 
 #: The steps that fit, and so start from the parameter set and show it.
 _FITS = ("pawley", "rietveld", "energy", "pareto", "auto")
+
+#: The groups of the set a step never reads, hidden while it is in
+#: front, and why.  ``bridge.pawley`` leaves them out whatever is
+#: flagged; this is the same fact where a person looks.
+_UNUSED = {"pawley": ((ps.SCALE, ps.TEXTURE, ps.ATOMS),
+                      "A Pawley or Le Bail fit has no atoms and no "
+                      "scale -- the intensities stand in for both -- so "
+                      "their rows are hidden here, and kept for "
+                      "Rietveld.")}
 
 #: The steps that move the document's atoms as they run, and land as
 #: one undo step.
@@ -633,6 +647,7 @@ class RefinementWorkbench(QMainWindow):
                 self._fold("Cell and space group", group),
                 self._fold("Range and background",
                            form.part("Range and background")),
+                self._fold("Iterations", form.part("Iterations")),
                 self._parameters_section("pawley"),
                 self._fold("Result", self.pawley_label, buttons),
                 self._fold("About", explain, _hint(PAWLEY_RANGE_NOTE),
@@ -658,6 +673,7 @@ class RefinementWorkbench(QMainWindow):
                 self._fold("Refined: cell", self.rietveld_cell),
                 self._fold("Preferred orientation",
                            form.part("Preferred orientation")),
+                self._fold("Iterations", form.part("Iterations")),
                 self._fold("Result", self.rietveld_label),
                 self._fold("About", explain, open_=False))
 
@@ -967,6 +983,8 @@ class RefinementWorkbench(QMainWindow):
         if holder is None:
             return
         holder.addWidget(self.parameter_table)
+        self.parameter_table.set_unused(*_UNUSED.get(STEPS[max(row, 0)][0],
+                                                     ((), "")))
         self._show_plan_note()
 
     def _on_background_terms(self, terms: int) -> None:
@@ -1087,8 +1105,10 @@ class RefinementWorkbench(QMainWindow):
         """The automatic run asks every step's own form: peaks and index
         as they are, Pawley and Rietveld under their prefixes."""
         peaks = self.step_forms["peaks"].values()
+        # Refine peaks' own boxes: the automatic run only finds them
         values.update({k: v for k, v in peaks.items()
-                       if k != "background_terms"})
+                       if k not in ("background_terms", "max_iterations",
+                                    "tolerance")})
         values.update(self.step_forms["index"].values())
         values["bravais"] = self.bravais.value()
         values.update(self.step_forms["auto"].values())
@@ -1332,7 +1352,8 @@ class RefinementWorkbench(QMainWindow):
             self._fill_cells()
         elif step == "pawley" and answer and not result.cancelled:
             self.pawley = answer
-            self._take_parameters(answer.parameters)
+            if not answer.evaluated:
+                self._take_parameters(answer.parameters)
             self._draw_pawley()
             self._fill_reflections()
             self._show_pawley_result()
@@ -1427,6 +1448,16 @@ class RefinementWorkbench(QMainWindow):
             self.energy = fit
         else:
             self.rietveld = fit
+        if fit.evaluated:
+            # zero cycles moved nothing: no undo step, no history row,
+            # and the table keeps its values and their esds
+            if energy:
+                self._draw_energy()
+                self._show_energy_result()
+            else:
+                self._draw_rietveld()
+                self._show_rietveld_result()
+            return
         # the rows it moved are measured against where the run
         # started, and its atom rows against the structure it made --
         # against the old one, every Biso's esd was of another value

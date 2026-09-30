@@ -32,6 +32,11 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from xtal.powder.data import PowderData, PowderError, Radiation
+from xtal.powder.pawley import (
+    DEFAULT_ITERATIONS,
+    DEFAULT_TOLERANCE,
+    EVALUATED,
+)
 
 __all__ = ["RietveldFit", "RietveldFrame", "RietveldOptions",
            "parse_axis", "rietveld"]
@@ -46,6 +51,8 @@ class RietveldOptions:
     (:data:`~xtal.powder.bridge.RIETVELD_PRESETS`), or empty for the
     plan the boxes make.  ``preferred_axis`` is the March-Dollase
     direction as three integers, ``None`` for no texture.
+    ``max_iterations`` and ``tolerance`` are every stage's, a plan's
+    too; 0 iterations evaluates at the values given and moves nothing.
     """
 
     start: float | None = None
@@ -64,6 +71,8 @@ class RietveldOptions:
     biso: bool = True
     occupancy: bool = False
     preferred_axis: tuple[int, int, int] | None = None
+    max_iterations: int = DEFAULT_ITERATIONS
+    tolerance: float = DEFAULT_TOLERANCE
 
     def free(self, radiation: Radiation) -> tuple[str, ...]:
         """The bridge's words for what is freed.  A capillary has no
@@ -125,7 +134,12 @@ class RietveldFit:
 
     @property
     def converged(self) -> bool:
-        return self.status == "converged"
+        return self.status in ("converged", EVALUATED)
+
+    @property
+    def evaluated(self) -> bool:
+        """Zero cycles: the figures at the values it was handed."""
+        return self.status == EVALUATED
 
 
 def parse_axis(text) -> tuple[int, int, int] | None:
@@ -191,7 +205,9 @@ def rietveld(structure, data: PowderData, radiation: Radiation,
         hold_cell=options.hold_cell, plan=options.plan,
         preferred_axis=options.preferred_axis, on_frame=frame_out,
         frame_interval=frame_interval, folder=folder,
-        cancel=bridge.cancel_token(cancel))
+        cancel=bridge.cancel_token(cancel),
+        iterations=options.max_iterations, tolerance=options.tolerance)
+    evaluated = options.max_iterations == 0
     phase = refinement.structure.phases[0]
     refined = bridge.apply_phase(structure, phase, indices)
     if len(refined.sites) != len(structure.sites) \
@@ -207,15 +223,18 @@ def rietveld(structure, data: PowderData, radiation: Radiation,
     return RietveldFit(
         structure=refined,
         cell=tuple(float(getattr(phase.cell, n).value) for n in names),
-        cell_esd=tuple(float(getattr(phase.cell, n).stderr or 0.0)
+        cell_esd=tuple(0.0 if evaluated
+                       else float(getattr(phase.cell, n).stderr or 0.0)
                        for n in names),
         rwp=float(stats.rwp), rp=float(stats.rp), rexp=float(stats.rexp),
-        gof=float(stats.gof), status=str(result.status),
+        gof=float(stats.gof),
+        status=EVALUATED if evaluated else str(result.status),
         two_theta=np.asarray(result.two_theta),
         y_obs=np.asarray(result.y_obs), y_calc=np.asarray(result.y_calc),
         y_background=np.asarray(result.y_background),
         ticks=np.array([row[2] for row in bridge.reflections(refinement)]),
-        radiation=radiation, refined=bridge.refined_values(result),
+        radiation=radiation,
+        refined={} if evaluated else bridge.refined_values(result),
         moved=float(moved.max()) if moved.size else 0.0,
         atom_labels=tuple(atom.label for atom in phase.atoms),
         notes=[d.message for d in result.diagnostics], parameters=after)

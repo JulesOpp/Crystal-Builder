@@ -519,10 +519,17 @@ def _started(refinement, parameters: ps.ParameterSet,
     occupancy are the structure's, which ``to_rietx`` already gave it,
     and a set made before the structure was edited would put the old
     ones back.  ``groups`` limits it further -- a Pawley fit is handed
-    no scale.
+    no scale and no atoms -- and a row outside them keeps what it was
+    held for: the Le Bail scaffold's one dummy atom is no reason to
+    call a structure's first atom fixed.
     """
     out = parameters.copy()
-    out.hold(held_paths(refinement, out, radiation))
+    reasons = held_paths(refinement, out, radiation)
+    if groups is not None:
+        reasons = {row.path: (reasons.get(row.path, "")
+                              if row.group in groups else row.held)
+                   for row in out}
+    out.hold(reasons)
     table = {row.path for row in refinement.parameters()}
     values = {row.path: row.value for row in out
               if row.value is not None and not row.held
@@ -601,11 +608,20 @@ def refined_values(result) -> dict[str, tuple[float, float]]:
 #: which its free intensities stand in for, and no atoms.
 _PAWLEY_GROUPS = (ps.BACKGROUND, ps.POSITIONS, ps.PROFILE, ps.SAMPLE)
 
+#: The boxes a Pawley fit never frees, whatever is flagged.  The atoms
+#: are not only absent: the Le Bail scaffold has one dummy atom, whose
+#: paths are the structure's first atom's, and a flagged Biso there
+#: was freed -- a number with no effect on a pattern of free
+#: intensities, refined and reported.
+_PAWLEY_LEAVES = ("scale", "positions", "biso", "occupancy",
+                  "preferred_orientation")
+
 
 def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
            *, start: ps.ParameterSet, cell_free: bool = True,
            hold_cell=(), folder: Path | None = None, cancel=None,
-           mode: str = "pawley"):
+           mode: str = "pawley", iterations: int | None = None,
+           tolerance: float | None = None):
     """``(refinement, result, parameters)``: a Pawley fit of one cell to
     ``data``, or with ``mode="lebail"`` a Le Bail fit over the same
     plan.
@@ -617,6 +633,10 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
     cell, widths), and hands the set back with the fit's numbers in
     it.  ``hold_cell`` names cell numbers (``"a"``, ``"beta"``) held
     at the value given while the rest of the cell refines.
+    ``iterations`` and ``tolerance`` are every stage's (:func:`_plan`);
+    ``iterations=0`` is an evaluation (:func:`evaluation`), whose
+    intensities are still found -- they are not parameters -- and
+    whose set comes back with no esds.
     """
     from rietx.schemas.structure import lebail_scaffold
 
@@ -624,19 +644,24 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
     ins = _with_background(radiation, start.background_terms)
     refinement = rx.Refinement(structure, ins, history=False)
     started = _started(refinement, start, radiation, _PAWLEY_GROUPS)
-    cell_paths = free_cell_paths(refinement, hold_cell) if cell_free \
-        else []
-    stages = _stages(_flagged(refinement, started, leave=("scale",)),
-                     cell_paths)
-    if not stages:
-        raise PowderError("nothing is flagged to refine")
+    if iterations == 0:
+        chosen = evaluation()
+    else:
+        cell_paths = free_cell_paths(refinement, hold_cell) \
+            if cell_free else []
+        stages = _stages(_flagged(refinement, started,
+                                  leave=_PAWLEY_LEAVES), cell_paths)
+        if not stages:
+            raise PowderError("nothing is flagged to refine")
+        chosen = _plan(stages, iterations, tolerance)
     try:
         result = fit(refinement, data, folder=folder, mode=mode,
-                     plan=_plan(stages), cancel=cancel)
+                     plan=chosen, cancel=cancel)
     except (ValueError, KeyError) as exc:
         raise PowderError(f"RietX refused the fit: {exc}") from None
-    return refinement, result, _finished(started, refinement, result,
-                                         _PAWLEY_GROUPS)
+    return refinement, result, _finished(
+        started, refinement, None if iterations == 0 else result,
+        _PAWLEY_GROUPS)
 
 
 def reflections(refinement):
@@ -741,9 +766,47 @@ def _stages(paths: dict, cell) -> list[tuple[str, list[str]]]:
     return stages
 
 
-def _plan(stages) -> rx.RefinementPlan:
-    return rx.RefinementPlan(stages=[rx.Stage(name, paths)
-                                     for name, paths in stages])
+def _plan(stages, iterations: int | None = None,
+          tolerance: float | None = None) -> rx.RefinementPlan:
+    return limited(rx.RefinementPlan(stages=[rx.Stage(name, paths)
+                                             for name, paths in stages]),
+                   iterations, tolerance)
+
+
+def limited(plan, iterations: int | None = None,
+            tolerance: float | None = None):
+    """``plan`` with every stage stopping at ``iterations`` and the
+    last at a relative fall in χ² of ``tolerance`` (RietX's
+    ``max_iter`` and ``ftol``); ``None`` leaves RietX's own.
+
+    Only the last stage takes the tolerance as given: RietX runs the
+    ones before it looser (``intermediate_ftol``), since each only
+    seeds the next, and a tolerance looser than that loosens them too
+    rather than leaving an early stage stricter than the answer.
+    """
+    if iterations is not None:
+        for stage in plan.stages:
+            stage.max_iter = int(iterations)
+    if tolerance is not None and plan.stages:
+        plan.stages[-1].ftol = float(tolerance)
+        if plan.intermediate_ftol is not None:
+            plan.intermediate_ftol = max(float(plan.intermediate_ftol),
+                                         float(tolerance))
+    return plan
+
+
+def evaluation() -> rx.RefinementPlan:
+    """The plan of zero cycles: one stage that frees nothing.
+
+    RietX refuses ``max_iter=0`` (scipy's ``max_nfev`` must be
+    positive), but runs a stage with nothing in it: the pattern is
+    calculated at the values it was handed and its statistics are
+    RietX's own, with nothing moved.  A Pawley or Le Bail evaluation
+    still finds its intensities, which are not parameters -- measured
+    on rutile, Rwp 11.9 % evaluated at the preset's profile against
+    9.5 % fitted.
+    """
+    return rx.RefinementPlan(stages=[rx.Stage("evaluate", [])])
 
 
 def _box_stages(free, cell) -> list[tuple[str, list[str]]]:
@@ -901,7 +964,8 @@ def rietveld(structure, data: PowderData, radiation: Radiation, *,
              start: ps.ParameterSet, cell_free: bool = True, hold_cell=(),
              plan: str = "", preferred_axis=None, on_frame=None,
              frame_interval: float = 0.2, folder: Path | None = None,
-             cancel=None):
+             cancel=None, iterations: int | None = None,
+             tolerance: float | None = None):
     """``(refinement, result, indices, parameters)``: a Rietveld fit of
     a structure, from ``start`` and back into a copy of it.
 
@@ -913,25 +977,30 @@ def rietveld(structure, data: PowderData, radiation: Radiation, *,
     integers, ``None`` for none.  ``on_frame(stage, y_calc, fractions,
     cell)`` is called from the fitting thread as it goes;
     ``fractions`` is one row per atom of the phase, in the order of
-    ``indices``.
+    ``indices``.  ``iterations`` and ``tolerance`` are every stage's,
+    a RietX plan's too; ``iterations=0`` is an evaluation, which moves
+    nothing and hands the set back with no esds.
     """
     start = ps.with_structure(start, structure)
     terms = start.background_terms
     refinement, indices = _refinement_of(structure, radiation, terms,
                                          preferred_axis)
     started = _started(refinement, start, radiation)
-    if plan:
-        if plan not in RIETVELD_PRESETS:
-            raise PowderError(f"{plan!r} is not one of RietX's Rietveld "
-                              f"plans")
-        chosen = plan
+    if plan and plan not in RIETVELD_PRESETS:
+        raise PowderError(f"{plan!r} is not one of RietX's Rietveld "
+                          f"plans")
+    if iterations == 0:
+        chosen = evaluation()
+    elif plan:
+        chosen = limited(getattr(rx.RefinementPlan, plan)(), iterations,
+                         tolerance)
     else:
         cell = free_cell_paths(refinement, hold_cell) if cell_free \
             else []
         stages = _stages(_flagged(refinement, started), cell)
         if not stages:
             raise PowderError("nothing is flagged to refine")
-        chosen = _plan(stages)
+        chosen = _plan(stages, iterations, tolerance)
     events = None
     if on_frame is not None:
         shadow, _same = _refinement_of(structure, radiation, terms,
@@ -943,8 +1012,8 @@ def rietveld(structure, data: PowderData, radiation: Radiation, *,
                      plan=chosen, events=events, cancel=cancel)
     except (ValueError, KeyError) as exc:
         raise PowderError(f"RietX refused the fit: {exc}") from None
-    return refinement, result, indices, _finished(started, refinement,
-                                                  result)
+    return refinement, result, indices, _finished(
+        started, refinement, None if iterations == 0 else result)
 
 
 # ======================================================================
@@ -1079,7 +1148,8 @@ class PatternTerm:
 def pattern_term(structure, data: PowderData, radiation: Radiation, *,
                  start: ps.ParameterSet, preferred_axis=None,
                  cell: bool = False, folder: Path | None = None,
-                 cancel=None, say=None):
+                 cancel=None, say=None, iterations: int | None = None,
+                 tolerance: float | None = None):
     """``(term, result, indices, refinement, parameters)``: the pattern
     as a function of the atoms whose positions ``start`` flags.
 
@@ -1088,8 +1158,10 @@ def pattern_term(structure, data: PowderData, radiation: Radiation, *,
     they are the pattern's before the atoms are asked to move.  With
     none of it flagged there is **no first fit** and ``result`` is
     ``None``: the atoms start against the numbers the set shows, which
-    is what a person who unticked them asked for.  Occupancies are
-    never freed here; a force field has no view on one.
+    is what a person who unticked them asked for, and ``iterations=0``
+    fits none of it either.  ``iterations`` and ``tolerance`` are the
+    first fit's stages'.  Occupancies are never freed here; a force
+    field has no view on one.
     """
     start = ps.with_structure(start, structure)
     refinement, indices = _refinement_of(structure, radiation,
@@ -1099,14 +1171,15 @@ def pattern_term(structure, data: PowderData, radiation: Radiation, *,
     stages = _stages(_flagged(refinement, started,
                               leave=("positions", "occupancy")), [])
     result = None
-    if stages:
+    if stages and iterations != 0:
         if say is not None:
             say("fitting the " + ", ".join(
                 _STAGE_WORDS.get(name, name) for name, _p in stages)
                 + " first, with the atoms where they are")
         try:
             result = fit(refinement, data, folder=folder, mode="rietveld",
-                         plan=_plan(stages), cancel=cancel)
+                         plan=_plan(stages, iterations, tolerance),
+                         cancel=cancel)
         except (ValueError, KeyError) as exc:
             raise PowderError(f"RietX refused the fit: {exc}") from None
     atoms = [row.path for row in started if row.refine and not row.held

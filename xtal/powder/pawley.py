@@ -31,8 +31,19 @@ import numpy as np
 
 from xtal.powder.data import PowderData, PowderError, Radiation
 
-__all__ = ["METHODS", "PawleyFit", "PawleyOptions", "Reflection",
+__all__ = ["DEFAULT_ITERATIONS", "DEFAULT_TOLERANCE", "EVALUATED",
+           "METHODS", "PawleyFit", "PawleyOptions", "Reflection",
            "cell_fits_structure", "parse_cell", "parse_hold", "pawley"]
+
+#: RietX's own: a stage's most iterations, and the relative fall in χ²
+#: its last stage stops at -- so the boxes at their defaults change
+#: nothing a fit did before they were there.
+DEFAULT_ITERATIONS = 100
+DEFAULT_TOLERANCE = 1e-9
+
+#: A fit's status when it ran no cycles: evaluated at the values it
+#: was handed, nothing moved and nothing to converge.
+EVALUATED = "evaluated"
 
 #: How a whole-pattern fit without atoms finds its intensities, by
 #: RietX's mode name.
@@ -55,7 +66,10 @@ class PawleyOptions:
     ``"pawley"`` (every intensity a least-squares variable) or
     ``"lebail"`` (the intensities re-partitioned from the observed
     pattern between cycles, and never variables): the same plan either
-    way, so the two are compared on one footing.
+    way, so the two are compared on one footing.  ``max_iterations``
+    and ``tolerance`` are every stage's (TOPAS's iters and
+    convergence criterion); 0 iterations evaluates at the values
+    given, fitting nothing.
     """
 
     start: float | None = None
@@ -67,6 +81,8 @@ class PawleyOptions:
     size: bool = True
     strain: bool = True
     method: str = "pawley"
+    max_iterations: int = DEFAULT_ITERATIONS
+    tolerance: float = DEFAULT_TOLERANCE
 
     def free(self, radiation: Radiation) -> tuple[str, ...]:
         """The RietX groups freed, in the bridge's words.
@@ -135,7 +151,11 @@ class PawleyFit:
 
     @property
     def converged(self) -> bool:
-        return self.status == "converged"
+        return self.status in ("converged", EVALUATED)
+
+    @property
+    def evaluated(self) -> bool:
+        return self.status == EVALUATED
 
     @property
     def method_name(self) -> str:
@@ -222,7 +242,9 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
     refinement, result, after = bridge.pawley(
         window, radiation, parse_cell(cell), symbol, start=start,
         hold_cell=options.hold_cell, folder=folder, mode=options.method,
-        cancel=bridge.cancel_token(cancel))
+        cancel=bridge.cancel_token(cancel),
+        iterations=options.max_iterations, tolerance=options.tolerance)
+    evaluated = options.max_iterations == 0
     refined = refinement.structure.phases[0].cell
     names = ("a", "b", "c", "alpha", "beta", "gamma")
     values = {p.path: p for p in result.parameters}
@@ -234,11 +256,12 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
     stats = result.statistics
     return PawleyFit(
         cell=tuple(float(getattr(refined, n).value) for n in names),
-        cell_esd=tuple(float(getattr(refined, n).stderr or 0.0)
+        cell_esd=tuple(0.0 if evaluated
+                       else float(getattr(refined, n).stderr or 0.0)
                        for n in names),
         space_group=symbol, rwp=float(stats.rwp), rp=float(stats.rp),
         rexp=float(stats.rexp), gof=float(stats.gof),
-        status=str(result.status),
+        status=EVALUATED if evaluated else str(result.status),
         two_theta=np.asarray(result.two_theta),
         y_obs=np.asarray(result.y_obs), y_calc=np.asarray(result.y_calc),
         y_background=np.asarray(result.y_background),
@@ -248,7 +271,7 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
         zero=instrument_value("instrument.zero_shift"),
         displacement=instrument_value(
             "instrument.geometry.sample_displacement"),
-        refined=bridge.refined_values(result),
+        refined={} if evaluated else bridge.refined_values(result),
         notes=[d.message for d in result.diagnostics],
         method=options.method, parameters=after)
 

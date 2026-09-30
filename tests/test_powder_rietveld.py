@@ -295,3 +295,63 @@ def test_a_parameter_file_that_cannot_be_read_names_its_line(
         "xy": str(rutile_xy_shared), "parameters": str(given)}))
     assert not result.ok
     assert "start.txt, line 2" in result.message
+
+
+def test_zero_cycles_reports_r_values_and_moves_nothing(data):
+    """Max iterations 0 evaluates the pattern at the parameters as they
+    stand: R values, and every number -- the atoms and the set --
+    exactly where it was.  Nothing needs to be flagged for it."""
+    from xtal.powder import bridge
+
+    structure = _rutile()
+    start = bridge.starting_parameters(Radiation("cu"), data=data,
+                                       structure=structure)
+    for row in start:
+        row.refine = False
+    fit = rietveld(structure, data, Radiation("cu"),
+                   RietveldOptions(max_iterations=0), parameters=start)
+    assert fit.evaluated and fit.converged
+    assert np.isfinite(fit.rwp) and fit.rwp > 0.0
+    assert fit.structure.frac == pytest.approx(structure.frac)
+    assert fit.moved == 0.0
+    assert fit.refined == {}
+    for row in fit.parameters:
+        if row.value is not None:
+            assert row.value == pytest.approx(start[row.name].value)
+        assert row.esd is None
+
+
+@pytest.mark.parametrize("plan", ["", "mccusker_default"])
+def test_max_iterations_is_handed_to_every_stage(data, monkeypatch, plan):
+    """The flags' plan and a RietX plan alike: every stage stops at the
+    iterations asked, the last at the tolerance asked, and none before
+    it stricter than that."""
+    from xtal.powder import bridge
+
+    seen = []
+
+    def fit(_refinement, _data, **kwargs):
+        seen.append(kwargs["plan"])
+        raise PowderStopped("seen")
+
+    monkeypatch.setattr(bridge, "fit", fit)
+    with pytest.raises(PowderStopped):
+        rietveld(_rutile(), data, Radiation("cu"),
+                 RietveldOptions(plan=plan, max_iterations=7,
+                                 tolerance=1e-4))
+    (chosen,) = seen
+    assert len(chosen.stages) > 1
+    assert {stage.max_iter for stage in chosen.stages} == {7}
+    ftols = chosen.stage_ftols()
+    assert ftols[-1] == 1e-4
+    assert all(f is None or f >= 1e-4 for f in ftols[:-1])
+
+
+def test_a_tolerance_that_is_not_a_positive_number_is_refused():
+    from xtal.modules import powder as steps
+
+    assert steps.rietveld_options({}).tolerance == 1e-9
+    assert steps.rietveld_options({"tolerance": "1e-5"}).tolerance == 1e-5
+    for text in ("fast", "0", "-1e-6"):
+        with pytest.raises(PowderError, match="tolerance"):
+            steps.rietveld_options({"tolerance": text})

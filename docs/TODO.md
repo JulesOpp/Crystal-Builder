@@ -230,14 +230,15 @@ opens a dialog in the workbench.
 
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
-| **4 — Iterations and tolerance** | Per step; 0 is an evaluation, never a fit (RietX refuses `max_iter=0`) | `bridge.py`, `energy.py` | M |
 | **5 — hkl on hover** | The reflection under the cursor on every comb | `xtalapp/refine/plot.py` | S-M |
 
-Done in the order 4, 5; 0 (tests taking focus), 6 (Options…), 1
+0 (tests taking focus), 6 (Options…), 1
 (`xtal/powder/parameters.py`), 2 (every run starts from the set and
-hands it back; `xtal run pxrd.* parameters=FILE`) and 3 (the table,
+hands it back; `xtal run pxrd.* parameters=FILE`), 3 (the table,
 `xtalapp/refine/parameters.py`, with Reset / Copy / Paste; the Refine
-boxes are its column) shipped 2026-09-29/30.
+boxes are its column) and 4 (Max iterations and Tolerance on every
+fitting step and Refine peaks; 0 is an evaluation) shipped
+2026-09-29/30.
 Follow-up, not planned: the set persists in the project rather than
 for the workbench's life and each run folder's `parameters.txt`.
 

@@ -201,3 +201,60 @@ def test_a_pawley_profile_is_rietvelds_start(fit, rutile_xy_shared):
                     parameters=start)
     assert riet.parameters["W"].value == after["W"].value
     assert riet.rwp < 1.2 * fit.rwp + 0.02
+
+
+def test_a_pawley_fit_never_frees_the_atoms_it_does_not_have(
+        rutile_xy_shared, monkeypatch):
+    """Every row flagged, the structure's atoms and the scale included:
+    none of it reaches the plan, and the first atom is not called
+    fixed.  The Le Bail scaffold's one dummy atom has the paths of a
+    structure's first atom, so a flagged Biso was freed there -- a
+    number with no bearing on a pattern of free intensities -- and
+    the dummy's locked position marked the atom held."""
+    from xtal.core.lattice import Lattice
+    from xtal.core.structure import Structure
+    from xtal.powder import bridge
+    from xtal.powder import parameters as ps
+
+    data = PowderData.from_xy(rutile_xy_shared)
+    structure = Structure.from_arrays(
+        Lattice.from_parameters(4.594, 4.594, 2.959, 90, 90, 90),
+        ["Ti", "O"], [[0.1, 0.1, 0.1], [0.3, 0.2, 0.1]],
+        space_group="P1")
+    start = bridge.starting_parameters(Radiation("cu"), data=data,
+                                       structure=structure)
+    for row in start:
+        row.refine = True
+    plans = []
+    real = bridge.fit
+
+    def fit_seen(refinement, data, **kwargs):
+        plans.append(kwargs["plan"])
+        return real(refinement, data, **kwargs)
+
+    monkeypatch.setattr(bridge, "fit", fit_seen)
+    fit = pawley(data, Radiation("cu"), INDEXED, "P42/mnm",
+                 parameters=start)
+    assert fit.converged
+    freed = [path for stage in plans[0].stages for path in stage.turn_on]
+    assert "instrument.profile.w" in freed
+    assert not [p for p in freed if ".atoms." in p or p.endswith(".scale")]
+    first = start.in_group(ps.ATOMS)[0]
+    assert first.path.endswith(".dof.*")
+    assert fit.parameters[first.name].held == ""
+
+
+def test_pawley_at_zero_cycles_finds_intensities_and_moves_nothing(
+        rutile_xy_shared):
+    """Zero cycles is an evaluation: the cell and profile as given, the
+    intensities still found -- they are not parameters -- and the R
+    values of that.  Nothing is refined, so no esd comes back."""
+    fit = pawley(PowderData.from_xy(rutile_xy_shared), Radiation("cu"),
+                 INDEXED, "P42/mnm", PawleyOptions(max_iterations=0))
+    assert fit.evaluated and fit.converged
+    assert fit.cell == pytest.approx(parse_cell(INDEXED))
+    assert not any(fit.cell_esd)
+    assert fit.refined == {}
+    assert fit.reflections
+    assert 0.0 < fit.rwp < 0.5
+    assert all(row.esd is None for row in fit.parameters)

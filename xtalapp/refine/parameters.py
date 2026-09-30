@@ -77,6 +77,9 @@ class ParameterTable(QWidget):
         #: the rows the last fit moved, shown bold for a moment
         self.moved: set[str] = set()
         self._flags_enabled, self._flags_why = True, ""
+        #: groups the step in front never reads, hidden rather than
+        #: shown ticked beside a fit that ignores them
+        self.unused: tuple[str, ...] = ()
         self._closed: set[str] = set()
         #: the groups and rows the tree has items for
         self._shown: tuple = ()
@@ -91,6 +94,11 @@ class ParameterTable(QWidget):
         self.hint.setWordWrap(True)
         set_tone(self.hint, HINT)
         layout.addWidget(self.hint)
+        self.unused_note = QLabel("")
+        self.unused_note.setWordWrap(True)
+        set_tone(self.unused_note, HINT)
+        self.unused_note.setVisible(False)
+        layout.addWidget(self.unused_note)
         self.tree = QTreeWidget()
         self.tree.setColumnCount(len(HEADERS))
         self.tree.setHeaderLabels(HEADERS)
@@ -170,6 +178,19 @@ class ParameterTable(QWidget):
         self._flags_enabled, self._flags_why = bool(on), why
         self._fill()
 
+    def set_unused(self, groups=(), why: str = "") -> None:
+        """Hide ``groups``, saying ``why``: a Pawley fit has no atoms
+        and no scale, and their rows shown ticked beside it read as
+        though it refined them.  Hidden and not dropped -- they are the
+        set's, kept for the next step that reads them."""
+        groups = tuple(groups)
+        self.unused_note.setText(why if groups else "")
+        self.unused_note.setVisible(bool(groups and why))
+        if groups == self.unused:
+            return
+        self.unused = groups
+        self._fill()
+
     def _fill(self) -> None:
         """The tree as the set stands.  Rebuilt only when the rows
         themselves change: an edit arrives from inside the tree's own
@@ -219,6 +240,7 @@ class ParameterTable(QWidget):
         tree.blockSignals(True)
         for k in range(tree.topLevelItemCount()):
             group = tree.topLevelItem(k)
+            group.setHidden(group.data(NAME, _GROUP) in self.unused)
             rows = []
             for j in range(group.childCount()):
                 child = group.child(j)

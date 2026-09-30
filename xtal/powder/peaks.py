@@ -362,7 +362,13 @@ def _lines_profile(grid: np.ndarray, lines, emission) -> np.ndarray:
 _REACH_FWHM = 15.0
 
 #: Steps a peak refinement may take; it converges in tens.
-_MAX_STEPS = 400
+MAX_STEPS = 400
+
+#: Where it stops: when χ² stops moving by a part in 1e5.  scipy's
+#: 1e-8 is past where the fit is -- the same pattern reached its Rwp
+#: in 24 steps and spent thousands more shaving parts per million off
+#: χ² with lines sitting on their bounds.
+TOLERANCE = 1e-5
 
 
 def _width_at(fit: PeakFit, x: float) -> float:
@@ -386,7 +392,9 @@ def _width_at(fit: PeakFit, x: float) -> float:
 
 
 def refine_peaks(data: PowderData, radiation: Radiation, fit: PeakFit,
-                 background_terms: int = 8, *, cancel=None) -> PeakFit:
+                 background_terms: int = 8, *, cancel=None,
+                 max_iterations: int = MAX_STEPS,
+                 tolerance: float = TOLERANCE) -> PeakFit:
     """The lines in use, refined together over the whole range.
 
     A Chebyshev background of ``background_terms`` coefficients, and
@@ -398,8 +406,10 @@ def refine_peaks(data: PowderData, radiation: Radiation, fit: PeakFit,
     law puts it, at the emission line's weight, and is never a free
     line of its own.
 
-    ``cancel`` is a job's :class:`~xtal.modules.job.Cancellation`;
-    Stop raises :class:`~xtal.powder.data.PowderStopped`.
+    ``max_iterations`` caps scipy's evaluations and ``tolerance`` is
+    its ``ftol``.  ``cancel`` is a job's
+    :class:`~xtal.modules.job.Cancellation`; Stop raises
+    :class:`~xtal.powder.data.PowderStopped`.
     """
     from numpy.polynomial import chebyshev
     from scipy.optimize import least_squares
@@ -483,14 +493,10 @@ def refine_peaks(data: PowderData, radiation: Radiation, fit: PeakFit,
                             np.concatenate(cols_of))),
                           shape=(len(x), len(x0)))
 
-    # And it stops when chi-squared stops moving by a part in 1e5.
-    # scipy's 1e-8 is past where the fit is: the same pattern reached
-    # its Rwp in 24 steps and spent thousands more shaving parts per
-    # million off chi-squared with lines sitting on their bounds.
     solution = least_squares(residual, x0, jac=jacobian,
                              bounds=(lower, upper), method="trf",
-                             x_scale="jac", ftol=1e-5,
-                             max_nfev=_MAX_STEPS)
+                             x_scale="jac", ftol=float(tolerance),
+                             max_nfev=max(int(max_iterations), 1))
     params = solution.x
     calc, background = model(params)
     esd = _esds(solution, len(x))
