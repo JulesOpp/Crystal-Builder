@@ -180,3 +180,178 @@ def test_every_plan_says_what_it_frees_and_whether_the_atoms_move():
     boxes = plan_notes("", ("background", "cell", "positions"))
     assert "cell → atom positions" in boxes
     assert "peak shape" not in boxes
+
+
+# ----------------------------------------------------------------------
+#  the parameter set: where a run starts, and where it leaves the next
+# ----------------------------------------------------------------------
+
+def test_a_second_rietveld_run_starts_where_the_first_ended(fitted, data):
+    """Run again from the first run's parameters with only the scale
+    flagged: the Rwp and every other number stay where they were.
+    Without it every run starts from RietX's preset again, and a
+    profile fitted on one tab is thrown away on the next."""
+    _structure, first, _frames = fitted
+    again = first.parameters.copy()
+    for row in again:
+        again.set_refine(row.name, row.name == "scale")
+    fit = rietveld(first.structure, data, Radiation("cu"),
+                   RietveldOptions(cell=False), parameters=again)
+    assert fit.converged
+    assert fit.rwp == pytest.approx(first.rwp, rel=1e-4)
+    for before in first.parameters:
+        after = fit.parameters[before.name]
+        if before.value is not None:
+            assert after.value == pytest.approx(
+                before.value, rel=1e-4, abs=1e-9), before.name
+
+
+def test_a_row_not_flagged_does_not_move(data):
+    """W typed in and left unflagged is the W the fit ends with, and
+    has no esd; the rest of the peak shape still refines.  Without it
+    a person's held number is quietly refitted."""
+    from xtal.powder import bridge
+
+    start = bridge.starting_parameters(Radiation("cu"), data=data,
+                                       structure=_rutile())
+    start.set_value("W", 0.002)
+    start.set_refine("W", False)
+    fit = rietveld(_rutile(), data, Radiation("cu"), parameters=start)
+    assert fit.parameters["W"].value == 0.002
+    assert fit.parameters["W"].esd is None
+    assert "instrument.profile.w" not in fit.refined
+    assert fit.parameters["U"].esd
+
+
+def test_a_position_its_site_fixes_is_held_and_says_why(fitted):
+    """Rutile's Ti at 0,0,0 has no direction to move in; its glob
+    matches nothing in RietX, which does not refuse it, so only the
+    set says so.  Without it the table offers a Refine flag that does
+    nothing."""
+    _structure, fit, _frames = fitted
+    assert fit.parameters["Ti1_xyz"].held == "fixed by symmetry"
+    assert fit.parameters["O2_xyz"].held == ""
+
+
+def test_nothing_flagged_is_refused_rather_than_run(data):
+    from xtal.powder import bridge
+
+    start = bridge.starting_parameters(Radiation("cu"), data=data,
+                                       structure=_rutile())
+    for row in start:
+        start.set_refine(row.name, False)
+    with pytest.raises(PowderError, match="nothing is flagged"):
+        rietveld(_rutile(), data, Radiation("cu"),
+                 RietveldOptions(cell=False), parameters=start)
+
+
+def test_xtal_run_starts_from_a_parameter_file_and_leaves_where_it_ended(
+        tmp_path, rutile_xy_shared):
+    """``parameters=FILE`` is read in the text form Copy writes, its
+    flags in place of the boxes, and the run's folder keeps the set it
+    started from and the one it ended with.  Without it a script
+    cannot carry numbers from one run to the next."""
+    from xtal.io import write_cif
+    from xtal.modules import MODULES
+    from xtal.modules import record as module_record
+    from xtal.powder.parameters import ParameterSet
+    from xtal.workspace import Workspace
+
+    source = tmp_path / "rutile.cif"
+    write_cif(_rutile(), source)
+    entry = Workspace.create(tmp_path / "ws").add_structure(source)
+    given = tmp_path / "start.txt"
+    given.write_text("W 0.0015 NoRefine\nstrain_l 0 Refine\n"
+                     "bkg_c9 0 Refine\n", encoding="utf-8")
+    module = MODULES.get("pxrd")
+    action = module.action("rietveld")
+    params = {"xy": str(rutile_xy_shared), "parameters": str(given),
+              "strain": False, "frame_interval": -1}
+    folder = module_record.open_run(entry, module, action, params,
+                                    _rutile())
+    result = action.run(Job(structure=_rutile(), folder=folder,
+                            params=params))
+    assert result.ok, result.message
+    started = folder.path / "parameters-start.txt"
+    ended = folder.path / "parameters.txt"
+    assert "W 0.0015 NoRefine" in started.read_text()
+    after = ParameterSet(result.answer.parameters)
+    after.paste(ended.read_text())
+    assert after["W"].value == 0.0015
+    # the file's flag, not the box's
+    assert "phases.0.lor_strain" in result.answer.refined
+    # a coefficient the file names grows the series past the box's 8
+    assert after.background_terms == 10
+
+
+def test_a_parameter_file_that_cannot_be_read_names_its_line(
+        tmp_path, rutile_xy_shared):
+    from xtal.modules.powder import run_rietveld
+
+    given = tmp_path / "start.txt"
+    given.write_text("W 0.0015 NoRefine\nwidth 3 Refine\n",
+                     encoding="utf-8")
+    result = run_rietveld(Job(structure=_rutile(), params={
+        "xy": str(rutile_xy_shared), "parameters": str(given)}))
+    assert not result.ok
+    assert "start.txt, line 2" in result.message
+
+
+def test_zero_cycles_reports_r_values_and_moves_nothing(data):
+    """Max iterations 0 evaluates the pattern at the parameters as they
+    stand: R values, and every number -- the atoms and the set --
+    exactly where it was.  Nothing needs to be flagged for it."""
+    from xtal.powder import bridge
+
+    structure = _rutile()
+    start = bridge.starting_parameters(Radiation("cu"), data=data,
+                                       structure=structure)
+    for row in start:
+        row.refine = False
+    fit = rietveld(structure, data, Radiation("cu"),
+                   RietveldOptions(max_iterations=0), parameters=start)
+    assert fit.evaluated and fit.converged
+    assert np.isfinite(fit.rwp) and fit.rwp > 0.0
+    assert fit.structure.frac == pytest.approx(structure.frac)
+    assert fit.moved == 0.0
+    assert fit.refined == {}
+    for row in fit.parameters:
+        if row.value is not None:
+            assert row.value == pytest.approx(start[row.name].value)
+        assert row.esd is None
+
+
+@pytest.mark.parametrize("plan", ["", "mccusker_default"])
+def test_max_iterations_is_handed_to_every_stage(data, monkeypatch, plan):
+    """The flags' plan and a RietX plan alike: every stage stops at the
+    iterations asked, the last at the tolerance asked, and none before
+    it stricter than that."""
+    from xtal.powder import bridge
+
+    seen = []
+
+    def fit(_refinement, _data, **kwargs):
+        seen.append(kwargs["plan"])
+        raise PowderStopped("seen")
+
+    monkeypatch.setattr(bridge, "fit", fit)
+    with pytest.raises(PowderStopped):
+        rietveld(_rutile(), data, Radiation("cu"),
+                 RietveldOptions(plan=plan, max_iterations=7,
+                                 tolerance=1e-4))
+    (chosen,) = seen
+    assert len(chosen.stages) > 1
+    assert {stage.max_iter for stage in chosen.stages} == {7}
+    ftols = chosen.stage_ftols()
+    assert ftols[-1] == 1e-4
+    assert all(f is None or f >= 1e-4 for f in ftols[:-1])
+
+
+def test_a_tolerance_that_is_not_a_positive_number_is_refused():
+    from xtal.modules import powder as steps
+
+    assert steps.rietveld_options({}).tolerance == 1e-9
+    assert steps.rietveld_options({"tolerance": "1e-5"}).tolerance == 1e-5
+    for text in ("fast", "0", "-1e-6"):
+        with pytest.raises(PowderError, match="tolerance"):
+            steps.rietveld_options({"tolerance": text})

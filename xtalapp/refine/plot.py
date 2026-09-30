@@ -23,6 +23,12 @@ difference, rather than hanging below zero on the pattern's axis.
 Below zero was fine on counts; on a logarithmic axis there is no
 below zero, and on any axis the comb's depth was a second intensity
 scale that zooming stretched.
+
+**A tick says which reflection it is** when the cursor is on it --
+``(1 1 0)  27.43°  d 3.249 Å``, every reflection within a few pixels
+listed together, since coincident lines are exactly the ones a person
+cannot tell apart by eye.  A comb of peaks nothing has indexed says
+so rather than inventing an hkl.
 """
 
 from __future__ import annotations
@@ -41,13 +47,35 @@ from xtalapp.widgets.intensity_scale import (
 )
 from xtalapp.widgets.tone import WARNING, set_tone
 
-__all__ = ["DEFAULT_SCALE", "RefinementPlot"]
+__all__ = ["DEFAULT_SCALE", "HOVER_PIXELS", "RefinementPlot",
+           "reflection_label", "reflection_labels"]
 
 #: The intensity scale a new plot starts on.
 DEFAULT_SCALE = "log"
 
 #: Observed, calculated, background, difference, ticks, single lines.
 COLORS = ("0.15", "#d0473a", "0.6", "#3a6fb0", "#2f8f4e", "#8a5cc2")
+
+#: How near the cursor a tick is to count as under it, in pixels: a
+#: tick is a line one pixel wide, and nobody holds a mouse that still.
+HOVER_PIXELS = 4.0
+
+
+def reflection_label(hkl, two_theta: float, d: float | None = None) -> str:
+    """``(1 1 0)  27.43°  d 3.249 Å`` -- one tick, as the cursor
+    names it."""
+    h, k, m = (int(v) for v in hkl)
+    text = f"({h} {k} {m})  {float(two_theta):.2f}°"
+    return text + (f"  d {float(d):.4g} Å" if d else "")
+
+
+def reflection_labels(reflections) -> list[str] | None:
+    """Every tick of a fit named, from its reflection list: anything
+    with ``hkl``, ``two_theta`` and ``d``.  ``None`` with no list."""
+    if not reflections:
+        return None
+    return [reflection_label(r.hkl, r.two_theta, r.d)
+            for r in reflections]
 
 
 class RefinementPlot(QWidget):
@@ -60,6 +88,9 @@ class RefinementPlot(QWidget):
         self.available = installed()
         self.figure = None
         self._lines: dict = {}
+        #: each comb's positions and what each tick is called
+        self._combs: dict = {}
+        self._hover = None
         self._components_shown = True
         if not self.available:
             label = QLabel(
@@ -85,6 +116,7 @@ class RefinementPlot(QWidget):
                                                   sharex=self.axes)
         self.canvas = canvas_class(self.figure)
         self.canvas.setMinimumSize(360, 240)
+        self.canvas.mpl_connect("motion_notify_event", self._on_motion)
         self.toolbar = toolbar_class(self.canvas, self)
         self.scale_box = scale_box()
         # logarithmic to start with: the weak lines and the background
@@ -113,6 +145,8 @@ class RefinementPlot(QWidget):
         self.strip.clear()
         self.difference.clear()
         self._lines = {}
+        self._combs = {}
+        self._hover = None
         self.axes.set_ylabel("counts")
         self.difference.set_xlabel(r"2$\theta$ (degrees)")
         self.difference.set_ylabel("obs - calc")
@@ -166,8 +200,9 @@ class RefinementPlot(QWidget):
         self.canvas.draw_idle()
 
     def show_fit(self, x, observed, calculated, background=None,
-                 ticks=()) -> None:
-        """A fit, from scratch: the observed trace is its grid's."""
+                 ticks=(), labels=None) -> None:
+        """A fit, from scratch: the observed trace is its grid's.
+        ``labels`` names each tick (:func:`reflection_labels`)."""
         if self.figure is None:
             return
         self.show_observed(x, observed)
@@ -186,28 +221,35 @@ class RefinementPlot(QWidget):
             self._x, self._observed - np.asarray(calculated, dtype=float),
             lw=0.8, color=COLORS[3])
         self.difference.axhline(0.0, lw=0.5, color="0.5")
-        self.set_ticks(ticks)
+        self.set_ticks(ticks, labels)
         self.axes.legend(loc="upper right", frameon=False, fontsize=9)
         apply_scale(self.axes, self.scale)
         self.canvas.draw_idle()
 
-    def set_ticks(self, positions) -> None:
-        """Where the peaks are: a comb under zero."""
-        self._comb("ticks", positions, 0, COLORS[4])
+    def set_ticks(self, positions, labels=None) -> None:
+        """Where the peaks are: a comb under zero.  ``labels`` names
+        each tick; without, a tick is a peak nothing has indexed."""
+        self._comb("ticks", positions, 0, COLORS[4], labels)
 
-    def set_reflections(self, positions) -> None:
+    def set_reflections(self, positions, labels=None) -> None:
         """Where a candidate cell puts its lines: a second comb under
         the peaks', so a peak with no line beneath it is seen at once
         -- how a person judges a cell by eye."""
-        self._comb("reflections", positions, 1, COLORS[1])
+        self._comb("reflections", positions, 1, COLORS[1], labels)
 
-    def _comb(self, name: str, positions, row: int, color) -> None:
+    def _comb(self, name: str, positions, row: int, color,
+              labels=None) -> None:
         if self.figure is None:
             return
         old = self._lines.pop(name, None)
         if old is not None:
             old.remove()
-        positions = np.asarray(positions, dtype=float)
+        positions = np.asarray(() if positions is None else positions,
+                               dtype=float).ravel()
+        if labels is None or len(labels) != len(positions):
+            labels = [f"2θ {x:.2f}°, not indexed" for x in positions]
+        self._combs[row] = (positions, list(labels))
+        self._set_hover("")
         if positions.size:
             with self._view_kept():
                 self._lines[name] = self.strip.vlines(
@@ -275,6 +317,64 @@ class RefinementPlot(QWidget):
         self._lines["difference"].set_ydata(self._observed - calculated)
         self.difference.relim()
         self.difference.autoscale_view(scalex=False)
+        self.canvas.draw_idle()
+
+    # -- naming a tick ---------------------------------------------------
+
+    def ticks_at(self, x_pixel: float, row: int) -> list[str]:
+        """What the ticks of comb ``row`` within :data:`HOVER_PIXELS`
+        of ``x_pixel`` (display coordinates) are, nearest first."""
+        positions, labels = self._combs.get(row, (np.zeros(0), []))
+        if not positions.size:
+            return []
+        points = np.column_stack([positions, np.zeros_like(positions)])
+        pixels = self.strip.transData.transform(points)[:, 0]
+        near = np.abs(pixels - float(x_pixel))
+        return [labels[k] for k in np.argsort(near, kind="stable")
+                if near[k] <= HOVER_PIXELS]
+
+    def _on_motion(self, event) -> None:
+        if event.inaxes is not self.strip or event.ydata is None:
+            self._set_hover("")
+            return
+        # row 0 on top, the axis running 2 down to 0
+        row = 1 if event.ydata >= 1.0 else 0
+        self._set_hover("\n".join(self.ticks_at(event.x, row)),
+                        event.xdata, row)
+
+    @property
+    def hovered(self) -> str:
+        """What the tick under the cursor says, ``""`` for none."""
+        return self._hover.get_text() \
+            if self._hover is not None and self._hover.get_visible() \
+            else ""
+
+    def _set_hover(self, text: str, x: float = 0.0, row: int = 0) -> None:
+        if self.figure is None or text == self.hovered:
+            return
+        if not text:
+            if self._hover is not None:
+                self._hover.set_visible(False)
+                self.canvas.draw_idle()
+            return
+        if self._hover is None:
+            self._hover = self.strip.annotate(
+                "", xy=(0.0, 0.0), xytext=(8, 10),
+                textcoords="offset points", fontsize=8,
+                annotation_clip=False, zorder=10,
+                bbox={"boxstyle": "round,pad=0.3", "fc": "white",
+                      "ec": "0.6", "alpha": 0.95})
+            # a label is no reason for the axes to be laid out again
+            self._hover.set_in_layout(False)
+        # the side with room: a label at the right edge runs off it
+        left, right = self.strip.get_xlim()
+        on_right = x > left + 0.6 * (right - left)
+        self._hover.set_horizontalalignment("right" if on_right
+                                            else "left")
+        self._hover.set_position((-8, 10) if on_right else (8, 10))
+        self._hover.xy = (x, row + 0.5)
+        self._hover.set_text(text)
+        self._hover.set_visible(True)
         self.canvas.draw_idle()
 
     @property

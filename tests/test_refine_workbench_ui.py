@@ -92,6 +92,16 @@ def test_a_file_that_is_not_a_pattern_is_refused_with_the_reason(
     assert "no two-column data" in bench.status.text()
 
 
+def _flag(bench, name, on):
+    """Tick or untick the Refine box of a row, or of a whole group, in
+    the parameter table -- as a click does."""
+    from xtalapp.refine.parameters import REFINE
+
+    item = bench.parameter_table.item(name)
+    assert item is not None, name
+    item.setCheckState(REFINE, Qt.Checked if on else Qt.Unchecked)
+
+
 def _run_peaks(bench, qtbot, rutile_xy):
     bench.load_pattern(rutile_xy)
     with qtbot.waitSignal(bench.stepFinished, timeout=60000) as blocker:
@@ -350,9 +360,9 @@ def test_loading_through_the_dialog_keeps_the_workbench_in_front(
     monkeypatch.setattr(module.QFileDialog, "getOpenFileName",
                         staticmethod(lambda *a, **k: (str(rutile_xy), "")))
     raised = []
-    monkeypatch.setattr(bench, "raise_", lambda: raised.append(True))
+    monkeypatch.setattr(module.windows, "present", raised.append)
     bench.choose_pattern()
-    assert raised
+    assert raised == [bench]
     assert bench.data is not None
 
 
@@ -362,11 +372,15 @@ def test_the_forms_start_at_the_defaults_asked_for(bench):
     assert bench.step_forms["index"].widgets["zero_error"] \
         .singleStep() == pytest.approx(0.1)
     assert index["longest_axis"] == 50.0
-    assert (pawley["zero"], pawley["displacement"], pawley["hold"],
-            pawley["size"], pawley["strain"]) == \
-        (False, True, "", True, True)
+    assert pawley["hold"] == ""
     assert "background_terms" in bench.values("peaks")
     assert "positions" not in bench.step_forms["peaks"].widgets
+    # the Refine column is what the boxes were: a box beside it would
+    # be a second answer, never read
+    for step in ("pawley", "rietveld"):
+        for name in ("zero", "displacement", "size", "strain",
+                     "positions", "biso", "background"):
+            assert name not in bench.step_forms[step].widgets, name
 
 
 def test_the_run_button_says_what_the_step_does(bench):
@@ -490,16 +504,10 @@ def test_the_pawley_cell_offers_only_the_numbers_the_group_leaves_free(
 
 def test_a_pawley_fit_writes_each_refined_number_beside_its_box(
         bench, qtbot, rutile_xy):
-    """Strain broadening freed is a Lorentzian and a Gaussian term;
-    a cell number freed is its refined value -- beside the switch, not
-    only in the summary."""
+    """A cell number freed is its refined value -- beside the switch,
+    not only in the summary; the rest are the parameter table's."""
     bench.load_pattern(rutile_xy)
     assert _run_pawley(bench, qtbot).ok
-    notes = bench.step_forms["pawley"].notes
-    assert notes["strain"].text().startswith("L ")
-    assert " G " in notes["strain"].text()
-    assert "mm" in notes["displacement"].text()
-    assert notes["zero"].text() == ""               # held
     assert bench.cell_box.notes["a"].text().startswith("4.59")
     assert bench.cell_box.notes["b"].text() == "= a"
 
@@ -609,8 +617,12 @@ def test_a_finished_rietveld_is_one_undo_step_on_the_document_it_started_from(  
     assert len(document.structure.sites) == 2
     assert other.structure.frac == pytest.approx(quartz_before)
     assert bench.rietveld_label.text().startswith("Rwp")
-    assert bench.step_forms["rietveld"].notes["positions"].text() \
-        .startswith("furthest")
+    assert bench.parameters["scale"].esd
+    # the committed structure's Biso is the fit's, esd and all
+    oxygen = [row.name for row in bench.parameters.in_group("Atoms")
+              if row.name.endswith("_biso")][1]
+    assert bench.parameters[oxygen].esd
+    assert oxygen in bench.parameter_table.moved
     assert bench.refined_table.rowCount() == len(bench.rietveld.refined)
     document.undo()
     assert document.structure.sites[1].frac[0] == pytest.approx(0.29)
@@ -670,10 +682,13 @@ def test_each_rietveld_fit_joins_the_history_and_any_row_can_be_restored(
     document = window.open_path(_displaced_rutile_cif(tmp_path))
     bench = window.open_refine_workbench()
     bench.load_pattern(rutile_xy)
-    form = bench.step_forms["rietveld"]
-    form.set_values({"positions": False, "biso": False})
+    atoms = [row.name for row in bench.parameters.in_group("Atoms")
+             if not row.name.endswith("_occ")]
+    for name in atoms:
+        _flag(bench, name, False)
     assert _run_rietveld(bench, qtbot).ok
-    form.set_values({"positions": True, "biso": True})
+    for name in atoms:
+        _flag(bench, name, True)
     assert _run_rietveld(bench, qtbot).ok
     assert [e.fit is None for e in bench.history] == [True, False, False]
     assert bench.history_table.rowCount() == 3
@@ -687,7 +702,7 @@ def test_each_rietveld_fit_joins_the_history_and_any_row_can_be_restored(
     assert bench.restore_history(1)
     assert len(document.stack._done) == done + 1
     assert document.structure.sites[1].frac[0] == pytest.approx(0.29)
-    assert not form.values()["positions"]
+    assert not any(bench.parameters[name].refine for name in atoms)
     assert bench.rietveld is bench.history[1].fit
     assert bench.history_table.rowCount() == 3
     assert bench.history_table.item(1, 0).font().bold()
@@ -699,6 +714,156 @@ def test_each_rietveld_fit_joins_the_history_and_any_row_can_be_restored(
     assert document.structure.sites[1].frac[0] == pytest.approx(refined)
 
 
+# -- the parameter table -----------------------------------------------
+
+def test_switching_steps_shows_the_same_parameters(bench, rutile_xy):
+    """One set for every fitting step, shown by one table moved into
+    the step in front: a copy per step is how Rietveld used to start
+    from the preset after a Pawley fit had found the peak shape."""
+    bench.load_pattern(rutile_xy)
+    table = bench.parameter_table
+    shown = {}
+    for row in (2, 3, 4, 5, 6):
+        bench.steps.setCurrentRow(row)
+        assert bench.forms.currentWidget().isAncestorOf(table), row
+        shown[row] = table.item("W").text(1)
+    assert len(set(shown.values())) == 1
+    bench.steps.setCurrentRow(2)
+    table.set_value("W", "0.0123")
+    bench.steps.setCurrentRow(3)
+    assert table.item("W").text(1) == "0.0123"
+    for step in ("pawley", "rietveld", "energy", "pareto", "auto"):
+        assert bench.values(step)["parameters"]["W"].value == 0.0123
+
+
+def test_a_finished_fit_writes_its_values_and_esds_into_the_table(
+        bench, qtbot, rutile_xy):
+    """The table is where the numbers a fit reached are read, and
+    where the next step starts from: a Pawley peak shape shown on
+    Rietveld's page with its esd."""
+    bench.load_pattern(rutile_xy)
+    before = bench.parameters["W"].value
+    assert _run_pawley(bench, qtbot).ok
+    row = bench.parameters["W"]
+    assert row.value != before and row.esd
+    assert bench.pawley.parameters["W"].value == row.value
+    assert "W" in bench.parameter_table.moved
+    bench.steps.setCurrentRow(3)
+    item = bench.parameter_table.item("W")
+    assert item.text(2) and float(item.text(1)) == pytest.approx(
+        row.value, rel=1e-3)
+    assert item.font(1).bold()
+    # a Pawley fit has no scale of its own to hand on
+    assert not bench.parameters["scale"].esd
+
+
+def test_reset_parameters_puts_the_profile_back_and_keeps_the_atoms(
+        window, qtbot, tmp_path, rutile_xy):
+    """For when the background or the size broadening has run away:
+    the instrument and profile go back, the structure's numbers and
+    what is flagged stay."""
+    document = window.open_path(_displaced_rutile_cif(tmp_path))
+    bench = window.open_refine_workbench()
+    bench.load_pattern(rutile_xy)
+    start = bench.parameters.copy()
+    assert _run_rietveld(bench, qtbot).ok
+    assert bench.parameters["W"].value != start["W"].value
+    biso = {row.name: row.value for row in bench.parameters.in_group(
+        "Atoms")}
+    _flag(bench, "zero_error", True)
+    done = len(document.stack._done)
+    bench.parameter_table.reset_button.click()
+    assert bench.parameters["W"].value == start["W"].value
+    assert bench.parameters["W"].esd is None
+    assert bench.parameters["zero_error"].refine
+    assert {row.name: row.value for row in bench.parameters.in_group(
+        "Atoms")} == biso
+    assert len(document.stack._done) == done
+
+
+def test_paste_refuses_a_line_it_cannot_read_and_changes_nothing(
+        bench, rutile_xy):
+    """Half a paste is worse than none: the rows before the typo would
+    change and nothing would say which."""
+    bench.load_pattern(rutile_xy)
+    table = bench.parameter_table
+    before = bench.parameters.to_text()
+    assert table.paste("W 0.02 Refine\nzero_eror 0.1 Refine\n") == 0
+    assert "zero_eror" in bench.status.text()
+    assert bench.parameters.to_text() == before
+    assert table.paste("W 0.02 ± 0.001 NoRefine\n") == 1
+    assert bench.parameters["W"].value == 0.02
+    assert not bench.parameters["W"].refine
+    assert table.item("W").text(2) == "0.0010"
+
+
+def test_copy_puts_the_text_form_on_the_clipboard(bench, rutile_xy):
+    from PySide6.QtWidgets import QApplication
+
+    bench.load_pattern(rutile_xy)
+    bench.parameter_table.copy_button.click()
+    text = QApplication.clipboard().text()
+    assert text == bench.parameters.to_text()
+    assert bench.parameter_table.paste(text) == len([
+        line for line in text.splitlines()
+        if line and not line.startswith("#")])
+
+
+def test_editing_a_biso_in_the_table_is_one_undo_step(
+        window, rutile_cif, rutile_xy):
+    """An atom's Biso is the site's: typing one here is an edit of the
+    structure, undone by Ctrl+Z like any other, and two typed one after
+    the other are two steps, not one merged edit."""
+    document = window.open_path(rutile_cif)
+    bench = window.open_refine_workbench()
+    bench.load_pattern(rutile_xy)
+    name = next(row.name for row in bench.parameters.in_group("Atoms")
+                if row.name.endswith("_biso"))
+    done = len(document.stack._done)
+    # as the editor commits it: from inside the tree's own signal,
+    # which is where clearing the tree to redraw it crashed
+    bench.parameter_table.item(name).setText(1, "1.25")
+    assert len(document.stack._done) == done + 1
+    assert bench.parameters[name].value == pytest.approx(1.25)
+    assert document.structure.sites[0].u_iso == pytest.approx(
+        1.25 / (8 * 3.141592653589793 ** 2))
+    assert bench.parameter_table.set_value(name, "1.5")
+    assert len(document.stack._done) == done + 2
+    document.undo()
+    assert bench.parameters[name].value == pytest.approx(1.25)
+    assert not bench.parameter_table.set_value(name, "lots")
+    assert len(document.stack._done) == done + 1
+
+
+def test_restoring_a_history_row_restores_its_parameters(
+        window, qtbot, tmp_path, rutile_xy):
+    """A history row is a configuration: its atoms and the numbers the
+    fit had.  Walking back to the start with the fit's peak shape
+    left in the table would start the next run from neither."""
+    window.open_path(_displaced_rutile_cif(tmp_path))
+    bench = window.open_refine_workbench()
+    bench.load_pattern(rutile_xy)
+    start = bench.parameters["W"].value
+    assert _run_rietveld(bench, qtbot).ok
+    fitted = bench.parameters["W"].value
+    assert fitted != start
+    assert bench.restore_history(0)
+    assert bench.parameters["W"].value == start
+    assert float(bench.parameter_table.item("W").text(1)) \
+        == pytest.approx(start, rel=1e-4)
+    assert bench.restore_history(1)
+    assert bench.parameters["W"].value == fitted
+
+
+def test_the_run_log_names_the_set_it_was_handed(
+        bench, qtbot, rutile_xy):
+    bench.load_pattern(rutile_xy)
+    assert _run_pawley(bench, qtbot).ok
+    log = next(bench._entry_for().path.rglob("*.log")).read_text()
+    assert "parameters, " in log and "refined" in log
+    assert "ParameterSet object" not in log
+
+
 def test_loading_another_pattern_starts_a_new_history(bench, rutile_xy):
     bench.history.append(object())
     bench.load_pattern(rutile_xy)
@@ -708,13 +873,18 @@ def test_loading_another_pattern_starts_a_new_history(bench, rutile_xy):
 
 
 @needs_rietx
-def test_the_plan_note_says_what_the_chosen_plan_frees(bench):
+def test_the_plan_note_says_what_the_chosen_plan_frees(
+        window, rutile_cif):
     """Two of RietX's four plans move no atom, which a name like
     "lab Bragg-Brentano" does not say."""
+    window.open_path(rutile_cif)
+    bench = window.open_refine_workbench()
     form = bench.step_forms["rietveld"]
     assert "atom positions" in bench.plan_note.text()
     assert "The atoms move" in bench.plan_note.text()
-    form.set_values({"positions": False})
+    for row in bench.parameters.in_group("Atoms"):
+        if row.name.endswith("_xyz"):
+            _flag(bench, row.name, False)
     assert "atom positions" not in bench.plan_note.text()
     for plan, moves in (("mccusker_structural", True),
                         ("mccusker_default", False),
@@ -734,29 +904,43 @@ def test_run_and_stop_stay_in_sight_on_every_step(bench):
 
     bench.steps.setCurrentRow(0)
     QApplication.processEvents()
-    rietveld = bench.forms.widget(3).sizeHint().height()
+    tallest = max(bench.forms.widget(k).sizeHint().height()
+                  for k in range(bench.forms.count()))
     assert bench.forms.sizeHint().height() \
-        == bench.forms.widget(0).sizeHint().height() < rietveld / 2
+        == bench.forms.widget(0).sizeHint().height() < tallest
     widget = bench.run_button
     while widget is not None:
         assert not isinstance(widget, QScrollArea)
         widget = widget.parentWidget()
 
 
+@needs_rietx
 def test_a_rietx_plan_greys_out_the_boxes_it_decides_for_itself(bench):
-    """RietX's plans never read the boxes, so a box left live beside
+    """RietX's plans never read the flags, so a box left live beside
     one looked like a say over the fit that it did not have.  The
-    range and the background's order still count, and stay live."""
+    range, the background's order and the values still count, and
+    stay live -- a plan starts from the values shown."""
+    from xtalapp.refine.parameters import REFINE
+
+    bench.steps.setCurrentRow(3)
     form = bench.step_forms["rietveld"]
     form.set_values({"plan": "mccusker_default"})
-    for name in ("background", "zero", "profile", "positions", "biso",
-                 "preferred_axis"):
-        assert not form.widgets[name].isEnabled(), name
+    assert not form.widgets["preferred_axis"].isEnabled()
+    zero = bench.parameter_table.item("zero_error")
+    assert not zero.flags() & Qt.ItemIsUserCheckable
+    assert zero.flags() & Qt.ItemIsEditable
+    assert "plan" in zero.toolTip(REFINE)
     assert not bench.rietveld_cell.isEnabled()
     for name in ("start", "finish", "background_terms", "plan"):
         assert form.widgets[name].isEnabled(), name
+    # a plan is the Rietveld step's: Pawley reads the flags
+    bench.steps.setCurrentRow(2)
+    assert bench.parameter_table.item("zero_error").flags() \
+        & Qt.ItemIsUserCheckable
+    bench.steps.setCurrentRow(3)
     form.set_values({"plan": ""})
-    assert form.widgets["positions"].isEnabled()
+    assert bench.parameter_table.item("zero_error").flags() \
+        & Qt.ItemIsUserCheckable
     assert bench.rietveld_cell.isEnabled()
 
 
@@ -803,12 +987,14 @@ def test_the_automatic_run_asks_every_steps_own_form(bench, rutile_xy):
     copy of them that could disagree."""
     bench.load_pattern(rutile_xy)
     bench.bravais.set_value("tP")
-    bench.step_forms["pawley"].set_values({"strain": False,
-                                           "background_terms": 5})
+    bench.step_forms["pawley"].set_values({"background_terms": 5})
     bench.step_forms["rietveld"].set_values({"plan": "mccusker_default"})
+    _flag(bench, "strain_l", False)
     values = bench.values("auto")
     assert values["bravais"] == "tP"
-    assert values["pawley_strain"] is False
+    assert not values["parameters"]["strain_l"].refine
+    assert "pawley_parameters" not in values
+    assert "rietveld_parameters" not in values
     assert values["pawley_background_terms"] == 5
     assert values["rietveld_plan"] == "mccusker_default"
     assert "pawley_cell" not in values and "cell" not in values
@@ -1110,14 +1296,15 @@ def test_with_energy_and_pareto_fit_over_their_own_range(bench):
     assert bench.values("energy")["rietveld_start"] != 30.0
 
 
+@needs_rietx
 def test_with_energy_and_pareto_say_what_they_refine(bench):
-    """The first stage is the Rietveld step's boxes, on another page;
+    """The first stage is what the table flags beyond the atoms;
     without this nobody pressing Refine here could tell what it fits."""
     note = bench.refines_notes["pareto"]
     assert "background" in note.text()
     assert "atom positions" in note.text()
     assert "cell's free numbers" not in note.text()
-    bench.step_forms["rietveld"].set_values({"background": False})
+    _flag(bench, "Background", False)
     assert "background" not in note.text()
     bench.step_forms["pareto"].set_values({"energy_cell": True})
     assert "cell's free numbers" in note.text()
@@ -1172,3 +1359,137 @@ def test_a_le_bail_fit_is_the_pawley_steps_answer(bench, qtbot, rutile_xy):
     assert result.message.startswith("Le Bail")
     assert bench.pawley.method == "lebail"
     assert bench.pawley_label.text().startswith("Le Bail")
+
+
+# ------------------------------------------ the energy engine's options
+
+@pytest.fixture
+def options(window):
+    """The workbench's Options... opened over UFF, the dialog it
+    raised, and the panel it borrowed from."""
+    dock = window.ff_dock
+    dock.engine.setCurrentIndex(dock.engine.findData("uff"))
+    bench = window.open_refine_workbench()
+    bench.engine_option_buttons["energy"].click()
+    return bench, bench.engine_options, dock
+
+
+def test_options_opens_the_engines_options_over_the_workbench(options):
+    """It raised the Force Field panel, which is in the main window
+    behind the workbench, so the button looked as though it did
+    nothing."""
+    bench, dialog, dock = options
+    assert dialog.isVisible()
+    assert dialog.parent() is bench
+    assert dialog.isAncestorOf(dock.uff_box)
+    assert not dock.lent_note.isHidden()
+
+
+def test_closing_the_options_puts_the_panels_controls_back(options):
+    """Lent controls left in a closed window are a Force Field panel
+    with no way to choose UFF4MOF."""
+    _bench, dialog, dock = options
+    dialog.close()
+    assert dock.isAncestorOf(dock.uff_box)
+    assert not dock.uff_box.isHidden()
+    assert dock.lent_note.isHidden()
+
+
+def test_closing_the_workbench_gives_the_controls_back(options):
+    bench, _dialog, dock = options
+    bench.close()
+    assert dock.isAncestorOf(dock.uff_box)
+
+
+def test_an_option_changed_in_the_dialog_is_what_the_run_is_handed(
+        options):
+    """One set of controls, so With energy and the panel can never be
+    handed different options for the same engine."""
+    bench, _dialog, dock = options
+    box = dock.parameter_set
+    box.setCurrentIndex(1 - box.currentIndex())
+    handed = bench._energy_values({}, "energy")["engine_options"]
+    assert handed["parameter_set"] == box.currentData()
+
+
+def test_choosing_another_engine_swaps_the_controls_it_shows(options):
+    """Otherwise the window names one engine and shows another's
+    options, and UFF's never go home."""
+    _bench, dialog, dock = options
+    name = next(iter(dock.engine_forms))
+    dock.engine.setCurrentIndex(dock.engine.findData(name))
+    assert dialog.isAncestorOf(dock.engine_forms[name])
+    assert not dock.engine_forms[name].isHidden()
+    assert dock.isAncestorOf(dock.uff_box)
+
+
+
+def test_zero_cycles_is_no_undo_step(window, qtbot, tmp_path, rutile_xy):
+    """Max iterations 0 evaluates: the R values are shown and said to
+    be an evaluation, and the atoms, the undo stack, the history and
+    the table's numbers are all as they were."""
+    document = window.open_path(_displaced_rutile_cif(tmp_path))
+    bench = window.open_refine_workbench()
+    bench.load_pattern(rutile_xy)
+    bench.step_forms["rietveld"].set_values({"max_iterations": 0})
+    before = bench.parameters.to_text()
+    done = len(document.stack._done)
+    result = _run_rietveld(bench, qtbot)
+    assert result.ok, result.message
+    assert "0 cycles" in result.message
+    assert len(document.stack._done) == done
+    assert not document.modified
+    assert document.structure.sites[1].frac[0] == pytest.approx(0.29)
+    assert bench.rietveld.evaluated
+    assert "0 cycles: evaluated at the values shown" in \
+        bench.rietveld_label.text()
+    assert len(bench.history) <= 1
+    assert bench.parameters.to_text() == before
+
+
+def test_the_pawley_step_hides_the_atoms_and_the_scale(
+        window, tmp_path, rutile_xy):
+    """A Pawley fit has neither, and their rows shown ticked beside it
+    read as though it refined them.  They are hidden, not dropped:
+    Rietveld shows them again, flags and all."""
+    from xtal.powder import parameters as ps
+
+    window.open_path(_displaced_rutile_cif(tmp_path))
+    bench = window.open_refine_workbench()
+    bench.load_pattern(rutile_xy)
+    table = bench.parameter_table
+    bench.steps.setCurrentRow(2)
+    assert table.item(ps.ATOMS).isHidden()
+    assert table.item(ps.SCALE).isHidden()
+    assert not table.item(ps.PROFILE).isHidden()
+    assert table.unused_note.isVisibleTo(bench)
+    assert "no atoms" in table.unused_note.text()
+    bench.steps.setCurrentRow(3)
+    assert not table.item(ps.ATOMS).isHidden()
+    assert not table.item(ps.SCALE).isHidden()
+    assert not table.unused_note.isVisibleTo(bench)
+    assert bench.parameters["scale"].refine
+
+
+def test_hovering_a_rietveld_tick_names_its_reflection(
+        window, qtbot, tmp_path, rutile_xy):
+    """Rutile's first line is (1 1 0), near 27.4°: the fit's own
+    reflection list names it, at the primary line only."""
+    from matplotlib.backend_bases import MouseEvent
+
+    window.open_path(_displaced_rutile_cif(tmp_path))
+    bench = window.open_refine_workbench()
+    bench.load_pattern(rutile_xy)
+    assert _run_rietveld(bench, qtbot).ok
+    fit = bench.rietveld
+    assert len(fit.reflections) == len(fit.ticks)
+    first = min(fit.reflections, key=lambda r: r.two_theta)
+    assert sorted(abs(v) for v in first.hkl) == [0, 1, 1]
+    plot = bench.plot
+    plot.canvas.draw()
+    x, y = plot.strip.transData.transform((first.two_theta, 0.5))
+    plot.canvas.callbacks.process("motion_notify_event", MouseEvent(
+        "motion_notify_event", plot.canvas, x, y))
+    assert plot.hovered.startswith("(")
+    assert f"{first.two_theta:.2f}°" in plot.hovered
+    assert "Å" in plot.hovered

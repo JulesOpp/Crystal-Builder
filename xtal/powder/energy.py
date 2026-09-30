@@ -26,10 +26,13 @@ stays on it** because there is no variable that would take it off:
 the directions are the site's, and the energy's gradient is only ever
 read along them.
 
-**What the Rietveld step's boxes free is fitted first and then held**:
-the scale, background, zero and peak shape are the pattern's, fitted
-with the atoms and the cell where they are, before the atoms are asked
-to answer to anything.  The cell is held by default -- Julius's
+**What the parameters flag beyond the atoms is fitted first and then
+held**: the scale, background, zero and peak shape are the pattern's,
+fitted with the atoms and the cell where they are, before the atoms
+are asked to answer to anything.  With none of them flagged there is
+no first fit, and the atoms start against the numbers the parameter
+table shows -- a first stage of its own, from RietX's preset, was
+where the start used to be hidden.  The cell is held by default -- Julius's
 choice; a cell that moves under an energy is a different experiment
 -- and, let move, its energy gradient is the engine's stress.
 
@@ -51,6 +54,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from xtal.powder.data import PowderData, PowderError, PowderStopped, Radiation
+from xtal.powder.pawley import EVALUATED, Reflection
 from xtal.powder.rietveld import RietveldFit, RietveldFrame, RietveldOptions
 
 __all__ = ["EnergyFit", "EnergyOptions", "EnergyProblem", "EnergyScale",
@@ -67,6 +71,11 @@ MIN_ENERGY_DROP = 0.1
 #: scaled to Å, so this is a force.
 RELAX_TOLERANCE = 1e-3
 
+#: When the joint fit counts as done: the largest gradient of the
+#: objective along any variable.  Both terms are of order one where
+#: the run starts, so this is a fraction of that, not a force.
+FIT_TOLERANCE = 1e-6
+
 
 @dataclass(frozen=True)
 class EnergyOptions:
@@ -74,13 +83,20 @@ class EnergyOptions:
 
     ``weight`` is ``w``: 0 is the pattern alone, 1 the force field
     alone.  ``cell`` lets the cell move with the atoms.  ``rietveld``
-    is the Rietveld step's boxes and range, for the fit that comes
-    first -- its atoms, cell and occupancies are never freed there.
+    is the range, the background's order and the texture axis, and --
+    when no parameter set is given -- the boxes that flag what the
+    first fit frees; its cell and occupancies are never freed there,
+    and every atom moves.  ``max_steps`` is L-BFGS's most iterations,
+    for the relaxation and for the fit; 0 fits nothing, first stage
+    included, and evaluates the pattern and the energy where the atoms
+    are.  ``tolerance`` is the joint fit's (the largest gradient it
+    stops at); the relaxation stops at :data:`RELAX_TOLERANCE`.
     """
 
     weight: float = 0.1
     cell: bool = False
     max_steps: int = 500
+    tolerance: float = FIT_TOLERANCE
     rietveld: RietveldOptions = field(default_factory=RietveldOptions)
 
 
@@ -124,12 +140,15 @@ class EnergyFit(RietveldFit):
 def rietveld_with_energy(structure, data: PowderData,
                          radiation: Radiation, build,
                          options: EnergyOptions | None = None, *,
-                         engine: str = "", scale: EnergyScale | None = None,
+                         parameters=None, engine: str = "",
+                         scale: EnergyScale | None = None,
                          on_frame=None, frame_interval: float = 0.2,
                          cancel=None, folder=None, say=None) -> EnergyFit:
     """Refine ``structure`` against ``data`` and an energy at once.
 
-    ``build(structure)`` makes the engine's calculator.  ``scale``, if
+    ``build(structure)`` makes the engine's calculator.  ``parameters``
+    is the set to start from: what it flags beyond the atoms is fitted
+    first, and the atoms whose positions it flags are what move.  ``scale``, if
     given, is a previous run's :class:`EnergyScale` over the same
     pattern, engine and start, and saves the relaxation.  Stop raises
     :class:`~xtal.powder.data.PowderStopped`; putting the atoms back is
@@ -139,10 +158,18 @@ def rietveld_with_energy(structure, data: PowderData,
     weight = float(options.weight)
     _check_weight(weight)
     problem = EnergyProblem(structure, data, radiation, build, options,
-                            engine=engine, scale=scale,
+                            parameters=parameters, engine=engine,
+                            scale=scale,
                             on_frame=on_frame,
                             frame_interval=frame_interval,
                             cancel=cancel, folder=folder, say=say)
+    if options.max_steps == 0:
+        # no relaxation either: its scale is for a fit, and there is
+        # none to weigh
+        problem.say("0 iterations: the pattern and the energy "
+                    "evaluated where the atoms are")
+        return problem.fit(problem.term.theta0, weight, 0, True,
+                           EVALUATED)
     relaxation = None
     if weight == 1.0 or (weight > 0.0 and problem.needs_relaxation):
         relaxation = problem.relax()
@@ -172,7 +199,8 @@ class EnergyProblem:
     """
 
     def __init__(self, structure, data: PowderData, radiation: Radiation,
-                 build, options: EnergyOptions, *, engine: str = "",
+                 build, options: EnergyOptions, *, parameters=None,
+                 engine: str = "",
                  scale: EnergyScale | None = None, on_frame=None,
                  frame_interval: float = 0.2, cancel=None, folder=None,
                  say=None):
@@ -186,14 +214,38 @@ class EnergyProblem:
         boxes = options.rietveld
         window = data.window(boxes.start or None, boxes.finish or None)
 
-        self.say("fitting the scale, background and peak shape")
-        term, result, indices, refinement = bridge.pattern_term(
-            structure, window, radiation, free=boxes.free(radiation),
-            background_terms=boxes.background_terms,
+        # with no set, every atom moves: the boxes' own positions box
+        # was never read here
+        start = bridge.start_from(parameters, boxes, radiation, window,
+                                  structure, also=("positions",))
+        term, result, indices, refinement, after = bridge.pattern_term(
+            structure, window, radiation, start=start,
             preferred_axis=boxes.preferred_axis, cell=options.cell,
-            folder=folder, cancel=bridge.cancel_token(cancel))
+            folder=folder, cancel=bridge.cancel_token(cancel),
+            say=self.say,
+            iterations=0 if options.max_steps == 0
+            else boxes.max_iterations, tolerance=boxes.tolerance)
+        if result is None and options.max_steps != 0:
+            self.say("nothing is flagged beyond the atoms: they start "
+                     "against the parameters as they stand")
         self.term, self.result = term, result
         self.indices, self.refinement = indices, refinement
+        #: the set after the first fit, for the next run to start from
+        self.parameters = after
+        if result is None:
+            self.background = bridge.background(refinement, window)
+            # no fit, so no reflection list of RietX's: the group's
+            # own lines, with no multiplicity or intensity to give
+            self.reflections = [
+                Reflection(hkl, d, two_theta, 0, math.nan)
+                for hkl, d, two_theta in bridge.allowed_reflections(
+                    structure, radiation, window.two_theta[0],
+                    window.two_theta[-1])]
+        else:
+            self.background = np.asarray(result.y_background)
+            self.reflections = [Reflection(*row) for row
+                                in bridge.reflections(refinement)]
+        self.ticks = np.array([r.two_theta for r in self.reflections])
         self.prepared = bridge.apply_phase(
             structure, refinement.structure.phases[0], indices)
         self.energy = _Energy(build(self.prepared), self.prepared,
@@ -264,7 +316,7 @@ class EnergyProblem:
             return value, gradient
 
         return self.variables.minimise(
-            joint, self.options.max_steps, 1e-6,
+            joint, self.options.max_steps, self.options.tolerance,
             lambda theta: self.frames(theta, f"w = {weight:g}"),
             start=start)
 
@@ -285,11 +337,14 @@ class EnergyProblem:
         stats = term.statistics(answer)
         moved = np.linalg.norm(refined.lattice.to_cart(
             refined.frac - structure.frac), axis=1)
-        values = dict(bridge.refined_values(self.result))
-        values.update({path: (float(value), 0.0) for path, value
-                       in zip(term.paths, answer, strict=True)})
+        values = {} if self.result is None \
+            else dict(bridge.refined_values(self.result))
+        if why != EVALUATED:
+            values.update({path: (float(value), 0.0) for path, value
+                           in zip(term.paths, answer, strict=True)})
         phase = self.refinement.structure.phases[0]
-        notes = [d.message for d in self.result.diagnostics]
+        notes = [] if self.result is None \
+            else [d.message for d in self.result.diagnostics]
         if weight > 0.0 and abs(scale.energy - scale.relaxed) \
                 < MIN_ENERGY_DROP:
             notes.append(f"The force field moves these atoms by almost "
@@ -301,19 +356,19 @@ class EnergyProblem:
             cell_esd=(0.0,) * 6,
             rwp=stats["rwp"], rp=stats["rp"], rexp=stats["rexp"],
             gof=stats["gof"],
-            status="converged" if converged else why,
+            status=EVALUATED if why == EVALUATED
+            else "converged" if converged else why,
             two_theta=term.two_theta, y_obs=term.y_obs,
             y_calc=term.y_calc(answer),
-            y_background=np.asarray(self.result.y_background),
-            ticks=np.array([row[2] for row
-                            in bridge.reflections(self.refinement)]),
-            radiation=self.radiation,
+            y_background=self.background, ticks=self.ticks,
+            reflections=list(self.reflections), radiation=self.radiation,
             refined=values,
             moved=float(moved.max()) if moved.size else 0.0,
             atom_labels=tuple(atom.label for atom in phase.atoms),
             notes=notes, weight=weight,
             energy=float(self.energy(answer, cell)[0]), scale=scale,
-            engine=self.engine_name, steps=int(steps))
+            engine=self.engine_name, steps=int(steps),
+            parameters=self.parameters)
 
 
 # ======================================================================
