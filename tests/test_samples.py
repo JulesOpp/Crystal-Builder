@@ -21,8 +21,10 @@ pytest.importorskip("pytestqt")
 
 from PySide6.QtWidgets import QFileDialog, QWidget  # noqa: E402
 
+from xtal.core.structure import Change  # noqa: E402
 from xtal.io import FORMATS  # noqa: E402
 from xtalapp import menus, samples  # noqa: E402
+from xtalapp.documents import FRESH_COPY  # noqa: E402
 from xtalapp.mainwindow import MainWindow  # noqa: E402
 from xtalapp.settings import AppSettings  # noqa: E402
 
@@ -137,6 +139,86 @@ def test_a_sample_opened_over_an_edited_copy_opens_the_clicked_one(
     assert second is not first
     assert second.entry.name == "HKUST-1-2"
     assert "# edited" in first.path.read_text()
+
+
+def _fresh(window):
+    window.notice.button(FRESH_COPY).click()
+    return window.current_document()
+
+
+def _move_an_atom(document):
+    moved = document.structure.frac[0] + 0.01
+    document.apply(lambda s: s.set_frac(0, moved), Change.POSITIONS)
+    return moved
+
+
+def test_reopening_a_saved_sample_opens_the_saved_work(window):
+    """Save converts and never writes the CIF, so the entry's CIF still
+    matches the shipped bytes -- and Open Sample used to hand back that
+    pristine CIF, over the project holding the user's work."""
+    first = window.open_sample("hkust1")
+    moved = _move_an_atom(first)
+    window.save_document()
+    window.close_document(0)
+
+    again = window.open_sample("hkust1")
+
+    assert again.path == first.path
+    assert again.path.suffix == ".xtalproj"
+    assert again.structure.frac[0] == pytest.approx(moved)
+
+
+def test_saving_a_reopened_sample_never_overwrites_its_project(window):
+    """The data loss itself: the CIF reopened, Ctrl+S wrote its
+    project over the saved one, silently."""
+    first = window.open_sample("hkust1")
+    moved = _move_an_atom(first)
+    window.save_document()
+    project = first.path
+    window.close_document(0)
+
+    window.open_sample("hkust1")
+    window.save_document()
+
+    kept = FORMATS.read(project)
+    assert kept.frac[0] == pytest.approx(moved)
+
+
+def test_open_sample_again_offers_a_fresh_copy(window):
+    first = window.open_sample("hkust1")
+
+    window.open_sample("hkust1")
+
+    assert "already open" in window.notice.label.text()
+    fresh = _fresh(window)
+    assert fresh is not first
+    assert window.tabs.count() == 2
+
+
+def test_a_fresh_sample_is_named_after_the_sample_not_the_data_block(
+        window):
+    """HKUST-1-2 beside HKUST-1, not a folder named after whatever the
+    exporter left in the data block."""
+    window.open_sample("hkust1")
+    window.open_sample("hkust1")
+
+    fresh = _fresh(window)
+
+    assert fresh.entry.name == "HKUST-1-2"
+    assert fresh.title == "HKUST-1-2.cif"
+
+
+def test_a_fresh_sample_is_the_shipped_one_after_the_first_was_saved(
+        window):
+    first = window.open_sample("hkust1")
+    _move_an_atom(first)
+    window.save_document()
+    window.open_sample("hkust1")
+
+    fresh = _fresh(window)
+
+    shipped = FORMATS.read(samples.get("hkust1").path)
+    assert fresh.structure.frac[0] == pytest.approx(shipped.frac[0])
 
 
 def test_a_freshly_opened_sample_is_not_modified(window):

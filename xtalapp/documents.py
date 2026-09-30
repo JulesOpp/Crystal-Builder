@@ -45,6 +45,9 @@ from xtalapp.viewport.view_settings import theme_background
 #: The environment variable that turns the unsaved-changes prompt off.
 NO_CONFIRM_CLOSE_ENV = "XTAL_NO_CONFIRM_CLOSE"
 
+#: The button on the notice raised over a file that is already open.
+FRESH_COPY = "Open a Fresh Copy"
+
 
 def no_confirm_close() -> bool:
     """Whether closing may discard unsaved work without asking.
@@ -207,25 +210,7 @@ class DocumentSet:
         path = Path(path)
         already = self.document_for(path)
         if already is not None:
-            # Not a dialog and not a refusal: the user asked to see
-            # that file, and showing it to them is the answer.  A
-            # second tab over the same bytes would be two documents
-            # with two undo stacks editing what the user thinks is one
-            # structure, and whichever was saved last would win.
-            self.tabs.setCurrentIndex(self.documents.index(already))
-            # Named when the tab is not spelled the way the thing that
-            # was clicked is -- the workspace's copy of a structure,
-            # or a session saved beside it.  "MOF-5.cif is already
-            # open" over a tab called MOF-5.xtalproj reads as a bug.
-            # Compared by the name shown and not by path: the tab
-            # follows the workspace's copy, so reopening the original
-            # is a different path under the same name, and "already
-            # open, as MOF-5.cif" read as though it were not.
-            self.window.show_message(
-                f"{path.name} is already open"
-                if already.title == path.name else
-                f"{path.name} is already open, as {already.title}")
-            return already
+            return self._already_open(already, path)
         try:
             if not path.exists():
                 # Before the reader, whose own answer is gemmi's C
@@ -256,6 +241,89 @@ class DocumentSet:
         self._announce_warnings(document)
         self.window.autosaver.offer(document)
         self._announce_agent(document)
+        return document
+
+    def _already_open(self, document, clicked: Path, source=None,
+                      name: str | None = None) -> Document:
+        """Raise the tab a file is already open in, and offer a copy.
+
+        Not a dialog and not a refusal: the user asked to see that
+        file, and showing it to them is the answer.  A second tab over
+        the same bytes would be two documents with two undo stacks
+        editing what the user thinks is one structure, and whichever
+        was saved last would win.  But somebody who has spent an
+        afternoon editing MOF-5 and wants the deposited one beside it
+        is asking for something else, which a notice offers: a *fresh
+        copy*, in an entry of its own -- a second file, so still never
+        two tabs over one.
+
+        ``source`` is what the copy is made from.  By default the file
+        that was clicked, when it is a structure file: one from
+        outside is copied as it is now, and the workspace's own CIF is
+        pristine because Save converts and never writes it.  A clicked
+        project is the user's work, so its entry's CIF is copied
+        instead.
+        """
+        self.tabs.setCurrentIndex(self.documents.index(document))
+        # Named when the tab is not spelled the way the thing that was
+        # clicked is -- the workspace's copy of a structure, or a
+        # session saved beside it.  "MOF-5.cif is already open" over a
+        # tab called MOF-5.xtalproj reads as a bug.  Compared by the
+        # name shown and not by path: the tab follows the workspace's
+        # copy, so reopening the original is a different path under
+        # the same name, and "already open, as MOF-5.cif" read as
+        # though it were not.
+        said = (f"{clicked.name} is already open"
+                if document.title == clicked.name else
+                f"{clicked.name} is already open, as {document.title}")
+        if source is None:
+            entry = getattr(document, "entry", None)
+            source = (entry.structure_path
+                      if clicked.suffix == PROJECT_EXTENSION
+                      and entry is not None else clicked)
+        if self.window.workspace is None or source is None:
+            # The degraded window: nowhere to file a copy.
+            self.window.show_message(said)
+            return document
+        if name is None:
+            # After what the open tab was copied from, so a copy of
+            # rutile-2 is rutile-3 and not rutile-2-2.
+            name = Path(document.structure.meta.get("source")
+                        or source).stem
+
+        def answered(label):
+            if label == FRESH_COPY:
+                self.open_fresh_copy(source, name=name)
+
+        self.window.notice.show_notice(
+            f"{said}.", buttons=(FRESH_COPY,), on_answer=answered)
+        return document
+
+    def open_fresh_copy(self, source, name: str | None = None
+                        ) -> Document | None:
+        """Open a structure file again, in a workspace entry of its own.
+
+        What the notice raised by :meth:`_already_open` offers.  The
+        copy's file is named after its folder (``MOF-5-2.cif``), so it
+        is a different file from anything open and goes through
+        :meth:`open_path` like any other.
+        """
+        workspace = self.window.workspace
+        if workspace is None:
+            return None
+        source = Path(source)
+        try:
+            entry = workspace.add_structure(source, name=name, fresh=True)
+        except OSError as exc:
+            self.window.show_message(f"could not make a copy: {exc}")
+            return None
+        document = self.open_path(entry.structure_path)
+        if document is not None:
+            # What it was copied from, as for any file copied in -- the
+            # reader recorded the copy -- so a copy of it is numbered
+            # after the original, and reopening the original finds a
+            # tab.
+            document.structure.meta["source"] = str(source)
         return document
 
     def _announce_agent(self, document) -> None:
@@ -297,10 +365,12 @@ class DocumentSet:
         its own.
 
         Opening the same sample twice returns to the one entry,
-        because ``add_structure`` compares the bytes.  Opening it
-        again after editing and saving that entry does not: the bytes
-        differ, so a pristine copy is made beside it, and what opens
-        is what was clicked.
+        because ``add_structure`` compares the bytes -- and it still
+        does after the entry has been edited and saved, because Save
+        converts and never writes the CIF.  So what opens is the
+        **project** beside it when there is one.  Opening the CIF
+        there was a document whose ``Ctrl+S`` wrote the pristine
+        sample silently over the project holding the user's work.
 
         With no workspace it falls back to the pathless document it
         always was -- the folder-could-not-be-made path.
@@ -320,7 +390,17 @@ class DocumentSet:
                 self.window.show_message(
                     f"could not copy the sample in: {exc}")
             else:
-                return self.open_path(entry.path / path.name)
+                copy = entry.path / path.name
+                project = copy.with_suffix(PROJECT_EXTENSION)
+                wanted = project if project.is_file() else copy
+                already = self.document_for(wanted)
+                if already is not None:
+                    # A fresh copy of a sample is the shipped file
+                    # under the sample's name, never the data block's.
+                    return self._already_open(
+                        already, copy, source=path,
+                        name=sample.entry_name)
+                return self.open_path(wanted)
         try:
             structure = FORMATS.read(path)
         except (ValueError, OSError, KeyError) as exc:   # pragma: no cover
