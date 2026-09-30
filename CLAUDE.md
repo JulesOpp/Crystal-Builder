@@ -557,10 +557,21 @@ stress case).
   structure, the run's poorer copy dropped, the run moved underneath.
   It is the core's and not the window's, so `xtal run mof.build
   --workspace` files a build exactly as the window does.
+- **Opening what is already open raises its tab and offers a fresh
+  copy; two tabs are never over one file.** The notice's *Open a Fresh
+  Copy* (`DocumentSet._already_open` → `open_fresh_copy`) files the
+  clicked structure file again as a new entry named after its folder
+  (`MOF-5-2/MOF-5-2.cif`), so its tab, project and autosave are
+  distinct; a clicked project is copied from its entry's CIF, which
+  Save never writes. Open Sample reopens an entry's **project** when
+  one sits beside the CIF: reopening the CIF there made the next
+  Ctrl+S write the pristine sample over the saved work.
 - **`add_structure` de-duplicates by content, never by name.** Two
   people's `MFU4l.cif` are two structures and get `MFU4l` and
   `MFU4l-2`. Deciding by name alone silently copied the second over
   the first. `filecmp.cmp(..., shallow=False)`; these are kilobytes.
+  `fresh=True` is the one opt-out, and an ordinary add never files a
+  second structure into a folder that already holds one.
 - **Changing workspace closes every tab**, after the whole-window
   unsaved question asked *once* (`switch_workspace` →
   `may_discard_unsaved(question)` → `close_all_documents(force=True)`).

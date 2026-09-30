@@ -287,6 +287,9 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         """
         return self.document_set.open_sample(name)
 
+    def open_fresh_copy(self, source, name=None) -> Document | None:
+        return self.document_set.open_fresh_copy(source, name=name)
+
     def open_from_desktop(self, path) -> Document | None:
         """A file handed over by Finder or Explorer.
 

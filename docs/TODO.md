@@ -220,6 +220,17 @@ Raised while using the application; no phase yet.
 
 ## Interface
 
+### Double-clicking an entry's CIF beside its project
+
+Open Sample now reopens an entry's `.xtalproj` rather than its CIF
+when both are there, because a tab over the CIF saves to that project
+and Ctrl+S wrote the pristine structure over the saved work, silently.
+Double-clicking the CIF in the Workspace tree is the same shape and is
+still open: the tab is over the CIF, `_save_target` is the project
+beside it, and `_may_overwrite` asks only when
+`settings.confirm_overwrite` is on.  Wanted: a save that would replace
+a project the tab was not opened from asks, or goes to a new name.
+
 ### A dark mode in Preferences
 
 The viewport's background already follows the system theme (*View ▸

@@ -215,6 +215,23 @@ def test_discarding_an_autosave_deletes_it(qtbot, settings, window,
     assert not again.modified
 
 
+def test_the_offer_of_a_fresh_copy_does_not_swallow_an_autosave(
+        qtbot, settings, window, opened, tmp_path):
+    """Both use the one notice bar.  Opening an already-open file puts
+    the fresh-copy offer over the autosave question; the question has
+    to come back once the offer is answered, not be lost."""
+    path = _crash_and_reopen(qtbot, settings, window, opened, tmp_path)
+    again = window.open_path(path)
+
+    window.open_path(path)
+    assert "already open" in window.notice.label.text()
+    window.notice.close_button.click()
+
+    assert path.name in window.notice.label.text()
+    window.notice.button(RESTORE).click()
+    assert list(again.structure.sites[1].frac) == pytest.approx(MOVED)
+
+
 def test_an_autosave_older_than_the_file_is_not_offered(
         qtbot, settings, window, opened, tmp_path):
     """The file was saved after it -- here or by another program --
