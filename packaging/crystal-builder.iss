@@ -72,6 +72,16 @@ Name: "assocproj"; \
     Description: "Open .xtalproj project files with {#AppName}"; \
     GroupDescription: "File associations:"
 
+; An upgrade installs into the same {app} (the AppId never changes) and
+; [Files] only adds and overwrites.  Without this the last release's
+; _internal stays underneath the new one: its dist-info sits beside
+; the new dist-info, and 0.4.0 installed over 0.2.0 said 0.2.0 on the
+; start window; every module it had and this one dropped still
+; imports.  _internal is PyInstaller's alone -- workspaces and
+; settings live elsewhere -- so nothing of the user's is in it.
+[InstallDelete]
+Type: filesandordirs; Name: "{app}\_internal"
+
 [Files]
 Source: "{#SourceDir}\{#AppExeName}"; DestDir: "{app}"; \
     Flags: ignoreversion

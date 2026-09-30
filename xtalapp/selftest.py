@@ -13,6 +13,8 @@ It checks the five things that break in a bundle and nowhere else:
    so without ``copy_metadata`` in the spec ``version()`` raises,
    ``xtal.__init__`` catches it, and Help > About reports ``0.0.dev0``
    on every release.  Nothing else notices; About just quietly lies.
+   It lies the same way when an install over an older release left
+   that release's ``dist-info`` behind, so there must be exactly one.
 2. **The resource lookups.**  Four places compute
    ``parent.parent / "resources" / ...``, which lands on ``_internal``
    in a onedir bundle.  Opening a sample is that path being right.  On
@@ -104,6 +106,35 @@ def check_version(report) -> None:
             "missing metadata.  The spec needs "
             "copy_metadata('crystal-builder'), and the tree needs a "
             "tag for setuptools-scm to read.")
+
+
+def check_one_metadata(report) -> None:
+    """The build carries one ``dist-info`` of its own, not two.
+
+    An installer that copies a release over the last one and deletes
+    nothing leaves ``crystal_builder-0.2.0.dist-info`` beside
+    ``crystal_builder-0.4.0.dist-info``, and ``version()`` answers
+    with whichever it meets first -- 0.4.0 installed on Windows said
+    0.2.0 on the start window.  Anything the old release shipped and
+    the new one dropped is still importable too.  A checkout may see
+    two honestly (a stale ``egg-info`` in the root beside the
+    installed one), so only a frozen build fails.
+    """
+    from importlib.metadata import distributions
+
+    from xtalapp import extras
+
+    found = sorted(
+        dist.version for dist in distributions()
+        if (dist.metadata["Name"] or "").lower().replace("_", "-")
+        == "crystal-builder")
+    report("crystal-builder metadata: " + ", ".join(found))
+    if len(found) > 1 and extras.frozen():
+        raise AssertionError(
+            f"{len(found)} copies of crystal-builder's metadata "
+            f"({', '.join(found)}): this build was installed over an "
+            "older one without removing it, and reports whichever "
+            "version it finds first")
 
 
 def check_rcsr_index(report) -> None:
@@ -527,6 +558,7 @@ def run(shot: Path | None = None, out=None) -> int:
 
     checks = [
         ("version", check_version),
+        ("one copy of the metadata", check_one_metadata),
         ("RCSR index", check_rcsr_index),
         ("fragment library", check_fragment_library),
         ("samples", check_samples),
