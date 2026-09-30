@@ -71,10 +71,13 @@ class PawleyOptions:
     def free(self, radiation: Radiation) -> tuple[str, ...]:
         """The RietX groups freed, in the bridge's words.
 
-        A capillary has no specimen displacement to refine, so it is
-        not freed for a synchrotron whatever the box says.
+        The background and the widths are always free: a Pawley fit
+        that could not fit them would put every misfit into the
+        intensities.  A capillary has no specimen displacement to
+        refine, so it is not freed for a synchrotron whatever the box
+        says.
         """
-        out = []
+        out = ["background", "profile"]
         if self.zero:
             out.append("zero")
         if self.displacement and not radiation.is_synchrotron:
@@ -127,6 +130,8 @@ class PawleyFit:
     notes: list[str] = field(default_factory=list)
     #: ``"pawley"`` or ``"lebail"``: how the intensities were found
     method: str = "pawley"
+    #: the set after the fit, for the next run to start from
+    parameters: object = None
 
     @property
     def converged(self) -> bool:
@@ -189,10 +194,15 @@ def parse_hold(text) -> tuple[str, ...]:
 
 
 def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
-           options: PawleyOptions | None = None, *, cancel=None,
-           folder=None) -> PawleyFit:
+           options: PawleyOptions | None = None, *, parameters=None,
+           cancel=None, folder=None) -> PawleyFit:
     """Fit ``cell`` (six numbers, or text :func:`parse_cell` reads) in
     ``space_group`` to ``data``.
+
+    ``parameters`` is the :class:`~xtal.powder.parameters.ParameterSet`
+    to start from, whose flags say what is refined; ``None`` starts
+    from RietX's preset with the boxes of ``options`` as the flags.
+    The background has as many terms as ``options`` asks either way.
 
     ``cancel`` is a job's :class:`~xtal.modules.job.Cancellation`;
     Stop raises :class:`~xtal.powder.data.PowderStopped`, because half
@@ -208,11 +218,10 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
     symbol = bridge.space_group_named(space_group)
     if not isinstance(cell, str):
         cell = " ".join(str(float(v)) for v in cell)
-    refinement, result = bridge.pawley(
-        window, radiation, parse_cell(cell), symbol,
-        background_terms=options.background_terms,
-        free=options.free(radiation), hold_cell=options.hold_cell,
-        folder=folder, mode=options.method,
+    start = bridge.start_from(parameters, options, radiation, window)
+    refinement, result, after = bridge.pawley(
+        window, radiation, parse_cell(cell), symbol, start=start,
+        hold_cell=options.hold_cell, folder=folder, mode=options.method,
         cancel=bridge.cancel_token(cancel))
     refined = refinement.structure.phases[0].cell
     names = ("a", "b", "c", "alpha", "beta", "gamma")
@@ -241,7 +250,7 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
             "instrument.geometry.sample_displacement"),
         refined=bridge.refined_values(result),
         notes=[d.message for d in result.diagnostics],
-        method=options.method)
+        method=options.method, parameters=after)
 
 
 def cell_fits_structure(fit: PawleyFit, structure, *,

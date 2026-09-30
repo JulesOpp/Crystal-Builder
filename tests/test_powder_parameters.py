@@ -197,6 +197,36 @@ def test_a_fit_writes_its_values_and_esds_back(start):
     assert start["zero_error"].esd is None
 
 
+def test_a_fit_limited_to_some_groups_leaves_the_rest_alone(start):
+    """A Pawley fit gives back its background and peak shape and never
+    its scale -- the scaffold's scale is no start for a Rietveld run,
+    and without the limit the next run begins a thousand times off."""
+    start["scale"].esd = 0.001
+    start.take({"phases.0.scale": 1234.0, "instrument.profile.w": 0.002},
+               {"phases.0.scale": 5.0, "instrument.profile.w": 1e-4},
+               groups=(p.BACKGROUND, p.PROFILE))
+    assert start["scale"].value == 1.0 and start["scale"].esd == 0.001
+    assert start["W"].value == pytest.approx(0.002)
+
+
+def test_the_boxes_become_flags(start):
+    """``xtal run`` without a parameter file still means what its boxes
+    said: each box turns on its rows and nothing else, and the scale
+    is always refined."""
+    start.flag_boxes(("background", "profile", "positions"))
+    flagged = {row.name for row in start if row.refine}
+    assert {"scale", "bkg_c0", "bkg_c7", "U", "W", "Y", "Ti1_xyz",
+            "O2_xyz"} <= flagged
+    assert not flagged & {"zero_error", "sample_displacement", "cs_l",
+                          "strain_g", "po_r", "Ti1_biso", "O2_occ"}
+
+
+def test_every_row_answers_to_a_box(start):
+    """A row no box names could never be freed from ``xtal run``, and
+    the plan could not put it in a stage."""
+    assert all(p.box_of(row.path) for row in start)
+
+
 def test_a_group_turns_on_and_off_together(start):
     start.set_group_refine(p.SAMPLE, True)
     assert all(row.refine for row in start.in_group(p.SAMPLE))

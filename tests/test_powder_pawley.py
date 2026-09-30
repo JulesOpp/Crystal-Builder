@@ -172,3 +172,32 @@ def test_a_method_that_is_neither_is_refused(rutile_xy_shared):
     with pytest.raises(PowderError, match="not a method"):
         pawley(PowderData.from_xy(rutile_xy_shared), Radiation("cu"),
                INDEXED, "P42/mnm", PawleyOptions(method="rietveld"))
+
+
+def test_a_pawley_profile_is_rietvelds_start(fit, rutile_xy_shared):
+    """The peak shape a Pawley fit found is in its parameters, and a
+    Rietveld run from them with the profile held keeps it; the scale
+    it hands back is the one it was given, never its scaffold's.
+    Without it a Pawley fit is only a cell, and Rietveld re-derives
+    the profile from RietX's preset."""
+    from xtal.core.lattice import Lattice
+    from xtal.core.structure import Structure
+    from xtal.powder.rietveld import RietveldOptions, rietveld
+
+    after = fit.parameters
+    for name, path in (("U", "instrument.profile.u"),
+                       ("W", "instrument.profile.w")):
+        assert after[name].value == pytest.approx(fit.refined[path][0])
+        assert after[name].esd
+    assert after["scale"].esd is None
+    structure = Structure.from_arrays(
+        Lattice.from_parameters(*fit.cell), ["Ti", "O"],
+        [[0, 0, 0], [0.3, 0.3, 0]], space_group="P4_2/mnm")
+    start = after.copy()
+    for name in ("U", "V", "W", "X", "Y"):
+        start.set_refine(name, False)
+    riet = rietveld(structure, PowderData.from_xy(rutile_xy_shared),
+                    Radiation("cu"), RietveldOptions(cell=False),
+                    parameters=start)
+    assert riet.parameters["W"].value == after["W"].value
+    assert riet.rwp < 1.2 * fit.rwp + 0.02

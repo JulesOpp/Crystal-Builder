@@ -83,6 +83,17 @@ _FIXED = (
 #: What a row with no preset value starts at: r = 1 is no texture.
 _START = {"phases.0.preferred_orientation.r": 1.0}
 
+#: Which of the old "Refine ..." boxes each row answers to, by path: the
+#: words the bridge's plan and ``xtal run``'s boxes are in.
+_BOXES = {
+    "phases.0.scale": "scale",
+    "instrument.zero_shift": "zero",
+    "instrument.geometry.sample_displacement": "displacement",
+    "phases.0.lor_size": "size", "phases.0.gauss_size": "size",
+    "phases.0.lor_strain": "strain", "phases.0.gauss_strain": "strain",
+    "phases.0.preferred_orientation.r": "preferred_orientation",
+}
+
 _BACKGROUND = re.compile(r"bkg_c(\d+)$")
 _FLAGS = {"refine": True, "norefine": False}
 
@@ -205,13 +216,27 @@ class ParameterSet:
         """RietX's paths, or globs, of every row to refine."""
         return [row.path for row in self if row.refine and not row.held]
 
+    def flag_boxes(self, free) -> None:
+        """Refine what the old boxes named and nothing else -- how
+        ``xtal run`` with no parameter file still means what it did.
+        ``free`` is in the bridge's words (``"background"``,
+        ``"positions"``); the scale is always refined, as it always
+        was."""
+        free = set(free) | {"scale"}
+        for row in self:
+            row.refine = box_of(row.path) in free
+
     def take(self, values: dict[str, float],
-             esds: dict[str, float]) -> None:
+             esds: dict[str, float], groups=None) -> None:
         """A finished fit's numbers: every value it reports, and an esd
         for what it refined.  A row it did not refine loses its esd --
         an esd from an earlier run describes a value that has not
-        changed, but also a model that has."""
+        changed, but also a model that has.  With ``groups``, only
+        those groups' rows are touched: a Pawley fit has a scale, and
+        it is not the one a Rietveld run should start from."""
         for row in self:
+            if groups is not None and row.group not in groups:
+                continue
             if row.value is not None and row.path in values:
                 row.value = float(values[row.path])
             esd = esds.get(row.path)
@@ -307,6 +332,21 @@ class ParameterSet:
 # ======================================================================
 #  BUILDING A SET
 # ======================================================================
+
+def box_of(path: str) -> str:
+    """The box a row's path answers to, ``""`` for none."""
+    if path.endswith(".dof.*"):
+        return "positions"
+    if path.endswith(".biso"):
+        return "biso"
+    if path.endswith(".occ"):
+        return "occupancy"
+    if path.startswith("instrument.background."):
+        return "background"
+    if path.startswith("instrument.profile."):
+        return "profile"
+    return _BOXES.get(path, "")
+
 
 def site_labels(structure) -> list[tuple[int, str]]:
     """``[(site_index, label), ...]`` of the atoms that scatter, in the

@@ -120,6 +120,8 @@ class RietveldFit:
     #: RietX's label of each atom of the phase, in its order
     atom_labels: tuple[str, ...] = ()
     notes: list[str] = field(default_factory=list)
+    #: the set after the fit, for the next run to start from
+    parameters: object = None
 
     @property
     def converged(self) -> bool:
@@ -146,10 +148,16 @@ def parse_axis(text) -> tuple[int, int, int] | None:
 
 
 def rietveld(structure, data: PowderData, radiation: Radiation,
-             options: RietveldOptions | None = None, *, on_frame=None,
-             frame_interval: float = 0.2, cancel=None,
+             options: RietveldOptions | None = None, *, parameters=None,
+             on_frame=None, frame_interval: float = 0.2, cancel=None,
              folder=None) -> RietveldFit:
     """Refine ``structure`` against ``data``.
+
+    ``parameters`` is the set to start from, whose flags say what is
+    refined; ``None`` starts from RietX's preset with the boxes of
+    ``options`` as the flags.  The cell, its held numbers, the range,
+    the background's order, the texture axis and the plan are
+    ``options``' either way: the cell is each step's own.
 
     ``on_frame(RietveldFrame)`` is called from the fitting thread as
     the fit goes; ``cancel`` is a job's
@@ -163,6 +171,8 @@ def rietveld(structure, data: PowderData, radiation: Radiation,
     options = options or RietveldOptions()
     window = data.window(options.start or None, options.finish or None)
     start_frac = structure.frac.copy()
+    start = bridge.start_from(parameters, options, radiation, window,
+                              structure)
 
     frame_out = None
     if on_frame is not None:
@@ -176,10 +186,9 @@ def rietveld(structure, data: PowderData, radiation: Radiation,
 
     # the map is needed by the frames before the fit returns it
     _phase, indices = bridge.phase_of(structure)
-    refinement, result, indices = bridge.rietveld(
-        structure, window, radiation, free=options.free(radiation),
+    refinement, result, indices, after = bridge.rietveld(
+        structure, window, radiation, start=start, cell_free=options.cell,
         hold_cell=options.hold_cell, plan=options.plan,
-        background_terms=options.background_terms,
         preferred_axis=options.preferred_axis, on_frame=frame_out,
         frame_interval=frame_interval, folder=folder,
         cancel=bridge.cancel_token(cancel))
@@ -209,4 +218,4 @@ def rietveld(structure, data: PowderData, radiation: Radiation,
         radiation=radiation, refined=bridge.refined_values(result),
         moved=float(moved.max()) if moved.size else 0.0,
         atom_labels=tuple(atom.label for atom in phase.atoms),
-        notes=[d.message for d in result.diagnostics])
+        notes=[d.message for d in result.diagnostics], parameters=after)
