@@ -212,6 +212,42 @@ Measure each in a scratch environment against
 Preferences ▸ Engines, or replace 0.3.  Bindings only if the numbers
 favour them clearly.
 
+## The Skeletal style: a ChemDraw drawing of the crystal
+
+Planned 2026-09-30 on `features/skeletal-style`.  The full plan, with
+its measurements, is `~/.claude/plans/skeletal-style.md`.  Asked for:
+no spheres, the element symbol at each atom's centre, lines or wedges
+between the symbols stopping short of every label, the back of the
+structure in a lighter grey, carbon shown as C or left implicit.
+Julius's answers: the name is **Skeletal**; hydrogens are **folded
+into labels** (`NH`, `OH2`; none drawn on an implicit carbon); ink is
+black (white on a dark ground) with an option to colour labels by
+element; a wedge's narrow end is at the **busier atom** (more bonds,
+a metal on a tie), solid towards the viewer and hashed away.
+
+Measured: one cell of MFU-4l draws 288 labels with carbon implicit
+and 576 with it shown, and a `vtkBillboardTextActor3D` each -- what
+`_set_labels` does -- re-renders 2000 of them in 126 ms.  So the
+labels are one actor: a textured quad each from an atlas of the few
+distinct strings, turned to the camera in the vertex shader as the
+occupancy pies are.
+
+Phase 1 (the sketch geometry, `xtalapp/viewport/sketch.py`) shipped
+2026-09-30: 2x2x2 MFU-4l, 13 760 halves, is cut and wedged in 17 ms
+a camera.
+
+| Phase | Delivers | Main files | Size |
+|---|---|---|---|
+| **2 — The style** | `skeletal` in the registry, `atom_render`, the two settings, the scene model's labels and pick radii | `styles.py`, `view_settings.py`, `builder.py`, `scene.py` | M |
+| **3 — Drawing it** | The label atlas and actor, lines, wedges and hashes recut as the camera turns, grey at the back | `vtk_scene.py`, `label_atlas.py` | L |
+| **4 — Style panel** | *Carbon* and *Colour labels by element*, enabled only for a style that draws labels | `xtalapp/docks/style_panel.py` | S |
+| **5 — SVG export** | Text labels, knockouts, wedge polygons and hashes from the same geometry | `xtalapp/viewport/svg_export.py` | M |
+
+Folding hides a hydrogen from the picture only: the structure, its
+graph and the Document are never changed by a style, and a folded H
+is reached by switching style.  Not in scope: a ring's second line
+inside the ring, and gaps where one bond crosses in front of another.
+
 ---
 
 # Not scheduled
