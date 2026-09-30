@@ -205,15 +205,54 @@ def _same_atoms(a, b) -> bool:
     return list(p1.expand(a).elements) == list(p1.expand(b).elements)
 
 
-def _same_positions(a, b, tolerance=1e-4) -> bool:
+def _difference(shipped, fresh, tolerance=1e-4) -> str:
+    """How ``fresh`` differs from ``shipped``, or "" where it does not.
+
+    Said rather than answered yes or no, because the check fails on
+    machines other than the one that wrote the file, and "would
+    change" alone left nothing to go on there."""
     from xtal.core import p1
 
-    fa, fb = p1.expand(a).frac, p1.expand(b).frac
-    if fa.shape != fb.shape:
-        return False
-    delta = fa - fb
+    a, b = p1.expand(shipped), p1.expand(fresh)
+    if len(a.elements) != len(b.elements):
+        return f"{len(a.elements)} atoms shipped, {len(b.elements)} fresh"
+    for k, (x, y) in enumerate(zip(a.elements, b.elements, strict=True)):
+        if x != y:
+            return f"atom {k} is {x} shipped, {y} fresh"
+    delta = a.frac - b.frac
     delta -= np.rint(delta)
-    return float(np.abs(delta).max()) < tolerance
+    worst = np.abs(delta).max(axis=1)
+    k = int(np.argmax(worst))
+    if worst[k] < tolerance:
+        return ""
+    moved = int(np.sum(worst >= tolerance))
+    return (f"{moved} atoms moved, most atom {k} ({a.elements[k]}) "
+            f"by {worst[k]:.4g} fractional, from {np.round(a.frac[k], 4)} "
+            f"to {np.round(b.frac[k], 4)}")
+
+
+def _trace(name) -> list[str]:
+    """Each step's cell for ``name``, fingerprinted: what it said, the
+    atom count, and a digest of the atoms as a set and in order -- to
+    compare line by line with the machine that wrote the file, and see
+    which step first chose differently."""
+    import hashlib
+
+    from xtal.core import p1, prepare
+    from xtal.io import FORMATS
+
+    lines = []
+    for k in range(1, len(prepare.STEPS) + 1):
+        structure = FORMATS.read(SOURCE / f"{name}.cif")
+        out, said = prepare.prepare(structure, prepare.STEPS[:k])
+        cell = p1.expand(out)
+        rows = [f"{e} {x:.3f} {y:.3f} {z:.3f}" for e, (x, y, z) in
+                zip(cell.elements, np.mod(cell.frac, 1.0), strict=True)]
+        digest = [hashlib.sha1("\n".join(r).encode()).hexdigest()[:8]
+                  for r in (sorted(rows), rows)]
+        lines.append(f"  {prepare.STEPS[k - 1]}: {len(rows)} atoms, set "
+                     f"{digest[0]}, order {digest[1]} -- {said[-1]}")
+    return lines
 
 
 def main(argv=None) -> int:
@@ -248,9 +287,12 @@ def main(argv=None) -> int:
                       f"relaxed file -- run with --relax")
             continue
         if args.check:
-            if shipped is None or not _same_positions(shipped, fresh):
+            why = ("no shipped file" if shipped is None
+                   else _difference(shipped, fresh))
+            if why:
                 stale.append(name)
-                print(f"{name}: would change")
+                print(f"{name}: would change -- {why}")
+                print("\n".join(_trace(name)))
             continue
         FORMATS.write(fresh, target)
         print(f"{name}: wrote {target.relative_to(ROOT)}")

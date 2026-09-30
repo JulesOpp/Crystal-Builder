@@ -52,7 +52,7 @@ def test_every_sample_in_the_catalogue_is_a_file_that_is_there():
     missing = [s.label for s in samples.SAMPLES if s.path is None]
 
     assert missing == []
-    assert len(samples.SAMPLES) == 39
+    assert len(samples.SAMPLES) == 47
 
 
 def test_every_sample_is_a_structure_this_application_can_read():
@@ -301,6 +301,10 @@ COD_EXPECTED = {
     "cod_euhotp": ("Fd-3m", 20, 2112),
     "cod_pbzmof1": ("Fd-3m", 24, 3488),
     "cod_alsocmof1": ("Pm-3n", 29, 1208),
+    "cod_uio67": ("Fm-3m", 13, 1224),
+    "cod_pcn224": ("Im-3m", 30, 2176),
+    "cod_sifsix3ni": ("P4/mmm", 7, 44),
+    "cod_sifsix1cu": ("P4/mmm", 12, 92),
 }
 
 
@@ -341,6 +345,11 @@ def test_the_cod_samples_are_what_the_script_writes():
         assert re.search(
             rf"^_cod_database_code\s+{sample.cod_id}$", text,
             re.MULTILINE), sample.label
+    for cod_id, name in fetch.REPLACED.items():
+        text = (samples.folder() / name).read_text("utf-8")
+        assert fetch.strip(text) == text, name
+        assert re.search(rf"^_cod_database_code\s+{cod_id}$", text,
+                         re.MULTILINE), name
 
 
 def test_every_file_in_the_samples_folder_is_named_in_provenance():
@@ -353,7 +362,7 @@ def test_every_file_in_the_samples_folder_is_named_in_provenance():
 
     unnamed = [f for f in files if f"`{f}`" not in provenance]
 
-    assert len(files) == 42
+    assert len(files) == 50
     assert unnamed == []
 
 

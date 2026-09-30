@@ -109,6 +109,16 @@ SOURCE_SITE = "prepare_site"
 #: perceiver takes for an O-O bond.
 O_CLASH = 2.0
 
+#: Below this, two halogens are alternatives: no framework holds a
+#: halogen-halogen bond, and the closest real pair is a CF3's own, 2.14
+#: A.  SIFSIX-1-Cu's SiF6 turns its four equatorial fluorines over
+#: three orientations 0.6-1.3 A apart, which a bond perceiver takes for
+#: F-F bonds -- and one orientation joined to the next as a unit gave
+#: each silicon six equatorial fluorines where it has four.
+HALOGEN_CLASH = 1.9
+
+HALOGENS = frozenset({"F", "Cl", "Br", "I"})
+
 
 def _clash(a: str, b: str, distance: float) -> bool:
     """Whether two atoms are too close to both be there."""
@@ -116,8 +126,11 @@ def _clash(a: str, b: str, distance: float) -> bool:
         return distance < H_CLASH
     if a == "O" and b == "O":
         return distance < O_CLASH
-    return distance < HEAVY_CLASH * (el.covalent_radius(a)
-                                     + el.covalent_radius(b))
+    covalent = HEAVY_CLASH * (el.covalent_radius(a)
+                              + el.covalent_radius(b))
+    if a in HALOGENS and b in HALOGENS:
+        return distance < max(HALOGEN_CLASH, covalent)
+    return distance < covalent
 
 
 # ======================================================================
@@ -682,6 +695,12 @@ def _units(n, partial, bonds, clashes) -> dict:
     into the other -- ring atom to ring atom, across the 1.4 A that
     separates two orientations of a disordered ring -- and the two
     come out as one group that has to be kept or dropped together.
+
+    Lengths are compared to a micro-Angstrom: symmetry makes hundreds
+    of bonds equal, and which of two equal bonds sorts first was
+    otherwise the last bit of a product the BLAS rounds its own way --
+    PCN-224 ordered one way on Accelerate and OpenBLAS and another
+    on MKL.
     """
     parent = list(range(n))
     against: dict[int, set] = {}
@@ -697,7 +716,7 @@ def _units(n, partial, bonds, clashes) -> dict:
             a = parent[a]
         return a
 
-    for _d, i, j in sorted(bonds):
+    for _d, i, j in sorted((round(d, 6), i, j) for d, i, j in bonds):
         ri, rj = find(i), find(j)
         if ri == rj or avoid[ri] & inside[rj]:
             continue
@@ -785,7 +804,10 @@ def _pick(cluster, target, units, conflicts, rank) -> set:
 def _spread(candidates, target, units, cell, lattice) -> list:
     """``target`` of ``candidates``, as far apart as they will go: the
     first, then repeatedly the one furthest from those already kept.
-    Deterministic, so the same file gives the same cell."""
+    Deterministic, so the same file gives the same cell -- on every
+    machine, which is why the distances are rounded before the
+    furthest is taken: in a symmetric cell they tie, and unrounded the
+    tie went to whichever the BLAS left a bit longer."""
     if target <= 0 or not candidates:
         return []
     if target >= len(candidates):
@@ -795,7 +817,7 @@ def _spread(candidates, target, units, cell, lattice) -> list:
     chosen = [0]
     nearest = _distances(centres, centres[0], lattice)
     while len(chosen) < target:
-        k = int(np.argmax(nearest))
+        k = int(np.argmax(np.round(nearest, 6)))
         chosen.append(k)
         nearest = np.minimum(nearest,
                              _distances(centres, centres[k], lattice))

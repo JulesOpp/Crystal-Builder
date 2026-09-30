@@ -30,9 +30,9 @@ the structure filed in the workspace:
    application: seven at the top of the submenu, from
    {ref}`MOF-5 <cmd-sample_mof5>` -- written in {term}`P1`, so that
    *Symmetry ▸ Find symmetry…* has Fm-3m to recover from it -- to
-   {ref}`CFA-1 in P1 <cmd-sample_cfa1_p1>`; sixteen more under
+   {ref}`CFA-1 in P1 <cmd-sample_cfa1_p1>`; twenty more under
    *From the COD*, as deposited in the Crystallography Open Database
-   {cite}`grazulis2012cod`; and the same sixteen under *Prepared for
+   {cite}`grazulis2012cod`; and the same twenty under *Prepared for
    simulation*, as `resources/samples/prepared/` holds them.  The
    reference describes each one in a line.  A sample is copied into
    the workspace like any other file, so saving it never writes into

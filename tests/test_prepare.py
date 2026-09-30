@@ -117,6 +117,33 @@ def test_atoms_of_one_component_share_an_occupancy():
     assert _counts(out) == {}                      # 0.06 and 0.42, alone
 
 
+def test_a_turning_hexafluorosilicate_keeps_four_equatorial_fluorines():
+    """SIFSIX-1-Cu's SiF6 turns its equatorial square over several
+    orientations.  Neighbouring alternatives 1.29 A apart were taken
+    for F-F bonds, the eight joined into one unit at 1/2, and the
+    silicon kept six equatorial fluorines -- or, rounded, none."""
+    a, r = 10.0, 1.68
+    sites = [("Si", (0.5, 0.5, 0.5), 1.0),
+             ("F", (0.5, 0.5, 0.5 + r / a), 1.0),
+             ("F", (0.5, 0.5, 0.5 - r / a), 1.0)]
+    for k in range(8):                  # two squares, 45 degrees apart
+        angle = np.radians(45 * k)
+        sites.append(("F", (0.5 + r / a * np.cos(angle),
+                            0.5 + r / a * np.sin(angle), 0.5), 0.5))
+    out, said = prepare.order_disorder(_box(*sites, a=a))
+
+    assert _counts(out) == {"Si": 1, "F": 6}
+    cell = p1.expand(out)
+    si = cell.elements.index("Si")
+    bonds = [(cell.frac[f] - cell.frac[si]) * a
+             for f in range(cell.n_atoms) if cell.elements[f] == "F"]
+    for k, u in enumerate(bonds):
+        for v in bonds[k + 1:]:
+            cosine = u @ v / np.linalg.norm(u) / np.linalg.norm(v)
+            assert np.degrees(np.arccos(np.clip(cosine, -1, 1))) \
+                == pytest.approx(90, abs=0.1) or cosine < -0.999
+
+
 def test_nothing_disordered_is_left_alone(quartz):
     out, said = prepare.order_disorder(quartz)
     assert out is quartz
@@ -128,7 +155,8 @@ def test_nothing_disordered_is_left_alone(quartz):
 # ======================================================================
 
 DISORDERED = ["Al-soc-MOF-1", "MIL-100", "MIL-101", "MIL-88B",
-              "MOF-808", "Mn-BTT", "PCN-222", "UiO-66", "ZIF-8",
+              "MOF-808", "Mn-BTT", "PCN-222", "PCN-224", "SIFSIX-1-Cu",
+              "SIFSIX-3-Ni", "UiO-66", "UiO-67", "ZIF-8",
               "cubic-EuHOTP", "pbz-MOF-1"]
 
 
@@ -139,7 +167,9 @@ def test_every_disordered_cod_framework_orders_without_a_clash(name):
     assert _clashes(out) == 0
 
 
-@pytest.mark.parametrize("name", ["PCN-222", "ZIF-8", "MIL-88B"])
+@pytest.mark.parametrize("name", ["PCN-222", "ZIF-8", "MIL-88B",
+                                  "PCN-224", "SIFSIX-1-Cu",
+                                  "SIFSIX-3-Ni"])
 def test_the_ordered_cell_has_the_formula_the_refinement_declared(name):
     """The independent check.  These come out exactly: the ordering
     chose among alternatives without changing what the cell holds.
@@ -450,6 +480,10 @@ def _formula(structure) -> dict:
     ("PCN-222", {"C": 96, "H": 64, "Cl": 2, "Fe": 2, "N": 8, "O": 32,
                  "Zr": 6}),
     ("UiO-66", {"C": 48, "H": 28, "O": 32, "Zr": 6}),
+    ("UiO-67", {"C": 84, "H": 52, "O": 32, "Zr": 6}),
+    # Zr6O4(OH)4(OAc)6(H2TCPP)1.5, the acetate caps as deposited and
+    # two N-H in each porphyrin.
+    ("PCN-224", {"C": 84, "H": 61, "N": 6, "O": 32, "Zr": 6}),
     ("MOF-808", {"C": 24, "H": 16, "O": 32, "Zr": 6}),
 ])
 def test_an_m6_core_gets_the_terminal_ligands_its_charge_asks_for(

@@ -3,7 +3,7 @@
 Every file in this folder is named here, with its source and what may
 be done with it; `tests/test_samples.py` fails when one is not.  File
 ▸ Open Sample reads the catalogue in `xtalapp/samples.py`, which lists
-thirty-nine of the forty-two.
+forty-seven of the fifty.
 
 ## From the COD (`cod/`)
 
@@ -14,7 +14,8 @@ Each file is the COD's own CIF with the experiment taken out -- the
 and the SHELX `.res`/`.hkl` files and PLATON SQUEEZE report some
 depositions embed -- and every other byte as downloaded.
 `scripts/fetch_cod_samples.py` writes them; `--check` says whether the
-COD still agrees.  Fetched 2026-09-23.
+COD still agrees.  Fetched 2026-09-23; UiO-67, PCN-224, SIFSIX-3-Ni
+and SIFSIX-1-Cu 2026-09-29.
 
 | File | COD | Publication |
 |---|---|---|
@@ -34,9 +35,31 @@ COD still agrees.  Fetched 2026-09-23.
 | `cod/cubic-EuHOTP.cif` | [4134597](https://www.crystallography.net/cod/4134597.html) | Skorupskii et al., *J. Am. Chem. Soc.* (2020); the COD calls it EuHHTP, [10.1021/jacs.0c01713](https://doi.org/10.1021/jacs.0c01713) |
 | `cod/pbz-MOF-1.cif` | [4130966](https://www.crystallography.net/cod/4130966.html) | Alezi et al., *J. Am. Chem. Soc.* **138**, 12767 (2016), [10.1021/jacs.6b08176](https://doi.org/10.1021/jacs.6b08176) |
 | `cod/Al-soc-MOF-1.cif` | [4129499](https://www.crystallography.net/cod/4129499.html) | Alezi et al., *J. Am. Chem. Soc.* **137**, 13308 (2015), [10.1021/jacs.5b07053](https://doi.org/10.1021/jacs.5b07053) |
+| `cod/UiO-67.cif` | [4132640](https://www.crystallography.net/cod/4132640.html) | Lee et al., *J. Am. Chem. Soc.* **140**, 8958 (2018), [10.1021/jacs.8b05271](https://doi.org/10.1021/jacs.8b05271) |
+| `cod/PCN-224.cif` | [1558028](https://www.crystallography.net/cod/1558028.html) | Zee et al., *Chem. Sci.* **11**, 5447 (2020), [10.1039/D0SC01796E](https://doi.org/10.1039/D0SC01796E) |
+| `cod/SIFSIX-3-Ni.cif` | [1553650](https://www.crystallography.net/cod/1553650.html) | Elsaidi et al., *Chem. Sci.* **8**, 2373 (2017), under helium, [10.1039/C6SC05012C](https://doi.org/10.1039/C6SC05012C) |
+| `cod/SIFSIX-1-Cu.cif` | [4117561](https://www.crystallography.net/cod/4117561.html) | Burd et al., *J. Am. Chem. Soc.* **134**, 3663 (2012), [10.1021/ja211340t](https://doi.org/10.1021/ja211340t) |
 
 Not in the COD when looked for on 2026-09-23: MOF-303, Cu3(HHTP)2 and
 Cr-red-MOF-1 ([10.1021/jacs.5c16581](https://doi.org/10.1021/jacs.5c16581)).
+Looked for again on 2026-09-29, and not taken:
+
+- **CALF-20 and MOF-303**: not in the COD.
+- **SIFSIX-3-Cu** (1548310) is in it, and its pyrazine is refined as
+  one averaged ring with C-C 1.24 A; SIFSIX-3-Ni's refinements from
+  the same group of authors give the ring's two orientations instead.
+- **UiO-68**: only a polyMOF (7120630) and a methylated linker in a
+  cell whose formula is written per 0.12 Zr (4133317).
+- **MIL-47**: only with hydroquinone intercalated (4342234, R 0.10)
+  and as a vernier superstructure (1561582).
+- **MFU-4l**: only cobalt-exchanged (7107247); the zinc one ships
+  from the CCDC, below.
+- **CFA-1** (7021651) is the same deposition the CCDC's `CFA1.cif`
+  was, and replaced it (below) rather than joining this group: both
+  acetates are refined as averages that no ordering makes a molecule
+  of (C-O 0.95 and 1.63 A on the one on the three-fold axis), so it
+  has no prepared copy, and `zn_oac.cif` is the ordered model
+  already.
 
 ## Prepared for simulation (`prepared/`)
 
@@ -71,6 +94,10 @@ framework rather than only for clashes:
 | `prepared/cubic-EuHOTP.cif` | one whole chelating nitrate per Eu (the CIF shares a distal oxygen between two across a two-fold axis) and the cluster nitrate ordered.  **Its charge is not settled**: HOTP is redox-active and any cations in the pores were never located, so the oxygen on each Eu is a water, the neutral reading of an oxygen whose hydrogens were not located, and not a claim about the charge |
 | `prepared/pbz-MOF-1.cif` | one acetate in six missing, as refined, each gap a hydroxide and a water; relaxed |
 | `prepared/Al-soc-MOF-1.cif` | one tilt of each terphenyl ring -- the CIF gives both at full occupancy, and its formula counts both -- a chloride per trimer and three waters on it; relaxed |
+| `prepared/UiO-67.cif` | Zr6O4(OH)4(bpdc)6, the ideal framework: one tilt of each ring, and the refinement's 4 % missing linkers not kept |
+| `prepared/PCN-224.cif` | Zr6O4(OH)4(OAc)6(H2TCPP)1.5 as deposited, the primitive cell: one orientation of each acetate |
+| `prepared/SIFSIX-3-Ni.cif` | one orientation of each pyrazine, in P1 |
+| `prepared/SIFSIX-1-Cu.cif` | one orientation of the SiF6's equatorial square and of each bipyridine, in P1.  The Cu-F contact is 2.38 A, beyond the distance rule, so the SiF6 is perceived as its own fragment |
 
 **Relaxed** means positions only, at the experimental cell, with
 ORB-v3 (`conservative-inf-omat`, float64) and D3(BJ) through
@@ -104,19 +131,26 @@ framework's own geometry had needed nothing.
 
 ### From the CCDC
 
-Three files carry the Cambridge Crystallographic Data Centre's header.
-`CFA1.cif`'s says it is for bona fide research and may not be copied
-or passed on; `MFU4l.cif`'s refers to the CCDC's access policy, and
+Two files carry the Cambridge Crystallographic Data Centre's header.
+`MFU4l.cif`'s refers to the CCDC's access policy, and
 `Ni2Cl2BTDD.cif`'s says neither.  **That is a risk this folder
 carries knowingly**: Julius chose on 2026-09-23 to keep them as they
-are and to add the COD set beside them rather than in their place.  MFU-4l is the project's stress
+are and to add the COD set beside them rather than in their place.
+A third, `CFA1.cif`, said it was for bona fide research and might not
+be copied or passed on; Julius chose on 2026-09-29 to replace it with
+the COD's copy of the same deposition, below.  MFU-4l is the project's stress
 case, and nothing in the COD replaces it.
 
 | File | Source |
 |---|---|
 | `MFU4l.cif` | CSD download, CCDC 776578 ([10.5517/ccv22xw](https://doi.org/10.5517/ccv22xw)); Denysenko et al., *Chem. Eur. J.* (2011), [10.1002/chem.201001872](https://doi.org/10.1002/chem.201001872).  Downloaded 2025-02-04 |
 | `Ni2Cl2BTDD.cif` | CSD refcode POSWUS, CCDC 1951829, exported by ConQuest; *J. Am. Chem. Soc.* **141**, 13858 (2019) |
-| `CFA1.cif` | CFA-1, the CCDC copy of the electronic supplementary material to a *Dalton Transactions* paper (2013) |
+
+### From the COD, under its old name
+
+| File | Source |
+|---|---|
+| `CFA1.cif` | COD [7021651](https://www.crystallography.net/cod/7021651.html), CC0, stripped as the `cod/` files are and written by the same script (its `REPLACED`); Schmieder et al., *Dalton Trans.* **42**, 10786 (2013), [10.1039/c3dt50787d](https://doi.org/10.1039/c3dt50787d).  The same crystal the CCDC copy it replaced held, site for site |
 
 ### From RASPA
 
