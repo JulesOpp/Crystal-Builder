@@ -131,6 +131,61 @@ def test_the_same_bytes_under_a_taken_name_still_find_their_entry(
     assert len(workspace.entries()) == 2
 
 
+def test_a_fresh_copy_gets_a_folder_of_its_own_even_over_identical_bytes(
+        workspace, entry):
+    """What "open a fresh copy" asks for.  If it regresses the copy is
+    the entry already open, and the user edits the same file twice."""
+    fresh = workspace.add_structure(entry.structure_path, fresh=True)
+
+    assert fresh.path != entry.path
+    assert len(workspace.entries()) == 2
+    assert fresh.structure_path.read_bytes() == \
+        entry.structure_path.read_bytes()
+
+
+def test_a_fresh_copy_is_named_after_its_folder(workspace, entry):
+    """So its tab, its project and its autosave are not spelled like
+    the first one's -- two tabs called rutile.cif are two tabs nobody
+    can tell apart."""
+    fresh = workspace.add_structure(entry.structure_path, fresh=True)
+
+    assert fresh.name == "rutile-2"
+    assert fresh.structure_path.name == "rutile-2.cif"
+
+
+def test_a_fresh_copy_skips_a_folder_already_taken(workspace, entry):
+    workspace.add_structure(entry.structure_path, fresh=True)
+
+    third = workspace.add_structure(entry.structure_path, fresh=True)
+
+    assert third.name == "rutile-3"
+    assert len(workspace.entries()) == 3
+
+
+def test_adding_the_same_file_again_still_returns_the_first_entry(
+        workspace, entry, tmp_path):
+    """``fresh`` is the one opt-out; content still decides otherwise."""
+    workspace.add_structure(entry.structure_path, fresh=True)
+
+    again = workspace.add_structure(tmp_path / "rutile.cif")
+
+    assert again.path == entry.path
+
+
+def test_a_file_of_the_same_name_never_lands_in_a_fresh_copys_folder(
+        workspace, entry, tmp_path, quartz):
+    """rutile-2 holds rutile-2.cif, and a different rutile.cif added
+    next is a third structure -- not a second file in that folder."""
+    fresh = workspace.add_structure(entry.structure_path, fresh=True)
+    (tmp_path / "other").mkdir()
+    write_cif(quartz, tmp_path / "other" / "rutile.cif")
+
+    added = workspace.add_structure(tmp_path / "other" / "rutile.cif")
+
+    assert added.name == "rutile-3"
+    assert [p.name for p in fresh.path.iterdir()] == ["rutile-2.cif"]
+
+
 # ------------------------------------------------------- the session
 
 def test_a_workspace_remembers_what_was_open(workspace, entry):

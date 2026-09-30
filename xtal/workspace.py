@@ -533,7 +533,8 @@ class Workspace:
         return (self.root / AUTOSAVE_DIR / relative).with_suffix(
             ".xtalproj")
 
-    def add_structure(self, source, name: str | None = None) -> Entry:
+    def add_structure(self, source, name: str | None = None,
+                      fresh: bool = False) -> Entry:
         """Copy a structure file in, and give it a folder of its own.
 
         **Copied, not referenced.**  A workspace that points at a file
@@ -549,9 +550,24 @@ class Workspace:
         workspace kept one of them without saying so.  Two people's
         MFU4l.cif are two structures.  The bytes are the only thing
         that can tell them apart and a structure file is kilobytes.
+
+        ``fresh`` is the one way past the comparison: *open a fresh
+        copy* of something already open, whose bytes match by
+        definition.  It gets the next folder nobody has, and the file
+        inside is named after that folder (``MOF-5-2/MOF-5-2.cif``) so
+        its tab, its project and its autosave are not spelled like the
+        first one's.
         """
         source = Path(source)
         stem = safe_name(name or source.stem, "structure")
+        if fresh:
+            for candidate in _numbered(stem):
+                folder = self.root / candidate
+                if not folder.exists():
+                    folder.mkdir(parents=True)
+                    shutil.copy2(source,
+                                 folder / f"{candidate}{source.suffix}")
+                    return Entry(path=folder, workspace=self)
         legacy = _legacy_safe_name(name or source.stem, "structure")
         if legacy != stem:
             # A workspace from before accents were kept filed this
@@ -572,6 +588,12 @@ class Workspace:
                 if filecmp.cmp(source, target, shallow=False):
                     return Entry(path=folder, workspace=self)
                 # The same name over different bytes.  Try the next.
+                continue
+            held = (Entry(path=folder, workspace=self).structure_path
+                    if folder.exists() else None)
+            if held is not None:
+                # A fresh copy's folder, whose file is named after it:
+                # a second structure there is two in one entry.
                 continue
             folder.mkdir(parents=True, exist_ok=True)
             if source.resolve() != target.resolve():

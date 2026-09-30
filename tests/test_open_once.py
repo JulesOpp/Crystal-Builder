@@ -19,7 +19,9 @@ pytest.importorskip("pytestqt")
 
 from PySide6.QtWidgets import QWidget  # noqa: E402
 
-from xtal.io import write_cif  # noqa: E402
+from xtal.core.structure import Change  # noqa: E402
+from xtal.io import read_cif, write_cif  # noqa: E402
+from xtalapp.documents import FRESH_COPY  # noqa: E402
 from xtalapp.mainwindow import MainWindow  # noqa: E402
 from xtalapp.settings import AppSettings  # noqa: E402
 
@@ -72,10 +74,17 @@ def test_the_tab_it_is_already_in_is_raised(window, two_folders):
     assert second is not first
 
 
-def test_it_says_so(window, two_folders, qtbot):
+def _said(window):
+    """What the notice over an already-open file says, if it is up."""
+    return "" if window.notice.isHidden() else window.notice.label.text()
+
+
+def test_it_says_so_and_offers_a_fresh_copy(window, two_folders):
     window.open_path(two_folders / "a" / "rutile.cif")
     window.open_path(two_folders / "a" / "rutile.cif")
-    assert "already open" in window.statusBar().currentMessage()
+
+    assert "already open" in _said(window)
+    assert window.notice.button(FRESH_COPY) is not None
 
 
 def test_two_files_of_the_same_name_are_two_documents(window,
@@ -177,7 +186,7 @@ def test_double_clicking_the_copy_raises_the_tab_it_is_already_in(
 
     assert window.tabs.count() == 1
     assert window.current_document() is document
-    assert "already open" in window.statusBar().currentMessage()
+    assert "already open" in _said(window)
 
 
 def test_a_runs_output_still_earns_a_tab_of_its_own(workspace_window,
@@ -207,7 +216,7 @@ def test_reopening_the_file_it_was_copied_from_finds_the_same_tab(
 
     assert window.tabs.count() == 1
     assert window.current_document() is document
-    assert "already open" in window.statusBar().currentMessage()
+    assert "already open" in _said(window)
 
 
 def test_a_project_saved_beside_the_structure_names_the_tab(
@@ -219,7 +228,7 @@ def test_a_project_saved_beside_the_structure_names_the_tab(
 
     window.open_path(document.entry.structure_path)
 
-    message = window.statusBar().currentMessage()
+    message = _said(window)
     assert "already open, as" in message
     assert document.title in message
 
@@ -234,5 +243,115 @@ def test_reopening_a_file_does_not_name_a_tab_spelled_the_same(
 
     window.open_path(source)
 
-    assert window.statusBar().currentMessage() == (
-        "rutile.cif is already open")
+    assert _said(window) == "rutile.cif is already open."
+
+
+# ------------------------------------------------------ a fresh copy
+#
+# Already open is not the end of the conversation: the tab is raised,
+# and a notice offers the file again in an entry of its own.  A second
+# *file*, so there are still never two tabs over one.
+
+def _fresh(window):
+    window.notice.button(FRESH_COPY).click()
+    return window.current_document()
+
+
+def test_a_fresh_copy_is_a_second_tab_over_a_second_file(
+        workspace_window):
+    """Breaks as two documents with two undo stacks on one file."""
+    window, document, source = workspace_window
+    window.open_path(source)
+
+    fresh = _fresh(window)
+
+    assert fresh is not document
+    assert window.tabs.count() == 2
+    assert fresh.path.resolve() != document.path.resolve()
+    assert fresh.entry.path != document.entry.path
+
+
+def test_a_fresh_copy_is_named_after_its_own_entry(workspace_window):
+    """Two tabs called rutile.cif are two tabs nobody can tell apart,
+    and would save to projects of one name."""
+    window, _document, source = workspace_window
+    window.open_path(source)
+
+    fresh = _fresh(window)
+
+    assert fresh.entry.name == "rutile-2"
+    assert fresh.title == "rutile-2.cif"
+
+
+def test_a_fresh_copy_is_pristine_after_the_first_was_edited(
+        workspace_window):
+    window, document, source = workspace_window
+    moved = document.structure.frac[0] + 0.01
+    document.apply(lambda s: s.set_frac(0, moved), Change.POSITIONS)
+    window.save_document()
+    window.open_path(source)
+
+    fresh = _fresh(window)
+
+    assert fresh.structure.frac[0] == pytest.approx(
+        read_cif(source).frac[0])
+    assert not fresh.modified
+
+
+def test_the_fresh_copy_saves_to_a_project_of_its_own(workspace_window):
+    window, document, source = workspace_window
+    window.save_document()
+    first = document.path
+    window.open_path(source)
+    fresh = _fresh(window)
+
+    window.save_document()
+
+    assert fresh.path == fresh.entry.path / "rutile-2.xtalproj"
+    assert first.is_file()
+
+
+def test_a_saved_project_offers_a_copy_of_its_structure(workspace_window):
+    """The project is the user's work; the copy is of the CIF it was
+    converted from, which Save never writes."""
+    window, document, _source = workspace_window
+    window.save_document()
+    window.open_path(document.path)
+
+    fresh = _fresh(window)
+
+    assert fresh.path.suffix == ".cif"
+    assert fresh.entry.name == "rutile-2"
+
+
+def test_a_fresh_copy_of_a_fresh_copy_is_numbered_after_the_first(
+        workspace_window):
+    """rutile-3, not rutile-2-2."""
+    window, _document, source = workspace_window
+    window.open_path(source)
+    fresh = _fresh(window)
+    window.open_path(fresh.path)
+
+    again = _fresh(window)
+
+    assert again.entry.name == "rutile-3"
+
+
+def test_closing_the_notice_opens_nothing(workspace_window):
+    window, _document, source = workspace_window
+    window.open_path(source)
+
+    window.notice.close_button.click()
+
+    assert window.tabs.count() == 1
+
+
+def test_the_workspace_remembers_both_tabs(workspace_window):
+    window, _document, source = workspace_window
+    window.open_path(source)
+    fresh = _fresh(window)
+
+    kept = window.workspace.session_paths()
+
+    assert any(fresh.path.name in str(p) for p in kept)
+    assert len(kept) == 2
