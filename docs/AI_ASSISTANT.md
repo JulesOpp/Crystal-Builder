@@ -1,6 +1,6 @@
-# The AI assistant drives the window: design
+# The AI assistant drives the window
 
-Date: 2026-10-01. Branch: `feature/ai-assistant-revamp`. One PR.
+The design record for PR #47 (2026-10-01).
 
 ## Goal
 
@@ -262,7 +262,7 @@ Tasks:
   `docs/TODO.md`: the owed MCP item closed; the manual chapter stays.
 - `pyproject.toml`: `mcp = ["mcp>=1.30,<2"]` (the version tested), in `dev`.
 
-### Tests, by commit
+### Tests, by part
 
 1. Right-sizing: `site_groups` on rutile and MOF-5; `sites=` three
    ways; size bounds; CLI flags; `str()` shape.
@@ -289,12 +289,6 @@ Tasks:
 8. Eval: `run.py --dry-run` lists the tasks and their expectations
    without calling `claude`; the grader is unit-tested on canned
    transcripts.
-
-### Commit order
-
-Each commit is green on its own, in this order: right-sizing; rules;
-tool layer + headless `xtal mcp`; `WindowSession` + gates; server,
-preferences, discovery, proxy; packaging; skill + docs; eval harness.
 
 ## Not in this PR
 

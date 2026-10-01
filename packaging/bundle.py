@@ -213,7 +213,8 @@ HIDDEN_IMPORTS = [
 #:
 #: ``mcp`` and ``uvicorn`` are an AI assistant's connection, the
 #: ``mcp`` extra, which every build carries: the window serves the
-#: agent verbs over HTTP and :data:`LAUNCHER` serves them over stdio.
+#: agent verbs over HTTP and the ``xtal`` launcher serves them over
+#: stdio.
 #: ``mcp`` is collected for its metadata as much as its code --
 #: ``mcp.server.fastmcp`` asks ``importlib.metadata.version("mcp")``
 #: as it is imported, and a traced build without the ``dist-info``
@@ -334,21 +335,22 @@ EXCLUDES = [
 ]
 
 
-#: The second program in the build: ``xtal``, the headless CLI, with a
-#: console, built by both specs from ``xtal/cli.py`` into the same
-#: folder as the window.  An AI assistant's client runs ``xtal mcp``;
-#: a packaged install has no ``pip`` to have put an ``xtal`` on PATH,
-#: so the build carries its own.
-LAUNCHER = "xtal"
-
-
+# The second program in the build: ``xtal``, the headless CLI, with a
+# console, built by both specs from ``xtal/cli.py`` into the same
+# folder as the window.  An AI assistant's client runs ``xtal mcp``;
+# a packaged install has no ``pip`` to have put an ``xtal`` on PATH,
+# so the build carries its own.  Its name is
+# :data:`xtal.agent.discovery.LAUNCHER_NAME`.
 def launcher_path(executable: Path) -> Path:
-    """Where :data:`LAUNCHER` lands: beside the application's own
+    """Where the ``xtal`` launcher lands: beside the application's own
     ``executable`` -- ``Contents/MacOS/xtal`` inside the ``.app``,
     ``xtal.exe`` beside ``Crystal Builder.exe`` on Windows.  The same
     rule as :func:`xtal.agent.discovery.launcher` in a frozen build,
     which is what the Preferences page shows."""
-    name = f"{LAUNCHER}.exe" if sys.platform == "win32" else LAUNCHER
+    from xtal.agent.discovery import LAUNCHER_NAME
+
+    name = (f"{LAUNCHER_NAME}.exe" if sys.platform == "win32"
+            else LAUNCHER_NAME)
     return Path(executable).with_name(name)
 
 

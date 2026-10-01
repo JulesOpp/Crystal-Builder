@@ -196,8 +196,8 @@ def _running_on_windows(pid: int) -> bool:                # pragma: no cover
         kernel.CloseHandle(handle)
 
 
-#: The ``xtal`` program's name, as ``packaging/bundle.py``'s
-#: ``LAUNCHER`` is: without the ``.exe`` Windows gives the file
+#: The ``xtal`` program's name, the one ``packaging/bundle.py`` builds
+#: beside the window: without the ``.exe`` Windows gives the file
 #: (:func:`launcher_file_name`).
 LAUNCHER_NAME = "xtal"
 

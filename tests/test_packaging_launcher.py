@@ -17,6 +17,8 @@ from pathlib import Path
 
 import pytest
 
+from xtal.agent.discovery import LAUNCHER_NAME
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "packaging"))
 
@@ -57,11 +59,11 @@ def test_both_specs_build_an_xtal_launcher_beside_the_app(
     exes, collected = _executables(bundle.HERE / spec)
     by_name = {kw["name"]: var for var, kw in exes.items()}
 
-    assert set(by_name) == {"Crystal Builder", bundle.LAUNCHER}
-    assert exes[by_name[bundle.LAUNCHER]]["console"] is True
+    assert set(by_name) == {"Crystal Builder", LAUNCHER_NAME}
+    assert exes[by_name[LAUNCHER_NAME]]["console"] is True
     assert exes[by_name["Crystal Builder"]]["console"] is False
     assert collected[:2] == [by_name["Crystal Builder"],
-                             by_name[bundle.LAUNCHER]]
+                             by_name[LAUNCHER_NAME]]
 
     # Where it lands is where the Preferences page says it is.
     from xtal.agent import discovery
@@ -72,7 +74,7 @@ def test_both_specs_build_an_xtal_launcher_beside_the_app(
     monkeypatch.setattr(sys, "executable", str(app))
     assert bundle.launcher_path(app) == discovery.launcher()
     assert bundle.launcher_path(app).parent == tmp_path
-    assert bundle.launcher_path(app).stem == bundle.LAUNCHER
+    assert bundle.launcher_path(app).stem == LAUNCHER_NAME
 
 
 def test_the_bundle_collects_the_mcp_package():
