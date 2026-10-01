@@ -37,7 +37,7 @@ folder this action still does not write is beside the point.
 
 from __future__ import annotations
 
-from xtal.build import MISSING, from_smiles, installed
+from xtal.build import MISSING, NOT_INSTALLED, from_smiles, installed
 from xtal.modules.job import JobResult
 from xtal.modules.registry import (
     MODULES,
@@ -59,7 +59,7 @@ def available() -> Availability:
     not an option here.
     """
     if not installed():
-        return Availability(False, MISSING)
+        return NOT_INSTALLED
     return Availability(True, "RDKit")
 
 

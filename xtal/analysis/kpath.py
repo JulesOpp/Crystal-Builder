@@ -36,6 +36,7 @@ from scipy.spatial import ConvexHull, Voronoi
 
 from xtal import install
 from xtal.ff.dftb.hsd import KLines
+from xtal.params import Availability
 
 #: Points per reciprocal Angstrom along the path.
 DEFAULT_DENSITY = 40
@@ -43,8 +44,9 @@ DEFAULT_DENSITY = 40
 #: How a label is shown.  ASE spells Gamma ``G``.
 GREEK = {"G": "Γ"}
 
-MISSING = ("the band path needs ASE, which works out the special "
-           f"points of this cell: {install.command('ase')}")
+NOT_INSTALLED = Availability(
+    False, "the band path needs ASE, which works out the special points "
+           "of this cell", install.command("ase"), ": ")
 
 
 def installed() -> bool:
@@ -85,7 +87,7 @@ class BandPath:
 def band_path(lattice) -> BandPath:
     """ASE's recommended path for this cell."""
     if not installed():
-        raise RuntimeError(MISSING)
+        raise RuntimeError(NOT_INSTALLED.reason)
     from ase.cell import Cell
     path = Cell(np.asarray(lattice.matrix, dtype=float)).bandpath(
         npoints=0)

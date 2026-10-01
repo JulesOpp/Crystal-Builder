@@ -117,8 +117,7 @@ def installed() -> bool:
 def available(model: str = DEFAULT_MODEL, **_rest) -> Availability:
     """Installed, and saying that the weights are a download."""
     if not installed():
-        return Availability(
-            False, f"ORB is not installed -- {INSTALL}")
+        return Availability(False, "ORB is not installed", INSTALL)
     if model not in dict(MODEL_CHOICES):
         return Availability(False, f"{model!r} is not an ORB-v3 model "
                                    f"this application offers")

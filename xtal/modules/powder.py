@@ -35,7 +35,6 @@ from xtal.modules.job import JobResult
 from xtal.modules.registry import Action, Param
 from xtal.modules.report import REPORT_NAME, Curve, Report, Row, Table
 from xtal.modules.report import save as save_report
-from xtal.params import Availability
 from xtal.powder.data import RADIATIONS, PowderData, PowderError, Radiation
 from xtal.powder.pawley import METHODS
 
@@ -46,11 +45,6 @@ __all__ = ["DATA_PARAMS", "ENERGY_PARAMS", "INDEX_PARAMS",
            "energy_refines_note", "radiation_of", "refined_notes",
            "run_energy", "run_index", "run_pareto", "run_pawley",
            "run_peaks", "run_rietveld"]
-
-
-def refine_available() -> Availability:
-    reason = powder.missing()
-    return Availability(not reason, reason)
 
 
 #: What every step needs: the measurement, and what it was measured
@@ -1823,55 +1817,55 @@ REFINE = Action(
     tip="Open the refinement workbench: fit peaks, index, and refine "
         "against a measured .xy pattern",
     shell="refine_workbench", needs_structure=False,
-    check=refine_available)
+    check=powder.availability)
 
 STEPS = (
     Action(name="peaks", label="Fit peaks",
            tip="Fit every line in a measured pattern",
            params=DATA_PARAMS + PEAK_PARAMS, run=run_peaks,
            needs_structure=False, listed=False,
-           check=refine_available),
+           check=powder.availability),
     Action(name="refine_peaks", label="Refine peaks",
            tip="Refine the lines in use together over a Chebyshev "
                "background",
            params=DATA_PARAMS + PEAK_PARAMS + REFINE_PEAK_PARAMS,
            run=run_refine_peaks, needs_structure=False, listed=False,
-           check=refine_available),
+           check=powder.availability),
     Action(name="index", label="Index",
            tip="Find the unit cells that explain the fitted lines",
            params=DATA_PARAMS + PEAK_PARAMS + INDEX_PARAMS,
            run=run_index, needs_structure=False, listed=False,
-           check=refine_available),
+           check=powder.availability),
     Action(name="pawley", label="Pawley",
            tip="Fit a cell and space group to the whole pattern",
            params=DATA_PARAMS + PAWLEY_PARAMS + (PARAMETERS_PARAM,),
            run=run_pawley,
            needs_structure=False, listed=False,
-           check=refine_available),
+           check=powder.availability),
     Action(name="auto", label="Automatic",
            tip="Peaks, indexing and a Pawley fit of every leading cell "
                "and space group, ranked -- and on into Rietveld when "
                "asked",
            params=AUTO_RUN_PARAMS + (PARAMETERS_PARAM,), run=run_auto,
            needs_structure=False, listed=False,
-           check=refine_available),
+           check=powder.availability),
     Action(name="rietveld", label="Rietveld",
            tip="Refine a structure's atoms against the whole pattern",
            params=DATA_PARAMS + RIETVELD_PARAMS + (PARAMETERS_PARAM,),
            run=run_rietveld,
-           listed=False, check=refine_available),
+           listed=False, check=powder.availability),
     Action(name="energy", label="Rietveld with energy",
            tip="Refine a structure's atoms against the pattern and a "
                "force field at once, the weight between them yours",
            params=ENERGY_RUN_PARAMS + (PARAMETERS_PARAM,),
            run=run_energy, listed=False,
-           check=refine_available),
+           check=powder.availability),
     Action(name="pareto", label="Pareto",
            tip="Refine with energy at a list of weights, and suggest "
                "the one where the fit and the energy trade best",
            params=PARETO_RUN_PARAMS + (PARAMETERS_PARAM,),
            run=run_pareto, listed=False,
-           check=refine_available),
+           check=powder.availability),
 )
 
 #: What each step's own form shows in the workbench: the pattern and

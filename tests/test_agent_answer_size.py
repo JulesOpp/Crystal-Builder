@@ -28,34 +28,49 @@ def test_capabilities_json_is_under_six_kilobytes():
     assert len(capabilities().to_json()) < 6000
 
 
-def test_a_compact_reason_is_the_first_clause_and_verbose_keeps_the_command(
+def test_a_compact_reason_carries_no_command_and_verbose_does(
         monkeypatch):
+    """The install command is the same for every action of a missing
+    extra and, on a source checkout, a long path: nine pxrd actions
+    repeated it into most of the compact answer.  ``verbose`` and
+    ``help_for`` still say how to get it, and so does rendering's."""
+    import importlib
+
     from xtal.ff import ENGINES
     from xtal.params import Availability
 
+    module = importlib.import_module("xtal.agent.capabilities")
+    pip = "uv pip install crystal-builder[{}]"
     reasons = {
-        "mace": ('MACE is not installed -- "uv" pip install '
-                 '-e "crystal-builder[mace]"'),
-        "xtb": ('Refinement needs RietX: "uv" pip install '
-                '-e "crystal-builder[refine]"'),
+        "mace": Availability(False, "MACE is not installed",
+                             pip.format("mace")),
+        "xtb": Availability(False, "Refinement needs RietX",
+                            pip.format("refine"), ": "),
     }
     engine_type = type(ENGINES.get("mace"))
     real = engine_type.availability
 
     def availability(self, **options):
         if self.name in reasons:
-            return Availability(False, reasons[self.name])
+            return reasons[self.name]
         return real(self, **options)
 
     monkeypatch.setattr(engine_type, "availability", availability)
-    compact = {e["name"]: e for e in capabilities()["engines"]}
-    verbose = {e["name"]: e
-               for e in capabilities(verbose=True)["engines"]}
-    assert compact["mace"]["reason"] == "MACE is not installed"
-    assert compact["xtb"]["reason"] == "Refinement needs RietX"
-    for name, full in reasons.items():
-        assert verbose[name]["reason"] == full
-        assert not compact[name]["available"]
+    monkeypatch.setattr(module, "find_spec", lambda name: None)
+    compact = capabilities()
+    verbose = capabilities(verbose=True)
+    engines = {e["name"]: e for e in compact["engines"]}
+    full = {e["name"]: e for e in verbose["engines"]}
+    for name, available in reasons.items():
+        assert not engines[name]["available"]
+        assert engines[name]["reason"] == available.what
+        assert full[name]["reason"] == available.reason
+        assert available.command not in compact.to_json()
+    assert compact["render"] == {
+        "available": False, "reason": "rendering needs the gui extra"}
+    assert verbose["render"]["reason"].startswith(
+        "rendering needs the gui extra: ")
+    assert verbose["render"]["reason"] != compact["render"]["reason"]
 
 
 def test_verbose_capabilities_still_carry_every_parameter(capsys):

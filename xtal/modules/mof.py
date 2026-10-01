@@ -83,7 +83,8 @@ MISSING = ("The PORMAKE database of nets and building blocks is "
 #: ``ase.neighborlist``, and replacing those with this project's own
 #: :class:`~xtal.core.structure.Structure` is a much larger piece of
 #: work than the trim that brought the builder in.
-NEEDS_ASE = f"The MOF builder needs ase -- {install.command('ase')}"
+NEEDS_ASE = Availability(False, "The MOF builder needs ase",
+                         install.command("ase"))
 
 
 def available() -> Availability:
@@ -104,7 +105,7 @@ def available() -> Availability:
     if root is None:
         return Availability(False, MISSING)
     if not has_ase():
-        return Availability(False, NEEDS_ASE)
+        return NEEDS_ASE
     return Availability(True, str(root))
 
 

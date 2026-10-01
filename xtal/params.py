@@ -166,11 +166,22 @@ class Availability:
 
     An external tool that is missing is the most common state it will
     be in, so the answer carries a sentence a user can act on rather
-    than a bare false.
+    than a bare false: ``what`` is wrong and ``command`` puts it right,
+    apart so that a listing of many can leave the command out.
     """
 
     ok: bool = True
-    reason: str = ""
+    what: str = ""
+    command: str = ""
+    #: Between the two in ``reason``.  A few sentences were written
+    #: with a colon or a full stop there, and still read that way.
+    sep: str = " -- "
+
+    @property
+    def reason(self) -> str:
+        if not self.command:
+            return self.what
+        return f"{self.what}{self.sep}{self.command}"
 
     def __bool__(self) -> bool:
         return self.ok

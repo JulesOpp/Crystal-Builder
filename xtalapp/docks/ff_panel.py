@@ -130,7 +130,7 @@ REDRAW_RATES = (
 )
 
 
-def engine_note_html(reason: str) -> str:
+def engine_note_html(available) -> str:
     """An engine's reason, with its install command made a link.
 
     The command is spelled out for this interpreter and this checkout
@@ -138,16 +138,14 @@ def engine_note_html(reason: str) -> str:
     wrap at: in a note it pushed the panel wider than its column and
     was cut off at the edge, in a label nobody can copy from.
     Preferences > Engines has the same command in a box with a Copy
-    button, so the note links there instead.
+    button, so the note links there instead -- for an extra's command
+    only, since a program's web page and conda line are not on it.
     """
-    text = html.escape(reason)
-    for extra in extras.EXTRAS:
-        command = html.escape(extra.command())
-        if command in text:
-            text = text.replace(
-                command, 'the command to install it is on <a href="engines">'
-                         'Preferences &gt; Engines</a>')
-    return text
+    if available.command not in {x.command() for x in extras.EXTRAS}:
+        return html.escape(available.reason)
+    return (f"{html.escape(available.what)}{available.sep}the command to "
+            'install it is on <a href="engines">Preferences &gt; '
+            "Engines</a>")
 
 class ForceFieldDock(QDockWidget):
     """Atom types, a single point, and a geometry optimisation.
@@ -619,7 +617,7 @@ class ForceFieldDock(QDockWidget):
         # is in the form directly above this note.
         available = engine.availability(**self.options())
         self.engine_note.setText("" if available
-                                 else engine_note_html(available.reason))
+                                 else engine_note_html(available))
         self.engine_note.setVisible(not available)
         self._show_sources()
         if self.is_running:

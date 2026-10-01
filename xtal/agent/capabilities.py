@@ -17,6 +17,7 @@ import inspect as pyinspect
 from importlib.util import find_spec
 
 from xtal.agent.diagnostics import to_json
+from xtal.params import Availability
 
 #: The public verbs of a session, in the order the skill teaches them.
 VERBS = (
@@ -51,21 +52,6 @@ def _plain(value):
     return str(value)
 
 
-def _short_reason(reason: str) -> str:
-    """The first clause of an unavailable thing's reason: what is
-    missing, without how to install it.
-
-    The install command is the same for every action of a missing
-    extra, and on a source checkout it spells out the installer, the
-    interpreter and the checkout's path -- nine pxrd actions repeated
-    it into most of the compact answer.  ``help_for(name)`` and
-    ``verbose=True`` keep the whole sentence.
-    """
-    for mark in (" -- ", ".  ", ": "):
-        reason = reason.split(mark, 1)[0]
-    return reason.strip()
-
-
 class Capabilities(dict):
     """A dict (so ``json.dumps`` takes it) that prints readably."""
 
@@ -95,12 +81,14 @@ class Capabilities(dict):
 def capabilities(verbose: bool = False) -> Capabilities:
     """Every engine and module action, and whether it can run here.
 
-    Each is a ``name``, ``label``, ``available`` and the first clause
-    of its ``reason``, with the module actions as one list,
-    ``actions``.  ``verbose`` is every
-    option and parameter with its help as well, under ``modules`` --
-    127 kB, which :func:`help_for` gives one name at a time.  An action
-    only the window performs is in neither: it is a verb here.
+    Each is a ``name``, ``label``, ``available`` and its ``reason``
+    without the install command, with the module actions as one list,
+    ``actions``: the command is the same for every action of a missing
+    extra, and nine pxrd actions repeated it into most of the answer.
+    ``verbose`` is the whole reason and every option and parameter with
+    its help as well, under ``modules`` -- 127 kB, which
+    :func:`help_for` gives one name at a time.  An action only the
+    window performs is in neither: it is a verb here.
     """
     from xtal import __version__, plugins
     from xtal.ff import ENGINES
@@ -109,13 +97,10 @@ def capabilities(verbose: bool = False) -> Capabilities:
     plugins.load()
     engines = []
     for engine in ENGINES:
-        available = engine.availability()
         row = {"name": engine.name, "label": engine.label,
-               "available": bool(available), "reason": available.reason}
+               **_state(engine.availability(), verbose)}
         if verbose:
             row["options"] = [_param(p) for p in engine.options]
-        else:
-            row["reason"] = _short_reason(row["reason"])
         engines.append(row)
     modules, compact = [], []
     for module in MODULES:
@@ -125,30 +110,35 @@ def capabilities(verbose: bool = False) -> Capabilities:
             if action.run is None:
                 continue
             available = module_ok and action.availability()
-            available_ok = bool(available)
-            reason = "" if available_ok else (
-                getattr(available, "reason", "") or module_ok.reason)
+            why = (Availability(True) if available else available
+                   if getattr(available, "reason", "") else module_ok)
             name = f"{module.name}.{action.name}"
             compact.append({"name": name, "label": action.label,
-                            "available": available_ok,
-                            "reason": _short_reason(reason)})
+                            "available": bool(available),
+                            "reason": why.what})
             actions.append({
                 "action": name, "label": action.label,
                 "needs_structure": action.needs_structure,
-                "available": available_ok, "reason": reason,
+                "available": bool(available), "reason": why.reason,
                 "params": [_param(p) for p in action.params]})
         modules.append({"name": module.name, "label": module.label,
                         "actions": actions})
+    render = _state(render_availability(), verbose)
     if not verbose:
         return Capabilities(
             version=__version__, verbs=list(VERBS), engines=engines,
-            actions=compact, render=render_availability())
+            actions=compact, render=render)
     return Capabilities(
         version=__version__, verbs=list(VERBS), engines=engines,
-        modules=modules, render=render_availability())
+        modules=modules, render=render)
 
 
-def render_availability() -> dict:
+def _state(available: Availability, verbose: bool) -> dict:
+    return {"available": bool(available),
+            "reason": available.reason if verbose else available.what}
+
+
+def render_availability() -> Availability:
     """Whether :func:`xtal.agent.render.render` can draw here.
 
     ``find_spec`` and never an import: VTK is the ``gui`` extra, and
@@ -157,10 +147,9 @@ def render_availability() -> dict:
     """
     if find_spec("vtkmodules") is None:
         from xtal.install import command
-        return {"available": False,
-                "reason": f"rendering needs the gui extra: "
-                          f"{command('gui')}"}
-    return {"available": True, "reason": ""}
+        return Availability(False, "rendering needs the gui extra",
+                            command("gui"), ": ")
+    return Availability(True)
 
 
 def help_for(name: str) -> str:

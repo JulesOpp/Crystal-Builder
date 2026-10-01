@@ -43,9 +43,12 @@ import numpy as np
 
 from xtal import install
 from xtal.mof.block import pull_in
+from xtal.params import Availability
 
-MISSING = ("RDKit is not installed, so there is nothing to build a "
-           f"molecule from -- {install.command('build')}")
+NOT_INSTALLED = Availability(
+    False, "RDKit is not installed, so there is nothing to build a "
+           "molecule from", install.command("build"))
+MISSING = NOT_INSTALLED.reason
 
 #: RDKit bond type -> the order this application stores.  Aromatic
 #: stays 1.5 rather than being kekulized, because

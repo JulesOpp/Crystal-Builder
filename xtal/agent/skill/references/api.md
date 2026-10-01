@@ -336,10 +336,11 @@ every row.
 ## Also importable
 
 - `capabilities(verbose=False)`: engines and module actions, each with
-  `name`, `label`, `available` and the first clause of its `reason`,
-  and rendering. `verbose=True` (`xtal capabilities --verbose`) adds
-  every option and parameter and the full reason. Actions only the
-  window performs are left out; `help_for` names the verb for them.
+  `name`, `label`, `available` and its `reason` (the sentence without
+  the install command), and rendering. `verbose=True` (`xtal
+  capabilities --verbose`) adds every option and parameter and the
+  full reason. Actions only the window performs are left out;
+  `help_for` names the verb for them.
 - `help_for(name)`: a verb's signature and docstring, or an engine's or
   a module action's parameters.
 - `session.cell`: the P1 cell (`elements`, `frac`, `cart`, `site_idx`).
