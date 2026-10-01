@@ -183,6 +183,12 @@ def _running_on_windows(pid: int) -> bool:                # pragma: no cover
         kernel.CloseHandle(handle)
 
 
+#: The ``xtal`` program's file name.  A packaged build carries it beside
+#: the application's own executable (``packaging/bundle.py`` builds it
+#: there), and ``xtalapp.selftest`` looks for it by this name.
+LAUNCHER = "xtal.exe" if sys.platform == "win32" else "xtal"
+
+
 def launcher() -> Path:
     """The ``xtal`` command a client's configuration names.
 
@@ -192,8 +198,7 @@ def launcher() -> Path:
     The path is given even when nothing is there yet, so the line can
     be shown and the reason it fails found.
     """
-    name = "xtal.exe" if sys.platform == "win32" else "xtal"
-    beside = Path(sys.executable).with_name(name)
+    beside = Path(sys.executable).with_name(LAUNCHER)
     if getattr(sys, "frozen", False):
         return beside
     found = shutil.which("xtal")

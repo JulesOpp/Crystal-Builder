@@ -457,6 +457,67 @@ def check_powder(report) -> None:
                f"{100 * fit.rwp:.2f} %")
 
 
+def check_launcher(executable) -> str:
+    """The ``xtal`` beside the application runs, and answers.
+
+    An AI assistant's client is configured with ``"<launcher> mcp"``,
+    and in a build there is no ``pip`` to have put an ``xtal`` on
+    anybody's PATH: the specs build it into the same folder as the
+    window, from its own Analysis, and an Analysis can come out
+    importing nothing.  So this runs it twice.  ``capabilities --json``
+    imports the agent surface and every module's availability check,
+    and must answer with the version; ``mcp --headless`` with stdin
+    closed imports the ``mcp`` package and exits at once, and
+    ``capabilities`` never touches ``mcp``.  Returns the line to
+    report; a checkout's ``xtal`` is pip's, wherever pip put it, so
+    there it is skipped.
+
+    ``PYINSTALLER_RESET_ENVIRONMENT`` is PyInstaller's documented way
+    for one frozen program to start another: without it the child
+    reads the ``_PYI_*`` variables this process's bootloader set as
+    its own.
+    """
+    import json
+    import subprocess
+
+    from xtal.agent.discovery import LAUNCHER
+
+    if not getattr(sys, "frozen", False):
+        return "xtal launcher: skipped: not a frozen build"
+    launcher = Path(executable).with_name(LAUNCHER)
+    if not launcher.is_file():
+        raise AssertionError(
+            f"no xtal launcher at {launcher}: the spec's second EXE did "
+            "not land beside the application, and Preferences > AI "
+            "assistant names a command that is not there")
+    env = {**os.environ, "PYINSTALLER_RESET_ENVIRONMENT": "1"}
+
+    finished = subprocess.run([str(launcher), "capabilities", "--json"],
+                              capture_output=True, text=True,
+                              timeout=60, env=env)
+    if finished.returncode != 0:
+        raise AssertionError(
+            f"{launcher} capabilities --json exited "
+            f"{finished.returncode}: {finished.stderr.strip()[-500:]}")
+    try:
+        version = json.loads(finished.stdout)["version"]
+    except (ValueError, KeyError, TypeError) as exc:
+        raise AssertionError(
+            f"{launcher} capabilities --json answered no version: "
+            f"{finished.stdout.strip()[:200]!r}") from exc
+
+    served = subprocess.run([str(launcher), "mcp", "--headless"],
+                            stdin=subprocess.DEVNULL,
+                            capture_output=True, text=True,
+                            timeout=60, env=env)
+    if served.returncode != 0:
+        raise AssertionError(
+            f"{launcher} mcp --headless exited {served.returncode}: "
+            f"{served.stderr.strip()[-500:]}")
+    return (f"xtal launcher: {launcher} answers, version {version}; "
+            "mcp answers")
+
+
 def check_window(report, shot: Path | None) -> None:
     """Build the real window, open a sample, and draw it.
 
@@ -566,6 +627,8 @@ def run(shot: Path | None = None, out=None) -> int:
         ("bundled extras", check_extras),
         ("module dialogs", check_module_dialogs),
         ("MOF builder", check_mof_builder),
+        ("xtal launcher",
+         lambda r: r(check_launcher(Path(sys.executable)))),
         ("powder refinement", check_powder),
         ("window and 3D view", lambda r: check_window(r, shot)),
     ]

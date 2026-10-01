@@ -44,12 +44,18 @@ DOCUMENT_ICONS = [
     (str(bundle.ICONS / "xtalproj.icns"), "."),
 ]
 
+# Asked once: each walks every package in `bundle.COLLECT`, and both
+# programs below are made from the same answer.
+BINARIES = bundle.binaries()
+DATAS = bundle.datas() + DOCUMENT_ICONS
+HIDDEN = bundle.hiddenimports()
+
 analysis = Analysis(
     [str(bundle.ROOT / "xtalapp" / "main.py")],
     pathex=[str(bundle.ROOT)],
-    binaries=bundle.binaries(),
-    datas=bundle.datas() + DOCUMENT_ICONS,
-    hiddenimports=bundle.hiddenimports(),
+    binaries=BINARIES,
+    datas=DATAS,
+    hiddenimports=HIDDEN,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -80,10 +86,59 @@ executable = EXE(
     icon=str(bundle.ICONS / "app.icns"),
 )
 
+# The second program: `xtal`, the headless CLI, so that an AI
+# assistant's client can run `xtal mcp` from a packaged install --
+# there is no pip here to have put one on PATH.  Its own Analysis over
+# the same contents, because a program's scripts and archive are its
+# own; the two land in the one COLLECT below, which keeps one copy of
+# every shared library and data file.  With a console, because stdio
+# *is* the MCP transport.  It ends up beside the window's executable,
+# `Crystal Builder.app/Contents/MacOS/xtal`, which is where
+# `xtal.agent.discovery.launcher` and `bundle.launcher_path` look.
+cli_analysis = Analysis(
+    [str(bundle.ROOT / "xtal" / "cli.py")],
+    pathex=[str(bundle.ROOT)],
+    binaries=BINARIES,
+    datas=DATAS,
+    hiddenimports=HIDDEN,
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=bundle.EXCLUDES,
+    noarchive=False,
+    optimize=0,
+    module_collection_mode=bundle.MODULE_COLLECTION_MODE,
+)
+
+cli_pyz = PYZ(cli_analysis.pure)
+
+launcher = EXE(
+    cli_pyz,
+    cli_analysis.scripts,
+    [],
+    exclude_binaries=True,
+    name="xtal",
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=False,
+    console=True,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+)
+
+# The window first: BUNDLE makes the first executable it meets the
+# `.app`'s CFBundleExecutable.
 collection = COLLECT(
     executable,
+    launcher,
     analysis.binaries,
     analysis.datas,
+    cli_analysis.binaries,
+    cli_analysis.datas,
     # PyInstaller's strip is `strip -S` on macOS, which removes debug
     # symbols these libraries do not have, and costs minutes.  The
     # saving is in the *local* symbol table, which is `strip -x`, and
@@ -107,6 +162,13 @@ app = BUNDLE(
         "CFBundleShortVersionString": VERSION,
         "CFBundleVersion": VERSION,
         "NSHighResolutionCapable": True,
+        # Load-bearing since `xtal` joined the build.  COLLECT takes
+        # `console` from the *last* EXE it is handed, which is the
+        # launcher's True, BUNDLE inherits it, and a console bundle is
+        # written `LSBackgroundOnly = True`: a window with no Dock icon
+        # and no menu bar, which --selftest would not notice.  Said
+        # here, after PyInstaller's defaults, so this wins.
+        "LSBackgroundOnly": False,
         # The application already follows the system theme.  Without
         # this, macOS forces it into light appearance and the dark
         # theme it draws is never seen.

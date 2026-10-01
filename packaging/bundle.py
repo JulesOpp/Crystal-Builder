@@ -37,6 +37,7 @@ already look.
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path, PurePosixPath
 
 HERE = Path(__file__).resolve().parent
@@ -209,7 +210,22 @@ HIDDEN_IMPORTS = [
 #: calculated pattern reads by path -- and its submodules, which its
 #: plans and engines import by name.  Its sources go in as files as
 #: well as bytecode (:data:`MODULE_COLLECTION_MODE`).
-COLLECT = ["rdkit", "rdeditor", "qdarktheme", "matplotlib", "rietx"]
+#:
+#: ``mcp`` and ``uvicorn`` are an AI assistant's connection, the
+#: ``mcp`` extra, which every build carries: the window serves the
+#: agent verbs over HTTP and :data:`LAUNCHER` serves them over stdio.
+#: ``mcp`` is collected for its metadata as much as its code --
+#: ``mcp.server.fastmcp`` asks ``importlib.metadata.version("mcp")``
+#: as it is imported, and a traced build without the ``dist-info``
+#: raises there.  ``uvicorn`` picks its loop, protocol and lifespan
+#: modules from strings in its ``Config``; pyinstaller-hooks-contrib's
+#: own hook already collects its submodules, and naming it here keeps
+#: that from resting on a third party's hook.  The rest of the extra
+#: is traced: ``sse_starlette`` and ``httpx_sse`` are imported by
+#: ``mcp`` at the top of the modules that use them, and ``anyio``'s
+#: back ends, imported by name, are the contrib hook for ``anyio``.
+COLLECT = ["rdkit", "rdeditor", "qdarktheme", "matplotlib", "rietx",
+           "mcp", "uvicorn"]
 
 #: PyInstaller's ``module_collection_mode``: packages whose ``.py``
 #: files must exist on disk in the bundle.  numba's kernel cache is
@@ -316,6 +332,24 @@ EXCLUDES = [
     "pip",
     "IPython",
 ]
+
+
+#: The second program in the build: ``xtal``, the headless CLI, with a
+#: console, built by both specs from ``xtal/cli.py`` into the same
+#: folder as the window.  An AI assistant's client runs ``xtal mcp``;
+#: a packaged install has no ``pip`` to have put an ``xtal`` on PATH,
+#: so the build carries its own.
+LAUNCHER = "xtal"
+
+
+def launcher_path(executable: Path) -> Path:
+    """Where :data:`LAUNCHER` lands: beside the application's own
+    ``executable`` -- ``Contents/MacOS/xtal`` inside the ``.app``,
+    ``xtal.exe`` beside ``Crystal Builder.exe`` on Windows.  The same
+    rule as :func:`xtal.agent.discovery.launcher` in a frozen build,
+    which is what the Preferences page shows."""
+    name = f"{LAUNCHER}.exe" if sys.platform == "win32" else LAUNCHER
+    return Path(executable).with_name(name)
 
 
 def dialog_imports() -> list[str]:
