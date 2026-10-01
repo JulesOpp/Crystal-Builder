@@ -4,13 +4,15 @@
     python scripts/fetch_cod_samples.py --check    # exit 1 if it would change
     python scripts/fetch_cod_samples.py --from DIR # strip files already here
 
-Frameworks everybody meets, each as the depositors wrote it: the
-asymmetric unit, in its published space group and setting, with the
-citation, the COD's own record and the refinement statistics kept.
-What is taken out is what describes the *experiment* rather than the
-crystal -- the reflection list, the diffractometer, a powder
-refinement's profile, and the SHELX ``.res`` / ``.hkl`` files and
-PLATON SQUEEZE report some depositions embed whole.  Those are 97 %
+Frameworks everybody meets, and the simple solids of ``simple/``
+(rock salt, diamond, quartz, a few zeolites), each as the depositors
+wrote it: the asymmetric unit, in its published space group and
+setting, with the citation, the COD's own record and the refinement
+statistics kept.  What is taken out is what describes the
+*experiment* rather than the crystal -- the reflection list, the
+diffractometer, a powder refinement's profile, and the SHELX ``.res``
+/ ``.hkl`` files and PLATON SQUEEZE report some depositions embed
+whole.  Those are 97 %
 of UiO-66's 286 KB, NU-1000's 301 KB and MOF-74's 104 KB, and nothing
 in this application reads them.
 
@@ -74,6 +76,32 @@ REPLACED = {
     7021651: "CFA1.cif",
 }
 
+#: COD ID -> a file of ``simple/``: textbook solids, each the
+#: deposition of an ambient structure in its usual setting, every site
+#: whole.  The zeolites are the all-silica frameworks where the COD has
+#: one, so a porosity run meets no cations or water; sodalite is the
+#: mineral, Na8Cl2(Al6Si6O24).  Graphene is written by hand beside
+#: them -- a monolayer has no deposition.
+SIMPLE = {
+    1000041: "NaCl.cif",
+    9008789: "CsCl.cif",
+    9011997: "diamond.cif",
+    9011577: "graphite.cif",
+    9011998: "Si.cif",
+    1000043: "CaF2.cif",
+    1000032: "Al2O3.cif",
+    9015662: "TiO2.cif",
+    9006587: "Fe.cif",
+    9012043: "Cu.cif",
+    9006864: "SrTiO3.cif",
+    2107059: "ZnO.cif",
+    5000035: "quartz.cif",
+    4003210: "LTA.cif",
+    2101987: "MFI.cif",
+    7224240: "FAU.cif",
+    1000028: "SOD.cif",
+}
+
 #: Tag prefixes whose items and loops are dropped.  Each describes the
 #: measurement or the refinement program's files, never the structure.
 STRIPPED = (
@@ -83,8 +111,11 @@ STRIPPED = (
     "_platon_squeeze",
     # A powder refinement's profile, point by point: measured,
     # weighted, background and calculated intensities, and the angle
-    # or the raw counts each is written against.
+    # or the raw counts each is written against -- by time of flight
+    # for a neutron powder pattern (siliceous faujasite).
     "_pd_meas_2theta_scan",
+    "_pd_meas_time_of_flight",
+    "_pd_proc_d_spacing",
     "_pd_proc_2theta_corrected",
     "_pd_meas_counts",
     "_pd_meas_intensity",
@@ -222,6 +253,8 @@ def main(argv=None) -> int:
     changed = []
     targets = [(i, TARGET / name) for i, name in ENTRIES.items()]
     targets += [(i, TARGET.parent / name) for i, name in REPLACED.items()]
+    targets += [(i, TARGET.parent / "simple" / name)
+                for i, name in SIMPLE.items()]
     for cod_id, target in targets:
         name = target.name
         if args.source is not None:

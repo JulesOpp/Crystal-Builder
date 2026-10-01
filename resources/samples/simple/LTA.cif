@@ -1,0 +1,376 @@
+#------------------------------------------------------------------------------
+#$Date: 2019-11-22 22:28:34 +0200 (Fri, 22 Nov 2019) $
+#$Revision: 231431 $
+#$URL: file:///home/coder/svn-repositories/_RELOADED_COD/cod-reloaded/cif/4/00/32/4003210.cif $
+#------------------------------------------------------------------------------
+#
+# This file is available in the Crystallography Open Database (COD),
+# http://www.crystallography.net/
+#
+# All data on this site have been placed in the public domain by the
+# contributors.
+#
+data_4003210
+loop_
+_publ_author_name
+'Boal, Ben W.'
+'Schmidt, Joel E.'
+'Deimund, Mark A.'
+'Deem, Michael W.'
+'Henling, Lawrence M.'
+'Brand, Stephen K.'
+'Zones, Stacey I.'
+'Davis, Mark E.'
+_publ_section_title
+;
+ Facile Synthesis and Catalysis of Pure-Silica and Heteroatom LTA
+;
+_journal_issue                   22
+_journal_name_full               'Chemistry of Materials'
+_journal_page_first              7774
+_journal_paper_doi               10.1021/acs.chemmater.5b03579
+_journal_volume                  27
+_journal_year                    2015
+_chemical_formula_moiety         '0.08(O24 Si12)'
+_chemical_formula_sum            'O2 Si'
+_chemical_formula_weight         60.09
+_space_group_crystal_system      cubic
+_space_group_IT_number           221
+_space_group_name_Hall           '-P 4 2 3'
+_space_group_name_H-M_alt        'P m -3 m'
+_atom_sites_solution_primary     direct
+_atom_sites_solution_secondary   difmap
+_audit_creation_date             2015-07-18
+_audit_creation_method
+;
+Olex2 1.2
+(compiled 2015.01.26 svn.r3150 for OlexSys, GUI svn.r4998),
+ SHELXL-2014,
+ and manual edit
+;
+_cell_angle_alpha                90
+_cell_angle_beta                 90
+_cell_angle_gamma                90
+_cell_formula_units_Z            24
+_cell_length_a                   11.857(4)
+_cell_length_b                   11.857(4)
+_cell_length_c                   11.857(4)
+_cell_measurement_reflns_used    9976
+_cell_measurement_temperature    100
+_cell_measurement_theta_max      57.17
+_cell_measurement_theta_min      2.43
+_cell_volume                     1667.0(10)
+_computing_cell_refinement       'SAINT V8.34A (Bruker-AXS, 2007)'
+_computing_data_collection       'APEX2 2014.11-0 (Bruker-AXS, 2007)'
+_computing_data_reduction        'SAINT V8.34A (Bruker-AXS, 2007)'
+_computing_molecular_graphics    'DIAMOND 3 (Crystal Impact, 1999)'
+_computing_publication_material  'Olex2 (Dolomanov et al., 2009)'
+_computing_structure_refinement  'SHELXL-2014/7 (Sheldrick, 2014)'
+_computing_structure_solution    'XT-2014/4 (Sheldrick, 2012)'
+_exptl_absorpt_coefficient_mu    0.540
+_exptl_absorpt_correction_T_max  1.0000
+_exptl_absorpt_correction_T_min  0.8962
+_exptl_absorpt_correction_type   multi-scan
+_exptl_absorpt_process_details   'SADABS-2014/5 (Sheldrick, 2014)'
+_exptl_crystal_colour            black
+_exptl_crystal_colour_primary    black
+_exptl_crystal_density_diffrn    1.437
+_exptl_crystal_density_method    'not measured'
+_exptl_crystal_description       cube
+_exptl_crystal_F_000             720
+_exptl_crystal_size_max          0.10
+_exptl_crystal_size_mid          0.10
+_exptl_crystal_size_min          0.10
+_refine_diff_density_max         1.530
+_refine_diff_density_min         -0.750
+_refine_diff_density_rms         0.117
+_refine_ls_extinction_method     none
+_refine_ls_goodness_of_fit_ref   1.152
+_refine_ls_hydrogen_treatment    undef
+_refine_ls_matrix_type           full
+_refine_ls_number_parameters     21
+_refine_ls_number_reflns         2479
+_refine_ls_number_restraints     0
+_refine_ls_restrained_S_all      1.152
+_refine_ls_R_factor_all          0.0850
+_refine_ls_R_factor_gt           0.0449
+_refine_ls_shift/su_max          0.001
+_refine_ls_shift/su_mean         0.000
+_refine_ls_structure_factor_coef Fsqd
+_refine_ls_weighting_details
+'w=1/[\s^2^(Fo^2^)+(0.0368P)^2^+0.2991P] where P=(Fo^2^+2Fc^2^)/3'
+_refine_ls_weighting_scheme      calc
+_refine_ls_wR_factor_gt          0.0833
+_refine_ls_wR_factor_ref         0.0933
+_iucr_refine_instructions_details
+;
+
+    p15229.res created by SHELXL-2014/7
+
+TITL p15229 in Pm-3m
+CELL 0.71073 11.857 11.857 11.857 90 90 90
+ZERR 24 0.004 0.004 0.004 0 0 0
+LATT 1
+SYMM -X,-Y,+Z
+SYMM -X,+Y,-Z
+SYMM +X,-Y,-Z
+SYMM +Z,+X,+Y
+SYMM +Z,-X,-Y
+SYMM -Z,-X,+Y
+SYMM -Z,+X,-Y
+SYMM +Y,+Z,+X
+SYMM -Y,+Z,-X
+SYMM +Y,-Z,-X
+SYMM -Y,-Z,+X
+SYMM +Y,+X,-Z
+SYMM -Y,-X,-Z
+SYMM +Y,-X,+Z
+SYMM -Y,+X,+Z
+SYMM +X,+Z,-Y
+SYMM -X,+Z,+Y
+SYMM -X,-Z,-Y
+SYMM +X,-Z,+Y
+SYMM +Z,+Y,-X
+SYMM +Z,-Y,+X
+SYMM -Z,+Y,+X
+SYMM -Z,-Y,-X
+SFAC O Si
+UNIT 48 24
+ 
+L.S. 25
+PLAN  20
+SIZE 0.1 0.1 0.1
+TEMP -173.15
+BOND $H
+MORE -1
+CONF
+wpdb -2
+fmap -2
+acta 50
+REM <olex2.extras>
+REM <HklSrc "%.\\p15229.hkl">
+REM </olex2.extras>
+ 
+WGHT    0.036800    0.299100
+FVAR       0.16152
+SI1   2    0.500000    0.869177    0.316549    10.50000    0.00481    0.00308 =
+         0.00345   -0.00070    0.00000    0.00000
+O1    1    0.500000    0.796127    0.203873    10.25000    0.00979    0.00525 =
+         0.00525   -0.00277    0.00000    0.00000
+O2    1    0.610643    0.840356    0.389357    10.50000    0.01158    0.01765 =
+         0.01158   -0.00562   -0.00760    0.00562
+O3    1    0.500000    1.000000    0.282985    10.25000    0.02895    0.00244 =
+         0.01028    0.00000    0.00000    0.00000
+HKLF 4
+ 
+REM  p15229 in Pm-3m
+REM R1 =  0.0449 for    1731 Fo > 4sig(Fo)  and  0.0850 for all    2479 data
+REM     21 parameters refined using      0 restraints
+ 
+END  
+     
+WGHT      0.0368      0.2991 
+
+REM Highest difference peak  1.530,  deepest hole -0.750,  1-sigma level  0.117
+Q1    1   0.5000  0.5000  0.5000  10.02083  0.05    1.53
+Q2    1   0.5000  0.7014  0.5000  10.12500  0.05   -0.75
+Q3    1   0.6134  0.8741  0.3866  10.50000  0.05    0.67
+Q4    1   0.5000  1.0000  0.2426  10.25000  0.05    0.66
+Q5    1   0.5000  0.8008  0.2445  10.50000  0.05    0.65
+Q6    1   0.5236  0.7819  0.2181  10.50000  0.05    0.65
+Q7    1   0.5000  0.5497  0.5000  10.12500  0.05    0.64
+Q8    1   0.4198  1.0000  0.0000  10.12500  0.05    0.63
+Q9    1   0.5000  0.9650  0.2801  10.50000  0.05    0.63
+Q10   1   0.5000  1.0000  0.0868  10.25000  0.05   -0.60
+Q11   1   0.5000  0.9111  0.2799  10.50000  0.05    0.59
+Q12   1   0.5000  0.5591  0.4694  10.50000  0.05    0.59
+Q13   1   0.5236  1.0000  0.2783  10.50000  0.05    0.57
+Q14   1   0.5847  0.8394  0.4153  10.50000  0.05    0.56
+Q15   1   0.6220  0.8584  0.4327  11.00000  0.05    0.55
+Q16   1   0.5000  0.8295  0.2762  10.50000  0.05    0.54
+Q17   1   0.2270  1.0000  0.0000  10.12500  0.05    0.54
+Q18   1   0.5000  0.6407  0.5000  10.12500  0.05   -0.54
+Q19   1   0.5000  0.8149  0.1851  10.25000  0.05    0.52
+Q20   1   0.5000  0.6105  0.5000  10.12500  0.05    0.50
+
+REM The information below was added by Olex2.
+REM
+REM R1 = 0.0449 for 1731 Fo > 4sig(Fo) and 0.0850 for all 48084 data
+REM n/a parameters refined using n/a restraints
+REM Highest difference peak 1.53, deepest hole -0.75
+REM Mean Shift 0, Max Shift 0.001.
+
+REM +++ Tabular Listing of Refinement Information +++
+REM R1_all = 0.0850
+REM R1_gt = 0.0449
+REM wR_ref = 0.0933
+REM GOOF = 1.152
+REM Shift_max = 0.001
+REM Shift_mean = 0
+REM Reflections_all = 48084
+REM Reflections_gt = 1731
+REM Parameters = n/a
+REM Hole = -0.75
+REM Peak = 1.53
+REM Flack = n/a
+
+;
+_cod_data_source_file            cm5b03579_si_004.cif
+_cod_data_source_block           p15229
+_cod_original_cell_volume        1667.0(17)
+_cod_database_code               4003210
+_exptl_absorpt_special_details
+;
+SADABS-2014/5 (Bruker,2014/5) was used for absorption correction.
+wR2(int) was 0.0668 before and 0.0588 after correction.
+The Ratio of minimum to maximum transmission is 0.8962.
+The \l/2 correction factor is 0.00150.
+;
+_olex2_refinement_description
+;
+;
+_olex2_submission_special_instructions 'No special instructions were received'
+loop_
+_space_group_symop_operation_xyz
+'x, y, z'
+'-x, -y, z'
+'-x, y, -z'
+'x, -y, -z'
+'z, x, y'
+'z, -x, -y'
+'-z, -x, y'
+'-z, x, -y'
+'y, z, x'
+'-y, z, -x'
+'y, -z, -x'
+'-y, -z, x'
+'y, x, -z'
+'-y, -x, -z'
+'y, -x, z'
+'-y, x, z'
+'x, z, -y'
+'-x, z, y'
+'-x, -z, -y'
+'x, -z, y'
+'z, y, -x'
+'z, -y, x'
+'-z, y, x'
+'-z, -y, -x'
+'-x, -y, -z'
+'x, y, -z'
+'x, -y, z'
+'-x, y, z'
+'-z, -x, -y'
+'-z, x, y'
+'z, x, -y'
+'z, -x, y'
+'-y, -z, -x'
+'y, -z, x'
+'-y, z, x'
+'y, z, -x'
+'-y, -x, z'
+'y, x, z'
+'-y, x, -z'
+'y, -x, -z'
+'-x, -z, y'
+'x, -z, -y'
+'x, z, y'
+'-x, z, -y'
+'-z, -y, x'
+'-z, y, -x'
+'z, -y, -x'
+'z, y, x'
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_U_iso_or_equiv
+_atom_site_adp_type
+_atom_site_occupancy
+_atom_site_site_symmetry_order
+_atom_site_calc_flag
+_atom_site_refinement_flags_posn
+_atom_site_refinement_flags_adp
+_atom_site_refinement_flags_occupancy
+Si1 Si 0.5000 0.86918(2) 0.31655(2) 0.00378(4) Uani 1 2 d S T P
+O1 O 0.5000 0.79613(4) 0.20387(4) 0.00676(10) Uani 1 4 d S T P
+O2 O 0.61064(4) 0.84036(6) 0.38936(4) 0.01360(11) Uani 1 2 d S T P
+O3 O 0.5000 1.0000 0.28299(7) 0.01389(15) Uani 1 4 d S T P
+loop_
+_atom_site_aniso_label
+_atom_site_aniso_U_11
+_atom_site_aniso_U_22
+_atom_site_aniso_U_33
+_atom_site_aniso_U_23
+_atom_site_aniso_U_13
+_atom_site_aniso_U_12
+Si1 0.00481(7) 0.00308(7) 0.00345(7) -0.00070(5) 0.000 0.000
+O1 0.0098(3) 0.00525(14) 0.00525(14) -0.00277(18) 0.000 0.000
+O2 0.01158(14) 0.0176(3) 0.01158(14) -0.00562(15) -0.00760(17) 0.00562(15)
+O3 0.0289(5) 0.0024(2) 0.0103(3) 0.000 0.000 0.000
+loop_
+_atom_type_symbol
+_atom_type_description
+_atom_type_scat_dispersion_real
+_atom_type_scat_dispersion_imag
+_atom_type_scat_source
+O O 0.0106 0.0060 'International Tables Vol C Tables 4.2.6.8 and 6.1.1.4'
+Si Si 0.0817 0.0704 'International Tables Vol C Tables 4.2.6.8 and 6.1.1.4'
+loop_
+_exptl_crystal_face_index_h
+_exptl_crystal_face_index_k
+_exptl_crystal_face_index_l
+_exptl_crystal_face_perp_dist
+0.00 0.00 -1.00 0.0270
+0.00 0.00 1.00 0.0490
+0.00 1.00 0.00 0.0260
+0.00 -1.00 0.00 0.0490
+1.00 0.00 0.00 0.0490
+-1.00 0.00 0.00 0.0330
+loop_
+_geom_angle_atom_site_label_1
+_geom_angle_atom_site_label_2
+_geom_angle_atom_site_label_3
+_geom_angle
+_geom_angle_site_symmetry_1
+_geom_angle_site_symmetry_3
+O1 Si1 O2 109.57(3) . .
+O1 Si1 O2 109.57(3) . 28_655
+O1 Si1 O3 108.57(4) . .
+O2 Si1 O2 109.43(5) 28_655 .
+O3 Si1 O2 109.84(3) . 28_655
+O3 Si1 O2 109.84(3) . .
+Si1 O1 Si1 155.91(5) . 42_566
+Si1 O2 Si1 146.27(4) 46_656 .
+Si1 O3 Si1 151.22(6) . 2_675
+loop_
+_geom_bond_atom_site_label_1
+_geom_bond_atom_site_label_2
+_geom_bond_distance
+_geom_bond_site_symmetry_2
+Si1 O1 1.5922(6) .
+Si1 O2 1.6072(6) 28_655
+Si1 O2 1.6072(6) .
+Si1 O3 1.6014(6) .
+O1 Si1 1.5922(6) 42_566
+O2 Si1 1.6072(6) 46_656
+O3 Si1 1.6014(6) 2_675
+loop_
+_geom_torsion_atom_site_label_1
+_geom_torsion_atom_site_label_2
+_geom_torsion_atom_site_label_3
+_geom_torsion_atom_site_label_4
+_geom_torsion
+_geom_torsion_site_symmetry_1
+_geom_torsion_site_symmetry_4
+O1 Si1 O2 Si1 176.06(8) . 46_656
+O1 Si1 O3 Si1 180.000(0) . 2_675
+O2 Si1 O1 Si1 60.03(3) . 42_566
+O2 Si1 O1 Si1 -60.04(3) 28_655 42_566
+O2 Si1 O2 Si1 -63.78(11) 28_655 46_656
+O2 Si1 O3 Si1 60.20(3) 28_655 2_675
+O2 Si1 O3 Si1 -60.20(3) . 2_675
+O3 Si1 O1 Si1 180.000(0) . 42_566
+O3 Si1 O2 Si1 56.88(10) . 46_656

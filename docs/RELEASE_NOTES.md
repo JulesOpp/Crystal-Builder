@@ -19,6 +19,11 @@ Zeo++ on the result.
   Anything that adds chemistry the file never located is left off
   unless asked for. *Open Sample ▸ Prepared for simulation* has the
   COD frameworks already done.
+- **Simple materials** in *Open Sample*: eighteen textbook solids --
+  graphene, graphite, diamond, silicon, NaCl, CsCl, CaF2, Al2O3,
+  TiO2, SrTiO3, ZnO, quartz, iron, copper, and the zeolites LTA, MFI,
+  FAU and SOD -- all but graphene the COD's depositions, cited, for
+  learning the program on a crystal you already know.
 - **Faster porosity**: surface area and accessible volume read off
   the distance grid, with no Zeo++ needed, and the pore surface is
   drawn over channels only.

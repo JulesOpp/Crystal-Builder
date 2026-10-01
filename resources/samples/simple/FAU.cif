@@ -1,0 +1,397 @@
+#------------------------------------------------------------------------------
+#$Date: 2016-02-12 10:24:28 +0200 (Fri, 12 Feb 2016) $
+#$Revision: 176402 $
+#$URL: file:///home/coder/svn-repositories/_RELOADED_COD/cod-reloaded/cif/7/22/42/7224240.cif $
+#------------------------------------------------------------------------------
+#
+# This file is available in the Crystallography Open Database (COD),
+# http://www.crystallography.net/
+#
+# All data on this site have been placed in the public domain by the
+# contributors.
+#
+data_7224240
+loop_
+_publ_author_name
+'Attfield, Martin'
+'Feygenson, Mikhail'
+'Neuefeind, Joerg C.'
+'Proffen, Thomas E.'
+'Hriljac, J. A.'
+'Lucas, Timothy C.'
+_publ_section_title
+;
+ Reprobing the mechanism of negative thermal expansion in siliceous
+ faujasite
+;
+_journal_name_full               'RSC Adv.'
+_journal_paper_doi               10.1039/C5RA23827G
+_journal_year                    2016
+_chemical_formula_sum            'O2 Si'
+_chemical_formula_weight         60.08
+_chemical_name_systematic        ' ?'
+_space_group_IT_number           227
+_symmetry_cell_setting           cubic
+_symmetry_space_group_name_Hall  '-F 4vw 2vw 3'
+_symmetry_space_group_name_H-M   'F d -3 m :2'
+_audit_creation_date             2015-07-02T12:47
+_audit_creation_method           'from EXP file using GSAS2CIF'
+_audit_update_record
+' 2015-07-02T12:47  Initial CIF as created by GSAS2CIF'
+_cell_angle_alpha                90.0
+_cell_angle_beta                 90.0
+_cell_angle_gamma                90.0
+_cell_formula_units_Z            192
+_cell_length_a                   24.2602(9)
+_cell_length_b                   24.2602
+_cell_length_c                   24.2602
+_cell_volume                     14278.5(5)
+_computing_structure_refinement  GSAS
+_exptl_absorpt_correction_T_max  1.00000
+_exptl_absorpt_correction_T_min  1.00000
+_exptl_absorpt_process_details
+;   GSAS Absorption/surface roughness correction: function number 0
+ No correction is applied.
+;
+_pd_block_id
+2015-07-02T12:47|ZDDAYC35A7300KBANK5|ZDDAY|nomad
+_pd_calc_method                  'Rietveld Refinement'
+_pd_instr_location               ' ?'
+_pd_meas_2theta_fixed            154.000
+_pd_meas_number_of_points        3000
+_pd_phase_name                   zdday
+_pd_proc_info_datetime           2015-07-02T12:47:33
+_pd_proc_info_excluded_regions   ' ?'
+_pd_proc_ls_background_function
+;   GSAS Background function number 1 with 12 terms.
+ Shifted Chebyshev function of 1st kind
+      1:   9.287620E-02 2:   3.404590E-03 3:  -1.131590E-03 4:  -4.292500E-04
+      5:  -3.052140E-03 6:   4.531470E-03 7:  -1.151540E-03 8:  -7.676410E-03
+      9:  -4.997790E-0310:   8.821360E-0411:  -1.254940E-0312:  -5.057020E-04
+;
+_pd_proc_ls_peak_cutoff          0.00200
+_pd_proc_ls_profile_function
+;
+ TOF Profile function number-3 with  21 terms
+ Profile coefficients for exponential pseudovoigt
+  convolution Von Dreele, 1990 (unpublished)
+ Peak tails are ignored  where the intensity is below 0.0020 times the peak
+   Aniso. broadening axis   0.0   0.0   1.0
+;
+_pd_proc_ls_prof_R_factor        0.0262
+_pd_proc_ls_prof_wR_expected     0.0189
+_pd_proc_ls_prof_wR_factor       0.0316
+_pd_proc_number_of_points        3000
+_pd_spec_mounting                ' ?'
+_refine_ls_goodness_of_fit_all   1.69
+_refine_ls_matrix_type           full
+_refine_ls_number_parameters     33
+_refine_ls_number_restraints     0
+_refine_ls_R_Fsqd_factor         0.05822
+_refine_ls_shift/su_max          0.02
+_refine_ls_shift/su_mean         0.01
+_cod_data_source_file            c5ra23827g4.cif
+_cod_data_source_block           ZDDAYC35A7300KBANK5_publ
+_cod_depositor_comments
+;
+The following automatic conversions were performed:
+
+'_geom_bond_publ_flag' value 'N' changed to 'n' according to
+/usr/data/users/saulius/crontab/automatic-downloads/rss-feeds/RSC/lib/dictionaries/cif_core.dic
+dictionary named 'cif_core.dic' version 2.4.2 from 2011-04-26 (40
+times).
+
+'_geom_angle_publ_flag' value 'N' changed to 'n' according to
+/usr/data/users/saulius/crontab/automatic-downloads/rss-feeds/RSC/lib/dictionaries/cif_core.dic
+dictionary named 'cif_core.dic' version 2.4.2 from 2011-04-26 (10
+times).
+
+Automatic conversion script
+Id: cif_fix_values 4268 2015-11-12 08:31:59Z antanas 
+;
+_cod_original_cell_volume        14278.6(16)
+_cod_original_sg_symbol_H-M      'F d -3 m'
+_cod_database_code               7224240
+_gsas_exptl_extinct_corr_t_min   1.00000
+_gsas_exptl_extinct_corr_t_max   1.00000
+loop_
+_symmetry_equiv_pos_site_id
+_symmetry_equiv_pos_as_xyz
+1 +x,+y,+z
+2 +z,+x,+y
+3 +y,+z,+x
+4 +x+1/4,+y+1/4,-z
+5 -z,+x+1/4,+y+1/4
+6 +y+1/4,-z,+x+1/4
+7 -z+1/4,+x+1/2,-y+3/4
+8 -y+3/4,-z+1/4,+x+1/2
+9 +y+1/2,-z+1/4,-x+3/4
+10 -x+3/4,+y+1/2,-z+1/4
+11 -z+1/4,-x+3/4,+y+1/2
+12 +x+1/2,-y+3/4,-z+1/4
+13 +y,+x,+z
+14 +z,+y,+x
+15 +x,+z,+y
+16 +y+1/4,+x+1/4,-z
+17 -z,+y+1/4,+x+1/4
+18 +x+1/4,-z,+y+1/4
+19 -z+1/4,+y+1/2,-x+3/4
+20 -x+3/4,-z+1/4,+y+1/2
+21 +x+1/2,-z+1/4,-y+3/4
+22 -y+3/4,+x+1/2,-z+1/4
+23 -z+1/4,-y+3/4,+x+1/2
+24 +y+1/2,-x+3/4,-z+1/4
+-1 -x,-y,-z
+-2 -z,-x,-y
+-3 -y,-z,-x
+-4 -x+3/4,-y+3/4,+z
+-5 +z,-x+3/4,-y+3/4
+-6 -y+3/4,+z,-x+3/4
+-7 +z+3/4,-x+1/2,+y+1/4
+-8 +y+1/4,+z+3/4,-x+1/2
+-9 -y+1/2,+z+3/4,+x+1/4
+-10 +x+1/4,-y+1/2,+z+3/4
+-11 +z+3/4,+x+1/4,-y+1/2
+-12 -x+1/2,+y+1/4,+z+3/4
+-13 -y,-x,-z
+-14 -z,-y,-x
+-15 -x,-z,-y
+-16 -y+3/4,-x+3/4,+z
+-17 +z,-y+3/4,-x+3/4
+-18 -x+3/4,+z,-y+3/4
+-19 +z+3/4,-y+1/2,+x+1/4
+-20 +x+1/4,+z+3/4,-y+1/2
+-21 -x+1/2,+z+3/4,+y+1/4
+-22 +y+1/4,-x+1/2,+z+3/4
+-23 +z+3/4,+y+1/4,-x+1/2
+-24 -y+1/2,+x+1/4,+z+3/4
+101 +x,+y+1/2,+z+1/2
+102 +z,+x+1/2,+y+1/2
+103 +y,+z+1/2,+x+1/2
+104 +x+1/4,+y+3/4,-z+1/2
+105 -z,+x+3/4,+y+3/4
+106 +y+1/4,-z+1/2,+x+3/4
+107 -z+1/4,+x,-y+1/4
+108 -y+3/4,-z+3/4,+x
+109 +y+1/2,-z+3/4,-x+1/4
+110 -x+3/4,+y,-z+3/4
+111 -z+1/4,-x+1/4,+y
+112 +x+1/2,-y+1/4,-z+3/4
+113 +y,+x+1/2,+z+1/2
+114 +z,+y+1/2,+x+1/2
+115 +x,+z+1/2,+y+1/2
+116 +y+1/4,+x+3/4,-z+1/2
+117 -z,+y+3/4,+x+3/4
+118 +x+1/4,-z+1/2,+y+3/4
+119 -z+1/4,+y,-x+1/4
+120 -x+3/4,-z+3/4,+y
+121 +x+1/2,-z+3/4,-y+1/4
+122 -y+3/4,+x,-z+3/4
+123 -z+1/4,-y+1/4,+x
+124 +y+1/2,-x+1/4,-z+3/4
+-101 -x,-y+1/2,-z+1/2
+-102 -z,-x+1/2,-y+1/2
+-103 -y,-z+1/2,-x+1/2
+-104 -x+3/4,-y+1/4,+z+1/2
+-105 +z,-x+1/4,-y+1/4
+-106 -y+3/4,+z+1/2,-x+1/4
+-107 +z+3/4,-x,+y+3/4
+-108 +y+1/4,+z+1/4,-x
+-109 -y+1/2,+z+1/4,+x+3/4
+-110 +x+1/4,-y,+z+1/4
+-111 +z+3/4,+x+3/4,-y
+-112 -x+1/2,+y+3/4,+z+1/4
+-113 -y,-x+1/2,-z+1/2
+-114 -z,-y+1/2,-x+1/2
+-115 -x,-z+1/2,-y+1/2
+-116 -y+3/4,-x+1/4,+z+1/2
+-117 +z,-y+1/4,-x+1/4
+-118 -x+3/4,+z+1/2,-y+1/4
+-119 +z+3/4,-y,+x+3/4
+-120 +x+1/4,+z+1/4,-y
+-121 -x+1/2,+z+1/4,+y+3/4
+-122 +y+1/4,-x,+z+1/4
+-123 +z+3/4,+y+3/4,-x
+-124 -y+1/2,+x+3/4,+z+1/4
+201 +x+1/2,+y,+z+1/2
+202 +z+1/2,+x,+y+1/2
+203 +y+1/2,+z,+x+1/2
+204 +x+3/4,+y+1/4,-z+1/2
+205 -z+1/2,+x+1/4,+y+3/4
+206 +y+3/4,-z,+x+3/4
+207 -z+3/4,+x+1/2,-y+1/4
+208 -y+1/4,-z+1/4,+x
+209 +y,-z+1/4,-x+1/4
+210 -x+1/4,+y+1/2,-z+3/4
+211 -z+3/4,-x+3/4,+y
+212 +x,-y+3/4,-z+3/4
+213 +y+1/2,+x,+z+1/2
+214 +z+1/2,+y,+x+1/2
+215 +x+1/2,+z,+y+1/2
+216 +y+3/4,+x+1/4,-z+1/2
+217 -z+1/2,+y+1/4,+x+3/4
+218 +x+3/4,-z,+y+3/4
+219 -z+3/4,+y+1/2,-x+1/4
+220 -x+1/4,-z+1/4,+y
+221 +x,-z+1/4,-y+1/4
+222 -y+1/4,+x+1/2,-z+3/4
+223 -z+3/4,-y+3/4,+x
+224 +y,-x+3/4,-z+3/4
+-201 -x+1/2,-y,-z+1/2
+-202 -z+1/2,-x,-y+1/2
+-203 -y+1/2,-z,-x+1/2
+-204 -x+1/4,-y+3/4,+z+1/2
+-205 +z+1/2,-x+3/4,-y+1/4
+-206 -y+1/4,+z,-x+1/4
+-207 +z+1/4,-x+1/2,+y+3/4
+-208 +y+3/4,+z+3/4,-x
+-209 -y,+z+3/4,+x+3/4
+-210 +x+3/4,-y+1/2,+z+1/4
+-211 +z+1/4,+x+1/4,-y
+-212 -x,+y+1/4,+z+1/4
+-213 -y+1/2,-x,-z+1/2
+-214 -z+1/2,-y,-x+1/2
+-215 -x+1/2,-z,-y+1/2
+-216 -y+1/4,-x+3/4,+z+1/2
+-217 +z+1/2,-y+3/4,-x+1/4
+-218 -x+1/4,+z,-y+1/4
+-219 +z+1/4,-y+1/2,+x+3/4
+-220 +x+3/4,+z+3/4,-y
+-221 -x,+z+3/4,+y+3/4
+-222 +y+3/4,-x+1/2,+z+1/4
+-223 +z+1/4,+y+1/4,-x
+-224 -y,+x+1/4,+z+1/4
+301 +x+1/2,+y+1/2,+z
+302 +z+1/2,+x+1/2,+y
+303 +y+1/2,+z+1/2,+x
+304 +x+3/4,+y+3/4,-z
+305 -z+1/2,+x+3/4,+y+1/4
+306 +y+3/4,-z+1/2,+x+1/4
+307 -z+3/4,+x,-y+3/4
+308 -y+1/4,-z+3/4,+x+1/2
+309 +y,-z+3/4,-x+3/4
+310 -x+1/4,+y,-z+1/4
+311 -z+3/4,-x+1/4,+y+1/2
+312 +x,-y+1/4,-z+1/4
+313 +y+1/2,+x+1/2,+z
+314 +z+1/2,+y+1/2,+x
+315 +x+1/2,+z+1/2,+y
+316 +y+3/4,+x+3/4,-z
+317 -z+1/2,+y+3/4,+x+1/4
+318 +x+3/4,-z+1/2,+y+1/4
+319 -z+3/4,+y,-x+3/4
+320 -x+1/4,-z+3/4,+y+1/2
+321 +x,-z+3/4,-y+3/4
+322 -y+1/4,+x,-z+1/4
+323 -z+3/4,-y+1/4,+x+1/2
+324 +y,-x+1/4,-z+1/4
+-301 -x+1/2,-y+1/2,-z
+-302 -z+1/2,-x+1/2,-y
+-303 -y+1/2,-z+1/2,-x
+-304 -x+1/4,-y+1/4,+z
+-305 +z+1/2,-x+1/4,-y+3/4
+-306 -y+1/4,+z+1/2,-x+3/4
+-307 +z+1/4,-x,+y+1/4
+-308 +y+3/4,+z+1/4,-x+1/2
+-309 -y,+z+1/4,+x+1/4
+-310 +x+3/4,-y,+z+3/4
+-311 +z+1/4,+x+3/4,-y+1/2
+-312 -x,+y+3/4,+z+3/4
+-313 -y+1/2,-x+1/2,-z
+-314 -z+1/2,-y+1/2,-x
+-315 -x+1/2,-z+1/2,-y
+-316 -y+1/4,-x+1/4,+z
+-317 +z+1/2,-y+1/4,-x+3/4
+-318 -x+1/4,+z+1/2,-y+3/4
+-319 +z+1/4,-y,+x+1/4
+-320 +x+3/4,+z+1/4,-y+1/2
+-321 -x,+z+1/4,+y+1/4
+-322 +y+3/4,-x,+z+3/4
+-323 +z+1/4,+y+3/4,-x+1/2
+-324 -y,+x+3/4,+z+3/4
+loop_
+_atom_site_type_symbol
+_atom_site_label
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_occupancy
+_atom_site_thermal_displace_type
+_atom_site_U_iso_or_equiv
+_atom_site_symmetry_multiplicity
+Si Si1 0.94620(11) 0.12593(12) 0.03596(16) 1.0 Uiso 0.0085(4) 192
+O O1 0.0 -0.10635(12) 0.10635(12) 1.0 Uiso 0.0156(10) 96
+O O2 -0.00386(10) -0.00386(10) 0.14078(17) 1.0 Uiso 0.0189(10) 96
+O O3 0.07590(11) 0.07590(11) -0.03591(15) 1.0 Uiso 0.0171(8) 96
+O O4 0.07066(11) 0.07066(11) 0.32054(15) 1.0 Uiso 0.0118(8) 96
+loop_
+_atom_type_symbol
+_atom_type_number_in_cell
+_atom_type_scat_length_neutron
+_atom_type_scat_source
+Si 192.0 0.4149 International_Tables_Vol_C
+O 384.0 0.5803 International_Tables_Vol_C
+loop_
+_geom_angle_atom_site_label_1
+_geom_angle_atom_site_label_2
+_geom_angle_atom_site_label_3
+_geom_angle
+_geom_angle_site_symmetry_1
+_geom_angle_site_symmetry_3
+_geom_angle_publ_flag
+O1 Si1 O2 109.85(25) 3_655 3_655 n
+O1 Si1 O3 108.39(26) 3_655 2_655 n
+O1 Si1 O4 108.80(28) 3_655 111_533 n
+O2 Si1 O3 109.30(25) 3_655 2_655 n
+O2 Si1 O4 109.26(28) 3_655 111_533 n
+O3 Si1 O4 111.23(29) 2_655 111_533 n
+Si1 O1 Si1 139.0(4) 2_545 -14_556 n
+Si1 O2 Si1 150.88(33) 2_545 15_455 n
+Si1 O3 Si1 146.32(33) 3_554 14_554 n
+Si1 O4 Si1 142.18(34) -117_446 -206_446 n
+loop_
+_geom_bond_atom_site_label_1
+_geom_bond_atom_site_label_2
+_geom_bond_distance
+_geom_bond_site_symmetry_2
+_geom_bond_publ_flag
+Si1 Si1 3.080(7) 14_654 n
+Si1 Si1 3.087(7) 15_555 n
+Si1 Si1 3.028(6) -13_665 n
+Si1 Si1 3.023(7) 221_555 n
+Si1 O1 1.6162(35) 3_655 n
+Si1 O2 1.591(4) 3_655 n
+Si1 O3 1.6124(33) 2_655 n
+Si1 O4 1.5977(34) 111_655 n
+O1 Si1 1.6162(35) 2_545 n
+O1 Si1 1.6162(35) -14_556 n
+O1 O2 2.6246(28) 1_555 n
+O1 O2 2.6246(28) -3_555 n
+O1 O3 2.618(5) 3_555 n
+O1 O3 2.618(5) -1_555 n
+O1 O4 2.6132(19) 209_555 n
+O1 O4 2.6132(19) -312_434 n
+O2 Si1 1.591(4) 2_545 n
+O2 Si1 1.591(4) 15_455 n
+O2 O1 2.6246(28) 1_555 n
+O2 O1 2.6246(28) 13_555 n
+O2 O3 2.6127(33) 2_555 n
+O2 O3 2.6127(33) 3_555 n
+O2 O4 2.6002(34) 107_555 n
+O2 O4 2.6002(34) 209_555 n
+O3 Si1 1.6124(33) 3_554 n
+O3 Si1 1.6124(33) 14_554 n
+O3 O1 2.618(5) 2_555 n
+O3 O1 2.618(5) 15_555 n
+O3 O2 2.6127(33) 2_555 n
+O3 O2 2.6127(33) 3_555 n
+O3 O4 2.6493(35) 310_555 n
+O3 O4 2.6493(35) 312_555 n
+O4 Si1 1.5977(34) -117_545 n
+O4 Si1 1.5977(34) -206_455 n
+O4 O1 2.6132(19) 107_555 n
+O4 O1 2.6132(19) 221_555 n
+O4 O2 2.6002(34) 107_555 n
+O4 O2 2.6002(34) 209_555 n
+O4 O3 2.6493(35) 310_555 n
+O4 O3 2.6493(35) 312_555 n

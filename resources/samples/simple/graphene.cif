@@ -1,0 +1,30 @@
+#------------------------------------------------------------------------------
+# Graphene: one sheet of graphite, written by hand for Crystal Builder.
+#
+# Not a deposition -- a monolayer has none.  The in-plane cell is
+# graphite's (a = 2.46 A, C-C 1.42 A); c = 20 A is vacuum, so the
+# sheet's images along c are 20 A apart and nothing bonds across them.
+# Both carbons are one site, 2c of P6/mmm.  Public domain, like the
+# COD files beside it.
+#------------------------------------------------------------------------------
+data_graphene
+_chemical_name_common            graphene
+_chemical_formula_sum            'C'
+_space_group_IT_number           191
+_symmetry_space_group_name_H-M   'P 6/m m m'
+_symmetry_space_group_name_Hall  '-P 6 2'
+_cell_length_a                   2.46
+_cell_length_b                   2.46
+_cell_length_c                   20.0
+_cell_angle_alpha                90
+_cell_angle_beta                 90
+_cell_angle_gamma                120
+_cell_formula_units_Z            2
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_occupancy
+C1 C 0.33333 0.66667 0.00000 1.0
