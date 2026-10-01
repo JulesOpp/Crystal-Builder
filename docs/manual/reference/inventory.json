@@ -73,6 +73,150 @@
    "checkable": false
   },
   {
+   "key": "sample_simple_graphene",
+   "section": "File",
+   "path": "Open Sample ▸ Simple materials ▸ Graphene",
+   "shortcut": "",
+   "tip": "One sheet of graphite in P6/mmm, two carbons with 20 A of vacuum above them -- written here, since a monolayer has no deposition",
+   "checkable": false
+  },
+  {
+   "key": "sample_simple_graphite",
+   "section": "File",
+   "path": "Open Sample ▸ Simple materials ▸ Graphite",
+   "shortcut": "",
+   "tip": "Trucano and Chen, Nature 1975: hexagonal graphite from neutron diffraction, AB-stacked sheets 3.36 A apart in P6_3/mmc",
+   "checkable": false
+  },
+  {
+   "key": "sample_simple_diamond",
+   "section": "File",
+   "path": "Open Sample ▸ Simple materials ▸ Diamond",
+   "shortcut": "",
+   "tip": "Hom et al., J. Appl. Cryst. 1975: one carbon site in Fd-3m and eight atoms in the cell, every one tetrahedral",
+   "checkable": false
+  },
+  {
+   "key": "sample_simple_si",
+   "section": "File",
+   "path": "Open Sample ▸ Simple materials ▸ Silicon",
+   "shortcut": "",
+   "tip": "Hom et al., J. Appl. Cryst. 1975: the diamond structure again, at a = 5.431 A",
+   "checkable": false
+  },
+  {
+   "key": "sample_simple_nacl",
+   "section": "File",
+   "path": "Open Sample ▸ Simple materials ▸ NaCl",
+   "shortcut": "",
+   "tip": "Abrahams and Bernstein, Acta Cryst. 1965: rock salt, two interpenetrating fcc lattices in Fm-3m, each ion octahedral",
+   "checkable": false
+  },
+  {
+   "key": "sample_simple_cscl",
+   "section": "File",
+   "path": "Open Sample ▸ Simple materials ▸ CsCl",
+   "shortcut": "",
+   "tip": "Wyckoff, Crystal Structures 1963: one ion at the corner of a primitive cube and the other at its centre, each eight-coordinate",
+   "checkable": false
+  },
+  {
+   "key": "sample_simple_caf2",
+   "section": "File",
+   "path": "Open Sample ▸ Simple materials ▸ CaF2",
+   "shortcut": "",
+   "tip": "Cheetham et al., J. Phys. C 1971: fluorite, cubic calcium and tetrahedral fluoride in Fm-3m",
+   "checkable": false
+  },
+  {
+   "key": "sample_simple_al2o3",
+   "section": "File",
+   "path": "Open Sample ▸ Simple materials ▸ Al2O3",
+   "shortcut": "",
+   "tip": "Lutterotti and Scardi, J. Appl. Cryst. 1990: corundum, alpha-alumina in R-3c on hexagonal axes, aluminium in two thirds of the octahedral holes",
+   "checkable": false
+  },
+  {
+   "key": "sample_simple_tio2",
+   "section": "File",
+   "path": "Open Sample ▸ Simple materials ▸ TiO2",
+   "shortcut": "",
+   "tip": "Howard et al., Acta Cryst. B 1991: rutile, chains of edge-sharing TiO6 octahedra in P4_2/mnm, six atoms in the cell",
+   "checkable": false
+  },
+  {
+   "key": "sample_simple_srtio3",
+   "section": "File",
+   "path": "Open Sample ▸ Simple materials ▸ SrTiO3",
+   "shortcut": "",
+   "tip": "Mitchell et al., Phys. Chem. Miner. 2000: the cubic perovskite, five atoms in Pm-3m",
+   "checkable": false
+  },
+  {
+   "key": "sample_simple_zno",
+   "section": "File",
+   "path": "Open Sample ▸ Simple materials ▸ ZnO",
+   "shortcut": "",
+   "tip": "Albertsson et al., Acta Cryst. B 1989: zincite, the wurtzite structure, tetrahedral zinc and oxygen in P6_3mc -- a polar crystal",
+   "checkable": false
+  },
+  {
+   "key": "sample_simple_quartz",
+   "section": "File",
+   "path": "Open Sample ▸ Simple materials ▸ Quartz",
+   "shortcut": "",
+   "tip": "Will et al., J. Appl. Cryst. 1988: alpha-quartz, corner-sharing SiO4 helices in the chiral group P3_221",
+   "checkable": false
+  },
+  {
+   "key": "sample_simple_fe",
+   "section": "File",
+   "path": "Open Sample ▸ Simple materials ▸ Iron",
+   "shortcut": "",
+   "tip": "Zhang and Guyot, Phys. Chem. Miner. 1999: alpha-iron at room temperature, two atoms in Im-3m",
+   "checkable": false
+  },
+  {
+   "key": "sample_simple_cu",
+   "section": "File",
+   "path": "Open Sample ▸ Simple materials ▸ Copper",
+   "shortcut": "",
+   "tip": "Otte, J. Appl. Phys. 1961: face-centred cubic copper, four atoms in Fm-3m",
+   "checkable": false
+  },
+  {
+   "key": "sample_simple_lta",
+   "section": "File",
+   "path": "Open Sample ▸ Simple materials ▸ Zeolite A",
+   "shortcut": "",
+   "tip": "Boal et al., Chem. Mater. 2015: pure-silica LTA, sodalite cages around an 11 A alpha cage, Pm-3m -- a porosity run with no cations to clear",
+   "checkable": false
+  },
+  {
+   "key": "sample_simple_mfi",
+   "section": "File",
+   "path": "Open Sample ▸ Simple materials ▸ Silicalite-1",
+   "shortcut": "",
+   "tip": "Artioli et al., Acta Cryst. B 2000: MFI, the all-silica ZSM-5, straight and zigzag ten-ring channels in Pnma, 288 atoms",
+   "checkable": false
+  },
+  {
+   "key": "sample_simple_fau",
+   "section": "File",
+   "path": "Open Sample ▸ Simple materials ▸ Faujasite",
+   "shortcut": "",
+   "tip": "Attfield et al., RSC Adv. 2016: siliceous FAU at 300 K, 13 A supercages in a 24 A Fd-3m cell of 576 atoms",
+   "checkable": false
+  },
+  {
+   "key": "sample_simple_sod",
+   "section": "File",
+   "path": "Open Sample ▸ Simple materials ▸ Sodalite",
+   "shortcut": "",
+   "tip": "Hassan and Grundy, Acta Cryst. B 1984: SOD as the mineral, Na8Cl2(Al6Si6O24) in P-43n, a chloride at the centre of each cage",
+   "checkable": false
+  },
+  {
    "key": "sample_cod_mof5",
    "section": "File",
    "path": "Open Sample ▸ From the COD ▸ MOF-5",
@@ -449,14 +593,6 @@
    "checkable": false
   },
   {
-   "key": "save_building_block",
-   "section": "File",
-   "path": "Save as a building block...",
-   "shortcut": "",
-   "tip": "Write this molecule into the folder the MOF builder reads, so it appears in the block picker beside the 867 PORMAKE ships.  It needs connection points on it -- the dialog says what is missing.",
-   "checkable": false
-  },
-  {
    "key": "new_workspace",
    "section": "File",
    "path": "New Workspace...",
@@ -569,14 +705,6 @@
    "checkable": false
   },
   {
-   "key": "change_element",
-   "section": "Edit",
-   "path": "Change element...",
-   "shortcut": "",
-   "tip": "",
-   "checkable": false
-  },
-  {
    "key": "select_all",
    "section": "Select",
    "path": "Select All",
@@ -619,7 +747,7 @@
   {
    "key": "select_dialog",
    "section": "Select",
-   "path": "Select...",
+   "path": "Advanced Selection...",
    "shortcut": "",
    "tip": "Select by label, coordination, what an atom is bonded to, a box, a point, or bonds by length and order -- and add, remove or intersect with what is held",
    "checkable": false
@@ -681,6 +809,14 @@
    "checkable": false
   },
   {
+   "key": "change_element",
+   "section": "Structure",
+   "path": "Change element...",
+   "shortcut": "",
+   "tip": "",
+   "checkable": false
+  },
+  {
    "key": "add_hydrogens",
    "section": "Structure",
    "path": "Add hydrogens...",
@@ -721,41 +857,9 @@
    "checkable": false
   },
   {
-   "key": "prepare_simulation",
-   "section": "Structure",
-   "path": "Prepare for simulation...",
-   "shortcut": "",
-   "tip": "Make a deposited structure one a calculation can use: order the disorder into whole atoms, remove solvent, complete M3O trimers, add the missing hydrogens and take the primitive cell -- each step saying what it chose before anything is done, and one undo step for the lot",
-   "checkable": false
-  },
-  {
-   "key": "mark_connection_points",
-   "section": "Structure",
-   "path": "Mark connection points",
-   "shortcut": "",
-   "tip": "Turn each selected atom that has exactly one bond into a connection point: a dummy 0.75 A along that bond, which is what a PORMAKE building block is joined by.  There is no unmark -- an X does not remember what it was, so the way back is Ctrl+Z.",
-   "checkable": false
-  },
-  {
-   "key": "mark_one_connection_point",
-   "section": "Structure",
-   "path": "Mark as one connection point",
-   "shortcut": "",
-   "tip": "Collapse the selected atoms into a single connection point, 0.75 A from the middle of everything they were bonded to and carrying those bonds.  For a chelate: two atoms that meet the next block together are one joint, and marking them separately gives a block with twice the coordination number it has.",
-   "checkable": false
-  },
-  {
-   "key": "bond_rules",
-   "section": "Structure",
-   "path": "Bond rules...",
-   "shortcut": "",
-   "tip": "Which atoms bond, and how close they have to be",
-   "checkable": false
-  },
-  {
    "key": "recompute_bonds",
    "section": "Structure",
-   "path": "Recalculate bonds",
+   "path": "Bonds ▸ Recalculate bonds",
    "shortcut": "",
    "tip": "Perceive the bonds again from the geometry as it is now.  Bonds do not change on their own when atoms move; this is what changes them.",
    "checkable": false
@@ -763,23 +867,15 @@
   {
    "key": "reset_bonds",
    "section": "Structure",
-   "path": "Reset bonds to automatic",
+   "path": "Bonds ▸ Reset bonds to automatic",
    "shortcut": "Ctrl+B",
    "tip": "Drop the bonds you drew and the ones you deleted, and take what the distance criteria give.  The only way back from a deleted bond once the undo stack has gone, because a deletion is saved with the project.",
    "checkable": false
   },
   {
-   "key": "bonds_follow",
-   "section": "Structure",
-   "path": "Bonds follow the geometry",
-   "shortcut": "",
-   "tip": "Re-perceive the bonds after every edit that moves an atom, instead of only when you ask",
-   "checkable": true
-  },
-  {
    "key": "bond_type_single",
    "section": "Structure",
-   "path": "Set Bond Type ▸ Single",
+   "path": "Bonds ▸ Set Bond Type ▸ Single",
    "shortcut": "",
    "tip": "Call the selected bonds single, and their whole symmetry orbit with them",
    "checkable": true
@@ -787,7 +883,7 @@
   {
    "key": "bond_type_double",
    "section": "Structure",
-   "path": "Set Bond Type ▸ Double",
+   "path": "Bonds ▸ Set Bond Type ▸ Double",
    "shortcut": "",
    "tip": "Call the selected bonds double, and their whole symmetry orbit with them",
    "checkable": true
@@ -795,7 +891,7 @@
   {
    "key": "bond_type_triple",
    "section": "Structure",
-   "path": "Set Bond Type ▸ Triple",
+   "path": "Bonds ▸ Set Bond Type ▸ Triple",
    "shortcut": "",
    "tip": "Call the selected bonds triple, and their whole symmetry orbit with them",
    "checkable": true
@@ -803,7 +899,7 @@
   {
    "key": "bond_type_aromatic",
    "section": "Structure",
-   "path": "Set Bond Type ▸ Aromatic",
+   "path": "Bonds ▸ Set Bond Type ▸ Aromatic",
    "shortcut": "",
    "tip": "Call the selected bonds aromatic, and their whole symmetry orbit with them",
    "checkable": true
@@ -811,10 +907,58 @@
   {
    "key": "bond_type_automatic",
    "section": "Structure",
-   "path": "Set Bond Type ▸ Automatic",
+   "path": "Bonds ▸ Set Bond Type ▸ Automatic",
    "shortcut": "",
    "tip": "Let the geometry decide this bond's order again",
    "checkable": true
+  },
+  {
+   "key": "bond_rules",
+   "section": "Structure",
+   "path": "Bonds ▸ Bond rules...",
+   "shortcut": "",
+   "tip": "Which atoms bond, and how close they have to be",
+   "checkable": false
+  },
+  {
+   "key": "bonds_follow",
+   "section": "Structure",
+   "path": "Bonds ▸ Bonds follow the geometry",
+   "shortcut": "",
+   "tip": "Re-perceive the bonds after every edit that moves an atom, instead of only when you ask",
+   "checkable": true
+  },
+  {
+   "key": "mark_connection_points",
+   "section": "Structure",
+   "path": "Building blocks ▸ Mark connection points",
+   "shortcut": "",
+   "tip": "Turn each selected atom that has exactly one bond into a connection point: a dummy 0.75 A along that bond, which is what a PORMAKE building block is joined by.  There is no unmark -- an X does not remember what it was, so the way back is Ctrl+Z.",
+   "checkable": false
+  },
+  {
+   "key": "mark_one_connection_point",
+   "section": "Structure",
+   "path": "Building blocks ▸ Mark as one connection point",
+   "shortcut": "",
+   "tip": "Collapse the selected atoms into a single connection point, 0.75 A from the middle of everything they were bonded to and carrying those bonds.  For a chelate: two atoms that meet the next block together are one joint, and marking them separately gives a block with twice the coordination number it has.",
+   "checkable": false
+  },
+  {
+   "key": "save_building_block",
+   "section": "Structure",
+   "path": "Building blocks ▸ Save as a building block...",
+   "shortcut": "",
+   "tip": "Write this molecule into the folder the MOF builder reads, so it appears in the block picker beside the 867 PORMAKE ships.  It needs connection points on it -- the dialog says what is missing.",
+   "checkable": false
+  },
+  {
+   "key": "prepare_simulation",
+   "section": "Structure",
+   "path": "Prepare for simulation...",
+   "shortcut": "",
+   "tip": "Make a deposited structure one a calculation can use: order the disorder into whole atoms, remove solvent, complete M3O trimers, add the missing hydrogens and take the primitive cell -- each step saying what it chose before anything is done, and one undo step for the lot",
+   "checkable": false
   },
   {
    "key": "mode_select",
@@ -1510,22 +1654,6 @@
    "path": "PXRD ▸ Refine against a measured pattern...",
    "shortcut": "",
    "tip": "Fit peaks and refine against a measured .xy pattern, in a window of its own; the runs go under the structure in front, or under the pattern's name if none is open",
-   "checkable": false
-  },
-  {
-   "key": "module.blender.export-stl",
-   "section": "Modules",
-   "path": "Blender ▸ Export as STL...",
-   "shortcut": "",
-   "tip": "One unit cell with its bonds, turned into a printable mesh by Blender",
-   "checkable": false
-  },
-  {
-   "key": "module.blender.render",
-   "section": "Modules",
-   "path": "Blender ▸ Render in Blender...",
-   "shortcut": "",
-   "tip": "One unit cell with its bonds, lit and rendered by Blender's Cycles; the scene is kept beside the picture",
    "checkable": false
   },
   {
@@ -2742,7 +2870,7 @@
        "label": "Measured pattern",
        "accepts": "path",
        "default": "",
-       "help": "The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one."
+       "help": "The pattern to refine against: 2θ and counts, one pair a line (.xy), or the diffractometer's own file (.rasx, Bruker .raw, .uxd, .xrdml, ...).  A third column is read as each point's error when every row has one."
       },
       {
        "name": "radiation",
@@ -2814,7 +2942,7 @@
        "label": "Measured pattern",
        "accepts": "path",
        "default": "",
-       "help": "The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one."
+       "help": "The pattern to refine against: 2θ and counts, one pair a line (.xy), or the diffractometer's own file (.rasx, Bruker .raw, .uxd, .xrdml, ...).  A third column is read as each point's error when every row has one."
       },
       {
        "name": "radiation",
@@ -2878,6 +3006,20 @@
        "accepts": "int, 1 to 30",
        "default": "8",
        "help": "Coefficients of the Chebyshev background Refine fits under the lines (TOPAS's bkg line).  More follow a curved or humped background; too many start fitting the tails of broad peaks.  Find peaks draws its own background and does not read this."
+      },
+      {
+       "name": "max_iterations",
+       "label": "Max iterations",
+       "accepts": "int, 1 to 100000",
+       "default": "400",
+       "help": "The most iterations the peak refinement takes."
+      },
+      {
+       "name": "tolerance",
+       "label": "Tolerance",
+       "accepts": "text",
+       "default": "1e-5",
+       "help": "When the refinement is done: the relative fall in χ² below which it stops (scipy's ftol).  Tighter spends steps on parts per million the lines do not show."
       }
      ]
     },
@@ -2893,7 +3035,7 @@
        "label": "Measured pattern",
        "accepts": "path",
        "default": "",
-       "help": "The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one."
+       "help": "The pattern to refine against: 2θ and counts, one pair a line (.xy), or the diffractometer's own file (.rasx, Bruker .raw, .uxd, .xrdml, ...).  A third column is read as each point's error when every row has one."
       },
       {
        "name": "radiation",
@@ -3014,7 +3156,7 @@
        "label": "Measured pattern",
        "accepts": "path",
        "default": "",
-       "help": "The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one."
+       "help": "The pattern to refine against: 2θ and counts, one pair a line (.xy), or the diffractometer's own file (.rasx, Bruker .raw, .uxd, .xrdml, ...).  A third column is read as each point's error when every row has one."
       },
       {
        "name": "radiation",
@@ -3042,7 +3184,7 @@
        "label": "Method",
        "accepts": "one of Pawley, Le Bail",
        "default": "pawley",
-       "help": "How each reflection's intensity is found.  Pawley makes every intensity a least-squares variable, with esds; Le Bail re-partitions the observed pattern between cycles, cheaper over a long range and with no intensity esds.  The cell, range and boxes below are the same for both."
+       "help": "How each reflection's intensity is found.  Pawley makes every intensity a least-squares variable, with esds; Le Bail re-partitions the observed pattern between cycles, cheaper over a long range and with no intensity esds.  The cell, range and parameters are the same for both."
       },
       {
        "name": "cell",
@@ -3113,6 +3255,27 @@
        "accepts": "bool",
        "default": "True",
        "help": "Lorentzian and Gaussian strain terms (TOPAS Strain_L, Strain_G): widths that grow as tan θ."
+      },
+      {
+       "name": "max_iterations",
+       "label": "Max iterations",
+       "accepts": "int, 0 to 100000",
+       "default": "100",
+       "help": "The most iterations each stage of the fit runs (TOPAS iters).  0 fits nothing: the pattern is calculated at the parameters as they stand, and the R values say how well they fit -- nothing moves and nothing is committed."
+      },
+      {
+       "name": "tolerance",
+       "label": "Tolerance",
+       "accepts": "text",
+       "default": "1e-9",
+       "help": "When a fit is done: the relative fall in χ² below which its last stage stops (RietX's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser."
+      },
+      {
+       "name": "parameters",
+       "label": "Parameters",
+       "accepts": "path",
+       "default": "",
+       "help": "A file of parameters to start from, one a line as the workbench's Copy writes them: name value ± esd Refine, or NoRefine.  Its flags say what is refined and the Refine boxes are not read; a row it leaves out starts from RietX's preset.  Empty starts from the preset, freed as the boxes say."
       }
      ]
     },
@@ -3128,7 +3291,7 @@
        "label": "Measured pattern",
        "accepts": "path",
        "default": "",
-       "help": "The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one."
+       "help": "The pattern to refine against: 2θ and counts, one pair a line (.xy), or the diffractometer's own file (.rasx, Bruker .raw, .uxd, .xrdml, ...).  A third column is read as each point's error when every row has one."
       },
       {
        "name": "radiation",
@@ -3254,7 +3417,7 @@
        "label": "Method",
        "accepts": "one of Pawley, Le Bail",
        "default": "pawley",
-       "help": "How each reflection's intensity is found.  Pawley makes every intensity a least-squares variable, with esds; Le Bail re-partitions the observed pattern between cycles, cheaper over a long range and with no intensity esds.  The cell, range and boxes below are the same for both."
+       "help": "How each reflection's intensity is found.  Pawley makes every intensity a least-squares variable, with esds; Le Bail re-partitions the observed pattern between cycles, cheaper over a long range and with no intensity esds.  The cell, range and parameters are the same for both."
       },
       {
        "name": "pawley_start",
@@ -3306,11 +3469,25 @@
        "help": "Lorentzian and Gaussian strain terms (TOPAS Strain_L, Strain_G): widths that grow as tan θ."
       },
       {
+       "name": "pawley_max_iterations",
+       "label": "Max iterations",
+       "accepts": "int, 0 to 100000",
+       "default": "100",
+       "help": "The most iterations each stage of the fit runs (TOPAS iters).  0 fits nothing: the pattern is calculated at the parameters as they stand, and the R values say how well they fit -- nothing moves and nothing is committed."
+      },
+      {
+       "name": "pawley_tolerance",
+       "label": "Tolerance",
+       "accepts": "text",
+       "default": "1e-9",
+       "help": "When a fit is done: the relative fall in χ² below which its last stage stops (RietX's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser."
+      },
+      {
        "name": "rietveld_plan",
        "label": "Plan",
-       "accepts": "one of The boxes below, RietX: McCusker, structural, RietX: McCusker, profile, RietX: lab Bragg-Brentano, RietX: sample on a calibrated instrument",
+       "accepts": "one of The Refine flags, RietX: McCusker, structural, RietX: McCusker, profile, RietX: lab Bragg-Brentano, RietX: sample on a calibrated instrument",
        "default": "",
-       "help": "What is freed, and in what order.  The boxes below free in McCusker's order: background and scale, line positions, cell, widths, then the atoms.  RietX's own plans ignore the boxes."
+       "help": "What is freed, and in what order.  The Refine flags -- the workbench's parameter table, a parameters file, or the boxes -- free in McCusker's order: background and scale, line positions, cell, widths, then the atoms.  RietX's own plans ignore the flags, and start from the values."
       },
       {
        "name": "rietveld_start",
@@ -3416,6 +3593,27 @@
        "accepts": "text",
        "default": "",
        "help": "The March-Dollase axis as h k l -- 0 0 1 for plates lying on their c face.  Empty is no texture."
+      },
+      {
+       "name": "rietveld_max_iterations",
+       "label": "Max iterations",
+       "accepts": "int, 0 to 100000",
+       "default": "100",
+       "help": "The most iterations each stage of the fit runs (TOPAS iters), a RietX plan's stages too.  0 fits nothing: the pattern is calculated at the parameters as they stand, and the R values say how well they fit -- nothing moves and nothing is committed."
+      },
+      {
+       "name": "rietveld_tolerance",
+       "label": "Tolerance",
+       "accepts": "text",
+       "default": "1e-9",
+       "help": "When a fit is done: the relative fall in χ² below which its last stage stops (RietX's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser."
+      },
+      {
+       "name": "parameters",
+       "label": "Parameters",
+       "accepts": "path",
+       "default": "",
+       "help": "A file of parameters to start from, one a line as the workbench's Copy writes them: name value ± esd Refine, or NoRefine.  Its flags say what is refined and the Refine boxes are not read; a row it leaves out starts from RietX's preset.  Empty starts from the preset, freed as the boxes say."
       }
      ]
     },
@@ -3431,7 +3629,7 @@
        "label": "Measured pattern",
        "accepts": "path",
        "default": "",
-       "help": "The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one."
+       "help": "The pattern to refine against: 2θ and counts, one pair a line (.xy), or the diffractometer's own file (.rasx, Bruker .raw, .uxd, .xrdml, ...).  A third column is read as each point's error when every row has one."
       },
       {
        "name": "radiation",
@@ -3457,9 +3655,9 @@
       {
        "name": "plan",
        "label": "Plan",
-       "accepts": "one of The boxes below, RietX: McCusker, structural, RietX: McCusker, profile, RietX: lab Bragg-Brentano, RietX: sample on a calibrated instrument",
+       "accepts": "one of The Refine flags, RietX: McCusker, structural, RietX: McCusker, profile, RietX: lab Bragg-Brentano, RietX: sample on a calibrated instrument",
        "default": "",
-       "help": "What is freed, and in what order.  The boxes below free in McCusker's order: background and scale, line positions, cell, widths, then the atoms.  RietX's own plans ignore the boxes."
+       "help": "What is freed, and in what order.  The Refine flags -- the workbench's parameter table, a parameters file, or the boxes -- free in McCusker's order: background and scale, line positions, cell, widths, then the atoms.  RietX's own plans ignore the flags, and start from the values."
       },
       {
        "name": "start",
@@ -3565,6 +3763,27 @@
        "accepts": "text",
        "default": "",
        "help": "The March-Dollase axis as h k l -- 0 0 1 for plates lying on their c face.  Empty is no texture."
+      },
+      {
+       "name": "max_iterations",
+       "label": "Max iterations",
+       "accepts": "int, 0 to 100000",
+       "default": "100",
+       "help": "The most iterations each stage of the fit runs (TOPAS iters), a RietX plan's stages too.  0 fits nothing: the pattern is calculated at the parameters as they stand, and the R values say how well they fit -- nothing moves and nothing is committed."
+      },
+      {
+       "name": "tolerance",
+       "label": "Tolerance",
+       "accepts": "text",
+       "default": "1e-9",
+       "help": "When a fit is done: the relative fall in χ² below which its last stage stops (RietX's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser."
+      },
+      {
+       "name": "parameters",
+       "label": "Parameters",
+       "accepts": "path",
+       "default": "",
+       "help": "A file of parameters to start from, one a line as the workbench's Copy writes them: name value ± esd Refine, or NoRefine.  Its flags say what is refined and the Refine boxes are not read; a row it leaves out starts from RietX's preset.  Empty starts from the preset, freed as the boxes say."
       }
      ]
     },
@@ -3580,7 +3799,7 @@
        "label": "Measured pattern",
        "accepts": "path",
        "default": "",
-       "help": "The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one."
+       "help": "The pattern to refine against: 2θ and counts, one pair a line (.xy), or the diffractometer's own file (.rasx, Bruker .raw, .uxd, .xrdml, ...).  A third column is read as each point's error when every row has one."
       },
       {
        "name": "radiation",
@@ -3618,11 +3837,18 @@
        "help": "Refine the cell's free numbers with the atoms, against both terms -- the energy's pull on them is the engine's stress.  Off holds the cell where it is."
       },
       {
-       "name": "max_steps",
-       "label": "Steps",
-       "accepts": "int, 1 to 100000",
+       "name": "max_iterations",
+       "label": "Max iterations",
+       "accepts": "int, 0 to 100000",
        "default": "500",
-       "help": "The most L-BFGS steps, for the relaxation that sets the energy's scale and again for the fit."
+       "help": "The most iterations of L-BFGS, for the relaxation that sets the energy's scale and again for the fit.  0 fits nothing: the pattern is calculated at the parameters as they stand, and the R values say how well they fit -- nothing moves and nothing is committed."
+      },
+      {
+       "name": "tolerance",
+       "label": "Tolerance",
+       "accepts": "text",
+       "default": "1e-6",
+       "help": "When the joint fit is done: the largest gradient of the objective, whose two terms are each about 1 where the run starts.  The relaxation that sets the energy's scale stops at its own force tolerance."
       },
       {
        "name": "engine",
@@ -3707,6 +3933,27 @@
        "accepts": "text",
        "default": "",
        "help": "The March-Dollase axis as h k l -- 0 0 1 for plates lying on their c face.  Empty is no texture."
+      },
+      {
+       "name": "rietveld_max_iterations",
+       "label": "Max iterations",
+       "accepts": "int, 0 to 100000",
+       "default": "100",
+       "help": "The most iterations each stage of the fit runs (TOPAS iters), a RietX plan's stages too.  0 fits nothing: the pattern is calculated at the parameters as they stand, and the R values say how well they fit -- nothing moves and nothing is committed."
+      },
+      {
+       "name": "rietveld_tolerance",
+       "label": "Tolerance",
+       "accepts": "text",
+       "default": "1e-9",
+       "help": "When a fit is done: the relative fall in χ² below which its last stage stops (RietX's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser."
+      },
+      {
+       "name": "parameters",
+       "label": "Parameters",
+       "accepts": "path",
+       "default": "",
+       "help": "A file of parameters to start from, one a line as the workbench's Copy writes them: name value ± esd Refine, or NoRefine.  Its flags say what is refined and the Refine boxes are not read; a row it leaves out starts from RietX's preset.  Empty starts from the preset, freed as the boxes say."
       }
      ]
     },
@@ -3722,7 +3969,7 @@
        "label": "Measured pattern",
        "accepts": "path",
        "default": "",
-       "help": "The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one."
+       "help": "The pattern to refine against: 2θ and counts, one pair a line (.xy), or the diffractometer's own file (.rasx, Bruker .raw, .uxd, .xrdml, ...).  A third column is read as each point's error when every row has one."
       },
       {
        "name": "radiation",
@@ -3760,11 +4007,18 @@
        "help": "Refine the cell's free numbers with the atoms at every weight.  Off holds the cell where it is."
       },
       {
-       "name": "max_steps",
-       "label": "Steps",
+       "name": "max_iterations",
+       "label": "Max iterations",
        "accepts": "int, 1 to 100000",
        "default": "500",
-       "help": "The most L-BFGS steps at each weight.  A point that runs out is not converged, and has no numbers."
+       "help": "The most iterations of L-BFGS at each weight.  A point that runs out is not converged, and has no numbers."
+      },
+      {
+       "name": "tolerance",
+       "label": "Tolerance",
+       "accepts": "text",
+       "default": "1e-6",
+       "help": "When the joint fit is done: the largest gradient of the objective, whose two terms are each about 1 where the run starts.  The relaxation that sets the energy's scale stops at its own force tolerance."
       },
       {
        "name": "engine",
@@ -3849,6 +4103,27 @@
        "accepts": "text",
        "default": "",
        "help": "The March-Dollase axis as h k l -- 0 0 1 for plates lying on their c face.  Empty is no texture."
+      },
+      {
+       "name": "rietveld_max_iterations",
+       "label": "Max iterations",
+       "accepts": "int, 0 to 100000",
+       "default": "100",
+       "help": "The most iterations each stage of the fit runs (TOPAS iters), a RietX plan's stages too.  0 fits nothing: the pattern is calculated at the parameters as they stand, and the R values say how well they fit -- nothing moves and nothing is committed."
+      },
+      {
+       "name": "rietveld_tolerance",
+       "label": "Tolerance",
+       "accepts": "text",
+       "default": "1e-9",
+       "help": "When a fit is done: the relative fall in χ² below which its last stage stops (RietX's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser."
+      },
+      {
+       "name": "parameters",
+       "label": "Parameters",
+       "accepts": "path",
+       "default": "",
+       "help": "A file of parameters to start from, one a line as the workbench's Copy writes them: name value ± esd Refine, or NoRefine.  Its flags say what is refined and the Refine boxes are not read; a row it leaves out starts from RietX's preset.  Empty starts from the preset, freed as the boxes say."
       }
      ]
     }

@@ -81,9 +81,8 @@ in general is {doc}`/quickstart/installation`.
    as no stick, and one you drew prints as one.  {ref}`Recalculate
    bonds <cmd-recompute_bonds>` if the structure has none.
 2. Choose {ref}`Export as STL… <cmd-export_stl>` from the *File*
-   menu, or *Modules ▸ Blender ▸ Export as STL…*; they are the same
-   run, reached from *File* because that is where an export is looked
-   for.  The dialog ({numref}`fig-utilities-stl-export-dialog`)
+   menu -- its only place, because that is where an export is
+   looked for.  The dialog ({numref}`fig-utilities-stl-export-dialog`)
    suggests `<structure>.stl` in the directory you last used.
 3. Set the mesh up.  Every setting, its range and its default is in
    the {ref}`reference <mod-blender-export-stl>`; what each is for:

@@ -213,6 +213,14 @@ class Module:
             # module is simply unavailable, and says why.
             return Availability(False, str(exc))
 
+    @property
+    def listed(self) -> bool:
+        """Whether it has anything to show in the Modules menu and
+        panel.  Blender has not: both its entries are exports, and
+        File is where they are, so a Blender submenu would hold two
+        doors to rooms File already opens."""
+        return any(action.listed for action in self.actions)
+
     def blocked(self) -> Availability:
         """What is greyed under this module, and why: the module's own
         reason, or else the first entry's that cannot run, or a yes.

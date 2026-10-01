@@ -102,11 +102,11 @@ bidentate attachment.
 ```
 
 With a molecule open -- built from SMILES, or cut from a crystal --
-two commands in the *Structure* menu turn atoms into connection
+two commands in *Structure ▸ Building blocks* turn atoms into connection
 points:
 
 1. Select the atoms that will become connection points and choose
-   *Structure ▸* {ref}`Mark connection points
+   *Structure ▸ Building blocks ▸* {ref}`Mark connection points
    <cmd-mark_connection_points>`.  Each selected atom that has
    **exactly one bond** becomes an `X` 0.75 Å along that bond from its
    neighbour.  A hydrogen on a ring carbon is the usual case: the
@@ -114,7 +114,7 @@ points:
    no bond, or more than one, is refused with a sentence.
 2. For a chelate, select the atoms that meet the next block
    *together* -- the two nitrogens, the two ring atoms -- and choose
-   *Structure ▸* {ref}`Mark as one connection point
+   *Structure ▸ Building blocks ▸* {ref}`Mark as one connection point
    <cmd-mark_one_connection_point>`.  The selection collapses into a
    single `X`, 0.75 Å from the middle of everything the atoms were
    bonded to, carrying those bonds.
@@ -176,10 +176,11 @@ carboxylate carbon:
    point placed facing into the cluster, so the direction matters and
    the distance does not: the point is pulled in to 0.75 Å when the
    block is written.
-6. *File ▸* {ref}`Save as a building block… <cmd-save_building_block>`
-   says *6-connected*; give it a name and, in *Building blocks folder*,
-   the folder the MOF builder reads your own blocks from, and press
-   **Save**.  The block is in the picker from then on.
+6. *Structure ▸ Building blocks ▸* {ref}`Save as a building block…
+   <cmd-save_building_block>` says *6-connected*; give it a name and,
+   in *Building blocks folder*, the folder the MOF builder reads your
+   own blocks from, and press **Save**.  The block is in the picker
+   from then on.
 
 Steps 3 and 4 are a shortcut: deleting everything that is not the
 cluster by hand comes to the same thing.
@@ -239,11 +240,11 @@ carboxylate it stands in for, and a crowded linker relaxes a little
 more open than it would with its real neighbours ({doc}`molecule-builder`).
 
 For a molecule already open in a tab -- one you marked by hand --
-*File ▸* {ref}`Save as a building block… <cmd-save_building_block>`
-writes it to the folder its dialog names, which starts as the MOF
-builder's *Extra building blocks* folder, not the workspace's
-`blocks/`.  Its dialog shows everything that stops
-the structure being a block *before* you press Save: a point that is
+*Structure ▸ Building blocks ▸* {ref}`Save as a building block…
+<cmd-save_building_block>` writes it to the folder its dialog names,
+which starts as the MOF builder's *Extra building blocks* folder, not
+the workspace's `blocks/`.  Its dialog shows everything that stops the
+structure being a block *before* you press Save: a point that is
 bonded to another point, members too far apart, two molecules in the
 cell, no connection points at all.
 

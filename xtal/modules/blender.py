@@ -370,14 +370,14 @@ EXPORT_STL = Action(
     tip="One unit cell with its bonds, turned into a printable mesh "
         "by Blender",
     params=_params(), run=export_stl, dialog="stl-export", kind="stl",
-    keeps_markers=True)
+    keeps_markers=True, listed=False)
 
 RENDER = Action(
     name="render", label="Render in Blender...",
     tip="One unit cell with its bonds, lit and rendered by Blender's "
         "Cycles; the scene is kept beside the picture",
     params=_render_params(), run=render, dialog="blender-render",
-    kind="render", keeps_markers=True)
+    kind="render", keeps_markers=True, listed=False)
 
 BLENDER = Module(
     name="blender", label="Blender",

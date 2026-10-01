@@ -94,6 +94,186 @@ The same framework and the same cell, modelled ordered and written out in P1: 21
 ```{index} CFA-1 in P1
 ```
 
+(cmd-sample_simple_graphene)=
+### Open Sample ▸ Simple materials ▸ Graphene
+
+`sample_simple_graphene`
+
+One sheet of graphite in P6/mmm, two carbons with 20 A of vacuum above them -- written here, since a monolayer has no deposition
+
+```{index} Graphene
+```
+
+(cmd-sample_simple_graphite)=
+### Open Sample ▸ Simple materials ▸ Graphite
+
+`sample_simple_graphite`
+
+Trucano and Chen, Nature 1975: hexagonal graphite from neutron diffraction, AB-stacked sheets 3.36 A apart in P6_3/mmc
+
+```{index} Graphite
+```
+
+(cmd-sample_simple_diamond)=
+### Open Sample ▸ Simple materials ▸ Diamond
+
+`sample_simple_diamond`
+
+Hom et al., J. Appl. Cryst. 1975: one carbon site in Fd-3m and eight atoms in the cell, every one tetrahedral
+
+```{index} Diamond
+```
+
+(cmd-sample_simple_si)=
+### Open Sample ▸ Simple materials ▸ Silicon
+
+`sample_simple_si`
+
+Hom et al., J. Appl. Cryst. 1975: the diamond structure again, at a = 5.431 A
+
+```{index} Silicon
+```
+
+(cmd-sample_simple_nacl)=
+### Open Sample ▸ Simple materials ▸ NaCl
+
+`sample_simple_nacl`
+
+Abrahams and Bernstein, Acta Cryst. 1965: rock salt, two interpenetrating fcc lattices in Fm-3m, each ion octahedral
+
+```{index} NaCl
+```
+
+(cmd-sample_simple_cscl)=
+### Open Sample ▸ Simple materials ▸ CsCl
+
+`sample_simple_cscl`
+
+Wyckoff, Crystal Structures 1963: one ion at the corner of a primitive cube and the other at its centre, each eight-coordinate
+
+```{index} CsCl
+```
+
+(cmd-sample_simple_caf2)=
+### Open Sample ▸ Simple materials ▸ CaF2
+
+`sample_simple_caf2`
+
+Cheetham et al., J. Phys. C 1971: fluorite, cubic calcium and tetrahedral fluoride in Fm-3m
+
+```{index} CaF2
+```
+
+(cmd-sample_simple_al2o3)=
+### Open Sample ▸ Simple materials ▸ Al2O3
+
+`sample_simple_al2o3`
+
+Lutterotti and Scardi, J. Appl. Cryst. 1990: corundum, alpha-alumina in R-3c on hexagonal axes, aluminium in two thirds of the octahedral holes
+
+```{index} Al2O3
+```
+
+(cmd-sample_simple_tio2)=
+### Open Sample ▸ Simple materials ▸ TiO2
+
+`sample_simple_tio2`
+
+Howard et al., Acta Cryst. B 1991: rutile, chains of edge-sharing TiO6 octahedra in P4_2/mnm, six atoms in the cell
+
+```{index} TiO2
+```
+
+(cmd-sample_simple_srtio3)=
+### Open Sample ▸ Simple materials ▸ SrTiO3
+
+`sample_simple_srtio3`
+
+Mitchell et al., Phys. Chem. Miner. 2000: the cubic perovskite, five atoms in Pm-3m
+
+```{index} SrTiO3
+```
+
+(cmd-sample_simple_zno)=
+### Open Sample ▸ Simple materials ▸ ZnO
+
+`sample_simple_zno`
+
+Albertsson et al., Acta Cryst. B 1989: zincite, the wurtzite structure, tetrahedral zinc and oxygen in P6_3mc -- a polar crystal
+
+```{index} ZnO
+```
+
+(cmd-sample_simple_quartz)=
+### Open Sample ▸ Simple materials ▸ Quartz
+
+`sample_simple_quartz`
+
+Will et al., J. Appl. Cryst. 1988: alpha-quartz, corner-sharing SiO4 helices in the chiral group P3_221
+
+```{index} Quartz
+```
+
+(cmd-sample_simple_fe)=
+### Open Sample ▸ Simple materials ▸ Iron
+
+`sample_simple_fe`
+
+Zhang and Guyot, Phys. Chem. Miner. 1999: alpha-iron at room temperature, two atoms in Im-3m
+
+```{index} Iron
+```
+
+(cmd-sample_simple_cu)=
+### Open Sample ▸ Simple materials ▸ Copper
+
+`sample_simple_cu`
+
+Otte, J. Appl. Phys. 1961: face-centred cubic copper, four atoms in Fm-3m
+
+```{index} Copper
+```
+
+(cmd-sample_simple_lta)=
+### Open Sample ▸ Simple materials ▸ Zeolite A
+
+`sample_simple_lta`
+
+Boal et al., Chem. Mater. 2015: pure-silica LTA, sodalite cages around an 11 A alpha cage, Pm-3m -- a porosity run with no cations to clear
+
+```{index} Zeolite A
+```
+
+(cmd-sample_simple_mfi)=
+### Open Sample ▸ Simple materials ▸ Silicalite-1
+
+`sample_simple_mfi`
+
+Artioli et al., Acta Cryst. B 2000: MFI, the all-silica ZSM-5, straight and zigzag ten-ring channels in Pnma, 288 atoms
+
+```{index} Silicalite-1
+```
+
+(cmd-sample_simple_fau)=
+### Open Sample ▸ Simple materials ▸ Faujasite
+
+`sample_simple_fau`
+
+Attfield et al., RSC Adv. 2016: siliceous FAU at 300 K, 13 A supercages in a 24 A Fd-3m cell of 576 atoms
+
+```{index} Faujasite
+```
+
+(cmd-sample_simple_sod)=
+### Open Sample ▸ Simple materials ▸ Sodalite
+
+`sample_simple_sod`
+
+Hassan and Grundy, Acta Cryst. B 1984: SOD as the mineral, Na8Cl2(Al6Si6O24) in P-43n, a chloride at the centre of each cage
+
+```{index} Sodalite
+```
+
 (cmd-sample_cod_mof5)=
 ### Open Sample ▸ From the COD ▸ MOF-5
 
@@ -564,16 +744,6 @@ The net drawn on this structure as a .cgd file, for Systre to name -- a second o
 ```{index} Export Net for Systre...
 ```
 
-(cmd-save_building_block)=
-### Save as a building block...
-
-`save_building_block`
-
-Write this molecule into the folder the MOF builder reads, so it appears in the block picker beside the 867 PORMAKE ships.  It needs connection points on it -- the dialog says what is missing.
-
-```{index} Save as a building block...
-```
-
 (cmd-new_workspace)=
 ### New Workspace...
 
@@ -716,16 +886,6 @@ Suppress the selected bonds, and their whole symmetry orbit
 ```{index} Delete bond
 ```
 
-(cmd-change_element)=
-### Change element...
-
-`change_element`
-
-*No description yet.*
-
-```{index} Change element...
-```
-
 ## Select
 
 (cmd-select_all)=
@@ -779,13 +939,13 @@ Select every bond joining two elements, and no atoms -- so Delete and Bond type 
 ```
 
 (cmd-select_dialog)=
-### Select...
+### Advanced Selection...
 
 `select_dialog`
 
 Select by label, coordination, what an atom is bonded to, a box, a point, or bonds by length and order -- and add, remove or intersect with what is held
 
-```{index} Select...
+```{index} Advanced Selection...
 ```
 
 (cmd-expand_bonded)=
@@ -860,6 +1020,16 @@ Replace the selected atoms with one at their middle -- of their element when the
 ```{index} Merge atoms
 ```
 
+(cmd-change_element)=
+### Change element...
+
+`change_element`
+
+*No description yet.*
+
+```{index} Change element...
+```
+
 (cmd-add_hydrogens)=
 ### Add hydrogens...
 
@@ -910,48 +1080,8 @@ Thread copies of this framework through its own pores: every placement the latti
 ```{index} Interpenetrate...
 ```
 
-(cmd-prepare_simulation)=
-### Prepare for simulation...
-
-`prepare_simulation`
-
-Make a deposited structure one a calculation can use: order the disorder into whole atoms, remove solvent, complete M3O trimers, add the missing hydrogens and take the primitive cell -- each step saying what it chose before anything is done, and one undo step for the lot
-
-```{index} Prepare for simulation...
-```
-
-(cmd-mark_connection_points)=
-### Mark connection points
-
-`mark_connection_points`
-
-Turn each selected atom that has exactly one bond into a connection point: a dummy 0.75 A along that bond, which is what a PORMAKE building block is joined by.  There is no unmark -- an X does not remember what it was, so the way back is Ctrl+Z.
-
-```{index} Mark connection points
-```
-
-(cmd-mark_one_connection_point)=
-### Mark as one connection point
-
-`mark_one_connection_point`
-
-Collapse the selected atoms into a single connection point, 0.75 A from the middle of everything they were bonded to and carrying those bonds.  For a chelate: two atoms that meet the next block together are one joint, and marking them separately gives a block with twice the coordination number it has.
-
-```{index} Mark as one connection point
-```
-
-(cmd-bond_rules)=
-### Bond rules...
-
-`bond_rules`
-
-Which atoms bond, and how close they have to be
-
-```{index} Bond rules...
-```
-
 (cmd-recompute_bonds)=
-### Recalculate bonds
+### Bonds ▸ Recalculate bonds
 
 `recompute_bonds`
 
@@ -961,7 +1091,7 @@ Perceive the bonds again from the geometry as it is now.  Bonds do not change on
 ```
 
 (cmd-reset_bonds)=
-### Reset bonds to automatic
+### Bonds ▸ Reset bonds to automatic
 
 `reset_bonds` · Ctrl+B
 
@@ -970,18 +1100,8 @@ Drop the bonds you drew and the ones you deleted, and take what the distance cri
 ```{index} Reset bonds to automatic
 ```
 
-(cmd-bonds_follow)=
-### Bonds follow the geometry
-
-`bonds_follow` · toggle
-
-Re-perceive the bonds after every edit that moves an atom, instead of only when you ask
-
-```{index} Bonds follow the geometry
-```
-
 (cmd-bond_type_single)=
-### Set Bond Type ▸ Single
+### Bonds ▸ Set Bond Type ▸ Single
 
 `bond_type_single` · toggle
 
@@ -991,7 +1111,7 @@ Call the selected bonds single, and their whole symmetry orbit with them
 ```
 
 (cmd-bond_type_double)=
-### Set Bond Type ▸ Double
+### Bonds ▸ Set Bond Type ▸ Double
 
 `bond_type_double` · toggle
 
@@ -1001,7 +1121,7 @@ Call the selected bonds double, and their whole symmetry orbit with them
 ```
 
 (cmd-bond_type_triple)=
-### Set Bond Type ▸ Triple
+### Bonds ▸ Set Bond Type ▸ Triple
 
 `bond_type_triple` · toggle
 
@@ -1011,7 +1131,7 @@ Call the selected bonds triple, and their whole symmetry orbit with them
 ```
 
 (cmd-bond_type_aromatic)=
-### Set Bond Type ▸ Aromatic
+### Bonds ▸ Set Bond Type ▸ Aromatic
 
 `bond_type_aromatic` · toggle
 
@@ -1021,13 +1141,73 @@ Call the selected bonds aromatic, and their whole symmetry orbit with them
 ```
 
 (cmd-bond_type_automatic)=
-### Set Bond Type ▸ Automatic
+### Bonds ▸ Set Bond Type ▸ Automatic
 
 `bond_type_automatic` · toggle
 
 Let the geometry decide this bond's order again
 
 ```{index} Automatic
+```
+
+(cmd-bond_rules)=
+### Bonds ▸ Bond rules...
+
+`bond_rules`
+
+Which atoms bond, and how close they have to be
+
+```{index} Bond rules...
+```
+
+(cmd-bonds_follow)=
+### Bonds ▸ Bonds follow the geometry
+
+`bonds_follow` · toggle
+
+Re-perceive the bonds after every edit that moves an atom, instead of only when you ask
+
+```{index} Bonds follow the geometry
+```
+
+(cmd-mark_connection_points)=
+### Building blocks ▸ Mark connection points
+
+`mark_connection_points`
+
+Turn each selected atom that has exactly one bond into a connection point: a dummy 0.75 A along that bond, which is what a PORMAKE building block is joined by.  There is no unmark -- an X does not remember what it was, so the way back is Ctrl+Z.
+
+```{index} Mark connection points
+```
+
+(cmd-mark_one_connection_point)=
+### Building blocks ▸ Mark as one connection point
+
+`mark_one_connection_point`
+
+Collapse the selected atoms into a single connection point, 0.75 A from the middle of everything they were bonded to and carrying those bonds.  For a chelate: two atoms that meet the next block together are one joint, and marking them separately gives a block with twice the coordination number it has.
+
+```{index} Mark as one connection point
+```
+
+(cmd-save_building_block)=
+### Building blocks ▸ Save as a building block...
+
+`save_building_block`
+
+Write this molecule into the folder the MOF builder reads, so it appears in the block picker beside the 867 PORMAKE ships.  It needs connection points on it -- the dialog says what is missing.
+
+```{index} Save as a building block...
+```
+
+(cmd-prepare_simulation)=
+### Prepare for simulation...
+
+`prepare_simulation`
+
+Make a deposited structure one a calculation can use: order the disorder into whole atoms, remove solvent, complete M3O trimers, add the missing hydrogens and take the primitive cell -- each step saying what it chose before anything is done, and one undo step for the lot
+
+```{index} Prepare for simulation...
 ```
 
 (cmd-mode_select)=
@@ -1908,26 +2088,6 @@ Calculate a powder diffraction pattern from this structure
 Fit peaks and refine against a measured .xy pattern, in a window of its own; the runs go under the structure in front, or under the pattern's name if none is open
 
 ```{index} Refine against a measured pattern...
-```
-
-(cmd-module.blender.export-stl)=
-### Blender ▸ Export as STL...
-
-`module.blender.export-stl`
-
-One unit cell with its bonds, turned into a printable mesh by Blender
-
-```{index} Export as STL...
-```
-
-(cmd-module.blender.render)=
-### Blender ▸ Render in Blender...
-
-`module.blender.render`
-
-One unit cell with its bonds, lit and rendered by Blender's Cycles; the scene is kept beside the picture
-
-```{index} Render in Blender...
 ```
 
 ## Window

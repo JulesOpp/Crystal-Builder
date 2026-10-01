@@ -65,6 +65,7 @@ from PySide6.QtWidgets import (
 from xtal.build import fill
 from xtal.io import FORMATS
 from xtalapp.widgets import tone
+from xtalapp.widgets.fit import fit_height
 
 DEFAULT_COUNT = 20
 
@@ -72,6 +73,13 @@ DEFAULT_COUNT = 20
 IN_THE_PORES = "In the pores"
 BESIDE = "One beside each selected atom"
 AT_POINT = "One at a point (fractional)"
+
+
+def _wide_enough(box, widest: str) -> None:
+    """Room for ``widest`` beside the arrows.  macOS sizes a spin box
+    to its arrows and a digit or two, and cut "0.80" to "0.8"."""
+    box.setMinimumWidth(box.fontMetrics().horizontalAdvance(widest)
+                        + 40)
 
 
 class FillPoresDialog(QDialog):
@@ -122,6 +130,7 @@ class FillPoresDialog(QDialog):
             box.setSingleStep(0.05)
             box.setValue(0.5)
             box.setToolTip(f"Fractional {axis} of the molecule's centre")
+            _wide_enough(box, "-0.0000")
             self.xyz.append(box)
             point_row.addWidget(box)
         self.from_selection = QPushButton("From selection")
@@ -172,6 +181,7 @@ class FillPoresDialog(QDialog):
         self.scale.setSingleStep(0.05)
         self.scale.setDecimals(2)
         self.scale.setValue(fill.DEFAULT_OVERLAP_SCALE)
+        _wide_enough(self.scale, "0.00")
         self.scale.setToolTip(
             "Two atoms clash when closer than this times the sum of "
             "their van der Waals radii.  1.0 lets nothing touch, which "
@@ -213,7 +223,7 @@ class FillPoresDialog(QDialog):
         layout.addWidget(self.detail)
         layout.addWidget(self.warning)
         layout.addWidget(self.buttons)
-        self.resize(460, 0)
+        self.resize(540, 0)
 
         for name, structure in sources:
             self.add_source(name, structure, choose=False)
@@ -239,6 +249,7 @@ class FillPoresDialog(QDialog):
         box.setSingleStep(0.5)
         box.setDecimals(1)
         box.setValue(value)
+        _wide_enough(box, "15.0")
         return box
 
     @property
@@ -349,6 +360,16 @@ class FillPoresDialog(QDialog):
         return self._capacity[key]
 
     def _preview(self, *_args) -> None:
+        self._describe()
+        # Every branch rewrites the wrapped notes, and a longer note
+        # must make the dialog taller rather than squash the form.
+        fit_height(self)
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        fit_height(self)
+
+    def _describe(self) -> None:
         ok = self.buttons.button(QDialogButtonBox.Ok)
         guest = self.guest()
         if guest is None:

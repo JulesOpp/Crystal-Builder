@@ -37,6 +37,7 @@ import sys
 from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
+    QApplication,
     QComboBox,
     QDoubleSpinBox,
     QLabel,
@@ -54,6 +55,7 @@ from xtalapp.viewport.view_settings import (
     FOLLOW_THE_SYSTEM,
     ViewSettings,
 )
+from xtalapp.widgets.periodic_table import PeriodicTableToolButton
 
 #: Which mouse mode the element combo belongs beside on the toolbar.
 #: Named rather than positioned: the combo is the element *that* mode
@@ -448,7 +450,8 @@ def build_actions(window):
         window.select_bonds_between,
         tip="Select every bond joining two elements, and no atoms -- "
             "so Delete and Bond type act on those bonds alone")
-    add("select_dialog", "&Select...", window.open_select_dialog,
+    add("select_dialog", "&Advanced Selection...",
+        window.open_select_dialog,
         tip="Select by label, coordination, what an atom is bonded "
             "to, a box, a point, or bonds by length and order -- and "
             "add, remove or intersect with what is held")
@@ -620,7 +623,6 @@ def build_menus(window):
         None, "save", "save_as",
         None, "export", "export_image", "export_stl", "render_blender",
         "export_net",
-        "save_building_block",
         None, "new_workspace", "open_workspace",
         None, "close_tab", "close_all_tabs"])
     file_menu.addSeparator()
@@ -631,8 +633,7 @@ def build_menus(window):
     edit_menu = submenu(bar, "&Edit")
     window.actions_.fill_menu(edit_menu, [
         "undo", "redo", None, "cut", "copy", "paste", "duplicate",
-        None, "delete_selection", "delete_bond",
-        "change_element"])
+        None, "delete_selection", "delete_bond"])
 
     select_menu = submenu(bar, "&Select")
     window.actions_.fill_menu(select_menu, [
@@ -645,18 +646,35 @@ def build_menus(window):
                                         "expand_fragment",
                                         "expand_orbit"])
 
+    # What is added, then what it is joined by, then what it is for:
+    # atoms, groups, whole molecules; the bond commands in one place;
+    # the framework builder's markers; Prepare last, because it is a
+    # rebuild of everything above.  Change element was in Edit, beside
+    # Delete, and Save as a building block in File, beside the
+    # exports; each is where the others of its kind are now.
     structure_menu = submenu(bar, "S&tructure")
     window.actions_.fill_menu(structure_menu, [
         "add_atom_dialog", "add_centroid", "merge_atoms",
-        "add_hydrogens", "substitute_rings", "insert_molecule",
-        "fill_pores",
-        "interpenetrate", "prepare_simulation",
-        "mark_connection_points", "mark_one_connection_point", None,
-        "bond_rules", "recompute_bonds", "reset_bonds",
-        "bonds_follow"])
-    window.bond_type_menu = add_bond_type_menu(window,
-                                              structure_menu)
-    structure_menu.addSeparator()
+        "change_element",
+        None, "add_hydrogens", "substitute_rings",
+        None, "insert_molecule", "fill_pores", "interpenetrate",
+        None])
+    # Six bond entries and a submenu made the middle of Structure a
+    # list to read through; as one submenu they are one entry to find.
+    # The same actions, so Recalculate bonds keeps its toolbar button
+    # and Reset bonds its Ctrl+B.
+    bonds_menu = submenu(structure_menu, "&Bonds")
+    window.actions_.fill_menu(bonds_menu, ["recompute_bonds",
+                                           "reset_bonds"])
+    window.bond_type_menu = add_bond_type_menu(window, bonds_menu)
+    window.actions_.fill_menu(bonds_menu, [None, "bond_rules",
+                                           "bonds_follow"])
+    blocks_menu = submenu(structure_menu, "Building b&locks")
+    window.actions_.fill_menu(blocks_menu, [
+        "mark_connection_points", "mark_one_connection_point",
+        "save_building_block"])
+    window.actions_.fill_menu(structure_menu, [
+        None, "prepare_simulation", None])
     # A submenu and not six flat entries: these are what the *mouse*
     # does, and under the bond commands they made the bottom of
     # Structure read as though a mode were an edit.
@@ -810,6 +828,8 @@ def build_modules_menu(window) -> None:
     window._module_submenus = {}
     previous = None
     for module in MODULES:
+        if not module.listed:
+            continue                    # Blender: File is its way in
         if previous is not None and module.group != previous:
             menu.addSeparator()
         previous = module.group
@@ -872,6 +892,18 @@ def module_action(window, module, action):
             shortcut=action.shortcut, tip=action.tip)
     return window.actions_[name]
 
+def _toolbar_label(text: str) -> QLabel:
+    """A word on the toolbar, in the toolbar buttons' font.
+
+    macOS draws a toolbar button in the small system font and a plain
+    label in the application's, so "cells" and "along" stood 13 pt
+    among buttons of 10.
+    """
+    label = QLabel(text)
+    label.setFont(QApplication.font("QToolButton"))
+    return label
+
+
 def build_toolbar(window):
     """The toolbar, in three groups: the file and the undo stack, what
     the mouse does, and what is being looked at.
@@ -899,14 +931,18 @@ def build_toolbar(window):
     window.element_combo.setToolTip("Element placed by Add atom")
     window.element_combo.currentTextChanged.connect(
         window._on_element_changed)
+    window.element_table = PeriodicTableToolButton(
+        current=window.element_combo.currentText)
+    window.element_table.chosen.connect(window.choose_element_to_place)
     for name in modes.names():
         bar.addAction(window.actions_[f"mode_{name}"])
         if name == ELEMENT_MODE:
             bar.addWidget(window.element_combo)
+            bar.addWidget(window.element_table)
     bar.addSeparator()
     bar.addAction(window.actions_["recompute_bonds"])
     bar.addSeparator()
-    bar.addWidget(QLabel("  cells "))
+    bar.addWidget(_toolbar_label("  cells "))
     window.cell_spins = []
     for axis in "abc":
         # Fractional when typed, because half a cell more of a
@@ -931,7 +967,7 @@ def build_toolbar(window):
         # spinbox's prefix.  A prefix is drawn *inside* the field, so
         # the box read "a 1" -- the letter sitting where the number
         # is, in the space the user clicks into to type one.
-        bar.addWidget(QLabel(f" {axis} "))
+        bar.addWidget(_toolbar_label(f" {axis} "))
         bar.addWidget(spin)
         window.cell_spins.append(spin)
     bar.addSeparator()
@@ -943,7 +979,7 @@ def build_toolbar(window):
     # The word before them is what keeps three bare letters from being
     # read as more cell counts.
     bar.addAction(window.actions_["reset_view"])
-    bar.addWidget(QLabel("  along "))
+    bar.addWidget(_toolbar_label("  along "))
     for axis, name in zip("abc", ["view_a", "view_b", "view_c"],
                           strict=True):
         action = window.actions_[name]
@@ -955,6 +991,7 @@ def build_toolbar(window):
     # dialog closed -- so Ctrl+Z undid the letter C and never the
     # slab.  Clicked into, it still hands Undo and Redo to the window.
     window._undo_goes_to_the_window = _UndoGoesToTheWindow(window)
+    window.element_table.setFocusPolicy(Qt.ClickFocus)
     for box in (window.element_combo, *window.cell_spins):
         box.setFocusPolicy(Qt.ClickFocus)
         field = box.lineEdit()

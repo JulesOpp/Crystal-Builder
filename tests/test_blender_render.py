@@ -145,8 +145,8 @@ def test_no_destination_is_refused_before_blender_starts(
 
 
 def test_a_missing_blender_greys_render_as_it_greys_stl(monkeypatch):
-    """Both are entries of the one Blender module, so the Modules menu
-    greys them together and says why."""
+    """Both are entries of the one Blender module, so one missing
+    program is one reason, said when either File entry is chosen."""
     monkeypatch.setattr(blender, "PROGRAM", process.Program(
         name="no-such-blender-here", label="Blender"))
     module = MODULES.get("blender")

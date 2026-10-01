@@ -251,7 +251,7 @@ def test_the_style_panel_is_headed_groups_in_the_agreed_order(window):
     the order is what one column reads, and the manual photographs it."""
     dock = window.style_dock
     assert [group.title() for group in dock.groups] == [
-        "Drawing", "Transparency", "Scene", "Show", "Colours",
+        "Drawing", "Transparency", "Show", "Scene", "Colours",
         "Depth cue"]
     homes = {"Drawing": (dock.style, dock.atom_scale, dock.bond_radius,
                          dock.ellipsoid_probability, dock.octants,
@@ -290,10 +290,34 @@ def test_a_wide_style_panel_puts_its_groups_side_by_side(qtbot, window,
     needed = columns.layout().two_column_width() + _frame(dock)
     if needed > 520:
         columns = _laid_out_at(qtbot, dock, needed)
-    drawing, show = dock.groups[0], dock.groups[3]
+    drawing, show, scene = dock.groups[0], dock.groups[2], dock.groups[3]
     assert columns.two_columns()
     assert drawing.y() == show.y()
     assert show.x() > drawing.x() + drawing.width()
+    # Scene is on the right, under Show: on the left it made that
+    # column three times the height of the other.
+    assert scene.x() == show.x()
+    assert scene.y() > show.y()
+
+
+def test_the_style_panel_scrolls_no_further_than_its_last_control(
+        qtbot, window, rutile_cif):
+    """The panel's minimum was the one-column height at every width,
+    so laid out in two columns it scrolled on into 500 px of nothing
+    below the element table."""
+    window.open_path(rutile_cif)
+    dock = window.style_dock
+    columns = _laid_out_at(qtbot, dock, 520)
+    needed = columns.layout().two_column_width() + _frame(dock)
+    if needed > 520:
+        columns = _laid_out_at(qtbot, dock, needed)
+    assert columns.two_columns()
+    inner = dock.widget().widget()
+    table = dock.elements.parentWidget()
+    bottom = table.geometry().bottom()
+    margin = inner.layout().contentsMargins().bottom()
+    assert inner.height() <= max(bottom + margin + 1,
+                                 dock.widget().viewport().height())
 
 
 def test_a_narrow_style_panel_stacks_its_groups_instead_of_scrolling_sideways(

@@ -60,14 +60,15 @@ included.  Both are on the {doc}`mouse modes <mouse-modes>` page.
    {ref}`Grow to neighbours only <cmd-expand_neighbours>` takes the
    atoms one bond away and lets go of the ones you had: select the
    zinc, and it leaves the oxygens on them.
-7. {ref}`Select… <cmd-select_dialog>` is everything else, one rule at
-   a time: an element or several, a label pattern (`O1*`, where the
-   case counts), every image of one site, atoms with *n* bonds (or at
-   least, or at most), atoms bonded to an element, atoms within *n*
-   bonds or *r* Å of the selection, near a point, or inside a
-   fractional box -- 0 to 1 on every axis is the whole cell -- and
-   bonds or net edges by their elements, order, length and whether
-   you drew them.  Below the rule, choose whether it *replaces* the
+7. {ref}`Advanced Selection… <cmd-select_dialog>` is everything
+   else, one rule at a time: an element or several, a label pattern
+   (`O1*`, where the case counts), every image of one site, atoms with
+   *n* bonds (or at least, or at most), atoms bonded to an element,
+   atoms within *n* bonds or *r* Å of the selection, near a point, or
+   inside a fractional box -- 0 to 1 on every axis is the whole cell
+   -- and bonds or net edges by their elements, order, length and
+   whether you drew them.  Below the rule, choose whether it
+   *replaces* the
    selection, *adds* to it, *removes* from it or *intersects* with
    it: the four-coordinate zinc, then *Intersect* with a box, is the
    zinc of one layer.  The count beside *Apply* is what *Apply* will

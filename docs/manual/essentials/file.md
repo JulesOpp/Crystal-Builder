@@ -126,13 +126,6 @@ the document's file.
    {cite}`delgadofriedrichs2003systre` to name -- a second opinion on
    the *Net* panel that does not come from the code that gave the
    first.  It is enabled only when a net has been drawn.
-5. {ref}`Save as a building block… <cmd-save_building_block>` writes
-   the open molecule into the workspace's `blocks/` folder, where the
-   MOF builder's picker reads it beside the 867 blocks PORMAKE ships.
-   It needs {term}`connection points <connection point>` on the
-   molecule, and the dialog says what is missing; {doc}`Building
-   blocks and connection points </frameworks/blocks>` is where blocks
-   are made.
 
 :::{note}
 **The workspace copy carries what the export cleans.**  The CIF in the
@@ -142,7 +135,7 @@ that copy *is* the document.  A file written by *Export…* holds no
 bonds, because the program reading it would take them for chemistry.
 Going the other way, a CIF from elsewhere that carries a `_geom_bond`
 loop is not read as bonding: that loop is nearly always a refinement's
-distance table, and *Structure ▸ Recalculate bonds* stays in charge of
+distance table, and *Structure ▸ Bonds ▸ Recalculate bonds* stays in charge of
 what is bonded.
 :::
 

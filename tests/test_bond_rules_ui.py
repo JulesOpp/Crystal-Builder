@@ -307,3 +307,15 @@ def _accepting_defaults(original, scale):
         original(self, document, parent, rules)
         self.scale.setValue(scale)
     return patched
+
+
+def test_the_pair_column_is_never_squeezed_to_nothing(dialog):
+    """Pair was the stretched column beside three fixed ones, and in
+    the dialog's own width it was drawn 19 px wide: the one column
+    that says which row is which was the one cut off."""
+    dialog.show()
+    table = dialog.table
+    text = table.item(0, 0).text()
+    assert table.columnWidth(0) >= \
+        table.fontMetrics().horizontalAdvance(text)
+    assert table.horizontalScrollBar().maximum() == 0

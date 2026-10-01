@@ -1,4 +1,4 @@
-"""Select > Select...: one rule, combined with what is held.
+"""Select > Advanced Selection...: one rule, combined with what is held.
 
 The rules themselves are tested headless in ``test_selection.py``;
 this is the form, the count beside Apply, the combine chooser and the

@@ -1,7 +1,7 @@
 """
 xtalapp.dialogs.select
 ======================
-Select > Select...: one rule, and how it meets what is held.
+Select > Advanced Selection...: one rule, and how it meets what is held.
 
 The menu has a handful of fixed ways of arriving at a selection; this
 is the rest of them, as one form -- by label, by coordination, by
@@ -109,7 +109,7 @@ class SelectDialog(QDialog):
 
     def __init__(self, document, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Select")
+        self.setWindowTitle("Advanced Selection")
         self.document = document
         elements = sorted(set(document.cell.elements))
 

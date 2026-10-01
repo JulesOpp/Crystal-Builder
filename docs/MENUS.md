@@ -11,6 +11,7 @@ what is there now.  What was built:
 | § 2 | Structure · Symmetry · Cell, then Measure · View, then Modules · Window · Help; the mouse modes are a submenu; Open Recent moved up | `menus.py:build_menus` |
 | § 3 | The element combo sits with Add atom; Reset view and the axis views close the bar | `menus.py:build_toolbar` |
 | § 4 | Nothing renamed, so nothing in the six files changed | — |
+| § 5 | 2026-10: Structure regrouped with a Bonds and a Building blocks submenu; Select... → Advanced Selection...; Blender in File only; a periodic table beside the element box | `menus.py:build_menus`, `build_toolbar` |
 
 Nothing was renamed, which is why § 4 cost nothing: every registry key
 is the key it was, and the seven new tests in
@@ -214,3 +215,41 @@ uses — menus, toolbar, context menus, the log, saved shortcuts — and a
 label is what one user reads.  `test_modules_ui.py:107` is the one to
 watch, because it ties a *module's* label to the registry rather than
 to a literal: renaming a module there is one edit and no test change.
+
+---
+
+## 5. The second pass (2026-10)
+
+### Structure
+
+> Add atom... · Add centroid... · Merge atoms · Change element... ║
+> Add hydrogens... · Substitute hydrogens... ║ Insert molecule... ·
+> Fill pores with molecules... · Interpenetrate... ║ **Bonds ▸** ·
+> **Building blocks ▸** ║ Prepare for simulation... ║ Mouse mode ▸
+
+* **Bonds ▸** holds Recalculate bonds, Reset bonds to automatic, Set
+  Bond Type ▸, Bond rules... and Bonds follow the geometry.  Six bond
+  entries in the middle of Structure were a list to read through.
+  Recalculate bonds keeps its toolbar button and Reset bonds keeps
+  Ctrl+B -- the same actions, so bonds are still recalculated only
+  when somebody asks.
+* **Building blocks ▸** holds the two Mark entries and Save as a
+  building block..., which moved from File.
+* **Change element...** moved from Edit, beside the other things that
+  change which atoms there are.  Both moved entries are where they
+  were in the context menus.
+
+### Elsewhere
+
+* Select ▸ **Advanced Selection...** was "Select...", a name that
+  repeated its menu's.  Registry key `select_dialog` unchanged.
+* **Export as STL and Render in Blender are in File only.**  They were
+  also Modules ▸ Blender; both entries are `listed=False` now, and a
+  module with nothing listed (`Module.listed`) has no submenu and no
+  row in the Modules panel.  A missing Blender is said when either is
+  chosen, by `run_module_action`.
+* **The toolbar's periodic table** (`PeriodicTableToolButton`, a drawn
+  glyph) sits after the element box: the pick goes in the box and the
+  mouse goes to Add atom.  The words between the boxes ("cells", the
+  axis letters, "along") take the toolbar buttons' font.
+

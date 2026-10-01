@@ -39,7 +39,7 @@ def window(qtbot, tmp_path):
 
 def test_an_empty_window_shows_the_start_pane(window):
     assert window.tabs.count() == 0
-    assert window.central.currentWidget() is window.start_pane
+    assert window.central.currentWidget() is window.start_page
 
 
 def test_opening_a_structure_puts_the_tabs_in_front(window, tmp_path,
@@ -60,7 +60,7 @@ def test_closing_the_last_tab_brings_the_start_pane_back(window,
     window.close_document(0)
 
     assert window.tabs.count() == 0
-    assert window.central.currentWidget() is window.start_pane
+    assert window.central.currentWidget() is window.start_page
 
 
 def test_the_start_pane_buttons_are_the_window_actions(window):
@@ -113,3 +113,11 @@ def test_the_other_samples_are_no_wider_than_the_shipped_ones(window):
     for grid in others:
         assert (grid.minimumSize().width()
                 <= shipped.minimumSize().width())
+
+
+def test_the_start_page_does_not_set_the_window_height(window):
+    """A stack is as tall as its tallest page, shown or not, and forty
+    sample buttons made the start pane 950 px: with tabs open in front
+    of it the window could not be shorter than 1047 px, and its bottom
+    was off a 912 px screen."""
+    assert window.central.minimumSizeHint().height() < 300
