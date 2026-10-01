@@ -40,7 +40,7 @@ from PySide6.QtWidgets import (
 
 from xtal.commands.clipboard import Fragment
 from xtal.workspace import resolved
-from xtalapp import external, layout, menus, windows, workers
+from xtalapp import docks, external, layout, menus, windows, workers
 from xtalapp.actions import ActionRegistry
 from xtalapp.autosave import Autosaver
 from xtalapp.dialogs.display_range import DisplayRangeDialog
@@ -167,8 +167,14 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         # The start pane is built from the actions, so after them; it
         # and the tabs share the middle, one at a time.
         self.start_pane = StartPane(self)
+        # Scrolling, because a stack is as tall as its tallest page
+        # whether that page is showing or not: forty sample buttons
+        # made the start pane 950 px, and the window could not be
+        # shorter than 1047 px with tabs open in front of it -- the
+        # bottom of it off a laptop's screen.
+        self.start_page = docks.scrolling(self.start_pane)
         self.central = QStackedWidget()
-        self.central.addWidget(self.start_pane)
+        self.central.addWidget(self.start_page)
         self.central.addWidget(self.tabs)
         # And a bar above both, for what a status line is too brief
         # for and a modal too much.

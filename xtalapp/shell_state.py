@@ -230,7 +230,7 @@ class ShellRefresh:
         # Fired for the first tab arriving and the last one going, so
         # it is also where the start pane comes and goes.
         self.central.setCurrentWidget(
-            self.tabs if self.tabs.count() else self.start_pane)
+            self.tabs if self.tabs.count() else self.start_page)
         self._update_ui()
         self.workspace_shell.save_session()
         self.workspace_shell.show_open_document()
