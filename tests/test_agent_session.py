@@ -438,3 +438,209 @@ def test_select_answers_with_atoms_and_pushes_nothing(rutile):
         "nothing matched"
     with pytest.raises(ValueError):
         session.select("colour")
+
+
+class _PullsCarbonAndOxygenApart:
+    """A calculator whose minimum puts every oxygen of dry ice
+    ``length`` A from its carbon: 2.0 A is 1.44 x the sum of their
+    covalent radii, where perception (1.15 x) no longer bonds them."""
+
+    name = "pull"
+    provides_forces = True
+    provides_stress = False
+    warnings = []
+
+    def __init__(self, structure, length=2.0):
+        self.length = length
+        from xtal.core import p1
+
+        cell = p1.expand(structure)
+        self._n = cell.n_atoms
+        carbons = [i for i, e in enumerate(cell.elements) if e == "C"]
+        cart = cell.cart
+        matrix = structure.lattice.matrix
+        self._pairs = []
+        for o, element in enumerate(cell.elements):
+            if element != "O":
+                continue
+            nearest = min(carbons, key=lambda c: np.linalg.norm(
+                _nearest_image(cart[o] - cart[c], matrix)))
+            self._pairs.append((o, nearest))
+
+    @property
+    def n_atoms(self):
+        return self._n
+
+    def summary(self):
+        return "pulls C-O apart"
+
+    def stop_with(self, cancel):
+        pass
+
+    def compute(self, positions, matrix):
+        from xtal.ff.api import Result
+
+        positions = np.asarray(positions, dtype=float)
+        forces = np.zeros_like(positions)
+        energy = 0.0
+        for o, c in self._pairs:
+            d = _nearest_image(positions[o] - positions[c], matrix)
+            r = float(np.linalg.norm(d))
+            energy += (r - self.length) ** 2
+            push = -2.0 * (r - self.length) * d / r
+            forces[o] += push
+            forces[c] -= push
+        return Result(energy, forces, {"pull": energy})
+
+
+def _nearest_image(delta, matrix):
+    matrix = np.asarray(matrix, dtype=float)
+    frac = delta @ np.linalg.inv(matrix)
+    return (frac - np.round(frac)) @ matrix
+
+
+def test_a_relaxation_that_would_change_the_bonding_says_so(
+        monkeypatch, dry_ice):
+    """If this breaks, an agent relaxes a structure apart and reports
+    it as fine: the drawn bonds never follow the atoms, so nothing
+    else in the answer says that a C-O bond now spans 2 A."""
+    session = Session(dry_ice)
+    bonds = len(bonding.perceive(session.structure))
+    calculator = _PullsCarbonAndOxygenApart(session.structure)
+    monkeypatch.setattr(session, "_calculator",
+                        lambda engine, options: (calculator, None))
+    answer = session.optimize(engine="pull", max_steps=200)
+    assert answer.ok, answer
+    assert answer.data["max_displacement"] > 0.5
+    warned = [d for d in answer.diagnostics
+              if d.code == "BONDING_WOULD_CHANGE"]
+    assert len(warned) == 1 and warned[0].level == "warning"
+    assert warned[0].message == (
+        "the relaxation moved 0 bond(s) into and 8 out of bonding "
+        "distance; bonds were left as they were")
+    assert len(bonding.perceive(session.structure)) == bonds
+    assert len(session.history()) == 1
+
+
+def test_bonds_left_stale_by_a_move_are_not_blamed_on_the_relaxation(
+        monkeypatch, dry_ice):
+    """A move leaves the drawn C-O bonds spanning 2.0 A; relaxing on to
+    2.1 A changes nothing perception bonds.  If this breaks, the agent
+    is told its relaxation broke bonds that its own move broke."""
+    session = Session(dry_ice)
+    drawn = len(bonding.perceive(session.structure))
+    x = 2.0 / (np.sqrt(3) * 5.624)
+    assert session.move_sites([1], to=[x, x, x]).ok
+    calculator = _PullsCarbonAndOxygenApart(session.structure, 2.1)
+    monkeypatch.setattr(session, "_calculator",
+                        lambda engine, options: (calculator, None))
+    answer = session.optimize(engine="pull", max_steps=200)
+    assert answer.ok, answer
+    assert answer.data["max_displacement"] > 0.05
+    assert len(bonding.perceive(session.structure)) == drawn
+    assert not any(d.code == "BONDING_WOULD_CHANGE"
+                   for d in answer.diagnostics)
+
+
+def test_the_bonding_check_steps_aside_when_the_cell_changed_its_atom_count(
+        dry_ice):
+    """An oxygen moved onto 4b (1/2, 1/2, 1/2) merges its orbit of
+    eight into four.  If this breaks, the check raises after the
+    relaxation was already applied, and the agent gets a traceback
+    for a step that happened."""
+    from xtal.agent.session import _bonding_would_change
+    from xtal.core import p1
+
+    merged = dry_ice.copy()
+    merged.sites[1].frac = np.array([0.5, 0.5, 0.5])
+    assert p1.expand(merged).n_atoms != p1.expand(dry_ice).n_atoms
+    assert _bonding_would_change(dry_ice, merged) is None
+
+
+def test_a_relaxation_that_keeps_the_bonding_says_nothing(dry_ice):
+    session = Session(dry_ice)
+    answer = session.optimize(max_steps=5)
+    assert answer.ok, answer
+    assert answer.data["max_displacement"] > 0
+    assert not any(d.code == "BONDING_WOULD_CHANGE"
+                   for d in answer.diagnostics)
+
+
+def _scan_that_runs_nothing(monkeypatch, run=None):
+    """The real scan's parameters over a run that relaxes nothing:
+    the count is read from the parameters, before the run."""
+    import dataclasses
+
+    from xtal.modules import MODULES
+    from xtal.modules.job import JobResult
+    from xtal.modules.scan import SCAN
+
+    action = dataclasses.replace(
+        SCAN.actions[0], run=run or (lambda job: JobResult("scanned")))
+    module = dataclasses.replace(SCAN, actions=(action,))
+    monkeypatch.setattr(MODULES, "find", lambda name: (module, action))
+
+
+@pytest.mark.parametrize("direction, points",
+                         [("forward", 5), ("both", 10)])
+def test_a_scan_of_many_points_says_how_many(monkeypatch, rutile,
+                                             direction, points):
+    """If this breaks, an agent starts a grid of hours without the
+    person hearing how big it is.  The empty second axis is not
+    walked, so its default step count is not multiplied in."""
+    _scan_that_runs_nothing(monkeypatch)
+    answer = Session(rutile).run("scan.run", axis1="a",
+                                 axis1_start=4.5, axis1_stop=4.7,
+                                 axis1_steps="5", direction=direction)
+    assert answer.ok, answer
+    sized = [d for d in answer.diagnostics if d.code == "SCAN_SIZE"]
+    assert len(sized) == 1 and sized[0].level == "info"
+    assert sized[0].message == (f"{points} points, each a relaxation, "
+                                f"written as it finishes")
+
+
+def test_a_scan_that_raises_still_says_how_big_it_was(monkeypatch,
+                                                      rutile):
+    """The size is said before the run; a run that raises must not
+    take it away with the answer it could not give."""
+    def run(job):
+        raise RuntimeError("the engine died at the first point")
+
+    _scan_that_runs_nothing(monkeypatch, run)
+    answer = Session(rutile).run("scan.run", axis1="a",
+                                 axis1_start=4.5, axis1_stop=4.7,
+                                 axis1_steps=3, direction="both")
+    assert not answer.ok
+    assert [d.code for d in answer.diagnostics] == ["MODULE_FAILED",
+                                                    "SCAN_SIZE"]
+    assert answer.diagnostics[1].message.startswith("6 points")
+
+
+def test_a_single_point_scan_says_nothing(monkeypatch, rutile):
+    _scan_that_runs_nothing(monkeypatch)
+    answer = Session(rutile).run("scan.run", axis1="a",
+                                 axis1_start=4.6, axis1_stop=4.6,
+                                 axis1_steps=1, direction="forward")
+    assert answer.ok, answer
+    assert not any(d.code == "SCAN_SIZE" for d in answer.diagnostics)
+
+
+def test_opening_into_another_workspace_says_the_file_stayed_where_it_was(
+        tmp_path, rutile):
+    """If this breaks, an agent that named a workspace believes its
+    work is filed there, and looks for it in the wrong folder."""
+    cif = tmp_path / "rutile.cif"
+    write_cif(rutile, cif)
+    first = Session.open(cif, workspace=tmp_path / "first")
+    second = Session.open(first.path, workspace=tmp_path / "second")
+    assert second.path == first.path
+    ignored = [d for d in second.opened.diagnostics
+               if d.code == "WORKSPACE_IGNORED"]
+    assert len(ignored) == 1 and ignored[0].level == "info"
+    assert ignored[0].message == (
+        f"{first.path} already belongs to the workspace at "
+        f"{(tmp_path / 'first').resolve()}; {tmp_path / 'second'} was "
+        f"not used")
+    again = Session.open(first.path, workspace=tmp_path / "first")
+    assert not any(d.code == "WORKSPACE_IGNORED"
+                   for d in again.opened.diagnostics)

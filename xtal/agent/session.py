@@ -117,6 +117,14 @@ class Session:
             path = entry.path / path.name
         session = cls(structure, path, entry, view, project_session)
         notes = []
+        if found is not None and workspace is not None and \
+                found.root != Path(workspace).resolve():
+            # The file stays where it belongs, so an agent that named
+            # a workspace would otherwise look for its runs there.
+            notes.append(Diagnostic(
+                "WORKSPACE_IGNORED",
+                f"{path} already belongs to the workspace at "
+                f"{found.root}; {workspace} was not used"))
         project = path.with_suffix(PROJECT_EXTENSION)
         if not is_project(path) and project.is_file():
             # A session lives as long as its process.  An agent that
@@ -778,6 +786,7 @@ class Session:
             return True
 
         before = [s.frac.copy() for s in self.structure.sites]
+        start = self.structure.copy()
         try:
             result = ff_optimize.run(calculator, self.structure,
                                      callback=trace, **kwargs)
@@ -824,6 +833,10 @@ class Session:
         ff_record.close_run(recorder, result, final=self.structure)
         if recorder is not None:
             answer.data["run"] = str(recorder.folder.path)
+        changed = _bonding_would_change(start, self.structure)
+        if changed is not None:
+            answer.diagnostics.append(changed)
+        if recorder is not None or changed is not None:
             self._rewrite_last_log(answer)
         return answer
 
@@ -851,6 +864,10 @@ class Session:
                              f"measuring one: Session.build({action!r}, "
                              f"workspace, ...)")
         coerced = entry_action.coerce(_as_strings(params))
+        # Said before the run and kept whatever it does: a grid of
+        # hours that fails at its first point was still that size.
+        size = _scan_size(action, coerced)
+        sized = [size] if size is not None else []
         folder = module_record.open_run(self.entry, module, entry_action,
                                         coerced, self.structure)
         job = Job(structure=self.structure, params=coerced,
@@ -860,9 +877,10 @@ class Session:
         except Exception as exc:        # noqa: BLE001 -- said, not lost
             module_record.close_run(folder, error=str(exc))
             return self._answer_refused(
-                action, params, Diagnostic("MODULE_FAILED", str(exc)))
+                action, params, Diagnostic("MODULE_FAILED", str(exc)),
+                notes=sized)
         module_record.close_run(folder, result)
-        notes = _result_warnings(result)
+        notes = sized + _result_warnings(result)
         if not result.ok:
             notes.insert(0, Diagnostic("MODULE_FAILED",
                                        result.message or "failed"))
@@ -981,11 +999,12 @@ class Session:
         return self._answer_refused(verb, args,
                                     Diagnostic(code, message))
 
-    def _answer_refused(self, verb, args, diagnostic) -> VerbResult:
+    def _answer_refused(self, verb, args, diagnostic,
+                        notes=()) -> VerbResult:
         answer = VerbResult(verb, False, diagnostic.message,
                             atoms_before=self.n_atoms,
                             atoms_after=self.n_atoms,
-                            diagnostics=[diagnostic])
+                            diagnostics=[diagnostic, *notes])
         self._record(verb, args, answer)
         return answer
 
@@ -1150,6 +1169,78 @@ def _as_strings(params: dict) -> dict:
         else:
             out[key] = str(value)
     return out
+
+
+def _bonding_would_change(start, result) -> Diagnostic | None:
+    """``BONDING_WOULD_CHANGE`` when the relaxation moved atoms into or
+    out of bonding distance: perception of the result against
+    perception of the start, both afresh.
+
+    Afresh, on copies with the stored graph dropped, as a
+    recalculation would: perception otherwise answers from the stored
+    graph, which does not follow a geometry, and passing the rules
+    does not get past its memo.  Not against the drawn graph either: a
+    graph left stale by an earlier move would be blamed on the
+    relaxation.  The start is read in the result's wrap, so an atom
+    that crossed a cell face is not a bond lost and found.
+
+    An orbit that merged on a special position, or split off one,
+    leaves two cells whose atom indices name different atoms: there
+    is no bond-for-bond comparison to make, and ``rebase`` would raise
+    after the geometry was already applied.  Nothing is said then.
+    """
+    if p1.expand(start).n_atoms != p1.expand(result).n_atoms:
+        return None
+    then, then_tau = _perceived_afresh(start)
+    now, now_tau = _perceived_afresh(result)
+    before = {b.key() for b in bonding.rebase(then, then_tau, now_tau)}
+    after = {b.key() for b in now}
+    into, out = len(after - before), len(before - after)
+    if not into and not out:
+        return None
+    return Diagnostic(
+        "BONDING_WOULD_CHANGE",
+        f"the relaxation moved {into} bond(s) into and {out} out of "
+        f"bonding distance; bonds were left as they were")
+
+
+def _perceived_afresh(structure):
+    """The bonds perception finds now, and the wrap they are read in;
+    ``structure`` itself and its stored graph are not touched."""
+    fresh = structure.copy()
+    fresh.clear_perceived()
+    return bonding.perceive(fresh), p1.expand(fresh).tau
+
+
+def _scan_size(action: str, params: dict) -> Diagnostic | None:
+    """``SCAN_SIZE`` for a scan of more than one point, from the
+    coerced parameters: each axis that is walked multiplies the count
+    by its steps, and walking both ways doubles it.
+
+    An axis whose coordinate is empty is not walked (``axes_from``
+    skips it), and its steps still arrive filled in by ``coerce``:
+    counted, a one-axis scan of 5 read as 45.
+    """
+    if not action.startswith("scan."):
+        return None
+    points, any_axis = 1, False
+    for name, value in params.items():
+        axis = name.removesuffix("_steps")
+        if axis == name or not axis.startswith("axis"):
+            continue
+        if axis in params and not str(params[axis] or "").strip():
+            continue
+        points *= int(value)
+        any_axis = True
+    if not any_axis:
+        return None
+    if any("direction" in name and value == "both"
+           for name, value in params.items()):
+        points *= 2
+    if points <= 1:
+        return None
+    return Diagnostic("SCAN_SIZE", f"{points} points, each a relaxation, "
+                                   f"written as it finishes")
 
 
 def _engine_notes(calculator) -> list[Diagnostic]:

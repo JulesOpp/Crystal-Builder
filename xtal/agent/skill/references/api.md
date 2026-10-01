@@ -29,7 +29,9 @@ A classmethod. Opens a structure file (CIF, POSCAR, XYZ, PDB …) or a
 `.xtalproj` project. With `workspace`, the file is **copied into** the
 workspace and the session follows the copy; the original is recorded in
 `structure.meta["source"]`. A file already inside a workspace is used
-where it is. A project keeps its view and selection through a save.
+where it is, and naming another workspace for it says
+`WORKSPACE_IGNORED`. A project keeps its view and selection through a
+save.
 `session.opened` is the open's own `VerbResult`: opening a CIF whose
 entry already holds a saved project carries `PROJECT_EXISTS`, because
 the project is where earlier work was kept. To continue across
@@ -272,6 +274,8 @@ space group's allowed strains) as one undo step. `method` is one of
 kcal/mol/Å. `data` has `converged`, `steps`, `initial_energy`,
 `energy`, `max_force`, `max_displacement`, and `run`, the folder in the
 workspace. An unconverged run is applied and says `NOT_CONVERGED`.
+The bonds are left as drawn; `BONDING_WOULD_CHANGE` says when the
+relaxation moved atoms into or out of bonding distance.
 
 ### `run(action, **params)`
 
@@ -281,6 +285,8 @@ is the tables as rows, `data["report_text"]` the text the CLI prints,
 `data["run"]` the folder. Parameters are the form's
 (`help_for("zeopp.volume-grid")`). A module that returns a structure
 does not change the session (`RESULT_NOT_APPLIED` says where it is).
+A scan of more than one point says how many in `SCAN_SIZE`, whether it
+runs or fails.
 
 ## History and files
 
