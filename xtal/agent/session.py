@@ -601,6 +601,64 @@ class Session:
             data={"placed": placement.placed,
                   "missed": list(placement.missed)})
 
+    def place_molecule(self, guest: str, at, turn: bool = False,
+                       keep_group: bool = False,
+                       overlap_scale: float | None = None,
+                       seed: int = 0) -> VerbResult:
+        """One copy of a molecule with its centroid at fractional
+        ``at`` -- the place somebody already knows: a template in its
+        cage, a guest a diffraction study located.
+
+        ``guest`` as for :meth:`fill_pores`.  As drawn unless ``turn``;
+        ``keep_group`` lets the host's group copy it, otherwise the
+        host is reduced to P1 in the same undo step.  A crowded point
+        is placed anyway, with ``CLOSE_CONTACT`` naming the contact,
+        and copies the group lays over each other are
+        ``SYMMETRY_NOTE`` -- see :func:`xtal.build.fill.at_point`.
+        """
+        from xtal.build import fill
+
+        args = {"guest": guest, "at": list(at), "turn": turn,
+                "keep_group": keep_group,
+                "overlap_scale": overlap_scale, "seed": seed}
+        try:
+            molecule = _guest(guest)
+        except ValueError as exc:
+            return self._refused("place_molecule", args, str(exc))
+        if len(args["at"]) != 3:
+            return self._refused("place_molecule", args,
+                                 "at is three fractional coordinates")
+        placement = fill.at_point(
+            self.structure, molecule, args["at"], turn=turn,
+            keep_group=keep_group,
+            overlap_scale=(fill.DEFAULT_OVERLAP_SCALE
+                           if overlap_scale is None else overlap_scale),
+            seed=seed)
+        notes = []
+        if placement.special:
+            notes.append(Diagnostic("SYMMETRY_NOTE",
+                                    placement.warnings()[0]))
+        elif not keep_group and not self.structure.space_group.is_p1:
+            notes.append(Diagnostic(
+                "SYMMETRY_NOTE", "the host was reduced to P1 so that "
+                "this is the one molecule added"))
+        if placement.crowded:
+            notes.append(Diagnostic("CLOSE_CONTACT",
+                                    placement.contact.sentence()))
+        notes.append(Diagnostic("BONDS_NOT_RECALCULATED",
+                                "what was placed is bonded to nothing "
+                                "but itself"))
+        contact = placement.contact
+        return self._push(
+            "place_molecule", fill.insert_command(placement),
+            placement.message(), args, notes=notes,
+            data={"atoms_made": placement.atoms_made,
+                  "contact": None if contact is None else {
+                      "atom": contact.atom, "other": contact.other,
+                      "of": contact.of,
+                      "distance": round(contact.distance, 3),
+                      "ratio": round(contact.ratio, 3)}})
+
     # ------------------------------------------------------------------
     #  WHOLE-STRUCTURE OPERATIONS
     # ------------------------------------------------------------------

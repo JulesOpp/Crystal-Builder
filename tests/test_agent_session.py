@@ -353,6 +353,43 @@ def test_fill_pores_refuses_a_guest_it_cannot_read(rutile):
     assert s.stack.is_clean
 
 
+def test_place_molecule_at_a_point_is_one_logged_step(tmp_path,
+                                                      dry_ice):
+    """The molecule from one file at a point in another's cell, through
+    the command the dialog pushes: one undo step, logged, and a crowded
+    point placed with the contact named rather than refused."""
+    from xtal import Lattice, Structure
+
+    solvent = tmp_path / "co2.cif"
+    write_cif(dry_ice, solvent)
+    host = tmp_path / "host.cif"
+    write_cif(Structure.from_arrays(Lattice.cubic(14.0), ["Na"],
+                                    [[0.0, 0.0, 0.0]],
+                                    space_group="Fm-3m"), host)
+    s = Session.open(host, workspace=tmp_path / "ws")
+    before = s.n_atoms
+
+    answer = s.place_molecule(str(solvent), [0.3, 0.2, 0.1])
+
+    assert answer.ok, answer.message
+    assert answer.message == "placed CO2 at (0.3000, 0.2000, 0.1000)"
+    assert s.n_atoms == before + 3
+    assert s.structure.space_group.is_p1
+    assert answer.data["contact"]["of"] == "host"
+    codes = [d.code for d in answer.diagnostics]
+    assert "SYMMETRY_NOTE" in codes and "CLOSE_CONTACT" not in codes
+    log = (s.entry.path / "agent-session.jsonl").read_text()
+    assert "place_molecule" in log
+
+    crowded = s.place_molecule(str(solvent), [0.0, 0.0, 0.0])
+    assert crowded.ok
+    assert "CLOSE_CONTACT" in [d.code for d in crowded.diagnostics]
+
+    s.undo()
+    s.undo()
+    assert s.n_atoms == before
+
+
 def test_substitute_turns_mof5_into_irmof3_in_one_step(tmp_path):
     """The same command the dialog pushes: one amine per ring, and the
     edit is one undo step with nothing to report."""

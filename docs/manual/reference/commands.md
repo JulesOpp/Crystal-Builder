@@ -895,7 +895,7 @@ Build a molecule from a SMILES string and paste it into this structure.  It arri
 
 `fill_pores`
 
-Put copies of a molecule -- from another tab or a file -- into the empty space of this structure, each where it touches nothing -- or one beside each selected atom, for a charged framework's counter-ions.  A host with symmetry is reduced to P1 first, and bonds are not recalculated
+Put copies of a molecule -- from another tab or a file -- into the empty space of this structure, each where it touches nothing -- or one beside each selected atom, for a charged framework's counter-ions, or one at a fractional point.  A host with symmetry is reduced to P1 first unless a point keeps it, and bonds are not recalculated
 
 ```{index} Fill pores with molecules...
 ```

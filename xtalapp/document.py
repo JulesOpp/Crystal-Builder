@@ -2183,10 +2183,10 @@ class Document(QObject):
         self.select(_atoms_of_sites(self.cell, command.indices))
         return placement.message()
 
-    def insert_molecule(self, guest: Fragment, frac, *,
-                        turn: bool = False, keep_group: bool = False,
-                        overlap_scale: float = fill.DEFAULT_OVERLAP_SCALE,
-                        seed: int | None = None):
+    def place_molecule(self, guest: Fragment, frac, *,
+                       turn: bool = False, keep_group: bool = False,
+                       overlap_scale: float = fill.DEFAULT_OVERLAP_SCALE,
+                       seed: int | None = None):
         """One copy of ``guest`` with its centroid at ``frac``, as one
         undo step, left selected.  Returns a report whose warnings are
         a crowded point or copies laid over each other -- placed

@@ -291,7 +291,7 @@ def test_a_crowded_insert_puts_up_the_warning_box(
     monkeypatch.setattr(
         FillPoresDialog, "ask",
         classmethod(lambda cls, document, *a, **k:
-                    document.insert_molecule(guest, (0, 0, 0))))
+                    document.place_molecule(guest, (0, 0, 0))))
     monkeypatch.setattr(QMessageBox, "warning",
                         lambda *args: shown.append(args[2]))
 

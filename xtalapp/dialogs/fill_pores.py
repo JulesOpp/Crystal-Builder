@@ -480,7 +480,7 @@ class FillPoresDialog(QDialog):
         if guest is None:
             return ""
         if self.at_point:
-            return self.document.insert_molecule(
+            return self.document.place_molecule(
                 guest, self.frac, turn=self.turn.isChecked(),
                 keep_group=self.keeping_group,
                 overlap_scale=self.scale.value(),
