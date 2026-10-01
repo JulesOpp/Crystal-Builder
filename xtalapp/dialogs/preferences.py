@@ -32,6 +32,7 @@ has to reach the Modules menu and the run panels.
 
 from __future__ import annotations
 
+import importlib.util
 import shutil
 import tempfile
 
@@ -57,6 +58,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from xtal import install
+from xtal.agent import discovery
 from xtal.core import bonding
 from xtal.modules import probe as probes
 from xtalapp import external, extras
@@ -769,8 +772,142 @@ class EnginesPage(QWidget):
             self._done(key, False, "Stopped.")
 
 
+class AgentPage(QWidget):
+    """Letting an AI assistant drive this window, and how to point one
+    at it.
+
+    The switch starts the window's server and the two lines are what a
+    person pastes into an assistant; both carry the live port, and the
+    first the token, so they are drawn from the running server
+    (:meth:`attach`) rather than from the settings alone.
+    """
+
+    TITLE = "AI assistant"
+
+    serveChanged = Signal(bool)
+    portChanged = Signal(int)
+
+    def __init__(self, settings, parent=None):
+        super().__init__(parent)
+        self.settings = settings
+        self._server = None
+        self._extra = importlib.util.find_spec("mcp") is not None
+        layout = QVBoxLayout(self)
+
+        box = QGroupBox("Let an assistant work in this window")
+        inner = QVBoxLayout(box)
+        self.serve = QCheckBox("Let an AI assistant connect to this "
+                               "window")
+        self.serve.setChecked(settings.agent_serve and self._extra)
+        self.serve.setEnabled(self._extra)
+        self.serve.toggled.connect(self._serve_toggled)
+        inner.addWidget(self.serve)
+        inner.addWidget(_hint(
+            "On, an assistant such as Claude Code works on the tabs "
+            "open here, through the same commands as the menus: each "
+            "thing it does is one step Ctrl+Z takes back, and the "
+            "status bar says what it did.  It listens on this "
+            "computer only, and answers only a client holding the "
+            "key in the first line below."))
+        form = QFormLayout()
+        self.port = QSpinBox()
+        self.port.setRange(1024, 65535)
+        self.port.setValue(settings.agent_port)
+        self.port.valueChanged.connect(self._port_set)
+        form.addRow("Port", self.port)
+        inner.addLayout(form)
+        inner.addWidget(_hint(
+            "Asked for the next time it starts.  If another program "
+            "has it, a free one is used instead, and the lines below "
+            "say which."))
+        self.status = QLabel()
+        self.status.setWordWrap(True)
+        self.status.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse)
+        inner.addWidget(self.status)
+        layout.addWidget(box)
+
+        box = QGroupBox("Pointing an assistant at it")
+        inner = QVBoxLayout(box)
+        inner.addWidget(QLabel("Claude Code, straight to this window:"))
+        self.http = _Command("")
+        inner.addWidget(self.http)
+        inner.addWidget(_hint(
+            "The key is made afresh each time the application starts, "
+            "so paste this line again after a restart."))
+        inner.addWidget(QLabel("Any assistant that starts a command "
+                               "(Claude Desktop, Cursor, Codex):"))
+        self.stdio = _Command(self.stdio_line())
+        inner.addWidget(self.stdio)
+        self.stdio_note = _hint(
+            "It finds this window by itself while the switch above is "
+            "on, and works on files of its own when it is off.")
+        if not self._extra:
+            self.stdio_note.setText("(install the mcp extra)")
+        inner.addWidget(self.stdio_note)
+        layout.addWidget(box)
+        layout.addStretch(1)
+        self._show()
+
+    @staticmethod
+    def stdio_line() -> str:
+        launcher = str(discovery.launcher())
+        if " " in launcher:
+            launcher = f'"{launcher}"'
+        return f"{launcher} mcp"
+
+    def attach(self, server) -> None:
+        """Follow ``server``: its state in the status line, its port
+        and token in the first line."""
+        self._server = server
+        server.started.connect(self._show)
+        server.stopped.connect(self._show)
+        server.failed.connect(self._show)
+        self._show()
+
+    # -- what the controls do ------------------------------------------
+
+    def _serve_toggled(self, on: bool) -> None:
+        self.settings.agent_serve = on
+        self.serveChanged.emit(on)
+        self._show()
+
+    def _port_set(self, port: int) -> None:
+        self.settings.agent_port = port
+        self.portChanged.emit(port)
+        self._show()
+
+    def _show(self, *_) -> None:
+        server = self._server
+        problem = True
+        if not self._extra:
+            status = f"Needs the mcp extra: {install.command('mcp')}"
+        elif server is not None and server.running:
+            status, problem = (f"Listening on {discovery.HOST}:"
+                               f"{server.port}", False)
+        elif (server is not None and server.error
+              and self.serve.isChecked()):
+            status = server.error
+        else:
+            status, problem = "Off", False
+        self.status.setText(status)
+        set_tone(self.status, WARNING if problem else None)
+        if server is not None and server.running:
+            port, token = server.port, server.token
+        elif server is not None:
+            port, token = self.port.value(), server.token
+        else:
+            port, token = self.port.value(), "<token>"
+        self.http.field.setText(
+            f"claude mcp add --transport http crystal-builder "
+            f"{discovery.url(port)} "
+            f'--header "Authorization: Bearer {token}"')
+        self.http.field.setCursorPosition(0)
+
+
 #: The pages, in the order the list shows them.
-PAGES = (GeneralPage, ViewDefaultsPage, BondingPage, EnginesPage)
+PAGES = (GeneralPage, ViewDefaultsPage, BondingPage, EnginesPage,
+         AgentPage)
 
 
 class PreferencesDialog(QDialog):
@@ -781,6 +918,8 @@ class PreferencesDialog(QDialog):
     followGeometryChanged = Signal(bool)
     toolPathsChanged = Signal()
     autosaveChanged = Signal()
+    serveChanged = Signal(bool)
+    portChanged = Signal(int)
 
     def __init__(self, settings, parent=None):
         super().__init__(parent)
@@ -807,7 +946,8 @@ class PreferencesDialog(QDialog):
             self.stack.addWidget(area)
             for name in ("recentCleared", "layoutReset",
                          "followGeometryChanged", "toolPathsChanged",
-                         "autosaveChanged"):
+                         "autosaveChanged", "serveChanged",
+                         "portChanged"):
                 signal = getattr(page, name, None)
                 if signal is not None:
                     signal.connect(getattr(self, name))

@@ -69,6 +69,9 @@ from xtalapp.widgets.tone import retone
 from xtalapp.workspace_shell import WorkspaceShell
 
 APP_NAME = "Crystal Builder"
+#: ``AgentPage.TITLE``: Preferences is imported when it opens.
+AGENT_PAGE = "AI assistant"
+
 
 def _default_viewport_factory(document, parent=None):
     from xtalapp.viewport.widget import ViewportWidget
@@ -148,6 +151,9 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         # tools act through, made when first asked for.
         self.agent_calculations: set = set()
         self._agent_host = None
+        # The server those tools are served by, made when Preferences
+        # or the setting first asks for it (``ensure_agent_server``).
+        self.agent_server = None
 
         self.document_set = DocumentSet(self)
         self.tabs = QTabWidget()
@@ -213,6 +219,10 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
 
         for path in paths or []:
             self.open_path(path)
+        # Left on when the application last quit: on again, now that
+        # the tabs it serves are here.
+        if self.settings.agent_serve:
+            self.set_agent_serving(True)
 
     # ==================================================================
     #  CONSTRUCTION
@@ -955,6 +965,9 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         dialog.followGeometryChanged.connect(self._follow_geometry_set)
         dialog.toolPathsChanged.connect(self._tool_paths_changed)
         dialog.autosaveChanged.connect(self.autosaver.apply_interval)
+        dialog.serveChanged.connect(self.set_agent_serving)
+        dialog.portChanged.connect(self._agent_port_set)
+        dialog.page(AGENT_PAGE).attach(self.ensure_agent_server())
         return dialog
 
     def _tool_paths_changed(self) -> None:
@@ -1052,6 +1065,53 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
             return
         self.show_status(f"AI assistant skill installed in {target}; "
                          f"Claude Code reads it from there")
+
+    def connect_ai_assistant(self) -> None:
+        """Help > Connect an AI assistant: Preferences, on the page
+        with the switch and the lines to paste."""
+        self.show_preferences(AGENT_PAGE)
+
+    def ensure_agent_server(self):
+        """This window's :class:`~xtalapp.agent_server.AgentServer`,
+        made once and kept, so its token holds until the application
+        quits however often it is turned off and on."""
+        if self.agent_server is None:
+            from xtalapp.agent_server import AgentServer
+            server = AgentServer(self, port=self.settings.agent_port)
+            server.started.connect(self._agent_started)
+            server.failed.connect(self._agent_said)
+            server.clientConnected.connect(self._agent_connected)
+            server.verbLanded.connect(self._agent_said)
+            self.agent_server = server
+        return self.agent_server
+
+    def set_agent_serving(self, on: bool) -> None:
+        """Preferences > AI assistant's switch, and the setting read
+        at startup.  A refusal is said by the server's ``failed``,
+        here and on the page."""
+        server = self.ensure_agent_server()
+        if not on:
+            server.stop()
+            return
+        server.preferred_port = self.settings.agent_port
+        try:
+            server.start()
+        except RuntimeError:
+            pass
+
+    def _agent_port_set(self, port: int) -> None:
+        # Applied on the next start; a running server keeps its port,
+        # which is the one in the lines already pasted.
+        self.ensure_agent_server().preferred_port = int(port)
+
+    def _agent_started(self, port: int) -> None:
+        self.show_message(f"AI assistant: listening on 127.0.0.1:{port}")
+
+    def _agent_connected(self) -> None:
+        self.show_message("AI assistant connected")
+
+    def _agent_said(self, text: str) -> None:
+        self.show_message(f"AI assistant: {text}")
 
     def show_manual(self) -> None:
         """Open the user manual in the browser -- see
@@ -1220,6 +1280,10 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         # window destroys the whole object tree.
         if getattr(self, "ff_dock", None) is not None:
             self.ff_dock.stop()
+        # Before the workers: a tool call waiting on this thread is
+        # answered while it stops, and none is let in after.
+        if self.agent_server is not None:
+            self.agent_server.stop()
         workers.stop_all()
         self.workspace_shell.save_session()
         self.settings.save_window(self)

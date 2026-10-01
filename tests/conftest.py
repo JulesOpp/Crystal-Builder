@@ -48,6 +48,14 @@ _PACKAGES = tempfile.mkdtemp(prefix="xtal-test-packages-")
 atexit.register(shutil.rmtree, _PACKAGES, ignore_errors=True)
 os.environ.setdefault("XTAL_PACKAGES_DIR", _PACKAGES)
 
+# And the AI assistant's discovery file, which is there too.  Reading
+# the real one, ``xtal mcp`` in a test would proxy to the developer's
+# own window if it were serving; writing it, a test's server would
+# point their assistant at a window that is about to vanish.
+_APP_DATA = tempfile.mkdtemp(prefix="xtal-test-appdata-")
+atexit.register(shutil.rmtree, _APP_DATA, ignore_errors=True)
+os.environ.setdefault("XTAL_APP_DATA", _APP_DATA)
+
 # And the same for the workspace.  The application now *makes* the
 # default workspace on a first run rather than only suggesting it --
 # it does not let anybody work without one -- so a suite that let it

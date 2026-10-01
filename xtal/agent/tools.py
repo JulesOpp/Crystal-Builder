@@ -15,6 +15,15 @@ A verb's ``**options`` (``energy``, ``optimize``, ``run``, ``select``,
 ``build``) arrive as one object of that name, because a JSON schema
 has no open-ended keywords.
 
+**Every tool runs on a worker thread, never on the server's event
+loop.**  The SDK calls a plain function inline, so one relaxation
+silenced the whole server for its length: the window's discovery
+probe went unanswered and a second window started over it.  The host
+says whether its sessions take one call at a time themselves
+(``serialises``: the window's bridge does, and refuses with
+``WINDOW_BUSY`` what must wait); for any other host the tools take a
+lock, so the headless sessions are never touched by two threads.
+
 The SDK is the ``mcp`` extra and is imported by :func:`build_server`
 alone, so the core imports this module without it.
 """
@@ -22,7 +31,10 @@ alone, so the core imports this module without it.
 from __future__ import annotations
 
 import base64
+import contextlib
+import functools
 import inspect as pyinspect
+import threading
 import typing
 from pathlib import Path
 from typing import Any, Literal, Protocol
@@ -39,9 +51,17 @@ HOST_VERBS = ("open", "new", "build")
 #: What a tool says before there is anything to act on.
 NO_SESSION = "open a structure first"
 
+#: What a client lists the tools under, served headless, by the
+#: window, or through ``xtal mcp``'s proxy.
+SERVER_NAME = "crystal-builder"
+
 
 class Host(Protocol):
-    """Where the sessions the tools act on are kept."""
+    """Where the sessions the tools act on are kept.
+
+    A host whose sessions take one call at a time themselves sets
+    ``serialises = True``; the tools lock around any other.
+    """
 
     def current(self) -> Session:
         """The session the verbs act on; ``LookupError`` if none."""
@@ -58,39 +78,64 @@ class Host(Protocol):
         none is."""
 
 
-def build_server(host: Host, name: str = "crystal-builder"):
+def build_server(host: Host, name: str = SERVER_NAME):
     """A ``FastMCP`` server whose tools act on ``host``'s sessions."""
     from mcp.server.fastmcp import FastMCP
 
     # The SDK logs every request at INFO, which on stdio is a line in
     # the client's log per tool call.
     server = FastMCP(name, log_level="WARNING")
+    one_at_a_time = (contextlib.nullcontext()
+                     if getattr(host, "serialises", False)
+                     else threading.Lock())
+    add = functools.partial(_add, server, one_at_a_time)
     for verb in VERBS:
         if verb in HOST_VERBS:
             continue
         fn, description = _verb_tool(host, verb)
-        _add(server, fn, verb, description)
+        add(fn, verb, description)
     for verb, make in (("open", _open_tool), ("new", _new_tool),
                        ("build", _build_tool)):
         fn, description = make(host)
-        _add(server, fn, verb, description)
-    _add(server, _documents_tool(host), "documents",
-         "The documents open here: path, name, atoms, whether modified, "
-         "and which one is current -- the one every verb acts on.")
-    _add(server, _switch_tool(host), "switch",
-         "Make the open document at ``path`` the current one.")
-    _add(server, _capabilities_tool(), "capabilities",
-         pyinspect.getdoc(capabilities))
-    _add(server, _help_tool(), "help_for", pyinspect.getdoc(help_for))
+        add(fn, verb, description)
+    add(_documents_tool(host), "documents",
+        "The documents open here: path, name, atoms, whether modified, "
+        "and which one is current -- the one every verb acts on.")
+    add(_switch_tool(host), "switch",
+        "Make the open document at ``path`` the current one.")
+    add(_capabilities_tool(), "capabilities",
+        pyinspect.getdoc(capabilities))
+    add(_help_tool(), "help_for", pyinspect.getdoc(help_for))
     return server
 
 
-def _add(server, fn, name, description) -> None:
+def _add(server, one_at_a_time, fn, name, description) -> None:
     # Unstructured: the answer is the JSON text, and a copy of it as
     # structured content would be the same answer twice in the
     # assistant's context.
-    server.add_tool(fn, name=name, description=description,
-                    structured_output=False)
+    server.add_tool(_off_the_loop(fn, name, one_at_a_time), name=name,
+                    description=description, structured_output=False)
+
+
+def _off_the_loop(fn, name, one_at_a_time):
+    """``fn`` as a coroutine that runs it on a worker thread, with the
+    same signature for the schema.  A call the client gave up on is
+    left to finish on its thread: a verb cannot be stopped half way,
+    and the window's bridge refuses what it would apply too late."""
+    import anyio
+
+    signature = pyinspect.signature(fn, eval_str=True)
+
+    def blocking(kwargs):
+        with one_at_a_time:
+            return fn(**kwargs)
+
+    async def tool(**kwargs):
+        return await anyio.to_thread.run_sync(
+            functools.partial(blocking, kwargs), abandon_on_cancel=True)
+
+    _dress(tool, name, signature)
+    return tool
 
 
 # ----------------------------------------------------------------------
@@ -115,8 +160,11 @@ def _verb_tool(host: Host, verb: str):
             return _text(_no_session(verb, exc))
         if verb == "inspect":
             sites = kwargs.pop("sites")
-            return to_json(session.inspect(**kwargs).to_dict(sites),
-                           compact=True)
+            found = session.inspect(**kwargs)
+            if isinstance(found, VerbResult):
+                # A window that is closing refuses even a look.
+                return _text(found)
+            return to_json(found.to_dict(sites), compact=True)
         _spread(verb, kwargs, spread)
         answer = getattr(session, verb)(**kwargs)
         if verb == "render":

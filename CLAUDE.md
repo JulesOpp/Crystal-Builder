@@ -266,6 +266,7 @@ stress case).
 | `XTAL_SHOW_TEST_WINDOWS=1` | Let the suite draw its windows on screen, to watch a test while debugging it. Off, every window a test shows is kept off the screen (see Testing the GUI). |
 | `XTAL_STUB_MODULE=1` | Register a fake calculation module, for module-machinery tests |
 | `XTAL_WORKSPACE_ROOT` | Where the default workspace is made — the row the chooser offers on a first run, and what `restore_workspace` makes when a window is built without one. A test that let this answer with the real `~/Crystal Builder` would fill the developer's home folder, so `conftest.py` points it at a temp directory per test. |
+| `XTAL_APP_DATA` | Where the window writes, and `xtal mcp` reads, the AI assistant's discovery file `mcp.json` (port, token, pid) -- the application-data folder otherwise. `conftest.py` points it at a temp directory, so a test's `xtal mcp` never proxies to the developer's own window. |
 | `DFTB_PREFIX` | Where the DFTB+ Slater-Koster parameters live |
 
 ## Invariants — these are product decisions, not implementation details

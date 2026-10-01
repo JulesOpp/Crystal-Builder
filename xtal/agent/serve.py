@@ -4,11 +4,13 @@ xtal.agent.serve
 ``xtal mcp``: the agent's tools over stdio, for a client that starts
 the command itself (Claude Code, Claude Desktop, Cursor ...).
 
-Headless, the sessions live in this process, one per file, as a
-script's would.  ``--window`` asks for the running window instead,
-whose tabs are the documents; until the window serves the tools there
-is none to ask, and the command says so rather than quietly handing
-the assistant a structure nobody can see.
+When a window is serving the tools (Preferences > AI assistant), the
+command is a proxy to it: the window's discovery file says where, and
+its tabs are the documents (:mod:`xtal.agent.proxy`).  Otherwise the
+sessions live in this process, one per file, as a script's would.
+``--window`` insists on the window and fails when none answers, rather
+than quietly handing the assistant a structure nobody can see;
+``--headless`` never looks for one.
 """
 
 from __future__ import annotations
@@ -72,10 +74,12 @@ def mcp_arguments(parser: argparse.ArgumentParser) -> None:
     """``xtal mcp``'s flags, for this parser and the CLI's."""
     where = parser.add_mutually_exclusive_group()
     where.add_argument("--headless", action="store_true",
-                       help="serve sessions in this process (the "
-                            "default)")
+                       help="serve sessions in this process, even "
+                            "when a window is serving")
     where.add_argument("--window", action="store_true",
-                       help="drive the running Crystal Builder window")
+                       help="drive the running Crystal Builder window, "
+                            "or fail (the default is the window when "
+                            "one answers, else headless)")
 
 
 def main(argv=None) -> int:
@@ -89,9 +93,17 @@ def main(argv=None) -> int:
         print(f"xtal mcp needs the mcp extra: {command('mcp')}",
               file=sys.stderr)
         return 2
+    if not args.headless:
+        from xtal.agent import discovery
+
+        entry = discovery.read(discovery.folder())
+        if entry is not None and discovery.alive(entry):
+            from xtal.agent import proxy
+            return proxy.run(entry["url"], entry["token"])
     if args.window:
-        print("no window is listening: start Crystal Builder, or use "
-              "--headless", file=sys.stderr)
+        print("no window is listening: start Crystal Builder and turn "
+              "on Preferences > AI assistant, or use --headless",
+              file=sys.stderr)
         return 2
     from xtal.agent.tools import build_server
     build_server(HeadlessHost()).run(transport="stdio")

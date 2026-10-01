@@ -266,6 +266,30 @@ the engine and whether it converged, and `path`.
 
 ---
 
+## Connected to the window
+
+When Crystal Builder is open with **Preferences ▸ AI assistant**
+switched on, your tools are the window's, and the documents are the
+person's tabs. The tools are the verbs, with a `Session`'s names and
+keywords, acting on the tab in front:
+
+- `documents` lists the open tabs (path, atoms, modified, which one is
+  current). `switch(path)` brings one to the front, and every verb then
+  acts on it. `open(path)` opens a file in a new tab, or brings forward
+  the tab already showing it.
+- **The person is watching.** Each verb lands in their tab as one undo
+  step, and its message shows in the window's status bar. Keep each
+  call's purpose clear: one change per call, in the order you would
+  explain it, and say before a long calculation that it is starting.
+- `WINDOW_BUSY` means the window is playing a trajectory, running a
+  calculation, or closing. **Wait, then call again**; an immediate retry
+  is refused the same way. `inspect` still answers while it is busy.
+- `DOCUMENT_CHANGED` means the person edited the structure while your
+  calculation ran. Their edit stands and your result was not applied
+  (the run folder keeps it). `inspect` again before deciding anything.
+- `render` returns the picture of the tab's own viewport, in the
+  person's style, turned along `view` for the shot and back after.
+
 ## The shell, for a quick look
 
 Everything above is also a command, and every inspection command takes
@@ -287,4 +311,15 @@ one step, because only a session has undo and a log.
 `xtal mcp` serves these verbs as MCP tools over stdio, one tool per
 verb, with the same names and keywords (a verb's `**options` is one
 object of that name), plus `documents`, `switch`, `capabilities` and
-`help_for`. It needs the `mcp` extra and says how to install it.
+`help_for`. While a window is serving, it passes every call through to
+that window; otherwise the sessions are its own. It needs the `mcp`
+extra and says how to install it. The two ways to connect Claude Code:
+
+```bash
+claude mcp add crystal-builder -- xtal mcp    # the window when it serves
+claude mcp add --transport http crystal-builder http://127.0.0.1:7781/mcp \
+  --header "Authorization: Bearer <token>"     # straight to the window
+```
+
+The second line, with this launch's port and token, is on the window's
+Preferences ▸ AI assistant page.

@@ -85,7 +85,10 @@ def app_data() -> Path:
     ``%APPDATA%\\CrystalBuilder`` on Windows.  The log lives in it and
     so does the folder :mod:`xtalapp.extras` puts on ``sys.path``,
     which is why the lookup is a name of its own rather than part of
-    the log's.
+    the log's.  The AI assistant's discovery file lives here too, and
+    ``xtal mcp`` reads it without Qt:
+    :func:`xtal.agent.discovery.platform_folder` is this rule written
+    out again, and a test holds the two together.
     """
     try:
         from PySide6.QtCore import QStandardPaths

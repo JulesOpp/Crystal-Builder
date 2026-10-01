@@ -596,6 +596,13 @@ def build_actions(window):
             "build, inspect and relax structures in your workspace "
             "through the same commands as this window.  A copy you "
             "have edited is replaced only if you say so.")
+    add("connect_ai_assistant", "&Connect an AI assistant...",
+        window.connect_ai_assistant,
+        tip="Let an assistant such as Claude Code work in this window: "
+            "the tabs open here are its documents, each thing it does "
+            "is one step Ctrl+Z takes back, and the status bar says "
+            "what it did.  Opens Preferences on the switch and the "
+            "line to paste into the assistant.")
     add("help_contents", f"{APP_NAME} &Help", window.show_help,
         QKeySequence.StandardKey.HelpContents,
         tip="Every command and every module setting, generated from "
@@ -746,6 +753,7 @@ def build_menus(window):
     help_menu = submenu(bar, "&Help")
     window.actions_.fill_menu(help_menu, ["help_contents", "user_manual",
                                           None, "install_ai_skill",
+                                          "connect_ai_assistant",
                                           "show_log",
                                           None, "about"])
 

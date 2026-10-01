@@ -59,6 +59,17 @@ READ_ONLY = ("inspect", "select")
 #: Verbs that compute over a copy, off the GUI thread.
 CALCULATIONS = ("energy", "optimize", "run")
 
+#: Why a call from the server's thread is refused once it is stopping.
+CLOSING = "the window is closing"
+#: Why a call begun under a server since stopped is refused, though
+#: another has started: its client has gone, and nobody would be told
+#: what it did.
+STOPPED = "the window stopped serving"
+
+
+class BridgeClosed(RuntimeError):
+    """A call from the server's thread the window will not take."""
+
 
 def on_gui_thread(obj: QObject) -> bool:
     return QThread.currentThread() is obj.thread()
@@ -70,6 +81,14 @@ class Bridge(QObject):
 
     One call at a time: the callable and its outcome are held here
     under a lock for the length of the crossing.
+
+    ``closing`` is set when the server stops: a call already waiting
+    is still answered (stopping turns the event loop while it waits),
+    and a new one from another thread raises rather than queueing on a
+    GUI thread that may never turn again.  ``generation`` counts the
+    server's starts: a call carries the one it began under, and is
+    refused once another start has made it stale -- a relaxation left
+    computing past a stop must not apply under the next server.
     """
 
     def __init__(self, parent=None):
@@ -77,12 +96,25 @@ class Bridge(QObject):
         self._lock = threading.Lock()
         self._pending = None
         self._outcome = None
+        self.closing = False
+        self.generation = 0
+        self._lock_posted = threading.Lock()
+        self._posted = []
 
-    def call(self, fn):
+    def call(self, fn, generation: int | None = None):
+        """``fn()`` on the GUI thread.  From another thread,
+        :class:`BridgeClosed` when the server is stopping or the call
+        belongs to a server since replaced (``generation``, read when
+        the work it is part of began; now, if not given)."""
         if on_gui_thread(self):
             return fn()
+        if generation is None:
+            generation = self.generation
         with self._lock:
-            self._pending, self._outcome = fn, None
+            # Inside the lock: a call that waited for it while the
+            # server stopped must not go through after the stop.
+            self._refuse(generation)
+            self._pending, self._outcome = (fn, generation), None
             try:
                 QMetaObject.invokeMethod(self, "_invoke",
                                          Qt.BlockingQueuedConnection)
@@ -96,12 +128,41 @@ class Bridge(QObject):
             raise value
         return value
 
+    def _refuse(self, generation: int) -> None:
+        if self.closing:
+            raise BridgeClosed(CLOSING)
+        if generation != self.generation:
+            raise BridgeClosed(STOPPED)
+
     @Slot()
     def _invoke(self) -> None:
+        fn, generation = self._pending
         try:
-            self._outcome = (True, self._pending())
+            # Queued under one server and reached under the next.
+            if generation != self.generation:
+                raise BridgeClosed(STOPPED)
+            self._outcome = (True, fn())
         except BaseException as exc:    # noqa: BLE001 -- re-raised
             self._outcome = (False, exc)
+
+    def post(self, fn) -> None:
+        """``fn`` on the GUI thread when it next turns, not waited for:
+        what a stopping server still owes the window, such as taking
+        its calculation off the count."""
+        if on_gui_thread(self):
+            fn()
+            return
+        with self._lock_posted:
+            self._posted.append(fn)
+        QMetaObject.invokeMethod(self, "_run_posted",
+                                 Qt.QueuedConnection)
+
+    @Slot()
+    def _run_posted(self) -> None:
+        with self._lock_posted:
+            posted, self._posted = self._posted, []
+        for fn in posted:
+            fn()
 
 
 class AgentCalculation:
@@ -127,7 +188,13 @@ class AgentCalculation:
     def stop(self) -> None:
         if self._started:
             self._started = False
-            self.window.agent_host.bridge.call(self._unregister)
+            bridge = self.window.agent_host.bridge
+            try:
+                bridge.call(self._unregister)
+            except BridgeClosed:
+                # Off the count all the same, when the window next
+                # turns: the calculation has stopped either way.
+                bridge.post(self._unregister)
 
     def _register(self) -> None:
         self.window.agent_calculations.add(self)
@@ -167,9 +234,19 @@ def _served(method, gated: bool = True):
                 if busy is not None:
                     return busy
             return method(self, *args, **kwargs)
-        return self._bridge.call(serve)
+        try:
+            return self._bridge.call(serve)
+        except BridgeClosed as exc:
+            return _closing(method.__name__, exc)
 
     return verb
+
+
+def _closing(verb: str, exc: BridgeClosed) -> VerbResult:
+    """The refusal a stopping server gives, made off the GUI thread:
+    nothing is read from the tab and nothing is logged."""
+    return VerbResult(verb, False, str(exc),
+                      diagnostics=[Diagnostic("WINDOW_BUSY", str(exc))])
 
 
 class WindowSession(Session):
@@ -224,6 +301,21 @@ class WindowSession(Session):
 
     def history(self) -> list[str]:
         return self._bridge.call(lambda: Session.history(self))
+
+    def _record(self, verb, args, answer: VerbResult) -> None:
+        Session._record(self, verb, args, answer)
+        self._announce(verb, answer)
+
+    def _announce(self, verb, answer: VerbResult) -> None:
+        """The answer in the status bar, while the window is serving:
+        the person is watching, and this is where the window says
+        what it did itself.  Emitted on the GUI thread, whichever
+        thread recorded it -- a calculation's answer is recorded on
+        the server's."""
+        server = getattr(self.window, "agent_server", None)
+        if server is not None and server.running:
+            said = f"{verb}: {answer.message}"
+            self._bridge.post(lambda: server.verbLanded.emit(said))
 
     # -- the gate --------------------------------------------------------
 
@@ -346,17 +438,29 @@ class WindowSession(Session):
                                lambda over: over.run(action, **params))
 
     def _calculate(self, verb, args, compute) -> VerbResult:
-        started = self._bridge.call(lambda: self._begin(verb, args))
+        started = self._start(verb, args)
         if isinstance(started, VerbResult):
             return started
-        calculation, _revision, over = started
+        calculation, _revision, generation, over = started
         with calculation:
-            return compute(over)
+            answer = compute(over)
+        # Recorded by the copy's session, which is not this one; and
+        # not said under a server that is not the one asked.
+        if generation == self._bridge.generation:
+            self._announce(verb, answer)
+        return answer
+
+    def _start(self, verb, args):
+        try:
+            return self._bridge.call(lambda: self._begin(verb, args))
+        except BridgeClosed as exc:
+            return _closing(verb, exc)
 
     def _begin(self, verb, args):
         """On the GUI thread, in one go so nothing slips between them:
         the gate, the calculation registered, and a session over a
-        copy of the structure that logs to this one's entry."""
+        copy of the structure that logs to this one's entry -- and
+        the server generation the work began under."""
         busy = self._busy(verb, args)
         if busy is not None:
             return busy
@@ -365,22 +469,33 @@ class WindowSession(Session):
         over = Session(self.document.structure.copy(), self.path,
                        self.entry)
         over.log = self.log
-        return calculation, self._revision, over
+        return calculation, self._revision, self._bridge.generation, over
 
     def _relax(self, args, options):
-        started = self._bridge.call(lambda: self._begin("optimize", args))
+        started = self._start("optimize", args)
         if isinstance(started, VerbResult):
             return started
-        calculation, revision, over = started
+        calculation, revision, generation, over = started
         with calculation:
             relaxed = over._relax(args, options)
         if isinstance(relaxed, VerbResult):
             return relaxed
-        return _Pending(relaxed, revision, over)
+        return _Pending(relaxed, revision, generation, over)
 
     def _apply_relaxation(self, pending, args) -> VerbResult:
-        outcome = self._bridge.call(
-            lambda: self._apply_unless_changed(pending, args))
+        try:
+            outcome = self._bridge.call(
+                lambda: self._apply_unless_changed(pending, args),
+                generation=pending.generation)
+        except BridgeClosed as exc:
+            # Nobody is waiting for this answer, so nothing of the tab
+            # is read for it off the GUI thread.
+            answer = _closing("optimize", exc)
+            notes, run = self._kept(pending)
+            answer.diagnostics.extend(notes)
+            if run:
+                answer.data["run"] = run
+            return answer
         if isinstance(outcome, VerbResult):
             return outcome
         return self._not_applied(pending, args, outcome)
@@ -425,32 +540,38 @@ class WindowSession(Session):
     def _not_applied(self, pending, args, refused) -> VerbResult:
         """The run folder keeps the relaxed geometry -- the copy takes
         it, for ``final.cif`` -- and the answer says where."""
-        from xtal.ff import record as ff_record
-
-        relaxed, over = pending.relaxed, pending.over
-        over.stack.push(relaxed.command(), over)
-        ff_record.close_run(relaxed.recorder, relaxed.result,
-                            final=over.structure)
-        notes, run = [], ""
-        if relaxed.recorder is not None:
-            run = str(relaxed.recorder.folder.path)
-            notes.append(Diagnostic(
-                "RESULT_NOT_APPLIED", "the relaxed geometry is in the run "
-                "folder", where=run))
+        notes, run = self._kept(pending)
         answer = self._answer_refused("optimize", args, refused,
                                       notes=notes)
         if run:
             answer.data["run"] = run
         return answer
 
+    @staticmethod
+    def _kept(pending) -> tuple[list, str]:
+        """The relaxed geometry written to its run folder, through the
+        copy; the note saying where, and the folder."""
+        from xtal.ff import record as ff_record
+
+        relaxed, over = pending.relaxed, pending.over
+        over.stack.push(relaxed.command(), over)
+        ff_record.close_run(relaxed.recorder, relaxed.result,
+                            final=over.structure)
+        if relaxed.recorder is None:
+            return [], ""
+        run = str(relaxed.recorder.folder.path)
+        return [Diagnostic("RESULT_NOT_APPLIED", "the relaxed geometry "
+                           "is in the run folder", where=run)], run
+
 
 class _Pending:
-    """A relaxation computed over a copy, and the tab's revision when
-    the copy was taken."""
+    """A relaxation computed over a copy, the tab's revision when the
+    copy was taken, and the server generation it began under."""
 
-    def __init__(self, relaxed, revision, over):
+    def __init__(self, relaxed, revision, generation, over):
         self.relaxed = relaxed
         self.revision = revision
+        self.generation = generation
         self.over = over
 
 
@@ -515,6 +636,11 @@ class WindowHost(Host):
     how ``open`` tells an assistant a file is already open.  Every
     method does its work on the GUI thread.
     """
+
+    #: The bridge takes one call at a time, and a calculation computes
+    #: outside it, so the tools need no lock of their own: a look or a
+    #: refusal is answered while a relaxation runs.
+    serialises = True
 
     def __init__(self, window):
         if not on_gui_thread(window):
