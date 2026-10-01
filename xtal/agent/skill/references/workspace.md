@@ -51,3 +51,5 @@ double-clicked puts its tables back in the Results panel. Tell them:
 
 If the window already has that structure open in a tab, the person must
 reopen it to see your changes: the window does not watch files.
+Connected to the window (`SKILL.md`, *Connected to the window*), there
+is nothing to reopen: each verb lands in the tab itself.

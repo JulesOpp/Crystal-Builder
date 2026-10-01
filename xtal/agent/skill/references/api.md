@@ -347,3 +347,14 @@ every row.
 - `session.history()`: the undo stack's labels.
 - `session.log`, and the entry's `agent-session.jsonl`: every verb, one
   JSON object per line.
+
+## As MCP tools
+
+`xtal mcp`, and the window when it serves, offer every verb above as a
+tool of the same name and keywords; a verb's `**options` is one object
+of that name, and `inspect` takes `sites` too. Beside the verbs, the
+tools are `documents` (the open documents, and which is current),
+`switch` (make the one at `path` current), `capabilities` and
+`help_for`. The `open` tool opens a file, or brings forward the
+document already over it; `new` and `build` file what they make in the
+workspace and open it. See *Connected to the window* in `SKILL.md`.

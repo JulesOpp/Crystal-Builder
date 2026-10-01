@@ -197,6 +197,28 @@ s.save()
 and from a shell, `xtal inspect FILE`, `xtal render FILE OUT.png`,
 `xtal capabilities`, with `--json` on every inspecting command.
 
+To let an assistant work in the window itself, choose Help ▸ Connect
+an AI assistant… and switch it on.  The tabs open there are then its
+documents, each verb lands in the tab as one step Ctrl+Z takes back,
+and the status bar says what it did.  The page shows the two lines to
+paste, the first with this launch's port and token:
+
+```bash
+claude mcp add --transport http crystal-builder http://127.0.0.1:7781/mcp \
+  --header "Authorization: Bearer <token>"   # Claude Code, to the window
+<path to xtal> mcp                           # any client that starts a command
+```
+
+The token is made afresh at every launch and is on the Preferences
+page, so paste the first line again after a restart.  A packaged
+install carries the `xtal` program beside the application, and the
+page gives its path.  With no window serving, `xtal mcp` works on
+files of its own, headless (it needs the `mcp` extra); `--window` and
+`--headless` insist on one or the other.
+
+A scripted eval of the skill, run on demand, is in `tools/agent_eval/`:
+`python tools/agent_eval/run.py`.
+
 ## Running the application
 
 ```bash

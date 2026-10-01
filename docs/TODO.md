@@ -155,14 +155,29 @@ It shipped: `xtal/agent/` (`Session`, `inspect`, `render`,
 `capabilities`), the skill in the wheel, the `xtal` commands and
 their `--json`.  **Still owed**, in this order:
 
-- **A live link to the window**: a local MCP server inside a running
-  window, turned on explicitly, whose tools are the same verbs over
-  `Document.run` rather than a `Session` -- so the person watches each
-  edit land as an undo step in the tab they have open.  The verbs need
-  no change; what is new is marshalling every call onto the GUI thread
-  and refusing while a trajectory plays.
+- **A live link to the window**: shipped 2026-10-01 (branch
+  `feature/ai-assistant-revamp`).
 - **A manual chapter**, *Working with an AI assistant*, once
   `docs/manual/` exists (interface stretch, phase 4).
+
+**Known limits** of the live link, left open by its reviews:
+
+- A frozen build's `xtal capabilities` still says render is available,
+  and `render` from it refuses (headless render from the frozen
+  launcher was not in that branch).
+- The heavy verbs that are not calculations -- `prepare`,
+  `fill_pores`, `interpenetrate`, `add_hydrogens`, `substitute` -- run
+  on the GUI thread, so on a big cell the window freezes while they
+  do.  Only `energy`, `optimize` and `run` compute off it.
+- `agent/serve` is one setting for every window, though only one
+  window can serve (the discovery file holds one).
+- A proxy (`xtal mcp`) whose window goes away does not recover; the
+  client has to restart it.
+- A tool call that arrives while the window is closing comes back as
+  a tool error, not as `WINDOW_BUSY`.
+- `bonding.perceive(rules=...)` reads the stored graph, despite its
+  docstring saying an explicit `rules` neither reads nor writes it.
+  This predates the branch.
 
 ---
 

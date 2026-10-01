@@ -30,6 +30,15 @@ Zeo++ on the result.
 - **An AI assistant can drive the builder**: a session API, coded
   diagnostics and a skill that ship with the package, with every
   edit one undo step logged to the structure's entry.
+- **An AI assistant can work in the window**: *Help ▸ Connect an AI
+  assistant…* lets any MCP client drive the open tabs, each change
+  one undo step in front of you, and the packaged app carries the
+  `xtal` program it connects through. Its answers are sized for a
+  model (MOF-5's inspection is 4 kB, not 170), and the skill's rules
+  are now the program's: a relaxation that would change the bonding
+  says so, a scan says how many relaxations it is before it starts,
+  and a file opened into a workspace it is not in says where it
+  stayed.
 - **The user manual ships with the application**: *Help ▸ User
   Manual* opens it, no network needed.
 - Smaller things: *Select ▸ Bonds between elements…*, *Rename…* in
