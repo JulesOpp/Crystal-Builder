@@ -320,3 +320,18 @@ def test_a_file_source_can_be_inserted_at_a_point(
 
     assert report.message.startswith("placed CO2 at (0.2500,")
     assert host.structure.n_sites == 4 + 3
+
+
+def test_fill_pores_is_tall_enough_for_its_wrapped_notes(
+        window, qtbot, sparse, dry_ice):
+    """A top-level dialog does not grow for word-wrapped text, so the
+    note about reducing to P1 squashed the form above it: the Source
+    and Point rows were drawn 48 px short, cut through their text."""
+    host, _ = _host_and_solvent(window, sparse, dry_ice)
+    dialog = _dialog(window, qtbot, host)
+    dialog.show()
+    for index in range(dialog.where.count()):
+        dialog.where.setCurrentIndex(index)
+        layout = dialog.layout()
+        assert dialog.height() >= \
+            layout.totalHeightForWidth(dialog.width())

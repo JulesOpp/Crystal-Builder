@@ -230,8 +230,15 @@ class BondRulesDialog(QDialog):
         self.table.setHorizontalHeaderLabels(
             ["Pair", "Bond", "Min (A)", "Max (A)"])
         self.table.verticalHeader().setVisible(False)
-        self.table.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.Stretch)
+        # The pair is sized to its text and the distances share what
+        # is left.  Pair was the stretched column, with the other three
+        # a fixed 100 px each, so in a 375 px dialog it was given the
+        # 19 px nobody else wanted and "Zn - Zn" was cut to nothing.
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.Stretch)
+        header.setSectionResizeMode(3, QHeaderView.Stretch)
         forbidden = {tuple(sorted(p)) for p in rules.forbidden}
 
         for row, pair in enumerate(self.pairs):
@@ -251,6 +258,7 @@ class BondRulesDialog(QDialog):
             self.table.setItem(row, 3, QTableWidgetItem(
                 AUTOMATIC if hi is None else f"{float(hi):g}"))
 
+        self._fit_columns()
         self.table.itemChanged.connect(self._preview)
         layout.addWidget(self.table)
         if self.structure is None and not self.pairs:
@@ -269,6 +277,17 @@ class BondRulesDialog(QDialog):
             empty.setWordWrap(True)
             layout.addWidget(empty)
         return box
+
+    def _fit_columns(self) -> None:
+        """Hold the table wide enough that no column scrolls away."""
+        table = self.table
+        header = table.horizontalHeader()
+        width = sum(max(header.sectionSizeHint(c),
+                        table.sizeHintForColumn(c))
+                    for c in range(table.columnCount()))
+        width += 2 * table.frameWidth()
+        width += table.verticalScrollBar().sizeHint().width()
+        table.setMinimumWidth(width)
 
     # ==================================================================
     #  VALUES
