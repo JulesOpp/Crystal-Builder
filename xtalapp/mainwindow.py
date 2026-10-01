@@ -787,6 +787,13 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         if symbol is not None:
             modes.get("add_atom").element = symbol
 
+    def choose_element_to_place(self, symbol: str) -> None:
+        """The toolbar's periodic table: the element goes in the box
+        and the mouse goes to placing it, since picking an element to
+        place is asking to place one."""
+        self.element_combo.setCurrentText(symbol)
+        self.actions_["mode_add_atom"].trigger()
+
     # ==================================================================
     #  FORCE FIELD
     # ==================================================================

@@ -23,7 +23,8 @@ the table would say it is the 119th element.
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QRectF, QSize, Qt, Signal
+from PySide6.QtGui import QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -206,3 +207,65 @@ class PeriodicTableButton(QPushButton):
         if symbol:
             self.chosen.emit(symbol)
         return symbol
+
+
+def table_glyph(color, size: int = 20) -> QIcon:
+    """A periodic table's silhouette: the two tall columns, the
+    transition block between them, and the f-block set apart below.
+
+    Drawn rather than shipped, so there is no file to package and it
+    takes the toolbar's own text colour in a dark theme.
+    """
+    ratio = 2.0
+    pixmap = QPixmap(QSize(size, size) * ratio)
+    pixmap.setDevicePixelRatio(ratio)
+    pixmap.fill(Qt.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing)
+    painter.setPen(Qt.NoPen)
+    painter.setBrush(color)
+    cell = size / 9.0
+    # (column, row) on a 9 x 9 grid: one period a row, column 0 the
+    # s-block, 1 the alkaline earths, 2-5 the transition metals, 6-8
+    # the p-block; periods 2 and 3 have no transition metals, and the
+    # f-block is the row set apart at the bottom.
+    blocks = [(0, 0), (8, 0)]
+    for row in (1, 2):
+        blocks += [(c, row) for c in (0, 1, 6, 7, 8)]
+    for row in (3, 4, 5):
+        blocks += [(c, row) for c in range(9)]
+    blocks += [(c, 7) for c in range(2, 8)]
+    for column, row in blocks:
+        painter.drawRect(QRectF(column * cell + 0.25,
+                                (row + 0.5) * cell + 0.25,
+                                cell - 0.5, cell - 0.5))
+    painter.end()
+    return QIcon(pixmap)
+
+
+class PeriodicTableToolButton(QToolButton):
+    """:class:`PeriodicTableButton` as a glyph, for a toolbar.
+
+    The words "Table..." were too wide for a bar that already runs off
+    a laptop's screen, and a button there is read by its picture.
+    """
+
+    chosen = Signal(str)
+
+    def __init__(self, parent=None, current=None):
+        super().__init__(parent)
+        self.setObjectName("periodic_table_tool_button")
+        self.setToolTip("Pick the element from a periodic table")
+        self.setAutoRaise(True)
+        self.current = current
+        self.setIcon(table_glyph(self.palette().buttonText().color()))
+        self.clicked.connect(self.open_table)
+
+    open_table = PeriodicTableButton.open_table
+
+    def changeEvent(self, event) -> None:
+        super().changeEvent(event)
+        # A theme change repaints with the new text colour.
+        if event.type() == event.Type.PaletteChange:
+            self.setIcon(
+                table_glyph(self.palette().buttonText().color()))
