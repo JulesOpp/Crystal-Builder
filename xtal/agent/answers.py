@@ -114,6 +114,9 @@ class Inspection:
     site_groups: list[dict]
     problem_sites: list[int]
     diagnostics: list[Diagnostic] = field(default_factory=list)
+    #: The window's document this is of; empty headless, where a
+    #: session is its one structure and the key is left out.
+    document: str = ""
 
     @property
     def worst(self) -> str:
@@ -132,7 +135,9 @@ class Inspection:
                          f"{', '.join(SITES)}")
 
     def to_dict(self, sites: str = "problems") -> dict:
+        named = {"document": self.document} if self.document else {}
         return {
+            **named,
             "formula": self.formula, "z": self.z,
             "n_sites": self.n_sites, "n_atoms": self.n_atoms,
             "cell": self.cell, "volume": self.volume,

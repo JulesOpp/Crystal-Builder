@@ -60,7 +60,7 @@ CODE = re.compile(r"\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b")
 #: A short question that points back -- "Shall I run it?" -- is about
 #: what the sentence before it said.
 REFERS = re.compile(r"\b(it|that|them|those)\b", re.IGNORECASE)
-SHORT = 6
+SHORT = 8
 
 #: The report answering its own question: "Were they capped? No."
 ANSWERED = re.compile(r"^(yes|no)\b[^?]{0,20}$", re.IGNORECASE)

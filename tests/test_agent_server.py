@@ -29,7 +29,6 @@ from PySide6.QtWidgets import QWidget  # noqa: E402
 from xtal.agent import discovery, proxy  # noqa: E402
 from xtal.agent.session import Session  # noqa: E402
 from xtal.io import write_cif  # noqa: E402
-from xtalapp import applog  # noqa: E402
 from xtalapp.agent_host import STOPPED, WindowSession  # noqa: E402
 from xtalapp.agent_server import AgentServer  # noqa: E402
 from xtalapp.mainwindow import MainWindow  # noqa: E402
@@ -171,6 +170,30 @@ def test_turning_the_preference_off_stops_it_and_removes_the_file(
     assert not server.running
     assert discovery.read(appdata) is None
     assert not discovery.alive(entry)
+
+
+def test_a_discovery_file_that_cannot_be_written_stops_the_server(
+        qtbot, monkeypatch, window, appdata):
+    """The file is written after the thread starts, and a full disk or
+    a folder that is not writable raised out of the switch with the
+    server left listening where ``xtal mcp`` would never find it."""
+    from xtalapp import agent_server
+    from xtalapp.agent_server import ServerRefused
+
+    def refused(port, token):
+        raise PermissionError(13, "Permission denied", str(appdata))
+
+    monkeypatch.setattr(agent_server, "write_discovery", refused)
+    server = window.ensure_agent_server()
+    with qtbot.waitSignal(server.failed, timeout=10000) as said:
+        with pytest.raises(ServerRefused):
+            server.start()
+
+    assert not server.running
+    assert "Permission denied" in said.args[0]
+    assert "mcp.json" in said.args[0]
+    assert not any(t.name == "crystal-builder-mcp" and t.is_alive()
+                   for t in threading.enumerate())
 
 
 def test_a_client_on_another_thread_is_served_by_the_gui_thread(
@@ -412,11 +435,6 @@ def test_a_second_window_does_not_start_over_a_live_one(
     assert discovery.read(appdata)["token"] == first.token
     other.close()
     assert discovery.read(appdata)["token"] == first.token
-
-
-def test_the_core_and_the_window_agree_on_the_discovery_folder():
-    """``xtal mcp`` has no Qt to ask, so the rule is written twice."""
-    assert discovery.platform_folder() == applog.app_data()
 
 
 class _HeldRelaxation:

@@ -66,9 +66,14 @@ def test_the_grader_passes_a_report_that_names_every_code_and_fails_one_that_doe
                   "left open, and the project is saved. The energy is "
                   "next. Anything else you'd like me to add?")
 
+    # Seven words leaning on the sentence before: a real agent's.
+    leaning = ("OPEN_TRIMERS and CELL_NOT_NEUTRAL. The trimers lack "
+               "terminal ligands. Do you want me to add them?")
+
     passed = grade.grade(task, named, None)
     assert passed.passed, passed.checks
     assert grade.grade(task, asked_after, None).passed
+    assert grade.grade(task, leaning, None).passed
     failed = grade.grade(task, silent, None)
     assert not failed.passed
     assert _failed(failed) == ["reports OPEN_TRIMERS"]

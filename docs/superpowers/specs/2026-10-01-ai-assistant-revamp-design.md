@@ -71,7 +71,15 @@ workspace) -> Session`, `sessions() -> list[Session]`. Two hosts:
   path; `open` of a path already held returns it.
 - `WindowHost` (`xtalapp/agent_host.py`): one `WindowSession` per open
   `Document`, made on demand and dropped when the tab closes; `current`
-  is the current tab; `open` is `window.open_path(path, report=False)`.
+  is the agent's **own** current session, set by `open` and `switch`
+  (and, before it has one, the tab in front when it first asks) -- it
+  does not follow the person's clicks, which sent the next edit into
+  whatever tab they had raised. Once that tab is closed, `current`
+  raises `LookupError` ("the document you were working on was closed;
+  open or switch to one"), which the tools answer as a refusal. Every
+  `WindowSession` answer carries `data["document"]`, the tab's path
+  (`inspect`'s, `document`); headless answers are unchanged. `open` is
+  `window.open_path(path, report=False)`.
 
 **`WindowSession(Session)`**: `structure` is a property reading
 `document.structure`; `entry` is `document.entry`; `path` is the
@@ -121,12 +129,13 @@ GUI thread.
 
 **Gates.** Every tool call is refused with `WINDOW_BUSY` (error) while
 `document.is_playing` or `window.has_running_calculation()`. An agent
-calculation registers itself so `has_running_calculation()` is true for
-the person's gestures too (the same hazard the panel has: an edit
-during a run would be overwritten by the apply). The structure's stack
-position is read before an agent calculation; if it moved, the apply is
-refused with `DOCUMENT_CHANGED` (error) and the run folder keeps the
-result (`RESULT_NOT_APPLIED` names it).
+calculation registers itself so `has_running_calculation()` counts it
+(quitting asks first, and another agent call is refused). The person's
+edits are not refused meanwhile; they are protected at apply time: the
+tab's revision is read before an agent calculation, and if it moved --
+or the tab was closed -- the apply is refused with `DOCUMENT_CHANGED`
+(error) and the run folder keeps the result (`RESULT_NOT_APPLIED`
+names it).
 
 **Switching on.** Preferences gets an **AI assistant** page
 (`xtalapp/dialogs/preferences.py`, after Engines):
@@ -251,7 +260,7 @@ Tasks:
   for `tools.py`, `serve.py`, `agent_host.py`; the invariant gains
   "and through the window's own `Document.run` when connected".
   `docs/TODO.md`: the owed MCP item closed; the manual chapter stays.
-- `pyproject.toml`: `mcp = ["mcp>=1.2"]`, in `dev`.
+- `pyproject.toml`: `mcp = ["mcp>=1.30,<2"]` (the version tested), in `dev`.
 
 ### Tests, by commit
 

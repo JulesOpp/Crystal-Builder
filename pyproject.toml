@@ -137,8 +137,9 @@ docs = ["sphinx>=7", "myst-parser>=3", "sphinxcontrib-bibtex>=2.6",
 # SDK brings an HTTP stack; without it the command says what to
 # install, and nothing else imports it.  Below 2 because mcp 2 renamed
 # FastMCP to MCPServer and moved the in-memory test client; the tool
-# layer is written against FastMCP.
-mcp = ["mcp>=1.10,<2"]
+# layer is written against FastMCP.  From 1.30, the release the suite
+# was run against: nothing older has been tried.
+mcp = ["mcp>=1.30,<2"]
 dev = ["crystal-builder[gui,ase,build,sketch,pxrd,refine,mcp,test]",
        "ruff", "pyinstaller>=6"]
 

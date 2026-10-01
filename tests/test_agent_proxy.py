@@ -2,9 +2,9 @@
 
 A client that only speaks stdio (Claude Desktop, Cursor) starts
 ``xtal mcp``; with a window serving, its tools must be the window's
--- the tab the person is looking at -- and with none, the headless
-session it always was.  The window is in this process and the stdio
-side is a real ``xtal mcp`` process, as a client would start it.
+-- its tabs -- and with none, the headless session it always was.
+The window is in this process and the stdio side is a real ``xtal
+mcp`` process, as a client would start it.
 """
 
 import json
@@ -123,3 +123,68 @@ def test_xtal_mcp_proxies_to_a_live_window_and_falls_back_headless(
     assert discovery.read(appdata) is None
     fallen_back = _stdio_inspect(qtbot, tmp_path, appdata)
     assert NO_SESSION in fallen_back["message"]
+
+
+@pytest.mark.slow
+def test_a_proxy_whose_window_stops_serving_says_so_and_exits(
+        qtbot, window, tmp_path, appdata, rutile):
+    """The SDK's client waits an hour for an answer that will never
+    come from a window that has gone, and the assistant waited with
+    it.  The next call is answered with the reason, and the proxy
+    exits non-zero so the client can start it again."""
+    import time
+
+    cif = tmp_path / "rutile.cif"
+    write_cif(rutile, cif)
+    assert window.open_path(cif) is not None
+    dialog = window.preferences_dialog()
+    qtbot.addWidget(dialog)
+    with qtbot.waitSignal(window.agent_server.started, timeout=10000):
+        dialog.page("AI assistant").serve.setChecked(True)
+    env = dict(os.environ, PYTHONWARNINGS="error::DeprecationWarning")
+    env[discovery.ENV] = str(appdata)
+    process = subprocess.Popen(
+        [sys.executable, "-m", "xtal.cli", "mcp"],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE, text=True, cwd=tmp_path, env=env)
+    replies = {}
+
+    def read():
+        for line in process.stdout:
+            reply = json.loads(line)
+            if "id" in reply:
+                replies[reply["id"]] = (time.monotonic(), reply)
+
+    threading.Thread(target=read, daemon=True).start()
+    try:
+        process.stdin.write(_message("initialize", 1, {
+            "protocolVersion": "2025-06-18", "capabilities": {},
+            "clientInfo": {"name": "test", "version": "0"}}))
+        process.stdin.write(_message("notifications/initialized"))
+        process.stdin.write(_message("tools/call", 2, {
+            "name": "inspect", "arguments": {}}))
+        process.stdin.flush()
+        qtbot.waitUntil(lambda: 2 in replies, timeout=60000)
+        first = replies[2][1]["result"]
+        assert not first.get("isError"), first
+        assert "formula" in first["content"][0]["text"]
+
+        window.agent_server.stop()
+        asked = time.monotonic()
+        process.stdin.write(_message("tools/call", 3, {
+            "name": "inspect", "arguments": {}}))
+        process.stdin.flush()
+        qtbot.waitUntil(lambda: 3 in replies, timeout=15000)
+        answered, reply = replies[3]
+        assert answered - asked < 15
+        result = reply["result"]
+        assert result["isError"]
+        assert "stopped serving" in result["content"][0]["text"]
+        assert process.wait(timeout=15) != 0
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait()
+    said = process.stderr.read()
+    assert "stopped serving" in said
+    assert "Traceback" not in said

@@ -196,7 +196,15 @@ class AgentServer(QObject):
             target=self._serve, args=(server, sock), daemon=True,
             name="crystal-builder-mcp")
         self._thread.start()
-        write_discovery(self.port, self.token)
+        try:
+            write_discovery(self.port, self.token)
+        except OSError as exc:
+            # Listening where ``xtal mcp`` cannot find it serves only a
+            # client given the HTTP line, and says nothing is wrong.
+            self.stop()
+            return self._refused(ServerRefused(
+                f"could not write {discovery_path()}: "
+                f"{exc.strerror or exc}"), exc)
         self.started.emit(self.port)
         return HOST, self.port
 

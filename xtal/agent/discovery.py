@@ -24,6 +24,7 @@ its owner alone, and the token is never logged.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import shutil
 import sys
@@ -41,6 +42,8 @@ APP_FOLDER = "CrystalBuilder"
 PROBE_TIMEOUT = 2.0
 
 _KEYS = ("port", "token", "pid", "version", "url")
+
+log = logging.getLogger(__name__)
 
 
 def url(port: int) -> str:
@@ -113,13 +116,23 @@ def read(where) -> dict | None:
 
 def remove(where, token: str | None = None) -> None:
     """Remove the file -- only if it is ours, when ``token`` says
-    whose we are."""
+    whose we are.
+
+    Never raises: Windows refuses to delete a file another process
+    has open, as ``xtal mcp`` does while it reads it, and the window
+    removes it on its way to stopping its workers.  A file left
+    behind names a server that no longer answers, which
+    :func:`alive` already treats as none.
+    """
     target = Path(where) / FILE
     if token is not None:
         entry = read(where)
         if entry is None or entry["token"] != token:
             return
-    target.unlink(missing_ok=True)
+    try:
+        target.unlink(missing_ok=True)
+    except OSError as exc:
+        log.debug("could not remove %s: %s", target, exc)
 
 
 def alive(entry: dict) -> bool:
@@ -183,23 +196,34 @@ def _running_on_windows(pid: int) -> bool:                # pragma: no cover
         kernel.CloseHandle(handle)
 
 
-#: The ``xtal`` program's file name.  A packaged build carries it beside
-#: the application's own executable (``packaging/bundle.py`` builds it
-#: there), and ``xtalapp.selftest`` looks for it by this name.
-LAUNCHER = "xtal.exe" if sys.platform == "win32" else "xtal"
+#: The ``xtal`` program's name, as ``packaging/bundle.py``'s
+#: ``LAUNCHER`` is: without the ``.exe`` Windows gives the file
+#: (:func:`launcher_file_name`).
+LAUNCHER_NAME = "xtal"
+
+
+def launcher_file_name() -> str:
+    """The ``xtal`` program's file name here.  A packaged build carries
+    it beside the application's own executable (``packaging/bundle.py``
+    builds it there), and ``xtalapp.selftest`` looks for it by this
+    name."""
+    suffix = ".exe" if sys.platform == "win32" else ""
+    return f"{LAUNCHER_NAME}{suffix}"
 
 
 def launcher() -> Path:
     """The ``xtal`` command a client's configuration names.
 
-    A frozen build carries it beside the application's own executable;
-    a source install has it on ``PATH``, or failing that beside the
-    Python that is running -- a virtual environment nobody activated.
-    The path is given even when nothing is there yet, so the line can
-    be shown and the reason it fails found.
+    A frozen build carries it beside the application's own executable.
+    A source install has one beside the Python that is running -- a
+    virtual environment, activated or not -- and that is the one
+    whose package this window is, so it comes before whatever ``xtal``
+    is first on ``PATH``, which may be another install's.  The path is
+    given even when nothing is there yet, so the line can be shown and
+    the reason it fails found.
     """
-    beside = Path(sys.executable).with_name(LAUNCHER)
-    if getattr(sys, "frozen", False):
+    beside = Path(sys.executable).with_name(launcher_file_name())
+    if getattr(sys, "frozen", False) or beside.exists():
         return beside
-    found = shutil.which("xtal")
+    found = shutil.which(LAUNCHER_NAME)
     return Path(found) if found else beside

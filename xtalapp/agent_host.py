@@ -27,9 +27,9 @@ plays a trajectory (its atoms are a frame, and ``Document.run`` would
 refuse) or while a calculation runs (whose result is applied over
 whatever is there when it finishes).  An agent calculation registers
 itself as an :class:`AgentCalculation` so the window counts it too.
-A relaxation whose tab was edited while it ran is not applied:
-``DOCUMENT_CHANGED``, and ``RESULT_NOT_APPLIED`` names the run folder
-that keeps it.
+A relaxation whose tab was edited or closed while it ran is not
+applied: ``DOCUMENT_CHANGED``, and ``RESULT_NOT_APPLIED`` names the
+run folder that keeps it.
 
 The GUI thread never waits on another thread here: :meth:`Bridge.call`
 from the GUI thread calls straight through, and only the server's
@@ -46,7 +46,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QMetaObject, QObject, Qt, QThread, Slot
 
-from xtal.agent.answers import VerbResult
+from xtal.agent.answers import Inspection, VerbResult
 from xtal.agent.capabilities import VERBS
 from xtal.agent.diagnostics import Diagnostic
 from xtal.agent.session import Session
@@ -61,6 +61,9 @@ CALCULATIONS = ("energy", "optimize", "run")
 
 #: Why a call from the server's thread is refused once it is stopping.
 CLOSING = "the window is closing"
+#: Why the assistant has no current document though tabs are open.
+CLOSED = ("the document you were working on was closed; open or switch "
+          "to one")
 #: Why a call begun under a server since stopped is refused, though
 #: another has started: its client has gone, and nobody would be told
 #: what it did.
@@ -235,9 +238,10 @@ def _served(method, gated: bool = True):
                     return busy
             return method(self, *args, **kwargs)
         try:
-            return self._bridge.call(serve)
+            answer = self._bridge.call(serve)
         except BridgeClosed as exc:
-            return _closing(method.__name__, exc)
+            answer = _closing(method.__name__, exc)
+        return self._named(answer)
 
     return verb
 
@@ -276,6 +280,21 @@ class WindowSession(Session):
 
     def _changed(self, _change) -> None:
         self._revision += 1
+
+    def _open_in(self, window) -> bool:
+        return any(d is self.document for d in window.documents)
+
+    def _named(self, answer):
+        """``answer`` saying which document it is about: the window
+        has several, and the one an assistant acts on is not always
+        the one in front.  ``Document.path`` is a plain attribute, so
+        this is read from any thread."""
+        named = str(self.document.path) if self.document.path else ""
+        if isinstance(answer, VerbResult):
+            answer.data["document"] = named
+        elif isinstance(answer, Inspection):
+            answer.document = named
+        return answer
 
     @property
     def structure(self):
@@ -440,7 +459,7 @@ class WindowSession(Session):
     def _calculate(self, verb, args, compute) -> VerbResult:
         started = self._start(verb, args)
         if isinstance(started, VerbResult):
-            return started
+            return self._named(started)
         calculation, _revision, generation, over = started
         with calculation:
             answer = compute(over)
@@ -448,7 +467,9 @@ class WindowSession(Session):
         # not said under a server that is not the one asked.
         if generation == self._bridge.generation:
             self._announce(verb, answer)
-        return answer
+        if verb != "energy":
+            self._refresh_workspace()
+        return self._named(answer)
 
     def _start(self, verb, args):
         try:
@@ -474,15 +495,32 @@ class WindowSession(Session):
     def _relax(self, args, options):
         started = self._start("optimize", args)
         if isinstance(started, VerbResult):
-            return started
+            return self._named(started)
         calculation, revision, generation, over = started
         with calculation:
             relaxed = over._relax(args, options)
         if isinstance(relaxed, VerbResult):
-            return relaxed
+            return self._named(relaxed)
         return _Pending(relaxed, revision, generation, over)
 
     def _apply_relaxation(self, pending, args) -> VerbResult:
+        answer = self._applied(pending, args)
+        # The run folder is new whether or not the result landed.
+        self._refresh_workspace()
+        return self._named(answer)
+
+    def _refresh_workspace(self) -> None:
+        """The Workspace panel shown the run folder a calculation
+        made, as ``save`` shows the project: on the GUI thread, not
+        waited for."""
+        try:
+            self._bridge.post(self.window.refresh_workspace)
+        except RuntimeError:
+            # The window has been deleted under a calculation left
+            # running past its close: nothing is there to refresh.
+            pass
+
+    def _applied(self, pending, args) -> VerbResult:
         try:
             outcome = self._bridge.call(
                 lambda: self._apply_unless_changed(pending, args),
@@ -521,6 +559,13 @@ class WindowSession(Session):
                 f"applied")
 
     def _unless_changed(self, pending) -> Diagnostic | None:
+        if not self._open_in(self.window):
+            # The document outlives its tab while this session holds
+            # it, and pushing there would answer ok about a change
+            # nobody can see.
+            return Diagnostic(
+                "DOCUMENT_CHANGED", "the tab was closed while optimize "
+                "ran; the result was not applied")
         if self._revision != pending.revision:
             return Diagnostic(
                 "DOCUMENT_CHANGED", "the structure in the tab was edited "
@@ -635,6 +680,13 @@ class WindowHost(Host):
     once its tab has closed; asking twice gives the same one, which is
     how ``open`` tells an assistant a file is already open.  Every
     method does its work on the GUI thread.
+
+    **The assistant's current document is its own**: the one it last
+    opened or switched to, and before it has one, the tab in front
+    when it first asks.  Following the front tab sent the next edit
+    into whatever the person had clicked on meanwhile.  Once that tab
+    is closed, ``current`` refuses until the assistant opens or
+    switches -- never the next tab along.
     """
 
     #: The bridge takes one call at a time, and a calculation computes
@@ -648,6 +700,7 @@ class WindowHost(Host):
         self.window = window
         self.bridge = Bridge(window)
         self._sessions: list[WindowSession] = []
+        self._current_session: WindowSession | None = None
         # The path each was opened from, as the headless host keys
         # them: an assistant opens again what it opened before.
         self._opened_from: dict[int, Path] = {}
@@ -668,15 +721,22 @@ class WindowHost(Host):
     # -- on the GUI thread -------------------------------------------
 
     def _current(self) -> WindowSession:
+        chosen = self._current_session
+        if chosen is not None:
+            if not chosen._open_in(self.window):
+                raise LookupError(CLOSED)
+            return chosen
         document = self.window.current_document()
         if document is None:
             raise LookupError(NO_SESSION)
-        return self._session(document)
+        self._current_session = self._session(document)
+        return self._current_session
 
     def _open(self, path: Path) -> WindowSession:
         held = self._held(path)
         if held is not None:
             self._raise(held)
+            self._current_session = held
             return held
         if not path.exists():
             raise FileNotFoundError(f"no such file: {path}")
@@ -690,6 +750,7 @@ class WindowHost(Host):
             "open", True, f"opened {document.path.name}",
             atoms_after=session.n_atoms)
         session._record("open", {"path": str(path)}, session.opened)
+        self._current_session = session
         return session
 
     def _switch(self, path: Path) -> WindowSession:
@@ -697,6 +758,7 @@ class WindowHost(Host):
         if held is None:
             raise LookupError(f"{path} is not open")
         self._raise(held)
+        self._current_session = held
         return held
 
     def _raise(self, session: WindowSession) -> None:

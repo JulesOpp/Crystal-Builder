@@ -99,7 +99,7 @@ def main(argv=None) -> int:
         entry = discovery.read(discovery.folder())
         if entry is not None and discovery.alive(entry):
             from xtal.agent import proxy
-            return proxy.run(entry["url"], entry["token"])
+            return proxy.run(entry)
     if args.window:
         print("no window is listening: start Crystal Builder and turn "
               "on Preferences > AI assistant, or use --headless",

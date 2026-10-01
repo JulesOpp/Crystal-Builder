@@ -153,10 +153,9 @@ through the same commands as a person* is the design.
 
 It shipped: `xtal/agent/` (`Session`, `inspect`, `render`,
 `capabilities`), the skill in the wheel, the `xtal` commands and
-their `--json`.  **Still owed**, in this order:
+their `--json`, and on 2026-10-01 the live link to the window
+(`feature/ai-assistant-revamp`).  **Still owed**:
 
-- **A live link to the window**: shipped 2026-10-01 (branch
-  `feature/ai-assistant-revamp`).
 - **A manual chapter**, *Working with an AI assistant*, once
   `docs/manual/` exists (interface stretch, phase 4).
 
@@ -171,8 +170,30 @@ their `--json`.  **Still owed**, in this order:
   do.  Only `energy`, `optimize` and `run` compute off it.
 - `agent/serve` is one setting for every window, though only one
   window can serve (the discovery file holds one).
-- A proxy (`xtal mcp`) whose window goes away does not recover; the
-  client has to restart it.
+- A proxy (`xtal mcp`) whose window goes away does not reconnect: it
+  answers the next call (or the one in flight, within
+  `proxy.WATCH` seconds) with the reason and exits 1, and the client
+  has to start it again -- which then serves the window if one is
+  serving by then, and headless if not.
+- The window's `render` looks along +a (`look_along_axis`) and the
+  headless one along -a, so the same `view="a"` gives mirror images.
+- A quit during an agent calculation abandons it: the quit asks
+  first, as for any running calculation, and the run then stops with
+  the process, its folder unfinished.
+- A `build` or `new` that was still running when the server stopped
+  can open its tab under the next server.
+- Headless `xtal mcp` lingers after its stdin closes until a running
+  relaxation ends (the tool's worker thread is not a daemon).
+- The second archive's size (the bundle with `xtal` and `mcp`) is
+  unmeasured until CI builds it.
+- The refinement workbench's running fit is not counted by
+  `has_running_calculation()`, so an agent's verbs are not refused
+  while it runs.
+- `discovery.alive` sends the token to whatever holds the port: on a
+  multi-user machine, a stale file whose pid was reused and whose
+  port another user took could be handed it and pose as the window.
+  Low risk; a challenge (an HMAC of a nonce) instead of the bearer
+  probe would close it.
 - A tool call that arrives while the window is closing comes back as
   a tool error, not as `WINDOW_BUSY`.
 - `bonding.perceive(rules=...)` reads the stored graph, despite its

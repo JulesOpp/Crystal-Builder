@@ -89,3 +89,41 @@ def test_the_folder_is_the_environments_when_it_names_one(
     assert discovery.folder(default=tmp_path / "other") == \
         tmp_path / "other"
     assert discovery.folder() == discovery.platform_folder()
+
+
+def test_the_launcher_beside_the_running_python_comes_before_path(
+        tmp_path, monkeypatch):
+    """A virtual environment nobody activated runs the window with its
+    own ``xtal`` beside its Python, and another install's ``xtal`` on
+    PATH would serve the assistant an older ``xtal mcp`` -- the line
+    the Preferences page shows must name the one beside us."""
+    bin_ = tmp_path / "venv" / "bin"
+    bin_.mkdir(parents=True)
+    other = tmp_path / "elsewhere" / discovery.launcher_file_name()
+    monkeypatch.setattr(sys, "frozen", False, raising=False)
+    monkeypatch.setattr(sys, "executable", str(bin_ / "python"))
+    monkeypatch.setattr(discovery.shutil, "which",
+                        lambda name: str(other))
+    beside = bin_ / discovery.launcher_file_name()
+
+    assert discovery.launcher() == other
+    beside.write_text("")
+    assert discovery.launcher() == beside
+
+    beside.unlink()
+    monkeypatch.setattr(discovery.shutil, "which", lambda name: None)
+    assert discovery.launcher() == beside
+
+
+def test_removing_the_file_never_raises(tmp_path, monkeypatch):
+    """Windows refuses to delete a file ``xtal mcp`` has open; the
+    window's close must still reach the workers it stops after."""
+    discovery.write(tmp_path, port=7781, token="a" * 32, pid=1,
+                    version="1")
+
+    def refused(self, missing_ok=False):
+        raise PermissionError(13, "in use", str(self))
+
+    monkeypatch.setattr(discovery.Path, "unlink", refused)
+    discovery.remove(tmp_path, token="a" * 32)
+    discovery.remove(tmp_path)

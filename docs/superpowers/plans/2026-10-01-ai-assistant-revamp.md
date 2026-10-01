@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - Read `CLAUDE.md` first. Line length 79; `ruff check` only, never `ruff format`; test names are sentences; deprecation warnings are errors; `xtal/` imports no Qt.
-- The core's dependencies stay numpy, scipy, gemmi, spglib. `mcp` is an **extra** (`mcp = ["mcp>=1.10"]`), imported lazily.
+- The core's dependencies stay numpy, scipy, gemmi, spglib. `mcp` is an **extra** (`mcp = ["mcp>=1.30,<2"]`, the version the suite was run against), imported lazily.
 - Every verb is one undo step; a refusal is a `VerbResult` with `ok=False` and a code from `CODES`; no new code without its `diagnostics.md` row (the equality test enforces it).
 - Chemistry defaults are Julius's: nothing here changes a default of any engine, step or module.
 - git here is 1.8.4: no `git worktree`, no `git -C`, no `stash push <path>`. Work in the checkout on `feature/ai-assistant-revamp`, serially.
@@ -77,7 +77,7 @@
 
 **Files:**
 - Create: `xtal/agent/tools.py`, `xtal/agent/serve.py`
-- Modify: `pyproject.toml` (extra `mcp = ["mcp>=1.10"]`, add to `dev`), `xtal/install.py` if extras are enumerated there, `xtal/cli.py` (`mcp` subcommand: `--headless`, `--window`), `xtal/agent/__init__.py` (`__all__` unchanged; no eager import of tools)
+- Modify: `pyproject.toml` (extra `mcp = ["mcp>=1.30,<2"]`, add to `dev`), `xtal/install.py` if extras are enumerated there, `xtal/cli.py` (`mcp` subcommand: `--headless`, `--window`), `xtal/agent/__init__.py` (`__all__` unchanged; no eager import of tools)
 - Test: `tests/test_agent_tools.py`, `tests/test_agent_serve.py`
 - Install into `.venv` first: `uv pip install --python .venv/bin/python -e ".[mcp]"` (uv is at `~/.local/bin/uv`).
 

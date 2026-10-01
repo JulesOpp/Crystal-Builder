@@ -21,7 +21,7 @@ bonding, run force field / DFTB+ / Zeo++ calculations on the result.
 | `xtalapp/` | The Qt/PySide6 + VTK GUI shell. Holds no crystallography of its own. |
 | `xtalapp/mainwindow.py` | The shell: menus, docks, tabs, and three mixins it inherits -- `shell_state.ShellRefresh` (refreshing and enabling), `symmetry_actions.SymmetryActions`, `edit_actions.EditActions`. See "Working in mainwindow" below. |
 | `xtalapp/document.py` | `Document` — a structure plus its undo stack. The GUI asks the Document to change things; it does not edit structures directly. |
-| `xtalapp/agent_host.py` | The window as a `Host`: a `WindowSession` per tab whose verbs go through that tab's `Document.run`, crossing to the GUI thread by `Bridge`. Refuses with `WINDOW_BUSY` during playback or a calculation; an `AgentCalculation` is counted like the panel's. |
+| `xtalapp/agent_host.py` | The window as a `Host`: a `WindowSession` per tab whose verbs go through that tab's `Document.run`, crossing to the GUI thread by `Bridge`. The assistant's current tab is its own (`open`, `switch`), never the one the person clicked, and each answer names it (`data["document"]`). Refuses with `WINDOW_BUSY` during playback or a calculation; an `AgentCalculation` is counted like the panel's. |
 | `xtalapp/agent_server.py` | `AgentServer`: the tools over streamable HTTP on `127.0.0.1` (port 7781, any free one if that is taken), behind a per-launch bearer token, on a daemon thread. Switched by Preferences ▸ AI assistant (`agent/serve`, `agent/port`); Help ▸ Connect an AI assistant opens that page. |
 
 ## Commands
@@ -768,15 +768,15 @@ stress case).
   through the window's own `Document.run` so each verb lands in the
   open tab. Each verb appends a line to `<entry>/agent-session.jsonl`,
   which is how a person opening the entry learns an assistant worked
-  on it. A refusal
-  is a `VerbResult` with `ok=False` and a coded `Diagnostic`, never an
-  exception and never a no-op left on the stack. **Diagnostic codes
-  are closed** (`diagnostics.CODES`): a new finding gets a code, a
-  level and a remedy there and a row in the skill's `diagnostics.md`,
-  or the skill test fails. **A render runs in a subprocess**: with no
-  GL, VTK segfaults rather than raising, and an agent's session is
-  worth more than a picture. When a verb, parameter or code changes,
-  the shipped skill changes in the same commit.
+  on it. A refusal is a `VerbResult` with `ok=False` and a coded
+  `Diagnostic`, never an exception and never a no-op left on the
+  stack. **Diagnostic codes are closed** (`diagnostics.CODES`): a new
+  finding gets a code, a level and a remedy there and a row in the
+  skill's `diagnostics.md`, or the skill test fails. **A render runs
+  in a subprocess**, except in the window, whose own viewport draws
+  it: with no GL, VTK segfaults rather than raising, and an agent's
+  session is worth more than a picture. When a verb, parameter or
+  code changes, the shipped skill changes in the same commit.
 - Structure edits go through `Document.apply(...)` with a `Change`
   flag, so they land as one undo step and refresh only the panels that
   care. Do not mutate a structure behind the Document's back.

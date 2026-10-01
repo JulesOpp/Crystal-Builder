@@ -122,7 +122,8 @@ def _fake_launcher(folder: Path, monkeypatch, mcp_status=0) -> Path:
     if sys.platform == "win32":
         from xtal.agent import discovery
 
-        monkeypatch.setattr(discovery, "LAUNCHER", "xtal.cmd")
+        monkeypatch.setattr(discovery, "launcher_file_name",
+                            lambda: "xtal.cmd")
         fake = folder / "xtal.cmd"
         fake.write_text(
             '@echo off\r\n'

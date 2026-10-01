@@ -8,6 +8,7 @@ drive a real window with real documents and real commands; only the
 viewport is a stub.
 """
 
+import json
 import threading
 from pathlib import Path
 
@@ -383,6 +384,49 @@ def test_a_relaxation_is_not_applied_over_a_run_the_person_started(
     assert not document.stack._done
 
 
+def test_a_relaxation_is_not_applied_to_a_tab_the_person_closed(
+        qtbot, monkeypatch, window, tmp_path, tab, quartz):
+    """The document outlives its tab while the session holds it, and
+    the apply pushed onto its orphaned stack -- an answer saying ok
+    about a change nobody can see, and a run folder never named."""
+    document, session = tab
+    _open(window, tmp_path, quartz, name="quartz")
+
+    def close_rutile():
+        window.agent_host.bridge.call(lambda: window.close_document(
+            window.documents.index(document)))
+
+    _real_engine(monkeypatch, close_rutile)
+    answer = _in_a_thread(qtbot, lambda: session.optimize(max_steps=3))
+    assert all(d is not document for d in window.documents)
+    assert not answer.ok
+    assert _codes(answer)[0] == "DOCUMENT_CHANGED", answer
+    assert "the tab was closed" in answer.message
+    _kept(answer)
+    assert not document.stack._done
+
+
+def test_an_agent_calculation_shows_its_run_folder_in_the_workspace(
+        qtbot, monkeypatch, window, tab):
+    """``save`` refreshed the Workspace panel and a relaxation or a
+    module run did not, so the run folder the answer named was not
+    there for the person to open until something else refreshed it."""
+    document, session = tab
+    refreshed = []
+    monkeypatch.setattr(window, "refresh_workspace",
+                        lambda: refreshed.append(threading.get_ident()))
+    _real_engine(monkeypatch)
+    answer = _in_a_thread(qtbot, lambda: session.optimize(max_steps=2))
+    assert answer.ok, answer
+    qtbot.waitUntil(lambda: bool(refreshed))
+    assert refreshed == [threading.get_ident()]
+
+    monkeypatch.setattr(Session, "run", lambda self, action, **params:
+                        Session._refused(self, action, params, "no"))
+    _in_a_thread(qtbot, lambda: session.run("scan.run"))
+    qtbot.waitUntil(lambda: len(refreshed) == 2)
+
+
 def test_a_relaxation_computes_off_the_gui_thread(qtbot, monkeypatch,
                                                   tab):
     """On the GUI thread the window would stop answering for the whole
@@ -397,10 +441,12 @@ def test_a_relaxation_computes_off_the_gui_thread(qtbot, monkeypatch,
     assert len(document.stack._done) == 1
 
 
-def test_the_persons_edits_are_gated_while_the_agent_calculates(
+def test_an_agent_calculation_is_counted_so_quitting_asks_first(
         window, tab):
-    """has_running_calculation is what closing and quitting ask, and
-    what the gates read: an agent run must count like the panel's."""
+    """has_running_calculation is what quitting asks and what the
+    agent's own gates read: an agent run must count like the panel's.
+    The person's edits are not refused meanwhile; DOCUMENT_CHANGED at
+    the apply is what keeps them."""
     assert not window.has_running_calculation()
     with AgentCalculation(window, "optimize"):
         assert window.has_running_calculation()
@@ -449,10 +495,10 @@ def test_render_in_the_window_grabs_the_viewport(monkeypatch, window,
     assert not document.stack._done
 
 
-def test_the_host_follows_the_current_tab_and_opens_a_new_one(
+def test_the_host_opens_a_new_tab_and_switches_between_them(
         window, tmp_path, rutile, quartz):
-    """An assistant's verbs act on the tab in front, and a document it
-    opens is a tab the person can see."""
+    """A document an assistant opens is a tab the person can see, and
+    the same file asked for twice is the same tab."""
     host = window.agent_host
     with pytest.raises(LookupError):
         host.current()
@@ -474,6 +520,7 @@ def test_the_host_follows_the_current_tab_and_opens_a_new_one(
     # The original path, the workspace's copy: both are this tab.
     assert host.open(rutile_cif) is session
     assert window.current_document() is first
+    assert host.current() is session
     assert host.switch(opened.path) is opened
     assert window.current_document() is opened.document
     assert window.tabs.count() == 2
@@ -485,4 +532,77 @@ def test_the_host_follows_the_current_tab_and_opens_a_new_one(
 
     window.close_document(window.documents.index(opened.document))
     assert [s.document for s in host.sessions()] == [first]
+
+
+def test_the_agents_current_tab_does_not_follow_the_persons_clicks(
+        window, tmp_path, rutile, quartz):
+    """Following the tab in front sent an assistant's next edit into
+    whichever structure the person had clicked on meanwhile -- the
+    wrong crystal, one undo step the person never asked for.  The
+    assistant's document is the one it opened or switched to; the
+    front tab is only where it starts."""
+    from xtal.agent.tools import _verb_tool
+
+    host = window.agent_host
+    first, _cif = _open(window, tmp_path, rutile)
+    session = host.current()
+    assert session.document is first
+
+    second, quartz_cif = _open(window, tmp_path, quartz, name="quartz")
+    assert window.current_document() is second
     assert host.current() is session
+    window.tabs.setCurrentIndex(window.documents.index(first))
+    window.tabs.setCurrentIndex(window.documents.index(second))
+    assert host.current() is session
+
+    switched = host.switch(quartz_cif)
+    assert switched.document is second
+    window.tabs.setCurrentIndex(window.documents.index(first))
+    assert host.current() is switched
+
+    # Its tab closed under it: refused, never the next tab along.
+    window.close_document(window.documents.index(second))
+    with pytest.raises(LookupError, match="was closed"):
+        host.current()
+    tool, _description = _verb_tool(host, "add_atom")
+    said = json.loads(tool(element="O", frac=[0.5, 0.5, 0.5]))
+    assert not said["ok"] and "was closed" in said["message"]
+    assert not first.stack._done
+
+    assert host.switch(first.path) is session
+    assert host.current() is session
+
+
+def test_every_window_answer_names_its_document(
+        qtbot, monkeypatch, window, tmp_path, tab):
+    """An assistant reading an answer can see which tab it landed in
+    -- the one thing a window adds to a headless session's answer."""
+    document, session = tab
+    named = str(document.path)
+    viewport = window.tabs.widget(window.documents.index(document))
+
+    def save_image(path, magnification=2, transparent=False):
+        Path(path).write_bytes(b"\x89PNG\r\n\x1a\n")
+
+    monkeypatch.setattr(viewport, "save_image", save_image,
+                        raising=False)
+    answers = [
+        session.add_atom("O", frac=[0.5, 0.5, 0.5]),
+        session.select("element", symbols=["O"]),
+        session.undo(), session.redo(),
+        session.merge_duplicates(0.5),
+        session.render(tmp_path / "named.png"),
+        session.energy(),
+        _in_a_thread(qtbot, lambda: session.optimize(max_steps=2)),
+    ]
+    monkeypatch.setattr(window, "has_running_calculation", lambda: True)
+    answers += [session.add_atom("O", frac=[0.2, 0.2, 0.2]),
+                session.energy()]
+    for answer in answers:
+        assert answer.data.get("document") == named, answer
+    assert session.inspect().to_dict()["document"] == named
+    # Headless, nothing changes.
+    plain = Session(document.structure.copy())
+    assert "document" not in plain.add_atom(
+        "O", frac=[0.5, 0.5, 0.5]).data
+    assert "document" not in plain.inspect().to_dict()

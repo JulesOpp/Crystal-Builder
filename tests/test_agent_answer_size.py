@@ -107,5 +107,5 @@ def test_help_for_still_describes_an_action_the_window_performs():
     described = help_for("forcefield.optimise")
     assert "performed by the window" in described
     assert "optimize" in described
-    assert all(f"  {p.name}=" in described for p in action.params)
+    assert "(no parameters)" in described
     assert "energy" in help_for("forcefield.single-point")

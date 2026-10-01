@@ -166,14 +166,17 @@ CODES: dict[str, Code] = {
                "numbers are what the judgement rests on anyway."),
     # -- the window ----------------------------------------------------
     "WINDOW_BUSY": Code(
-        ERROR, "The window is playing a trajectory or running a "
-               "calculation, and nothing was changed. Wait for it to "
-               "finish, then call again; retrying at once is refused "
-               "the same way."),
+        ERROR, "Nothing was changed. If the message says a trajectory "
+               "is playing or a calculation is running, wait for it to "
+               "finish and call again; retrying at once is refused the "
+               "same way. If it says the window is closing or stopped "
+               "serving, the window is gone: tell the person, and "
+               "reconnect only once they have reopened it."),
     "DOCUMENT_CHANGED": Code(
-        ERROR, "The structure was edited while the calculation ran, "
-               "so its result was not applied; the run folder keeps "
-               "it. Inspect the structure as it is now before running "
+        ERROR, "The structure was edited, or its tab closed, while the "
+               "calculation ran, so its result was not applied; the "
+               "run folder keeps it. Inspect the structure as it is "
+               "now (or open or switch to a document) before running "
                "again."),
 }
 

@@ -210,11 +210,15 @@ claude mcp add --transport http crystal-builder http://127.0.0.1:7781/mcp \
 ```
 
 The token is made afresh at every launch and is on the Preferences
-page, so paste the first line again after a restart.  A packaged
-install carries the `xtal` program beside the application, and the
-page gives its path.  With no window serving, `xtal mcp` works on
-files of its own, headless (it needs the `mcp` extra); `--window` and
-`--headless` insist on one or the other.
+page, so paste the first line again after a restart -- after `claude
+mcp remove crystal-builder`, since `claude mcp add` will not replace a
+server of the same name.  A packaged install carries the `xtal`
+program beside the application, and the page gives its path.  With no
+window serving, `xtal mcp` works on files of its own, headless (it
+needs the `mcp` extra); `--window` and `--headless` insist on one or
+the other.  It decides once, when the client starts it, so switch the
+window on before starting the client, or restart the client after.
+If the window goes away, the next call says so and `xtal mcp` exits.
 
 A scripted eval of the skill, run on demand, is in `tools/agent_eval/`:
 `python tools/agent_eval/run.py`.

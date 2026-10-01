@@ -480,11 +480,11 @@ def check_launcher(executable) -> str:
     import json
     import subprocess
 
-    from xtal.agent.discovery import LAUNCHER
+    from xtal.agent.discovery import launcher_file_name
 
     if not getattr(sys, "frozen", False):
         return "xtal launcher: skipped: not a frozen build"
-    launcher = Path(executable).with_name(LAUNCHER)
+    launcher = Path(executable).with_name(launcher_file_name())
     if not launcher.is_file():
         raise AssertionError(
             f"no xtal launcher at {launcher}: the spec's second EXE did "
