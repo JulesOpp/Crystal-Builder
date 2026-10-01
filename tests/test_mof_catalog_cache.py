@@ -137,3 +137,25 @@ def test_a_file_that_will_not_read_is_reported_every_time(folders):
         catalogue = Catalog((nets,), (blocks,))
         assert any("broken.cgd" in f for f in catalogue.failures)
         assert {t.name for t in catalogue.topologies()} == {"pcu", "dia"}
+
+
+def test_expanding_a_net_reads_no_file_the_catalogue_already_read(
+        folders, monkeypatch):
+    """The header and the whole net are two parses of one file, and a
+    sweep over every net -- the picker's preview, a 3-periodic check --
+    read every file twice, for every catalogue."""
+    nets, blocks = folders
+    Catalog((nets,), (blocks,)).topology("pcu").net()
+    opened = []
+    read_text = cat.Path.read_text
+
+    def counted(self, *args, **kwargs):
+        opened.append(self.name)
+        return read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(cat.Path, "read_text", counted)
+
+    net = Catalog((nets,), (blocks,)).topology("pcu").net()
+
+    assert net is not None
+    assert "pcu.cgd" not in opened

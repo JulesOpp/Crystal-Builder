@@ -384,7 +384,7 @@ def read_building_block(path) -> BuildingBlock:
     header of its own: a line that is not a bond would be read as one.
     """
     path = Path(path)
-    lines = path.read_text(encoding="utf-8").splitlines()
+    lines = _text(path).splitlines()
     if not lines:
         raise CatalogError(f"{path.name} is empty")
     try:
@@ -724,8 +724,7 @@ class Topology:
 
 
 def _entry_of(path: Path) -> CgdEntry:
-    return _entry_of_text(Path(path).read_text(encoding="utf-8"),
-                          Path(path).name)
+    return _entry_of_text(_text(Path(path)), Path(path).name)
 
 
 def _entry_of_text(text: str, where: str = "the net") -> CgdEntry:
@@ -835,7 +834,7 @@ def _header(path: Path) -> tuple[str, str, tuple[int, ...], int]:
     name = group = ""
     coordinations: list[int] = []
     edges = 0
-    for raw in path.read_text(encoding="utf-8").splitlines():
+    for raw in _text(path).splitlines():
         line = raw.split("#")[0].strip()
         if not line:
             continue
@@ -1024,6 +1023,24 @@ class Catalog:
 
 _LISTINGS: dict = {}
 _PARSED: dict = {}
+_TEXTS: dict = {}
+
+
+def _text(path: Path) -> str:
+    """The file's text, read again only when it has changed.
+
+    Its header and its whole net are two parses of one file: the list
+    reads the first, a preview or a build the second, and a sweep over
+    every net read each of 2599 files twice for every catalogue.  The
+    strings are immutable, and all of PORMAKE's are 13 MB.
+    """
+    stat = path.stat()
+    stamp = (stat.st_size, stat.st_mtime_ns)
+    held = _TEXTS.get(str(path))
+    if held is None or held[0] != stamp:
+        held = (stamp, path.read_text(encoding="utf-8"))
+        _TEXTS[str(path)] = held
+    return held[1]
 
 
 def _listing(directory: Path, pattern: str) -> list[Path]:
