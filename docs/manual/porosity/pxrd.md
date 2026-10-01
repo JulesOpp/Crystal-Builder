@@ -229,7 +229,10 @@ structure it came from.  Its buttons:
 - **Overlay data…** reads a measured pattern (`.xy`, `.xye` or
   `.dat`: whitespace- or comma-separated 2θ and intensity, a header,
   blank lines and a third column of errors all tolerated) and draws it
-  on top.  **Every trace is scaled to its own maximum**, because a
+  on top.  With the `refine` extra installed it also reads the
+  diffractometer's own file -- Rigaku `.rasx` and `.ras`, Bruker
+  `.raw`, `.brml` and `.uxd`, PANalytical `.xrdml` -- so there is no
+  exporting to `.xy` first.  **Every trace is scaled to its own maximum**, because a
   calculated pattern is in electrons squared and a measured one in
   counts, and on one absolute axis one of them is a flat line; the
   axis is labelled as a percentage for that reason, and the sentence

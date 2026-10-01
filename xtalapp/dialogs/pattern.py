@@ -61,7 +61,8 @@ from PySide6.QtWidgets import (
 )
 
 from xtal import install
-from xtal.io.xy import read_xy, write_xy
+from xtal.io.xy import VENDOR_EXTENSIONS, read_xy, write_xy
+from xtal.powder.data import PowderData, readable_extensions
 from xtalapp.widgets.intensity_scale import apply_scale, scale_box
 from xtalapp.widgets.tone import HINT, set_tone
 
@@ -413,12 +414,19 @@ class PatternDialog(QDialog):
         path, _filter = QFileDialog.getOpenFileName(
             self, "Overlay a measured pattern" if self.pattern
             else "Overlay data", self.directory,
-            "Diffraction pattern (*.xy *.xye *.dat);;All files (*)"
-            if self.pattern else DATA_FILTER)
+            "Diffraction pattern ("
+            + " ".join(f"*{ext}" for ext in readable_extensions())
+            + ");;All files (*)" if self.pattern else DATA_FILTER)
         if not path:
             return
         try:
-            x, y = read_xy(path)
+            if Path(path).suffix.lower() in VENDOR_EXTENSIONS:
+                # an overlay draws what the file holds; read_xy alone
+                # is lenient about rows a refinement would refuse
+                data = PowderData.from_file(path)
+                x, y = data.two_theta, data.intensity
+            else:
+                x, y = read_xy(path)
         except (OSError, ValueError) as exc:
             QMessageBox.warning(self, "Overlay", str(exc))
             return

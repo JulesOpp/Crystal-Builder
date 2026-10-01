@@ -66,6 +66,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+from xtal.io.xy import VENDOR_EXTENSIONS
+
 WORKSPACE_FILE = "workspace.json"
 
 #: Where unsaved edits are kept between saves.  A dot-folder, so
@@ -231,10 +233,12 @@ def classify(path) -> str:
         # picture into a structure, and dispatching on the extension
         # would have tried.
         return "image"
-    if suffix in (".xy", ".xye"):
+    if suffix in (".xy", ".xye", *VENDOR_EXTENSIONS):
         # A powder pattern -- measured, or one a run calculated.  It
         # opens in the refinement workbench; open as a structure it
-        # was an error message.
+        # was an error message.  A diffractometer's own file is one
+        # too, and without the refine extra the workbench says why it
+        # cannot read it.
         return "pattern"
     if path.stem == "final":
         return "final"
