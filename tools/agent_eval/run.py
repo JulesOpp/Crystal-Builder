@@ -100,10 +100,10 @@ def dry_run(tasks: list[Path], claude: Path | None) -> int:
     print(f"{len(tasks)} task(s); nothing is run\n")
     for task in tasks:
         expect = grade.expectations(task)
-        source = grade.input_file(task)
         print(f"== {task.name}")
-        shown = source.relative_to(grade.ROOT) if source else "(none)"
-        print(f"   input:  {shown}")
+        # As expect.json names it: a Path would print backslashes on
+        # Windows.
+        print(f"   input:  {expect.get('input') or '(none)'}")
         prompt = " ".join(prompt_of(task).split())
         for line in textwrap.wrap(prompt, 66):
             print(f"   | {line}")

@@ -170,5 +170,36 @@ def test_a_dry_run_lists_the_five_tasks_without_calling_claude(tmp_path):
     for name in TASKS:
         assert name in done.stdout
     assert "BUILD_OVERLAP" in done.stdout
-    assert "resources/samples/Ni2Cl2BTDD.cif" in done.stdout
+    assert "   input:  resources/samples/Ni2Cl2BTDD.cif" in \
+        done.stdout.splitlines()
     assert not called.exists()
+
+
+def _run_module():
+    """``run.py``, with its ``import grade`` given the module the
+    tests already loaded."""
+    name = "agent_eval_run"
+    if name not in sys.modules:
+        sys.modules.setdefault("grade", _grade_module())
+        spec = importlib.util.spec_from_file_location(
+            name, EVAL / "run.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[name]
+
+
+def test_the_dry_run_shows_an_input_as_the_task_names_it(capsys):
+    """A ``Path`` printed here reads ``resources\\samples\\...`` on
+    Windows, not the string the task's expect.json gives."""
+    run = _run_module()
+    task = EVAL / "tasks" / "copies-and-hydrogens"
+    named = json.loads((task / "expect.json").read_text(
+        encoding="utf-8"))["input"]
+
+    run.dry_run([task], None)
+
+    shown = [line for line in capsys.readouterr().out.splitlines()
+             if line.startswith("   input:")]
+    assert shown == [f"   input:  {named}"]
+    assert "\\" not in shown[0]
