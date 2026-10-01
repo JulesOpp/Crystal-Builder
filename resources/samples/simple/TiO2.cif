@@ -1,0 +1,90 @@
+#------------------------------------------------------------------------------
+#$Date: 2024-05-23 12:45:01 +0300 (Thu, 23 May 2024) $
+#$Revision: 292002 $
+#$URL: file:///home/coder/svn-repositories/_RELOADED_COD/cod-reloaded/cif/9/01/56/9015662.cif $
+#------------------------------------------------------------------------------
+#
+# This file is available in the Crystallography Open Database (COD),
+# http://www.crystallography.net/. The original data for this entry
+# were provided the American Mineralogist Crystal Structure Database,
+# http://rruff.geo.arizona.edu/AMS/amcsd.php
+#
+# The file may be used within the scientific community so long as
+# proper attribution is given to the journal article from which the
+# data were obtained.
+#
+data_9015662
+loop_
+_publ_author_name
+'Howard, C. J.'
+'Sabine, T. M.'
+'Dickson, F.'
+_publ_section_title
+;
+ Structural and thermal parameters for rutile and anatase
+;
+_journal_issue                   4
+_journal_name_full               'Acta Crystallographica, Section B'
+_journal_page_first              462
+_journal_page_last               468
+_journal_paper_doi               10.1107/S010876819100335X
+_journal_volume                  47
+_journal_year                    1991
+_chemical_compound_source        Synthetic
+_chemical_formula_sum            'O2 Ti'
+_chemical_name_mineral           Rutile
+_space_group_IT_number           136
+_symmetry_space_group_name_Hall  '-P 4n 2n'
+_symmetry_space_group_name_H-M   'P 42/m n m'
+_cell_angle_alpha                90
+_cell_angle_beta                 90
+_cell_angle_gamma                90
+_cell_length_a                   4.5937
+_cell_length_b                   4.5937
+_cell_length_c                   2.9587
+_cell_formula_units_Z            2
+_cell_volume                     62.435
+_database_code_amcsd             0019092
+_exptl_crystal_density_diffrn    4.249
+_cod_original_formula_sum        'Ti O2'
+_cod_database_code               9015662
+loop_
+_space_group_symop_operation_xyz
+x,y,z
+-y,-x,z
+y,x,-z
+1/2+y,1/2-x,1/2-z
+1/2-y,1/2+x,1/2+z
+1/2+x,1/2-y,1/2+z
+1/2-x,1/2+y,1/2-z
+x,y,-z
+-x,-y,z
+y,x,z
+-y,-x,-z
+1/2-y,1/2+x,1/2-z
+1/2+y,1/2-x,1/2+z
+1/2-x,1/2+y,1/2+z
+1/2+x,1/2-y,1/2-z
+-x,-y,-z
+loop_
+_atom_site_aniso_label
+_atom_site_aniso_U_11
+_atom_site_aniso_U_22
+_atom_site_aniso_U_33
+_atom_site_aniso_U_12
+_atom_site_aniso_U_13
+_atom_site_aniso_U_23
+Ti 0.00680 -0.00040 0.00000 0.00680 0.00000 0.00460
+O 0.00520 -0.00200 0.00000 0.00520 0.00000 0.00350
+loop_
+_atom_site_label
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+Ti 0.00000 0.00000 0.00000
+O 0.30478 0.30478 0.00000
+loop_
+_cod_related_entry_id
+_cod_related_entry_database
+_cod_related_entry_code
+1 AMCSD 0019092

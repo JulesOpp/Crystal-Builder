@@ -32,7 +32,10 @@ has one.
 - **New Workspace…** makes a folder and opens it; **Open Other…**
   opens a folder that is already one.
 - **Open Sample** opens the selected workspace with one of the sample
-  structures already in a tab.
+  structures already in a tab: the frameworks this project was written
+  against, *Simple materials* (graphene, diamond, NaCl, rutile, quartz,
+  iron, a few all-silica zeolites and more, each small enough to learn
+  on), and the COD's frameworks as deposited and prepared.
 - **Quit** leaves without opening a window.
 
 A file double-clicked from the Finder or Explorer that is *already

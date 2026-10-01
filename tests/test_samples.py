@@ -1,4 +1,4 @@
-"""Twenty-three real structures ship in resources/samples, and now open.
+"""The structures that ship in resources/samples, and how they open.
 
 They had been in the repository since the early phases with nothing in
 the application referring to them, so a fresh installation opened an
@@ -52,7 +52,7 @@ def test_every_sample_in_the_catalogue_is_a_file_that_is_there():
     missing = [s.label for s in samples.SAMPLES if s.path is None]
 
     assert missing == []
-    assert len(samples.SAMPLES) == 47
+    assert len(samples.SAMPLES) == 65
 
 
 def test_every_sample_is_a_structure_this_application_can_read():
@@ -350,6 +350,73 @@ def test_the_cod_samples_are_what_the_script_writes():
         assert fetch.strip(text) == text, name
         assert re.search(rf"^_cod_database_code\s+{cod_id}$", text,
                          re.MULTILINE), name
+    simple = {s.cod_id: s.file.removeprefix("simple/")
+              for s in samples.in_group(samples.SIMPLE)
+              if s.cod_id is not None}
+    assert simple == fetch.SIMPLE
+    for cod_id, name in fetch.SIMPLE.items():
+        text = (samples.folder() / "simple" / name).read_text("utf-8")
+        assert fetch.strip(text) == text, name
+        assert re.search(rf"^_cod_database_code\s+{cod_id}$", text,
+                         re.MULTILINE), name
+
+
+#: What each simple material must read as: its space group, its sites
+#: and the atoms the group makes of them -- the textbook counts, so a
+#: deposition that came with a partial site or a second phase fails.
+SIMPLE_EXPECTED = {
+    "simple_graphene": ("P6/mmm", 1, 2),
+    "simple_graphite": ("P63/mmc", 2, 4),
+    "simple_diamond": ("Fd-3m", 1, 8),
+    "simple_si": ("Fd-3m", 1, 8),
+    "simple_nacl": ("Fm-3m", 2, 8),
+    "simple_cscl": ("Pm-3m", 2, 2),
+    "simple_caf2": ("Fm-3m", 2, 12),
+    "simple_al2o3": ("H-3c", 2, 30),      # R-3c, hexagonal axes
+    "simple_tio2": ("P42/mnm", 2, 6),
+    "simple_srtio3": ("Pm-3m", 3, 5),
+    "simple_zno": ("P63mc", 2, 4),
+    "simple_quartz": ("P3221", 2, 9),
+    "simple_fe": ("Im-3m", 1, 2),
+    "simple_cu": ("Fm-3m", 1, 4),
+    "simple_lta": ("Pm-3m", 4, 72),
+    "simple_mfi": ("Pnma", 38, 288),
+    "simple_fau": ("Fd-3m", 5, 576),
+    "simple_sod": ("P-43n", 5, 46),
+}
+
+
+def test_every_simple_material_opens_as_the_textbook_has_it():
+    """Its group, its formula's worth of atoms, every site whole.  A
+    simple material is offered as one to learn on, so a deposition
+    with a partial site or a refined guest in it is the wrong one."""
+    from xtal.core import p1
+
+    found = samples.in_group(samples.SIMPLE)
+    assert sorted(s.name for s in found) == sorted(SIMPLE_EXPECTED)
+    for sample in found:
+        group, n_sites, n_atoms = SIMPLE_EXPECTED[sample.name]
+        structure = FORMATS.read(sample.path)
+
+        assert structure.space_group.short_name == group, sample.label
+        assert structure.n_sites == n_sites, sample.label
+        assert p1.expand(structure).n_atoms == n_atoms, sample.label
+        assert all(site.occupancy == 1.0 for site in structure.sites)
+        assert not structure.meta.get("warnings"), sample.label
+
+
+def test_graphene_is_one_sheet_of_three_coordinated_carbon():
+    """Bonded in the plane at graphite's 1.42 A and to nothing across
+    the vacuum: a c short enough to bond the sheet to its own image
+    would make it graphite with no spacing at all."""
+    from xtal.core import bonding
+
+    structure = FORMATS.read(samples.get("simple_graphene").path)
+    graph = bonding.graph(structure)
+
+    assert list(graph.coordination()) == [3, 3]
+    assert all(abs(b.distance - 1.42) < 0.01 for b in graph.bonds)
+    assert all(b.image[2] == 0 for b in graph.bonds)
 
 
 def test_every_file_in_the_samples_folder_is_named_in_provenance():
@@ -362,7 +429,7 @@ def test_every_file_in_the_samples_folder_is_named_in_provenance():
 
     unnamed = [f for f in files if f"`{f}`" not in provenance]
 
-    assert len(files) == 50
+    assert len(files) == 68
     assert unnamed == []
 
 
@@ -382,6 +449,25 @@ def test_the_cod_samples_are_in_their_own_section_of_open_sample(window):
 
     assert document.entry.name == "MOF-5_COD_1516287"
     assert document.path.name == "MOF-5.cif"
+
+
+def test_the_simple_materials_are_in_their_own_section_of_open_sample(
+        window):
+    """Rock salt beside MOF-5 in one list reads as a catalogue of
+    frameworks with a stray in it.  Graphene has no COD number, so its
+    entry is its name alone."""
+    simple = window.sample_group_menus[samples.SIMPLE]
+
+    assert simple.title() == "&Simple materials"
+    assert window.actions_["sample_simple_nacl"] in simple.actions()
+    assert window.actions_["sample_cod_mof5"] not in simple.actions()
+
+    nacl = window.open_sample("simple_nacl")
+    graphene = window.open_sample("simple_graphene")
+
+    assert nacl.entry.name == "NaCl_COD_1000041"
+    assert nacl.path.name == "NaCl.cif"
+    assert graphene.entry.name == "Graphene"
 
 
 def test_every_cod_framework_has_a_prepared_copy_beside_it():

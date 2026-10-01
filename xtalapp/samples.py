@@ -25,7 +25,7 @@ block.**  A document with no path takes its title from
 *MOF-5* and getting a tab called ``VESTA_phase_1`` is the sort of
 detail that makes a program feel like somebody else's export.
 
-**Two groups, and the second is the Crystallography Open Database's.**
+**The frameworks are two groups, the second the COD's.**
 The first seven are what this project was written against, and two
 of them carry the CCDC's header, which is a decision recorded in
 ``resources/samples/PROVENANCE.md`` rather than a licence.  CFA-1
@@ -34,6 +34,13 @@ twenty are CC0 and exactly as deposited -- the asymmetric unit in its
 published group, less the reflections -- so a framework everybody
 cites is there in the form it was cited, disorder and all.  They are
 written by ``scripts/fetch_cod_samples.py``.
+
+**Simple materials are a group of their own**, because somebody
+learning the program on a crystal they already know -- rock salt,
+diamond, rutile, quartz -- or wanting a porosity run that finishes in
+seconds on a zeolite should not have to start from a 600-atom MOF.
+They are the COD's too, the same script and the same strip, except
+graphene: a monolayer has no deposition, so it is written by hand.
 
 The catalogue is here rather than in :mod:`xtal` because it is a menu
 and a set of tooltips; nothing in it is crystallography.  Reading the
@@ -69,9 +76,11 @@ def folder() -> Path:
 
 #: The sections of Open Sample, in menu order, as (group, title).
 SHIPPED = "shipped"
+SIMPLE = "simple"
 COD = "cod"
 PREPARED = "prepared"
-GROUPS = ((SHIPPED, "Shipped"), (COD, "From the &COD"),
+GROUPS = ((SHIPPED, "Shipped"), (SIMPLE, "&Simple materials"),
+          (COD, "From the &COD"),
           (PREPARED, "&Prepared for simulation"))
 
 
@@ -113,7 +122,8 @@ class Sample:
 
 
 #: In the order they are worth meeting: the two everybody has heard
-#: of, then the ones this project was written for, then the COD's.
+#: of, then the ones this project was written for, then the simple
+#: solids from carbon to the zeolites, then the COD's frameworks.
 SAMPLES = (
     Sample(
         "mof5", "MOF-5.cif", "MOF-5",
@@ -150,6 +160,106 @@ SAMPLES = (
         "The same framework and the same cell, modelled ordered and "
         "written out in P1: 210 atoms, two formula units, every site "
         "fully occupied and none of them related by anything"),
+    Sample(
+        "simple_graphene", "simple/graphene.cif", "Graphene",
+        group=SIMPLE, description=(
+            "One sheet of graphite in P6/mmm, two carbons with 20 A of "
+            "vacuum above them -- written here, since a monolayer has "
+            "no deposition")),
+    Sample(
+        "simple_graphite", "simple/graphite.cif", "Graphite",
+        group=SIMPLE, cod_id=9011577, description=(
+            "Trucano and Chen, Nature 1975: hexagonal graphite from "
+            "neutron diffraction, AB-stacked sheets 3.36 A apart in "
+            "P6_3/mmc")),
+    Sample(
+        "simple_diamond", "simple/diamond.cif", "Diamond",
+        group=SIMPLE, cod_id=9011997, description=(
+            "Hom et al., J. Appl. Cryst. 1975: one carbon site in "
+            "Fd-3m and eight atoms in the cell, every one tetrahedral")),
+    Sample(
+        "simple_si", "simple/Si.cif", "Silicon", group=SIMPLE,
+        cod_id=9011998, description=(
+            "Hom et al., J. Appl. Cryst. 1975: the diamond structure "
+            "again, at a = 5.431 A")),
+    Sample(
+        "simple_nacl", "simple/NaCl.cif", "NaCl",
+        group=SIMPLE, cod_id=1000041, description=(
+            "Abrahams and Bernstein, Acta Cryst. 1965: rock salt, two "
+            "interpenetrating fcc lattices in Fm-3m, each ion "
+            "octahedral")),
+    Sample(
+        "simple_cscl", "simple/CsCl.cif", "CsCl", group=SIMPLE,
+        cod_id=9008789, description=(
+            "Wyckoff, Crystal Structures 1963: one ion at the corner "
+            "of a primitive cube and the other at its centre, each "
+            "eight-coordinate")),
+    Sample(
+        "simple_caf2", "simple/CaF2.cif", "CaF2",
+        group=SIMPLE, cod_id=1000043, description=(
+            "Cheetham et al., J. Phys. C 1971: fluorite, cubic calcium "
+            "and tetrahedral fluoride in Fm-3m")),
+    Sample(
+        "simple_al2o3", "simple/Al2O3.cif", "Al2O3",
+        group=SIMPLE, cod_id=1000032, description=(
+            "Lutterotti and Scardi, J. Appl. Cryst. 1990: corundum, "
+            "alpha-alumina in R-3c on hexagonal axes, aluminium in two "
+            "thirds of the octahedral holes")),
+    Sample(
+        "simple_tio2", "simple/TiO2.cif", "TiO2",
+        group=SIMPLE, cod_id=9015662, description=(
+            "Howard et al., Acta Cryst. B 1991: rutile, chains of "
+            "edge-sharing TiO6 octahedra in P4_2/mnm, six atoms in "
+            "the cell")),
+    Sample(
+        "simple_srtio3", "simple/SrTiO3.cif", "SrTiO3",
+        group=SIMPLE, cod_id=9006864, description=(
+            "Mitchell et al., Phys. Chem. Miner. 2000: the cubic "
+            "perovskite, five atoms in Pm-3m")),
+    Sample(
+        "simple_zno", "simple/ZnO.cif", "ZnO",
+        group=SIMPLE, cod_id=2107059, description=(
+            "Albertsson et al., Acta Cryst. B 1989: zincite, the "
+            "wurtzite structure, tetrahedral zinc and oxygen in "
+            "P6_3mc -- a polar crystal")),
+    Sample(
+        "simple_quartz", "simple/quartz.cif", "Quartz",
+        group=SIMPLE, cod_id=5000035, description=(
+            "Will et al., J. Appl. Cryst. 1988: alpha-quartz, corner-"
+            "sharing SiO4 helices in the chiral group P3_221")),
+    Sample(
+        "simple_fe", "simple/Fe.cif", "Iron", group=SIMPLE,
+        cod_id=9006587, description=(
+            "Zhang and Guyot, Phys. Chem. Miner. 1999: alpha-iron at "
+            "room temperature, two atoms in Im-3m")),
+    Sample(
+        "simple_cu", "simple/Cu.cif", "Copper", group=SIMPLE,
+        cod_id=9012043, description=(
+            "Otte, J. Appl. Phys. 1961: face-centred cubic copper, "
+            "four atoms in Fm-3m")),
+    Sample(
+        "simple_lta", "simple/LTA.cif", "Zeolite A",
+        group=SIMPLE, cod_id=4003210, description=(
+            "Boal et al., Chem. Mater. 2015: pure-silica LTA, "
+            "sodalite cages around an 11 A alpha cage, Pm-3m -- "
+            "a porosity run with no cations to clear")),
+    Sample(
+        "simple_mfi", "simple/MFI.cif", "Silicalite-1",
+        group=SIMPLE, cod_id=2101987, description=(
+            "Artioli et al., Acta Cryst. B 2000: MFI, the all-silica "
+            "ZSM-5, straight and zigzag ten-ring channels in Pnma, "
+            "288 atoms")),
+    Sample(
+        "simple_fau", "simple/FAU.cif", "Faujasite",
+        group=SIMPLE, cod_id=7224240, description=(
+            "Attfield et al., RSC Adv. 2016: siliceous FAU at 300 K, "
+            "13 A supercages in a 24 A Fd-3m cell of 576 atoms")),
+    Sample(
+        "simple_sod", "simple/SOD.cif", "Sodalite",
+        group=SIMPLE, cod_id=1000028, description=(
+            "Hassan and Grundy, Acta Cryst. B 1984: SOD as the mineral, "
+            "Na8Cl2(Al6Si6O24) in P-43n, a chloride at the centre of "
+            "each cage")),
     Sample(
         "cod_mof5", "cod/MOF-5.cif", "MOF-5", group=COD,
         cod_id=1516287, description=(

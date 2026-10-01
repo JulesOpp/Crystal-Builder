@@ -3,7 +3,7 @@
 Every file in this folder is named here, with its source and what may
 be done with it; `tests/test_samples.py` fails when one is not.  File
 ▸ Open Sample reads the catalogue in `xtalapp/samples.py`, which lists
-forty-seven of the fifty.
+sixty-five of the sixty-eight.
 
 ## From the COD (`cod/`)
 
@@ -60,6 +60,42 @@ Looked for again on 2026-09-29, and not taken:
   of (C-O 0.95 and 1.63 A on the one on the three-fold axis), so it
   has no prepared copy, and `zn_oac.cif` is the ordered model
   already.
+
+## Simple materials (`simple/`)
+
+Textbook solids, for learning the program on a crystal somebody
+already knows and for runs that finish in seconds.  From the COD, CC0
+and stripped exactly as the frameworks above are, by the same script
+(its `SIMPLE` table); fetched 2026-09-30.  Each was chosen as an
+ambient structure in its usual setting with every site whole.  The
+zeolites are all-silica where the COD has one, so a porosity run meets
+no cations or water; sodalite is the mineral.
+
+| File | COD | Publication |
+|---|---|---|
+| `simple/graphite.cif` | [9011577](https://www.crystallography.net/cod/9011577.html) | Trucano & Chen, *Nature* **258**, 136 (1975), [10.1038/258136a0](https://doi.org/10.1038/258136a0) |
+| `simple/diamond.cif` | [9011997](https://www.crystallography.net/cod/9011997.html) | Hom et al., *J. Appl. Cryst.* **8**, 457 (1975), [10.1107/S0021889875010965](https://doi.org/10.1107/S0021889875010965) |
+| `simple/Si.cif` | [9011998](https://www.crystallography.net/cod/9011998.html) | the same paper |
+| `simple/NaCl.cif` | [1000041](https://www.crystallography.net/cod/1000041.html) | Abrahams & Bernstein, *Acta Cryst.* **18**, 926 (1965), [10.1107/S0365110X65002244](https://doi.org/10.1107/S0365110X65002244) |
+| `simple/CsCl.cif` | [9008789](https://www.crystallography.net/cod/9008789.html) | Wyckoff, *Crystal Structures* vol. 1, 85 (1963) |
+| `simple/CaF2.cif` | [1000043](https://www.crystallography.net/cod/1000043.html) | Cheetham et al., *J. Phys. C* **4**, 3107 (1971), [10.1088/0022-3719/4/18/016](https://doi.org/10.1088/0022-3719/4/18/016) |
+| `simple/Al2O3.cif` | [1000032](https://www.crystallography.net/cod/1000032.html) | Lutterotti & Scardi, *J. Appl. Cryst.* **23**, 246 (1990), [10.1107/S0021889890002382](https://doi.org/10.1107/S0021889890002382) |
+| `simple/TiO2.cif` | [9015662](https://www.crystallography.net/cod/9015662.html) | Howard et al., *Acta Cryst. B* **47**, 462 (1991), [10.1107/S010876819100335X](https://doi.org/10.1107/S010876819100335X) |
+| `simple/SrTiO3.cif` | [9006864](https://www.crystallography.net/cod/9006864.html) | Mitchell et al., *Phys. Chem. Miner.* **27**, 583 (2000), [10.1007/s002690000103](https://doi.org/10.1007/s002690000103) |
+| `simple/ZnO.cif` | [2107059](https://www.crystallography.net/cod/2107059.html) | Albertsson et al., *Acta Cryst. B* **45**, 34 (1989) |
+| `simple/quartz.cif` | [5000035](https://www.crystallography.net/cod/5000035.html) | Will et al., *J. Appl. Cryst.* **21**, 182 (1988), [10.1107/S0021889887011567](https://doi.org/10.1107/S0021889887011567) |
+| `simple/Fe.cif` | [9006587](https://www.crystallography.net/cod/9006587.html) | Zhang & Guyot, *Phys. Chem. Miner.* **26**, 206 (1999), at 0 GPa and 298 K, [10.1007/s002690050178](https://doi.org/10.1007/s002690050178) |
+| `simple/Cu.cif` | [9012043](https://www.crystallography.net/cod/9012043.html) | Otte, *J. Appl. Phys.* **32**, 1536 (1961), [10.1063/1.1728392](https://doi.org/10.1063/1.1728392) |
+| `simple/LTA.cif` | [4003210](https://www.crystallography.net/cod/4003210.html) | Boal et al., *Chem. Mater.* **27**, 7774 (2015), pure-silica LTA at 100 K, [10.1021/acs.chemmater.5b03579](https://doi.org/10.1021/acs.chemmater.5b03579) |
+| `simple/MFI.cif` | [2101987](https://www.crystallography.net/cod/2101987.html) | Artioli et al., *Acta Cryst. B* **56**, 2 (2000), orthorhombic silicalite-1, [10.1107/S0108768199008927](https://doi.org/10.1107/S0108768199008927) |
+| `simple/FAU.cif` | [7224240](https://www.crystallography.net/cod/7224240.html) | Attfield et al., *RSC Adv.* (2016), siliceous faujasite at 300 K, [10.1039/C5RA23827G](https://doi.org/10.1039/C5RA23827G) |
+| `simple/SOD.cif` | [1000028](https://www.crystallography.net/cod/1000028.html) | Hassan & Grundy, *Acta Cryst. B* **40**, 6 (1984), [10.1107/S0108768184001683](https://doi.org/10.1107/S0108768184001683) |
+
+`simple/graphene.cif` is not from anywhere: it was written by hand
+for this project, graphite's in-plane cell (a = 2.46 A) with 20 A of
+vacuum along *c*, one carbon site at 2c of P6/mmm.  Nothing in it is
+anybody's but the arithmetic, and it is in the public domain like the
+rest of this group.
 
 ## Prepared for simulation (`prepared/`)
 
