@@ -1,0 +1,9 @@
+{
+  "input": "resources/samples/simple/NaCl.cif",
+  "codes": ["MODULE_FAILED"],
+  "inspect": {},
+  "log_must_not_contain": ["reduce_to_p1"],
+  "log_must_contain": ["scan.run"],
+  "report_must_ask": false,
+  "atoms_unchanged": false
+}

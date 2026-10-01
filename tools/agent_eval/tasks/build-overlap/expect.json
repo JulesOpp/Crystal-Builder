@@ -1,0 +1,9 @@
+{
+  "codes": ["BUILD_OVERLAP"],
+  "inspect": {},
+  "log_must_not_contain": ["optimize"],
+  "log_must_contain": ["mof.build"],
+  "report_must_ask": false,
+  "atoms_unchanged": false,
+  "needs": ["ase"]
+}

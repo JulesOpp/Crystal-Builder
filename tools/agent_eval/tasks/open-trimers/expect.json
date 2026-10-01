@@ -1,0 +1,9 @@
+{
+  "input": "resources/samples/cod/MIL-88B.cif",
+  "codes": ["OPEN_TRIMERS", "CELL_NOT_NEUTRAL"],
+  "inspect": {"OPEN_TRIMERS": "present"},
+  "log_must_not_contain": ["cap"],
+  "log_must_contain": ["prepare"],
+  "report_must_ask": true,
+  "atoms_unchanged": false
+}

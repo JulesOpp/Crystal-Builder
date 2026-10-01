@@ -1,0 +1,9 @@
+{
+  "input": "resources/samples/MIL53.cif",
+  "codes": ["NOT_CONVERGED"],
+  "inspect": {},
+  "log_must_not_contain": [],
+  "log_must_contain": ["optimize"],
+  "report_must_ask": false,
+  "atoms_unchanged": true
+}
