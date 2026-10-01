@@ -424,28 +424,29 @@ def _lines(starts, v, cut, mask, orders, offsets, separation):
 def _rungs(starts, v, u0, u_cut, u1, projected, lateral, rows, scale):
     """A hashed wedge's rungs, spaced along the whole bond so the two
     halves' rungs keep one rhythm across the midpoint."""
-    out_a, out_b, out_half = [], [], []
-    width = scale * WEDGE_WIDTH
-    for r in rows:
-        # The whole bond is twice the half, on screen as in the world.
-        count = max(2, int(round(2 * projected[r]
-                                 / (scale * HASH_SPACING))))
-        u = np.arange(1, count + 1) / count
-        lo, hi = sorted((u_cut[r], u1[r]))
-        u = u[(u > lo + 1e-9) & (u <= hi + 1e-9)]
-        if not len(u):
-            continue
-        # u is the whole bond's, from its centre; back to this half.
-        t = (u - u0[r]) / (u1[r] - u0[r])
-        centre = starts[r] + t[:, None] * v[r]
-        half_width = np.maximum(width * u, scale * HASH_MIN) / 2
-        out_a.append(centre - half_width[:, None] * lateral[r])
-        out_b.append(centre + half_width[:, None] * lateral[r])
-        out_half.append(np.full(len(u), r))
-    if not out_a:
+    rows = np.asarray(rows, int)
+    if not len(rows):
         return np.zeros((0, 3)), np.zeros((0, 3)), np.zeros(0, int)
-    return (np.vstack(out_a), np.vstack(out_b),
-            np.concatenate(out_half).astype(int))
+    width = scale * WEDGE_WIDTH
+    # The whole bond is twice the half, on screen as in the world.
+    # Every rung of every row in one array, row by row as a loop over
+    # them would give: a loop was two thirds of a turn's time, and
+    # the whole of it on a slow runner.
+    counts = np.maximum(2, np.rint(2 * projected[rows]
+                                   / (scale * HASH_SPACING))).astype(int)
+    row = np.repeat(rows, counts)
+    first = np.repeat(np.cumsum(counts) - counts, counts)
+    u = (np.arange(len(row)) - first + 1) / np.repeat(counts, counts)
+    lo = np.minimum(u_cut[row], u1[row])
+    hi = np.maximum(u_cut[row], u1[row])
+    keep = (u > lo + 1e-9) & (u <= hi + 1e-9)
+    row, u = row[keep], u[keep]
+    # u is the whole bond's, from its centre; back to this half.
+    t = (u - u0[row]) / (u1[row] - u0[row])
+    centre = starts[row] + t[:, None] * v[row]
+    half_width = np.maximum(width * u, scale * HASH_MIN) / 2
+    side = half_width[:, None] * lateral[row]
+    return centre - side, centre + side, row.astype(int)
 
 
 def fade(positions, radii, points, eye, direction,
