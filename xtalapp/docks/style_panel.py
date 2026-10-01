@@ -209,16 +209,18 @@ class StylePanelDock(QDockWidget):
     def _build_global(self) -> ReflowColumns:
         """The six groups, in the order one column reads them.
 
-        Two columns put Drawing, Transparency and Scene -- how the
-        atoms are drawn -- on the left, and what else is drawn with
-        them on the right.  One column was 747 px of controls with no
-        heading anywhere, and the thing somebody came to change was
-        always below the fold.
+        Two columns put Drawing and Transparency -- how the atoms are
+        drawn -- on the left, and Show, Scene, Colours and Depth cue --
+        what is drawn with them and around them -- on the right.  One
+        column was 747 px of controls with no heading anywhere, and
+        the thing somebody came to change was always below the fold.
+        Scene was on the left until 2026-10, which made that column
+        1250 px against the right's 420.
         """
         self.groups = [self._drawing_group(), self._transparency_group(),
-                       self._scene_group(), self._show_group(),
+                       self._show_group(), self._scene_group(),
                        self._colours_group(), self._depth_cue_group()]
-        return ReflowColumns(self.groups, split=3)
+        return ReflowColumns(self.groups, split=2)
 
     @staticmethod
     def _form(title: str) -> tuple[QGroupBox, QFormLayout]:

@@ -147,12 +147,21 @@ class _ReflowLayout(QLayout):
         return tallest + self._margins()[1]
 
     def minimumSize(self) -> QSize:
-        """The one-column minimum: never two columns' worth, or the
-        panel would hold its column open at twice the width."""
+        """The one-column minimum width: never two columns' worth, or
+        the panel would hold its column open at twice the width.
+
+        And no height beyond the tallest item's.  The height at any
+        width is :meth:`heightForWidth`, which the scroll area asks;
+        a minimum reporting the one-column height held the Style panel
+        at 1345 px when its two columns were 850, and the panel
+        scrolled on into 500 px of nothing.
+        """
         shown = self._shown()
         width = max((item.minimumSize().width() for item in shown),
                     default=0) + self._margins()[0]
-        return QSize(width, self.heightForWidth(width))
+        height = max((item.minimumSize().height() for item in shown),
+                     default=0) + self._margins()[1]
+        return QSize(width, height)
 
     def sizeHint(self) -> QSize:
         shown = self._shown()
@@ -187,7 +196,9 @@ class ReflowColumns(QWidget):
         self.widgets = list(widgets)
         layout = _ReflowLayout(self, split)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
+        # A group's title sits above its frame on macOS, so at 8 px it
+        # touched the frame of the group above.
+        layout.setSpacing(14)
         for widget in self.widgets:
             layout.addWidget(widget)
         policy = QSizePolicy(QSizePolicy.Policy.Preferred,
