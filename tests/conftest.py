@@ -66,6 +66,65 @@ os.environ.setdefault("RIETX_COMPILED_THREADS", "1")
 
 
 
+#: What a worker can take, at its peak: about a gigabyte measured
+#: (2026-09-30), and half as much again so a heavy file in two workers
+#: at once does not tip the machine into swap.
+WORKER_MEMORY = 1.5 * 2**30
+#: Left for the system and whatever else the person has open.
+RESERVED_MEMORY = 4 * 2**30
+
+
+def auto_workers(cores: int, memory: int | None) -> int:
+    """How many workers ``-n auto`` starts on a machine with ``cores``
+    fast cores and ``memory`` bytes of RAM.
+
+    xdist's own answer is one per core, and on an 8 GB M2 that was
+    eight workers of up to a gigabyte each: the machine swapped until
+    the run stalled, and every small file read queued behind the swap
+    (27 ms a read, 95 s for one MOF dialog).  So it is the smaller of
+    what the memory holds and one fewer than the fast cores -- one is
+    left for the person at the keyboard -- and never none.
+    """
+    workers = cores - 1
+    if memory is not None:
+        workers = min(workers,
+                      int((memory - RESERVED_MEMORY) // WORKER_MEMORY))
+    return max(1, workers)
+
+
+def _fast_cores() -> int:
+    """The performance cores where there are two kinds, else the
+    physical ones, else every logical one."""
+    from xtal.modules.process import performance_cores
+    cores = performance_cores()
+    if cores:
+        return cores
+    try:
+        import psutil
+        cores = psutil.cpu_count(logical=False)
+    except ImportError:                             # pragma: no cover
+        cores = None
+    return cores or os.cpu_count() or 1
+
+
+def _memory() -> int | None:
+    try:
+        import psutil
+    except ImportError:                             # pragma: no cover
+        return None
+    return int(psutil.virtual_memory().total)
+
+
+def pytest_xdist_auto_num_workers(config):
+    """``-n auto`` -- the default in ``pyproject.toml`` -- as
+    :func:`auto_workers` decides it, or ``XTAL_TEST_WORKERS`` where it
+    is set.  An explicit ``-n 3`` never comes here."""
+    given = os.environ.get("XTAL_TEST_WORKERS", "").strip()
+    if given:
+        return max(1, int(given))
+    return auto_workers(_fast_cores(), _memory())
+
+
 def _settings_into_a_scratch_directory() -> None:
     """Keep QSettings out of the real preferences system.
 

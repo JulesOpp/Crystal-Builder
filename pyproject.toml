@@ -127,7 +127,7 @@ mattersim = ["mattersim>=1.2.5", "ase>=3.23"]
 # pytest-qt belongs here and not in [dev]: without it every widget
 # test skips itself, and CI installs [gui,test] -- so the GUI half of
 # the suite was passing by not running.
-test = ["pytest>=8", "pytest-qt>=4", "pytest-xdist>=3"]
+test = ["pytest>=8", "pytest-qt>=4", "pytest-xdist[psutil]>=3.2"]
 # The user manual, docs/manual: Sphinx with MyST pages and a BibTeX
 # bibliography.  The PDF also needs a LaTeX install (make latexpdf).
 docs = ["sphinx>=7", "myst-parser>=3", "sphinxcontrib-bibtex>=2.6",
@@ -234,7 +234,14 @@ testpaths = ["tests"]
 # has re-measured under load.  If a run wedges, "-n0" here is the
 # whole of the way back, and CLAUDE.md says how to clear the orphaned
 # workers first.
-addopts = ["-n", "auto"]
+# What "auto" means is tests/conftest.py's, not xdist's: one worker per
+# core was eight on an 8 GB M2, and that run swapped until it stalled.
+# It is now the smaller of what the RAM holds and one fewer than the
+# fast cores (two there, more on a bigger machine; XTAL_TEST_WORKERS
+# overrides it).  Work stealing, because "load" hands out tests in
+# chunks and one worker sat idle for ten minutes while the other
+# finished the MOF tests alone.
+addopts = ["-n", "auto", "--dist", "worksteal"]
 # Both PORMAKE deprecations that used to be ignored here are gone,
 # and they are worth a sentence because the fix was the same one.
 # They were a dependency's lines in a dependency's code -- scipy's
