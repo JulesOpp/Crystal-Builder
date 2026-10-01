@@ -170,7 +170,9 @@ CODES: dict[str, Code] = {
                "is playing or a calculation is running, wait for it to "
                "finish and call again; retrying at once is refused the "
                "same way. If it says the window is closing or stopped "
-               "serving, the window is gone: tell the person, and "
+               "serving, the window is gone: through xtal mcp, call "
+               "again once it is back, since the proxy follows it; over "
+               "a direct HTTP connection, tell the person, and "
                "reconnect only once they have reopened it."),
     "DOCUMENT_CHANGED": Code(
         ERROR, "The structure was edited, or its tab closed, while the "

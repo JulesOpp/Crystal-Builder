@@ -132,12 +132,13 @@ class _Proxy:
     """A real ``xtal mcp`` proxying to ``window``, its replies by id
     with the moment each arrived."""
 
-    def __init__(self, qtbot, tmp_path, appdata):
+    def __init__(self, qtbot, tmp_path, appdata,
+                 argv=("-m", "xtal.cli", "mcp")):
         env = dict(os.environ, PYTHONWARNINGS="error::DeprecationWarning")
         env[discovery.ENV] = str(appdata)
         self.qtbot = qtbot
         self.process = subprocess.Popen(
-            [sys.executable, "-m", "xtal.cli", "mcp"],
+            [sys.executable, *argv],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.PIPE, text=True, cwd=tmp_path, env=env)
         self.replies = {}
@@ -194,40 +195,56 @@ def _answered(result) -> None:
     assert "formula" in result["content"][0]["text"]
 
 
+def _free_port() -> int:
+    with socket.socket() as free:
+        free.bind(("127.0.0.1", 0))
+        return free.getsockname()[1]
+
+
+def _failed(result) -> str:
+    assert result["isError"], result
+    text = result["content"][0]["text"]
+    assert text.startswith("window: "), text
+    return text
+
+
 @pytest.mark.slow
 def test_a_proxy_answers_the_error_and_follows_the_window_when_it_returns(
         qtbot, window, tmp_path, appdata, rutile):
     """A window closed, or switched off and on, used to end the proxy:
     the client had to start ``xtal mcp`` again, and few do it on their
-    own.  Now the call that meets the gap is answered with the reason
-    and the proxy stays up; the next one finds the window afresh --
-    another token, as a new launch has -- and a session the window
-    forgot across a restart on the same port and token is dropped and
-    made again the same way."""
+    own.  Now a call made while it is off is answered with the reason
+    and the proxy stays up.  Back on the same port and token, the
+    session it forgot is made again without the call failing, and a
+    new launch's port and token are found the first time too."""
     _serving(qtbot, window, tmp_path, rutile)
     server = window.agent_server
+    port = server.port
     proxy = _Proxy(qtbot, tmp_path, appdata)
     try:
         _answered(proxy.inspect(2)[0])
         server.stop()
         result, took = proxy.inspect(3, timeout=15000)
         assert took < 15
-        assert result["isError"]
-        assert "window:" in result["content"][0]["text"]
+        _failed(result)
         assert proxy.process.poll() is None
 
-        server.token = secrets.token_hex(16)
         with qtbot.waitSignal(server.started, timeout=10000):
             server.start()
+        assert server.port == port
         _answered(proxy.inspect(4)[0])
 
         server.stop()
         with qtbot.waitSignal(server.started, timeout=10000):
             server.start()
-        result, took = proxy.inspect(5, timeout=15000)
-        assert took < 15
-        assert result["isError"]
-        assert "window:" in result["content"][0]["text"]
+        _answered(proxy.inspect(5)[0])
+
+        server.stop()
+        server.token = secrets.token_hex(16)
+        server.preferred_port = _free_port()
+        with qtbot.waitSignal(server.started, timeout=10000):
+            server.start()
+        assert server.port != port
         _answered(proxy.inspect(6)[0])
         assert proxy.process.poll() is None
 
@@ -237,3 +254,80 @@ def test_a_proxy_answers_the_error_and_follows_the_window_when_it_returns(
         said = proxy.finish()
         server.stop()
     assert "Traceback" not in said
+
+
+@pytest.mark.slow
+def test_a_proxy_with_no_window_answers_that_none_is_listening(
+        qtbot, tmp_path, appdata):
+    """With no discovery file the call is answered, not left waiting,
+    and the proxy stays up for the window to come."""
+    proxy = _Proxy(qtbot, tmp_path, appdata, argv=(
+        "-c", "import sys; from xtal.agent import proxy; "
+              "sys.exit(proxy.run({}))"))
+    try:
+        result, took = proxy.inspect(2, timeout=15000)
+        assert took < 15
+        assert "no window is listening" in _failed(result)
+        assert proxy.process.poll() is None
+    finally:
+        proxy.finish()
+
+
+@pytest.mark.slow
+def test_a_failing_call_does_not_hang_the_calls_beside_it(
+        qtbot, window, tmp_path, appdata, rutile, monkeypatch):
+    """A call that fails in the client used to drop the session it
+    shared, which stopped the SDK reading answers: a call beside it,
+    still running in the window, then waited for ever, its watchdog
+    finding the window alive.  Here ``inspect`` is held on the GUI
+    thread (nothing turns it for a while) as the other call fails, and
+    is still answered once the window gets to it."""
+    import anyio
+    from mcp import ClientSession
+
+    from xtal.agent import proxy
+
+    _serving(qtbot, window, tmp_path, rutile)
+    real = ClientSession.call_tool
+
+    async def call_tool(self, name, arguments=None, *args, **kwargs):
+        if name == "unreadable":
+            raise RuntimeError("the answer did not match its schema")
+        return await real(self, name, arguments, *args, **kwargs)
+
+    monkeypatch.setattr(ClientSession, "call_tool", call_tool)
+    out = {}
+
+    async def both():
+        async with anyio.create_task_group() as group:
+            held = proxy._Window(appdata, group)
+            session = await held.session()
+
+            async def slow():
+                out["slow"] = await proxy._forward(held, "inspect", {})
+
+            async def failing():
+                await anyio.sleep(0.5)
+                out["failing"] = await proxy._forward(
+                    held, "unreadable", {})
+                out["kept"] = held._session is session
+
+            async with anyio.create_task_group() as calls:
+                calls.start_soon(slow)
+                calls.start_soon(failing)
+            held.drop(held._session)
+
+    thread = threading.Thread(target=lambda: anyio.run(both), daemon=True)
+    thread.start()
+    try:
+        time.sleep(1.5)                   # the GUI thread is not turning
+        assert "failing" in out and "slow" not in out
+        qtbot.waitUntil(lambda: "slow" in out, timeout=15000)
+    finally:
+        window.agent_server.stop()
+    assert out["failing"].isError
+    assert "schema" in out["failing"].content[0].text
+    assert out["kept"]
+    assert not out["slow"].isError
+    assert "formula" in out["slow"].content[0].text
+    thread.join(timeout=15)

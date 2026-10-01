@@ -49,6 +49,13 @@ GONE = ("the Crystal Builder window stopped serving (it was closed, or "
 #: ... and when none is serving to be reached.
 NOWHERE = ("no window is listening: start Crystal Builder and turn on "
            "Preferences > AI assistant")
+#: Said of a call whose connection another call dropped.
+DROPPED = ("the connection to the window was reset while this call was "
+           "out; the window may still be running it")
+#: The SDK's answers for a session that has gone: the window's 404 --
+#: it never ran the call -- and a session closed under the call.
+TERMINATED = "Session terminated"
+CLOSED = "Connection closed"
 
 
 class WindowGone(RuntimeError):
@@ -116,8 +123,12 @@ class _Window:
 
     async def session(self):
         async with self._lock:
-            if self._session is None:
-                entry = discovery.read(self.folder)
+            entry = discovery.read(self.folder)
+            held = self.entry if self._session is not None else None
+            if entry is None or held is None or any(
+                    entry[key] != held[key] for key in ("port", "token")):
+                # Gone, or restarted where the held session cannot be.
+                self.drop(self._session)
                 if entry is None or not await _alive(entry):
                     raise WindowGone(NOWHERE)
                 await self._group.start(self._hold, entry)
@@ -158,43 +169,76 @@ class _Window:
                 self._session = self._closed = None
 
 
+def _lost(exc: Exception) -> bool:
+    """Whether ``exc`` means the session is gone, rather than only the
+    call that raised it."""
+    import anyio
+    import httpx
+    from mcp.shared.exceptions import McpError
+
+    if isinstance(exc, McpError):
+        return str(exc) in (TERMINATED, CLOSED)
+    return isinstance(exc, (
+        WindowGone, httpx.TransportError, httpx.HTTPStatusError,
+        anyio.ClosedResourceError, anyio.BrokenResourceError,
+        anyio.EndOfStream))
+
+
 async def _forward(window: _Window, name: str, arguments: dict):
     """The window's answer, or an error result saying why there is
-    none -- and then the connection is dropped, so the next call finds
-    the window afresh."""
-    import anyio
+    none.  A session that failed is dropped, so the next call finds
+    the window afresh, and a call the window refused unseen (its 404)
+    is made once more at once."""
     from mcp.types import CallToolResult, TextContent
 
-    session = None
-    outcome = {"error": WindowGone(GONE)}
-    try:
-        session = await window.session()
-        async with anyio.create_task_group() as group:
-            async def watch():
-                while await _alive(window.entry):
-                    await anyio.sleep(WATCH)
-                group.cancel_scope.cancel()
-
-            async def forward():
-                # Kept rather than raised: out of a task group it would
-                # be an exception group, and the client would read that.
-                try:
-                    outcome["result"] = await session.call_tool(
-                        name, arguments)
-                except Exception as exc:  # noqa: BLE001 -- answered
-                    outcome["error"] = exc
-                group.cancel_scope.cancel()
-
-            group.start_soon(watch)
-            group.start_soon(forward)
-        if "result" in outcome:
-            return outcome["result"]
-    except Exception as exc:              # noqa: BLE001 -- answered
-        outcome["error"] = exc
-    window.drop(session)
-    reason = str(outcome["error"]) or type(outcome["error"]).__name__
+    for again in (True, False):
+        session = None
+        try:
+            session = await window.session()
+            return await _watched(window, session, name, arguments)
+        except Exception as exc:          # noqa: BLE001 -- answered
+            error = exc
+            if not _lost(exc):
+                break
+            window.drop(session)
+            if not (again and str(exc) == TERMINATED):
+                break
+    reason = str(error) or type(error).__name__
     return CallToolResult(isError=True, content=[
         TextContent(type="text", text=f"window: {reason}")])
+
+
+async def _watched(window: _Window, session, name: str, arguments: dict):
+    """``session.call_tool``, given up when the window stops answering
+    a probe -- or the session is dropped under it, which ends the
+    SDK's reading of its answers and would leave it waiting."""
+    import anyio
+
+    outcome = {}
+    async with anyio.create_task_group() as group:
+        async def watch():
+            while (window._session is session
+                   and await _alive(window.entry)):
+                await anyio.sleep(WATCH)
+            group.cancel_scope.cancel()
+
+        async def forward():
+            # Kept rather than raised: out of a task group it would be
+            # an exception group, and the client would read that.
+            try:
+                outcome["result"] = await session.call_tool(
+                    name, arguments)
+            except Exception as exc:      # noqa: BLE001 -- raised below
+                outcome["error"] = exc
+            group.cancel_scope.cancel()
+
+        group.start_soon(watch)
+        group.start_soon(forward)
+    if "error" in outcome:
+        raise outcome["error"]
+    if "result" not in outcome:
+        raise WindowGone(GONE if window._session is session else DROPPED)
+    return outcome["result"]
 
 
 async def _serve(folder) -> None:

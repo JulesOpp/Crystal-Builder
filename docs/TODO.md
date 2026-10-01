@@ -170,10 +170,10 @@ their `--json`, and on 2026-10-01 the live link to the window
   do.  Only `energy`, `optimize` and `run` compute off it.
 - `agent/serve` is one setting for every window, though only one
   window can serve (the discovery file holds one).
-- For Julius:
-  `tests/test_sketch_render.py::test_a_turn_recuts_thousands_of_labels_in_one_numpy_pass`
-  asserts a wall-clock median under 0.15 s and failed at 0.168 s on a
-  contended Intel CI runner (2026-10-01); the margin is thin for CI.
+- One failed 2-second health probe of the window (every
+  `proxy.WATCH` seconds) during a long calculation cancels that call
+  through `xtal mcp`; the window keeps computing and the answer is
+  lost.  Two failures in a row would be safer.
 - The agent's current document is shared by every client and
   outlives a disconnect; resetting it on server start would be
   cleaner.
@@ -692,6 +692,13 @@ Either a CI job with the extras (torch is gigabytes of wheel, and
 mace and mattersim cannot share an environment -- see `pyproject.toml`)
 or a stated rule that a change under `xtal/ff/` runs its engine's tests
 locally before merging.
+
+### A wall-clock test with a thin margin for CI
+
+For Julius:
+`tests/test_sketch_render.py::test_a_turn_recuts_thousands_of_labels_in_one_numpy_pass`
+asserts a wall-clock median under 0.15 s and failed at 0.168 s on a
+contended Intel CI runner (2026-10-01); the margin is thin for CI.
 
 ---
 

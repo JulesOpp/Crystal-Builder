@@ -295,9 +295,11 @@ you first call becomes yours.
   running: **wait, then call again**; an immediate retry is refused the
   same way. `inspect` still answers while it is busy. `WINDOW_BUSY`
   because the window **is closing or stopped serving** is different:
-  the window is gone, and waiting will not bring it back. Tell the
-  person, and reconnect only once they have reopened it (and switched
-  Preferences ▸ AI assistant on).
+  the window is gone, and waiting will not bring it back. Through
+  `xtal mcp`, just call again once it is back -- the proxy follows it.
+  Over a direct HTTP connection, tell the person, and reconnect only
+  once they have reopened it (and switched Preferences ▸ AI assistant
+  on).
 - `DOCUMENT_CHANGED` means the person edited the structure, or closed
   its tab, while your calculation ran. Their edit stands and your
   result was not applied (the run folder keeps it). `inspect` again

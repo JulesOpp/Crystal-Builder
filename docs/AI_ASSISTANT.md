@@ -306,11 +306,15 @@ Tasks:
   string hacks: `capabilities._short_reason`, which cut a reason at
   " -- ", ".  " or ": ", and `engine_note_html`, which searched the
   reason for the install command.  `reason` is now composed from the
-  two halves, and the compact listing reads `what`.
+  two halves, and the compact listing reads `what`.  So compact
+  `capabilities()` now shows an installed ML engine's whole note, and
+  a plugin's or an exception's reason is no longer cut short.
 - The proxy (`xtal/agent/proxy.py`) reconnects instead of exiting.  A
   call that finds the window closed, switched off, or restarted with
-  a new session, port or token is answered with an error ("window:
-  ...") and the connection dropped; the next call reads the discovery
-  file again and connects.  The proxy exits only when the client
+  a new port or token is answered with an error ("window: ...") and
+  the connection dropped; the next call reads the discovery file
+  again and connects.  A session the window forgot (its 404) is made
+  again and the call sent once more at once, and a call that fails on
+  its own keeps the session the others share.  The proxy exits only when the client
   closes stdin, and `_Leaving`, `_Stdout`, `_Stdin` and the exit codes
   went with the exits.
