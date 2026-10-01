@@ -291,7 +291,8 @@ def camera_axes(direction, view_up) -> tuple[np.ndarray, np.ndarray,
 
 def sketch_bonds(starts, ends, extents, from_centre, orders, offsets,
                  *, direction, view_up, eye=None,
-                 scale: float = 1.5) -> SketchBonds:
+                 scale: float = 1.5,
+                 wedges: bool = True) -> SketchBonds:
     """Cut, wedge and hash every half-bond for one camera.
 
     ``starts``/``ends`` are the scene model's halves: a half runs from
@@ -305,6 +306,10 @@ def sketch_bonds(starts, ends, extents, from_centre, orders, offsets,
     ``eye`` makes a perspective camera: each half's tilt is then read
     along its own line of sight.  The gap is measured in the screen's
     own axes either way, because the label is drawn facing the screen.
+
+    ``wedges=False`` draws every single bond as a line, however far it
+    tilts; doubles, triples and an aromatic bond's dashed inner line
+    are drawn as they always are.
     """
     starts = np.asarray(starts, float).reshape(-1, 3)
     ends = np.asarray(ends, float).reshape(-1, 3)
@@ -351,6 +356,8 @@ def sketch_bonds(starts, ends, extents, from_centre, orders, offsets,
     length = np.maximum(np.linalg.norm(v, axis=1), 1e-12)
     along = np.einsum("ij,ij->i", outward, sight) / length
     tilted = np.abs(along) >= math.sin(WEDGE_TILT)
+    if not wedges:
+        tilted[:] = False
     single = orders <= SINGLE_MAX
     wedged = visible & single & tilted
     solid = wedged & (along < 0)            # towards the eye
@@ -417,28 +424,29 @@ def _lines(starts, v, cut, mask, orders, offsets, separation):
 def _rungs(starts, v, u0, u_cut, u1, projected, lateral, rows, scale):
     """A hashed wedge's rungs, spaced along the whole bond so the two
     halves' rungs keep one rhythm across the midpoint."""
-    out_a, out_b, out_half = [], [], []
-    width = scale * WEDGE_WIDTH
-    for r in rows:
-        # The whole bond is twice the half, on screen as in the world.
-        count = max(2, int(round(2 * projected[r]
-                                 / (scale * HASH_SPACING))))
-        u = np.arange(1, count + 1) / count
-        lo, hi = sorted((u_cut[r], u1[r]))
-        u = u[(u > lo + 1e-9) & (u <= hi + 1e-9)]
-        if not len(u):
-            continue
-        # u is the whole bond's, from its centre; back to this half.
-        t = (u - u0[r]) / (u1[r] - u0[r])
-        centre = starts[r] + t[:, None] * v[r]
-        half_width = np.maximum(width * u, scale * HASH_MIN) / 2
-        out_a.append(centre - half_width[:, None] * lateral[r])
-        out_b.append(centre + half_width[:, None] * lateral[r])
-        out_half.append(np.full(len(u), r))
-    if not out_a:
+    rows = np.asarray(rows, int)
+    if not len(rows):
         return np.zeros((0, 3)), np.zeros((0, 3)), np.zeros(0, int)
-    return (np.vstack(out_a), np.vstack(out_b),
-            np.concatenate(out_half).astype(int))
+    width = scale * WEDGE_WIDTH
+    # The whole bond is twice the half, on screen as in the world.
+    # Every rung of every row in one array, row by row as a loop over
+    # them would give: a loop was two thirds of a turn's time, and
+    # the whole of it on a slow runner.
+    counts = np.maximum(2, np.rint(2 * projected[rows]
+                                   / (scale * HASH_SPACING))).astype(int)
+    row = np.repeat(rows, counts)
+    first = np.repeat(np.cumsum(counts) - counts, counts)
+    u = (np.arange(len(row)) - first + 1) / np.repeat(counts, counts)
+    lo = np.minimum(u_cut[row], u1[row])
+    hi = np.maximum(u_cut[row], u1[row])
+    keep = (u > lo + 1e-9) & (u <= hi + 1e-9)
+    row, u = row[keep], u[keep]
+    # u is the whole bond's, from its centre; back to this half.
+    t = (u - u0[row]) / (u1[row] - u0[row])
+    centre = starts[row] + t[:, None] * v[row]
+    half_width = np.maximum(width * u, scale * HASH_MIN) / 2
+    side = half_width[:, None] * lateral[row]
+    return centre - side, centre + side, row.astype(int)
 
 
 def fade(positions, radii, points, eye, direction,
@@ -482,4 +490,4 @@ def sketch_model(model, direction, view_up, eye=None) -> SketchBonds:
         model.bond_starts, model.bond_ends, gaps, from_centre,
         model.bond_orders, model.bond_offsets,
         direction=direction, view_up=view_up, eye=eye,
-        scale=model.sketch_scale)
+        scale=model.sketch_scale, wedges=model.sketch_wedges)

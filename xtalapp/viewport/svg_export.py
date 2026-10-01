@@ -39,7 +39,10 @@ lines stop short of -- and its bonds are ``<line>``s and wedge
 ``<polygon>``s cut for this picture's camera by the same
 :func:`~xtalapp.viewport.sketch.sketch_model` the window cuts them
 with.  The grey at the back is written as each stroke's colour, so
-an illustrator can take it out with one selection.
+an illustrator can take it out with one selection.  A knockout is
+left out when the view has no label backgrounds, and is painted
+behind a pore circle it covers unless it is to hide the sphere, as
+the window draws it.
 
 **A flat style is the file this module exists to write.**  A lit atom
 is a circle filled with a radial gradient, and a gradient is not a
@@ -682,6 +685,7 @@ def _sketch_shapes(model, projection, names, out) -> None:
                         sketch.fade(model.positions, model.radii,
                                     positions, origin, direction, cue))
     height, pad = float(model.label_height), float(model.label_pad)
+    under = _pores_under_labels(model, projection, centres, depth)
     for k, i in enumerate(rows):
         left, right, down, up_ = (float(v) for v in model.label_extents[i])
         s = scale[k]
@@ -690,16 +694,40 @@ def _sketch_shapes(model, projection, names, out) -> None:
         # Just in front of the atom's own depth: over its bonds' ends
         # and everything behind it, under anything nearer.
         at = depth[k] - 1e-6
-        out.append((at, (
-            f'<rect id="knockout-{name}" class="knockout" '
-            f'x="{_n(cx - (left + pad) * s)}" '
-            f'y="{_n(cy - (up_ + pad) * s)}" '
-            f'width="{_n((left + right + 2 * pad) * s)}" '
-            f'height="{_n((up_ + down + 2 * pad) * s)}" '
-            f'fill="{_hex(model.background)}"/>')))
+        if model.label_box:
+            out.append((max(at, under[k]), (
+                f'<rect id="knockout-{name}" class="knockout" '
+                f'x="{_n(cx - (left + pad) * s)}" '
+                f'y="{_n(cy - (up_ + pad) * s)}" '
+                f'width="{_n((left + right + 2 * pad) * s)}" '
+                f'height="{_n((up_ + down + 2 * pad) * s)}" '
+                f'fill="{_hex(model.background)}"/>')))
         out.append((at, _sketch_text(
             model.label_text[i], cx - left * s, cy + height * s / 2,
             height * s, colors[k], f"label-{name}")))
+
+
+def _pores_under_labels(model, projection, centres, depth) -> np.ndarray:
+    """Per label, the depth its knockout is painted at so that a pore
+    sphere shows through it: just behind the farthest pore circle its
+    atom sits over and in front of.  ``-inf`` where there is none, or
+    where the knockout is to hide the sphere as the window's does.
+
+    The window draws the box after everything opaque and the sphere
+    over it (``vtk_scene._set_label_box``); a painter's algorithm says
+    the same by painting the knockout first.
+    """
+    under = np.full(len(depth), -np.inf)
+    if (not model.n_pore_spheres or not model.label_box
+            or model.label_box_over_pores):
+        return under
+    at, far = projection.to_display(model.pore_centres)
+    reach = projection.radii_at(model.pore_centres, model.pore_radii)
+    for c in range(model.n_pore_spheres):
+        over = ((np.linalg.norm(centres - at[c], axis=1) < reach[c])
+                & (depth < far[c]))
+        under[over] = np.maximum(under[over], far[c] + 1e-6)
+    return under
 
 
 def _sketch_text(text, x, baseline, cap, color, name) -> str:

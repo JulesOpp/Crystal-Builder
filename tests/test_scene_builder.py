@@ -791,6 +791,61 @@ def test_a_d_if_no_node_matches_draws_no_sphere(rutile):
         assert scene.n_pore_edges == 1
 
 
+def _two_cages():
+    """Two copies of a 2.4 A cage, at the corner and the body centre
+    of rutile's cell, and one 1.6 A cage at an edge centre."""
+    return _network(nodes=((0, 0, 0), (0.5, 0.5, 0.5), (0.5, 0, 0)),
+                    radii=(1.2, 1.2, 0.8), edges=False)
+
+
+def test_choosing_the_second_cavity_draws_the_smaller_cage(rutile):
+    """What moves the sphere to the middle of HKUST-1's cell: its body
+    centre is the second cage, not a copy of the first."""
+    settings = ViewSettings()
+    settings.pore_cavity = 1
+    scene = build_scene(rutile, settings, pores=_two_cages())
+    assert scene.n_pore_spheres == 1
+    assert scene.pore_radii[0] < 0.8
+    frac = rutile.lattice.to_frac(np.asarray(scene.pore_centres, float))
+    assert np.allclose(frac[0], (0.5, 0, 0))
+
+
+def test_the_copy_choice_moves_the_sphere_and_all_draws_every_copy(
+        rutile):
+    """Most central first, so the default copy is the body centre."""
+    settings = ViewSettings()
+    first = build_scene(rutile, settings, pores=_two_cages())
+    settings.pore_copy = 1
+    second = build_scene(rutile, settings, pores=_two_cages())
+    to_frac = rutile.lattice.to_frac
+    assert np.allclose(to_frac(np.asarray(first.pore_centres, float)),
+                       [(0.5, 0.5, 0.5)])
+    assert np.allclose(to_frac(np.asarray(second.pore_centres, float)),
+                       [(0, 0, 0)])
+    settings.pore_copy = -1
+    every = build_scene(rutile, settings, pores=_two_cages())
+    assert every.n_pore_spheres == 2
+
+
+def test_a_choice_past_the_end_draws_the_last(rutile):
+    """A choice made over one network is kept in the view and meets
+    the next network, which may have fewer cages."""
+    settings = ViewSettings()
+    settings.pore_cavity, settings.pore_copy = 7, 7
+    scene = build_scene(rutile, settings, pores=_two_cages())
+    assert scene.n_pore_spheres == 1
+    assert scene.pore_radii[0] < 0.8
+
+
+def test_the_cavity_and_copy_survive_a_session_round_trip():
+    settings = ViewSettings()
+    settings.pore_cavity, settings.pore_copy = 1, -1
+    again = ViewSettings.from_dict(settings.to_dict())
+    assert (again.pore_cavity, again.pore_copy) == (1, -1)
+    fresh = ViewSettings.from_dict({})
+    assert (fresh.pore_cavity, fresh.pore_copy) == (0, 0)
+
+
 def test_hiding_the_pore_spheres_keeps_the_skeleton(rutile):
     settings = ViewSettings()
     settings.show_pore_spheres = False

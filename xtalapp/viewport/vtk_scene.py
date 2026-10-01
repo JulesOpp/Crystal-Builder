@@ -258,6 +258,24 @@ PIE_NORMAL_IMPL = "  normalVCVSOutput = normalMC;\n"
 LABEL_OFFSET_DEC = PIE_OFFSET_DEC.replace("pieOffset", "labelOffset")
 LABEL_POSITION_IMPL = (PIE_POSITION_IMPL.replace("pieOffset", "labelOffset")
                        .replace("pieMC", "labelMC"))
+#: The letters without their box: the atlas's alpha is the letters'
+#: coverage, and a texel with next to none is not drawn at all -- no
+#: colour, no depth -- so whatever is behind the label shows between
+#: its letters.  What is drawn is opaque, its edge already mixed
+#: towards the background as the atlas sets it.
+LABEL_CUT_IMPL = """//VTK::TCoord::Impl
+  if (gl_FragData[0].a < 0.1) discard;
+  gl_FragData[0].a = 1.0;
+"""
+#: The box a hair behind its own letters, so that drawn after them --
+#: which it is when it lets a pore sphere through -- it cannot paint
+#: over them.  Of the clip-space depth, so the same fraction of the
+#: depth range at any zoom.
+LABEL_BOX_BEHIND_IMPL = LABEL_POSITION_IMPL + (
+    "  gl_Position.z += 4.0e-5 * gl_Position.w;\n")
+#: Just under opaque, which is what puts the box in the translucent
+#: pass -- after every opaque thing it covers, before the sphere.
+LABEL_BOX_THROUGH_OPACITY = 0.999
 
 
 def _to_uchar(colors: np.ndarray, name: str) -> vtkUnsignedCharArray:
@@ -503,6 +521,7 @@ class VtkScene:
         self._build_highlight_actors()
         self._build_ghost_actors()
         self._build_scale_bar()
+        self._order_label_actors()
         self._cue_on = False
         self._cue_strength = 0.7
         self._cue_start = 0.3
@@ -701,7 +720,27 @@ class VtkScene:
         self.sketch_wedge_actor = self._flat_actor(
             self._sketch_wedge_poly)
 
+        # Two actors over one set of quads: the box, in the
+        # background's colour, and the letters, cut out of the atlas.
+        # Apart, so the box can be left out, or kept from hiding a
+        # pore sphere (_set_label_box).  Added to the renderer last,
+        # in _order_label_actors.
         self._label_poly = vtkPolyData()
+        self.label_box_actor = self._label_quads(LABEL_BOX_BEHIND_IMPL)
+        self.label_actor = self._label_quads(LABEL_POSITION_IMPL)
+        self.label_actor.GetProperty().SetColor(1.0, 1.0, 1.0)
+        self.label_actor.GetShaderProperty().AddFragmentShaderReplacement(
+            "//VTK::TCoord::Impl", True, LABEL_CUT_IMPL, False)
+        # The atlas has an alpha channel, which would otherwise send
+        # the letters to the translucent pass and out of order.
+        self.label_actor.ForceOpaqueOn()
+        self._label_texture = vtkTexture()
+        self._label_texture.InterpolateOn()
+        self.label_actor.SetTexture(self._label_texture)
+
+    def _label_quads(self, position_impl: str) -> vtkActor:
+        """An actor over the labels' quads, turned to face the camera
+        on the GPU."""
         mapper = vtkPolyDataMapper()
         mapper.SetInputData(self._label_poly)
         mapper.ScalarVisibilityOff()
@@ -710,21 +749,54 @@ class VtkScene:
         mapper.MapDataArrayToVertexAttribute(
             "labelOffset", "labelOffset",
             vtkDataObject.FIELD_ASSOCIATION_POINTS, -1)
-        self.label_actor = vtkActor()
-        self.label_actor.SetMapper(mapper)
-        prop = self.label_actor.GetProperty()
-        _flat(prop)
-        prop.SetColor(1.0, 1.0, 1.0)
-        shader = self.label_actor.GetShaderProperty()
+        actor = vtkActor()
+        actor.SetMapper(mapper)
+        _flat(actor.GetProperty())
+        shader = actor.GetShaderProperty()
         shader.AddVertexShaderReplacement(
             "//VTK::PositionVC::Dec", True, LABEL_OFFSET_DEC, False)
         shader.AddVertexShaderReplacement(
-            "//VTK::PositionVC::Impl", True, LABEL_POSITION_IMPL, False)
-        self._label_texture = vtkTexture()
-        self._label_texture.InterpolateOn()
-        self.label_actor.SetTexture(self._label_texture)
-        self.label_actor.SetVisibility(False)
-        self.renderer.AddActor(self.label_actor)
+            "//VTK::PositionVC::Impl", True, position_impl, False)
+        actor.SetVisibility(False)
+        return actor
+
+    def _order_label_actors(self) -> None:
+        """The box, then the pore actors, then the letters, last of
+        all: see :meth:`_set_label_box` for why the order is the
+        picture."""
+        for actor in (self.label_box_actor, self.pore_actor,
+                      self.pore_surface_actor, self.pore_edge_actor,
+                      self.label_actor):
+            self.renderer.RemoveActor(actor)
+            self.renderer.AddActor(actor)
+
+    def _set_label_box(self, model, shown: bool) -> None:
+        """The box under each label, and whether a pore sphere behind
+        it shows through.
+
+        Opaque, it is a knockout like any other and hides a sphere
+        behind it as it hides a bond.  To let the sphere through it
+        has to cover the bonds behind it and not the sphere, which
+        depth cannot say -- the box is in front of both -- so it is
+        said by order instead: just under opaque, the box is drawn in
+        the translucent pass, after every opaque thing and writing no
+        depth, and the sphere is drawn over it.  The letters, opaque,
+        still stand in front of the sphere.  That order is only kept
+        with order-independent transparency off (VTK then draws the
+        translucent pass in actor order, :meth:`_order_label_actors`),
+        so it is off only while a box is drawn this way.  Keeping the
+        box out of the depth buffer another way is not open: VTK's
+        depth-mask override is honoured in the translucent pass alone.
+        """
+        actor = self.label_box_actor
+        drawn = shown and bool(model.label_box)
+        actor.SetVisibility(drawn)
+        r, g, b = model.background
+        prop = actor.GetProperty()
+        prop.SetColor(r / 255.0, g / 255.0, b / 255.0)
+        through = drawn and not model.label_box_over_pores
+        prop.SetOpacity(LABEL_BOX_THROUGH_OPACITY if through else 1.0)
+        self.renderer.SetUseOIT(not through)
 
     def _flat_actor(self, poly) -> vtkActor:
         mapper = vtkPolyDataMapper()
@@ -1479,12 +1551,13 @@ class VtkScene:
         ink between them is cut per camera by :meth:`_refresh_sketch`.
         """
         actors = (self.sketch_line_actor, self.sketch_wedge_actor,
-                  self.label_actor)
+                  self.label_actor, self.label_box_actor)
         self._sketch_on = bool(model.draws_labels)
         self._sketch_state = None
         if not self._sketch_on:
             for actor in actors:
                 actor.SetVisibility(False)
+            self.renderer.SetUseOIT(True)
             self._watch_camera()
             return
         rows = np.array([k for k, text in enumerate(model.label_text)
@@ -1524,6 +1597,8 @@ class VtkScene:
         self._label_levels = np.full(len(rows), -1)
         self.label_actor.GetMapper().SetInputData(poly)
         self.label_actor.SetVisibility(bool(len(rows)))
+        self.label_box_actor.GetMapper().SetInputData(poly)
+        self._set_label_box(model, bool(len(rows)))
         for actor in actors[:2]:
             actor.SetVisibility(True)
         self._refresh_sketch()
@@ -1547,7 +1622,7 @@ class VtkScene:
         data = vtkImageData()
         data.SetDimensions(image.shape[1], image.shape[0], 1)
         data.GetPointData().SetScalars(
-            _to_uchar(np.ascontiguousarray(image).reshape(-1, 3),
+            _to_uchar(np.ascontiguousarray(image).reshape(-1, 4),
                       "atlas"))
         self._label_texture.SetInputData(data)
         self._label_texture.Modified()

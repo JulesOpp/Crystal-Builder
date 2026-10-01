@@ -406,3 +406,88 @@ def test_an_element_zeo_has_never_heard_of_gets_a_default():
     assert porosity.zeo_radius("Uuo") == pytest.approx(1.7)
     # Whatever case the caller spells it in.
     assert porosity.zeo_radius("zn") == porosity.zeo_radius("Zn")
+
+
+# -- which cavity, and which copy of it ------------------------------
+
+
+def _hkust1():
+    """HKUST-1's widest accessible nodes as Zeo++ 0.3 wrote them.
+    Whether a node is a cavity depends only on the nodes wider than
+    it, so the ones under 5.5 A change nothing asked of these."""
+    from pathlib import Path
+
+    from xtal.core.lattice import Lattice
+    cell = Lattice.cubic(26.343)
+    text = (Path(__file__).parent / "data"
+            / "hkust1_wide_nodes.xyz").read_text()
+    frac, radii = porosity.parse_voro_nodes(text, cell)
+    return porosity.PoreNetwork(nodes=frac, radii=radii,
+                                included_along_free=13.18565), cell
+
+
+def test_hkust1s_largest_cage_has_four_copies_and_none_in_the_middle():
+    """D_i sits at the corner and the three face centres; the cage at
+    the body centre is the next one, 11.1 A.  This is why the largest
+    sphere is drawn at the edge of the cell."""
+    net, cell = _hkust1()
+    assert len(net.cavities(cell)) == 2          # of those over 5.5 A
+    first, second = net.cavities(cell)
+    assert 2 * first.radius == pytest.approx(13.192, abs=1e-3)
+    assert len(first.copies) == 4
+    centred = (np.round(first.copies * 2) / 2) % 1.0
+    assert sorted(map(tuple, centred)) == [
+        (0, 0, 0), (0, 0.5, 0.5), (0.5, 0, 0.5), (0.5, 0.5, 0)]
+    assert 2 * second.radius == pytest.approx(11.108, abs=1e-3)
+    assert np.allclose(second.copies[0], (0.5, 0.5, 0.5), atol=0.01)
+
+
+def test_the_first_cavity_is_the_largest_included_sphere():
+    """The table's D_i and the default picture must be one sphere."""
+    net, cell = _hkust1()
+    node, radius = net.largest()
+    first = net.cavities(cell)[0]
+    assert first.radius == radius
+    assert first.radii.max() == radius
+
+
+def test_a_crowd_of_nodes_at_one_cage_is_one_copy():
+    """Zeo++ writes eleven nodes within 0.01 A of the widest radius in
+    HKUST-1's four big cages; listed one by one, the Copy choice would
+    step through the same cage three times."""
+    net, cell = _hkust1()
+    crowd = np.sum(net.radii > net.radii.max() - 0.01)
+    assert crowd > 4
+    assert len(net.cavities(cell)[0].copies) == 4
+
+
+def test_copies_are_most_central_first():
+    from xtal.core.lattice import Lattice
+    cell = Lattice.cubic(20.0)
+    net = porosity.PoreNetwork(
+        nodes=np.array([(0, 0, 0), (0.5, 0.5, 0.5), (0.001, 0, 0),
+                        (0.5, 0, 0), (0.1, 0, 0)]),
+        radii=np.array([5.0, 5.0, 4.998, 3.0, 1.0]))
+    big, small = net.cavities(cell)
+    assert np.allclose(big.copies, [(0.5, 0.5, 0.5), (0, 0, 0)])
+    assert np.allclose(small.copies, [(0.5, 0, 0)])
+
+
+def test_the_free_path_sphere_has_its_copies_too():
+    net, cell = _hkust1()
+    copies = net.copies_of(net.included_along_free, cell)
+    assert len(copies.copies) == 4
+    assert np.all(np.abs(2 * copies.radii - 13.18565)
+                  <= porosity.DIF_TOL)
+    assert net.copies_of(10.0, cell) is None
+
+
+def test_cavities_are_not_written_into_the_project():
+    """Derived, and cheap to derive again: the session keeps what came
+    out of the binary and nothing else."""
+    net, cell = _hkust1()
+    net.cavities(cell)
+    assert "_cache" not in net.to_dict()
+    back = porosity.PoreNetwork.from_dict(net.to_dict())
+    assert np.array_equal(back.nodes, net.nodes)
+    assert back.cavities(cell)[0].radius == net.cavities(cell)[0].radius

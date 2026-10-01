@@ -506,6 +506,9 @@ def _sketch_fields(cell, graph, folding, drawn, halves, starts, ends,
         "label_height": float(height),
         "label_pad": float(pad),
         "sketch_scale": float(scale),
+        "sketch_wedges": bool(settings.sketch_wedges),
+        "label_box": bool(settings.sketch_label_box),
+        "label_box_over_pores": bool(settings.sketch_box_over_pores),
         "bond_gaps": gaps,
         "bond_from_centre": from_centre,
     }
@@ -1478,17 +1481,7 @@ def _emit_pores(network, lattice, settings):
         frac = np.asarray(network.nodes)
         radii = np.asarray(network.radii)
     else:
-        # None for a surface-only network -- what the volume run
-        # produces -- and for a D_if no node matches.
-        one = (network.along_free()
-               if settings.pore_spheres == "along_free"
-               else network.largest())
-        if one is None:
-            frac = np.zeros((0, 3))
-            radii = np.zeros(0)
-        else:
-            frac = np.asarray(one[0], float).reshape(1, 3)
-            radii = np.array([one[1]], float)
+        frac, radii = _chosen_sphere(network, lattice, settings)
 
     centres, sizes = _repeat_nodes(frac, radii, lattice, settings,
                                    shifts)
@@ -1508,6 +1501,30 @@ def _emit_pores(network, lattice, settings):
                     (len(starts), 1)),
             points, faces,
             np.tile(color, (len(faces), 1)))
+
+
+def _chosen_sphere(network, lattice, settings):
+    """``(frac, radii)`` of the one sphere asked for, or of every copy
+    of it: a kind of cavity by size, or D_if.
+
+    Empty for a surface-only network -- what the volume run produces
+    -- and for a D_if no node matches.  An index past the end is the
+    last, so a choice made on one network never fails on another.
+    """
+    if settings.pore_spheres == "along_free":
+        found = (None if network.included_along_free is None
+                 else network.copies_of(network.included_along_free,
+                                        lattice))
+    else:
+        kinds = network.cavities(lattice)
+        found = (kinds[min(max(settings.pore_cavity, 0), len(kinds) - 1)]
+                 if kinds else None)
+    if found is None:
+        return np.zeros((0, 3)), np.zeros(0)
+    if settings.pore_copy < 0:
+        return found.copies, found.radii
+    k = min(settings.pore_copy, len(found.copies) - 1)
+    return found.copies[k:k + 1], found.radii[k:k + 1]
 
 
 def _repeat_nodes(frac, radii, lattice, settings, shifts):

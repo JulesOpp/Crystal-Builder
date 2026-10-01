@@ -135,6 +135,8 @@ class DocumentSet:
         document.measurementsChanged.connect(
             self.window._on_measurements_changed)
         document.planesChanged.connect(self.window._on_planes_changed)
+        # The Style panel lists the cavities of the network in front.
+        document.poresChanged.connect(self.window._on_view_changed)
         document.historyChanged.connect(self.window._update_history_actions)
         document.playbackChanged.connect(self.window._refresh_shell)
         self.window.autosaver.watch(document)

@@ -56,8 +56,9 @@ BOUNDARIES = ("in_range", "bonded", "half")
 #: ``(value, label, tooltip)``.  D_f is not among them and cannot be --
 #: see :class:`xtal.analysis.porosity.PoreNetwork`.
 PORE_SPHERES = (
-    ("largest", "Largest included (D_i)",
-     "One sphere, at the widest accessible node: D_i"),
+    ("largest", "By size",
+     "One sphere, at the middle of a cavity: the largest, D_i, unless "
+     "a smaller one is chosen below"),
     ("along_free", "Along the free path (D_if)",
      "One sphere, at the node that is the widest point of the channel "
      "the free sphere squeezes through: D_if"),
@@ -187,6 +188,19 @@ class ViewSettings:
     #: The Skeletal style: labels in their element's colour rather
     #: than in ink.  Off, because the drawing it imitates is black.
     sketch_color_labels: bool = False
+    #: The Skeletal style: a bond tilted out of the screen as a solid
+    #: or hashed wedge.  Off draws every single bond as a plain line,
+    #: for a picture that wants the connectivity and not the depth.
+    sketch_wedges: bool = True
+    #: The Skeletal style: each label on a box of the background, which
+    #: interrupts whatever runs behind it, as ChemDraw sets one.  Off
+    #: writes the letters alone.
+    sketch_label_box: bool = True
+    #: Whether that box hides a pore sphere behind the label too.  Off,
+    #: because a translucent sphere punched full of white rectangles
+    #: is a picture of the labels and not of the pore: the box then
+    #: interrupts bonds and still lets the sphere through.
+    sketch_box_over_pores: bool = False
 
     # A translucent quad at every plane the user has defined, with its
     # normal on it.  On, because a plane is defined by pressing a
@@ -210,6 +224,14 @@ class ViewSettings:
     #: in a cell and thousands across a display range, and a
     #: translucent ball at each is a fog over the crystal it is about.
     pore_spheres: str = "largest"
+    #: Under ``largest``, which kind of cavity, widest first: 0 is
+    #: D_i.  See :meth:`xtal.analysis.porosity.PoreNetwork.cavities`
+    #: -- HKUST-1's D_i is at the corner and face centres, and the cage
+    #: at the body centre is the second kind.  Clamped where it is
+    #: drawn, so a network with fewer kinds draws its last.
+    pore_cavity: int = 0
+    #: Which copy of that sphere, most central first; -1 is every copy.
+    pore_copy: int = 0
     #: Whether that sphere is drawn.  Independent of ``show_pores``,
     #: which is the channel skeleton and the surface: either can be
     #: wanted without the other -- where the cavity is, or the path
@@ -335,6 +357,8 @@ class ViewSettings:
             "plane_color": list(self.plane_color),
             "show_pores": self.show_pores,
             "pore_spheres": self.pore_spheres,
+            "pore_cavity": self.pore_cavity,
+            "pore_copy": self.pore_copy,
             "show_pore_spheres": self.show_pore_spheres,
             "pore_color": list(self.pore_color),
             "pore_edge_color": list(self.pore_edge_color),
@@ -349,6 +373,9 @@ class ViewSettings:
             "label_mode": self.label_mode,
             "sketch_explicit_carbon": self.sketch_explicit_carbon,
             "sketch_color_labels": self.sketch_color_labels,
+            "sketch_wedges": self.sketch_wedges,
+            "sketch_label_box": self.sketch_label_box,
+            "sketch_box_over_pores": self.sketch_box_over_pores,
             "range_a": list(self.range_a),
             "range_b": list(self.range_b),
             "range_c": list(self.range_c),
@@ -372,13 +399,16 @@ class ViewSettings:
                     "show_bonds", "show_cell", "show_axes",
                     "show_bond_orders", "show_topology",
                     "show_planes", "show_pores", "pore_spheres",
+                    "pore_cavity", "pore_copy",
                     "show_pore_spheres",
                     "pore_opacity", "show_scale_bar", "depth_cue",
                     "depth_cue_strength", "depth_cue_start",
                     "depth_cue_end", "ellipsoid_probability",
                     "ellipsoid_octants",
                     "label_mode", "sketch_explicit_carbon",
-                    "sketch_color_labels", "boundary", "projection",
+                    "sketch_color_labels", "sketch_wedges",
+                    "sketch_label_box", "sketch_box_over_pores",
+                    "boundary", "projection",
                     "show_legend", "polyhedron_opacity",
                     "polyhedron_min_vertices",
                     "background_follows_theme"):

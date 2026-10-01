@@ -178,13 +178,26 @@ box, below.
 
 The Style panel's **Pore sphere** chooses which sphere that is:
 
-- *Largest included (D_i)*, the default.
+- *By size*, the default. The sphere is at the middle of a cavity,
+  which is chosen with **Cavity**.
 - *Along the free path (D_if)*. This is the widest point of the
   channel the free sphere squeezes through. It is a node too, found
   by matching its diameter to the D_if in the table to within
   0.005 Å. If no node matches, nothing is drawn and the run's log
   says so.
 - *Every node*.
+
+**Cavity** lists the kinds of cavity the run found, widest first. A
+cavity is a node that has no wider node inside its sphere and lies
+inside no wider cavity's sphere. The first is D_i. Cavities as wide
+as one another to within 0.01 Å are copies of one kind. **Copy**
+chooses which copy is drawn, the one nearest the middle of the cell
+first, or *All* of them. It serves D_if as well.
+
+On HKUST-1 there are three kinds. The largest, 13.19 Å, sits at the
+corner and at the three face centres, so it is always drawn at the
+edge of the cell. The cage at the body centre is the second kind,
+11.11 Å. Choose it to draw a sphere in the middle.
 
 There is no D_f choice, for the reason above. The panel's **Show**
 group has two boxes for the drawing:

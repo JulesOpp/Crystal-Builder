@@ -168,10 +168,12 @@ def test_the_carbon_choice_is_enabled_only_for_the_skeletal_style(
     dock = window.style_dock
     assert not dock.carbon.isEnabled()
     assert not dock.color_labels.isEnabled()
+    assert not dock.wedges.isEnabled()
     assert dock.atom_scale.isEnabled() and dock.bond_radius.isEnabled()
 
     document.update_view(style="skeletal")
     assert dock.carbon.isEnabled() and dock.color_labels.isEnabled()
+    assert dock.wedges.isEnabled()
     assert dock.carbon.currentData() is False
     assert not dock.atom_scale.isEnabled()
     assert not dock.bond_radius.isEnabled()
@@ -194,6 +196,43 @@ def test_choosing_explicit_carbon_changes_the_view_and_not_the_crystal(
                          sketch_color_labels=False)
     assert dock.carbon.currentData() is False
     assert not dock.color_labels.isChecked()
+
+
+def test_choosing_plain_bonds_changes_the_view_and_not_the_crystal(
+        window, rutile_cif):
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    document.update_view(style="skeletal")
+    assert dock.wedges.currentData() is True
+
+    dock.wedges.setCurrentIndex(dock.wedges.findData(False))
+    assert not document.view.sketch_wedges
+    assert not document.modified
+    assert not document.stack.can_undo
+
+    document.update_view(sketch_wedges=True)
+    assert dock.wedges.currentData() is True
+
+
+def test_the_box_over_pores_choice_greys_without_label_backgrounds(
+        window, rutile_cif):
+    """It qualifies the boxes, so it means nothing without them; and
+    both are views, not edits."""
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    assert not dock.label_box.isEnabled()
+    document.update_view(style="skeletal")
+    assert dock.label_box.isChecked() and dock.label_box.isEnabled()
+    assert dock.box_over_pores.isEnabled()
+    assert not dock.box_over_pores.isChecked()
+
+    dock.box_over_pores.setChecked(True)
+    assert document.view.sketch_box_over_pores
+    dock.label_box.setChecked(False)
+    assert not document.view.sketch_label_box
+    assert not dock.box_over_pores.isEnabled()
+    assert not document.modified
+    assert not document.stack.can_undo
 
 
 def _laid_out_at(qtbot, dock, width):
@@ -846,6 +885,50 @@ def test_the_pore_sphere_choice_follows_the_document(window,
         dock.pore_spheres.findData("along_free"))
     assert document.view.pore_spheres == "along_free"
     assert not document.modified
+
+
+def _cages():
+    """Two copies of a 2.4 A cage in rutile's cell and one 1.6 A
+    cage, as a porosity run would leave them."""
+    import numpy as np
+
+    from xtal.analysis.porosity import PoreNetwork
+    return PoreNetwork(
+        nodes=np.array([(0, 0, 0), (0.5, 0.5, 0.5), (0.5, 0, 0)]),
+        radii=np.array([1.2, 1.2, 0.8]))
+
+
+def test_the_cavity_list_follows_the_documents_network(window,
+                                                       rutile_cif):
+    """Empty and greyed before a run; the network's cavities, widest
+    first and the first named D_i, once one has answered."""
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    assert dock.pore_cavity.count() == 0
+    assert not dock.pore_cavity.isEnabled()
+
+    document.set_pores(_cages())
+    assert [dock.pore_cavity.itemText(i) for i in range(2)] == [
+        "2.40 A (D_i)", "1.60 A"]
+    assert dock.pore_cavity.isEnabled()
+    assert [dock.pore_copy.itemText(i) for i in range(3)] == [
+        "1 of 2", "2 of 2", "All 2"]
+
+
+def test_choosing_a_cavity_and_a_copy_changes_the_view_only(
+        window, rutile_cif):
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    document.set_pores(_cages())
+    dock.pore_copy.setCurrentIndex(dock.pore_copy.findData(-1))
+    assert document.view.pore_copy == -1
+    dock.pore_cavity.setCurrentIndex(1)
+    assert document.view.pore_cavity == 1
+    # One copy of the smaller cage: nothing left to choose between.
+    assert dock.pore_copy.count() == 1
+    assert not dock.pore_copy.isEnabled()
+    assert not document.modified
+    assert not document.stack.can_undo
 
 
 def test_a_saved_all_nodes_session_opens_as_every_node():

@@ -18,6 +18,11 @@ anything passing behind the label -- with the letters placed so the
 atom's own sit on the vertex.  So the gap a line leaves and the
 ground the label covers are one rectangle, and cannot disagree.
 
+**The box is also transparent where there is no letter**: a fourth
+channel carries the letters' coverage, so the window can draw the
+letters alone and lay the box under them as a separate quad -- or
+leave it out, and let a pore sphere behind a label show through.
+
 The fade is baked, not shaded: each string is set at
 :data:`LEVELS` steps from ink towards the background, and a label is
 pointed at the step its depth asks for.  A textured quad's colour is
@@ -156,8 +161,9 @@ def set_text(text: str, symbol: str, cap: int = CAP_PX) -> Set:
 
 def cell(text: str, symbol: str, ink, background, height: float,
          pad: float, cap: int = CAP_PX) -> np.ndarray:
-    """(H, W, 3) uint8: the label's box, ``pad`` included, in the
-    background colour with the letters inked into it.  ``height`` and
+    """(H, W, 4) uint8: the label's box, ``pad`` included, in the
+    background colour with the letters inked into it, and the letters'
+    coverage as its alpha.  ``height`` and
     ``pad`` are the world sizes the box is drawn at; only their ratio
     matters here."""
     left, right, down, up = sketch.label_extents(text, symbol, height,
@@ -179,7 +185,9 @@ def cell(text: str, symbol: str, ink, background, height: float,
     ink = np.asarray(ink, np.float32)
     ground = np.asarray(background, np.float32)
     rgb = ground + (ink - ground) * coverage[:, :, None]
-    return np.clip(np.round(rgb), 0, 255).astype(np.uint8)
+    alpha = coverage[:, :, None] * 255.0
+    return np.clip(np.round(np.concatenate([rgb, alpha], axis=2)),
+                   0, 255).astype(np.uint8)
 
 
 def level_colors(ink, background) -> np.ndarray:
@@ -201,7 +209,7 @@ def level_of(fraction) -> np.ndarray:
 class Atlas:
     """Every label of a picture at every step of the fade, packed."""
 
-    image: np.ndarray       # (H, W, 3) uint8, row 0 at the top
+    image: np.ndarray       # (H, W, 4) uint8, row 0 at the top
     #: ``(text, ink, level) -> (u0, v0, u1, v1)``, v measured upwards
     #: as a texture reads it.
     rects: dict
@@ -233,8 +241,8 @@ def build(entries, background, height: float, pad: float,
     total_w = max(1, min(width, max((px + im.shape[1]
                                      for _k, im, px, _py in placed),
                                     default=1)))
-    atlas = np.zeros((total_h, total_w, 3), np.uint8)
-    atlas[:] = np.asarray(background, np.uint8)
+    atlas = np.zeros((total_h, total_w, 4), np.uint8)
+    atlas[:, :, :3] = np.asarray(background, np.uint8)
     rects = {}
     for key, image, px, py in placed:
         h, w = image.shape[:2]

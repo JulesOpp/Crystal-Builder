@@ -277,6 +277,9 @@ class SceneModel:
     label_height: float = 0.5
     label_pad: float = 0.1
     sketch_scale: float = 1.5
+    sketch_wedges: bool = True
+    label_box: bool = True              # a knockout under each label
+    label_box_over_pores: bool = False  # ... that hides a pore sphere
     bond_gaps: np.ndarray = field(
         default_factory=lambda: np.zeros((0, 4), np.float32))
     bond_from_centre: np.ndarray = field(
