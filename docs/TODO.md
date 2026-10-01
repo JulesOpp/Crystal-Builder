@@ -173,7 +173,9 @@ their `--json`, and on 2026-10-01 the live link to the window
 - One failed 2-second health probe of the window (every
   `proxy.WATCH` seconds) during a long calculation cancels that call
   through `xtal mcp`; the window keeps computing and the answer is
-  lost.  Two failures in a row would be safer.
+  lost.  The session is dropped with it, so the calls running beside
+  it are answered "connection reset" within `proxy.WATCH` seconds
+  too.  Two failures in a row would be safer.
 - The agent's current document is shared by every client and
   outlives a disconnect; resetting it on server start would be
   cleaner.

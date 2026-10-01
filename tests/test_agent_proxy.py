@@ -297,6 +297,7 @@ def test_a_failing_call_does_not_hang_the_calls_beside_it(
 
     monkeypatch.setattr(ClientSession, "call_tool", call_tool)
     out = {}
+    failed = threading.Event()
 
     async def both():
         async with anyio.create_task_group() as group:
@@ -311,6 +312,7 @@ def test_a_failing_call_does_not_hang_the_calls_beside_it(
                 out["failing"] = await proxy._forward(
                     held, "unreadable", {})
                 out["kept"] = held._session is session
+                failed.set()
 
             async with anyio.create_task_group() as calls:
                 calls.start_soon(slow)
@@ -320,7 +322,8 @@ def test_a_failing_call_does_not_hang_the_calls_beside_it(
     thread = threading.Thread(target=lambda: anyio.run(both), daemon=True)
     thread.start()
     try:
-        time.sleep(1.5)                   # the GUI thread is not turning
+        # The GUI thread is not turning until the failing call is done.
+        assert failed.wait(timeout=15)
         assert "failing" in out and "slow" not in out
         qtbot.waitUntil(lambda: "slow" in out, timeout=15000)
     finally:

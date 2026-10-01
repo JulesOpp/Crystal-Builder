@@ -315,6 +315,6 @@ Tasks:
   the connection dropped; the next call reads the discovery file
   again and connects.  A session the window forgot (its 404) is made
   again and the call sent once more at once, and a call that fails on
-  its own keeps the session the others share.  The proxy exits only when the client
-  closes stdin, and `_Leaving`, `_Stdout`, `_Stdin` and the exit codes
-  went with the exits.
+  its own keeps the session the others share.  The proxy exits only
+  when the client closes stdin, and `_Leaving`, `_Stdout`, `_Stdin`
+  and the exit codes went with the exits.
