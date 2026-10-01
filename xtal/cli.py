@@ -21,6 +21,7 @@ here (and in the Python console) rather than to automate the widgets.
     xtal render quartz.cif quartz.png --view c
     xtal capabilities
     xtal skill install
+    xtal mcp
 """
 
 from __future__ import annotations
@@ -723,6 +724,14 @@ def cmd_formats(args) -> int:
 #  ENTRY POINT
 # ======================================================================
 
+def cmd_mcp(args) -> int:
+    """The agent verbs as MCP tools on stdio -- what a client starts."""
+    from xtal.agent import serve
+
+    return serve.main(["--window"] if args.window else
+                      ["--headless"] if args.headless else [])
+
+
 def build_parser() -> argparse.ArgumentParser:
     from xtal import __version__
 
@@ -795,6 +804,12 @@ def build_parser() -> argparse.ArgumentParser:
     q.add_argument("--force", action="store_true",
                    help="replace an installed copy that differs")
     q.set_defaults(func=cmd_skill)
+
+    from xtal.agent.serve import mcp_arguments
+    p = sub.add_parser("mcp", help="serve the agent verbs as MCP tools "
+                                   "over stdio, for an AI assistant")
+    mcp_arguments(p)
+    p.set_defaults(func=cmd_mcp)
 
     p = sub.add_parser("symmetry", help="detect the space group")
     p.add_argument("file")

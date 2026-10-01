@@ -283,3 +283,8 @@ xtal skill install                  # this file, where Claude Code reads it
 
 Use the shell for a look; use a `Session` for anything with more than
 one step, because only a session has undo and a log.
+
+`xtal mcp` serves these verbs as MCP tools over stdio, one tool per
+verb, with the same names and keywords (a verb's `**options` is one
+object of that name), plus `documents`, `switch`, `capabilities` and
+`help_for`. It needs the `mcp` extra and says how to install it.
