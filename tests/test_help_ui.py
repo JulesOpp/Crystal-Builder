@@ -52,7 +52,7 @@ def test_a_command_is_described_by_its_own_tip(window):
     rows = {label: (key, tip)
             for _t, entries in command_sections(window)
             for label, key, tip in entries}
-    assert rows["Recalculate bonds"][1] == \
+    assert rows["Bonds ▸ Recalculate bonds"][1] == \
         window.actions_["recompute_bonds"].toolTip()
 
 

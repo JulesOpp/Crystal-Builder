@@ -1,7 +1,8 @@
 # Structure
 
-The *Structure* menu changes what the crystal is made of: atoms,
-bonds, connection points and the criteria bonds are perceived by.
+The *Structure* menu changes what the crystal is made of: atoms and
+their elements, bonds, connection points and the criteria bonds are
+perceived by.
 After this page you can add and merge atoms, put a centroid where a
 net edge or a measurement needs one, control exactly when bonds are
 recalculated, and give a bond a type the geometry would not have
@@ -55,6 +56,23 @@ atom, which is what it is for: the centre of a ring, the vertex of a
 net, the point a connection is made at.
 :::
 
+## Change element
+
+1. {ref}`Change element… <cmd-change_element>` asks for a symbol and
+   gives it to the sites behind the selected atoms -- *changed 1
+   site(s) to N*, undone as *Undo Change element to N*.  A string
+   that is not an element symbol is refused with *'…' is not an
+   element symbol* rather than accepted as a label.
+2. The same edit is one click away in the *Inspector* panel, which
+   shows the selected site's element, label, coordinates, occupancy,
+   U{sub}`iso` and charge.
+
+The atoms keep the bonds they had.  Turning oxygen into sulfur does
+not ask what sulfur would bond to at these distances --
+{ref}`Recalculate Bonds <cmd-recompute_bonds>` is how to ask that.  The
+one exception is an atom turned into a dummy `X`, which loses its
+perceived bonds, because perception never bonds a marker.
+
 ## Building on the structure
 
 ```{index} single: hydrogens; adding
@@ -97,13 +115,19 @@ net, the point a connection is made at.
    </frameworks/molecule-builder>`, {doc}`interpenetration
    </structure/interpenetration>` and {doc}`preparing a deposited
    structure </structure/prepare>`.
-5. {ref}`Mark connection points <cmd-mark_connection_points>` and
-   {ref}`Mark as one connection point <cmd-mark_one_connection_point>`
-   turn selected atoms into the {term}`connection points <connection
-   point>` a {term}`building block` is joined by.  There is no
-   *Unmark*: an `X` does not remember what it was, so the way back is
-   {kbd}`Ctrl+Z`.  Drawing blocks is in {doc}`Building blocks and
-   connection points </frameworks/blocks>`.
+5. *Building blocks ▸* {ref}`Mark connection points
+   <cmd-mark_connection_points>` and {ref}`Mark as one connection
+   point <cmd-mark_one_connection_point>` turn selected atoms into the
+   {term}`connection points <connection point>` a {term}`building
+   block` is joined by.  There is no *Unmark*: an `X` does not
+   remember what it was, so the way back is {kbd}`Ctrl+Z`.
+6. *Building blocks ▸* {ref}`Save as a building block…
+   <cmd-save_building_block>` writes the open molecule into the
+   workspace's `blocks/` folder, where the MOF builder's picker reads
+   it beside the 867 blocks PORMAKE ships.  It needs connection
+   points on the molecule, and the dialog says what is missing.
+   Drawing blocks is in {doc}`Building blocks and connection points
+   </frameworks/blocks>`.
 
 ## Bonds
 
@@ -111,6 +135,9 @@ net, the point a connection is made at.
 ```
 ```{index} single: bond rules
 ```
+
+Every bond command is in one submenu, *Structure ▸ Bonds*.
+*Recalculate bonds* is also the toolbar's button.
 
 1. {ref}`Bond rules… <cmd-bond_rules>` is the criteria perception
    works to: a *Radius factor* on the covalent radii, an *Extra

@@ -58,8 +58,8 @@ MOF-5's and no other.
 1. Open the structure and settle its bonds: the picture carries the
    bonds the document has.
 2. Choose {ref}`Render in Blender… <cmd-render_blender>` from the
-   *File* menu, or *Modules ▸ Blender ▸ Render in Blender…*.  The
-   dialog suggests `<structure>.png` in the directory you last used.
+   *File* menu.  The dialog suggests `<structure>.png` in the
+   directory you last used.
 3. Set the picture's size and samples.  Every setting, its range and
    its default is in the {ref}`reference <mod-blender-render>`.
 4. Press *Run*.  On MOF-5 at 1920 × 1080 and 50 samples it takes a

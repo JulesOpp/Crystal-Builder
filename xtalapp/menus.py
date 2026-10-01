@@ -661,7 +661,8 @@ def build_menus(window):
         None])
     # Six bond entries and a submenu made the middle of Structure a
     # list to read through; as one submenu they are one entry to find.
-    # Recalculate bonds keeps its shortcut and its toolbar button.
+    # The same actions, so Recalculate bonds keeps its toolbar button
+    # and Reset bonds its Ctrl+B.
     bonds_menu = submenu(structure_menu, "&Bonds")
     window.actions_.fill_menu(bonds_menu, ["recompute_bonds",
                                            "reset_bonds"])

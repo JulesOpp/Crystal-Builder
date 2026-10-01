@@ -30,7 +30,7 @@ before you trust anything that depends on them, and press
 {ref}`Recalculate bonds <cmd-recompute_bonds>` if the geometry has
 moved far enough to change them ({kbd}`Ctrl+B` is
 {ref}`Reset bonds to automatic <cmd-reset_bonds>`, which also drops
-the bonds you drew).  *Structure ▸* {ref}`Bond rules… <cmd-bond_rules>`
+the bonds you drew).  *Structure ▸ Bonds ▸* {ref}`Bond rules… <cmd-bond_rules>`
 previews what a change to the criteria would add and remove before it
 does it, and a bond type you set by hand always wins over the
 distance rule.

@@ -91,20 +91,3 @@ once the undo stack has gone, {ref}`Reset bonds to automatic
 <cmd-reset_bonds>` ({kbd}`Ctrl+B`) is the only way back, and it drops
 every bond you drew as well.
 :::
-
-## Change element
-
-1. {ref}`Change element… <cmd-change_element>` asks for a symbol and
-   gives it to the sites behind the selected atoms -- *changed 1
-   site(s) to N*, undone as *Undo Change element to N*.  A string
-   that is not an element symbol is refused with *'…' is not an
-   element symbol* rather than accepted as a label.
-2. The same edit is one click away in the *Inspector* panel, which
-   shows the selected site's element, label, coordinates, occupancy,
-   U{sub}`iso` and charge.
-
-The atoms keep the bonds they had.  Turning oxygen into sulfur does
-not ask what sulfur would bond to at these distances --
-{ref}`Recalculate Bonds <cmd-recompute_bonds>` is how to ask that.  The
-one exception is an atom turned into a dummy `X`, which loses its
-perceived bonds, because perception never bonds a marker.

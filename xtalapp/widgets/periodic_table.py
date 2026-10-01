@@ -24,7 +24,7 @@ the table would say it is the 119th element.
 from __future__ import annotations
 
 from PySide6.QtCore import QRectF, QSize, Qt, Signal
-from PySide6.QtGui import QIcon, QPainter, QPixmap
+from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -209,7 +209,7 @@ class PeriodicTableButton(QPushButton):
         return symbol
 
 
-def table_glyph(color, size: int = 20) -> QIcon:
+def table_glyph(color, size: int = 14) -> QIcon:
     """A periodic table's silhouette: the two tall columns, the
     transition block between them, and the f-block set apart below.
 
@@ -223,7 +223,10 @@ def table_glyph(color, size: int = 20) -> QIcon:
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.Antialiasing)
     painter.setPen(Qt.NoPen)
-    painter.setBrush(color)
+    # Softer than the text: solid, it was the heaviest thing on the bar.
+    soft = QColor(color)
+    soft.setAlphaF(0.7)
+    painter.setBrush(soft)
     cell = size / 9.0
     # (column, row) on a 9 x 9 grid: one period a row, column 0 the
     # s-block, 1 the alkaline earths, 2-5 the transition metals, 6-8
@@ -259,6 +262,10 @@ class PeriodicTableToolButton(QToolButton):
         self.setAutoRaise(True)
         self.current = current
         self.setIcon(table_glyph(self.palette().buttonText().color()))
+        # Its own size and not the toolbar's: a QToolBar hands every
+        # tool button in it the bar's icon size, and at that size the
+        # glyph was a block as tall as the element box beside it.
+        self.setIconSize(QSize(14, 14))
         self.clicked.connect(self.open_table)
 
     open_table = PeriodicTableButton.open_table
