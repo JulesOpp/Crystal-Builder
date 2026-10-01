@@ -43,6 +43,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMenu,
     QToolBar,
+    QToolButton,
 )
 
 from xtal.commands.bonds import BOND_TYPES
@@ -892,6 +893,27 @@ def module_action(window, module, action):
             shortcut=action.shortcut, tip=action.tip)
     return window.actions_[name]
 
+class _OverflowStaysOpen(QToolBar):
+    """A toolbar whose folded-away end stays out until its double arrow
+    is pressed again.
+
+    Qt closes it the moment the pointer leaves the bar -- so on a
+    narrow window the cell counts and axis views in it closed under
+    anybody whose path to them crossed the edge.  The Leave is what
+    collapses it, and it is swallowed only while the bar is expanded:
+    hover and the drag state see every other one.
+    """
+
+    def event(self, event) -> bool:
+        if event.type() == QEvent.Leave and self._expanded():
+            return True
+        return super().event(event)
+
+    def _expanded(self) -> bool:
+        button = self.findChild(QToolButton, "qt_toolbar_ext_button")
+        return button is not None and button.isChecked()
+
+
 def _toolbar_label(text: str) -> QLabel:
     """A word on the toolbar, in the toolbar buttons' font.
 
@@ -915,7 +937,7 @@ def build_toolbar(window):
     nothing to do with.  Reset view was grouped with Undo and Redo,
     which reads as though it undid something.
     """
-    bar = QToolBar("Main")
+    bar = _OverflowStaysOpen("Main")
     bar.setObjectName("MainToolBar")
     bar.setMovable(False)
     window.actions_.fill_menu(bar, ["open", "save", None, "undo",
