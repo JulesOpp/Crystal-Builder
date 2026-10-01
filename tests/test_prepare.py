@@ -8,6 +8,7 @@ its own refinement declares -- and for atoms no chemist would put
 where they ended up.
 """
 
+import functools
 from pathlib import Path
 
 import numpy as np
@@ -22,8 +23,30 @@ COD = Path(__file__).resolve().parents[1] / "resources" / "samples" / "cod"
 
 
 def _read(name):
+    """A COD sample, read once a worker and copied for each test."""
+    return _read_once(name).copy()
+
+
+@functools.cache
+def _read_once(name):
     from xtal.io import FORMATS
     return FORMATS.read(COD / f"{name}.cif")
+
+
+def _prepared(name, steps=prepare.DEFAULT_STEPS):
+    """``prepare.prepare(_read(name), steps)``, run once a worker.
+
+    MIL-100 and MIL-101 are a second each, and a dozen tests ask for
+    the same sample prepared the same way; each gets a copy, so what
+    one does to its structure no other sees.
+    """
+    out, said = _prepared_once(name, tuple(steps))
+    return out.copy(), list(said)
+
+
+@functools.cache
+def _prepared_once(name, steps):
+    return prepare.prepare(_read(name), steps)
 
 
 def _counts(structure) -> dict:
@@ -321,7 +344,7 @@ def test_a_trimer_left_as_found_gets_no_hydrogen_on_its_ligands():
     """Without the trimer step the planner read valences and made all
     three terminal oxygens hydroxide -- the trimer -2, a charge choice
     nobody made."""
-    out, _said = prepare.prepare(_read("MIL-88B"))
+    out, _said = _prepared("MIL-88B")
     cell = p1.expand(out)
     graph = bonding.graph(out)
     ligands = [lig for _o, members in prepare._trimers(out)
@@ -372,14 +395,14 @@ def _terminal_roles(structure):
 def test_each_trimer_carries_one_anion_and_two_waters():
     """Cr3O(bdc)3 is +1.  A hydrogen planner reading valences made all
     three terminal oxygens hydroxide, and each trimer -2."""
-    out, _ = prepare.prepare(_read("MIL-88B"), prepare.STEPS)
+    out, _ = _prepared("MIL-88B", prepare.STEPS)
     assert _terminal_roles(out) == {"OH": 2, "water": 4, "F": 0}
 
 
 def test_a_counter_ion_in_the_pores_is_the_trimers_anion():
     """Al-soc-MOF-1 is [Al3O(abtc)1.5(H2O)3]+ Cl-: the chloride is the
     anion, and the trimer keeps three waters."""
-    out, said = prepare.prepare(_read("Al-soc-MOF-1"), prepare.STEPS)
+    out, said = _prepared("Al-soc-MOF-1", prepare.STEPS)
     assert _counts(out)["Cl"] == len(prepare._trimers(out)) == 8
     assert _terminal_roles(out) == {"OH": 0, "water": 24, "F": 0}
     assert "halide ion" in said[prepare.STEPS.index("cap")]
@@ -389,7 +412,7 @@ def test_a_zr6_core_gets_its_four_hydroxides_outward():
     """Zr6O4(OH)4: four of the eight capping oxygens, on alternate
     faces, each with its hydrogen pointing away from the cluster --
     not into it, which a centre taken across a cell face once did."""
-    out, _ = prepare.prepare(_read("UiO-66"))
+    out, _ = _prepared("UiO-66")
     cell = p1.expand(out)
     graph = bonding.graph(out)
     hydroxides = [o for o in range(cell.n_atoms)
@@ -407,7 +430,7 @@ def test_a_zr6_core_gets_its_four_hydroxides_outward():
 
 def test_mof808_is_the_textbook_composition():
     """Zr6O4(OH)4(btc)2(HCOO)6, per cluster: 16 H and 32 O."""
-    out, _ = prepare.prepare(_read("MOF-808"))
+    out, _ = _prepared("MOF-808")
     counts = _counts(out)
     clusters = counts["Zr"] // 6
     assert counts["H"] == 16 * clusters
@@ -421,14 +444,14 @@ def test_mof808_is_the_textbook_composition():
 def test_ring_hydrogens_come_from_the_ring_and_not_the_bond_lengths():
     """MIL-101: 68 trimers, three bdc each, four ring hydrogens a
     linker -- 816, whatever the refinement did to the bond lengths."""
-    out, said = prepare.prepare(_read("MIL-101"))
+    out, said = _prepared("MIL-101")
     assert "816 on arene rings" in said[-1]
 
 
 def test_a_bent_carboxylate_gets_no_hydrogen():
     """MIL-100's powder model has a carboxylate carbon with angles
     summing to 337 degrees; typed by geometry it wanted a hydrogen."""
-    out, said = prepare.prepare(_read("MIL-100"), prepare.STEPS)
+    out, said = _prepared("MIL-100", prepare.STEPS)
     assert "were not added" in said[-1]
     counts = _counts(out)
     trimers = counts["Fe"] // 3
@@ -456,7 +479,7 @@ def test_deuterium_is_written_as_hydrogen():
 def test_a_prepared_framework_has_nothing_left_to_prepare(name):
     """And nothing a calculation would choke on: no two atoms closer
     than two alternatives are, and no hydrogen bonded to nothing."""
-    out, _ = prepare.prepare(_read(name), prepare.STEPS)
+    out, _ = _prepared(name, prepare.STEPS)
     assert not prepare.diagnose(out)
     assert _clashes(out) == 0
     graph = bonding.graph(out)
@@ -488,7 +511,7 @@ def _formula(structure) -> dict:
 ])
 def test_an_m6_core_gets_the_terminal_ligands_its_charge_asks_for(
         name, per_cluster):
-    out, _ = prepare.prepare(_read(name))
+    out, _ = _prepared(name)
     counts = _counts(out)
     clusters = counts["Zr"] // 6
     assert {e: n // clusters for e, n in counts.items()} == per_cluster
@@ -496,7 +519,7 @@ def test_an_m6_core_gets_the_terminal_ligands_its_charge_asks_for(
 
 
 def test_no_riding_hydrogen_is_left_against_a_zirconium():
-    out, said = prepare.prepare(_read("PCN-222"))
+    out, said = _prepared("PCN-222")
     assert "riding hydrogen(s) the CIF put" in said[-1]
     cell = p1.expand(out)
     pairs = neighbor_pairs(cell.frac, out.lattice, 2.2)
@@ -507,7 +530,7 @@ def test_no_riding_hydrogen_is_left_against_a_zirconium():
 def test_mil53s_bridging_oxygen_is_a_hydroxide():
     """Cr(OH)(bdc): the neutron structure deuterated the linker and
     never located the mu2-OD."""
-    out, said = prepare.prepare(_read("MIL-53"))
+    out, said = _prepared("MIL-53")
     assert _counts(out) == {"C": 16, "Cr": 2, "H": 10, "O": 10}
     assert "on mu2-OH bridging trivalent metals" in said[-1]
 
@@ -521,7 +544,7 @@ def test_a_bound_methanol_is_a_whole_methanol():
     """Mn-BTT's methanol: an O and a barely located C.  Three hydrogens
     on the carbon whatever its C-O length says, one on the oxygen
     whatever the metal bond does to its count."""
-    out, said = prepare.prepare(_read("Mn-BTT"))
+    out, said = _prepared("Mn-BTT")
     assert "completing bound methanol" in said[-1]
     cell = p1.expand(out)
     graph = bonding.graph(out)
@@ -555,7 +578,7 @@ def test_a_missing_acetate_leaves_a_hydroxide_and_a_water():
     """Acetate is -1: where one is missing, its two oxygens stay on the
     zirconiums as one OH and one water, three hydrogens -- turned so
     that no hydrogen of one points at the other, 2.2 A away."""
-    out, said = prepare.prepare(_read("pbz-MOF-1"))
+    out, said = _prepared("pbz-MOF-1")
     assert "12 on M6 cores' terminal OH and water" in said[-1]
     assert _clashes(out) == 0
 
@@ -716,7 +739,7 @@ def test_a_ring_carbon_takes_no_hydrogen_whatever_its_angles():
     """The ipso carbon of an ordered ring sits at the average of the two
     tilts and looks pyramidal; typed by its angles it got an sp3
     hydrogen, 24 of them in Al-soc-MOF-1."""
-    _out, said = prepare.prepare(_read("Al-soc-MOF-1"))
+    _out, said = _prepared("Al-soc-MOF-1")
     assert "more by valence" not in said[-1]
 
 
@@ -725,6 +748,6 @@ def test_every_prepared_atom_has_a_label_of_its_own(name):
     """A CIF names atoms by label in its bond loop.  The primitive cell
     once gave every image of a site that site's label, and a bond
     written between two atoms came back between two others."""
-    out, _ = prepare.prepare(_read(name))
+    out, _ = _prepared(name)
     labels = [s.label for s in out.sites]
     assert len(set(labels)) == len(labels)
