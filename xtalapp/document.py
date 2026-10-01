@@ -1669,6 +1669,17 @@ class Document(QObject):
             return None
         return supercell.centring_shift(self._structure, atoms)
 
+    def selection_centre(self):
+        """The middle of the selected atoms in fractional coordinates,
+        gathered across the boundary, or ``None`` with nothing
+        selected -- what *From selection* in Fill pores fills in."""
+        atoms = sorted(self.selection.atoms)
+        if not atoms:
+            return None
+        point = measure.centroid(self.cell, self._structure.lattice,
+                                 atoms)
+        return self._structure.lattice.to_frac(point)
+
     def wrap_into_cell(self):
         return self.operate(cell_commands.WrapIntoCell())
 
@@ -2171,6 +2182,28 @@ class Document(QObject):
         self.run(command)
         self.select(_atoms_of_sites(self.cell, command.indices))
         return placement.message()
+
+    def place_molecule(self, guest: Fragment, frac, *,
+                       turn: bool = False, keep_group: bool = False,
+                       overlap_scale: float = fill.DEFAULT_OVERLAP_SCALE,
+                       seed: int | None = None):
+        """One copy of ``guest`` with its centroid at ``frac``, as one
+        undo step, left selected.  Returns a report whose warnings are
+        a crowded point or copies laid over each other -- placed
+        anyway, because the point was the user's.  See
+        :func:`xtal.build.fill.at_point`.
+        """
+        if guest.is_empty:
+            return symmetry.SymmetryReport(ok=False,
+                                           message="nothing to insert")
+        placement = fill.at_point(self._structure, guest, frac,
+                                  turn=turn, keep_group=keep_group,
+                                  overlap_scale=overlap_scale, seed=seed)
+        command = fill.insert_command(placement)
+        self.run(command)
+        self.select(_atoms_of_sites(self.cell, command.indices))
+        return symmetry.SymmetryReport(message=placement.message(),
+                                       warnings=placement.warnings())
 
     def substitute(self, group, per_ring: bool = False):
         """Replace the selected hydrogens -- or, ``per_ring``, one

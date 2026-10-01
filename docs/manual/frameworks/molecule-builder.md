@@ -143,7 +143,7 @@ Where
   centre goes *Distance* (3.5 to 5.0 Å by default) from its atom,
   clear of everything, the other copies included, and bonded to
   nothing.  An atom with no room beside it is named afterwards, and
-  the rest still get theirs.
+  the rest still get theirs.  Or *One at a point (fractional)*, below.
 
 Count
 : How many copies to try to place (20 by default).  The dialog quotes
@@ -178,6 +178,36 @@ afterwards.  Bonds are not recalculated -- a guest arrives with the
 bonds it was drawn with and none to the framework it sits a contact
 away from.
 :::
+
+### One molecule at a point
+
+*Where ▸ One at a point (fractional)* puts a single copy with its
+centre -- the centroid of its atoms -- on the fractional coordinates
+in *Point*: a template in the cage it was found in, a guest a
+diffraction study located, the molecule from one file put into the
+structure of another.  *From selection* fills the point in with the
+middle of the selected atoms, gathered across the cell's faces.
+
+Turn for most room
+: Off, the molecule goes the way round it was drawn in its source.
+  On, the seeded orientation whose closest contact is furthest is
+  kept, and as drawn is among those tried, so turning never leaves
+  less room.
+
+Keep the space group
+: Off, a host with symmetry is reduced to P1 and gets this one
+  molecule.  On, the molecule goes into the asymmetric unit and the
+  group copies it to every equivalent point; the dialog says how many
+  atoms that makes.  At a special position the copies fall on each
+  other, and the count -- not the molecule times the group's order --
+  is how that shows; it is said as a warning.
+
+The preview is the placement itself and names the closest contact,
+with how much of the two atoms' van der Waals contact it is.  **A
+crowded point is inserted anyway**: the point was yours, so a molecule
+inside the framework is a warning, before *Insert* and again after it,
+and never a refusal.  Undo takes it back, the reduction to P1
+included.
 
 ## Settings
 

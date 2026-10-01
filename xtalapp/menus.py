@@ -314,8 +314,9 @@ def build_actions(window):
         tip="Put copies of a molecule -- from another tab or a file "
             "-- into the empty space of this structure, each where it "
             "touches nothing -- or one beside each selected atom, for "
-            "a charged framework's counter-ions.  A host with symmetry "
-            "is reduced to P1 first, and bonds are not recalculated")
+            "a charged framework's counter-ions, or one at a fractional "
+            "point.  A host with symmetry is reduced to P1 first unless "
+            "a point keeps it, and bonds are not recalculated")
     add("interpenetrate", "Interpe&netrate...",
         window.interpenetrate_dialog,
         tip="Thread copies of this framework through its own pores: "

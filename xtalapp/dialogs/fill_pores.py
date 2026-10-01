@@ -24,9 +24,22 @@ the dialog says which atoms before anything is placed.  It is a mode
 of this dialog and not a command of its own because everything else
 about it is the same question: which molecule, and does it fit.
 
+**Or one at a point** -- fractional coordinates somebody already has:
+the template in its cage, the molecule a diffraction study located.
+It is the third answer to *Where* for the same reason: the question is
+still which molecule, and how much room it has there.  The room is
+*shown*, not enforced -- the point was chosen, so a crowded one is
+inserted anyway and the closest contact is named before and after.
+*Turn for most room* tries orientations under the seed; *Keep the
+space group* lets the host's operations copy the molecule, and the
+preview says how many atoms that makes, which is how a special
+position shows itself.
+
 Nothing is placed until Fill is pressed.  Placing is random and a
 second or so, and a preview that re-ran it on every spinbox step would
 be a dialog that stutters for an answer the user has not asked for.
+A point is different: one molecule, and turning it is 15 ms, so its
+preview is the placement itself.
 """
 
 from __future__ import annotations
@@ -34,6 +47,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -50,12 +64,14 @@ from PySide6.QtWidgets import (
 
 from xtal.build import fill
 from xtal.io import FORMATS
+from xtalapp.widgets import tone
 
 DEFAULT_COUNT = 20
 
 #: The two answers to *Where*.
 IN_THE_PORES = "In the pores"
 BESIDE = "One beside each selected atom"
+AT_POINT = "One at a point (fractional)"
 
 
 class FillPoresDialog(QDialog):
@@ -90,10 +106,47 @@ class FillPoresDialog(QDialog):
             "something a pore can hold")
 
         self.where = QComboBox()
-        self.where.addItems([IN_THE_PORES, BESIDE])
+        self.where.addItems([IN_THE_PORES, BESIDE, AT_POINT])
         self.where.setToolTip(
-            "Anywhere there is room, or one copy by each atom that is "
-            "selected -- a counter-ion beside every charged site")
+            "Anywhere there is room, one copy by each atom that is "
+            "selected -- a counter-ion beside every charged site -- or "
+            "one copy with its centre at the point given")
+
+        self.xyz = []
+        point_row = QHBoxLayout()
+        point_row.setContentsMargins(0, 0, 0, 0)
+        for axis in "xyz":
+            box = QDoubleSpinBox()
+            box.setRange(-1.0, 2.0)
+            box.setDecimals(4)
+            box.setSingleStep(0.05)
+            box.setValue(0.5)
+            box.setToolTip(f"Fractional {axis} of the molecule's centre")
+            self.xyz.append(box)
+            point_row.addWidget(box)
+        self.from_selection = QPushButton("From selection")
+        self.from_selection.setToolTip(
+            "The middle of the selected atoms -- a cage's, say")
+        self.from_selection.clicked.connect(self._point_from_selection)
+        point_row.addWidget(self.from_selection)
+        self.point = QWidget()
+        self.point.setLayout(point_row)
+
+        self.turn = QCheckBox("Turn for most room")
+        self.turn.setToolTip(
+            "Try orientations and keep the one whose closest contact "
+            "is furthest.  Off, the molecule is put the way round it "
+            "was drawn in its source")
+        self.keep_group = QCheckBox("Keep the space group")
+        self.keep_group.setToolTip(
+            "Add the molecule to the asymmetric unit, so the group "
+            "copies it to every equivalent point.  Off, the host is "
+            "reduced to P1 and gets this one molecule")
+
+        self.warning = QLabel("")
+        self.warning.setWordWrap(True)
+        tone.set_tone(self.warning, tone.WARNING_BOX)
+        self.warning.hide()
 
         self.inner = self._distance(fill.NEAR[0])
         self.outer = self._distance(fill.NEAR[1])
@@ -147,6 +200,9 @@ class FillPoresDialog(QDialog):
         form.addRow("Source", source_row)
         form.addRow("Molecule", self.molecule)
         form.addRow("Where", self.where)
+        form.addRow("Point", self.point)
+        form.addRow("", self.turn)
+        form.addRow("", self.keep_group)
         form.addRow("Distance", self.near)
         form.addRow("Count", self.count)
         form.addRow("Overlap scale", self.scale)
@@ -155,6 +211,7 @@ class FillPoresDialog(QDialog):
         layout.addLayout(form)
         layout.addWidget(self.headline)
         layout.addWidget(self.detail)
+        layout.addWidget(self.warning)
         layout.addWidget(self.buttons)
         self.resize(460, 0)
 
@@ -168,6 +225,11 @@ class FillPoresDialog(QDialog):
         self.inner.valueChanged.connect(self._preview)
         self.outer.valueChanged.connect(self._preview)
         self.scale.valueChanged.connect(self._preview)
+        self.seed.valueChanged.connect(self._preview)
+        for box in self.xyz:
+            box.valueChanged.connect(self._preview)
+        self.turn.toggled.connect(self._preview)
+        self.keep_group.toggled.connect(self._preview)
         self._source_changed()
 
     @staticmethod
@@ -183,6 +245,24 @@ class FillPoresDialog(QDialog):
     def beside(self) -> bool:
         """Whether each copy goes by a selected atom."""
         return self.where.currentText() == BESIDE
+
+    @property
+    def at_point(self) -> bool:
+        """Whether one copy goes at the point given."""
+        return self.where.currentText() == AT_POINT
+
+    @property
+    def frac(self) -> tuple:
+        return tuple(box.value() for box in self.xyz)
+
+    def set_point(self, frac) -> None:
+        for box, value in zip(self.xyz, frac, strict=True):
+            box.setValue(float(value))
+
+    def _point_from_selection(self) -> None:
+        centre = self.document.selection_centre()
+        if centre is not None:
+            self.set_point(centre)
 
     # -- sources -------------------------------------------------------
 
@@ -280,9 +360,22 @@ class FillPoresDialog(QDialog):
                 "framework, or nothing at all." if self._sources
                 else "")
             ok.setEnabled(False)
+            self.warning.hide()
             return
-        self.count.setEnabled(not self.beside)
+        self.count.setEnabled(not (self.beside or self.at_point))
         self.near.setEnabled(self.beside)
+        self.point.setEnabled(self.at_point)
+        self.from_selection.setEnabled(
+            self.at_point and bool(self.document.selection.atoms))
+        self.turn.setEnabled(self.at_point)
+        self.keep_group.setEnabled(
+            self.at_point
+            and not self.document.structure.space_group.is_p1)
+        ok.setText("Insert" if self.at_point else "Fill")
+        if self.at_point:
+            self._preview_point(guest, ok)
+            return
+        self.warning.hide()
         if self.beside:
             self._preview_beside(guest, ok)
             return
@@ -336,11 +429,62 @@ class FillPoresDialog(QDialog):
         self.detail.setText("  ".join(notes))
         ok.setEnabled(self.inner.value() < self.outer.value())
 
-    def fill(self) -> str:
-        """Run it, with what the dialog shows."""
+    def placement(self):
+        """Where the molecule would go at the point, as the dialog
+        stands -- what the preview shows and Insert commits."""
+        guest = self.guest()
+        if guest is None:
+            return None
+        return fill.at_point(
+            self.document.structure, guest, self.frac,
+            turn=self.turn.isChecked(), keep_group=self.keeping_group,
+            overlap_scale=self.scale.value(), seed=self.seed.value())
+
+    @property
+    def keeping_group(self) -> bool:
+        return self.keep_group.isEnabled() and self.keep_group.isChecked()
+
+    def _preview_point(self, guest, ok) -> None:
+        placement = self.placement()
+        where = ", ".join(f"{x:.4f}" for x in self.frac)
+        self.headline.setText(f"will insert one {guest.formula} at "
+                              f"({where})")
+        notes = []
+        if placement.contact is not None:
+            notes.append(f"Closest: {placement.contact.sentence()}.")
+        group = self.document.structure.space_group
+        if self.keeping_group:
+            notes.append(
+                f"Kept in {group.short_name}: the group copies it to "
+                f"{placement.atoms_made} atoms.")
+        elif not group.is_p1:
+            n = self.document.cell.n_atoms
+            notes.append(
+                f"The host is {group.short_name}: it will be reduced "
+                f"to P1 ({n} atoms) first, in the same undo step, so "
+                f"that this is the one molecule added.")
+        notes.append("Bonds are not recalculated: the molecule keeps "
+                     "its own and gains none to the host.")
+        self.detail.setText("  ".join(notes))
+        warnings = placement.warnings()
+        self.warning.setText("\n\n".join(
+            [*warnings, "It will still be inserted: the point is "
+             "yours."] if warnings else []))
+        self.warning.setVisible(bool(warnings))
+        ok.setEnabled(True)
+
+    def fill(self):
+        """Run it, with what the dialog shows: a status line, or for a
+        point the report with its warnings."""
         guest = self.guest()
         if guest is None:
             return ""
+        if self.at_point:
+            return self.document.place_molecule(
+                guest, self.frac, turn=self.turn.isChecked(),
+                keep_group=self.keeping_group,
+                overlap_scale=self.scale.value(),
+                seed=self.seed.value())
         return self.document.fill_pores(
             guest, self.count.value(),
             overlap_scale=self.scale.value(), seed=self.seed.value(),
@@ -349,7 +493,7 @@ class FillPoresDialog(QDialog):
 
     @classmethod
     def ask(cls, document, sources=(), parent=None,
-            directory: str = "") -> str:
+            directory: str = ""):
         dialog = cls(document, sources, parent, directory)
         if dialog.exec() != QDialog.Accepted:
             return ""

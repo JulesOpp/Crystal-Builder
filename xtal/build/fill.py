@@ -27,6 +27,19 @@ At 1.0 nothing touches anything, which leaves a real solvent visibly
 too sparse -- molecules in a liquid sit inside each other's van der
 Waals spheres -- so 0.8 is the default and the dialog offers the rest.
 
+**Or at a point somebody chose** -- :func:`at_point`, one copy with
+its centroid on given fractional coordinates, which is the question
+of a guest the user knows the place of: the template in its cage,
+the molecule a diffraction study located.  A clash there is
+*reported*, never refused: the point was chosen, and the closest
+contact is said by name so the user can judge it.  The molecule is
+put as it was drawn unless it is asked to turn, and then the turn
+that leaves the most room is kept -- which is never tighter than as
+drawn, because as drawn is the first one tried.  Kept in its space
+group, the host's operations copy the molecule; at a special position
+those copies land on each other, and that is said too, from the atom
+count the expansion actually makes.
+
 Periodic throughout: a guest near one face is tested against the
 framework across the other, and against its own images when the cell
 is small enough for it to meet them.  Qt-free, like everything in
@@ -35,15 +48,20 @@ is small enough for it to meet them.  Qt-free, like everything in
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 from scipy.spatial import cKDTree
 
 from xtal.analysis import grid
-from xtal.commands.clipboard import Fragment
+from xtal.commands.clipboard import (
+    Fragment,
+    InsertMolecules,
+    PasteFragment,
+)
 from xtal.core import bonding, p1
 from xtal.core import elements as el
+from xtal.core.structure import Structure
 
 DEFAULT_OVERLAP_SCALE = 0.8
 
@@ -63,6 +81,15 @@ SPACING = 0.5
 #: the default overlap scale touch at 3.0 A -- and the outer is still
 #: the atom's neighbourhood rather than the next pore over.
 NEAR = (3.5, 5.0)
+
+#: Orientations tried when a molecule put at a point is turned for
+#: room: 15 ms on HKUST-1, so the dialog's preview can afford it.
+TURNS = 500
+
+#: How far from the point the host is looked at for contacts, beyond
+#: the molecule's own reach.  Anything further is no contact anybody
+#: needs named.
+LOOK = 8.0
 
 
 def guest_molecules(structure) -> list[Fragment]:
@@ -92,6 +119,28 @@ def guest_molecules(structure) -> list[Fragment]:
 
 
 @dataclass(frozen=True)
+class Contact:
+    """The closest approach of a molecule put at a point: which of its
+    atoms, to what, how far, and what fraction of the two atoms' van
+    der Waals contact that is -- the number a clash is judged by."""
+
+    atom: str
+    other: str
+    distance: float
+    ratio: float
+    #: What ``other`` belongs to: ``"host"``, ``"copy"`` (another copy
+    #: the group made) or ``"image"`` (the molecule a cell over).
+    of: str = "host"
+
+    def sentence(self) -> str:
+        whose = {"host": "", "copy": " of another copy",
+                 "image": " of its own image a cell over"}[self.of]
+        return (f"{self.atom} is {self.distance:.2f} A from "
+                f"{self.other}{whose}, {self.ratio:.2f} of their van "
+                f"der Waals contact")
+
+
+@dataclass(frozen=True)
 class Placement:
     """Where each copy went -- ``(n_atoms, 3)`` cartesian arrays, whole
     molecules, centres inside the cell -- and how many were asked for."""
@@ -105,13 +154,61 @@ class Placement:
     missed: tuple = ()
     #: Whether each copy was put beside an atom rather than anywhere.
     beside: bool = False
+    #: Put at a point (:func:`at_point`): its fractional coordinates.
+    point: tuple | None = None
+    #: The point's closest contact, and the overlap scale it is judged
+    #: against -- what makes it a warning rather than a remark.
+    contact: Contact | None = None
+    overlap_scale: float = DEFAULT_OVERLAP_SCALE
+    #: Kept in the host's space group: the group's order, and how many
+    #: atoms its expansion makes of the molecule.  Fewer than the
+    #: molecule's atoms times the order is a special position.
+    keep_group: bool = False
+    order: int = 1
+    atoms_made: int = 0
 
     @property
     def placed(self) -> int:
         return len(self.positions)
 
+    @property
+    def crowded(self) -> bool:
+        """Closer to something than the overlap scale lets two atoms
+        come -- what random filling would have refused."""
+        return (self.contact is not None
+                and self.contact.ratio < self.overlap_scale)
+
+    @property
+    def special(self) -> bool:
+        """Kept in its group, and some of the copies fell on each
+        other: fewer atoms than the molecule times the order."""
+        return (self.keep_group
+                and self.atoms_made < self.guest.n_atoms * self.order)
+
+    def warnings(self) -> list[str]:
+        """What a molecule put at a point owes the user: it was placed
+        anyway, because the point was theirs."""
+        out = []
+        if self.special:
+            out.append(
+                f"The point is a special position: the group makes "
+                f"{self.atoms_made} atoms of {self.guest.formula}, not "
+                f"{self.guest.n_atoms} x {self.order}, so copies of the "
+                f"molecule fall on each other.  Undo, and insert it "
+                f"without keeping the group or at another point.")
+        if self.crowded:
+            out.append(f"Crowded: {self.contact.sentence()}.")
+        return out
+
     def message(self) -> str:
         formula = self.guest.formula
+        if self.point is not None:
+            where = ", ".join(f"{x:.4f}" for x in self.point)
+            head = f"placed {formula} at ({where})"
+            if self.keep_group and self.order > 1:
+                head += (f", copied by the group to "
+                         f"{self.atoms_made} atoms")
+            return head
         if self.beside:
             head = (f"placed {self.placed} {formula}, one beside each "
                     f"of {self.requested} atom(s)")
@@ -254,6 +351,201 @@ def _beside(host, guest: Fragment, anchors, near, overlap_scale, seed,
             missed.append(cell.labels[anchor] or cell.elements[anchor])
     return Placement(guest, tuple(placed), len(anchors),
                      missed=tuple(missed), beside=True)
+
+
+def at_point(host, guest: Fragment, frac, *, turn: bool = False,
+             keep_group: bool = False,
+             overlap_scale: float = DEFAULT_OVERLAP_SCALE,
+             seed: int | None = None, turns: int = TURNS,
+             radius_of=el.vdw_radius) -> Placement:
+    """One copy of ``guest`` with its centroid at fractional ``frac``.
+    Changes nothing; :func:`insert_command` is what commits it.
+
+    As drawn -- the source's own cartesian frame -- unless ``turn``,
+    and then the best of ``turns`` seeded orientations by closest
+    contact, as drawn among them, so turning never leaves less room.
+    ``keep_group`` measures the copies the host's operations will
+    make as well, and counts the atoms they come to.  A clash is put
+    in :attr:`Placement.contact` and never stops the placing.
+    """
+    frac = np.asarray(frac, dtype=float).reshape(3)
+    point = tuple(float(x) for x in frac)
+    if guest.is_empty:
+        return Placement(guest, (), 1, point=point,
+                         overlap_scale=overlap_scale,
+                         keep_group=keep_group)
+    lattice = host.lattice
+    centre = lattice.to_cart(frac)
+    body = guest.cart - guest.cart.mean(axis=0)
+    ops = (host.space_group.operations if keep_group else ())
+    room = _Room(host, guest, frac, ops, radius_of)
+
+    best = body
+    score, found = room.measure(body)
+    if turn:
+        rng = np.random.default_rng(seed)
+        for _ in range(max(0, int(turns))):
+            trial = body @ _random_rotation(rng).T
+            trial_score, trial_found = room.measure(trial)
+            if trial_score > score:
+                best, score, found = trial, trial_score, trial_found
+    placed = replace(guest, cart=best)
+    order = len(ops) if keep_group else 1
+    made = guest.n_atoms
+    if keep_group:
+        alone = Structure.from_arrays(
+            lattice, list(guest.elements),
+            lattice.to_frac(best + centre),
+            space_group=host.space_group)
+        made = p1.expand(alone).n_atoms
+    return Placement(placed, (best + centre,), 1, point=point,
+                     contact=room.contact(found),
+                     overlap_scale=float(overlap_scale),
+                     keep_group=keep_group, order=order,
+                     atoms_made=made)
+
+
+def insert_command(placement: Placement, label: str | None = None):
+    """The undoable edit that puts :func:`at_point`'s molecule in:
+    pasted into the asymmetric unit when the group is kept, so the
+    group copies it, and otherwise one copy into the P1 cell
+    :class:`InsertMolecules` reduces to."""
+    if label is None:
+        where = ", ".join(f"{x:.4g}" for x in placement.point)
+        label = f"Insert {placement.guest.formula} at ({where})"
+    if placement.keep_group:
+        centre = placement.positions[0].mean(axis=0)
+        return PasteFragment(placement.guest, centre, label)
+    return InsertMolecules(placement.guest, placement.positions, label)
+
+
+class _Room:
+    """What a molecule at one point is measured against, built once
+    and asked once per orientation.
+
+    The host is its atoms near the point, every lattice image of them
+    that could matter, in one tree.  The molecule's own copies -- a
+    cell over, and with the group kept every operation's -- are a
+    fixed set of affine maps, because the centroid does not move when
+    the molecule turns: which copies come near is decided once.
+    """
+
+    def __init__(self, host, guest: Fragment, frac, ops, radius_of):
+        lattice = host.lattice
+        self.lattice = lattice
+        self.frac = frac
+        centre = lattice.to_cart(frac)
+        self.radii = np.array([radius_of(e) for e in guest.elements])
+        self.labels = [label or f"{symbol}{k + 1}" for k, (symbol, label)
+                       in enumerate(zip(guest.elements, guest.labels
+                                        or [""] * guest.n_atoms,
+                                        strict=True))]
+        extent = float(np.linalg.norm(guest.cart - guest.cart.mean(0),
+                                      axis=1).max())
+
+        cell = p1.expand(host)
+        solid = [k for k, e in enumerate(cell.elements)
+                 if not el.is_dummy(e)]
+        reach = extent + LOOK
+        points, radii, names = [], [], []
+        if solid:
+            near = cell.frac[solid] - np.round(cell.frac[solid] - frac)
+            # Far enough to hold the nearest atom whatever it is: the
+            # middle of a big pore is more than LOOK from anything,
+            # and "nothing near" is not the closest contact.
+            nearest = float(np.linalg.norm(
+                lattice.to_cart(near) - centre, axis=1).min())
+            reach = max(reach, nearest + 1.0)
+            shells = _shells(lattice, reach)
+            for shift in _grid(shells):
+                cart = lattice.to_cart(near + shift)
+                keep = np.linalg.norm(cart - centre, axis=1) <= reach
+                points.append(cart[keep])
+                radii.extend(radius_of(cell.elements[solid[k]])
+                             for k in np.nonzero(keep)[0])
+                names.extend(cell.labels[solid[k]]
+                             or cell.elements[solid[k]]
+                             for k in np.nonzero(keep)[0])
+        self.host = np.concatenate(points) if points else np.zeros((0, 3))
+        self.host_r = np.array(radii)
+        self.host_names = names
+        self.tree = cKDTree(self.host) if len(self.host) else None
+
+        # The copies: every operation, wrapped to put its centroid by
+        # the point, then every lattice image near enough to touch.
+        if not ops:
+            rots, trans = [np.eye(3)], [np.zeros(3)]
+        else:
+            rots = [np.asarray(op.rot, float) for op in ops]
+            trans = [np.asarray(op.trans, float) for op in ops]
+        touch = 2.0 * extent + 2.0 * float(self.radii.max())
+        maps, kinds = [], []
+        shells = _shells(lattice, touch)
+        for rot, tr in zip(rots, trans, strict=True):
+            image = rot @ frac + tr
+            pull = -np.round(image - frac)
+            identity = (np.allclose(rot, np.eye(3))
+                        and np.allclose(tr, np.round(tr)))
+            for shift in _grid(shells):
+                moved = pull + shift
+                if identity and np.allclose(image + moved, frac):
+                    continue
+                gap = np.linalg.norm(lattice.to_cart(image + moved - frac))
+                if gap <= touch:
+                    maps.append((rot, tr + moved))
+                    kinds.append("image" if identity else "copy")
+        self.maps = maps
+        self.kinds = kinds
+        self.centre = centre
+
+    def measure(self, body):
+        """``(smallest contact ratio, where it was)`` for the molecule
+        turned to ``body`` (centred cartesian)."""
+        cart = body + self.centre
+        best, where = np.inf, None
+        if self.tree is not None:
+            k = min(8, len(self.host))
+            distance, index = self.tree.query(cart, k=k)
+            distance = distance.reshape(len(cart), -1)
+            index = index.reshape(len(cart), -1)
+            ratio = distance / (self.radii[:, None] + self.host_r[index])
+            a, b = np.unravel_index(np.argmin(ratio), ratio.shape)
+            best = float(ratio[a, b])
+            where = ("host", int(a), int(index[a, b]), float(distance[a, b]))
+        if self.maps:
+            frac = self.lattice.to_frac(cart)
+            copies = np.concatenate([frac @ rot.T + tr
+                                     for rot, tr in self.maps])
+            others = self.lattice.to_cart(copies)
+            distance = np.linalg.norm(cart[:, None, :] - others[None],
+                                      axis=2)
+            n = len(cart)
+            ratio = distance / (self.radii[:, None]
+                                + np.tile(self.radii, len(self.maps)))
+            a, b = np.unravel_index(np.argmin(ratio), ratio.shape)
+            if ratio[a, b] < best:
+                best = float(ratio[a, b])
+                where = (self.kinds[b // n], int(a), int(b % n),
+                         float(distance[a, b]))
+        return best, where
+
+    def contact(self, where) -> Contact | None:
+        if where is None:
+            return None
+        kind, atom, other, distance = where
+        name = (self.host_names[other] if kind == "host"
+                else self.labels[other])
+        pair = self.radii[atom] + (self.host_r[other] if kind == "host"
+                                   else self.radii[other])
+        return Contact(self.labels[atom], name, distance,
+                       distance / pair, kind)
+
+
+def _grid(shells):
+    """Every lattice translation within ``shells`` cells each way."""
+    a, b, c = (range(-int(n), int(n) + 1) for n in shells)
+    return [np.array([i, j, k], dtype=float)
+            for i in a for j in b for k in c]
 
 
 def _spaces(host, guest: Fragment, scale: float, radius_of):

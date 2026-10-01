@@ -224,6 +224,19 @@ charged framework's sites, e.g. `s.fill_pores("Na", beside=oxygens)`.
 Nothing is bonded. An atom with no room beside it is named in
 `data["missed"]`; no room at all is refused.
 
+### `place_molecule(guest, at, turn, keep_group, overlap_scale, seed)`
+
+One copy of a molecule with its centroid at fractional `at`, as one
+undo step: `s.place_molecule("dmf.cif", [0.5, 0.5, 0.5])`. `guest` as
+for `fill_pores`. Put as drawn in its file unless `turn=True`, which
+keeps the seeded orientation with the most room. The host is reduced
+to P1 (`SYMMETRY_NOTE`) unless `keep_group=True`, which lets the group
+copy it; at a special position those copies fall on each other, and
+that is a `SYMMETRY_NOTE` too -- undo and choose again. A crowded point
+is placed anyway, the contact named as `CLOSE_CONTACT`;
+`data["contact"]` is the closest one whatever it is, and
+`data["atoms_made"]` the atoms the cell gained.
+
 ## Whole-structure operations
 
 ### `prepare(steps)`
