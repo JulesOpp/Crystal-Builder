@@ -216,9 +216,9 @@ server of the same name.  A packaged install carries the `xtal`
 program beside the application, and the page gives its path.  With no
 window serving, `xtal mcp` works on files of its own, headless (it
 needs the `mcp` extra); `--window` and `--headless` insist on one or
-the other.  It decides once, when the client starts it, so switch the
-window on before starting the client, or restart the client after.
-If the window goes away, the next call says so and `xtal mcp` exits.
+the other.  Start the window serving before `xtal mcp` starts; after
+that it may be switched off and on, and the next call follows it (a
+call made while it is off says so).
 
 A scripted eval of the skill, run on demand, is in `tools/agent_eval/`:
 `python tools/agent_eval/run.py`.

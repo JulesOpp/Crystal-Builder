@@ -470,7 +470,7 @@ def _command(extra):
      "this cell -- {}", lambda: _command("ase")),
     (_program_not_found,
      "Zeo++ is not installed, or not on PATH (XTAL_NOT_A_PROGRAM is not "
-     "set) -- {}", lambda: "It is at https://www.zeoplusplus.org/"),
+     "set) -- {}", lambda: "it is at https://www.zeoplusplus.org/"),
 ], ids=["mace", "orb", "mattersim", "mof", "build", "refine", "bands",
         "program"])
 def test_a_reason_is_the_sentence_and_its_remedy_joined_one_way(

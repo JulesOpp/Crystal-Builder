@@ -888,9 +888,9 @@ def test_a_missing_program_keeps_its_own_remedy_in_the_note():
     from xtalapp.docks.ff_panel import engine_note_html
 
     program = Availability(False, "xtb is not installed, or not on PATH",
-                           "It is at https://x.org  (conda install xtb)")
+                           "it is at https://x.org  (conda install xtb)")
     assert engine_note_html(program) == (
-        "xtb is not installed, or not on PATH -- It is at "
+        "xtb is not installed, or not on PATH -- it is at "
         "https://x.org  (conda install xtb)")
     extra = Availability(False, "ORB is not installed",
                          install.command("orb"))

@@ -94,7 +94,7 @@ def available(parameter_directory: str = "", **_rest) -> Availability:
         return Availability(
             False, f"DFTB+ is installed at {found}, but no Slater-Koster "
                    f"parameter directory has been set",
-            f"They are separate downloads from dftb.org; point 'Parameter "
+            f"they are separate downloads from dftb.org; point 'Parameter "
             f"directory' or the {hsd.ENV_VAR} environment variable at the "
             f"folder they unpack into.")
     return Availability(True, str(found))

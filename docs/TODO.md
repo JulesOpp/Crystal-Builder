@@ -170,16 +170,10 @@ their `--json`, and on 2026-10-01 the live link to the window
   do.  Only `energy`, `optimize` and `run` compute off it.
 - `agent/serve` is one setting for every window, though only one
   window can serve (the discovery file holds one).
-- A proxy (`xtal mcp`) whose window goes away does not reconnect: it
-  answers the next call (or the one in flight, within
-  `proxy.WATCH` seconds) with the reason and exits 1, and the client
-  has to start it again -- which then serves the window if one is
-  serving by then, and headless if not.  A window switched off and on
-  again ends the proxy's session ("Session terminated"), which ends
-  the proxy the same way.
-- A single failed proxy health check (2 s) during a long calculation
-  cancels the call and exits the proxy; two failures in a row would be
-  safer.
+- For Julius:
+  `tests/test_sketch_render.py::test_a_turn_recuts_thousands_of_labels_in_one_numpy_pass`
+  asserts a wall-clock median under 0.15 s and failed at 0.168 s on a
+  contended Intel CI runner (2026-10-01); the margin is thin for CI.
 - The agent's current document is shared by every client and
   outlives a disconnect; resetting it on server start would be
   cleaner.

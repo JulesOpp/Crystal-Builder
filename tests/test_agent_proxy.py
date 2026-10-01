@@ -9,6 +9,7 @@ mcp`` process, as a client would start it.
 
 import json
 import os
+import secrets
 import socket
 import subprocess
 import sys
@@ -194,53 +195,45 @@ def _answered(result) -> None:
 
 
 @pytest.mark.slow
-def test_a_proxy_whose_window_stops_serving_says_so_and_exits(
+def test_a_proxy_answers_the_error_and_follows_the_window_when_it_returns(
         qtbot, window, tmp_path, appdata, rutile):
-    """The SDK's client waits an hour for an answer that will never
-    come from a window that has gone, and the assistant waited with
-    it.  The next call is answered with the reason, and the proxy
-    exits non-zero so the client can start it again."""
+    """A window closed, or switched off and on, used to end the proxy:
+    the client had to start ``xtal mcp`` again, and few do it on their
+    own.  Now the call that meets the gap is answered with the reason
+    and the proxy stays up; the next one finds the window afresh --
+    another token, as a new launch has -- and a session the window
+    forgot across a restart on the same port and token is dropped and
+    made again the same way."""
     _serving(qtbot, window, tmp_path, rutile)
+    server = window.agent_server
     proxy = _Proxy(qtbot, tmp_path, appdata)
     try:
         _answered(proxy.inspect(2)[0])
-        window.agent_server.stop()
+        server.stop()
         result, took = proxy.inspect(3, timeout=15000)
         assert took < 15
         assert result["isError"]
-        assert "stopped serving" in result["content"][0]["text"]
-        assert proxy.process.wait(timeout=15) != 0
-    finally:
-        said = proxy.finish()
-    assert "stopped serving" in said
-    assert "Traceback" not in said
+        assert "window:" in result["content"][0]["text"]
+        assert proxy.process.poll() is None
 
+        server.token = secrets.token_hex(16)
+        with qtbot.waitSignal(server.started, timeout=10000):
+            server.start()
+        _answered(proxy.inspect(4)[0])
 
-@pytest.mark.slow
-def test_a_proxy_whose_session_the_window_ended_says_so_and_exits(
-        qtbot, window, tmp_path, appdata, rutile):
-    """Off and on again, the window answers on the same port to the
-    same token, so the probe passes -- but the proxy's session went
-    with the old server, and every call came back "Session
-    terminated" while the proxy stayed up, unable to recover."""
-    _serving(qtbot, window, tmp_path, rutile)
-    server = window.agent_server
-    port = server.port
-    proxy = _Proxy(qtbot, tmp_path, appdata)
-    try:
-        _answered(proxy.inspect(2)[0])
         server.stop()
         with qtbot.waitSignal(server.started, timeout=10000):
             server.start()
-        assert server.port == port
-        result, took = proxy.inspect(3, timeout=15000)
+        result, took = proxy.inspect(5, timeout=15000)
         assert took < 15
         assert result["isError"]
-        assert "session" in result["content"][0]["text"].lower()
-        assert "terminated" in result["content"][0]["text"]
-        assert proxy.process.wait(timeout=15) != 0
+        assert "window:" in result["content"][0]["text"]
+        _answered(proxy.inspect(6)[0])
+        assert proxy.process.poll() is None
+
+        proxy.process.stdin.close()
+        assert proxy.process.wait(timeout=15) == 0
     finally:
         said = proxy.finish()
         server.stop()
-    assert "terminated" in said
     assert "Traceback" not in said

@@ -327,10 +327,10 @@ one step, because only a session has undo and a log.
 verb, with the same names and keywords (a verb's `**options` is one
 object of that name), plus `documents`, `switch`, `capabilities` and
 `help_for`. While a window is serving, it passes every call through to
-that window; otherwise the sessions are its own. **It decides which
-once, when the client starts it**: switch the window on before starting
-the client, or restart the client after. If the window goes away, the
-next call says so and `xtal mcp` exits, so the client starts it afresh.
+that window; otherwise the sessions are its own. **Start the window
+serving before `xtal mcp` starts**; after that it may be switched off
+and on, and the next call follows it. A call made while it is off
+answers an error beginning "window:" and the following one tries again.
 It needs the `mcp` extra and says how to install it. The two ways to
 connect Claude Code:
 

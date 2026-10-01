@@ -299,3 +299,18 @@ Tasks:
 - Multiple windows: the discovery file holds one; a second window
   that finds a live one does not start a server and says so on its
   page.
+
+## Simplifications (2026-10-01)
+
+- `Availability(ok, what, command)` (`xtal/params.py`) replaces two
+  string hacks: `capabilities._short_reason`, which cut a reason at
+  " -- ", ".  " or ": ", and `engine_note_html`, which searched the
+  reason for the install command.  `reason` is now composed from the
+  two halves, and the compact listing reads `what`.
+- The proxy (`xtal/agent/proxy.py`) reconnects instead of exiting.  A
+  call that finds the window closed, switched off, or restarted with
+  a new session, port or token is answered with an error ("window:
+  ...") and the connection dropped; the next call reads the discovery
+  file again and connects.  The proxy exits only when the client
+  closes stdin, and `_Leaving`, `_Stdout`, `_Stdin` and the exit codes
+  went with the exits.

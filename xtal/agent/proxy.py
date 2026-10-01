@@ -5,23 +5,22 @@ xtal.agent.proxy
 
 A client that starts a command and speaks stdio (Claude Desktop,
 Cursor, Codex) cannot reach the window's HTTP server itself, so when a
-window is serving, ``xtal mcp`` forwards: it asks the window for its
-tools once, and passes every call through to it, answer and pictures
-unchanged.  The tools are the window's own, so the assistant acts on
-the window's tabs.
+window is serving, ``xtal mcp`` forwards every call to it, answer and
+pictures unchanged, and the assistant acts on the window's tabs.
 
-**A window that goes away is said, not waited for.**  The SDK's
-client waits up to :data:`READ_TIMEOUT` for an answer, because a call
-may be an hour's relaxation, and a window that has stopped serving
-never sends one.  So the window is probed before every call is
-forwarded (:func:`xtal.agent.discovery.alive`, a few milliseconds) and
-every :data:`WATCH` seconds while one is out; once it does not answer,
-the call is answered with the reason and the proxy exits 1, so the
-client starts ``xtal mcp`` afresh -- which then finds whatever is
-serving by then, or none.  The call itself has no short timeout.  A
-window switched off and on again answers the probe -- same port, same
-token -- but no longer knows this proxy's session ("Session
-terminated"), which is the same ending.
+**The proxy follows the window and never exits for it.**  A window
+closed, or switched off and on -- perhaps on a new port or token, and
+no longer knowing this proxy's session -- answers the call that meets
+it with the reason ("window: ..."); the connection is dropped, and the
+next call reads the discovery file afresh.  Only the client closing
+stdin ends the proxy: it used to exit so the client would start it
+again, and few clients do.
+
+A call may be an hour's relaxation, so the SDK's client waits up to
+:data:`READ_TIMEOUT`; a window that stopped serving, or abandoned a
+server thread with the call on it, never answers.  So the window is
+probed (:func:`xtal.agent.discovery.alive`, a few milliseconds) as a
+call goes out and every :data:`WATCH` seconds while it is out.
 
 Imports ``mcp`` only when called, like the rest of the agent's MCP
 side.
@@ -30,9 +29,8 @@ side.
 from __future__ import annotations
 
 import contextlib
-import json
-import sys
 
+from xtal.agent import discovery
 from xtal.agent.tools import SERVER_NAME
 
 #: The SDK's own: a call may be a long relaxation, so the read waits.
@@ -44,27 +42,17 @@ START_TIMEOUT = 10.0
 #: Seconds between probes of the window while a call is out.
 WATCH = 5.0
 
-#: What the assistant is told, and the client's log says, when the
-#: window has gone.
+#: What the assistant is told when the window stops answering.
 GONE = ("the Crystal Builder window stopped serving (it was closed, or "
-        "Preferences > AI assistant was switched off); nothing more can "
-        "reach it through this connection, and xtal mcp is exiting so "
-        "the client can start it again")
-
-
-#: What it is told when the window answers, but not to this proxy's
-#: session -- its server was switched off and on again since.
-ENDED = ("the Crystal Builder window ended this connection's session "
-         "(Session terminated: its server was switched off and on "
-         "again); xtal mcp is exiting so the client can start it again "
-         "and open a new one")
-#: The SDK's error for a session the server no longer knows (404).
-TERMINATED = "Session terminated"
+        "Preferences > AI assistant was switched off); the next call "
+        "reaches it again once it is serving")
+#: ... and when none is serving to be reached.
+NOWHERE = ("no window is listening: start Crystal Builder and turn on "
+           "Preferences > AI assistant")
 
 
 class WindowGone(RuntimeError):
-    """The window stopped answering, or no longer knows this proxy's
-    session; the proxy is done."""
+    """No window is serving, or the one called stopped answering."""
 
 
 @contextlib.asynccontextmanager
@@ -88,213 +76,155 @@ async def connect(url: str, token: str):
 
 
 def run(entry: dict) -> int:
-    """Serve the window's tools on stdio until the client hangs up --
-    0 -- or the window goes away -- 1, said on stderr."""
+    """Serve the window's tools on stdio until the client hangs up.
+
+    ``entry`` is the window :mod:`xtal.agent.serve` found; every
+    connection reads the discovery file afresh, so it is not kept.
+    """
     import anyio
 
-    try:
-        gone = anyio.run(_serve, entry)
-    except Exception as exc:              # noqa: BLE001 -- said, not raised
-        print(f"xtal mcp: the window stopped answering: {exc}",
-              file=sys.stderr)
-        return 1
-    if gone:
-        print(f"xtal mcp: {gone}", file=sys.stderr)
-        return 1
+    anyio.run(_serve, discovery.folder())
     return 0
 
 
 async def _alive(entry: dict) -> bool:
     import anyio
 
-    from xtal.agent import discovery
-
     return await anyio.to_thread.run_sync(discovery.alive, entry)
 
 
-async def _forward(entry: dict, call):
-    """``await call()``, refused with :class:`WindowGone` when the
-    window does not answer a probe first, or stops answering while
-    the call is out."""
+class _Window:
+    """The connection to whichever window is serving: made when a call
+    needs one, dropped when a call fails on it.
+
+    It is held by a task of its own in ``group``, because anyio's
+    cancel scopes must be left by the task that entered them and every
+    call is a task of the server's.
+    """
+
+    def __init__(self, folder, group):
+        import anyio
+
+        self.folder = folder
+        self.entry: dict | None = None
+        #: Fixed for a version, so asked once and kept.
+        self.tools = None
+        self._group = group
+        self._session = None
+        self._closed = None
+        self._lock = anyio.Lock()
+
+    async def session(self):
+        async with self._lock:
+            if self._session is None:
+                entry = discovery.read(self.folder)
+                if entry is None or not await _alive(entry):
+                    raise WindowGone(NOWHERE)
+                await self._group.start(self._hold, entry)
+            return self._session
+
+    def drop(self, session) -> None:
+        """Let go of ``session``, unless another has replaced it."""
+        if session is not None and session is self._session:
+            self._closed.set()
+            self._session = self._closed = None
+
+    async def _hold(self, entry, *, task_status):
+        import anyio
+        from mcp import ClientSession
+
+        closed = anyio.Event()
+        started = False
+        try:
+            async with connect(entry["url"], entry["token"]) as streams, \
+                    ClientSession(streams[0], streams[1]) as session:
+                with anyio.fail_after(START_TIMEOUT):
+                    await session.initialize()
+                    if self.tools is None:
+                        self.tools = (await session.list_tools()).tools
+                self.entry, self._session, self._closed = (
+                    entry, session, closed)
+                started = True
+                task_status.started()
+                await closed.wait()
+        except Exception:                 # noqa: BLE001 -- see below
+            # Before it is held the caller is told; after, a call on
+            # it is ("Connection closed"), and this must not end the
+            # proxy.
+            if not started:
+                raise
+        finally:
+            if self._closed is closed:
+                self._session = self._closed = None
+
+
+async def _forward(window: _Window, name: str, arguments: dict):
+    """The window's answer, or an error result saying why there is
+    none -- and then the connection is dropped, so the next call finds
+    the window afresh."""
     import anyio
+    from mcp.types import CallToolResult, TextContent
 
-    if not await _alive(entry):
-        raise WindowGone(GONE)
-    outcome = {}
-    async with anyio.create_task_group() as group:
-        async def watch():
-            while True:
-                await anyio.sleep(WATCH)
-                if not await _alive(entry):
-                    group.cancel_scope.cancel()
-                    return
-
-        async def forward():
-            # Kept rather than raised: out of a task group it would be
-            # an exception group, and the client would read that.
-            try:
-                outcome["result"] = await call()
-            except Exception as exc:  # noqa: BLE001 -- raised below
-                outcome["error"] = exc
-            group.cancel_scope.cancel()
-
-        group.start_soon(watch)
-        group.start_soon(forward)
-    if "error" in outcome:
-        raise outcome["error"]
-    if "result" not in outcome:
-        raise WindowGone(GONE)
-    return outcome["result"]
-
-
-class _Leaving:
-    """The request whose answer is the proxy's last, and the moment
-    that answer has reached stdout: exiting before it is written would
-    leave the client with a dead process and no reason."""
-
-    def __init__(self):
-        import anyio
-
-        self.request = None
-        self.reason = ""
-        self.written = anyio.Event()
-
-
-class _Stdout:
-    """Standard output as :func:`mcp.server.stdio.stdio_server` writes
-    it, noticing the line that answers :attr:`_Leaving.request`."""
-
-    def __init__(self, leaving: _Leaving):
-        from io import TextIOWrapper
-
-        import anyio
-
-        self._out = anyio.wrap_file(TextIOWrapper(sys.stdout.buffer,
-                                                  encoding="utf-8"))
-        self._leaving = leaving
-        self._last = ""
-
-    async def write(self, text: str) -> None:
-        await self._out.write(text)
-        self._last = text
-
-    async def flush(self) -> None:
-        await self._out.flush()
-        request = self._leaving.request
-        if request is not None and _answers(self._last, request):
-            self._leaving.written.set()
-
-
-class _Stdin:
-    """Standard input, a line at a time, that a cancelled proxy can
-    leave.  The SDK's own reads it on one of anyio's worker threads,
-    which are not daemons: blocked in ``readline`` it held the exit
-    until the client wrote again or hung up.  Here a daemon thread
-    reads, and :meth:`close` releases whatever waits on it."""
-
-    def __init__(self):
-        import queue
-        import threading
-        from io import TextIOWrapper
-
-        self._lines = queue.Queue()
-        source = TextIOWrapper(sys.stdin.buffer, encoding="utf-8",
-                               errors="replace")
-
-        def read():
-            for line in source:
-                self._lines.put(line)
-            self._lines.put(None)
-
-        threading.Thread(target=read, daemon=True,
-                         name="xtal-mcp-stdin").start()
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self) -> str:
-        import anyio
-
-        line = await anyio.to_thread.run_sync(self._lines.get,
-                                              abandon_on_cancel=True)
-        if line is None:
-            self._lines.put(None)          # for any other reader
-            raise StopAsyncIteration
-        return line
-
-    def close(self) -> None:
-        self._lines.put(None)
-
-
-def _answers(line: str, request) -> bool:
+    session = None
+    outcome = {"error": WindowGone(GONE)}
     try:
-        return json.loads(line).get("id") == request
-    except (ValueError, AttributeError):
-        return False
+        session = await window.session()
+        async with anyio.create_task_group() as group:
+            async def watch():
+                while await _alive(window.entry):
+                    await anyio.sleep(WATCH)
+                group.cancel_scope.cancel()
+
+            async def forward():
+                # Kept rather than raised: out of a task group it would
+                # be an exception group, and the client would read that.
+                try:
+                    outcome["result"] = await session.call_tool(
+                        name, arguments)
+                except Exception as exc:  # noqa: BLE001 -- answered
+                    outcome["error"] = exc
+                group.cancel_scope.cancel()
+
+            group.start_soon(watch)
+            group.start_soon(forward)
+        if "result" in outcome:
+            return outcome["result"]
+    except Exception as exc:              # noqa: BLE001 -- answered
+        outcome["error"] = exc
+    window.drop(session)
+    reason = str(outcome["error"]) or type(outcome["error"]).__name__
+    return CallToolResult(isError=True, content=[
+        TextContent(type="text", text=f"window: {reason}")])
 
 
-async def _serve(entry: dict) -> str:
-    """Why the proxy is leaving, or ``""`` when the client hung up."""
+async def _serve(folder) -> None:
     import anyio
-    from mcp import ClientSession
     from mcp.server.lowlevel import Server
     from mcp.server.stdio import stdio_server
-    from mcp.shared.exceptions import McpError
 
-    leaving = _Leaving()
-    async with connect(entry["url"], entry["token"]) as streams, \
-            ClientSession(streams[0], streams[1]) as window:
-        with anyio.fail_after(START_TIMEOUT):
-            await window.initialize()
-            tools = (await window.list_tools()).tools
-        server = Server(SERVER_NAME)
+    server = Server(SERVER_NAME)
+    async with anyio.create_task_group() as group:
+        window = _Window(folder, group)
 
         @server.list_tools()
         async def list_tools():
-            return tools
+            # With no window serving yet, none: the client sees the
+            # tools on its next list_tools, and a call's own lookup
+            # asks again.
+            if window.tools is None:
+                with contextlib.suppress(Exception):
+                    await window.session()
+            return window.tools or []
 
         # The window checks the arguments itself, against the same
         # schemas, and says what was wrong in its own words.
         @server.call_tool(validate_input=False)
         async def call_tool(name, arguments):
-            if leaving.request is not None:
-                raise WindowGone(leaving.reason)
-            try:
-                try:
-                    result = await _forward(
-                        entry, lambda: window.call_tool(name,
-                                                        arguments or {}))
-                except McpError as exc:
-                    if TERMINATED not in str(exc):
-                        raise
-                    # The probe passed -- the same port and token,
-                    # a new server -- but every call on this session
-                    # would be refused the same way.
-                    raise WindowGone(ENDED) from exc
-            except WindowGone as exc:
-                leaving.reason = str(exc)
-                leaving.request = server.request_context.request_id
-                raise
-            if result.isError:
-                raise RuntimeError(" ".join(
-                    getattr(block, "text", "") for block in result.content))
-            return list(result.content)
+            return await _forward(window, name, arguments or {})
 
-        stdin = _Stdin()
-        try:
-            async with anyio.create_task_group() as group:
-                async def leave_once_said():
-                    await leaving.written.wait()
-                    group.cancel_scope.cancel()
-
-                group.start_soon(leave_once_said)
-                async with stdio_server(stdin=stdin,
-                                        stdout=_Stdout(leaving)) as (
-                        read, write):
-                    await server.run(
-                        read, write, server.create_initialization_options())
-                # The client hung up.
-                group.cancel_scope.cancel()
-        finally:
-            stdin.close()
-    return leaving.reason
+        async with stdio_server() as (read, write):
+            await server.run(
+                read, write, server.create_initialization_options())
+        # The client hung up: end the window's session, briefly.
+        window.drop(window._session)
+        group.cancel_scope.deadline = anyio.current_time() + START_TIMEOUT
