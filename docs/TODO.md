@@ -174,7 +174,15 @@ their `--json`, and on 2026-10-01 the live link to the window
   answers the next call (or the one in flight, within
   `proxy.WATCH` seconds) with the reason and exits 1, and the client
   has to start it again -- which then serves the window if one is
-  serving by then, and headless if not.
+  serving by then, and headless if not.  A window switched off and on
+  again ends the proxy's session ("Session terminated"), which ends
+  the proxy the same way.
+- A single failed proxy health check (2 s) during a long calculation
+  cancels the call and exits the proxy; two failures in a row would be
+  safer.
+- The agent's current document is shared by every client and
+  outlives a disconnect; resetting it on server start would be
+  cleaner.
 - The window's `render` looks along +a (`look_along_axis`) and the
   headless one along -a, so the same `view="a"` gives mirror images.
 - A quit during an agent calculation abandons it: the quit asks

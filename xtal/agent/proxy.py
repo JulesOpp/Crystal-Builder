@@ -18,7 +18,10 @@ forwarded (:func:`xtal.agent.discovery.alive`, a few milliseconds) and
 every :data:`WATCH` seconds while one is out; once it does not answer,
 the call is answered with the reason and the proxy exits 1, so the
 client starts ``xtal mcp`` afresh -- which then finds whatever is
-serving by then, or none.  The call itself has no short timeout.
+serving by then, or none.  The call itself has no short timeout.  A
+window switched off and on again answers the probe -- same port, same
+token -- but no longer knows this proxy's session ("Session
+terminated"), which is the same ending.
 
 Imports ``mcp`` only when called, like the rest of the agent's MCP
 side.
@@ -49,8 +52,19 @@ GONE = ("the Crystal Builder window stopped serving (it was closed, or "
         "the client can start it again")
 
 
+#: What it is told when the window answers, but not to this proxy's
+#: session -- its server was switched off and on again since.
+ENDED = ("the Crystal Builder window ended this connection's session "
+         "(Session terminated: its server was switched off and on "
+         "again); xtal mcp is exiting so the client can start it again "
+         "and open a new one")
+#: The SDK's error for a session the server no longer knows (404).
+TERMINATED = "Session terminated"
+
+
 class WindowGone(RuntimeError):
-    """The window stopped answering; the proxy is done."""
+    """The window stopped answering, or no longer knows this proxy's
+    session; the proxy is done."""
 
 
 @contextlib.asynccontextmanager
@@ -61,19 +75,9 @@ async def connect(url: str, token: str):
     otherwise be handed a connection to this machine.
     """
     import httpx
+    from mcp.client.streamable_http import streamable_http_client
 
     headers = {"Authorization": f"Bearer {token}"}
-    try:
-        from mcp.client.streamable_http import streamable_http_client
-    except ImportError:                           # pragma: no cover
-        # An older mcp has only the older name, which takes the
-        # headers itself rather than a client.
-        from mcp.client.streamable_http import streamablehttp_client
-        async with streamablehttp_client(
-                url, headers=headers, timeout=CONNECT_TIMEOUT,
-                sse_read_timeout=READ_TIMEOUT) as streams:
-            yield streams
-        return
     client = httpx.AsyncClient(
         headers=headers,
         timeout=httpx.Timeout(CONNECT_TIMEOUT, read=READ_TIMEOUT),
@@ -95,7 +99,7 @@ def run(entry: dict) -> int:
               file=sys.stderr)
         return 1
     if gone:
-        print(f"xtal mcp: {GONE}", file=sys.stderr)
+        print(f"xtal mcp: {gone}", file=sys.stderr)
         return 1
     return 0
 
@@ -152,6 +156,7 @@ class _Leaving:
         import anyio
 
         self.request = None
+        self.reason = ""
         self.written = anyio.Event()
 
 
@@ -228,12 +233,13 @@ def _answers(line: str, request) -> bool:
         return False
 
 
-async def _serve(entry: dict) -> bool:
-    """Whether the window went away."""
+async def _serve(entry: dict) -> str:
+    """Why the proxy is leaving, or ``""`` when the client hung up."""
     import anyio
     from mcp import ClientSession
     from mcp.server.lowlevel import Server
     from mcp.server.stdio import stdio_server
+    from mcp.shared.exceptions import McpError
 
     leaving = _Leaving()
     async with connect(entry["url"], entry["token"]) as streams, \
@@ -252,11 +258,21 @@ async def _serve(entry: dict) -> bool:
         @server.call_tool(validate_input=False)
         async def call_tool(name, arguments):
             if leaving.request is not None:
-                raise WindowGone(GONE)
+                raise WindowGone(leaving.reason)
             try:
-                result = await _forward(entry, lambda: window.call_tool(
-                    name, arguments or {}))
-            except WindowGone:
+                try:
+                    result = await _forward(
+                        entry, lambda: window.call_tool(name,
+                                                        arguments or {}))
+                except McpError as exc:
+                    if TERMINATED not in str(exc):
+                        raise
+                    # The probe passed -- the same port and token,
+                    # a new server -- but every call on this session
+                    # would be refused the same way.
+                    raise WindowGone(ENDED) from exc
+            except WindowGone as exc:
+                leaving.reason = str(exc)
                 leaving.request = server.request_context.request_id
                 raise
             if result.isError:
@@ -281,4 +297,4 @@ async def _serve(entry: dict) -> bool:
                 group.cancel_scope.cancel()
         finally:
             stdin.close()
-    return leaving.request is not None
+    return leaving.reason

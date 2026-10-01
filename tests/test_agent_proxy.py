@@ -9,9 +9,11 @@ mcp`` process, as a client would start it.
 
 import json
 import os
+import socket
 import subprocess
 import sys
 import threading
+import time
 
 import pytest
 
@@ -125,6 +127,72 @@ def test_xtal_mcp_proxies_to_a_live_window_and_falls_back_headless(
     assert NO_SESSION in fallen_back["message"]
 
 
+class _Proxy:
+    """A real ``xtal mcp`` proxying to ``window``, its replies by id
+    with the moment each arrived."""
+
+    def __init__(self, qtbot, tmp_path, appdata):
+        env = dict(os.environ, PYTHONWARNINGS="error::DeprecationWarning")
+        env[discovery.ENV] = str(appdata)
+        self.qtbot = qtbot
+        self.process = subprocess.Popen(
+            [sys.executable, "-m", "xtal.cli", "mcp"],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, text=True, cwd=tmp_path, env=env)
+        self.replies = {}
+        threading.Thread(target=self._read, daemon=True).start()
+        self.send(_message("initialize", 1, {
+            "protocolVersion": "2025-06-18", "capabilities": {},
+            "clientInfo": {"name": "test", "version": "0"}}),
+            _message("notifications/initialized"))
+
+    def _read(self):
+        for line in self.process.stdout:
+            reply = json.loads(line)
+            if "id" in reply:
+                self.replies[reply["id"]] = (time.monotonic(), reply)
+
+    def send(self, *messages):
+        for message in messages:
+            self.process.stdin.write(message)
+        self.process.stdin.flush()
+
+    def inspect(self, ident, timeout=60000):
+        """``inspect`` asked, and its result with the seconds it took."""
+        asked = time.monotonic()
+        self.send(_message("tools/call", ident, {
+            "name": "inspect", "arguments": {}}))
+        self.qtbot.waitUntil(lambda: ident in self.replies,
+                             timeout=timeout)
+        answered, reply = self.replies[ident]
+        return reply["result"], answered - asked
+
+    def finish(self) -> str:
+        """Its stderr, once it has gone; killed if it has not."""
+        if self.process.poll() is None:
+            self.process.kill()
+            self.process.wait()
+        return self.process.stderr.read()
+
+
+def _serving(qtbot, window, tmp_path, rutile):
+    cif = tmp_path / "rutile.cif"
+    write_cif(rutile, cif)
+    assert window.open_path(cif) is not None
+    with socket.socket() as free:
+        free.bind(("127.0.0.1", 0))
+        window.settings.agent_port = free.getsockname()[1]
+    dialog = window.preferences_dialog()
+    qtbot.addWidget(dialog)
+    with qtbot.waitSignal(window.agent_server.started, timeout=10000):
+        dialog.page("AI assistant").serve.setChecked(True)
+
+
+def _answered(result) -> None:
+    assert not result.get("isError"), result
+    assert "formula" in result["content"][0]["text"]
+
+
 @pytest.mark.slow
 def test_a_proxy_whose_window_stops_serving_says_so_and_exits(
         qtbot, window, tmp_path, appdata, rutile):
@@ -132,59 +200,47 @@ def test_a_proxy_whose_window_stops_serving_says_so_and_exits(
     come from a window that has gone, and the assistant waited with
     it.  The next call is answered with the reason, and the proxy
     exits non-zero so the client can start it again."""
-    import time
-
-    cif = tmp_path / "rutile.cif"
-    write_cif(rutile, cif)
-    assert window.open_path(cif) is not None
-    dialog = window.preferences_dialog()
-    qtbot.addWidget(dialog)
-    with qtbot.waitSignal(window.agent_server.started, timeout=10000):
-        dialog.page("AI assistant").serve.setChecked(True)
-    env = dict(os.environ, PYTHONWARNINGS="error::DeprecationWarning")
-    env[discovery.ENV] = str(appdata)
-    process = subprocess.Popen(
-        [sys.executable, "-m", "xtal.cli", "mcp"],
-        stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE, text=True, cwd=tmp_path, env=env)
-    replies = {}
-
-    def read():
-        for line in process.stdout:
-            reply = json.loads(line)
-            if "id" in reply:
-                replies[reply["id"]] = (time.monotonic(), reply)
-
-    threading.Thread(target=read, daemon=True).start()
+    _serving(qtbot, window, tmp_path, rutile)
+    proxy = _Proxy(qtbot, tmp_path, appdata)
     try:
-        process.stdin.write(_message("initialize", 1, {
-            "protocolVersion": "2025-06-18", "capabilities": {},
-            "clientInfo": {"name": "test", "version": "0"}}))
-        process.stdin.write(_message("notifications/initialized"))
-        process.stdin.write(_message("tools/call", 2, {
-            "name": "inspect", "arguments": {}}))
-        process.stdin.flush()
-        qtbot.waitUntil(lambda: 2 in replies, timeout=60000)
-        first = replies[2][1]["result"]
-        assert not first.get("isError"), first
-        assert "formula" in first["content"][0]["text"]
-
+        _answered(proxy.inspect(2)[0])
         window.agent_server.stop()
-        asked = time.monotonic()
-        process.stdin.write(_message("tools/call", 3, {
-            "name": "inspect", "arguments": {}}))
-        process.stdin.flush()
-        qtbot.waitUntil(lambda: 3 in replies, timeout=15000)
-        answered, reply = replies[3]
-        assert answered - asked < 15
-        result = reply["result"]
+        result, took = proxy.inspect(3, timeout=15000)
+        assert took < 15
         assert result["isError"]
         assert "stopped serving" in result["content"][0]["text"]
-        assert process.wait(timeout=15) != 0
+        assert proxy.process.wait(timeout=15) != 0
     finally:
-        if process.poll() is None:
-            process.kill()
-            process.wait()
-    said = process.stderr.read()
+        said = proxy.finish()
     assert "stopped serving" in said
+    assert "Traceback" not in said
+
+
+@pytest.mark.slow
+def test_a_proxy_whose_session_the_window_ended_says_so_and_exits(
+        qtbot, window, tmp_path, appdata, rutile):
+    """Off and on again, the window answers on the same port to the
+    same token, so the probe passes -- but the proxy's session went
+    with the old server, and every call came back "Session
+    terminated" while the proxy stayed up, unable to recover."""
+    _serving(qtbot, window, tmp_path, rutile)
+    server = window.agent_server
+    port = server.port
+    proxy = _Proxy(qtbot, tmp_path, appdata)
+    try:
+        _answered(proxy.inspect(2)[0])
+        server.stop()
+        with qtbot.waitSignal(server.started, timeout=10000):
+            server.start()
+        assert server.port == port
+        result, took = proxy.inspect(3, timeout=15000)
+        assert took < 15
+        assert result["isError"]
+        assert "session" in result["content"][0]["text"].lower()
+        assert "terminated" in result["content"][0]["text"]
+        assert proxy.process.wait(timeout=15) != 0
+    finally:
+        said = proxy.finish()
+        server.stop()
+    assert "terminated" in said
     assert "Traceback" not in said

@@ -574,7 +574,7 @@ def test_the_agents_current_tab_does_not_follow_the_persons_clicks(
 
 
 def test_every_window_answer_names_its_document(
-        qtbot, monkeypatch, window, tmp_path, tab):
+        qtbot, monkeypatch, window, tmp_path, tab, quartz):
     """An assistant reading an answer can see which tab it landed in
     -- the one thing a window adds to a headless session's answer."""
     document, session = tab
@@ -601,6 +601,59 @@ def test_every_window_answer_names_its_document(
     for answer in answers:
         assert answer.data.get("document") == named, answer
     assert session.inspect().to_dict()["document"] == named
+
+    # The answers the tools build themselves, around the host.
+    from xtal.agent.answers import VerbResult
+    from xtal.agent.serve import HeadlessHost
+    from xtal.agent.tools import (
+        _build_tool,
+        _new_tool,
+        _open_tool,
+        _verb_tool,
+    )
+
+    monkeypatch.setattr(window, "has_running_calculation", lambda: False)
+    quartz_cif = tmp_path / "quartz.cif"
+    write_cif(quartz, quartz_cif)
+    built_cif = tmp_path / "built.cif"
+    write_cif(quartz, built_cif)
+
+    def built(cls, action, workspace, **params):
+        made = Session.open(built_cif, workspace)
+        made.built = VerbResult(action, True, "built", data={"run": ""})
+        return made
+
+    monkeypatch.setattr(Session, "build", classmethod(built))
+    workspace = str(tmp_path / "elsewhere")
+
+    def told(host, make, **kwargs):
+        """The tool's answer, and the document the host is on after."""
+        fn = make(host)[0] if make is not _verb_tool else make(
+            host, kwargs.pop("verb"))[0]
+        return json.loads(fn(**kwargs)), host.current().path
+
+    host = window.agent_host
+    for host_ in (host, HeadlessHost()):
+        if host_ is not host:
+            host_.open(document.path)
+        calls = [
+            told(host_, _verb_tool, verb="save"),
+            told(host_, _verb_tool, verb="export",
+                 path=str(tmp_path / "named.xyz")),
+            told(host_, _open_tool, path=str(quartz_cif)),
+            told(host_, _open_tool, path=str(quartz_cif)),
+            told(host_, _new_tool, a=5.0, b=5.0, c=5.0, space_group="P1",
+                 workspace=workspace),
+            told(host_, _build_tool, action="mof.build",
+                 workspace=workspace, params={}),
+        ]
+        for answer, current in calls:
+            assert answer["ok"], answer
+            if host_ is host:
+                assert answer["data"]["document"] == str(current), answer
+            else:
+                assert "document" not in answer["data"], answer
+
     # Headless, nothing changes.
     plain = Session(document.structure.copy())
     assert "document" not in plain.add_atom(

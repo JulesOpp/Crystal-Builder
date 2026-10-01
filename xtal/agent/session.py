@@ -1015,6 +1015,12 @@ class Session:
         message = getattr(report, "message", "") or command.label
         return self._push(verb, command, message, args, notes=notes)
 
+    def _named(self, answer):
+        """``answer`` as given.  The window's sessions say which of its
+        documents it is about; a script's session is its one
+        structure, and its answers are left as they were."""
+        return answer
+
     def _refused(self, verb, args, message,
                  code="OPERATION_REFUSED") -> VerbResult:
         return self._answer_refused(verb, args,

@@ -199,10 +199,10 @@ def _written(verb: str, path: Path, session: Session) -> VerbResult:
     """``save`` and ``export`` hand a script the path; an assistant
     reads an answer like every other verb's."""
     said = "saved" if verb == "save" else "exported"
-    return VerbResult(verb, True, f"{said} {path.name}",
-                      atoms_before=session.n_atoms,
-                      atoms_after=session.n_atoms,
-                      data={"path": str(path)})
+    return session._named(VerbResult(verb, True, f"{said} {path.name}",
+                                     atoms_before=session.n_atoms,
+                                     atoms_after=session.n_atoms,
+                                     data={"path": str(path)}))
 
 
 # ----------------------------------------------------------------------
@@ -220,14 +220,14 @@ def _open_tool(host: Host):
             # What opening said the first time is the file as it was
             # read; the session has been edited since.
             n = session.n_atoms
-            return _text(VerbResult(
+            return _text(session._named(VerbResult(
                 "open", True, f"{_name(session)} is already open",
                 atoms_before=n, atoms_after=n,
                 data={"modified": session.modified},
-                diagnostics=_workspace_ignored(session, workspace)))
-        return _text(session.opened or VerbResult(
+                diagnostics=_workspace_ignored(session, workspace))))
+        return _text(session._named(session.opened or VerbResult(
             "open", True, f"opened {_name(session)}",
-            atoms_after=session.n_atoms))
+            atoms_after=session.n_atoms)))
 
     _dress(tool, "open", signature)
     return tool, _description(method, None)
@@ -250,11 +250,11 @@ def _new_tool(host: Host):
     def tool(**kwargs):
         made = Session.new(**kwargs)
         session = host.open(made.save())
-        return _text(VerbResult(
+        return _text(session._named(VerbResult(
             "new", True, f"new {kwargs['space_group']} cell, "
                          f"{_name(session)}",
             atoms_after=session.n_atoms,
-            data={"path": str(session.path)}))
+            data={"path": str(session.path)})))
 
     _dress(tool, "new", signature)
     return tool, (_description(method, None)
@@ -274,8 +274,8 @@ def _build_tool(host: Host):
             built = Session.build(**kwargs)
         except BuildFailed as exc:
             return _text(exc.result)
-        host.open(built.path)
-        return _text(built.built)
+        session = host.open(built.path)
+        return _text(session._named(built.built))
 
     _dress(tool, "build", signature)
     return tool, _description(method, spread)
