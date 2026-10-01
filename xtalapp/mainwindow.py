@@ -143,6 +143,11 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         self._quit_confirmed = False
         # The same, for "a calculation is running -- stop it?".
         self._stop_confirmed = False
+        # An AI assistant's calculations while they run, counted by
+        # has_running_calculation like the panel's; and the host its
+        # tools act through, made when first asked for.
+        self.agent_calculations: set = set()
+        self._agent_host = None
 
         self.document_set = DocumentSet(self)
         self.tabs = QTabWidget()
@@ -1115,10 +1120,21 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         return answer == QMessageBox.Yes
 
     def has_running_calculation(self) -> bool:
-        """Whether a module run or a Force Field optimisation is going."""
+        """Whether a module run, a Force Field optimisation or an AI
+        assistant's calculation is going."""
         ff_dock = getattr(self, "ff_dock", None)
         return (self.module_worker is not None
-                or (ff_dock is not None and ff_dock.is_running))
+                or (ff_dock is not None and ff_dock.is_running)
+                or bool(self.agent_calculations))
+
+    @property
+    def agent_host(self):
+        """The tabs as an AI assistant's sessions -- see
+        :mod:`xtalapp.agent_host`.  First asked for on the GUI thread."""
+        if self._agent_host is None:
+            from xtalapp.agent_host import WindowHost
+            self._agent_host = WindowHost(self)
+        return self._agent_host
 
     def may_stop_calculations(self) -> bool:
         """Ask, once, whether a running calculation may be stopped.

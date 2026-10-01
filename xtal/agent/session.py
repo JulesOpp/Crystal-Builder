@@ -759,21 +759,36 @@ class Session:
         unconverged run is applied -- the window applies it too -- and
         says ``NOT_CONVERGED``, because its energy is not a minimum.
         """
-        from xtal.commands import ff as ff_commands
-        from xtal.ff import optimize as ff_optimize
-        from xtal.ff import record as ff_record
-
         args = {"engine": engine, "relax_cell": relax_cell,
                 "max_steps": max_steps, "tolerance": tolerance,
                 "method": method, **options}
+        relaxed = self._relax(args, options)
+        if isinstance(relaxed, VerbResult):
+            return relaxed
+        return self._apply_relaxation(relaxed, args)
+
+    def _relax(self, args, options):
+        """The calculation half of :meth:`optimize`: the engine built
+        over this structure, its run folder opened, the optimiser run.
+        Nothing is pushed.  A :class:`_Relaxation`, or the refusal.
+
+        Apart from :meth:`_apply_relaxation` because the window runs
+        this half over a copy, off its GUI thread, and the other half
+        on the tab.
+        """
+        from xtal.ff import optimize as ff_optimize
+        from xtal.ff import record as ff_record
+
+        engine = args["engine"]
         calculator, refused = self._calculator(engine, options)
         if refused is not None:
             return self._answer_refused("optimize", args, refused)
-        kwargs = {"method": method, "relax_cell": relax_cell}
-        if max_steps is not None:
-            kwargs["max_steps"] = int(max_steps)
-        if tolerance is not None:
-            kwargs["force_tolerance"] = float(tolerance)
+        kwargs = {"method": args["method"],
+                  "relax_cell": args["relax_cell"]}
+        if args["max_steps"] is not None:
+            kwargs["max_steps"] = int(args["max_steps"])
+        if args["tolerance"] is not None:
+            kwargs["force_tolerance"] = float(args["tolerance"])
         recorder = ff_record.open_run(self.entry, engine, "optimise",
                                       self.structure, calculator,
                                       options=options)
@@ -793,11 +808,17 @@ class Session:
         except Exception as exc:        # noqa: BLE001 -- said, not lost
             ff_record.close_run(recorder, error=str(exc))
             return self._calculation_failed("optimize", args, exc)
-        command = ff_commands.ApplyOptimizedGeometry(
-            result.frac, before=before,
-            matrix=getattr(result, "matrix", None))
+        return _Relaxation(calculator, recorder, result, before, start)
+
+    def _apply_relaxation(self, relaxed, args) -> VerbResult:
+        """The other half: the relaxed geometry pushed as one step, the
+        run closed, and the answer."""
+        from xtal.ff import record as ff_record
+
+        result, recorder = relaxed.result, relaxed.recorder
+        command = relaxed.command()
         moved = command.displacement(self.structure)
-        notes = _engine_notes(calculator)
+        notes = _engine_notes(relaxed.calculator)
         if not result.converged:
             notes.append(Diagnostic(
                 "NOT_CONVERGED",
@@ -833,7 +854,7 @@ class Session:
         ff_record.close_run(recorder, result, final=self.structure)
         if recorder is not None:
             answer.data["run"] = str(recorder.folder.path)
-        changed = _bonding_would_change(start, self.structure)
+        changed = _bonding_would_change(relaxed.start, self.structure)
         if changed is not None:
             answer.diagnostics.append(changed)
         if recorder is not None or changed is not None:
@@ -1104,6 +1125,26 @@ class Session:
         return (f"<Session {name}: {self.structure.n_sites} sites, "
                 f"{self.n_atoms} atoms, "
                 f"{self.structure.space_group.short_name}>")
+
+
+class _Relaxation:
+    """What :meth:`Session._relax` hands :meth:`Session._apply_relaxation`:
+    the optimiser's result, the run it is filed in, and the geometry it
+    started from -- which is what ``before`` and the bonding check
+    compare against, whichever structure ends up taking it."""
+
+    def __init__(self, calculator, recorder, result, before, start):
+        self.calculator = calculator
+        self.recorder = recorder
+        self.result = result
+        self.before = before
+        self.start = start
+
+    def command(self):
+        from xtal.commands import ff as ff_commands
+        return ff_commands.ApplyOptimizedGeometry(
+            self.result.frac, before=self.before,
+            matrix=getattr(self.result, "matrix", None))
 
 
 #: Verbs that record without changing anything worth counting.
