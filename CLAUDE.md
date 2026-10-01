@@ -71,6 +71,13 @@ It crept from about three minutes to eight or nine, and is 235-330 s
 after the fixes below -- the spread is the machine's memory pressure,
 not the code.
 
+**One BLAS thread per test process** (`OPENBLAS_NUM_THREADS=1`, set
+in `conftest.py` before numpy loads). OpenBLAS otherwise starts eight
+spinning threads in each xdist worker, and two powder fits at once
+then ran 7x slower: the workbench's auto tests timed out at 120 s,
+one at random per full run. The fits gain nothing from the threads
+even alone.
+
 **Upstream PORMAKE and MACE never load into the test process.** The
 comparison against the real PORMAKE reads a recording,
 `tests/data/pormake_upstream.json`, written by the script beside it;

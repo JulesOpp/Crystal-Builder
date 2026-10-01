@@ -58,6 +58,16 @@ _WORKSPACE = tempfile.mkdtemp(prefix="xtal-test-workspace-")
 atexit.register(shutil.rmtree, _WORKSPACE, ignore_errors=True)
 os.environ.setdefault("XTAL_WORKSPACE_ROOT", _WORKSPACE)
 
+# One BLAS thread per process.  OpenBLAS starts a thread per core in
+# every worker, and its threads spin while they wait, so three xdist
+# workers each fitting a powder pattern put 24 threads on 8 cores:
+# a Pawley fit's SVD that takes 11 s alone took over 120 s beside
+# another, and the workbench's auto tests timed out at random.  The
+# fits gain nothing from the threads even alone (11.5 s on one, 12.4
+# on eight).  Before ``xtal`` is imported, because OpenBLAS reads it
+# when numpy loads; ``setdefault``, so a run can still ask for more.
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+
 # RietX splits its compiled kernels over min(8, cores) threads unless
 # told otherwise, and under xdist that is eight threads in each of
 # three workers on an eight-core machine.  The parallelism is already
