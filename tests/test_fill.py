@@ -328,3 +328,142 @@ def test_guests_beside_anchors_keep_clear_of_each_other(mof5, sodium):
     radius = _radii(["Na"])
     assert _closest_contact(one, other, mof5.lattice, radius,
                             radius) >= fill.DEFAULT_OVERLAP_SCALE - 1e-9
+
+
+# ------------------------------------------------------- at a point
+
+@pytest.fixture
+def sparse_fm3m():
+    """One Na in a 14 A Fm-3m cell: room everywhere, and 192
+    operations to copy a guest with."""
+    return Structure.from_arrays(Lattice.cubic(14.0), ["Na"],
+                                 [[0.0, 0.0, 0.0]], space_group="Fm-3m")
+
+
+def test_a_molecule_at_a_point_has_its_centroid_there(mof5, co2):
+    """The point is the molecule's middle, not an atom of it or a
+    corner of its box -- otherwise "at 0.5 0.5 0.5" is off by half a
+    molecule."""
+    point = [0.5, 0.45, 0.4]
+    placement = fill.at_point(mof5, co2, point)
+    assert placement.placed == 1
+    assert np.allclose(placement.positions[0].mean(axis=0),
+                       mof5.lattice.to_cart(point))
+
+
+def test_as_drawn_keeps_the_source_orientation(mof5, co2):
+    """Unasked, nothing turns the molecule: it arrives the way round
+    it was in its own file."""
+    placement = fill.at_point(mof5, co2, [0.5, 0.5, 0.5])
+    centre = mof5.lattice.to_cart([0.5, 0.5, 0.5])
+    assert np.allclose(placement.positions[0] - centre,
+                       co2.cart - co2.cart.mean(axis=0))
+
+
+@pytest.mark.parametrize("point", [[0.5, 0.5, 0.5], [0.31, 0.17, 0.43],
+                                   [0.12, 0.4, 0.33]])
+def test_turning_for_room_is_never_tighter_than_as_drawn(mof5, co2,
+                                                         point):
+    """As drawn is the first orientation tried, so asking for room
+    can never leave less of it."""
+    drawn = fill.at_point(mof5, co2, point)
+    turned = fill.at_point(mof5, co2, point, turn=True, seed=3)
+    assert turned.contact.ratio >= drawn.contact.ratio
+
+
+def test_the_same_seed_turns_the_same_way(mof5, co2):
+    """The dialog's preview and its Insert are two calls; they have
+    to put the molecule the same way round."""
+    first = fill.at_point(mof5, co2, [0.31, 0.17, 0.43], turn=True,
+                          seed=7)
+    second = fill.at_point(mof5, co2, [0.31, 0.17, 0.43], turn=True,
+                           seed=7)
+    assert np.allclose(first.positions[0], second.positions[0])
+
+
+def test_a_clash_is_placed_and_named(mof5, co2):
+    """The point was chosen, so a molecule on top of the Zn4O core is
+    placed anyway -- with the contact said by name, not a silent
+    overlap and not a refusal."""
+    placement = fill.at_point(mof5, co2, [0.25, 0.25, 0.25])
+    assert placement.placed == 1
+    assert placement.crowded
+    assert placement.contact.of == "host"
+    assert placement.contact.distance < 0.01
+    assert any("Crowded" in w and placement.contact.other in w
+               for w in placement.warnings())
+
+    host = Host(mof5)
+    before = mof5.n_sites
+    CommandStack().push(fill.insert_command(placement), host)
+    assert host.structure.n_sites == before + 3
+
+
+def test_a_roomy_point_owes_no_warning(mof5, co2):
+    placement = fill.at_point(mof5, co2, [0.5, 0.5, 0.5])
+    assert not placement.crowded
+    assert placement.warnings() == []
+
+
+def test_a_small_cell_meets_the_molecule_s_own_image(co2):
+    """Whole cells over, a molecule in a cell shorter than itself is
+    against its own image, and that is the contact to name."""
+    box = Structure.empty(Lattice.cubic(3.0))
+    placement = fill.at_point(box, co2, [0.5, 0.5, 0.5])
+    assert placement.contact.of == "image"
+    assert placement.crowded
+
+
+def test_inserting_at_a_point_reduces_a_symmetric_host_in_one_step(
+        sparse_fm3m, co2):
+    """Without keeping the group the molecule is one molecule: the
+    host goes to P1 in the same undo step, as filling does."""
+    host = Host(sparse_fm3m)
+    stack = CommandStack()
+    placement = fill.at_point(sparse_fm3m, co2, [0.3, 0.2, 0.1])
+    stack.push(fill.insert_command(placement), host)
+    assert host.structure.space_group.is_p1
+    assert p1.expand(host.structure).n_atoms == 4 + 3
+    stack.undo(host)
+    assert host.structure.space_group.short_name == "Fm-3m"
+    assert host.structure.n_sites == 1
+
+
+def test_keeping_the_group_at_a_general_point_makes_one_copy_per_operation(
+        sparse_fm3m, co2):
+    """Kept in Fm-3m, a CO2 at a general point is 192 of them, and
+    the count the preview quotes is the count the cell gets."""
+    placement = fill.at_point(sparse_fm3m, co2, [0.11, 0.23, 0.37],
+                              keep_group=True)
+    assert placement.order == 192
+    assert placement.atoms_made == 3 * 192
+    assert not placement.special
+
+    host = Host(sparse_fm3m)
+    CommandStack().push(fill.insert_command(placement), host)
+    assert host.structure.space_group.short_name == "Fm-3m"
+    assert host.structure.n_sites == 1 + 3
+    assert p1.expand(host.structure).n_atoms == 4 + 3 * 192
+
+
+def test_keeping_the_group_at_a_special_position_says_the_copies_overlap(
+        sparse_fm3m, co2):
+    """At 4b the group lays copies of the molecule over each other.
+    A fractional number of molecules with nothing said is how a cell
+    with stacked atoms goes unnoticed until Reduce to P1 draws it."""
+    placement = fill.at_point(sparse_fm3m, co2, [0.5, 0.5, 0.5],
+                              keep_group=True)
+    assert placement.special
+    assert placement.atoms_made < 3 * 192
+    assert placement.contact.of == "copy"
+    assert any("special position" in w for w in placement.warnings())
+
+
+def test_host_markers_are_not_contacts(co2):
+    """A dummy atom is a marker, not chemistry: one put exactly at
+    the point is not what the molecule is crowding."""
+    box = Structure.from_arrays(Lattice.cubic(12.0), ["Na", "X"],
+                                [[0.0, 0.0, 0.0], [0.5, 0.5, 0.5]])
+    placement = fill.at_point(box, co2, [0.5, 0.5, 0.5])
+    assert placement.contact.other.startswith("Na")
+    assert not placement.crowded
