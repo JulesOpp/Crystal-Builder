@@ -228,6 +228,18 @@ HIDDEN_IMPORTS = [
 COLLECT = ["rdkit", "rdeditor", "qdarktheme", "matplotlib", "rietx",
            "mcp", "uvicorn"]
 
+#: Entries of :data:`COLLECT` collected for their submodules and
+#: metadata only, less the subpackages named.  ``mcp.cli`` is the SDK's
+#: own command line, which we never ship, and it does not raise when
+#: ``typer`` -- its ``cli`` extra, which we do not install -- is
+#: missing: it prints a line and calls ``sys.exit(1)``.
+#: ``collect_all`` imports every submodule in a child process to list
+#: them, so that exit killed the child and both bundle jobs failed at
+#: "Build".  The SDK carries no data files the application reads, so
+#: the ``dist-info`` -- which ``mcp.server.fastmcp`` asks for its
+#: version on import -- is the only data kept.
+COLLECT_WITHOUT = {"mcp": ("mcp.cli",)}
+
 #: PyInstaller's ``module_collection_mode``: packages whose ``.py``
 #: files must exist on disk in the bundle.  numba's kernel cache is
 #: keyed on the source file's path and modification time, and a
@@ -452,24 +464,42 @@ def datas() -> list[tuple[str, str]]:
     modules only, plus whatever a user has put in the folder
     :mod:`xtalapp.extras` prepends to ``sys.path``.
     """
-    from PyInstaller.utils.hooks import collect_all, copy_metadata
+    from PyInstaller.utils.hooks import copy_metadata
 
     collected = list(project_datas())
     collected += copy_metadata("crystal-builder")
     for package in COLLECT:
-        package_datas, _binaries, _hidden = collect_all(package)
+        package_datas, _binaries, _hidden = _collect(package)
         collected += package_datas
     return collected
+
+
+def _collect(package: str) -> tuple[list, list, list[str]]:
+    """``collect_all(package)``, or for an entry of
+    :data:`COLLECT_WITHOUT` its submodules less the ones refused and
+    its metadata, as the same ``(datas, binaries, hiddenimports)``."""
+    from PyInstaller.utils.hooks import (
+        collect_all,
+        collect_submodules,
+        copy_metadata,
+    )
+
+    if package not in COLLECT_WITHOUT:
+        return collect_all(package)
+    refused = COLLECT_WITHOUT[package]
+    hidden = collect_submodules(
+        package, filter=lambda name: not any(
+            name == prefix or name.startswith(prefix + ".")
+            for prefix in refused))
+    return copy_metadata(package), [], hidden
 
 
 def hiddenimports() -> list[str]:
     """:data:`HIDDEN_IMPORTS`, plus :func:`dialog_imports` and the
     modules ``collect_all`` finds inside the bundled extras."""
-    from PyInstaller.utils.hooks import collect_all
-
     found = list(HIDDEN_IMPORTS) + dialog_imports()
     for package in COLLECT:
-        _datas, _binaries, hidden = collect_all(package)
+        _datas, _binaries, hidden = _collect(package)
         found += hidden
     return found
 
@@ -485,11 +515,9 @@ def binaries() -> list[tuple[str, str]]:
     greyed-out module entry naming which.  The shipped app finds
     these; it does not carry them.
     """
-    from PyInstaller.utils.hooks import collect_all
-
     found: list[tuple[str, str]] = []
     for package in COLLECT:
-        _datas, package_binaries, _hidden = collect_all(package)
+        _datas, package_binaries, _hidden = _collect(package)
         found += package_binaries
     return found
 

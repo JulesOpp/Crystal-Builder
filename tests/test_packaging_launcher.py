@@ -77,13 +77,39 @@ def test_both_specs_build_an_xtal_launcher_beside_the_app(
     assert bundle.launcher_path(app).stem == LAUNCHER_NAME
 
 
-def test_the_bundle_collects_the_mcp_package():
+def test_the_bundle_collects_mcp_without_its_cli(monkeypatch):
     """``mcp`` reads its own version from its metadata on import, and
-    uvicorn picks its protocol modules by name, so both are collected
-    whole; and the build jobs install the extra, without which
-    ``collect_all`` finds nothing and says so only in a warning."""
+    uvicorn picks its protocol modules by name, so both are collected;
+    and the build jobs install the extra, without which ``collect_all``
+    finds nothing and says so only in a warning.
+
+    ``mcp`` is collected *without* ``mcp.cli``, which calls
+    ``sys.exit(1)`` on import when ``typer`` -- the SDK's ``cli``
+    extra, which we do not install -- is missing.  Collecting it whole
+    imports every submodule in a child process, so the exit killed the
+    child and both bundle jobs failed at "Build" with a RuntimeError.
+    Narrowed to the two extras the assertions are about, so the test
+    does not spend seconds walking RDKit."""
     assert "mcp" in bundle.COLLECT
     assert "uvicorn" in bundle.COLLECT
+
+    pytest.importorskip("PyInstaller")
+    pytest.importorskip("mcp")
+    monkeypatch.setattr(bundle, "COLLECT", ["mcp", "uvicorn"])
+
+    hidden = bundle.hiddenimports()
+    assert "mcp.server.fastmcp" in hidden
+    assert "mcp.server.streamable_http" in hidden
+    # `mcp.client` is the proxy's way to the window, and a bare
+    # `startswith("mcp.cli")` would have refused it too.
+    assert "mcp.client.streamable_http" in hidden
+    assert not [name for name in hidden
+                if name == "mcp.cli" or name.startswith("mcp.cli.")]
+
+    destinations = {Path(destination).name
+                    for _source, destination in bundle.datas()}
+    assert any(re.fullmatch(r"mcp-[^/]+\.dist-info", name)
+               for name in destinations), sorted(destinations)
 
     workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(
         encoding="utf-8")
