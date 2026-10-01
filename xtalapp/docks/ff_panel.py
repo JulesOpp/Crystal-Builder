@@ -143,9 +143,8 @@ def engine_note_html(available) -> str:
     """
     if available.command not in {x.command() for x in extras.EXTRAS}:
         return html.escape(available.reason)
-    return (f"{html.escape(available.what)}{available.sep}the command to "
-            'install it is on <a href="engines">Preferences &gt; '
-            "Engines</a>")
+    return (f"{html.escape(available.what)} -- the command to install it "
+            'is on <a href="engines">Preferences &gt; Engines</a>')
 
 class ForceFieldDock(QDockWidget):
     """Atom types, a single point, and a geometry optimisation.

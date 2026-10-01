@@ -271,7 +271,7 @@ class Program:
         where = f" ({'; '.join(parts)})" if parts else ""
         return Availability(
             False, f"{self.title} is not installed, or not on PATH{where}",
-            f"It is at {self.url}" if self.url else "", ".  ")
+            f"It is at {self.url}" if self.url else "")
 
 
 def _executable(candidate) -> Path | None:

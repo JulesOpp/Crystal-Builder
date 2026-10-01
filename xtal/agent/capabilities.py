@@ -148,7 +148,7 @@ def render_availability() -> Availability:
     if find_spec("vtkmodules") is None:
         from xtal.install import command
         return Availability(False, "rendering needs the gui extra",
-                            command("gui"), ": ")
+                            command("gui"))
     return Availability(True)
 
 

@@ -96,7 +96,7 @@ def available(parameter_directory: str = "", **_rest) -> Availability:
                    f"parameter directory has been set",
             f"They are separate downloads from dftb.org; point 'Parameter "
             f"directory' or the {hsd.ENV_VAR} environment variable at the "
-            f"folder they unpack into.", ".  ")
+            f"folder they unpack into.")
     return Availability(True, str(found))
 
 

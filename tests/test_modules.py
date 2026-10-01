@@ -392,14 +392,11 @@ def test_availability_is_a_reason_and_not_a_bare_false():
 def test_an_availability_composes_its_reason_from_what_and_command():
     """What is wrong and how to put it right are kept apart, so that a
     listing can say the first without repeating the second, and every
-    reader of ``reason`` still gets the sentence it got when they were
-    one string -- with the separator that sentence was written with."""
+    reader of ``reason`` still gets both, one way round."""
     missing = Availability(False, "MACE is not installed", "pip it")
     assert missing.reason == "MACE is not installed -- pip it"
     assert (missing.what, missing.command) == (
         "MACE is not installed", "pip it")
-    assert Availability(False, "needs RietX", "pip it", ": ").reason \
-        == "needs RietX: pip it"
 
 
 def test_an_availability_without_a_command_reads_as_its_what():
@@ -467,21 +464,21 @@ def _command(extra):
      "RDKit is not installed, so there is nothing to build a molecule "
      "from -- {}", lambda: _command("build")),
     (_refine_without_rietx,
-     "Refinement needs RietX: {}", lambda: _command("refine")),
+     "Refinement needs RietX -- {}", lambda: _command("refine")),
     (_bands_without_ase,
      "the band path needs ASE, which works out the special points of "
-     "this cell: {}", lambda: _command("ase")),
+     "this cell -- {}", lambda: _command("ase")),
     (_program_not_found,
      "Zeo++ is not installed, or not on PATH (XTAL_NOT_A_PROGRAM is not "
-     "set).  {}", lambda: "It is at https://www.zeoplusplus.org/"),
+     "set) -- {}", lambda: "It is at https://www.zeoplusplus.org/"),
 ], ids=["mace", "orb", "mattersim", "mof", "build", "refine", "bands",
         "program"])
-def test_a_reason_reads_as_it_did_when_it_was_one_string(
+def test_a_reason_is_the_sentence_and_its_remedy_joined_one_way(
         monkeypatch, unavailable, said, command):
-    """The sentences were written as one string before they were two
-    halves; a person reading the panel, the Modules tree or
-    ``help_for`` sees the same words, and the command is no longer in
-    the half a compact listing shows."""
+    """A person reading the panel, the Modules tree or ``help_for`` sees
+    the sentence and how to put it right, joined by " -- " wherever it
+    comes from, and the command is not in the half a compact listing
+    shows."""
     available = unavailable(monkeypatch)
     assert not available
     assert available.reason == said.format(command())

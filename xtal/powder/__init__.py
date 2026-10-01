@@ -45,7 +45,7 @@ def availability() -> Availability:
     from xtal import install
 
     return Availability(False, "Refinement needs RietX",
-                        install.command(EXTRA), ": ")
+                        install.command(EXTRA))
 
 
 def missing() -> str:

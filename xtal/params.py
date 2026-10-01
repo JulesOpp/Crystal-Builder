@@ -173,15 +173,10 @@ class Availability:
     ok: bool = True
     what: str = ""
     command: str = ""
-    #: Between the two in ``reason``.  A few sentences were written
-    #: with a colon or a full stop there, and still read that way.
-    sep: str = " -- "
 
     @property
     def reason(self) -> str:
-        if not self.command:
-            return self.what
-        return f"{self.what}{self.sep}{self.command}"
+        return f"{self.what} -- {self.command}" if self.command else self.what
 
     def __bool__(self) -> bool:
         return self.ok

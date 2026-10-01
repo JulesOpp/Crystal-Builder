@@ -46,7 +46,7 @@ GREEK = {"G": "Γ"}
 
 NOT_INSTALLED = Availability(
     False, "the band path needs ASE, which works out the special points "
-           "of this cell", install.command("ase"), ": ")
+           "of this cell", install.command("ase"))
 
 
 def installed() -> bool:

@@ -45,7 +45,7 @@ def test_a_compact_reason_carries_no_command_and_verbose_does(
         "mace": Availability(False, "MACE is not installed",
                              pip.format("mace")),
         "xtb": Availability(False, "Refinement needs RietX",
-                            pip.format("refine"), ": "),
+                            pip.format("refine")),
     }
     engine_type = type(ENGINES.get("mace"))
     real = engine_type.availability
@@ -69,7 +69,7 @@ def test_a_compact_reason_carries_no_command_and_verbose_does(
     assert compact["render"] == {
         "available": False, "reason": "rendering needs the gui extra"}
     assert verbose["render"]["reason"].startswith(
-        "rendering needs the gui extra: ")
+        "rendering needs the gui extra -- ")
     assert verbose["render"]["reason"] != compact["render"]["reason"]
 
 
