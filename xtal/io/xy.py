@@ -33,10 +33,19 @@ from pathlib import Path
 
 import numpy as np
 
-__all__ = ["EXTENSIONS", "read_columns", "read_xy", "write_xy",
-           "xy_string"]
+__all__ = ["EXTENSIONS", "VENDOR_EXTENSIONS", "read_columns", "read_xy",
+           "write_xy", "xy_string"]
 
 EXTENSIONS = (".xy", ".xye", ".dat")
+
+#: What a diffractometer writes when nobody exported it: Rigaku
+#: ``.rasx``/``.ras``, Bruker ``.raw``/``.brml``/``.uxd``, PANalytical
+#: ``.xrdml``/``.udf``, Philips ``.rd``/``.sd``.  Nothing here reads
+#: them -- RietX does, through :func:`xtal.powder.bridge.read_measurement`,
+#: so they open only with the ``refine`` extra.  Listed here because the
+#: workspace and the file dialogs have to know them without importing it.
+VENDOR_EXTENSIONS = (".rasx", ".ras", ".raw", ".brml", ".uxd", ".xrdml",
+                     ".udf", ".rd", ".sd")
 
 #: What a line has to have before it is data.  Anything else is a
 #: header, a comment or a blank -- not an error.

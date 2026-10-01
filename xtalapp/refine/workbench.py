@@ -74,7 +74,12 @@ from xtal.modules import powder as steps
 from xtal.modules import record as module_record
 from xtal.modules.job import Job
 from xtal.powder import parameters as ps
-from xtal.powder.data import PowderData, PowderError
+from xtal.powder.data import (
+    PowderData,
+    PowderError,
+    anode_note,
+    readable_extensions,
+)
 from xtal.powder.pawley import METHODS
 from xtalapp import windows
 from xtalapp.dialogs.module_form import ParamForm
@@ -388,7 +393,7 @@ class RefinementWorkbench(QMainWindow):
         layout.addWidget(self.missing)
 
         row = QHBoxLayout()
-        self.load_button = QPushButton("Load .xy...")
+        self.load_button = QPushButton("Load pattern...")
         self.load_button.setToolTip("Read the measured pattern to "
                                     "refine against")
         self.load_button.clicked.connect(self.choose_pattern)
@@ -1007,7 +1012,9 @@ class RefinementWorkbench(QMainWindow):
             and self.data.path is not None else ""
         path, _filter = QFileDialog.getOpenFileName(
             self, "Load a measured pattern", start,
-            "Powder pattern (*.xy *.xye);;All files (*)")
+            "Powder pattern ("
+            + " ".join(f"*{ext}" for ext in readable_extensions())
+            + ");;All files (*)")
         # A native file dialog hands activation back to the main
         # window when it closes, which then stands in front of this one
         # as though it had closed.
@@ -1016,9 +1023,9 @@ class RefinementWorkbench(QMainWindow):
             self.load_pattern(path)
 
     def load_pattern(self, path) -> bool:
-        """Read a ``.xy`` and draw it; ``False`` with the reason shown."""
+        """Read a pattern and draw it; ``False`` with the reason shown."""
         try:
-            data = PowderData.from_xy(path)
+            data = PowderData.from_file(path)
         except (OSError, PowderError) as exc:
             self.say(str(exc), warn=True)
             return False
@@ -1049,9 +1056,23 @@ class RefinementWorkbench(QMainWindow):
         given = self.step_forms["peaks"].values()
         self._range_given = (float(given["start"]), float(given["finish"]))
         self._rebuild_parameters()
-        self.say(f"loaded {Path(path).name}")
+        self._say_loaded(data)
         self._refresh()
         return True
+
+    def _say_loaded(self, data: PowderData) -> None:
+        """What the reader chose for the person, and a tube the file
+        disagrees with -- in the status line, as a warning."""
+        said = list(data.notes)
+        try:
+            radiation = steps.radiation_of(self.data_form.values())
+        except PowderError:
+            radiation = None                # a synchrotron, no λ yet
+        if radiation is not None and \
+                (note := anode_note(data, radiation)):
+            said.append(note)
+        name = data.path.name if data.path is not None else data.name
+        self.say("; ".join([f"loaded {name}", *said]), warn=bool(said))
 
     # -- running a step ------------------------------------------------
 

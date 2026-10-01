@@ -59,8 +59,9 @@ def refine_available() -> Availability:
 DATA_PARAMS = (
     Param("xy", "Measured pattern", kind="path", default="",
           help="The pattern to refine against: 2θ and counts, one pair "
-               "a line (.xy).  A third column is read as each point's "
-               "error when every row has one."),
+               "a line (.xy), or the diffractometer's own file (.rasx, "
+               "Bruker .raw, .uxd, .xrdml, ...).  A third column is read "
+               "as each point's error when every row has one."),
     Param("radiation", "Radiation", kind="choice", default="cu",
           choices=tuple((key, label) for key, label, _p in RADIATIONS),
           help="What the pattern was measured with.  A laboratory "
@@ -167,7 +168,7 @@ def _data_of(values: dict) -> PowderData:
     if not path:
         raise PowderError("no pattern given -- a .xy file to refine "
                           "against")
-    return PowderData.from_xy(path)
+    return PowderData.from_file(path)
 
 
 def _positions(text: str) -> tuple[float, ...]:

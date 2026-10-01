@@ -438,7 +438,7 @@ Fit every line in a measured pattern
 
 | Setting | Accepts | Default | What it is |
 |---|---|---|---|
-| **Measured pattern** | path |  | The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one. |
+| **Measured pattern** | path |  | The pattern to refine against: 2θ and counts, one pair a line (.xy), or the diffractometer's own file (.rasx, Bruker .raw, .uxd, .xrdml, ...).  A third column is read as each point's error when every row has one. |
 | **Radiation** | one of Cu Kα1 + Kα2 (laboratory), Cu Kα1 only (monochromated), Mo Kα1 + Kα2 (laboratory), Mo Kα1 only (monochromated), Co Kα1 + Kα2 (laboratory), Co Kα1 only (monochromated), Synchrotron (the wavelength below) | `cu` | What the pattern was measured with.  A laboratory tube is a Kα1/Kα2 doublet unless a monochromator removed Kα2; the wavelengths are the standard ones. |
 | **Wavelength** | float, 0 to 5 Å | `0.0` | A synchrotron's wavelength, from the beamline's calibration.  Read only for Synchrotron: the cell is only as right as this number. |
 | **Monochromator 2θ** | float, 0 to 90 ° | `0.0` | A diffracted-beam monochromator's angle, which changes the polarisation correction (TOPAS LP_Factor).  0 is none; 26.6 is graphite (002) with Cu. |
@@ -458,7 +458,7 @@ Refine the lines in use together over a Chebyshev background
 
 | Setting | Accepts | Default | What it is |
 |---|---|---|---|
-| **Measured pattern** | path |  | The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one. |
+| **Measured pattern** | path |  | The pattern to refine against: 2θ and counts, one pair a line (.xy), or the diffractometer's own file (.rasx, Bruker .raw, .uxd, .xrdml, ...).  A third column is read as each point's error when every row has one. |
 | **Radiation** | one of Cu Kα1 + Kα2 (laboratory), Cu Kα1 only (monochromated), Mo Kα1 + Kα2 (laboratory), Mo Kα1 only (monochromated), Co Kα1 + Kα2 (laboratory), Co Kα1 only (monochromated), Synchrotron (the wavelength below) | `cu` | What the pattern was measured with.  A laboratory tube is a Kα1/Kα2 doublet unless a monochromator removed Kα2; the wavelengths are the standard ones. |
 | **Wavelength** | float, 0 to 5 Å | `0.0` | A synchrotron's wavelength, from the beamline's calibration.  Read only for Synchrotron: the cell is only as right as this number. |
 | **Monochromator 2θ** | float, 0 to 90 ° | `0.0` | A diffracted-beam monochromator's angle, which changes the polarisation correction (TOPAS LP_Factor).  0 is none; 26.6 is graphite (002) with Cu. |
@@ -479,7 +479,7 @@ Find the unit cells that explain the fitted lines
 
 | Setting | Accepts | Default | What it is |
 |---|---|---|---|
-| **Measured pattern** | path |  | The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one. |
+| **Measured pattern** | path |  | The pattern to refine against: 2θ and counts, one pair a line (.xy), or the diffractometer's own file (.rasx, Bruker .raw, .uxd, .xrdml, ...).  A third column is read as each point's error when every row has one. |
 | **Radiation** | one of Cu Kα1 + Kα2 (laboratory), Cu Kα1 only (monochromated), Mo Kα1 + Kα2 (laboratory), Mo Kα1 only (monochromated), Co Kα1 + Kα2 (laboratory), Co Kα1 only (monochromated), Synchrotron (the wavelength below) | `cu` | What the pattern was measured with.  A laboratory tube is a Kα1/Kα2 doublet unless a monochromator removed Kα2; the wavelengths are the standard ones. |
 | **Wavelength** | float, 0 to 5 Å | `0.0` | A synchrotron's wavelength, from the beamline's calibration.  Read only for Synchrotron: the cell is only as right as this number. |
 | **Monochromator 2θ** | float, 0 to 90 ° | `0.0` | A diffracted-beam monochromator's angle, which changes the polarisation correction (TOPAS LP_Factor).  0 is none; 26.6 is graphite (002) with Cu. |
@@ -506,7 +506,7 @@ Fit a cell and space group to the whole pattern
 
 | Setting | Accepts | Default | What it is |
 |---|---|---|---|
-| **Measured pattern** | path |  | The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one. |
+| **Measured pattern** | path |  | The pattern to refine against: 2θ and counts, one pair a line (.xy), or the diffractometer's own file (.rasx, Bruker .raw, .uxd, .xrdml, ...).  A third column is read as each point's error when every row has one. |
 | **Radiation** | one of Cu Kα1 + Kα2 (laboratory), Cu Kα1 only (monochromated), Mo Kα1 + Kα2 (laboratory), Mo Kα1 only (monochromated), Co Kα1 + Kα2 (laboratory), Co Kα1 only (monochromated), Synchrotron (the wavelength below) | `cu` | What the pattern was measured with.  A laboratory tube is a Kα1/Kα2 doublet unless a monochromator removed Kα2; the wavelengths are the standard ones. |
 | **Wavelength** | float, 0 to 5 Å | `0.0` | A synchrotron's wavelength, from the beamline's calibration.  Read only for Synchrotron: the cell is only as right as this number. |
 | **Monochromator 2θ** | float, 0 to 90 ° | `0.0` | A diffracted-beam monochromator's angle, which changes the polarisation correction (TOPAS LP_Factor).  0 is none; 26.6 is graphite (002) with Cu. |
@@ -532,7 +532,7 @@ Peaks, indexing and a Pawley fit of every leading cell and space group, ranked -
 
 | Setting | Accepts | Default | What it is |
 |---|---|---|---|
-| **Measured pattern** | path |  | The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one. |
+| **Measured pattern** | path |  | The pattern to refine against: 2θ and counts, one pair a line (.xy), or the diffractometer's own file (.rasx, Bruker .raw, .uxd, .xrdml, ...).  A third column is read as each point's error when every row has one. |
 | **Radiation** | one of Cu Kα1 + Kα2 (laboratory), Cu Kα1 only (monochromated), Mo Kα1 + Kα2 (laboratory), Mo Kα1 only (monochromated), Co Kα1 + Kα2 (laboratory), Co Kα1 only (monochromated), Synchrotron (the wavelength below) | `cu` | What the pattern was measured with.  A laboratory tube is a Kα1/Kα2 doublet unless a monochromator removed Kα2; the wavelengths are the standard ones. |
 | **Wavelength** | float, 0 to 5 Å | `0.0` | A synchrotron's wavelength, from the beamline's calibration.  Read only for Synchrotron: the cell is only as right as this number. |
 | **Monochromator 2θ** | float, 0 to 90 ° | `0.0` | A diffracted-beam monochromator's angle, which changes the polarisation correction (TOPAS LP_Factor).  0 is none; 26.6 is graphite (002) with Cu. |
@@ -585,7 +585,7 @@ Refine a structure's atoms against the whole pattern
 
 | Setting | Accepts | Default | What it is |
 |---|---|---|---|
-| **Measured pattern** | path |  | The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one. |
+| **Measured pattern** | path |  | The pattern to refine against: 2θ and counts, one pair a line (.xy), or the diffractometer's own file (.rasx, Bruker .raw, .uxd, .xrdml, ...).  A third column is read as each point's error when every row has one. |
 | **Radiation** | one of Cu Kα1 + Kα2 (laboratory), Cu Kα1 only (monochromated), Mo Kα1 + Kα2 (laboratory), Mo Kα1 only (monochromated), Co Kα1 + Kα2 (laboratory), Co Kα1 only (monochromated), Synchrotron (the wavelength below) | `cu` | What the pattern was measured with.  A laboratory tube is a Kα1/Kα2 doublet unless a monochromator removed Kα2; the wavelengths are the standard ones. |
 | **Wavelength** | float, 0 to 5 Å | `0.0` | A synchrotron's wavelength, from the beamline's calibration.  Read only for Synchrotron: the cell is only as right as this number. |
 | **Monochromator 2θ** | float, 0 to 90 ° | `0.0` | A diffracted-beam monochromator's angle, which changes the polarisation correction (TOPAS LP_Factor).  0 is none; 26.6 is graphite (002) with Cu. |
@@ -616,7 +616,7 @@ Refine a structure's atoms against the pattern and a force field at once, the we
 
 | Setting | Accepts | Default | What it is |
 |---|---|---|---|
-| **Measured pattern** | path |  | The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one. |
+| **Measured pattern** | path |  | The pattern to refine against: 2θ and counts, one pair a line (.xy), or the diffractometer's own file (.rasx, Bruker .raw, .uxd, .xrdml, ...).  A third column is read as each point's error when every row has one. |
 | **Radiation** | one of Cu Kα1 + Kα2 (laboratory), Cu Kα1 only (monochromated), Mo Kα1 + Kα2 (laboratory), Mo Kα1 only (monochromated), Co Kα1 + Kα2 (laboratory), Co Kα1 only (monochromated), Synchrotron (the wavelength below) | `cu` | What the pattern was measured with.  A laboratory tube is a Kα1/Kα2 doublet unless a monochromator removed Kα2; the wavelengths are the standard ones. |
 | **Wavelength** | float, 0 to 5 Å | `0.0` | A synchrotron's wavelength, from the beamline's calibration.  Read only for Synchrotron: the cell is only as right as this number. |
 | **Monochromator 2θ** | float, 0 to 90 ° | `0.0` | A diffracted-beam monochromator's angle, which changes the polarisation correction (TOPAS LP_Factor).  0 is none; 26.6 is graphite (002) with Cu. |
@@ -646,7 +646,7 @@ Refine with energy at a list of weights, and suggest the one where the fit and t
 
 | Setting | Accepts | Default | What it is |
 |---|---|---|---|
-| **Measured pattern** | path |  | The pattern to refine against: 2θ and counts, one pair a line (.xy).  A third column is read as each point's error when every row has one. |
+| **Measured pattern** | path |  | The pattern to refine against: 2θ and counts, one pair a line (.xy), or the diffractometer's own file (.rasx, Bruker .raw, .uxd, .xrdml, ...).  A third column is read as each point's error when every row has one. |
 | **Radiation** | one of Cu Kα1 + Kα2 (laboratory), Cu Kα1 only (monochromated), Mo Kα1 + Kα2 (laboratory), Mo Kα1 only (monochromated), Co Kα1 + Kα2 (laboratory), Co Kα1 only (monochromated), Synchrotron (the wavelength below) | `cu` | What the pattern was measured with.  A laboratory tube is a Kα1/Kα2 doublet unless a monochromator removed Kα2; the wavelengths are the standard ones. |
 | **Wavelength** | float, 0 to 5 Å | `0.0` | A synchrotron's wavelength, from the beamline's calibration.  Read only for Synchrotron: the cell is only as right as this number. |
 | **Monochromator 2θ** | float, 0 to 90 ° | `0.0` | A diffracted-beam monochromator's angle, which changes the polarisation correction (TOPAS LP_Factor).  0 is none; 26.6 is graphite (002) with Cu. |

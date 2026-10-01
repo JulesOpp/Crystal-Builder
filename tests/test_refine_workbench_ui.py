@@ -84,6 +84,31 @@ def test_loading_an_xy_draws_the_observed_trace(bench, rutile_xy):
     assert bench.run_button.isEnabled()
 
 
+@needs_rietx
+def test_a_rasx_loads_without_being_exported_first(bench, tmp_path):
+    from tests.conftest_patterns import TWO_THETA, write_rasx
+
+    assert bench.load_pattern(write_rasx(tmp_path / "scan.rasx"))
+    assert f"{len(TWO_THETA)} points" in bench.pattern_label.text()
+    assert bench.status.text() == "loaded scan.rasx"
+
+
+@needs_rietx
+def test_loading_says_what_the_reader_chose_and_a_tube_it_disagrees_with(
+        bench, tmp_path):
+    """Scan 0 of 3, and Mo in a file the box says was Cu: both change
+    what the fit means, so both are said, and neither is acted on."""
+    from tests.conftest_patterns import write_rasx
+
+    bench.data_form.set_values({"radiation": "cu"})
+    assert bench.load_pattern(write_rasx(tmp_path / "three.rasx",
+                                         scans=3, anode="Mo"))
+    said = bench.status.text()
+    assert "scan 0 of 3" in said
+    assert "measured with Mo" in said
+    assert bench.data_form.values()["radiation"] == "cu"
+
+
 def test_a_file_that_is_not_a_pattern_is_refused_with_the_reason(
         bench, tmp_path):
     path = tmp_path / "notes.xy"

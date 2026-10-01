@@ -3,8 +3,10 @@ xtal.powder.data
 ================
 A measured pattern and the radiation it was measured with.
 
-Neither needs RietX.  A pattern is three arrays read from a ``.xy``;
-a radiation is a choice from a list and, for a synchrotron, a number.
+Neither needs RietX.  A pattern is three arrays read from a ``.xy``
+-- or from a diffractometer's own file, which RietX reads, and which
+:meth:`PowderData.from_file` hands to the bridge only then; a
+radiation is a choice from a list and, for a synchrotron, a number.
 What each *means* to a refinement -- which wavelengths, which
 polarisation, which geometry -- is RietX's instrument presets, and
 :func:`xtal.powder.bridge.instrument` is where one becomes the other.
@@ -16,15 +18,15 @@ reads), and a second copy here is a second place for 1.5444 to be
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
 
-from xtal.io.xy import read_columns
+from xtal.io.xy import EXTENSIONS, VENDOR_EXTENSIONS, read_columns
 
 __all__ = ["RADIATIONS", "PowderData", "PowderError", "PowderStopped",
-           "Radiation"]
+           "Radiation", "anode_note", "readable_extensions"]
 
 
 class PowderError(ValueError):
@@ -86,6 +88,12 @@ class Radiation:
         return self.kind == "synchrotron"
 
     @property
+    def anode(self) -> str:
+        """``"Cu"``, ``"Mo"``, ``"Co"``; ``""`` for a synchrotron."""
+        return "" if self.is_synchrotron else \
+            self.kind.split("-")[0].capitalize()
+
+    @property
     def preset(self) -> str:
         """RietX's name for this tube, or ``""`` for a synchrotron."""
         return next(p for key, _l, p in RADIATIONS if key == self.kind)
@@ -105,6 +113,12 @@ class PowderData:
     ``sigma`` is ``None`` when the file gave none, and RietX then
     weights by counting statistics, which is what TOPAS's default
     weighting is too.
+
+    ``notes`` are what a vendor reader assumed or repaired -- scan 0
+    of three taken because nobody chose, a scan stored high to low --
+    and ``meta`` what the file says about itself (``anode``,
+    ``wavelength``, ``scan_count``), RietX's keys.  Both are empty for
+    a ``.xy``, which says nothing.
     """
 
     two_theta: np.ndarray
@@ -112,6 +126,8 @@ class PowderData:
     sigma: np.ndarray | None = None
     name: str = ""
     path: Path | None = None
+    notes: tuple[str, ...] = ()
+    meta: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self.two_theta = np.asarray(self.two_theta, dtype=float)
@@ -141,6 +157,28 @@ class PowderData:
             raise PowderError(str(exc)) from None
         return cls(x, y, sigma, name=path.stem, path=path)
 
+    @classmethod
+    def from_file(cls, path) -> PowderData:
+        """Read a pattern, two columns or a diffractometer's own file.
+
+        Two-column text stays on :func:`~xtal.io.xy.read_columns`,
+        which needs no RietX and reads the headers and commas that
+        RietX's stricter reader would refuse.  Anything else goes to
+        RietX, which recognises a format by its bytes rather than its
+        suffix -- six vendors write ``.raw``.
+        """
+        path = Path(path)
+        if path.suffix.lower() in EXTENSIONS:
+            return cls.from_xy(path)
+        from xtal import powder
+        if not powder.available():
+            raise PowderError(
+                f"reading {path.suffix or path.name} needs the refine "
+                f"extra (pip install 'crystal-builder[refine]'), or "
+                f"export the pattern as .xy")
+        from xtal.powder import bridge
+        return bridge.read_measurement(path)
+
     def __len__(self) -> int:
         return len(self.two_theta)
 
@@ -163,4 +201,31 @@ class PowderData:
         return PowderData(
             self.two_theta[keep], self.intensity[keep],
             None if self.sigma is None else self.sigma[keep],
-            name=self.name, path=self.path)
+            name=self.name, path=self.path, notes=self.notes,
+            meta=self.meta)
+
+
+def readable_extensions() -> tuple[str, ...]:
+    """The suffixes :meth:`PowderData.from_file` will read on this
+    install -- the vendor ones only with the ``refine`` extra, so a
+    file dialog never offers what opening would refuse."""
+    from xtal import powder
+    return EXTENSIONS + (VENDOR_EXTENSIONS if powder.available() else ())
+
+
+def anode_note(data: PowderData, radiation: Radiation) -> str:
+    """What to say when the file names another tube than the one
+    chosen, or ``""``.
+
+    Said, never acted on: the file's anode is a header field, and the
+    radiation box is the user's statement of how the pattern was
+    measured -- a wrong guess changes every peak position the fit
+    computes, so it is not a guess to make silently.
+    """
+    stated = data.meta.get("anode", "").strip()
+    if not stated or radiation.is_synchrotron:
+        return ""
+    if stated.lower() == radiation.anode.lower():
+        return ""
+    return (f"the file says it was measured with {stated}, and the "
+            f"radiation chosen is {radiation.anode}")

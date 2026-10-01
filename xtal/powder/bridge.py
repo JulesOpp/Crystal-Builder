@@ -54,7 +54,8 @@ __all__ = ["RIETVELD_PRESETS", "PatternTerm", "apply_phase",
            "held_paths", "index_pattern", "instrument", "lattice_lines",
            "pattern", "start_from", "starting_parameters",
            "observed_peak", "pattern_term", "pawley", "peak_list",
-           "phase_of", "plan_notes", "predict", "reflections",
+           "phase_of", "plan_notes", "predict", "read_measurement",
+           "reflections",
            "refined_values", "rietveld",
            "space_group_named", "space_group_symbol", "to_rietx"]
 
@@ -186,6 +187,33 @@ def pattern(data: PowderData) -> rx.PatternData:
         two_theta=data.two_theta.tolist(),
         intensity=data.intensity.tolist(),
         sigma=None if data.sigma is None else data.sigma.tolist())
+
+
+def read_measurement(path, *, scan: int | None = None) -> PowderData:
+    """A diffractometer's own file -- ``.rasx``, Bruker ``.raw``,
+    ``.uxd``, ``.xrdml`` and the rest RietX reads -- as a pattern.
+
+    RietX's readers decide σ from what the file declares and say what
+    they assumed; its warnings become :attr:`PowderData.notes`, because
+    "scan 0 of 3 was read" is a choice the person has to be told was
+    made for them.  Its info lines (a scan reversed into ascending
+    order) are housekeeping and are dropped.
+    """
+    from rietx.io import read_pattern
+
+    path = Path(path)
+    found: list = []
+    try:
+        read = read_pattern(path, diagnostics=found, scan=scan)
+    except ValueError as exc:
+        raise PowderError(str(exc)) from None
+    # the field, not ``sig()``: that fills a Poisson σ in where the file
+    # gave none, and None is how a PowderData says "weight by counts"
+    sigma = None if read.sigma is None else np.asarray(read.sigma)
+    return PowderData(
+        read.tt(), read.y(), sigma, name=path.stem, path=path,
+        notes=tuple(d.message for d in found if d.level != "info"),
+        meta=dict(read.metadata))
 
 
 # ======================================================================
