@@ -13,7 +13,7 @@ import pytest
 pytest.importorskip("PySide6")
 pytest.importorskip("pytestqt")
 
-from PySide6.QtWidgets import QWidget  # noqa: E402
+from PySide6.QtWidgets import QMenu, QWidget  # noqa: E402
 
 from xtal import Lattice, Structure  # noqa: E402
 from xtal.core.structure import Change  # noqa: E402
@@ -377,6 +377,67 @@ def test_the_mouse_modes_are_a_submenu_of_structure(window):
     entries = [a.text() for a in window.mode_menu.actions()]
     assert entries == [window.actions_[f"mode_{n}"].text()
                        for n in modes.names()]
+
+
+def _menu(parent, title):
+    """Found among *children*, never through ``QAction.menu()``, which
+    hands PySide's caller the QMenu to own and destroy -- see
+    ``_submenu`` in ``test_modules_ui.py``."""
+    for child in parent.findChildren(QMenu):
+        if child.title().replace("&", "") == title:
+            return child
+    raise AssertionError(f"no {title} menu")
+
+
+def _names(window, menu):
+    by_action = {id(window.actions_[n]): n
+                 for n in window.actions_.names()}
+    return [by_action.get(id(a)) for a in menu.actions()
+            if not a.isSeparator()]
+
+
+def test_the_bond_commands_are_one_submenu_of_structure(window):
+    """Six bond entries and Set Bond Type made the middle of Structure
+    a list to read through.  Recalculate bonds is first in the
+    submenu and is still the toolbar's button -- the same action, so
+    bonds are still recalculated only when somebody presses it."""
+    structure = _menu(window.menuBar(), "Structure")
+    bonds = _menu(structure, "Bonds")
+    names = _names(window, bonds)
+    assert names[0] == "recompute_bonds"
+    assert {"reset_bonds", "bond_rules", "bonds_follow"} <= set(names)
+    assert window.bond_type_menu.menuAction() in bonds.actions()
+    flat = _names(window, structure)
+    for name in ("recompute_bonds", "reset_bonds", "bond_rules",
+                 "bonds_follow"):
+        assert name not in flat
+    assert window.actions_["recompute_bonds"] in \
+        window.toolbar.actions()
+
+
+def test_each_structure_command_has_one_home(window):
+    """Change element was in Edit beside Delete, and Save as a building
+    block in File beside the exports; each is in Structure now, with
+    the commands of its kind, and nowhere else in the menu bar."""
+    bar = window.menuBar()
+    structure = _menu(bar, "Structure")
+    assert "change_element" in _names(window, structure)
+    blocks = _menu(structure, "Building blocks")
+    assert "save_building_block" in _names(window, blocks)
+    assert "change_element" not in _names(window, _menu(bar, "Edit"))
+    assert "save_building_block" not in _names(window, _menu(bar, "File"))
+
+
+def test_the_modules_menu_has_no_blender_entry(window):
+    """Export as STL and Render in Blender were in File and again under
+    Modules > Blender.  File is where an export is looked for, so that
+    is the one way in."""
+    titles = [menu.title().replace("&", "")
+              for menu in window.modules_menu.findChildren(QMenu)]
+    assert "Blender" not in titles
+    assert "blender" not in window._module_submenus
+    file_names = _names(window, _menu(window.menuBar(), "File"))
+    assert {"export_stl", "render_blender"} <= set(file_names)
 
 
 def test_the_ways_of_opening_a_file_are_together(window):

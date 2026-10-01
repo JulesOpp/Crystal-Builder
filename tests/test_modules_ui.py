@@ -109,7 +109,7 @@ def test_the_menu_is_built_from_the_registry(window):
     before it opens appears without this file changing."""
     submenus = [a.text() for a in window.modules_menu.actions()
                 if not a.isSeparator()]
-    assert submenus == [m.label for m in MODULES]
+    assert submenus == [m.label for m in MODULES if m.listed]
     assert "Stub" in submenus
 
 
@@ -128,7 +128,8 @@ def test_modules_of_one_kind_sit_together_between_separators(window):
     assert all(len(set(run)) == 1 for run in runs)
     kinds = [run[0] for run in runs]
     assert len(kinds) == len(set(kinds))
-    assert kinds[:4] == ["energy", "build", "characterise", "export"]
+    # No "export": Blender's two entries are in File and nowhere else.
+    assert kinds[:3] == ["energy", "build", "characterise"]
 
 
 def _submenu(menu, title):

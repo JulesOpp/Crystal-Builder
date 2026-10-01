@@ -78,7 +78,7 @@ class ModuleTree(QTreeView):
         """
         self.model_.clear()
         root = self.model_.invisibleRootItem()
-        modules = list(self.registry)
+        modules = [m for m in self.registry if m.listed]
         if not modules:                             # pragma: no cover
             root.appendRow(_row("No modules registered", None, None,
                                 enabled=False))

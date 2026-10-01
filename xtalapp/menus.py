@@ -450,7 +450,8 @@ def build_actions(window):
         window.select_bonds_between,
         tip="Select every bond joining two elements, and no atoms -- "
             "so Delete and Bond type act on those bonds alone")
-    add("select_dialog", "&Select...", window.open_select_dialog,
+    add("select_dialog", "&Advanced Selection...",
+        window.open_select_dialog,
         tip="Select by label, coordination, what an atom is bonded "
             "to, a box, a point, or bonds by length and order -- and "
             "add, remove or intersect with what is held")
@@ -622,7 +623,6 @@ def build_menus(window):
         None, "save", "save_as",
         None, "export", "export_image", "export_stl", "render_blender",
         "export_net",
-        "save_building_block",
         None, "new_workspace", "open_workspace",
         None, "close_tab", "close_all_tabs"])
     file_menu.addSeparator()
@@ -633,8 +633,7 @@ def build_menus(window):
     edit_menu = submenu(bar, "&Edit")
     window.actions_.fill_menu(edit_menu, [
         "undo", "redo", None, "cut", "copy", "paste", "duplicate",
-        None, "delete_selection", "delete_bond",
-        "change_element"])
+        None, "delete_selection", "delete_bond"])
 
     select_menu = submenu(bar, "&Select")
     window.actions_.fill_menu(select_menu, [
@@ -647,18 +646,34 @@ def build_menus(window):
                                         "expand_fragment",
                                         "expand_orbit"])
 
+    # What is added, then what it is joined by, then what it is for:
+    # atoms, groups, whole molecules; the bond commands in one place;
+    # the framework builder's markers; Prepare last, because it is a
+    # rebuild of everything above.  Change element was in Edit, beside
+    # Delete, and Save as a building block in File, beside the
+    # exports; each is where the others of its kind are now.
     structure_menu = submenu(bar, "S&tructure")
     window.actions_.fill_menu(structure_menu, [
         "add_atom_dialog", "add_centroid", "merge_atoms",
-        "add_hydrogens", "substitute_rings", "insert_molecule",
-        "fill_pores",
-        "interpenetrate", "prepare_simulation",
-        "mark_connection_points", "mark_one_connection_point", None,
-        "bond_rules", "recompute_bonds", "reset_bonds",
-        "bonds_follow"])
-    window.bond_type_menu = add_bond_type_menu(window,
-                                              structure_menu)
-    structure_menu.addSeparator()
+        "change_element",
+        None, "add_hydrogens", "substitute_rings",
+        None, "insert_molecule", "fill_pores", "interpenetrate",
+        None])
+    # Six bond entries and a submenu made the middle of Structure a
+    # list to read through; as one submenu they are one entry to find.
+    # Recalculate bonds keeps its shortcut and its toolbar button.
+    bonds_menu = submenu(structure_menu, "&Bonds")
+    window.actions_.fill_menu(bonds_menu, ["recompute_bonds",
+                                           "reset_bonds"])
+    window.bond_type_menu = add_bond_type_menu(window, bonds_menu)
+    window.actions_.fill_menu(bonds_menu, [None, "bond_rules",
+                                           "bonds_follow"])
+    blocks_menu = submenu(structure_menu, "Building b&locks")
+    window.actions_.fill_menu(blocks_menu, [
+        "mark_connection_points", "mark_one_connection_point",
+        "save_building_block"])
+    window.actions_.fill_menu(structure_menu, [
+        None, "prepare_simulation", None])
     # A submenu and not six flat entries: these are what the *mouse*
     # does, and under the bond commands they made the bottom of
     # Structure read as though a mode were an edit.
@@ -812,6 +827,8 @@ def build_modules_menu(window) -> None:
     window._module_submenus = {}
     previous = None
     for module in MODULES:
+        if not module.listed:
+            continue                    # Blender: File is its way in
         if previous is not None and module.group != previous:
             menu.addSeparator()
         previous = module.group
