@@ -54,7 +54,7 @@ from __future__ import annotations
 import importlib.util
 import re
 import tempfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from pathlib import Path
 
@@ -998,12 +998,67 @@ class Catalog:
                 continue
             if not directory.is_dir():
                 continue
-            for path in sorted(directory.glob(pattern)):
+            for path in _listing(directory, pattern):
                 try:
-                    item = reader(path)
+                    item = _parsed(path, reader)
                 except (CatalogError, CgdError, OSError,
                         ValueError) as exc:
                     self._failures.append(f"{path.name}: {exc}")
                     continue
                 out[item.name] = item
         return dict(sorted(out.items()))
+
+
+# ======================================================================
+#  WHAT A FILE PARSED TO, ONCE A PROCESS
+# ======================================================================
+#
+# A fresh Catalog -- every MOF builder dialog makes one -- read all 2599
+# nets and 879 blocks again: about 3300 files.  Half a second on a
+# quiet machine; on one short of memory, where they had fallen out of
+# the file cache and every read queued behind the swap, 95 seconds a
+# dialog.  So a folder's listing and a file's parse are kept, keyed by
+# what would change if the file did -- the folder's modification time,
+# the file's size and modification time -- and each catalogue is handed
+# a copy, so what one catalogue works out or moves stays its own.
+
+_LISTINGS: dict = {}
+_PARSED: dict = {}
+
+
+def _listing(directory: Path, pattern: str) -> list[Path]:
+    """``sorted(directory.glob(pattern))``, read again only when the
+    folder has gained or lost a file since."""
+    stamp = directory.stat().st_mtime_ns
+    key = (str(directory), pattern)
+    held = _LISTINGS.get(key)
+    if held is None or held[0] != stamp:
+        held = (stamp, sorted(directory.glob(pattern)))
+        _LISTINGS[key] = held
+    return held[1]
+
+
+def _parsed(path: Path, reader):
+    """``reader(path)``, parsed again only when the file has changed.
+
+    A file that fails is not kept, so it fails -- and is reported --
+    every time it is read, as before.
+    """
+    stat = path.stat()
+    stamp = (stat.st_size, stat.st_mtime_ns)
+    key = (str(path), reader)
+    held = _PARSED.get(key)
+    if held is None or held[0] != stamp:
+        held = (stamp, reader(path))
+        _PARSED[key] = held
+    return _own_copy(held[1])
+
+
+def _own_copy(item):
+    """What a catalogue may change about an item, made its own: a net's
+    worked-out facts and a block's coordinates.  The rest is frozen."""
+    if isinstance(item, Topology):
+        return replace(item, _cache={})
+    if isinstance(item, BuildingBlock):
+        return replace(item, positions=item.positions.copy())
+    return item
