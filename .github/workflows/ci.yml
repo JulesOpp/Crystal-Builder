@@ -5,6 +5,8 @@ on:
     branches: [main]
     tags: ["v*"]
   pull_request:
+  # A branch's bundle, built by hand -- the launcher, say -- before main.
+  workflow_dispatch:
 
 jobs:
   test:
@@ -185,9 +187,10 @@ jobs:
     needs: test
     timeout-minutes: 60
     if: >-
-      github.event_name == 'push' &&
-      (github.ref == 'refs/heads/main' ||
-       startsWith(github.ref, 'refs/tags/v'))
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' &&
+       (github.ref == 'refs/heads/main' ||
+        startsWith(github.ref, 'refs/tags/v')))
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
