@@ -22,9 +22,9 @@ bonding, run force field / DFTB+ / Zeo++ calculations on the result.
 ## Commands
 
 ```bash
-python -m pytest -q -n 3               # full suite, three workers, ~2 min
+python -m pytest -q                    # full suite, workers sized to the machine
 python -m pytest -q -n0 tests/test_bonding.py  # while iterating
-python -m pytest -q -n 3 -m "not gui"  # headless core only, ~1 min
+python -m pytest -q -m "not gui"       # headless core only, about half
 python -m pytest -q -m "not slow"      # skips the ones marked slow
 python -m pytest -q --durations=20     # what the run is actually spending
 ruff check .                           # lint (check only — see below)
@@ -32,12 +32,20 @@ xtal inspect FILE --json               # what an agent reads first
 crystal-builder                        # launch the GUI
 ```
 
-**`pyproject.toml` defaults to `-n auto`; pass `-n 3`.** The default
-was made parallel once the worker deadlock below was fixed, and a plain
-`pytest` now starts a worker per core -- eight here, which leaves the
-machine unusable while it runs. Three workers finish the suite in about
-two minutes and leave the rest of the cores free. `-n0` for a targeted
-file, where starting workers costs more than it saves. CI runs serial.
+**A plain `pytest` starts as many workers as the machine holds.**
+`pyproject.toml` asks for `-n auto --dist worksteal`, and what `auto`
+means is `conftest.py`'s (`pytest_xdist_auto_num_workers`): the smaller
+of what the RAM holds -- 1.5 GB a worker beyond 4 GB left for
+everything else -- and one fewer than the fast cores. That is 2 on an
+8 GB M2 and 7 on 16 GB with eight performance cores; `XTAL_TEST_WORKERS`
+overrides it, and an explicit `-n` never reaches it. xdist's own `auto`
+was one per core, and on the 8 GB machine eight workers of up to a
+gigabyte each swapped until the run stalled, every small file read
+queued behind the swap. Work stealing because `load` hands tests out
+in chunks, and one worker sat idle for ten minutes while the other
+finished alone. `-n0` for a targeted file, where starting workers costs
+more than it saves. CI (`CI` set) keeps one worker a core, as it had:
+a runner has nobody to leave a core for.
 Prefer a **targeted file** while iterating and the full suite once
 before committing; the whole suite is 3000+ tests and running it after
 every edit is the single most expensive habit in this repo.

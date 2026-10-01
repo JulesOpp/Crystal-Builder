@@ -122,6 +122,10 @@ def pytest_xdist_auto_num_workers(config):
     given = os.environ.get("XTAL_TEST_WORKERS", "").strip()
     if given:
         return max(1, int(given))
+    if os.environ.get("CI"):
+        # A runner has nobody to leave a core for and nothing else to
+        # leave memory to: one a core, which is what it always had.
+        return os.cpu_count() or 1
     return auto_workers(_fast_cores(), _memory())
 
 

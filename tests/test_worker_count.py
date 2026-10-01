@@ -39,6 +39,17 @@ def test_a_number_in_the_environment_wins(monkeypatch):
 
 def test_auto_asks_this_machine(monkeypatch):
     monkeypatch.delenv("XTAL_TEST_WORKERS", raising=False)
+    monkeypatch.delenv("CI", raising=False)
     monkeypatch.setattr(conftest, "_fast_cores", lambda: 4)
     monkeypatch.setattr(conftest, "_memory", lambda: 8 * GB)
     assert conftest.pytest_xdist_auto_num_workers(config=None) == 2
+
+
+def test_ci_keeps_one_worker_a_core(monkeypatch):
+    """A CI runner has nobody to leave a core for and nothing else to
+    leave memory to, so it keeps xdist's own answer, as it had."""
+    monkeypatch.delenv("XTAL_TEST_WORKERS", raising=False)
+    monkeypatch.setenv("CI", "true")
+    monkeypatch.setattr(conftest.os, "cpu_count", lambda: 4)
+    monkeypatch.setattr(conftest, "_memory", lambda: 8 * GB)
+    assert conftest.pytest_xdist_auto_num_workers(config=None) == 4
