@@ -65,3 +65,55 @@ def test_cancelling_the_table_leaves_the_element_and_the_mode(
     window.element_table.click()
     assert window.element_combo.currentText() == "C"
     assert window.actions_["mode_select"].isChecked()
+
+
+def _overflowing(window, qtbot):
+    """The window narrow enough that the toolbar folds its end away,
+    and the double arrow that shows it."""
+    from PySide6.QtWidgets import QToolButton
+    window.show()
+    window.resize(600, 600)
+    qtbot.wait(50)
+    button = window.toolbar.findChild(QToolButton,
+                                      "qt_toolbar_ext_button")
+    assert button is not None and button.isVisible()
+    return button
+
+
+def _settled_height(window, qtbot) -> int:
+    """The bar's height once Qt's expand animation has finished: it
+    grows over a quarter of a second, 44, 49, 67, 96 px."""
+    heights = [-1]
+    for _ in range(40):
+        qtbot.wait(25)
+        heights.append(window.toolbar.height())
+        if heights[-1] == heights[-2] == heights[-3]:
+            break
+    return heights[-1]
+
+
+def test_the_toolbar_overflow_stays_open_when_the_mouse_leaves(
+        window, qtbot):
+    """Qt closes the overflow the moment the pointer leaves the bar,
+    so reaching for a box in it -- the cell counts, the axis views --
+    by any path that crossed the edge closed it on the way."""
+    from PySide6.QtCore import QCoreApplication, QEvent
+    button = _overflowing(window, qtbot)
+    short = _settled_height(window, qtbot)
+    button.click()
+    tall = _settled_height(window, qtbot)
+    assert button.isChecked()
+    assert tall > short
+    QCoreApplication.sendEvent(window.toolbar, QEvent(QEvent.Leave))
+    assert _settled_height(window, qtbot) == tall
+    assert button.isChecked()
+
+
+def test_the_double_arrow_closes_the_overflow_again(window, qtbot):
+    button = _overflowing(window, qtbot)
+    short = _settled_height(window, qtbot)
+    button.click()
+    assert _settled_height(window, qtbot) > short
+    button.click()
+    assert _settled_height(window, qtbot) == short
+    assert not button.isChecked()
