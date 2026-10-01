@@ -51,11 +51,26 @@ def _plain(value):
     return str(value)
 
 
+def _short_reason(reason: str) -> str:
+    """The first clause of an unavailable thing's reason: what is
+    missing, without how to install it.
+
+    The install command is the same for every action of a missing
+    extra, and on a source checkout it spells out the installer, the
+    interpreter and the checkout's path -- nine pxrd actions repeated
+    it into most of the compact answer.  ``help_for(name)`` and
+    ``verbose=True`` keep the whole sentence.
+    """
+    for mark in (" -- ", ".  ", ": "):
+        reason = reason.split(mark, 1)[0]
+    return reason.strip()
+
+
 class Capabilities(dict):
     """A dict (so ``json.dumps`` takes it) that prints readably."""
 
     def to_json(self) -> str:
-        return to_json(dict(self))
+        return to_json(dict(self), compact=True)
 
     def __str__(self) -> str:
         lines = ["engines:"]
@@ -63,19 +78,30 @@ class Capabilities(dict):
             mark = "" if e["available"] else f"  [no: {e['reason']}]"
             lines.append(f"  {e['name']:<10s} {e['label']}{mark}")
         lines.append("modules:")
-        for m in self["modules"]:
-            for a in m["actions"]:
-                mark = "" if a["available"] else \
-                    f"  [no: {a['reason']}]"
-                lines.append(f"  {a['action']:<24s} {a['label']}{mark}")
+        if "modules" in self:
+            actions = [{**a, "name": a["action"]}
+                       for m in self["modules"] for a in m["actions"]]
+        else:
+            actions = self["actions"]
+        for a in actions:
+            mark = "" if a["available"] else f"  [no: {a['reason']}]"
+            lines.append(f"  {a['name']:<24s} {a['label']}{mark}")
         lines.append("render: " + ("yes" if self["render"]["available"]
                                    else f"no -- {self['render']['reason']}"))
         lines.append("verbs: " + ", ".join(self["verbs"]))
         return "\n".join(lines)
 
 
-def capabilities() -> Capabilities:
-    """Every engine and module action, and whether it can run here."""
+def capabilities(verbose: bool = False) -> Capabilities:
+    """Every engine and module action, and whether it can run here.
+
+    Each is a ``name``, ``label``, ``available`` and the first clause
+    of its ``reason``, with the module actions as one list,
+    ``actions``.  ``verbose`` is every
+    option and parameter with its help as well, under ``modules`` --
+    127 kB, which :func:`help_for` gives one name at a time.  An action
+    only the window performs is in neither: it is a verb here.
+    """
     from xtal import __version__, plugins
     from xtal.ff import ENGINES
     from xtal.modules import MODULES
@@ -84,31 +110,39 @@ def capabilities() -> Capabilities:
     engines = []
     for engine in ENGINES:
         available = engine.availability()
-        engines.append({
-            "name": engine.name, "label": engine.label,
-            "available": bool(available), "reason": available.reason,
-            "options": [_param(p) for p in engine.options]})
-    modules = []
+        row = {"name": engine.name, "label": engine.label,
+               "available": bool(available), "reason": available.reason}
+        if verbose:
+            row["options"] = [_param(p) for p in engine.options]
+        else:
+            row["reason"] = _short_reason(row["reason"])
+        engines.append(row)
+    modules, compact = [], []
     for module in MODULES:
         module_ok = module.availability()
         actions = []
         for action in module.actions:
-            available = module_ok and action.availability()
             if action.run is None:
-                available_ok, reason = False, "performed by the window"
-            else:
-                available_ok = bool(available)
-                reason = "" if available_ok else (
-                    getattr(available, "reason", "")
-                    or module_ok.reason)
+                continue
+            available = module_ok and action.availability()
+            available_ok = bool(available)
+            reason = "" if available_ok else (
+                getattr(available, "reason", "") or module_ok.reason)
+            name = f"{module.name}.{action.name}"
+            compact.append({"name": name, "label": action.label,
+                            "available": available_ok,
+                            "reason": _short_reason(reason)})
             actions.append({
-                "action": f"{module.name}.{action.name}",
-                "label": action.label,
+                "action": name, "label": action.label,
                 "needs_structure": action.needs_structure,
                 "available": available_ok, "reason": reason,
                 "params": [_param(p) for p in action.params]})
         modules.append({"name": module.name, "label": module.label,
                         "actions": actions})
+    if not verbose:
+        return Capabilities(
+            version=__version__, verbs=list(VERBS), engines=engines,
+            actions=compact, render=render_availability())
     return Capabilities(
         version=__version__, verbs=list(VERBS), engines=engines,
         modules=modules, render=render_availability())
@@ -142,7 +176,7 @@ def help_for(name: str) -> str:
         signature = pyinspect.signature(target)
         doc = pyinspect.getdoc(target) or ""
         return f"Session.{name}{signature}\n\n{doc}"
-    found = capabilities()
+    found = capabilities(verbose=True)
     for engine in found["engines"]:
         if engine["name"] == name:
             return _describe(f"engine {name}: {engine['label']}",
@@ -152,9 +186,41 @@ def help_for(name: str) -> str:
             if action["action"] == name:
                 return _describe(f"{name}: {action['label']}",
                                  action["params"], action)
+    window = _window_action(name)
+    if window is not None:
+        return window
     raise KeyError(f"nothing called {name!r}: a verb "
                    f"({', '.join(VERBS)}), an engine or a module action "
                    f"(capabilities() lists them)")
+
+
+#: The verb that does what a window-only action does, by action name.
+_WINDOW_VERBS = {"optimise": "optimize", "single-point": "energy"}
+
+
+def _window_action(name: str) -> str | None:
+    """:func:`help_for` of an action only the window performs.
+
+    The listings leave these out because a verb covers them, but the
+    name is in the window's menus and in run logs, and an assistant
+    that asks about it is better told which verb than that nothing
+    is called that.
+    """
+    from xtal.modules import MODULES
+
+    for module in MODULES:
+        for action in module.actions:
+            if (f"{module.name}.{action.name}" != name
+                    or action.run is not None):
+                continue
+            reason = "performed by the window"
+            verb = _WINDOW_VERBS.get(action.name)
+            if verb:
+                reason += f"; use the `{verb}` verb"
+            return _describe(f"{name}: {action.label}",
+                             [_param(p) for p in action.params],
+                             {"available": False, "reason": reason})
+    return None
 
 
 def _describe(head, params, row) -> str:

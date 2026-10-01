@@ -98,9 +98,9 @@ def cmd_inspect(args) -> int:
 
     found = inspect(_load(args.file), symprec=args.symprec)
     if args.json:
-        _emit_json(found.to_dict())
+        _emit_json(found.to_dict(args.sites))
     else:
-        print(found)
+        print(found.text(args.sites))
     return 1 if found.worst == "error" else 0
 
 
@@ -126,7 +126,7 @@ def cmd_capabilities(args) -> int:
     if args.name:
         print(help_for(args.name))
         return 0
-    found = capabilities()
+    found = capabilities(verbose=args.verbose)
     print(found.to_json() if args.json else found)
     return 0
 
@@ -738,6 +738,7 @@ def build_parser() -> argparse.ArgumentParser:
     _json_flag(p)
     p.set_defaults(func=cmd_info)
 
+    from xtal.agent.answers import SITES
     from xtal.agent.inspect import DEFAULT_SYMPREC as INSPECT_SYMPREC
     p = sub.add_parser(
         "inspect", help="what a structure is and what is wrong with "
@@ -747,6 +748,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--symprec", type=float, default=INSPECT_SYMPREC,
                    help="tolerance the group is detected at "
                         "(default: %(default)g)")
+    p.add_argument("--sites", choices=SITES, default="problems",
+                   help="which site rows to give: those a diagnostic "
+                        "names, all, or none (default: %(default)s)")
     _json_flag(p)
     p.set_defaults(func=cmd_inspect)
 
@@ -770,6 +774,8 @@ def build_parser() -> argparse.ArgumentParser:
                             "modules, rendering")
     p.add_argument("name", nargs="?",
                    help="a verb, engine or MODULE.ACTION to describe")
+    p.add_argument("--verbose", action="store_true",
+                   help="every option and parameter, with its help")
     _json_flag(p)
     p.set_defaults(func=cmd_capabilities)
 

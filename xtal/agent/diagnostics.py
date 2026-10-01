@@ -184,7 +184,11 @@ class Diagnostic:
                 f"{self.message} -> {self.suggestion}")
 
 
-def to_json(value) -> str:
+def to_json(value, compact: bool = False) -> str:
+    """Indented for a person; ``compact`` for a model's context, where
+    the indentation of MOF-5's inspection was over half of it."""
+    if compact:
+        return json.dumps(value, separators=(",", ":"), default=_plain)
     return json.dumps(value, indent=2, default=_plain)
 
 

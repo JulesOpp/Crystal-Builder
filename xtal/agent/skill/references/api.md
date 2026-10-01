@@ -56,7 +56,10 @@ in `data["tables"]`. Raises `BuildFailed` (whose `.result` is the
 
 The `Inspection` (see below). `symprec` defaults to 0.01 Å, the
 tolerance at which a file written to four decimals shows the group it
-means.
+means. Which site rows the answer carries is chosen when it is read:
+`to_dict(sites=...)` and `to_json(sites=...)` take `"problems"` (the
+default: the sites a diagnostic names), `"all"` or `"none"`, as does
+`xtal inspect --sites`.
 
 ### `render(path, view, size, style, highlight, show_cell)`
 
@@ -313,16 +316,24 @@ and `space_group_number` (declared), `detected_space_group`, `symprec`,
 `net_charge` (None unless sites carry charges), `n_bonds`, `fragments`
 (kind, n_atoms, formula), `sites` (index, label, element, frac,
 occupancy, multiplicity, first_atom, coordination, neighbours as
-`[element, distance]`), `diagnostics`, `worst`, `to_dict()`,
-`to_json()`. `str()` prints the first 40 sites; `to_dict()` has all.
+`[element, distance]`), `site_groups` (sites alike in element,
+coordination and neighbour pattern: `element`, `coordination`,
+`pattern` such as `"O 1.95 x4"`, `count` of atoms, `sites`, one
+`example` row), `diagnostics`, `worst`, `to_dict(sites)`,
+`to_json(sites)`. `str()` prints the groups, then the rows a
+diagnostic names, then the diagnostics; `to_dict(sites="all")` has
+every row.
 
 **`Diagnostic`**: `code`, `level` (`info`, `warning`, `error`),
 `message`, `where`, `suggestion`. Codes are closed: `diagnostics.md`.
 
 ## Also importable
 
-- `capabilities()`: engines, modules and rendering, each with
-  `available` and `reason`, and every parameter.
+- `capabilities(verbose=False)`: engines and module actions, each with
+  `name`, `label`, `available` and the first clause of its `reason`,
+  and rendering. `verbose=True` (`xtal capabilities --verbose`) adds
+  every option and parameter and the full reason. Actions only the
+  window performs are left out; `help_for` names the verb for them.
 - `help_for(name)`: a verb's signature and docstring, or an engine's or
   a module action's parameters.
 - `session.cell`: the P1 cell (`elements`, `frac`, `cart`, `site_idx`).
