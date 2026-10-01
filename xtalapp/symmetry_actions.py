@@ -163,8 +163,13 @@ class SymmetryActions:
         message = FillPoresDialog.ask(
             document, sources, self,
             directory=self.settings.last_directory)
-        if message:
-            self.statusBar().showMessage(message, 8000)
+        if isinstance(message, str):
+            if message:
+                self.statusBar().showMessage(message, 8000)
+            return
+        # One at a point: a crowded point was inserted anyway, and the
+        # warning box is where that is said after the fact.
+        self._report(message, "Insert molecule")
 
     def interpenetrate_dialog(self) -> None:
         document = self.current_document()
