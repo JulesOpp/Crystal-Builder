@@ -392,6 +392,17 @@ stress case).
   is what Substitute replaces, which may be any atom of
   `substitute.TERMINAL` (H or a halogen on one bond), never a
   carbonyl oxygen.
+- **Colour by draws a number; it never stores a colour.** The Style
+  panel's *Colour by* (`xtal/core/scalars.py`, `ViewSettings.color_by`)
+  colours bonds by length or atoms by coordination, angle, smallest
+  ring or charge, read off the stored graph at build time and written
+  nowhere, so *Element* brings back the colours chosen by hand. **No
+  value is NaN, drawn grey and off the scale, never zero**: an atom
+  with fewer than two neighbours has no angle, and only three and four
+  neighbours have an ideal one (120, 109.5) -- with 180 for two, the
+  ether oxygens were the brightest atoms on MFU-4l. The range is the
+  whole cell's, not the drawn atoms', and a colour bar replaces the
+  element legend.
 - **A hidden atom is still in the structure.** View ▸ Show Only
   Selected is `Document.hidden`: view state, never an undo step,
   never saved, read by the scene builder alone -- not drawn, not

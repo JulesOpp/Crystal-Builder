@@ -214,11 +214,12 @@ favour them clearly.
 
 ## A ZTC user's feedback (2026-10-01)
 
-Colour by property, and a builder for disordered ZTC/schwarzite-like
-carbon.  Rings coloured by size (phase 1), the bulk modulus (phase 2)
-and functional groups (phase 3: `xtal.core.groups`, the Select
-dialog's *Functional group*, View ▸ *Show Only Selected*, and
-Substitute with a drawn group on any terminal atom) have shipped;
+A builder for disordered ZTC/schwarzite-like carbon.  Rings coloured
+by size (phase 1), the bulk modulus (phase 2), functional groups
+(phase 3: `xtal.core.groups`, the Select dialog's *Functional group*,
+View ▸ *Show Only Selected*, and Substitute with a drawn group on any
+terminal atom) and colour by property (phase 4: `xtal.core.scalars`,
+the Style panel's *Colour by*) have shipped;
 `xtal.core.rings` is what phase 5's report counts with.  The full
 plan, with its measurements, is
 `~/.claude/plans/users-julesoppenheim-github-crystal-bui-glittery-whisper.md`.
@@ -229,14 +230,7 @@ Select… ▸ *Within a distance of the selection* is enough.
 
 | Phase | Deliverable | Size |
 |---|---|---|
-| 4 | Colour by property (bond length, angle, coordination, ring size) | M |
 | 5 | Disordered-carbon builder (`xtal/carbon/`) | L |
-
-### Phase 4: Colour by property
-
-`xtal/core/scalars.py` gives per-bond and per-atom quantities.  An
-undefined value is drawn grey, never as zero.  A *Colour by* setting
-in the Style panel draws a colour bar.
 
 ### Phase 5: Disordered-carbon builder
 

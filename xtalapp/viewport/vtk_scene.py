@@ -175,6 +175,8 @@ LEGEND_TOP = 0.94
 LEGEND_ROW = 0.045
 LEGEND_SWATCH = 0.018
 LEGEND_FONT = 15
+#: Where a colour bar's heading ends.
+LEGEND_HEADING_X = 0.99
 
 
 # The scale bar, in fractions of the window: where its left end sits,
@@ -1856,18 +1858,27 @@ class VtkScene:
             y = top - row * LEGEND_ROW
             if y < LEGEND_ROW:
                 break                   # ran out of window
-            self._legend_actors.append(
-                _swatch(LEGEND_X, y, [c / 255 for c in color]))
+            # A row with no colour is a colour bar's heading, ended at
+            # the window's edge: a quantity's name is longer than an
+            # element's, and written from the swatches it ran off it.
+            if color is not None:
+                self._legend_actors.append(
+                    _swatch(LEGEND_X, y, [c / 255 for c in color]))
             label = vtkTextActor()
             label.SetInput(str(element))
             label.GetPositionCoordinate() \
                 .SetCoordinateSystemToNormalizedViewport()
             label.GetPositionCoordinate().SetValue(
-                LEGEND_X + LEGEND_SWATCH * 1.6, y - LEGEND_SWATCH / 3)
+                (LEGEND_X + LEGEND_SWATCH * 1.6 if color is not None
+                 else LEGEND_HEADING_X),
+                y - LEGEND_SWATCH / 3)
             prop = label.GetTextProperty()
             prop.SetFontSize(LEGEND_FONT)
             prop.SetColor(*text_color)
-            prop.SetJustificationToLeft()
+            if color is None:
+                prop.SetJustificationToRight()
+            else:
+                prop.SetJustificationToLeft()
             self._legend_actors.append(label)
         for actor in self._legend_actors:
             self.renderer.AddActor(actor)

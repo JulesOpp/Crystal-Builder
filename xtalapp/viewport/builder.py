@@ -39,10 +39,15 @@ import weakref
 
 import numpy as np
 
-from xtal.core import bonding, measure, p1, rings
+from xtal.core import bonding, measure, p1, rings, scalars
 from xtal.core import elements as el
+from xtalapp.viewport import (
+    colormaps,
+    sketch,
+    styles,
+    view_settings,
+)
 from xtalapp.viewport import scene as scene_model
-from xtalapp.viewport import sketch, styles, view_settings
 from xtalapp.viewport.scene import SceneModel
 
 RANGE_TOL = 1e-6
@@ -176,7 +181,15 @@ def build_scene(structure, settings, selection=None,
                               settings, bond_rules)
                   if settings.show_rings and cell.n_atoms else ())
     drawn.finish()
-    if charges is not None and charges.n_atoms == cell.n_atoms \
+    color_by = scalars.QUANTITIES.get(settings.color_by)
+    if color_by is not None and color_by.per == "bond" and graph is None \
+            and cell.n_atoms:
+        graph = bonding.graph(structure, bond_rules)
+    by = (_color_by(structure, color_by, graph, bond_rules, settings)
+          if color_by is not None and cell.n_atoms else None)
+    if by is not None and color_by.per == "atom":
+        drawn.color = by[1][drawn.atom]
+    elif charges is not None and charges.n_atoms == cell.n_atoms \
             and drawn.count:
         drawn.color = charges.colors()[drawn.atom]
 
@@ -225,6 +238,15 @@ def build_scene(structure, settings, selection=None,
         if len(bond_colors):
             bond_colors = np.tile(np.array(ink, np.uint8),
                                   (len(bond_colors), 1))
+    undefined = False
+    if by is not None and color_by.per == "bond" and len(bond_colors):
+        # Last, over the two-tone rule and a style's ink alike: the
+        # bond's own number is the whole of what this picture is for.
+        of_bond = halves.owners()[1]
+        bond_colors = by[1][of_bond]
+        undefined = bool(np.isnan(by[0][of_bond]).any())
+    elif by is not None and color_by.per == "atom" and drawn.count:
+        undefined = bool(np.isnan(by[0][drawn.atom]).any())
     pies = (_emit_pies(cell, drawn, cart)
             if show_atoms and style.occupancy_pies else _no_pies())
     tensors, thermal = (
@@ -299,7 +321,8 @@ def build_scene(structure, settings, selection=None,
         cell_ends=cell_ends,
         cell_colors=cell_colors,
         labels=_labels(drawn, cell, lattice, settings),
-        legend=(_legend(drawn, cell, settings, style)
+        legend=((_legend(drawn, cell, settings, style) if by is None
+                 else _color_bar(color_by, by[2], settings, undefined))
                 + _ring_legend(ring_sizes, settings)),
         background=tuple(settings.background),
         **sketched,
@@ -1046,6 +1069,32 @@ def _ring_legend(sizes, settings) -> tuple:
     if not settings.show_legend:
         return ()
     return tuple((f"{n}-ring", settings.ring_color(n)) for n in sizes)
+
+
+def _color_by(structure, quantity, graph, bond_rules, settings):
+    """``(values, colours, range)`` for *Colour by*: one row per graph
+    bond or per P1 atom, NaN and grey where the quantity has no value.
+
+    The range is the whole cell's unless one was set, not the drawn
+    atoms': a colour that changed meaning as the display range moved
+    would make two pictures of one crystal disagree.
+    """
+    found = scalars.values(structure, quantity.name, bond_rules, graph,
+                           settings.ring_max_size)
+    span = (settings.color_range if settings.color_range is not None
+            else scalars.auto_range(found)) or (0.0, 0.0)
+    return (found, colormaps.colors(found, *span, settings.color_map),
+            span)
+
+
+def _color_bar(quantity, span, settings, undefined) -> tuple:
+    """The colour bar that stands in for the element legend."""
+    if not settings.show_legend:
+        return ()
+    label = (f"{quantity.label} ({quantity.unit})" if quantity.unit
+             else quantity.label)
+    return colormaps.bar(label, *span, settings.color_map,
+                         quantity.integer, undefined)
 
 
 # ======================================================================

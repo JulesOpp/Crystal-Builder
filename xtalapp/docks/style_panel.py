@@ -43,10 +43,11 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.core import elements as el
+from xtal.core import scalars
 from xtal.core.transforms import ELLIPSOID_LEVELS
 from xtalapp import docks
 from xtalapp.docks.columns import Collapsible, ReflowColumns
-from xtalapp.viewport import styles
+from xtalapp.viewport import colormaps, styles
 from xtalapp.viewport.scene import CUE_MIN_SPAN, cue_fraction
 from xtalapp.viewport.view_settings import (
     BACKGROUNDS,
@@ -216,7 +217,7 @@ class StylePanelDock(QDockWidget):
     # -- construction --------------------------------------------------
 
     def _build_global(self) -> ReflowColumns:
-        """The seven groups, in the order one column reads them.
+        """The eight groups, in the order one column reads them.
 
         Two columns put Drawing and Transparency -- how the atoms are
         drawn -- on the left, and Show, Scene, Colours and Depth cue --
@@ -229,7 +230,7 @@ class StylePanelDock(QDockWidget):
         self.groups = [self._drawing_group(), self._transparency_group(),
                        self._show_group(), self._scene_group(),
                        self._colours_group(), self._rings_group(),
-                       self._depth_cue_group()]
+                       self._color_by_group(), self._depth_cue_group()]
         return ReflowColumns(self.groups, split=2)
 
     @staticmethod
@@ -585,6 +586,60 @@ class StylePanelDock(QDockWidget):
         form.addRow(grid)
         return box
 
+    def _color_by_group(self) -> QGroupBox:
+        """Colour by a number per atom or per bond, the map it is
+        drawn in, and the range the map spans.
+
+        Nothing chosen here is written over the element colours, so
+        *Element* puts back whatever was chosen for them by hand.
+        """
+        box, form = self._form("Colour by")
+        self.color_by = QComboBox()
+        self.color_by.addItem("Element", "")
+        for quantity in scalars.QUANTITIES.values():
+            self.color_by.addItem(quantity.label, quantity.name)
+        self.color_by.setToolTip(
+            "Colour every atom, or every bond, by a number instead of "
+            "its element.  Grey is a value that does not exist -- an "
+            "atom with one neighbour has no angle -- and is off the "
+            "scale")
+        self.color_by.currentIndexChanged.connect(
+            lambda _i: self._set(color_by=self.color_by.currentData(),
+                                 color_range=None))
+        form.addRow("Colour", self.color_by)
+
+        self.color_map = QComboBox()
+        for name in colormaps.COLOR_MAPS:
+            self.color_map.addItem(name, name)
+        self.color_map.setToolTip(
+            "Viridis and plasma for a quantity that only grows; "
+            "coolwarm for one whose middle means something")
+        self.color_map.currentIndexChanged.connect(
+            lambda _i: self._set(color_map=self.color_map.currentData()))
+        form.addRow("Map", self.color_map)
+
+        self.color_auto = QCheckBox("Range from the values")
+        self.color_auto.setToolTip(
+            "Span the map from the least value in the cell to the "
+            "greatest.  Untick to set the ends, so two structures can "
+            "be coloured on one scale")
+        self.color_auto.toggled.connect(self._on_color_auto)
+        form.addRow(self.color_auto)
+
+        self.color_lo = QDoubleSpinBox()
+        self.color_hi = QDoubleSpinBox()
+        for spin, tip in ((self.color_lo, "The value at the bottom of "
+                           "the map.  Anything below it is drawn as it"),
+                          (self.color_hi, "The value at the top of the "
+                           "map.  Anything above it is drawn as it")):
+            spin.setRange(-1e4, 1e4)
+            spin.setDecimals(3)
+            spin.setToolTip(tip)
+            spin.editingFinished.connect(self._on_color_range)
+        form.addRow("From", self.color_lo)
+        form.addRow("To", self.color_hi)
+        return box
+
     def _depth_cue_group(self) -> QGroupBox:
         """Folded unless the document has it on: three sliders and a
         strip are the tallest group here, and for the structures that
@@ -745,6 +800,17 @@ class StylePanelDock(QDockWidget):
         self.ring_max_size.setEnabled(view.show_rings)
         for size, button in self.ring_swatches.items():
             self._paint(button, view.ring_color(size))
+        self._choose(self.color_by, view.color_by)
+        self._choose(self.color_map, view.color_map)
+        coloring = bool(view.color_by)
+        self.color_map.setEnabled(coloring)
+        self.color_auto.setChecked(view.color_range is None)
+        self.color_auto.setEnabled(coloring)
+        if view.color_range is not None:
+            self.color_lo.setValue(view.color_range[0])
+            self.color_hi.setValue(view.color_range[1])
+        for spin in (self.color_lo, self.color_hi):
+            spin.setEnabled(coloring and view.color_range is not None)
         self.legend.setChecked(view.show_legend)
         self.cell_box.setChecked(view.show_cell)
         self.cell_axes.setChecked(view.show_axes)
@@ -930,6 +996,27 @@ class StylePanelDock(QDockWidget):
             colors = dict(view.ring_colors)
             colors[size] = (chosen.red(), chosen.green(), chosen.blue())
             self._set(ring_colors=colors)
+
+    def _on_color_auto(self, on: bool) -> None:
+        """Unticked, the ends start where the values put them, so the
+        picture does not jump before anybody has typed a number."""
+        if self._refreshing or self.document is None:
+            return
+        if on:
+            self._set(color_range=None)
+            return
+        view = self.document.view
+        span = scalars.auto_range(scalars.values(
+            self.document.structure, view.color_by,
+            max_ring=view.ring_max_size)) if view.color_by else None
+        self._set(color_range=span or (0.0, 1.0))
+
+    def _on_color_range(self) -> None:
+        if self.document is None or self.document.view.color_range is None:
+            return
+        span = (self.color_lo.value(), self.color_hi.value())
+        if span != tuple(self.document.view.color_range):
+            self._set(color_range=span)
 
     def _on_element_cell(self, row: int, column: int) -> None:
         item = self.elements.item(row, 0)

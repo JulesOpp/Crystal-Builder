@@ -167,6 +167,34 @@ def test_rings_are_filled_and_coloured_from_the_style_dock(
     assert not document.modified and not document.can_undo
 
 
+def test_colour_by_is_chosen_from_the_style_dock_and_never_edits(
+        window, rutile_cif):
+    """A quantity, a map and a range set by hand drive the view; the
+    range is seeded from the values when Auto is unticked, so the
+    picture does not jump; and none of it is an undo step."""
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    assert not dock.color_map.isEnabled()
+    dock.color_by.setCurrentIndex(dock.color_by.findData("bond_length"))
+    assert document.view.color_by == "bond_length"
+    assert dock.color_map.isEnabled() and dock.color_auto.isChecked()
+    assert not dock.color_lo.isEnabled()
+    dock.color_map.setCurrentIndex(dock.color_map.findData("coolwarm"))
+    assert document.view.color_map == "coolwarm"
+    dock.color_auto.setChecked(False)
+    lo, hi = document.view.color_range
+    assert 1.9 < lo <= hi < 2.0          # rutile's two Ti-O lengths
+    assert dock.color_lo.isEnabled()
+    dock.color_hi.setValue(2.5)
+    dock.color_hi.editingFinished.emit()
+    assert document.view.color_range == (pytest.approx(lo, abs=1e-3),
+                                         2.5)
+    dock.color_by.setCurrentIndex(dock.color_by.findData(""))
+    assert document.view.color_by == ""
+    assert document.view.color_range is None
+    assert not document.modified and not document.can_undo
+
+
 def test_the_octant_switch_only_applies_where_there_are_ellipsoids(
         window, rutile_cif):
     document = window.open_path(rutile_cif)
@@ -273,7 +301,7 @@ def test_the_style_panel_is_headed_groups_in_the_agreed_order(window):
     dock = window.style_dock
     assert [group.title() for group in dock.groups] == [
         "Drawing", "Transparency", "Show", "Scene", "Colours",
-        "Rings", "Depth cue"]
+        "Rings", "Colour by", "Depth cue"]
     homes = {"Drawing": (dock.style, dock.atom_scale, dock.bond_radius,
                          dock.ellipsoid_probability, dock.octants,
                          dock.carbon, dock.color_labels),
@@ -286,6 +314,9 @@ def test_the_style_panel_is_headed_groups_in_the_agreed_order(window):
              "Colours": tuple(dock.flat.values()),
              "Rings": (dock.rings, dock.ring_max_size,
                        *dock.ring_swatches.values()),
+             "Colour by": (dock.color_by, dock.color_map,
+                           dock.color_auto, dock.color_lo,
+                           dock.color_hi),
              "Depth cue": (dock.depth_cue, dock.depth_cue_start,
                            dock.depth_cue_end, dock.depth_cue_strength,
                            dock.depth_cue_preview)}

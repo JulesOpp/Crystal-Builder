@@ -19,6 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 
 from xtal.core import elements as el
+from xtal.core import scalars
 
 # Styles are looked up in xtalapp.viewport.styles; the name is stored
 # here so settings stay a plain, serialisable record.
@@ -303,6 +304,16 @@ class ViewSettings:
     ring_opacity: float = 0.45
     ring_colors: dict = field(default_factory=dict)
 
+    # Colour by a number per atom or per bond (:mod:`xtal.core.
+    # scalars`) in place of the element, with a colour bar for a
+    # legend.  Empty is off.  It is read when the picture is built and
+    # writes nothing back, so the colours chosen by hand per element
+    # are what come back when it is turned off.  ``color_range`` is
+    # None for the values' own least and greatest.
+    color_by: str = ""
+    color_map: str = "viridis"
+    color_range: tuple | None = None
+
     element_colors: dict = field(default_factory=dict)
     element_radii: dict = field(default_factory=dict)
 
@@ -432,6 +443,10 @@ class ViewSettings:
             # and read back as numbers.
             "ring_colors": {str(k): list(v)
                             for k, v in self.ring_colors.items()},
+            "color_by": self.color_by,
+            "color_map": self.color_map,
+            "color_range": (None if self.color_range is None
+                            else list(self.color_range)),
             "element_colors": {k: list(v)
                                for k, v in self.element_colors.items()},
             "element_radii": dict(self.element_radii),
@@ -457,6 +472,7 @@ class ViewSettings:
                     "show_legend", "polyhedron_opacity",
                     "polyhedron_min_vertices",
                     "show_rings", "ring_max_size", "ring_opacity",
+                    "color_by", "color_map",
                     "background_follows_theme"):
             if key in d:
                 setattr(s, key, d[key])
@@ -482,4 +498,8 @@ class ViewSettings:
         s.element_radii = dict(d.get("element_radii", {}))
         s.ring_colors = {int(k): tuple(v) for k, v in
                          d.get("ring_colors", {}).items()}
+        if s.color_by and s.color_by not in scalars.QUANTITIES:
+            s.color_by = ""
+        if d.get("color_range") is not None:
+            s.color_range = tuple(float(v) for v in d["color_range"])
         return s
