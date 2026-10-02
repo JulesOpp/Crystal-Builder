@@ -227,7 +227,6 @@ the viewport.  Branching is not in it.
 
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
-| **2 — Joining and sequences** | Joints by bond length, torsion or ladder flip; tacticity; copolymers | `xtal/polymer/chain.py`, `sequence.py` | M |
 | **3 — Packing** | Concurrent CBMC growth in a box or between walls (membrane) | `xtal/polymer/pack.py`, `build.py` | L |
 | **4 — The module** | `polymer.build`, its report, `xtal run` | `xtal/modules/polymer.py` | M |
 | **5 — The dialog** | Modules ▸ Polymer builder… | `xtalapp/dialogs/polymer_build.py` | M |
@@ -240,15 +239,11 @@ I-beta; Phase 0, a SMILES `*` bonded to two atoms (PIM-1's ladder),
 and Phase 1, `xtal/polymer/monomer.py` with eleven library monomers,
 the same day.  A head and tail on one atom (`[*:1]C[*:2]`) is allowed,
 not refused as planned: it is polymethylene, and joins like any
-other.
-
-### 2 — Joining and sequences
-
-The next monomer's head goes the covalent-radius sum from the tail,
-axes anti-parallel; the free variable is the torsion about the new
-bond, or for a ladder joint one of the two `attach.pairing` choices.
-Isotactic, syndiotactic, atactic (p meso); alternating, random and
-block copolymers.
+other.  Phase 2, joints and sequences, followed: a ladder joint is a
+four-point fit on each member's free valence, and a ladder repeat is
+embedded with its joint ring closed (PIM-EA-TB's open Troger's base
+splayed 3.8 A).  One pairing of PIM-EA-TB, repeated, folds the chain
+back onto itself after two units: the packer has to sample flips.
 
 ### 3 — Packing
 

@@ -112,9 +112,85 @@ class Monomer:
         return members_of((self.head, self.tail), self.bonds)[self.tail]
 
     @property
+    def backbone(self) -> tuple[int, ...]:
+        """The shortest path of bonds from the first head member to the
+        first tail member, both included -- what a torsion about a
+        joint is measured along.  One atom when they are the same."""
+        points = {self.head, self.tail}
+        around: dict[int, list[int]] = {}
+        for i, j, _ in self.bonds:
+            if i not in points and j not in points:
+                around.setdefault(i, []).append(j)
+                around.setdefault(j, []).append(i)
+        start, goal = self.head_members[0], self.tail_members[0]
+        before = {start: start}
+        queue = [start]
+        while queue and goal not in before:
+            atom = queue.pop(0)
+            for other in sorted(around.get(atom, ())):
+                if other not in before:
+                    before[other] = atom
+                    queue.append(other)
+        if goal not in before:
+            return (start,)
+        path = [goal]
+        while path[-1] != start:
+            path.append(before[path[-1]])
+        return tuple(reversed(path))
+
+    @property
     def is_ladder(self) -> bool:
         """Whether its ends stand for more than one atom each."""
         return len(self.head_members) > 1
+
+    def free_direction(self, member: int,
+                       outward: bool = False) -> np.ndarray:
+        """Unit vector along which ``member``'s joint bond leaves it.
+
+        For a one-atom end it is the ``X`` direction, which came from
+        the embedding's own capping hydrogen.  A ladder's ``X`` stands
+        for two atoms and points between them, so each member's bond
+        is worked out from its own neighbours: straight out of three,
+        the in-plane bisector of two when the atom is sp2 and the
+        tetrahedral direction nearest the ``X`` when it is not, and of
+        one, the cone at 117 degrees (on an aromatic neighbour, an
+        aryl ether's angle) or 109.5 nearest the ``X`` -- or, with
+        ``outward``, farthest from it, which is where a hydrogen
+        capping an open end goes: two catechol hydrogens turned toward
+        the ``X`` between them were 1.17 A apart.
+        """
+        point = (self.head if member in self.head_members
+                 else self.tail)
+        here = self.cart[member]
+        toward = self.cart[point] - here
+        toward = toward / np.linalg.norm(toward)
+        inner = [(j if i == member else i, o) for i, j, o in self.bonds
+                 if member in (i, j) and point not in (i, j)]
+        if len(self.head_members) < 2 or not inner:
+            return toward
+        vectors = np.array([self.cart[n] - here for n, _ in inner])
+        vectors /= np.linalg.norm(vectors, axis=1)[:, None]
+        if len(inner) >= 3:
+            return _unit(-vectors.sum(axis=0))
+        if len(inner) == 2:
+            bisector = _unit(-vectors.sum(axis=0))
+            if any(o > 1.0 for _, o in inner):
+                return bisector
+            normal = _unit(np.cross(vectors[0], vectors[1]))
+            half = np.radians(54.75)
+            options = [np.cos(half) * bisector + s * np.sin(half) * normal
+                       for s in (1.0, -1.0)]
+            return max(options, key=lambda d: d @ toward)
+        v = vectors[0]
+        neighbour = inner[0][0]
+        aromatic = any(o > 1.0 for i, j, o in self.bonds
+                       if neighbour in (i, j))
+        theta = np.radians(117.0 if aromatic else 109.47)
+        across = toward - (toward @ v) * v
+        if np.linalg.norm(across) < 1e-9:
+            across = np.cross(v, [1.0, 0.0, 0.0])
+        across = -_unit(across) if outward else _unit(across)
+        return _unit(np.cos(theta) * v + np.sin(theta) * across)
 
     def attachment(self, end: str) -> Attachment:
         """``"head"`` or ``"tail"``, as :mod:`xtal.mof.attach` reads
@@ -133,6 +209,10 @@ class Monomer:
         """
         cart = np.array(self.cart, dtype=float) * np.array([-1, 1, 1])
         return replace(self, cart=cart, mirror=not self.mirror)
+
+
+def _unit(vector) -> np.ndarray:
+    return vector / np.linalg.norm(vector)
 
 
 def from_parts(elements, cart, bonds, connections, name: str = "",
@@ -169,6 +249,10 @@ def from_parts(elements, cart, bonds, connections, name: str = "",
             f"the head of {what} stands for {len(members[head])} "
             f"atom(s) and its tail for {len(members[tail])}, so one "
             f"unit cannot join the next -- a ladder is two at each end")
+    if len(members[head]) > 2:
+        raise MonomerError(
+            f"each end of {what} stands for {len(members[head])} atoms; "
+            f"a chain joins through one, and a ladder through two")
     if len(members[head]) > 1 and set(members[head]) & set(members[tail]):
         raise MonomerError(f"the head and tail of {what} share an "
                            f"atom, and a ladder cannot close on itself")
