@@ -168,8 +168,15 @@ jobs:
           packages: latexmk texlive-xetex texlive-latex-recommended
             texlive-latex-extra texlive-fonts-recommended fonts-freefont-otf
           version: 1.0
-          # The restored packages must run their post-install scripts, which register the fonts XeTeX loads.
-          execute_install_scripts: true
+          # Not the action's: it runs the scripts in package-name order, before the binaries they need are restored.  The step below registers.
+          execute_install_scripts: false
+      # mktexlsr the file database, updmap-sys the font maps, fmtutil-sys the XeTeX formats latexmk uses, fc-cache so fontconfig sees Latin Modern; quick on a cold install, required on a cache hit.
+      - name: Register the restored TeX packages
+        run: |
+          sudo mktexlsr
+          sudo updmap-sys --quiet
+          sudo fmtutil-sys --byengine xetex --quiet
+          fc-cache -f
       - run: sphinx-build -M latexpdf docs/manual build/manual
       - uses: actions/upload-artifact@v7
         with:
