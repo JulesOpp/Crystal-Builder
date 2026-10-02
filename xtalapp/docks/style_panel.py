@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
     QDockWidget,
     QDoubleSpinBox,
     QFormLayout,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
@@ -47,7 +48,11 @@ from xtalapp import docks
 from xtalapp.docks.columns import Collapsible, ReflowColumns
 from xtalapp.viewport import styles
 from xtalapp.viewport.scene import CUE_MIN_SPAN, cue_fraction
-from xtalapp.viewport.view_settings import BACKGROUNDS, PORE_SPHERES
+from xtalapp.viewport.view_settings import (
+    BACKGROUNDS,
+    PORE_SPHERES,
+    RING_COLORS,
+)
 
 #: The flat colours that belong to no element: the net a chemist drew
 #: over the framework, the planes the user defined, and the pore
@@ -84,6 +89,10 @@ ELEMENT_COLUMNS = ["El", "Colour", "Radius"]
 GROUP_MARGINS = (8, 6, 8, 8)
 #: The narrowest a colour swatch button may be made.
 SWATCH_WIDTH = 44
+
+#: Ring swatches to a row: four of them are 176 px with their gaps,
+#: inside what a panel may ask of its column.
+RING_SWATCHES_PER_ROW = 4
 #: How many elements the table shows before it scrolls.
 ELEMENT_ROWS = 8
 # Sliders are integers; these turn a percentage into a scale factor.
@@ -207,7 +216,7 @@ class StylePanelDock(QDockWidget):
     # -- construction --------------------------------------------------
 
     def _build_global(self) -> ReflowColumns:
-        """The six groups, in the order one column reads them.
+        """The seven groups, in the order one column reads them.
 
         Two columns put Drawing and Transparency -- how the atoms are
         drawn -- on the left, and Show, Scene, Colours and Depth cue --
@@ -219,7 +228,8 @@ class StylePanelDock(QDockWidget):
         """
         self.groups = [self._drawing_group(), self._transparency_group(),
                        self._show_group(), self._scene_group(),
-                       self._colours_group(), self._depth_cue_group()]
+                       self._colours_group(), self._rings_group(),
+                       self._depth_cue_group()]
         return ReflowColumns(self.groups, split=2)
 
     @staticmethod
@@ -375,6 +385,15 @@ class StylePanelDock(QDockWidget):
         self.pore_opacity.valueChanged.connect(
             lambda v: self._set(pore_opacity=v / 100.0))
         form.addRow("Pores", self.pore_opacity)
+
+        self.ring_opacity = QSlider(Qt.Horizontal)
+        self.ring_opacity.setRange(5, 100)
+        self.ring_opacity.setToolTip(
+            "How solid the ring faces are drawn.  The atoms and bonds "
+            "they are made of have to read through them")
+        self.ring_opacity.valueChanged.connect(
+            lambda v: self._set(ring_opacity=v / 100.0))
+        form.addRow("Rings", self.ring_opacity)
         return box
 
     def _scene_group(self) -> QGroupBox:
@@ -512,6 +531,58 @@ class StylePanelDock(QDockWidget):
             button.setMinimumWidth(SWATCH_WIDTH)
             self.flat[field] = button
             row.addWidget(button)
+        return box
+
+    def _rings_group(self) -> QGroupBox:
+        """Rings filled by size, how large a ring is looked for, and a
+        swatch per size.
+
+        The rings are the primitive ones (:mod:`xtal.core.rings`), so
+        two hexagons sharing an edge are two faces and never a third
+        round the outside of both.
+        """
+        box, form = self._form("Rings")
+        self.rings = QCheckBox("Fill rings by size")
+        self.rings.setToolTip(
+            "A translucent face over every ring, coloured by how many "
+            "atoms it has -- the five- and seven-membered rings that "
+            "curve a carbon sheet, say")
+        self.rings.toggled.connect(lambda v: self._set(show_rings=v))
+        form.addRow(self.rings)
+
+        self.ring_max_size = QSpinBox()
+        self.ring_max_size.setRange(3, 12)
+        self.ring_max_size.setToolTip(
+            "The largest ring looked for.  Each size up costs more on "
+            "a large framework, and above ten it is seconds")
+        self.ring_max_size.valueChanged.connect(
+            lambda v: self._set(ring_max_size=v))
+        form.addRow("Up to", self.ring_max_size)
+
+        # Straight into the group's layout and not a form row: a form
+        # sizes a nested widget's row before the swatches are painted,
+        # and a painted button is taller than a bare one, so the second
+        # row came out drawn over the first.
+        grid = QGridLayout()
+        grid.setSpacing(4)
+        self.ring_swatches = {}
+        for k, size in enumerate(RING_COLORS):
+            button = QPushButton(str(size) if size < max(RING_COLORS)
+                                 else f"{size}+")
+            button.setToolTip(f"The colour of a {size}-membered ring"
+                              if size < max(RING_COLORS) else
+                              f"The colour of a ring of {size} or more")
+            button.setMinimumWidth(SWATCH_WIDTH)
+            # A macOS button is laid out by a rectangle inside the one
+            # it paints, which a swatch fills to the edge: stacked two
+            # rows deep, each row was drawn over the one above.
+            button.setAttribute(Qt.WA_LayoutUsesWidgetRect)
+            button.clicked.connect(
+                lambda _checked=False, n=size: self._choose_ring(n))
+            self.ring_swatches[size] = button
+            grid.addWidget(button, k // RING_SWATCHES_PER_ROW,
+                           k % RING_SWATCHES_PER_ROW)
+        form.addRow(grid)
         return box
 
     def _depth_cue_group(self) -> QGroupBox:
@@ -668,6 +739,12 @@ class StylePanelDock(QDockWidget):
         for field, button in self.flat.items():
             self._paint(button, getattr(view, field))
         self.pore_opacity.setValue(round(view.pore_opacity * 100))
+        self.ring_opacity.setValue(round(view.ring_opacity * 100))
+        self.rings.setChecked(view.show_rings)
+        self.ring_max_size.setValue(view.ring_max_size)
+        self.ring_max_size.setEnabled(view.show_rings)
+        for size, button in self.ring_swatches.items():
+            self._paint(button, view.ring_color(size))
         self.legend.setChecked(view.show_legend)
         self.cell_box.setChecked(view.show_cell)
         self.cell_axes.setChecked(view.show_axes)
@@ -841,6 +918,18 @@ class StylePanelDock(QDockWidget):
         if chosen.isValid():
             self._set(**{field: (chosen.red(), chosen.green(),
                                  chosen.blue())})
+
+    def _choose_ring(self, size: int) -> None:
+        if self.document is None:
+            return
+        view = self.document.view
+        chosen = QColorDialog.getColor(
+            QColor(*view.ring_color(size)), self,
+            f"{size}-ring colour")
+        if chosen.isValid():
+            colors = dict(view.ring_colors)
+            colors[size] = (chosen.red(), chosen.green(), chosen.blue())
+            self._set(ring_colors=colors)
 
     def _on_element_cell(self, row: int, column: int) -> None:
         item = self.elements.item(row, 0)

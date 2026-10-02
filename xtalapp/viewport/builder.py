@@ -39,7 +39,7 @@ import weakref
 
 import numpy as np
 
-from xtal.core import bonding, measure, p1
+from xtal.core import bonding, measure, p1, rings
 from xtal.core import elements as el
 from xtalapp.viewport import scene as scene_model
 from xtalapp.viewport import sketch, styles, view_settings
@@ -160,6 +160,10 @@ def build_scene(structure, settings, selection=None,
                 orders = bonding.orders(structure, bond_rules)
                 frames = _bond_frames(graph, cell, orders,
                                       view_direction)
+    ring_faces = _Hulls()
+    ring_sizes = (_emit_rings(structure, cell, drawn, ring_faces,
+                              settings, bond_rules)
+                  if settings.show_rings and cell.n_atoms else ())
     drawn.finish()
     if charges is not None and charges.n_atoms == cell.n_atoms \
             and drawn.count:
@@ -242,6 +246,10 @@ def build_scene(structure, settings, selection=None,
         polyhedron_faces=hulls.faces(),
         polyhedron_colors=hulls.colors(),
         polyhedron_opacity=settings.polyhedron_opacity,
+        ring_points=ring_faces.points(lattice),
+        ring_faces=ring_faces.faces(),
+        ring_colors=ring_faces.colors(),
+        ring_opacity=settings.ring_opacity,
         pie_local=pies[0],
         pie_centres=pies[1],
         pie_faces=pies[2],
@@ -280,7 +288,8 @@ def build_scene(structure, settings, selection=None,
         cell_ends=cell_ends,
         cell_colors=cell_colors,
         labels=_labels(drawn, cell, lattice, settings),
-        legend=_legend(drawn, cell, settings, style),
+        legend=(_legend(drawn, cell, settings, style)
+                + _ring_legend(ring_sizes, settings)),
         background=tuple(settings.background),
         **sketched,
     )
@@ -980,6 +989,51 @@ def _emit_polyhedra(graph, cell, drawn, hulls, settings,
                   settings.color_for(element))
         consumed.update(b.key() for b in graph.bonds_of(centre))
     return frozenset(consumed)
+
+
+def _emit_rings(structure, cell, drawn, faces, settings,
+                bond_rules) -> tuple:
+    """A fan of triangles over every primitive ring whose atoms are
+    all drawn, filled by its size.
+
+    All of them and not some: a face spanning an atom the display
+    range has cut away is a face over nothing, and the ghosts a
+    ``bonded`` boundary draws count as drawn, so a ring that crosses
+    the edge of the picture closes whenever its bonds do.
+
+    The fan is from the ring's centroid, which a flat ring is the
+    middle of and a puckered one is close enough to: a ring is a
+    note on the picture here, not a surface anything is measured on.
+
+    Returns the sizes drawn, for the legend.
+    """
+    index_of = drawn.index_of
+    sizes: set = set()
+    for ring in rings.rings_of(structure, bond_rules,
+                               settings.ring_max_size):
+        n = len(ring)
+        first = ring[0][0]
+        fan = [(0, 1 + k, 1 + (k + 1) % n) for k in range(n)]
+        color = settings.ring_color(n)
+        for index in list(drawn.by_atom[first]):
+            ta, tb, tc = drawn.shift[index]
+            members = [(atom, (x + ta, y + tb, z + tc))
+                       for atom, (x, y, z) in ring]
+            if any(m not in index_of for m in members):
+                continue
+            corners = np.array([cell.frac[atom] + shift
+                                for atom, shift in members])
+            faces.add(np.vstack([corners.mean(axis=0), corners]),
+                      fan, color)
+            sizes.add(n)
+    return tuple(sorted(sizes))
+
+
+def _ring_legend(sizes, settings) -> tuple:
+    """One legend entry per ring size on screen, after the elements."""
+    if not settings.show_legend:
+        return ()
+    return tuple((f"{n}-ring", settings.ring_color(n)) for n in sizes)
 
 
 # ======================================================================

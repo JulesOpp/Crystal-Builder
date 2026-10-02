@@ -513,6 +513,7 @@ class VtkScene:
         self._build_bond_actor()
         self._build_sketch_actors()
         self._build_polyhedron_actor()
+        self._build_ring_actor()
         self._build_pie_actor()
         self._build_topology_actor()
         self._build_pore_actors()
@@ -827,6 +828,30 @@ class VtkScene:
         # as black holes in the polyhedron.
         prop.BackfaceCullingOff()
         self.renderer.AddActor(self.polyhedron_actor)
+
+    def _build_ring_actor(self):
+        """Ring faces: translucent triangles, lit from both sides.
+
+        Not the polyhedron actor, though the geometry is the same kind:
+        rings take an opacity of their own, and a structure drawn with
+        both would otherwise have its rings vanish with its polyhedra.
+        """
+        self._ring_poly = vtkPolyData()
+        mapper = vtkPolyDataMapper()
+        mapper.SetInputData(self._ring_poly)
+        mapper.SetScalarModeToUseCellData()
+        mapper.SetColorModeToDirectScalars()
+        self.ring_mapper = mapper
+        self.ring_actor = vtkActor()
+        self.ring_actor.SetMapper(mapper)
+        prop = self.ring_actor.GetProperty()
+        prop.SetSpecular(0.2)
+        prop.SetSpecularPower(20)
+        # A ring is a sheet with no inside, and on a curved framework
+        # half of them face away from the camera.
+        prop.BackfaceCullingOff()
+        self.ring_actor.SetVisibility(False)
+        self.renderer.AddActor(self.ring_actor)
 
     def _build_pie_actor(self):
         """Occupancy pies: opaque triangles, and their own actor.
@@ -1230,6 +1255,7 @@ class VtkScene:
         self._set_bonds(model)
         self._set_sketch(model)
         self._set_polyhedra(model)
+        self._set_rings(model)
         self._set_pies(model)
         self._set_topology(model)
         self._set_pores(model)
@@ -1306,6 +1332,9 @@ class VtkScene:
             self._polyhedron_poly.SetPoints(
                 _points(model.polyhedron_points))
             self._polyhedron_poly.Modified()
+        if model.n_ring_faces:
+            self._ring_poly.SetPoints(_points(model.ring_points))
+            self._ring_poly.Modified()
         if model.n_pie_faces:
             self._pie_poly.SetPoints(
                 _points(model.pie_centres + model.pie_local))
@@ -1345,6 +1374,8 @@ class VtkScene:
                 == current.n_polyhedron_faces
                 and len(model.polyhedron_points)
                 == len(current.polyhedron_points)
+                and model.n_ring_faces == current.n_ring_faces
+                and len(model.ring_points) == len(current.ring_points)
                 and model.n_pie_faces == current.n_pie_faces
                 and len(model.pie_local) == len(current.pie_local)
                 and model.n_cell_lines == current.n_cell_lines
@@ -1791,6 +1822,18 @@ class VtkScene:
             self.renderer.AddActor(actor)
             self._label_actors.append(actor)
 
+    def _set_rings(self, model):
+        if not model.n_ring_faces:
+            self.ring_actor.SetVisibility(False)
+            return
+        poly = _triangle_polydata(model.ring_points, model.ring_faces,
+                                  model.ring_colors)
+        self._ring_poly = poly
+        self.ring_mapper.SetInputData(poly)
+        self.ring_actor.GetProperty().SetOpacity(
+            float(model.ring_opacity))
+        self.ring_actor.SetVisibility(True)
+
     def _set_legend(self, model):
         """Element swatches down the right-hand edge.
 
@@ -2001,7 +2044,8 @@ class VtkScene:
 
     def _cueable_actors(self):
         return (self.atom_actor, self.octant_actor, self.bond_actor,
-                self.dash_actor, self.polyhedron_actor, self.pie_actor,
+                self.dash_actor, self.polyhedron_actor, self.ring_actor,
+                self.pie_actor,
                 self.outline_actor, self.outline_bond_actor)
 
     def _draws_lines(self) -> bool:

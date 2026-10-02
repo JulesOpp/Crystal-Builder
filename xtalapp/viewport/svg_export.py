@@ -791,6 +791,9 @@ def render_svg(model, projection, names=None,
     _face_shapes(model.polyhedron_points, model.polyhedron_faces,
                  model.polyhedron_colors, model.polyhedron_opacity,
                  projection, "polyhedron", shapes)
+    _face_shapes(model.ring_points, model.ring_faces,
+                 model.ring_colors, model.ring_opacity,
+                 projection, "ring", shapes)
     _face_shapes(model.plane_points, model.plane_faces,
                  model.plane_colors, model.plane_opacity, projection,
                  "plane", shapes)

@@ -212,6 +212,67 @@ Measure each in a scratch environment against
 Preferences ▸ Engines, or replace 0.3.  Bindings only if the numbers
 favour them clearly.
 
+## A ZTC user's feedback (2026-10-01)
+
+Functional groups, colour by property, a bulk modulus, and a builder
+for disordered ZTC/schwarzite-like carbon; rings coloured by size
+(phase 1) have shipped, and `xtal.core.rings` is what phase 5's report
+counts with.  The
+full plan, with its measurements, is
+`~/.claude/plans/users-julesoppenheim-github-crystal-bui-glittery-whisper.md`.
+Branch `features/ztc-feedback`.  The example the builder aims at is
+`JulesWork/ZTC-II+OFacch.cif`, which is private and never committed.
+Selecting by a space-filling shape was asked for and dropped: Select ▸
+Select… ▸ *Within a distance of the selection* is enough.
+
+| Phase | Deliverable | Size |
+|---|---|---|
+| 2 | Bulk modulus: an equation-of-state fit on a volume scan, and a preset | M |
+| 3 | Functional groups: detect, select, show only, substitute with a drawn group | L |
+| 4 | Colour by property (bond length, angle, coordination, ring size) | M |
+| 5 | Disordered-carbon builder (`xtal/carbon/`) | L |
+
+### Phase 2: Bulk modulus
+
+`xtal/ff/eos.py` (Birch–Murnaghan, with Vinet as a check) fitted to a
+volume scan's converged points.  The scan report gets a *Bulk modulus*
+table.  A *Bulk modulus…* preset scans ±6 % in 9 points, with the shape
+free and the Force Field panel's engine.
+
+### Phase 3: Functional groups
+
+- `xtal/core/groups.py` is a closed set of graph patterns, never bond
+  lengths.
+- A `group` selection rule (whole group, or its handle atom).
+- View ▸ *Show Only Selected* / *Show All*, a view-only hidden mask.
+- Substitute gains *Draw…*, a SMILES with one `[*]`, as the MOF
+  builder's Draw does, plus acyl groups in the library.
+- Substitute replaces any terminal atom, not only H.
+
+### Phase 4: Colour by property
+
+`xtal/core/scalars.py` gives per-bond and per-atom quantities.  An
+undefined value is drawn grey, never as zero.  A *Colour by* setting
+in the Style panel draws a colour bar.
+
+### Phase 5: Disordered-carbon builder
+
+A convolution surface around any 3-periodic net, distorted.  The
+builder then:
+
+1. Welds the surface periodically and cuts it to ribbons by `coverage`.
+2. Remeshes it at 2.46 Å.
+3. Runs Stone–Wales Monte Carlo on the mesh.
+4. Takes the dual, which is three-coordinate carbon and one connected
+   sheet.
+5. Terminates the edges by H/F/O ratios.
+6. Adds layers from offset level sets.
+7. Solves the cell from the density, then relaxes.
+
+The bonds are stated, never perceived.  Before 5b, measure: the
+example's net and cell multiple, the welded srs surface, the remesh
+and dual at about 1100 vertices, and UFF on about 3000 atoms.
+
 ---
 
 # Not scheduled

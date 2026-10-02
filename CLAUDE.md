@@ -359,6 +359,16 @@ stress case).
   the box is drawn in the translucent pass before the sphere with
   order-independent transparency off (`vtk_scene._set_label_box`),
   because VTK honours a depth-mask override in that pass alone.
+- **A ring is a primitive ring of the stored graph.** Style ▸ Rings
+  fills each with a face coloured by size (`xtal/core/rings.py`,
+  `builder._emit_rings`): Franzblau's shortest-path rings, so two
+  fused hexagons are two faces and never a third round both --
+  unfiltered, a 24 x 24 graphene sheet has 1728 ten-cycles. Read off
+  the stored graph, never perceived, no dummy in any ring, memoised
+  until the chemistry changes, and found in a cell smaller than the
+  ring (graphene's two-atom cell), which `bonding.find_rings` -- the
+  aromaticity search -- does not do. A face is drawn only where every
+  atom of its ring is.
 - **A dummy atom is a marker, not chemistry.** `X` — see
   `elements.DUMMY_ELEMENTS`. Perception never bonds one, and nothing
   that reasons chemically is ever handed one — it is **held back at

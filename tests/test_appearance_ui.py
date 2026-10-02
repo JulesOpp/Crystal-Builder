@@ -146,6 +146,27 @@ def test_the_net_and_plane_colours_are_chosen_from_the_style_dock(
     assert not document.modified
 
 
+def test_rings_are_filled_and_coloured_from_the_style_dock(
+        window, rutile_cif, monkeypatch):
+    """The Rings group drives the view and never the crystal: a ring
+    face is a note on the picture."""
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    assert not dock.ring_max_size.isEnabled()
+    dock.rings.setChecked(True)
+    assert document.view.show_rings
+    assert dock.ring_max_size.isEnabled()
+    dock.ring_max_size.setValue(10)
+    assert document.view.ring_max_size == 10
+    dock.ring_opacity.setValue(30)
+    assert document.view.ring_opacity == pytest.approx(0.3)
+    monkeypatch.setattr(QColorDialog, "getColor",
+                        lambda *a, **k: QColor(10, 200, 90))
+    dock.ring_swatches[7].click()
+    assert document.view.ring_color(7) == (10, 200, 90)
+    assert not document.modified and not document.can_undo
+
+
 def test_the_octant_switch_only_applies_where_there_are_ellipsoids(
         window, rutile_cif):
     document = window.open_path(rutile_cif)
@@ -252,16 +273,19 @@ def test_the_style_panel_is_headed_groups_in_the_agreed_order(window):
     dock = window.style_dock
     assert [group.title() for group in dock.groups] == [
         "Drawing", "Transparency", "Show", "Scene", "Colours",
-        "Depth cue"]
+        "Rings", "Depth cue"]
     homes = {"Drawing": (dock.style, dock.atom_scale, dock.bond_radius,
                          dock.ellipsoid_probability, dock.octants,
                          dock.carbon, dock.color_labels),
-             "Transparency": (dock.opacity, dock.pore_opacity),
+             "Transparency": (dock.opacity, dock.pore_opacity,
+                              dock.ring_opacity),
              "Scene": (dock.background, dock.labels, dock.legend,
                        dock.pore_spheres),
              "Show": (dock.cell_box, dock.cell_axes, dock.topology,
                       dock.pore_network, dock.pore_sphere_box),
              "Colours": tuple(dock.flat.values()),
+             "Rings": (dock.rings, dock.ring_max_size,
+                       *dock.ring_swatches.values()),
              "Depth cue": (dock.depth_cue, dock.depth_cue_start,
                            dock.depth_cue_end, dock.depth_cue_strength,
                            dock.depth_cue_preview)}
