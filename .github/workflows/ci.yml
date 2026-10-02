@@ -145,7 +145,7 @@ jobs:
   # so nothing here needs a display or the application installed.
   manual:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25   # the backstop for a cold cache on a slow mirror
     steps:
       - uses: actions/checkout@v7
         with:
@@ -157,13 +157,13 @@ jobs:
              "sphinxcontrib-bibtex>=2.6" "furo>=2024.1"
       - run: sphinx-build -n -W --keep-going -b html docs/manual
              build/manual/html
+      # Cached, because the Ubuntu mirror sometimes crawls past the timeout.
       - name: LaTeX
-        run: |
-          sudo apt-get update -q
-          sudo apt-get install -y -q --no-install-recommends \
-            latexmk texlive-xetex texlive-latex-recommended \
-            texlive-latex-extra texlive-fonts-recommended \
-            fonts-freefont-otf
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: latexmk texlive-xetex texlive-latex-recommended
+            texlive-latex-extra texlive-fonts-recommended fonts-freefont-otf
+          version: 1.0
       - run: sphinx-build -M latexpdf docs/manual build/manual
       - uses: actions/upload-artifact@v7
         with:
