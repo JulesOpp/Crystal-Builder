@@ -221,29 +221,51 @@ class Field:
 
     def evaluate(self, cart, gradient: bool = False):
         """``(values, gradients)`` at ``cart`` (N, 3); points are
-        wrapped into the cell first, so any image may be asked."""
+        wrapped into the cell first, so any image may be asked.
+
+        A block of points at a time: every point and bead within the
+        cutoff is a pair, about eighty a point, and a whole 2x2x2
+        grid's pairs at once were gigabytes.
+        """
         cart = np.atleast_2d(np.asarray(cart, float))
         frac = self.lattice.to_frac(cart)
         home = self.lattice.to_cart(frac - np.floor(frac))
         out = np.zeros(len(cart))
         grad = np.zeros((len(cart), 3)) if gradient else None
-        query = cKDTree(home)
-        pairs = query.sparse_distance_matrix(
+        for start in range(0, len(home), _POINT_BLOCK):
+            block = home[start:start + _POINT_BLOCK]
+            value, slope = self._block(block, gradient)
+            out[start:start + len(block)] = value
+            if gradient:
+                grad[start:start + len(block)] = slope
+        return out, grad
+
+    def _block(self, home, gradient: bool):
+        n = len(home)
+        pairs = cKDTree(home).sparse_distance_matrix(
             self.tree, CUTOFF_WIDTHS * self.width,
             output_type="coo_matrix")
         rows, cols = pairs.row, pairs.col
-        d2 = pairs.data ** 2
-        weight = np.exp(-d2 / (2.0 * self.width ** 2))
+        weight = np.exp(-pairs.data ** 2 / (2.0 * self.width ** 2))
+        del pairs
+        out = np.bincount(rows, weight, minlength=n)
         # A distance of exactly zero is not stored by the sparse
         # matrix, so a point sitting on a bead is added back.
-        np.add.at(out, rows, weight)
         on_bead = self.tree.query(home, distance_upper_bound=1e-9)[0]
         out[np.isfinite(on_bead)] += 1.0
-        if gradient:
-            delta = home[rows] - self.points[cols]
-            np.add.at(grad, rows,
-                      -delta * (weight / self.width ** 2)[:, None])
+        if not gradient:
+            return out, None
+        scale = -weight / self.width ** 2
+        grad = np.empty((n, 3))
+        for axis in range(3):
+            delta = home[rows, axis] - self.points[cols, axis]
+            grad[:, axis] = np.bincount(rows, delta * scale,
+                                        minlength=n)
         return out, grad
+
+
+#: Field points per KD-tree query in :meth:`Field.evaluate`.
+_POINT_BLOCK = 4096
 
 
 def level_for(radius: float, width: float,
