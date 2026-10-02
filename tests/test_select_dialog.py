@@ -132,3 +132,45 @@ def test_grow_to_neighbours_only_lets_the_selection_go(window, rutile):
     assert held == set(document.graph.neighbors(0))
     assert 0 not in held
     assert all(document.cell.elements[a] == "O" for a in held)
+
+
+def _methanol_and_acid():
+    """Methanol and acetic acid, apart in one box: one hydroxyl, and
+    one acid whose OH is not a hydroxyl."""
+    import numpy as np
+
+    from xtal import Lattice, Structure
+    from xtal.core.site import Site
+
+    atoms = [("C", 0.0, 0.0, 0.0), ("O", 1.43, 0.0, 0.0),
+             ("H", 1.75, 0.9, 0.0), ("H", -0.37, 1.03, 0.0),
+             ("H", -0.37, -0.51, 0.89), ("H", -0.37, -0.51, -0.89),
+             ("C", 0.0, 0.0, 6.0), ("C", 1.5, 0.0, 6.0),
+             ("O", 2.105, 1.048, 6.0), ("O", 2.15, -1.126, 6.0),
+             ("H", 3.11, -1.126, 6.0), ("H", -0.37, 1.03, 6.0),
+             ("H", -0.37, -0.51, 6.89), ("H", -0.37, -0.51, 5.11)]
+    lattice = Lattice.cubic(14.0)
+    return Structure(lattice=lattice, sites=[
+        Site(e, (np.array(xyz) + 3.0) / 14.0) for e, *xyz in atoms])
+
+
+def test_selecting_hydroxyl_handles_selects_only_their_hydrogens(qtbot):
+    """The handle of a hydroxyl is its hydrogen, and the acid's OH is
+    the acid's: substituting the selection then esterifies the
+    alcohol and leaves the acid alone.  Each row says its count."""
+    document = Document(_methanol_and_acid())
+    dialog = SelectDialog(document)
+    qtbot.addWidget(dialog)
+    _choose(dialog, "group")
+    kind, part = dialog.group_kind, dialog.group_part
+    kind.setCurrentIndex(kind.findData("alcohol"))
+    assert kind.currentText() == "Hydroxyl (alcohol) — 1"
+    assert part.itemText(1) == "Only the hydrogen"
+    part.setCurrentIndex(part.findData("handle"))
+    dialog.apply()
+    assert document.selection.atoms == {2}
+
+    part.setCurrentIndex(part.findData("whole"))
+    kind.setCurrentIndex(kind.findData("carboxylic_acid"))
+    dialog.apply()
+    assert document.selection.atoms == {7, 8, 9, 10}

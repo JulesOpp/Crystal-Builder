@@ -46,7 +46,7 @@ from xtal.commands import bonds as bond_commands
 from xtal.commands import cell as cell_commands
 from xtal.commands import symmetry as symmetry_commands
 from xtal.commands.base import CommandStack
-from xtal.core import bonding, p1
+from xtal.core import bonding, groups, p1
 from xtal.core.structure import Structure
 
 #: The file beside the structure that records what the agent did, one
@@ -271,6 +271,8 @@ class Session:
             extra["orders"] = bonding.orders(self.structure)
         if rule == "net":
             extra["topology"] = bonding.topology_graph(self.structure)
+        if rule == "group":
+            extra["groups"] = groups.matches(self.structure)
         chosen = sel.pick(rule, self.cell, bonding.graph(self.structure),
                           self.structure.lattice, atoms, **extra, **args)
         data = {"atoms": sorted(chosen.atoms),
@@ -512,20 +514,24 @@ class Session:
                           {"xray": xray})
 
     def substitute(self, group: str, atoms=None,
-                   per_ring: bool = False) -> VerbResult:
+                   per_ring: bool = False, fraction: float = 1.0,
+                   seed: int = 0) -> VerbResult:
         """Replace hydrogens with ``group`` -- a library name
         (``"Amino"``), a formula (``"NH2"``) or a SMILES string with
         one connection point -- as one undo step.
 
-        ``atoms`` are P1 hydrogens, each standing for its whole orbit;
-        or ``per_ring`` puts one on every aromatic ring.  What a
+        ``atoms`` are P1 hydrogens (or F, Cl, Br, I: any atom on one
+        bond), each standing for its whole orbit; or ``per_ring`` puts
+        one on every aromatic ring.  ``fraction`` below one takes that
+        share of ``atoms``, drawn by ``seed``.  What a
         reduction to P1 or a group with no room owes the caller comes
         back as diagnostics.  Nothing is perceived.
         """
         from xtal.build.substitute import SubstituteError
         from xtal.commands.atoms import SubstituteHydrogens
 
-        args = {"group": group, "atoms": atoms, "per_ring": per_ring}
+        args = {"group": group, "atoms": atoms, "per_ring": per_ring,
+                "fraction": fraction, "seed": seed}
         chosen = [] if atoms is None else [int(a) for a in atoms]
         for atom in chosen:
             self._check_atom(atom)
@@ -535,7 +541,8 @@ class Session:
                                  "NOTHING_TO_DO")
         try:
             command = SubstituteHydrogens(group, chosen,
-                                          per_ring=per_ring)
+                                          per_ring=per_ring,
+                                          fraction=fraction, seed=seed)
         except SubstituteError as exc:
             return self._refused("substitute", args, str(exc))
         answer = self._operate("substitute", command, args)

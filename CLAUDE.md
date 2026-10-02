@@ -381,6 +381,25 @@ stress case).
   centroid is one click, and "delete the marker" throws away what the
   user added it for. Net edges and measurements take them, which is
   what they are for.
+- **A functional group is a pattern of the stored graph, never of
+  bond lengths.** `xtal/core/groups.py` is a closed catalogue
+  (`groups.CATALOGUE`), each atom claimed once by the most specific
+  pattern -- an acid is one group, not a hydroxyl and a carbonyl --
+  and the hydroxyl of an acid is the oxygen carrying the hydrogen,
+  whichever C-O a refinement wrote shorter. A bond to a metal does
+  not count against an oxygen, an `X` never matches, and a ring
+  ether or epoxide may close through a cell face. A group's *handle*
+  is what Substitute replaces, which may be any atom of
+  `substitute.TERMINAL` (H or a halogen on one bond), never a
+  carbonyl oxygen.
+- **A hidden atom is still in the structure.** View ▸ Show Only
+  Selected is `Document.hidden`: view state, never an undo step,
+  never saved, read by the scene builder alone -- not drawn, not
+  completed as a ghost, no bond to it drawn, so it cannot be picked
+  -- and every calculation, export and save sees the whole cell. An
+  edit keeps the same atoms hidden by where they are
+  (`Document._keep_hidden`), because a substitution renumbers the
+  cell; what an edit adds is shown.
 - **A force field or optimiser never changes the bonding or the
   atoms.** All structural changes are the user's, made explicitly.
 - **Manually set bond types take precedence** over any distance-based

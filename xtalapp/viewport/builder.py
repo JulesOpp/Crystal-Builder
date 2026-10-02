@@ -87,7 +87,7 @@ OCCUPANCY_TOL = 1e-3
 def build_scene(structure, settings, selection=None,
                 bond_rules=None, view_direction=None,
                 planes=(), pores=None, charges=None,
-                orbital=None) -> SceneModel:
+                orbital=None, hidden=None) -> SceneModel:
     """Build the render model for one structure.
 
     ``selection`` is a :class:`xtal.core.selection.Selection` over P1
@@ -114,6 +114,11 @@ def build_scene(structure, settings, selection=None,
     actor, because both are translucent sheets over the crystal and
     two would have to be depth-sorted against each other.
 
+    ``hidden`` (N,) names P1 atoms View > Show Only Selected left out:
+    not drawn, not completed as ghosts, and no bond to them drawn --
+    so nothing of them can be clicked either.  They are still in the
+    structure, and in every calculation made on it.
+
     ``view_direction`` is the camera's direction of projection, and is
     used for one thing only: laying the second tube of a bond that has
     no pi plane of its own into the plane of the screen.  Everything
@@ -130,15 +135,21 @@ def build_scene(structure, settings, selection=None,
     # a ghost completing a bond at the boundary.
     graph = folding = None
     folded = frozenset()
+    left_out = (None if hidden is None or len(hidden) != cell.n_atoms
+                else np.asarray(hidden, bool))
     if cell.n_atoms and style.atom_render == "label":
         graph = bonding.graph(structure, bond_rules)
         folding = sketch.fold(cell.elements, _bond_ends(graph)[0],
                               settings.sketch_explicit_carbon)
+        left_out = (folding.hidden if left_out is None
+                    else left_out | folding.hidden)
+    if left_out is not None and left_out.any():
+        if graph is None:
+            graph = bonding.graph(structure, bond_rules)
         folded = frozenset(b.key() for b in graph.bonds
-                           if folding.hidden[b.i] or folding.hidden[b.j])
+                           if left_out[b.i] or left_out[b.j])
 
-    drawn = _emit_atoms(cell, settings, style,
-                        None if folding is None else folding.hidden)
+    drawn = _emit_atoms(cell, settings, style, left_out)
     halves = _Halves()
     hulls = _Hulls()
     orders = frames = None
@@ -409,7 +420,8 @@ def _emit_atoms(cell, settings, style, hidden=None) -> _Drawn:
     puts it inside the display range.
 
     ``hidden`` (N,) names P1 atoms not to draw anywhere: the
-    hydrogens a label style has written into their neighbours.
+    hydrogens a label style has written into their neighbours, and
+    whatever View > Show Only Selected left out.
     """
     shifts = _translations(settings)
     if cell.n_atoms == 0 or not len(shifts):

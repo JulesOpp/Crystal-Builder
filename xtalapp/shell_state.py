@@ -27,7 +27,8 @@ from xtalapp.viewport.view_settings import BOUNDARIES
 # Reading the selection: allowed during playback, because none of
 # these changes the crystal.
 READING = ("select_same", "expand_bonded", "expand_neighbours",
-           "expand_fragment", "expand_orbit", "copy")
+           "expand_fragment", "expand_orbit", "copy",
+           "show_only_selected")
 # Editing with at least one atom held.
 EDITING_ATOMS = ("change_element", "cut", "duplicate",
                  "mark_connection_points")
@@ -354,7 +355,7 @@ class ShellRefresh:
         has_document = document is not None
         self.actions_.set_enabled(
             ["save", "save_as", "export", "export_image",
-             "clear_overlays",
+             "clear_overlays", "show_all",
              "close_tab", "close_all_tabs", "reset_view", "view_a",
              "view_b", "view_c"],
             has_document)

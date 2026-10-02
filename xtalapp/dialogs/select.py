@@ -5,9 +5,10 @@ Select > Advanced Selection...: one rule, and how it meets what is held.
 
 The menu has a handful of fixed ways of arriving at a selection; this
 is the rest of them, as one form -- by label, by coordination, by
-what an atom is bonded to, inside a box, near a point, bonds by
-length or order -- with a *combine* choice so that two rules make one
-selection ("the four-coordinate Zn, then intersect with the box").
+what an atom is bonded to, a functional group, inside a box, near a
+point, bonds by length or order -- with a *combine* choice so that
+two rules make one selection ("the four-coordinate Zn, then intersect
+with the box").
 
 It stays open.  Apply selects and leaves the form as it was, because
 the second rule is usually a small change to the first; the count
@@ -39,6 +40,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from xtal.core import groups
 from xtalapp.widgets.tone import HINT, set_tone
 
 ANY = "Any element"
@@ -55,6 +57,7 @@ RULES = (
     ("radius", "Within a distance of the selection"),
     ("point", "Within a distance of a point"),
     ("box", "Inside a box"),
+    ("group", "Functional group"),
     ("bonds", "Bonds"),
     ("net", "Net edges"),
 )
@@ -387,6 +390,43 @@ class SelectDialog(QDialog):
                     "order": order.currentData(),
                     "kind": kind.currentData(), **lengths()}
         return page, read
+
+    def _page_group(self, _elements):
+        page, form = self._form()
+        kind = QComboBox()
+        for entry in groups.CATALOGUE:
+            kind.addItem(entry.label, entry.name)
+        part = QComboBox()
+        part.addItem("The whole group", "whole")
+        part.addItem("", "handle")
+        self.group_kind, self.group_part = kind, part
+        # Counted before it is watched: the count can move the
+        # choice, and the form it would recount is not built yet.
+        self._count_groups()
+        self._name_the_handle()
+        self._watch(kind, part)
+        kind.currentIndexChanged.connect(self._name_the_handle)
+        self.document.structureChanged.connect(self._count_groups)
+        form.addRow("Group", kind)
+        form.addRow("Take", part)
+        return page, lambda: {"name": kind.currentData(),
+                              "part": part.currentData()}
+
+    def _count_groups(self, *_args) -> None:
+        """Each group's row says how many there are, so the one that
+        is there is found without trying them all."""
+        counts = groups.census(self.document.structure)
+        for k, entry in enumerate(groups.CATALOGUE):
+            self.group_kind.setItemText(
+                k, f"{entry.label} — {counts.get(entry.name, 0)}")
+        found = [k for k, entry in enumerate(groups.CATALOGUE)
+                 if counts.get(entry.name)]
+        if found and not counts.get(self.group_kind.currentData()):
+            self.group_kind.setCurrentIndex(found[0])
+
+    def _name_the_handle(self, *_args) -> None:
+        handle = groups.KINDS[self.group_kind.currentData()].handle
+        self.group_part.setItemText(1, f"Only {handle}")
 
     def _page_net(self, _elements):
         page, form = self._form()

@@ -415,7 +415,7 @@ RULES = {
     "element": False, "label": False, "site": False,
     "coordination": False, "bonded_to": False, "neighbours": False,
     "shell": True, "radius": True, "point": True, "box": True,
-    "bonds": False, "net": False,
+    "bonds": False, "net": False, "group": False,
 }
 
 #: How a picked set meets what is already held.
@@ -423,14 +423,16 @@ COMBINE = ("replace", "add", "remove", "intersect")
 
 
 def pick(rule: str, cell, graph, lattice, atoms=(), *,
-         orders=None, topology=None, **args) -> Selection:
+         orders=None, topology=None, groups=None,
+         **args) -> Selection:
     """What one rule selects, as a :class:`Selection`.
 
     ``atoms`` are the ones already held, which ``shell``,
     ``neighbours`` and ``radius`` grow from.  ``orders`` are the
     graph's bond orders for a ``bonds`` rule that asks for one, and
-    ``topology`` the drawn net's graph for ``net``.  The arguments are
-    each rule's own:
+    ``topology`` the drawn net's graph for ``net``, and ``groups``
+    :func:`xtal.core.groups.matches` for ``group`` (found afresh when
+    not given).  The arguments are each rule's own:
 
     ============== =============================================
     element        ``symbols``
@@ -445,9 +447,11 @@ def pick(rule: str, cell, graph, lattice, atoms=(), *,
     box            ``lower``, ``upper`` (fractional)
     bonds          as :func:`bonds_where`
     net            ``shortest``, ``longest``
+    group          ``name`` (a key of ``groups.KINDS``), ``part``
+                   (``whole`` or ``handle``)
     ============== =============================================
 
-    One function and not twelve, so the window and a script ask the
+    One function and not thirteen, so the window and a script ask the
     same question by the same name and get the same answer.
     """
     if rule not in RULES:
@@ -485,6 +489,16 @@ def pick(rule: str, cell, graph, lattice, atoms=(), *,
     elif rule == "point":
         found = near_point(cell, lattice, args["point"],
                            float(args["radius"]))
+    elif rule == "group":
+        from xtal.core import groups as functional
+
+        if args["name"] not in functional.KINDS:
+            raise ValueError(f"unknown group {args['name']!r}; one of "
+                             f"{', '.join(functional.KINDS)}")
+        if groups is None:
+            groups = functional.detect(cell, graph)
+        found = functional.atoms_of(groups, args["name"],
+                                    args.get("part", "whole"))
     else:
         found = in_box(cell, args["lower"], args["upper"])
     out.set_atoms(found)

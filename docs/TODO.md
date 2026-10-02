@@ -214,10 +214,13 @@ favour them clearly.
 
 ## A ZTC user's feedback (2026-10-01)
 
-Functional groups, colour by property, and a builder for disordered
-ZTC/schwarzite-like carbon.  Rings coloured by size (phase 1) and the
-bulk modulus (phase 2) have shipped; `xtal.core.rings` is what phase
-5's report counts with.  The full plan, with its measurements, is
+Colour by property, and a builder for disordered ZTC/schwarzite-like
+carbon.  Rings coloured by size (phase 1), the bulk modulus (phase 2)
+and functional groups (phase 3: `xtal.core.groups`, the Select
+dialog's *Functional group*, View ▸ *Show Only Selected*, and
+Substitute with a drawn group on any terminal atom) have shipped;
+`xtal.core.rings` is what phase 5's report counts with.  The full
+plan, with its measurements, is
 `~/.claude/plans/users-julesoppenheim-github-crystal-bui-glittery-whisper.md`.
 Branch `features/ztc-feedback`.  The example the builder aims at is
 `JulesWork/ZTC-II+OFacch.cif`, which is private and never committed.
@@ -226,19 +229,8 @@ Select… ▸ *Within a distance of the selection* is enough.
 
 | Phase | Deliverable | Size |
 |---|---|---|
-| 3 | Functional groups: detect, select, show only, substitute with a drawn group | L |
 | 4 | Colour by property (bond length, angle, coordination, ring size) | M |
 | 5 | Disordered-carbon builder (`xtal/carbon/`) | L |
-
-### Phase 3: Functional groups
-
-- `xtal/core/groups.py` is a closed set of graph patterns, never bond
-  lengths.
-- A `group` selection rule (whole group, or its handle atom).
-- View ▸ *Show Only Selected* / *Show All*, a view-only hidden mask.
-- Substitute gains *Draw…*, a SMILES with one `[*]`, as the MOF
-  builder's Draw does, plus acyl groups in the library.
-- Substitute replaces any terminal atom, not only H.
 
 ### Phase 4: Colour by property
 

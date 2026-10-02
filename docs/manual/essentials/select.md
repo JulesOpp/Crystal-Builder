@@ -75,6 +75,26 @@ included.  Both are on the {doc}`mouse modes <mouse-modes>` page.
    leave selected, and the dialog stays open for the next rule.
    Counts of bonds are the bond graph's, so they say what the bonds
    say now; lengths are the bonds' as the atoms stand.
+8. *Functional group* in the same dialog lists the groups the
+   structure has, each with its count -- a hydroxyl on a phenol or an
+   alcohol, a carboxylic acid or carboxylate, a ketone or quinone, an
+   aldehyde, an ether, ring ether or epoxide, an ester, lactone or
+   anhydride, an amide, an amine, a C-F -- and takes the whole group
+   or only its *handle*, the atom it is changed by: a hydroxyl's
+   hydrogen, a C-F's fluorine.  Groups are read off the bonds, never
+   off their lengths, so the oxygen of an acid that carries the
+   hydrogen is the hydroxyl whichever bond a refinement wrote
+   shorter; and each atom is in one group, so an acid is not also a
+   hydroxyl and a carbonyl.
+9. {ref}`Show Only Selected <cmd-show_only_selected>` in the View menu
+   draws the selection and nothing else, and {ref}`Show All
+   <cmd-show_all>` brings the rest back.  Only the picture changes:
+   the hidden atoms are still in the structure, in every calculation
+   and in every save, and hiding them is not an undo step.  The status
+   bar says how many atoms are shown.  An edit keeps the same atoms
+   hidden, and what it adds is shown: select every phenol's hydrogen,
+   show only those, substitute them with an acetyl, and the picture is
+   the new esters.
 
 The four *Grow* entries and *Select same element* are also in the
 context menu of an atom, and *Select All* and *Select None* in the

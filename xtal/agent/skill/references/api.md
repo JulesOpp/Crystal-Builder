@@ -89,11 +89,15 @@ the rules of the window's Select dialog. The answer is in
 | `box` | `lower`, `upper` (fractional, faces included) |
 | `bonds` | `first`, `second`, `order`, `shortest`, `longest`, `kind` (`any`, `explicit`, `perceived`) |
 | `net` | `shortest`, `longest` |
+| `group` | `name` (`phenol`, `alcohol`, `carboxylic_acid`, `carboxylate`, `ketone`, `aldehyde`, `ether`, `ring_ether`, `epoxide`, `ester`, `lactone`, `anhydride`, `amide`, `amine`, `fluoride`), `part` (`whole`, or `handle`: the atom the group is changed by -- a hydroxyl's H, a C-F's F) |
 
 Every Zn with four bonds is `s.select("coordination", element="Zn",
 op="=", n=4)`; lengths are the bonds' now, not when perceived. The
 counts are the bond graph's, so they say what the bonds say --
-`recalculate_bonds()` first if that is in doubt.
+`recalculate_bonds()` first if that is in doubt. Groups are read off
+the same graph, never off bond lengths, and each atom is in one group:
+an acid's OH is the acid's, not a phenol. Every phenol's hydrogen,
+then `substitute("Acetyl", atoms=...)`, esterifies them all.
 
 ## Atoms
 
@@ -197,7 +201,7 @@ that bonds what it adds. Refused with `NOTHING_TO_DO` when nothing is
 missing. For a deposited structure, prefer `prepare()`, which places
 cluster and water hydrogens by rule where valence alone would guess.
 
-### `substitute(group, atoms, per_ring)`
+### `substitute(group, atoms, per_ring, fraction, seed)`
 
 Replaces hydrogens with a group, as one undo step: the group's first
 atom a bond's length out along the old X-H, turned for the most room,
@@ -211,6 +215,12 @@ aromatic ring -- MOF-5 to IRMOF-3 is
 `s.substitute("NH2", per_ring=True)` -- and always reduces to P1. A
 group left under 1.5 Å from anything is `CLOSE_CONTACT`: the ring would
 have to turn, and nothing turns it. Needs the `build` extra.
+`atoms` may be fluorines, chlorines, bromines or iodines as well as
+hydrogens -- any atom on one bond -- so a fluorinated edge takes a
+group the same way. An acyl group (`"Acetyl"`, `"Formyl"`,
+`"Benzoyl"`, `"Trifluoroacetyl"`) on a hydroxyl's hydrogen makes the
+ester. `fraction` below 1 takes that share of `atoms`, drawn by
+`seed`, and reduces to P1 first.
 
 ### `fill_pores(guest, count, beside, near, overlap_scale, seed)`
 

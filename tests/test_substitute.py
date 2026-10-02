@@ -223,3 +223,96 @@ def test_an_atom_that_is_not_a_hydrogen_is_refused_by_name(mof5):
 
     assert not report.ok
     assert "is not a hydrogen" in report.message
+
+
+def _molecule(smiles):
+    from xtal.build import from_smiles
+
+    return from_smiles(smiles).to_structure()
+
+
+def test_a_fluorine_can_be_substituted_like_a_hydrogen():
+    """A ZTC's edges are mostly C-F.  The methyl takes the fluorine's
+    place a C-C bond out along the old C-F, bonded to that carbon, and
+    the report names what went."""
+    from xtal.core import groups
+
+    fluorobenzene = _molecule("Fc1ccccc1")
+    (match,) = groups.find(fluorobenzene, "fluoride")
+    host, stack, command = _substituted(fluorobenzene, "Methyl",
+                                        match.handle)
+    assert command.report.message.startswith("replaced 1 F with Methyl")
+    cell = p1.expand(host.structure)
+    assert "F" not in cell.elements
+    counts = Counter(cell.elements)
+    assert counts["C"] == 7
+    stack.undo(host)
+    assert "F" in p1.expand(host.structure).elements
+
+
+def test_a_carbonyl_oxygen_is_not_a_terminal_atom_to_replace():
+    """It is on one bond, but a double one, and its carbon would be
+    left a bond short."""
+    from xtal.build import substitute
+    from xtal.core import groups
+
+    acetone = _molecule("CC(C)=O")
+    (ketone,) = groups.find(acetone, "ketone")
+    plan = substitute.plan(acetone, substitute.group("Methyl"),
+                           ketone.handle)
+    assert not plan.placements
+    assert "not a hydrogen or a halogen" in plan.skipped[0]
+
+
+def test_acetylating_every_phenol_hydrogen_is_one_undo_step():
+    """Every phenol's hydrogen, found as a group's handle, replaced by
+    an acetyl: each becomes an ester, in one undo step, and nothing
+    else in the molecule is touched."""
+    from xtal.core import groups
+
+    catechol = _molecule("Oc1ccccc1O")
+    handles = sorted(groups.atoms_of(groups.matches(catechol),
+                                     "phenol", "handle"))
+    assert len(handles) == 2
+    host, stack, _command = _substituted(catechol, "Acetyl", handles)
+    found = groups.census(host.structure)
+    assert found.get("ester") == 2 and "phenol" not in found
+    stack.undo(host)
+    assert groups.census(host.structure) == {"phenol": 2}
+    assert not stack.can_undo
+
+
+def test_a_share_of_the_selection_is_seeded_and_reduces_to_p1(mof5_fm3m):
+    """A quarter of the hydrogens, twice with one seed, is the same
+    quarter; a share of an orbit is not one, so the group goes."""
+    from xtal.commands.atoms import SubstituteHydrogens
+
+    cell = p1.expand(mof5_fm3m)
+    hydrogens = [a for a in range(cell.n_atoms) if cell.elements[a] == "H"]
+
+    def run(seed):
+        command = SubstituteHydrogens("F", hydrogens, fraction=0.25,
+                                      seed=seed)
+        out, report = command.apply_to(mof5_fm3m)
+        return p1.expand(out), report
+
+    first, report = run(3)
+    again, _ = run(3)
+    other, _ = run(4)
+    assert Counter(first.elements)["F"] == round(0.25 * len(hydrogens))
+    assert np.allclose(first.frac, again.frac)
+    assert not np.allclose(first.frac, other.frac)
+    assert any(w.startswith("reduced from Fm-3m") for w in report.warnings)
+
+
+def test_a_drawn_group_is_kept_and_listed_by_its_name(tmp_path):
+    from xtal.build import substitute
+
+    folder = tmp_path / "groups"
+    path = substitute.save_group(folder, "Acetoxy", "[*]OC(C)=O")
+    assert path.name == "Acetoxy.smi"
+    assert substitute.saved_groups(folder) == [("Acetoxy", "[*]OC(C)=O")]
+    assert substitute.group("[*]OC(C)=O", name="Acetoxy").name == "Acetoxy"
+    with pytest.raises(substitute.SubstituteError):
+        substitute.save_group(folder, "Two", "[*]OC([*])=O")
+    assert substitute.saved_groups(tmp_path / "none") == []
