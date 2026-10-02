@@ -280,14 +280,14 @@ def terminate(sheet: Sheet, ratios: Ratios, rng) -> Terminated:
     kind_of = {}
     order = list(rng.permutation(edge))
     ether_at = set()
-    roomy = _room(sheet, edge, outward, neighbours, order)
+    room = _Room(sheet, outward)
     for kind in KINDS:
         need = wanted[kind]
         left = []
         for atom in order:
-            fits = (not any(n in ether_at for n in neighbours[atom])
-                    if kind == "ether" else atom in roomy)
-            if need and fits:
+            if need and (not any(n in ether_at
+                                 for n in neighbours[atom])
+                         if kind == "ether" else room.take(atom, kind)):
                 kind_of[atom] = kind
                 need -= 1
                 if kind == "ether":
@@ -340,42 +340,56 @@ def terminate(sheet: Sheet, ratios: Ratios, rng) -> Terminated:
 #: carbon.  Two edge carbons across a bay point at each other, and
 #: before this a build's closest contact was 0.31 A, fluorine on
 #: fluorine; one of the two is left bare instead, as the example ZTC
-#: leaves forty.
-PROBE = 1.3
-PROBE_CLEAR = 1.6
-SHEET_CLEAR = 1.4
+#: leaves forty.  A hydrogen sits closer in and needs less: held to
+#: fluorine's room, it was what ran out -- handed out last, it found
+#: the roomy carbons taken and the ZTC defaults came out at H/C 0.035
+#: for 0.07.
+PROBE = {"hydrogen": 1.09}
+PROBE_HEAVY = 1.3
+PROBE_CLEAR = {"hydrogen": 1.25}
+PROBE_CLEAR_HEAVY = 1.6
+SHEET_CLEAR = {"hydrogen": 1.2}
+SHEET_CLEAR_HEAVY = 1.4
 
 
-def _room(sheet: Sheet, edge, outward, neighbours, order) -> set:
-    """The edge carbons with room for a termination, granted in
-    ``order`` so the seed decides which of two crowded ones it is."""
-    from scipy.spatial import cKDTree
+class _Room:
+    """Which edge carbons have room for a termination, granted one at
+    a time in the seed's order, every grant remembered so the next is
+    measured against it."""
 
-    matrix = np.asarray(sheet.matrix, float)
-    inverse = np.linalg.inv(matrix)
-    shifts = np.array([(a, b, c) for a in (-1, 0, 1) for b in (-1, 0, 1)
-                       for c in (-1, 0, 1)])
-    atoms = ((sheet.frac[None] + shifts[:, None]).reshape(-1, 3)
-             @ matrix)
-    tree = cKDTree(atoms)
-    granted: list = []
-    out = set()
-    for atom in order:
-        direction = _in_plane(outward[atom], sheet.normal[atom])
-        probe = sheet.frac[atom] @ matrix + PROBE * direction
-        close = [k % sheet.n_atoms
-                 for k in tree.query_ball_point(probe, SHEET_CLEAR)]
+    def __init__(self, sheet: Sheet, outward):
+        from scipy.spatial import cKDTree
+
+        self.sheet = sheet
+        self.outward = outward
+        self.matrix = np.asarray(sheet.matrix, float)
+        self.inverse = np.linalg.inv(self.matrix)
+        shifts = np.array([(a, b, c) for a in (-1, 0, 1)
+                           for b in (-1, 0, 1) for c in (-1, 0, 1)])
+        atoms = ((sheet.frac[None] + shifts[:, None]).reshape(-1, 3)
+                 @ self.matrix)
+        self.tree = cKDTree(atoms)
+        self.granted: list = []
+
+    def take(self, atom: int, kind: str) -> bool:
+        """Whether ``kind`` fits on ``atom``; if it does, it is
+        granted."""
+        sheet = self.sheet
+        direction = _in_plane(self.outward[atom], sheet.normal[atom])
+        probe = (sheet.frac[atom] @ self.matrix
+                 + PROBE.get(kind, PROBE_HEAVY) * direction)
+        close = [k % sheet.n_atoms for k in self.tree.query_ball_point(
+            probe, SHEET_CLEAR.get(kind, SHEET_CLEAR_HEAVY))]
         if any(k != atom for k in close):
-            continue
-        if granted:
-            delta = (np.array(granted) - probe) @ inverse
+            return False
+        if self.granted:
+            delta = (np.array(self.granted) - probe) @ self.inverse
             delta -= np.round(delta)
-            if np.min(np.linalg.norm(delta @ matrix, axis=1)) \
-                    < PROBE_CLEAR:
-                continue
-        granted.append(probe)
-        out.add(atom)
-    return out
+            if np.min(np.linalg.norm(delta @ self.matrix, axis=1)) \
+                    < PROBE_CLEAR.get(kind, PROBE_CLEAR_HEAVY):
+                return False
+        self.granted.append(probe)
+        return True
 
 
 def _in_plane(vector, normal) -> np.ndarray:

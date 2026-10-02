@@ -49,12 +49,12 @@ class Recipe:
     repeat: tuple = (2, 2, 2)
     density: float = 0.42           # g/cm3 of carbon
     radius_ratio: float = 0.25      # strut radius over edge length
-    coverage: float = 0.42          # share of the sheet kept
+    coverage: float = 0.38          # share of the sheet kept
     layers: int = 1
     interlayer: float = 3.35        # Angstrom
     sigma_vertex: float = 0.6       # Angstrom
     sigma_edge: float = 0.4         # Angstrom
-    stone_wales: float = 6.0        # pairs per 100 rings
+    stone_wales: float = 1.0        # pairs per 100 rings
     hydrogen: float = 0.07          # H/C
     fluorine: float = 0.29          # F/C
     oxygen: float = 0.044           # O/C

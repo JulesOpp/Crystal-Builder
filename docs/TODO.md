@@ -212,44 +212,6 @@ Measure each in a scratch environment against
 Preferences ▸ Engines, or replace 0.3.  Bindings only if the numbers
 favour them clearly.
 
-## A ZTC user's feedback (2026-10-01)
-
-A builder for disordered ZTC/schwarzite-like carbon.  Rings coloured
-by size (phase 1), the bulk modulus (phase 2), functional groups
-(phase 3: `xtal.core.groups`, the Select dialog's *Functional group*,
-View ▸ *Show Only Selected*, and Substitute with a drawn group on any
-terminal atom) and colour by property (phase 4: `xtal.core.scalars`,
-the Style panel's *Colour by*) have shipped;
-`xtal.core.rings` is what phase 5's report counts with.  The full
-plan, with its measurements, is
-`~/.claude/plans/users-julesoppenheim-github-crystal-bui-glittery-whisper.md`.
-Branch `features/ztc-feedback`.  The example the builder aims at is
-`JulesWork/ZTC-II+OFacch.cif`, which is private and never committed.
-Selecting by a space-filling shape was asked for and dropped: Select ▸
-Select… ▸ *Within a distance of the selection* is enough.
-
-| Phase | Deliverable | Size |
-|---|---|---|
-| 5 | Disordered-carbon builder (`xtal/carbon/`) | L |
-
-### Phase 5: Disordered-carbon builder
-
-A convolution surface around any 3-periodic net, distorted.  The
-builder then:
-
-1. Welds the surface periodically and cuts it to ribbons by `coverage`.
-2. Remeshes it at 2.46 Å.
-3. Runs Stone–Wales Monte Carlo on the mesh.
-4. Takes the dual, which is three-coordinate carbon and one connected
-   sheet.
-5. Terminates the edges by H/F/O ratios.
-6. Adds layers from offset level sets.
-7. Solves the cell from the density, then relaxes.
-
-The bonds are stated, never perceived.  Before 5b, measure: the
-example's net and cell multiple, the welded srs surface, the remesh
-and dual at about 1100 vertices, and UFF on about 3000 atoms.
-
 ---
 
 # Not scheduled
