@@ -22,6 +22,8 @@ from __future__ import annotations
 
 from collections import Counter, deque
 
+import numpy as np
+
 from xtal.core import bonding, elements, p1
 from xtal.core.structure import CHEMISTRY
 
@@ -154,25 +156,62 @@ def rings_of(structure, rules=None,
     memoised until the chemistry changes.
 
     A drag moves atoms and keeps every ring, so a positions-only edit
-    keeps the answer too.
+    keeps the answer too -- read against the cell's wrap *now*, as
+    :class:`_Found` says.
     """
     key = (f"primitive-rings:{int(max_size)}:"
            f"{rules.signature() if rules else ''}")
 
     def build():
         cell = p1.expand(structure)
-        return cell.n_atoms, primitive(
-            cell, bonding.graph(structure, rules), max_size)
+        return _Found(primitive(cell, bonding.graph(structure, rules),
+                                max_size), cell.tau)
 
-    n_atoms, rings = structure.cached(key, build,
-                                      invalidated_by=CHEMISTRY)
-    if n_atoms != p1.expand(structure).n_atoms:
+    cell = p1.expand(structure)
+    found = structure.cached(key, build, invalidated_by=CHEMISTRY)
+    if len(found.tau) != cell.n_atoms:
         # The graph underneath was perceived over a cell of another
         # size -- see :func:`bonding.rings_of`.
         structure.drop_cache(key)
-        _n, rings = structure.cached(key, build,
-                                     invalidated_by=CHEMISTRY)
-    return rings
+        found = structure.cached(key, build, invalidated_by=CHEMISTRY)
+    return found.at(cell.tau)
+
+
+class _Found:
+    """The rings of one search, and the wrap they were found at.
+
+    A ring's shifts count lattice translations between *wrapped*
+    positions, so an atom an optimiser takes across a cell face is
+    redrawn on the far side and every shift it appears in changes.
+    Left as found, the ring's face was drawn to that atom's copy
+    across the crystal and spanned the whole cell -- the fault
+    :class:`bonding._Drawn` mends for the bonds, mended the same way.
+    """
+
+    def __init__(self, rings, tau):
+        self._base = rings
+        self._base_tau = np.asarray(tau, dtype=int)
+        self.tau = self._base_tau
+        self.rings = rings
+
+    def at(self, tau) -> list:
+        tau = np.asarray(tau, dtype=int)
+        if np.array_equal(self.tau, tau):
+            return self.rings
+        # frac + shift is what the geometry fixes, so a member's shift
+        # moves by what its wrap moved; then the whole ring is put back
+        # with its first atom in the home cell, as it was found.
+        moved = self._base_tau - tau
+        rings = []
+        for ring in self._base:
+            members = [(atom, tuple(int(v) for v in
+                                    np.add(shift, moved[atom])))
+                       for atom, shift in ring]
+            a, b, c = members[0][1]
+            rings.append([(atom, (x - a, y - b, z - c))
+                          for atom, (x, y, z) in members])
+        self.tau, self.rings = tau, rings
+        return rings
 
 
 def census(structure, rules=None,

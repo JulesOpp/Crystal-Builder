@@ -3,7 +3,7 @@
 import numpy as np
 
 from xtal import Lattice, Structure
-from xtal.core import rings
+from xtal.core import p1, rings
 from xtal.core.site import Site
 from xtal.core.structure import Change
 
@@ -65,3 +65,26 @@ def test_rings_are_kept_through_a_drag_and_found_again_after_an_edit():
     del sheet.sites[0]
     sheet.touch(Change.TOPOLOGY)
     assert rings.census(sheet) == {6: 1}
+
+
+def test_a_ring_stays_whole_when_an_atom_crosses_a_cell_face():
+    """An optimiser step that takes an atom across a face redraws it
+    on the far side, and the shifts the memoised rings hold count
+    translations between *wrapped* positions.  Fails if they are not
+    read against the new wrap: the face is drawn to the atom's copy
+    across the cell and spans the whole of it."""
+    sheet = _graphene(3)
+    rings.rings_of(sheet)
+    for site in sheet.sites:
+        site.frac = site.frac - np.array([0.12, 0.0, 0.0])
+    sheet.touch(Change.POSITIONS)
+    cell = p1.expand(sheet)
+    found = rings.rings_of(sheet)
+    assert len(found) == 9
+    for ring in found:
+        corners = sheet.lattice.to_cart(np.array(
+            [cell.frac[atom] + shift for atom, shift in ring]))
+        steps = np.linalg.norm(
+            corners - np.roll(corners, 1, axis=0), axis=1)
+        assert steps.max() < 1.5
+        assert ring[0][1] == (0, 0, 0)
