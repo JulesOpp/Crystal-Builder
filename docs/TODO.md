@@ -214,11 +214,10 @@ favour them clearly.
 
 ## A ZTC user's feedback (2026-10-01)
 
-Functional groups, colour by property, a bulk modulus, and a builder
-for disordered ZTC/schwarzite-like carbon; rings coloured by size
-(phase 1) have shipped, and `xtal.core.rings` is what phase 5's report
-counts with.  The
-full plan, with its measurements, is
+Functional groups, colour by property, and a builder for disordered
+ZTC/schwarzite-like carbon.  Rings coloured by size (phase 1) and the
+bulk modulus (phase 2) have shipped; `xtal.core.rings` is what phase
+5's report counts with.  The full plan, with its measurements, is
 `~/.claude/plans/users-julesoppenheim-github-crystal-bui-glittery-whisper.md`.
 Branch `features/ztc-feedback`.  The example the builder aims at is
 `JulesWork/ZTC-II+OFacch.cif`, which is private and never committed.
@@ -227,17 +226,9 @@ Select… ▸ *Within a distance of the selection* is enough.
 
 | Phase | Deliverable | Size |
 |---|---|---|
-| 2 | Bulk modulus: an equation-of-state fit on a volume scan, and a preset | M |
 | 3 | Functional groups: detect, select, show only, substitute with a drawn group | L |
 | 4 | Colour by property (bond length, angle, coordination, ring size) | M |
 | 5 | Disordered-carbon builder (`xtal/carbon/`) | L |
-
-### Phase 2: Bulk modulus
-
-`xtal/ff/eos.py` (Birch–Murnaghan, with Vinet as a check) fitted to a
-volume scan's converged points.  The scan report gets a *Bulk modulus*
-table.  A *Bulk modulus…* preset scans ±6 % in 9 points, with the shape
-free and the Force Field panel's engine.
 
 ### Phase 3: Functional groups
 
