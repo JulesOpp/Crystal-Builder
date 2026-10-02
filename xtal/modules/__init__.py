@@ -30,6 +30,7 @@ import os
 from xtal.modules import (
     blender,
     build,
+    carbon,
     dftb,
     forcefield,
     mof,
@@ -60,6 +61,7 @@ dftb.register()
 zeopp.register()
 mof.register()
 build.register()
+carbon.register()
 net.register()
 pxrd.register()
 scan.register()

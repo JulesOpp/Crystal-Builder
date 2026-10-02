@@ -130,10 +130,17 @@ def gauss_bonnet_need(net: str, repeat=(1, 1, 1)) -> int:
     return 6 * sf.expected_euler(len(vertices), len(edges)) * cells
 
 
-def build(recipe: Recipe, say=None) -> Built:
+def build(recipe: Recipe, say=None, check=None) -> Built:
     """Make the carbon a recipe describes.  ``say`` is told each step,
-    for a progress line."""
-    say = say or (lambda _text: None)
+    for a progress line, and ``check`` is called between them, so a
+    run's Stop is honoured at the next step rather than at the end."""
+    quiet = say or (lambda _text: None)
+    check = check or (lambda: None)
+
+    def say(text):
+        check()
+        quiet(text)
+
     rng = np.random.default_rng(recipe.seed)
     lattice, vertices, edges = sf.net_of(recipe.net)
     lattice, vertices, edges = sf.repeated(lattice, vertices, edges,

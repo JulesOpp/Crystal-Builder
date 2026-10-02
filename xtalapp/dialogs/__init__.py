@@ -36,6 +36,8 @@ _BY_NAME = {
     "build-insert": ("xtalapp.dialogs.build_molecule",
                      "BuildMoleculeDialog"),
     "net-draw": ("xtalapp.dialogs.net_draw", "NetDrawDialog"),
+    "carbon-build": ("xtalapp.dialogs.carbon_build",
+                     "CarbonBuildDialog"),
     "stl-export": ("xtalapp.dialogs.stl_export", "StlExportDialog"),
     "blender-render": ("xtalapp.dialogs.stl_export", "RenderDialog"),
     "band-structure": ("xtalapp.dialogs.dftb_run",

@@ -36,6 +36,7 @@ the Crystal Builder window, so leave them something they can check.
 | a diagnostic fired and you need its row: every code and its remedy | [`references/diagnostics.md`](references/diagnostics.md) |
 | the structure came from a database or a paper (a deposited CIF) | [`references/prepare.md`](references/prepare.md) |
 | the task is to build a framework on a net | [`references/mof.md`](references/mof.md) |
+| a zeolite-templated carbon, a schwarzite, a disordered carbon | [`references/carbon.md`](references/carbon.md) |
 | an energy, a relaxation or a scan: which engine, and what it means | [`references/calculations.md`](references/calculations.md) |
 | pore volume, surface area, pore size, or a PXRD pattern | [`references/porosity.md`](references/porosity.md) |
 | where files land, and how the person opens what you made | [`references/workspace.md`](references/workspace.md) |
