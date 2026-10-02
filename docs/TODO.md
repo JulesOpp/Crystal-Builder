@@ -214,6 +214,92 @@ favour them clearly.
 
 ---
 
+## The polymer builder
+
+Planned 2026-10-02 on `features/polymer-builder`.  The full plan, with
+its measurements and the answers on what other programs do, is
+`~/.claude/plans/can-you-make-a-crispy-swing.md`.  Decided with
+Julius: **pack only** -- the builder makes the packed starting model,
+and equilibration (LAMMPS's 21-step, or MD in process) is a seam for
+later; amorphous linear chains and PIMs first, crystalline polymers as
+samples; a monomer from SMILES or the sketch *and* from atoms marked in
+the viewport.  Branching is not in it.
+
+| Phase | Delivers | Main files | Size |
+|---|---|---|---|
+| **7 — Crystalline polymer samples** | Open Sample ▸ Polymers: PE, iPP α, PET, nylon-6 α | `xtalapp/samples.py`, `resources/samples/polymer/` | S-M |
+| **0 — Ladder connection points in SMILES** | A `*` bonded to two atoms embeds as one `X` | `xtal/build/chem.py` | S |
+| **1 — The monomer** | `Monomer`, head and tail, mirror, a `Monomer` library category | `xtal/polymer/monomer.py`, `fragments.json` | M |
+| **2 — Joining and sequences** | Joints by bond length, torsion or ladder flip; tacticity; copolymers | `xtal/polymer/chain.py`, `sequence.py` | M |
+| **3 — Packing** | Concurrent CBMC growth in a box or between walls (membrane) | `xtal/polymer/pack.py`, `build.py` | L |
+| **4 — The module** | `polymer.build`, its report, `xtal run` | `xtal/modules/polymer.py` | M |
+| **5 — The dialog** | Modules ▸ Polymer builder… | `xtalapp/dialogs/polymer_build.py` | M |
+| **6 — A monomer from the viewport** | Structure ▸ Save as Monomer… to `<workspace>/monomers/` | `xtalapp/dialogs/`, `xtal/workspace.py` | M |
+| **8 — The equilibration seam** | `Protocol` (21-step as data), `Equilibrator` interface | `xtal/polymer/protocol.py` | S |
+
+In that order: the samples are independent and small.
+
+### 7 — Crystalline polymer samples
+
+A new Open Sample group, *&Polymers*.  The COD first
+(`scripts/fetch_cod_samples.py`); otherwise written by hand from the
+published coordinates, as graphene was, with the bonds through the c
+face stated and the source in `PROVENANCE.md`.  Tests: each matches its
+published density to 1 %, each chain is a 1-periodic component, every
+carbon has four neighbours.
+
+### 0 — Ladder connection points in SMILES
+
+Measured: `chem.embed` refuses a PIM-1 repeat whose `*` is bonded to two
+atoms -- "Explicit valence for atom H, 3" -- because each `*` is capped
+with one hydrogen.  Cap each member instead, and put one `X` back
+0.75 A out from the members' centroid, bonded to all of them: the
+`attach.members_of` convention.  A single-bond `*` embeds byte for byte
+as before, and a test holds it.
+
+### 1 — The monomer
+
+`[*:1]` is the head and `[*:2]` the tail; unnumbered, the order drawn.
+A third connection point is refused with "branching is not built yet",
+so the format need not change when it is.  `mirrored()` is the other
+hand, which is how tacticity is made.
+
+### 2 — Joining and sequences
+
+The next monomer's head goes the covalent-radius sum from the tail,
+axes anti-parallel; the free variable is the torsion about the new
+bond, or for a ladder joint one of the two `attach.pairing` choices.
+Isotactic, syndiotactic, atactic (p meso); alternating, random and
+block copolymers.
+
+### 3 — Packing
+
+Every chain grown at once from random seeds, k trial torsions a step,
+weighted by a soft repulsion against an incremental periodic cell list,
+backtracking at a dead end.  A membrane is grown between two walls and
+given vacuum on c; no bond crosses c.  `start_density` is separate from
+the target, for the MD path.  The report says the density reached, the
+closest contact, ⟨R²⟩, Rg and C_n, and that the model is packed, not
+equilibrated.  **Measure first**: PE 10 x 100 at 0.85 g/cm3, PIM-1
+6 x 20, and what a 10k-atom P1 document costs to open and draw; a
+default build under 30 s.
+
+### 4, 5, 6 — The module, the dialog, the viewport monomer
+
+The carbon builder's pattern: a `MODULES` entry filed by
+`Workspace.adopt_build`, a dialog with the library, a SMILES box and
+the sketch canvas (`sketch_for`).  *Save as Monomer…* is enabled with
+exactly two connection points and writes a block file, head first, to
+`<workspace>/monomers/`.  The agent skill gains `polymer.build`.
+
+### 8 — The equilibration seam
+
+`Protocol` holds the 21-step (Larsen, Lin and Colina 2011) as data;
+`Equilibrator` is the interface, unimplemented.  Unscheduled entries
+follow for each consumer.
+
+---
+
 # Not scheduled
 
 Raised while using the application; no phase yet.
@@ -448,6 +534,23 @@ row the 1992 paper prints is a different decision from adding ninety-one
 new ones, and `tests/test_uff_params.py` asserts the published value.
 
 ## Modules
+
+### Polymers after the packing builder
+
+Raised while planning the polymer builder (2026-10-02); each waits on
+its phases shipping.
+- **Equilibrating with LAMMPS**: an external-binary module over
+  `xtal/io/lammps.py` running the 21-step `Protocol`, which needs a
+  force-field coefficient writer the data file deliberately lacks.
+- **MD in process**: a Langevin / NPT integrator over
+  `ff.api.Calculator`, for small models and quick checks.
+- **Branching and networks**: hyperbranched polymers, epoxies, CMPs and
+  PAFs are made by bonding reactive sites while packing (Polymatic's
+  way), not by a walk; the monomer's `[*:3]` is reserved for it.
+- **A crystalline-chain builder**: monomer, helix n/m and cell, for the
+  polymers the samples do not cover.
+- **Entanglement**: a primitive-path analysis (Z1-style) once a model
+  can be equilibrated.
 
 ### A crash of the application still leaves its program running
 
