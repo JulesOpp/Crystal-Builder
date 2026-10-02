@@ -227,7 +227,6 @@ the viewport.  Branching is not in it.
 
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
-| **0 — Ladder connection points in SMILES** | A `*` bonded to two atoms embeds as one `X` | `xtal/build/chem.py` | S |
 | **1 — The monomer** | `Monomer`, head and tail, mirror, a `Monomer` library category | `xtal/polymer/monomer.py`, `fragments.json` | M |
 | **2 — Joining and sequences** | Joints by bond length, torsion or ladder flip; tacticity; copolymers | `xtal/polymer/chain.py`, `sequence.py` | M |
 | **3 — Packing** | Concurrent CBMC growth in a box or between walls (membrane) | `xtal/polymer/pack.py`, `build.py` | L |
@@ -238,16 +237,8 @@ the viewport.  Branching is not in it.
 
 In that order.  Phase 7, the crystalline samples, shipped 2026-10-02
 as Open Sample ▸ Polymers: polyethylene, alpha-iPP and cellulose
-I-beta.
-
-### 0 — Ladder connection points in SMILES
-
-Measured: `chem.embed` refuses a PIM-1 repeat whose `*` is bonded to two
-atoms -- "Explicit valence for atom H, 3" -- because each `*` is capped
-with one hydrogen.  Cap each member instead, and put one `X` back
-0.75 A out from the members' centroid, bonded to all of them: the
-`attach.members_of` convention.  A single-bond `*` embeds byte for byte
-as before, and a test holds it.
+I-beta; Phase 0, a SMILES `*` bonded to two atoms (PIM-1's ladder),
+the same day.
 
 ### 1 — The monomer
 

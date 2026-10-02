@@ -28,6 +28,17 @@ refused -- :func:`xtal.ff.markers.hold_back`,
 :func:`xtal.modules.job.without_dummies` are the other three -- and it
 is the same argument each time.
 
+**A connection point bonded to two atoms is capped on each of them.**
+A ladder polymer's repeat (PIM-1's dioxin, a Troger's base) and a
+chelating block meet the next unit through two atoms, and the ``*``
+that says so is bonded to both -- the convention
+:func:`xtal.mof.attach.members_of` reads.  One hydrogen in its place
+is a hydrogen with two bonds, which RDKit refuses ("Explicit valence
+for atom H, 3"), so each member gets a hydrogen of its own and the
+``X`` is put back at the members' centroid, out along the mean of the
+directions away from the molecule at each.  A ``*`` with one bond is
+capped exactly as it always was.
+
 The one honest caveat is sterics: a hydrogen is smaller than the
 carboxylate it stands in for, so a crowded ortho-substituted linker
 relaxes a little more open than it would with its real neighbours.
@@ -124,11 +135,10 @@ def embed(smiles: str, seed: int = 0xf00d, optimise: bool = True):
     # AddHs appends, so every index taken above stays valid and no
     # remapping is needed after this point.
     mol = Chem.AddHs(mol)
-    conformer = _conformer(Chem, AllChem, mol, dummies, seed, optimise)
+    cart = _conformer(Chem, AllChem, mol, dummies, seed, optimise)
 
     symbols = [CONNECTION if atom.GetAtomicNum() == 0
                else atom.GetSymbol() for atom in mol.GetAtoms()]
-    cart = np.array(conformer.GetPositions(), dtype=float)
     cart = cart - cart.mean(axis=0)
     bonds = tuple(
         (bond.GetBeginAtomIdx(), bond.GetEndAtomIdx(),
@@ -194,13 +204,34 @@ def _dummies(mol) -> list[int]:
 
 def _conformer(Chem, AllChem, mol, dummies, seed, optimise):
     """Embed and relax a copy in which the connection points are
-    hydrogens, and hand back its coordinates."""
+    hydrogens, and hand back the coordinates of ``mol``'s atoms.
+
+    A point with several members keeps its own atom as the hydrogen on
+    the first and gains one on each of the others, appended after
+    every atom of ``mol`` so no index of it moves; their positions are
+    read back to place the point and then dropped.
+    """
     capped = Chem.RWMol(mol)
+    caps = {}
     for index in dummies:
         atom = capped.GetAtomWithIdx(index)
         atom.SetAtomicNum(1)
         atom.SetAtomMapNum(0)
         atom.SetNoImplicit(True)
+        members = sorted(n.GetIdx() for n in atom.GetNeighbors())
+        if len(members) > 1:
+            # Written into a ring -- ``c1c[*]1`` -- RDKit may call the
+            # point aromatic, and a hydrogen cannot be.
+            atom.SetIsAromatic(False)
+            bond = capped.GetBondBetweenAtoms(index, members[0])
+            bond.SetBondType(Chem.BondType.SINGLE)
+            bond.SetIsAromatic(False)
+        caps[index] = [(members[0], index)] if members else []
+        for member in members[1:]:
+            capped.RemoveBond(index, member)
+            hydrogen = capped.AddAtom(Chem.Atom(1))
+            capped.AddBond(member, hydrogen, Chem.BondType.SINGLE)
+            caps[index].append((member, hydrogen))
     capped = capped.GetMol()
     try:
         Chem.SanitizeMol(capped)
@@ -218,7 +249,31 @@ def _conformer(Chem, AllChem, mol, dummies, seed, optimise):
                              f"for {smiles_of(Chem, mol)}")
     if optimise:
         _relax(AllChem, capped)
-    return capped.GetConformer()
+    cart = np.array(capped.GetConformer().GetPositions(), dtype=float)
+    points = set(dummies)
+    for index, pairs in caps.items():
+        if len(pairs) > 1:
+            members = [m for m, _ in pairs]
+            outward = np.mean([_away(mol, cart, m, points)
+                               for m in members], axis=0)
+            cart[index] = cart[members].mean(axis=0) + outward
+    return cart[:mol.GetNumAtoms()]
+
+
+def _away(mol, cart, member: int, points) -> np.ndarray:
+    """The unit direction out of the molecule at one member, judged
+    one bond in: from the middle of its other neighbours to it.
+
+    Not along its capping hydrogen: a catechol's two O-H turn to
+    hydrogen-bond each other, and their mean put PIM-1's head 0.67 A
+    from one oxygen and 2.08 from the other.
+    """
+    inner = [n.GetIdx() for n in mol.GetAtomWithIdx(member).GetNeighbors()
+             if n.GetIdx() not in points]
+    if not inner:
+        return np.zeros(3)
+    direction = cart[member] - cart[inner].mean(axis=0)
+    return direction / np.linalg.norm(direction)
 
 
 def _relax(AllChem, mol) -> None:
