@@ -79,3 +79,20 @@ def test_a_view_that_is_not_one_is_refused_before_anything_runs(
         render(rutile, tmp_path / "x.png", view="sideways")
     with pytest.raises(ValueError):
         render(rutile, tmp_path / "x.jpg")
+
+
+def test_a_frozen_launcher_says_to_connect_the_window_rather_than_render(
+        tmp_path, rutile, monkeypatch):
+    """A packaged ``xtal`` has no ``-m`` to run the snapshot module
+    with; the window draws instead, so the answer names how to reach
+    it rather than a renderer that died."""
+    def never(*args, **kwargs):
+        raise AssertionError("a frozen build started a renderer")
+
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(render_module.subprocess, "run", never)
+    answer = render(rutile, tmp_path / "x.png")
+    assert not answer.ok
+    assert answer.diagnostics[0].code == "RENDER_UNAVAILABLE"
+    assert answer.message == ("connect the window to render "
+                              "(Help ▸ Connect an AI assistant)")

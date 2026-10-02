@@ -132,8 +132,8 @@ def installed() -> bool:
 def available(model: str = DEFAULT_MODEL, **_rest) -> Availability:
     """Installed, and saying that the weights are a download."""
     if not installed():
-        return Availability(
-            False, f"MatterSim is not installed -- {install_command()}")
+        return Availability(False, "MatterSim is not installed",
+                            install_command())
     if model not in dict(MODEL_CHOICES):
         return Availability(False, f"{model!r} is not a MatterSim "
                                    f"model this application offers")

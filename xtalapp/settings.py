@@ -410,6 +410,33 @@ class AppSettings:
     def bonds_follow_geometry(self, value) -> None:
         self._q.setValue("bonds/follow_geometry", bool(value))
 
+    # -- the AI assistant ----------------------------------------------
+
+    @property
+    def agent_serve(self) -> bool:
+        """Serve the agent's tools from this window, on loopback.
+
+        Off until somebody turns it on: a port that drives the window
+        is not something to open on a person's behalf.
+        """
+        return _as_bool(self._q.value("agent/serve", False))
+
+    @agent_serve.setter
+    def agent_serve(self, value) -> None:
+        self._q.setValue("agent/serve", bool(value))
+
+    @property
+    def agent_port(self) -> int:
+        """The port asked for first; a busy one falls back to any."""
+        try:
+            return int(self._q.value("agent/port", 7781))
+        except (TypeError, ValueError):
+            return 7781
+
+    @agent_port.setter
+    def agent_port(self, value) -> None:
+        self._q.setValue("agent/port", int(value))
+
     def default_bond_rules(self) -> dict:
         """Perception criteria for a newly opened structure.
 

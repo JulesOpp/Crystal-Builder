@@ -37,6 +37,7 @@ already look.
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path, PurePosixPath
 
 HERE = Path(__file__).resolve().parent
@@ -209,7 +210,35 @@ HIDDEN_IMPORTS = [
 #: calculated pattern reads by path -- and its submodules, which its
 #: plans and engines import by name.  Its sources go in as files as
 #: well as bytecode (:data:`MODULE_COLLECTION_MODE`).
-COLLECT = ["rdkit", "rdeditor", "qdarktheme", "matplotlib", "rietx"]
+#:
+#: ``mcp`` and ``uvicorn`` are an AI assistant's connection, the
+#: ``mcp`` extra, which every build carries: the window serves the
+#: agent verbs over HTTP and the ``xtal`` launcher serves them over
+#: stdio.
+#: ``mcp`` is collected for its metadata as much as its code --
+#: ``mcp.server.fastmcp`` asks ``importlib.metadata.version("mcp")``
+#: as it is imported, and a traced build without the ``dist-info``
+#: raises there.  ``uvicorn`` picks its loop, protocol and lifespan
+#: modules from strings in its ``Config``; pyinstaller-hooks-contrib's
+#: own hook already collects its submodules, and naming it here keeps
+#: that from resting on a third party's hook.  The rest of the extra
+#: is traced: ``sse_starlette`` and ``httpx_sse`` are imported by
+#: ``mcp`` at the top of the modules that use them, and ``anyio``'s
+#: back ends, imported by name, are the contrib hook for ``anyio``.
+COLLECT = ["rdkit", "rdeditor", "qdarktheme", "matplotlib", "rietx",
+           "mcp", "uvicorn"]
+
+#: Entries of :data:`COLLECT` collected for their submodules and
+#: metadata only, less the subpackages named.  ``mcp.cli`` is the SDK's
+#: own command line, which we never ship, and it does not raise when
+#: ``typer`` -- its ``cli`` extra, which we do not install -- is
+#: missing: it prints a line and calls ``sys.exit(1)``.
+#: ``collect_all`` imports every submodule in a child process to list
+#: them, so that exit killed the child and both bundle jobs failed at
+#: "Build".  The SDK carries no data files the application reads, so
+#: the ``dist-info`` -- which ``mcp.server.fastmcp`` asks for its
+#: version on import -- is the only data kept.
+COLLECT_WITHOUT = {"mcp": ("mcp.cli",)}
 
 #: PyInstaller's ``module_collection_mode``: packages whose ``.py``
 #: files must exist on disk in the bundle.  numba's kernel cache is
@@ -318,6 +347,25 @@ EXCLUDES = [
 ]
 
 
+# The second program in the build: ``xtal``, the headless CLI, with a
+# console, built by both specs from ``xtal/cli.py`` into the same
+# folder as the window.  An AI assistant's client runs ``xtal mcp``;
+# a packaged install has no ``pip`` to have put an ``xtal`` on PATH,
+# so the build carries its own.  Its name is
+# :data:`xtal.agent.discovery.LAUNCHER_NAME`.
+def launcher_path(executable: Path) -> Path:
+    """Where the ``xtal`` launcher lands: beside the application's own
+    ``executable`` -- ``Contents/MacOS/xtal`` inside the ``.app``,
+    ``xtal.exe`` beside ``Crystal Builder.exe`` on Windows.  The same
+    rule as :func:`xtal.agent.discovery.launcher` in a frozen build,
+    which is what the Preferences page shows."""
+    from xtal.agent.discovery import LAUNCHER_NAME
+
+    name = (f"{LAUNCHER_NAME}.exe" if sys.platform == "win32"
+            else LAUNCHER_NAME)
+    return Path(executable).with_name(name)
+
+
 def dialog_imports() -> list[str]:
     """The dialogs an action can only *name*.
 
@@ -416,24 +464,42 @@ def datas() -> list[tuple[str, str]]:
     modules only, plus whatever a user has put in the folder
     :mod:`xtalapp.extras` prepends to ``sys.path``.
     """
-    from PyInstaller.utils.hooks import collect_all, copy_metadata
+    from PyInstaller.utils.hooks import copy_metadata
 
     collected = list(project_datas())
     collected += copy_metadata("crystal-builder")
     for package in COLLECT:
-        package_datas, _binaries, _hidden = collect_all(package)
+        package_datas, _binaries, _hidden = _collect(package)
         collected += package_datas
     return collected
+
+
+def _collect(package: str) -> tuple[list, list, list[str]]:
+    """``collect_all(package)``, or for an entry of
+    :data:`COLLECT_WITHOUT` its submodules less the ones refused and
+    its metadata, as the same ``(datas, binaries, hiddenimports)``."""
+    from PyInstaller.utils.hooks import (
+        collect_all,
+        collect_submodules,
+        copy_metadata,
+    )
+
+    if package not in COLLECT_WITHOUT:
+        return collect_all(package)
+    refused = COLLECT_WITHOUT[package]
+    hidden = collect_submodules(
+        package, filter=lambda name: not any(
+            name == prefix or name.startswith(prefix + ".")
+            for prefix in refused))
+    return copy_metadata(package), [], hidden
 
 
 def hiddenimports() -> list[str]:
     """:data:`HIDDEN_IMPORTS`, plus :func:`dialog_imports` and the
     modules ``collect_all`` finds inside the bundled extras."""
-    from PyInstaller.utils.hooks import collect_all
-
     found = list(HIDDEN_IMPORTS) + dialog_imports()
     for package in COLLECT:
-        _datas, _binaries, hidden = collect_all(package)
+        _datas, _binaries, hidden = _collect(package)
         found += hidden
     return found
 
@@ -449,11 +515,9 @@ def binaries() -> list[tuple[str, str]]:
     greyed-out module entry naming which.  The shipped app finds
     these; it does not carry them.
     """
-    from PyInstaller.utils.hooks import collect_all
-
     found: list[tuple[str, str]] = []
     for package in COLLECT:
-        _datas, package_binaries, _hidden = collect_all(package)
+        _datas, package_binaries, _hidden = _collect(package)
         found += package_binaries
     return found
 

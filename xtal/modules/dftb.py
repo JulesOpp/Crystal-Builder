@@ -192,8 +192,7 @@ def _dos(job):
 
 def _ase() -> Availability:
     from xtal.analysis import kpath
-    return Availability(kpath.installed(),
-                        "" if kpath.installed() else kpath.MISSING)
+    return Availability(True) if kpath.installed() else kpath.NOT_INSTALLED
 
 
 def _band_structure(job):

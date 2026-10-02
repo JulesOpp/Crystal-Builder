@@ -33,10 +33,11 @@ after = s.inspect()
 1. **Only on a prepared structure.** An engine refuses coincident atoms
    (`CALCULATION_REFUSED`). It does not refuse disorder or missing
    hydrogens; it computes an energy for them.
-2. **The atoms and bonds are the same afterwards.** Compare
-   `before.n_atoms`, `n_bonds` and the fragments with `after`. If
-   coordination changed, a bond now spans an unphysical length: report
-   it, and do not recalculate the bonds to make it go away.
+2. **The atoms and bonds are the same afterwards.** When the
+   relaxation moved atoms into or out of bonding distance,
+   `BONDING_WOULD_CHANGE` says so and counts them: a bond now spans an
+   unphysical length, or one is missing. Report it, and do not
+   recalculate the bonds to make it go away.
 3. **`NOT_CONVERGED`**: the geometry is where the optimiser stopped.
    The energy is not a minimum. More steps, or a structural problem.
 4. **`max_displacement`** in `data`: the furthest any atom moved. More
@@ -73,6 +74,7 @@ one or two coordinates. `help_for("scan.run")` lists the parameters.
   hysteresis or an unconverged neighbour, not noise to average.
 - **It is slow.** Ni2Cl2BTDD under UFF is about 0.44 s a step, so a
   12×12 grid is hours. Every point is written the moment it finishes.
-  Tell the person the size before starting a large grid.
+  Tell the person the size before starting a large grid; `SCAN_SIZE`
+  carries the count.
 - A scan returns no structure. The points are files in the run folder,
   and `report.json` opens the landscape in the window.

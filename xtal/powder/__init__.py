@@ -22,7 +22,9 @@ from __future__ import annotations
 
 import importlib.util
 
-__all__ = ["EXTRA", "available", "missing"]
+from xtal.params import Availability
+
+__all__ = ["EXTRA", "availability", "available", "missing"]
 
 #: The ``pip install crystal-builder[...]`` name that brings RietX in.
 EXTRA = "refine"
@@ -36,10 +38,16 @@ def available() -> bool:
         return False
 
 
-def missing() -> str:
-    """Why a refinement cannot run here, or ``""`` when it can."""
+def availability() -> Availability:
+    """Whether a refinement can run here, and how to make it when not."""
     if available():
-        return ""
+        return Availability(True)
     from xtal import install
 
-    return f"Refinement needs RietX: {install.command(EXTRA)}"
+    return Availability(False, "Refinement needs RietX",
+                        install.command(EXTRA))
+
+
+def missing() -> str:
+    """Why a refinement cannot run here, or ``""`` when it can."""
+    return availability().reason

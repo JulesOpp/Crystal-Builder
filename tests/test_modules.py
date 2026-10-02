@@ -389,6 +389,103 @@ def test_availability_is_a_reason_and_not_a_bare_false():
     assert Availability(False, "no binary").reason == "no binary"
 
 
+def test_an_availability_composes_its_reason_from_what_and_command():
+    """What is wrong and how to put it right are kept apart, so that a
+    listing can say the first without repeating the second, and every
+    reader of ``reason`` still gets both, one way round."""
+    missing = Availability(False, "MACE is not installed", "pip it")
+    assert missing.reason == "MACE is not installed -- pip it"
+    assert (missing.what, missing.command) == (
+        "MACE is not installed", "pip it")
+
+
+def test_an_availability_without_a_command_reads_as_its_what():
+    assert Availability(False, "no binary").reason == "no binary"
+    assert Availability(True, "/usr/bin/xtb").reason == "/usr/bin/xtb"
+    assert Availability(True).reason == ""
+
+
+def _missing_engine(monkeypatch, name):
+    import importlib
+    calculator = importlib.import_module(f"xtal.ff.{name}.calculator")
+    monkeypatch.setattr(calculator, "installed", lambda: False)
+    return calculator.available()
+
+
+def _mof_without_ase(monkeypatch):
+    from xtal.modules import mof
+    monkeypatch.setattr(mof, "database_root", lambda: "nets")
+    monkeypatch.setattr(mof, "has_ase", lambda: False)
+    return mof.available()
+
+
+def _build_without_rdkit(monkeypatch):
+    from xtal.modules import build
+    monkeypatch.setattr(build, "installed", lambda: False)
+    return build.available()
+
+
+def _refine_without_rietx(monkeypatch):
+    from xtal import powder
+    monkeypatch.setattr(powder, "available", lambda: False)
+    return powder.availability()
+
+
+def _bands_without_ase(monkeypatch):
+    from xtal.analysis import kpath
+    from xtal.modules import dftb
+    monkeypatch.setattr(kpath, "installed", lambda: False)
+    return dftb._ase()
+
+
+def _program_not_found(monkeypatch):
+    from xtal.modules.process import Program
+    monkeypatch.delenv("XTAL_NOT_A_PROGRAM", raising=False)
+    return Program(name="not-a-program-anywhere", label="Zeo++",
+                   env_var="XTAL_NOT_A_PROGRAM",
+                   url="https://www.zeoplusplus.org/").availability()
+
+
+def _command(extra):
+    from xtal import install
+    return install.command(extra)
+
+
+@pytest.mark.parametrize("unavailable, said, command", [
+    (lambda mp: _missing_engine(mp, "mace"),
+     "MACE is not installed -- {}", lambda: _command("mace")),
+    (lambda mp: _missing_engine(mp, "orb"),
+     "ORB is not installed -- {}", lambda: _command("orb")),
+    (lambda mp: _missing_engine(mp, "mattersim"),
+     "MatterSim is not installed -- {}", lambda: _command("mattersim")),
+    (_mof_without_ase,
+     "The MOF builder needs ase -- {}", lambda: _command("ase")),
+    (_build_without_rdkit,
+     "RDKit is not installed, so there is nothing to build a molecule "
+     "from -- {}", lambda: _command("build")),
+    (_refine_without_rietx,
+     "Refinement needs RietX -- {}", lambda: _command("refine")),
+    (_bands_without_ase,
+     "the band path needs ASE, which works out the special points of "
+     "this cell -- {}", lambda: _command("ase")),
+    (_program_not_found,
+     "Zeo++ is not installed, or not on PATH (XTAL_NOT_A_PROGRAM is not "
+     "set) -- {}", lambda: "it is at https://www.zeoplusplus.org/"),
+], ids=["mace", "orb", "mattersim", "mof", "build", "refine", "bands",
+        "program"])
+def test_a_reason_is_the_sentence_and_its_remedy_joined_one_way(
+        monkeypatch, unavailable, said, command):
+    """A person reading the panel, the Modules tree or ``help_for`` sees
+    the sentence and how to put it right, joined by " -- " wherever it
+    comes from, and the command is not in the half a compact listing
+    shows."""
+    available = unavailable(monkeypatch)
+    assert not available
+    assert available.reason == said.format(command())
+    assert available.command == command()
+    assert command() not in available.what
+
+
 # ------------------------------------------------------------ plugins
 #
 # The claim in docs/PLAN.md § 14 is that adding an engine changes *no

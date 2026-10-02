@@ -166,11 +166,17 @@ class Availability:
 
     An external tool that is missing is the most common state it will
     be in, so the answer carries a sentence a user can act on rather
-    than a bare false.
+    than a bare false: ``what`` is wrong and ``command`` puts it right,
+    apart so that a listing of many can leave the command out.
     """
 
     ok: bool = True
-    reason: str = ""
+    what: str = ""
+    command: str = ""
+
+    @property
+    def reason(self) -> str:
+        return f"{self.what} -- {self.command}" if self.command else self.what
 
     def __bool__(self) -> bool:
         return self.ok

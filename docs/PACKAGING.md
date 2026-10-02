@@ -60,6 +60,45 @@ packaging/
 is one fix and not two.  It is not a build script — `pyinstaller
 packaging/macos.spec` stays the command.
 
+### Two programs: the window and `xtal`
+
+Each spec builds **two executables into the one folder**: the window
+(`console=False`) and `xtal`, the headless CLI from `xtal/cli.py`
+(`console=True`, because `xtal mcp` speaks MCP over stdin and stdout).
+Each has its own `Analysis` and archive over the same `bundle.py`
+inputs, and both go into the one `COLLECT`, which keeps a single copy
+of every shared library and data file — PyInstaller's multi-program
+layout, with no `MERGE`.  The window is listed first, because `BUNDLE`
+makes the first executable it meets the `.app`'s own.  And
+`COLLECT` takes `console` from the *last* one, which `BUNDLE`
+inherits and turns into `LSBackgroundOnly = True` — a window with no
+Dock icon and no menu bar — so `macos.spec`'s Info.plist says
+`LSBackgroundOnly: False` explicitly, and a test holds it there.
+
+| Platform | Where `xtal` lands |
+|---|---|
+| macOS | `Crystal Builder.app/Contents/MacOS/xtal` |
+| Windows | `xtal.exe` beside `Crystal Builder.exe` in the install folder |
+
+That is `bundle.launcher_path(executable)`, and the same rule as
+`xtal.agent.discovery.launcher()` in a frozen build, which is the
+command *Preferences → AI assistant* shows: an AI assistant's client
+runs `"<launcher> mcp"`, the **stdio door**.  With the window open it
+proxies to the window's server; with none, it serves headless.  A
+packaged install has no `pip` to have put an `xtal` on PATH, which is
+why the build carries its own.  `--selftest` runs it
+(`selftest.check_launcher`): `xtal capabilities --json` must answer
+with a version, and `xtal mcp --headless` with stdin closed must exit
+0, which is the proof `mcp` came along.  Both are started with
+`PYINSTALLER_RESET_ENVIRONMENT=1`, PyInstaller's way for one frozen
+program to start another.  Headless `render` from it is `RENDER_UNAVAILABLE`,
+saying to connect the window: a frozen program has no `-m` to run the
+snapshot module with, and the window draws for a connected assistant
+itself.
+
+The second archive is the cost: the `xtal` executable carries its own
+copy of the pure-Python modules.  Not yet measured on a built bundle.
+
 ---
 ## 3. The one constraint, and the one line
 
@@ -182,6 +221,17 @@ still `QPainter`, the pattern is still calculated and still written as
 `.xy`, and a build that failed to collect `matplotlib` loses one
 window and no answers — which is exactly what *Preferences → Optional
 features* says it would.
+
+`mcp` — **the `mcp` extra is always in the bundle**, with what it
+brings (`uvicorn`, `starlette`, `anyio`, `httpx`, `pydantic`,
+`sse-starlette`, `httpx-sse`).  It is an AI assistant's connection:
+the window serves the agent verbs over loopback HTTP, and `xtal mcp`
+beside it is the stdio door.  `mcp` and `uvicorn` are on `COLLECT`:
+`mcp.server.fastmcp` reads its own version from its `dist-info` as it
+is imported, and uvicorn names its protocol modules as strings.  The
+build jobs install `.[...,mcp]`; without it `collect_all` finds
+nothing and says so only in a warning, which is why a test reads the
+workflow's install lines.
 
 ### Out
 

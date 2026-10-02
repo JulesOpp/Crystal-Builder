@@ -1,0 +1,10 @@
+{
+  "input": "resources/samples/Ni2Cl2BTDD.cif",
+  "codes": ["COINCIDENT_ATOMS"],
+  "inspect": {"COINCIDENT_ATOMS": "absent",
+              "MISSING_HYDROGENS": "absent"},
+  "log_must_not_contain": [],
+  "log_must_contain": ["prepare"],
+  "report_must_ask": false,
+  "atoms_unchanged": false
+}

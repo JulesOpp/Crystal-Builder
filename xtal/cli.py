@@ -21,6 +21,7 @@ here (and in the Python console) rather than to automate the widgets.
     xtal render quartz.cif quartz.png --view c
     xtal capabilities
     xtal skill install
+    xtal mcp
 """
 
 from __future__ import annotations
@@ -98,9 +99,9 @@ def cmd_inspect(args) -> int:
 
     found = inspect(_load(args.file), symprec=args.symprec)
     if args.json:
-        _emit_json(found.to_dict())
+        _emit_json(found.to_dict(args.sites))
     else:
-        print(found)
+        print(found.text(args.sites))
     return 1 if found.worst == "error" else 0
 
 
@@ -126,7 +127,7 @@ def cmd_capabilities(args) -> int:
     if args.name:
         print(help_for(args.name))
         return 0
-    found = capabilities()
+    found = capabilities(verbose=args.verbose)
     print(found.to_json() if args.json else found)
     return 0
 
@@ -723,6 +724,14 @@ def cmd_formats(args) -> int:
 #  ENTRY POINT
 # ======================================================================
 
+def cmd_mcp(args) -> int:
+    """The agent verbs as MCP tools on stdio -- what a client starts."""
+    from xtal.agent import serve
+
+    return serve.main(["--window"] if args.window else
+                      ["--headless"] if args.headless else [])
+
+
 def build_parser() -> argparse.ArgumentParser:
     from xtal import __version__
 
@@ -738,6 +747,7 @@ def build_parser() -> argparse.ArgumentParser:
     _json_flag(p)
     p.set_defaults(func=cmd_info)
 
+    from xtal.agent.answers import SITES
     from xtal.agent.inspect import DEFAULT_SYMPREC as INSPECT_SYMPREC
     p = sub.add_parser(
         "inspect", help="what a structure is and what is wrong with "
@@ -747,6 +757,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--symprec", type=float, default=INSPECT_SYMPREC,
                    help="tolerance the group is detected at "
                         "(default: %(default)g)")
+    p.add_argument("--sites", choices=SITES, default="problems",
+                   help="which site rows to give: those a diagnostic "
+                        "names, all, or none (default: %(default)s)")
     _json_flag(p)
     p.set_defaults(func=cmd_inspect)
 
@@ -770,6 +783,8 @@ def build_parser() -> argparse.ArgumentParser:
                             "modules, rendering")
     p.add_argument("name", nargs="?",
                    help="a verb, engine or MODULE.ACTION to describe")
+    p.add_argument("--verbose", action="store_true",
+                   help="every option and parameter, with its help")
     _json_flag(p)
     p.set_defaults(func=cmd_capabilities)
 
@@ -789,6 +804,12 @@ def build_parser() -> argparse.ArgumentParser:
     q.add_argument("--force", action="store_true",
                    help="replace an installed copy that differs")
     q.set_defaults(func=cmd_skill)
+
+    from xtal.agent.serve import mcp_arguments
+    p = sub.add_parser("mcp", help="serve the agent verbs as MCP tools "
+                                   "over stdio, for an AI assistant")
+    mcp_arguments(p)
+    p.set_defaults(func=cmd_mcp)
 
     p = sub.add_parser("symmetry", help="detect the space group")
     p.add_argument("file")

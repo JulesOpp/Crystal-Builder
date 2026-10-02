@@ -44,6 +44,12 @@ CONTACT_FRACTION = 0.8
 #: dative bonds are the rule.
 BOND_DEVIATION = 0.3
 
+#: The step a neighbour distance is rounded to before two sites'
+#: patterns are compared: fine enough to tell MOF-5's ring C-C (1.40)
+#: from its C-carboxylate (1.50), coarse enough that the copies of one
+#: site written to four decimals in a P1 cell still match.
+PATTERN_STEP = 0.05
+
 #: The elements whose valence caps their coordination hard enough
 #: that exceeding it always means a misplaced atom or loose rules.
 MAX_COORDINATION = {"H": 1, "C": 4, "F": 1}
@@ -109,6 +115,7 @@ def inspect(structure, symprec: float = DEFAULT_SYMPREC) -> Inspection:
             "CELL_NOT_NEUTRAL",
             f"the site charges sum to {info.net_charge:+.3f} e"))
 
+    diagnostics = _capped(found)
     a, b, c, alpha, beta, gamma = (float(x) for x in info.parameters)
     return Inspection(
         formula=info.formula, z=info.z, n_sites=info.n_sites,
@@ -121,7 +128,9 @@ def inspect(structure, symprec: float = DEFAULT_SYMPREC) -> Inspection:
         detected_space_group=detected, symprec=symprec,
         net_charge=info.net_charge, n_bonds=len(graph.bonds),
         fragments=fragments, sites=sites,
-        diagnostics=_capped(found))
+        site_groups=_site_groups(sites),
+        problem_sites=_problem_sites(diagnostics, cell),
+        diagnostics=diagnostics)
 
 
 def _detected(structure, symprec, found) -> str:
@@ -168,6 +177,48 @@ def _sites(structure, cell, graph, coordination) -> list[dict]:
             "neighbours": neighbours,
         })
     return rows
+
+
+def _site_groups(sites) -> list[dict]:
+    """Sites alike in element, coordination and neighbour pattern, in
+    the order their first site comes.  ``count`` is atoms of the cell,
+    so a site of multiplicity 4 counts four, as a P1 cell's four
+    copies of it would."""
+    groups: dict[tuple, dict] = {}
+    for row in sites:
+        pattern = _pattern(row["neighbours"])
+        key = (row["element"], row["coordination"], pattern)
+        if key not in groups:
+            groups[key] = {
+                "element": row["element"],
+                "coordination": row["coordination"],
+                "pattern": pattern, "count": 0, "sites": [],
+                "example": row}
+        groups[key]["count"] += row["multiplicity"]
+        groups[key]["sites"].append(row["index"])
+    return list(groups.values())
+
+
+def _pattern(neighbours) -> str:
+    """``"O 1.95 x4, O 2.00 x2"``: neighbours by element and distance
+    rounded to :data:`PATTERN_STEP`, nearest first."""
+    steps = Counter((round(d / PATTERN_STEP), e) for e, d in neighbours)
+    return ", ".join(f"{e} {step * PATTERN_STEP:.2f} x{n}"
+                     for (step, e), n in sorted(steps.items()))
+
+
+def _problem_sites(diagnostics, cell) -> list[int]:
+    """The sites the diagnostics' ``where`` names, in index order:
+    ``site N`` is the site, ``atoms i, j`` the sites of those atoms."""
+    found = set()
+    for d in diagnostics:
+        kind, _, numbers = d.where.partition(" ")
+        indices = [int(n) for n in numbers.split(",") if n.strip()]
+        if kind == "site":
+            found.update(indices)
+        elif kind == "atoms":
+            found.update(int(cell.site_idx[i]) for i in indices)
+    return sorted(found)
 
 
 def _formula(symbols) -> str:

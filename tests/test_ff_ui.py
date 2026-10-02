@@ -878,6 +878,27 @@ def test_a_missing_engine_links_to_its_install_command(opened,
     assert shown == ["Engines"]
 
 
+def test_a_missing_program_keeps_its_own_remedy_in_the_note():
+    """Only an extra's command is on Preferences > Engines.  xTB's and
+    DFTB+'s remedy is a web page and a conda line, which that page does
+    not have, so the note says it rather than sending the user to a
+    page with nothing on it."""
+    from xtal import install
+    from xtal.params import Availability
+    from xtalapp.docks.ff_panel import engine_note_html
+
+    program = Availability(False, "xtb is not installed, or not on PATH",
+                           "it is at https://x.org  (conda install xtb)")
+    assert engine_note_html(program) == (
+        "xtb is not installed, or not on PATH -- it is at "
+        "https://x.org  (conda install xtb)")
+    extra = Availability(False, "ORB is not installed",
+                         install.command("orb"))
+    assert engine_note_html(extra) == (
+        'ORB is not installed -- the command to install it is on '
+        '<a href="engines">Preferences &gt; Engines</a>')
+
+
 # ------------------------------------------- where a method comes from
 
 def _links(label):

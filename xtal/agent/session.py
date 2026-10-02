@@ -117,6 +117,14 @@ class Session:
             path = entry.path / path.name
         session = cls(structure, path, entry, view, project_session)
         notes = []
+        if found is not None and workspace is not None and \
+                found.root != Path(workspace).resolve():
+            # The file stays where it belongs, so an agent that named
+            # a workspace would otherwise look for its runs there.
+            notes.append(Diagnostic(
+                "WORKSPACE_IGNORED",
+                f"{path} already belongs to the workspace at "
+                f"{found.root}; {workspace} was not used"))
         project = path.with_suffix(PROJECT_EXTENSION)
         if not is_project(path) and project.is_file():
             # A session lives as long as its process.  An agent that
@@ -751,21 +759,36 @@ class Session:
         unconverged run is applied -- the window applies it too -- and
         says ``NOT_CONVERGED``, because its energy is not a minimum.
         """
-        from xtal.commands import ff as ff_commands
-        from xtal.ff import optimize as ff_optimize
-        from xtal.ff import record as ff_record
-
         args = {"engine": engine, "relax_cell": relax_cell,
                 "max_steps": max_steps, "tolerance": tolerance,
                 "method": method, **options}
+        relaxed = self._relax(args, options)
+        if isinstance(relaxed, VerbResult):
+            return relaxed
+        return self._apply_relaxation(relaxed, args)
+
+    def _relax(self, args, options):
+        """The calculation half of :meth:`optimize`: the engine built
+        over this structure, its run folder opened, the optimiser run.
+        Nothing is pushed.  A :class:`_Relaxation`, or the refusal.
+
+        Apart from :meth:`_apply_relaxation` because the window runs
+        this half over a copy, off its GUI thread, and the other half
+        on the tab.
+        """
+        from xtal.ff import optimize as ff_optimize
+        from xtal.ff import record as ff_record
+
+        engine = args["engine"]
         calculator, refused = self._calculator(engine, options)
         if refused is not None:
             return self._answer_refused("optimize", args, refused)
-        kwargs = {"method": method, "relax_cell": relax_cell}
-        if max_steps is not None:
-            kwargs["max_steps"] = int(max_steps)
-        if tolerance is not None:
-            kwargs["force_tolerance"] = float(tolerance)
+        kwargs = {"method": args["method"],
+                  "relax_cell": args["relax_cell"]}
+        if args["max_steps"] is not None:
+            kwargs["max_steps"] = int(args["max_steps"])
+        if args["tolerance"] is not None:
+            kwargs["force_tolerance"] = float(args["tolerance"])
         recorder = ff_record.open_run(self.entry, engine, "optimise",
                                       self.structure, calculator,
                                       options=options)
@@ -778,17 +801,24 @@ class Session:
             return True
 
         before = [s.frac.copy() for s in self.structure.sites]
+        start = self.structure.copy()
         try:
             result = ff_optimize.run(calculator, self.structure,
                                      callback=trace, **kwargs)
         except Exception as exc:        # noqa: BLE001 -- said, not lost
             ff_record.close_run(recorder, error=str(exc))
             return self._calculation_failed("optimize", args, exc)
-        command = ff_commands.ApplyOptimizedGeometry(
-            result.frac, before=before,
-            matrix=getattr(result, "matrix", None))
+        return _Relaxation(calculator, recorder, result, before, start)
+
+    def _apply_relaxation(self, relaxed, args) -> VerbResult:
+        """The other half: the relaxed geometry pushed as one step, the
+        run closed, and the answer."""
+        from xtal.ff import record as ff_record
+
+        result, recorder = relaxed.result, relaxed.recorder
+        command = relaxed.command()
         moved = command.displacement(self.structure)
-        notes = _engine_notes(calculator)
+        notes = _engine_notes(relaxed.calculator)
         if not result.converged:
             notes.append(Diagnostic(
                 "NOT_CONVERGED",
@@ -824,6 +854,10 @@ class Session:
         ff_record.close_run(recorder, result, final=self.structure)
         if recorder is not None:
             answer.data["run"] = str(recorder.folder.path)
+        changed = _bonding_would_change(relaxed.start, self.structure)
+        if changed is not None:
+            answer.diagnostics.append(changed)
+        if recorder is not None or changed is not None:
             self._rewrite_last_log(answer)
         return answer
 
@@ -851,6 +885,10 @@ class Session:
                              f"measuring one: Session.build({action!r}, "
                              f"workspace, ...)")
         coerced = entry_action.coerce(_as_strings(params))
+        # Said before the run and kept whatever it does: a grid of
+        # hours that fails at its first point was still that size.
+        size = _scan_size(action, coerced)
+        sized = [size] if size is not None else []
         folder = module_record.open_run(self.entry, module, entry_action,
                                         coerced, self.structure)
         job = Job(structure=self.structure, params=coerced,
@@ -860,9 +898,10 @@ class Session:
         except Exception as exc:        # noqa: BLE001 -- said, not lost
             module_record.close_run(folder, error=str(exc))
             return self._answer_refused(
-                action, params, Diagnostic("MODULE_FAILED", str(exc)))
+                action, params, Diagnostic("MODULE_FAILED", str(exc)),
+                notes=sized)
         module_record.close_run(folder, result)
-        notes = _result_warnings(result)
+        notes = sized + _result_warnings(result)
         if not result.ok:
             notes.insert(0, Diagnostic("MODULE_FAILED",
                                        result.message or "failed"))
@@ -976,16 +1015,23 @@ class Session:
         message = getattr(report, "message", "") or command.label
         return self._push(verb, command, message, args, notes=notes)
 
+    def _named(self, answer):
+        """``answer`` as given.  The window's sessions say which of its
+        documents it is about; a script's session is its one
+        structure, and its answers are left as they were."""
+        return answer
+
     def _refused(self, verb, args, message,
                  code="OPERATION_REFUSED") -> VerbResult:
         return self._answer_refused(verb, args,
                                     Diagnostic(code, message))
 
-    def _answer_refused(self, verb, args, diagnostic) -> VerbResult:
+    def _answer_refused(self, verb, args, diagnostic,
+                        notes=()) -> VerbResult:
         answer = VerbResult(verb, False, diagnostic.message,
                             atoms_before=self.n_atoms,
                             atoms_after=self.n_atoms,
-                            diagnostics=[diagnostic])
+                            diagnostics=[diagnostic, *notes])
         self._record(verb, args, answer)
         return answer
 
@@ -1087,6 +1133,26 @@ class Session:
                 f"{self.structure.space_group.short_name}>")
 
 
+class _Relaxation:
+    """What :meth:`Session._relax` hands :meth:`Session._apply_relaxation`:
+    the optimiser's result, the run it is filed in, and the geometry it
+    started from -- which is what ``before`` and the bonding check
+    compare against, whichever structure ends up taking it."""
+
+    def __init__(self, calculator, recorder, result, before, start):
+        self.calculator = calculator
+        self.recorder = recorder
+        self.result = result
+        self.before = before
+        self.start = start
+
+    def command(self):
+        from xtal.commands import ff as ff_commands
+        return ff_commands.ApplyOptimizedGeometry(
+            self.result.frac, before=self.before,
+            matrix=getattr(self.result, "matrix", None))
+
+
 #: Verbs that record without changing anything worth counting.
 _NOT_STEPS = frozenset({"open", "save", "render", "export", "energy"})
 
@@ -1150,6 +1216,78 @@ def _as_strings(params: dict) -> dict:
         else:
             out[key] = str(value)
     return out
+
+
+def _bonding_would_change(start, result) -> Diagnostic | None:
+    """``BONDING_WOULD_CHANGE`` when the relaxation moved atoms into or
+    out of bonding distance: perception of the result against
+    perception of the start, both afresh.
+
+    Afresh, on copies with the stored graph dropped, as a
+    recalculation would: perception otherwise answers from the stored
+    graph, which does not follow a geometry, and passing the rules
+    does not get past its memo.  Not against the drawn graph either: a
+    graph left stale by an earlier move would be blamed on the
+    relaxation.  The start is read in the result's wrap, so an atom
+    that crossed a cell face is not a bond lost and found.
+
+    An orbit that merged on a special position, or split off one,
+    leaves two cells whose atom indices name different atoms: there
+    is no bond-for-bond comparison to make, and ``rebase`` would raise
+    after the geometry was already applied.  Nothing is said then.
+    """
+    if p1.expand(start).n_atoms != p1.expand(result).n_atoms:
+        return None
+    then, then_tau = _perceived_afresh(start)
+    now, now_tau = _perceived_afresh(result)
+    before = {b.key() for b in bonding.rebase(then, then_tau, now_tau)}
+    after = {b.key() for b in now}
+    into, out = len(after - before), len(before - after)
+    if not into and not out:
+        return None
+    return Diagnostic(
+        "BONDING_WOULD_CHANGE",
+        f"the relaxation moved {into} bond(s) into and {out} out of "
+        f"bonding distance; bonds were left as they were")
+
+
+def _perceived_afresh(structure):
+    """The bonds perception finds now, and the wrap they are read in;
+    ``structure`` itself and its stored graph are not touched."""
+    fresh = structure.copy()
+    fresh.clear_perceived()
+    return bonding.perceive(fresh), p1.expand(fresh).tau
+
+
+def _scan_size(action: str, params: dict) -> Diagnostic | None:
+    """``SCAN_SIZE`` for a scan of more than one point, from the
+    coerced parameters: each axis that is walked multiplies the count
+    by its steps, and walking both ways doubles it.
+
+    An axis whose coordinate is empty is not walked (``axes_from``
+    skips it), and its steps still arrive filled in by ``coerce``:
+    counted, a one-axis scan of 5 read as 45.
+    """
+    if not action.startswith("scan."):
+        return None
+    points, any_axis = 1, False
+    for name, value in params.items():
+        axis = name.removesuffix("_steps")
+        if axis == name or not axis.startswith("axis"):
+            continue
+        if axis in params and not str(params[axis] or "").strip():
+            continue
+        points *= int(value)
+        any_axis = True
+    if not any_axis:
+        return None
+    if any("direction" in name and value == "both"
+           for name, value in params.items()):
+        points *= 2
+    if points <= 1:
+        return None
+    return Diagnostic("SCAN_SIZE", f"{points} points, each a relaxation, "
+                                   f"written as it finishes")
 
 
 def _engine_notes(calculator) -> list[Diagnostic]:

@@ -144,6 +144,46 @@ def test_every_xtal_command_the_skill_shows_exists():
     assert shown and shown <= commands, sorted(shown - commands)
 
 
+#: A list of backticked names: `a`, `b` and `c`.
+NAME_LIST = r"`\w+`(?:(?:,| and|, and) `\w+`)*"
+
+
+def _tool_names_the_skill_mentions() -> set:
+    """Every backticked name followed by "tool", and every name in a
+    list that "the tools are" or a sentence about tools' "plus"
+    introduces -- across line breaks, as the prose wraps."""
+    flat = re.sub(r"\s+", " ", ALL_TEXT)
+    named = set(re.findall(r"`(\w+)(?:\([^`]*\))?` tools?\b", flat))
+    for listed in re.findall(
+            rf"(?:tools are|tools?\b[^.]*?\bplus) ({NAME_LIST})", flat):
+        named |= set(re.findall(r"`(\w+)`", listed))
+    return named
+
+
+def test_every_tool_the_skill_names_is_registered():
+    """A tool the skill names and the server does not list is one the
+    assistant calls and is told does not exist -- and reads that as
+    the window's fault."""
+    pytest.importorskip("mcp")
+    import anyio
+    from mcp.shared.memory import (
+        create_connected_server_and_client_session,
+    )
+
+    from xtal.agent.serve import HeadlessHost
+    from xtal.agent.tools import build_server
+
+    async def listed():
+        async with create_connected_server_and_client_session(
+                build_server(HeadlessHost())) as client:
+            return {t.name for t in (await client.list_tools()).tools}
+
+    named = _tool_names_the_skill_mentions()
+    assert {"documents", "switch", "open"} <= named, sorted(named)
+    registered = anyio.run(listed)
+    assert named <= registered, sorted(named - registered)
+
+
 def test_skill_install_writes_to_the_directory_it_was_given(tmp_path):
     target = skill.install(project=tmp_path)
     assert target == tmp_path / ".claude" / "skills" / "crystal-builder"

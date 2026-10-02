@@ -153,16 +153,56 @@ through the same commands as a person* is the design.
 
 It shipped: `xtal/agent/` (`Session`, `inspect`, `render`,
 `capabilities`), the skill in the wheel, the `xtal` commands and
-their `--json`.  **Still owed**, in this order:
+their `--json`, and on 2026-10-01 the live link to the window
+(`feature/ai-assistant-revamp`).  **Still owed**:
 
-- **A live link to the window**: a local MCP server inside a running
-  window, turned on explicitly, whose tools are the same verbs over
-  `Document.run` rather than a `Session` -- so the person watches each
-  edit land as an undo step in the tab they have open.  The verbs need
-  no change; what is new is marshalling every call onto the GUI thread
-  and refusing while a trajectory plays.
 - **A manual chapter**, *Working with an AI assistant*, once
   `docs/manual/` exists (interface stretch, phase 4).
+
+**Known limits** of the live link, left open by its reviews:
+
+- A frozen build's `xtal capabilities` still says render is available,
+  and `render` from it refuses (headless render from the frozen
+  launcher was not in that branch).
+- The heavy verbs that are not calculations -- `prepare`,
+  `fill_pores`, `interpenetrate`, `add_hydrogens`, `substitute` -- run
+  on the GUI thread, so on a big cell the window freezes while they
+  do.  Only `energy`, `optimize` and `run` compute off it.
+- `agent/serve` is one setting for every window, though only one
+  window can serve (the discovery file holds one).
+- One failed 2-second health probe of the window (every
+  `proxy.WATCH` seconds) during a long calculation cancels that call
+  through `xtal mcp`; the window keeps computing and the answer is
+  lost.  The session is dropped with it, so the calls running beside
+  it are answered "connection reset" within `proxy.WATCH` seconds
+  too.  Two failures in a row would be safer.
+- The agent's current document is shared by every client and
+  outlives a disconnect; resetting it on server start would be
+  cleaner.
+- The window's `render` looks along +a (`look_along_axis`) and the
+  headless one along -a, so the same `view="a"` gives mirror images.
+- A quit during an agent calculation abandons it: the quit asks
+  first, as for any running calculation, and the run then stops with
+  the process, its folder unfinished.
+- A `build` or `new` that was still running when the server stopped
+  can open its tab under the next server.
+- Headless `xtal mcp` lingers after its stdin closes until a running
+  relaxation ends (the tool's worker thread is not a daemon).
+- The second archive's size (the bundle with `xtal` and `mcp`) is
+  unmeasured until CI builds it.
+- The refinement workbench's running fit is not counted by
+  `has_running_calculation()`, so an agent's verbs are not refused
+  while it runs.
+- `discovery.alive` sends the token to whatever holds the port: on a
+  multi-user machine, a stale file whose pid was reused and whose
+  port another user took could be handed it and pose as the window.
+  Low risk; a challenge (an HMAC of a nonce) instead of the bearer
+  probe would close it.
+- A tool call that arrives while the window is closing comes back as
+  a tool error, not as `WINDOW_BUSY`.
+- `bonding.perceive(rules=...)` reads the stored graph, despite its
+  docstring saying an explicit `rules` neither reads nor writes it.
+  This predates the branch.
 
 ---
 
@@ -654,6 +694,13 @@ Either a CI job with the extras (torch is gigabytes of wheel, and
 mace and mattersim cannot share an environment -- see `pyproject.toml`)
 or a stated rule that a change under `xtal/ff/` runs its engine's tests
 locally before merging.
+
+### A wall-clock test with a thin margin for CI
+
+For Julius:
+`tests/test_sketch_render.py::test_a_turn_recuts_thousands_of_labels_in_one_numpy_pass`
+asserts a wall-clock median under 0.15 s and failed at 0.168 s on a
+contended Intel CI runner (2026-10-01); the margin is thin for CI.
 
 ---
 

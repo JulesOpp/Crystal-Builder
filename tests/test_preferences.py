@@ -80,7 +80,8 @@ def test_the_pages_are_a_list_and_a_stack(dialog):
     titles = [dialog.list.item(i).text()
               for i in range(dialog.list.count())]
 
-    assert titles == ["General", "View defaults", "Bonding", "Engines"]
+    assert titles == ["General", "View defaults", "Bonding", "Engines",
+                      "AI assistant"]
     assert dialog.stack.count() == len(titles)
 
 

@@ -123,6 +123,15 @@ def test_the_log_directory_is_never_the_users_own_during_a_test():
 #  STAYING ATTACHED
 # ======================================================================
 
+def test_the_core_and_the_window_agree_on_the_discovery_folder():
+    """``xtal mcp`` has no Qt to ask, so the rule is written twice; if
+    they part, the window serves where ``xtal mcp`` never looks.  Here
+    and not with the server's tests, which skip without ``mcp``."""
+    from xtal.agent import discovery
+
+    assert discovery.platform_folder() == applog.app_data()
+
+
 def test_the_sketcher_leaves_the_log_handler_attached(log, qtbot):
     """rdeditor's widget calls ``logging.basicConfig`` and sets the
     root logger's level.  ``sketch._canvas`` puts both back, and this

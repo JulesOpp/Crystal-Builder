@@ -110,6 +110,84 @@ def test_inspection_never_perceives_bonds_the_structure_lacks(quartz):
 
 
 # ----------------------------------------------------------------------
+#  Site groups and problem sites
+# ----------------------------------------------------------------------
+
+def _quartz_with_an_atom_dropped_on_an_oxygen(quartz) -> Session:
+    """0.9 A from an oxygen, on the side away from its silicons: the
+    new site touches the oxygen's site and no other."""
+    session = Session(quartz.copy())
+    session.recalculate_bonds()
+    oxygen = session.cell.cart[session.cell.indices_of_site(1)[0]]
+    session.add_atom("O", cart=oxygen + [-0.9, 0.0, 0.0])
+    return session
+
+
+def test_sites_of_one_kind_are_one_group_with_a_count(rutile):
+    groups = inspect(rutile).site_groups
+    assert [(g["element"], g["count"], g["coordination"])
+            for g in groups] == [("Ti", 2, 6), ("O", 4, 3)]
+    titanium = groups[0]
+    assert titanium["sites"] == [0]
+    assert titanium["pattern"] == "O 1.95 x4, O 2.00 x2"
+    assert titanium["example"]["index"] == 0
+
+
+def test_a_site_with_no_neighbours_is_a_group_with_no_pattern(quartz):
+    found = _quartz_with_an_atom_dropped_on_an_oxygen(quartz).inspect()
+    dropped = next(g for g in found.site_groups if 2 in g["sites"])
+    assert dropped["coordination"] == 0
+    assert dropped["pattern"] == ""
+
+
+def test_a_problem_site_is_listed_and_a_clean_one_is_not(quartz):
+    session = _quartz_with_an_atom_dropped_on_an_oxygen(quartz)
+    found = session.inspect()
+    named = {int(session.cell.site_idx[int(atom)])
+             for d in found.diagnostics if d.code == "CLOSE_CONTACT"
+             for atom in d.where.removeprefix("atoms ").split(", ")}
+    listed = [s["index"] for s in found.to_dict()["sites"]]
+    assert named
+    assert listed == sorted(named)
+    assert 0 not in listed                      # silicon touches nothing
+
+
+def test_sites_all_and_none_give_every_row_and_no_row(quartz):
+    found = _quartz_with_an_atom_dropped_on_an_oxygen(quartz).inspect()
+    assert [s["index"] for s in found.to_dict(sites="all")["sites"]] \
+        == list(range(found.n_sites))
+    assert found.to_dict(sites="none")["sites"] == []
+    assert json.loads(found.to_json(sites="all"))["sites"] == \
+        json.loads(json.dumps(found.sites))
+
+
+def test_an_unknown_sites_choice_is_refused(rutile):
+    with pytest.raises(ValueError, match="problems"):
+        inspect(rutile).to_dict(sites="some")
+
+
+def test_the_text_gives_groups_then_problem_rows_then_diagnostics(
+        quartz):
+    """A person reading the terminal sees what kinds of site there
+    are, then only the rows something is wrong with -- not 40 rows of
+    a 424-site cell with the problem rows past the cut."""
+    lines = str(_quartz_with_an_atom_dropped_on_an_oxygen(
+        quartz).inspect()).splitlines()
+    groups = [n for n, line in enumerate(lines)
+              if line.startswith(("Si ", "O  ")) and " CN " in line]
+    table = lines.index("site   label    el   mult  occ    CN  "
+                        "neighbours")
+    rows = [line.split()[0] for line in lines[table + 1:]
+            if line[:1].isdigit()]
+    first_finding = next(n for n, line in enumerate(lines)
+                         if "CLOSE_CONTACT" in line)
+    assert groups and max(groups) < table < first_finding
+    assert rows == ["1", "2"]
+    assert not any(line.startswith("site ") for line in
+                   str(inspect(quartz)).splitlines())
+
+
+# ----------------------------------------------------------------------
 #  --json
 # ----------------------------------------------------------------------
 
@@ -121,8 +199,8 @@ def quartz_file(tmp_path, quartz):
 
 
 @pytest.mark.parametrize("command", [
-    ["info"], ["inspect"], ["symmetry", "--wyckoff"], ["bonds"],
-    ["types"], ["energy"], ["optimize", "--max-steps", "2"],
+    ["info"], ["inspect", "--sites", "all"], ["symmetry", "--wyckoff"],
+    ["bonds"], ["types"], ["energy"], ["optimize", "--max-steps", "2"],
     ["run", "pxrd.simulate"],
 ])
 def test_json_output_round_trips_for_every_cli_command_that_offers_it(
@@ -139,7 +217,7 @@ def test_json_output_round_trips_for_every_cli_command_that_offers_it(
 
 def test_json_inspection_names_every_site_and_diagnostic(quartz_file,
                                                          capsys):
-    cli.main(["inspect", "--json", quartz_file])
+    cli.main(["inspect", "--json", "--sites", "all", quartz_file])
     document = json.loads(capsys.readouterr().out)
     assert [s["element"] for s in document["sites"]] == ["Si", "O"]
     assert all({"code", "level", "message", "suggestion"} <= set(d)

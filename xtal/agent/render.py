@@ -40,6 +40,9 @@ VIEWS = ("diagonal", "a", "b", "c")
 #: draws MFU-4l's 648 atoms in about five seconds.
 TIMEOUT = 180
 
+#: Why the ``xtal`` a packaged build carries does not render headless.
+FROZEN = "connect the window to render (Help ▸ Connect an AI assistant)"
+
 
 def render(structure, path, view="diagonal", size=(800, 600),
            style: str = "ball_stick", highlight=(),
@@ -64,6 +67,11 @@ def render(structure, path, view="diagonal", size=(800, 600),
             "size": [int(size[0]), int(size[1])], "style": style,
             "highlight": [int(a) for a in highlight],
             "show_cell": bool(show_cell)}
+    if getattr(sys, "frozen", False):
+        # A packaged `xtal` is a program and not an interpreter: there
+        # is no `-m` to run the snapshot module with.  The window has a
+        # viewport, and draws for a connected assistant itself.
+        return _unavailable(args, FROZEN)
     if find_spec("vtkmodules") is None:
         from xtal.install import command as install_command
         return _unavailable(args, f"rendering needs the gui extra: "

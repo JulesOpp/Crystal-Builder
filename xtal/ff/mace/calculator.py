@@ -191,8 +191,7 @@ def available(model: str = DEFAULT_MODEL, model_path: str = "",
     use and is said here rather than discovered as a pause.
     """
     if not installed():
-        return Availability(
-            False, f"MACE is not installed -- {INSTALL}")
+        return Availability(False, "MACE is not installed", INSTALL)
     if model == CUSTOM:
         if not str(model_path or "").strip():
             return Availability(

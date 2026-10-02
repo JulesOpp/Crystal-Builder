@@ -269,11 +269,9 @@ class Program:
         elif self.env_var:
             parts.append(f"{self.env_var} is not set")
         where = f" ({'; '.join(parts)})" if parts else ""
-        tail = f".  It is at {self.url}" if self.url else ""
         return Availability(
-            False,
-            f"{self.title} is not installed, or not on PATH{where}"
-            f"{tail}")
+            False, f"{self.title} is not installed, or not on PATH{where}",
+            f"it is at {self.url}" if self.url else "")
 
 
 def _executable(candidate) -> Path | None:

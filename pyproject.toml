@@ -132,8 +132,16 @@ test = ["pytest>=8", "pytest-qt>=4", "pytest-xdist[psutil]>=3.2"]
 # bibliography.  The PDF also needs a LaTeX install (make latexpdf).
 docs = ["sphinx>=7", "myst-parser>=3", "sphinxcontrib-bibtex>=2.6",
         "furo>=2024.1"]
-dev = ["crystal-builder[gui,ase,build,sketch,pxrd,refine,test]", "ruff",
-       "pyinstaller>=6"]
+# An AI assistant's connection: `xtal mcp` serves the agent verbs as
+# MCP tools.  An extra because the core installs four packages and the
+# SDK brings an HTTP stack; without it the command says what to
+# install, and nothing else imports it.  Below 2 because mcp 2 renamed
+# FastMCP to MCPServer and moved the in-memory test client; the tool
+# layer is written against FastMCP.  From 1.30, the release the suite
+# was run against: nothing older has been tried.
+mcp = ["mcp>=1.30,<2"]
+dev = ["crystal-builder[gui,ase,build,sketch,pxrd,refine,mcp,test]",
+       "ruff", "pyinstaller>=6"]
 
 [project.scripts]
 xtal = "xtal.cli:main"                    # headless CLI (phase 1)

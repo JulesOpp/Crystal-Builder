@@ -29,7 +29,9 @@ A classmethod. Opens a structure file (CIF, POSCAR, XYZ, PDB …) or a
 `.xtalproj` project. With `workspace`, the file is **copied into** the
 workspace and the session follows the copy; the original is recorded in
 `structure.meta["source"]`. A file already inside a workspace is used
-where it is. A project keeps its view and selection through a save.
+where it is, and naming another workspace for it says
+`WORKSPACE_IGNORED`. A project keeps its view and selection through a
+save.
 `session.opened` is the open's own `VerbResult`: opening a CIF whose
 entry already holds a saved project carries `PROJECT_EXISTS`, because
 the project is where earlier work was kept. To continue across
@@ -56,7 +58,10 @@ in `data["tables"]`. Raises `BuildFailed` (whose `.result` is the
 
 The `Inspection` (see below). `symprec` defaults to 0.01 Å, the
 tolerance at which a file written to four decimals shows the group it
-means.
+means. Which site rows the answer carries is chosen when it is read:
+`to_dict(sites=...)` and `to_json(sites=...)` take `"problems"` (the
+default: the sites a diagnostic names), `"all"` or `"none"`, as does
+`xtal inspect --sites`.
 
 ### `render(path, view, size, style, highlight, show_cell)`
 
@@ -269,6 +274,8 @@ space group's allowed strains) as one undo step. `method` is one of
 kcal/mol/Å. `data` has `converged`, `steps`, `initial_energy`,
 `energy`, `max_force`, `max_displacement`, and `run`, the folder in the
 workspace. An unconverged run is applied and says `NOT_CONVERGED`.
+The bonds are left as drawn; `BONDING_WOULD_CHANGE` says when the
+relaxation moved atoms into or out of bonding distance.
 
 ### `run(action, **params)`
 
@@ -278,6 +285,8 @@ is the tables as rows, `data["report_text"]` the text the CLI prints,
 `data["run"]` the folder. Parameters are the form's
 (`help_for("zeopp.volume-grid")`). A module that returns a structure
 does not change the session (`RESULT_NOT_APPLIED` says where it is).
+A scan of more than one point says how many in `SCAN_SIZE`, whether it
+runs or fails.
 
 ## History and files
 
@@ -313,16 +322,25 @@ and `space_group_number` (declared), `detected_space_group`, `symprec`,
 `net_charge` (None unless sites carry charges), `n_bonds`, `fragments`
 (kind, n_atoms, formula), `sites` (index, label, element, frac,
 occupancy, multiplicity, first_atom, coordination, neighbours as
-`[element, distance]`), `diagnostics`, `worst`, `to_dict()`,
-`to_json()`. `str()` prints the first 40 sites; `to_dict()` has all.
+`[element, distance]`), `site_groups` (sites alike in element,
+coordination and neighbour pattern: `element`, `coordination`,
+`pattern` such as `"O 1.95 x4"`, `count` of atoms, `sites`, one
+`example` row), `diagnostics`, `worst`, `to_dict(sites)`,
+`to_json(sites)`. `str()` prints the groups, then the rows a
+diagnostic names, then the diagnostics; `to_dict(sites="all")` has
+every row.
 
 **`Diagnostic`**: `code`, `level` (`info`, `warning`, `error`),
 `message`, `where`, `suggestion`. Codes are closed: `diagnostics.md`.
 
 ## Also importable
 
-- `capabilities()`: engines, modules and rendering, each with
-  `available` and `reason`, and every parameter.
+- `capabilities(verbose=False)`: engines and module actions, each with
+  `name`, `label`, `available` and its `reason` (the sentence without
+  the install command), and rendering. `verbose=True` (`xtal
+  capabilities --verbose`) adds every option and parameter and the
+  full reason. Actions only the window performs are left out;
+  `help_for` names the verb for them.
 - `help_for(name)`: a verb's signature and docstring, or an engine's or
   a module action's parameters.
 - `session.cell`: the P1 cell (`elements`, `frac`, `cart`, `site_idx`).
@@ -330,3 +348,14 @@ occupancy, multiplicity, first_atom, coordination, neighbours as
 - `session.history()`: the undo stack's labels.
 - `session.log`, and the entry's `agent-session.jsonl`: every verb, one
   JSON object per line.
+
+## As MCP tools
+
+`xtal mcp`, and the window when it serves, offer every verb above as a
+tool of the same name and keywords; a verb's `**options` is one object
+of that name, and `inspect` takes `sites` too. Beside the verbs, the
+tools are `documents` (the open documents, and which is current),
+`switch` (make the one at `path` current), `capabilities` and
+`help_for`. The `open` tool opens a file, or brings forward the
+document already over it; `new` and `build` file what they make in the
+workspace and open it. See *Connected to the window* in `SKILL.md`.

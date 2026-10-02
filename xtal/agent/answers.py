@@ -16,10 +16,10 @@ from dataclasses import dataclass, field
 
 from xtal.agent.diagnostics import ERROR, Diagnostic, to_json
 
-#: Site rows ``str()`` prints before saying how many it left out.  A
-#: structure reduced to P1 has hundreds, and the rows that matter are
-#: named by the diagnostics below them anyway.
-MAX_ROWS = 40
+#: Which site rows an inspection's answer carries.  A structure
+#: reduced to P1 has hundreds of sites and its groups say what they
+#: are; the rows worth reading are the ones a diagnostic names.
+SITES = ("problems", "all", "none")
 
 
 def _worst(diagnostics) -> str:
@@ -88,6 +88,12 @@ class Inspection:
     the diagnostics after, each with its remedy.  The per-site rows
     are the asymmetric unit, which is what the edit verbs take; the
     atoms of the P1 cell each name the site they come from.
+
+    ``site_groups`` folds the rows into kinds: one per element,
+    coordination and neighbour pattern, with ``count`` the atoms of
+    the cell in it.  ``problem_sites`` are the sites a diagnostic's
+    ``where`` names, and the only rows the answer carries unless asked
+    for ``sites="all"``.
     """
 
     formula: str
@@ -105,14 +111,33 @@ class Inspection:
     n_bonds: int
     fragments: list[dict]
     sites: list[dict]
+    site_groups: list[dict]
+    problem_sites: list[int]
     diagnostics: list[Diagnostic] = field(default_factory=list)
+    #: The window's document this is of; empty headless, where a
+    #: session is its one structure and the key is left out.
+    document: str = ""
 
     @property
     def worst(self) -> str:
         return _worst(self.diagnostics)
 
-    def to_dict(self) -> dict:
+    def _site_rows(self, sites: str = "problems") -> list[dict]:
+        """The rows ``sites`` asks for: one of :data:`SITES`."""
+        if sites == "all":
+            return self.sites
+        if sites == "problems":
+            named = set(self.problem_sites)
+            return [s for s in self.sites if s["index"] in named]
+        if sites == "none":
+            return []
+        raise ValueError(f"sites={sites!r}: one of "
+                         f"{', '.join(SITES)}")
+
+    def to_dict(self, sites: str = "problems") -> dict:
+        named = {"document": self.document} if self.document else {}
         return {
+            **named,
             "formula": self.formula, "z": self.z,
             "n_sites": self.n_sites, "n_atoms": self.n_atoms,
             "cell": self.cell, "volume": self.volume,
@@ -122,14 +147,22 @@ class Inspection:
             "detected_space_group": self.detected_space_group,
             "symprec": self.symprec,
             "net_charge": self.net_charge, "n_bonds": self.n_bonds,
-            "fragments": self.fragments, "sites": self.sites,
+            "fragments": self.fragments,
+            "site_groups": self.site_groups,
+            "sites": self._site_rows(sites),
             "diagnostics": [d.to_dict() for d in self.diagnostics],
         }
 
-    def to_json(self) -> str:
-        return to_json(self.to_dict())
+    def to_json(self, sites: str = "problems") -> str:
+        return to_json(self.to_dict(sites), compact=True)
 
     def __str__(self) -> str:
+        return self.text()
+
+    def text(self, sites: str = "problems") -> str:
+        """What a person reads: the header, one line per group, the
+        rows ``sites`` asks for, then the diagnostics."""
+        rows = self._site_rows(sites)
         c = self.cell
         detected = ("" if self.detected_space_group == self.space_group
                     else f"  (detected at {self.symprec:g} A: "
@@ -155,8 +188,15 @@ class Inspection:
         for (kind, formula), n in sorted(kinds.items()):
             lines.append(f"fragment     {n} x {kind} {formula}")
         lines.append("")
-        lines.append("site   label    el   mult  occ    CN  neighbours")
-        for s in self.sites[:MAX_ROWS]:
+        for g in self.site_groups:
+            lines.append(
+                f"{g['element']:<4s} CN {g['coordination']:<2d} "
+                f"x{g['count']:<3d} {g['pattern']}".rstrip())
+        if rows:
+            lines.append("")
+            lines.append("site   label    el   mult  occ    CN  "
+                         "neighbours")
+        for s in rows:
             around = ", ".join(f"{e} {d:.2f}"
                                for e, d in s["neighbours"][:8])
             more = " ..." if len(s["neighbours"]) > 8 else ""
@@ -164,9 +204,6 @@ class Inspection:
                 f"{s['index']:<6d} {s['label']:<8s} {s['element']:<4s} "
                 f"{s['multiplicity']:<5d} {s['occupancy']:<6.3g} "
                 f"{s['coordination']:<3d} {around}{more}")
-        if len(self.sites) > MAX_ROWS:
-            lines.append(f"... {len(self.sites) - MAX_ROWS} more sites "
-                         f"(to_dict() has every one)")
         if self.diagnostics:
             lines.append("")
             lines.extend(str(d) for d in self.diagnostics)

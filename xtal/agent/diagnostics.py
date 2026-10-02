@@ -42,6 +42,10 @@ CODES: dict[str, Code] = {
                  "where earlier work was kept. Open the .xtalproj to "
                  "continue from it; opening the CIF starts again from "
                  "the deposited structure."),
+    "WORKSPACE_IGNORED": Code(
+        INFO, "The file was opened where it is, in the workspace it "
+              "already belongs to, and nothing was copied into the "
+              "one named. Its runs and log are filed there."),
     "COINCIDENT_ATOMS": Code(
         ERROR, "Run merge_duplicates(), or prepare() which starts with "
                "it. Until then symmetry, bonds and every energy are "
@@ -98,6 +102,11 @@ CODES: dict[str, Code] = {
         INFO, "Bonds change only when asked. Call recalculate_bonds() "
               "if the new or moved atoms should join the graph by "
               "distance."),
+    "BONDING_WOULD_CHANGE": Code(
+        WARNING, "Inspect the relaxed structure: a bond now spans an "
+                 "unphysical length, or one is missing. Report it. "
+                 "recalculate_bonds() only if the person wants "
+                 "perception to replace the drawn graph."),
     "BOND_OVERRIDES_KEPT": Code(
         INFO, "Bonds drawn or removed by hand survive a "
               "recalculation. That is intended."),
@@ -136,6 +145,11 @@ CODES: dict[str, Code] = {
         WARNING, "The geometry is where the optimiser stopped, not a "
                  "minimum. Do not report its energy as one. More "
                  "steps, or check the structure first."),
+    "SCAN_SIZE": Code(
+        INFO, "Each point is a relaxation, so the count is the "
+              "cost: a 12x12 grid is hours. Say the size to the "
+              "person before starting a large grid, and with the "
+              "result."),
     "MODULE_UNAVAILABLE": Code(
         ERROR, "Install what the message names; capabilities() lists "
                "what this install can run."),
@@ -150,6 +164,22 @@ CODES: dict[str, Code] = {
     "RENDER_UNAVAILABLE": Code(
         ERROR, "No picture is possible here. Work from inspect(); the "
                "numbers are what the judgement rests on anyway."),
+    # -- the window ----------------------------------------------------
+    "WINDOW_BUSY": Code(
+        ERROR, "Nothing was changed. If the message says a trajectory "
+               "is playing or a calculation is running, wait for it to "
+               "finish and call again; retrying at once is refused the "
+               "same way. If it says the window is closing or stopped "
+               "serving, the window is gone: through xtal mcp, call "
+               "again once it is back, since the proxy follows it; over "
+               "a direct HTTP connection, tell the person, and "
+               "reconnect only once they have reopened it."),
+    "DOCUMENT_CHANGED": Code(
+        ERROR, "The structure was edited, or its tab closed, while the "
+               "calculation ran, so its result was not applied; the "
+               "run folder keeps it. Inspect the structure as it is "
+               "now (or open or switch to a document) before running "
+               "again."),
 }
 
 
@@ -184,7 +214,11 @@ class Diagnostic:
                 f"{self.message} -> {self.suggestion}")
 
 
-def to_json(value) -> str:
+def to_json(value, compact: bool = False) -> str:
+    """Indented for a person; ``compact`` for a model's context, where
+    the indentation of MOF-5's inspection was over half of it."""
+    if compact:
+        return json.dumps(value, separators=(",", ":"), default=_plain)
     return json.dumps(value, indent=2, default=_plain)
 
 

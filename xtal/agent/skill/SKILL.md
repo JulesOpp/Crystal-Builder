@@ -266,6 +266,47 @@ the engine and whether it converged, and `path`.
 
 ---
 
+## Connected to the window
+
+When Crystal Builder is open with **Preferences ▸ AI assistant**
+switched on, your tools are the window's, and the documents are the
+person's tabs. The tools are the verbs, with a `Session`'s names and
+keywords, acting on **your current document**: the one you last opened
+or switched to. It is not the tab in front -- the person may click on
+another tab while you work, and your next verb still lands in yours.
+Before you have opened or switched to anything, the tab in front when
+you first call becomes yours.
+
+- `documents` lists the open tabs (path, atoms, modified, which one is
+  current). `switch(path)` makes one your current document and brings
+  it to the front. `open(path)` opens a file in a new tab, or brings
+  forward the tab already showing it, and makes it yours.
+- Every answer names its document: `data["document"]` (and
+  `document` in `inspect`'s answer) is the path of the tab it acted
+  on. Check it when the person has been working in other tabs.
+- If the person closes your tab, every verb is refused saying the
+  document you were working on was closed: `documents`, then `open`
+  or `switch`, before anything else.
+- **The person is watching.** Each verb lands in their tab as one undo
+  step, and its message shows in the window's status bar. Keep each
+  call's purpose clear: one change per call, in the order you would
+  explain it, and say before a long calculation that it is starting.
+- `WINDOW_BUSY` because a trajectory is playing or a calculation is
+  running: **wait, then call again**; an immediate retry is refused the
+  same way. `inspect` still answers while it is busy. `WINDOW_BUSY`
+  because the window **is closing or stopped serving** is different:
+  the window is gone, and waiting will not bring it back. Through
+  `xtal mcp`, just call again once it is back -- the proxy follows it.
+  Over a direct HTTP connection, tell the person, and reconnect only
+  once they have reopened it (and switched Preferences ▸ AI assistant
+  on).
+- `DOCUMENT_CHANGED` means the person edited the structure, or closed
+  its tab, while your calculation ran. Their edit stands and your
+  result was not applied (the run folder keeps it). `inspect` again
+  before deciding anything.
+- `render` returns the picture of the tab's own viewport, in the
+  person's style, turned along `view` for the shot and back after.
+
 ## The shell, for a quick look
 
 Everything above is also a command, and every inspection command takes
@@ -283,3 +324,23 @@ xtal skill install                  # this file, where Claude Code reads it
 
 Use the shell for a look; use a `Session` for anything with more than
 one step, because only a session has undo and a log.
+
+`xtal mcp` serves these verbs as MCP tools over stdio, one tool per
+verb, with the same names and keywords (a verb's `**options` is one
+object of that name), plus `documents`, `switch`, `capabilities` and
+`help_for`. While a window is serving, it passes every call through to
+that window; otherwise the sessions are its own. **Start the window
+serving before `xtal mcp` starts**; after that it may be switched off
+and on, and the next call follows it. A call made while it is off
+answers an error beginning "window:" and the following one tries again.
+It needs the `mcp` extra and says how to install it. The two ways to
+connect Claude Code:
+
+```bash
+claude mcp add crystal-builder -- xtal mcp    # the window when it serves
+claude mcp add --transport http crystal-builder http://127.0.0.1:7781/mcp \
+  --header "Authorization: Bearer <token>"     # straight to the window
+```
+
+The second line, with this launch's port and token, is on the window's
+Preferences ▸ AI assistant page.

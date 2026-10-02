@@ -89,12 +89,18 @@ DOCUMENT_ICONS = [
     (str(bundle.ICONS / "xtalproj.ico"), "."),
 ]
 
+# Asked once: each walks every package in `bundle.COLLECT`, and both
+# programs below are made from the same answer.
+BINARIES = bundle.binaries()
+DATAS = bundle.datas() + DOCUMENT_ICONS
+HIDDEN = bundle.hiddenimports()
+
 analysis = Analysis(
     [str(bundle.ROOT / "xtalapp" / "main.py")],
     pathex=[str(bundle.ROOT)],
-    binaries=bundle.binaries(),
-    datas=bundle.datas() + DOCUMENT_ICONS,
-    hiddenimports=bundle.hiddenimports(),
+    binaries=BINARIES,
+    datas=DATAS,
+    hiddenimports=HIDDEN,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -130,10 +136,57 @@ executable = EXE(
     version=str(VERSION_FILE),
 )
 
+# The second program: `xtal.exe`, the headless CLI, so that an AI
+# assistant's client can run `xtal mcp` from an installed build --
+# there is no pip here to have put one on PATH.  Its own Analysis over
+# the same contents, because a program's scripts and archive are its
+# own; the two land in the one COLLECT below, which keeps one copy of
+# every shared DLL and data file, and the installer copies the whole
+# folder.  With a console, because stdio *is* the MCP transport, and
+# without the version resource, which names `Crystal Builder.exe`.
+cli_analysis = Analysis(
+    [str(bundle.ROOT / "xtal" / "cli.py")],
+    pathex=[str(bundle.ROOT)],
+    binaries=BINARIES,
+    datas=DATAS,
+    hiddenimports=HIDDEN,
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=bundle.EXCLUDES,
+    noarchive=False,
+    optimize=0,
+    module_collection_mode=bundle.MODULE_COLLECTION_MODE,
+)
+
+cli_pyz = PYZ(cli_analysis.pure)
+
+launcher = EXE(
+    cli_pyz,
+    cli_analysis.scripts,
+    [],
+    exclude_binaries=True,
+    name="xtal",
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=False,
+    console=True,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    icon=str(bundle.ICONS / "app.ico"),
+)
+
 collection = COLLECT(
     executable,
+    launcher,
     analysis.binaries,
     analysis.datas,
+    cli_analysis.binaries,
+    cli_analysis.datas,
     # PyInstaller's strip is `strip -S` on macOS, which removes debug
     # symbols these libraries do not have, and costs minutes.  The
     # saving is in the *local* symbol table, which is `strip -x`, and

@@ -37,8 +37,8 @@ have put a radon atom in every CIF this ever wrote.
 
 from __future__ import annotations
 
-from xtal.build.chem import MISSING, BuildError, installed
+from xtal.build.chem import MISSING, NOT_INSTALLED, BuildError, installed
 from xtal.build.molecule import Molecule, from_smiles
 
-__all__ = ["MISSING", "BuildError", "installed", "Molecule",
-           "from_smiles"]
+__all__ = ["MISSING", "NOT_INSTALLED", "BuildError", "installed",
+           "Molecule", "from_smiles"]

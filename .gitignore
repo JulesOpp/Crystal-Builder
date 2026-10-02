@@ -29,3 +29,8 @@ resources/zeo++-0.3/
 # conda's, whose vtkmodules is 592 MB and whose libpython layout makes
 # a poor base for a bundle.  See docs/PACKAGING.md.
 .venv-build/
+
+# What each agent left in a run of the skill eval (tools/agent_eval):
+# transcripts, workspaces and saved projects, kept for reading and
+# never for the history.
+tools/agent_eval/runs/
