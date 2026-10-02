@@ -227,7 +227,6 @@ the viewport.  Branching is not in it.
 
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
-| **7 — Crystalline polymer samples** | Open Sample ▸ Polymers: PE, iPP α, PET, nylon-6 α | `xtalapp/samples.py`, `resources/samples/polymer/` | S-M |
 | **0 — Ladder connection points in SMILES** | A `*` bonded to two atoms embeds as one `X` | `xtal/build/chem.py` | S |
 | **1 — The monomer** | `Monomer`, head and tail, mirror, a `Monomer` library category | `xtal/polymer/monomer.py`, `fragments.json` | M |
 | **2 — Joining and sequences** | Joints by bond length, torsion or ladder flip; tacticity; copolymers | `xtal/polymer/chain.py`, `sequence.py` | M |
@@ -237,16 +236,9 @@ the viewport.  Branching is not in it.
 | **6 — A monomer from the viewport** | Structure ▸ Save as Monomer… to `<workspace>/monomers/` | `xtalapp/dialogs/`, `xtal/workspace.py` | M |
 | **8 — The equilibration seam** | `Protocol` (21-step as data), `Equilibrator` interface | `xtal/polymer/protocol.py` | S |
 
-In that order: the samples are independent and small.
-
-### 7 — Crystalline polymer samples
-
-A new Open Sample group, *&Polymers*.  The COD first
-(`scripts/fetch_cod_samples.py`); otherwise written by hand from the
-published coordinates, as graphene was, with the bonds through the c
-face stated and the source in `PROVENANCE.md`.  Tests: each matches its
-published density to 1 %, each chain is a 1-periodic component, every
-carbon has four neighbours.
+In that order.  Phase 7, the crystalline samples, shipped 2026-10-02
+as Open Sample ▸ Polymers: polyethylene, alpha-iPP and cellulose
+I-beta.
 
 ### 0 — Ladder connection points in SMILES
 
@@ -549,6 +541,18 @@ its phases shipping.
   way), not by a walk; the monomer's `[*:3]` is reserved for it.
 - **A crystalline-chain builder**: monomer, helix n/m and cell, for the
   polymers the samples do not cover.
+- **PET and nylon-6 as samples**: planned with the other polymers and
+  left out because neither is in the COD and the coordinates (Daubeny,
+  Bunn & Brown 1954; Holmes, Bunn & Smith 1955) were not to hand.
+  `scripts/polymer_samples.py` takes them as a table of carbons and
+  heteroatoms once they are -- its hydrogens assume saturated carbon,
+  so a ring or an amide needs a rule there first.
+- **Add hydrogens reads a 114-degree CH2 as sp2**: `typer._carbon`
+  calls a two-neighbour carbon C_2 at 114 degrees or more, and Mencik's
+  iPP C9 is 114.09, so the planner gives it one hydrogen of two.  A
+  saturated backbone is 112-116 degrees; the line between sp3 and sp2
+  for an atom *missing* its hydrogens wants measuring against the
+  samples before it moves.
 - **Entanglement**: a primitive-path analysis (Z1-style) once a model
   can be equilibrated.
 

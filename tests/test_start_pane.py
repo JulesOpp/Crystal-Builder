@@ -109,7 +109,7 @@ def test_the_other_samples_are_no_wider_than_the_shipped_ones(window):
     Compared with each other rather than with a pixel count, because
     fonts, and the screen a test gets, differ by platform."""
     shipped, *others = _sample_grids(window.start_pane)
-    assert len(others) == 3         # simple, the COD's, and prepared
+    assert len(others) == 4     # simple, polymers, the COD's, prepared
     for grid in others:
         assert (grid.minimumSize().width()
                 <= shipped.minimumSize().width())

@@ -52,7 +52,7 @@ def test_every_sample_in_the_catalogue_is_a_file_that_is_there():
     missing = [s.label for s in samples.SAMPLES if s.path is None]
 
     assert missing == []
-    assert len(samples.SAMPLES) == 65
+    assert len(samples.SAMPLES) == 68
 
 
 def test_every_sample_is_a_structure_this_application_can_read():
@@ -359,6 +359,15 @@ def test_the_cod_samples_are_what_the_script_writes():
         assert fetch.strip(text) == text, name
         assert re.search(rf"^_cod_database_code\s+{cod_id}$", text,
                          re.MULTILINE), name
+    polymer = {s.cod_id: s.file.removeprefix("polymer/")
+               for s in samples.in_group(samples.POLYMER)
+               if s.cod_id is not None}
+    assert polymer == fetch.POLYMER
+    for cod_id, name in fetch.POLYMER.items():
+        text = (samples.folder() / "polymer" / name).read_text("utf-8")
+        assert fetch.strip(text) == text, name
+        assert re.search(rf"^_cod_database_code\s+{cod_id}$", text,
+                         re.MULTILINE), name
 
 
 #: What each simple material must read as: its space group, its sites
@@ -419,6 +428,89 @@ def test_graphene_is_one_sheet_of_three_coordinated_carbon():
     assert all(b.image[2] == 0 for b in graph.bonds)
 
 
+#: Each polymer's crystal density as published, g/cm3: Bunn's 1.00
+#: for polyethylene, Natta and Corradini's 0.946 for alpha-iPP, and the
+#: 1.605 Nishiyama's file reports for the atoms it has.
+POLYMER_DENSITY = {
+    "polymer_pe": 1.00,
+    "polymer_ipp": 0.946,
+    "polymer_cellulose": 1.605,
+}
+
+
+def _density(structure) -> float:
+    from xtal.core import elements, p1
+
+    cell = p1.expand(structure)
+    mass = sum(elements.element(e).mass for e in cell.elements)
+    return mass / structure.lattice.volume / 0.602214076
+
+
+def test_each_polymer_sample_matches_its_published_density():
+    """To 1 %.  A cell with a chain too few or too many, or the
+    hydrogens counted twice by a site on a mirror, is off by far more."""
+    found = samples.in_group(samples.POLYMER)
+
+    assert sorted(s.name for s in found) == sorted(POLYMER_DENSITY)
+    for sample in found:
+        density = _density(FORMATS.read(sample.path))
+        assert density == pytest.approx(POLYMER_DENSITY[sample.name],
+                                        rel=0.01), sample.label
+
+
+def test_each_polymer_chain_is_infinite_along_its_axis():
+    """Every component of the bonded crystal a 1-periodic chain, as
+    opened -- a chain that stopped at the cell face would be an
+    oligomer in a box, which is the thing a crystal sample is not."""
+    from xtal.analysis.topology import net_of_chemistry
+
+    for sample in samples.in_group(samples.POLYMER):
+        net = net_of_chemistry(FORMATS.read(sample.path))
+        assert [c.periodicity() for c in net.components()] == \
+            [1] * len(net.components()), sample.label
+
+
+def test_every_polymer_carbon_has_four_neighbours():
+    """Saturated chains, so a carbon short of four is a hydrogen the
+    sample forgot -- which a force field types as a radical."""
+    import numpy as np
+
+    from xtal.core import bonding, p1
+
+    for sample in samples.in_group(samples.POLYMER):
+        structure = FORMATS.read(sample.path)
+        elements = np.array(p1.expand(structure).elements)
+        coordination = bonding.graph(structure).coordination()
+
+        assert set(coordination[elements == "C"]) == {4}, sample.label
+
+
+def test_the_written_polymers_are_what_the_script_writes():
+    """The published carbons and the hydrogens placed on them, byte
+    for byte: a hand edit to a file fails here."""
+    import importlib.util
+
+    script = samples.folder().parent.parent / "scripts" / (
+        "polymer_samples.py")
+    spec = importlib.util.spec_from_file_location("polymer_samples",
+                                                  script)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert module.main(["--check"]) == 0
+
+
+def test_the_polymers_are_in_their_own_section_of_open_sample(window):
+    """Polyethylene between quartz and MOF-5 would read as a stray."""
+    polymers = window.sample_group_menus[samples.POLYMER]
+
+    assert polymers.title() == "&Polymers"
+    assert window.actions_["sample_polymer_pe"] in polymers.actions()
+
+    document = window.open_sample("polymer_pe")
+
+    assert document.entry.name == "Polyethylene"
+
+
 def test_every_file_in_the_samples_folder_is_named_in_provenance():
     """A structure with no source written down is one nobody can say
     may be shipped.  Fails the moment a file is added without it."""
@@ -429,7 +521,7 @@ def test_every_file_in_the_samples_folder_is_named_in_provenance():
 
     unnamed = [f for f in files if f"`{f}`" not in provenance]
 
-    assert len(files) == 68
+    assert len(files) == 71
     assert unnamed == []
 
 
