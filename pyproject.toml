@@ -153,7 +153,7 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
             "xtal.ff.charges",
             "xtal.modules", "xtal.modules.dftb_runs", "xtal.analysis",
             "xtal.mof", "xtal.mof.pormake", "xtal.mof.library",
-            "xtal.build", "xtal.build.data",
+            "xtal.build", "xtal.build.data", "xtal.polymer",
             "xtal.agent", "xtal.agent.skill",
             "xtalapp", "xtalapp.viewport", "xtalapp.docks",
             "xtalapp.dialogs", "xtalapp.widgets"]

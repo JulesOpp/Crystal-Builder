@@ -227,7 +227,6 @@ the viewport.  Branching is not in it.
 
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
-| **1 — The monomer** | `Monomer`, head and tail, mirror, a `Monomer` library category | `xtal/polymer/monomer.py`, `fragments.json` | M |
 | **2 — Joining and sequences** | Joints by bond length, torsion or ladder flip; tacticity; copolymers | `xtal/polymer/chain.py`, `sequence.py` | M |
 | **3 — Packing** | Concurrent CBMC growth in a box or between walls (membrane) | `xtal/polymer/pack.py`, `build.py` | L |
 | **4 — The module** | `polymer.build`, its report, `xtal run` | `xtal/modules/polymer.py` | M |
@@ -238,14 +237,10 @@ the viewport.  Branching is not in it.
 In that order.  Phase 7, the crystalline samples, shipped 2026-10-02
 as Open Sample ▸ Polymers: polyethylene, alpha-iPP and cellulose
 I-beta; Phase 0, a SMILES `*` bonded to two atoms (PIM-1's ladder),
-the same day.
-
-### 1 — The monomer
-
-`[*:1]` is the head and `[*:2]` the tail; unnumbered, the order drawn.
-A third connection point is refused with "branching is not built yet",
-so the format need not change when it is.  `mirrored()` is the other
-hand, which is how tacticity is made.
+and Phase 1, `xtal/polymer/monomer.py` with eleven library monomers,
+the same day.  A head and tail on one atom (`[*:1]C[*:2]`) is allowed,
+not refused as planned: it is polymethylene, and joins like any
+other.
 
 ### 2 — Joining and sequences
 
