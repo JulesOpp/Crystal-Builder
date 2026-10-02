@@ -237,6 +237,12 @@ jobs:
       # --no-deps -- its other requirements are already there, bar
       # pydantic.  rietx 1.5 refines rutile on 0.62.1 exactly as on
       # 0.67, and the selftest below re-proves it in every build.
+      #
+      # cryptography too (mcp's, through pyjwt[crypto]): 49 dropped its
+      # Intel wheel, and the sdist built here links Homebrew's OpenSSL,
+      # whose dylibs are built for the runner's macOS 15 -- which
+      # postbuild.py then refuses against the 12.3 in Info.plist.
+      # 48.0.1 is the last with a universal2 wheel, OpenSSL inside it.
       - name: Install
         shell: bash
         env:
@@ -245,7 +251,7 @@ jobs:
           python -m pip install --upgrade pip
           if [ "$RUNNER_OS" = macOS ] && [ "$(uname -m)" = x86_64 ]; then
             pip install -e ".[gui,build,sketch,ase,pxrd,mcp]" pyinstaller \
-                "numba==0.62.1" pydantic
+                "numba==0.62.1" pydantic "cryptography==48.0.1"
             refine=$(python -c 'import tomllib; print(*tomllib.load(
                 open("pyproject.toml", "rb"))["project"]
                 ["optional-dependencies"]["refine"])')
