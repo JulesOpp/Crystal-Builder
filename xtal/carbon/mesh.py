@@ -615,7 +615,8 @@ def remesh(mesh: Mesh, field, level: float,
     fifths, flip towards valence six, relax, and project -- until the
     triangles are all about the target and the sheet is where it was.
     """
-    longest, shortest = 4.0 / 3.0 * target, 0.8 * target
+    aim = AIM * target
+    longest, shortest = 4.0 / 3.0 * aim, 0.8 * aim
     ceiling = RUNAWAY * mesh.area() / (np.sqrt(3.0) / 4.0 * target ** 2)
     for _ in range(iterations):
         editor = Editor(mesh)
@@ -629,6 +630,15 @@ def remesh(mesh: Mesh, field, level: float,
                 f"the sheet needs about {int(ceiling / RUNAWAY)}; "
                 "stopped before it took the memory with it")
     return mesh
+
+
+#: What the split and collapse thresholds are set about, as a share
+#: of the edge wanted.  They are asymmetric -- four thirds above, four
+#: fifths below -- so the edges settle long: aimed at 2.46 they came
+#: out at 2.54 on average, 0.362 carbons per square Angstrom where
+#: graphene has 0.382, and the ribbons were cut 12 % wider than the
+#: coverage asked for.  Aimed here they average the target.
+AIM = 0.968
 
 
 #: How many times the triangles a sheet's area needs a remesh may

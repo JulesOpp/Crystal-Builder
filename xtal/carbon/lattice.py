@@ -275,15 +275,19 @@ def terminate(sheet: Sheet, ratios: Ratios, rng) -> Terminated:
         neighbours[i].append(j)
         neighbours[j].append(i)
 
+    matrix = np.asarray(sheet.matrix, float)
+    inverse = np.linalg.inv(matrix)
     kind_of = {}
     order = list(rng.permutation(edge))
     ether_at = set()
+    roomy = _room(sheet, edge, outward, neighbours, order)
     for kind in KINDS:
         need = wanted[kind]
         left = []
         for atom in order:
-            if need and (kind != "ether" or not any(
-                    n in ether_at for n in neighbours[atom])):
+            fits = (not any(n in ether_at for n in neighbours[atom])
+                    if kind == "ether" else atom in roomy)
+            if need and fits:
                 kind_of[atom] = kind
                 need -= 1
                 if kind == "ether":
@@ -292,8 +296,6 @@ def terminate(sheet: Sheet, ratios: Ratios, rng) -> Terminated:
                 left.append(atom)
         order = left
 
-    matrix = np.asarray(sheet.matrix, float)
-    inverse = np.linalg.inv(matrix)
     elements = ["O" if kind_of.get(i) == "ether" else "C"
                 for i in range(sheet.n_atoms)]
     frac = [p for p in sheet.frac]
@@ -330,6 +332,50 @@ def terminate(sheet: Sheet, ratios: Ratios, rng) -> Terminated:
                       np.array(bonds, int).reshape(-1, 2),
                       np.array(images, int).reshape(-1, 3), counts,
                       wanted, len(edge), len(edge) - len(kind_of))
+
+
+#: Where a termination's first atom is probed for room, Angstrom out
+#: from its carbon, and how much room it needs: from another
+#: termination's probe, and from any atom of the sheet but its own
+#: carbon.  Two edge carbons across a bay point at each other, and
+#: before this a build's closest contact was 0.31 A, fluorine on
+#: fluorine; one of the two is left bare instead, as the example ZTC
+#: leaves forty.
+PROBE = 1.3
+PROBE_CLEAR = 1.6
+SHEET_CLEAR = 1.4
+
+
+def _room(sheet: Sheet, edge, outward, neighbours, order) -> set:
+    """The edge carbons with room for a termination, granted in
+    ``order`` so the seed decides which of two crowded ones it is."""
+    from scipy.spatial import cKDTree
+
+    matrix = np.asarray(sheet.matrix, float)
+    inverse = np.linalg.inv(matrix)
+    shifts = np.array([(a, b, c) for a in (-1, 0, 1) for b in (-1, 0, 1)
+                       for c in (-1, 0, 1)])
+    atoms = ((sheet.frac[None] + shifts[:, None]).reshape(-1, 3)
+             @ matrix)
+    tree = cKDTree(atoms)
+    granted: list = []
+    out = set()
+    for atom in order:
+        direction = _in_plane(outward[atom], sheet.normal[atom])
+        probe = sheet.frac[atom] @ matrix + PROBE * direction
+        close = [k % sheet.n_atoms
+                 for k in tree.query_ball_point(probe, SHEET_CLEAR)]
+        if any(k != atom for k in close):
+            continue
+        if granted:
+            delta = (np.array(granted) - probe) @ inverse
+            delta -= np.round(delta)
+            if np.min(np.linalg.norm(delta @ matrix, axis=1)) \
+                    < PROBE_CLEAR:
+                continue
+        granted.append(probe)
+        out.add(atom)
+    return out
 
 
 def _in_plane(vector, normal) -> np.ndarray:

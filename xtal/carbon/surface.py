@@ -96,6 +96,7 @@ class Skeleton:
     edges: list                     # (i, j, image)
     beads: np.ndarray               # (B, 3) cartesian, in the cell
     edge_length: float              # mean, Angstrom
+    bead_edge: np.ndarray = None    # (B,) which edge each bead is on
 
     @property
     def volume(self) -> float:
@@ -178,7 +179,7 @@ def skeleton(lattice: Lattice, vertices, edges, scale: float,
         frac = frac + scaled.to_frac(distortion.vertex * sigma_vertex)
     cart = scaled.to_cart(frac)
     matrix = np.asarray(scaled.matrix)
-    beads, lengths = [], []
+    beads, lengths, owner = [], [], []
     for k, (i, j, image) in enumerate(edges):
         start = cart[i]
         end = cart[j] + np.asarray(image) @ matrix
@@ -195,10 +196,12 @@ def skeleton(lattice: Lattice, vertices, edges, scale: float,
         t = np.linspace(0.0, 1.0, n)[:-1, None]
         beads.append((1 - t) ** 2 * start + 2 * (1 - t) * t * middle
                      + t ** 2 * end)
+        owner.append(np.full(len(t), k))
     beads = np.vstack(beads) if beads else np.zeros((0, 3))
     beads = scaled.to_cart(scaled.to_frac(beads) % 1.0)
     return Skeleton(scaled, frac % 1.0, list(edges), beads,
-                    float(np.mean(lengths)) if lengths else 0.0)
+                    float(np.mean(lengths)) if lengths else 0.0,
+                    np.concatenate(owner) if owner else np.zeros(0, int))
 
 
 class Field:
