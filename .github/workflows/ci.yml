@@ -168,6 +168,15 @@ jobs:
           packages: latexmk texlive-xetex texlive-latex-recommended
             texlive-latex-extra texlive-fonts-recommended fonts-freefont-otf
           version: 1.0
+          # Not the action's: it runs the scripts in package-name order, before the binaries they need are restored.  The step below registers.
+          execute_install_scripts: false
+      # mktexlsr the file database, updmap-sys the font maps, fmtutil-sys the XeTeX formats latexmk uses, fc-cache so fontconfig sees Latin Modern; quick on a cold install, required on a cache hit.
+      - name: Register the restored TeX packages
+        run: |
+          sudo mktexlsr
+          sudo updmap-sys --quiet
+          sudo fmtutil-sys --byengine xetex --quiet
+          fc-cache -f
       - run: sphinx-build -M latexpdf docs/manual build/manual
       - uses: actions/upload-artifact@v7
         with:
@@ -237,6 +246,12 @@ jobs:
       # --no-deps -- its other requirements are already there, bar
       # pydantic.  rietx 1.5 refines rutile on 0.62.1 exactly as on
       # 0.67, and the selftest below re-proves it in every build.
+      #
+      # cryptography too (mcp's, through pyjwt[crypto]): 49 dropped its
+      # Intel wheel, and the sdist built here links Homebrew's OpenSSL,
+      # whose dylibs are built for the runner's macOS 15 -- which
+      # postbuild.py then refuses against the 12.3 in Info.plist.
+      # 48.0.1 is the last with a universal2 wheel, OpenSSL inside it.
       - name: Install
         shell: bash
         env:
@@ -245,7 +260,7 @@ jobs:
           python -m pip install --upgrade pip
           if [ "$RUNNER_OS" = macOS ] && [ "$(uname -m)" = x86_64 ]; then
             pip install -e ".[gui,build,sketch,ase,pxrd,mcp]" pyinstaller \
-                "numba==0.62.1" pydantic
+                "numba==0.62.1" pydantic "cryptography==48.0.1"
             refine=$(python -c 'import tomllib; print(*tomllib.load(
                 open("pyproject.toml", "rb"))["project"]
                 ["optional-dependencies"]["refine"])')
