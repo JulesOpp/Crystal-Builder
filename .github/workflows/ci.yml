@@ -168,6 +168,8 @@ jobs:
           packages: latexmk texlive-xetex texlive-latex-recommended
             texlive-latex-extra texlive-fonts-recommended fonts-freefont-otf
           version: 1.0
+          # The restored packages must run their post-install scripts, which register the fonts XeTeX loads.
+          execute_install_scripts: true
       - run: sphinx-build -M latexpdf docs/manual build/manual
       - uses: actions/upload-artifact@v7
         with:
