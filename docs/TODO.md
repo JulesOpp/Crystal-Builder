@@ -18,6 +18,29 @@ something runnable and a green suite, the rule
 
 # Scheduled
 
+## Before v1.0
+
+The fixes the 2026-10-03 review of `main` + #51 + #52 found to be owed
+before tagging, on `release/v1.0`, one commit a phase.  Decided:
+v1.0 ships **unsigned and says so**; a size limit **warns, then
+refuses**, its profile chosen in Preferences; duplicate CIF labels are
+**renamed on read** with a note.  The full plan, with its
+measurements, is `~/.claude/plans/v1-release-fixes.md`.
+
+| Phase | Delivers | Main files | Size |
+|---|---|---|---|
+| **1 — Save is atomic** | A failed save leaves the last good file; ASCII block names | `xtal/io/atomic.py`, `project.py`, `cif_writer.py` | S |
+| **2 — A result goes to its own tab** | Module structures adopted into the document the run started from | `xtalapp/module_runner.py`, `workspace_shell.py` | S |
+| **3 — A run holds its document** | No edits during an FF run; one crash box at a time; `faulthandler`; unknown styles fall back | `xtalapp/document.py`, `docks/ff_panel.py`, `applog.py` | M |
+| **4 — The CIF reader says what it assumed** | Unique labels, one source of bonds in a project, missing cell refused, `?` numbers, disorder groups written | `xtal/io/cif_reader.py`, `project.py` | M |
+| **5 — Undo stops hoarding** | Caches released below the top step; history trimmed by atoms held | `xtal/commands/base.py` | S |
+| **6 — Sizes estimated before building** | `xtal/core/limits.py`; display range, supercell, porosity grid, carbon repeat; *Large structures* in Preferences | `xtal/core/limits.py`, dialogs, `settings.py` | M |
+| **7 — The new builders** | Carbon relaxation stops; polymer copolymer density, ladder mixing, rotamer cap | `xtal/carbon/`, `xtal/polymer/` | M |
+| **8 — Release** | Third-party notices, selftest checks, README, 1.0 notes, manual inventory, flaky tests, bundle run, tag | `packaging/`, `docs/`, `README.md` | M |
+
+Phase 0 (the two PRs merged and every dialog through `answered`) is
+done on `release/v1.0`.
+
 ## The interface stretch
 
 Planned 2026-09-13: one phase per session, in
