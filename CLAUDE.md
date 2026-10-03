@@ -872,6 +872,12 @@ stress case).
 - Structure edits go through `Document.apply(...)` with a `Change`
   flag, so they land as one undo step and refresh only the panels that
   care. Do not mutate a structure behind the Document's back.
+- **The undo history keeps what an undo needs and no more.** A step
+  that stops being the top `release()`s the memo of the crystal it
+  holds (the stored `perceived` graph is not memo, so nothing is
+  perceived again), and the oldest whole-structure steps are let go
+  once they hold `limits.UNDO_ATOMS` sites -- never the last
+  `limits.UNDO_KEEP` -- with the status bar saying so.
 - **A colour a person did not choose is worked out from the palette.**
   Hint text, a warning and a warning box are the three tones in
   `xtalapp.widgets.tone`; nothing styles one by hand, and

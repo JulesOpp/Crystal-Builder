@@ -35,6 +35,7 @@ from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 
+from xtal.core import limits
 from xtal.core.structure import Change, Structure
 
 DEFAULT_HISTORY = 200
@@ -71,6 +72,21 @@ class Command(ABC):
         """
         return False
 
+    def release(self) -> None:  # noqa: B027 -- most steps hold no cache
+        """Let go of what is only there to make an undo fast.
+
+        Called when this stops being the top step.  Undoing the last
+        step stays instant; reaching an older one re-derives its P1
+        cell -- 0.14 s for an MFU-4l 3x3x3 two steps down -- and never
+        its bonds, which are the stored ``perceived`` graph and not
+        cache.
+        """
+
+    def held_atoms(self) -> int:
+        """Sites this step keeps a whole structure of, for the
+        history's budget; 0 for a step that remembers only a change."""
+        return 0
+
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self.label!r})"
 
@@ -100,6 +116,13 @@ class MacroCommand(Command):
         for command in reversed(self.commands):
             command.undo(host)
 
+    def release(self) -> None:
+        for command in self.commands:
+            command.release()
+
+    def held_atoms(self) -> int:
+        return sum(command.held_atoms() for command in self.commands)
+
     def __len__(self) -> int:
         return len(self.commands)
 
@@ -125,6 +148,12 @@ class ReplaceStructure(Command):
 
     def undo(self, host) -> None:
         host.structure = self._old
+
+    def release(self) -> None:
+        _release(self._old)
+
+    def held_atoms(self) -> int:
+        return _sites(self._old)
 
 
 class StructureOperation(Command):
@@ -171,6 +200,12 @@ class StructureOperation(Command):
     def undo(self, host) -> None:
         host.structure = self._old
 
+    def release(self) -> None:
+        _release(self._old)
+
+    def held_atoms(self) -> int:
+        return _sites(self._old)
+
 
 class SnapshotEdit(Command):
     """An arbitrary mutation, made undoable by keeping a copy.
@@ -201,6 +236,21 @@ class SnapshotEdit(Command):
         self._after = host.structure
         host.structure = self._before.copy()
 
+    def release(self) -> None:
+        _release(self._before)
+
+    def held_atoms(self) -> int:
+        return _sites(self._before)
+
+
+def _release(structure: Structure | None) -> None:
+    if structure is not None:
+        structure.drop_cache()
+
+
+def _sites(structure: Structure | None) -> int:
+    return 0 if structure is None else structure.n_sites
+
 
 # ======================================================================
 #  THE STACK
@@ -211,6 +261,10 @@ class CommandStack:
     """Bounded undo/redo history over a host's structure."""
 
     limit: int = DEFAULT_HISTORY
+    #: Sites whole-structure steps may hold -- see :mod:`xtal.core.limits`.
+    atom_budget: int = limits.UNDO_ATOMS
+    #: How many steps the last push let go, for the window to say.
+    trimmed: int = 0
     _done: list = field(default_factory=list, repr=False)
     _undone: list = field(default_factory=list, repr=False)
     _macro: MacroCommand | None = field(default=None, repr=False)
@@ -223,6 +277,7 @@ class CommandStack:
 
     def push(self, command: Command, host) -> Command:
         """Run ``command`` and add it to the history."""
+        self.trimmed = 0
         command.do(host)
         if self._macro is not None:
             self._macro.add(command)
@@ -233,12 +288,30 @@ class CommandStack:
                 and self._done[-1].merge_with(command)):
             return self._done[-1]
         self._sealed = False
+        self._append(command)
+        return command
+
+    def _append(self, command: Command) -> None:
+        """Put a new step on top, release the one below it, and let
+        the oldest go while the history is over its count or its
+        budget -- never the last ``limits.UNDO_KEEP``."""
+        if self._done:
+            self._done[-1].release()
         self._done.append(command)
-        if len(self._done) > self.limit:
-            trimmed = len(self._done) - self.limit
+        held = sum(step.held_atoms() for step in self._done)
+        trimmed = 0
+        while self._over(len(self._done) - trimmed, held):
+            held -= self._done[trimmed].held_atoms()
+            trimmed += 1
+        if trimmed:
             del self._done[:trimmed]
             self._clean_depth -= trimmed
-        return command
+        self.trimmed = trimmed
+
+    def _over(self, steps: int, held: int) -> bool:
+        if steps > self.limit:
+            return True
+        return held > self.atom_budget and steps > limits.UNDO_KEEP
 
     def break_merge(self) -> None:
         """End the current gesture: the next command is its own undo
@@ -293,9 +366,7 @@ class CommandStack:
         self._macro = None
         if len(macro):
             self._undone.clear()
-            self._done.append(macro)
-            if len(self._done) > self.limit:
-                del self._done[0]
+            self._append(macro)
 
     # -- state ---------------------------------------------------------
 

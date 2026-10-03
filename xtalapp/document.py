@@ -111,6 +111,7 @@ class Document(QObject):
     workspaceChanged = Signal()         # the entry this document is in
     playbackChanged = Signal()          # a trajectory opened or closed
     heldChanged = Signal()              # a calculation took or let go
+    historyTrimmed = Signal(int)        # the oldest undo steps let go
 
     def __init__(self, structure: Structure | None = None,
                  path=None, parent=None):
@@ -572,7 +573,14 @@ class Document(QObject):
         with _busy_unless_gesture(command):
             self.stack.push(command, self)
             self._after_change(command.change)
+        self._say_trimmed()
         return command
+
+    def _say_trimmed(self) -> None:
+        """Tell the window when the history let its oldest steps go,
+        so an undo that stops short is not a surprise."""
+        if self.stack.trimmed:
+            self.historyTrimmed.emit(self.stack.trimmed)
 
     def apply(self, mutate, change: Change = Change.ALL,
               label: str = "Edit") -> object:
@@ -2448,8 +2456,10 @@ class _Transaction:
         return self._context.__enter__()
 
     def __exit__(self, *exc):
+        self.document.stack.trimmed = 0
         result = self._context.__exit__(*exc)
         self.document.historyChanged.emit()
+        self.document._say_trimmed()
         return result
 
 

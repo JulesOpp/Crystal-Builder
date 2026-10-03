@@ -141,6 +141,11 @@ class DocumentSet:
         document.historyChanged.connect(self.window._update_history_actions)
         document.playbackChanged.connect(self.window._refresh_shell)
         document.heldChanged.connect(self.window._refresh_shell)
+        document.historyTrimmed.connect(
+            lambda n: self.window.statusBar().showMessage(
+                f"the oldest {n} undo step{'s' if n != 1 else ''} "
+                f"{'were' if n != 1 else 'was'} let go to keep the "
+                f"history within memory", 8000))
         self.window.autosaver.watch(document)
         if hasattr(viewport, "statusMessage"):
             viewport.statusMessage.connect(
