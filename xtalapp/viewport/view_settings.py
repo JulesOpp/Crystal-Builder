@@ -19,6 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 
 from xtal.core import elements as el
+from xtal.core import scalars
 
 # Styles are looked up in xtalapp.viewport.styles; the name is stored
 # here so settings stay a plain, serialisable record.
@@ -85,6 +86,23 @@ PORE_COLOR = (64, 156, 220)
 #: The skeleton, a shade darker than the sphere so the two are
 #: distinguishable where a channel runs into the cavity it feeds.
 PORE_EDGE_COLOR = (40, 112, 168)
+
+#: A ring's face by its size, after the picture a ZTC group sent of
+#: their models: the hexagons a sheet is mostly made of in a warm
+#: yellow that recedes, and the defects -- the five- and seven-rings
+#: that bend it -- in colours that stand out from it and from each
+#: other.  Anything above ten shares the last.  Overridden per size in
+#: :attr:`ViewSettings.ring_colors`.
+RING_COLORS = {
+    3: (150, 150, 150),
+    4: (214, 48, 49),
+    5: (232, 84, 140),
+    6: (247, 196, 37),
+    7: (38, 198, 218),
+    8: (108, 76, 214),
+    9: (120, 190, 60),
+    10: (150, 110, 60),
+}
 
 #: How far towards black a plane's normal is taken from the plane's
 #: own colour.  Derived rather than settable: two controls for one
@@ -273,6 +291,29 @@ class ViewSettings:
     polyhedron_min_vertices: int = 4
     polyhedron_centres: tuple = ()
 
+    # Rings filled in by size: a face per primitive ring, see
+    # :mod:`xtal.core.rings`.  Off, because it is a search of the
+    # whole graph and a picture of something particular -- the
+    # pentagons and heptagons of a curved carbon -- rather than of the
+    # crystal.  Up to eight-membered by default: the faces a carbon
+    # sheet is made of, at a tenth of a second on three thousand atoms.
+    show_rings: bool = False
+    ring_max_size: int = 8
+    #: Fainter than a polyhedron: rings tile a sheet edge to edge, and
+    #: the atoms and bonds they are made of must still read through.
+    ring_opacity: float = 0.45
+    ring_colors: dict = field(default_factory=dict)
+
+    # Colour by a number per atom or per bond (:mod:`xtal.core.
+    # scalars`) in place of the element, with a colour bar for a
+    # legend.  Empty is off.  It is read when the picture is built and
+    # writes nothing back, so the colours chosen by hand per element
+    # are what come back when it is turned off.  ``color_range`` is
+    # None for the values' own least and greatest.
+    color_by: str = ""
+    color_map: str = "viridis"
+    color_range: tuple | None = None
+
     element_colors: dict = field(default_factory=dict)
     element_radii: dict = field(default_factory=dict)
 
@@ -284,6 +325,13 @@ class ViewSettings:
         if element in self.element_colors:
             return tuple(self.element_colors[element])
         return el.color(element)
+
+    def ring_color(self, size: int) -> tuple[int, int, int]:
+        """The fill of an ``size``-membered ring: the user's, else
+        :data:`RING_COLORS`."""
+        if size in self.ring_colors:
+            return tuple(self.ring_colors[size])
+        return RING_COLORS[min(max(size, 3), max(RING_COLORS))]
 
     def base_radius(self, element: str, source: str) -> float:
         """Radius before the style's factor and the global scale."""
@@ -338,6 +386,7 @@ class ViewSettings:
         return replace(self,
                        element_colors=dict(self.element_colors),
                        element_radii=dict(self.element_radii),
+                       ring_colors=dict(self.ring_colors),
                        polyhedron_centres=tuple(
                            self.polyhedron_centres))
 
@@ -387,6 +436,17 @@ class ViewSettings:
             "polyhedron_opacity": self.polyhedron_opacity,
             "polyhedron_min_vertices": self.polyhedron_min_vertices,
             "polyhedron_centres": list(self.polyhedron_centres),
+            "show_rings": self.show_rings,
+            "ring_max_size": self.ring_max_size,
+            "ring_opacity": self.ring_opacity,
+            # JSON keys are strings, so the sizes are written as such
+            # and read back as numbers.
+            "ring_colors": {str(k): list(v)
+                            for k, v in self.ring_colors.items()},
+            "color_by": self.color_by,
+            "color_map": self.color_map,
+            "color_range": (None if self.color_range is None
+                            else list(self.color_range)),
             "element_colors": {k: list(v)
                                for k, v in self.element_colors.items()},
             "element_radii": dict(self.element_radii),
@@ -411,6 +471,8 @@ class ViewSettings:
                     "boundary", "projection",
                     "show_legend", "polyhedron_opacity",
                     "polyhedron_min_vertices",
+                    "show_rings", "ring_max_size", "ring_opacity",
+                    "color_by", "color_map",
                     "background_follows_theme"):
             if key in d:
                 setattr(s, key, d[key])
@@ -434,4 +496,10 @@ class ViewSettings:
         s.element_colors = {k: tuple(v) for k, v in
                             d.get("element_colors", {}).items()}
         s.element_radii = dict(d.get("element_radii", {}))
+        s.ring_colors = {int(k): tuple(v) for k, v in
+                         d.get("ring_colors", {}).items()}
+        if s.color_by and s.color_by not in scalars.QUANTITIES:
+            s.color_by = ""
+        if d.get("color_range") is not None:
+            s.color_range = tuple(float(v) for v in d["color_range"])
         return s

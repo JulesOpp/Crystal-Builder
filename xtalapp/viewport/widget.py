@@ -321,7 +321,8 @@ class ViewportWidget(QWidget):
                             planes=self.document.planes_to_draw(),
                             pores=self.document.pores,
                             charges=self.document.charges,
-                            orbital=self.document.orbital)
+                            orbital=self.document.orbital,
+                            hidden=self.document.hidden_mask())
         self.model = model
         self.scene.set_positions(model)
         self._safe_render()
@@ -356,7 +357,8 @@ class ViewportWidget(QWidget):
                             planes=self.document.planes_to_draw(),
                             pores=self.document.pores,
                             charges=self.document.charges,
-                            orbital=self.document.orbital)
+                            orbital=self.document.orbital,
+                            hidden=self.document.hidden_mask())
         self.model = model
         self.scene.set_model(model)
         self.scene.set_projection(self.document.view.projection)

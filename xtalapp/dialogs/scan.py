@@ -32,6 +32,7 @@ here.**  One place to set up an engine, the same bargain
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -442,6 +443,29 @@ class ScanDialog(QDialog):
             "one wanted, so converging to it tightly buys nothing.")
         self.pre_engine.currentIndexChanged.connect(self._pre_changed)
 
+        # The bulk modulus is this dialog with the axis fixed to the
+        # volume, one direction, and the cell relaxed before it starts
+        # -- the same run underneath, so it reads the engine the same
+        # way and leaves the same files.
+        self.bulk = action.name == "bulk_modulus"
+        self.relax_first = QCheckBox("Relax the cell first")
+        self.relax_first.setChecked(True)
+        self.relax_first.setToolTip(
+            "Relax the cell before the scan, and move the volumes "
+            "with it: a scan round a cell the engine does not think "
+            "is a minimum puts V0 at its edge, and the fit refuses")
+        self.relax_first.setVisible(self.bulk)
+        if self.bulk:
+            self.second.setVisible(False)
+            self._select(self.first.kind, "volume")
+            self.first.kind.setEnabled(False)
+            self._select(self.direction, "forward")
+            self.first.steps.setValue(9)
+            if self.structure is not None:
+                volume = self.structure.lattice.volume
+                self.first.start.setValue(volume * 0.94)
+                self.first.stop.setValue(volume * 1.06)
+
         self.summary = QLabel("")
         self.summary.setWordWrap(True)
 
@@ -482,6 +506,7 @@ class ScanDialog(QDialog):
         set_tone(note, HINT)
 
         how = QFormLayout()
+        how.addRow(self.relax_first)
         how.addRow("Starting geometry", self.seed)
         how.addRow("Direction", self.direction)
         how.addRow("Optimiser", self.method)
@@ -666,6 +691,8 @@ class ScanDialog(QDialog):
             "max_steps": self.max_steps.value(),
             "tolerance": self.tolerance.value(),
         }
+        if self.bulk:
+            out["relax_first"] = self.relax_first.isChecked()
         out["engine_options"] = self.engine_values()
         out["pre_engine"] = str(self.pre_engine.currentData() or "")
         out["pre_engine_options"] = self.pre_values()
@@ -675,6 +702,8 @@ class ScanDialog(QDialog):
 
     def set_values(self, values) -> None:
         values = dict(values or {})
+        if "relax_first" in values:
+            self.relax_first.setChecked(bool(values["relax_first"]))
         if "engine" in values:
             self._select(self.engine, values["engine"])
         if "pre_engine" in values:

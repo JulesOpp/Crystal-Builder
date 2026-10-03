@@ -867,3 +867,24 @@ def test_every_arrow_of_the_triad_ends_where_its_axis_points(quartz):
             mapper.GetInput().GetNumberOfPoints())])
         tip = points[np.argmax(points @ direction)]
         assert np.allclose(tip, direction, atol=1e-6)
+
+
+def test_ring_faces_reach_the_screen():
+    """A flat graphene sheet seen face on: grey atoms and bonds, and
+    yellow only where the hexagons are filled.  Fails if the ring
+    actor is built and never shown."""
+    from tests.test_ring_faces import _graphene
+
+    def is_yellow(image):
+        return ((image[:, :, 0] > 150) & (image[:, :, 1] > 110)
+                & (image[:, :, 2] < 110))
+
+    sheet = _graphene(3)
+    plain = vtk_scene.render_to_array(
+        build_scene(sheet, ViewSettings(show_cell=False)), SIZE)
+    filled = vtk_scene.render_to_array(
+        build_scene(sheet, ViewSettings(show_cell=False,
+                                        show_rings=True,
+                                        ring_opacity=1.0)), SIZE)
+    assert fraction_of(plain, is_yellow) < 0.001
+    assert fraction_of(filled, is_yellow) > 0.05

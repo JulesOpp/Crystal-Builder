@@ -14,6 +14,7 @@ bonding, run force field / DFTB+ / Zeo++ calculations on the result.
 | `xtal/ff/`, `xtal/modules/` | Calculators (UFF with UFF4MOF, xTB, DFTB+, MACE, ORB-v3, MatterSim) and the module/job registry (Zeo++). The ML engines (MACE, ORB-v3, MatterSim) run in process on `ase_engine.ASECalculator` rather than as a binary; each needs its own extra (`mace`, `orb`, `mattersim`), and `_load_model` is the seam their tests replace. |
 | `xtal/powder/` | Refinement against a measured `.xy`: peaks, indexing, Pawley, Rietveld (the workbench, `xtalapp/refine/`). **RietX does the physics**, via the `refine` extra pinned below 1.6, and `bridge.py` is the only module that imports it; every fit is told its run folder, never the cwd. A pattern is read by `PowderData.from_file`: two-column text by our own lenient reader, and a diffractometer's own file (`.rasx`, Bruker `.raw`, `.uxd`, `.xrdml`, `xy.VENDOR_EXTENSIONS`) by RietX through `bridge.read_measurement`, whose warnings (scan 0 of 3 taken) become `notes` the workbench says; a file naming another anode than the radiation box is said, never switched. A refinement moves atoms and never adds, removes or bonds them; its live frames are `preview_positions` and its finish one undo step on the document the window was opened over. Rietveld with energies (`energy.py`) is our L-BFGS over RietX's own variables, the pattern's gradient from its private residual and Jacobian (`bridge.PatternTerm`, a test holds it against differences), and **uses the Force Field panel's engine**: the workbench's engine box shares that panel's model and choice, so choosing in either chooses in both, and the engine's options stay in the panel. RietX is bundled (`packaging/bundle.py` collects it with its sources on disk, for numba's cache) and `--selftest` refines rutile inside the build; CI's test job does not install `refine` -- the powder tests are minutes, not seconds -- so they run locally. A Pareto sweep (`pareto.py`) is one `EnergyProblem` minimised at every weight, each point written as it finishes, and returns no structure. **Every fit starts from a `ParameterSet`** (`parameters.py`) **and hands one back** (`.parameters`): its values are handed to RietX, its Refine flags are the plan (`bridge._stages`, McCusker's order), and what RietX holds -- a tie, a locked number, an atom with no free direction -- is read off its own table (`bridge.held_paths`). A Pawley fit takes and gives back no scale and no atoms -- its Le Bail scaffold's dummy atom has a structure's first atom's paths, so they are left out by box (`bridge._PAWLEY_LEAVES`), and the workbench hides those groups on the Pawley step. **Zero cycles is an evaluation, never a fit**: RietX refuses `max_iter=0`, so `bridge.evaluation()` is a plan of one stage that frees nothing -- RietX's own statistics, nothing moved, no esds, no undo step, and a Pawley evaluation still finds its intensities. Max iterations and Tolerance are every stage's (`bridge.limited`); With energy's are L-BFGS's. A tick under the workbench's plot names its reflection on hover (`RietveldFit.reflections`, the primary line only). With energy fits first only what is flagged beyond the atoms, and with none flagged fits nothing first. The boxes of `xtal run` become flags (`flag_boxes`) when no `parameters=FILE` is given, and a run folder keeps `parameters-start.txt` and `parameters.txt`. In the workbench the set is **one `ParameterTable`** (`xtalapp/refine/parameters.py`) moved into whichever fitting step is in front, and its Refine column replaced the "Refine ..." boxes; an atom's Biso and occupancy there are the site's, so editing one is an undo step on the Document. The tree is updated in place and rebuilt only when its rows change: an edit arrives inside its own `itemChanged`, and clearing it there segfaults. |
 | `xtal/mof/`, `xtal/build/` | PORMAKE frameworks (`orient.py` is which way round a node goes), and SMILES to a molecule. **PORMAKE is vendored** at `xtal/mof/pormake/` — MIT, trimmed of `jax`, `pymatgen` and `networkx`; see its `PROVENANCE.md`, and do not reformat it. The MOF builder needs the `ase` extra, the molecule builder the `build` one; the check is `find_spec` and never an import, and the entries grey out naming the extra. |
+| `xtal/carbon/` | The disordered-carbon builder (Modules ▸ Disordered carbon builder, `xtal run carbon.build`): a closed sheet round a net (`surface`), remeshed and given Stone–Wales defects (`mesh`), cut into ribbons (`ribbons`), dualised to carbon and terminated (`lattice`), put together and relaxed (`build`). See the invariant. |
 | `xtal/agent/` | The surface an AI assistant (or a script) drives: `Session` (verbs over a `CommandStack`, logged to the entry), `inspect` (closed diagnostic codes, each with its remedy), `render` (a PNG in a subprocess), `capabilities`. The skill the assistant reads ships in `xtal/agent/skill/`, and `tests/test_agent_skill.py` holds every name in it to the code. |
 | `xtal/agent/tools.py` | The verbs as MCP tools, one per verb with its own keywords, plus `documents`, `switch`, `capabilities` and `help_for`, over any `Host` that holds the sessions (`build_server(host)`). **Every tool runs on a worker thread**, never the server's event loop. The SDK is the `mcp` extra, imported lazily. |
 | `xtal/agent/serve.py` | `xtal mcp`: the tools over stdio. A proxy to the window when one is serving, else a `HeadlessHost` of its own sessions; `--window` and `--headless` insist on one. |
@@ -366,6 +367,16 @@ stress case).
   the box is drawn in the translucent pass before the sphere with
   order-independent transparency off (`vtk_scene._set_label_box`),
   because VTK honours a depth-mask override in that pass alone.
+- **A ring is a primitive ring of the stored graph.** Style ▸ Rings
+  fills each with a face coloured by size (`xtal/core/rings.py`,
+  `builder._emit_rings`): Franzblau's shortest-path rings, so two
+  fused hexagons are two faces and never a third round both --
+  unfiltered, a 24 x 24 graphene sheet has 1728 ten-cycles. Read off
+  the stored graph, never perceived, no dummy in any ring, memoised
+  until the chemistry changes, and found in a cell smaller than the
+  ring (graphene's two-atom cell), which `bonding.find_rings` -- the
+  aromaticity search -- does not do. A face is drawn only where every
+  atom of its ring is.
 - **A dummy atom is a marker, not chemistry.** `X` — see
   `elements.DUMMY_ELEMENTS`. Perception never bonds one, and nothing
   that reasons chemically is ever handed one — it is **held back at
@@ -378,6 +389,62 @@ stress case).
   centroid is one click, and "delete the marker" throws away what the
   user added it for. Net edges and measurements take them, which is
   what they are for.
+- **A functional group is a pattern of the stored graph, never of
+  bond lengths.** `xtal/core/groups.py` is a closed catalogue
+  (`groups.CATALOGUE`), each atom claimed once by the most specific
+  pattern -- an acid is one group, not a hydroxyl and a carbonyl --
+  and the hydroxyl of an acid is the oxygen carrying the hydrogen,
+  whichever C-O a refinement wrote shorter. A bond to a metal does
+  not count against an oxygen, an `X` never matches, and a ring
+  ether or epoxide may close through a cell face. A group's *handle*
+  is what Substitute replaces, which may be any atom of
+  `substitute.TERMINAL` (H or a halogen on one bond), never a
+  carbonyl oxygen.
+- **Colour by draws a number; it never stores a colour.** The Style
+  panel's *Colour by* (`xtal/core/scalars.py`, `ViewSettings.color_by`)
+  colours bonds by length or atoms by coordination, angle, smallest
+  ring or charge, read off the stored graph at build time and written
+  nowhere, so *Element* brings back the colours chosen by hand. **No
+  value is NaN, drawn grey and off the scale, never zero**: an atom
+  with fewer than two neighbours has no angle, and only three and four
+  neighbours have an ideal one (120, 109.5) -- with 180 for two, the
+  ether oxygens were the brightest atoms on MFU-4l. The range is the
+  whole cell's, not the drawn atoms', and a colour bar replaces the
+  element legend.
+- **A carbon build is one connected sheet with stated bonds.**
+  `xtal/carbon/` makes a ZTC or schwarzite as the dual of a closed
+  surface round a net: every triangle a carbon, every shared edge a
+  bond, so a closed sheet is all three-coordinate and a valence-*n*
+  vertex is an *n*-ring. **The rings are partly fixed**: Gauss–Bonnet
+  makes the closed sheet's sum of (6 − n) six times its χ, the net's
+  2(V − E) per cell, so a recipe sets Stone–Wales pairs, never a free
+  5:6:7 ratio, and the dialog says what is fixed. **Ribbons follow
+  paths**, a seeded meandering path along each strut between anchors
+  shared at its nodes, so the kept carbon percolates exactly as the
+  net does -- a cut by a random score needed half the sheet before
+  the pieces joined -- and only carbons in a ring are kept. Each
+  layer is one piece through all three directions or the build is
+  refused. **The cell is solved from the carbon density**, not
+  chosen, and the ribbons are cut to the count; UFF relaxes at that
+  cell, positions applied unwrapped (wrapped by hand, bonds came out
+  39 Å long). The graph is stated as the stored one, as a MOF
+  build's is. A termination goes only where it has room, per kind,
+  and the rest of the edge stays bare. The defaults match the
+  example ZTC (dia, 2×2×2, 0.42 g/cm³, H/C 0.07, F/C 0.29, O/C 0.044,
+  coverage 0.38) on density, ratios, hexagon share and pore-size peak
+  (`test_carbon_validation.py`, skipped without the private file).
+  **Mind the memory**: a field or a remesh that runs away takes the
+  machine with it, which is why the field is summed in blocks, a
+  Newton step is capped at 0.5 Å, and a remesh past four times the
+  triangles its area needs stops with `MeshError`.
+- **A hidden atom is still in the structure.** View ▸ Show Only
+  Selected is `Document.hidden`: view state, never an undo step,
+  never saved, read by the scene builder alone -- not drawn, not
+  completed as a ghost, no bond to it drawn, so it cannot be picked
+  -- and every calculation, export and save sees the whole cell. An
+  edit keeps the same atoms hidden by where they are
+  (`Document._keep_hidden`), because a substitution renumbers the
+  cell; what an edit adds is shown.
 - **A force field or optimiser never changes the bonding or the
   atoms.** All structural changes are the user's, made explicitly.
 - **Manually set bond types take precedence** over any distance-based

@@ -117,3 +117,58 @@ def test_the_selected_hydrogens_mode_needs_a_hydrogen(window, mof5,
 
     assert "select the hydrogens" in dialog.headline.text()
     assert not dialog.buttons.button(QDialogButtonBox.Ok).isEnabled()
+
+
+def test_a_drawn_group_needs_exactly_one_connection_point(qtbot, tmp_path):
+    """Two [*] is a linker, none is a molecule: either is refused in
+    the footer, live, and Save stays off.  One is saved into the
+    workspace's groups/ and handed back by name."""
+    from xtalapp.dialogs.draw_group import DrawGroupDialog
+
+    dialog = DrawGroupDialog(tmp_path / "groups")
+    qtbot.addWidget(dialog)
+    for text in ("[*]OC([*])=O", "CC(C)=O"):
+        dialog.smiles.setText(text)
+        dialog._rebuild()
+        assert not dialog.use_button.isEnabled()
+        assert "exactly one" in dialog.footer.text()
+    dialog.name.setText("Acetoxy")
+    dialog.smiles.setText("[*]OC(C)=O")
+    dialog._rebuild()
+    assert dialog.use_button.isEnabled()
+    dialog.accept()
+    assert dialog.drawn == ("Acetoxy", "[*]OC(C)=O")
+    assert (tmp_path / "groups" / "Acetoxy.smi").is_file()
+
+
+def test_a_saved_group_is_offered_and_substitutes_under_its_name(
+        window, mof5, qtbot, tmp_path):
+    from xtal.build import substitute
+    from xtalapp.dialogs.substitute import SubstituteDialog
+
+    substitute.save_group(tmp_path, "Ethynyl", "[*]C#C")
+    mof5.select([mof5.cell.elements.index("H")])
+    dialog = SubstituteDialog(mof5, window, folder=tmp_path)
+    qtbot.addWidget(dialog)
+    dialog.group.setCurrentText("Ethynyl")
+    assert dialog.headline.text().startswith("Ethynyl in place of")
+    report = dialog.substitute()
+    assert report.ok
+    assert mof5.undo_label.endswith("Ethynyl")
+
+
+def test_showing_only_substituted_atoms_survives_the_substitution(
+        window, mof5):
+    """Select the hydrogens to change, show only them, substitute: the
+    rest of the framework stays hidden however the edit renumbered the
+    cell, and the new groups are drawn."""
+    cell = mof5.cell
+    hydrogens = [a for a in range(cell.n_atoms) if cell.elements[a] == "H"]
+    mof5.select(hydrogens[:2])
+    mof5.show_only_selected()
+    hidden_before = len(mof5.hidden)
+    mof5.substitute("Methyl")
+    after = mof5.cell
+    shown = set(range(after.n_atoms)) - set(mof5.hidden)
+    assert len(mof5.hidden) == hidden_before
+    assert Counter(after.elements[a] for a in shown) == {"C": 2, "H": 6}

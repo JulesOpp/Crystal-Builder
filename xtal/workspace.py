@@ -79,6 +79,7 @@ FORMAT_VERSION = 1
 #: The one folder in a workspace that is not a structure --
 #: see :attr:`Workspace.blocks`.
 BLOCKS_DIR = "blocks"
+GROUPS_DIR = "groups"
 
 LOG_NAME = "run.log"
 TRAJECTORY_NAME = "trajectory.extxyz"
@@ -622,6 +623,14 @@ class Workspace:
         should not have an empty folder in it explaining that.
         """
         return self.root / BLOCKS_DIR
+
+    @property
+    def groups(self) -> Path:
+        """Where substituent groups drawn in this workspace are kept,
+        beside :attr:`blocks` and for the same reasons -- one ``.smi``
+        each (:func:`xtal.build.substitute.save_group`), listed in the
+        Substitute dialog after the library's.  Not created here."""
+        return self.root / GROUPS_DIR
 
     def add_document(self, name: str) -> Entry:
         """An entry for a structure that has no file yet.

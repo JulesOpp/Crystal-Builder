@@ -1045,7 +1045,7 @@ Complete every main-group coordination with the hydrogens an X-ray structure nev
 
 `substitute_rings`
 
-Replace the selected hydrogens, or one on every aromatic ring, with a group -- NH2, OH, OMe, NO2, a halogen, a phenyl -- bonded to the atom the hydrogen was on and to nothing else
+Replace the selected hydrogens (or fluorines), or one on every aromatic ring, with a group -- NH2, OH, OMe, NO2, an acetyl, a phenyl, or one you draw -- bonded to the atom the hydrogen was on and to nothing else
 
 ```{index} Substitute hydrogens...
 ```
@@ -1728,6 +1728,26 @@ A ruler in the corner, in Angstrom.  It measures the camera and not the crystal,
 ```{index} Scale bar
 ```
 
+(cmd-show_only_selected)=
+### Show Only Selected
+
+`show_only_selected`
+
+Draw the selected atoms and nothing else -- every phenol, say, to see what a substitution did to them.  Only the picture changes: the hidden atoms are still in the structure, and in every calculation and every save
+
+```{index} Show Only Selected
+```
+
+(cmd-show_all)=
+### Show All
+
+`show_all`
+
+Draw every atom again after Show Only Selected
+
+```{index} Show All
+```
+
 (cmd-clear_overlays)=
 ### Clear charges and orbital
 
@@ -1978,6 +1998,16 @@ Velocity Verlet, with a thermostat; the frames go to the transport bar
 Map the energy landscape over one or two coordinates
 
 ```{index} Relaxed scan...
+```
+
+(cmd-module.scan.bulk_modulus)=
+### Energy scan ▸ Bulk modulus...
+
+`module.scan.bulk_modulus`
+
+Compress and expand the cell with the shape free and fit an equation of state: B0, B0' and V0
+
+```{index} Bulk modulus...
 ```
 
 (cmd-module.mof.build)=

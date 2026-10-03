@@ -43,7 +43,7 @@ from xtal.commands.clipboard import (
     InsertMolecules,
     PasteFragment,
 )
-from xtal.core import bonding, measure, p1, properties, symmetry
+from xtal.core import bonding, groups, measure, p1, properties, symmetry
 from xtal.core import selection as sel
 from xtal.core.selection import Selection
 from xtal.core.structure import CHEMISTRY, TOPOLOGY, Change
@@ -134,6 +134,14 @@ class Document(QObject):
         # project, and "none chosen means all of them" is the same
         # convention ``measure_plane_angles`` already works to.
         self.shown_planes: tuple = ()
+        # The P1 atoms View > Show Only Selected left out of the
+        # picture.  View state: not an undo step, not written into the
+        # project, and nothing but the drawing reads it -- a hidden
+        # atom is still in the structure and in every calculation.
+        # ``_hidden_where`` is where they were, so an edit that
+        # renumbers the cell keeps the same atoms hidden.
+        self.hidden: frozenset = frozenset()
+        self._hidden_where = ((), np.zeros((0, 3)))
         # Whether ``view`` came out of a saved project.  A project
         # carries the view it was saved with and the preference for
         # what a *new* document looks like must not overwrite it --
@@ -602,6 +610,7 @@ class Document(QObject):
                 self.selectionChanged.emit()
             self._remeasure()
         self._stale_pores(change)
+        self._keep_hidden(change)
         self._announce_modified()
         self.structureChanged.emit(int(change))
         self.historyChanged.emit()
@@ -835,6 +844,8 @@ class Document(QObject):
             extra["orders"] = bonding.orders(self._structure)
         if rule == "net":
             extra["topology"] = bonding.topology_graph(self._structure)
+        if rule == "group":
+            extra["groups"] = groups.matches(self._structure)
         picked = sel.pick(rule, self.cell, self.graph,
                           self._structure.lattice,
                           self.selection.atoms, **extra, **args)
@@ -858,7 +869,10 @@ class Document(QObject):
         return sel.covers_whole_orbits(self.cell, self.selection.atoms)
 
     def selection_summary(self) -> str:
-        return sel.describe(self._structure, self.cell, self.selection)
+        said = sel.describe(self._structure, self.cell, self.selection)
+        shown = self.shown_summary()
+        return f"{said}  ·  {shown}" if shown and said else (
+            said or shown)
 
     def selection_orbit_report(self) -> str:
         return sel.orbit_report(self.cell, self.selection.atoms)
@@ -2205,11 +2219,14 @@ class Document(QObject):
         return symmetry.SymmetryReport(message=placement.message(),
                                        warnings=placement.warnings())
 
-    def substitute(self, group, per_ring: bool = False):
-        """Replace the selected hydrogens -- or, ``per_ring``, one
-        hydrogen of every aromatic ring -- with ``group``, as one undo
-        step.  Returns the report: its message, and the warnings a
-        reduction to P1 or a group with no room owes the user.
+    def substitute(self, group, per_ring: bool = False,
+                   fraction: float = 1.0, seed: int = 0):
+        """Replace the selected hydrogens (or fluorines, or any atom on
+        one bond) -- or, ``per_ring``, one hydrogen of every aromatic
+        ring -- with ``group``, as one undo step; ``fraction`` of them
+        when below one.  Returns the report: its message, and the
+        warnings a reduction to P1 or a group with no room owes the
+        user.
 
         See :class:`xtal.commands.atoms.SubstituteHydrogens` for what
         a space group allows, and :mod:`xtal.build.substitute` for
@@ -2217,7 +2234,8 @@ class Document(QObject):
         """
         atoms = () if per_ring else sorted(self.selection.atoms)
         return self.operate(atom_commands.SubstituteHydrogens(
-            group, atoms, per_ring=per_ring))
+            group, atoms, per_ring=per_ring, fraction=fraction,
+            seed=seed))
 
     def duplicate_selection(self, offset=None) -> str:
         fragment = self.copy_selection()
@@ -2239,6 +2257,89 @@ class Document(QObject):
                 raise AttributeError(f"no view setting {key!r}")
             setattr(self.view, key, value)
         self.viewChanged.emit()
+
+    def show_only_selected(self) -> str:
+        """View > Show Only Selected: every other atom left out of the
+        picture.  Not an undo step -- nothing about the crystal
+        changed -- and every calculation still sees the whole cell."""
+        n_atoms = self.cell.n_atoms
+        chosen = {a for a in self.selection.atoms if a < n_atoms}
+        if not chosen:
+            return "nothing selected to show"
+        self._hide(set(range(n_atoms)) - chosen)
+        self.viewChanged.emit()
+        return self.shown_summary()
+
+    def show_all(self) -> str:
+        """View > Show All: back to every atom."""
+        if self.hidden:
+            self._hide(())
+            self.viewChanged.emit()
+        return f"showing all {self.cell.n_atoms} atoms"
+
+    def hidden_mask(self):
+        """(N,) bool over the P1 cell, or ``None`` with nothing
+        hidden -- what the scene builder leaves out."""
+        n_atoms = self.cell.n_atoms
+        atoms = [a for a in self.hidden if a < n_atoms]
+        if not atoms:
+            return None
+        mask = np.zeros(n_atoms, bool)
+        mask[atoms] = True
+        return mask
+
+    def shown_summary(self) -> str:
+        """"412 of 3188 atoms shown", or ``""`` with none hidden."""
+        if not self.hidden:
+            return ""
+        n_atoms = self.cell.n_atoms
+        return (f"{n_atoms - len(self.hidden)} of {n_atoms} atoms "
+                f"shown")
+
+    def _hide(self, atoms) -> None:
+        self.hidden = frozenset(int(a) for a in atoms)
+        cell = self.cell
+        order = sorted(self.hidden)
+        self._hidden_where = (tuple(cell.elements[a] for a in order),
+                              np.asarray(cell.frac[order], float)
+                              .reshape(-1, 3))
+
+    def _keep_hidden(self, change: Change) -> None:
+        """The same atoms hidden after an edit, wherever it put them
+        in the cell.
+
+        Indices are not enough: replacing a hydrogen takes its site
+        out and appends the group, so every atom after it moves down
+        one, and a hidden set of indices would then hide its
+        neighbours.  An atom an edit did not touch is where it was --
+        same element, same fractional coordinates -- so that is how
+        the hidden ones are found again; what an edit added was never
+        hidden, and is shown.
+        """
+        if not self.hidden:
+            return
+        cell = self.cell
+        if not change & CHEMISTRY and max(self.hidden) < cell.n_atoms \
+                and len(self._hidden_where[0]) == len(self.hidden):
+            if change & Change.POSITIONS:
+                self._hide(self.hidden)     # moved, not renumbered
+            return
+        from scipy.spatial import cKDTree
+
+        symbols, where = self._hidden_where
+        found: set[int] = set()
+        if cell.n_atoms and len(symbols):
+            home = np.mod(np.asarray(cell.frac, float), 1.0)
+            home[home >= 1.0] = 0.0
+            wanted = np.mod(where, 1.0)
+            wanted[wanted >= 1.0] = 0.0
+            tree = cKDTree(home, boxsize=1.0)
+            distance, atom = tree.query(wanted)
+            for symbol, d, a in zip(symbols, distance, atom,
+                                    strict=True):
+                if d < 1e-4 and cell.elements[int(a)] == symbol:
+                    found.add(int(a))
+        self._hide(found)
 
     def set_cells(self, na: float, nb: float, nc: float) -> None:
         self.view.set_cells(na, nb, nc)

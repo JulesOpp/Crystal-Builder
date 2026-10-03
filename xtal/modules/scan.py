@@ -29,12 +29,14 @@ files to open, not a replacement for it.
 from __future__ import annotations
 
 import csv
+from dataclasses import replace
 
 import numpy as np
 
 from xtal.core import p1
-from xtal.core.lattice import PARAMETER_NAMES
+from xtal.core.lattice import PARAMETER_NAMES, Lattice
 from xtal.ff import coordinates as co
+from xtal.ff import eos, optimize
 from xtal.ff import scan as driver
 from xtal.ff.optimize import METHODS
 from xtal.ff.registry import ENGINES
@@ -218,6 +220,31 @@ PARAMS = (
 )
 
 
+#: The bulk modulus is a volume scan with its own defaults: one axis,
+#: one direction -- hysteresis is not the question, and both doubles
+#: the cost -- and the cell relaxed before it starts.
+_BULK_DEFAULTS = {"axis1_steps": 9, "direction": "forward"}
+
+BULK_PARAMS = (
+    *(replace(p, default=_BULK_DEFAULTS[p.name])
+      if p.name in _BULK_DEFAULTS else p
+      for p in PARAMS if not p.name.startswith("axis2")),
+    Param("relax_first", "Relax the cell first", "bool", default=True,
+          help="Relax the cell, shape and volume, before the scan "
+               "and centre the volumes on where it settles.  A scan "
+               "round the input's volume puts V0 at its edge -- or "
+               "outside it -- whenever the engine's minimum is not "
+               "the deposited cell's, and the fit then refuses."),
+    Param("span", "Span", "float", default=6.0, minimum=0.5,
+          maximum=40.0, decimals=1, suffix=" %",
+          help="How far either side of the volume to go, when no "
+               "From and To are given.  Within a few percent the "
+               "energy is close to a parabola and the modulus is "
+               "the cell's; much further and it is the equation of "
+               "state's."),
+)
+
+
 # ======================================================================
 #  THE RUN
 # ======================================================================
@@ -271,6 +298,55 @@ def run_scan(job) -> JobResult:
         cancelled=bool(job.cancelled),
         report=report,
         artifacts=writer.artifacts)
+
+
+def run_bulk_modulus(job) -> JobResult:
+    """A volume scan round the relaxed cell, and the modulus fitted
+    through it.
+
+    The relaxation is of a copy and goes nowhere: a scan returns no
+    structure.  It only decides where the volumes are, so the window
+    moves with the cell -- From and To are scaled by the volume ratio
+    -- and the scan then starts from the relaxed geometry rather than
+    walking there one point at a time.
+    """
+    structure = job.structure.copy()
+    driver.hold_bonding(structure)
+    params = dict(job.params)
+    params["axis1"] = "volume"
+    params["axis2"] = ""
+    volume = structure.lattice.volume
+    if bool(job.param("relax_first", True)):
+        engine = str(job.param("engine", "uff"))
+        settings = engine_settings(job, engine)
+        job.say(f"relaxing the cell first on "
+                f"{_engine_said(engine, settings)}")
+        result = optimize.run(
+            ENGINES.build(engine, structure, **settings), structure,
+            method=str(job.param("method", "smart")),
+            cancel=job.cancel, relax_cell=True,
+            max_steps=int(job.param("max_steps", 500)),
+            force_tolerance=float(job.param("tolerance", 0.05)))
+        if result.stopped:
+            return JobResult(message="Stopped while relaxing the cell; "
+                                     "nothing was scanned.",
+                             cancelled=True)
+        for site, row in zip(structure.sites, result.frac,
+                             strict=True):
+            site.frac = row
+        if result.matrix is not None:
+            structure.set_lattice(Lattice(result.matrix))
+        job.say(f"relaxed: {result.summary()}")
+        ratio = structure.lattice.volume / volume
+        volume = structure.lattice.volume
+        for key in ("axis1_start", "axis1_stop"):
+            if params.get(key):
+                params[key] = float(params[key]) * ratio
+    if not params.get("axis1_start") and not params.get("axis1_stop"):
+        span = float(job.param("span", 6.0)) / 100.0
+        params["axis1_start"] = volume * (1.0 - span)
+        params["axis1_stop"] = volume * (1.0 + span)
+    return run_scan(replace(job, structure=structure, params=params))
 
 
 def _prerelax(job):
@@ -447,7 +523,10 @@ def _report(plan, result, engine, paths=None, settings=None,
     if len(plan.axes) == 2:
         blocks.append(_surface(plan, result, paths or {}))
     else:
-        blocks.extend(_curves(plan, result, paths))
+        fits = _fits(plan, result)
+        blocks.extend(_curves(plan, result, paths, fits))
+        if fits is not None:
+            blocks.append(_modulus_table(fits))
     return Report(
         title="Relaxed scan",
         blocks=tuple(blocks),
@@ -570,7 +649,56 @@ def _axis_label(axis) -> str:
     return f"{axis.label} ({axis.units})" if axis.units else axis.label
 
 
-def _curves(plan, result, paths=None) -> list[Curve]:
+def _fits(plan, result):
+    """``{branch: (Birch-Murnaghan, Vinet) or the reason there is
+    none}`` for a scan over the volume alone, else ``None``.
+
+    Converged points only: an unconverged point is not a number, and
+    fitted it would bend the curve by however far that cell had left
+    to relax.  Each branch on its own, because where they differ the
+    cell has two answers and averaging them would be a third.
+    """
+    if len(plan.axes) != 1 or not isinstance(plan.axes[0].coordinate,
+                                             co.CellVolume):
+        return None
+    out = {}
+    for branch in plan.directions:
+        points = [p for p in result.branch(branch)
+                  if p.finished and p.converged]
+        try:
+            out[branch] = eos.both([p.volume for p in points],
+                                   [p.energy for p in points])
+        except eos.EOSError as error:
+            out[branch] = str(error)
+    return out
+
+
+def _modulus_table(fits) -> Table:
+    rows = []
+    reasons = []
+    for branch, answer in fits.items():
+        if isinstance(answer, str):
+            reasons.append(f"{branch}: {answer}")
+            continue
+        for fitted in answer:
+            rows.append(Row.of(
+                branch, fitted.name, f"{fitted.b0:.2f}",
+                f"{fitted.b0_prime:.2f}", f"{fitted.v0:.2f}",
+                f"{fitted.rms:.4f}", str(fitted.n_points)))
+    note = ("B0 is the bulk modulus and V0 the volume at the "
+            "minimum, from the converged points of each branch.  "
+            "Where Birch-Murnaghan and Vinet disagree by much, the "
+            "scan reaches further from the minimum than either form "
+            "describes: narrow it.")
+    if reasons:
+        note = "Not fitted -- " + "; ".join(reasons) + ".  " + note
+    return Table(title="Bulk modulus",
+                 columns=("branch", "equation", "B0 (GPa)", "B0'",
+                          "V0 (A^3)", "RMS (kcal/mol)", "points"),
+                 rows=tuple(rows), note=note)
+
+
+def _curves(plan, result, paths=None, fits=None) -> list[Curve]:
     axis = plan.axes[0]
     lowest = result.minimum()
     base = lowest.energy if lowest is not None else 0.0
@@ -586,6 +714,12 @@ def _curves(plan, result, paths=None) -> list[Curve]:
         (name, np.array([p.energy - base for p in points]))
         for name, points in zip(plan.directions[1:], branches[1:],
                                 strict=True))
+    fitted = (fits or {}).get(plan.directions[0])
+    if fitted is not None and not isinstance(fitted, str):
+        # Drawn over the points it was fitted to, so a reader sees
+        # whether the curve the modulus comes from goes through them.
+        series += ((f"{fitted[0].name} fit",
+                    fitted[0].energy(x) - base),)
     out = [Curve(title="Energy profile", x=x, y=y,
                  x_label=_axis_label(axis),
                  y_label="E - E(min) (kcal/mol)",
@@ -632,6 +766,12 @@ SCAN = Module(
                kind="scan", dialog="scan",
                params=PARAMS,
                run=run_scan),
+        Action(name="bulk_modulus", label="Bulk modulus...",
+               tip="Compress and expand the cell with the shape free "
+                   "and fit an equation of state: B0, B0' and V0",
+               kind="scan", dialog="scan",
+               params=BULK_PARAMS,
+               run=run_bulk_modulus),
     ),
 )
 

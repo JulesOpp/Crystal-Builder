@@ -146,6 +146,55 @@ def test_the_net_and_plane_colours_are_chosen_from_the_style_dock(
     assert not document.modified
 
 
+def test_rings_are_filled_and_coloured_from_the_style_dock(
+        window, rutile_cif, monkeypatch):
+    """The Rings group drives the view and never the crystal: a ring
+    face is a note on the picture."""
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    assert not dock.ring_max_size.isEnabled()
+    dock.rings.setChecked(True)
+    assert document.view.show_rings
+    assert dock.ring_max_size.isEnabled()
+    dock.ring_max_size.setValue(10)
+    assert document.view.ring_max_size == 10
+    dock.ring_opacity.setValue(30)
+    assert document.view.ring_opacity == pytest.approx(0.3)
+    monkeypatch.setattr(QColorDialog, "getColor",
+                        lambda *a, **k: QColor(10, 200, 90))
+    dock.ring_swatches[7].click()
+    assert document.view.ring_color(7) == (10, 200, 90)
+    assert not document.modified and not document.can_undo
+
+
+def test_colour_by_is_chosen_from_the_style_dock_and_never_edits(
+        window, rutile_cif):
+    """A quantity, a map and a range set by hand drive the view; the
+    range is seeded from the values when Auto is unticked, so the
+    picture does not jump; and none of it is an undo step."""
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    assert not dock.color_map.isEnabled()
+    dock.color_by.setCurrentIndex(dock.color_by.findData("bond_length"))
+    assert document.view.color_by == "bond_length"
+    assert dock.color_map.isEnabled() and dock.color_auto.isChecked()
+    assert not dock.color_lo.isEnabled()
+    dock.color_map.setCurrentIndex(dock.color_map.findData("coolwarm"))
+    assert document.view.color_map == "coolwarm"
+    dock.color_auto.setChecked(False)
+    lo, hi = document.view.color_range
+    assert 1.9 < lo <= hi < 2.0          # rutile's two Ti-O lengths
+    assert dock.color_lo.isEnabled()
+    dock.color_hi.setValue(2.5)
+    dock.color_hi.editingFinished.emit()
+    assert document.view.color_range == (pytest.approx(lo, abs=1e-3),
+                                         2.5)
+    dock.color_by.setCurrentIndex(dock.color_by.findData(""))
+    assert document.view.color_by == ""
+    assert document.view.color_range is None
+    assert not document.modified and not document.can_undo
+
+
 def test_the_octant_switch_only_applies_where_there_are_ellipsoids(
         window, rutile_cif):
     document = window.open_path(rutile_cif)
@@ -252,16 +301,22 @@ def test_the_style_panel_is_headed_groups_in_the_agreed_order(window):
     dock = window.style_dock
     assert [group.title() for group in dock.groups] == [
         "Drawing", "Transparency", "Show", "Scene", "Colours",
-        "Depth cue"]
+        "Rings", "Colour by", "Depth cue"]
     homes = {"Drawing": (dock.style, dock.atom_scale, dock.bond_radius,
                          dock.ellipsoid_probability, dock.octants,
                          dock.carbon, dock.color_labels),
-             "Transparency": (dock.opacity, dock.pore_opacity),
+             "Transparency": (dock.opacity, dock.pore_opacity,
+                              dock.ring_opacity),
              "Scene": (dock.background, dock.labels, dock.legend,
                        dock.pore_spheres),
              "Show": (dock.cell_box, dock.cell_axes, dock.topology,
                       dock.pore_network, dock.pore_sphere_box),
              "Colours": tuple(dock.flat.values()),
+             "Rings": (dock.rings, dock.ring_max_size,
+                       *dock.ring_swatches.values()),
+             "Colour by": (dock.color_by, dock.color_map,
+                           dock.color_auto, dock.color_lo,
+                           dock.color_hi),
              "Depth cue": (dock.depth_cue, dock.depth_cue_start,
                            dock.depth_cue_end, dock.depth_cue_strength,
                            dock.depth_cue_preview)}

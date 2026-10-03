@@ -504,3 +504,36 @@ def test_typing_in_the_types_table_does_not_raise(paddlewheel, qtbot):
     paddlewheel.types.setCurrentCell(0, 0)
     qtbot.keyClick(paddlewheel.types, Qt.Key_A)
     qtbot.keyClick(paddlewheel.types, Qt.Key_F2)
+
+
+def test_the_bulk_modulus_dialog_is_a_volume_scan_round_the_cell(
+        qtbot, window, tmp_path, quartz):
+    """Volume and nothing else, six percent either way in nine points,
+    one direction, and the cell relaxed first -- the defaults a
+    modulus wants, in the same dialog as every other scan."""
+    from xtal.io import write_cif
+    path = tmp_path / "quartz.cif"
+    write_cif(quartz, path)
+    window.open_path(path)
+    module, action = MODULES.find("scan.bulk_modulus")
+    dialog = ScanDialog(module, action, window)
+    qtbot.addWidget(dialog)
+    values = dialog.values()
+    volume = quartz.lattice.volume
+    assert values["axis1"] == "volume" and values["axis2"] == ""
+    assert values["axis1_start"] == pytest.approx(volume * 0.94,
+                                                  abs=1e-3)
+    assert values["axis1_stop"] == pytest.approx(volume * 1.06,
+                                                 abs=1e-3)
+    assert values["axis1_steps"] == 9
+    assert values["direction"] == "forward"
+    assert values["relax_first"] is True
+    assert not dialog.first.kind.isEnabled()
+    assert dialog.second.isHidden()
+
+
+def test_the_relaxed_scan_dialog_has_no_relax_first_switch(hexagonal):
+    """A landscape is of the cell as given; relaxing it first would
+    move every point of a scan somebody had laid out by hand."""
+    assert "relax_first" not in hexagonal.values()
+    assert hexagonal.relax_first.isHidden()

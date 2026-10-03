@@ -274,6 +274,14 @@ def build_actions(window):
             "run found.  The pore sphere is its own box in the Style "
             "panel.  Nothing is drawn until Modules > Zeo++ has "
             "answered")
+    add("show_only_selected", "Show &Only Selected",
+        window.show_only_selected,
+        tip="Draw the selected atoms and nothing else -- every phenol, "
+            "say, to see what a substitution did to them.  Only the "
+            "picture changes: the hidden atoms are still in the "
+            "structure, and in every calculation and every save")
+    add("show_all", "Show A&ll", window.show_all,
+        tip="Draw every atom again after Show Only Selected")
     add("clear_overlays", "Clear c&harges and orbital",
         window.clear_overlays,
         tip="Take a DFTB+ run's atom colouring and orbital lobes off "
@@ -308,10 +316,10 @@ def build_actions(window):
             "hydrogens an X-ray structure never had")
     add("substitute_rings", "Su&bstitute hydrogens...",
         window.substitute_dialog,
-        tip="Replace the selected hydrogens, or one on every aromatic "
-            "ring, with a group -- NH2, OH, OMe, NO2, a halogen, a "
-            "phenyl -- bonded to the atom the hydrogen was on and to "
-            "nothing else")
+        tip="Replace the selected hydrogens (or fluorines), or one on "
+            "every aromatic ring, with a group -- NH2, OH, OMe, NO2, an "
+            "acetyl, a phenyl, or one you draw -- bonded to the atom "
+            "the hydrogen was on and to nothing else")
     add("fill_pores", "&Fill pores with molecules...",
         window.fill_pores_dialog,
         tip="Put copies of a molecule -- from another tab or a file "
@@ -719,7 +727,8 @@ def build_menus(window):
                     "show_planes",
                     "show_pores", "labels", "show_legend",
                     "show_scale_bar"])
-    window.actions_.fill_menu(view_menu, ["clear_overlays"])
+    window.actions_.fill_menu(view_menu, [
+        "show_only_selected", "show_all", None, "clear_overlays"])
     view_menu.addSeparator()
     background_menu = submenu(view_menu, "&Background")
     background_menu.addAction(
@@ -1106,7 +1115,8 @@ def context_menu(window, kind: str):
 def add_group_menu(window, menu):
     """Replace with group: one entry per group in the library.
 
-    Enabled only when every selected atom is a hydrogen and RDKit is
+    Enabled only when every selected atom is a hydrogen (or a halogen:
+    :data:`~xtal.build.substitute.TERMINAL`) and RDKit is
     there to embed the group -- a submenu that opened on a carbon
     would offer an edit that could only refuse.  Fresh actions rather
     than registry ones, because the list is the library's and grows
@@ -1120,7 +1130,7 @@ def add_group_menu(window, menu):
     document = window.current_document()
     atoms = sorted(document.selection.atoms) if document else []
     hydrogens = bool(atoms) and all(
-        document.cell.elements[a] == "H" for a in atoms)
+        document.cell.elements[a] in substitute.TERMINAL for a in atoms)
     entry.setEnabled(hydrogens and rdkit_installed()
                      and window.actions_["substitute_rings"].isEnabled())
     for name in substitute.names():
