@@ -316,6 +316,38 @@ def test_the_package_data_globs_still_match_pyproject():
     assert ours == declared
 
 
+def test_every_tracked_package_is_named_in_pyproject():
+    """``[tool.setuptools] packages`` is a list, not a search, so a new
+    package directory is in no wheel until somebody adds it there.
+
+    Nothing else notices.  In a git checkout setuptools-scm hands
+    every tracked file under ``xtal/`` to the wheel as *data* of
+    ``xtal``, so ``pip install .`` happened to carry ``xtal.powder``
+    while it was missing from this list; a wheel built from the sdist,
+    which has no ``.git``, did not, and neither carried
+    ``xtalapp.refine``.  The refinement workbench was absent from the
+    one build that is not a source checkout.
+    """
+    try:
+        listed = subprocess.run(
+            ["git", "ls-files", "--", "xtal/*__init__.py",
+             "xtalapp/*__init__.py"],
+            cwd=ROOT, capture_output=True, text=True, check=True,
+        ).stdout.split()
+    except (OSError, subprocess.CalledProcessError):
+        pytest.skip("not a git checkout")
+    tracked = {".".join(PurePosixPath(path).parent.parts)
+               for path in listed}
+
+    named = set(tomllib.loads(
+        (ROOT / "pyproject.toml").read_text())["tool"]["setuptools"][
+            "packages"])
+
+    assert "xtal.powder" in tracked
+    assert tracked - named == set()
+    assert named - tracked == set()
+
+
 def test_nothing_enormous_is_collected_by_accident(destinations):
     """The four refusals in ``bundle.OMITTED`` are decisions, and each
     has a reason recorded beside it.
