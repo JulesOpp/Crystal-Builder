@@ -267,16 +267,19 @@ def from_parts(elements, cart, bonds, connections, name: str = "",
                    head=head, tail=tail, smiles=smiles)
 
 
-def from_smiles(smiles: str, name: str = "") -> Monomer:
+def from_smiles(smiles: str, name: str = "",
+                optimise: bool = True) -> Monomer:
     """Embed a starred SMILES string and read its head and tail.
 
     Raises :class:`xtal.build.BuildError` for a string that is not a
     molecule and :class:`MonomerError` for one that is not a monomer.
+    ``optimise=False`` skips the force-field polish, for a dialog
+    asking only whether the string is a monomer at all.
     """
     from xtal.build import from_smiles as embed
     from xtal.build.chem import stereocentres
 
-    molecule = embed(smiles, name=name)
+    molecule = embed(smiles, name=name, optimise=optimise)
     unit = from_parts(molecule.elements, molecule.cart, molecule.bonds,
                       molecule.connections, name=name,
                       smiles=str(smiles).strip())

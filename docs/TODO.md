@@ -227,8 +227,6 @@ the viewport.  Branching is not in it.
 
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
-| **3 — Packing** | Concurrent CBMC growth in a box or between walls (membrane) | `xtal/polymer/pack.py`, `build.py` | L |
-| **4 — The module** | `polymer.build`, its report, `xtal run` | `xtal/modules/polymer.py` | M |
 | **5 — The dialog** | Modules ▸ Polymer builder… | `xtalapp/dialogs/polymer_build.py` | M |
 | **6 — A monomer from the viewport** | Structure ▸ Save as Monomer… to `<workspace>/monomers/` | `xtalapp/dialogs/`, `xtal/workspace.py` | M |
 | **8 — The equilibration seam** | `Protocol` (21-step as data), `Equilibrator` interface | `xtal/polymer/protocol.py` | S |
@@ -244,26 +242,20 @@ four-point fit on each member's free valence, and a ladder repeat is
 embedded with its joint ring closed (PIM-EA-TB's open Troger's base
 splayed 3.8 A).  One pairing of PIM-EA-TB, repeated, folds the chain
 back onto itself after two units: the packer has to sample flips.
+Phase 3, packing, and Phase 4, the `polymer.build` module and the
+skill's `polymer.md`, shipped 2026-10-02.  Measured: polyethylene 10 x
+100 (6020 atoms) builds in 18 s and opens and draws in the window in
+1.5 s, so the window is not what limits the size; atactic polystyrene
+8 x 30 is 16 s.  Growth is at three quarters of the target (0.2 g/cm3
+for a ladder) and compressed, because PS, PMMA, PET and nylon-6 jammed
+grown at their own densities.
 
-### 3 — Packing
+### 5, 6 — The dialog, the viewport monomer
 
-Every chain grown at once from random seeds, k trial torsions a step,
-weighted by a soft repulsion against an incremental periodic cell list,
-backtracking at a dead end.  A membrane is grown between two walls and
-given vacuum on c; no bond crosses c.  `start_density` is separate from
-the target, for the MD path.  The report says the density reached, the
-closest contact, ⟨R²⟩, Rg and C_n, and that the model is packed, not
-equilibrated.  **Measure first**: PE 10 x 100 at 0.85 g/cm3, PIM-1
-6 x 20, and what a 10k-atom P1 document costs to open and draw; a
-default build under 30 s.
-
-### 4, 5, 6 — The module, the dialog, the viewport monomer
-
-The carbon builder's pattern: a `MODULES` entry filed by
-`Workspace.adopt_build`, a dialog with the library, a SMILES box and
-the sketch canvas (`sketch_for`).  *Save as Monomer…* is enabled with
-exactly two connection points and writes a block file, head first, to
-`<workspace>/monomers/`.  The agent skill gains `polymer.build`.
+The carbon builder's pattern: a dialog over `polymer.build` with the
+library, a SMILES box and the sketch canvas (`sketch_for`).  *Save as
+Monomer…* is enabled with exactly two connection points and writes a
+block file, head first, to `<workspace>/monomers/`.
 
 ### 8 — The equilibration seam
 

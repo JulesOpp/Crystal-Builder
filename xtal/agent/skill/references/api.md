@@ -44,11 +44,12 @@ named `name` of its own.
 ### `build(action, workspace, **params)`
 
 A classmethod. Runs a builder module (`mof.build`, `net.draw`,
-`build.molecule`) and opens what it built, filed in `workspace` as the
-window files it: one entry, one CIF, the run underneath.
+`build.molecule`, `polymer.build`) and opens what it built, filed in
+`workspace` as the window files it: one entry, one CIF, the run
+underneath.
 `session.built` is the builder's `VerbResult`, with its report tables
 in `data["tables"]`. Raises `BuildFailed` (whose `.result` is the
-`VerbResult`) when nothing was built. See `mof.md`.
+`VerbResult`) when nothing was built. See `mof.md` and `polymer.md`.
 
 ## Reading
 

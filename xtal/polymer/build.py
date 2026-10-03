@@ -240,9 +240,8 @@ def _structure(elements, cart, bonds, cell, recipe: Recipe):
     structure = Structure(lattice=Lattice(matrix), sites=sites)
     names = ", ".join(dict.fromkeys(m.name or m.formula
                                     for m in recipe.monomers))
-    structure.meta["title"] = (f"{names} {recipe.periodic}, "
-                               f"{recipe.chains} x {recipe.length} "
-                               f"(seed {recipe.seed})")
+    structure.meta["title"] = (f"{names} {recipe.periodic} "
+                               f"{recipe.chains}x{recipe.length}")
     structure.meta["source"] = "xtal.polymer"
     cell_atoms = p1.expand(structure)
     found = {}
