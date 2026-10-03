@@ -117,6 +117,39 @@ def test_an_unbuilt_manual_adds_nothing(tmp_path, monkeypatch):
     assert bundle.project_datas()
 
 
+def test_the_notices_land_where_about_looks(tmp_path, monkeypatch):
+    """Help > About links ``THIRD_PARTY_NOTICES.md`` at the bundle's
+    root, so the file the bundle job writes goes there; unwritten,
+    nothing is collected and --selftest fails the build instead."""
+    from xtalapp import manual
+
+    written = tmp_path / manual.NOTICES
+    written.write_text("# Third-party notices\n", encoding="utf-8")
+    monkeypatch.setattr(bundle, "NOTICES", written)
+    assert (str(written), ".") in bundle.project_datas()
+
+    monkeypatch.setattr(bundle, "NOTICES", tmp_path / "not-written")
+    assert not any(Path(source).name == manual.NOTICES
+                   for source, _ in bundle.project_datas())
+
+
+def test_the_notices_name_what_no_package_index_answers_for():
+    """PORMAKE is vendored, the RCSR nets and the Zeo++ radii are
+    transcribed, the COD samples ship: none has metadata the script
+    could read, so each is written by hand and must stay written."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    try:
+        import third_party_notices as notices
+    finally:
+        sys.path.remove(str(ROOT / "scripts"))
+    names = {name for name, _terms, _said in notices.HAND}
+    assert {"PORMAKE", "RCSR nets", "Zeo++ radii",
+            "COD sample structures"} <= names
+    text = notices.render()
+    assert all(f"### {name} (" in text for name in names)
+    assert "| numpy |" in text
+
+
 def test_the_chooser_art_travels_with_the_application(destinations):
     """The chooser is the first thing a launch shows, and it is drawn
     from files: without them a bundle opens on a side panel with a

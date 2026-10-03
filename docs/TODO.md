@@ -29,7 +29,7 @@ measurements, is `~/.claude/plans/v1-release-fixes.md`.
 
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
-| **8 — Release** | Third-party notices, selftest checks, README, 1.0 notes, manual inventory, flaky tests, bundle run, tag | `packaging/`, `docs/`, `README.md` | M |
+| **8 — Release gate** | Push `main`, the owner's review, the bundle run on both Macs and Windows with `--selftest`, the ML engine tests locally, tag `v1.0.0` | -- | S |
 
 Phases 0-5 are done on `release/v1.0` (2026-10-03): the two PRs
 merged and every dialog through `answered`; saves atomic and titles
@@ -51,8 +51,33 @@ hydroxyl's hydrogen needs room too (and a contact under 1 A is a
 warning), a copolymer's box is sized by its composition, a ladder
 with a plain monomer is refused, a unit's rotamers are capped at 243
 and shared by both hands, an edited monomer greys Build, and a build
-names itself in `meta["builder"]`.  Phase 8 is next.  Still owed from Phase 4, in 1.0.x: building the group from a
-file's own operations when they match no tabulated setting.
+names itself in `meta["builder"]`.  Phase 8's code and docs:
+third-party notices written by `scripts/third_party_notices.py` in
+the bundle job and linked from About, selftest checks for the carbon
+and polymer builders and the notices, the 1.0 release notes and
+README, the manual's reference regenerated, the MatterSim hint test
+made machine-independent, the Rietveld frames wait lengthened, and
+ruff pinned.  What is left is the gate in the table, which waits on
+the owner.
+
+## After v1.0 (1.0.x)
+
+Raised by the same review and deliberately left out of 1.0:
+
+- **Signing**: a Developer ID for macOS (notarised) and a code-signing
+  certificate for Windows.  `docs/PACKAGING.md` has the plan.
+- **A CIF's own operations**: when the operations loop matches no
+  tabulated setting, build the group from the operations instead of
+  warning that they were not used (Phase 4 says so today).
+- **Autosave and whole-structure operations on a worker**: both run on
+  the GUI thread, so the window pauses on a large cell.  The size
+  limits keep it short; they do not remove it.
+- **Bonds as lines above about 50 k drawn atoms**: tubes cost about
+  5.8 KB an atom of CPU memory in the scene.
+- **A windowed trajectory reader**: a long extended-XYZ is read whole.
+- **Diff-based undo**: a whole-structure step still holds a copy of
+  the crystal; Phase 5 releases its caches and trims by atoms, but a
+  diff is what would make deep history cheap.
 
 ## The interface stretch
 

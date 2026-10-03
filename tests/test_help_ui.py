@@ -161,3 +161,26 @@ def test_the_about_box_says_who_wrote_it(window, monkeypatch):
     assert "Written by Jules Oppenheim, with help from Sam " \
            "Oppenheim." in shown[0]
     assert "Code written with Claude Code." in shown[0]
+
+
+def test_the_about_box_links_the_notices_only_when_they_exist(
+        window, monkeypatch, tmp_path):
+    """A link to a file that is not there is worse than none: a
+    checkout that has not written the notices offers no link."""
+    from PySide6.QtWidgets import QMessageBox
+
+    from xtalapp import manual
+
+    shown = []
+    monkeypatch.setattr(QMessageBox, "about",
+                        lambda parent, title, text: shown.append(text))
+    written = tmp_path / manual.NOTICES
+    written.write_text("# Third-party notices\n", encoding="utf-8")
+    monkeypatch.setattr(manual, "notices", lambda: written)
+    window.show_about()
+    assert "Third-party notices</a>" in shown[-1]
+    assert manual.NOTICES in shown[-1]
+
+    monkeypatch.setattr(manual, "notices", lambda: None)
+    window.show_about()
+    assert "Third-party" not in shown[-1]

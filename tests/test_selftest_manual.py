@@ -32,3 +32,19 @@ def test_a_bundle_with_its_manual_passes(tmp_path, monkeypatch):
     said = []
     selftest.check_manual(said.append)
     assert str(page) in said[0]
+
+
+def test_a_bundle_without_its_notices_fails_the_selftest(monkeypatch):
+    """A build that skipped writing them ships everybody else's code
+    without the notices their licences ask a binary to carry; a
+    checkout only says it skipped."""
+    from xtalapp import extras, manual, selftest
+
+    monkeypatch.setattr(manual, "notices", lambda: None)
+    said = []
+    monkeypatch.setattr(extras, "frozen", lambda: False)
+    selftest.check_notices(said.append)
+    assert "skipped" in said[0]
+    monkeypatch.setattr(extras, "frozen", lambda: True)
+    with pytest.raises(AssertionError, match="notices"):
+        selftest.check_notices(said.append)

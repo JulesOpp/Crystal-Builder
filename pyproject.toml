@@ -141,7 +141,7 @@ docs = ["sphinx>=7", "myst-parser>=3", "sphinxcontrib-bibtex>=2.6",
 # was run against: nothing older has been tried.
 mcp = ["mcp>=1.30,<2"]
 dev = ["crystal-builder[gui,ase,build,sketch,pxrd,refine,mcp,test]",
-       "ruff", "pyinstaller>=6"]
+       "ruff==0.16.9", "pyinstaller>=6"]
 
 [project.scripts]
 xtal = "xtal.cli:main"                    # headless CLI (phase 1)

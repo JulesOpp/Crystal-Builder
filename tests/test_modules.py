@@ -414,6 +414,14 @@ def _missing_engine(monkeypatch, name):
     return calculator.available()
 
 
+def _mattersim_alone(monkeypatch):
+    """Without MACE beside it, which changes the command offered: the
+    test followed whatever the machine running it had installed."""
+    from xtal.ff.mace import calculator as mace
+    monkeypatch.setattr(mace, "installed", lambda: False)
+    return _missing_engine(monkeypatch, "mattersim")
+
+
 def _mof_without_ase(monkeypatch):
     from xtal.modules import mof
     monkeypatch.setattr(mof, "database_root", lambda: "nets")
@@ -458,7 +466,7 @@ def _command(extra):
      "MACE is not installed -- {}", lambda: _command("mace")),
     (lambda mp: _missing_engine(mp, "orb"),
      "ORB is not installed -- {}", lambda: _command("orb")),
-    (lambda mp: _missing_engine(mp, "mattersim"),
+    (_mattersim_alone,
      "MatterSim is not installed -- {}", lambda: _command("mattersim")),
     (_mof_without_ase,
      "The MOF builder needs ase -- {}", lambda: _command("ase")),
@@ -486,6 +494,19 @@ def test_a_reason_is_the_sentence_and_its_remedy_joined_one_way(
     assert available.reason == said.format(command())
     assert available.command == command()
     assert command() not in available.what
+
+
+def test_mattersim_beside_mace_is_offered_without_its_dependencies(
+        monkeypatch):
+    """Its extra moves e3nn to a version MACE will not load with, so
+    beside MACE the command installs it ``--no-deps``."""
+    from xtal.ff.mace import calculator as mace
+    from xtal.ff.mattersim import calculator as mattersim
+    monkeypatch.setattr(mace, "installed", lambda: True)
+    monkeypatch.setattr(mattersim, "installed", lambda: False)
+    available = mattersim.available()
+    assert "--no-deps" in available.command
+    assert available.command != _command("mattersim")
 
 
 # ------------------------------------------------------------ plugins

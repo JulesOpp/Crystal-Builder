@@ -1141,6 +1141,17 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
 
     def show_about(self) -> None:
         from xtal import __version__
+        from xtalapp import manual
+
+        notices = manual.notices()
+        # A link only where there is a file: a checkout that has not
+        # written them would otherwise offer a link to nothing.
+        licences = ""
+        if notices is not None:
+            url = QUrl.fromLocalFile(str(notices)).toString()
+            licences = (f'<br><br><a href="{url}">Third-party '
+                        f"notices</a>: the software and data this "
+                        f"build carries, and their licences.")
         QMessageBox.about(
             self, f"About {APP_NAME}",
             f"<b>{APP_NAME}</b> {__version__}<br><br>"
@@ -1150,7 +1161,7 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
             "Rendering: VTK.<br><br>"
             "Written by Jules Oppenheim, with help from Sam "
             "Oppenheim.<br>"
-            "Code written with Claude Code.")
+            f"Code written with Claude Code.{licences}")
 
     # -- drag and drop -------------------------------------------------
 

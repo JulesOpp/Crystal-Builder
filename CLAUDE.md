@@ -745,6 +745,15 @@ stress case).
   a file that already exists. Only a document with no file at all
   still falls through to Save As, which outside the degraded path no
   longer happens.
+- **A save never destroys the last good file.** Every writer goes
+  through `xtal/io/atomic.py`: the bytes go to `<name>.partial<ext>`
+  in the same folder, are flushed, and only then `os.replace` the
+  target, so a raise, a kill or a full disk leaves the previous file
+  whole. It is what makes *Save File converts, and never asks where*
+  and silent overwriting safe; a new writer that opens its target
+  for writing directly undoes it.  The one exception is a running
+  trajectory (`io/trajectory.py`), appended frame by frame so a
+  stopped run keeps what it reached.
 - **An autosave is a side file, never the document.** Every two
   minutes (`settings.autosave_interval`, 0 is off) each tab edited
   since the last tick is written with `Document.write_project` to

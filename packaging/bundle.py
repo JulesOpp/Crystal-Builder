@@ -59,6 +59,13 @@ ICONS = HERE / "icons"
 #: Its equations are MathJax, fetched from a CDN when a page opens.
 #: Absent, nothing is collected and ``--selftest`` fails the build.
 MANUAL = ROOT / "build" / "manual" / "html"
+#: What the bundle carries that is somebody else's, written by
+#: ``scripts/third_party_notices.py`` in the bundle job's environment
+#: just before PyInstaller, and landing at the bundle's root, where
+#: :func:`xtalapp.manual.notices` looks.  Built, not committed, for the
+#: manual's reason and one more: the list is the environment's.
+#: Absent, nothing is collected and ``--selftest`` fails the build.
+NOTICES = ROOT / "build" / "THIRD_PARTY_NOTICES.md"
 
 RESOURCES = {
     "resources/samples":
@@ -425,6 +432,9 @@ def project_datas() -> list[tuple[str, str]]:
                     part.startswith(".") for part in relative.parts):
                 destination = PurePosixPath("manual", *relative.parent.parts)
                 datas.append((str(path), destination.as_posix()))
+
+    if NOTICES.is_file():
+        datas.append((str(NOTICES), "."))
 
     for package, patterns in sorted(PACKAGE_DATA.items()):
         folder = ROOT / package

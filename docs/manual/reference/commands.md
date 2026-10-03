@@ -1230,6 +1230,16 @@ Write this molecule into the folder the MOF builder reads, so it appears in the 
 ```{index} Save as a building block...
 ```
 
+(cmd-save_monomer)=
+### Building blocks ▸ Save as a monomer...
+
+`save_monomer`
+
+Write this molecule into the workspace's monomers, so the polymer builder lists it beside its own.  Its two connection points are the head and the tail, and the dialog asks which is which.
+
+```{index} Save as a monomer...
+```
+
 (cmd-prepare_simulation)=
 ### Prepare for simulation...
 
@@ -2070,6 +2080,26 @@ Build a molecule; it opens in a new tab
 ```{index} Molecule from SMILES...
 ```
 
+(cmd-module.carbon.build)=
+### Disordered carbon builder ▸ Build a disordered carbon...
+
+`module.carbon.build`
+
+Ribbons of carbon along a net, at a density; the result opens in a new tab
+
+```{index} Build a disordered carbon...
+```
+
+(cmd-module.polymer.build)=
+### Polymer builder ▸ Build amorphous polymer...
+
+`module.polymer.build`
+
+Chains grown into a box at a density; the result opens in a new tab
+
+```{index} Build amorphous polymer...
+```
+
 (cmd-module.zeopp.diameters)=
 ### Porosity ▸ Pore diameters and channels...
 
@@ -2192,6 +2222,16 @@ The user manual in your browser: a quickstart, the tasks chapter by chapter, and
 Put the crystal-builder skill where Claude Code reads it (~/.claude/skills), so an assistant can open, prepare, build, inspect and relax structures in your workspace through the same commands as this window.  A copy you have edited is replaced only if you say so.
 
 ```{index} Set up an AI assistant
+```
+
+(cmd-connect_ai_assistant)=
+### Connect an AI assistant...
+
+`connect_ai_assistant`
+
+Let an assistant such as Claude Code work in this window: the tabs open here are its documents, each thing it does is one step Ctrl+Z takes back, and the status bar says what it did.  Opens Preferences on the switch and the line to paste into the assistant.
+
+```{index} Connect an AI assistant...
 ```
 
 (cmd-show_log)=

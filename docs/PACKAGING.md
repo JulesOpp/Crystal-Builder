@@ -233,6 +233,18 @@ build jobs install `.[...,mcp]`; without it `collect_all` finds
 nothing and says so only in a warning, which is why a test reads the
 workflow's install lines.
 
+`THIRD_PARTY_NOTICES.md` -- **written by the bundle job, not
+committed.**  `scripts/third_party_notices.py` runs just before
+PyInstaller and reads the environment the bundle is built from: this
+project's requirements and the extras the job installs, followed
+through each package's own requirements, every licence file copied in
+whole, and the vendored code and data no package index answers for
+(PORMAKE, the RCSR nets, the Zeo++ radii, the COD samples, the EQeq
+table) written by hand in the script.  It lands at the bundle's root;
+Help > About links it, and `--selftest` fails a build without it.
+Run locally it lists a developer's environment instead, which is why
+the job writes it rather than a commit.
+
 ### Out
 
 `resources/topo/` — the uncompressed `.cgd`, which only `python -m

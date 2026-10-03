@@ -196,6 +196,27 @@ def check_manual(report) -> None:
     report("manual: not built in this checkout, skipped")
 
 
+def check_notices(report) -> None:
+    """Help > About has third-party notices to link.
+
+    Written by ``scripts/third_party_notices.py`` in the bundle job and
+    collected by :mod:`packaging.bundle`: a build that skipped the step
+    would ship everybody else's code without their notices, which the
+    BSD and MIT licences most of it carries ask a binary to reproduce.
+    """
+    from xtalapp import extras, manual
+
+    path = manual.notices()
+    if path is not None:
+        report(f"notices: {path}")
+        return
+    if extras.frozen():
+        raise AssertionError(
+            f"the third-party notices are not in this build: looked "
+            f"for {manual.root() / manual.NOTICES}")
+    report("notices: not written in this checkout, skipped")
+
+
 def check_extras(report) -> None:
     """The optional packages a packaged build promises are there.
 
@@ -457,6 +478,69 @@ def check_powder(report) -> None:
                f"{100 * fit.rwp:.2f} %")
 
 
+def check_carbon_builder(report) -> None:
+    """The disordered-carbon builder builds, in this build.
+
+    One dia cell, unrelaxed, about a second and a half: the net comes
+    from the RCSR data, and the sheet is made by SciPy's sparse
+    solvers and KD-trees, so this is the bundle's numerical stack
+    exercised end to end rather than imported.  A build that comes
+    back is one piece percolating in three directions with no two
+    atoms on top of each other, or the check says which it was not.
+    """
+    from xtal.carbon import build as carbon
+
+    built = carbon.build(carbon.Recipe(repeat=(1, 1, 1), relax="none"))
+    n = len(built.structure.sites)
+    report(f"dia 1x1x1: {n} atoms, {built.density:.3f} g/cm3 of "
+           f"carbon, closest contact {built.closest_contact:.2f} A")
+    if not n or built.pieces != 1 or built.periodicity != 3 or (
+            built.closest_contact < carbon.CLOSE_CONTACT):
+        raise AssertionError(
+            f"the carbon came out {built.pieces} piece(s) percolating "
+            f"in {built.periodicity} directions with a contact of "
+            f"{built.closest_contact:.2f} A, against one piece, three "
+            f"directions and {carbon.CLOSE_CONTACT} A")
+
+
+def check_polymer_builder(report) -> None:
+    """The polymer builder packs, in this build.
+
+    Two polyethylene chains of five, about half a second: the monomer
+    library is package data and the embedding is RDKit's, either of
+    which a bundle can lose with the import still succeeding.  Skipped
+    in a checkout without the ``build`` extra, as the powder check is
+    without ``refine``; a bundle without it fails.
+    """
+    from xtal.build import installed
+    from xtalapp import extras
+
+    if not installed():
+        if extras.frozen():
+            raise AssertionError(
+                "RDKit is missing, but the polymer builder is bundled")
+        report("RDKit: not installed in this checkout, skipped")
+        return
+
+    from xtal.core import bonding
+    from xtal.polymer import build, monomer, pack
+
+    recipe = pack.Recipe(monomers=(monomer.from_library("Polyethylene"),),
+                         chains=2, length=5)
+    built = build.build(recipe)
+    n = len(built.structure.sites)
+    bonds = len(bonding.graph(built.structure).bonds)
+    report(f"2 polyethylene chains of 5: {n} atoms, {bonds} bonds, "
+           f"{built.density:.3f} g/cm3")
+    # A chain of polyethylene is a tree: one bond fewer than its atoms.
+    if n != 64 or bonds != n - recipe.chains or abs(
+            built.density - recipe.density) > 0.1 * recipe.density:
+        raise AssertionError(
+            f"the polymer came out {n} atoms, {bonds} bonds and "
+            f"{built.density:.3f} g/cm3, against 64, 62 and "
+            f"{recipe.density}")
+
+
 def check_launcher(executable) -> str:
     """The ``xtal`` beside the application runs, and answers.
 
@@ -624,9 +708,12 @@ def run(shot: Path | None = None, out=None) -> int:
         ("fragment library", check_fragment_library),
         ("samples", check_samples),
         ("user manual", check_manual),
+        ("third-party notices", check_notices),
         ("bundled extras", check_extras),
         ("module dialogs", check_module_dialogs),
         ("MOF builder", check_mof_builder),
+        ("carbon builder", check_carbon_builder),
+        ("polymer builder", check_polymer_builder),
         ("xtal launcher",
          lambda r: r(check_launcher(Path(sys.executable)))),
         ("powder refinement", check_powder),

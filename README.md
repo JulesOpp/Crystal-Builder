@@ -9,44 +9,43 @@ Studio**.  Python throughout, shipped to macOS and Windows.
 
 ## Layout
 
-    xtal/       core library — no Qt, no VTK, importable anywhere
-      core/     lattice, sites, space groups, structure,
-                symmetry, P1 expansion, neighbours, bonding
-                (perception, orders, nets), supercells, transforms,
-                measurement, properties
-      io/       CIF, extended XYZ (single frame and trajectory),
-                CSSR (Zeo++), .gen (DFTB+) and .xtalproj projects,
-                format registry
-      workspace.py  the workspace layout and the run folders a
-                calculation leaves behind
-      params.py the parameter and availability declarations that
-                modules and engines share
-      modules/  the module registry: what can be run, the job and
-                its cancellation, the external-process runner, the
-                report a run comes back with, and Zeo++
-      plugins.py  entry-point discovery for out-of-tree registrations
-      cli.py    the `xtal` command line
-      commands/ undoable mutations: the stack, atom/bond/cell/
-                symmetry commands, the clipboard fragment
-      ff/       the Calculator API and engine registry, Ewald
-                sums, and the optimisers
-        uff/    UFF: parameter table, atom typer, energy terms,
-                calculator, QEq charges
-        charges/ EQeq charges and their NIST ionisation table
-        dftb/   DFTB+: HSD input, Slater-Koster check, calculator
-      analysis/ porosity (Zeo++ output), later RDF and PXRD
-    xtalapp/    the PySide6 + VTK application
-      viewport/ scene model, builder, draw styles, VTK, the widget
-      docks/    workspace tree, module tree, inspector, sites, style,
-                measure, force field, results, log viewer,
-                transport bar
-      dialogs/  add atom, hydrogens, bond rules, cell, export,
-                symmetry, supercell, a module's parameters, and the
-                window that says a run is going
-      document.py, mainwindow.py, actions.py, settings.py
-      workers.py, plot.py, histogram.py   long jobs off the GUI
-                thread, and the two plots they produce
-    tests/      headless test suite
+    xtal/        core library -- no Qt, no VTK, importable anywhere
+      core/      lattice, sites, space groups, structure, symmetry,
+                 P1 expansion, bonding, rings, functional groups,
+                 supercells, slabs, transforms, Prepare for
+                 simulation, and limits.py: how big anything may get
+      io/        CIF, extended XYZ, CSSR, .gen, POSCAR, LAMMPS data
+                 and .xtalproj projects (a save never leaves half a
+                 file)
+      commands/  undoable mutations: the stack and every edit
+      ff/        the Calculator API and engine registry, optimisers
+                 and scans: UFF (with UFF4MOF), EQeq, DFTB+, xTB,
+                 and the ML potentials MACE, ORB-v3 and MatterSim
+      analysis/  porosity (Zeo++ and our own grid), PXRD, nets and
+                 the RCSR, interpenetration
+      modules/   the module registry: jobs, cancellation, external
+                 processes, reports, and each calculation's entry
+      powder/    refinement against a measured pattern: peaks,
+                 indexing, Pawley and Rietveld, through RietX
+      mof/       the MOF builder over vendored PORMAKE
+      build/     SMILES to a molecule, substituents, clearance
+      carbon/    the disordered-carbon (ZTC, schwarzite) builder
+      polymer/   the amorphous polymer builder
+      agent/     the session, diagnostics and MCP tools an AI
+                 assistant drives, and the skill it reads
+      workspace.py, params.py, plugins.py, cli.py
+    xtalapp/     the PySide6 + VTK application
+      viewport/  scene model, builder, draw styles, VTK, the widget
+      docks/     workspace, sites, style, measure, force field,
+                 results, nets, trajectory, log
+      dialogs/   one per command that asks something
+      refine/    the powder refinement workbench
+      mainwindow.py and its mixins, document.py, documents.py,
+      settings.py, workers.py, agent_server.py, selftest.py
+    tests/       the test suite, headless and GUI
+    packaging/   PyInstaller specs, the bundle's file list, the DMG
+                 and the Windows installer
+    docs/        PLAN, TODO, release notes, packaging, the manual
 
 The wall between `xtal/` and `xtalapp/` is enforced by a test
 (`tests/test_core_is_headless.py`): the core may never import Qt or
@@ -68,16 +67,30 @@ There is no universal Mac build: VTK publishes no universal2 wheel, so
 the two are built separately, and Rosetta cannot bridge them in the
 direction that would help.
 
-Neither build is code-signed yet, so the first launch needs one extra
-click on both platforms — right-click → **Open** on macOS, **More
-info → Run anyway** on Windows.
-[docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) has the details, what is
-in the download and what is not, and the known issues.
+Everything is in the box: the MOF builder (PORMAKE is vendored, its
+nets and building blocks with it), RDKit and the sketcher, the carbon
+and polymer builders, and the refinement workbench. What is not are
+the ML potentials (MACE, ORB-v3, MatterSim), which need PyTorch, and
+the external programs (Zeo++, DFTB+, xtb), which the application
+finds where you installed them.
+[docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) has the details and the
+known issues.
 
-The MOF builder (PORMAKE) is the one feature the packaged builds do
-not carry: it is 44 packages and about 889 MB, larger than the rest of
-the application together. Everything else, RDKit and the sketcher
-included, is in the box. Run from Python if you need it.
+### Opening an unsigned build
+
+Neither build is code-signed yet, so each operating system warns the
+first time, and the warning is answered once:
+
+- **macOS** says the developer cannot be verified. Right-click (or
+  Control-click) *Crystal Builder* in Applications, choose **Open**,
+  then **Open** again. From then on it opens normally. If it still
+  refuses, `xattr -dr com.apple.quarantine "/Applications/Crystal
+  Builder.app"` in a terminal clears the quarantine.
+- **Windows** SmartScreen says it protected your PC. Click **More
+  info**, then **Run anyway**. The installer is per-user and needs no
+  administrator rights.
+
+Signing is planned for a 1.0.x release.
 
 ## Install (development)
 
@@ -841,4 +854,6 @@ a symmetry image can be mapped back onto its parent.
 
 ## Licence
 
-MIT.
+MIT. A packaged build also carries other people's software and data,
+each under its own terms; *Help ▸ About* links the third-party notices
+(`scripts/third_party_notices.py` writes them into the build).

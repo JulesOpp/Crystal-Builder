@@ -69,6 +69,8 @@ else
 fi
 
 step "3/8  PyInstaller bundle"
+# In the venv the bundle is built from, which is the list it carries.
+"$PY" scripts/third_party_notices.py
 QT_API=pyside6 "$PY" -m PyInstaller --noconfirm packaging/macos.spec
 [ -d "$APP" ] || fail "PyInstaller produced no $APP"
 

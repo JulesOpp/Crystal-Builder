@@ -591,9 +591,11 @@ def _displaced_rutile_cif(tmp_path):
 
 
 def _run_rietveld(bench, qtbot):
+    """Two minutes, as the auto tests have: a fit sharing the machine
+    with two other workers' fits overran one, once in a few runs."""
     bench.steps.setCurrentRow(3)
     assert bench.current_step == "rietveld"
-    with qtbot.waitSignal(bench.stepFinished, timeout=60000) as blocker:
+    with qtbot.waitSignal(bench.stepFinished, timeout=120000) as blocker:
         bench.run_step()
     return blocker.args[0]
 

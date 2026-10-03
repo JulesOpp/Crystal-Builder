@@ -139,8 +139,11 @@ jobs:
         with:
           python-version: "3.12"
       # ruff check only -- the codebase is hand-formatted to 79
-      # columns and ruff format would fight it.
-      - run: pipx run ruff check .
+      # columns and ruff format would fight it.  Pinned: a new ruff
+      # brings new rules, and a release commit should not go red
+      # because one was published overnight.  Raise it on purpose,
+      # with ruff check . clean locally at the new version.
+      - run: pipx run ruff==0.16.9 check .
 
   # The user manual, docs/manual: HTML with every warning an error --
   # a broken cross-reference is a warning, and it is what a renamed
@@ -301,6 +304,11 @@ jobs:
               "sphinxcontrib-bibtex>=2.6" "furo>=2024.1"
           "$py" -m sphinx -q -b html docs/manual build/manual/html
           test -f build/manual/html/index.html
+
+      # Read off this environment's metadata, which is the bundle's:
+      # packaging/bundle.py collects it and --selftest fails without.
+      - name: Third-party notices
+        run: python scripts/third_party_notices.py
 
       - name: Build
         env:

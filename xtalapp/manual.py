@@ -35,6 +35,21 @@ def root() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
+#: The third-party notices, by name: at the bundle's root, or where
+#: ``scripts/third_party_notices.py`` writes them in a checkout.
+NOTICES = "THIRD_PARTY_NOTICES.md"
+
+
+def notices() -> Path | None:
+    """The third-party notices Help > About links, or None in a
+    checkout that has not written them."""
+    for parts in ((NOTICES,), ("build", NOTICES)):
+        path = root().joinpath(*parts)
+        if path.is_file():
+            return path
+    return None
+
+
 def index() -> Path | None:
     """The manual's front page, or None when there is none to open."""
     for parts in (BUNDLED, CHECKOUT):

@@ -298,6 +298,82 @@ Build a molecule; it opens in a new tab
 | **Relax it** | bool | `True` | Relax the embedded geometry with MMFF, or UFF where MMFF has no parameters for it.  The force field in this application takes it further. |
 | **Conformer seed** | int, 0 to 2147483647 | `61453` | Which conformer comes out.  Fixed rather than random so that the same string twice is the same molecule; change it to be offered another one. |
 
+(mod-carbon)=
+## Disordered carbon builder
+
+Build a zeolite-templated carbon or a schwarzite: one connected sheet that follows a net, cut into ribbons, with Stone-Wales defects and terminated edges, at the density asked for.  It opens in a new tab with its bonds stated.
+
+```{index} Disordered carbon builder
+```
+
+(mod-carbon-build)=
+### Build a disordered carbon...
+
+Ribbons of carbon along a net, at a density; the result opens in a new tab
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Net** | text | `dia` | The RCSR's name for the 3-periodic net the carbon follows.  dia is FAU's supercages, which a zeolite-templated carbon from faujasite is built on; srs is a gyroid schwarzite's.  A layer net is refused: a sheet round it cannot percolate in three directions. |
+| **Repeat the net** | text | `2x2x2` | How many cells of the net -- '2x2x2', or '2' for all three.  The disorder is drawn over the whole of it, so a larger repeat is a less periodic carbon, and a slower build: 2x2x2 of dia is about 2500 carbons. |
+| **Carbon density** | float, 0.05 to 2.2 g/cm3 | `0.42` | Grams of framework carbon per cubic centimetre, terminations left out.  The cell is solved so the carbon kept is exactly this. |
+| **Strut radius / edge** | float, 0.1 to 0.6 | `0.25` | How fat the sheet's tube round each edge of the net is, as a share of the edge's length.  Larger is a larger cell at the same density.  The innermost sheet must be at least 2.5 A from its edge. |
+| **Sheet kept** | float, 0.1 to 1 | `0.38` | The share of the closed sheet kept as ribbons.  1 is a closed schwarzite with no edges; lower is narrower ribbons with more edge carbons, which is where the terminations go.  It decides the cell, with the density; the ribbons are then cut to the carbon count exactly. |
+| **Layers** | int, 1 to 3 | `1` | Sheets stacked round each strut, never bonded to each other.  Each is cut to the same ribbons. |
+| **Layer spacing** | float, 3 to 4 A | `3.35` | How far apart stacked sheets are; graphite's is 3.35 A. |
+| **Node jitter** | float, 0 to 3 A | `0.6` | How far each net vertex is moved at random -- the disorder of the framework's joints. |
+| **Edge bow** | float, 0 to 3 A | `0.4` | How far each net edge bows sideways at its middle. |
+| **Stone-Wales pairs per 100 rings** | float, 0 to 30 | `1.0` | 5-7-7-5 defects added to the sheet on top of the rings its shape needs.  The shape fixes the balance of pentagons and heptagons by Gauss-Bonnet, which is why this is set rather than a free ratio of rings. |
+| **H/C** | float, 0 to 1 | `0.07` | Hydrogen per carbon, counting the hydroxyls'. |
+| **F/C** | float, 0 to 1 | `0.29` | Fluorine per carbon, on edge carbons. |
+| **O/C** | float, 0 to 1 | `0.044` | Oxygen per carbon, split by the three below. |
+| **Oxygen as ring ether** | float, 0 to 1 | `0.8` | The share of the oxygen that is an edge carbon made oxygen, in the ring, as a pyran's is. |
+| **Oxygen as OH** | float, 0 to 1 | `0.18` | The share of the oxygen that is C-OH. |
+| **Oxygen as C=O** | float, 0 to 1 | `0.02` | The share of the oxygen that is C=O. |
+| **Relax** | one of UFF at the solved cell, No, as built | `uff` | UFF on the stated bonds, positions only: the cell stays the one the density was solved for.  As built, the bonds run from 1.1 to 1.8 A.  A DFTB+ or ORB-v3 polish is the Force Field panel's. |
+| **Relax steps** | int, 0 to 5000 | `300` | L-BFGS steps for the relaxation; 300 brings the bonds to 1.43 A on a dia cell. |
+| **Seed** | int, 0 to 2147483647 | `0` | The same seed and recipe build the same carbon, atom for atom; another seed is another draw of the disorder. |
+
+(mod-polymer)=
+## Polymer builder
+
+Pack amorphous polymer chains into a box or a membrane at a density: homopolymers or copolymers, any tacticity, from a library monomer or a SMILES string.  It opens in a new tab with its bonds stated.  The model is packed, not equilibrated.
+
+```{index} Polymer builder
+```
+
+(mod-polymer-build)=
+### Build amorphous polymer...
+
+Chains grown into a box at a density; the result opens in a new tab
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Monomer** | text | `Polyethylene` | A library monomer by name (Polyethylene, Polypropylene, Polystyrene, PMMA, PVC, PEO, PTFE, PET, Nylon-6, PIM-1, PIM-EA-TB), a block file with two connection points, or a SMILES string with [*:1] at the head and [*:2] at the tail. |
+| **Second monomer** | text |  | The B of a copolymer, named the same three ways.  Left empty, the chain is a homopolymer. |
+| **Composition** | one of Homopolymer, Alternating A-B, Random, Blocks | `homopolymer` | How A and B follow each other down a chain.  A copolymer needs a second monomer. |
+| **Fraction of A** | float, 0 to 1 | `0.5` | For a random copolymer: the chance that a unit is A. |
+| **Block of A** | int, 1 to 10000 | `10` | For a block copolymer: units of A in a run, the runs repeated down the chain. |
+| **Block of B** | int, 1 to 10000 | `10` | For a block copolymer: units of B in a run. |
+| **Tacticity** | one of Atactic, Isotactic, Syndiotactic | `atactic` | Whether each unit has the hand of the one before it.  A monomer with no stereocentre, like polyethylene, has nothing to choose and the report says nothing. |
+| **p(meso)** | float, 0 to 1 | `0.5` | For an atactic chain: the chance a unit has the hand of the one before it.  0.5 is what a free-radical polymerisation gives, near enough. |
+| **Chains** | int, 1 to 1000 | `10` | How many chains are packed into the box. |
+| **Units per chain** | int, 1 to 10000 | `20` | Repeat units in each chain.  Ten chains of a hundred polyethylene units are 6000 atoms and about twenty seconds. |
+| **Periodicity** | one of Bulk, periodic in 3D, Membrane, with vacuum on c | `bulk` | A membrane is grown between two walls, periodic in a and b, and vacuum is added on c; no bond crosses c, so its surfaces are the chains' own. |
+| **Density** | float, 0.05 to 4 g/cm3 | `0.85` | The target.  Amorphous densities near room temperature: PE and PP 0.85, PS 1.05, PMMA 1.18, PVC 1.39, PEO 1.13, PTFE 2.0, PET 1.33, nylon-6 1.08, PIM-1 1.06. |
+| **Grow at (0 chooses)** | float, 0 to 4 g/cm3 | `0.0` | The density the chains are grown at before they are compressed to the target.  0 chooses: three quarters of the target for a chain that turns, 0.2 for a ladder, and lower again if growth jams. |
+| **Membrane thickness** | float, 10 to 500 A | `30.0` | The film, wall to wall. |
+| **Vacuum** | float, 0 to 500 A | `20.0` | Added on c, split either side of the film. |
+| **Push-off steps** | int, 0 to 20000 | `600` | Minimisation after growth or compression, holding every bond and angle, until no two atoms overlap. |
+| **Trials per step** | int, 2 to 100 | `12` | Torsions tried for each unit added.  More is slower and finds room in a fuller box. |
+| **Seed** | int, 0 to 2147483647 | `0` | The same seed and recipe build the same model, atom for atom. |
+| **Most atoms** | int, 100 to 1000000 | `20000` | A recipe that would make more is refused before anything is grown. |
+
 (mod-zeopp)=
 ## Porosity
 

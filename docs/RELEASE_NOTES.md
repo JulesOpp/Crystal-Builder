@@ -4,69 +4,94 @@ Build, manipulate, analyse and export crystal structures. Read and
 write CIF, edit symmetry and bonding, run a force field, DFTB+ or
 Zeo++ on the result.
 
-## New since 0.3.0
+## Crystal Builder 1.0
 
-- **Powder refinement.** Open a measured `.xy` in the refinement
-  workbench: fit peaks, index the pattern, then Pawley and Rietveld,
-  with the atoms moving live in the viewport. *Rietveld with
-  energies* adds the Force Field panel's engine to the fit, and a
-  Pareto sweep traces the trade between the two. RietX does the
-  physics and is bundled.
+The first release meant to be relied on. Everything since 0.4.0 is
+below; the fixes that close it out were made for one concern above
+the rest -- a large cell on a machine short of memory should be
+asked about, not crash -- and for files that must never be lost.
+
+## New since 0.4.0
+
+- **Disordered carbon**: *Modules ▸ Build a disordered carbon…*
+  makes a zeolite-templated carbon or a schwarzite as one connected,
+  terminated sheet that follows a net, at the density asked for, with
+  Stone-Wales defects and the rings Gauss-Bonnet fixes said up front.
+  `xtal run carbon.build` does the same from a script.
 - **Amorphous polymers**: *Modules ▸ Build amorphous polymer…* packs
   chains of a monomer -- eleven in the library, a starred SMILES, the
   sketch, or one drawn and saved with *Structure ▸ Building blocks ▸
-  Save as a monomer…* -- into a periodic box or a membrane at a target
-  density, homopolymer or copolymer, at any tacticity, ladders such
-  as PIM-1 included. The model is packed, not equilibrated, and the
-  report says so. *Open Sample ▸ Polymers* has crystalline
-  polyethylene, alpha-iPP and cellulose I-beta.
-- **Prepare for simulation**: *Structure ▸ Prepare for simulation…*
-  and `xtal prepare` turn a deposited CIF into a model a calculation
-  can run on (duplicate sites merged, primitive cell, disorder
-  ordered, solvent out, hydrogens) and say what each step chose.
-  Anything that adds chemistry the file never located is left off
-  unless asked for. *Open Sample ▸ Prepared for simulation* has the
-  COD frameworks already done.
-- **Simple materials** in *Open Sample*: eighteen textbook solids --
-  graphene, graphite, diamond, silicon, NaCl, CsCl, CaF2, Al2O3,
-  TiO2, SrTiO3, ZnO, quartz, iron, copper, and the zeolites LTA, MFI,
-  FAU and SOD -- all but graphene the COD's depositions, cited, for
-  learning the program on a crystal you already know.
-- **Faster porosity**: surface area and accessible volume read off
-  the distance grid, with no Zeo++ needed, and the pore surface is
-  drawn over channels only.
-- **An AI assistant can drive the builder**: a session API, coded
-  diagnostics and a skill that ship with the package, with every
-  edit one undo step logged to the structure's entry.
+  Save as a monomer…* -- into a periodic box or a membrane at a
+  target density, homopolymer or copolymer, at any tacticity, ladders
+  such as PIM-1 included. The model is packed, not equilibrated, and
+  the report says so.
+- **Seeing the chemistry**: *Style ▸ Rings* fills each ring with a
+  face coloured by its size; *Colour by* draws bond length,
+  coordination, angle, smallest ring or charge as a colour bar; the
+  Skeletal style draws a structure as a chemist would on paper, and
+  exports to SVG as text and strokes.
+- **Functional groups**: found, selected and shown by pattern, and a
+  hydrogen replaced by a whole group -- one from the library or one
+  you draw -- bonded as built, keeping the space group where the
+  substituent allows.
+- **Bulk modulus** from an equation of state through a volume scan.
+- **Slabs and LAMMPS**: *Cell ▸ Slab…* cuts along (hkl) with vacuum
+  above and carries the bonds; Export writes a LAMMPS data file, atom
+  style full, with the bonds as drawn. *Cell ▸ Move origin…*, *Select
+  ▸ Advanced Selection…* and *File ▸ Render in Blender…* join them.
+- **Powder refinement**: a TOPAS-like parameter table on every
+  fitting step, a diffractometer's own file (`.rasx`, Bruker `.raw`,
+  `.uxd`) read directly, every tick naming its reflection, and zero
+  cycles as an evaluation.
 - **An AI assistant can work in the window**: *Help ▸ Connect an AI
   assistant…* lets any MCP client drive the open tabs, each change
   one undo step in front of you, and the packaged app carries the
-  `xtal` program it connects through. Its answers are sized for a
-  model (MOF-5's inspection is 4 kB, not 170), and the skill's rules
-  are now the program's: a relaxation that would change the bonding
-  says so, a scan says how many relaxations it is before it starts,
-  and a file opened into a workspace it is not in says where it
-  stayed.
-- **The user manual ships with the application**: *Help ▸ User
-  Manual* opens it, no network needed.
-- Smaller things: *Select ▸ Bonds between elements…*, *Rename…* in
-  the workspace panel, MACE-MP-MOF0 as a model choice, and nets
-  searchable by their RCSR transitivity.
+  `xtal` program it connects through.
+- **More to open**: *Open Sample ▸ Simple materials* (eighteen
+  textbook solids), *Polymers* (polyethylene, alpha-iPP, cellulose
+  I-beta), and UiO-67, PCN-224, SIFSIX-3-Ni and SIFSIX-1-Cu from the
+  COD. Opening a file already open offers a fresh copy beside it.
+- **The MOF builder** states the bonds a framework is built with and
+  says when two atoms overlap; a linker is drawn as written where
+  nothing prefers an angle, and turned for room before it is turned
+  for its faces.
+- **Fill pores** can put one guest at a point, or one beside each
+  selected atom; the pore sphere can be D_i, D_if or any cavity.
 
-## Fixed in 0.4.0
+## Fixed for 1.0
 
-- A Force Field run lands on the tab it was started on, not the one
-  in front when it finishes.
-- A scan holding a coordinate and the volume together converges.
-- Nothing stays selected after a delete.
-- ORB-v3 and MatterSim in double precision really are double
-  precision. EQeq handles every metal's oxidation states.
-- Engines are found where Homebrew and conda put them, including when
-  the app is launched from the Finder.
-- A program started by a calculation does not outlive it.
-- Deuterium is computed as hydrogen.
-- After atoms move, a bond keeps its stated order.
-- Windows: renaming a file by its case alone works.
+- **Saving never destroys the last good file.** A project, a CIF and
+  a LAMMPS file are written beside the old one and swapped in only
+  once complete. A title outside ASCII (`α-quartz`) survives.
+- **Large structures are counted before they are built.** A
+  supercell, the cells drawn, a porosity grid and a carbon build are
+  estimated first: over a soft limit you are asked, over a hard one
+  it is refused with the largest size that fits. *Preferences ▸
+  General ▸ Large structures* sets how cautious: Standard (8 GB
+  machines), Generous, or Warn only. The supercell dialog no longer
+  builds the cell on every spin step.
+- **Undo stops hoarding memory**: steps below the top let go of what
+  they can rebuild, and the oldest whole-structure steps are released
+  once they hold too many atoms, the status bar saying so.
+- **A running calculation holds its tab.** An edit made under a
+  running optimisation is refused with a message rather than lost
+  when the result lands, and a module's result goes to the tab it
+  ran on, whichever is in front. Changing workspace asks before
+  stopping a calculation.
+- **Errors cannot stack**: one crash box at a time, each fault once,
+  with *Copy details*; a hard crash leaves its stack in `faults.log`
+  beside the log.
+- **The CIF reader says what it assumed.** Repeated atom labels are
+  renamed so bonds can name their atoms, and said; a cell with a
+  missing length is refused by name rather than read as a 1 Å cube;
+  a `?` space-group number opens; a file whose symmetry operations
+  match no tabulated setting says that they were not used. Disorder
+  groups are written back.
+- **The builders can be stopped and say the right thing**: Stop
+  reaches a carbon build's relaxation; a polymer copolymer is built
+  at the density asked for; a ladder monomer with a plain one is
+  refused; a monomer with many free bonds no longer takes minutes
+  before the first chain.
 
 ## Downloads
 
@@ -132,6 +157,14 @@ Bundled and working, with nothing to install:
   sketcher both work.
 - **matplotlib**, for the PXRD pattern window: zooming, overlaying a
   measured `.xy` file, and exporting the figure as a vector.
+- **The refinement workbench.** RietX is bundled, so Pawley and
+  Rietveld fits need nothing else.
+- **The carbon and polymer builders**, with the monomer library.
+- **The `xtal` program** beside the application, which an AI
+  assistant connects through.
+
+*Help ▸ About* links the third-party notices: the software and data
+the download carries, and the licence of each.
 
 **MACE, ORB-v3 and MatterSim are not included.** They need PyTorch,
 which is gigabytes and wants to arrive differently on every platform.
@@ -162,6 +195,19 @@ need more than that.
 - **The version shown in Help → About is the git tag the build was
   made from.** If it reads `0.0.dev0` or `0.0.0`, the build is broken
   and worth reporting.
+- **The builds are not code-signed** (see *Opening it the first
+  time*). Signing is planned for a 1.0.x release.
+- **A CIF whose symmetry operations match no tabulated setting** is
+  read in the tabulated group its space-group symbol names, and the
+  reader says so. Building the group from the file's own operations
+  is planned.
+- **On a very large structure the window pauses** while an autosave
+  or a whole-structure operation runs, because both run on the
+  window's own thread. The size limits keep this short; moving them
+  off it is planned.
+- **A polymer model is packed, not equilibrated.** Its density and
+  contacts are right; its chains have not relaxed at their own scale,
+  which takes molecular dynamics this application does not run.
 
 ## Reporting something
 
