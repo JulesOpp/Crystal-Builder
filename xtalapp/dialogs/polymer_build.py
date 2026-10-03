@@ -46,6 +46,7 @@ from xtal.modules import polymer as polymer_module
 from xtal.polymer.monomer import monomers
 from xtal.polymer.monomer import saved as saved_monomers
 from xtalapp.dialogs import sketch
+from xtalapp.dialogs.answered import answered
 from xtalapp.dialogs.build_molecule import on_change, sketch_for
 from xtalapp.dialogs.module_form import ParamForm
 from xtalapp.widgets.tone import HINT, WARNING, set_tone
@@ -351,19 +352,15 @@ class PolymerBuildDialog(QDialog):
         """The values to run with, or ``None`` if it was cancelled --
         the contract ``Action.dialog`` promises.
 
-        Deleted here, on the GUI thread, whatever the answer: ``exec``
-        leaves the dialog owned by Python and the rows' callbacks hold
-        it in a cycle, so it was freed by whichever thread next ran the
-        cyclic collector -- the build's worker, which destroyed the
-        canvases off the GUI thread and segfaulted.
+        Through :func:`~xtalapp.dialogs.answered.answered` because the
+        rows' callbacks hold the dialog in a cycle: left to the
+        collector, the build's worker freed it, destroyed the canvases
+        off the GUI thread and segfaulted.
         """
-        dialog = cls(module, action, parent, initial)
-        try:
+        with answered(cls(module, action, parent, initial)) as dialog:
             if dialog.exec() != QDialog.Accepted:
                 return None
             return dialog.values()
-        finally:
-            dialog.deleteLater()
 
 
 class _Values:

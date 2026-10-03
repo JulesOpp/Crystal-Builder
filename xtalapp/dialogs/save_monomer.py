@@ -40,6 +40,7 @@ from PySide6.QtWidgets import (
 
 from xtal.polymer import monomer
 from xtal.workspace import safe_name
+from xtalapp.dialogs.answered import answered
 from xtalapp.widgets.tone import HINT, WARNING, set_tone
 
 
@@ -127,18 +128,11 @@ class SaveMonomerDialog(QDialog):
     def ask(cls, structure, folder, parent=None):
         """``(path, head)`` to write, or ``None`` if it was cancelled.
 
-        Deleted on the GUI thread whatever the answer: ``exec`` leaves
-        a dialog owned by Python, and one freed later by the cyclic
-        collector may be freed on a worker's thread -- see
-        :meth:`xtalapp.dialogs.polymer_build.PolymerBuildDialog.ask`.
         """
-        dialog = cls(structure, folder, parent)
-        try:
+        with answered(cls(structure, folder, parent)) as dialog:
             if dialog.exec() != QDialog.Accepted:
                 return None
             return dialog.path(), dialog.head_point()
-        finally:
-            dialog.deleteLater()
 
 
 def _suggested(structure) -> str:
