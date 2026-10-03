@@ -122,6 +122,22 @@ def draw(sequence: Sequence, n_monomers: int, length: int,
     return list(zip(which, hands, strict=True))
 
 
+def expected(sequence: Sequence, n_monomers: int,
+             length: int) -> np.ndarray:
+    """How many units of each monomer a chain of ``length`` holds, on
+    average: exactly for the compositions that draw nothing, by the
+    fractions for *random*.  What a box is sized by -- the plain mean
+    of the masses built a PS/PE block copolymer of blocks 1 and 10 at
+    0.45 g/cm3 for 0.85."""
+    sequence.check(n_monomers)
+    if sequence.composition == "random":
+        p = np.asarray(sequence.fractions, float)
+        return length * p / p.sum()
+    which = [i for i, _hand in draw(sequence, n_monomers, length,
+                                    np.random.default_rng(0))]
+    return np.bincount(which, minlength=n_monomers).astype(float)
+
+
 def units(monomers, drawn) -> list:
     """The monomers a drawn sequence names, each the hand it says --
     mirrored once per monomer, not once per unit."""

@@ -242,7 +242,7 @@ def _structure(elements, cart, bonds, cell, recipe: Recipe):
                                     for m in recipe.monomers))
     structure.meta["title"] = (f"{names} {recipe.periodic} "
                                f"{recipe.chains}x{recipe.length}")
-    structure.meta["source"] = "xtal.polymer"
+    structure.meta["builder"] = "xtal.polymer"
     cell_atoms = p1.expand(structure)
     found = {}
     for i, j, _order in bonds:

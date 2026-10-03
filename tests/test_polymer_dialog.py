@@ -62,6 +62,30 @@ def test_a_smiles_without_a_tail_disables_build_with_a_reason(dialog):
     assert dialog.build_button.isEnabled()
 
 
+def test_editing_a_monomer_greys_build_until_it_is_checked(dialog):
+    """Between a keystroke and the pause that resolves it, the row
+    kept the monomer the old text named, and Build built that."""
+    row = dialog.rows["monomer"]
+    assert dialog.build_button.isEnabled()
+
+    row.box.setText("[*:1]CC(Cl)[*:2]")
+    assert row.monomer is None
+    assert not dialog.build_button.isEnabled()
+
+    row.resolve()
+    assert "Cl" in row.monomer.formula
+    assert dialog.build_button.isEnabled()
+
+
+def test_a_ladder_with_a_plain_monomer_is_refused_in_the_dialog(dialog):
+    """The recipe's own sentence, before Build can be pressed."""
+    _choose(dialog, composition="alternating")
+    _type(dialog, "monomer_b", "PIM-1")
+
+    assert not dialog.build_button.isEnabled()
+    assert "ladder" in dialog.readout.text()
+
+
 def test_choosing_a_library_entry_writes_its_name(dialog):
     """The name and not the string, so the tab and the report say
     Polystyrene."""

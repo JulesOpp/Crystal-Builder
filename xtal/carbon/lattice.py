@@ -321,13 +321,9 @@ def terminate(sheet: Sheet, ratios: Ratios, rng) -> Terminated:
             oxygen = here + C_OH * direction
             o, o_home = _hang(elements, frac, bonds, images, inverse,
                               atom, "O", oxygen)
-            # Bent at the oxygen, in the sheet's plane, away from the
-            # carbon: a hydroxyl's hydrogen at about 109 degrees.
-            turn = np.cross(sheet.normal[atom], direction)
-            h = oxygen + O_H * (np.cos(np.radians(71.0)) * direction
-                                + np.sin(np.radians(71.0)) * turn)
-            _hang(elements, frac, bonds, images, inverse, o, "H", h,
-                  o_home)
+            _hang(elements, frac, bonds, images, inverse, o, "H",
+                  _hydroxyl_hydrogen(oxygen, direction,
+                                     sheet.normal[atom]), o_home)
     return Terminated(matrix, elements, np.array(frac),
                       np.array(bonds, int).reshape(-1, 2),
                       np.array(images, int).reshape(-1, 3), counts,
@@ -373,13 +369,28 @@ class _Room:
 
     def take(self, atom: int, kind: str) -> bool:
         """Whether ``kind`` fits on ``atom``; if it does, it is
-        granted."""
+        granted.  A hydroxyl is two atoms and both need room: probing
+        only its oxygen put the hydrogen 0.58 A from a bare edge
+        carbon across a bay, seed 2 of the default dia cell."""
         sheet = self.sheet
         direction = _in_plane(self.outward[atom], sheet.normal[atom])
-        probe = (sheet.frac[atom] @ self.matrix
-                 + PROBE.get(kind, PROBE_HEAVY) * direction)
-        close = [k % sheet.n_atoms for k in self.tree.query_ball_point(
-            probe, SHEET_CLEAR.get(kind, SHEET_CLEAR_HEAVY))]
+        here = sheet.frac[atom] @ self.matrix
+        probes = [(here + PROBE.get(kind, PROBE_HEAVY) * direction,
+                   kind)]
+        if kind == "hydroxyl":
+            probes.append((_hydroxyl_hydrogen(
+                here + C_OH * direction, direction,
+                sheet.normal[atom]), "hydrogen"))
+        if not all(self._clear(atom, probe, as_kind)
+                   for probe, as_kind in probes):
+            return False
+        self.granted.extend(probe for probe, _ in probes)
+        return True
+
+    def _clear(self, atom: int, probe, kind: str) -> bool:
+        close = [k % self.sheet.n_atoms
+                 for k in self.tree.query_ball_point(
+                     probe, SHEET_CLEAR.get(kind, SHEET_CLEAR_HEAVY))]
         if any(k != atom for k in close):
             return False
         if self.granted:
@@ -388,8 +399,15 @@ class _Room:
             if np.min(np.linalg.norm(delta @ self.matrix, axis=1)) \
                     < PROBE_CLEAR.get(kind, PROBE_CLEAR_HEAVY):
                 return False
-        self.granted.append(probe)
         return True
+
+
+def _hydroxyl_hydrogen(oxygen, direction, normal) -> np.ndarray:
+    """Where a hydroxyl's hydrogen goes: bent at the oxygen, in the
+    sheet's plane, away from the carbon, at about 109 degrees."""
+    turn = np.cross(normal, direction)
+    return oxygen + O_H * (np.cos(np.radians(71.0)) * direction
+                           + np.sin(np.radians(71.0)) * turn)
 
 
 def _in_plane(vector, normal) -> np.ndarray:

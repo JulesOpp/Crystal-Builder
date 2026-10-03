@@ -18,7 +18,7 @@ print(s.built)          # density reached, closest contact, chain shape
 | Parameter | Meaning |
 |---|---|
 | `monomer` | a library name (`Polyethylene`, `Polypropylene`, `Polystyrene`, `PMMA`, `PVC`, `PEO`, `PTFE`, `PET`, `Nylon-6`, `PIM-1`, `PIM-EA-TB`), a block `.xyz` with two connection points, or SMILES with `[*:1]` at the head and `[*:2]` at the tail; one a person saved with *Save as a monomer* is a block in `<workspace>/monomers/`, head first |
-| `monomer_b`, `composition` | a copolymer: `alternating`, `random` (with `fraction_a`) or `block` (with `block_a`, `block_b`) |
+| `monomer_b`, `composition` | a copolymer: `alternating`, `random` (with `fraction_a`) or `block` (with `block_a`, `block_b`); the box is sized by the composition, so the density is right for any mix. A ladder (PIM-1, PIM-EA-TB) cannot be copolymerised with a monomer joined through one atom, and is refused |
 | `tacticity`, `p_meso` | `atactic`, `isotactic`, `syndiotactic`; ignored by a monomer with no stereocentre |
 | `chains`, `length` | ten chains of a hundred PE units is 6000 atoms and about twenty seconds |
 | `density` | the target, in g/cm3 -- choose the polymer's own: PE 0.85, PS 1.05, PMMA 1.18, PIM-1 1.06 |

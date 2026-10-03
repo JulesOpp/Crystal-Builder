@@ -225,3 +225,90 @@ def test_a_ladder_polymer_packs_and_says_how_it_was_compressed():
     assert "21-step protocol" in text
     assert not any(s.element in elements.DUMMY_ELEMENTS
                    for s in built.structure.sites)
+
+
+@needs_rdkit
+def test_a_ladder_and_a_plain_monomer_together_are_refused(pe):
+    """A joint pairs the members of two ends; a ladder's two against
+    polyethylene's one would leave a bond over at every joint."""
+    pim = monomer.from_library("PIM-1")
+    recipe = pack.Recipe(monomers=(pe, pim),
+                         sequence=Sequence(composition="alternating"))
+    with pytest.raises(pack.PackError, match="ladder"):
+        recipe.check()
+
+
+@needs_rdkit
+def test_a_block_copolymer_reaches_the_density_asked_for(pe):
+    """The box holds the chains' own mass at the density: sized by
+    the plain mean of PS and PE, blocks of 1 and 10 were built at
+    0.45 g/cm3 for 0.85."""
+    ps = monomer.from_library("Polystyrene")
+    for sequence in (Sequence(composition="block", blocks=(1, 10)),
+                     Sequence(composition="alternating"),
+                     Sequence(composition="random",
+                              fractions=(1.0, 3.0))):
+        recipe = pack.Recipe(monomers=(ps, pe), chains=4, length=21,
+                             sequence=sequence)
+        drawn = [i for i, _hand in pack.sequences.draw(
+            sequence, 2, recipe.length, np.random.default_rng(1))]
+        mass = recipe.chains * sum((ps, pe)[i].mass for i in drawn)
+        density = mass / (np.prod(recipe.box(recipe.density))
+                          * pack.AVOGADRO)
+        tolerance = 0.15 if sequence.composition == "random" else 1e-9
+        assert density == pytest.approx(recipe.density, rel=tolerance)
+
+
+NYLON_66 = "[*:1]NCCCCCCNC(=O)CCCCC(=O)[*:2]"
+
+
+@needs_rdkit
+def test_nylon_66_rotamers_stay_bounded_and_stop():
+    """Ten free bonds are 59 049 settings; scoring a ten-bond unit's
+    every one took three minutes and Stop could not reach it."""
+    from xtal.polymer import chain
+
+    nylon = monomer.from_smiles(NYLON_66, name="nylon-6,6")
+    assert len(chain.free_bonds(nylon)) == 10
+    found = chain.rotamers(nylon, rng=np.random.default_rng(0))
+    assert 1 <= len(found) <= chain.MAX_ROTAMERS
+    assert found[0][1] == (180.0,) * 10
+
+    asked = []
+
+    def check():
+        asked.append(True)
+        if len(asked) > 3:
+            raise RuntimeError("stopped")
+
+    with pytest.raises(RuntimeError, match="stopped"):
+        chain.rotamers(nylon, check=check)
+
+
+@needs_rdkit
+def test_a_monomer_under_the_cap_still_meets_every_setting():
+    """Nylon-6's five free bonds are 243, every one, as before the
+    cap: no library monomer's build changes."""
+    from xtal.polymer import chain
+
+    nylon6 = monomer.from_library("Nylon-6")
+    settings = {t for _shape, t in chain.rotamers(nylon6)}
+    every = chain._settings(5, None, chain.MAX_ROTAMERS)
+    assert len(every) == 3 ** 5
+    assert settings <= {tuple(row) for row in every}
+
+
+@needs_rdkit
+def test_the_two_hands_of_a_capped_monomer_share_their_rotamers():
+    """Enumerated apart, each hand of a sampled monomer would have had
+    its own sample; the mirror's are the first's reflected."""
+    nylon = monomer.from_smiles(NYLON_66, name="nylon-6,6")
+    mirror = nylon.mirrored()
+    shapes: dict = {}
+    pack._hands(shapes, nylon, mirror, np.random.default_rng(0),
+                lambda: None)
+    first, second = shapes[id(nylon)][1], shapes[id(mirror)][1]
+    assert len(first) == len(second)
+    for (a, ea), (b, eb) in zip(first, second, strict=True):
+        assert ea == eb and b.mirror != a.mirror
+        assert np.allclose(b.cart, a.cart * [-1, 1, 1])

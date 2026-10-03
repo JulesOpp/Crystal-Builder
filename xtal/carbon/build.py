@@ -38,6 +38,11 @@ from xtal.carbon import mesh as ms
 from xtal.carbon import ribbons
 from xtal.carbon import surface as sf
 
+#: A contact closer than this, between atoms neither bonded nor
+#: sharing a neighbour, is said as a warning: no relaxation started
+#: there ends anywhere chemical.
+CLOSE_CONTACT = 1.0
+
 
 @dataclass
 class Recipe:
@@ -189,17 +194,24 @@ def build(recipe: Recipe, say=None, check=None) -> Built:
     done = lt.terminate(sheet, recipe.ratios(), rng)
     structure = lt.structure_of(
         done, title=f"carbon on {recipe.net} (seed {recipe.seed})")
-    structure.meta["source"] = "xtal.carbon"
+    # Not "source", which names the file a structure was read from:
+    # the tab and the info panel would take a module for a path.
+    structure.meta["builder"] = "xtal.carbon"
 
     relaxed = ""
     notes = []
     if recipe.relax == "uff":
         say("relaxing with UFF at the solved cell")
-        relaxed = _relax(structure, recipe.relax_steps)
+        relaxed = _relax(structure, recipe.relax_steps, check)
     if done.short:
         notes.append("too few edge carbons for " + ", ".join(
             f"{n} {kind}" for kind, n in done.short.items())
             + ": raise the edge share (lower coverage) or ask for less")
+    contact = closest_contact(structure)
+    if contact < CLOSE_CONTACT:
+        notes.append(f"warning: two atoms are {contact:.2f} A apart, "
+                     "neither bonded nor sharing a neighbour; relax "
+                     "the build or try another seed")
 
     counts = Counter(done.elements)
     carbons = max(counts["C"], 1)
@@ -219,7 +231,7 @@ def build(recipe: Recipe, say=None, check=None) -> Built:
         periodicity=min(lt.periodicity(s.n_atoms, s.bonds, s.images)
                         for s in sheets),
         edge_length=solved.skeleton.edge_length,
-        closest_contact=closest_contact(structure),
+        closest_contact=contact,
         closed_carbons=sum(m.n_triangles for m in meshes),
         layer=_layers(done, sheets),
         short=done.short, relaxed=relaxed, notes=notes)
@@ -246,15 +258,19 @@ def _remesh_grid(width: float) -> float:
     return min(2.2, max(sf.GRID_SPACING, 1.4 * width))
 
 
-def _relax(structure, steps: int) -> str:
+def _relax(structure, steps: int, check=None) -> str:
     """UFF at a fixed cell, positions only; the bonds are the stated
-    ones and are never touched."""
+    ones and are never touched.  ``check`` is asked after every step
+    and raises to stop: the relaxation is most of a build's time, and
+    a Stop that waited for it to finish was minutes on a 3x3x3."""
     from xtal.ff import optimize
     from xtal.ff.registry import ENGINES
 
     calculator = ENGINES.build("uff", structure)
+    check = check or (lambda: None)
     result = optimize.run(calculator, structure, method="lbfgs",
-                          max_steps=steps)
+                          max_steps=steps,
+                          callback=lambda _step: check())
     # Written as the optimiser gives them, unwrapped, the way its own
     # command applies them: the stated graph follows an atom across a
     # cell face through the expansion, and wrapping one back by hand

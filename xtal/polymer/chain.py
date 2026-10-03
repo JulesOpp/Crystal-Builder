@@ -280,9 +280,13 @@ def _side(monomer: Monomer, start: int, block: int) -> set[int]:
     return seen
 
 
-def rotamers(monomer: Monomer) -> list[tuple[Monomer, tuple]]:
+def rotamers(monomer: Monomer, rng=None, check=None,
+             cap: int | None = None) -> list[tuple[Monomer, tuple]]:
     """Every staggered setting of the unit's free backbone bonds:
-    ``(monomer, torsions)``, the torsions in degrees.
+    ``(monomer, torsions)``, the torsions in degrees -- or, past
+    ``cap`` (:data:`MAX_ROTAMERS`) settings, all-trans and a sample of
+    the rest drawn with ``rng``.  ``check`` is called for each and
+    stops the enumeration by raising.
 
     The joint torsion alone is not enough.  A bond set trans inside
     the unit makes the joints either side of it parallel, so a
@@ -296,10 +300,11 @@ def rotamers(monomer: Monomer) -> list[tuple[Monomer, tuple]]:
     free = free_bonds(monomer)
     if not free:
         return [(monomer, ())]
+    check = check or (lambda: None)
     out = []
-    for setting in np.array(np.meshgrid(*[STAGGERED] * len(free),
-                                        indexing="ij")).reshape(
-                                            len(free), -1).T:
+    for setting in _settings(len(free), rng,
+                             MAX_ROTAMERS if cap is None else cap):
+        check()
         cart = np.array(monomer.cart, dtype=float)
         for k, angle in zip(free, setting, strict=True):
             a, b = path[k], path[k + 1]
@@ -318,6 +323,29 @@ def rotamers(monomer: Monomer) -> list[tuple[Monomer, tuple]]:
         out.append((replace(monomer, cart=cart),
                     tuple(float(v) for v in setting)))
     return out
+
+
+#: The most staggered settings a unit is scored at: 3 ** 5.  Every
+#: setting of nylon-6,6's eleven free bonds is 177 147, and scoring
+#: the 35 184 of a ten-bond unit took three minutes with no way to
+#: stop it.  A trial draws one setting at random either way, so a
+#: sample of this many is all that a chain of any length meets.
+MAX_ROTAMERS = 243
+
+
+def _settings(n: int, rng, cap: int) -> np.ndarray:
+    """The torsions to try, ``(settings, n)``: all ``3 ** n`` in order
+    when they fit under ``cap``, else all-trans first -- the one that
+    is always kept -- and ``cap - 1`` others, distinct, at random."""
+    if 3 ** n <= cap:
+        return np.array(np.meshgrid(*[STAGGERED] * n, indexing="ij")
+                        ).reshape(n, -1).T
+    rng = rng if rng is not None else np.random.default_rng(0)
+    picked = {(0,) * n}
+    while len(picked) < cap:
+        picked.add(tuple(int(v) for v in rng.integers(3, size=n)))
+    order = [(0,) * n] + sorted(picked - {(0,) * n})
+    return np.asarray(STAGGERED)[np.array(order)]
 
 
 #: A rotamer whose own atoms four bonds apart or more come closer than

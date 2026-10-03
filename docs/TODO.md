@@ -29,7 +29,6 @@ measurements, is `~/.claude/plans/v1-release-fixes.md`.
 
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
-| **7 — The new builders** | Carbon relaxation stops; polymer copolymer density, ladder mixing, rotamer cap | `xtal/carbon/`, `xtal/polymer/` | M |
 | **8 — Release** | Third-party notices, selftest checks, README, 1.0 notes, manual inventory, flaky tests, bundle run, tag | `packaging/`, `docs/`, `README.md` | M |
 
 Phases 0-5 are done on `release/v1.0` (2026-10-03): the two PRs
@@ -47,7 +46,12 @@ trimmed by the sites it holds.  Phase 6: a supercell, the cells
 drawn, a porosity grid and a carbon repeat are counted before they
 are built (`xtal/core/limits.py`), asked about over a soft limit and
 refused over a hard one, the profile *Preferences ▸ General ▸ Large
-structures*.  Phase 7 is next.  Still owed from Phase 4, in 1.0.x: building the group from a
+structures*.  Phase 7: Stop reaches a carbon build's relaxation, a
+hydroxyl's hydrogen needs room too (and a contact under 1 A is a
+warning), a copolymer's box is sized by its composition, a ladder
+with a plain monomer is refused, a unit's rotamers are capped at 243
+and shared by both hands, an edited monomer greys Build, and a build
+names itself in `meta["builder"]`.  Phase 8 is next.  Still owed from Phase 4, in 1.0.x: building the group from a
 file's own operations when they match no tabulated setting.
 
 ## The interface stretch

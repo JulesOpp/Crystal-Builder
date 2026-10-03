@@ -180,6 +180,17 @@ class Recipe:
         """Everything refusable, refused before anything is grown."""
         if not self.monomers:
             raise PackError("a polymer needs a monomer")
+        # A joint pairs the members of one end with the other's, so
+        # every end must stand for as many atoms: a ladder's two
+        # against a chain's one is a bond left over at every joint.
+        ends = {len(m.head_members) for m in self.monomers} | {
+            len(m.tail_members) for m in self.monomers}
+        if len(ends) > 1:
+            raise PackError(
+                "a ladder monomer, joined through two atoms at each "
+                "end, cannot be copolymerised with one joined through "
+                "one: every monomer's ends must stand for as many "
+                "atoms")
         if self.chains < 1 or self.length < 1:
             raise PackError("a model needs one chain of one unit at "
                             "least")
@@ -212,8 +223,10 @@ class Recipe:
     def box(self, density: float | None = None) -> np.ndarray:
         """The box (a, b, c) in A that holds the chains at ``density``,
         by default the one they are grown at."""
-        mass = self.chains * self.length * float(np.mean(
-            [m.mass for m in self.monomers]))
+        counts = sequences.expected(self.sequence, len(self.monomers),
+                                    self.length)
+        mass = self.chains * float(
+            counts @ [m.mass for m in self.monomers])
         volume = mass / ((density or self.grown_at) * AVOGADRO)
         if self.periodic == "membrane":
             side = float(np.sqrt(volume / self.thickness))
@@ -476,6 +489,8 @@ def grow(recipe: Recipe, say=None, check=None) -> list[chains.Chain]:
     mirrored = [m.mirrored() for m in recipe.monomers]
     free = recipe.sequence.tacticity == "atactic"
     shapes: dict = {}
+    for monomer, mirror in zip(recipe.monomers, mirrored, strict=True):
+        _hands(shapes, monomer, mirror, rng, check)
     growing = []
     for _ in range(recipe.chains):
         drawn = sequences.draw(recipe.sequence, len(recipe.monomers),
@@ -576,13 +591,31 @@ def _score(item: _Growing, space: _Hash, unit: chains.Unit,
 def _shapes(item: _Growing, monomer: Monomer) -> list:
     """``(rotamer, torsion energy)`` for each staggered setting of the
     monomer's free backbone bonds -- one, the monomer itself, for a
-    unit with none."""
+    unit with none.  :func:`grow` fills these for both hands before
+    any chain is seeded."""
     key = id(monomer)
     if key not in item.shapes:
-        item.shapes[key] = (monomer, [
-            (variant, sum(_torsion(t) for t in torsions))
-            for variant, torsions in chains.rotamers(monomer)])
+        item.shapes[key] = (monomer, _scored(chains.rotamers(monomer)))
     return item.shapes[key][1]
+
+
+def _scored(rotamers) -> list:
+    return [(variant, sum(_torsion(t) for t in torsions))
+            for variant, torsions in rotamers]
+
+
+def _hands(shapes: dict, monomer: Monomer, mirror: Monomer, rng,
+           check) -> None:
+    """Both hands' rotamers into ``shapes``, the mirror's reflected
+    from the first's.  A staggered set is its own mirror image and the
+    torsion term is even, so they are the same settings with the same
+    energies -- and when the settings are sampled, the same sample:
+    enumerated apart, the two hands of a capped monomer would be built
+    from different shapes."""
+    first = _scored(chains.rotamers(monomer, rng=rng, check=check))
+    shapes[id(monomer)] = (monomer, first)
+    shapes[id(mirror)] = (mirror, [(variant.mirrored(), energy)
+                                   for variant, energy in first])
 
 
 def _seed(item: _Growing, space: _Hash, box, recipe: Recipe,

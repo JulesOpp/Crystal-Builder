@@ -140,3 +140,54 @@ def test_relaxed_carbon_bonds_are_one_point_four_two_within_point_zero_five():
                               relaxed.structure).bonds],
                           [b.image for b in bonding.graph(
                               relaxed.structure).bonds]) == 3
+
+
+class _Stop(Exception):
+    pass
+
+
+def test_stop_during_the_relaxation_ends_the_build():
+    """The relaxation asks ``check`` after every step, so Stop ends a
+    build there rather than when UFF finishes -- minutes on a 3x3x3,
+    with a Stop button that seemed to do nothing."""
+    relaxing = []
+    asked = []
+
+    def say(text):
+        if text.startswith("relaxing"):
+            relaxing.append(text)
+
+    def check():
+        if relaxing:
+            asked.append(True)
+            raise _Stop
+
+    with pytest.raises(_Stop):
+        cb.build(_recipe(relax="uff"), say=say, check=check)
+    # Nothing says another step after the relaxation, so a check
+    # asked after it can only have come from inside it.
+    assert relaxing and asked
+
+
+def test_an_unrelaxed_build_has_no_contact_under_one_angstrom():
+    """Seed 2 hung a hydroxyl whose oxygen had room and whose hydrogen
+    landed 0.58 A from a bare edge carbon across a bay: ``_Room``
+    probed the oxygen alone."""
+    assert cb.build(_recipe(seed=2)).closest_contact > 1.2
+
+
+def test_a_close_contact_is_said_as_a_warning(monkeypatch):
+    """The report says a contact under an Angstrom in words, where the
+    table's number alone went unread."""
+    monkeypatch.setattr(cb, "closest_contact", lambda _s: 0.58)
+    built = cb.build(_recipe())
+    assert any("0.58 A apart" in line and line.startswith("warning")
+               for line in built.lines())
+
+
+def test_a_build_names_its_builder_not_a_source_file(built):
+    """``meta["source"]`` is the file a structure was read from: the
+    tab would be named after, and a reopen matched against, a path
+    called ``xtal.carbon``."""
+    assert built.structure.meta["builder"] == "xtal.carbon"
+    assert "source" not in built.structure.meta

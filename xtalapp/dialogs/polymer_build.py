@@ -145,7 +145,15 @@ class MonomerRow(QWidget):
             self._touched()
 
     def _touched(self, *_args) -> None:
+        """Edited text is unchecked text: the monomer it resolved to
+        before is forgotten until the quiet timer resolves it again,
+        or Build would make what the box said a moment ago."""
         self._quiet.start()
+        if self.monomer is not None:
+            self.monomer, self.problem = None, "checking..."
+            self._say("", bad=False)
+            if self.changed is not None:
+                self.changed()
 
     @staticmethod
     def _smiles_of(text: str) -> str:
