@@ -12,6 +12,14 @@ Zeo++ on the result.
   energies* adds the Force Field panel's engine to the fit, and a
   Pareto sweep traces the trade between the two. RietX does the
   physics and is bundled.
+- **Amorphous polymers**: *Modules ▸ Build amorphous polymer…* packs
+  chains of a monomer -- eleven in the library, a starred SMILES, the
+  sketch, or one drawn and saved with *Structure ▸ Building blocks ▸
+  Save as a monomer…* -- into a periodic box or a membrane at a target
+  density, homopolymer or copolymer, at any tacticity, ladders such
+  as PIM-1 included. The model is packed, not equilibrated, and the
+  report says so. *Open Sample ▸ Polymers* has crystalline
+  polyethylene, alpha-iPP and cellulose I-beta.
 - **Prepare for simulation**: *Structure ▸ Prepare for simulation…*
   and `xtal prepare` turn a deposited CIF into a model a calculation
   can run on (duplicate sites merged, primitive cell, disorder

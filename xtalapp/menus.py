@@ -108,6 +108,16 @@ INSERT_MOLECULE_TIP = (
     "structure.  It arrives with the bonds the builder gave it and "
     "no others, and pasting into a group with symmetry multiplies it "
     "-- the dialog says by how much before you press the button.")
+#: Save as a monomer: on when there are two connection points, and
+#: otherwise greyed with :data:`SAVE_MONOMER_NEEDS_TWO`.
+SAVE_MONOMER_TIP = (
+    "Write this molecule into the workspace's monomers, so the polymer "
+    "builder lists it beside its own.  Its two connection points are "
+    "the head and the tail, and the dialog asks which is which.")
+SAVE_MONOMER_NEEDS_TWO = (
+    "A monomer needs exactly two connection points, a head and a tail "
+    "-- this has {count}.  Building blocks > Mark connection points "
+    "makes them; for a ladder, Mark as one connection point.")
 
 
 def submenu(parent, title: str) -> QMenu:
@@ -341,6 +351,8 @@ def build_actions(window):
             "reads, so it appears in the block picker beside the 867 "
             "PORMAKE ships.  It needs connection points on it -- the "
             "dialog says what is missing.")
+    add("save_monomer", "Save as a mo&nomer...", window.save_monomer,
+        tip=SAVE_MONOMER_TIP)
     add("mark_connection_points", "&Mark connection points",
         window.mark_connection_points,
         tip="Turn each selected atom that has exactly one bond into "
@@ -680,7 +692,7 @@ def build_menus(window):
     blocks_menu = submenu(structure_menu, "Building b&locks")
     window.actions_.fill_menu(blocks_menu, [
         "mark_connection_points", "mark_one_connection_point",
-        "save_building_block"])
+        "save_building_block", "save_monomer"])
     window.actions_.fill_menu(structure_menu, [
         None, "prepare_simulation", None])
     # A submenu and not six flat entries: these are what the *mouse*

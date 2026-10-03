@@ -27,7 +27,8 @@ PAGES = {name.as_posix(): (ROOT / name).read_text(encoding="utf-8")
 ALL_TEXT = "\n".join(PAGES.values())
 
 REFERENCES = ("api.md", "diagnostics.md", "prepare.md", "mof.md",
-              "calculations.md", "porosity.md", "workspace.md")
+              "calculations.md", "porosity.md", "workspace.md",
+              "polymer.md")
 
 
 def _actions() -> dict:

@@ -217,6 +217,30 @@
    "checkable": false
   },
   {
+   "key": "sample_polymer_pe",
+   "section": "File",
+   "path": "Open Sample ▸ Polymers ▸ Polyethylene",
+   "shortcut": "",
+   "tip": "Bunn, Trans. Faraday Soc. 1939: orthorhombic PE, two planar zigzag chains through a 2.53 A cell along c in Pnam -- the published carbon, with hydrogens placed by geometry",
+   "checkable": false
+  },
+  {
+   "key": "sample_polymer_ipp",
+   "section": "File",
+   "path": "Open Sample ▸ Polymers ▸ Polypropylene",
+   "shortcut": "",
+   "tip": "Mencik, J. Macromol. Sci. 1972, as COD 1552371: alpha-iPP, four 3_1 helices up and down in P2_1/c -- the published carbons, with hydrogens placed by geometry",
+   "checkable": false
+  },
+  {
+   "key": "sample_polymer_cellulose",
+   "section": "File",
+   "path": "Open Sample ▸ Polymers ▸ Cellulose",
+   "shortcut": "",
+   "tip": "Nishiyama et al., J. Am. Chem. Soc. 2002: two glucan chains in P2_1 from synchrotron fibre diffraction, hydrogen-bonded sheets -- the X-ray model, so the hydroxyl hydrogens are not in it",
+   "checkable": false
+  },
+  {
    "key": "sample_cod_mof5",
    "section": "File",
    "path": "Open Sample ▸ From the COD ▸ MOF-5",

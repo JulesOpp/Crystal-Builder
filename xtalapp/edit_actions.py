@@ -186,6 +186,33 @@ class EditActions:
         self.show_status(f"wrote {written.name} -- it is in the MOF "
                          f"builder's picker now")
 
+    def save_monomer(self) -> None:
+        """Write the open molecule into the workspace's monomers, head
+        first, for the polymer builder's library -- see
+        :mod:`xtalapp.dialogs.save_monomer`."""
+        document = self.current_document()
+        if document is None:
+            return
+        if self.workspace is None:
+            self.show_message("no workspace open, so there is nowhere "
+                              "for a monomer to go")
+            return
+        from xtal.polymer import monomer
+        from xtalapp.dialogs.save_monomer import SaveMonomerDialog
+        answer = SaveMonomerDialog.ask(document.structure,
+                                       self.workspace.monomers, self)
+        if answer is None:
+            return
+        path, head = answer
+        try:
+            written = monomer.save(document.structure, path, head=head)
+        except (ValueError, OSError) as exc:
+            self.show_message(f"could not write the monomer: {exc}")
+            return
+        self.refresh_workspace()
+        self.show_status(f"wrote {written.name} -- it is in the polymer "
+                         f"builder's library now")
+
     def mark_connection_points(self) -> None:
         document = self.current_document()
         if document is not None:

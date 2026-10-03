@@ -274,6 +274,36 @@ Hassan and Grundy, Acta Cryst. B 1984: SOD as the mineral, Na8Cl2(Al6Si6O24) in 
 ```{index} Sodalite
 ```
 
+(cmd-sample_polymer_pe)=
+### Open Sample ▸ Polymers ▸ Polyethylene
+
+`sample_polymer_pe`
+
+Bunn, Trans. Faraday Soc. 1939: orthorhombic PE, two planar zigzag chains through a 2.53 A cell along c in Pnam -- the published carbon, with hydrogens placed by geometry
+
+```{index} Polyethylene
+```
+
+(cmd-sample_polymer_ipp)=
+### Open Sample ▸ Polymers ▸ Polypropylene
+
+`sample_polymer_ipp`
+
+Mencik, J. Macromol. Sci. 1972, as COD 1552371: alpha-iPP, four 3_1 helices up and down in P2_1/c -- the published carbons, with hydrogens placed by geometry
+
+```{index} Polypropylene
+```
+
+(cmd-sample_polymer_cellulose)=
+### Open Sample ▸ Polymers ▸ Cellulose
+
+`sample_polymer_cellulose`
+
+Nishiyama et al., J. Am. Chem. Soc. 2002: two glucan chains in P2_1 from synchrotron fibre diffraction, hydrogen-bonded sheets -- the X-ray model, so the hydroxyl hydrogens are not in it
+
+```{index} Cellulose
+```
+
 (cmd-sample_cod_mof5)=
 ### Open Sample ▸ From the COD ▸ MOF-5
 

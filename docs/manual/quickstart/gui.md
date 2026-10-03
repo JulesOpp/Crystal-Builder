@@ -35,7 +35,9 @@ has one.
   structures already in a tab: the frameworks this project was written
   against, *Simple materials* (graphene, diamond, NaCl, rutile, quartz,
   iron, a few all-silica zeolites and more, each small enough to learn
-  on), and the COD's frameworks as deposited and prepared.
+  on), *Polymers* (polyethylene, polypropylene and cellulose, chains
+  through the cell), and the COD's frameworks as deposited and
+  prepared.
 - **Quit** leaves without opening a window.
 
 A file double-clicked from the Finder or Explorer that is *already

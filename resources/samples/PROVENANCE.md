@@ -97,6 +97,27 @@ vacuum along *c*, one carbon site at 2c of P6/mmm.  Nothing in it is
 anybody's but the arithmetic, and it is in the public domain like the
 rest of this group.
 
+## Polymers (`polymer/`)
+
+Crystalline polymers: chains bonded to their own images along one
+axis, the conformation and packing a fibre pattern gives.  The COD
+holds few, and the classic ones locate the carbons only.
+
+| File | Source | Publication |
+|---|---|---|
+| `polymer/cellulose-Ibeta.cif` | COD [4114994](https://www.crystallography.net/cod/4114994.html), as deposited (`fetch_cod_samples.py`'s `POLYMER` table), fetched 2026-10-02 | Nishiyama, Langan & Chanzy, *J. Am. Chem. Soc.* **124**, 9074 (2002), [10.1021/ja0257319](https://doi.org/10.1021/ja0257319) -- the X-ray model: C-H placed, the hydroxyl hydrogens absent |
+| `polymer/polyethylene.cif` | written by `scripts/polymer_samples.py` | Bunn, *Trans. Faraday Soc.* **35**, 482 (1939), [10.1039/TF9393500482](https://doi.org/10.1039/TF9393500482) -- the cell and the carbon site of Pnam |
+| `polymer/isotactic-polypropylene.cif` | written by `scripts/polymer_samples.py` from COD [1552371](https://www.crystallography.net/cod/1552371.html)'s nine carbons | Mencik, *J. Macromol. Sci. B* **6**, 101 (1972) -- the alpha form, P2_1/c |
+
+The two written by the script keep the published carbons exactly and
+add every hydrogen by geometry -- C-H 1.09 A, tetrahedral angles, a
+methyl staggered -- which the file's header says.  Add hydrogens was
+not used: its planner reads a two-neighbour carbon at 114 degrees or
+more as sp2, and gave Mencik's C9 (114.09) one hydrogen of its two.
+PET (Daubeny, Bunn & Brown 1954) and nylon-6 alpha (Holmes, Bunn &
+Smith 1955) were planned too; neither is in the COD, and their
+coordinates were not to hand to write from.
+
 ## Prepared for simulation (`prepared/`)
 
 Models made from the COD files above, which are left exactly as

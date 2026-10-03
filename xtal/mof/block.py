@@ -247,7 +247,7 @@ def _label(cell, atom: int) -> str:
     return str(label) or f"{cell.elements[atom]} {atom + 1}"
 
 
-def block_string(structure) -> str:
+def block_string(structure, head: int | None = None) -> str:
     """One PORMAKE building block, as the text of its ``.xyz``.
 
     Four sections, and the third and fourth are the ones a writer
@@ -273,6 +273,12 @@ def block_string(structure) -> str:
     :data:`CONNECTION_DISTANCE` of the atoms they hang off on the way
     -- see this module's own docstring for why 0.75 A and not a bond
     length.
+
+    ``head`` is a connection point by its index in the P1 cell, and it
+    is written first of them.  A building block does not care which
+    comes first; a polymer's monomer does, because
+    :func:`xtal.polymer.monomer.from_block_file` reads the first as
+    the head.
     """
     from xtal.core import bonding, p1
     from xtal.mof.catalog import CONNECTION
@@ -287,6 +293,11 @@ def block_string(structure) -> str:
 
     marked = [i for i in range(cell.n_atoms)
               if cell.elements[i] == CONNECTION]
+    if head is not None:
+        if head not in marked:
+            raise BlockError(f"atom {head} is not a connection point")
+        marked.remove(head)
+        marked.insert(0, head)
     order_out = ([i for i in range(cell.n_atoms) if i not in set(marked)]
                  + marked)
     place = {atom: k for k, atom in enumerate(order_out)}
@@ -313,7 +324,8 @@ def block_string(structure) -> str:
     return "\n".join(lines) + "\n"
 
 
-def write_building_block(structure, path) -> Path:
+def write_building_block(structure, path,
+                         head: int | None = None) -> Path:
     """Write one block into a folder PORMAKE reads.
 
     The file *name* is the block's name -- ``catalog.building_blocks``
@@ -322,5 +334,5 @@ def write_building_block(structure, path) -> Path:
     """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(block_string(structure), encoding="utf-8")
+    path.write_text(block_string(structure, head), encoding="utf-8")
     return path

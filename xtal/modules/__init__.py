@@ -34,6 +34,7 @@ from xtal.modules import (
     forcefield,
     mof,
     net,
+    polymer,
     pxrd,
     scan,
     zeopp,
@@ -61,6 +62,7 @@ zeopp.register()
 mof.register()
 build.register()
 net.register()
+polymer.register()
 pxrd.register()
 scan.register()
 blender.register()

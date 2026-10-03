@@ -1,0 +1,60 @@
+#------------------------------------------------------------------------------
+# Isotactic polypropylene, alpha form, written for Crystal Builder.
+#
+# Carbons: Z. Mencik, J. Macromol. Sci. B 6, 101 (1972), as COD
+# 1552371 holds them -- nine carbons, three monomers of a 3_1 helix,
+# in P2_1/c with four chains in the cell, up and down.  Hydrogens:
+# placed by scripts/polymer_samples.py at C-H 1.09 A and tetrahedral
+# angles, each methyl staggered against the backbone, since the
+# deposition has none.  Public domain, as the COD's data are.
+#------------------------------------------------------------------------------
+data_iPP_alpha
+_chemical_name_common            'isotactic polypropylene, alpha form'
+_space_group_IT_number           14
+_symmetry_space_group_name_H-M   'P 1 21/c 1'
+_cell_length_a                   6.63
+_cell_length_b                   20.78
+_cell_length_c                   6.504
+_cell_angle_alpha                90.0
+_cell_angle_beta                 99.5
+_cell_angle_gamma                90.0
+loop_
+_symmetry_equiv_pos_as_xyz
+'x,y,z'
+'-x,y+1/2,-z+1/2'
+'-x,-y,-z'
+'x,-y+1/2,z+1/2'
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_occupancy
+C1   C 0.262 0.485 0.201 1.0
+C2   C 0.214 0.415 0.265 1.0
+C3   C 0.214 0.415 0.502 1.0
+C4   C 0.950 0.328 0.482 1.0
+C5   C 0.165 0.349 0.590 1.0
+C6   C 0.165 0.349 0.827 1.0
+C7   C 0.538 0.321 0.914 1.0
+C8   C 0.371 0.369 0.958 1.0
+C9   C 0.371 0.369 0.195 1.0
+H1A  H 0.26322 0.48678 0.03372 1.0
+H1B  H 0.14512 0.51760 0.23990 1.0
+H1C  H 0.41120 0.49953 0.28467 1.0
+H2   H 0.06429 0.39819 0.18936 1.0
+H3A  H 0.09983 0.44947 0.53551 1.0
+H3B  H 0.36489 0.42998 0.58011 1.0
+H4A  H 0.91292 0.28133 0.54257 1.0
+H4B  H 0.83756 0.36347 0.51276 1.0
+H4C  H 0.94778 0.32438 0.31445 1.0
+H5   H 0.28531 0.31627 0.56007 1.0
+H6A  H 0.12801 0.30059 0.87350 1.0
+H6B  H 0.04777 0.38244 0.86000 1.0
+H7A  H 0.68470 0.33450 1.00556 1.0
+H7B  H 0.49751 0.27255 0.95683 1.0
+H7C  H 0.54911 0.32223 0.74870 1.0
+H8   H 0.40002 0.41820 0.91264 1.0
+H9A  H 0.33736 0.32034 0.24198 1.0
+H9B  H 0.52285 0.38303 0.27318 1.0
