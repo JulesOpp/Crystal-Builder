@@ -817,7 +817,16 @@ stress case).
   **a foreign `_geom_bond` loop is not read as bonding** — it is
   nearly always a refinement's distance table, and reading one would
   bond a structure on open, which is what Recalculate Bonds exists to
-  stay in charge of. `xtal.io.export.for_export` is the one door out:
+  stay in charge of. **Bonds name atoms by label, so labels are
+  unique**: the reader renames a repeated one (`Zr1_2`,
+  `Structure.ensure_unique_labels`) and says so, and the writer does
+  the same to its copy -- UiO-66's 432 sites under seven labels sent
+  every bond to the last holder. In a project `bonds.json` is the only
+  record of the bonds; the CIF part's are dropped on read. **The
+  reader refuses a cell it does not have** (all six `_cell_*` tags,
+  numeric), where gemmi gave a 1 A cube, and says when the file's
+  operations match no tabulated setting and were not used.
+  `xtal.io.export.for_export` is the one door out:
   no dummy atoms, no net edges, no suppressions. The exception is a
   format that writes bonds from the graph itself: the LAMMPS data file
   (`xtal/io/lammps.py`, `Format.settles_bonds`). It is handed the

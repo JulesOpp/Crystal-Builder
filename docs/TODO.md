@@ -29,20 +29,23 @@ measurements, is `~/.claude/plans/v1-release-fixes.md`.
 
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
-| **4 — The CIF reader says what it assumed** | Unique labels, one source of bonds in a project, missing cell refused, `?` numbers, disorder groups written | `xtal/io/cif_reader.py`, `project.py` | M |
 | **5 — Undo stops hoarding** | Caches released below the top step; history trimmed by atoms held | `xtal/commands/base.py` | S |
 | **6 — Sizes estimated before building** | `xtal/core/limits.py`; display range, supercell, porosity grid, carbon repeat; *Large structures* in Preferences | `xtal/core/limits.py`, dialogs, `settings.py` | M |
 | **7 — The new builders** | Carbon relaxation stops; polymer copolymer density, ladder mixing, rotamer cap | `xtal/carbon/`, `xtal/polymer/` | M |
 | **8 — Release** | Third-party notices, selftest checks, README, 1.0 notes, manual inventory, flaky tests, bundle run, tag | `packaging/`, `docs/`, `README.md` | M |
 
-Phases 0-3 are done on `release/v1.0` (2026-10-03): the two PRs
+Phases 0-4 are done on `release/v1.0` (2026-10-03): the two PRs
 merged and every dialog through `answered`; saves atomic and titles
 outside ASCII written; a module's result adopted into the tab it ran
 on, and a workspace switch asking about a running calculation; an
 optimisation holding its document, one crash box at a time,
 `faulthandler` into `faults.log`, and an unknown style opening as the
-default.  The merges are local -- `main` has not been pushed and
-#51/#52 are still open.  Phase 4 is next.
+default; the CIF reader renaming repeated labels, refusing a missing
+cell, opening a `?` group number, saying when the file's operations
+were not used, and disorder groups written.  The merges are local --
+`main` has not been pushed and #51/#52 are still open.  Phase 5 is
+next.  Still owed from Phase 4, in 1.0.x: building the group from a
+file's own operations when they match no tabulated setting.
 
 ## The interface stretch
 

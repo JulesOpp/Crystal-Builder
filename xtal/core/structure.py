@@ -694,6 +694,35 @@ class Structure:
             used.add(cand)
         self.touch(Change.METADATA)
 
+    def ensure_unique_labels(self) -> int:
+        """Rename a label's second and later holders ``Zr1_2``,
+        ``Zr1_3`` ...; returns how many were renamed.
+
+        A bond is written and read by label, and a P1 cell exported by
+        another program can call 24 sites ``Zr1`` (UiO-66 does): every
+        bond to one of them was read back onto the last, and a project
+        then carried a phantom bond beside the real one.  The first
+        holder keeps its label, so a file that never repeated one is
+        unchanged.
+        """
+        used = {site.label for site in self.sites}
+        seen: set[str] = set()
+        renamed = 0
+        for site in self.sites:
+            if site.label not in seen:
+                seen.add(site.label)
+                continue
+            n = 2
+            while f"{site.label}_{n}" in used:
+                n += 1
+            site.label = f"{site.label}_{n}"
+            used.add(site.label)
+            seen.add(site.label)
+            renamed += 1
+        if renamed:
+            self.touch(Change.METADATA)
+        return renamed
+
     def suggest_label(self, element: str, taken=()) -> str:
         """An unused CIF-style label for a new atom of this element.
 

@@ -79,7 +79,11 @@ def _unquote_ints(block):
     """
     for tag in _INT_TAGS:
         value = block.find_value(tag)
-        if value is not None:
+        # ``?`` and ``.`` are CIF's own "unknown" and "not applicable",
+        # which gemmi reads as no number.  Unquoting them gave an empty
+        # string it then refused: ``_space_group_IT_number ?`` would not
+        # open at all.
+        if value is not None and value not in ("?", "."):
             unquoted = gemmi.cif.as_string(value)
             if unquoted != value:
                 block.set_pair(tag, unquoted)
@@ -108,7 +112,7 @@ def read_cif_all(path) -> list[Structure]:
         doc = gemmi.cif.read_string(read_text(path))
     else:
         doc = gemmi.cif.read_file(str(path))
-    out = []
+    out, refused = [], []
     for block in doc:
         small = gemmi.make_small_structure_from_block(
             _unquote_ints(block))
@@ -116,11 +120,21 @@ def read_cif_all(path) -> list[Structure]:
             continue
         if not small.sites and not _declares_sites(block):
             continue                    # a metadata-only block
-        out.append(_from_small_structure(small, block, path))
+        try:
+            out.append(_from_small_structure(small, block, path))
+        except ValueError as exc:
+            # One block of a series without a cell is that block
+            # skipped and said, not the whole file refused.
+            refused.append(str(exc))
     if not out:
         macro = _from_macromolecular(path)
         if macro is not None:
             out.append(macro)
+    if refused:
+        if not out:
+            raise ValueError(refused[0])
+        out[0].meta.setdefault("warnings", []).extend(
+            f"skipped: {reason}" for reason in refused)
     return out
 
 
@@ -187,8 +201,32 @@ def read_cif_string(text: str, name: str = "<string>") -> Structure:
     raise ValueError("no structure found in the CIF text")
 
 
+#: The six numbers a crystal cannot be read without.
+CELL_TAGS = ("_cell_length_a", "_cell_length_b", "_cell_length_c",
+             "_cell_angle_alpha", "_cell_angle_beta", "_cell_angle_gamma")
+
+
+def _check_cell(block) -> None:
+    """Refuse a block whose cell is not all there, naming what is not.
+
+    gemmi fills a missing length with 1 A and a missing angle with 90,
+    so a file that lost ``_cell_length_a`` opened as a cube of 1 A with
+    every atom piled on every other and nothing said.
+    """
+    for tag in CELL_TAGS:
+        value = (block.find_value(tag)
+                 or block.find_value(tag.replace("_cell_", "_cell.")))
+        if value is None or not np.isfinite(gemmi.cif.as_number(value)):
+            told = "has no" if value is None or value in ("?", ".") \
+                else f"has an unreadable ({value})"
+            raise ValueError(
+                f"data_{block.name} {told} {tag}, so it has no unit "
+                f"cell to put its atoms in")
+
+
 def _from_small_structure(small, block, path: Path) -> Structure:
     warnings: list[str] = []
+    _check_cell(block)
     lattice = Lattice.from_parameters(*small.cell.parameters)
     group = _resolve_space_group(small, block, warnings)
 
@@ -227,6 +265,12 @@ def _from_small_structure(small, block, path: Path) -> Structure:
     if warnings:
         structure.meta["warnings"] = warnings
     structure.ensure_labels()
+    renamed = structure.ensure_unique_labels()
+    if renamed:
+        structure.meta.setdefault("warnings", []).append(
+            f"renamed {renamed} duplicate label"
+            f"{'s' if renamed != 1 else ''} (a second Zr1 is Zr1_2) "
+            f"so that bonds can name their atoms")
     read_bonds(block, structure)
     read_perception(block, structure)
     return structure
@@ -405,11 +449,26 @@ def _aniso(site) -> tuple | None:
 
 
 def _resolve_space_group(small, block, warnings) -> SpaceGroup:
+    group = _choose_space_group(small, block, warnings)
+    unmatched = _unmatched_operations(block)
+    if unmatched:
+        # Building the group from the file's own operations is owed
+        # (1.0.x); until then the file says which group stood in.
+        warnings[:] = [w for w in warnings
+                       if not w.startswith("no symmetry information")]
+        warnings.append(
+            f"the file's {unmatched} symmetry operations match no "
+            f"tabulated setting and were not used; "
+            f"{group.short_name} was used instead")
+    return group
+
+
+def _choose_space_group(small, block, warnings) -> SpaceGroup:
     from_ops = _group_from_operations(block)
     hall = block.find_value("_space_group_name_Hall") or \
         block.find_value("_symmetry_space_group_name_Hall")
-    if hall:
-        text = gemmi.cif.as_string(hall)
+    text = gemmi.cif.as_string(hall) if hall else ""
+    if text:
         try:
             return SpaceGroup.from_hall(text)
         except ValueError:
@@ -462,19 +521,37 @@ def _resolve_space_group(small, block, warnings) -> SpaceGroup:
     return SpaceGroup.p1()
 
 
+_OPERATION_TAGS = ("_space_group_symop_operation_xyz",
+                   "_symmetry_equiv_pos_as_xyz")
+
+
+def _operations(block) -> list[str]:
+    """The file's own operations, from whichever loop it wrote."""
+    for tag in _OPERATION_TAGS:
+        triplets = [gemmi.cif.as_string(v) for v in block.find_loop(tag)]
+        if triplets:
+            return triplets
+    return []
+
+
+def _unmatched_operations(block) -> int:
+    """How many operations the file lists, when they name no group
+    (and so were not used); 0 when they did, or there are none."""
+    triplets = _operations(block)
+    if not triplets or _group_from_operations(block) is not None:
+        return 0
+    return len(triplets)
+
+
 def _group_from_operations(block) -> SpaceGroup | None:
-    for tag in ("_space_group_symop_operation_xyz",
-                "_symmetry_equiv_pos_as_xyz"):
-        loop = block.find_loop(tag)
-        triplets = [gemmi.cif.as_string(v) for v in loop]
-        if not triplets:
-            continue
-        try:
-            ops = gemmi.GroupOps([gemmi.Op(t) for t in triplets])
-            found = gemmi.find_spacegroup_by_ops(ops)
-        except (RuntimeError, ValueError):
-            return None
-        if found is None:
-            return None
-        return SpaceGroup.from_hall(found.hall)
-    return None
+    triplets = _operations(block)
+    if not triplets:
+        return None
+    try:
+        ops = gemmi.GroupOps([gemmi.Op(t) for t in triplets])
+        found = gemmi.find_spacegroup_by_ops(ops)
+    except (RuntimeError, ValueError):
+        return None
+    if found is None:
+        return None
+    return SpaceGroup.from_hall(found.hall)

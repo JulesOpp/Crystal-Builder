@@ -162,9 +162,17 @@ def cif_string(structure: Structure, expand_to_p1: bool = False,
     has_uiso = any(s.u_iso is not None for s in source.sites)
     if has_uiso:
         lines.append("_atom_site_U_iso_or_equiv")
+    # Ordering a disordered model reads these; a save that dropped
+    # them left Prepare nothing to order by on the next open.
+    has_disorder = any(s.props.get("disorder_group")
+                       for s in source.sites)
+    if has_disorder:
+        lines.append("_atom_site_disorder_group")
 
     labelled = source.copy()
     labelled.ensure_labels()
+    # The bond loop names atoms by label, so no two may share one.
+    labelled.ensure_unique_labels()
     for site in labelled.sites:
         x, y, z = site.frac
         row = (f"{_quote(site.label):<8s} {_quote(_type_symbol(site)):<5s} "
@@ -172,6 +180,8 @@ def cif_string(structure: Structure, expand_to_p1: bool = False,
         if has_uiso:
             u = site.u_iso if site.u_iso is not None else 0.0
             row += f" {u:8.5f}"
+        if has_disorder:
+            row += f" {_quote(str(site.props.get('disorder_group') or '.'))}"
         lines.append(row)
 
     lines += _aniso_loop(labelled)

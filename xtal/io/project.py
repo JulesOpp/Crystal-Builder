@@ -192,6 +192,12 @@ def _restore_bonds(structure, data: dict) -> None:
     with the rest kept, rather than taking the whole project down.
     """
     structure.bond_rules = dict(data.get("bond_rules", {}))
+    if "bonds" in data:
+        # The project's own record, and the only one: the CIF part
+        # carries the same bonds by label, and where two sites shared
+        # a label it carried them to the wrong atom, which came back
+        # here as a phantom bond beside the real one.
+        structure.set_bonds([])
     for record in data.get("bonds", []):
         try:
             structure.add_bond(Bond.from_dict(record))
