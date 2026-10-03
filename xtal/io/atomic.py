@@ -37,7 +37,10 @@ def replacing(path):
     partial = partial_path(path)
     try:
         yield partial
-        with open(partial, "rb") as written:
+        # Opened for writing, though nothing is written: on Windows
+        # fsync is _commit, which refuses a read-only handle with
+        # EBADF -- every save there failed while macOS took it.
+        with open(partial, "r+b") as written:
             os.fsync(written.fileno())
         os.replace(partial, path)
     except BaseException:
