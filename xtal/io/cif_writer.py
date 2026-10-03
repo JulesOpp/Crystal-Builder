@@ -32,6 +32,7 @@ from pathlib import Path
 import numpy as np
 
 from xtal.core.structure import Structure
+from xtal.io import atomic
 
 PROGRAM = "Crystal Builder"
 
@@ -42,9 +43,15 @@ def _version() -> str:
 
 
 def _block_name(structure: Structure, fallback: str) -> str:
-    raw = str(structure.meta.get("title") or fallback or "structure")
-    cleaned = "".join(c if (c.isalnum() or c in "_-+.") else "_"
-                      for c in raw.strip())
+    """An ASCII block name.  ``isalnum`` alone kept "α", and gemmi
+    refuses a block header outside ASCII, so a project titled
+    "α-quartz" saved and then could not be opened again."""
+    from xtal.workspace import spelled_out
+
+    raw = spelled_out(structure.meta.get("title") or fallback
+                      or "structure")
+    cleaned = "".join(c if (c.isascii() and c.isalnum()) or c in "_-+."
+                      else "_" for c in raw.strip())
     return cleaned or "structure"
 
 
@@ -68,7 +75,10 @@ def _quote(value: str) -> str:
     if not text:
         return "?"
     lowered = text.lower()
-    plain = (not any(c in text for c in " \t\n'\"")
+    # A bare value must be ASCII: gemmi reads an unquoted "Oé1" as a
+    # parse error, quoted it is fine.
+    plain = (text.isascii()
+             and not any(c in text for c in " \t\n'\"")
              and text[0] not in "_#$[];"
              and not lowered.startswith(_RESERVED))
     if plain:
@@ -92,10 +102,10 @@ def write_cif(structure: Structure, path, expand_to_p1: bool = False,
     :func:`_perception_loop`.
     """
     path = Path(path)
-    path.write_text(cif_string(structure, expand_to_p1=expand_to_p1,
-                               title=title or path.stem,
-                               perception=perception),
-                    encoding="utf-8")
+    atomic.write_text(path, cif_string(structure,
+                                       expand_to_p1=expand_to_p1,
+                                       title=title or path.stem,
+                                       perception=perception))
     return path
 
 

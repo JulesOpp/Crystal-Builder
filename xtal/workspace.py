@@ -68,6 +68,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+from xtal.io import atomic
 from xtal.io.xy import VENDOR_EXTENSIONS
 
 WORKSPACE_FILE = "workspace.json"
@@ -159,10 +160,16 @@ def safe_name(text: str, fallback: str = "structure") -> str:
     itself is worse than one without the accent.  So "café" is "cafe",
     where it used to be "caf" and the same folder as "cafè".
     """
+    return _legacy_safe_name(spelled_out(text), fallback)
+
+
+def spelled_out(text: str) -> str:
+    """``text`` with its accents taken off and the letters that have
+    no unaccented form spelled out ("α" is "alpha", "ß" is "ss").
+    Anything else outside ASCII is left for the caller to deal with."""
     text = "".join(_SPELLED.get(c, c) for c in str(text))
-    text = "".join(c for c in unicodedata.normalize("NFKD", text)
+    return "".join(c for c in unicodedata.normalize("NFKD", text)
                    if not unicodedata.combining(c))
-    return _legacy_safe_name(text, fallback)
 
 
 def _legacy_safe_name(text: str, fallback: str = "structure") -> str:
@@ -884,8 +891,7 @@ class Workspace:
         data["session"] = {"open": relative,
                            "active": max(0, int(active))}
         try:
-            marker.write_text(json.dumps(data, indent=1) + "\n",
-                              encoding="utf-8")
+            atomic.write_text(marker, json.dumps(data, indent=1) + "\n")
         except OSError:
             pass
 

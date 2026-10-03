@@ -36,6 +36,7 @@ import numpy as np
 from xtal.core.lattice import Lattice
 from xtal.core.site import Site
 from xtal.core.structure import Structure
+from xtal.io import atomic
 from xtal.io.text import read_text
 
 MODULE = "pymatgen.core.structure"
@@ -94,8 +95,7 @@ def from_dict(data: dict, name: str = "structure",
 def write_pmg_json(structure: Structure, path, **_ignored) -> Path:
     """Write the P1 cell as a pymatgen ``Structure`` dict."""
     path = Path(path)
-    path.write_text(json.dumps(to_dict(structure), indent=2),
-                    encoding="utf-8")
+    atomic.write_text(path, json.dumps(to_dict(structure), indent=2))
     return path
 
 

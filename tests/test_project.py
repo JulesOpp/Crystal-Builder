@@ -177,3 +177,35 @@ def test_an_empty_structure_makes_a_valid_project(tmp_path):
     back, _view, _session = read_project(path)
     assert back.n_sites == 0
     assert back.lattice.almost_equal(empty.lattice)
+
+
+def test_a_save_that_fails_leaves_the_previous_project_intact(
+        tmp_path, rutile, monkeypatch):
+    """Opening the zip for writing truncated it first, so a part that
+    raised -- here the CIF -- turned the user's last good project into
+    an empty archive, over which Save writes silently by design."""
+    path = write_project(rutile, tmp_path / "rutile.xtalproj")
+    before = path.read_bytes()
+
+    def broken(*_args, **_kwargs):
+        raise RuntimeError("the CIF part could not be written")
+
+    monkeypatch.setattr("xtal.io.project.cif_string", broken)
+    with pytest.raises(RuntimeError):
+        write_project(rutile, path)
+
+    assert path.read_bytes() == before
+    assert sorted(p.name for p in tmp_path.iterdir()) == [
+        "rutile.xtalproj"]
+
+
+@pytest.mark.parametrize("title", ["α-quartz", "Zn₂ MOF", "café"])
+def test_a_non_ascii_title_survives_a_save_and_reopen(tmp_path, rutile,
+                                                      title):
+    """``isalnum`` keeps "α", gemmi refuses a block header outside
+    ASCII, and a project that saved could not be opened again: a
+    POSCAR comment line or a molecule called β-alanine was enough."""
+    rutile.meta["title"] = title
+    path = write_project(rutile, tmp_path / "t.xtalproj")
+    back, _view, _session = read_project(path)
+    assert back.n_sites == rutile.n_sites

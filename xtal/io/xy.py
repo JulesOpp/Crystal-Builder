@@ -33,6 +33,8 @@ from pathlib import Path
 
 import numpy as np
 
+from xtal.io import atomic
+
 __all__ = ["EXTENSIONS", "VENDOR_EXTENSIONS", "read_columns", "read_xy",
            "write_xy", "xy_string"]
 
@@ -133,5 +135,5 @@ def write_xy(x, y, path, header: str = "") -> Path:
     round trip a test asserts.
     """
     path = Path(path)
-    path.write_text(xy_string(x, y, header), encoding="utf-8")
+    atomic.write_text(path, xy_string(x, y, header), encoding="utf-8")
     return path

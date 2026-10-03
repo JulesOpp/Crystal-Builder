@@ -42,6 +42,7 @@ from xtal.core.p1 import expand
 from xtal.core.site import Site
 from xtal.core.spacegroup import SpaceGroup
 from xtal.core.structure import Structure
+from xtal.io import atomic
 from xtal.io.text import read_text
 
 #: The eight connectivity slots, kept as literal zeros.
@@ -50,8 +51,7 @@ _LINKS = " 0" * 8
 
 def write_cssr(structure: Structure, path, name: str = "") -> Path:
     path = Path(path)
-    path.write_text(cssr_string(structure, name or path.stem),
-                    encoding="utf-8")
+    atomic.write_text(path, cssr_string(structure, name or path.stem))
     return path
 
 

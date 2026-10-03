@@ -36,12 +36,13 @@ from xtal.core.p1 import expand
 from xtal.core.site import Site
 from xtal.core.spacegroup import SpaceGroup
 from xtal.core.structure import Structure
+from xtal.io import atomic
 from xtal.io.text import read_text
 
 
 def write_gen(structure: Structure, path, fractional: bool = True) -> Path:
     path = Path(path)
-    path.write_text(gen_string(structure, fractional), encoding="utf-8")
+    atomic.write_text(path, gen_string(structure, fractional))
     return path
 
 

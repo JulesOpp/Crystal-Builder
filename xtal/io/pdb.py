@@ -26,6 +26,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from xtal.io import atomic
+
 #: The widest serial five columns hold.
 MAX_ATOMS = 99999
 
@@ -60,7 +62,7 @@ def pdb_text(cut) -> str:
 
 def write_pdb(cut, path) -> Path:
     path = Path(path)
-    path.write_text(pdb_text(cut), encoding="utf-8")
+    atomic.write_text(path, pdb_text(cut), encoding="utf-8")
     return path
 
 

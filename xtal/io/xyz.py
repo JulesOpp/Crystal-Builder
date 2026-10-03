@@ -25,6 +25,7 @@ from xtal.core.p1 import expand
 from xtal.core.site import Site
 from xtal.core.spacegroup import SpaceGroup
 from xtal.core.structure import Structure
+from xtal.io import atomic
 from xtal.io.text import read_text
 
 PAD = 5.0                       # Angstrom of vacuum for cell-less files
@@ -35,7 +36,7 @@ _LATTICE_RE = re.compile(r'Lattice\s*=\s*"([^"]*)"')
 
 def write_xyz(structure: Structure, path, comment: str = "") -> Path:
     path = Path(path)
-    path.write_text(xyz_string(structure, comment), encoding="utf-8")
+    atomic.write_text(path, xyz_string(structure, comment), encoding="utf-8")
     return path
 
 

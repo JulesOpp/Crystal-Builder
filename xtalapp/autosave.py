@@ -35,7 +35,6 @@ keep one and autosaves nothing.
 from __future__ import annotations
 
 import logging
-import os
 from datetime import datetime
 from pathlib import Path
 
@@ -93,8 +92,9 @@ class Autosaver(QObject):
     def tick(self) -> list[Path]:
         """Write every tab edited since the last tick.  What was written.
 
-        Temp file then rename, so a crash mid-write leaves the last
-        good autosave rather than half of a new one.
+        The project writer builds beside the target and renames, so a
+        crash mid-write leaves the last good autosave rather than half
+        of a new one.
         """
         written = []
         pending, self._pending = self._pending, set()
@@ -107,13 +107,9 @@ class Autosaver(QObject):
             target = self.path_for(document)
             if target is None:
                 continue
-            # ".partial" before the extension: the project writer puts
-            # its own suffix on anything else.
-            partial = target.with_name(target.stem + ".partial"
-                                       + target.suffix)
             try:
                 target.parent.mkdir(parents=True, exist_ok=True)
-                os.replace(document.write_project(partial), target)
+                document.write_project(target)
             except (OSError, ValueError) as error:
                 # A full disk or a read-only workspace is no reason to
                 # interrupt somebody editing; it is logged, and the

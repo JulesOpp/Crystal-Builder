@@ -38,11 +38,12 @@ import numpy as np
 
 from xtal.core import bonding, elements, p1
 from xtal.core.structure import Structure
+from xtal.io import atomic
 
 
 def write_lammps_data(structure: Structure, path) -> Path:
     path = Path(path)
-    path.write_text(lammps_data_string(structure), encoding="utf-8")
+    atomic.write_text(path, lammps_data_string(structure), encoding="utf-8")
     return path
 
 

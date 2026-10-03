@@ -38,6 +38,7 @@ import numpy as np
 from xtal.core.lattice import Lattice
 from xtal.core.site import Site
 from xtal.core.structure import Structure
+from xtal.io import atomic
 from xtal.io.text import read_text
 
 #: The file names VASP uses.  A POSCAR is the input and a CONTCAR the
@@ -138,7 +139,7 @@ def write_poscar(structure: Structure, path, **_ignored) -> Path:
         for index in indices:
             x, y, z = cell.frac[index]
             lines.append(f"  {x: .16f}  {y: .16f}  {z: .16f}")
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    atomic.write_text(path, "\n".join(lines) + "\n", encoding="utf-8")
     return path
 
 

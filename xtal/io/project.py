@@ -42,6 +42,7 @@ import zipfile
 from pathlib import Path
 
 from xtal.core.structure import Bond, PerceivedBonds
+from xtal.io import atomic
 from xtal.io.cif_reader import read_cif_string
 from xtal.io.cif_writer import cif_string
 
@@ -83,25 +84,30 @@ def write_project(structure, path, view=None,
         bonds["perceived"] = structure.perceived.to_dict()
     header = {"format": "xtalproj", "version": FORMAT_VERSION}
 
-    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr(STRUCTURE_PART, cif_string(structure))
-        if not structure.n_sites:
-            # A CIF with no atoms is not a readable CIF, and a project
-            # of a structure you have only just started -- a cell and
-            # nothing in it -- has to survive being saved.
-            archive.writestr(CELL_PART, _dump({
-                "lattice": structure.lattice.to_dict(),
-                "space_group": structure.space_group.to_dict(),
-            }))
-        archive.writestr(BONDS_PART, _dump(bonds))
-        props = {str(i): dict(site.props)
-                 for i, site in enumerate(structure.sites)
-                 if site.props}
-        if props:
-            archive.writestr(SITES_PART, _dump({"props": props}))
-        archive.writestr(VIEW_PART, _dump(view or {}))
-        archive.writestr(SESSION_PART,
-                         _dump({**header, **(session or {})}))
+    # Built beside the project and renamed over it, never written
+    # in place: opening the zip for writing truncates it, so a part
+    # that raised left the last good project an empty archive.
+    with atomic.replacing(path) as partial:
+        with zipfile.ZipFile(partial, "w",
+                             zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr(STRUCTURE_PART, cif_string(structure))
+            if not structure.n_sites:
+                # A CIF with no atoms is not a readable CIF, and a project
+                # of a structure you have only just started -- a cell and
+                # nothing in it -- has to survive being saved.
+                archive.writestr(CELL_PART, _dump({
+                    "lattice": structure.lattice.to_dict(),
+                    "space_group": structure.space_group.to_dict(),
+                }))
+            archive.writestr(BONDS_PART, _dump(bonds))
+            props = {str(i): dict(site.props)
+                     for i, site in enumerate(structure.sites)
+                     if site.props}
+            if props:
+                archive.writestr(SITES_PART, _dump({"props": props}))
+            archive.writestr(VIEW_PART, _dump(view or {}))
+            archive.writestr(SESSION_PART,
+                             _dump({**header, **(session or {})}))
     return path
 
 

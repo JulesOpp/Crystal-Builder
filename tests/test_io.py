@@ -630,3 +630,14 @@ def test_an_ordinary_cif_never_reaches_the_macromolecular_reader(
     path = tmp_path / "small.cif"
     write_cif(rutile, path)
     assert read_cif(path).meta.get("format") == "cif"
+
+
+@pytest.mark.parametrize("label", ["Oé1", "Zn₂", "Ow'1"])
+def test_a_label_outside_ascii_reads_back_unchanged(tmp_path, rutile,
+                                                    label):
+    """A bare value must be ASCII: gemmi reads an unquoted "Oé1" as a
+    parse error, so a structure with one accented label could be
+    written and never read."""
+    rutile.sites[0].label = label
+    path = write_cif(rutile, tmp_path / "labelled.cif")
+    assert read_cif(path).sites[0].label == label

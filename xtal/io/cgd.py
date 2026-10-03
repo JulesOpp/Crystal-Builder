@@ -73,6 +73,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from xtal.io import atomic
 from xtal.io.text import read_text
 
 #: Every keyword a ``.cgd`` file uses.  A line starting with anything
@@ -295,7 +296,7 @@ PLACES = 6
 def write_cgd(path, entries) -> Path:
     """Write ``entries`` to ``path`` as ``.cgd``; returns the path."""
     path = Path(path)
-    path.write_text(write_cgd_string(entries), encoding="utf-8")
+    atomic.write_text(path, write_cgd_string(entries), encoding="utf-8")
     return path
 
 
