@@ -50,6 +50,7 @@ from xtal.modules.build import BUILD, molecule_for
 from xtal.mof.block import BlockError, write_building_block
 from xtal.workspace import safe_name
 from xtalapp.dialogs import sketch
+from xtalapp.dialogs.answered import answered
 from xtalapp.dialogs.build_molecule import on_change, sketch_for
 from xtalapp.dialogs.module_form import ParamForm
 from xtalapp.widgets.tone import HINT, set_tone
@@ -237,7 +238,7 @@ class DrawBlockDialog(QDialog):
     @classmethod
     def ask(cls, slot, folder: str, parent=None) -> Path | None:
         """The path just written, or ``None`` if it was cancelled."""
-        dialog = cls(slot, folder, parent)
-        if dialog.exec() != QDialog.Accepted:
-            return None
-        return dialog.path
+        with answered(cls(slot, folder, parent)) as dialog:
+            if dialog.exec() != QDialog.Accepted:
+                return None
+            return dialog.path

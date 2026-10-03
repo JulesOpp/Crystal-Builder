@@ -59,6 +59,7 @@ from PySide6.QtWidgets import (
 import xtal
 from xtal.workspace import NotAWorkspace, Workspace
 from xtalapp import samples
+from xtalapp.dialogs.answered import answered
 
 #: The path a row carries, and the two halves of what it says.
 _PATH = Qt.UserRole + 1
@@ -435,7 +436,7 @@ class WorkspaceChooser(QDialog):
         """``(workspace, sample)``: the workspace to work in and the
         sample to open in it, or ``None`` for either.  A workspace of
         ``None`` means the user quit."""
-        dialog = cls(settings, parent)
-        if dialog.exec() != QDialog.Accepted:
-            return None, None
-        return dialog.workspace, dialog.sample
+        with answered(cls(settings, parent)) as dialog:
+            if dialog.exec() != QDialog.Accepted:
+                return None, None
+            return dialog.workspace, dialog.sample

@@ -50,6 +50,7 @@ from xtal.analysis import rcsr
 from xtal.analysis.netsearch import facts_of_entry
 from xtal.core.lattice import Lattice
 from xtal.references import RCSR, rcsr_net
+from xtalapp.dialogs.answered import answered
 from xtalapp.dialogs.mof_preview import NetPreview, reset_view_row
 from xtalapp.widgets.links import SourceLinks
 from xtalapp.widgets.net_search import NetSearch, add_row
@@ -244,8 +245,8 @@ class NetDrawDialog(QDialog):
         :meth:`xtalapp.dialogs.module_form.ModuleDialog.ask`, which is
         the whole of what ``Action.dialog`` promises.
         """
-        dialog = cls(module, action, parent, initial)
-        if dialog.exec() != QDialog.Accepted:
-            return None
-        return dialog.values()
+        with answered(cls(module, action, parent, initial)) as dialog:
+            if dialog.exec() != QDialog.Accepted:
+                return None
+            return dialog.values()
 

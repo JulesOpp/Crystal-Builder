@@ -22,6 +22,7 @@ from pathlib import Path
 
 from PySide6.QtWidgets import QDialog, QDialogButtonBox
 
+from xtalapp.dialogs.answered import answered
 from xtalapp.dialogs.module_form import ModuleDialog
 
 
@@ -48,10 +49,10 @@ class StlExportDialog(ModuleDialog):
 
     @classmethod
     def ask(cls, module, action, parent=None, initial=None):
-        dialog = cls(module, action, parent, initial)
-        if dialog.exec() != QDialog.Accepted:
-            return None
-        return dialog.values()
+        with answered(cls(module, action, parent, initial)) as dialog:
+            if dialog.exec() != QDialog.Accepted:
+                return None
+            return dialog.values()
 
 
 class RenderDialog(StlExportDialog):

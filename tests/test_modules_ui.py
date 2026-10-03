@@ -692,3 +692,30 @@ def test_a_frame_being_played_is_not_something_to_run_against(
     window.run_module_action("stub", "count")
     assert window.module_worker is None
     assert quick == []
+
+
+def test_an_answered_module_dialog_is_deleted_on_the_gui_thread(
+        qtbot, window, monkeypatch):
+    """After ``exec`` PySide hands the dialog to Python, so a cycle
+    through any of its callbacks would leave it to the cyclic
+    collector -- on the run's worker thread, the next to allocate,
+    where destroying widgets segfaults.  The form this action gets
+    holds no cycle today; deleting it in ``ask`` keeps a later
+    callback from adding the crash."""
+    import shiboken6
+    from PySide6.QtCore import QCoreApplication, QEvent
+    from PySide6.QtWidgets import QDialog
+
+    made = []
+
+    def answer(self):
+        made.append(self)
+        return QDialog.Accepted
+
+    monkeypatch.setattr(ModuleDialog, "exec", answer)
+    module, action = MODULES.find("stub.count")
+    values = ModuleDialog.ask(module, action, window)
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+    assert values
+    assert not shiboken6.isValid(made[0])

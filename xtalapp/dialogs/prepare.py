@@ -34,6 +34,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.core import prepare
+from xtalapp.dialogs.answered import answered
 from xtalapp.widgets import tone
 
 
@@ -109,7 +110,7 @@ class PrepareDialog(QDialog):
     @classmethod
     def ask(cls, document, parent=None):
         """The report of the preparation, or ``None`` if cancelled."""
-        dialog = cls(document, parent)
-        if dialog.exec() != QDialog.Accepted:
-            return None
-        return document.prepare_for_simulation(dialog.steps())
+        with answered(cls(document, parent)) as dialog:
+            if dialog.exec() != QDialog.Accepted:
+                return None
+            return document.prepare_for_simulation(dialog.steps())
