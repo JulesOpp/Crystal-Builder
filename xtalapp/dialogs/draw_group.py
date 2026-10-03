@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
 
 from xtal.build import BuildError, substitute
 from xtalapp.dialogs import sketch
+from xtalapp.dialogs.answered import answered
 from xtalapp.dialogs.build_molecule import sketch_for
 from xtalapp.widgets.tone import HINT, WARNING, set_tone
 
@@ -145,7 +146,7 @@ class DrawGroupDialog(QDialog):
     def ask(cls, folder=None, parent=None):
         """``(name, smiles)`` of the group drawn, or ``None`` if it was
         cancelled."""
-        dialog = cls(folder, parent)
-        if dialog.exec() != QDialog.Accepted:
-            return None
-        return dialog.drawn
+        with answered(cls(folder, parent)) as dialog:
+            if dialog.exec() != QDialog.Accepted:
+                return None
+            return dialog.drawn

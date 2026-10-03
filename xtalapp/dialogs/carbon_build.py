@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
 from xtal.carbon import build as carbon_build
 from xtal.carbon.surface import SurfaceError
 from xtal.modules.carbon import parse_repeat
+from xtalapp.dialogs.answered import answered
 from xtalapp.widgets.tone import HINT, WARNING, set_tone
 
 #: The groups, in reading order: two columns of two.
@@ -137,7 +138,7 @@ class CarbonBuildDialog(QDialog):
     def ask(cls, module, action, parent=None, initial=None):
         """The values to run with, or ``None`` if it was cancelled --
         the contract ``Action.dialog`` promises."""
-        dialog = cls(module, action, parent, initial)
-        if dialog.exec() != QDialog.Accepted:
-            return None
-        return dialog.values()
+        with answered(cls(module, action, parent, initial)) as dialog:
+            if dialog.exec() != QDialog.Accepted:
+                return None
+            return dialog.values()

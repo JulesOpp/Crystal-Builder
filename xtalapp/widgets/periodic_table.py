@@ -175,10 +175,11 @@ class PeriodicTableDialog(QDialog):
     @classmethod
     def ask(cls, parent=None, current: str = "") -> str | None:
         """The chosen symbol, or ``None`` if the user cancelled."""
-        dialog = cls(parent, current)
-        if dialog.exec() != QDialog.Accepted:
-            return None
-        return dialog.selected()
+        from xtalapp.dialogs.answered import answered
+        with answered(cls(parent, current)) as dialog:
+            if dialog.exec() != QDialog.Accepted:
+                return None
+            return dialog.selected()
 
 
 class PeriodicTableButton(QPushButton):

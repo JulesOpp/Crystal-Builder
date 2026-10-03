@@ -1010,10 +1010,11 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         self.set_bonds_follow_geometry(bool(on))
 
     def show_preferences(self, page: str = "") -> None:
-        dialog = self.preferences_dialog()
-        if page:
-            dialog.show_page(page)
-        dialog.exec()
+        from xtalapp.dialogs.answered import answered
+        with answered(self.preferences_dialog()) as dialog:
+            if page:
+                dialog.show_page(page)
+            dialog.exec()
 
     def show_module_setup(self, module_name: str) -> None:
         """A greyed module's reason row was activated.

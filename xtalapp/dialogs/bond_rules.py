@@ -414,11 +414,12 @@ class BondRulesDialog(QDialog):
         they were opened with, which is the same promise a document
         makes about its own rules.
         """
-        dialog = cls(None, parent, rules=settings.default_bond_rules())
-        if dialog.exec() != QDialog.Accepted:
-            return False
-        settings.set_default_bond_rules(dialog.rules().to_dict())
-        return True
+        with answered(cls(None, parent,
+                          rules=settings.default_bond_rules())) as dialog:
+            if dialog.exec() != QDialog.Accepted:
+                return False
+            settings.set_default_bond_rules(dialog.rules().to_dict())
+            return True
 
 
 def _number(item) -> float | None:

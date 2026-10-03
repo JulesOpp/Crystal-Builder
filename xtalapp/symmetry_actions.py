@@ -10,6 +10,7 @@ from __future__ import annotations
 from PySide6.QtWidgets import QMessageBox
 
 from xtalapp.dialogs.add_hydrogens import AddHydrogensDialog
+from xtalapp.dialogs.answered import answered
 from xtalapp.dialogs.cell_edit import CellEditDialog
 from xtalapp.dialogs.fill_pores import FillPoresDialog
 from xtalapp.dialogs.find_symmetry import FindSymmetryDialog
@@ -54,10 +55,11 @@ class SymmetryActions:
         document = self.current_document()
         if document is None:
             return
-        dialog = FindSymmetryDialog(document, self)
-        dialog.exec()
+        with answered(FindSymmetryDialog(document, self)) as dialog:
+            dialog.exec()
+            re_expressed = dialog.re_expressed
         self._announce(document)
-        if dialog.re_expressed:
+        if re_expressed:
             self.reset_view()
 
     def set_space_group(self) -> None:

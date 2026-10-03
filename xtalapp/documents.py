@@ -39,6 +39,7 @@ from xtal.core.structure import Structure
 from xtal.io import FORMATS
 from xtal.workspace import resolved
 from xtalapp import samples
+from xtalapp.dialogs.answered import answered
 from xtalapp.document import PROJECT_EXTENSION, Document
 from xtalapp.viewport.view_settings import theme_background
 
@@ -655,14 +656,15 @@ class DocumentSet:
         if document is None:
             return
         from xtalapp.dialogs.export import ExportDialog
-        dialog = ExportDialog(document, self.window,
-                              directory=self.window.settings.last_directory)
-        if dialog.exec() != QDialog.Accepted:
-            return
-        target = dialog.target()
+        with answered(ExportDialog(
+                document, self.window,
+                directory=self.window.settings.last_directory)) as dialog:
+            if dialog.exec() != QDialog.Accepted:
+                return
+            target, options = dialog.target(), dialog.options()
         if target is None:                          # pragma: no cover
             return
-        self._export(document, target, dialog.options())
+        self._export(document, target, options)
 
     def _export(self, document, target, options) -> None:
         try:
@@ -695,16 +697,16 @@ class DocumentSet:
                     else str(document.structure.meta.get("title")
                              or "view"))
         from xtalapp.dialogs.image_export import ImageExportDialog
-        dialog = ImageExportDialog(
-            self.window, directory=self.window.settings.last_directory,
-            stem=stem, size=viewport.image_size())
-        if dialog.exec() != QDialog.Accepted:
-            return
-        target = dialog.target()
+        with answered(ImageExportDialog(
+                self.window, directory=self.window.settings.last_directory,
+                stem=stem, size=viewport.image_size())) as dialog:
+            if dialog.exec() != QDialog.Accepted:
+                return
+            target, options = dialog.target(), dialog.options()
         if target is None:                          # pragma: no cover
             return
         try:
-            written = viewport.save_image(target, **dialog.options())
+            written = viewport.save_image(target, **options)
         except (KeyError, OSError) as exc:
             QMessageBox.warning(self.window, "Could not export image",
                                 str(exc))

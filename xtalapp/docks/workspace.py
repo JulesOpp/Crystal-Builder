@@ -287,18 +287,23 @@ def ask_new_name(parent, name: str) -> str | None:
     still there to change on purpose.  A function of its own so tests
     patch it -- ``QDialog.exec`` raises under the suite.
     """
-    dialog = QInputDialog(parent)
-    dialog.setWindowTitle("Rename")
-    dialog.setLabelText(f"New name for {name}:")
-    dialog.setTextValue(name)
-    edit = dialog.findChild(QLineEdit)
-    if edit is not None:
-        stem = Path(name).stem if Path(name).suffix else name
-        # After the dialog is up: showing it selects the whole text.
-        QTimer.singleShot(0, lambda: edit.setSelection(0, len(stem)))
-    if not dialog.exec():
-        return None
-    return dialog.textValue()
+    from xtalapp.dialogs.answered import answered
+    with answered(QInputDialog(parent)) as dialog:
+        dialog.setWindowTitle("Rename")
+        dialog.setLabelText(f"New name for {name}:")
+        dialog.setTextValue(name)
+        edit = dialog.findChild(QLineEdit)
+        if edit is not None:
+            stem = Path(name).stem if Path(name).suffix else name
+            # After the dialog is up: showing it selects the whole
+            # text.  Parented to the edit, so the call is dropped
+            # rather than made on a deleted widget if the dialog
+            # has gone by the time the timer fires.
+            QTimer.singleShot(0, edit,
+                              lambda: edit.setSelection(0, len(stem)))
+        if not dialog.exec():
+            return None
+        return dialog.textValue()
 
 
 def _label(artifact) -> str:
