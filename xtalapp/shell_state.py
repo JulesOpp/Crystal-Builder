@@ -49,7 +49,7 @@ def selection_states(document) -> dict[str, bool]:
     """
     if document is None:
         return dict.fromkeys(SELECTION_ACTIONS, False)
-    editable = not document.is_playing
+    editable = not document.is_busy
     selection = document.selection
     atoms = len(selection.atoms)
     states = dict.fromkeys(READING, atoms > 0)
@@ -102,7 +102,7 @@ class ShellRefresh:
         menus.refresh_module_availability(self)
         document = self.current_document()
         self._refresh_module_actions(
-            document is not None and not document.is_playing)
+            document is not None and not document.is_busy)
 
     def _update_history_actions(self) -> None:
         document = self.current_document()
@@ -117,7 +117,7 @@ class ShellRefresh:
         # A document playing a trajectory back is showing somebody
         # else's geometry, so undoing into it would be undoing under a
         # picture that is about to be replaced by the next frame.
-        editable = not document.is_playing
+        editable = not document.is_busy
         undo.setEnabled(document.can_undo and editable)
         redo.setEnabled(document.can_redo and editable)
         undo.setText(f"&Undo {document.undo_label}".rstrip())
@@ -143,7 +143,7 @@ class ShellRefresh:
         which case none of them is ticked."""
         names = [f"bond_type_{n.lower()}" for n, _ in BOND_TYPES]
         selected = bool(document is not None
-                        and not document.is_playing
+                        and not document.is_busy
                         and document.selection.bonds)
         self.actions_.set_enabled(names, selected)
         if hasattr(self, "bond_type_menu"):
@@ -386,9 +386,11 @@ class ShellRefresh:
         # Everything that changes the crystal is off while a
         # trajectory is being played: the atoms are showing a frame,
         # and an edit made against them would be wiped by the next one
-        # without ever saying so.  ``Document.run`` refuses as well --
-        # this is what stops the user reaching it.
-        editable = has_document and not document.is_playing
+        # without ever saying so.  Likewise while an optimisation holds
+        # the document (``Document.hold``), whose result lands over the
+        # geometry it started from.  ``Document.run`` refuses as well
+        # -- this is what stops the user reaching it.
+        editable = has_document and not document.is_busy
         self.actions_.set_enabled(
             ["reduce_p1", "paste", "add_atom_dialog", "add_hydrogens",
              "fill_pores", "interpenetrate", "prepare_simulation",

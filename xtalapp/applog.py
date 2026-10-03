@@ -39,6 +39,7 @@ Vendoring let it be fixed where it happened instead -- see
 
 from __future__ import annotations
 
+import faulthandler
 import logging
 import logging.handlers
 import os
@@ -56,6 +57,7 @@ from pathlib import Path
 #: name is the same answer whenever it is asked.
 FOLDER = "CrystalBuilder"
 FILE = "crystal-builder.log"
+FAULTS = "faults.log"
 
 #: Set this and nothing looks anywhere else.  The test suite sets it
 #: at import, for the reason in the module docstring.
@@ -76,6 +78,11 @@ _log_file: Path | None = None
 _handler: logging.Handler | None = None
 _added: list = []
 _in_hook = False
+#: Whether a crash box is up, and the faults already shown in one.
+_showing = False
+_told: set = set()
+#: The file ``faulthandler`` writes into, held open for the process.
+_faults = None
 
 
 def app_data() -> Path:
@@ -190,8 +197,29 @@ def _excepthook(kind, value, tb) -> None:
     if issubclass(kind, KeyboardInterrupt):
         sys.__excepthook__(kind, value, tb)
         return
+    if getattr(value, "quiet", False):
+        # A refusal, not a fault: an edit that reached a document
+        # which cannot take one (``xtalapp.document.DocumentBusy``).
+        logging.getLogger("xtalapp").warning("refused: %s", value)
+        _say(str(value))
+        return
     _record("Unhandled exception", kind, value, tb)
-    _tell_somebody(kind, value)
+    _tell_somebody(kind, value, tb)
+
+
+def _say(text: str) -> None:
+    """``text`` in the front window's status bar, if there is one."""
+    try:
+        from PySide6.QtWidgets import QApplication, QMainWindow
+        window = QApplication.activeWindow()
+        if not isinstance(window, QMainWindow):
+            window = next((w for w in QApplication.topLevelWidgets()
+                           if isinstance(w, QMainWindow)
+                           and w.isVisible()), None)
+        if window is not None:
+            window.statusBar().showMessage(text, 8000)
+    except Exception:                               # noqa: BLE001
+        pass
 
 
 def _thread_excepthook(args) -> None:
@@ -225,25 +253,58 @@ def _record(title, kind, value, tb) -> None:
         _in_hook = False
 
 
-def _tell_somebody(kind, value) -> None:
+def _where(kind, tb) -> tuple:
+    """``(type, file, line)`` of the frame that raised: what makes two
+    reports the same report."""
+    frames = traceback.extract_tb(tb) if tb is not None else []
+    if not frames:
+        return (kind.__name__, "", 0)
+    return (kind.__name__, frames[-1].filename, frames[-1].lineno)
+
+
+def _tell_somebody(kind, value, tb=None) -> None:
     """A dialog naming the log, when there is a GUI left to show one.
 
     Guarded three ways, because this runs at the worst possible
     moment: no application object during start-up or shutdown, no
     dialog if Qt itself is what failed, and never a second exception
     out of the handler for the first.
+
+    **One box at a time, and each fault once.**  The box's own event
+    loop keeps the timers running, so an error raised by a redraw or
+    a tick raised again behind it, and each opened a box over the
+    last until the screen was a stack of them nobody could dismiss.
+    A repeat of a fault already shown -- same type, same file, same
+    line -- is written to the log by the hook and not shown again.
     """
+    global _showing
+    where = _where(kind, tb)
+    if _showing or where in _told:
+        return
     try:
         from PySide6.QtWidgets import QApplication, QMessageBox
+
+        from xtalapp.dialogs.answered import answered
         if QApplication.instance() is None:
             return
+        _told.add(where)
+        details = "".join(traceback.format_exception(kind, value, tb))
         box = QMessageBox(QMessageBox.Icon.Critical, "Crystal Builder",
                           f"{kind.__name__}: {value}")
         box.setInformativeText(
             "Something went wrong and the details have been written "
             f"to:\n{_log_file}")
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
-        box.exec()
+        copy = box.addButton("Copy details",
+                             QMessageBox.ButtonRole.ActionRole)
+        _showing = True
+        try:
+            with answered(box):
+                box.exec()
+                if box.clickedButton() is copy:
+                    QApplication.clipboard().setText(details)
+        finally:
+            _showing = False
     except Exception:                               # noqa: BLE001
         pass
 
@@ -273,11 +334,31 @@ def install_qt_handler() -> None:
     qInstallMessageHandler(handler)
 
 
+def enable_faulthandler(path: Path) -> Path:
+    """Have a crash below Python leave its stack in ``faults.log``.
+
+    A segfault in VTK or an abort in the dynamic loader kills the
+    process before any hook runs, so the log ended at the last
+    ordinary line.  :mod:`faulthandler` writes every thread's stack
+    from the signal handler instead.  A file of its own beside the
+    log, not the log: the handler holds a descriptor, and once the
+    log rotates that descriptor names a backup that is later deleted.
+    """
+    global _faults
+    target = path.parent / FAULTS
+    if _faults is not None and not _faults.closed:
+        _faults.close()
+    _faults = open(target, "a", encoding="utf-8")   # noqa: SIM115
+    faulthandler.enable(file=_faults, all_threads=True)
+    return target
+
+
 def start(directory=None) -> Path:
     """Everything, for :func:`xtalapp.main.main`."""
     path = setup(directory)
     install_excepthook()
     install_qt_handler()
+    enable_faulthandler(path)
     return path
 
 

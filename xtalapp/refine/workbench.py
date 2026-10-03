@@ -1426,6 +1426,8 @@ class RefinementWorkbench(QMainWindow):
                     "structure, and open this window from it")
         if self.document.is_playing:
             return "Leave playback before refining"
+        if self.document.held:
+            return f"Not while {self.document.held}"
         return ""
 
     def _on_frame(self, frame) -> None:

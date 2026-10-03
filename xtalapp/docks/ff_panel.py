@@ -119,6 +119,9 @@ CELL_WARNING = (
 LENT_NOTE = ("These options are open in the refinement workbench's "
              "Options window; they come back here when it closes.")
 
+#: Why an optimising document refuses edits (``Document.hold``).
+HELD = "an optimisation is running"
+
 
 #: Label -> preview redraw interval in milliseconds.  0 draws every
 #: step, -1 draws none of them.
@@ -872,6 +875,9 @@ class ForceFieldDock(QDockWidget):
         self.worker.finished.connect(self._on_finished)
         self.worker.failed.connect(self._on_failed)
         self._thread = start_in_thread(self.worker, self)
+        # The result is applied over the geometry the run started
+        # from, so nothing may edit the document until it lands.
+        document.hold(HELD)
         self._set_running(True)
 
     def stop(self) -> None:
@@ -929,6 +935,17 @@ class ForceFieldDock(QDockWidget):
     def _on_finished(self, result) -> None:
         self._set_running(False)
         document, self._run_document = self._run_document, None
+        if document is not None:
+            document.release()
+        # Idle whatever happens below: a finish that raised used to
+        # leave ``worker`` set, and the panel said Stop for ever.
+        try:
+            self._land(document, result)
+        finally:
+            self.worker = None
+
+    def _land(self, document, result) -> None:
+        """Commit a finished run to the document it was started on."""
         if document is None:                        # pragma: no cover
             return
         if self._before is not None:
@@ -1008,13 +1025,18 @@ class ForceFieldDock(QDockWidget):
     def _on_failed(self, message: str) -> None:
         self._set_running(False)
         document, self._run_document = self._run_document, None
-        if document is not None and self._before is not None:
-            document.preview_positions(self._before,
-                                       self._before_matrix)
-        self.report.setPlainText(f"the optimisation failed: {message}")
-        self.statusMessage.emit(f"optimisation failed: {message}")
-        self._finish_run(error=message)
-        self.worker = None
+        try:
+            if document is not None:
+                document.release()
+                if self._before is not None:
+                    document.preview_positions(self._before,
+                                               self._before_matrix)
+            self.report.setPlainText(
+                f"the optimisation failed: {message}")
+            self.statusMessage.emit(f"optimisation failed: {message}")
+            self._finish_run(error=message)
+        finally:
+            self.worker = None
 
     def closeEvent(self, event):                    # pragma: no cover
         self.stop()

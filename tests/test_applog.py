@@ -13,6 +13,7 @@ either could quietly take the log file with it.
 """
 
 import logging
+from pathlib import Path
 
 import pytest
 
@@ -221,3 +222,95 @@ def test_a_window_with_no_log_says_so_rather_than_doing_nothing(
     window.show_log()
 
     assert said and "not started by the application" in said[0]
+
+
+@pytest.fixture
+def boxes(qapp, monkeypatch):
+    """The crash boxes the hook opens, answered at once, and the
+    hook's memory of what it has shown cleared either side."""
+    from PySide6.QtWidgets import QMessageBox
+
+    shown = []
+
+    def exec_(box):
+        shown.append(box.text())
+        # A fault raised while the box waits -- a timer's tick under
+        # its event loop -- must not open another over it.
+        if len(shown) == 1:
+            applog._tell_somebody(RuntimeError, RuntimeError("tick"))
+        return 0
+
+    monkeypatch.setattr(QMessageBox, "exec", exec_)
+    monkeypatch.setattr(applog, "_told", set())
+    yield shown
+
+
+def _raise_and_report():
+    try:
+        raise ZeroDivisionError("redraw")
+    except ZeroDivisionError as exc:
+        applog._tell_somebody(type(exc), exc, exc.__traceback__)
+
+
+def test_a_repeated_error_opens_one_box_not_one_per_tick(log, boxes):
+    """A redraw that raises raises on every tick, and each opened a
+    box over the last; nothing could be dismissed faster than they
+    came.  The same fault is shown once, and nothing opens over a box
+    already up."""
+    for _ in range(5):
+        _raise_and_report()
+
+    assert boxes == ["ZeroDivisionError: redraw"]
+
+
+def test_a_different_error_still_gets_its_box(log, boxes):
+    """Dropping repeats must not drop the next, different, fault."""
+    _raise_and_report()
+    try:
+        raise KeyError("style")
+    except KeyError as exc:
+        applog._tell_somebody(type(exc), exc, exc.__traceback__)
+
+    assert len(boxes) == 2
+
+
+def test_start_enables_faulthandler_into_the_log(tmp_path,
+                                                monkeypatch):
+    """A VTK segfault kills the process below every Python hook, and
+    the log used to end at the last ordinary line with nothing to say
+    where it died.  Checked by what ``start`` hands faulthandler
+    rather than by a segfault, which would leave a crash report in
+    ~/Library/Logs on every run."""
+    import faulthandler
+
+    given = {}
+    monkeypatch.setattr(faulthandler, "enable",
+                        lambda **kw: given.update(kw))
+    monkeypatch.setattr(applog, "install_excepthook", lambda: None)
+    monkeypatch.setattr(applog, "install_qt_handler", lambda: None)
+    applog.reset()
+    try:
+        applog.start(tmp_path)
+        assert Path(given["file"].name) == tmp_path / applog.FAULTS
+        assert given["all_threads"]
+        assert not given["file"].closed
+    finally:
+        applog._faults.close()
+        applog.reset()
+
+
+def test_a_refused_edit_is_said_and_not_shown_as_a_crash(log, boxes,
+                                                         monkeypatch):
+    """A drag begun before an optimisation, landing while it runs, is
+    refused by the document; that is a sentence for the status bar,
+    not a red box asking for a bug report."""
+    from xtalapp.document import DocumentHeld
+
+    said = []
+    monkeypatch.setattr(applog, "_say", said.append)
+    applog._excepthook(DocumentHeld, DocumentHeld("an optimisation is "
+                                                  "running"), None)
+
+    assert boxes == []
+    assert said == ["an optimisation is running"]
+    assert "refused: an optimisation is running" in read(log)

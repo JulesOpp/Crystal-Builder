@@ -11,9 +11,6 @@ NOT_DIALOGS = {
     # A context menu, which is raised through ``menus.popup`` so that
     # the suite can replace it -- see CLAUDE.md, Testing the GUI.
     ("menus.py", "menu"),
-    # The crash report: a bare QMessageBox with no callbacks of ours,
-    # shown from the exception hook where nothing else may be relied on.
-    ("applog.py", "box"),
 }
 
 

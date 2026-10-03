@@ -61,8 +61,24 @@ from xtalapp.busy import busy
 from xtalapp.viewport.view_settings import ViewSettings
 
 
-class PlaybackActive(RuntimeError):
+class DocumentBusy(RuntimeError):
+    """An edit was attempted while the document could not take one.
+
+    ``quiet``: the window greys every edit while it is busy, so one
+    that still arrives -- a drag begun before the run, a cell typed
+    into a table -- is said in the status bar by the exception hook
+    (:mod:`xtalapp.applog`), never put up as a crash.
+    """
+
+    quiet = True
+
+
+class PlaybackActive(DocumentBusy):
     """An edit was attempted while a trajectory was being played."""
+
+
+class DocumentHeld(DocumentBusy):
+    """An edit was attempted while a calculation held the document."""
 
 
 def _busy_unless_gesture(command):
@@ -94,6 +110,7 @@ class Document(QObject):
     titleChanged = Signal(str)
     workspaceChanged = Signal()         # the entry this document is in
     playbackChanged = Signal()          # a trajectory opened or closed
+    heldChanged = Signal()              # a calculation took or let go
 
     def __init__(self, structure: Structure | None = None,
                  path=None, parent=None):
@@ -162,6 +179,8 @@ class Document(QObject):
         # is exactly the document this application had before.
         self.entry = None
         self.playback: playback.Playback | None = None
+        # Why a calculation has the document, or "" -- see ``hold``.
+        self._held = ""
 
     # ==================================================================
     #  LOADING AND SAVING
@@ -438,6 +457,41 @@ class Document(QObject):
     def is_playing(self) -> bool:
         return self.playback is not None
 
+    # A calculation running over this document holds it the same way:
+    # an optimisation is applied over the geometry it started from, so
+    # an edit made while it ran was overwritten when it finished, and
+    # Ctrl+Z then undid the run into a structure nobody had made.
+
+    def hold(self, reason: str) -> None:
+        """Refuse edits until :meth:`release`; ``reason`` says why."""
+        self._held = reason
+        self.heldChanged.emit()
+
+    def release(self) -> None:
+        if self._held:
+            self._held = ""
+            self.heldChanged.emit()
+
+    @property
+    def held(self) -> str:
+        """Why a calculation holds this document, or ``""``."""
+        return self._held
+
+    @property
+    def is_busy(self) -> bool:
+        """Whether an edit would be refused: playing back, or held."""
+        return self.is_playing or bool(self._held)
+
+    def _refuse_if_busy(self) -> None:
+        if self.playback is not None:
+            raise PlaybackActive(
+                "this document is playing a trajectory back; adopt "
+                "the frame or close the trajectory before editing")
+        if self._held:
+            raise DocumentHeld(
+                f"{self._held}; stop it or wait for it to finish "
+                "before editing")
+
     def open_trajectory(self, trajectory, path=None):
         """Start playing a trajectory against this structure."""
         self.playback = playback.open_playback(self._structure,
@@ -511,12 +565,10 @@ class Document(QObject):
         of somebody else's geometry, and it would be wiped by the next
         frame.  The window disables the editing actions while a
         trajectory is open, and this is the backstop that makes that a
-        rule rather than a habit.
+        rule rather than a habit.  A document a calculation holds
+        refuses the same way, for the same reason.
         """
-        if self.playback is not None:
-            raise PlaybackActive(
-                "this document is playing a trajectory back; adopt "
-                "the frame or close the trajectory before editing")
+        self._refuse_if_busy()
         with _busy_unless_gesture(command):
             self.stack.push(command, self)
             self._after_change(command.change)
@@ -551,6 +603,7 @@ class Document(QObject):
         self.stack.break_merge()
 
     def undo(self) -> str:
+        self._refuse_if_busy()
         with busy():
             command = self.stack.undo(self)
             if command is None:
@@ -559,6 +612,7 @@ class Document(QObject):
         return command.label
 
     def redo(self) -> str:
+        self._refuse_if_busy()
         with busy():
             command = self.stack.redo(self)
             if command is None:
@@ -989,6 +1043,8 @@ class Document(QObject):
         if not sites:
             return "nothing to delete"
         atoms = sum(self.cell.multiplicity(s) for s in sites)
+        # Before the selection goes: a refused delete keeps it.
+        self._refuse_if_busy()
         # First: the selection names atoms by number, and after the
         # delete those numbers belong to the atoms that came after.
         self.select_none()

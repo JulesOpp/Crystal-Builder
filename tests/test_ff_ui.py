@@ -536,6 +536,59 @@ def test_the_controls_lock_while_a_run_is_in_flight(qtbot, slow):
     assert dock.method.isEnabled()
 
 
+def test_an_edit_is_refused_while_an_optimisation_runs(qtbot, slow):
+    """The run's result is applied over the geometry it started from,
+    so an atom deleted while it ran came back when it landed, and
+    Ctrl+Z then undid the run into a structure nobody had made.  The
+    document is held: editing and undo are greyed, and an edit that
+    still arrives is refused, until the run lets go."""
+    from xtalapp.document import DocumentHeld
+
+    window, document, dock = slow
+    document.select_all()
+    dock.start()
+    dock.worker.pause()
+
+    assert document.is_busy and "optimisation" in document.held
+    assert not window.actions_["delete_selection"].isEnabled()
+    assert not window.actions_["undo"].isEnabled()
+    with pytest.raises(DocumentHeld):
+        document.delete_selection()
+    assert document.selection.atoms         # a refusal keeps it
+    with pytest.raises(DocumentHeld):
+        document.undo()
+
+    dock.stop()
+    wait_for_the_run(qtbot, dock)
+    assert not document.is_busy
+    assert window.actions_["delete_selection"].isEnabled()
+
+
+def test_a_failing_finish_still_leaves_the_panel_idle(qtbot, slow,
+                                                      monkeypatch):
+    """An exception while applying a finished run left ``worker`` set:
+    the panel said Stop for ever, and the document stayed held with
+    nothing left to let it go."""
+    from xtalapp.docks import ff_panel
+
+    monkeypatch.setattr(ff_panel, "start_in_thread",
+                        lambda worker, parent=None: None)
+    _window, document, dock = slow
+    dock.start()
+    assert document.is_busy
+
+    def boom(*_a, **_k):
+        raise RuntimeError("the engine's result was malformed")
+
+    monkeypatch.setattr(document, "apply_optimization", boom)
+    with pytest.raises(RuntimeError):
+        dock._on_finished(object())
+
+    assert dock.worker is None and not dock.is_running
+    assert dock.run_button.text() == "Optimise"
+    assert not document.is_busy
+
+
 def test_pausing_and_resuming(qtbot, slow):
     _window, _document, dock = slow
     dock.start()

@@ -140,6 +140,7 @@ class DocumentSet:
         document.poresChanged.connect(self.window._on_view_changed)
         document.historyChanged.connect(self.window._update_history_actions)
         document.playbackChanged.connect(self.window._refresh_shell)
+        document.heldChanged.connect(self.window._refresh_shell)
         self.window.autosaver.watch(document)
         if hasattr(viewport, "statusMessage"):
             viewport.statusMessage.connect(

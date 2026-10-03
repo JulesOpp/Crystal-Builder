@@ -20,6 +20,7 @@ from dataclasses import dataclass, field, replace
 
 from xtal.core import elements as el
 from xtal.core import scalars
+from xtalapp.viewport import styles
 
 # Styles are looked up in xtalapp.viewport.styles; the name is stored
 # here so settings stay a plain, serialisable record.
@@ -478,6 +479,11 @@ class ViewSettings:
                 setattr(s, key, d[key])
         if s.boundary not in BOUNDARIES:
             s.boundary = cls.boundary
+        # A project written by a later version may name a style this
+        # one does not have.  Opening it as the default draws the
+        # crystal; keeping the name made every redraw raise.
+        if s.style not in styles.STYLES:
+            s.style = DEFAULT_STYLE
         # A session saved before the choice had three values held a
         # yes-or-no for every node.
         if d.get("pore_all_nodes") and "pore_spheres" not in d:

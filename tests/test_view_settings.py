@@ -195,3 +195,13 @@ def test_style_radii_follow_the_settings():
     assert ball.atom_radius("C", s) == pytest.approx(
         2.0 * 0.5 * s.base_radius("C", "covalent"))
     assert styles.get("wireframe").atom_radius("C", s) == 0.0
+
+
+def test_an_unknown_style_opens_as_the_default():
+    """A project from a later version names a style this one lacks;
+    kept, every redraw of that tab raised ``unknown draw style``."""
+    s = ViewSettings.from_dict({"style": "hologram", "atom_scale": 1.2})
+    assert s.style == ViewSettings.style
+    assert s.atom_scale == 1.2
+    kept = ViewSettings.from_dict({"style": "skeletal"})
+    assert kept.style == "skeletal"

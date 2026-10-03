@@ -454,11 +454,13 @@ class ModuleRunner(QObject):
                 "adopted because the tab it ran against has been "
                 "closed -- it is in the run folder")
             return
-        if document.is_playing:
+        if document.is_busy:
+            why = (document.held if not document.is_playing
+                   else "it is playing a trajectory")
             self.window.show_message(
                 f"the module produced a structure, and it was not "
-                f"adopted because {document.title} is playing a "
-                f"trajectory -- it is in the run folder")
+                f"adopted into {document.title} because {why} -- it "
+                f"is in the run folder")
             return
         label = f"{worker.module.label}: {worker.action.label}" \
             if worker is not None else "Module result"

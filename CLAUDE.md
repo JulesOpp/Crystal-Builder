@@ -448,6 +448,14 @@ stress case).
   cell; what an edit adds is shown.
 - **A force field or optimiser never changes the bonding or the
   atoms.** All structural changes are the user's, made explicitly.
+  **And nobody changes them under a running optimisation**: the
+  Force Field panel `Document.hold`s the document from Optimise until
+  the result lands, because it is applied over the geometry the run
+  started from. Edits and undo are greyed (`is_busy` is playback or
+  a hold), and one that still arrives raises `DocumentHeld`, which
+  the exception hook says in the status bar rather than as a crash
+  (`DocumentBusy.quiet`). A crash box is one at a time and each fault
+  once; a segfault's stack goes to `faults.log` beside the log.
 - **Manually set bond types take precedence** over any distance-based
   determination.
 - **A drag moves the copy the cursor has hold of.** Move mode displaces
