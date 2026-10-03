@@ -214,53 +214,6 @@ favour them clearly.
 
 ---
 
-## The polymer builder
-
-Planned 2026-10-02 on `features/polymer-builder`.  The full plan, with
-its measurements and the answers on what other programs do, is
-`~/.claude/plans/can-you-make-a-crispy-swing.md`.  Decided with
-Julius: **pack only** -- the builder makes the packed starting model,
-and equilibration (LAMMPS's 21-step, or MD in process) is a seam for
-later; amorphous linear chains and PIMs first, crystalline polymers as
-samples; a monomer from SMILES or the sketch *and* from atoms marked in
-the viewport.  Branching is not in it.
-
-| Phase | Delivers | Main files | Size |
-|---|---|---|---|
-| **8 — The equilibration seam** | `Protocol` (21-step as data), `Equilibrator` interface | `xtal/polymer/protocol.py` | S |
-
-Phase 7, the crystalline samples, shipped 2026-10-02
-as Open Sample ▸ Polymers: polyethylene, alpha-iPP and cellulose
-I-beta; Phase 0, a SMILES `*` bonded to two atoms (PIM-1's ladder),
-and Phase 1, `xtal/polymer/monomer.py` with eleven library monomers,
-the same day.  A head and tail on one atom (`[*:1]C[*:2]`) is allowed,
-not refused as planned: it is polymethylene, and joins like any
-other.  Phase 2, joints and sequences, followed: a ladder joint is a
-four-point fit on each member's free valence, and a ladder repeat is
-embedded with its joint ring closed (PIM-EA-TB's open Troger's base
-splayed 3.8 A).  One pairing of PIM-EA-TB, repeated, folds the chain
-back onto itself after two units: the packer has to sample flips.
-Phase 3, packing, and Phase 4, the `polymer.build` module and the
-skill's `polymer.md`, shipped 2026-10-02.  Measured: polyethylene 10 x
-100 (6020 atoms) builds in 18 s and opens and draws in the window in
-1.5 s, so the window is not what limits the size; atactic polystyrene
-8 x 30 is 16 s.  Growth is at three quarters of the target (0.2 g/cm3
-for a ladder) and compressed, because PS, PMMA, PET and nylon-6 jammed
-grown at their own densities.  Phase 5, the dialog, and Phase 6,
-Structure ▸ Building blocks ▸ Save as a monomer… writing a block file
-head first to `<workspace>/monomers/` for the dialog's library combo,
-shipped 2026-10-02.  The dialog is deleted on the GUI thread once it
-has answered: `exec` leaves it owned by Python, and the cyclic
-collector freed it on the build's worker thread and segfaulted.
-
-### 8 — The equilibration seam
-
-`Protocol` holds the 21-step (Larsen, Lin and Colina 2011) as data;
-`Equilibrator` is the interface, unimplemented.  Unscheduled entries
-follow for each consumer.
-
----
-
 # Not scheduled
 
 Raised while using the application; no phase yet.
@@ -498,13 +451,17 @@ new ones, and `tests/test_uff_params.py` asserts the published value.
 
 ### Polymers after the packing builder
 
-Raised while planning the polymer builder (2026-10-02); each waits on
-its phases shipping.
+Raised while planning the polymer builder (2026-10-02), which shipped
+on `features/polymer-builder` the same day: Modules ▸ Build amorphous
+polymer…, packing only.
 - **Equilibrating with LAMMPS**: an external-binary module over
-  `xtal/io/lammps.py` running the 21-step `Protocol`, which needs a
+  `xtal/io/lammps.py`, an `Equilibrator` running
+  `protocol.TWENTY_ONE_STEP` (`xtal/polymer/protocol.py`, the seam
+  that shipped with the builder), which needs a
   force-field coefficient writer the data file deliberately lacks.
 - **MD in process**: a Langevin / NPT integrator over
-  `ff.api.Calculator`, for small models and quick checks.
+  `ff.api.Calculator`, for small models and quick checks -- the other
+  `Equilibrator`.
 - **Branching and networks**: hyperbranched polymers, epoxies, CMPs and
   PAFs are made by bonding reactive sites while packing (Polymatic's
   way), not by a walk; the monomer's `[*:3]` is reserved for it.

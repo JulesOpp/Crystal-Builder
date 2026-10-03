@@ -17,7 +17,7 @@ print(s.built)          # density reached, closest contact, chain shape
 
 | Parameter | Meaning |
 |---|---|
-| `monomer` | a library name (`Polyethylene`, `Polypropylene`, `Polystyrene`, `PMMA`, `PVC`, `PEO`, `PTFE`, `PET`, `Nylon-6`, `PIM-1`, `PIM-EA-TB`), a block `.xyz` with two connection points, or SMILES with `[*:1]` at the head and `[*:2]` at the tail |
+| `monomer` | a library name (`Polyethylene`, `Polypropylene`, `Polystyrene`, `PMMA`, `PVC`, `PEO`, `PTFE`, `PET`, `Nylon-6`, `PIM-1`, `PIM-EA-TB`), a block `.xyz` with two connection points, or SMILES with `[*:1]` at the head and `[*:2]` at the tail; one a person saved with *Save as a monomer* is a block in `<workspace>/monomers/`, head first |
 | `monomer_b`, `composition` | a copolymer: `alternating`, `random` (with `fraction_a`) or `block` (with `block_a`, `block_b`) |
 | `tacticity`, `p_meso` | `atactic`, `isotactic`, `syndiotactic`; ignored by a monomer with no stereocentre |
 | `chains`, `length` | ten chains of a hundred PE units is 6000 atoms and about twenty seconds |
