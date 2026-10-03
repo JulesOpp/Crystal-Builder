@@ -72,6 +72,11 @@ class Monomer:
     smiles: str = ""
     #: Whether this is the reflection of the unit as embedded.
     mirror: bool = False
+    #: Whether its reflection is another unit: false for polyethylene,
+    #: whose mirror image is itself turned over, so that a chain of it
+    #: has no tacticity to report.  A unit read from atoms rather than
+    #: a string is taken to have a hand, since nothing here can tell.
+    handed: bool = True
 
     @property
     def n_atoms(self) -> int:
@@ -269,11 +274,13 @@ def from_smiles(smiles: str, name: str = "") -> Monomer:
     molecule and :class:`MonomerError` for one that is not a monomer.
     """
     from xtal.build import from_smiles as embed
+    from xtal.build.chem import stereocentres
 
     molecule = embed(smiles, name=name)
-    return from_parts(molecule.elements, molecule.cart, molecule.bonds,
+    unit = from_parts(molecule.elements, molecule.cart, molecule.bonds,
                       molecule.connections, name=name,
                       smiles=str(smiles).strip())
+    return replace(unit, handed=stereocentres(smiles) > 0)
 
 
 def from_library(name: str) -> Monomer:

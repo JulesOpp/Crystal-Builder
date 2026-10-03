@@ -204,6 +204,149 @@ def place(tail: Unit, monomer: Monomer, twist: float = 0.0,
     return Unit(monomer, cart), Joint(pairs)
 
 
+def ahead(unit: Unit, monomer: Monomer | None) -> np.ndarray:
+    """Where the head members of ``monomer`` will be once it is joined
+    to ``unit`` -- or, with no monomer, where the end's capping
+    hydrogens go.  Fixed by ``unit`` alone: a torsion at the next
+    joint turns everything of the next unit but these."""
+    if monomer is None:
+        return np.array([cart for _, cart in _caps(unit, "tail")])
+    old = unit.monomer
+    if not monomer.is_ladder:
+        length = bond_length(old, old.tail_members[0], monomer,
+                             monomer.head_members[0])
+        return (unit.members("tail")[0]
+                + length * unit.axis("tail"))[None, :]
+    turned = tail_rotation(unit)
+    return np.array([
+        unit.cart[t] + bond_length(old, t, monomer, h)
+        * (turned @ old.free_direction(t))
+        for t, h in zip(old.tail_members, monomer.head_members,
+                        strict=True)])
+
+
+#: The staggered torsions a free backbone bond inside a unit is set
+#: to: trans and the two gauche.
+STAGGERED = (180.0, 60.0, -60.0)
+
+
+def free_bonds(monomer: Monomer) -> list[int]:
+    """Positions ``k`` along :attr:`Monomer.backbone` whose bond
+    ``backbone[k] - backbone[k + 1]`` turns freely: single, in no
+    ring, and between two atoms with no multiple bond, so an amide's or
+    an ester's C(=O)-X stays planar where the embedding put it."""
+    path = monomer.backbone
+    if monomer.is_ladder or len(path) < 2:
+        return []
+    order = {}
+    for i, j, o in monomer.bonds:
+        order[(i, j)] = order[(j, i)] = o
+    saturated = {a for a in path
+                 if all(o <= 1.0 for (x, _y), o in order.items()
+                        if x == a)}
+    out = []
+    for k in range(len(path) - 1):
+        a, b = path[k], path[k + 1]
+        if (order.get((a, b), 0.0) == 1.0 and a in saturated
+                and b in saturated and not _in_ring(monomer, a, b)):
+            out.append(k)
+    return out
+
+
+def _in_ring(monomer: Monomer, a: int, b: int) -> bool:
+    """Whether bond a-b closes a cycle: ``b`` reachable from ``a``
+    without it."""
+    return a in _side(monomer, b, a)
+
+
+def _side(monomer: Monomer, start: int, block: int) -> set[int]:
+    """Atoms reachable from ``start`` without passing through
+    ``block`` -- the head point and the tail point counted, since
+    turning the tail side of a bond carries its ``X`` with it."""
+    around: dict[int, list[int]] = {}
+    for i, j, _ in monomer.bonds:
+        around.setdefault(i, []).append(j)
+        around.setdefault(j, []).append(i)
+    seen = {start}
+    queue = [start]
+    while queue:
+        atom = queue.pop()
+        for other in around.get(atom, ()):
+            if atom == start and other == block:
+                continue
+            if other not in seen:
+                seen.add(other)
+                queue.append(other)
+    return seen
+
+
+def rotamers(monomer: Monomer) -> list[tuple[Monomer, tuple]]:
+    """Every staggered setting of the unit's free backbone bonds:
+    ``(monomer, torsions)``, the torsions in degrees.
+
+    The joint torsion alone is not enough.  A bond set trans inside
+    the unit makes the joints either side of it parallel, so a
+    polyethylene chain with every other torsion frozen at the
+    embedding's trans drifted straight across the box whatever its
+    joints did: C_n 91 against a melt's 7.
+    """
+    from dataclasses import replace
+
+    path = monomer.backbone
+    free = free_bonds(monomer)
+    if not free:
+        return [(monomer, ())]
+    out = []
+    for setting in np.array(np.meshgrid(*[STAGGERED] * len(free),
+                                        indexing="ij")).reshape(
+                                            len(free), -1).T:
+        cart = np.array(monomer.cart, dtype=float)
+        for k, angle in zip(free, setting, strict=True):
+            a, b = path[k], path[k + 1]
+            before = path[k - 1] if k > 0 else monomer.head
+            after = path[k + 2] if k + 2 < len(path) else monomer.tail
+            now = dihedral(cart[before], cart[a], cart[b], cart[after])
+            axis = cart[b] - cart[a]
+            axis /= np.linalg.norm(axis)
+            turn = _about(axis, np.radians(angle - now))
+            moving = sorted(_side(monomer, b, a))
+            cart[moving] = (cart[moving] - cart[b]) @ turn.T + cart[b]
+        body = list(monomer.body)
+        cart -= cart[body].mean(axis=0)
+        if out and not _roomy(monomer, cart):
+            continue
+        out.append((replace(monomer, cart=cart),
+                    tuple(float(v) for v in setting)))
+    return out
+
+
+#: A rotamer whose own atoms four bonds apart or more come closer than
+#: this fraction of their van der Waals sum is not offered: nothing
+#: else would see it, since a unit's atoms are scored against the box
+#: and never against each other.
+ROOM = 0.6
+
+
+def _roomy(monomer: Monomer, cart) -> bool:
+    body = list(monomer.body)
+    around: dict[int, set] = {i: set() for i in body}
+    for i, j, _ in monomer.bonds:
+        if i in around and j in around:
+            around[i].add(j)
+            around[j].add(i)
+    radii = {i: elements.vdw_radius(monomer.elements[i]) for i in body}
+    for i in body:
+        near = {i} | around[i]
+        for _ in range(2):
+            near |= {k for n in near for k in around[n]}
+        for j in body:
+            if j > i and j not in near:
+                d = float(np.linalg.norm(cart[i] - cart[j]))
+                if d < ROOM * (radii[i] + radii[j]):
+                    return False
+    return True
+
+
 def joint_torsion(tail: Unit, head: Unit) -> float:
     """The backbone torsion across a single joint, in degrees.
 

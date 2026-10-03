@@ -152,6 +152,29 @@ def embed(smiles: str, seed: int = 0xf00d, optimise: bool = True):
             connections)
 
 
+def stereocentres(smiles: str) -> int:
+    """How many stereocentres a starred string has, its connection
+    points told apart.
+
+    Each ``*`` is given an isotope of its own first, in the order
+    :func:`_dummies` reads them: two bare dummies are the same atom to
+    RDKit, and the backbone carbon of ``[*:1]CC([*:2])C`` would then
+    have two identical substituents and no hand at all.
+    """
+    if not installed():
+        raise BuildError(MISSING)
+    from rdkit import Chem
+
+    mol = Chem.MolFromSmiles(str(smiles).strip())
+    if mol is None:
+        raise BuildError(f"{smiles!r} is not a SMILES string RDKit "
+                         f"can read")
+    for k, index in enumerate(_dummies(mol)):
+        mol.GetAtomWithIdx(index).SetIsotope(k + 1)
+    return len(Chem.FindMolChiralCenters(
+        mol, includeUnassigned=True, useLegacyImplementation=False))
+
+
 def _looks_like_xyz(text: str) -> bool:
     """Whether this is atoms rather than a string.
 
