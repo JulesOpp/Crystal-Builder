@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.core import elements as el
+from xtalapp.dialogs.answered import answered
 from xtalapp.docks.inspector import COMMON_ELEMENTS
 from xtalapp.widgets.periodic_table import PeriodicTableButton
 from xtalapp.widgets.tone import WARNING, set_tone
@@ -151,7 +152,7 @@ class AddAtomDialog(QDialog):
 
     @classmethod
     def ask(cls, lattice, parent=None, element="C") -> dict | None:
-        dialog = cls(lattice, parent, element)
-        if dialog.exec() != QDialog.Accepted:
-            return None
-        return dialog.result_values()
+        with answered(cls(lattice, parent, element)) as dialog:
+            if dialog.exec() != QDialog.Accepted:
+                return None
+            return dialog.result_values()

@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.core import elements as el
+from xtalapp.dialogs.answered import answered
 from xtalapp.docks.inspector import COMMON_ELEMENTS
 from xtalapp.widgets.tone import WARNING, set_tone
 
@@ -110,7 +111,7 @@ class AddCentroidDialog(QDialog):
 
     @classmethod
     def ask(cls, count: int, parent=None, element="C") -> dict | None:
-        dialog = cls(count, parent, element)
-        if dialog.exec() != QDialog.Accepted:
-            return None
-        return dialog.result_values()
+        with answered(cls(count, parent, element)) as dialog:
+            if dialog.exec() != QDialog.Accepted:
+                return None
+            return dialog.result_values()

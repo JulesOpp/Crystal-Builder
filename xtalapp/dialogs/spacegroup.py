@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (
 
 from xtal.commands import symmetry as symmetry_commands
 from xtal.core import spacegroup as sg
+from xtalapp.dialogs.answered import answered
 from xtalapp.widgets.tone import WARNING_BOX, set_tone
 
 MODES = [
@@ -170,10 +171,10 @@ class SpaceGroupDialog(QDialog):
     def ask(cls, document, parent=None):
         """Show the dialog and apply the choice; returns the report, or
         None if it was cancelled."""
-        dialog = cls(document, parent)
-        if dialog.exec() != QDialog.Accepted:
-            return None
-        group = dialog.group()
-        if group is None:
-            return None
-        return document.set_space_group(group, dialog.mode())
+        with answered(cls(document, parent)) as dialog:
+            if dialog.exec() != QDialog.Accepted:
+                return None
+            group = dialog.group()
+            if group is None:
+                return None
+            return document.set_space_group(group, dialog.mode())

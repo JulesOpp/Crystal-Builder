@@ -64,6 +64,7 @@ from PySide6.QtWidgets import (
 
 from xtal.build import fill
 from xtal.io import FORMATS
+from xtalapp.dialogs.answered import answered
 from xtalapp.widgets import tone
 from xtalapp.widgets.fit import fit_height
 
@@ -515,7 +516,7 @@ class FillPoresDialog(QDialog):
     @classmethod
     def ask(cls, document, sources=(), parent=None,
             directory: str = ""):
-        dialog = cls(document, sources, parent, directory)
-        if dialog.exec() != QDialog.Accepted:
-            return ""
-        return dialog.fill()
+        with answered(cls(document, sources, parent, directory)) as dialog:
+            if dialog.exec() != QDialog.Accepted:
+                return ""
+            return dialog.fill()

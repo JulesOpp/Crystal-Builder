@@ -229,6 +229,72 @@
       "smiles": "[*:1]c1ccc([*:2])cc1N",
       "category": "Linker",
       "description": "A functionalised strut: the same geometry, a different pore wall"
+    },
+    {
+      "name": "Polyethylene",
+      "smiles": "[*:1]CC[*:2]",
+      "category": "Monomer",
+      "description": "PE, -CH2CH2-: the planar zigzag every other chain is compared with"
+    },
+    {
+      "name": "Polypropylene",
+      "smiles": "[*:1]CC([*:2])C",
+      "category": "Monomer",
+      "description": "PP, head to tail, the methyl on the tail carbon: its hand is the tacticity"
+    },
+    {
+      "name": "Polystyrene",
+      "smiles": "[*:1]CC([*:2])c1ccccc1",
+      "category": "Monomer",
+      "description": "PS: a phenyl on every other backbone carbon, glassy at room temperature"
+    },
+    {
+      "name": "PMMA",
+      "smiles": "[*:1]CC([*:2])(C)C(=O)OC",
+      "category": "Monomer",
+      "description": "Poly(methyl methacrylate): a quaternary carbon with a methyl and a methyl ester"
+    },
+    {
+      "name": "PVC",
+      "smiles": "[*:1]CC([*:2])Cl",
+      "category": "Monomer",
+      "description": "Poly(vinyl chloride): a chlorine where polypropylene has its methyl"
+    },
+    {
+      "name": "PEO",
+      "smiles": "[*:1]CCO[*:2]",
+      "category": "Monomer",
+      "description": "Poly(ethylene oxide), -CH2CH2O-: the electrolyte host"
+    },
+    {
+      "name": "PTFE",
+      "smiles": "[*:1]C(F)(F)C(F)(F)[*:2]",
+      "category": "Monomer",
+      "description": "Polytetrafluoroethylene: fluorines too large for a zigzag, so it is a helix"
+    },
+    {
+      "name": "PET",
+      "smiles": "[*:1]OCCOC(=O)c1ccc(cc1)C(=O)[*:2]",
+      "category": "Monomer",
+      "description": "Poly(ethylene terephthalate): the bottle polyester"
+    },
+    {
+      "name": "Nylon-6",
+      "smiles": "[*:1]NCCCCCC(=O)[*:2]",
+      "category": "Monomer",
+      "description": "Polycaprolactam: five methylenes and an amide, hydrogen-bonded sheets"
+    },
+    {
+      "name": "PIM-1",
+      "smiles": "[*:1]1Oc2cc3c(cc2O1)C(C)(C)CC32CC(C)(C)c3cc4Oc5c(C#N)c6c(c(C#N)c5Oc4cc32)[*:2]6",
+      "category": "Monomer",
+      "description": "Spirobisindane dibenzodioxin ladder: each end is two atoms, and the spiro centre is the kink that leaves room"
+    },
+    {
+      "name": "PIM-EA-TB",
+      "smiles": "CC12CCC(C)(c3cc4c(cc31)N1CN(C4)[*:2]C1)c1cc3c(cc21)[*:1]3",
+      "category": "Monomer",
+      "description": "Ethanoanthracene joined by Troger's base: a ladder whose ends are a nitrogen and a methylene"
     }
   ]
 }

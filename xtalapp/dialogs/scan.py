@@ -56,6 +56,7 @@ from xtal.ff import scan as driver
 from xtal.ff.optimize import METHODS
 from xtal.ff.registry import ENGINES
 from xtal.modules import scan as scan_module
+from xtalapp.dialogs.answered import answered
 from xtalapp.dialogs.module_form import ParamForm
 from xtalapp.docks import scrolling
 from xtalapp.docks.ff_panel import panel_engine, panel_options
@@ -733,10 +734,10 @@ class ScanDialog(QDialog):
 
     @classmethod
     def ask(cls, module, action, parent=None, initial=None):
-        dialog = cls(module, action, parent, initial)
-        if dialog.exec() != QDialog.Accepted:
-            return None
-        return dialog.values()
+        with answered(cls(module, action, parent, initial)) as dialog:
+            if dialog.exec() != QDialog.Accepted:
+                return None
+            return dialog.values()
 
 
 def _engine_forms(window):

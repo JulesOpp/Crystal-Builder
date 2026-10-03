@@ -41,6 +41,7 @@ from PySide6.QtWidgets import (
 
 from xtal.mof.block import problems
 from xtal.workspace import safe_name
+from xtalapp.dialogs.answered import answered
 from xtalapp.widgets.tone import HINT, set_tone
 
 
@@ -156,10 +157,10 @@ class SaveBlockDialog(QDialog):
     @classmethod
     def ask(cls, structure, parent=None, folder: str = ""):
         """Where to write it, or ``None`` if it was cancelled."""
-        dialog = cls(structure, parent, folder)
-        if dialog.exec() != QDialog.Accepted:
-            return None
-        return dialog.path()
+        with answered(cls(structure, parent, folder)) as dialog:
+            if dialog.exec() != QDialog.Accepted:
+                return None
+            return dialog.path()
 
 
 def _suggested(structure) -> str:

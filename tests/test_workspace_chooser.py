@@ -384,3 +384,26 @@ def test_quitting_the_chooser_is_no_workspace(settings, monkeypatch):
                         lambda dialog: QDialog.Rejected)
 
     assert WorkspaceChooser.ask(settings) == (None, None)
+
+
+def test_an_answered_chooser_is_deleted_on_the_gui_thread(qtbot,
+                                                          settings,
+                                                          monkeypatch):
+    """After ``exec`` PySide hands the chooser to Python, and its rows'
+    callbacks hold it in a cycle, so only the cyclic collector would
+    free it -- on whichever thread runs it next, and a module run's
+    worker destroying widgets segfaults."""
+    import shiboken6
+    from PySide6.QtCore import QCoreApplication, QEvent
+
+    made = []
+
+    def answer(self):
+        made.append(self)
+        return QDialog.Rejected
+
+    monkeypatch.setattr(WorkspaceChooser, "exec", answer)
+    assert WorkspaceChooser.ask(settings) == (None, None)
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+    assert not shiboken6.isValid(made[0])

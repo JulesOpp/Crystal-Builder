@@ -102,6 +102,15 @@ SIMPLE = {
     1000028: "SOD.cif",
 }
 
+#: COD ID -> a file of ``polymer/``: a polymer crystal whose
+#: deposition has its hydrogens.  Polyethylene and isotactic
+#: polypropylene are there too, written by
+#: ``scripts/polymer_samples.py``, because theirs locate the carbons
+#: only.
+POLYMER = {
+    4114994: "cellulose-Ibeta.cif",
+}
+
 #: Tag prefixes whose items and loops are dropped.  Each describes the
 #: measurement or the refinement program's files, never the structure.
 STRIPPED = (
@@ -255,6 +264,8 @@ def main(argv=None) -> int:
     targets += [(i, TARGET.parent / name) for i, name in REPLACED.items()]
     targets += [(i, TARGET.parent / "simple" / name)
                 for i, name in SIMPLE.items()]
+    targets += [(i, TARGET.parent / "polymer" / name)
+                for i, name in POLYMER.items()]
     for cod_id, target in targets:
         name = target.name
         if args.source is not None:

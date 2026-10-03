@@ -24,6 +24,8 @@ A workspace says it, on disk, in a layout anybody can read::
             run.log                the build that made it
     <workspace>/blocks/            the building blocks drawn here
         my-paddlewheel.xyz         read back by the MOF builder
+    <workspace>/monomers/          the repeat units saved here
+        my-polyimide.xyz           listed by the polymer builder
 
 Four decisions hold the rest of it up.
 
@@ -76,10 +78,13 @@ WORKSPACE_FILE = "workspace.json"
 AUTOSAVE_DIR = ".autosave"
 FORMAT_VERSION = 1
 
-#: The one folder in a workspace that is not a structure --
-#: see :attr:`Workspace.blocks`.
+#: The three folders in a workspace that are not structures: drawn
+#: building blocks, substituent groups and polymer repeat units -- see
+#: :attr:`Workspace.blocks`, :attr:`~Workspace.groups` and
+#: :attr:`~Workspace.monomers`.
 BLOCKS_DIR = "blocks"
 GROUPS_DIR = "groups"
+MONOMERS_DIR = "monomers"
 
 LOG_NAME = "run.log"
 TRAJECTORY_NAME = "trajectory.extxyz"
@@ -631,6 +636,18 @@ class Workspace:
         each (:func:`xtal.build.substitute.save_group`), listed in the
         Substitute dialog after the library's.  Not created here."""
         return self.root / GROUPS_DIR
+
+    @property
+    def monomers(self) -> Path:
+        """Where repeat units saved in this workspace are kept, for
+        the polymer builder's library to list beside its own.
+
+        Its own folder and not :attr:`blocks`: a monomer is a block
+        file with its head written first, and the MOF builder reading
+        one would offer a two-connected linker nobody drew as one.
+        Not created here, for the reason :attr:`blocks` gives.
+        """
+        return self.root / MONOMERS_DIR
 
     def add_document(self, name: str) -> Entry:
         """An entry for a structure that has no file yet.

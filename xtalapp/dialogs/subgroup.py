@@ -66,6 +66,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.core import subgroups as subgroup_core
+from xtalapp.dialogs.answered import answered
 from xtalapp.widgets.tone import WARNING_BOX, set_tone
 
 
@@ -375,10 +376,10 @@ class SubgroupDialog(QDialog):
     def ask(cls, document, parent=None):
         """Show the dialog and apply the choice; returns the report, or
         None if it was cancelled."""
-        dialog = cls(document, parent)
-        if dialog.exec() != QDialog.Accepted:
-            return None
-        sub = dialog.subgroup()
-        if sub is None:
-            return None
-        return document.descend_to_subgroup(sub)
+        with answered(cls(document, parent)) as dialog:
+            if dialog.exec() != QDialog.Accepted:
+                return None
+            sub = dialog.subgroup()
+            if sub is None:
+                return None
+            return document.descend_to_subgroup(sub)

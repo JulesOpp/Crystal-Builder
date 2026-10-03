@@ -36,6 +36,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.core.lattice import PARAMETER_NAMES, Lattice
+from xtalapp.dialogs.answered import answered
 from xtalapp.widgets.tone import HINT, WARNING, WARNING_BOX, set_tone
 
 KEEPS = [
@@ -224,10 +225,10 @@ class CellEditDialog(QDialog):
 
     @classmethod
     def ask(cls, document, parent=None):
-        dialog = cls(document.structure, parent)
-        if dialog.exec() != QDialog.Accepted:
-            return None
-        lattice = dialog.lattice()
-        if lattice is None:
-            return None
-        return document.set_lattice(lattice, dialog.keep())
+        with answered(cls(document.structure, parent)) as dialog:
+            if dialog.exec() != QDialog.Accepted:
+                return None
+            lattice = dialog.lattice()
+            if lattice is None:
+                return None
+            return document.set_lattice(lattice, dialog.keep())

@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.build import substitute
+from xtalapp.dialogs.answered import answered
 
 #: The two answers to *Where*.
 SELECTED = "The selected hydrogens (or halogens)"
@@ -223,7 +224,7 @@ class SubstituteDialog(QDialog):
 
     @classmethod
     def ask(cls, document, parent=None, folder=None):
-        dialog = cls(document, parent, folder)
-        if dialog.exec() != QDialog.Accepted:
-            return None
-        return dialog.substitute()
+        with answered(cls(document, parent, folder)) as dialog:
+            if dialog.exec() != QDialog.Accepted:
+                return None
+            return dialog.substitute()

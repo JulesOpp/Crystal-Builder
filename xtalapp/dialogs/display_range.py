@@ -38,6 +38,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from xtalapp.dialogs.answered import answered
 from xtalapp.widgets.tone import WARNING, set_tone
 
 AXES = ["a", "b", "c"]
@@ -167,10 +168,10 @@ class DisplayRangeDialog(QDialog):
     def ask(cls, document, parent=None) -> bool:
         """Apply the range to the document's view; returns whether
         anything was applied."""
-        dialog = cls(document, parent)
-        if dialog.exec() != QDialog.Accepted:
-            return False
-        a, b, c = dialog.ranges()
-        document.update_view(range_a=a, range_b=b, range_c=c,
-                             boundary=dialog.boundary())
-        return True
+        with answered(cls(document, parent)) as dialog:
+            if dialog.exec() != QDialog.Accepted:
+                return False
+            a, b, c = dialog.ranges()
+            document.update_view(range_a=a, range_b=b, range_c=c,
+                                 boundary=dialog.boundary())
+            return True

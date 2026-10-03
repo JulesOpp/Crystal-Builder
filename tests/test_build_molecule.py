@@ -140,6 +140,51 @@ def test_two_connection_points_come_out_where_the_string_put_them():
     assert np.degrees(np.arccos(cosine)) > 175.0        # para
 
 
+#: PIM-1's repeat as a ladder: the head bonded to the catechol's two
+#: oxygens, the tail to the two ring carbons the next unit's oxygens
+#: meet.
+PIM1 = ("[*:1]1Oc2cc3c(cc2O1)C(C)(C)CC32CC(C)(C)c3cc4Oc5c(C#N)c6"
+        "c(c(C#N)c5Oc4cc32)[*:2]6")
+
+
+def members_of(molecule: Molecule, index: int) -> list[int]:
+    return sorted(j if i == index else i for i, j, _ in molecule.bonds
+                  if index in (i, j))
+
+
+@needs_rdkit
+def test_a_star_bonded_to_two_atoms_embeds_as_one_connection_point():
+    """A ladder polymer meets the next unit through two atoms, and its
+    ``*`` is bonded to both.  Capped with one hydrogen that was a
+    hydrogen with two bonds, and RDKit refused PIM-1 outright."""
+    molecule = from_smiles(PIM1)
+    head, tail = molecule.connections
+
+    assert molecule.formula == "C29H20N2O4"
+    assert [molecule.elements[m] for m in members_of(molecule, head)] \
+        == ["O", "O"]
+    assert [molecule.elements[m] for m in members_of(molecule, tail)] \
+        == ["C", "C"]
+    for point in (head, tail):
+        middle = molecule.cart[members_of(molecule, point)].mean(axis=0)
+        assert np.linalg.norm(molecule.cart[point] - middle) == \
+            pytest.approx(CONNECTION_DISTANCE, abs=1e-6)
+
+
+@needs_rdkit
+def test_a_ladder_point_sits_between_its_members_not_beside_one():
+    """Out from the middle of the bite, the same distance from each
+    member.  Along the capping hydrogens it was not: a catechol's two
+    O-H turn to hydrogen-bond each other, and their mean put the head
+    0.67 A from one oxygen and 2.08 from the other."""
+    molecule = from_smiles(PIM1)
+
+    for point in molecule.connections:
+        a, b = (np.linalg.norm(molecule.cart[point] - molecule.cart[m])
+                for m in members_of(molecule, point))
+        assert abs(a - b) < 0.1
+
+
 @needs_rdkit
 def test_half_numbered_connection_points_are_refused():
     """Map numbers say which slot each point fills, so numbering some

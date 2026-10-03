@@ -489,6 +489,46 @@ new ones, and `tests/test_uff_params.py` asserts the published value.
 
 ## Modules
 
+### Polymers after the packing builder
+
+Raised while planning the polymer builder (2026-10-02), which shipped
+on `features/polymer-builder` the same day: Modules ▸ Build amorphous
+polymer…, packing only.
+- **Equilibrating with LAMMPS**: an external-binary module over
+  `xtal/io/lammps.py`, an `Equilibrator` running
+  `protocol.TWENTY_ONE_STEP` (`xtal/polymer/protocol.py`, the seam
+  that shipped with the builder), which needs a
+  force-field coefficient writer the data file deliberately lacks.
+- **MD in process**: a Langevin / NPT integrator over
+  `ff.api.Calculator`, for small models and quick checks -- the other
+  `Equilibrator`.
+- **Branching and networks**: hyperbranched polymers, epoxies, CMPs and
+  PAFs are made by bonding reactive sites while packing (Polymatic's
+  way), not by a walk; the monomer's `[*:3]` is reserved for it.
+- **A crystalline-chain builder**: monomer, helix n/m and cell, for the
+  polymers the samples do not cover.
+- **PET and nylon-6 as samples**: planned with the other polymers and
+  left out because neither is in the COD and the coordinates (Daubeny,
+  Bunn & Brown 1954; Holmes, Bunn & Smith 1955) were not to hand.
+  `scripts/polymer_samples.py` takes them as a table of carbons and
+  heteroatoms once they are -- its hydrogens assume saturated carbon,
+  so a ring or an amide needs a rule there first.
+- **A saved monomer's report says no tacticity**: a block file
+  carries no SMILES, so `monomer.from_block_file` leaves `handed` False
+  and a polypropylene saved from the viewport is reported as
+  polyethylene is -- no tacticity, no meso fraction -- though its
+  units are still mirrored as the sequence asks.  The dialog's footer
+  says "no stereocentre" too.  The stereocentre wants reading off the
+  block's own graph (RDKit from the bonds), not the string.
+- **Add hydrogens reads a 114-degree CH2 as sp2**: `typer._carbon`
+  calls a two-neighbour carbon C_2 at 114 degrees or more, and Mencik's
+  iPP C9 is 114.09, so the planner gives it one hydrogen of two.  A
+  saturated backbone is 112-116 degrees; the line between sp3 and sp2
+  for an atom *missing* its hydrogens wants measuring against the
+  samples before it moves.
+- **Entanglement**: a primitive-path analysis (Z1-style) once a model
+  can be equilibrated.
+
 ### A crash of the application still leaves its program running
 
 Since #22 a run's program ends with Stop, Ctrl+C, SIGTERM and a normal

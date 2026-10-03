@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from xtalapp.dialogs.answered import answered
 from xtalapp.widgets.tone import WARNING_BOX, set_tone
 
 # Spanning five decades, which is the range real structures need: a
@@ -248,4 +249,5 @@ class FindSymmetryDialog(QDialog):
     @classmethod
     def ask(cls, document, parent=None) -> bool:
         """Returns whether the structure was changed."""
-        return cls(document, parent).exec() == QDialog.Accepted
+        with answered(cls(document, parent)) as dialog:
+            return dialog.exec() == QDialog.Accepted

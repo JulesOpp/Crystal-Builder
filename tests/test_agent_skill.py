@@ -28,7 +28,7 @@ ALL_TEXT = "\n".join(PAGES.values())
 
 REFERENCES = ("api.md", "diagnostics.md", "prepare.md", "mof.md",
               "carbon.md", "calculations.md", "porosity.md",
-              "workspace.md")
+              "workspace.md", "polymer.md")
 
 
 def _actions() -> dict:

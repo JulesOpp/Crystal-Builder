@@ -58,6 +58,7 @@ from PySide6.QtWidgets import (
 
 from xtal.commands import bonds as bond_commands
 from xtal.core import bonding
+from xtalapp.dialogs.answered import answered
 
 # The slider is a coarse sweep over the useful range of ``scale``; the
 # spin box beside it is what actually sets the value.
@@ -388,19 +389,19 @@ class BondRulesDialog(QDialog):
 
     @classmethod
     def ask(cls, document, parent=None, settings=None) -> str | None:
-        dialog = cls(document, parent)
-        if dialog.exec() != QDialog.Accepted:
-            return None
-        added, removed, total = dialog.difference()
-        rules = dialog.rules().to_dict()
-        if settings is not None and dialog.remember.isChecked():
-            settings.set_default_bond_rules(rules)
+        with answered(cls(document, parent)) as dialog:
+            if dialog.exec() != QDialog.Accepted:
+                return None
+            added, removed, total = dialog.difference()
+            rules = dialog.rules().to_dict()
+            if settings is not None and dialog.remember.isChecked():
+                settings.set_default_bond_rules(rules)
 
-        if not added and not removed:
-            return f"bond rules unchanged: {total} bonds"
-        document.run(bond_commands.SetBondRules(rules))
-        return (f"bond rules applied: {added} added, {removed} removed "
-                f"-- {total} bonds")
+            if not added and not removed:
+                return f"bond rules unchanged: {total} bonds"
+            document.run(bond_commands.SetBondRules(rules))
+            return (f"bond rules applied: {added} added, {removed} removed "
+                    f"-- {total} bonds")
 
 
     @classmethod

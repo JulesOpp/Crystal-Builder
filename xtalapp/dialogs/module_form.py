@@ -58,6 +58,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from xtalapp.dialogs.answered import answered
 from xtalapp.widgets.tone import HINT, set_tone
 
 
@@ -338,7 +339,7 @@ class ModuleDialog(QDialog):
         """
         if not action.params:
             return {}
-        dialog = cls(module, action, parent, initial)
-        if dialog.exec() != QDialog.Accepted:
-            return None
-        return dialog.values()
+        with answered(cls(module, action, parent, initial)) as dialog:
+            if dialog.exec() != QDialog.Accepted:
+                return None
+            return dialog.values()

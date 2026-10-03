@@ -316,6 +316,24 @@ class ShellRefresh:
         self._rebuild_element_menu(document)
         self._refresh_shell()
 
+    def _refresh_save_monomer(self, editable: bool) -> None:
+        """Save as a monomer, and how many connection points there are
+        when it is off -- the count is the reason, and the P1 cell it
+        is read from is memoised, so this is cheap on every refresh."""
+        action = self.actions_.get("save_monomer")
+        if action is None:                          # pragma: no cover
+            return
+        from xtal.polymer.monomer import connection_points
+
+        document = self.current_document()
+        count = (len(connection_points(document.structure))
+                 if editable and document is not None else 0)
+        action.setEnabled(editable and count == 2)
+        tip = (menus.SAVE_MONOMER_NEEDS_TWO.format(count=count)
+               if editable and count != 2 else menus.SAVE_MONOMER_TIP)
+        action.setToolTip(tip)
+        action.setStatusTip(tip)
+
     def _refresh_insert_molecule(self, editable: bool) -> None:
         """Insert molecule, and the reason when it is off.
 
@@ -402,6 +420,7 @@ class ShellRefresh:
         if document is None:
             self._refresh_module_actions(False)
             self._refresh_insert_molecule(False)
+            self._refresh_save_monomer(False)
             self._sync_bond_type_actions(None)
             self._refresh_plane_actions()
             self.status_label.setText("No structure open")
@@ -411,6 +430,7 @@ class ShellRefresh:
         self.selection_label.setText(document.selection_summary())
         self._refresh_module_actions(editable)
         self._refresh_insert_molecule(editable)
+        self._refresh_save_monomer(editable)
         self._sync_bond_type_actions(document)
         self._refresh_plane_actions()
         self.status_label.setText(document.status_text())

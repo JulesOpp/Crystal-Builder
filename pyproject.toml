@@ -162,6 +162,7 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
             "xtal.modules", "xtal.modules.dftb_runs", "xtal.analysis",
             "xtal.mof", "xtal.mof.pormake", "xtal.mof.library",
             "xtal.build", "xtal.build.data", "xtal.carbon",
+            "xtal.polymer",
             "xtal.agent", "xtal.agent.skill", "xtal.powder",
             "xtalapp", "xtalapp.viewport", "xtalapp.docks",
             "xtalapp.dialogs", "xtalapp.widgets", "xtalapp.refine"]

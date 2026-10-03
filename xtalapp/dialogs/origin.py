@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.commands import cell as cell_commands
+from xtalapp.dialogs.answered import answered
 from xtalapp.widgets.tone import HINT, WARNING, set_tone
 
 DECIMALS = 4
@@ -122,7 +123,7 @@ class OriginDialog(QDialog):
 
     @classmethod
     def ask(cls, document, parent=None):
-        dialog = cls(document, parent)
-        if dialog.exec() != QDialog.Accepted:
-            return None
-        return document.operate(dialog.command())
+        with answered(cls(document, parent)) as dialog:
+            if dialog.exec() != QDialog.Accepted:
+                return None
+            return document.operate(dialog.command())

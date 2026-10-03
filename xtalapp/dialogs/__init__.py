@@ -38,6 +38,8 @@ _BY_NAME = {
     "net-draw": ("xtalapp.dialogs.net_draw", "NetDrawDialog"),
     "carbon-build": ("xtalapp.dialogs.carbon_build",
                      "CarbonBuildDialog"),
+    "polymer-build": ("xtalapp.dialogs.polymer_build",
+                      "PolymerBuildDialog"),
     "stl-export": ("xtalapp.dialogs.stl_export", "StlExportDialog"),
     "blender-render": ("xtalapp.dialogs.stl_export", "RenderDialog"),
     "band-structure": ("xtalapp.dialogs.dftb_run",

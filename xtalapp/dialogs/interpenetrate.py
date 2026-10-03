@@ -34,6 +34,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.analysis.interpenetrate import MAX_FOLD, InterpenetrationError
+from xtalapp.dialogs.answered import answered
 
 COLUMNS = ("Placement", "Relation", "Closest contact", "Room")
 
@@ -171,10 +172,10 @@ class InterpenetrateDialog(QDialog):
     def ask(cls, document, parent=None):
         """Show the dialog and apply the choice; returns the report, or
         None if it was cancelled."""
-        dialog = cls(document, parent)
-        if dialog.exec() != QDialog.Accepted:
-            return None
-        placement = dialog.placement()
-        if placement is None or placement.collides:
-            return None
-        return document.interpenetrate(placement)
+        with answered(cls(document, parent)) as dialog:
+            if dialog.exec() != QDialog.Accepted:
+                return None
+            placement = dialog.placement()
+            if placement is None or placement.collides:
+                return None
+            return document.interpenetrate(placement)

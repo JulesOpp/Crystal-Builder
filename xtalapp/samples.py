@@ -42,6 +42,13 @@ seconds on a zeolite should not have to start from a 600-atom MOF.
 They are the COD's too, the same script and the same strip, except
 graphene: a monolayer has no deposition, so it is written by hand.
 
+**Polymers are a third group**: crystalline chains, bonded to their
+own images along one axis, for somebody about to build an amorphous
+one and wanting the crystal to measure it against.  Cellulose is the
+COD's; polyethylene and polypropylene are written by
+``scripts/polymer_samples.py``, the published carbons with hydrogens
+placed, because their fibre patterns located none.
+
 The catalogue is here rather than in :mod:`xtal` because it is a menu
 and a set of tooltips; nothing in it is crystallography.  Reading the
 file is :data:`xtal.io.FORMATS`, the same as for any other structure.
@@ -79,8 +86,9 @@ SHIPPED = "shipped"
 SIMPLE = "simple"
 COD = "cod"
 PREPARED = "prepared"
+POLYMER = "polymer"
 GROUPS = ((SHIPPED, "Shipped"), (SIMPLE, "&Simple materials"),
-          (COD, "From the &COD"),
+          (POLYMER, "&Polymers"), (COD, "From the &COD"),
           (PREPARED, "&Prepared for simulation"))
 
 
@@ -260,6 +268,27 @@ SAMPLES = (
             "Hassan and Grundy, Acta Cryst. B 1984: SOD as the mineral, "
             "Na8Cl2(Al6Si6O24) in P-43n, a chloride at the centre of "
             "each cage")),
+    Sample(
+        "polymer_pe", "polymer/polyethylene.cif", "Polyethylene",
+        group=POLYMER, description=(
+            "Bunn, Trans. Faraday Soc. 1939: orthorhombic PE, two "
+            "planar zigzag chains through a 2.53 A cell along c in "
+            "Pnam -- the published carbon, with hydrogens placed by "
+            "geometry")),
+    Sample(
+        "polymer_ipp", "polymer/isotactic-polypropylene.cif",
+        "Polypropylene", group=POLYMER, description=(
+            "Mencik, J. Macromol. Sci. 1972, as COD 1552371: alpha-iPP, "
+            "four 3_1 helices up and down in P2_1/c -- the published "
+            "carbons, with hydrogens placed by geometry")),
+    Sample(
+        "polymer_cellulose", "polymer/cellulose-Ibeta.cif",
+        "Cellulose", group=POLYMER, cod_id=4114994,
+        description=(
+            "Nishiyama et al., J. Am. Chem. Soc. 2002: two "
+            "glucan chains in P2_1 from synchrotron fibre diffraction, "
+            "hydrogen-bonded sheets -- the X-ray model, so the hydroxyl "
+            "hydrogens are not in it")),
     Sample(
         "cod_mof5", "cod/MOF-5.cif", "MOF-5", group=COD,
         cod_id=1516287, description=(

@@ -1028,3 +1028,32 @@ def test_the_builder_links_to_pormake_and_the_rcsr(dialog):
     assert dialog._select("lcw_component_3")   # PORMAKE's, not the RCSR's
     assert dialog.net_links.urls() == []
     assert dialog.net_links.isHidden()
+
+
+def test_an_answered_build_dialog_is_deleted_on_the_gui_thread(
+        qtbot, window, monkeypatch):
+    """After ``exec`` PySide hands the dialog to Python, and its slot
+    rows hold it in a cycle, so only the cyclic collector frees it --
+    on whichever thread runs it next, which is the build's worker, and
+    widgets destroyed there segfault."""
+    import shiboken6
+    from PySide6.QtCore import QCoreApplication, QEvent
+    from PySide6.QtWidgets import QDialog
+
+    from xtalapp.dialogs.mof_build import MofBuildDialog
+
+    made = []
+
+    def answer(self):
+        made.append(self)
+        return QDialog.Accepted
+
+    monkeypatch.setattr(MofBuildDialog, "exec", answer)
+    module, action = MODULES.find("mof.build")
+    values = MofBuildDialog.ask(module, action, window,
+                                {"topology": "pcu", "nodes": "N59",
+                                 "edges": "E32"})
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+    assert values["topology"] == "pcu"
+    assert not shiboken6.isValid(made[0])

@@ -37,6 +37,9 @@ from functools import lru_cache
 PACKAGE = "xtal.build.data"
 FILE = "fragments.json"
 
+#: The category :mod:`xtal.polymer` reads its repeat units from.
+MONOMER = "Monomer"
+
 
 class LibraryError(ValueError):
     """The shipped library is missing or unreadable."""

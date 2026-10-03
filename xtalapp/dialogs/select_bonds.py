@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from xtalapp.dialogs.answered import answered
 from xtalapp.widgets.tone import HINT, set_tone
 
 ANY = "Any element"
@@ -86,7 +87,7 @@ class SelectBondsDialog(QDialog):
     @classmethod
     def ask(cls, elements, count: Callable, parent=None,
             first: str | None = None) -> dict | None:
-        dialog = cls(elements, count, parent, first)
-        if dialog.exec() != QDialog.Accepted:
-            return None
-        return dialog.result_values()
+        with answered(cls(elements, count, parent, first)) as dialog:
+            if dialog.exec() != QDialog.Accepted:
+                return None
+            return dialog.result_values()

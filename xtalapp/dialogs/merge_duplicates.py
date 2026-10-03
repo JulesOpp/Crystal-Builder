@@ -36,6 +36,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.core import symmetry
+from xtalapp.dialogs.answered import answered
 
 # The slider sweeps; the spin box beside it sets.  The range stops at
 # half an Angstrom because merging atoms further apart than that is no
@@ -162,7 +163,7 @@ class MergeDuplicatesDialog(QDialog):
     def ask(cls, document, parent=None):
         """The report from the merge, or ``None`` if it was cancelled
         or there was nothing to do."""
-        dialog = cls(document, parent)
-        if dialog.exec() != QDialog.Accepted:
-            return None
-        return document.merge_duplicates(dialog.tol.value())
+        with answered(cls(document, parent)) as dialog:
+            if dialog.exec() != QDialog.Accepted:
+                return None
+            return document.merge_duplicates(dialog.tol.value())

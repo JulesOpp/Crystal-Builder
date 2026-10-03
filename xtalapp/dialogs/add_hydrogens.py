@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.ff.hydrogens import X_RAY_SHORTENING
+from xtalapp.dialogs.answered import answered
 
 
 class AddHydrogensDialog(QDialog):
@@ -112,7 +113,7 @@ class AddHydrogensDialog(QDialog):
 
     @classmethod
     def ask(cls, document, parent=None) -> str:
-        dialog = cls(document, parent)
-        if dialog.exec() != QDialog.Accepted:
-            return ""
-        return document.add_hydrogens(dialog.xray.isChecked())
+        with answered(cls(document, parent)) as dialog:
+            if dialog.exec() != QDialog.Accepted:
+                return ""
+            return document.add_hydrogens(dialog.xray.isChecked())
