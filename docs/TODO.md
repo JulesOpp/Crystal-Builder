@@ -227,11 +227,9 @@ the viewport.  Branching is not in it.
 
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
-| **5 — The dialog** | Modules ▸ Polymer builder… | `xtalapp/dialogs/polymer_build.py` | M |
-| **6 — A monomer from the viewport** | Structure ▸ Save as Monomer… to `<workspace>/monomers/` | `xtalapp/dialogs/`, `xtal/workspace.py` | M |
 | **8 — The equilibration seam** | `Protocol` (21-step as data), `Equilibrator` interface | `xtal/polymer/protocol.py` | S |
 
-In that order.  Phase 7, the crystalline samples, shipped 2026-10-02
+Phase 7, the crystalline samples, shipped 2026-10-02
 as Open Sample ▸ Polymers: polyethylene, alpha-iPP and cellulose
 I-beta; Phase 0, a SMILES `*` bonded to two atoms (PIM-1's ladder),
 and Phase 1, `xtal/polymer/monomer.py` with eleven library monomers,
@@ -248,14 +246,12 @@ skill's `polymer.md`, shipped 2026-10-02.  Measured: polyethylene 10 x
 1.5 s, so the window is not what limits the size; atactic polystyrene
 8 x 30 is 16 s.  Growth is at three quarters of the target (0.2 g/cm3
 for a ladder) and compressed, because PS, PMMA, PET and nylon-6 jammed
-grown at their own densities.
-
-### 5, 6 — The dialog, the viewport monomer
-
-The carbon builder's pattern: a dialog over `polymer.build` with the
-library, a SMILES box and the sketch canvas (`sketch_for`).  *Save as
-Monomer…* is enabled with exactly two connection points and writes a
-block file, head first, to `<workspace>/monomers/`.
+grown at their own densities.  Phase 5, the dialog, and Phase 6,
+Structure ▸ Building blocks ▸ Save as a monomer… writing a block file
+head first to `<workspace>/monomers/` for the dialog's library combo,
+shipped 2026-10-02.  The dialog is deleted on the GUI thread once it
+has answered: `exec` leaves it owned by Python, and the cyclic
+collector freed it on the build's worker thread and segfaulted.
 
 ### 8 — The equilibration seam
 
@@ -520,6 +516,13 @@ its phases shipping.
   `scripts/polymer_samples.py` takes them as a table of carbons and
   heteroatoms once they are -- its hydrogens assume saturated carbon,
   so a ring or an amide needs a rule there first.
+- **A saved monomer's report says no tacticity**: a block file
+  carries no SMILES, so `monomer.from_block_file` leaves `handed` False
+  and a polypropylene saved from the viewport is reported as
+  polyethylene is -- no tacticity, no meso fraction -- though its
+  units are still mirrored as the sequence asks.  The dialog's footer
+  says "no stereocentre" too.  The stereocentre wants reading off the
+  block's own graph (RDKit from the bonds), not the string.
 - **Add hydrogens reads a 114-degree CH2 as sp2**: `typer._carbon`
   calls a two-neighbour carbon C_2 at 114 degrees or more, and Mencik's
   iPP C9 is 114.09, so the planner gives it one hydrogen of two.  A

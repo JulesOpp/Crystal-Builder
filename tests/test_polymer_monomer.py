@@ -127,3 +127,58 @@ def test_ends_of_different_widths_are_refused():
             ("X", "O", "O", "C", "X"), cart,
             ((0, 1, 1.0), (0, 2, 1.0), (1, 3, 1.0), (2, 3, 1.0),
              (3, 4, 1.0)), (0, 4))
+
+
+def _styrene():
+    from xtal.build import from_smiles
+
+    return from_smiles("[*:1]CC([*:2])c1ccccc1").to_structure()
+
+
+@needs_rdkit
+def test_save_as_monomer_writes_the_head_first(tmp_path):
+    """The file has no other way to say which end is the head, so the
+    one chosen must be the first point written -- otherwise a chain of
+    them is tail to tail wherever the user picked the other end."""
+    structure = _styrene()
+    first, second = monomer.connection_points(structure)
+    as_drawn = monomer.from_structure(structure, head=first)
+
+    path = monomer.save(structure, tmp_path / "PS.xyz", head=second)
+    turned = monomer.from_block_file(path)
+
+    assert turned.name == "PS"
+    assert turned.formula == as_drawn.formula
+    # The ends swap: the atom the drawn tail stood for is now the head.
+    assert (turned.elements[turned.head_members[0]],
+            turned.elements[turned.tail_members[0]]) == ("C", "C")
+    np.testing.assert_allclose(
+        turned.cart[turned.head_members[0]],
+        as_drawn.cart[as_drawn.tail_members[0]], atol=1e-3)
+
+
+@needs_rdkit
+def test_a_molecule_that_is_not_a_monomer_leaves_no_file(tmp_path):
+    """A refused save that still wrote its file would put an entry in
+    the polymer builder's library that fails when it is chosen."""
+    from xtal.build import from_smiles
+
+    structure = from_smiles("[*:1]c1ccc([*:2])cc1[*:3]").to_structure()
+
+    with pytest.raises(MonomerError, match="branching"):
+        monomer.save(structure, tmp_path / "three.xyz")
+    assert not (tmp_path / "three.xyz").exists()
+    assert monomer.saved(tmp_path) == ()
+
+
+@needs_rdkit
+def test_a_connection_point_is_named_by_the_atom_it_stands_for():
+    """The head is picked from a list of these, and two bare X labels
+    would ask the user to guess."""
+    structure = _styrene()
+    names = [monomer.point_name(structure, p)
+             for p in monomer.connection_points(structure)]
+
+    assert len(names) == 2
+    assert all(" on C" in name for name in names)
+    assert names[0] != names[1]

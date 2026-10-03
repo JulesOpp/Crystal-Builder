@@ -7,9 +7,11 @@ then the sequence, the size, the box and the rest.
 **A monomer row is the molecule builder's box and canvas, aimed at a
 repeat unit.**  A library combo of the ``Monomer`` entries, the text
 box :func:`xtal.modules.polymer.monomer_of` reads (a library name, a
-block file or a starred SMILES string), and the sketch.  Choosing an
-entry writes its *name* into the box -- so the tab and the report say
-"Polystyrene" and not a string -- and draws its SMILES; drawing on the
+block file or a starred SMILES string), and the sketch.  The combo
+lists the workspace's own monomers after the library's, by file --
+what *Save as a monomer* wrote.  Choosing an entry writes its *name*
+into the box -- so the tab and the report say "Polystyrene" and not a
+string -- and draws its SMILES; drawing on the
 canvas writes the drawn SMILES into the box.  Whatever the box holds is
 resolved after a pause, unrelaxed, and the row's footer says the
 formula and how many atoms each end stands for, or why it is not a
@@ -42,6 +44,7 @@ from PySide6.QtWidgets import (
 from xtal.build import BuildError, library
 from xtal.modules import polymer as polymer_module
 from xtal.polymer.monomer import monomers
+from xtal.polymer.monomer import saved as saved_monomers
 from xtalapp.dialogs import sketch
 from xtalapp.dialogs.build_molecule import on_change, sketch_for
 from xtalapp.dialogs.module_form import ParamForm
@@ -76,7 +79,7 @@ _WHEN = {
 class MonomerRow(QWidget):
     """One monomer: the library, the box, the sketch and a footer."""
 
-    def __init__(self, param, parent=None):
+    def __init__(self, param, parent=None, saved=()):
         super().__init__(parent)
         self.param = param
         self.monomer = None
@@ -91,6 +94,11 @@ class MonomerRow(QWidget):
             entries = ()
         for entry in entries:
             self.library.addItem(entry.name, entry)
+        # A saved monomer by its file, which is what the box reads; the
+        # suffix keeps it apart from a library entry of the same name.
+        for path in saved:
+            self.library.addItem(f"{path.stem} (this workspace)",
+                                 str(path))
         self.library.currentIndexChanged.connect(self._on_library)
         self.sketch = sketch_for(self, True)
         self.sketch.setMaximumHeight(SKETCH_HEIGHT)
@@ -122,7 +130,9 @@ class MonomerRow(QWidget):
 
     def _on_library(self, *_args) -> None:
         entry = self.library.currentData()
-        if entry is not None:
+        if isinstance(entry, str):
+            self.set_text(entry)
+        elif entry is not None:
             self.set_text(entry.name)
 
     def _on_sketch(self, text: str) -> None:
@@ -203,10 +213,13 @@ class PolymerBuildDialog(QDialog):
         # Tabs and not side by side: each row carries a canvas and its
         # toolbar, and two of them abreast scrolled the form sideways.
         self.rows = {}
+        workspace = getattr(parent, "workspace", None)
+        saved = (saved_monomers(workspace.monomers)
+                 if workspace is not None else ())
         self.tabs = QTabWidget(self)
         for name, title in (("monomer", "Monomer A"),
                             ("monomer_b", "Monomer B")):
-            row = MonomerRow(by_name[name], self.tabs)
+            row = MonomerRow(by_name[name], self.tabs, saved)
             row.form.set_values({name: given.get(name, "")})
             self.rows[name] = row
             self.tabs.addTab(row, title)

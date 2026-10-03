@@ -317,3 +317,73 @@ def from_block_file(path) -> Monomer:
                   for i, j, letter in block.bonds)
     return from_parts(block.symbols, block.positions, bonds,
                       block.connections, name=path.stem)
+
+
+def connection_points(structure) -> tuple[int, ...]:
+    """The structure's connection points, by index in its P1 cell --
+    what *Save as Monomer* offers as the head."""
+    from xtal.core import p1
+
+    cell = p1.expand(structure)
+    return tuple(i for i, symbol in enumerate(cell.elements)
+                 if symbol == CONNECTION)
+
+
+def point_name(structure, point: int) -> str:
+    """A connection point as a person picks it: its label and the
+    atoms it stands for, ``X1 on C3`` or ``X2 on O4 + O5``."""
+    from xtal.core import bonding, p1
+
+    cell = p1.expand(structure)
+
+    def label(atom):
+        given = cell.labels[atom] if len(cell.labels) > atom else ""
+        return str(given) or f"{cell.elements[atom]}{atom + 1}"
+
+    graph = bonding.graph(structure)
+    members = dict.fromkeys(
+        j for j, _image in graph.neighbors_with_images(point)
+        if cell.elements[j] != CONNECTION)
+    on = " + ".join(label(j) for j in members) or "nothing"
+    return f"{label(point)} on {on}"
+
+
+def from_structure(structure, head: int | None = None,
+                   name: str = "") -> Monomer:
+    """The monomer *Save as Monomer* would write, read back through
+    the block file itself, so the check is the reader's and not a
+    second opinion of it."""
+    import tempfile
+
+    from xtal.mof.block import BlockError, write_building_block
+
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / f"{name or 'monomer'}.xyz"
+        try:
+            write_building_block(structure, path, head=head)
+        except BlockError as exc:
+            raise MonomerError(str(exc)) from None
+        return from_block_file(path)
+
+
+def save(structure, path, head: int | None = None) -> Path:
+    """Write ``structure`` as a monomer block file, ``head`` first.
+
+    Checked before anything is written, so a refusal leaves no file
+    for the polymer builder to list and then fail on.
+    """
+    from xtal.mof.block import write_building_block
+
+    path = Path(path)
+    from_structure(structure, head=head, name=path.stem)
+    return write_building_block(structure, path, head=head)
+
+
+def saved(folder) -> tuple[Path, ...]:
+    """The monomer files in ``folder``, by name; none if it is not
+    there yet."""
+    folder = Path(folder)
+    if not folder.is_dir():
+        return ()
+    return tuple(sorted(folder.glob("*.xyz"),
+                        key=lambda p: p.stem.lower()))
