@@ -248,6 +248,9 @@ def test_activating_the_reason_opens_engines_and_keeps_the_reason(
             def exec(self):
                 shown.append("exec")
 
+            def deleteLater(self):
+                shown.append("deleted")
+
         monkeypatch.setattr(win, "preferences_dialog",
                             lambda: _Preferences())
         tree = win.modules_dock.tree
@@ -255,7 +258,7 @@ def test_activating_the_reason_opens_engines_and_keeps_the_reason(
 
         tree.activated.emit(why.index())
 
-        assert shown == ["Engines", "exec"]
+        assert shown == ["Engines", "exec", "deleted"]
         assert "example.org" in win.modules_dock.status.text()
     finally:
         MODULES.unregister("absent")
@@ -617,6 +620,80 @@ def test_a_structure_a_module_produced_is_one_undoable_edit(opened,
         assert document.structure.lattice.lengths[0] == \
             pytest.approx(before)
     finally:
+        MODULES.unregister("doubler")
+
+
+def _held_doubler(release):
+    """A module that doubles the cell once ``release`` is set, so a
+    test can change tabs while it runs."""
+    def double_the_cell(job):
+        from xtal.core import supercell
+        from xtal.modules.job import JobResult
+        release.wait(10)
+        return JobResult(message="doubled",
+                         structure=supercell.supercell(
+                             job.structure, 2, 1, 1))
+
+    return Module(
+        name="doubler", label="Doubler", order=860,
+        actions=(Action(name="go", label="Go", run=double_the_cell),))
+
+
+def test_a_result_lands_on_the_tab_it_ran_on_with_another_in_front(
+        opened, qtbot, tmp_path, quartz):
+    """Adoption read the tab in front when the run finished, so a
+    DFTB+ optimisation of rutile that finished with quartz in front
+    replaced quartz with rutile -- silently, and undoable only from the
+    wrong tab."""
+    import threading
+    window, rutile_doc = opened
+    release = threading.Event()
+    MODULES.register(_held_doubler(release))
+    try:
+        window._build_modules_menu()
+        before = rutile_doc.structure.lattice.lengths[0]
+        window.run_module_action("doubler", "go")
+        source = tmp_path / "quartz.cif"
+        write_cif(quartz, source)
+        quartz_doc = window.open_path(source)
+        assert window.current_document() is quartz_doc
+        release.set()
+        qtbot.waitUntil(lambda: window.module_worker is None,
+                        timeout=15000)
+        assert rutile_doc.structure.lattice.lengths[0] == \
+            pytest.approx(2 * before)
+        assert sorted(set(quartz_doc.cell.elements)) == \
+            ["O", "Si"]
+        assert not quartz_doc.can_undo
+    finally:
+        release.set()
+        MODULES.unregister("doubler")
+
+
+def test_a_result_for_a_closed_tab_is_reported_not_adopted(
+        opened, qtbot, tmp_path, quartz):
+    """With the tab it ran on closed, the result has no document of
+    its own, and the one in front is not it."""
+    import threading
+    window, rutile_doc = opened
+    release = threading.Event()
+    MODULES.register(_held_doubler(release))
+    try:
+        window._build_modules_menu()
+        window.run_module_action("doubler", "go")
+        source = tmp_path / "quartz.cif"
+        write_cif(quartz, source)
+        quartz_doc = window.open_path(source)
+        window.close_document(window.documents.index(rutile_doc))
+        assert rutile_doc not in window.documents
+        release.set()
+        qtbot.waitUntil(lambda: window.module_worker is None,
+                        timeout=15000)
+        assert sorted(set(quartz_doc.cell.elements)) == \
+            ["O", "Si"]
+        assert not quartz_doc.can_undo
+    finally:
+        release.set()
         MODULES.unregister("doubler")
 
 

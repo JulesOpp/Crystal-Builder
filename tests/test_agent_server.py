@@ -326,12 +326,15 @@ def test_the_help_action_opens_preferences_on_the_assistant_page(
         def exec(self):
             shown.append("exec")
 
+        def deleteLater(self):
+            shown.append("deleted")
+
     monkeypatch.setattr(window, "preferences_dialog",
                         lambda: _Preferences())
     action = window.actions_["connect_ai_assistant"]
     action.trigger()
 
-    assert shown == [PAGE, "exec"]
+    assert shown == [PAGE, "exec", "deleted"]
     assert action.text().replace("&", "") == "Connect an AI assistant..."
     entries = [a for a in window.menuBar().actions()
                if a.text().replace("&", "") == "Help"][0].menu().actions()

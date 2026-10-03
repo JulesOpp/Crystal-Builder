@@ -1207,8 +1207,12 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
             self._agent_host = WindowHost(self)
         return self._agent_host
 
-    def may_stop_calculations(self) -> bool:
+    def may_stop_calculations(self, question: str = "") -> bool:
         """Ask, once, whether a running calculation may be stopped.
+
+        ``question`` is for a caller that is not quitting -- leaving
+        the workspace -- and its answer is not remembered: the yes a
+        quit keeps is a yes to quitting, not to whatever comes next.
 
         Asked *before* anything is stopped.  ``closeEvent`` used to
         stop the run first and ask about unsaved edits second, so a
@@ -1222,10 +1226,21 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
             return True
         answer = QMessageBox.question(
             self, "A calculation is running",
-            "A calculation is still running. Stop it and quit?",
+            question or "A calculation is still running. Stop it and "
+                        "quit?",
             QMessageBox.Yes | QMessageBox.No)
+        if question:
+            return answer == QMessageBox.Yes
         self._stop_confirmed = answer == QMessageBox.Yes
         return self._stop_confirmed
+
+    def stop_calculations(self) -> None:
+        """Ask the module run and the optimisation to stop.  Each
+        finishes on its own afterwards, and finds the tab it ran on
+        gone if it has been closed."""
+        self.stop_module()
+        if getattr(self, "ff_dock", None) is not None:
+            self.ff_dock.stop()
 
     def confirm_quit(self) -> bool:
         """Whether a quit that did not come through this window may go

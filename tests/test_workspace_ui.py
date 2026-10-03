@@ -354,6 +354,47 @@ def test_switching_workspace_asks_once_about_unsaved_tabs(
     assert window.tabs.count() == 0
 
 
+def test_switching_workspace_mid_run_asks_first_and_stops_only_on_yes(
+        opened, tmp_path, monkeypatch):
+    """A run left going across a switch filed its result into the
+    workspace that had been left, or adopted it into a tab of the new
+    one.  It is asked about before anything is stopped, as a quit asks,
+    and a No leaves the run, the workspace and the tabs as they were."""
+    from PySide6.QtWidgets import QMessageBox
+
+    monkeypatch.delenv("XTAL_NO_CONFIRM_CLOSE", raising=False)
+    window, _document = opened
+    monkeypatch.setattr(window, "has_running_calculation", lambda: True)
+    stopped = []
+    monkeypatch.setattr(window, "stop_calculations",
+                        lambda: stopped.append(True))
+    asked = []
+
+    def answer(reply):
+        def question(*args, **kwargs):
+            asked.append(args[2] if len(args) > 2 else "")
+            return reply
+        return question
+
+    monkeypatch.setattr(QMessageBox, "question", answer(QMessageBox.No))
+    assert window.workspace_shell.switch_workspace(
+        tmp_path / "other", create=True) is None
+    assert asked and "calculation" in asked[0]
+    assert stopped == []
+    assert window.workspace.root == tmp_path / "ws"
+    assert window.tabs.count() == 1
+
+    asked.clear()
+    monkeypatch.setattr(QMessageBox, "question",
+                        answer(QMessageBox.Yes))
+    window.workspace_shell.switch_workspace(tmp_path / "other",
+                                            create=True)
+    assert stopped == [True]
+    assert window.workspace.root == tmp_path / "other"
+    # A switch's yes is not a quit's: the next quit asks again.
+    assert not window._stop_confirmed
+
+
 def test_switching_to_the_workspace_already_open_changes_nothing(
         opened, tmp_path):
     window, document = opened

@@ -147,10 +147,19 @@ class WorkspaceShell:
         if workspace == self.workspace:
             self.refresh_workspace()
             return workspace
+        # The run first and the edits second, and nothing stopped until
+        # both are yes -- the order quitting keeps.  A run left going
+        # across the switch filed its result into the workspace that
+        # had been left, or adopted it into a tab of the new one.
+        if not self.window.may_stop_calculations(
+                "A calculation is still running. Stop it and leave this "
+                "workspace?"):
+            return None
         if not self.window.may_discard_unsaved(
                 "Some structures have unsaved changes. Leave this "
                 "workspace anyway?"):
             return None
+        self.window.stop_calculations()
         self.save_session()
         self._holding = True
         try:

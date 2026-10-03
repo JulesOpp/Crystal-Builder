@@ -265,13 +265,14 @@ class ModuleRunner(QObject):
             self._draw_module_overlay(result)
         if getattr(result, "trajectory", None) is not None:
             self._play_module_trajectory(result)
-        # Let go of it here and not in ``_finish_module``, which runs
-        # before the overlay is placed -- and let go at all because it
-        # is a whole Document, and a run against a tab the user then
-        # closes must not keep that tab's structure alive.
-        self._module_document = None
         if result.structure is not None:
             self._adopt_module_structure(worker, result)
+        # Let go of it here and not in ``_finish_module``, which runs
+        # before the overlay is placed and the structure adopted -- and
+        # let go at all because it is a whole Document, and a run
+        # against a tab the user then closes must not keep that tab's
+        # structure alive.
+        self._module_document = None
         self.window.run_progress.finish()
         self.window.modules_dock.set_idle(result.summary())
         self.window._refresh_shell()
@@ -441,12 +442,23 @@ class ModuleRunner(QObject):
         if action is not None and not action.needs_structure:
             self._open_module_structure(worker, result)
             return
-        document = self.window.current_document()
-        if document is None or document.is_playing:
+        # The document the run was started from, never the one in
+        # front: that was the rule, and a DFTB+ optimisation of rutile
+        # that finished with quartz in front replaced quartz with it.
+        # The run's result is a structure *of* this document, as its
+        # overlay is (see _draw_module_overlay).
+        document = self._module_document
+        if document is None or document not in self.window.documents:
             self.window.show_message(
                 "the module produced a structure, and it was not "
-                "adopted because the document it ran against is no "
-                "longer in front")
+                "adopted because the tab it ran against has been "
+                "closed -- it is in the run folder")
+            return
+        if document.is_playing:
+            self.window.show_message(
+                f"the module produced a structure, and it was not "
+                f"adopted because {document.title} is playing a "
+                f"trajectory -- it is in the run folder")
             return
         label = f"{worker.module.label}: {worker.action.label}" \
             if worker is not None else "Module result"
@@ -459,6 +471,10 @@ class ModuleRunner(QObject):
                 "is nowhere they belong in it")
         document.replace_structure(adopted, label.rstrip("."),
                                    Change.ALL)
+        if document is not self.window.current_document():
+            self.window.show_message(
+                f"{label.rstrip('.')} finished: {document.title} has "
+                f"the result")
 
     def _open_module_structure(self, worker, result) -> None:
         """A structure a module built from nothing, in a new tab.
