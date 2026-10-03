@@ -139,6 +139,11 @@ drawn.
 
 ### `supercell(na, nb, nc)`
 
+The cell's atoms times `na * nb * nc` are counted before anything is
+built. Over the hard limit (200,000 atoms by default; the window's
+Large structures setting) it is refused with `SIZE_LIMIT`, naming the
+largest cube that fits.
+
 ### `slab(hkl, layers, vacuum, shift)`
 
 A slab cut along the plane `hkl`, a Miller index of the cell as it is

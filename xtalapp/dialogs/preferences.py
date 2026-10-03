@@ -60,7 +60,7 @@ from PySide6.QtWidgets import (
 
 from xtal import install
 from xtal.agent import discovery
-from xtal.core import bonding
+from xtal.core import bonding, limits
 from xtal.modules import probe as probes
 from xtalapp import external, extras
 from xtalapp.dialogs.bond_rules import BondRulesDialog
@@ -93,6 +93,12 @@ def _hint(text: str) -> QLabel:
     return label
 
 
+#: Preferences > General > Large structures, in the order offered.
+SIZE_PROFILES = ((limits.STANDARD, "Standard"),
+                 (limits.GENEROUS, "Generous"),
+                 (limits.WARN_ONLY, "Warn only"))
+
+
 class GeneralPage(QWidget):
     """What the application does on its own: start, remember, forget."""
 
@@ -113,6 +119,7 @@ class GeneralPage(QWidget):
         self.settings = settings
         layout = QVBoxLayout(self)
         layout.addWidget(self._saving_box())
+        layout.addWidget(self._size_box())
         layout.addWidget(self._workspace_box())
         layout.addWidget(self._forget_box())
         layout.addStretch(1)
@@ -156,6 +163,38 @@ class GeneralPage(QWidget):
     def _set_autosave(self, minutes: int) -> None:
         self.settings.autosave_interval = minutes * 60
         self.autosaveChanged.emit()
+
+    def _size_box(self) -> QGroupBox:
+        box = QGroupBox("Large structures")
+        outer = QVBoxLayout(box)
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Size limits"))
+        self.size_profile = QComboBox()
+        for name, label in SIZE_PROFILES:
+            self.size_profile.addItem(label, name)
+        self.size_profile.setCurrentIndex(
+            self.size_profile.findData(self.settings.size_profile))
+        self.size_profile.currentIndexChanged.connect(
+            self._set_size_profile)
+        row.addWidget(self.size_profile)
+        row.addStretch(1)
+        outer.addLayout(row)
+        soft, hard = limits.BUDGETS["supercell"]
+        drawn_soft, drawn_hard = limits.BUDGETS["drawn"]
+        outer.addWidget(_hint(
+            f"How big a supercell, a picture or a porosity grid may "
+            f"get before you are asked, and before it is refused.  "
+            f"Standard suits an 8 GB machine: a supercell is asked "
+            f"about over {soft:,} atoms and refused over {hard:,}, a "
+            f"picture over {drawn_soft:,} and {drawn_hard:,} drawn "
+            f"atoms.  Generous doubles every limit, for 16 GB and "
+            f"up.  Warn only still asks, and never refuses."))
+        return box
+
+    def _set_size_profile(self, _index: int) -> None:
+        name = self.size_profile.currentData()
+        self.settings.size_profile = name
+        limits.use(name)
 
     def _workspace_box(self) -> QGroupBox:
         box = QGroupBox("Workspaces")

@@ -23,6 +23,16 @@ for a file somebody else will read: it strips dummy atoms, net edges
 and suppressed bonds, and says which of the format's limitations it
 is about to hit.
 
+**Big things are counted before they are made.**  A supercell, the
+cells the toolbar draws, a porosity grid's spacing and a carbon
+build's repeat are estimated first.  Over a soft limit you are asked,
+or the warning is shown beside the box; over a hard limit the thing is
+refused, and the message names the largest size that fits.
+*Preferences ▸ General ▸ Large structures* chooses the limits:
+**Standard** suits an 8 GB machine (a supercell is asked about over
+50,000 atoms and refused over 200,000).  **Generous** doubles every
+limit, for 16 GB and up.  **Warn only** still asks, and never refuses.
+
 **Bonds change only when you press Recalculate bonds.**  Not on load,
 not when you edit the cell, not when an atom is placed, and not after
 a relaxation.  After a build or a long optimisation, look at the bonds

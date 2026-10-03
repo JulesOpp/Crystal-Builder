@@ -507,6 +507,20 @@ def _no_leftover_tool_hints():
     yield
     process.clear_hints()
 
+
+@pytest.fixture(autouse=True)
+def _standard_size_limits():
+    """Every test starts under the Standard size profile.
+
+    ``xtal.core.limits`` holds the profile process-wide, set by the
+    window from Preferences, so one test choosing Warn only would
+    otherwise decide what every later test in its worker refuses.
+    """
+    from xtal.core import limits
+    limits.use(limits.STANDARD)
+    yield
+    limits.use(limits.STANDARD)
+
 # Reference values from the literature, for tests that check we get
 # real numbers out and not just self-consistent ones.
 RUTILE_DENSITY = 4.25       # g/cm^3

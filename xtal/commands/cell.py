@@ -24,6 +24,7 @@ from __future__ import annotations
 import numpy as np
 
 from xtal.commands.base import Command, StructureOperation
+from xtal.core import limits, p1
 from xtal.core import supercell as sc
 from xtal.core.lattice import Lattice
 from xtal.core.structure import Change
@@ -73,12 +74,16 @@ class Supercell(StructureOperation):
 
     change = Change.CELL | Change.SYMMETRY | Change.TOPOLOGY
 
-    def __init__(self, na: int, nb: int, nc: int):
+    def __init__(self, na: int, nb: int, nc: int, profile=None):
         super().__init__()
         self.counts = (int(na), int(nb), int(nc))
+        self.profile = profile
         self.label = "Supercell {}x{}x{}".format(*self.counts)
 
     def apply_to(self, structure):
+        refused = _too_big(structure, self.counts, self.profile)
+        if refused is not None:
+            return structure, refused
         out = sc.supercell(structure, *self.counts)
         return out, _report(structure, out, self.label.lower())
 
@@ -95,11 +100,15 @@ class TransformCell(StructureOperation):
     change = Change.CELL | Change.SYMMETRY | Change.TOPOLOGY
     label = "Transform cell"
 
-    def __init__(self, p_matrix):
+    def __init__(self, p_matrix, profile=None):
         super().__init__()
         self.p_matrix = np.asarray(p_matrix, dtype=float).reshape(3, 3)
+        self.profile = profile
 
     def apply_to(self, structure):
+        refused = _too_big(structure, self.p_matrix, self.profile)
+        if refused is not None:
+            return structure, refused
         out = sc.transform_cell(structure, self.p_matrix)
         det = int(round(float(np.linalg.det(self.p_matrix))))
         return out, _report(
@@ -207,10 +216,25 @@ class WrapIntoCell(StructureOperation):
                             "folded every site into the cell")
 
 
+def _too_big(structure, p, profile):
+    """A refusal report when the cell ``p`` builds is over the hard
+    limit, else None.  In the command and not the dialog, so that an
+    agent's ``supercell(20, 20, 20)`` and the CLI meet it too: the
+    count is arithmetic, and building first to find out is the
+    crash."""
+    from xtal.core.symmetry import SymmetryReport
+
+    n = p1.expand(structure).n_atoms
+    verdict = limits.check_supercell(n, p, profile)
+    if not verdict.refused:
+        return None
+    return SymmetryReport(ok=False, message=verdict.sentence,
+                          n_before=n, n_after=n, code="SIZE_LIMIT")
+
+
 def _report(before, after, message: str):
     """The same shape of report the symmetry operations return, so a
     dialog can show either without caring which it got."""
-    from xtal.core import p1
     from xtal.core.symmetry import SymmetryReport
 
     n_before = p1.expand(before).n_atoms

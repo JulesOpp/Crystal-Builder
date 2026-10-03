@@ -339,8 +339,14 @@ def _accessible_surface(job, probe: float):
         job.note(f"no surface drawn: {why}")
         return None
     spacing = float(job.param("spacing", grids.DEFAULT_SPACING))
-    field = grids.distance_grid(job.structure, radius_of,
-                                spacing=spacing)
+    try:
+        field = grids.distance_grid(job.structure, radius_of,
+                                    spacing=spacing)
+    except ValueError as exc:
+        # The volume Zeo++ measured stands; only the picture is too
+        # big to make.
+        job.note(f"no surface drawn: {exc}")
+        return None
     split = voids.classify(job.structure, field, radius_of, probe)
     return channel_overlay(job, field, split)
 
@@ -822,7 +828,7 @@ def _grid_shared() -> tuple[Param, ...]:
     return (
         Param("spacing", "Grid spacing", kind="float", default=0.4,
               minimum=0.2, maximum=1.0, step=0.05, decimals=2,
-              suffix=" A",
+              suffix=" A", sizes="grid",
               help="Finer is slower and resolves narrower windows: "
                    "0.4 A is a second or two on MFU-4l.  A window "
                    "within half a step of the probe's size is flagged "
@@ -927,6 +933,7 @@ ZEOPP = Module(
                        Param("spacing", "Surface detail", kind="float",
                              default=0.5, minimum=0.2, maximum=2.0,
                              step=0.1, decimals=2, suffix=" A",
+                             sizes="grid",
                              help="Grid spacing for the surface.  "
                                   "Smaller is finer and slower: 0.5 A "
                                   "is a second and 190 000 triangles "

@@ -1013,8 +1013,9 @@ class Session:
         stack for undo to lie about."""
         _new, report = command.preview(self.structure)
         if report is not None and not report.ok:
-            code = ("NOTHING_TO_DO" if "nothing to" in report.message
-                    else "OPERATION_REFUSED")
+            code = (getattr(report, "code", "")
+                    or ("NOTHING_TO_DO" if "nothing to" in report.message
+                        else "OPERATION_REFUSED"))
             return self._refused(verb, args, report.message, code)
         notes = [Diagnostic("SYMMETRY_NOTE", w)
                  for w in getattr(report, "warnings", [])

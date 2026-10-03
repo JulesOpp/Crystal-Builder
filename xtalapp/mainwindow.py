@@ -39,6 +39,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.commands.clipboard import Fragment
+from xtal.core import limits
 from xtal.workspace import resolved
 from xtalapp import docks, external, layout, menus, windows, workers
 from xtalapp.actions import ActionRegistry
@@ -111,6 +112,9 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         self.setAcceptDrops(True)
 
         self.settings = settings or AppSettings()
+        # Every size check in the core reads the profile Preferences
+        # set; the General page changes it there and here at once.
+        limits.use(self.settings.size_profile)
         self._viewport_factory = (viewport_factory
                                   or _default_viewport_factory)
         self.clipboard_fragment = Fragment()

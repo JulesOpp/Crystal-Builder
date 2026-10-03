@@ -20,6 +20,7 @@ from xtal.carbon import build as carbon_build
 from xtal.carbon.mesh import MeshError
 from xtal.carbon.ribbons import RibbonError
 from xtal.carbon.surface import SurfaceError
+from xtal.core import limits
 from xtal.modules.job import JobResult
 from xtal.modules.registry import MODULES, Action, Module, Param
 from xtal.modules.report import Histogram, Report, Row, Table
@@ -155,6 +156,19 @@ def build_carbon(job) -> JobResult:
         recipe = recipe_of(job)
     except ValueError as exc:
         return JobResult.failure(str(exc))
+    # Counted from one cell before any of the sheet is made: a repeat
+    # has no cap of its own, and 3x3x3 was 53 s and 0.84 GB.
+    job.say("counting the atoms one cell holds")
+    try:
+        verdict = limits.check_carbon(recipe)
+    except (SurfaceError, RibbonError, MeshError) as exc:
+        return JobResult.failure(str(exc))
+    sentence = f"{verdict.sentence[:1].upper()}{verdict.sentence[1:]}"
+    if verdict.refused:
+        return JobResult.failure(sentence)
+    if verdict.warned:
+        job.note(sentence)
+        job.say(sentence)
     try:
         built = carbon_build.build(recipe, say=job.say, check=job.check)
     except (SurfaceError, RibbonError, MeshError) as exc:

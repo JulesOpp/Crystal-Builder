@@ -29,7 +29,6 @@ measurements, is `~/.claude/plans/v1-release-fixes.md`.
 
 | Phase | Delivers | Main files | Size |
 |---|---|---|---|
-| **6 — Sizes estimated before building** | `xtal/core/limits.py`; display range, supercell, porosity grid, carbon repeat; *Large structures* in Preferences | `xtal/core/limits.py`, dialogs, `settings.py` | M |
 | **7 — The new builders** | Carbon relaxation stops; polymer copolymer density, ladder mixing, rotamer cap | `xtal/carbon/`, `xtal/polymer/` | M |
 | **8 — Release** | Third-party notices, selftest checks, README, 1.0 notes, manual inventory, flaky tests, bundle run, tag | `packaging/`, `docs/`, `README.md` | M |
 
@@ -44,8 +43,11 @@ cell, opening a `?` group number, saying when the file's operations
 were not used, and disorder groups written.  The merges are local --
 `main` has not been pushed and #51/#52 are still open.  Phase 5:
 undo steps below the top let go of their caches, and the history is
-trimmed by the sites it holds (`xtal/core/limits.py`, which Phase 6
-grows).  Phase 6 is next.  Still owed from Phase 4, in 1.0.x: building the group from a
+trimmed by the sites it holds.  Phase 6: a supercell, the cells
+drawn, a porosity grid and a carbon repeat are counted before they
+are built (`xtal/core/limits.py`), asked about over a soft limit and
+refused over a hard one, the profile *Preferences ▸ General ▸ Large
+structures*.  Phase 7 is next.  Still owed from Phase 4, in 1.0.x: building the group from a
 file's own operations when they match no tabulated setting.
 
 ## The interface stretch

@@ -59,7 +59,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtalapp.dialogs.answered import answered
-from xtalapp.widgets.tone import HINT, set_tone
+from xtalapp.widgets.tone import HINT, WARNING, set_tone
 
 
 class ParamForm(QWidget):
@@ -291,6 +291,13 @@ def _set_value(widget, value) -> None:
         widget.setText(str(value))
 
 
+def _structure_in_front(parent):
+    """The structure the run will be on: the window's current tab."""
+    current = getattr(parent, "current_document", None)
+    document = current() if callable(current) else None
+    return getattr(document, "structure", None)
+
+
 class ModuleDialog(QDialog):
     """Ask for an action's parameters, then let it run."""
 
@@ -322,11 +329,39 @@ class ModuleDialog(QDialog):
             set_tone(label, HINT)
             layout.addWidget(label)
         layout.addWidget(self.form)
+        self.size = QLabel("")
+        self.size.setWordWrap(True)
+        layout.addWidget(self.size)
         layout.addStretch(1)
         layout.addWidget(buttons)
+        self._structure = _structure_in_front(parent)
+        self.form.changed.connect(self._show_size)
+        self._show_size()
 
     def values(self) -> dict:
         return self.form.values()
+
+    def _show_size(self) -> None:
+        """What a parameter that sets a size comes to on the
+        structure in front, said beside the form: a porosity grid at
+        0.2 A on MFU-4l is 3.8 M points and about 2 GB, and the box
+        gave no hint of it."""
+        from xtal.core import limits
+
+        sized = [p for p in self.action.params if p.sizes == "grid"]
+        if not sized or self._structure is None:
+            self.size.hide()
+            return
+        spacing = float(self.values()[sized[0].name])
+        verdict = limits.check_grid(self._structure.lattice, spacing)
+        text = (f"At {spacing:g} A the grid has "
+                f"{limits.count(verdict.estimate)} points.")
+        if verdict.warned:
+            text = (f"{verdict.sentence[:1].upper()}"
+                    f"{verdict.sentence[1:]}.")
+        self.size.setText(text)
+        set_tone(self.size, WARNING if verdict.warned else HINT)
+        self.size.show()
 
     @classmethod
     def ask(cls, module, action, parent=None, initial=None):

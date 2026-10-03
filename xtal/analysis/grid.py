@@ -53,7 +53,8 @@ def shape_for(lattice, spacing: float = DEFAULT_SPACING) -> tuple:
 
 
 def distance_grid(structure, radius_of, spacing: float = DEFAULT_SPACING,
-                  shape: tuple | None = None) -> np.ndarray:
+                  shape: tuple | None = None,
+                  profile: str | None = None) -> np.ndarray:
     """Distance to the nearest atom surface, on a periodic grid.
 
     ``radius_of`` is called with an element symbol and returns its
@@ -69,8 +70,20 @@ def distance_grid(structure, radius_of, spacing: float = DEFAULT_SPACING,
     periodically and no padding is needed at the faces.  Single
     precision because it is a distance on a 0.4 A grid, and 1e-7 of
     one is not a thing a surface can show.
+
+    A spacing whose grid is over the hard size limit
+    (:func:`xtal.core.limits.check_grid`) raises ``ValueError`` naming
+    one that fits, before a point is sampled: MFU-4l at 0.2 A is 3.8 M
+    points and about 2.2 GB, and both the porosity entries and the
+    drawn surface come through here.
     """
     lattice = structure.lattice
+    if shape is None:
+        from xtal.core import limits
+        verdict = limits.check_grid(lattice, spacing, profile)
+        if verdict.refused:
+            raise ValueError(f"{verdict.sentence[:1].upper()}"
+                             f"{verdict.sentence[1:]}")
     shape = shape or shape_for(lattice, spacing)
     cell = p1.expand(structure)
     if not cell.n_atoms:

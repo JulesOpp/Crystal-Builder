@@ -32,6 +32,7 @@ tell the person. An **info** is context: report it where it matters.
 | `BOND_OVERRIDES_KEPT` | info | after recalculate_bonds, when bonds were drawn or removed by hand | Bonds drawn or removed by hand survive a recalculation. That is intended. |
 | `SYMMETRY_NOTE` | info | the declared and detected groups differ, detection failed, or an operation has a note | A note from symmetry detection; read it before choosing a tolerance. |
 | `OPERATION_REFUSED` | warning | a verb the core refused; nothing was pushed | Nothing was changed and nothing was put on the undo stack. Read the message: it says why. |
+| `SIZE_LIMIT` | warning | a supercell or transformation whose cell, counted before it is built, is over the hard limit of the Large structures setting (Standard: 200,000 atoms); the message names the largest that fits | Nothing was built: the estimate was over the hard limit. The message names the largest size that fits; ask the person before trying anything near it. |
 | `NOTHING_TO_DO` | info | a verb that would change nothing; nothing was pushed | Nothing was changed; the structure already had what was asked for. |
 | `CHEMISTRY_CHANGED` | warning | prepare ran a step that adds what the file never located (cap) | The result contains what the file never located. Tell the user, in so many words. |
 | `PREPARE_STEP` | info | one per prepare step that ran, with the step in `where` | What one prepare step did. Report it to the user. |

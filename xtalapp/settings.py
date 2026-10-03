@@ -153,12 +153,20 @@ def open_settings(organisation=ORGANISATION,
                      organisation, application)
 
 
+#: The layout of the keys below.  1.x reads it before migrating.
+SETTINGS_VERSION = 1
+
+
 class AppSettings:
     """Window layout, recent files, and view defaults."""
 
     def __init__(self, organisation=ORGANISATION,
                  application=APPLICATION):
         self._q = open_settings(organisation, application)
+        # Written so that a later version can tell which layout of
+        # keys it is reading and migrate it, rather than guess.
+        if self._q.value("settings/version") is None:
+            self._q.setValue("settings/version", SETTINGS_VERSION)
 
     # -- recent files --------------------------------------------------
 
@@ -325,6 +333,20 @@ class AppSettings:
         self._q.setValue("autosave/interval", max(0, int(value)))
 
     @property
+    def size_profile(self) -> str:
+        """How big a structure may get before it is asked about or
+        refused: one of :data:`xtal.core.limits.PROFILES`.  Anything
+        else stored reads as Standard."""
+        from xtal.core import limits
+        return limits.profile_of(str(self._q.value(
+            "limits/profile", limits.STANDARD)))
+
+    @size_profile.setter
+    def size_profile(self, value) -> None:
+        from xtal.core import limits
+        self._q.setValue("limits/profile", limits.profile_of(value))
+
+    @property
     def default_workspace_root(self) -> Path:
         """What the New Workspace dialog suggests.
 
@@ -379,7 +401,10 @@ class AppSettings:
 
         0 draws every step, -1 draws none of them.
         """
-        return int(self._q.value("preview_interval", 50))
+        try:
+            return int(self._q.value("preview_interval", 50))
+        except (TypeError, ValueError):
+            return 50
 
     @preview_interval.setter
     def preview_interval(self, value) -> None:
@@ -470,12 +495,21 @@ class AppSettings:
         """
         return {
             "style": str(self._q.value("view/style", DEFAULT_STYLE)),
-            "background": tuple(
-                int(v) for v in self._q.value(
-                    "view/background", (255, 255, 255))),
+            "background": self._background(),
             "background_follows_theme": _as_bool(
                 self._q.value("view/background_follows_theme", True)),
         }
+
+    def _background(self) -> tuple:
+        """The stored background, or white when the stored value is
+        not three numbers -- a settings file edited by hand must not
+        stop the window from opening."""
+        try:
+            colour = tuple(int(v) for v in self._q.value(
+                "view/background", (255, 255, 255)))
+        except (TypeError, ValueError):
+            return (255, 255, 255)
+        return colour if len(colour) == 3 else (255, 255, 255)
 
     def set_default_view(self, style=None, background=None,
                          background_follows_theme=None) -> None:

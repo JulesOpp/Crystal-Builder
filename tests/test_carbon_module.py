@@ -73,3 +73,27 @@ def test_xtal_run_carbon_build_writes_a_structure_and_a_report(
     from xtal.io.cif_reader import read_cif
     again = read_cif(cifs[0])
     assert {s.element for s in again.sites} >= {"C", "F"}
+
+
+def test_a_repeat_over_the_hard_limit_is_refused_before_it_is_built(
+        monkeypatch):
+    """A repeat had no cap, and 3x3x3 was 53 s and 0.84 GB: one cell
+    is counted first and a build past the hard limit never starts,
+    naming the largest repeat that fits."""
+    from xtal.carbon import build
+    monkeypatch.setattr(build, "build", pytest.fail)
+    result = _run(repeat="6")
+    assert not result.ok
+    assert "largest that fits" in result.message
+
+
+def test_the_estimate_is_near_what_is_built():
+    """The count a refusal rests on is one cell's carbon, solved as
+    the build solves it, with the terminations on top."""
+    from xtal.core import limits
+    result = _run()
+    recipe = carbon_module.recipe_of(
+        Job(params=MODULES.find("carbon.build")[1].coerce(SMALL)))
+    estimate = limits.carbon_atoms(recipe)
+    assert abs(estimate - len(result.structure.sites)) \
+        < 0.15 * len(result.structure.sites)

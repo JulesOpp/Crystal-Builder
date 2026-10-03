@@ -484,6 +484,34 @@ def test_the_dialog_is_titled_by_what_it_will_run(qtbot, window):
     assert dialog.values()["steps"] == 5
 
 
+def test_a_grid_spacing_says_what_it_comes_to_on_the_structure(
+        qtbot, window):
+    """MFU-4l at 0.2 A is 3.8 M points and about 2 GB, and the box
+    gave no hint of it: the count is said under the form, in a
+    warning tone once it is over the soft limit."""
+    from pathlib import Path
+
+    from PySide6.QtWidgets import QDoubleSpinBox
+    window.open_path(str(Path(__file__).resolve().parents[1]
+                         / "resources" / "samples" / "MFU4l.cif"))
+    module, action = MODULES.find("zeopp.volume-grid")
+    dialog = ModuleDialog(module, action, window)
+    qtbot.addWidget(dialog)
+    assert "points" in dialog.size.text()
+    assert "comfortable" not in dialog.size.text()
+    spin = dialog.form.widgets["spacing"]
+    assert isinstance(spin, QDoubleSpinBox)
+    spin.setValue(0.2)
+    assert "comfortable" in dialog.size.text()
+
+
+def test_a_form_with_no_size_says_nothing_about_one(qtbot, window):
+    module, action = MODULES.find("stub.count")
+    dialog = ModuleDialog(module, action, window)
+    qtbot.addWidget(dialog)
+    assert dialog.size.isHidden()
+
+
 # -------------------------------------------------------- running
 
 def test_a_run_leaves_a_folder_under_the_structure(opened, qtbot,

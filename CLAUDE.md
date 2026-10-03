@@ -8,7 +8,7 @@ bonding, run force field / DFTB+ / Zeo++ calculations on the result.
 | Package | What it is |
 |---|---|
 | `xtal/` | The headless core. **Imports no Qt.** Anything crystallographic lives here and is testable without a display. |
-| `xtal/core/` | Structure, lattice, symmetry, subgroups, bonding |
+| `xtal/core/` | Structure, lattice, symmetry, subgroups, bonding; `limits.py` is how big anything may get (see the invariant) |
 | `xtal/io/` | CIF and project (`.xtalproj`) read/write |
 | `xtal/commands/` | Undoable operations on a structure |
 | `xtal/ff/`, `xtal/modules/` | Calculators (UFF with UFF4MOF, xTB, DFTB+, MACE, ORB-v3, MatterSim) and the module/job registry (Zeo++). The ML engines (MACE, ORB-v3, MatterSim) run in process on `ase_engine.ASECalculator` rather than as a binary; each needs its own extra (`mace`, `orb`, `mattersim`), and `_load_model` is the seam their tests replace. |
@@ -446,6 +446,20 @@ stress case).
   edit keeps the same atoms hidden by where they are
   (`Document._keep_hidden`), because a substitution renumbers the
   cell; what an edit adds is shown.
+- **A size is estimated before it is built, and the profile
+  decides.** `xtal/core/limits.py` counts a supercell (`n x |det P|`),
+  the atoms a display range draws, a porosity grid's points and a
+  carbon build's atoms (one cell solved, about a second) by
+  arithmetic, before anything is made. Over the soft limit it is
+  asked (the toolbar's cells, a dialog's warning line, a run's
+  note); over the hard one it is refused with the largest size that
+  fits -- in `Supercell`/`TransformCell.apply_to` and
+  `grid.distance_grid` themselves, so an agent (`SIZE_LIMIT`) and the
+  CLI meet it too. The profile is Preferences > General > Large
+  structures (`AppSettings.size_profile`, `limits.use`): Standard
+  (8 GB), Generous (doubled), Warn only (never refuses). Headless
+  callers get Standard; `conftest.py` resets it per test. A
+  `SymmetryReport` refusal is falsy, so test it `is not None`.
 - **A force field or optimiser never changes the bonding or the
   atoms.** All structural changes are the user's, made explicitly.
   **And nobody changes them under a running optimisation**: the

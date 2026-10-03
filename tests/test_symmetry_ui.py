@@ -373,6 +373,83 @@ def test_a_singular_matrix_disables_ok(qtbot, document):
     assert dialog.preview.text()
 
 
+@pytest.fixture
+def mfu4l_document():
+    from pathlib import Path
+
+    from xtal.io.cif_reader import read_cif
+    return Document(read_cif(Path(__file__).resolve().parents[1]
+                             / "resources" / "samples" / "MFU4l.cif"))
+
+
+def test_typing_twenty_builds_nothing_until_it_fits(qtbot, mfu4l_document,
+                                                    monkeypatch):
+    """20 x 20 x 20 of MFU-4l was built on every spin step -- 5.2 M
+    atoms and 2.8 GB -- before anyone pressed OK.  Now it is counted,
+    said, and OK is off; only a size under the soft limit is built to
+    preview, and OK runs the command the preview built."""
+    from xtal.core import supercell
+    built = []
+    real = supercell.supercell
+    monkeypatch.setattr(supercell, "supercell",
+                        lambda *a: built.append(a[1:]) or real(*a))
+    dialog = SupercellDialog(mfu4l_document)
+    qtbot.addWidget(dialog)
+    assert all(not spin.keyboardTracking() for spin in dialog.counts)
+    ok = dialog.buttons.button(QDialogButtonBox.Ok)
+    for spin in dialog.counts:
+        spin.setValue(20)
+    # 20 x 1 x 1 is 12 960 atoms and is previewed; nothing over the
+    # soft limit is ever built.
+    assert all(648 * np.prod(n) <= 50_000 for n in built)
+    assert not ok.isEnabled()
+    assert "largest that fits" in dialog.preview.text()
+
+    for spin in dialog.counts[1:]:
+        spin.setValue(1)
+    dialog.counts[0].setValue(4)                    # 2 592 atoms
+    assert built[-1] == (4, 1, 1) and ok.isEnabled()
+    command = dialog.command()
+    mfu4l_document.operate(command)
+    assert built[-1] == (4, 1, 1) and built.count((4, 1, 1)) == 1
+    assert n_atoms(mfu4l_document) == 4 * 648
+
+
+def test_a_large_supercell_is_said_and_still_allowed(qtbot,
+                                                     mfu4l_document):
+    dialog = SupercellDialog(mfu4l_document)
+    qtbot.addWidget(dialog)
+    for spin in dialog.counts:
+        spin.setValue(5)                            # 81 000
+    assert dialog.buttons.button(QDialogButtonBox.Ok).isEnabled()
+    assert "comfortable" in dialog.preview.text()
+
+
+def test_warn_only_lets_a_huge_supercell_through_the_dialog(
+        qtbot, mfu4l_document):
+    from xtal.core import limits
+    limits.use(limits.WARN_ONLY)
+    dialog = SupercellDialog(mfu4l_document)
+    qtbot.addWidget(dialog)
+    for spin in dialog.counts:
+        spin.setValue(10)
+    assert dialog.buttons.button(QDialogButtonBox.Ok).isEnabled()
+
+
+def test_a_display_range_over_the_hard_limit_disables_ok(
+        qtbot, mfu4l_document):
+    dialog = DisplayRangeDialog(mfu4l_document)
+    qtbot.addWidget(dialog)
+    ok = dialog.buttons.button(QDialogButtonBox.Ok)
+    for spin in dialog.his:
+        spin.setValue(6)                            # 140 000
+    assert ok.isEnabled() and "comfortable" in dialog.preview.text()
+    for spin in dialog.his:
+        spin.setValue(9)                            # 472 000
+    assert not ok.isEnabled()
+    assert "8 x 8 x 8 cells" in dialog.preview.text()
+
+
 # ----------------------------------------------------------------- slab
 
 def test_the_slab_dialog_previews_and_builds_one_step(qtbot, document):

@@ -22,6 +22,12 @@ end of it, which is what a surface bond has always been drawn as.
 
 Nothing here touches the structure: this is view state, so it never
 lands on the undo stack and never marks the document modified.
+
+What it would draw is counted against the size limits
+(:mod:`xtal.core.limits`): a drawn atom is 5.8 KB of scene, and ten
+cells a side of MFU-4l is 648 000 of them -- about 4 GB.  At the soft
+limit the count is said in a warning tone; at the hard one OK is
+disabled, unless the profile is Warn only.
 """
 
 from __future__ import annotations
@@ -38,6 +44,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from xtal.core import limits
 from xtalapp.dialogs.answered import answered
 from xtalapp.widgets.tone import WARNING, set_tone
 
@@ -151,16 +158,19 @@ class DisplayRangeDialog(QDialog):
             set_tone(self.preview, WARNING)
             ok_button.setEnabled(False)
             return
-        ok_button.setEnabled(True)
-        self.preview.setStyleSheet("")
         spans = " x ".join(f"{hi - lo:g}" for lo, hi in ranges)
         atoms = self.document.cell.n_atoms
-        volume = 1.0
-        for lo, hi in ranges:
-            volume *= max(hi - lo, 0.0)
-        self.preview.setText(
-            f"{spans} cells -- roughly {round(atoms * volume)} atoms "
-            f"of the {atoms} in one cell, plus the closing faces.")
+        verdict = limits.check_drawn(atoms, ranges)
+        text = (f"{spans} cells -- roughly {verdict.estimate} atoms "
+                f"of the {atoms} in one cell, plus the closing faces.")
+        ok_button.setEnabled(not verdict.refused)
+        if verdict.warned:
+            self.preview.setText(f"{text}  {verdict.sentence[0].upper()}"
+                                 f"{verdict.sentence[1:]}.")
+            set_tone(self.preview, WARNING)
+            return
+        set_tone(self.preview, None)
+        self.preview.setText(text)
 
     # -- running -------------------------------------------------------
 

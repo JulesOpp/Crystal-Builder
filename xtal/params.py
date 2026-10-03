@@ -67,6 +67,10 @@ class Param:
     decimals: int = 3
     suffix: str = ""
     help: str = ""
+    #: The :mod:`xtal.core.limits` budget this value sets the size of
+    #: -- ``"grid"`` for a porosity grid's spacing -- so the form can
+    #: say beside it what the structure in front comes to.
+    sizes: str = ""
 
     def __post_init__(self):
         if self.kind not in KINDS:

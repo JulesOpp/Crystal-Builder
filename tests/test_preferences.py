@@ -536,3 +536,46 @@ def test_resetting_the_layout_is_the_window_s_own_reset(window,
     dialog.page("General").layoutReset.emit()
 
     assert done == [True]
+
+
+# -- large structures --------------------------------------------------
+
+def test_the_size_profile_round_trips_and_a_bad_value_is_standard(
+        settings):
+    """A profile chosen is the one read back; one a later version or a
+    hand edit wrote reads as Standard, never as a window that will not
+    open."""
+    from xtal.core import limits
+    assert settings.size_profile == limits.STANDARD
+    settings.size_profile = limits.GENEROUS
+    assert settings.size_profile == limits.GENEROUS
+    settings._q.setValue("limits/profile", "enormous")
+    assert settings.size_profile == limits.STANDARD
+
+
+def test_choosing_a_size_profile_applies_it_at_once(dialog, settings):
+    """The General page's combo is what every size check reads: it
+    is stored and applied, so the next supercell meets it without a
+    restart."""
+    from xtal.core import limits
+    page = dialog.page("General")
+    page.size_profile.setCurrentIndex(
+        page.size_profile.findData(limits.WARN_ONLY))
+    assert settings.size_profile == limits.WARN_ONLY
+    assert limits.current() == limits.WARN_ONLY
+
+
+def test_unreadable_numbers_in_the_settings_file_read_as_defaults(
+        settings):
+    """A hand-edited settings file must not stop the window: the
+    redraw interval and the background were bare ``int`` reads."""
+    settings._q.setValue("preview_interval", "often")
+    settings._q.setValue("view/background", "white")
+    assert settings.preview_interval == 50
+    assert settings.default_view()["background"] == (255, 255, 255)
+
+
+def test_the_settings_say_which_layout_of_keys_they_are(settings):
+    """So that 1.x can migrate what it reads rather than guess."""
+    from xtalapp.settings import SETTINGS_VERSION
+    assert int(settings._q.value("settings/version")) == SETTINGS_VERSION

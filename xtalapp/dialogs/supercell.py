@@ -16,6 +16,13 @@ particular cell, and it stops meaning anything the moment the cell
 changes.  The count under each tab says what will come out before it
 comes out, because "2x2x2 of a 648-atom framework" is a number worth
 seeing first.
+
+**The count is arithmetic, and the real preview runs only below the
+soft size limit** (:mod:`xtal.core.limits`).  It used to build the
+cell on every spin step, so typing 20 on MFU-4l built 2x2x2, then
+20x20x20 -- 5.2 M atoms and 2.8 GB -- before anyone pressed OK.  The
+spins do not track the keyboard, the count is ``n x |det P|``, and
+above the hard limit OK is disabled unless the profile is Warn only.
 """
 
 from __future__ import annotations
@@ -33,6 +40,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.commands import cell as cell_commands
+from xtal.core import limits
 from xtalapp.dialogs.answered import answered
 from xtalapp.widgets.tone import WARNING, set_tone
 
@@ -49,6 +57,7 @@ class SupercellDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Supercell")
         self.document = document
+        self._command = None
 
         self.tabs = QTabWidget()
         self.tabs.addTab(self._build_multiples(), "Multiples")
@@ -80,6 +89,7 @@ class SupercellDialog(QDialog):
             spin.setRange(1, MAX_MULTIPLE)
             spin.setValue(1)
             spin.setPrefix(f"{axis} x ")
+            spin.setKeyboardTracking(False)
             spin.valueChanged.connect(self._preview)
             grid.addWidget(spin, 0, column)
             self.counts.append(spin)
@@ -98,6 +108,7 @@ class SupercellDialog(QDialog):
                 spin = QSpinBox()
                 spin.setRange(-MAX_ENTRY, MAX_ENTRY)
                 spin.setValue(1 if row == column else 0)
+                spin.setKeyboardTracking(False)
                 spin.valueChanged.connect(self._preview)
                 grid.addWidget(spin, row + 1, column)
                 entries.append(spin)
@@ -114,14 +125,40 @@ class SupercellDialog(QDialog):
                          for row in self.matrix], dtype=float)
 
     def command(self):
+        """The command for what is shown -- the one the preview ran,
+        while it still is, so OK does not build the cell twice."""
+        key = self._key()
+        if self._command is None or self._command[0] != key:
+            if self.tabs.currentIndex() == 0:
+                command = cell_commands.Supercell(*self.multiples())
+            else:
+                command = cell_commands.TransformCell(self.p_matrix())
+            self._command = (key, command)
+        return self._command[1]
+
+    def _key(self) -> tuple:
         if self.tabs.currentIndex() == 0:
-            return cell_commands.Supercell(*self.multiples())
-        return cell_commands.TransformCell(self.p_matrix())
+            return (0, self.multiples())
+        return (1, tuple(self.p_matrix().ravel()))
+
+    def _p(self):
+        if self.tabs.currentIndex() == 0:
+            return self.multiples()
+        return self.p_matrix()
 
     # -- preview -------------------------------------------------------
 
     def _preview(self, *_args) -> None:
         ok_button = self.buttons.button(QDialogButtonBox.Ok)
+        n = self.document.cell.n_atoms
+        verdict = limits.check_supercell(n, self._p())
+        if verdict.warned:
+            # Counted, not built: building it is what this is for.
+            self.preview.setText(f"{verdict.sentence[0].upper()}"
+                                 f"{verdict.sentence[1:]}.")
+            set_tone(self.preview, WARNING)
+            ok_button.setEnabled(not verdict.refused)
+            return
         try:
             _new, report = self.command().preview(
                 self.document.structure)
@@ -131,7 +168,7 @@ class SupercellDialog(QDialog):
             ok_button.setEnabled(False)
             return
         self.preview.setText(report.message)
-        self.preview.setStyleSheet("")
+        set_tone(self.preview, None)
         ok_button.setEnabled(True)
 
     # -- running -------------------------------------------------------

@@ -224,8 +224,41 @@ class ShellRefresh:
         document = self.current_document()
         if document is None:
             return
-        document.set_cells(*[s.value() for s in self.cell_spins])
+        cells = [s.value() for s in self.cell_spins]
+        if not self._cells_fit(document, cells):
+            self._put_cell_spins_back(document)
+            return
+        document.set_cells(*cells)
         self.reset_view()
+
+    def _cells_fit(self, document, cells) -> bool:
+        """Whether to draw ``cells``: asked at the soft size limit,
+        refused at the hard one.  Ten a side on MFU-4l is 648 000
+        drawn atoms, about 4 GB of scene, and the spin went to 20."""
+        from PySide6.QtWidgets import QMessageBox
+
+        from xtal.core import limits
+
+        verdict = limits.check_drawn(document.cell.n_atoms,
+                                     [(0.0, n) for n in cells])
+        sentence = (f"{verdict.sentence[:1].upper()}"
+                    f"{verdict.sentence[1:]}.")
+        if verdict.refused:
+            self.show_message(sentence)
+            return False
+        if not verdict.warned:
+            return True
+        answer = QMessageBox.question(
+            self, "Large picture", f"{sentence}\n\nDraw it anyway?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        return answer == QMessageBox.Yes
+
+    def _put_cell_spins_back(self, document) -> None:
+        for spin, value in zip(self.cell_spins, document.view.cells,
+                               strict=True):
+            spin.blockSignals(True)
+            spin.setValue(value)
+            spin.blockSignals(False)
 
     def _on_tab_changed(self, _index: int) -> None:
         # Fired for the first tab arriving and the last one going, so
@@ -476,11 +509,7 @@ class ShellRefresh:
         mode = getattr(viewport, "mode", None)
         if mode is not None and f"mode_{mode.name}" in self.actions_:
             self.actions_[f"mode_{mode.name}"].setChecked(True)
-        for spin, value in zip(self.cell_spins, document.view.cells,
-                               strict=True):
-            spin.blockSignals(True)
-            spin.setValue(value)
-            spin.blockSignals(False)
+        self._put_cell_spins_back(document)
 
     def _refresh_module_actions(self, editable: bool) -> None:
         """Which module entries can be picked right now.

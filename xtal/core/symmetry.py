@@ -62,6 +62,9 @@ class SymmetryReport:
     n_after: int = 0
     merged: int = 0
     unmatched: list[int] = field(default_factory=list)
+    #: The agent's diagnostic code for a refusal that has its own,
+    #: such as ``SIZE_LIMIT``; empty for every other report.
+    code: str = ""
 
     def __bool__(self) -> bool:
         return self.ok

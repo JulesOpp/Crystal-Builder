@@ -112,3 +112,13 @@ def test_a_disordered_structure_never_reaches_the_grid(rutile,
 def test_the_radii_are_the_ones_asked_for(rutile):
     assert poregrid._radii(Job(structure=rutile, params={}))[0] \
         is porosity.zeo_radius
+
+
+def test_a_grid_over_budget_is_refused_naming_a_spacing_that_fits(
+        monkeypatch):
+    """MFU-4l at 0.15 A is 9 M points, gigabytes: refused before a
+    point is sampled, with a spacing that would fit."""
+    from xtal.analysis import grid
+    monkeypatch.setattr(grid, "surface_distance", pytest.fail)
+    with pytest.raises(ValueError, match=r"at 0\.\d+ A it would have"):
+        run(poregrid.volume, sample("MFU4l"), spacing=0.15)

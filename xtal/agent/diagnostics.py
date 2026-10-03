@@ -118,6 +118,11 @@ CODES: dict[str, Code] = {
     "OPERATION_REFUSED": Code(
         WARNING, "Nothing was changed and nothing was put on the undo "
                  "stack. Read the message: it says why."),
+    "SIZE_LIMIT": Code(
+        WARNING, "Nothing was built: the estimate was over the hard "
+                 "limit. The message names the largest size that "
+                 "fits; ask the person before trying anything near "
+                 "it."),
     "NOTHING_TO_DO": Code(
         INFO, "Nothing was changed; the structure already had what "
               "was asked for."),

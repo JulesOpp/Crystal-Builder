@@ -7,6 +7,7 @@ tests/test_vtk_render.py.
 """
 
 import gc
+from pathlib import Path
 
 import pytest
 
@@ -318,6 +319,39 @@ def test_the_cell_arrows_step_a_whole_cell(window, rutile_cif):
     window.cell_spins[0].setValue(1.5)
     window.cell_spins[0].stepBy(-1)
     assert window.cell_spins[0].value() == 0.5
+
+
+MFU4L = str(Path(__file__).resolve().parents[1]
+            / "resources" / "samples" / "MFU4l.cif")
+
+
+def test_a_large_picture_is_asked_about_and_a_huge_one_put_back(
+        window, monkeypatch):
+    """Ten cells a side of MFU-4l is 648 000 drawn atoms, about 4 GB
+    of scene, and the box went to twenty with nothing said.  Over the
+    soft limit it asks; over the hard one the box goes back."""
+    from PySide6.QtWidgets import QMessageBox
+    doc = window.open_path(MFU4L)
+    asked = []
+    monkeypatch.setattr(
+        QMessageBox, "question",
+        lambda *a, **k: asked.append(a[2]) or QMessageBox.No)
+    for spin in window.cell_spins[:2]:
+        spin.setValue(6)                    # 6 x 1 x 1, then 6 x 6 x 1
+    window.cell_spins[2].setValue(6)        # 140 000: asked, said no
+    assert asked and "139,968 atoms" in asked[0]
+    assert doc.view.cells == (6, 6, 1)
+    assert window.cell_spins[2].value() == 1
+
+    monkeypatch.setattr(QMessageBox, "question",
+                        lambda *a, **k: QMessageBox.Yes)
+    window.cell_spins[2].setValue(6)        # asked, said yes
+    window.cell_spins[0].setValue(12)       # 279 936: asked, yes
+    assert doc.view.cells == (12, 6, 6)
+    window.cell_spins[1].setValue(12)       # 559 872: refused
+    assert doc.view.cells == (12, 6, 6)
+    assert window.cell_spins[1].value() == 6
+    assert "Large structures" in window.statusBar().currentMessage()
 
 
 def test_the_menu_bar_ends_with_window_and_help(window):
