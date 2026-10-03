@@ -132,3 +132,33 @@ def test_the_dialog_is_found_by_the_name_the_action_gives(dialog):
     action = MODULES.get("polymer").action("build")
     assert action.dialog in _BY_NAME
     assert _BY_NAME[action.dialog][1] == type(dialog).__name__
+
+
+def test_an_answered_dialog_is_deleted_on_the_gui_thread(qtbot,
+                                                         monkeypatch):
+    """After ``exec`` PySide hands the dialog to Python, and the rows'
+    callbacks hold it in a cycle, so only the cyclic collector frees
+    it -- which ran on the build's worker thread, destroyed the
+    canvases off the GUI thread and segfaulted the default build."""
+    import shiboken6
+    from PySide6.QtCore import QCoreApplication, QEvent
+    from PySide6.QtWidgets import QDialog, QWidget
+
+    from xtalapp.dialogs.polymer_build import PolymerBuildDialog
+
+    window = QWidget()
+    qtbot.addWidget(window)
+    made = []
+
+    def answer(self):
+        made.append(self)
+        return QDialog.Accepted
+
+    monkeypatch.setattr(PolymerBuildDialog, "exec", answer)
+    module = MODULES.get("polymer")
+    values = PolymerBuildDialog.ask(module, module.action("build"),
+                                    window)
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+    assert values["monomer"]
+    assert not shiboken6.isValid(made[0])

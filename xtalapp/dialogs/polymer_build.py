@@ -336,11 +336,21 @@ class PolymerBuildDialog(QDialog):
     @classmethod
     def ask(cls, module, action, parent=None, initial=None):
         """The values to run with, or ``None`` if it was cancelled --
-        the contract ``Action.dialog`` promises."""
+        the contract ``Action.dialog`` promises.
+
+        Deleted here, on the GUI thread, whatever the answer: ``exec``
+        leaves the dialog owned by Python and the rows' callbacks hold
+        it in a cycle, so it was freed by whichever thread next ran the
+        cyclic collector -- the build's worker, which destroyed the
+        canvases off the GUI thread and segfaulted.
+        """
         dialog = cls(module, action, parent, initial)
-        if dialog.exec() != QDialog.Accepted:
-            return None
-        return dialog.values()
+        try:
+            if dialog.exec() != QDialog.Accepted:
+                return None
+            return dialog.values()
+        finally:
+            dialog.deleteLater()
 
 
 class _Values:
