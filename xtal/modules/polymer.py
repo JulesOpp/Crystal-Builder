@@ -310,6 +310,7 @@ POLYMER = Module(
                    "opens in a new tab",
                kind="build",
                needs_structure=False,
+               dialog="polymer-build",
                params=PARAMS,
                run=build_polymer),
     ),
