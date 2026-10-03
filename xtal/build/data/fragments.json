@@ -201,6 +201,30 @@
       "description": "C6H5 -- bulky enough to need the room it is turned for"
     },
     {
+      "name": "Acetyl",
+      "smiles": "[*:1]C(C)=O",
+      "category": "Group",
+      "description": "COCH3 -- on a hydroxyl's oxygen, in place of its H, an acetate ester"
+    },
+    {
+      "name": "Formyl",
+      "smiles": "[*:1]C=O",
+      "category": "Group",
+      "description": "CHO -- an aldehyde on a carbon, a formate on an oxygen"
+    },
+    {
+      "name": "Benzoyl",
+      "smiles": "[*:1]C(=O)c1ccccc1",
+      "category": "Group",
+      "description": "COC6H5 -- a benzoate ester on a hydroxyl's oxygen"
+    },
+    {
+      "name": "Trifluoroacetyl",
+      "smiles": "[*:1]C(=O)C(F)(F)F",
+      "category": "Group",
+      "description": "COCF3 -- a trifluoroacetate ester on a hydroxyl's oxygen"
+    },
+    {
       "name": "Amino-phenylene",
       "smiles": "[*:1]c1ccc([*:2])cc1N",
       "category": "Linker",

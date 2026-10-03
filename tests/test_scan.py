@@ -79,6 +79,22 @@ def test_a_volume_axis_relaxes_the_shape(quartz):
     assert used.freedom.held == ("volume",)
 
 
+def test_a_cubic_volume_scan_relaxes_the_atoms_and_not_the_shape(
+        halite):
+    """A cubic cell has one free parameter and the volume is it, so
+    holding the volume leaves no strain to relax.  Asked to anyway,
+    the optimiser refused every point and a scan of halite was nine
+    holes."""
+    volume = halite.lattice.volume
+    used = sc.plan(halite, [sc.Axis.over(co.CellVolume(), volume,
+                                         volume * 1.1, 2)])
+    assert not used.relax_cell
+    points = list(sc.scan(lambda s: ENGINES.build("uff", s), halite,
+                          used.axes, direction="forward",
+                          max_steps=20))
+    assert all(p.finished for p in points)
+
+
 def test_a_parameter_the_group_does_not_leave_free_is_refused(
         quartz):
     """b follows a in a trigonal group, so scanning b is asking for a

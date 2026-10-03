@@ -103,9 +103,10 @@ made before the first point:
   on an engine with no analytic stress.
 - Scanning **fewer** than all of them holds the scanned ones and lets
   the rest relax, through the strain subspace of {doc}`cell`.
-- Scanning the **volume** holds it with the shape free.  Scanning the
-  volume and a lattice parameter together is refused as ambiguous:
-  setting one changes the other.
+- Scanning the **volume** holds it with the shape free.  In a cubic
+  cell the volume *is* the one free parameter, so only the atoms
+  relax.  Scanning the volume and a lattice parameter together is
+  refused as ambiguous: setting one changes the other.
 - A parameter the group ties is refused with the ties spelled out;
   scanning with the symmetry broken is
   {ref}`Reduce to P1 <cmd-reduce_p1>` first, because the scan never
@@ -121,6 +122,33 @@ frozen, or it sits where it is undefined.  Reduce to P1 first, or scan
 a coordinate the symmetry leaves free*), not a grid of 144 holes each
 with the same message after the dialog had said the scan was fine.
 :::
+
+## The bulk modulus
+
+*Modules ▸ Energy scan ▸ Bulk modulus…* is a volume scan with the
+defaults a modulus wants: the same dialog with the axis fixed to the
+volume, ±6 % in nine points, one direction, and **Relax the cell
+first** ticked.  That relaxation is of a copy and goes nowhere -- the
+scan still returns no structure -- but it decides where the volumes
+are: From and To move with the relaxed cell, because a scan round a
+volume the engine does not think is a minimum puts V0 at the edge of
+the scan.
+
+Any scan over the volume alone then reports a **Bulk modulus** table:
+B0 (GPa), its pressure derivative B0′ and V0, from the third-order
+Birch--Murnaghan equation and from Vinet's as its check, each branch
+on its own and from the **converged** points only.  The
+Birch--Murnaghan curve is drawn over the energy profile.  Three
+things are refused rather than fitted, each with its reason in the
+table: fewer than five converged points, a lowest energy at either
+end of the scan (V0 outside it: widen the scan or relax first), and a
+curve that does not turn upwards on both sides.  Where the two
+equations disagree by much, the scan reaches further from the minimum
+than either describes -- narrow it.
+
+UFF is a stiff force field: quartz comes out at about 108 GPa against
+a measured 37.  The modulus is the engine's, and for a framework it
+is worth the machine-learned potentials' price.
 
 ## Seeds, directions and holes
 

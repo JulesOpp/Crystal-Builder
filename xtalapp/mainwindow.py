@@ -502,6 +502,16 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
     def export_net(self) -> None:
         self.document_set.export_net()
 
+    def show_only_selected(self) -> None:
+        document = self.current_document()
+        if document is not None:
+            self.show_status(document.show_only_selected())
+
+    def show_all(self) -> None:
+        document = self.current_document()
+        if document is not None:
+            self.show_status(document.show_all())
+
     def clear_overlays(self) -> None:
         document = self.current_document()
         if document is not None:

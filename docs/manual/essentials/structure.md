@@ -105,6 +105,16 @@ perceived bonds, because perception never bonds a marker.
    same undo step and you are told.  Right-click on selected hydrogens
    ▸ *Replace with group* does the same for one group without the
    dialog.  It needs the molecule builder's optional package.
+   A fluorine, chlorine, bromine or iodine is replaced the same way --
+   any atom on one bond -- which is how a fluorinated carbon's edge
+   takes a group.  The acyl groups (acetyl, formyl, benzoyl,
+   trifluoroacetyl) on a hydroxyl's hydrogen make an ester.
+   *Draw…* beside the group is a group of your own, as SMILES with
+   exactly one `[*]` where it bonds, sketched as you type; it is kept
+   in the workspace's `groups` folder and listed from then on.
+   *Share* below 100 % substitutes that fraction of the selection,
+   chosen at random by the seed -- the same seed, the same atoms --
+   and reduces to P1 first, because part of an orbit is not one.
 4. {ref}`Fill pores with molecules… <cmd-fill_pores>`,
    {ref}`Interpenetrate… <cmd-interpenetrate>` and
    {ref}`Prepare for simulation… <cmd-prepare_simulation>` rebuild the

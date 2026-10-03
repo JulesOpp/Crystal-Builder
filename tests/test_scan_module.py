@@ -234,6 +234,93 @@ def test_a_volume_scan_reports_the_pressure_beside_the_energy(
         "Energy profile", "Pressure"]
 
 
+def _modulus(result):
+    return next(b for b in result.report.blocks
+                if getattr(b, "title", "") == "Bulk modulus")
+
+
+def test_a_volume_scan_report_carries_a_bulk_modulus_table(quartz):
+    """Both forms, B0 in GPa, and the fit drawn over the energy
+    profile so a reader sees whether it goes through the points."""
+    volume = quartz.lattice.volume
+    result = module.run_scan(_job(
+        quartz, axis1="volume", axis1_start=volume * 0.96,
+        axis1_stop=volume * 1.04, axis1_steps=7, max_steps=300))
+    table = _modulus(result)
+    assert [row.texts[1] for row in table.rows] == [
+        "Birch-Murnaghan", "Vinet"]
+    assert float(table.rows[0].texts[2]) > 0
+    profile = result.report.curves[0]
+    assert profile.series[-1][0] == "Birch-Murnaghan fit"
+
+
+def test_a_scan_that_cannot_be_fitted_says_why_in_the_table(quartz):
+    """Too few points: no number, and the reason where the number
+    would have been -- never a modulus from four points."""
+    volume = quartz.lattice.volume
+    result = module.run_scan(_job(
+        quartz, axis1="volume", axis1_start=volume * 0.96,
+        axis1_stop=volume * 1.04, axis1_steps=3, max_steps=300))
+    table = _modulus(result)
+    assert not table.rows
+    assert "at least 5" in table.note
+
+
+def test_a_scan_over_a_lattice_parameter_has_no_bulk_modulus(quartz):
+    a = quartz.lattice.parameters[0]
+    result = module.run_scan(_job(
+        quartz, axis1="a", axis1_start=a * 0.98, axis1_stop=a * 1.02,
+        axis1_steps=5))
+    assert not [b for b in result.report.blocks
+                if getattr(b, "title", "") == "Bulk modulus"]
+
+
+def test_the_bulk_modulus_preset_holds_the_volume_with_the_shape_free():
+    """One volume axis in one direction, and the cell relaxed first:
+    the entry is the scan with the defaults a modulus wants."""
+    module_, action = MODULES.find("scan.bulk_modulus")
+    defaults = {p.name: p.default for p in action.params}
+    assert defaults["axis1"] == "volume"
+    assert defaults["direction"] == "forward"
+    assert defaults["axis1_steps"] == 9
+    assert defaults["relax_first"] is True
+    assert not any(name.startswith("axis2") for name in defaults)
+
+
+def test_the_bulk_modulus_scans_round_the_relaxed_cell(quartz):
+    """From and To left at zero are the span either side of where the
+    cell relaxed to, and the structure in the tab is not touched."""
+    before = quartz.lattice.volume
+    said = []
+    job = _job(quartz, relax_first=True, span=4.0, axis1_steps=5,
+               axis1_start=0.0, axis1_stop=0.0, max_steps=300)
+    job.on_progress = said.append
+    result = module.run_bulk_modulus(job)
+    assert said[0].startswith("relaxing the cell first")
+    assert quartz.lattice.volume == pytest.approx(before)
+    table = _modulus(result)
+    assert table.rows, table.note
+    v0 = float(table.rows[0].texts[4])
+    every = next(b for b in result.report.blocks
+                 if getattr(b, "title", "") == "Every point")
+    volumes = [float(row.texts[0]) for row in every.rows]
+    assert min(volumes) < v0 < max(volumes)
+
+
+@pytest.mark.slow
+def test_uff_bulk_modulus_of_quartz_is_in_a_sane_range(quartz):
+    """UFF is stiff -- 108 GPa against quartz's measured 37 -- but a
+    number off by orders of magnitude is a unit or a sign, not a
+    force field."""
+    job = _job(quartz, relax_first=True, span=6.0, axis1_steps=9,
+               axis1_start=0.0, axis1_stop=0.0, max_steps=500,
+               method="smart")
+    table = _modulus(module.run_bulk_modulus(job))
+    birch, vinet = (float(row.texts[2]) for row in table.rows)
+    assert 20 < birch < 300
+    assert vinet == pytest.approx(birch, rel=0.05)
+
+
 def test_the_surface_puts_the_first_axis_down_the_rows(quartz):
     """Getting this backwards draws the right numbers about the wrong
     axes and looks entirely plausible on a square grid, so the two

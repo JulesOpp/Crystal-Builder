@@ -160,6 +160,17 @@ class SceneModel:
         default_factory=lambda: _empty(3, np.uint8))            # (F,3)
     polyhedron_opacity: float = 0.75
 
+    # ring faces: one fan of triangles per primitive ring, from its
+    # centroid, filled by ring size.  Their own arrays and actor
+    # rather than the polyhedra's, because a ring takes an opacity of
+    # its own and a structure can want both.
+    ring_points: np.ndarray = field(default_factory=_empty)
+    ring_faces: np.ndarray = field(
+        default_factory=lambda: np.zeros((0, 3), int))          # (R,3)
+    ring_colors: np.ndarray = field(
+        default_factory=lambda: _empty(3, np.uint8))            # (R,3)
+    ring_opacity: float = 0.45
+
     # occupancy pies: a shared or partly empty site drawn as a sphere
     # cut into wedges, one per occupant.  Triangles over a shared
     # vertex list like a polyhedron, and opaque -- the sphere it
@@ -317,6 +328,10 @@ class SceneModel:
         return len(self.polyhedron_faces)
 
     @property
+    def n_ring_faces(self) -> int:
+        return len(self.ring_faces)
+
+    @property
     def n_pie_faces(self) -> int:
         return len(self.pie_faces)
 
@@ -369,13 +384,15 @@ class SceneModel:
         return (self.n_atoms == 0 and self.n_bond_halves == 0
                 and self.n_cell_lines == 0
                 and self.n_topology_edges == 0
-                and self.n_polyhedron_faces == 0)
+                and self.n_polyhedron_faces == 0
+                and self.n_ring_faces == 0)
 
     def bounds(self) -> tuple[np.ndarray, np.ndarray]:
         """(min, max) cartesian corner of everything drawn."""
         chunks = [c for c in (self.positions, self.bond_starts,
                               self.bond_ends, self.cell_starts,
                               self.cell_ends, self.polyhedron_points,
+                              self.ring_points,
                               self.topology_starts,
                               self.topology_ends, self.plane_points,
                               self.normal_ends,

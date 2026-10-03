@@ -2,7 +2,9 @@
 xtal.build.substitute
 =====================
 A hydrogen replaced by a group: an amino on a ring, a methoxy, a
-nitro.
+nitro -- or a fluorine, or a chlorine: any atom on one bond
+(:data:`TERMINAL`).  A ZTC's edges are 634 C-F and 116 C-H, and
+which of the two a group replaces is the same question.
 
 There was no way to do this.  Changing the hydrogen's element and
 adding atoms one at a time cannot get past the first heavy atom: the
@@ -58,6 +60,12 @@ ALIASES = {"NH2": "Amino", "OH": "Hydroxy", "OMe": "Methoxy",
 #: and above the group's own size.
 _REACH = CLEAR + 2.0
 
+#: What a group can replace: an atom on one bond, which is where a
+#: group's own single bond to its connection point goes.  A carbonyl
+#: oxygen is also on one bond, but on a double one, and a group put
+#: there would leave its carbon a bond short.
+TERMINAL = frozenset({"H", "D", "F", "Cl", "Br", "I"})
+
 
 class SubstituteError(ValueError):
     """A group that cannot be made, said in a sentence."""
@@ -101,9 +109,10 @@ def names() -> tuple[str, ...]:
                  if e.category == "Group" and e.n_connections == 1)
 
 
-def group(spec: str) -> Group:
+def group(spec: str, name: str = "") -> Group:
     """A group by library name, by alias (``NH2``), or as a SMILES
-    string with one connection point (``[*:1]OC``)."""
+    string with one connection point (``[*:1]OC``) -- called ``name``
+    when one is given, as a group drawn and saved is."""
     from xtal.build import library
 
     text = str(spec).strip()
@@ -114,7 +123,50 @@ def group(spec: str) -> Group:
             f"{text!r} is not a group: a group is one of "
             f"{', '.join(names())}, or a SMILES string with exactly one "
             f"connection point")
-    return _embedded(smiles, entry.name if entry is not None else text)
+    called = name or (entry.name if entry is not None else text)
+    return _embedded(smiles, called)
+
+
+def save_group(folder, name: str, smiles: str):
+    """Write a drawn group to ``folder`` as ``<name>.smi`` -- the
+    SMILES and its name on one line, the format every cheminformatics
+    tool reads -- and return the path.  Refused unless it is a group
+    (:func:`group`), so a file that is there can be used."""
+    from pathlib import Path
+
+    from xtal.workspace import safe_name
+
+    called = str(name).strip() or str(smiles).strip()
+    group(smiles, name=called)
+    folder = Path(folder)
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / f"{safe_name(called, 'group')}.smi"
+    path.write_text(f"{str(smiles).strip()}\t{called}\n",
+                    encoding="utf-8")
+    return path
+
+
+def saved_groups(folder) -> list[tuple[str, str]]:
+    """``(name, smiles)`` of every group :func:`save_group` wrote to
+    ``folder``, by name; nothing when there is no folder.  A line that
+    does not read is passed over: it is a file somebody can fix, not
+    a reason the dialog should not open."""
+    from pathlib import Path
+
+    folder = Path(folder) if folder else None
+    if folder is None or not folder.is_dir():
+        return []
+    found = []
+    for path in sorted(folder.glob("*.smi")):
+        try:
+            line = path.read_text(encoding="utf-8").strip().splitlines()
+        except (OSError, UnicodeDecodeError):
+            continue
+        parts = line[0].split(None, 1) if line else []
+        if parts and parts[0].count("*") == 1:
+            name = parts[1].strip() if len(parts) > 1 else path.stem
+            found.append((name, parts[0]))
+    return sorted(found, key=lambda pair: pair[0].lower())
 
 
 @lru_cache(maxsize=64)
@@ -146,12 +198,14 @@ def _embedded(smiles: str, name: str) -> Group:
 
 @dataclass(frozen=True)
 class Placement:
-    """One hydrogen, the atom it hung off, and where the group went."""
+    """One terminal atom, the atom it hung off, and where the group
+    went."""
 
-    hydrogen: int                       # P1 atom replaced
+    atom: int                           # P1 atom replaced
     parent: int                         # P1 atom it was bonded to
     cart: np.ndarray                    # the group's atoms, placed
     room: float                         # the closest approach it has
+    element: str = "H"                  # what was replaced
 
 
 @dataclass(frozen=True)
@@ -161,8 +215,17 @@ class Plan:
     #: Atoms asked for that cannot be substituted, each with why.
     skipped: tuple = ()
 
+    def replaced(self, count: int | None = None) -> str:
+        """``"18 H"``, or ``"40 atoms (F, H)"`` -- what went, said
+        ``count`` times over (an orbit's worth) when given."""
+        kinds = sorted({p.element for p in self.placements})
+        count = len(self.placements) if count is None else count
+        if len(kinds) == 1:
+            return f"{count} {kinds[0]}"
+        return f"{count} atoms ({', '.join(kinds)})"
+
     def message(self) -> str:
-        head = (f"replaced {len(self.placements)} H with "
+        head = (f"replaced {self.replaced()} with "
                 f"{self.group.name} ({self.group.formula})")
         if self.placements:
             closest = min(p.room for p in self.placements)
@@ -172,11 +235,13 @@ class Plan:
 
 def plan(structure, group: Group, atoms=(), per_ring: bool = False,
          representatives: bool = False) -> Plan:
-    """Where ``group`` goes, for each hydrogen asked for.  Changes
+    """Where ``group`` goes, for each terminal atom asked for.  Changes
     nothing.
 
-    ``atoms`` are P1 atoms; each must be a hydrogen with exactly one
-    neighbour, and anything else is named in :attr:`Plan.skipped`.
+    ``atoms`` are P1 atoms; each must be one of :data:`TERMINAL` with
+    exactly one neighbour, and anything else is named in
+    :attr:`Plan.skipped`.  The group goes along the old bond, as it
+    does for a hydrogen.
     ``per_ring`` ignores them and takes one hydrogen of every aromatic
     ring instead -- the one whose group has the most room.
 
@@ -196,8 +261,9 @@ def plan(structure, group: Group, atoms=(), per_ring: bool = False,
         return cell.labels[atom] or cell.elements[atom]
 
     def parent_of(atom: int):
-        if cell.elements[atom] != "H":
-            skipped.append(f"{name(atom)} is not a hydrogen")
+        if cell.elements[atom] not in TERMINAL:
+            skipped.append(f"{name(atom)} is not a hydrogen or a "
+                           f"halogen")
             return None
         partners = graph.neighbors(atom)
         if len(partners) != 1:
@@ -246,14 +312,16 @@ def plan(structure, group: Group, atoms=(), per_ring: bool = False,
         moving = np.array([k for k in range(group.n_atoms)
                            if k != group.attach], dtype=int)
         if not len(moving):
-            return Placement(hydrogen, parent, body, float("inf"))
+            return Placement(hydrogen, parent, body, float("inf"),
+                             cell.elements[hydrogen])
         size = float(np.max(np.linalg.norm(body - origin, axis=1)))
         surroundings = Surroundings(environment, lattice.matrix,
                                     centre=origin, reach=size + _REACH)
         angle, room = clearest_angle(surroundings, body[moving], axis,
                                      origin, 0.0, keep_clear=False)
         return Placement(hydrogen, parent,
-                         turn(body, axis, origin, angle), room)
+                         turn(body, axis, origin, angle), room,
+                         cell.elements[hydrogen])
 
     placements: list[Placement] = []
     if per_ring:
@@ -261,7 +329,7 @@ def plan(structure, group: Group, atoms=(), per_ring: bool = False,
             options = [place(h, parent_of(h)) for h in ring]
             if not options:
                 continue
-            best = max(options, key=lambda p: (p.room, -p.hydrogen))
+            best = max(options, key=lambda p: (p.room, -p.atom))
             placements.append(best)
             placed.append(best.cart)
     else:
@@ -296,7 +364,7 @@ def apply(structure, plan: Plan) -> list[int]:
     before = p1.expand(structure)
     parents = [(int(before.site_idx[p.parent]),
                 int(before.op_idx[p.parent])) for p in plan.placements]
-    removed = sorted({int(before.site_idx[p.hydrogen])
+    removed = sorted({int(before.site_idx[p.atom])
                       for p in plan.placements})
     structure.remove_sites(removed)
     bonding.hold_through_removal(structure, before, removed)

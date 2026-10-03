@@ -140,13 +140,16 @@ class SymmetryActions:
 
     def substitute_dialog(self) -> None:
         """Structure > Substitute rings: a group, on the selected
-        hydrogens or on every aromatic ring."""
+        hydrogens (or halogens) or on every aromatic ring."""
         from xtalapp.dialogs.substitute import SubstituteDialog
 
         document = self.current_document()
         if document is not None:
-            self._report(SubstituteDialog.ask(document, self),
-                         "Substitute")
+            workspace = getattr(self, "workspace", None)
+            self._report(SubstituteDialog.ask(
+                document, self,
+                folder=workspace.groups if workspace else None),
+                "Substitute")
 
     def replace_with_group(self, name: str) -> None:
         """Right-click on hydrogens > Replace with group > ``name``."""

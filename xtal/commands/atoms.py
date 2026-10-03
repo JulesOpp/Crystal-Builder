@@ -594,11 +594,19 @@ class SubstituteHydrogens(StructureOperation):
     says so.  **One per ring** can never keep a group -- one
     hydrogen of four is not an orbit of anything -- and always
     reduces, saying so.
+
+    Any atom of :data:`xtal.build.substitute.TERMINAL` can be
+    replaced, not only a hydrogen: a fluorinated edge is substituted
+    the same way.  ``fraction`` below one takes that share of the
+    atoms asked for, drawn by ``seed`` so that the same answer comes
+    back -- a partial esterification.  A share of an orbit is not an
+    orbit, so it reduces to P1 first as one per ring does.
     """
 
     change = Change.ALL
 
-    def __init__(self, group, atoms=(), per_ring: bool = False):
+    def __init__(self, group, atoms=(), per_ring: bool = False,
+                 fraction: float = 1.0, seed: int = 0):
         super().__init__()
         from xtal.build import substitute
 
@@ -606,9 +614,11 @@ class SubstituteHydrogens(StructureOperation):
                       else substitute.group(group))
         self.atoms = tuple(sorted({int(a) for a in atoms}))
         self.per_ring = bool(per_ring)
+        self.fraction = min(max(float(fraction), 0.0), 1.0)
+        self.seed = int(seed)
         self.label = (f"Substitute rings with {self.group.name}"
                       if per_ring else
-                      f"Replace H with {self.group.name}")
+                      f"Replace with {self.group.name}")
 
     def apply_to(self, structure):
         from xtal.build import substitute
@@ -616,7 +626,9 @@ class SubstituteHydrogens(StructureOperation):
 
         before = p1.expand(structure).n_atoms
         notes: list[str] = []
-        if structure.space_group.is_p1:
+        if self.fraction < 1.0 and not self.per_ring:
+            out, plan = self._a_share(structure, notes)
+        elif structure.space_group.is_p1:
             out = structure.copy()
             plan = substitute.plan(out, self.group, self.atoms,
                                    self.per_ring)
@@ -648,6 +660,26 @@ class SubstituteHydrogens(StructureOperation):
             return structure, SymmetryReport(ok=False, message=said)
         return out, self._said(structure, out, plan, before, notes)
 
+    def _a_share(self, structure, notes):
+        """``(result, plan)`` for :attr:`fraction` of the atoms."""
+        from xtal.build import substitute
+        from xtal.core.symmetry import reduce_to_p1
+
+        if structure.space_group.is_p1:
+            out, targets = structure.copy(), list(self.atoms)
+        else:
+            out, targets = reduce_to_p1(structure), self._orbits(structure)
+            notes.append(f"reduced from {structure.space_group.short_name}"
+                         f" to P1 first: a share of an orbit is not an "
+                         f"orbit")
+        count = int(round(self.fraction * len(targets)))
+        chosen = (np.random.default_rng(self.seed).choice(
+            targets, count, replace=False) if count else [])
+        notes.append(f"{count} of {len(targets)} chosen at random "
+                     f"(seed {self.seed})")
+        return out, substitute.plan(out, self.group,
+                                    sorted(int(a) for a in chosen))
+
     def _keeping_the_group(self, structure):
         """``(result, plan)`` with the group kept, or ``(None, None)``
         when the group would not survive it."""
@@ -663,10 +695,10 @@ class SubstituteHydrogens(StructureOperation):
         if not plan.placements:
             return out, plan
         orbit = {site: len(cell.indices_of_site(site))
-                 for site in (int(cell.site_idx[p.hydrogen])
+                 for site in (int(cell.site_idx[p.atom])
                               for p in plan.placements)}
         expected = cell.n_atoms + sum(
-            orbit[int(cell.site_idx[p.hydrogen])] * (self.group.n_atoms - 1)
+            orbit[int(cell.site_idx[p.atom])] * (self.group.n_atoms - 1)
             for p in plan.placements)
         self._sites = substitute.apply(out, plan)
         self._replaced = sum(orbit.values())
@@ -691,10 +723,10 @@ class SubstituteHydrogens(StructureOperation):
         sites = self._sites if applied else substitute.apply(out, plan)
         room = substitute.closest_approach(out, sites)
         after = p1.expand(out).n_atoms
-        message = (f"replaced {len(plan.placements)} H with "
+        message = (f"replaced {plan.replaced()} with "
                    f"{self.group.name} ({self.group.formula})")
         if applied:
-            message = (f"replaced {self._replaced} H with "
+            message = (f"replaced {plan.replaced(self._replaced)} with "
                        f"{self.group.name} ({self.group.formula}), "
                        f"{len(plan.placements)} site(s), keeping "
                        f"{structure.space_group.short_name}")

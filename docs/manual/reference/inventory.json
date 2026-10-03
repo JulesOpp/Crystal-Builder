@@ -829,7 +829,7 @@
    "section": "Structure",
    "path": "Substitute hydrogens...",
    "shortcut": "",
-   "tip": "Replace the selected hydrogens, or one on every aromatic ring, with a group -- NH2, OH, OMe, NO2, a halogen, a phenyl -- bonded to the atom the hydrogen was on and to nothing else",
+   "tip": "Replace the selected hydrogens (or fluorines), or one on every aromatic ring, with a group -- NH2, OH, OMe, NO2, an acetyl, a phenyl, or one you draw -- bonded to the atom the hydrogen was on and to nothing else",
    "checkable": false
   },
   {
@@ -1369,6 +1369,22 @@
    "checkable": true
   },
   {
+   "key": "show_only_selected",
+   "section": "View",
+   "path": "Show Only Selected",
+   "shortcut": "",
+   "tip": "Draw the selected atoms and nothing else -- every phenol, say, to see what a substitution did to them.  Only the picture changes: the hidden atoms are still in the structure, and in every calculation and every save",
+   "checkable": false
+  },
+  {
+   "key": "show_all",
+   "section": "View",
+   "path": "Show All",
+   "shortcut": "",
+   "tip": "Draw every atom again after Show Only Selected",
+   "checkable": false
+  },
+  {
    "key": "clear_overlays",
    "section": "View",
    "path": "Clear charges and orbital",
@@ -1566,6 +1582,14 @@
    "path": "Energy scan ▸ Relaxed scan...",
    "shortcut": "",
    "tip": "Map the energy landscape over one or two coordinates",
+   "checkable": false
+  },
+  {
+   "key": "module.scan.bulk_modulus",
+   "section": "Modules",
+   "path": "Energy scan ▸ Bulk modulus...",
+   "shortcut": "",
+   "tip": "Compress and expand the cell with the shape free and fit an equation of state: B0, B0' and V0",
    "checkable": false
   },
   {
@@ -2211,6 +2235,120 @@
        "accepts": "float, at least 1e-06 kcal/mol/A",
        "default": "0.5",
        "help": "Loose on purpose: the cheap engine's minimum is not the one wanted, so converging to it tightly buys nothing."
+      }
+     ]
+    },
+    {
+     "name": "bulk_modulus",
+     "label": "Bulk modulus...",
+     "tip": "Compress and expand the cell with the shape free and fit an equation of state: B0, B0' and V0",
+     "dialog": "scan",
+     "shell": "",
+     "params": [
+      {
+       "name": "engine",
+       "label": "Engine",
+       "accepts": "one of ",
+       "default": "uff",
+       "help": "Which energy engine relaxes each point.  For a flexible framework a machine-learned potential is the better choice: UFF4MOF was never fitted to reproduce a breathing double well."
+      },
+      {
+       "name": "axis1",
+       "label": "First axis",
+       "accepts": "text",
+       "default": "volume",
+       "help": "A cell parameter (a, b, c, alpha, beta, gamma), 'volume', or an internal coordinate over P1 atom indices: 'distance 0, 5', 'angle 0, 1, 2', 'torsion 0, 1, 2, 3', 'plane 0+1+2, 6+7+8'.  Atoms joined by '+' are their centroid, and it follows them."
+      },
+      {
+       "name": "axis1_start",
+       "label": "From",
+       "accepts": "float",
+       "default": "0.0",
+       "help": ""
+      },
+      {
+       "name": "axis1_stop",
+       "label": "To",
+       "accepts": "float",
+       "default": "0.0",
+       "help": ""
+      },
+      {
+       "name": "axis1_steps",
+       "label": "Points",
+       "accepts": "int, 1 to 201",
+       "default": "9",
+       "help": ""
+      },
+      {
+       "name": "seed",
+       "label": "Starting geometry",
+       "accepts": "one of Carry on from the nearest point, Restart from this structure",
+       "default": "previous",
+       "help": "Carrying the last relaxed geometry into the next cell is what makes a scan affordable, and it is also what makes it path-dependent: near a transition the optimiser stays in the basin it arrived in."
+      },
+      {
+       "name": "direction",
+       "label": "Direction",
+       "accepts": "one of Both, and report each, Forwards only, Backwards only",
+       "default": "forward",
+       "help": "Walking the grid both ways and drawing both is how hysteresis shows up instead of hiding in one curve."
+      },
+      {
+       "name": "method",
+       "label": "Optimiser",
+       "accepts": "one of abnr, conjugate_gradient, fire, lbfgs, quasi_newton, smart, steepest_descent",
+       "default": "smart",
+       "help": "Smart descends steeply at first and changes rule as the forces fall, which is what a scan wants: every point after the first starts near a minimum, but the first one may not."
+      },
+      {
+       "name": "max_steps",
+       "label": "Steps per point",
+       "accepts": "int, 1 to 100000",
+       "default": "500",
+       "help": "A point that stops at the limit is reported as not converged and drawn apart, so this is a ceiling rather than a target."
+      },
+      {
+       "name": "tolerance",
+       "label": "Force tolerance",
+       "accepts": "float, at least 1e-06 kcal/mol/A",
+       "default": "0.05",
+       "help": ""
+      },
+      {
+       "name": "pre_engine",
+       "label": "Pre-relax with",
+       "accepts": "one of Nothing",
+       "default": "",
+       "help": "A cheaper engine run at every point before the one the landscape is of -- UFF4MOF ahead of MACE, say.  A volume step moves every atom with the cell, and this spends the long walk back at the cheap price.  Only the main engine's energy is reported."
+      },
+      {
+       "name": "pre_max_steps",
+       "label": "Pre-relaxation steps",
+       "accepts": "int, 1 to 100000",
+       "default": "500",
+       "help": ""
+      },
+      {
+       "name": "pre_tolerance",
+       "label": "Pre-relaxation tolerance",
+       "accepts": "float, at least 1e-06 kcal/mol/A",
+       "default": "0.5",
+       "help": "Loose on purpose: the cheap engine's minimum is not the one wanted, so converging to it tightly buys nothing."
+      },
+      {
+       "name": "relax_first",
+       "label": "Relax the cell first",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Relax the cell, shape and volume, before the scan and centre the volumes on where it settles.  A scan round the input's volume puts V0 at its edge -- or outside it -- whenever the engine's minimum is not the deposited cell's, and the fit then refuses."
+      },
+      {
+       "name": "span",
+       "label": "Span",
+       "accepts": "float, 0.5 to 40 %",
+       "default": "6.0",
+       "help": "How far either side of the volume to go, when no From and To are given.  Within a few percent the energy is close to a parabola and the modulus is the cell's; much further and it is the equation of state's."
       }
      ]
     }

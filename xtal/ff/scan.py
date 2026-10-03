@@ -260,8 +260,14 @@ def plan(structure, axes, *, seed: str = "previous",
                 f"{structure.space_group.cell_constraint.describe()}."
                 f"  Scan one of {', '.join(sorted(free))}.")
 
-    if volumes:
+    if volumes and len(free) > 1:
         relax_cell, freedom = True, CellFreedom.constant_volume()
+    elif volumes:
+        # A cubic cell has one free parameter and the volume is it:
+        # holding one holds the shape, so only the atoms relax.  Asked
+        # to relax the cell as well, the optimiser found no strain left
+        # and every point of a scan of halite was a hole.
+        relax_cell, freedom = False, CellFreedom.free()
     elif parameters and free - set(parameters):
         relax_cell, freedom = True, CellFreedom.fixing(parameters)
     elif parameters:

@@ -198,6 +198,32 @@ Map the energy landscape over one or two coordinates
 | **Pre-relaxation steps** | int, 1 to 100000 | `500` |  |
 | **Pre-relaxation tolerance** | float, at least 1e-06 kcal/mol/A | `0.5` | Loose on purpose: the cheap engine's minimum is not the one wanted, so converging to it tightly buys nothing. |
 
+(mod-scan-bulk_modulus)=
+### Bulk modulus...
+
+Compress and expand the cell with the shape free and fit an equation of state: B0, B0' and V0
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Engine** | one of | `uff` | Which energy engine relaxes each point.  For a flexible framework a machine-learned potential is the better choice: UFF4MOF was never fitted to reproduce a breathing double well. |
+| **First axis** | text | `volume` | A cell parameter (a, b, c, alpha, beta, gamma), 'volume', or an internal coordinate over P1 atom indices: 'distance 0, 5', 'angle 0, 1, 2', 'torsion 0, 1, 2, 3', 'plane 0+1+2, 6+7+8'.  Atoms joined by '+' are their centroid, and it follows them. |
+| **From** | float | `0.0` |  |
+| **To** | float | `0.0` |  |
+| **Points** | int, 1 to 201 | `9` |  |
+| **Starting geometry** | one of Carry on from the nearest point, Restart from this structure | `previous` | Carrying the last relaxed geometry into the next cell is what makes a scan affordable, and it is also what makes it path-dependent: near a transition the optimiser stays in the basin it arrived in. |
+| **Direction** | one of Both, and report each, Forwards only, Backwards only | `forward` | Walking the grid both ways and drawing both is how hysteresis shows up instead of hiding in one curve. |
+| **Optimiser** | one of abnr, conjugate_gradient, fire, lbfgs, quasi_newton, smart, steepest_descent | `smart` | Smart descends steeply at first and changes rule as the forces fall, which is what a scan wants: every point after the first starts near a minimum, but the first one may not. |
+| **Steps per point** | int, 1 to 100000 | `500` | A point that stops at the limit is reported as not converged and drawn apart, so this is a ceiling rather than a target. |
+| **Force tolerance** | float, at least 1e-06 kcal/mol/A | `0.05` |  |
+| **Pre-relax with** | one of Nothing |  | A cheaper engine run at every point before the one the landscape is of -- UFF4MOF ahead of MACE, say.  A volume step moves every atom with the cell, and this spends the long walk back at the cheap price.  Only the main engine's energy is reported. |
+| **Pre-relaxation steps** | int, 1 to 100000 | `500` |  |
+| **Pre-relaxation tolerance** | float, at least 1e-06 kcal/mol/A | `0.5` | Loose on purpose: the cheap engine's minimum is not the one wanted, so converging to it tightly buys nothing. |
+| **Relax the cell first** | bool | `True` | Relax the cell, shape and volume, before the scan and centre the volumes on where it settles.  A scan round the input's volume puts V0 at its edge -- or outside it -- whenever the engine's minimum is not the deposited cell's, and the fit then refuses. |
+| **Span** | float, 0.5 to 40 % | `6.0` | How far either side of the volume to go, when no From and To are given.  Within a few percent the energy is close to a parabola and the modulus is the cell's; much further and it is the equation of state's. |
+
 (mod-mof)=
 ## MOF builder
 
