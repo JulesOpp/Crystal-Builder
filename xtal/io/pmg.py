@@ -95,7 +95,8 @@ def from_dict(data: dict, name: str = "structure",
 def write_pmg_json(structure: Structure, path, **_ignored) -> Path:
     """Write the P1 cell as a pymatgen ``Structure`` dict."""
     path = Path(path)
-    atomic.write_text(path, json.dumps(to_dict(structure), indent=2))
+    atomic.write_text(path, json.dumps(to_dict(structure), indent=2),
+                      encoding="utf-8")
     return path
 
 

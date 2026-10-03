@@ -42,7 +42,8 @@ from xtal.io.text import read_text
 
 def write_gen(structure: Structure, path, fractional: bool = True) -> Path:
     path = Path(path)
-    atomic.write_text(path, gen_string(structure, fractional))
+    atomic.write_text(path, gen_string(structure, fractional),
+                      encoding="utf-8")
     return path
 
 

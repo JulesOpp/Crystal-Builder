@@ -51,7 +51,8 @@ _LINKS = " 0" * 8
 
 def write_cssr(structure: Structure, path, name: str = "") -> Path:
     path = Path(path)
-    atomic.write_text(path, cssr_string(structure, name or path.stem))
+    atomic.write_text(path, cssr_string(structure, name or path.stem),
+                      encoding="utf-8")
     return path
 
 

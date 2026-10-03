@@ -891,7 +891,8 @@ class Workspace:
         data["session"] = {"open": relative,
                            "active": max(0, int(active))}
         try:
-            atomic.write_text(marker, json.dumps(data, indent=1) + "\n")
+            atomic.write_text(marker, json.dumps(data, indent=1) + "\n",
+                              encoding="utf-8")
         except OSError:
             pass
 
