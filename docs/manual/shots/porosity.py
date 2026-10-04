@@ -147,6 +147,7 @@ def refinement_workbench() -> None:
     import tempfile
 
     import numpy as np
+
     from xtal.io.xy import write_xy
     from xtal.powder import bridge
     from xtal.powder.data import Radiation
