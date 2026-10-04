@@ -111,7 +111,12 @@ def atom_values(structure, name: str, rules=None, graph=None,
                         for c in charges])
     elif name == "smallest_ring":
         out = np.full(n, np.nan)
-        for ring in rings.rings_of(structure, rules, max_ring):
+        try:
+            found = rings.rings_of(structure, rules, max_ring)
+        except rings.TooDense:
+            # No answer is NaN, drawn grey, never a number.
+            found = ()
+        for ring in found:
             size = len(ring)
             for atom, _shift in ring:
                 if not size >= out[atom]:     # NaN compares False
