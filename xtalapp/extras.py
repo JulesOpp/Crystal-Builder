@@ -3,10 +3,10 @@ xtalapp.extras
 ==============
 What is optional, whether it is here, and how to get it.
 
-Five features are gated on a package this application does not
-install: the molecule builder needs RDKit, the sketcher rdeditor, the
-PXRD overlay window matplotlib, the MOF builder ASE, and the MACE
-engine mace-torch.  Each greys its entry out and names the extra to
+Four features are gated on a package this application does not
+install: the molecule builder and its sketcher need RDKit, the PXRD
+overlay window matplotlib, the MOF builder ASE, and the MACE engine
+mace-torch.  Each greys its entry out and names the extra to
 install, spelled by :func:`xtal.install.command` for *this*
 interpreter and *this* checkout -- see that module for why the
 shorthand ``pip install 'crystal-builder[build]'`` is not good enough.
@@ -25,8 +25,7 @@ module knows which build it is in and the page says different things.
 
 The decision behind it (SHELL.md 3) is *bundle the small ones and be
 honest about the big one*.  RDKit is about 107 MB and buys two whole
-features; rdeditor is a megabyte on top of a PySide6 that is bundled
-anyway.
+features: building from SMILES and drawing the molecule.
 
 **The MOF builder was the big one.**  It needed PORMAKE: 44 packages
 and about 889 MB, jax and pymatgen for one dialog.  PORMAKE is now
@@ -70,7 +69,7 @@ from xtal.ff import orb as orb_extra
 from xtal.ff.registry import ENGINES
 from xtal.references import PORMAKE, Reference, doi, github
 from xtalapp import applog
-from xtalapp.dialogs import pattern, sketch
+from xtalapp.dialogs import pattern
 
 #: The folder under the application's data directory, and the variable
 #: that moves it.  The suite points this at a scratch directory the way
@@ -177,7 +176,6 @@ class Extra:
 _CHECKS = {
     "ase": lambda: mof_extra.has_ase(),
     "rdkit": lambda: build_extra.installed(),
-    "rdeditor": lambda: sketch.installed(),
     "matplotlib": lambda: pattern.installed(),
     "mace": lambda: mace_extra.installed(),
     "orb_models": lambda: orb_extra.installed(),
@@ -200,15 +198,11 @@ def _engine(name: str) -> tuple:
 
 EXTRAS = (
     Extra("Molecule builder", "rdkit", "build",
-          "Insert molecule builds a molecule from a SMILES string and "
-          "pastes it into the structure.  It also reads the fragment "
-          "library.", True,
+          "Insert molecule builds a molecule from a SMILES string, or "
+          "one drawn in the sketcher, and pastes it into the "
+          "structure.  It also reads the fragment library.", True,
           references=(Reference("rdkit.org", "https://www.rdkit.org"),
                       github("rdkit/rdkit"))),
-    Extra("Molecule sketcher", "rdeditor", "sketch",
-          "Draw a molecule instead of typing a SMILES string.  Needs "
-          "the molecule builder as well.", True,
-          references=(github("EBjerrum/rdeditor"),)),
     Extra("Pattern plot window", "matplotlib", "pxrd",
           "Zoom into a calculated PXRD pattern, overlay a measured "
           ".xy file on it, and export the figure as a vector with "

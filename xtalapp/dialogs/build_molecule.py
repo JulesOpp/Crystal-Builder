@@ -31,10 +31,9 @@ actually says.
 ``set_smiles`` in and ``smilesChanged`` out is the whole interface,
 and :func:`sketch_for` chooses between :class:`_Sketch` -- the
 read-only depiction -- and
-:class:`xtalapp.dialogs.sketch.SketchEditor`, which is rdeditor's
-canvas and can be drawn on.  Which one is decided by whether
-``rdeditor`` is installed, and nothing else in this file knows the
-difference.
+:class:`xtalapp.dialogs.sketch.SketchEditor`, the sketcher, which can
+be drawn on.  Which one is decided by whether RDKit is installed, and
+nothing else in this file knows the difference.
 """
 
 from __future__ import annotations
@@ -56,7 +55,7 @@ from xtal.commands.clipboard import PasteFragment
 from xtal.modules.build import molecule_for
 from xtalapp.dialogs import sketch
 from xtalapp.dialogs.answered import answered
-from xtalapp.widgets.tone import HINT, set_tone
+from xtalapp.widgets.tone import HINT, WARNING, set_tone
 
 #: The action that pastes into the open cell, by name.  Everything
 #: else this dialog is opened for builds a document of its own.
@@ -188,7 +187,10 @@ class BuildMoleculeDialog(QDialog):
             self.molecule = None
             self._say(str(exc), bad=True)
             return
-        self._say(self._outcome(self.molecule))
+        outcome = self._outcome(self.molecule)
+        if self.molecule.notes:
+            outcome += "<br>" + "<br>".join(self.molecule.notes)
+        self._say(outcome, warn=bool(self.molecule.notes))
 
     def _outcome(self, molecule) -> str:
         """What pressing the button will do, in one sentence."""
@@ -217,9 +219,12 @@ class BuildMoleculeDialog(QDialog):
         document = current() if callable(current) else None
         return getattr(document, "structure", None)
 
-    def _say(self, message: str, bad: bool = False) -> None:
+    def _say(self, message: str, bad: bool = False,
+             warn: bool = False) -> None:
         self.footer.setText(message)
-        if bad:
+        if warn:
+            set_tone(self.footer, WARNING)
+        elif bad:
             set_tone(self.footer, None)
             self.footer.setStyleSheet("color: palette(link-visited);")
         else:
@@ -309,40 +314,39 @@ def _grouped(entries) -> list[list]:
 #  THE PICTURE
 # ======================================================================
 
-def sketch_for(parent, connection_points: bool):
-    """The drawable canvas if there is one, the depiction otherwise.
+def sketch_for(parent, connection_points: bool,
+               head_tail: bool = False):
+    """The editor if RDKit is here, the picture that says what to
+    install otherwise.
 
-    Not prefixed private any more:
-    :mod:`xtalapp.dialogs.draw_block` calls this too, to sketch a
-    building block rather than a molecule, and the choice of widget
-    is exactly the same question either way.
-
-    The choice is made per dialog rather than per session on purpose:
-    it is a ``find_spec``, it costs nothing, and a test that takes
-    rdeditor away has to be able to see the other branch without
-    reaching into a module-level cache.
+    Not prefixed private: :mod:`xtalapp.dialogs.draw_block`,
+    :mod:`~xtalapp.dialogs.draw_group` and the polymer builder's rows
+    call this too, and the choice of widget is exactly the same
+    question everywhere.  It is made per dialog rather than per
+    session on purpose: it is a ``find_spec``, it costs nothing, and a
+    test that takes RDKit away has to be able to see the other branch
+    without reaching into a module-level cache.
 
     ``connection_points`` is ``not self.pastes`` here and always
     ``True`` for a building block, which cannot exist without any --
-    the flag decides only whether the tool that draws one is on the
-    toolbar.  A box that refuses a starred string must not hand out
-    the tool that draws one either: a button whose only outcome is
-    the footer turning red is worse than no button.
+    the flag decides only whether the tool that draws one is offered.
+    A box that refuses a starred string must not hand out the tool
+    that draws one either.  ``head_tail`` puts Head and Tail on a
+    connection point's right-click menu, which only a monomer has a
+    use for.
     """
     if sketch.installed():
-        return sketch.SketchEditor(parent, connection_points)
+        return sketch.SketchEditor(parent, connection_points, head_tail)
     return _Sketch(parent)
 
 
 class _Sketch(QWidget):
-    """A 2D depiction of a SMILES string.
+    """A 2D depiction of a SMILES string, where no editor can be.
 
-    Read-only, and deliberately the smallest interface an editor could
-    also satisfy: ``set_smiles`` in, ``smilesChanged`` out.  rdEditor
-    is a PySide6 widget backed by the same RDKit and the spike that
-    adopts it replaces this class and touches nothing else in the
-    dialog -- which is the reason a picture is behind a widget at all
-    rather than being a ``QSvgWidget`` in the layout above.
+    Read-only, and the smallest interface the editor also satisfies:
+    ``set_smiles`` in, ``smilesChanged`` out.  It is what a dialog that
+    opens without RDKit -- the MOF builder's *Draw...* -- shows, with
+    the extra to install underneath.
 
     A string RDKit cannot read leaves the last good picture up and
     says nothing.  The footer is already saying what is wrong with it,
@@ -371,8 +375,7 @@ class _Sketch(QWidget):
         self.empty.setAlignment(Qt.AlignCenter)
         set_tone(self.empty, HINT)
         # The offer, made where somebody is looking at the thing they
-        # cannot do.  Absent when rdeditor is there, because then this
-        # class is not what the dialog is showing.
+        # cannot do.
         self.hint = QLabel(sketch.MISSING, self)
         self.hint.setWordWrap(True)
         self.hint.setAlignment(Qt.AlignCenter)
@@ -435,10 +438,9 @@ class _Sketch(QWidget):
                 drawer = rdMolDraw2D.MolDraw2DSVG(
                     max(self.view.width(), 240),
                     max(self.view.height(), 180))
-                # The same call the editor makes of rdeditor, for the
-                # same reason: RDKit draws on white whatever the
-                # application looks like, and on a dark theme that is
-                # the brightest thing on screen.
+                # RDKit draws on white whatever the application looks
+                # like, and on a dark theme that is the brightest thing
+                # on screen.
                 if sketch.is_dark(self.palette()):
                     rdMolDraw2D.SetDarkMode(drawer.drawOptions())
                 rdMolDraw2D.PrepareAndDrawMolecule(drawer, mol)

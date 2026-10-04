@@ -152,6 +152,10 @@ class Action:
     #: in a menu is the wrong way in to a step whose input is the one
     #: before it.  ``xtal modules`` and Help still list it.
     listed: bool = True
+    #: The papers and programs behind the entry, as
+    #: :class:`xtal.references.Reference` -- what its dialog links,
+    #: for an entry that hands its work to somebody else's program.
+    references: tuple = ()
 
     def availability(self) -> Availability:
         if self.check is None:

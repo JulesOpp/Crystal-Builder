@@ -289,8 +289,13 @@ class ViewSettings:
     # has enough neighbours", which is the useful default: naming the
     # centres by hand is for when that guesses wrong, not before.
     polyhedron_opacity: float = 0.75
-    polyhedron_min_vertices: int = 4
+    polyhedron_min_vertices: int = 3
     polyhedron_centres: tuple = ()
+    #: Element pairs ("O-Ti") whose bonds make no polyhedron -- Bond
+    #: Rules' Polyhedra column.  Here and never in the bond rules,
+    #: whose signature keys the stored graph: a tick there would have
+    #: perceived the bonds again.
+    polyhedron_pairs_off: tuple = ()
 
     # Rings filled in by size: a face per primitive ring, see
     # :mod:`xtal.core.rings`.  Off, because it is a search of the
@@ -389,7 +394,9 @@ class ViewSettings:
                        element_radii=dict(self.element_radii),
                        ring_colors=dict(self.ring_colors),
                        polyhedron_centres=tuple(
-                           self.polyhedron_centres))
+                           self.polyhedron_centres),
+                       polyhedron_pairs_off=tuple(
+                           self.polyhedron_pairs_off))
 
     def to_dict(self) -> dict:
         return {
@@ -437,6 +444,7 @@ class ViewSettings:
             "polyhedron_opacity": self.polyhedron_opacity,
             "polyhedron_min_vertices": self.polyhedron_min_vertices,
             "polyhedron_centres": list(self.polyhedron_centres),
+            "polyhedron_pairs_off": list(self.polyhedron_pairs_off),
             "show_rings": self.show_rings,
             "ring_max_size": self.ring_max_size,
             "ring_opacity": self.ring_opacity,
@@ -492,6 +500,8 @@ class ViewSettings:
             s.pore_spheres = cls.pore_spheres
         if "polyhedron_centres" in d:
             s.polyhedron_centres = tuple(d["polyhedron_centres"])
+        if "polyhedron_pairs_off" in d:
+            s.polyhedron_pairs_off = tuple(d["polyhedron_pairs_off"])
         for key in ("range_a", "range_b", "range_c"):
             if key in d:
                 setattr(s, key, tuple(d[key]))

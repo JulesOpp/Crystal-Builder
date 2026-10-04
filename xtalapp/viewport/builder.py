@@ -1000,14 +1000,19 @@ def _emit_polyhedra(graph, cell, drawn, hulls, settings,
         return frozenset()
 
     consumed: set = set()
-    minimum = max(4, int(settings.polyhedron_min_vertices))
+    minimum = max(3, int(settings.polyhedron_min_vertices))
     centres = style.centres(cell.elements, settings)
+    off = pairs_off(settings)
     for index in range(drawn.in_range):
         centre = int(drawn.atom[index])
         element = cell.elements[centre]
         if element not in centres:
             continue
-        partners = graph.neighbors_with_images(centre)
+        # A pair switched off in Bond Rules is not a vertex: its bond
+        # is drawn as a bond, and the polyhedron is the rest.
+        partners = [(j, image)
+                    for j, image in graph.neighbors_with_images(centre)
+                    if _pair(element, cell.elements[j]) not in off]
         if len(partners) < minimum:
             continue
         shift = np.asarray(drawn.shift[index], dtype=float)
@@ -1016,14 +1021,55 @@ def _emit_polyhedra(graph, cell, drawn, hulls, settings,
         # The hull has to be built in real space: the convex hull of
         # fractional coordinates in a non-orthogonal cell is the hull
         # of a sheared shape, which is a different polyhedron.
-        try:
-            hull = ConvexHull(cell.lattice.to_cart(vertices))
-        except (QhullError, ValueError):
-            continue                    # coplanar: no volume, no shape
-        hulls.add(vertices, hull.simplices,
-                  settings.color_for(element))
-        consumed.update(b.key() for b in graph.bonds_of(centre))
+        cart = cell.lattice.to_cart(vertices)
+        triangles = None
+        if len(partners) > 3:
+            try:
+                triangles = ConvexHull(cart).simplices
+            except (QhullError, ValueError):
+                pass                    # flat: square planar, say
+        if triangles is None:
+            triangles = _planar_face(cart)
+            if triangles is None:
+                continue                # collinear: no face at all
+        hulls.add(vertices, triangles, settings.color_for(element))
+        consumed.update(
+            bond.key() for (j, _image), bond in zip(
+                graph.neighbors_with_images(centre),
+                graph.bonds_of(centre), strict=True)
+            if _pair(element, cell.elements[j]) not in off)
     return frozenset(consumed)
+
+
+def _pair(a: str, b: str) -> str:
+    return "-".join(sorted((a, b)))
+
+
+def pairs_off(settings) -> frozenset:
+    """The element pairs Bond Rules says make no polyhedron, spelt
+    either way round."""
+    return frozenset(_pair(*p.split("-", 1))
+                     for p in settings.polyhedron_pairs_off if "-" in p)
+
+
+def _planar_face(cart) -> np.ndarray | None:
+    """A flat set of vertices -- a triangle, a square-planar centre --
+    as one polygon fanned from its first vertex, the vertices taken in
+    order of angle round their middle in their own best-fit plane.
+
+    A hull of points with no volume is no hull, which is why MX3 and
+    square-planar MX4 were never drawn.  Collinear points span no
+    plane and give ``None``.
+    """
+    middle = cart.mean(axis=0)
+    centred = cart - middle
+    _u, s, vt = np.linalg.svd(centred)
+    if len(s) < 2 or s[1] < 1e-6 * max(s[0], 1e-12):
+        return None
+    angles = np.arctan2(centred @ vt[1], centred @ vt[0])
+    ring = np.argsort(angles)
+    return np.array([[ring[0], ring[k], ring[k + 1]]
+                     for k in range(1, len(ring) - 1)], dtype=int)
 
 
 def _emit_rings(structure, cell, drawn, faces, settings,

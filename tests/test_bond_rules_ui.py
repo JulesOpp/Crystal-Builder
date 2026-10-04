@@ -319,3 +319,42 @@ def test_the_pair_column_is_never_squeezed_to_nothing(dialog):
     assert table.columnWidth(0) >= \
         table.fontMetrics().horizontalAdvance(text)
     assert table.horizontalScrollBar().maximum() == 0
+
+
+# ------------------------------------------------------------ polyhedra
+
+def test_unticking_a_pair_reaches_the_view_not_the_rules(dialog):
+    """Ticked in the rules, the signature would change and the bonds
+    be perceived again; the column is how the crystal is drawn."""
+    document = dialog.document
+    signature = bonding.BondRules.from_dict(
+        document.structure.bond_rules).signature()
+    dialog.table.item(row_for(dialog, ("O", "Ti")), 4).setCheckState(
+        Qt.Unchecked)
+
+    assert dialog.apply_view()
+    assert document.view.polyhedron_pairs_off == ("O-Ti",)
+    assert dialog.rules().signature() == signature
+
+
+def test_ticking_an_element_makes_it_a_centre(dialog):
+    """Rutile opens with titanium ticked -- the metal, as drawn -- and
+    ticking oxygen too names both."""
+    assert dialog.centre_boxes["Ti"].isChecked()
+    assert not dialog.centre_boxes["O"].isChecked()
+    assert dialog.centres() == ()               # still the automatic
+
+    dialog.centre_boxes["O"].setChecked(True)
+    dialog.apply_view()
+    assert dialog.document.view.polyhedron_centres == ("O", "Ti")
+
+
+def test_an_untouched_dialog_leaves_the_view_alone(dialog):
+    assert not dialog.apply_view()
+
+
+def test_the_defaults_form_asks_nothing_about_polyhedra(qtbot):
+    widget = BondRulesDialog(None)
+    qtbot.addWidget(widget)
+    assert widget.table.isColumnHidden(4)
+    assert widget.centre_box.isHidden()

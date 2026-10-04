@@ -213,7 +213,7 @@ whose text is still text.  Neither is a hundred lines of anything, and
 
 It is on `COLLECT` rather than being traced, because the Qt back end
 and `mpl-data` are found at run time and are invisible to the import
-analysis — the same reason `rdkit` and `rdeditor` are there.  What
+analysis — the same reason `rdkit` is there.  What
 keeps this bounded rather than a slide is the line in
 `pyproject.toml`: **every panel still draws with nothing installed.**
 `xtalapp/plot.py`, `xtalapp/histogram.py` and `xtalapp/curve.py` are
@@ -266,7 +266,7 @@ because the reversal is only legible against it:
 | | Bundle? | Why |
 |---|---|---|
 | **rdkit** (~107 MB) | **yes** | Buys two whole features — build from SMILES, and the sketcher.  Greying out *Draw* in a GUI-only distribution hides Phase U from exactly the people it was for. |
-| **rdeditor** (~1 MB) | **yes** | PySide6 plus a theme package, both already bundled.  Free. |
+| **rdeditor** | ~~yes~~ **gone** | The sketcher is our own widget over RDKit now (`xtalapp/widgets/sketcher/`). |
 | **ase** (20 MB installed, **1.4 MB in the bundle**) | ~~no~~ **yes** | Was "nothing in this tree imports it".  The vendored PORMAKE does, throughout.  It is traced and not collected whole, so what it costs is the 200 modules of its 1218 the builder reaches — measured, see `COLLECT` in `bundle.py`. |
 | **pormake** | ~~no~~ **vendored** | Was 44 packages, ~889 MB, `jax` and `pymatgen`, and a ten-second import, for one dialog.  All three are gone. |
 

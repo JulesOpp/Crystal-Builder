@@ -114,3 +114,10 @@ def test_xtal_run_orca_input_takes_the_same_parameters(
         written[0].stem + "_from_crystal_builder.xyz")
     assert xyz.exists()
     assert f"*xyzfile 0 1 {xyz.name}" in text
+
+
+def test_the_input_action_carries_its_citation():
+    """The entry, not the dialog, knows whose program the input is
+    for, so the CLI and an agent can name it too."""
+    _module, action = MODULES.find("orca.input")
+    assert any("10.1002/wcms.70019" in r.url for r in action.references)

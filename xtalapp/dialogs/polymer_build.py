@@ -53,9 +53,9 @@ from xtalapp.widgets.tone import HINT, WARNING, set_tone
 
 #: The same pause the molecule builder waits after a keystroke.
 QUIET_MS = 350
-#: The canvas's height.  It is square and as large as it fits, and
-#: left to fit it took the whole dialog for an ethylene.
-SKETCH_HEIGHT = 240
+#: The sketcher's height, its tools included.  Left to fit, it took
+#: the whole dialog for an ethylene.
+SKETCH_HEIGHT = 300
 
 #: The groups below the monomers, in reading order.
 GROUPS = (
@@ -101,7 +101,7 @@ class MonomerRow(QWidget):
             self.library.addItem(f"{path.stem} (this workspace)",
                                  str(path))
         self.library.currentIndexChanged.connect(self._on_library)
-        self.sketch = sketch_for(self, True)
+        self.sketch = sketch_for(self, True, head_tail=True)
         self.sketch.setMaximumHeight(SKETCH_HEIGHT)
         self.sketch.smilesChanged.connect(self._on_sketch)
         self.footer = QLabel(self)

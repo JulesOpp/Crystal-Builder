@@ -341,13 +341,61 @@ def test_a_polyhedron_uses_the_neighbours_the_bonds_point_at(rutile):
 
 
 def test_only_the_named_elements_get_polyhedra(rutile):
-    everything = build_scene(rutile, ViewSettings(style="polyhedra"))
+    """With nothing named the polyhedral style takes the metals, so
+    rutile is its TiO6 and no triangle over it; naming oxygen gives
+    the three-coordinate oxygens their triangles instead."""
+    default = build_scene(rutile, ViewSettings(style="polyhedra"))
     titanium = build_scene(rutile, ViewSettings(
         style="polyhedra", polyhedron_centres=("Ti",)))
     oxygen = build_scene(rutile, ViewSettings(
         style="polyhedra", polyhedron_centres=("O",)))
-    assert titanium.n_polyhedron_faces == everything.n_polyhedron_faces
-    assert oxygen.n_polyhedron_faces == 0       # O is 3-coordinate
+    assert titanium.n_polyhedron_faces == default.n_polyhedron_faces
+    assert oxygen.n_polyhedron_faces > 0        # one triangle per O
+    assert oxygen.n_polyhedron_faces != titanium.n_polyhedron_faces
+
+
+def test_a_three_coordinate_centre_is_a_triangle(rutile):
+    """MX3 was never drawn: three points have no hull.  Each oxygen of
+    rutile is one flat triangle, two-sided, of its three titaniums."""
+    scene = build_scene(rutile, ViewSettings(
+        style="polyhedra", polyhedron_centres=("O",),
+        range_a=(0.0, 0.999), range_b=(0.0, 0.999),
+        range_c=(0.0, 0.999), boundary="cell"))
+    assert scene.n_polyhedron_faces == 4        # four O in the cell
+
+
+def test_a_square_planar_centre_is_a_flat_face():
+    """A flat MX4 has no volume either; it is drawn as its square --
+    two triangles -- not left out."""
+    lattice = Lattice.cubic(14.0)
+    elements = ["Pt", "Cl", "Cl", "Cl", "Cl"]
+    cart = [[7, 7, 7], [9.3, 7, 7], [4.7, 7, 7], [7, 9.3, 7],
+            [7, 4.7, 7]]
+    structure = Structure.from_arrays(
+        lattice, elements,
+        lattice.to_frac(np.array(cart, dtype=float)), space_group="P1")
+    scene = build_scene(structure, ViewSettings(style="polyhedra"))
+    assert scene.n_polyhedron_faces == 2
+
+
+def test_a_pair_switched_off_is_not_a_vertex_and_keeps_its_bond():
+    """Bond Rules' Polyhedra column: a Zn-O pair switched off leaves
+    zinc with too few vertices, and its bonds are drawn as bonds again
+    rather than vanishing with the hull that used to own them."""
+    lattice = Lattice.cubic(20.0)
+    d = 1.95 / math.sqrt(3.0)
+    cart = [[10, 10, 10], [10 + d, 10 + d, 10 + d],
+            [10 + d, 10 - d, 10 - d], [10 - d, 10 + d, 10 - d],
+            [10 - d, 10 - d, 10 + d]]
+    structure = Structure.from_arrays(
+        lattice, ["Zn", "O", "O", "O", "O"],
+        lattice.to_frac(np.array(cart, dtype=float)), space_group="P1")
+    on = build_scene(structure, ViewSettings(style="polyhedra_stick"))
+    off = build_scene(structure, ViewSettings(
+        style="polyhedra_stick", polyhedron_pairs_off=("O-Zn",)))
+    assert on.n_polyhedron_faces == 4
+    assert off.n_polyhedron_faces == 0
+    assert off.n_bond_halves > on.n_bond_halves
 
 
 def test_polyhedra_need_enough_vertices(quartz):
@@ -479,13 +527,14 @@ def test_a_four_coordinate_carbon_is_not_a_polyhedron_node():
         lattice, elements,
         lattice.to_frac(np.array(cart, dtype=float)), space_group="P1")
 
-    everything = build_scene(
-        structure, ViewSettings(style="polyhedra")).n_polyhedron_faces
-    metals_only = build_scene(
-        structure,
-        ViewSettings(style="polyhedra_stick")).n_polyhedron_faces
-    assert metals_only > 0                  # the ZnO4 tetrahedron
-    assert metals_only < everything         # and not the CH4 one
+    for style in ("polyhedra", "polyhedra_stick"):
+        metals_only = build_scene(
+            structure, ViewSettings(style=style)).n_polyhedron_faces
+        named = build_scene(structure, ViewSettings(
+            style=style, polyhedron_centres=("Zn", "C"))
+        ).n_polyhedron_faces
+        assert metals_only == 4             # the ZnO4 tetrahedron
+        assert named == 8                   # and the CH4 one, asked
 
 
 def test_the_mixed_style_falls_back_when_there_is_no_metal_at_all():
@@ -531,7 +580,8 @@ def test_naming_the_centres_by_hand_beats_the_style(rutile):
     settings = ViewSettings(style="polyhedra_stick")
     settings.polyhedron_centres = ("O",)
     scene = build_scene(rutile, settings)
-    assert scene.n_polyhedron_faces == 0        # O has only 3 partners
+    titanium = build_scene(rutile, ViewSettings(style="polyhedra_stick"))
+    assert 0 < scene.n_polyhedron_faces != titanium.n_polyhedron_faces
 
 
 def test_the_picture_follows_a_move_in_a_symmetric_cell(rutile):

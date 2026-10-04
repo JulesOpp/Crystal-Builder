@@ -50,6 +50,14 @@ PORMAKE = (doi("PORMAKE: Lee et al., ACS Appl. Mater. Interfaces 2021",
                "10.1021/acsami.1c02471"),
            github("Sangwon91/PORMAKE"))
 
+#: What ORCA's own manual (6.1, "How to cite") asks for: the generic
+#: reference and the update for the version an input is written for.
+ORCA = (doi("ORCA: Neese, WIREs Comput. Mol. Sci. 2012",
+            "10.1002/wcms.81"),
+        doi("ORCA 6: Neese, WIREs Comput. Mol. Sci. 2025",
+            "10.1002/wcms.70019"),
+        Reference("ORCA at FACCTs", "https://www.faccts.de/orca/"))
+
 
 def rcsr_net(name: str, dimension: int = 3) -> Reference:
     """RCSR's own page for one net -- the address each page gives as

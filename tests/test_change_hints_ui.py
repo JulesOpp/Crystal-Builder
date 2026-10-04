@@ -80,6 +80,16 @@ def test_the_preference_makes_them_follow(rutile_cif):
     assert {b.key() for b in document.graph.bonds} == before
 
 
+def test_a_fresh_preference_leaves_bonds_where_they_were(tmp_path):
+    """Nobody has ticked *Bonds follow the geometry*, so it is off,
+    and the menu entry and every document start unticked.  On, a drag
+    re-perceives the graph under the person's hand -- the thing
+    Recalculate Bonds exists to keep in their charge."""
+    settings = AppSettings("CrystalBuilderTest",
+                           f"FreshFollow{tmp_path.name}")
+    assert settings.bonds_follow_geometry is False
+
+
 def test_the_window_hands_the_preference_to_every_document(
         qtbot, tmp_path, rutile_cif, quartz_cif):
     settings = AppSettings("CrystalBuilderTest", f"Follow{tmp_path.name}")

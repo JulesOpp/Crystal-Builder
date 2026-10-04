@@ -5,11 +5,11 @@ that used to go there and would otherwise go nowhere: a plugin that
 would not load, a Qt warning, and the traceback of the exception that
 closed the window.
 
-The last two are about *staying* attached.  Two things in this
-application move the root logger around -- rdeditor calls
-``logging.basicConfig`` in a widget constructor, and PORMAKE is
-imported with ``logging.FileHandler`` swapped out from under it -- and
-either could quietly take the log file with it.
+The last two are about *staying* attached.  PORMAKE is imported with
+its own handlers taken off its logger, and that could quietly take the
+log file with it.  (rdeditor, which called ``logging.basicConfig`` in
+a widget constructor, was the second until the sketcher became our
+own.)
 """
 
 import logging
@@ -134,14 +134,12 @@ def test_the_core_and_the_window_agree_on_the_discovery_folder():
 
 
 def test_the_sketcher_leaves_the_log_handler_attached(log, qtbot):
-    """rdeditor's widget calls ``logging.basicConfig`` and sets the
-    root logger's level.  ``sketch._canvas`` puts both back, and this
-    is the test that says the log survives it."""
-    pytest.importorskip("rdeditor")
+    """The sketcher's editor is built without touching the root
+    logger, and the log survives it."""
     from xtalapp.dialogs import sketch
 
-    canvas = sketch._canvas()
-    qtbot.addWidget(canvas)
+    editor = sketch.SketchEditor()
+    qtbot.addWidget(editor)
     logging.getLogger("xtal.test").warning("after the sketcher")
 
     assert "after the sketcher" in read(log)

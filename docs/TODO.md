@@ -410,6 +410,30 @@ front of another is not yet gapped where it crosses it -- ChemDraw
 breaks the one behind.  Both are `xtalapp/viewport/sketch.py`, and
 the SVG export draws whatever it cuts.
 
+### What the sketcher does not do yet
+
+The sketcher (`xtalapp/widgets/sketcher/`, 2026-10-04) replaced
+rdeditor with the features asked for -- any element, Ctrl+A over atoms
+and bonds, a type applied to a selection, typing over the hovered atom
+-- and left these out:
+
+- **Stereo bonds.**  No wedge or hash tool, so a drawn stereocentre is
+  unspecified and the polymer builder's tacticity reads it as such.
+  `Sketch` needs a bond direction, and `chem.sketch_mol` a
+  `BondDir`.
+- **Lasso and a chain tool.**  Maestro's lasso select and its
+  zigzag-chain drag; the marquee and click-to-grow cover the same
+  ground more slowly.
+- **Sandwich complexes.**  A metal bonded to every carbon of a ring
+  (ferrocene) is built with no shape -- ETKDG's own geometry, and a
+  note -- since no shape has ten corners: an eta-5 ring wants its
+  centroid at one vertex, which is a marker `coordination` does not
+  place.
+- **Clusters beyond one hub.**  A paddlewheel and a mu-O cluster
+  (Zn4O) build on their shapes; two hubs, or a metal-metal bond inside
+  a larger cluster, fall to the distance-bounds tier, which can miss
+  and then builds off its shapes with a note.
+
 ## Symmetry
 
 ### Merge duplicates cannot see a site duplicated by its own group

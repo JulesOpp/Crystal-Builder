@@ -33,10 +33,6 @@ needs_rdkit = pytest.mark.skipif(
     reason="RDKit is not installed; pip install "
            "'crystal-builder[build]'")
 
-needs_rdeditor = pytest.mark.skipif(
-    not (installed() and sketch.installed()),
-    reason="rdeditor is not installed; pip install "
-           "'crystal-builder[sketch]'")
 
 
 @pytest.fixture
@@ -69,16 +65,26 @@ def typed(dialog, qtbot, text):
 
 
 def drawn(dialog, qtbot, symbol):
-    """Put one atom on the canvas, the way a click on it would.
+    """Put one atom on the page, the way a click on empty page would.
+    ``0`` is the connection point, as an atomic number."""
+    dialog.sketch.tools.check("X" if symbol == 0 else symbol)
+    dialog.sketch.view.click_empty((0.0, 0.0))
+    qtbot.waitUntil(lambda: not dialog._quiet.isActive(), timeout=5000)
 
-    Through the editor's own API rather than a synthetic mouse event:
-    what is under test is the cycle from the canvas to the box and
-    back, and rdeditor's hit-testing is rdeditor's business.
-    """
-    from rdkit.Geometry.rdGeometry import Point2D
 
-    dialog.sketch.view.setChemEntity(symbol)
-    dialog.sketch.view.add_canvas_atom(Point2D(0.0, 0.0))
+def drawn_out_of(dialog, qtbot, atom, symbol):
+    """A bond dragged out of ``atom`` with ``symbol``'s tool: a new
+    atom of it on the end, as the mouse draws one."""
+    from PySide6.QtTest import QTest
+
+    view = dialog.sketch.view
+    dialog.sketch.tools.check(symbol)
+    x, y = view.sketch.point(atom)
+    QTest.mousePress(view, Qt.LeftButton, Qt.NoModifier,
+                     view.to_screen(x, y).toPoint())
+    QTest.mouseMove(view, view.to_screen(x + 0.6, y + 0.6).toPoint())
+    QTest.mouseRelease(view, Qt.LeftButton, Qt.NoModifier,
+                       view.to_screen(x + 1.2, y + 1.2).toPoint())
     qtbot.waitUntil(lambda: not dialog._quiet.isActive(), timeout=5000)
 
 
@@ -214,7 +220,7 @@ def test_the_picture_follows_the_string(window, qtbot):
     typed(dialog, qtbot, "c1ccccc1")
 
     assert dialog.sketch.smiles() == "c1ccccc1"
-    assert dialog.sketch.view.renderer().isValid()
+    assert len(dialog.sketch.view.sketch) == 6
     assert dialog.sketch.view.isVisibleTo(dialog.sketch)
 
 
@@ -227,22 +233,20 @@ def test_an_unfinished_string_leaves_the_last_picture_up(window,
     dialog = BuildMoleculeDialog(BUILD, INSERT, window)
     qtbot.addWidget(dialog)
     typed(dialog, qtbot, "c1ccccc1")
-    drawn = dialog.sketch.view.renderer().defaultSize()
+    drawn = dialog.sketch.view.sketch
 
     typed(dialog, qtbot, "c1ccccc1(")
-    assert dialog.sketch.view.renderer().defaultSize() == drawn
-    assert dialog.sketch.view.renderer().isValid()
-    assert dialog.sketch.view.isVisibleTo(dialog.sketch)
+    assert dialog.sketch.view.sketch is drawn
+    assert len(drawn) == 6
 
 
 # -------------------------------------------------- the 2D editor
 
-@needs_rdeditor
-def test_the_editor_replaces_the_picture_when_rdeditor_is_installed(
-        window, qtbot):
-    """The same two members either way -- set_smiles in,
+@needs_rdkit
+def test_the_dialog_draws_on_the_editor(window, qtbot):
+    """The same two members as the picture -- set_smiles in,
     smilesChanged out -- which is why the dialog around it did not
-    have to change to gain an editor."""
+    have to change to gain an editor, or to change editors."""
     dialog = BuildMoleculeDialog(BUILD, BUILD.action("molecule"),
                                  window)
     qtbot.addWidget(dialog)
@@ -250,36 +254,29 @@ def test_the_editor_replaces_the_picture_when_rdeditor_is_installed(
 
     assert isinstance(dialog.sketch, sketch.SketchEditor)
     assert dialog.sketch.smiles() == "c1ccccc1"
-    assert dialog.sketch.view.mol.GetNumAtoms() == 6
+    assert len(dialog.sketch.view.sketch) == 6
 
 
 @needs_rdkit
-def test_without_rdeditor_the_picture_is_still_there_and_says_what_to_install(  # noqa: E501
+def test_without_rdkit_the_page_says_what_to_install(
         window, qtbot, monkeypatch):
-    """The fine greying axis.  No RDKit turns the menu entry off; RDKit
-    without rdeditor is not an error at all, so the dialog opens with
-    the depiction that always worked and names the extra underneath
-    it rather than leaving somebody to wonder why it cannot be drawn
-    on."""
+    """A dialog that opens without RDKit -- the MOF builder's Draw is
+    one -- shows where the editor would be and names the extra."""
     monkeypatch.setattr(sketch, "installed", lambda: False)
     dialog = BuildMoleculeDialog(BUILD, BUILD.action("molecule"),
                                  window)
     qtbot.addWidget(dialog)
-    typed(dialog, qtbot, "c1ccccc1")
 
     assert isinstance(dialog.sketch, _Sketch)
-    assert dialog.sketch.view.renderer().isValid()
-    assert install.command("sketch") in dialog.sketch.hint.text()
+    assert install.command("build") in dialog.sketch.hint.text()
     assert dialog.sketch.hint.isVisibleTo(dialog.sketch)
 
 
-@needs_rdeditor
+@needs_rdkit
 def test_closing_the_dialog_twice_does_not_take_the_editor_with_it(
         window, qtbot):
-    """rdeditor sets WA_DeleteOnClose on the canvas, which is right
-    for the standalone window it ships in and wrong for a dialog that
-    is opened, closed and opened again -- the second open would be
-    holding a freed C++ object."""
+    """The dialog is opened, closed and opened again; the page must
+    outlive a close."""
     dialog = BuildMoleculeDialog(BUILD, BUILD.action("molecule"),
                                  window)
     qtbot.addWidget(dialog)
@@ -290,10 +287,10 @@ def test_closing_the_dialog_twice_does_not_take_the_editor_with_it(
 
     assert not dialog.sketch.view.testAttribute(Qt.WA_DeleteOnClose)
     typed(dialog, qtbot, "CCO")
-    assert dialog.sketch.view.mol.GetNumAtoms() == 3
+    assert len(dialog.sketch.view.sketch) == 3
 
 
-@needs_rdeditor
+@needs_rdkit
 def test_drawing_an_atom_puts_the_smiles_in_the_box(window, qtbot):
     """The direction that did not exist while the picture was
     read-only: what is drawn is what the box says, so the button
@@ -307,58 +304,54 @@ def test_drawing_an_atom_puts_the_smiles_in_the_box(window, qtbot):
     assert dialog.molecule.formula == "H2O"
 
 
-@needs_rdeditor
+@needs_rdkit
 def test_typing_in_the_box_redraws_the_editor(window, qtbot):
     dialog = BuildMoleculeDialog(BUILD, BUILD.action("molecule"),
                                  window)
     qtbot.addWidget(dialog)
     typed(dialog, qtbot, "CCO")
 
-    assert dialog.sketch.view.mol.GetNumAtoms() == 3
+    assert len(dialog.sketch.view.sketch) == 3
 
 
-@needs_rdeditor
+@needs_rdkit
 def test_the_same_molecule_typed_back_does_not_relayout_the_drawing(
         window, qtbot):
     """The two ends of the cycle disagree about spelling constantly --
-    a ring template comes back kekulized where the box says
-    c1ccccc1 -- so the guard is on the canonical SMILES and not on
-    the string.  Setting the mol again re-lays the depiction out
-    under the cursor, which is the failure being avoided."""
+    a drawn ring comes back aromatic where the box says C1=CC=CC=C1 --
+    so the guard is on the canonical SMILES and not on the string.
+    Drawing the same molecule again would lay it out afresh under the
+    cursor, which is the failure being avoided."""
     dialog = BuildMoleculeDialog(BUILD, BUILD.action("molecule"),
                                  window)
     qtbot.addWidget(dialog)
     typed(dialog, qtbot, "c1ccccc1")
-    before = dialog.sketch.view.mol
+    before = dialog.sketch.view.sketch
 
     typed(dialog, qtbot, "C1=CC=CC=C1")
 
-    assert dialog.sketch.view.mol is before
+    assert dialog.sketch.view.sketch is before
     assert dialog.form.widgets["smiles"].text() == "C1=CC=CC=C1"
 
 
-@needs_rdeditor
+@needs_rdkit
 def test_the_toolbar_chooses_what_the_canvas_draws(window, qtbot):
-    """Our own chrome and not theirs: MolEditWidget has none, and the
-    toolbar rdEditor puts above it lives on a MainWindow that is not
-    coming with the widget."""
     dialog = BuildMoleculeDialog(BUILD, BUILD.action("molecule"),
                                  window)
     qtbot.addWidget(dialog)
     tools = dialog.sketch.tools
-    tools.check("O")
     drawn(dialog, qtbot, "O")
     tools.check("Benzene")
-    dialog.sketch.view.add_ring_to_atom(
-        dialog.sketch.view.mol.GetAtomWithIdx(0))
+    dialog.sketch.view.click_atom(0)
     qtbot.waitUntil(lambda: not dialog._quiet.isActive(), timeout=5000)
 
     assert tools.button("Benzene").isChecked()
     assert not tools.button("O").isChecked()
-    assert dialog.sketch.view.mol.GetNumAtoms() == 6
+    # On a lone atom the ring takes it as a corner.
+    assert len(dialog.sketch.view.sketch) == 6
 
 
-@needs_rdeditor
+@needs_rdkit
 def test_undo_takes_the_last_thing_drawn_back_out_of_the_box(
         window, qtbot):
     """Undo is the way back from a connection point as well: an X does
@@ -376,7 +369,7 @@ def test_undo_takes_the_last_thing_drawn_back_out_of_the_box(
     assert dialog.form.widgets["smiles"].text() == "CCO"
 
 
-@needs_rdeditor
+@needs_rdkit
 def test_the_paste_entry_offers_no_connection_point_tool(window,
                                                          qtbot):
     """That box refuses a starred string, so a tool that draws one
@@ -391,55 +384,56 @@ def test_the_paste_entry_offers_no_connection_point_tool(window,
     assert builds.sketch.tools.button("X") is not None
 
 
-@needs_rdeditor
+@needs_rdkit
 def test_a_connection_point_drawn_comes_back_as_a_star(window, qtbot):
-    """No special case anywhere below the toolbar: an atom of atomic
-    number zero is a * in the box, and from_smiles already turns that
-    into the X the block writer and every marker guard know about."""
+    """No special case anywhere below the toolbar: a connection point
+    is a * in the box, and from_smiles already turns that into the X
+    the block writer and every marker guard know about."""
     dialog = BuildMoleculeDialog(BUILD, BUILD.action("molecule"),
                                  window)
     qtbot.addWidget(dialog)
     typed(dialog, qtbot, "c1ccccc1")
-    dialog.sketch.tools.check("X")
-    dialog.sketch.view.add_atom_to_atom(
-        dialog.sketch.view.mol.GetAtomWithIdx(0))
-    qtbot.waitUntil(lambda: not dialog._quiet.isActive(), timeout=5000)
+    drawn_out_of(dialog, qtbot, 0, "X")
 
     assert "*" in dialog.form.widgets["smiles"].text()
     assert dialog.molecule.n_connections == 1
     assert "1 connection point(s)" in dialog.footer.text()
 
 
-@needs_rdeditor
-def test_a_dark_window_gets_a_dark_canvas(window, qtbot,
-                                          monkeypatch):
-    """RDKit draws on white whatever the application looks like, and
-    on a dark theme that is the brightest thing on screen."""
-    monkeypatch.setattr(sketch, "is_dark", lambda _palette: True)
+@needs_rdkit
+def test_a_dark_window_gets_a_dark_canvas(window, qtbot):
+    """The page is the palette's own base colour, so on a dark theme it
+    is dark rather than the brightest thing on screen."""
+    from PySide6.QtGui import QColor, QPalette
+
     dialog = BuildMoleculeDialog(BUILD, BUILD.action("molecule"),
                                  window)
     qtbot.addWidget(dialog)
+    view = dialog.sketch.view
+    palette = view.palette()
+    palette.setColor(QPalette.Base, QColor(30, 30, 34))
+    view.setPalette(palette)
+    view.resize(200, 200)
 
-    assert dialog.sketch.view.darkmode
+    image = view.grab().toImage()
+    assert image.pixelColor(3, 3) == QColor(30, 30, 34)
 
 
-@needs_rdeditor
-def test_the_canvas_stays_square_in_a_wide_dialog(window, qtbot):
-    """rdeditor asks RDKit for a 300x300 drawing whatever shape its
-    canvas is, and QSvgWidget stretches what it is given -- so in a
-    canvas twice as wide as it is tall a benzene is a flattened
-    hexagon."""
+@needs_rdkit
+def test_a_drawing_typed_in_is_fitted_to_the_page(window, qtbot):
+    """However wide the dialog, the molecule typed in is all on the
+    page, and a bond is the same length whichever way it points."""
     dialog = BuildMoleculeDialog(BUILD, BUILD.action("molecule"),
                                  window)
     qtbot.addWidget(dialog)
     dialog.resize(1200, 600)
     dialog.show()
-    qtbot.waitExposed(dialog)
+    typed(dialog, qtbot, "c1ccc2ccccc2c1")
 
     view = dialog.sketch.view
-    assert view.width() == view.height()
-    assert view.width() > 200
-    assert view.parent().width() > view.width()
+    for atom in view.sketch.atoms:
+        assert view.rect().contains(view.to_screen(atom.x, atom.y)
+                                    .toPoint())
 
 
 @needs_rdkit
@@ -838,33 +832,33 @@ def _dummy_labels(mol):
             if atom.GetAtomicNum() == 0]
 
 
-@needs_rdeditor
+@needs_rdkit
 def test_a_connection_point_typed_in_the_box_is_labelled_x_on_the_canvas(
         window, qtbot):
-    """rdeditor labels a dummy ``R`` on the way in, which is a third
-    name for one thing the box calls ``*`` and the structure ``X``."""
+    """One name on the page for what the box calls * and the
+    structure X."""
     dialog = BuildMoleculeDialog(BUILD, BUILD.action("molecule"),
                                  window)
     qtbot.addWidget(dialog)
     typed(dialog, qtbot, "*c1ccc(*)cc1")
 
-    assert _dummy_labels(dialog.sketch.view.mol) == ["X", "X"]
+    view = dialog.sketch.view
+    points = view.sketch.connection_points()
+    assert [view._label(k) for k in points] == ["X", "X"]
 
 
-@needs_rdeditor
+@needs_rdkit
 def test_a_connection_point_drawn_with_the_tool_is_labelled_x(
         window, qtbot):
-    """The tool makes its atom through ``getNewAtom``, which is the
-    second place rdeditor writes ``R``."""
     dialog = BuildMoleculeDialog(BUILD, BUILD.action("molecule"),
                                  window)
     qtbot.addWidget(dialog)
     drawn(dialog, qtbot, 0)
 
-    assert _dummy_labels(dialog.sketch.view.mol) == ["X"]
+    assert dialog.sketch.view._label(0) == "X"
 
 
-@needs_rdeditor
+@needs_rdkit
 def test_labelling_a_connection_point_x_leaves_the_smiles_a_star(
         window, qtbot):
     """The label is a drawing property.  Were it written into the

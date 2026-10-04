@@ -173,8 +173,8 @@ HIDDEN_IMPORTS = [
 
 #: Collected whole, data files and all.  These are the extras SHELL.md
 #: 3 decided to bundle: RDKit buys two entire features (build from
-#: SMILES, and the sketcher) and rdeditor is a megabyte on top of a
-#: PySide6 that ships anyway.  They are reached through ``find_spec``
+#: SMILES, and the sketcher, which is our own widget over it).  It is
+#: reached through ``find_spec``
 #: and then imported inside a function, so the *feature gate* is
 #: invisible to static analysis even though the import itself is not,
 #: and RDKit carries data directories that no amount of import
@@ -233,7 +233,7 @@ HIDDEN_IMPORTS = [
 #: is traced: ``sse_starlette`` and ``httpx_sse`` are imported by
 #: ``mcp`` at the top of the modules that use them, and ``anyio``'s
 #: back ends, imported by name, are the contrib hook for ``anyio``.
-COLLECT = ["rdkit", "rdeditor", "qdarktheme", "matplotlib", "rietx",
+COLLECT = ["rdkit", "matplotlib", "rietx",
            "mcp", "uvicorn"]
 
 #: Entries of :data:`COLLECT` collected for their submodules and
