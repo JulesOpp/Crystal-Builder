@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from dataclasses import fields
 
+from xtal import references
 from xtal.io import atomic
 from xtal.modules.job import JobResult
 from xtal.modules.registry import MODULES, Action, Module, Param
@@ -188,7 +189,7 @@ INPUT = Action(
         "the functional, basis, job and blocks chosen here, the charge "
         "and multiplicity checked against the electrons",
     params=PARAMS, run=write_input, dialog="orca-input", kind="input",
-    keeps_markers=True)
+    keeps_markers=True, references=references.ORCA)
 
 ORCA = Module(
     name="orca", label="ORCA",

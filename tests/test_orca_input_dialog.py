@@ -52,6 +52,23 @@ def test_the_entry_names_this_dialog():
     assert module_dialog(action.dialog) is OrcaInputDialog
 
 
+def test_the_dialog_says_it_writes_input_and_never_runs_orca(make):
+    """It looks like a front end; without this, somebody with no ORCA
+    installed comes away thinking a calculation ran."""
+    text = make().not_run.text()
+    assert "does not run ORCA" in text
+    assert "cited" in text
+
+
+def test_the_dialog_links_the_orca_papers(make):
+    """The two references ORCA's 6.1 manual asks for, followed in the
+    browser rather than by the dialog."""
+    sources = make().sources
+    assert "https://doi.org/10.1002/wcms.81" in sources.urls()
+    assert "https://doi.org/10.1002/wcms.70019" in sources.urls()
+    assert sources.openExternalLinks()
+
+
 def test_the_dialog_opens_on_bp86_def2_svp(make):
     dialog = make()
     assert dialog.functional.key() == "BP86"

@@ -46,7 +46,14 @@ from xtal.orca import input as orca
 from xtalapp.dialogs.answered import answered
 from xtalapp.docks import scrolling
 from xtalapp.widgets.catalog_picker import CatalogPicker
+from xtalapp.widgets.links import SourceLinks
 from xtalapp.widgets.tone import HINT, WARNING, set_tone
+
+NOT_RUN = ("Crystal Builder only writes the input file and the "
+           "coordinates it reads; it does not run ORCA.  Run them "
+           "wherever ORCA is installed -- ORCA is a separate program, "
+           "free for academic use from FACCTs, and its authors ask "
+           "to be cited:")
 
 
 def _document(parent):
@@ -251,6 +258,16 @@ class OrcaInputDialog(QDialog):
         note.setWordWrap(True)
         set_tone(note, HINT)
         layout.addWidget(note)
+        # Said in so many words because the dialog looks like a front
+        # end: somebody who has not installed ORCA must not come away
+        # thinking a calculation ran, and somebody who has must know
+        # whose work to cite when it does.
+        self.not_run = QLabel(NOT_RUN)
+        self.not_run.setWordWrap(True)
+        set_tone(self.not_run, HINT)
+        layout.addWidget(self.not_run)
+        self.sources = SourceLinks(action.references, self)
+        layout.addWidget(self.sources)
         layout.addWidget(split, 1)
         layout.addWidget(self.buttons)
 
