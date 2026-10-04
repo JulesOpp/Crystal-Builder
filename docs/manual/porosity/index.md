@@ -6,7 +6,8 @@ largest included and free spheres, its accessible surface area and
 pore volume and its pore size distribution -- through Zeo++ where it
 is installed and off the application's own distance grid where it is
 not -- read the pore network and the pore surface drawn over the
-crystal, and calculate a powder pattern to lay a measured one over.
+crystal, calculate a powder pattern to lay a measured one over, and refine a
+measured pattern against a structure.
 
 Each section has the same shape: what the calculation is and what it
 is for, the theory the code implements with its references, practical
@@ -37,4 +38,5 @@ zeopp
 grid
 pore-surface
 pxrd
+refinement
 ```
