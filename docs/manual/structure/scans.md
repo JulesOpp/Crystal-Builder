@@ -106,7 +106,13 @@ made before the first point:
 - Scanning the **volume** holds it with the shape free.  In a cubic
   cell the volume *is* the one free parameter, so only the atoms
   relax.  Scanning the volume and a lattice parameter together is
-  refused as ambiguous: setting one changes the other.
+  refused as ambiguous: setting one changes the other.  One
+  relaxation holds the volume only to first order -- a change of
+  shape that keeps it at the starting cell loses it as the change
+  squared -- so a point whose shape moves far is relaxed again from
+  its target volume, up to four times, until it is within 0.1 %.  One
+  that never gets there is not counted converged, and is drawn as a
+  hole.
 - A parameter the group ties is refused with the ties spelled out;
   scanning with the symmetry broken is
   {ref}`Reduce to P1 <cmd-reduce_p1>` first, because the scan never

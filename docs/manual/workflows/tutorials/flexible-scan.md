@@ -123,46 +123,48 @@ the form -- the number of points, how long, and what is held at each
 $ xtal run scan.run MIL-53_sym.cif -p axis1=volume -p axis1_start=700 -p axis1_stop=1600 -p axis1_steps=7 --workspace ws
 [...]
 Every point
-volume (A^3)  branch   E (kcal/mol)  dE          steps  |F|max  a       c        converged
-    679.7979  forward     1466.9017  +1153.5764    189  0.0499  5.7566   8.2411  yes
-    849.1023  forward      341.9426    +28.6173     68  0.0339  6.4018   8.5878  yes
-    998.9043  forward      313.3254     +0.0000     79  0.0429  6.6185   9.4174  yes
-   1144.2309  forward      403.1624    +89.8370     97  0.0390  6.6960  10.6849  yes
-   1296.1813  forward      540.1397   +226.8144    114  0.0499  6.7764  11.8542  yes
-   1448.9544  forward      658.0404   +344.7150     78  0.0470  6.8216  12.5571  yes
-   1595.3410  forward      836.1270   +522.8016    113  0.0153  6.9257  13.7715  yes
-   1598.6315  reverse      839.0107   +525.6854     70  0.0253  6.9671  13.3527  yes
-   1447.5708  reverse      657.2160   +343.8906     90  0.0374  6.8586  12.3258  yes
-   1295.7719  reverse      513.2841   +199.9588    103  0.0483  6.7639  11.1281  yes
-   1146.9517  reverse      407.7473    +94.4219     87  0.0310  6.6678  10.0659  yes
-    998.6219  reverse      352.7365    +39.4112     89  0.0303  6.5705   9.2248  yes
-    849.5505  reverse      408.6813    +95.3559     70  0.0425  6.3631   8.5332  yes
-    699.7787  reverse      762.4898   +449.1644     66  0.0400  5.9332   8.1590  yes
+volume (A^3)  branch   E (kcal/mol)  dE         steps  |F|max  a       c        converged
+    699.4943  forward      752.3953  +438.6772    241  0.0423  5.9281   8.0685  yes
+    849.8804  forward      341.0744   +27.3563     62  0.0221  6.4110   8.5727  yes
+    999.9978  forward      313.7181    +0.0000    131  0.0439  6.6247   9.4056  yes
+   1149.7042  forward      406.6721   +92.9540    151  0.0246  6.7244  10.5217  yes
+   1298.8357  forward      542.1719  +228.4538    153  0.0227  6.8068  11.5581  yes
+   1449.5410  forward      658.7081  +344.9901    147  0.0351  6.8470  12.4335  yes
+   1599.3102  forward      839.5788  +525.8607    246  0.0069  6.9464  13.6193  yes
+   1599.7823  reverse      839.9838  +526.2657     47  0.0458  6.9602  13.4515  yes
+   1449.1617  reverse      658.4205  +344.7024    180  0.0250  6.8291  12.6067  yes
+   1298.8793  reverse      515.2586  +201.5406    190  0.0223  6.7326  11.3971  yes
+   1149.9071  reverse      409.2502   +95.5321    135  0.0288  6.6569  10.1514  yes
+    999.9991  reverse      352.9335   +39.2154    117  0.0426  6.5689   9.2363  yes
+    849.5226  reverse      408.7160   +94.9979     70  0.0379  6.3628   8.5335  yes
+    699.7795  reverse      762.4849  +448.7668     65  0.0259  5.9332   8.1590  yes
 ```
 
-Fourteen relaxations, about nine seconds.  This is the opposite of
+Fourteen relaxations, about fifteen seconds.  This is the opposite of
 the bulk modulus's table, and it is the one to learn to read:
 
-- **The achieved volume is not the target.**  The first column is the
+- **The achieved volume is the target.**  The first column is the
   volume each point *came out at*; the targets were 700, 850, 1000,
-  1150, 1300, 1450 and 1600 Å{sup}`3` (`scan.csv` has both).  The
-  first forward point is 20 Å{sup}`3` short of its target and the
-  others 1 to 6 Å{sup}`3`.  A scan holds its coordinate, and a point
-  whose achieved value is off is a point to distrust.
+  1150, 1300, 1450 and 1600 Å{sup}`3` (`scan.csv` has both), and
+  every point is within 0.1 % of its own.  A held volume is only
+  held to first order by one relaxation, so a point whose shape moves
+  far is relaxed again from its target volume until it is there
+  ({doc}`/structure/scans`); one that never gets there is not counted
+  converged.
 - **The two branches disagree.**  At about 1000 Å{sup}`3` the forward
-  walk gives 313.3 kcal/mol and the reverse 352.7; at 850, 341.9
-  and 408.7; at 1300, 540.1 and 513.3.  The two walks meet only at the
-  top of the range, 836.1 and 839.0.  They are **different basins**:
+  walk gives 313.7 kcal/mol and the reverse 352.9; at 850, 341.1
+  and 408.7; at 1300, 542.2 and 515.3.  The two walks meet only at the
+  top of the range, 839.6 and 840.0.  They are **different basins**:
   a point starts from its relaxed neighbour, so each branch stays in
   the one it arrived in, and the gap is the {term}`hysteresis` the
   application reports side by side instead of averaging.
 - **The ends are not the physics.**  The lowest-volume forward point
-  is 1467 kcal/mol, a cell squeezed to 680 Å{sup}`3` from a start at 1500, and the
-  reverse branch's last point is 762; the ends of a scan are where a
-  start is furthest from the answer.
+  is 752 kcal/mol, a cell squeezed to 700 Å{sup}`3` from a start at
+  1500, and the reverse branch's last point is 762; the ends of a
+  scan are where a start is furthest from the answer.
 
 So what do you take from a landscape like this?  Not a double
-well: the lowest energy anywhere in it is the 313 kcal/mol near
+well: the lowest energy anywhere in it is the 314 kcal/mol near
 1000 Å{sup}`3` on the forward branch, in the middle of the range and
 not at either of the two phases' volumes, and the narrow-pore
 minimum of the previous section, 375 kcal/mol at 754 Å{sup}`3`, is
@@ -171,7 +173,8 @@ into.  Both are relaxations of one force field that the
 manual says is not fitted for this.  What you take is a procedure:
 
 1. scan **both directions** and compare the branches;
-2. read the **achieved** volume beside the target;
+2. read the **achieved** volume beside the target, and the
+   *converged* column that says whether it was reached;
 3. do not fit a modulus to a curve with a branch gap, and accept the
    modulus table's refusal when it gives one;
 4. repeat the scan with a machine-learned engine from the Force Field

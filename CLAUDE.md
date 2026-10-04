@@ -987,7 +987,11 @@ stress case).
   does intersecting subspaces give the right subspace. Holding the
   **volume** with the shape free is the scan the flexible-framework
   literature actually runs; a profile at a frozen cell *shape* is a
-  measurement of the shape that was frozen.
+  measurement of the shape that was frozen.  The subspace is worked
+  out at the starting cell, so it holds a volume to first order only
+  (a traceless strain loses volume as its square: MIL-53 came out at
+  680 A^3 for 700); a scan point is relaxed again from its target
+  volume until it is within `scan.VOLUME_SLACK`.
 - **A scan point is written the moment it finishes.** Not gathered up
   and saved at the end. A scan is an overnight job — 0.44 s a step on
   Ni2Cl2BTDD's 1152 atoms under UFF, so a 12×12 grid is ~2.6 hours —
