@@ -119,6 +119,12 @@ porous-materials user:
 - **voids.classify still holds all 13 directions' links** (S): int32
   took MFU-4l at 0.25 A from 1090 to 708 MB; streaming the directions
   is the rest.
+- **A drawn benzene linker is left 16 degrees twisted on pcu** (S-M,
+  undiagnosed): `*c1ccc(*)cc1` written by the block writer and built
+  on pcu/N16 at 2x2x2 reports *Joint twist left* 16.000 where the
+  shipped E14 gives 0.000 (tutorial `draw-and-build.md` states both
+  numbers).  Whether the drawn block presents no face, or one the
+  rule cannot reach, is the first question.
 - **Citations the new pages lack**: ZTC and schwarzite literature and
   the remesh's are not in `references.bib`; the carbon, polymer and
   refinement pages' science wants the owner's reading.
