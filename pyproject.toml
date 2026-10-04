@@ -75,15 +75,12 @@ ase = ["ase>=3.22"]
 # everybody else: RDKit is a large wheel with a compiled core, and the
 # four packages the core installs are what make `pip install
 # crystal-builder` usable on a cluster node.  Without it the Build
-# entries grey out naming this extra, the same way `sketch` does.
+# entries grey out naming this extra, and so does the sketcher.
 build = ["rdkit>=2023.9"]
-# Drawing the molecule rather than typing it.  Its own line and not
-# part of `build`, because rdeditor is PySide6 plus a theme package
-# where `build` is RDKit alone -- and xtal/ imports no Qt, so a
-# headless install that wants `build` must not be given a widget
-# toolkit to get it.  Without it the dialog opens with the read-only
-# picture and says what to install.
-sketch = ["rdeditor>=0.5"]
+# Drawing the molecule rather than typing it.  The sketcher is our own
+# widget over RDKit now, so this is `build` under its old name, kept so
+# that an install line written before still works.
+sketch = ["crystal-builder[build]"]
 # Overlaying a measured pattern on a calculated one, and writing the
 # figure as a vector with the text still editable.  See the note above
 # for why this is the one plotting dependency; without it the PXRD
@@ -140,7 +137,7 @@ docs = ["sphinx>=7", "myst-parser>=3", "sphinxcontrib-bibtex>=2.6",
 # layer is written against FastMCP.  From 1.30, the release the suite
 # was run against: nothing older has been tried.
 mcp = ["mcp>=1.30,<2"]
-dev = ["crystal-builder[gui,ase,build,sketch,pxrd,refine,mcp,test]",
+dev = ["crystal-builder[gui,ase,build,pxrd,refine,mcp,test]",
        "ruff==0.16.9", "pyinstaller>=6"]
 
 [project.scripts]

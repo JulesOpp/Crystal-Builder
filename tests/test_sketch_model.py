@@ -161,3 +161,13 @@ def test_a_drawing_that_is_not_a_molecule_says_why():
         sketch.grow(c, "F")
     with pytest.raises(chem.BuildError, match="too many bonds"):
         chem.sketch_smiles(sketch)
+
+
+def test_a_ring_on_a_bonded_atom_hangs_off_it():
+    """A phenyl on a nitrogen: the ring through a new bond, and the
+    nitrogen keeps its own bonds."""
+    sketch = _chain(2)
+    ring = sketch.add_ring(6, atom=1)
+    assert 1 not in ring
+    assert len(sketch) == 8
+    assert sketch.bond_between(1, ring[0]) is not None

@@ -1063,9 +1063,15 @@ def sketch_from_smiles(text: str):
             pass
     rdDepictor.SetPreferCoordGen(True)
     rdDepictor.Compute2DCoords(mol)
-    # RDKit lays bonds out at 1.5; the page draws them at BOND.
-    scale = BOND / 1.5
     positions = mol.GetConformer().GetPositions()
+    # The page draws a bond at BOND, whatever length the layout used:
+    # RDKit's own is 1.5 and CoordGen's is not, and a drawing scaled
+    # by the wrong one came out a third of the size.
+    lengths = [np.linalg.norm(positions[b.GetBeginAtomIdx()]
+                              - positions[b.GetEndAtomIdx()])
+               for b in mol.GetBonds()]
+    mean = float(np.mean(lengths)) if lengths else 1.5
+    scale = BOND / (mean if mean > 1e-6 else 1.5)
     sketch = Sketch()
     for atom, (x, y, _z) in zip(mol.GetAtoms(), positions, strict=True):
         if atom.GetAtomicNum() == 0:

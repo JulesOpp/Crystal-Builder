@@ -239,8 +239,11 @@ class Sketch:
     def add_ring(self, size: int, aromatic: bool = False, *,
                  bond: int | None = None, atom: int | None = None,
                  at=(0.0, 0.0)) -> list[int]:
-        """A regular ``size``-ring fused onto a bond, hung off an atom
-        (spiro), or free at a point; its atoms, in order round it.
+        """A regular ``size``-ring fused onto a bond, on an atom, or
+        free at a point; its atoms, in order round it.  On a lone atom
+        the atom is one of its corners; on an atom with bonds the ring
+        hangs off it by a new bond, which is what a phenyl on a
+        nitrogen is drawn as.
 
         Fused or hung, the ring goes on the side away from what is
         there already, which is where a chemist draws it.
@@ -269,6 +272,10 @@ class Sketch:
                 px, py, qx, qy = qx, qy, qx + ex, qy + ey
                 ring.append(self.add_atom("C", qx, qy))
         elif atom is not None:
+            if self.neighbours(atom):
+                # An atom with bonds gets the ring as a substituent --
+                # a phenyl on a nitrogen -- through a bond of its own.
+                atom = self.grow(atom, "C")
             x, y = self.point(atom)
             out = self.free_direction(atom)
             cx, cy = x + radius * math.cos(out), y + radius * math.sin(out)

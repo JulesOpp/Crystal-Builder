@@ -25,10 +25,10 @@ It checks the five things that break in a bundle and nowhere else:
    read two different ways -- a filesystem join and
    ``importlib.resources`` -- and a bundle can get one right and the
    other wrong.
-4. **The bundled extras.**  RDKit and rdeditor are collected whole
-   and RDKit carries data directories, so an import can succeed
+4. **The bundled extras.**  RDKit is collected whole and carries
+   data directories, so an import can succeed
    against a build whose parameter files did not come along.
-   *Preferences > Engines* promises both work; in a bundle
+   *Preferences > Engines* promises it works; in a bundle
    the user cannot check that, so this does.
 5. **The VTK OpenGL context.**  Rendering is the single largest thing
    in the bundle and the most likely to have been pruned too hard.
@@ -220,11 +220,11 @@ def check_notices(report) -> None:
 def check_extras(report) -> None:
     """The optional packages a packaged build promises are there.
 
-    *Preferences > Engines* tells the user that RDKit and
-    rdeditor are included and working.  In a bundle the user cannot
-    check that, so this does.  The MOF builder used to be the third
-    row and the one that said "not included"; it is vendored now and
-    has a check of its own below.
+    *Preferences > Engines* tells the user that RDKit is included
+    and working -- the molecule builder and its sketcher both.  In a
+    bundle the user cannot check that, so this does.  The MOF builder
+    used to be the third row and the one that said "not included"; it
+    is vendored now and has a check of its own below.
 
     RDKit is the one worth exercising rather than importing: it is
     collected wholesale with ``collect_all`` and it carries data
@@ -233,7 +233,6 @@ def check_extras(report) -> None:
     uses them.
     """
     from xtal import build as build_extra
-    from xtalapp.dialogs import sketch
 
     if not build_extra.installed():
         raise AssertionError(
@@ -254,12 +253,6 @@ def check_extras(report) -> None:
             f"benzene embedded as {len(symbols)} atoms rather than "
             "12, which usually means RDKit's data files did not come "
             "along")
-
-    if not sketch.installed():
-        raise AssertionError(
-            "rdeditor is missing, but the extras page says the "
-            "sketcher is bundled")
-    report("rdeditor: present")
 
 
 def check_module_dialogs(report) -> None:
