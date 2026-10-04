@@ -1173,6 +1173,14 @@ def canonical(text: str) -> str:
     if mol is None:
         return text
     mol.RemoveAllConformers()
+    # RDKit 2025.9 (the last with an Intel macOS wheel) labels every
+    # parsed * as dummyLabel "*" and writes it into the CXSMILES; a
+    # drawn point never has it, so the same molecule read two ways
+    # gave two strings.  "*" is what a dummy is called anyway.
+    for atom in mol.GetAtoms():
+        if atom.GetAtomicNum() == 0 and atom.HasProp("dummyLabel") \
+                and atom.GetProp("dummyLabel") == "*":
+            atom.ClearProp("dummyLabel")
     return Chem.MolToCXSmiles(mol)
 
 
