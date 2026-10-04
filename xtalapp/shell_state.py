@@ -434,7 +434,9 @@ class ShellRefresh:
              "edit_cell", "niggli", "delaunay", "wrap_cell",
              "save_building_block",
              "single_point", "optimize", "dftb_single_point",
-             "dftb_optimize", "recompute_bonds", "reset_bonds"],
+             "dftb_optimize", "recompute_bonds", "reset_bonds",
+             "assign_eqeq_charges", "keep_shown_charges",
+             "clear_site_charges"],
             editable)
         # Greyed in a group, with the reason rather than without one:
         # the operations are written about the origin.

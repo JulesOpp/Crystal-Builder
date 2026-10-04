@@ -43,6 +43,7 @@ from PySide6.QtWidgets import (
 from xtal.modules.orca import coordinates_name, orca_input
 from xtal.orca import catalogue
 from xtal.orca import input as orca
+from xtalapp import manual
 from xtalapp.dialogs.answered import answered
 from xtalapp.docks import scrolling
 from xtalapp.widgets.catalog_picker import CatalogPicker
@@ -249,6 +250,7 @@ class OrcaInputDialog(QDialog):
 
         self.buttons = QDialogButtonBox(QDialogButtonBox.Ok
                                         | QDialogButtonBox.Cancel)
+        manual.add_help_button(self.buttons, "energy/orca")
         self.buttons.button(QDialogButtonBox.Ok).setText("Write")
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)

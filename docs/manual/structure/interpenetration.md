@@ -124,7 +124,7 @@ measured on the single framework is dropped, because atoms have
 arrived.
 
 The MOF builder's **Interpenetration** setting
-({ref}`Build a framework… <mod-mof-build>`) does the same at build
+({ref}`Build a framework (MOF)… <mod-mof-build>`) does the same at build
 time: *how many copies of the framework, threaded through one another
 -- 2 for two-fold.  The copies go where the most room is, measured by
 the closest contact between them, and a framework too dense for any
@@ -168,7 +168,7 @@ enumeration, build and check took under a second.
 
 {ref}`Interpenetrate… <cmd-interpenetrate>` under *Structure* has the
 fold and the placement list; the MOF builder's setting is
-**Interpenetration** under {ref}`Build a framework… <mod-mof-build>`.
+**Interpenetration** under {ref}`Build a framework (MOF)… <mod-mof-build>`.
 
 ## Limitations
 

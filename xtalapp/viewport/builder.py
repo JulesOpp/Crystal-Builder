@@ -1086,12 +1086,17 @@ def _emit_rings(structure, cell, drawn, faces, settings,
     middle of and a puckered one is close enough to: a ring is a
     note on the picture here, not a surface anything is measured on.
 
-    Returns the sizes drawn, for the legend.
+    Returns the sizes drawn, for the legend, or ``None`` when the
+    graph is too dense to search (:class:`rings.TooDense`).
     """
     index_of = drawn.index_of
     sizes: set = set()
-    for ring in rings.rings_of(structure, bond_rules,
-                               settings.ring_max_size):
+    try:
+        found = rings.rings_of(structure, bond_rules,
+                               settings.ring_max_size)
+    except rings.TooDense:
+        return None
+    for ring in found:
         n = len(ring)
         first = ring[0][0]
         fan = [(0, 1 + k, 1 + (k + 1) % n) for k in range(n)]
@@ -1111,7 +1116,14 @@ def _emit_rings(structure, cell, drawn, faces, settings,
 
 
 def _ring_legend(sizes, settings) -> tuple:
-    """One legend entry per ring size on screen, after the elements."""
+    """One legend entry per ring size on screen, after the elements.
+
+    A search that was refused says so whether or not the legend is
+    on: Rings ticked and nothing drawn would otherwise read as a
+    structure with no rings.
+    """
+    if sizes is None:
+        return (("Rings: too dense to search", VACANCY_COLOR),)
     if not settings.show_legend:
         return ()
     return tuple((f"{n}-ring", settings.ring_color(n)) for n in sizes)

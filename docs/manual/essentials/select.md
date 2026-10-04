@@ -25,11 +25,11 @@ included.  Both are on the {doc}`mouse modes <mouse-modes>` page.
 
 ## The commands
 
-1. {ref}`Select All <cmd-select_all>` ({kbd}`Ctrl+A`) takes every atom
+1. {ref}`Select all <cmd-select_all>` ({kbd}`Ctrl+A`) takes every atom
    and every bond between them -- but not the net edges, because
-   *Delete* acts on the net before anything else and *Select All*
+   *Delete* acts on the net before anything else and *Select all*
    followed by *Delete* should take the crystal apart, not the net.
-2. {ref}`Select None <cmd-select_none>` clears it.  It has no key of
+2. {ref}`Select none <cmd-select_none>` clears it.  It has no key of
    its own: {kbd}`Esc` clears the selection once there is no gesture
    or mode to leave first.
 3. {ref}`Invert selection <cmd-invert_selection>` ({kbd}`Ctrl+I`)
@@ -60,7 +60,7 @@ included.  Both are on the {doc}`mouse modes <mouse-modes>` page.
    {ref}`Grow to neighbours only <cmd-expand_neighbours>` takes the
    atoms one bond away and lets go of the ones you had: select the
    zinc, and it leaves the oxygens on them.
-7. {ref}`Advanced Selection… <cmd-select_dialog>` is everything
+7. {ref}`Advanced selection… <cmd-select_dialog>` is everything
    else, one rule at a time: an element or several, a label pattern
    (`O1*`, where the case counts), every image of one site, atoms with
    *n* bonds (or at least, or at most), atoms bonded to an element,
@@ -86,8 +86,8 @@ included.  Both are on the {doc}`mouse modes <mouse-modes>` page.
    hydrogen is the hydroxyl whichever bond a refinement wrote
    shorter; and each atom is in one group, so an acid is not also a
    hydroxyl and a carbonyl.
-9. {ref}`Show Only Selected <cmd-show_only_selected>` in the View menu
-   draws the selection and nothing else, and {ref}`Show All
+9. {ref}`Show only selected <cmd-show_only_selected>` in the View menu
+   draws the selection and nothing else, and {ref}`Show all
    <cmd-show_all>` brings the rest back.  Only the picture changes:
    the hidden atoms are still in the structure, in every calculation
    and in every save, and hiding them is not an undo step.  The status
@@ -97,7 +97,7 @@ included.  Both are on the {doc}`mouse modes <mouse-modes>` page.
    the new esters.
 
 The four *Grow* entries and *Select same element* are also in the
-context menu of an atom, and *Select All* and *Select None* in the
+context menu of an atom, and *Select all* and *Select none* in the
 context menu of the background.
 
 :::{note}

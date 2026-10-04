@@ -207,7 +207,7 @@ the Force Field panel is where the joint is pulled back.
 
 *Layer spacing* and *Stacking offset* in the dialog are the
 **Interlayer spacing** and **Stacking offset** parameters of
-{ref}`Build a framework… <mod-mof-build>` in the reference,
+{ref}`Build a framework (MOF)… <mod-mof-build>` in the reference,
 `-p spacing=3.24` and `-p offset="1/3, 2/3"` on the command line;
 *Repeat the net* is the third that matters here.
 

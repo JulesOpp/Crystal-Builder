@@ -148,7 +148,8 @@ BUILD = Module(
     check=available,
     provides=frozenset({"structure"}),
     actions=(
-        Action(name="molecule", label="Molecule from SMILES...",
+        Action(name="molecule",
+               label="Build a molecule with the 2D sketcher...",
                tip="Build a molecule; it opens in a new tab",
                kind="build",
                needs_structure=False,

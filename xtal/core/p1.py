@@ -343,6 +343,29 @@ def parent_coordinates(structure, cell: P1Cell, atom_index: int,
     return np.linalg.inv(op.rot) @ shifted
 
 
+def parent_coordinates_many(structure, cell: P1Cell, atoms,
+                            new_frac) -> np.ndarray:
+    """:func:`parent_coordinates` for many images at once, ``(n, 3)``.
+
+    One matrix inverse per *operation* rather than per atom: a drag
+    over a 17 496-atom P1 cell inverted the identity 17 496 times, and
+    the same drag in Fm-3m would invert each of 192 matrices thousands
+    of times.
+    """
+    atoms = np.asarray(atoms, dtype=int)
+    new_frac = np.asarray(new_frac, dtype=float).reshape(-1, 3)
+    operations = structure.space_group.operations
+    ops = cell.op_idx[atoms]
+    out = np.empty((len(atoms), 3))
+    for op_index in np.unique(ops):
+        op = operations[int(op_index)]
+        rows = np.flatnonzero(ops == op_index)
+        shifted = (new_frac[rows] - op.trans
+                   - cell.tau[atoms[rows]])
+        out[rows] = shifted @ np.linalg.inv(op.rot).T
+    return out
+
+
 def image_transform(structure, cell: P1Cell, atom_index: int):
     """The (rot, trans) taking parent fractional coordinates to this
     image, including the lattice shift.  Handy for transforming a

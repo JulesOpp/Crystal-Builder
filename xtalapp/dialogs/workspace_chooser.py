@@ -236,7 +236,7 @@ class WorkspaceChooser(QDialog):
         layout.addWidget(self.error)
 
         row = QHBoxLayout()
-        new = QPushButton("New Workspace...")
+        new = QPushButton("New workspace...")
         new.clicked.connect(self._new)
         other = QPushButton("Open Other...")
         other.clicked.connect(self._other)

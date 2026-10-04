@@ -240,7 +240,8 @@ structure it came from.  Its buttons:
   is not resampled onto the calculated grid**: it is drawn on its own
   2θ, because interpolating it invents intensity between the points
   that were counted.  What that costs is that the two cannot be
-  subtracted here; subtracting them is refinement, not comparison.
+  subtracted here; subtracting them is refinement, not comparison, and
+  refinement is the {doc}`workbench <refinement>`'s.
 - **Save figure…** writes the figure, raster or vector by the suffix.
   In a vector file the text stays text -- the axis labels arrive in a
   vector editor as editable labels rather than outlined shapes.
@@ -361,5 +362,7 @@ them (`xtal modules` prints the names).
   written, with partial occupancies and missing solvent taken
   literally; see the caveat above.
 - The pattern window compares; it does not subtract, fit or refine.
+  Fitting a measured pattern -- peaks, indexing, Pawley and Rietveld --
+  is the {doc}`refinement workbench <refinement>`.
 - The window and the vector export need the `pxrd` extra; the pattern,
   the table and the `.xy` file do not.

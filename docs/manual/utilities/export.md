@@ -106,7 +106,7 @@ The *Net* panel names the {term}`net` you have drawn from a canonical
 key checked against the RCSR {cite}`okeeffe2008rcsr`, and neither of
 those checks is made by anybody else.  Systre
 {cite}`delgadofriedrichs2003systre` is the reference implementation,
-and {ref}`Export Net for Systre… <cmd-export_net>` writes the net as
+and {ref}`Export net for Systre… <cmd-export_net>` writes the net as
 a `.cgd` file -- Systre's input format and the one the RCSR publishes
 in -- so that it can be asked the same question.  How a net is drawn
 and read, and what the panel's answer means, is
@@ -115,7 +115,7 @@ and read, and what the panel's answer means, is
 1. Draw the net.  The command is enabled only once a structure has
    topology bonds on it; with none, the status bar says *no net has
    been drawn*.
-2. Choose *File ▸ Export Net for Systre…*, or *Export for Systre…* in
+2. Choose *File ▸ Export net for Systre…*, or *Export for Systre…* in
    the *Net* panel.  It is a plain save dialog rather than the
    *Export* one: the file holds a net and no structure, so format,
    selection and cleaning mean nothing for it.  A name without `.cgd`

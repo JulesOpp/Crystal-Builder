@@ -85,6 +85,24 @@ def test_delete_is_bound_to_both_delete_keys(window):
     assert QKeySequence(Qt.Key_Delete) in bound
 
 
+def test_every_mouse_mode_has_a_key_and_no_two_actions_share_one(
+        window):
+    """The modes are pressed more than anything but the camera and had
+    no key at all.  Fails if one goes, or if a new shortcut collides
+    with another: Qt then fires neither and says so only on stderr."""
+    from xtalapp.viewport import modes
+
+    for number, name in enumerate(modes.names(), start=1):
+        assert window.actions_[f"mode_{name}"].shortcut() == \
+            QKeySequence(f"Ctrl+{number}")
+    seen = {}
+    for name in window.actions_.names():
+        for key in window.actions_[name].shortcuts():
+            assert key.toString() not in seen, (name, seen.get(
+                key.toString()))
+            seen[key.toString()] = name
+
+
 @pytest.mark.parametrize("text,modifier,reserved", [
     ("e", Qt.NoModifier, True),      # VTK: close the render window
     ("w", Qt.NoModifier, True),      # VTK: wireframe, behind our menu

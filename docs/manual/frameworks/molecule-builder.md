@@ -111,13 +111,24 @@ would with its real neighbours.  Guessing at the substituent would be
 worse than being slightly loose; optimise the framework you build
 from it afterwards in any case.
 
+### Head and tail points
+
+A connection point has a second use.  In the {doc}`polymer builder
+<polymer>` a monomer is a molecule with exactly two of them, and which
+is which matters: the **head** is bonded to the unit before it and the
+**tail** to the unit after.  **Right-click a connection point** on the
+canvas to make it the head or the tail; in a SMILES string they are
+`[*:1]` and `[*:2]`.  A drawn repeat unit can be kept with *Structure ▸
+Building blocks ▸* {ref}`Save as a monomer… <cmd-save_monomer>`, which
+asks which of its two points is the head.
+
 ## Building a molecule
 
-```{index} single: Molecule from SMILES
+```{index} single: Build a molecule with the 2D sketcher
 ```
 
 1. Open *Modules ▸ Molecule builder ▸*
-   {ref}`Molecule from SMILES… <cmd-module.build.molecule>`
+   {ref}`Build a molecule with the 2D sketcher… <cmd-module.build.molecule>`
    ({numref}`fig-frameworks-molecule-builder`).
 2. **Start from** offers the molecules worth not typing twice --
    solvents such as DMF, and linkers such as the *para*-phenylene strut
@@ -262,7 +273,8 @@ included.
 ## Settings
 
 The four parameters -- SMILES, name, relax, seed -- are listed under
-{ref}`Molecule from SMILES… <mod-build-molecule>`, and the module under
+{ref}`Build a molecule with the 2D sketcher… <mod-build-molecule>`, and the
+module under
 {ref}`Molecule builder <mod-build>`; *Insert molecule…* and *Fill
 pores with molecules…* are {ref}`described <cmd-insert_molecule>` with
 the {doc}`Structure menu </essentials/structure>`.

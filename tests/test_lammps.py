@@ -176,3 +176,65 @@ def test_every_bond_type_is_named(dry_ice):
     text = lammps_data_string(dry_ice)
     assert "# bond type 1: C-O" in text
     assert {row[1] for row in _section(text, "Bonds")} == {"1"}
+
+
+def test_a_data_file_reads_back_as_the_crystal_it_was_written_from(
+        rutile):
+    """The result of a LAMMPS run has to come back in.  The box is
+    LAMMPS's turned one, so the comparison is of what does not turn:
+    the cell's lengths and angles, every interatomic distance, the
+    charges, and the bonds -- stated, at the image LAMMPS bonds, so
+    opening the file perceives nothing."""
+    from xtal.io.lammps import lammps_data_from_string
+
+    rutile = rutile.copy()
+    for site, q in zip(rutile.sites, (2.0, -1.0), strict=False):
+        site.charge = q
+    # One cell is too small to write: its bonds' closest images are
+    # tied (see the refusal above).
+    rutile = supercell(rutile, 2, 2, 2)
+    cell = p1.expand(rutile)
+    back = lammps_data_from_string(lammps_data_string(rutile))
+    assert back.lattice.parameters == pytest.approx(
+        rutile.lattice.parameters)
+    assert back.n_sites == cell.n_atoms
+    assert sorted(s.element for s in back.sites) == sorted(cell.elements)
+    assert sorted(s.charge for s in back.sites) == sorted(
+        rutile.sites[int(k)].charge for k in cell.site_idx)
+    assert back.perceived is not None
+    assert len(back.perceived.bonds) == len(bonding.graph(rutile).bonds)
+    assert sorted(round(b.distance, 6) for b in back.perceived.bonds) == \
+        pytest.approx(sorted(round(b.distance, 6)
+                             for b in bonding.graph(rutile).bonds))
+
+
+def test_a_data_file_from_elsewhere_reads_its_elements_from_the_masses():
+    """No comment naming the element, as a file written by another
+    program has none: the mass is enough.  A charge style row has six
+    columns and no molecule."""
+    from xtal.io.lammps import lammps_data_from_string
+
+    text = """made elsewhere
+
+2 atoms
+2 atom types
+
+0.0 4.0 xlo xhi
+0.0 4.0 ylo yhi
+0.0 4.0 zlo zhi
+
+Masses
+
+1 22.98977
+2 35.453
+
+Atoms
+
+1 1 0.8 0.0 0.0 0.0
+2 2 -0.8 2.0 2.0 2.0
+"""
+    back = lammps_data_from_string(text)
+    assert [s.element for s in back.sites] == ["Na", "Cl"]
+    assert [s.charge for s in back.sites] == [0.8, -0.8]
+    assert back.sites[1].frac == pytest.approx([0.5, 0.5, 0.5])
+    assert FORMATS.get("lammps-data").can_read

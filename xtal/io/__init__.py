@@ -15,7 +15,7 @@ pattern -- see :mod:`xtal.io.xy` for why registering it would put a
 file in the Open dialog that nothing downstream could accept.
 """
 
-from xtal.io import lammps, pmg, poscar
+from xtal.io import lammps, pdb, pmg, poscar
 from xtal.io.cif_reader import read_cif, read_cif_all, read_cif_string
 from xtal.io.cif_writer import cif_string, write_cif
 from xtal.io.cssr import (
@@ -130,9 +130,21 @@ FORMATS.register(Format(
     name="lammps-data",
     description="LAMMPS data file",
     extensions=(".data", ".lmp"),
+    read=lammps.read_lammps_data,
     write=lammps.write_lammps_data,
     # Written from the bond graph on screen -- see xtal.io.lammps.
     keeps=frozenset({"bonds", "charges"}),
+    settles_bonds=True,
+))
+
+FORMATS.register(Format(
+    name="pdb",
+    description="Protein Data Bank (periodic, for viewers)",
+    extensions=(".pdb",),
+    write=pdb.write_periodic_pdb,
+    # The bonds inside the cell, from the graph on screen -- see
+    # xtal.io.pdb.
+    keeps=frozenset({"bonds"}),
     settles_bonds=True,
 ))
 

@@ -129,7 +129,7 @@ they started.  These are the fourteen, with where each opens; the
 
 The *Structure*, *Workspace* and *Sites* panels are shown on a first
 run; the rest open when something needs them -- the *Force Field*
-panel from *Modules ▸ Forcefield ▸ Force Field panel*, the *Results*
+panel from *Modules ▸ Force Field ▸ Setup and atom types…*, the *Results*
 panel when a run finishes -- or from the *Window* menu.
 
 :::{note}

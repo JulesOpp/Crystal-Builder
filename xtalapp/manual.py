@@ -57,3 +57,38 @@ def index() -> Path | None:
         if page.is_file():
             return page
     return None
+
+
+def page(name: str) -> Path | None:
+    """One page of the manual, ``frameworks/carbon`` say, or None."""
+    for parts in (BUNDLED, CHECKOUT):
+        path = root().joinpath(*parts, f"{name}.html")
+        if path.is_file():
+            return path
+    return None
+
+
+def add_help_button(buttons, name: str) -> None:
+    """A Help button on a dialog's button box, opening the manual page
+    that describes it.
+
+    Help ▸ User Manual opens the front page, and from a builder's
+    dialog that is a search away from what was wanted.  Greyed, with
+    the reason, in a checkout whose manual has not been built.
+    """
+    from PySide6.QtCore import QUrl
+    from PySide6.QtGui import QDesktopServices
+    from PySide6.QtWidgets import QDialogButtonBox
+
+    button = buttons.addButton(QDialogButtonBox.Help)
+    found = page(name)
+    if found is None:
+        button.setEnabled(False)
+        button.setToolTip(MISSING)
+        return
+    button.setToolTip(f"Open the manual's page on this ({name})")
+    # Help's role would make the box emit helpRequested and nothing
+    # else; a click is all this needs, and it must not close the
+    # dialog.
+    button.clicked.connect(
+        lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(found))))

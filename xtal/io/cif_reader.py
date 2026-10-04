@@ -247,6 +247,7 @@ def _from_small_structure(small, block, path: Path) -> Structure:
         if s.disorder_group:
             site.props["disorder_group"] = s.disorder_group
         sites.append(site)
+    _read_partial_charges(block, sites)
 
     structure = Structure(lattice=lattice, sites=sites,
                           space_group=group)
@@ -391,6 +392,23 @@ def read_perception(block, structure) -> None:
         return
     rules = BondRules.from_dict(structure.bond_rules)
     structure.set_perceived(bonds, rules.signature(), cell)
+
+
+def _read_partial_charges(block, sites) -> None:
+    """``_atom_site_charge``, over the type symbol's oxidation state.
+
+    Gemmi reads the charge off ``Ti4+`` and leaves this column alone;
+    it is where RASPA's CIFs and our own writer put a computed charge.
+    Positional, because labels may repeat until they are renamed.
+    """
+    column = _column(block, "_atom_site_charge")
+    if len(column) != len(sites):
+        return
+    for site, text in zip(sites, column, strict=True):
+        try:
+            site.charge = float(text)
+        except ValueError:
+            continue                    # "?" or "." -- no value given
 
 
 def _column(block, tag) -> list[str]:

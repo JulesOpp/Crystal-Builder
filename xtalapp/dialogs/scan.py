@@ -56,6 +56,7 @@ from xtal.ff import scan as driver
 from xtal.ff.optimize import METHODS
 from xtal.ff.registry import ENGINES
 from xtal.modules import scan as scan_module
+from xtalapp import manual
 from xtalapp.dialogs.answered import answered
 from xtalapp.dialogs.module_form import ParamForm
 from xtalapp.docks import scrolling
@@ -472,6 +473,7 @@ class ScanDialog(QDialog):
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok |
                                    QDialogButtonBox.Cancel)
+        manual.add_help_button(buttons, "structure/scans")
         buttons.button(QDialogButtonBox.Ok).setText("Run")
         self.buttons = buttons
         buttons.accepted.connect(self.accept)

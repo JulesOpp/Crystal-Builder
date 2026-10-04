@@ -238,6 +238,19 @@ def test_inspector_with_many_atoms(open_rutile):
     assert "2 site(s)" in inspector.details.toPlainText()
 
 
+def test_inspector_caps_a_long_site_listing_and_says_so(
+        open_rutile, monkeypatch):
+    """A select-all on a big P1 cell must not lay out a line a site."""
+    from xtalapp.docks import inspector
+    monkeypatch.setattr(inspector, "MAX_LISTED_SITES", 1)
+    window, document = open_rutile
+    document.select_all()
+    text = window.inspector_dock.details.toPlainText()
+    assert "2 site(s)" in text
+    assert "... and 1 more" in text
+    assert "O " not in text.split("2 site(s)")[1].split("...")[0]
+
+
 # ------------------------------------------------------- site table
 
 def test_site_table_lists_the_asymmetric_unit(open_rutile):
@@ -277,6 +290,30 @@ def test_site_table_follows_the_viewport_selection(open_rutile):
     rows = {i.row() for i in
             window.sites_dock.table.selectionModel().selectedRows()}
     assert rows == {0}
+
+
+def test_site_table_selects_every_row_of_a_select_all(open_rutile):
+    """Rows are handed to Qt as ranges, and a gap must split one."""
+    window, document = open_rutile
+    document.select_all()
+    rows = {i.row() for i in
+            window.sites_dock.table.selectionModel().selectedRows()}
+    assert rows == {0, 1}
+
+
+def test_a_hidden_site_table_catches_up_when_it_is_shown(open_rutile):
+    """Building the table's selection is seconds on a big P1 cell, so
+    a dock nobody is looking at skips it; raising it must not show a
+    selection from before."""
+    window, document = open_rutile
+    window.show()
+    dock = window.sites_dock
+    dock.setVisible(False)
+    document.select([0])
+    selected = dock.table.selectionModel().selectedRows
+    assert not selected()
+    dock.setVisible(True)
+    assert {i.row() for i in selected()} == {0}
 
 
 # ------------------------------------------------- window commands

@@ -183,7 +183,7 @@ make.
    would merge beside it: the right tolerance is a property of the
    file, and the count is flat over a range and then steps.  On a
    clean file it says *no duplicates within 0.05 A*.
-4. {ref}`Invert the structure <cmd-invert>` gives the same crystal in
+4. {ref}`Mirror the structure (change hand) <cmd-invert>` gives the same crystal in
    the other hand: the coordinates and the space group move together
    and the cell is left alone.  On a centrosymmetric group it tells
    you that inversion is already one of the group's operations and

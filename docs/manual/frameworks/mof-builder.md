@@ -45,7 +45,7 @@ The database is described in `xtal/mof/pormake/PROVENANCE.md`, which
 lists every difference from upstream 0.2.3.
 
 The dialog is *Modules ▸ MOF builder ▸*
-{ref}`Build a framework… <cmd-module.mof.build>`.  It does not need a
+{ref}`Build a framework (MOF)… <cmd-module.mof.build>`.  It does not need a
 structure open: what it makes is a new document.
 
 ## Topologies and building blocks
@@ -368,7 +368,7 @@ rule, prints no *Joint twist left* row, and is what PORMAKE makes.
 Every parameter -- topology, the two block assignments, the repeat,
 the orientation, the layer spacing and offset, the interpenetration
 and the two extra folders -- is listed with its default under
-{ref}`Build a framework… <mod-mof-build>` in the reference, and the
+{ref}`Build a framework (MOF)… <mod-mof-build>` in the reference, and the
 module itself under {ref}`MOF builder <mod-mof>`.  On the command line
 each is `-p name=value`; node and linker assignments are spelled `N59`
 when the net has one kind of node, `0=N19,1=N59` when it has more, and

@@ -23,7 +23,12 @@ the structure filed in the workspace:
    tab follows the copy; where it came from is remembered, and names
    the tab when the same file is opened again.  Dropping a file on
    the window does the same, and so does double-clicking a file in
-   the *Workspace* panel.
+   the *Workspace* panel.  **Opening what is already open raises its
+   tab and offers a fresh copy**: a notice says the file is open, and
+   *Open a Fresh Copy* files it again as a new entry named after its
+   folder (`MOF-5-2/MOF-5-2.cif`), so its tab, project and autosave are
+   distinct from the first.  A project you click is copied from its
+   entry's CIF, never from the saved work.
 3. *Open Recent* lists the files opened lately by name, with *Clear*
    at the bottom.  It reads *Nothing yet* on a first run.
 4. *Open Sample* opens one of the structures that ship with the
@@ -37,6 +42,13 @@ the structure filed in the workspace:
    reference describes each one in a line.  A sample is copied into
    the workspace like any other file, so saving it never writes into
    the application itself.
+
+:::{note}
+**Two tabs are never over one file.**  That is why opening a file
+that is already open raises its tab rather than opening a second,
+and why the second, when you ask for it, is a copy with an entry of
+its own.
+:::
 
 :::{note}
 **Every document has an entry in the workspace**, whichever door it
@@ -71,7 +83,7 @@ exists.
 
 Between saves, every tab edited since the last tick is
 {term}`autosaved <autosave>`.
-The interval is *Preferences ▸ General ▸ Keep unsaved changes every …
+The interval is *Preferences ▸ General ▸ Autosave unsaved changes every …
 min* (two minutes to start with; *never* turns it off), and the copy
 goes to the workspace's `.autosave/` folder, mirroring the file's
 place in the workspace -- never over the file itself.  It is deleted
@@ -121,7 +133,7 @@ the document's file.
    {ref}`Render in Blender… <cmd-render_blender>`, beside it, renders
    the same cell in a lit scene and keeps `scene.blend` to open in
    Blender ({doc}`/utilities/render`).
-4. {ref}`Export Net for Systre… <cmd-export_net>` writes the
+4. {ref}`Export net for Systre… <cmd-export_net>` writes the
    {term}`net` drawn over the structure as a `.cgd` file for Systre
    {cite}`delgadofriedrichs2003systre` to name -- a second opinion on
    the *Net* panel that does not come from the code that gave the
@@ -170,13 +182,14 @@ What a workspace holds, and how the tree shows it, is in
    <cmd-close_all_tabs>` ({kbd}`Ctrl+Shift+W`) closes every tab, and
    each modified one still asks.
 2. {ref}`Preferences… <cmd-preferences>` ({kbd}`Ctrl+,`) holds
-   everything the application remembers between sessions, on four
+   everything the application remembers between sessions, on five
    pages: *General* (saving, autosave, where new workspaces go, the
-   recent list), *View defaults* (what a newly opened structure is
-   drawn as), *Bonding* (whether bonds follow the geometry, and the
-   criteria new structures start from) and *Engines* (where the
-   external programs and optional Python packages are, and whether
-   each was found).
+   recent list, and the size limits), *View defaults* (what a newly
+   opened structure is drawn as), *Bonding* (whether bonds follow the
+   geometry, and the criteria new structures start from), *Engines*
+   (where the external programs and optional Python packages are, and
+   whether each was found) and *AI assistant* (letting an assistant
+   work in the window; see {doc}`/workflows/assistant`).
 3. {ref}`Quit <cmd-quit>` ({kbd}`Ctrl+Q`) leaves the application.
 
 On macOS, *Preferences…* and *Quit* are in the application menu rather
@@ -189,3 +202,40 @@ work second; the run is stopped only once both answers are yes.  A
 *No* to either leaves the window, the edits and the run exactly as
 they were.
 :::
+
+(preferences-large-structures)=
+### Large structures
+
+```{index} single: Large structures; size profile
+```
+
+A supercell, the cells drawn, a porosity grid and a carbon build can
+each ask for far more memory than the structure they start from: a
+20 × 20 × 20 supercell of MFU-4l is some five million atoms.  So each
+is **counted by arithmetic before anything is built**, and compared
+with two limits.  Over the *soft* limit you are asked (a dialog's
+warning line, the toolbar's cells, a run's note); over the *hard* one
+the operation is refused, with the largest size that fits.  The same
+numbers apply to the command line and to an assistant, which meets them
+as `SIZE_LIMIT`.
+
+*Preferences ▸ General ▸ Large structures ▸ Size limits* chooses how
+cautious:
+
+Standard
+: For a machine with about 8 GB.  The soft and hard limits are 50 000
+  and 200 000 atoms for a supercell, 100 000 and 400 000 for the atoms
+  drawn, 1.5 and 4 million points for a porosity grid, and 10 000 and
+  30 000 atoms for a carbon build.
+
+Generous
+: Every limit doubled, for 16 GB and up.
+
+Warn only
+: Standard's soft limits still ask, and nothing is ever refused.  You
+  are then responsible for what the machine can hold.
+
+A headless caller gets Standard.  The undo history is held to a
+budget as well: the oldest whole-structure steps are let go once they
+hold about two million sites between them, never the last five, and the
+status bar says so.

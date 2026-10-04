@@ -186,7 +186,7 @@ shipped as an index inside the package.
 Systre {cite}`delgadofriedrichs2003systre` names a net from a
 description of its graph, and is a second opinion that does not come
 from the code that gave the first.  **Export for Systre…** in the
-panel, or *File ▸* {ref}`Export Net for Systre… <cmd-export_net>`,
+panel, or *File ▸* {ref}`Export net for Systre… <cmd-export_net>`,
 writes the drawn net as a `.cgd` file -- Systre's input format, and
 the format the RCSR publishes its nets in.  Every vertex of the expanded cell is
 written as a node, in {term}`P1`, and every edge as a pair of points,
@@ -306,7 +306,7 @@ this chapter; quoting it from {doc}`there </quickstart/first-build>`:
 
 The Net builder's three parameters are under {ref}`Draw a net…
 <mod-net-draw>`; the panel is {ref}`described <panel-net_dock>` with
-the other panels; the export command is {ref}`Export Net for Systre…
+the other panels; the export command is {ref}`Export net for Systre…
 <cmd-export_net>`.
 
 ## Limitations

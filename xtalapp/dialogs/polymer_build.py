@@ -45,6 +45,7 @@ from xtal.build import BuildError, library
 from xtal.modules import polymer as polymer_module
 from xtal.polymer.monomer import monomers
 from xtal.polymer.monomer import saved as saved_monomers
+from xtalapp import manual
 from xtalapp.dialogs import sketch
 from xtalapp.dialogs.answered import answered
 from xtalapp.dialogs.build_molecule import on_change, sketch_for
@@ -252,6 +253,7 @@ class PolymerBuildDialog(QDialog):
 
         self.buttons = QDialogButtonBox(QDialogButtonBox.Ok
                                         | QDialogButtonBox.Cancel)
+        manual.add_help_button(self.buttons, "frameworks/polymer")
         self.build_button = self.buttons.button(QDialogButtonBox.Ok)
         self.build_button.setText("Build")
         self.buttons.accepted.connect(self.accept)

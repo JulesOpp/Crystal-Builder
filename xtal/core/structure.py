@@ -54,6 +54,11 @@ class Change(IntFlag):
 CHANGE_FLAGS = (Change.POSITIONS, Change.TOPOLOGY, Change.CELL,
                 Change.SYMMETRY, Change.METADATA)
 
+#: The single flags in each mask asked about, found once.  ``cached``
+#: runs on every frame and every panel, and testing five IntFlag members
+#: against the mask was ten microseconds of its hit.
+_FLAGS_IN: dict[int, tuple] = {}
+
 #: What invalidates chemistry: the bond graph, the atom typing, and
 #: everything derived from them.  **Not** ``POSITIONS`` -- perception
 #: is re-run when the user asks for it (``Recalculate bonds``, which
@@ -786,9 +791,18 @@ class Structure:
 
     def _stamp(self, mask: Change) -> int:
         """The revision at which anything in ``mask`` last happened."""
-        return max((self._changed_at.get(flag, 0)
-                    for flag in CHANGE_FLAGS if mask & flag),
-                   default=0)
+        key = int(mask)
+        flags = _FLAGS_IN.get(key)
+        if flags is None:
+            flags = _FLAGS_IN[key] = tuple(
+                flag for flag in CHANGE_FLAGS if mask & flag)
+        changed_at = self._changed_at
+        stamp = 0
+        for flag in flags:
+            at = changed_at.get(flag, 0)
+            if at > stamp:
+                stamp = at
+        return stamp
 
     def cached(self, key: str, factory,
                invalidated_by: Change = Change.ALL):

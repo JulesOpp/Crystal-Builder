@@ -585,6 +585,14 @@
    "checkable": false
   },
   {
+   "key": "export_net",
+   "section": "File",
+   "path": "Export net for Systre...",
+   "shortcut": "",
+   "tip": "The net drawn on this structure as a .cgd file, for Systre to name -- a second opinion on the Net panel that does not come from the code that gave the first",
+   "checkable": false
+  },
+  {
    "key": "export_image",
    "section": "File",
    "path": "Export Image...",
@@ -609,17 +617,9 @@
    "checkable": false
   },
   {
-   "key": "export_net",
-   "section": "File",
-   "path": "Export Net for Systre...",
-   "shortcut": "",
-   "tip": "The net drawn on this structure as a .cgd file, for Systre to name -- a second opinion on the Net panel that does not come from the code that gave the first",
-   "checkable": false
-  },
-  {
    "key": "new_workspace",
    "section": "File",
-   "path": "New Workspace...",
+   "path": "New workspace...",
    "shortcut": "",
    "tip": "",
    "checkable": false
@@ -627,7 +627,7 @@
   {
    "key": "open_workspace",
    "section": "File",
-   "path": "Open Workspace...",
+   "path": "Open workspace...",
    "shortcut": "",
    "tip": "A folder that structures and their calculations live in",
    "checkable": false
@@ -731,7 +731,7 @@
   {
    "key": "select_all",
    "section": "Select",
-   "path": "Select All",
+   "path": "Select all",
    "shortcut": "Ctrl+A",
    "tip": "",
    "checkable": false
@@ -739,7 +739,7 @@
   {
    "key": "select_none",
    "section": "Select",
-   "path": "Select None",
+   "path": "Select none",
    "shortcut": "",
    "tip": "Escape, when there is no gesture or mode to leave first",
    "checkable": false
@@ -771,7 +771,7 @@
   {
    "key": "select_dialog",
    "section": "Select",
-   "path": "Advanced Selection...",
+   "path": "Advanced selection...",
    "shortcut": "",
    "tip": "Select by label, coordination, what an atom is bonded to, a box, a point, or bonds by length and order -- and add, remove or intersect with what is held",
    "checkable": false
@@ -953,6 +953,30 @@
    "checkable": true
   },
   {
+   "key": "assign_eqeq_charges",
+   "section": "Structure",
+   "path": "Charges ▸ Assign EQeq charges",
+   "shortcut": "",
+   "tip": "Equilibrate charges over the cell (Wilmer, Kim and Snurr 2012) and write them onto the sites, where a CIF's _atom_site_charge and a LAMMPS file's q carry them.  An estimate to look over, as the status bar says",
+   "checkable": false
+  },
+  {
+   "key": "keep_shown_charges",
+   "section": "Structure",
+   "path": "Charges ▸ Keep the charges shown",
+   "shortcut": "",
+   "tip": "Write the charges drawn over the atoms -- a DFTB+ Mulliken run's -- onto the sites, so a save or an export carries them",
+   "checkable": false
+  },
+  {
+   "key": "clear_site_charges",
+   "section": "Structure",
+   "path": "Charges ▸ Clear the sites' charges",
+   "shortcut": "",
+   "tip": "Take every charge off the sites, oxidation states read from the file included",
+   "checkable": false
+  },
+  {
    "key": "mark_connection_points",
    "section": "Structure",
    "path": "Building blocks ▸ Mark connection points",
@@ -996,7 +1020,7 @@
    "key": "mode_select",
    "section": "Structure",
    "path": "Mouse mode ▸ Select",
-   "shortcut": "",
+   "shortcut": "Ctrl+1",
    "tip": "click an atom or bond · shift-click to add · double-click for the whole fragment",
    "checkable": true
   },
@@ -1004,7 +1028,7 @@
    "key": "mode_box_select",
    "section": "Structure",
    "path": "Mouse mode ▸ Box select",
-   "shortcut": "",
+   "shortcut": "Ctrl+2",
    "tip": "drag a box over the atoms - shift to add - everything inside is taken, bonds included, front to back",
    "checkable": true
   },
@@ -1012,7 +1036,7 @@
    "key": "mode_add_atom",
    "section": "Structure",
    "path": "Mouse mode ▸ Add atom",
-   "shortcut": "",
+   "shortcut": "Ctrl+3",
    "tip": "click to place an atom · click an atom to build from it, then keep clicking to chain · Escape stops",
    "checkable": true
   },
@@ -1020,7 +1044,7 @@
    "key": "mode_add_bond",
    "section": "Structure",
    "path": "Mouse mode ▸ Add bond",
-   "shortcut": "",
+   "shortcut": "Ctrl+4",
    "tip": "click two atoms to bond them · click a bond to remove it",
    "checkable": true
   },
@@ -1028,7 +1052,7 @@
    "key": "mode_topology",
    "section": "Structure",
    "path": "Mouse mode ▸ Draw net",
-   "shortcut": "",
+   "shortcut": "Ctrl+5",
    "tip": "click two atoms to draw a net edge - click an edge to select it, Del removes it",
    "checkable": true
   },
@@ -1036,7 +1060,7 @@
    "key": "mode_move",
    "section": "Structure",
    "path": "Mouse mode ▸ Move",
-   "shortcut": "",
+   "shortcut": "Ctrl+6",
    "tip": "drag an atom to move it, or any atom of the selection to move all of it - alt-drag turns the selection - shift-alt-drag moves it in depth - the background still turns the crystal",
    "checkable": true
   },
@@ -1044,7 +1068,7 @@
    "key": "mode_measure",
    "section": "Structure",
    "path": "Mouse mode ▸ Measure",
-   "shortcut": "",
+   "shortcut": "Ctrl+7",
    "tip": "click a bond for its length, or 2 atoms for a distance, 3 for an angle, 4 for a torsion",
    "checkable": true
   },
@@ -1107,7 +1131,7 @@
   {
    "key": "invert",
    "section": "Symmetry",
-   "path": "Invert the structure",
+   "path": "Mirror the structure (change hand)",
    "shortcut": "",
    "tip": "The same crystal in the other hand: the coordinates and the space group together",
    "checkable": false
@@ -1401,9 +1425,17 @@
    "checkable": true
   },
   {
+   "key": "clear_overlays",
+   "section": "View",
+   "path": "Show ▸ Clear charges and orbital",
+   "shortcut": "",
+   "tip": "Take a DFTB+ run's atom colouring and orbital lobes off the picture.  They go by themselves when the atoms move",
+   "checkable": false
+  },
+  {
    "key": "show_only_selected",
    "section": "View",
-   "path": "Show Only Selected",
+   "path": "Show only selected",
    "shortcut": "",
    "tip": "Draw the selected atoms and nothing else -- every phenol, say, to see what a substitution did to them.  Only the picture changes: the hidden atoms are still in the structure, and in every calculation and every save",
    "checkable": false
@@ -1411,17 +1443,9 @@
   {
    "key": "show_all",
    "section": "View",
-   "path": "Show All",
+   "path": "Show all",
    "shortcut": "",
-   "tip": "Draw every atom again after Show Only Selected",
-   "checkable": false
-  },
-  {
-   "key": "clear_overlays",
-   "section": "View",
-   "path": "Clear charges and orbital",
-   "shortcut": "",
-   "tip": "Take a DFTB+ run's atom colouring and orbital lobes off the picture.  They go by themselves when the atoms move",
+   "tip": "Draw every atom again after Show only selected",
    "checkable": false
   },
   {
@@ -1505,9 +1529,113 @@
    "checkable": false
   },
   {
+   "key": "module.mof.build",
+   "section": "Modules",
+   "path": "MOF builder ▸ Build a framework (MOF)...",
+   "shortcut": "",
+   "tip": "Pick a net, a node and a linker; the framework opens in a new tab",
+   "checkable": false
+  },
+  {
+   "key": "module.net.draw",
+   "section": "Modules",
+   "path": "Net builder ▸ Draw a net...",
+   "shortcut": "",
+   "tip": "Draw a named RCSR net; it opens in a new tab",
+   "checkable": false
+  },
+  {
+   "key": "module.build.molecule",
+   "section": "Modules",
+   "path": "Molecule builder ▸ Build a molecule with the 2D sketcher...",
+   "shortcut": "",
+   "tip": "Build a molecule; it opens in a new tab",
+   "checkable": false
+  },
+  {
+   "key": "module.carbon.build",
+   "section": "Modules",
+   "path": "Disordered carbon builder ▸ Build a disordered carbon...",
+   "shortcut": "",
+   "tip": "Ribbons of carbon along a net, at a density; the result opens in a new tab",
+   "checkable": false
+  },
+  {
+   "key": "module.polymer.build",
+   "section": "Modules",
+   "path": "Polymer builder ▸ Build an amorphous polymer...",
+   "shortcut": "",
+   "tip": "Chains grown into a box at a density; the result opens in a new tab",
+   "checkable": false
+  },
+  {
+   "key": "module.zeopp.diameters",
+   "section": "Modules",
+   "path": "Porosity ▸ Pore diameters and channels...",
+   "shortcut": "",
+   "tip": "The largest included and free spheres -- D_i, D_f and D_if -- and the channels they run through",
+   "checkable": false
+  },
+  {
+   "key": "module.zeopp.surface-area",
+   "section": "Modules",
+   "path": "Porosity ▸ Surface area...",
+   "shortcut": "",
+   "tip": "The area a gas molecule can touch, which is what a BET measurement sees",
+   "checkable": false
+  },
+  {
+   "key": "module.zeopp.surface-area-grid",
+   "section": "Modules",
+   "path": "Porosity ▸ Surface area (faster)...",
+   "shortcut": "",
+   "tip": "The same area in a second or two rather than several: sampled here on this application's own grid instead of by Zeo++, which it need not have.  A window within a grid step of the probe's size is flagged rather than guessed.",
+   "checkable": false
+  },
+  {
+   "key": "module.zeopp.volume",
+   "section": "Modules",
+   "path": "Porosity ▸ Accessible volume...",
+   "shortcut": "",
+   "tip": "How much of the cell a gas molecule can occupy, which is the pore volume a paper quotes",
+   "checkable": false
+  },
+  {
+   "key": "module.zeopp.volume-grid",
+   "section": "Modules",
+   "path": "Porosity ▸ Accessible volume (faster)...",
+   "shortcut": "",
+   "tip": "The same volume in a second or two -- MFU-4l's occupiable volume is 1.7 s here against 71 s in Zeo++ -- read off this application's own grid.  A window within a grid step of the probe's size is flagged rather than guessed.",
+   "checkable": false
+  },
+  {
+   "key": "module.zeopp.psd",
+   "section": "Modules",
+   "path": "Porosity ▸ Pore size distribution...",
+   "shortcut": "",
+   "tip": "How much of the pore space sits at each diameter, as a histogram",
+   "checkable": false
+  },
+  {
+   "key": "module.pxrd.simulate",
+   "section": "Modules",
+   "path": "PXRD ▸ Simulate a pattern...",
+   "shortcut": "",
+   "tip": "Calculate a powder diffraction pattern from this structure",
+   "checkable": false
+  },
+  {
+   "key": "refine_workbench",
+   "section": "Modules",
+   "path": "PXRD ▸ Refine against a measured pattern...",
+   "shortcut": "",
+   "tip": "Fit peaks and refine against a measured .xy pattern, in a window of its own; the runs go under the structure in front, or under the pattern's name if none is open",
+   "checkable": false
+  },
+  {
    "key": "show_ff",
    "section": "Modules",
-   "path": "Forcefield ▸ Force Field panel",
+   "path": "Force Field ▸ Setup and atom types...",
    "shortcut": "",
    "tip": "Atom types, electrostatics, and how the run is going",
    "checkable": false
@@ -1515,7 +1643,7 @@
   {
    "key": "single_point",
    "section": "Modules",
-   "path": "Forcefield ▸ Single point energy",
+   "path": "Force Field ▸ Single point energy",
    "shortcut": "Ctrl+E",
    "tip": "Energy and per-term breakdown at this geometry",
    "checkable": false
@@ -1523,7 +1651,7 @@
   {
    "key": "optimize",
    "section": "Modules",
-   "path": "Forcefield ▸ Optimise geometry",
+   "path": "Force Field ▸ Optimise geometry",
    "shortcut": "Ctrl+Shift+E",
    "tip": "Relax the structure within its space group",
    "checkable": false
@@ -1539,7 +1667,7 @@
   {
    "key": "dftb_single_point",
    "section": "Modules",
-   "path": "DFTB+ ▸ DFTB+: Single point energy",
+   "path": "DFTB+ ▸ Single point energy",
    "shortcut": "",
    "tip": "Energy and per-term breakdown at this geometry, through DFTB+",
    "checkable": false
@@ -1547,7 +1675,7 @@
   {
    "key": "dftb_optimize",
    "section": "Modules",
-   "path": "DFTB+ ▸ DFTB+: Optimise geometry",
+   "path": "DFTB+ ▸ Optimise geometry",
    "shortcut": "",
    "tip": "Relax the structure within its space group, through DFTB+",
    "checkable": false
@@ -1587,7 +1715,7 @@
   {
    "key": "module.dftb.relax",
    "section": "Modules",
-   "path": "DFTB+ ▸ Optimise with DFTB+'s driver...",
+   "path": "DFTB+ ▸ Optimise (DFTB+ driver)...",
    "shortcut": "",
    "tip": "One DFTB+ run relaxes the atoms, and the cell if asked; the answer is mapped back onto the space group",
    "checkable": false
@@ -1633,110 +1761,6 @@
    "checkable": false
   },
   {
-   "key": "module.mof.build",
-   "section": "Modules",
-   "path": "MOF builder ▸ Build a framework...",
-   "shortcut": "",
-   "tip": "Pick a net, a node and a linker; the framework opens in a new tab",
-   "checkable": false
-  },
-  {
-   "key": "module.net.draw",
-   "section": "Modules",
-   "path": "Net builder ▸ Draw a net...",
-   "shortcut": "",
-   "tip": "Draw a named RCSR net; it opens in a new tab",
-   "checkable": false
-  },
-  {
-   "key": "module.build.molecule",
-   "section": "Modules",
-   "path": "Molecule builder ▸ Molecule from SMILES...",
-   "shortcut": "",
-   "tip": "Build a molecule; it opens in a new tab",
-   "checkable": false
-  },
-  {
-   "key": "module.carbon.build",
-   "section": "Modules",
-   "path": "Disordered carbon builder ▸ Build a disordered carbon...",
-   "shortcut": "",
-   "tip": "Ribbons of carbon along a net, at a density; the result opens in a new tab",
-   "checkable": false
-  },
-  {
-   "key": "module.polymer.build",
-   "section": "Modules",
-   "path": "Polymer builder ▸ Build amorphous polymer...",
-   "shortcut": "",
-   "tip": "Chains grown into a box at a density; the result opens in a new tab",
-   "checkable": false
-  },
-  {
-   "key": "module.zeopp.diameters",
-   "section": "Modules",
-   "path": "Porosity ▸ Pore diameters and channels...",
-   "shortcut": "",
-   "tip": "Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set) -- it is at https://www.zeoplusplus.org/",
-   "checkable": false
-  },
-  {
-   "key": "module.zeopp.surface-area",
-   "section": "Modules",
-   "path": "Porosity ▸ Surface area...",
-   "shortcut": "",
-   "tip": "Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set) -- it is at https://www.zeoplusplus.org/",
-   "checkable": false
-  },
-  {
-   "key": "module.zeopp.surface-area-grid",
-   "section": "Modules",
-   "path": "Porosity ▸ Surface area (faster)...",
-   "shortcut": "",
-   "tip": "The same area in a second or two rather than several: sampled here on this application's own grid instead of by Zeo++, which it need not have.  A window within a grid step of the probe's size is flagged rather than guessed.",
-   "checkable": false
-  },
-  {
-   "key": "module.zeopp.volume",
-   "section": "Modules",
-   "path": "Porosity ▸ Accessible volume...",
-   "shortcut": "",
-   "tip": "Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set) -- it is at https://www.zeoplusplus.org/",
-   "checkable": false
-  },
-  {
-   "key": "module.zeopp.volume-grid",
-   "section": "Modules",
-   "path": "Porosity ▸ Accessible volume (faster)...",
-   "shortcut": "",
-   "tip": "The same volume in a second or two -- MFU-4l's occupiable volume is 1.7 s here against 71 s in Zeo++ -- read off this application's own grid.  A window within a grid step of the probe's size is flagged rather than guessed.",
-   "checkable": false
-  },
-  {
-   "key": "module.zeopp.psd",
-   "section": "Modules",
-   "path": "Porosity ▸ Pore size distribution...",
-   "shortcut": "",
-   "tip": "Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set) -- it is at https://www.zeoplusplus.org/",
-   "checkable": false
-  },
-  {
-   "key": "module.pxrd.simulate",
-   "section": "Modules",
-   "path": "PXRD ▸ Simulate a pattern...",
-   "shortcut": "",
-   "tip": "Calculate a powder diffraction pattern from this structure",
-   "checkable": false
-  },
-  {
-   "key": "refine_workbench",
-   "section": "Modules",
-   "path": "PXRD ▸ Refine against a measured pattern...",
-   "shortcut": "",
-   "tip": "Fit peaks and refine against a measured .xy pattern, in a window of its own; the runs go under the structure in front, or under the pattern's name if none is open",
-   "checkable": false
-  },
-  {
    "key": "reset_layout",
    "section": "Window",
    "path": "Reset layout",
@@ -1779,7 +1803,7 @@
   {
    "key": "show_log",
    "section": "Help",
-   "path": "Show Log",
+   "path": "Show log file",
    "shortcut": "",
    "tip": "Reveal the file this application writes its warnings and its crashes to",
    "checkable": false
@@ -1819,7 +1843,7 @@
   {
    "key": "workspace_copy_path",
    "section": "Elsewhere",
-   "path": "Copy Path",
+   "path": "Copy path",
    "shortcut": "",
    "tip": "Put the full path of what is selected on the clipboard, for a script or a terminal.",
    "checkable": false
@@ -1843,808 +1867,13 @@
  ],
  "modules": [
   {
-   "name": "forcefield",
-   "label": "Forcefield",
-   "description": "Universal Force Field: atom types, energies and geometry optimisation, under the space group.",
-   "actions": [
-    {
-     "name": "setup",
-     "label": "Setup and atom types...",
-     "tip": "Atom types, electrostatics, and how the run is going",
-     "dialog": "",
-     "shell": "show_ff",
-     "params": []
-    },
-    {
-     "name": "single-point",
-     "label": "Single point energy",
-     "tip": "Energy and per-term breakdown at this geometry",
-     "dialog": "",
-     "shell": "single_point",
-     "params": []
-    },
-    {
-     "name": "optimise",
-     "label": "Optimise geometry",
-     "tip": "Relax the structure within its space group",
-     "dialog": "",
-     "shell": "optimize",
-     "params": []
-    }
-   ]
-  },
-  {
-   "name": "dftb",
-   "label": "DFTB+",
-   "description": "Density-functional tight binding: atom types have no place in it, but the energy, the forces and the geometry optimisation are asked for the same way.",
-   "actions": [
-    {
-     "name": "setup",
-     "label": "Setup and parameters...",
-     "tip": "Hamiltonian, parameter directory, dispersion, and how the run is going",
-     "dialog": "",
-     "shell": "show_dftb",
-     "params": []
-    },
-    {
-     "name": "single-point",
-     "label": "Single point energy",
-     "tip": "Energy and per-term breakdown at this geometry",
-     "dialog": "",
-     "shell": "dftb_single_point",
-     "params": []
-    },
-    {
-     "name": "optimise",
-     "label": "Optimise geometry",
-     "tip": "Relax the structure within its space group",
-     "dialog": "",
-     "shell": "dftb_optimize",
-     "params": []
-    },
-    {
-     "name": "band-structure",
-     "label": "Band structure...",
-     "tip": "Eigenvalues along a path through the Brillouin zone, from charges converged on a mesh",
-     "dialog": "band-structure",
-     "shell": "",
-     "params": [
-      {
-       "name": "path",
-       "label": "Path",
-       "accepts": "text",
-       "default": "",
-       "help": "The corners to visit, as ASE names them: 'GXWKGLUWLK,UX'.  A comma is a jump.  Empty is ASE's recommended path for this cell"
-      },
-      {
-       "name": "density",
-       "label": "Points per 1/A",
-       "accepts": "float, 2 to 500",
-       "default": "40.0",
-       "help": "How finely each segment is sampled"
-      },
-      {
-       "name": "dos",
-       "label": "Density of states beside it",
-       "accepts": "bool",
-       "default": "True",
-       "help": "Projected onto each element, from the run on the mesh that converges the charges -- no extra invocation, and as fine as that mesh"
-      },
-      {
-       "name": "sigma",
-       "label": "DOS broadening",
-       "accepts": "float, 0.005 to 2 eV",
-       "default": "0.1",
-       "help": ""
-      }
-     ]
-    },
-    {
-     "name": "dos",
-     "label": "Density of states...",
-     "tip": "Total and projected onto each element, on a dense mesh",
-     "dialog": "dftb-run",
-     "shell": "",
-     "params": [
-      {
-       "name": "spacing",
-       "label": "K-point spacing",
-       "accepts": "float, 0.01 to 1 1/A",
-       "default": "0.1",
-       "help": "Denser than the charges need: a density of states is an integral over the zone"
-      },
-      {
-       "name": "sigma",
-       "label": "Broadening",
-       "accepts": "float, 0.005 to 2 eV",
-       "default": "0.1",
-       "help": "DFTB+ does not broaden; this Gaussian width is ours"
-      },
-      {
-       "name": "shells",
-       "label": "Resolve s, p and d",
-       "accepts": "bool",
-       "default": "False",
-       "help": ""
-      }
-     ]
-    },
-    {
-     "name": "charges",
-     "label": "Mulliken charges",
-     "tip": "A charge on every atom, and the atoms coloured by it",
-     "dialog": "dftb-run",
-     "shell": "",
-     "params": []
-    },
-    {
-     "name": "orbital",
-     "label": "Orbital...",
-     "tip": "One state as its two lobes, through waveplot; needs the parameter set's wfc.*.hsd",
-     "dialog": "dftb-run",
-     "shell": "",
-     "params": [
-      {
-       "name": "state",
-       "label": "State",
-       "accepts": "one of Highest occupied (HOMO - n), Lowest empty (LUMO + n), By index",
-       "default": "homo",
-       "help": ""
-      },
-      {
-       "name": "offset",
-       "label": "n",
-       "accepts": "int, 0 to 1000",
-       "default": "0",
-       "help": "How many states below the HOMO, or above the LUMO"
-      },
-      {
-       "name": "index",
-       "label": "Index",
-       "accepts": "int, 1 to 1000000",
-       "default": "1",
-       "help": "The state, counting from 1"
-      },
-      {
-       "name": "kpoint",
-       "label": "k-point",
-       "accepts": "int, 1 to 100000",
-       "default": "1",
-       "help": ""
-      },
-      {
-       "name": "spin",
-       "label": "Spin",
-       "accepts": "int, 1 to 2",
-       "default": "1",
-       "help": ""
-      },
-      {
-       "name": "isovalue",
-       "label": "Isovalue",
-       "accepts": "float, 1e-05 to 10",
-       "default": "0.02",
-       "help": "Drawn at plus and minus this"
-      },
-      {
-       "name": "resolution",
-       "label": "Grid points per A",
-       "accepts": "float, 1 to 20",
-       "default": "4.0",
-       "help": ""
-      }
-     ]
-    },
-    {
-     "name": "relax",
-     "label": "Optimise with DFTB+'s driver...",
-     "tip": "One DFTB+ run relaxes the atoms, and the cell if asked; the answer is mapped back onto the space group",
-     "dialog": "dftb-run",
-     "shell": "",
-     "params": [
-      {
-       "name": "lattice",
-       "label": "Relax the cell as well",
-       "accepts": "bool",
-       "default": "False",
-       "help": "DFTB+'s LatticeOpt, against its analytic stress"
-      },
-      {
-       "name": "pressure",
-       "label": "External pressure",
-       "accepts": "float, -100 to 1000 GPa",
-       "default": "0.0",
-       "help": ""
-      },
-      {
-       "name": "optimiser",
-       "label": "Optimiser",
-       "accepts": "one of L-BFGS, Conjugate gradient",
-       "default": "lbfgs",
-       "help": ""
-      },
-      {
-       "name": "max_force",
-       "label": "Largest force",
-       "accepts": "float, 1e-07 to 0.1 Ha/Bohr",
-       "default": "0.0001",
-       "help": "Converged when no force component is larger"
-      },
-      {
-       "name": "max_steps",
-       "label": "Step limit",
-       "accepts": "int, 1 to 100000",
-       "default": "200",
-       "help": ""
-      },
-      {
-       "name": "freeze",
-       "label": "Hold the frozen sites still",
-       "accepts": "bool",
-       "default": "True",
-       "help": "The sites frozen in the structure are left out of DFTB+'s MovedAtoms"
-      }
-     ]
-    },
-    {
-     "name": "modes",
-     "label": "Vibrational modes...",
-     "tip": "The Hessian by finite differences and its modes.  It costs six evaluations per free atom, and a structure that has not been relaxed first gives imaginary modes that mean nothing",
-     "dialog": "dftb-run",
-     "shell": "",
-     "params": [
-      {
-       "name": "delta",
-       "label": "Displacement",
-       "accepts": "float, 1e-06 to 0.01 Bohr",
-       "default": "0.0001",
-       "help": "How far each atom is moved each way along each axis"
-      },
-      {
-       "name": "freeze",
-       "label": "Hold the frozen sites still",
-       "accepts": "bool",
-       "default": "True",
-       "help": "The sites frozen in the structure are left out of DFTB+'s MovedAtoms"
-      }
-     ]
-    },
-    {
-     "name": "md",
-     "label": "Molecular dynamics...",
-     "tip": "Velocity Verlet, with a thermostat; the frames go to the transport bar",
-     "dialog": "dftb-run",
-     "shell": "",
-     "params": [
-      {
-       "name": "steps",
-       "label": "Steps",
-       "accepts": "int, 1 to 10000000",
-       "default": "500",
-       "help": ""
-      },
-      {
-       "name": "time_step",
-       "label": "Time step",
-       "accepts": "float, 0.01 to 10 fs",
-       "default": "1.0",
-       "help": "Half a femtosecond or less with hydrogen in the structure"
-      },
-      {
-       "name": "thermostat",
-       "label": "Thermostat",
-       "accepts": "one of None (constant energy), Berendsen, Nose-Hoover",
-       "default": "nose-hoover",
-       "help": ""
-      },
-      {
-       "name": "temperature",
-       "label": "Temperature",
-       "accepts": "float, 0 to 10000 K",
-       "default": "300.0",
-       "help": "The thermostat's, or the starting temperature with none"
-      },
-      {
-       "name": "coupling",
-       "label": "Coupling",
-       "accepts": "float, 1e-06 to 100000",
-       "default": "3200.0",
-       "help": "Nose-Hoover's in cm^-1; Berendsen's is a fraction between 0 and 1"
-      },
-      {
-       "name": "write_every",
-       "label": "Write every",
-       "accepts": "int, 1 to 100000 steps",
-       "default": "10",
-       "help": "A frame for the transport bar, and a line of md.out"
-      },
-      {
-       "name": "freeze",
-       "label": "Hold the frozen sites still",
-       "accepts": "bool",
-       "default": "True",
-       "help": "The sites frozen in the structure are left out of DFTB+'s MovedAtoms"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "name": "scan",
-   "label": "Energy scan",
-   "description": "Walk one or two coordinates and relax everything else at each point, to map the energy landscape of a flexible structure.  An axis is a lattice parameter, the cell volume, or an internal coordinate -- a distance, an angle, a dihedral, or the angle between two planes -- and it is held by a constraint rather than by freezing the atoms that define it.  Every point is left behind as a structure to open.",
-   "actions": [
-    {
-     "name": "run",
-     "label": "Relaxed scan...",
-     "tip": "Map the energy landscape over one or two coordinates",
-     "dialog": "scan",
-     "shell": "",
-     "params": [
-      {
-       "name": "engine",
-       "label": "Engine",
-       "accepts": "one of ",
-       "default": "uff",
-       "help": "Which energy engine relaxes each point.  For a flexible framework a machine-learned potential is the better choice: UFF4MOF was never fitted to reproduce a breathing double well."
-      },
-      {
-       "name": "axis1",
-       "label": "First axis",
-       "accepts": "text",
-       "default": "volume",
-       "help": "A cell parameter (a, b, c, alpha, beta, gamma), 'volume', or an internal coordinate over P1 atom indices: 'distance 0, 5', 'angle 0, 1, 2', 'torsion 0, 1, 2, 3', 'plane 0+1+2, 6+7+8'.  Atoms joined by '+' are their centroid, and it follows them."
-      },
-      {
-       "name": "axis1_start",
-       "label": "From",
-       "accepts": "float",
-       "default": "0.0",
-       "help": ""
-      },
-      {
-       "name": "axis1_stop",
-       "label": "To",
-       "accepts": "float",
-       "default": "0.0",
-       "help": ""
-      },
-      {
-       "name": "axis1_steps",
-       "label": "Points",
-       "accepts": "int, 1 to 201",
-       "default": "9",
-       "help": ""
-      },
-      {
-       "name": "axis2",
-       "label": "Second axis",
-       "accepts": "text",
-       "default": "",
-       "help": "Leave empty for a one-dimensional scan.  A cell parameter (a, b, c, alpha, beta, gamma), 'volume', or an internal coordinate over P1 atom indices: 'distance 0, 5', 'angle 0, 1, 2', 'torsion 0, 1, 2, 3', 'plane 0+1+2, 6+7+8'.  Atoms joined by '+' are their centroid, and it follows them."
-      },
-      {
-       "name": "axis2_start",
-       "label": "From",
-       "accepts": "float",
-       "default": "0.0",
-       "help": ""
-      },
-      {
-       "name": "axis2_stop",
-       "label": "To",
-       "accepts": "float",
-       "default": "0.0",
-       "help": ""
-      },
-      {
-       "name": "axis2_steps",
-       "label": "Points",
-       "accepts": "int, 1 to 201",
-       "default": "9",
-       "help": ""
-      },
-      {
-       "name": "seed",
-       "label": "Starting geometry",
-       "accepts": "one of Carry on from the nearest point, Restart from this structure",
-       "default": "previous",
-       "help": "Carrying the last relaxed geometry into the next cell is what makes a scan affordable, and it is also what makes it path-dependent: near a transition the optimiser stays in the basin it arrived in."
-      },
-      {
-       "name": "direction",
-       "label": "Direction",
-       "accepts": "one of Both, and report each, Forwards only, Backwards only",
-       "default": "both",
-       "help": "Walking the grid both ways and drawing both is how hysteresis shows up instead of hiding in one curve."
-      },
-      {
-       "name": "method",
-       "label": "Optimiser",
-       "accepts": "one of abnr, conjugate_gradient, fire, lbfgs, quasi_newton, smart, steepest_descent",
-       "default": "smart",
-       "help": "Smart descends steeply at first and changes rule as the forces fall, which is what a scan wants: every point after the first starts near a minimum, but the first one may not."
-      },
-      {
-       "name": "max_steps",
-       "label": "Steps per point",
-       "accepts": "int, 1 to 100000",
-       "default": "500",
-       "help": "A point that stops at the limit is reported as not converged and drawn apart, so this is a ceiling rather than a target."
-      },
-      {
-       "name": "tolerance",
-       "label": "Force tolerance",
-       "accepts": "float, at least 1e-06 kcal/mol/A",
-       "default": "0.05",
-       "help": ""
-      },
-      {
-       "name": "pre_engine",
-       "label": "Pre-relax with",
-       "accepts": "one of Nothing",
-       "default": "",
-       "help": "A cheaper engine run at every point before the one the landscape is of -- UFF4MOF ahead of MACE, say.  A volume step moves every atom with the cell, and this spends the long walk back at the cheap price.  Only the main engine's energy is reported."
-      },
-      {
-       "name": "pre_max_steps",
-       "label": "Pre-relaxation steps",
-       "accepts": "int, 1 to 100000",
-       "default": "500",
-       "help": ""
-      },
-      {
-       "name": "pre_tolerance",
-       "label": "Pre-relaxation tolerance",
-       "accepts": "float, at least 1e-06 kcal/mol/A",
-       "default": "0.5",
-       "help": "Loose on purpose: the cheap engine's minimum is not the one wanted, so converging to it tightly buys nothing."
-      }
-     ]
-    },
-    {
-     "name": "bulk_modulus",
-     "label": "Bulk modulus...",
-     "tip": "Compress and expand the cell with the shape free and fit an equation of state: B0, B0' and V0",
-     "dialog": "scan",
-     "shell": "",
-     "params": [
-      {
-       "name": "engine",
-       "label": "Engine",
-       "accepts": "one of ",
-       "default": "uff",
-       "help": "Which energy engine relaxes each point.  For a flexible framework a machine-learned potential is the better choice: UFF4MOF was never fitted to reproduce a breathing double well."
-      },
-      {
-       "name": "axis1",
-       "label": "First axis",
-       "accepts": "text",
-       "default": "volume",
-       "help": "A cell parameter (a, b, c, alpha, beta, gamma), 'volume', or an internal coordinate over P1 atom indices: 'distance 0, 5', 'angle 0, 1, 2', 'torsion 0, 1, 2, 3', 'plane 0+1+2, 6+7+8'.  Atoms joined by '+' are their centroid, and it follows them."
-      },
-      {
-       "name": "axis1_start",
-       "label": "From",
-       "accepts": "float",
-       "default": "0.0",
-       "help": ""
-      },
-      {
-       "name": "axis1_stop",
-       "label": "To",
-       "accepts": "float",
-       "default": "0.0",
-       "help": ""
-      },
-      {
-       "name": "axis1_steps",
-       "label": "Points",
-       "accepts": "int, 1 to 201",
-       "default": "9",
-       "help": ""
-      },
-      {
-       "name": "seed",
-       "label": "Starting geometry",
-       "accepts": "one of Carry on from the nearest point, Restart from this structure",
-       "default": "previous",
-       "help": "Carrying the last relaxed geometry into the next cell is what makes a scan affordable, and it is also what makes it path-dependent: near a transition the optimiser stays in the basin it arrived in."
-      },
-      {
-       "name": "direction",
-       "label": "Direction",
-       "accepts": "one of Both, and report each, Forwards only, Backwards only",
-       "default": "forward",
-       "help": "Walking the grid both ways and drawing both is how hysteresis shows up instead of hiding in one curve."
-      },
-      {
-       "name": "method",
-       "label": "Optimiser",
-       "accepts": "one of abnr, conjugate_gradient, fire, lbfgs, quasi_newton, smart, steepest_descent",
-       "default": "smart",
-       "help": "Smart descends steeply at first and changes rule as the forces fall, which is what a scan wants: every point after the first starts near a minimum, but the first one may not."
-      },
-      {
-       "name": "max_steps",
-       "label": "Steps per point",
-       "accepts": "int, 1 to 100000",
-       "default": "500",
-       "help": "A point that stops at the limit is reported as not converged and drawn apart, so this is a ceiling rather than a target."
-      },
-      {
-       "name": "tolerance",
-       "label": "Force tolerance",
-       "accepts": "float, at least 1e-06 kcal/mol/A",
-       "default": "0.05",
-       "help": ""
-      },
-      {
-       "name": "pre_engine",
-       "label": "Pre-relax with",
-       "accepts": "one of Nothing",
-       "default": "",
-       "help": "A cheaper engine run at every point before the one the landscape is of -- UFF4MOF ahead of MACE, say.  A volume step moves every atom with the cell, and this spends the long walk back at the cheap price.  Only the main engine's energy is reported."
-      },
-      {
-       "name": "pre_max_steps",
-       "label": "Pre-relaxation steps",
-       "accepts": "int, 1 to 100000",
-       "default": "500",
-       "help": ""
-      },
-      {
-       "name": "pre_tolerance",
-       "label": "Pre-relaxation tolerance",
-       "accepts": "float, at least 1e-06 kcal/mol/A",
-       "default": "0.5",
-       "help": "Loose on purpose: the cheap engine's minimum is not the one wanted, so converging to it tightly buys nothing."
-      },
-      {
-       "name": "relax_first",
-       "label": "Relax the cell first",
-       "accepts": "bool",
-       "default": "True",
-       "help": "Relax the cell, shape and volume, before the scan and centre the volumes on where it settles.  A scan round the input's volume puts V0 at its edge -- or outside it -- whenever the engine's minimum is not the deposited cell's, and the fit then refuses."
-      },
-      {
-       "name": "span",
-       "label": "Span",
-       "accepts": "float, 0.5 to 40 %",
-       "default": "6.0",
-       "help": "How far either side of the volume to go, when no From and To are given.  Within a few percent the energy is close to a parabola and the modulus is the cell's; much further and it is the equation of state's."
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "name": "orca",
-   "label": "ORCA",
-   "description": "ORCA quantum chemistry: an input file for the structure, written here and run wherever ORCA is.",
-   "actions": [
-    {
-     "name": "input",
-     "label": "Input file...",
-     "tip": "An ORCA input and the coordinates it reads, in a run folder: the functional, basis, job and blocks chosen here, the charge and multiplicity checked against the electrons",
-     "dialog": "orca-input",
-     "shell": "",
-     "params": [
-      {
-       "name": "functional",
-       "label": "Functional",
-       "accepts": "text",
-       "default": "BP86",
-       "help": "An ORCA native functional keyword (Tables 3.1-3.9)"
-      },
-      {
-       "name": "basis",
-       "label": "Basis set",
-       "accepts": "text",
-       "default": "def2-SVP",
-       "help": "An ORCA built-in orbital basis (Tables 2.12-2.33); a 3c method writes none"
-      },
-      {
-       "name": "dispersion",
-       "label": "Dispersion",
-       "accepts": "one of None, D3(BJ), D3(0), D4",
-       "default": "",
-       "help": "Added to the ! line; not with a functional that already has one"
-      },
-      {
-       "name": "ri",
-       "label": "RI",
-       "accepts": "one of ORCA's default, RIJCOSX, RI-J, RI-JK, No RI",
-       "default": "",
-       "help": "ORCA's default is RI-J for a pure functional and RIJCOSX for a hybrid; a choice writes its auxiliary basis too"
-      },
-      {
-       "name": "run",
-       "label": "Job",
-       "accepts": "one of Single point, Optimise (Opt), Transition state (OptTS)",
-       "default": "sp",
-       "help": "A single point, an optimisation, or a transition state search"
-      },
-      {
-       "name": "opt_level",
-       "label": "Optimisation",
-       "accepts": "one of Normal, Loose, Tight, Very tight",
-       "default": "Opt",
-       "help": "How tightly an optimisation converges"
-      },
-      {
-       "name": "cartesian",
-       "label": "Cartesian (COpt)",
-       "accepts": "bool",
-       "default": "False",
-       "help": "Optimise in Cartesian rather than internal coordinates"
-      },
-      {
-       "name": "freq",
-       "label": "Frequencies (Freq)",
-       "accepts": "bool",
-       "default": "False",
-       "help": "Vibrational frequencies, after the optimisation if there is one"
-      },
-      {
-       "name": "max_iter",
-       "label": "Geometry MaxIter",
-       "accepts": "int, 0 to 100000",
-       "default": "0",
-       "help": "%geom MaxIter; 0 is ORCA's own, max(3N, 50)"
-      },
-      {
-       "name": "calc_hess",
-       "label": "Calc_Hess",
-       "accepts": "bool",
-       "default": "False",
-       "help": "An exact Hessian before the first step"
-      },
-      {
-       "name": "scf_threshold",
-       "label": "SCF convergence",
-       "accepts": "one of ORCA's default, Sloppy, Loose, Medium, Normal, Strong, Tight, Very tight, Extreme",
-       "default": "",
-       "help": "TightSCF and the like, Table 2.9"
-      },
-      {
-       "name": "scf_solver",
-       "label": "SCF solver",
-       "accepts": "one of ORCA's default, EasyConv, SlowConv, VerySlowConv",
-       "default": "",
-       "help": "SlowConv for most transition-metal complexes"
-      },
-      {
-       "name": "scf_max_iter",
-       "label": "SCF MaxIter",
-       "accepts": "int, 0 to 100000",
-       "default": "0",
-       "help": "%scf MaxIter; 0 is ORCA's own"
-      },
-      {
-       "name": "scf_guess",
-       "label": "SCF guess",
-       "accepts": "one of ORCA's default, PModel, PAtom, Hueckel, HCore",
-       "default": "",
-       "help": "%scf Guess; the default is ORCA's own"
-      },
-      {
-       "name": "tddft_nroots",
-       "label": "TD-DFT roots",
-       "accepts": "int, 0 to 10000",
-       "default": "0",
-       "help": "Excited states for a UV-Vis spectrum; 0 writes no %tddft block"
-      },
-      {
-       "name": "tddft_triplets",
-       "label": "Triplets",
-       "accepts": "bool",
-       "default": "False",
-       "help": "Singlet-triplet excitations as well"
-      },
-      {
-       "name": "tddft_state",
-       "label": "TD-DFT with Opt or Freq",
-       "accepts": "one of Ground state, then the spectrum (two steps), Excited state IRoot (one step)",
-       "default": "ground",
-       "help": "Optimise the ground state and then take its spectrum, in two steps, or optimise excited state IRoot itself"
-      },
-      {
-       "name": "tddft_iroot",
-       "label": "IRoot",
-       "accepts": "int, 1 to 10000",
-       "default": "1",
-       "help": "The excited state followed, counting from 1"
-      },
-      {
-       "name": "tddft_iroot_triplet",
-       "label": "Triplet IRoot",
-       "accepts": "bool",
-       "default": "False",
-       "help": "Follow a triplet root (needs Triplets)"
-      },
-      {
-       "name": "solvation",
-       "label": "Solvation",
-       "accepts": "one of Gas phase, C-PCM, SMD",
-       "default": "",
-       "help": "An implicit solvent, C-PCM or SMD"
-      },
-      {
-       "name": "solvent",
-       "label": "Solvent",
-       "accepts": "text",
-       "default": "water",
-       "help": "Any name of Table 2.56, e.g. water, dmf, thf"
-      },
-      {
-       "name": "nprocs",
-       "label": "Processes (%pal)",
-       "accepts": "int, 1 to 4096",
-       "default": "1",
-       "help": "Above one, a %pal block"
-      },
-      {
-       "name": "maxcore_mb",
-       "label": "Memory per process",
-       "accepts": "int, 0 to 10000000 MB",
-       "default": "0",
-       "help": "%maxcore; 0 writes none"
-      },
-      {
-       "name": "charge",
-       "label": "Charge",
-       "accepts": "int, -1000 to 1000",
-       "default": "0",
-       "help": "Of the atoms written"
-      },
-      {
-       "name": "multiplicity",
-       "label": "Multiplicity",
-       "accepts": "int, 1 to 1000",
-       "default": "1",
-       "help": "2S+1; refused when the electron count cannot have it"
-      },
-      {
-       "name": "extra_keywords",
-       "label": "More keywords",
-       "accepts": "text",
-       "default": "",
-       "help": "Added to the end of the ! line as written"
-      },
-      {
-       "name": "extra_blocks",
-       "label": "More blocks",
-       "accepts": "text",
-       "default": "",
-       "help": "% blocks of your own, written before the coordinates"
-      },
-      {
-       "name": "atoms",
-       "label": "Atoms",
-       "accepts": "text",
-       "default": "",
-       "help": "Cell atom indices to write; blank is the whole cell"
-      },
-      {
-       "name": "name",
-       "label": "File name",
-       "accepts": "text",
-       "default": "",
-       "help": "The .inp and .xyz are named after this"
-      }
-     ]
-    }
-   ]
-  },
-  {
    "name": "mof",
    "label": "MOF builder",
    "description": "Build a framework from a topology, a metal node and a linker, with PORMAKE.  The result opens in a new tab with its net already drawn.",
    "actions": [
     {
      "name": "build",
-     "label": "Build a framework...",
+     "label": "Build a framework (MOF)...",
      "tip": "Pick a net, a node and a linker; the framework opens in a new tab",
      "dialog": "mof-build",
      "shell": "",
@@ -2767,7 +1996,7 @@
    "actions": [
     {
      "name": "molecule",
-     "label": "Molecule from SMILES...",
+     "label": "Build a molecule with the 2D sketcher...",
      "tip": "Build a molecule; it opens in a new tab",
      "dialog": "build-molecule",
      "shell": "",
@@ -2960,7 +2189,7 @@
    "actions": [
     {
      "name": "build",
-     "label": "Build amorphous polymer...",
+     "label": "Build an amorphous polymer...",
      "tip": "Chains grown into a box at a density; the result opens in a new tab",
      "dialog": "polymer-build",
      "shell": "",
@@ -4843,6 +4072,801 @@
        "accepts": "path",
        "default": "",
        "help": "A file of parameters to start from, one a line as the workbench's Copy writes them: name value ± esd Refine, or NoRefine.  Its flags say what is refined and the Refine boxes are not read; a row it leaves out starts from RietX's preset.  Empty starts from the preset, freed as the boxes say."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "forcefield",
+   "label": "Force Field",
+   "description": "Universal Force Field: atom types, energies and geometry optimisation, under the space group.",
+   "actions": [
+    {
+     "name": "setup",
+     "label": "Setup and atom types...",
+     "tip": "Atom types, electrostatics, and how the run is going",
+     "dialog": "",
+     "shell": "show_ff",
+     "params": []
+    },
+    {
+     "name": "single-point",
+     "label": "Single point energy",
+     "tip": "Energy and per-term breakdown at this geometry",
+     "dialog": "",
+     "shell": "single_point",
+     "params": []
+    },
+    {
+     "name": "optimise",
+     "label": "Optimise geometry",
+     "tip": "Relax the structure within its space group",
+     "dialog": "",
+     "shell": "optimize",
+     "params": []
+    }
+   ]
+  },
+  {
+   "name": "dftb",
+   "label": "DFTB+",
+   "description": "Density-functional tight binding: atom types have no place in it, but the energy, the forces and the geometry optimisation are asked for the same way.",
+   "actions": [
+    {
+     "name": "setup",
+     "label": "Setup and parameters...",
+     "tip": "Hamiltonian, parameter directory, dispersion, and how the run is going",
+     "dialog": "",
+     "shell": "show_dftb",
+     "params": []
+    },
+    {
+     "name": "single-point",
+     "label": "Single point energy",
+     "tip": "Energy and per-term breakdown at this geometry",
+     "dialog": "",
+     "shell": "dftb_single_point",
+     "params": []
+    },
+    {
+     "name": "optimise",
+     "label": "Optimise geometry",
+     "tip": "Relax the structure within its space group",
+     "dialog": "",
+     "shell": "dftb_optimize",
+     "params": []
+    },
+    {
+     "name": "band-structure",
+     "label": "Band structure...",
+     "tip": "Eigenvalues along a path through the Brillouin zone, from charges converged on a mesh",
+     "dialog": "band-structure",
+     "shell": "",
+     "params": [
+      {
+       "name": "path",
+       "label": "Path",
+       "accepts": "text",
+       "default": "",
+       "help": "The corners to visit, as ASE names them: 'GXWKGLUWLK,UX'.  A comma is a jump.  Empty is ASE's recommended path for this cell"
+      },
+      {
+       "name": "density",
+       "label": "Points per 1/A",
+       "accepts": "float, 2 to 500",
+       "default": "40.0",
+       "help": "How finely each segment is sampled"
+      },
+      {
+       "name": "dos",
+       "label": "Density of states beside it",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Projected onto each element, from the run on the mesh that converges the charges -- no extra invocation, and as fine as that mesh"
+      },
+      {
+       "name": "sigma",
+       "label": "DOS broadening",
+       "accepts": "float, 0.005 to 2 eV",
+       "default": "0.1",
+       "help": ""
+      }
+     ]
+    },
+    {
+     "name": "dos",
+     "label": "Density of states...",
+     "tip": "Total and projected onto each element, on a dense mesh",
+     "dialog": "dftb-run",
+     "shell": "",
+     "params": [
+      {
+       "name": "spacing",
+       "label": "K-point spacing",
+       "accepts": "float, 0.01 to 1 1/A",
+       "default": "0.1",
+       "help": "Denser than the charges need: a density of states is an integral over the zone"
+      },
+      {
+       "name": "sigma",
+       "label": "Broadening",
+       "accepts": "float, 0.005 to 2 eV",
+       "default": "0.1",
+       "help": "DFTB+ does not broaden; this Gaussian width is ours"
+      },
+      {
+       "name": "shells",
+       "label": "Resolve s, p and d",
+       "accepts": "bool",
+       "default": "False",
+       "help": ""
+      }
+     ]
+    },
+    {
+     "name": "charges",
+     "label": "Mulliken charges",
+     "tip": "A charge on every atom, and the atoms coloured by it",
+     "dialog": "dftb-run",
+     "shell": "",
+     "params": []
+    },
+    {
+     "name": "orbital",
+     "label": "Orbital...",
+     "tip": "One state as its two lobes, through waveplot; needs the parameter set's wfc.*.hsd",
+     "dialog": "dftb-run",
+     "shell": "",
+     "params": [
+      {
+       "name": "state",
+       "label": "State",
+       "accepts": "one of Highest occupied (HOMO - n), Lowest empty (LUMO + n), By index",
+       "default": "homo",
+       "help": ""
+      },
+      {
+       "name": "offset",
+       "label": "n",
+       "accepts": "int, 0 to 1000",
+       "default": "0",
+       "help": "How many states below the HOMO, or above the LUMO"
+      },
+      {
+       "name": "index",
+       "label": "Index",
+       "accepts": "int, 1 to 1000000",
+       "default": "1",
+       "help": "The state, counting from 1"
+      },
+      {
+       "name": "kpoint",
+       "label": "k-point",
+       "accepts": "int, 1 to 100000",
+       "default": "1",
+       "help": ""
+      },
+      {
+       "name": "spin",
+       "label": "Spin",
+       "accepts": "int, 1 to 2",
+       "default": "1",
+       "help": ""
+      },
+      {
+       "name": "isovalue",
+       "label": "Isovalue",
+       "accepts": "float, 1e-05 to 10",
+       "default": "0.02",
+       "help": "Drawn at plus and minus this"
+      },
+      {
+       "name": "resolution",
+       "label": "Grid points per A",
+       "accepts": "float, 1 to 20",
+       "default": "4.0",
+       "help": ""
+      }
+     ]
+    },
+    {
+     "name": "relax",
+     "label": "Optimise (DFTB+ driver)...",
+     "tip": "One DFTB+ run relaxes the atoms, and the cell if asked; the answer is mapped back onto the space group",
+     "dialog": "dftb-run",
+     "shell": "",
+     "params": [
+      {
+       "name": "lattice",
+       "label": "Relax the cell as well",
+       "accepts": "bool",
+       "default": "False",
+       "help": "DFTB+'s LatticeOpt, against its analytic stress"
+      },
+      {
+       "name": "pressure",
+       "label": "External pressure",
+       "accepts": "float, -100 to 1000 GPa",
+       "default": "0.0",
+       "help": ""
+      },
+      {
+       "name": "optimiser",
+       "label": "Optimiser",
+       "accepts": "one of L-BFGS, Conjugate gradient",
+       "default": "lbfgs",
+       "help": ""
+      },
+      {
+       "name": "max_force",
+       "label": "Largest force",
+       "accepts": "float, 1e-07 to 0.1 Ha/Bohr",
+       "default": "0.0001",
+       "help": "Converged when no force component is larger"
+      },
+      {
+       "name": "max_steps",
+       "label": "Step limit",
+       "accepts": "int, 1 to 100000",
+       "default": "200",
+       "help": ""
+      },
+      {
+       "name": "freeze",
+       "label": "Hold the frozen sites still",
+       "accepts": "bool",
+       "default": "True",
+       "help": "The sites frozen in the structure are left out of DFTB+'s MovedAtoms"
+      }
+     ]
+    },
+    {
+     "name": "modes",
+     "label": "Vibrational modes...",
+     "tip": "The Hessian by finite differences and its modes.  It costs six evaluations per free atom, and a structure that has not been relaxed first gives imaginary modes that mean nothing",
+     "dialog": "dftb-run",
+     "shell": "",
+     "params": [
+      {
+       "name": "delta",
+       "label": "Displacement",
+       "accepts": "float, 1e-06 to 0.01 Bohr",
+       "default": "0.0001",
+       "help": "How far each atom is moved each way along each axis"
+      },
+      {
+       "name": "freeze",
+       "label": "Hold the frozen sites still",
+       "accepts": "bool",
+       "default": "True",
+       "help": "The sites frozen in the structure are left out of DFTB+'s MovedAtoms"
+      }
+     ]
+    },
+    {
+     "name": "md",
+     "label": "Molecular dynamics...",
+     "tip": "Velocity Verlet, with a thermostat; the frames go to the transport bar",
+     "dialog": "dftb-run",
+     "shell": "",
+     "params": [
+      {
+       "name": "steps",
+       "label": "Steps",
+       "accepts": "int, 1 to 10000000",
+       "default": "500",
+       "help": ""
+      },
+      {
+       "name": "time_step",
+       "label": "Time step",
+       "accepts": "float, 0.01 to 10 fs",
+       "default": "1.0",
+       "help": "Half a femtosecond or less with hydrogen in the structure"
+      },
+      {
+       "name": "thermostat",
+       "label": "Thermostat",
+       "accepts": "one of None (constant energy), Berendsen, Nose-Hoover",
+       "default": "nose-hoover",
+       "help": ""
+      },
+      {
+       "name": "temperature",
+       "label": "Temperature",
+       "accepts": "float, 0 to 10000 K",
+       "default": "300.0",
+       "help": "The thermostat's, or the starting temperature with none"
+      },
+      {
+       "name": "coupling",
+       "label": "Coupling",
+       "accepts": "float, 1e-06 to 100000",
+       "default": "3200.0",
+       "help": "Nose-Hoover's in cm^-1; Berendsen's is a fraction between 0 and 1"
+      },
+      {
+       "name": "write_every",
+       "label": "Write every",
+       "accepts": "int, 1 to 100000 steps",
+       "default": "10",
+       "help": "A frame for the transport bar, and a line of md.out"
+      },
+      {
+       "name": "freeze",
+       "label": "Hold the frozen sites still",
+       "accepts": "bool",
+       "default": "True",
+       "help": "The sites frozen in the structure are left out of DFTB+'s MovedAtoms"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "scan",
+   "label": "Energy scan",
+   "description": "Walk one or two coordinates and relax everything else at each point, to map the energy landscape of a flexible structure.  An axis is a lattice parameter, the cell volume, or an internal coordinate -- a distance, an angle, a dihedral, or the angle between two planes -- and it is held by a constraint rather than by freezing the atoms that define it.  Every point is left behind as a structure to open.",
+   "actions": [
+    {
+     "name": "run",
+     "label": "Relaxed scan...",
+     "tip": "Map the energy landscape over one or two coordinates",
+     "dialog": "scan",
+     "shell": "",
+     "params": [
+      {
+       "name": "engine",
+       "label": "Engine",
+       "accepts": "one of ",
+       "default": "uff",
+       "help": "Which energy engine relaxes each point.  For a flexible framework a machine-learned potential is the better choice: UFF4MOF was never fitted to reproduce a breathing double well."
+      },
+      {
+       "name": "axis1",
+       "label": "First axis",
+       "accepts": "text",
+       "default": "volume",
+       "help": "A cell parameter (a, b, c, alpha, beta, gamma), 'volume', or an internal coordinate over P1 atom indices: 'distance 0, 5', 'angle 0, 1, 2', 'torsion 0, 1, 2, 3', 'plane 0+1+2, 6+7+8'.  Atoms joined by '+' are their centroid, and it follows them."
+      },
+      {
+       "name": "axis1_start",
+       "label": "From",
+       "accepts": "float",
+       "default": "0.0",
+       "help": ""
+      },
+      {
+       "name": "axis1_stop",
+       "label": "To",
+       "accepts": "float",
+       "default": "0.0",
+       "help": ""
+      },
+      {
+       "name": "axis1_steps",
+       "label": "Points",
+       "accepts": "int, 1 to 201",
+       "default": "9",
+       "help": ""
+      },
+      {
+       "name": "axis2",
+       "label": "Second axis",
+       "accepts": "text",
+       "default": "",
+       "help": "Leave empty for a one-dimensional scan.  A cell parameter (a, b, c, alpha, beta, gamma), 'volume', or an internal coordinate over P1 atom indices: 'distance 0, 5', 'angle 0, 1, 2', 'torsion 0, 1, 2, 3', 'plane 0+1+2, 6+7+8'.  Atoms joined by '+' are their centroid, and it follows them."
+      },
+      {
+       "name": "axis2_start",
+       "label": "From",
+       "accepts": "float",
+       "default": "0.0",
+       "help": ""
+      },
+      {
+       "name": "axis2_stop",
+       "label": "To",
+       "accepts": "float",
+       "default": "0.0",
+       "help": ""
+      },
+      {
+       "name": "axis2_steps",
+       "label": "Points",
+       "accepts": "int, 1 to 201",
+       "default": "9",
+       "help": ""
+      },
+      {
+       "name": "seed",
+       "label": "Starting geometry",
+       "accepts": "one of Carry on from the nearest point, Restart from this structure",
+       "default": "previous",
+       "help": "Carrying the last relaxed geometry into the next cell is what makes a scan affordable, and it is also what makes it path-dependent: near a transition the optimiser stays in the basin it arrived in."
+      },
+      {
+       "name": "direction",
+       "label": "Direction",
+       "accepts": "one of Both, and report each, Forwards only, Backwards only",
+       "default": "both",
+       "help": "Walking the grid both ways and drawing both is how hysteresis shows up instead of hiding in one curve."
+      },
+      {
+       "name": "method",
+       "label": "Optimiser",
+       "accepts": "one of abnr, conjugate_gradient, fire, lbfgs, quasi_newton, smart, steepest_descent",
+       "default": "smart",
+       "help": "Smart descends steeply at first and changes rule as the forces fall, which is what a scan wants: every point after the first starts near a minimum, but the first one may not."
+      },
+      {
+       "name": "max_steps",
+       "label": "Steps per point",
+       "accepts": "int, 1 to 100000",
+       "default": "500",
+       "help": "A point that stops at the limit is reported as not converged and drawn apart, so this is a ceiling rather than a target."
+      },
+      {
+       "name": "tolerance",
+       "label": "Force tolerance",
+       "accepts": "float, at least 1e-06 kcal/mol/A",
+       "default": "0.05",
+       "help": ""
+      },
+      {
+       "name": "pre_engine",
+       "label": "Pre-relax with",
+       "accepts": "one of Nothing",
+       "default": "",
+       "help": "A cheaper engine run at every point before the one the landscape is of -- UFF4MOF ahead of MACE, say.  A volume step moves every atom with the cell, and this spends the long walk back at the cheap price.  Only the main engine's energy is reported."
+      },
+      {
+       "name": "pre_max_steps",
+       "label": "Pre-relaxation steps",
+       "accepts": "int, 1 to 100000",
+       "default": "500",
+       "help": ""
+      },
+      {
+       "name": "pre_tolerance",
+       "label": "Pre-relaxation tolerance",
+       "accepts": "float, at least 1e-06 kcal/mol/A",
+       "default": "0.5",
+       "help": "Loose on purpose: the cheap engine's minimum is not the one wanted, so converging to it tightly buys nothing."
+      }
+     ]
+    },
+    {
+     "name": "bulk_modulus",
+     "label": "Bulk modulus...",
+     "tip": "Compress and expand the cell with the shape free and fit an equation of state: B0, B0' and V0",
+     "dialog": "scan",
+     "shell": "",
+     "params": [
+      {
+       "name": "engine",
+       "label": "Engine",
+       "accepts": "one of ",
+       "default": "uff",
+       "help": "Which energy engine relaxes each point.  For a flexible framework a machine-learned potential is the better choice: UFF4MOF was never fitted to reproduce a breathing double well."
+      },
+      {
+       "name": "axis1",
+       "label": "First axis",
+       "accepts": "text",
+       "default": "volume",
+       "help": "A cell parameter (a, b, c, alpha, beta, gamma), 'volume', or an internal coordinate over P1 atom indices: 'distance 0, 5', 'angle 0, 1, 2', 'torsion 0, 1, 2, 3', 'plane 0+1+2, 6+7+8'.  Atoms joined by '+' are their centroid, and it follows them."
+      },
+      {
+       "name": "axis1_start",
+       "label": "From",
+       "accepts": "float",
+       "default": "0.0",
+       "help": ""
+      },
+      {
+       "name": "axis1_stop",
+       "label": "To",
+       "accepts": "float",
+       "default": "0.0",
+       "help": ""
+      },
+      {
+       "name": "axis1_steps",
+       "label": "Points",
+       "accepts": "int, 1 to 201",
+       "default": "9",
+       "help": ""
+      },
+      {
+       "name": "seed",
+       "label": "Starting geometry",
+       "accepts": "one of Carry on from the nearest point, Restart from this structure",
+       "default": "previous",
+       "help": "Carrying the last relaxed geometry into the next cell is what makes a scan affordable, and it is also what makes it path-dependent: near a transition the optimiser stays in the basin it arrived in."
+      },
+      {
+       "name": "direction",
+       "label": "Direction",
+       "accepts": "one of Both, and report each, Forwards only, Backwards only",
+       "default": "forward",
+       "help": "Walking the grid both ways and drawing both is how hysteresis shows up instead of hiding in one curve."
+      },
+      {
+       "name": "method",
+       "label": "Optimiser",
+       "accepts": "one of abnr, conjugate_gradient, fire, lbfgs, quasi_newton, smart, steepest_descent",
+       "default": "smart",
+       "help": "Smart descends steeply at first and changes rule as the forces fall, which is what a scan wants: every point after the first starts near a minimum, but the first one may not."
+      },
+      {
+       "name": "max_steps",
+       "label": "Steps per point",
+       "accepts": "int, 1 to 100000",
+       "default": "500",
+       "help": "A point that stops at the limit is reported as not converged and drawn apart, so this is a ceiling rather than a target."
+      },
+      {
+       "name": "tolerance",
+       "label": "Force tolerance",
+       "accepts": "float, at least 1e-06 kcal/mol/A",
+       "default": "0.05",
+       "help": ""
+      },
+      {
+       "name": "pre_engine",
+       "label": "Pre-relax with",
+       "accepts": "one of Nothing",
+       "default": "",
+       "help": "A cheaper engine run at every point before the one the landscape is of -- UFF4MOF ahead of MACE, say.  A volume step moves every atom with the cell, and this spends the long walk back at the cheap price.  Only the main engine's energy is reported."
+      },
+      {
+       "name": "pre_max_steps",
+       "label": "Pre-relaxation steps",
+       "accepts": "int, 1 to 100000",
+       "default": "500",
+       "help": ""
+      },
+      {
+       "name": "pre_tolerance",
+       "label": "Pre-relaxation tolerance",
+       "accepts": "float, at least 1e-06 kcal/mol/A",
+       "default": "0.5",
+       "help": "Loose on purpose: the cheap engine's minimum is not the one wanted, so converging to it tightly buys nothing."
+      },
+      {
+       "name": "relax_first",
+       "label": "Relax the cell first",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Relax the cell, shape and volume, before the scan and centre the volumes on where it settles.  A scan round the input's volume puts V0 at its edge -- or outside it -- whenever the engine's minimum is not the deposited cell's, and the fit then refuses."
+      },
+      {
+       "name": "span",
+       "label": "Span",
+       "accepts": "float, 0.5 to 40 %",
+       "default": "6.0",
+       "help": "How far either side of the volume to go, when no From and To are given.  Within a few percent the energy is close to a parabola and the modulus is the cell's; much further and it is the equation of state's."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "orca",
+   "label": "ORCA",
+   "description": "ORCA quantum chemistry: an input file for the structure, written here and run wherever ORCA is.",
+   "actions": [
+    {
+     "name": "input",
+     "label": "Input file...",
+     "tip": "An ORCA input and the coordinates it reads, in a run folder: the functional, basis, job and blocks chosen here, the charge and multiplicity checked against the electrons",
+     "dialog": "orca-input",
+     "shell": "",
+     "params": [
+      {
+       "name": "functional",
+       "label": "Functional",
+       "accepts": "text",
+       "default": "BP86",
+       "help": "An ORCA native functional keyword (Tables 3.1-3.9)"
+      },
+      {
+       "name": "basis",
+       "label": "Basis set",
+       "accepts": "text",
+       "default": "def2-SVP",
+       "help": "An ORCA built-in orbital basis (Tables 2.12-2.33); a 3c method writes none"
+      },
+      {
+       "name": "dispersion",
+       "label": "Dispersion",
+       "accepts": "one of None, D3(BJ), D3(0), D4",
+       "default": "",
+       "help": "Added to the ! line; not with a functional that already has one"
+      },
+      {
+       "name": "ri",
+       "label": "RI",
+       "accepts": "one of ORCA's default, RIJCOSX, RI-J, RI-JK, No RI",
+       "default": "",
+       "help": "ORCA's default is RI-J for a pure functional and RIJCOSX for a hybrid; a choice writes its auxiliary basis too"
+      },
+      {
+       "name": "run",
+       "label": "Job",
+       "accepts": "one of Single point, Optimise (Opt), Transition state (OptTS)",
+       "default": "sp",
+       "help": "A single point, an optimisation, or a transition state search"
+      },
+      {
+       "name": "opt_level",
+       "label": "Optimisation",
+       "accepts": "one of Normal, Loose, Tight, Very tight",
+       "default": "Opt",
+       "help": "How tightly an optimisation converges"
+      },
+      {
+       "name": "cartesian",
+       "label": "Cartesian (COpt)",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Optimise in Cartesian rather than internal coordinates"
+      },
+      {
+       "name": "freq",
+       "label": "Frequencies (Freq)",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Vibrational frequencies, after the optimisation if there is one"
+      },
+      {
+       "name": "max_iter",
+       "label": "Geometry MaxIter",
+       "accepts": "int, 0 to 100000",
+       "default": "0",
+       "help": "%geom MaxIter; 0 is ORCA's own, max(3N, 50)"
+      },
+      {
+       "name": "calc_hess",
+       "label": "Calc_Hess",
+       "accepts": "bool",
+       "default": "False",
+       "help": "An exact Hessian before the first step"
+      },
+      {
+       "name": "scf_threshold",
+       "label": "SCF convergence",
+       "accepts": "one of ORCA's default, Sloppy, Loose, Medium, Normal, Strong, Tight, Very tight, Extreme",
+       "default": "",
+       "help": "TightSCF and the like, Table 2.9"
+      },
+      {
+       "name": "scf_solver",
+       "label": "SCF solver",
+       "accepts": "one of ORCA's default, EasyConv, SlowConv, VerySlowConv",
+       "default": "",
+       "help": "SlowConv for most transition-metal complexes"
+      },
+      {
+       "name": "scf_max_iter",
+       "label": "SCF MaxIter",
+       "accepts": "int, 0 to 100000",
+       "default": "0",
+       "help": "%scf MaxIter; 0 is ORCA's own"
+      },
+      {
+       "name": "scf_guess",
+       "label": "SCF guess",
+       "accepts": "one of ORCA's default, PModel, PAtom, Hueckel, HCore",
+       "default": "",
+       "help": "%scf Guess; the default is ORCA's own"
+      },
+      {
+       "name": "tddft_nroots",
+       "label": "TD-DFT roots",
+       "accepts": "int, 0 to 10000",
+       "default": "0",
+       "help": "Excited states for a UV-Vis spectrum; 0 writes no %tddft block"
+      },
+      {
+       "name": "tddft_triplets",
+       "label": "Triplets",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Singlet-triplet excitations as well"
+      },
+      {
+       "name": "tddft_state",
+       "label": "TD-DFT with Opt or Freq",
+       "accepts": "one of Ground state, then the spectrum (two steps), Excited state IRoot (one step)",
+       "default": "ground",
+       "help": "Optimise the ground state and then take its spectrum, in two steps, or optimise excited state IRoot itself"
+      },
+      {
+       "name": "tddft_iroot",
+       "label": "IRoot",
+       "accepts": "int, 1 to 10000",
+       "default": "1",
+       "help": "The excited state followed, counting from 1"
+      },
+      {
+       "name": "tddft_iroot_triplet",
+       "label": "Triplet IRoot",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Follow a triplet root (needs Triplets)"
+      },
+      {
+       "name": "solvation",
+       "label": "Solvation",
+       "accepts": "one of Gas phase, C-PCM, SMD",
+       "default": "",
+       "help": "An implicit solvent, C-PCM or SMD"
+      },
+      {
+       "name": "solvent",
+       "label": "Solvent",
+       "accepts": "text",
+       "default": "water",
+       "help": "Any name of Table 2.56, e.g. water, dmf, thf"
+      },
+      {
+       "name": "nprocs",
+       "label": "Processes (%pal)",
+       "accepts": "int, 1 to 4096",
+       "default": "1",
+       "help": "Above one, a %pal block"
+      },
+      {
+       "name": "maxcore_mb",
+       "label": "Memory per process",
+       "accepts": "int, 0 to 10000000 MB",
+       "default": "0",
+       "help": "%maxcore; 0 writes none"
+      },
+      {
+       "name": "charge",
+       "label": "Charge",
+       "accepts": "int, -1000 to 1000",
+       "default": "0",
+       "help": "Of the atoms written"
+      },
+      {
+       "name": "multiplicity",
+       "label": "Multiplicity",
+       "accepts": "int, 1 to 1000",
+       "default": "1",
+       "help": "2S+1; refused when the electron count cannot have it"
+      },
+      {
+       "name": "extra_keywords",
+       "label": "More keywords",
+       "accepts": "text",
+       "default": "",
+       "help": "Added to the end of the ! line as written"
+      },
+      {
+       "name": "extra_blocks",
+       "label": "More blocks",
+       "accepts": "text",
+       "default": "",
+       "help": "% blocks of your own, written before the coordinates"
+      },
+      {
+       "name": "atoms",
+       "label": "Atoms",
+       "accepts": "text",
+       "default": "",
+       "help": "Cell atom indices to write; blank is the whole cell"
+      },
+      {
+       "name": "name",
+       "label": "File name",
+       "accepts": "text",
+       "default": "",
+       "help": "The .inp and .xyz are named after this"
       }
      ]
     }

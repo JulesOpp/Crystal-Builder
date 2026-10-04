@@ -51,8 +51,10 @@ from xtalapp.viewport import colormaps, styles
 from xtalapp.viewport.scene import CUE_MIN_SPAN, cue_fraction
 from xtalapp.viewport.view_settings import (
     BACKGROUNDS,
+    FOLLOW_THE_SYSTEM,
     PORE_SPHERES,
     RING_COLORS,
+    theme_background,
 )
 
 #: The flat colours that belong to no element: the net a chemist drew
@@ -217,21 +219,27 @@ class StylePanelDock(QDockWidget):
     # -- construction --------------------------------------------------
 
     def _build_global(self) -> ReflowColumns:
-        """The eight groups, in the order one column reads them.
+        """The nine groups, in the order one column reads them.
 
-        Two columns put Drawing and Transparency -- how the atoms are
-        drawn -- on the left, and Show, Scene, Colours and Depth cue --
-        what is drawn with them and around them -- on the right.  One
-        column was 747 px of controls with no heading anywhere, and
-        the thing somebody came to change was always below the fold.
+        Two columns put Drawing, Transparency and Pores -- how the
+        atoms and what was measured among them are drawn -- on the
+        left, and Show, Scene, Colours and the rest -- what is drawn
+        with them and around them -- on the right.  One column was
+        747 px of controls with no heading anywhere, and the thing
+        somebody came to change was always below the fold.
         Scene was on the left until 2026-10, which made that column
-        1250 px against the right's 420.
+        1250 px against the right's 420.  The pore controls were split
+        between Show and Scene until the v1.0 review; they are one
+        group now, on the left under Transparency, where Drawing's
+        rows for other styles no longer take room -- they are hidden
+        under a style they do not apply to rather than greyed.
         """
         self.groups = [self._drawing_group(), self._transparency_group(),
+                       self._pores_group(),
                        self._show_group(), self._scene_group(),
                        self._colours_group(), self._rings_group(),
                        self._color_by_group(), self._depth_cue_group()]
-        return ReflowColumns(self.groups, split=2)
+        return ReflowColumns(self.groups, split=3)
 
     @staticmethod
     def _form(title: str) -> tuple[QGroupBox, QFormLayout]:
@@ -248,6 +256,7 @@ class StylePanelDock(QDockWidget):
 
     def _drawing_group(self) -> QGroupBox:
         box, form = self._form("Drawing")
+        self._drawing_form = form
 
         self.style = QComboBox()
         for name in styles.names():
@@ -354,8 +363,8 @@ class StylePanelDock(QDockWidget):
             "the bonds; off, the sphere shows through them")
         self.box_over_pores.toggled.connect(
             lambda v: self._set(sketch_box_over_pores=v))
-        form.addRow("Carbon", self.carbon)
-        form.addRow("Bonds", self.wedges)
+        form.addRow("Carbon atoms", self.carbon)
+        form.addRow("Bond style", self.wedges)
         form.addRow("", self.color_labels)
         form.addRow("", self.label_box)
         # Indented under the box it qualifies.
@@ -364,6 +373,7 @@ class StylePanelDock(QDockWidget):
         row.setContentsMargins(18, 0, 0, 0)
         row.addWidget(self.box_over_pores)
         form.addRow("", indented)
+        self._box_over_pores_row = indented
         return box
 
     def _transparency_group(self) -> QGroupBox:
@@ -408,6 +418,12 @@ class StylePanelDock(QDockWidget):
         # whatever the picture was.  ``preferences.py`` carries names
         # for the same reason.
         self.background = QComboBox()
+        # Follow the system first, as in View > Background and
+        # Preferences.  Without it the panel read White or Slate over
+        # a view that was following, and picking a colour here left
+        # the view following -- so the next theme change painted over
+        # a colour chosen by hand.
+        self.background.addItem("Follow the system", FOLLOW_THE_SYSTEM)
         for name in BACKGROUNDS:
             self.background.addItem(name.capitalize(), name)
         self.background.addItem("Custom...", CUSTOM_BACKGROUND)
@@ -422,6 +438,30 @@ class StylePanelDock(QDockWidget):
         self.labels.currentIndexChanged.connect(
             lambda: self._set(label_mode=self.labels.currentData()))
         form.addRow("Labels", self.labels)
+
+        return box
+
+    def _pores_group(self) -> QGroupBox:
+        """What a porosity run found, and which of it is drawn: the
+        network, the spheres, and which sphere, cavity and copy."""
+        box, form = self._form("Pores")
+        # The same setting as *View > Show > Pore network*, so either
+        # one ticks the other.  The sphere is not part of it.
+        self.pore_network = QCheckBox("Pore network")
+        self.pore_network.setToolTip(
+            "Draw the channel skeleton and the surface a porosity run "
+            "found")
+        self.pore_network.toggled.connect(
+            lambda v: self._set(show_pores=v))
+        # The sphere, on or off whatever the network is doing.
+        self.pore_sphere_box = QCheckBox("Pore spheres")
+        self.pore_sphere_box.setToolTip(
+            "Draw the pore sphere a porosity run found, with or without "
+            "the network")
+        self.pore_sphere_box.toggled.connect(
+            lambda v: self._set(show_pore_spheres=v))
+        form.addRow(self.pore_network)
+        form.addRow(self.pore_sphere_box)
 
         # Which pore sphere, here rather than in the View menu, because
         # it is a question about how much of a measurement to draw and
@@ -440,7 +480,7 @@ class StylePanelDock(QDockWidget):
         self.pore_spheres.currentIndexChanged.connect(
             lambda: self._set(
                 pore_spheres=self.pore_spheres.currentData()))
-        form.addRow("Pore sphere", self.pore_spheres)
+        form.addRow("Sphere", self.pore_spheres)
         # Which cavity and which copy of it, filled from the network in
         # front: HKUST-1's D_i is at the corner and the face centres,
         # and the cage at the body centre is its second kind.
@@ -464,10 +504,6 @@ class StylePanelDock(QDockWidget):
         form.addRow("Cavity", self.pore_cavity)
         form.addRow("Copy", self.pore_copy)
 
-        self.legend = QCheckBox("Element legend")
-        self.legend.toggled.connect(
-            lambda v: self._set(show_legend=v))
-        form.addRow(self.legend)
         return box
 
     def _show_group(self) -> QGroupBox:
@@ -475,6 +511,11 @@ class StylePanelDock(QDockWidget):
         column = QVBoxLayout(box)
         column.setContentsMargins(*GROUP_MARGINS)
 
+        # The same switches as View > Show, in its order.
+        self.atoms_box = QCheckBox("Atoms")
+        self.atoms_box.toggled.connect(lambda v: self._set(show_atoms=v))
+        self.bonds_box = QCheckBox("Bonds")
+        self.bonds_box.toggled.connect(lambda v: self._set(show_bonds=v))
         self.cell_box = QCheckBox("Unit cell")
         self.cell_box.toggled.connect(lambda v: self._set(show_cell=v))
         self.cell_axes = QCheckBox("Cell axes")
@@ -492,23 +533,11 @@ class StylePanelDock(QDockWidget):
             "underneath")
         self.topology.toggled.connect(
             lambda v: self._set(show_topology=v))
-        # The same setting as *View > Show > Pore network*, so either
-        # one ticks the other.  The sphere is not part of it.
-        self.pore_network = QCheckBox("Pore network")
-        self.pore_network.setToolTip(
-            "Draw the channel skeleton and the surface a porosity run "
-            "found")
-        self.pore_network.toggled.connect(
-            lambda v: self._set(show_pores=v))
-        # The sphere, on or off whatever the network is doing.
-        self.pore_sphere_box = QCheckBox("Pore spheres")
-        self.pore_sphere_box.setToolTip(
-            "Draw the pore sphere a porosity run found, with or without "
-            "the network")
-        self.pore_sphere_box.toggled.connect(
-            lambda v: self._set(show_pore_spheres=v))
-        for check in (self.cell_box, self.cell_axes, self.topology,
-                      self.pore_network, self.pore_sphere_box):
+        self.legend = QCheckBox("Element legend")
+        self.legend.toggled.connect(
+            lambda v: self._set(show_legend=v))
+        for check in (self.atoms_box, self.bonds_box, self.topology,
+                      self.cell_box, self.cell_axes, self.legend):
             column.addWidget(check)
         return box
 
@@ -758,7 +787,9 @@ class StylePanelDock(QDockWidget):
         self.bond_radius.setValue(view.bond_radius)
         self.opacity.setValue(round(view.polyhedron_opacity * 100))
         self._choose(self.labels, view.label_mode)
-        self._choose(self.background, _background_name(view.background))
+        self._choose(self.background,
+                     FOLLOW_THE_SYSTEM if view.background_follows_theme
+                     else _background_name(view.background))
         self._choose(self.ellipsoid_probability,
                      view.ellipsoid_probability)
         ellipsoids = styles.get(view.style).ellipsoids
@@ -780,6 +811,19 @@ class StylePanelDock(QDockWidget):
         # means anything under it.
         self.atom_scale.setEnabled(not labelled)
         self.bond_radius.setEnabled(not labelled)
+        # Hidden as well as greyed: five or six dead rows at the top
+        # of the panel were the first thing anybody opening it saw.
+        form = self._drawing_form
+        for widget, shown in (
+                (self.atom_scale, not labelled),
+                (self.bond_radius, not labelled),
+                (self.ellipsoid_probability, ellipsoids),
+                (self.octants, ellipsoids),
+                (self.carbon, labelled), (self.wedges, labelled),
+                (self.color_labels, labelled),
+                (self.label_box, labelled),
+                (self._box_over_pores_row, labelled)):
+            form.setRowVisible(widget, shown)
         self.depth_cue.setChecked(view.depth_cue)
         self.depth_cue_strength.setValue(
             round(view.depth_cue_strength * 100))
@@ -812,6 +856,8 @@ class StylePanelDock(QDockWidget):
         for spin in (self.color_lo, self.color_hi):
             spin.setEnabled(coloring and view.color_range is not None)
         self.legend.setChecked(view.show_legend)
+        self.atoms_box.setChecked(view.show_atoms)
+        self.bonds_box.setChecked(view.show_bonds)
         self.cell_box.setChecked(view.show_cell)
         self.cell_axes.setChecked(view.show_axes)
         self.topology.setChecked(view.show_topology)
@@ -951,10 +997,16 @@ class StylePanelDock(QDockWidget):
         self._set(depth_cue_end=value / 100.0)
 
     def _on_background(self, _index: int) -> None:
-        """One of the four named backgrounds."""
-        color = BACKGROUNDS.get(self.background.currentData())
+        """One of the four named backgrounds, or following the system."""
+        name = self.background.currentData()
+        if name == FOLLOW_THE_SYSTEM:
+            self._set(background=theme_background(),
+                      background_follows_theme=True)
+            return
+        color = BACKGROUNDS.get(name)
         if color is not None:
-            self._set(background=tuple(color))
+            self._set(background=tuple(color),
+                      background_follows_theme=False)
 
     def _on_custom_background(self, index: int) -> None:
         """*Custom...*, which is a button wearing a combo entry.
@@ -972,7 +1024,8 @@ class StylePanelDock(QDockWidget):
         chosen = QColorDialog.getColor(current, self, "Background")
         if chosen.isValid():
             self._set(background=(chosen.red(), chosen.green(),
-                                  chosen.blue()))
+                                  chosen.blue()),
+                      background_follows_theme=False)
         else:
             self.refresh()              # put the old choice back
 

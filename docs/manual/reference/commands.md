@@ -734,6 +734,16 @@ Write a file for something else to read -- a CIF, an XYZ.  One way: it never bec
 ```{index} Export...
 ```
 
+(cmd-export_net)=
+### Export net for Systre...
+
+`export_net`
+
+The net drawn on this structure as a .cgd file, for Systre to name -- a second opinion on the Net panel that does not come from the code that gave the first
+
+```{index} Export net for Systre...
+```
+
 (cmd-export_image)=
 ### Export Image...
 
@@ -764,34 +774,24 @@ One unit cell with its bonds, lit and rendered by Blender, the scene kept beside
 ```{index} Render in Blender...
 ```
 
-(cmd-export_net)=
-### Export Net for Systre...
-
-`export_net`
-
-The net drawn on this structure as a .cgd file, for Systre to name -- a second opinion on the Net panel that does not come from the code that gave the first
-
-```{index} Export Net for Systre...
-```
-
 (cmd-new_workspace)=
-### New Workspace...
+### New workspace...
 
 `new_workspace`
 
 *No description yet.*
 
-```{index} New Workspace...
+```{index} New workspace...
 ```
 
 (cmd-open_workspace)=
-### Open Workspace...
+### Open workspace...
 
 `open_workspace`
 
 A folder that structures and their calculations live in
 
-```{index} Open Workspace...
+```{index} Open workspace...
 ```
 
 (cmd-close_tab)=
@@ -919,23 +919,23 @@ Suppress the selected bonds, and their whole symmetry orbit
 ## Select
 
 (cmd-select_all)=
-### Select All
+### Select all
 
 `select_all` · Ctrl+A
 
 *No description yet.*
 
-```{index} Select All
+```{index} Select all
 ```
 
 (cmd-select_none)=
-### Select None
+### Select none
 
 `select_none`
 
 Escape, when there is no gesture or mode to leave first
 
-```{index} Select None
+```{index} Select none
 ```
 
 (cmd-invert_selection)=
@@ -969,13 +969,13 @@ Select every bond joining two elements, and no atoms -- so Delete and Bond type 
 ```
 
 (cmd-select_dialog)=
-### Advanced Selection...
+### Advanced selection...
 
 `select_dialog`
 
 Select by label, coordination, what an atom is bonded to, a box, a point, or bonds by length and order -- and add, remove or intersect with what is held
 
-```{index} Advanced Selection...
+```{index} Advanced selection...
 ```
 
 (cmd-expand_bonded)=
@@ -1200,6 +1200,36 @@ Re-perceive the bonds after every edit that moves an atom, instead of only when 
 ```{index} Bonds follow the geometry
 ```
 
+(cmd-assign_eqeq_charges)=
+### Charges ▸ Assign EQeq charges
+
+`assign_eqeq_charges`
+
+Equilibrate charges over the cell (Wilmer, Kim and Snurr 2012) and write them onto the sites, where a CIF's _atom_site_charge and a LAMMPS file's q carry them.  An estimate to look over, as the status bar says
+
+```{index} Assign EQeq charges
+```
+
+(cmd-keep_shown_charges)=
+### Charges ▸ Keep the charges shown
+
+`keep_shown_charges`
+
+Write the charges drawn over the atoms -- a DFTB+ Mulliken run's -- onto the sites, so a save or an export carries them
+
+```{index} Keep the charges shown
+```
+
+(cmd-clear_site_charges)=
+### Charges ▸ Clear the sites' charges
+
+`clear_site_charges`
+
+Take every charge off the sites, oxidation states read from the file included
+
+```{index} Clear the sites' charges
+```
+
 (cmd-mark_connection_points)=
 ### Building blocks ▸ Mark connection points
 
@@ -1253,7 +1283,7 @@ Make a deposited structure one a calculation can use: order the disorder into wh
 (cmd-mode_select)=
 ### Mouse mode ▸ Select
 
-`mode_select` · toggle
+`mode_select` · Ctrl+1 · toggle
 
 click an atom or bond · shift-click to add · double-click for the whole fragment
 
@@ -1263,7 +1293,7 @@ click an atom or bond · shift-click to add · double-click for the whole fragme
 (cmd-mode_box_select)=
 ### Mouse mode ▸ Box select
 
-`mode_box_select` · toggle
+`mode_box_select` · Ctrl+2 · toggle
 
 drag a box over the atoms - shift to add - everything inside is taken, bonds included, front to back
 
@@ -1273,7 +1303,7 @@ drag a box over the atoms - shift to add - everything inside is taken, bonds inc
 (cmd-mode_add_atom)=
 ### Mouse mode ▸ Add atom
 
-`mode_add_atom` · toggle
+`mode_add_atom` · Ctrl+3 · toggle
 
 click to place an atom · click an atom to build from it, then keep clicking to chain · Escape stops
 
@@ -1283,7 +1313,7 @@ click to place an atom · click an atom to build from it, then keep clicking to 
 (cmd-mode_add_bond)=
 ### Mouse mode ▸ Add bond
 
-`mode_add_bond` · toggle
+`mode_add_bond` · Ctrl+4 · toggle
 
 click two atoms to bond them · click a bond to remove it
 
@@ -1293,7 +1323,7 @@ click two atoms to bond them · click a bond to remove it
 (cmd-mode_topology)=
 ### Mouse mode ▸ Draw net
 
-`mode_topology` · toggle
+`mode_topology` · Ctrl+5 · toggle
 
 click two atoms to draw a net edge - click an edge to select it, Del removes it
 
@@ -1303,7 +1333,7 @@ click two atoms to draw a net edge - click an edge to select it, Del removes it
 (cmd-mode_move)=
 ### Mouse mode ▸ Move
 
-`mode_move` · toggle
+`mode_move` · Ctrl+6 · toggle
 
 drag an atom to move it, or any atom of the selection to move all of it - alt-drag turns the selection - shift-alt-drag moves it in depth - the background still turns the crystal
 
@@ -1313,7 +1343,7 @@ drag an atom to move it, or any atom of the selection to move all of it - alt-dr
 (cmd-mode_measure)=
 ### Mouse mode ▸ Measure
 
-`mode_measure` · toggle
+`mode_measure` · Ctrl+7 · toggle
 
 click a bond for its length, or 2 atoms for a distance, 3 for an angle, 4 for a torsion
 
@@ -1393,13 +1423,13 @@ Merge sites of the same element that are the same atom, symmetry images included
 ```
 
 (cmd-invert)=
-### Invert the structure
+### Mirror the structure (change hand)
 
 `invert`
 
 The same crystal in the other hand: the coordinates and the space group together
 
-```{index} Invert the structure
+```{index} Mirror the structure (change hand)
 ```
 
 (cmd-reduce_p1)=
@@ -1768,34 +1798,34 @@ A ruler in the corner, in Angstrom.  It measures the camera and not the crystal,
 ```{index} Scale bar
 ```
 
-(cmd-show_only_selected)=
-### Show Only Selected
-
-`show_only_selected`
-
-Draw the selected atoms and nothing else -- every phenol, say, to see what a substitution did to them.  Only the picture changes: the hidden atoms are still in the structure, and in every calculation and every save
-
-```{index} Show Only Selected
-```
-
-(cmd-show_all)=
-### Show All
-
-`show_all`
-
-Draw every atom again after Show Only Selected
-
-```{index} Show All
-```
-
 (cmd-clear_overlays)=
-### Clear charges and orbital
+### Show ▸ Clear charges and orbital
 
 `clear_overlays`
 
 Take a DFTB+ run's atom colouring and orbital lobes off the picture.  They go by themselves when the atoms move
 
 ```{index} Clear charges and orbital
+```
+
+(cmd-show_only_selected)=
+### Show only selected
+
+`show_only_selected`
+
+Draw the selected atoms and nothing else -- every phenol, say, to see what a substitution did to them.  Only the picture changes: the hidden atoms are still in the structure, and in every calculation and every save
+
+```{index} Show only selected
+```
+
+(cmd-show_all)=
+### Show all
+
+`show_all`
+
+Draw every atom again after Show only selected
+
+```{index} Show all
 ```
 
 (cmd-display_range)=
@@ -1900,18 +1930,148 @@ Frame the whole of what is drawn again
 
 ## Modules
 
+(cmd-module.mof.build)=
+### MOF builder ▸ Build a framework (MOF)...
+
+`module.mof.build`
+
+Pick a net, a node and a linker; the framework opens in a new tab
+
+```{index} Build a framework (MOF)...
+```
+
+(cmd-module.net.draw)=
+### Net builder ▸ Draw a net...
+
+`module.net.draw`
+
+Draw a named RCSR net; it opens in a new tab
+
+```{index} Draw a net...
+```
+
+(cmd-module.build.molecule)=
+### Molecule builder ▸ Build a molecule with the 2D sketcher...
+
+`module.build.molecule`
+
+Build a molecule; it opens in a new tab
+
+```{index} Build a molecule with the 2D sketcher...
+```
+
+(cmd-module.carbon.build)=
+### Disordered carbon builder ▸ Build a disordered carbon...
+
+`module.carbon.build`
+
+Ribbons of carbon along a net, at a density; the result opens in a new tab
+
+```{index} Build a disordered carbon...
+```
+
+(cmd-module.polymer.build)=
+### Polymer builder ▸ Build an amorphous polymer...
+
+`module.polymer.build`
+
+Chains grown into a box at a density; the result opens in a new tab
+
+```{index} Build an amorphous polymer...
+```
+
+(cmd-module.zeopp.diameters)=
+### Porosity ▸ Pore diameters and channels...
+
+`module.zeopp.diameters`
+
+The largest included and free spheres -- D_i, D_f and D_if -- and the channels they run through
+
+```{index} Pore diameters and channels...
+```
+
+(cmd-module.zeopp.surface-area)=
+### Porosity ▸ Surface area...
+
+`module.zeopp.surface-area`
+
+The area a gas molecule can touch, which is what a BET measurement sees
+
+```{index} Surface area...
+```
+
+(cmd-module.zeopp.surface-area-grid)=
+### Porosity ▸ Surface area (faster)...
+
+`module.zeopp.surface-area-grid`
+
+The same area in a second or two rather than several: sampled here on this application's own grid instead of by Zeo++, which it need not have.  A window within a grid step of the probe's size is flagged rather than guessed.
+
+```{index} Surface area (faster)...
+```
+
+(cmd-module.zeopp.volume)=
+### Porosity ▸ Accessible volume...
+
+`module.zeopp.volume`
+
+How much of the cell a gas molecule can occupy, which is the pore volume a paper quotes
+
+```{index} Accessible volume...
+```
+
+(cmd-module.zeopp.volume-grid)=
+### Porosity ▸ Accessible volume (faster)...
+
+`module.zeopp.volume-grid`
+
+The same volume in a second or two -- MFU-4l's occupiable volume is 1.7 s here against 71 s in Zeo++ -- read off this application's own grid.  A window within a grid step of the probe's size is flagged rather than guessed.
+
+```{index} Accessible volume (faster)...
+```
+
+(cmd-module.zeopp.psd)=
+### Porosity ▸ Pore size distribution...
+
+`module.zeopp.psd`
+
+How much of the pore space sits at each diameter, as a histogram
+
+```{index} Pore size distribution...
+```
+
+(cmd-module.pxrd.simulate)=
+### PXRD ▸ Simulate a pattern...
+
+`module.pxrd.simulate`
+
+Calculate a powder diffraction pattern from this structure
+
+```{index} Simulate a pattern...
+```
+
+(cmd-refine_workbench)=
+### PXRD ▸ Refine against a measured pattern...
+
+`refine_workbench`
+
+Fit peaks and refine against a measured .xy pattern, in a window of its own; the runs go under the structure in front, or under the pattern's name if none is open
+
+```{index} Refine against a measured pattern...
+```
+
 (cmd-show_ff)=
-### Forcefield ▸ Force Field panel
+### Force Field ▸ Setup and atom types...
 
 `show_ff`
 
 Atom types, electrostatics, and how the run is going
 
-```{index} Force Field panel
+```{index} Setup and atom types...
 ```
 
 (cmd-single_point)=
-### Forcefield ▸ Single point energy
+### Force Field ▸ Single point energy
 
 `single_point` · Ctrl+E
 
@@ -1921,7 +2081,7 @@ Energy and per-term breakdown at this geometry
 ```
 
 (cmd-optimize)=
-### Forcefield ▸ Optimise geometry
+### Force Field ▸ Optimise geometry
 
 `optimize` · Ctrl+Shift+E
 
@@ -1941,23 +2101,23 @@ Hamiltonian, parameter set, dispersion, and how the run is going
 ```
 
 (cmd-dftb_single_point)=
-### DFTB+ ▸ DFTB+: Single point energy
+### DFTB+ ▸ Single point energy
 
 `dftb_single_point`
 
 Energy and per-term breakdown at this geometry, through DFTB+
 
-```{index} DFTB+: Single point energy
+```{index} Single point energy
 ```
 
 (cmd-dftb_optimize)=
-### DFTB+ ▸ DFTB+: Optimise geometry
+### DFTB+ ▸ Optimise geometry
 
 `dftb_optimize`
 
 Relax the structure within its space group, through DFTB+
 
-```{index} DFTB+: Optimise geometry
+```{index} Optimise geometry
 ```
 
 (cmd-module.dftb.band-structure)=
@@ -2001,13 +2161,13 @@ One state as its two lobes, through waveplot; needs the parameter set's wfc.*.hs
 ```
 
 (cmd-module.dftb.relax)=
-### DFTB+ ▸ Optimise with DFTB+'s driver...
+### DFTB+ ▸ Optimise (DFTB+ driver)...
 
 `module.dftb.relax`
 
 One DFTB+ run relaxes the atoms, and the cell if asked; the answer is mapped back onto the space group
 
-```{index} Optimise with DFTB+'s driver...
+```{index} Optimise (DFTB+ driver)...
 ```
 
 (cmd-module.dftb.modes)=
@@ -2058,136 +2218,6 @@ Compress and expand the cell with the shape free and fit an equation of state: B
 An ORCA input and the coordinates it reads, in a run folder: the functional, basis, job and blocks chosen here, the charge and multiplicity checked against the electrons
 
 ```{index} Input file...
-```
-
-(cmd-module.mof.build)=
-### MOF builder ▸ Build a framework...
-
-`module.mof.build`
-
-Pick a net, a node and a linker; the framework opens in a new tab
-
-```{index} Build a framework...
-```
-
-(cmd-module.net.draw)=
-### Net builder ▸ Draw a net...
-
-`module.net.draw`
-
-Draw a named RCSR net; it opens in a new tab
-
-```{index} Draw a net...
-```
-
-(cmd-module.build.molecule)=
-### Molecule builder ▸ Molecule from SMILES...
-
-`module.build.molecule`
-
-Build a molecule; it opens in a new tab
-
-```{index} Molecule from SMILES...
-```
-
-(cmd-module.carbon.build)=
-### Disordered carbon builder ▸ Build a disordered carbon...
-
-`module.carbon.build`
-
-Ribbons of carbon along a net, at a density; the result opens in a new tab
-
-```{index} Build a disordered carbon...
-```
-
-(cmd-module.polymer.build)=
-### Polymer builder ▸ Build amorphous polymer...
-
-`module.polymer.build`
-
-Chains grown into a box at a density; the result opens in a new tab
-
-```{index} Build amorphous polymer...
-```
-
-(cmd-module.zeopp.diameters)=
-### Porosity ▸ Pore diameters and channels...
-
-`module.zeopp.diameters`
-
-Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set) -- it is at https://www.zeoplusplus.org/
-
-```{index} Pore diameters and channels...
-```
-
-(cmd-module.zeopp.surface-area)=
-### Porosity ▸ Surface area...
-
-`module.zeopp.surface-area`
-
-Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set) -- it is at https://www.zeoplusplus.org/
-
-```{index} Surface area...
-```
-
-(cmd-module.zeopp.surface-area-grid)=
-### Porosity ▸ Surface area (faster)...
-
-`module.zeopp.surface-area-grid`
-
-The same area in a second or two rather than several: sampled here on this application's own grid instead of by Zeo++, which it need not have.  A window within a grid step of the probe's size is flagged rather than guessed.
-
-```{index} Surface area (faster)...
-```
-
-(cmd-module.zeopp.volume)=
-### Porosity ▸ Accessible volume...
-
-`module.zeopp.volume`
-
-Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set) -- it is at https://www.zeoplusplus.org/
-
-```{index} Accessible volume...
-```
-
-(cmd-module.zeopp.volume-grid)=
-### Porosity ▸ Accessible volume (faster)...
-
-`module.zeopp.volume-grid`
-
-The same volume in a second or two -- MFU-4l's occupiable volume is 1.7 s here against 71 s in Zeo++ -- read off this application's own grid.  A window within a grid step of the probe's size is flagged rather than guessed.
-
-```{index} Accessible volume (faster)...
-```
-
-(cmd-module.zeopp.psd)=
-### Porosity ▸ Pore size distribution...
-
-`module.zeopp.psd`
-
-Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set) -- it is at https://www.zeoplusplus.org/
-
-```{index} Pore size distribution...
-```
-
-(cmd-module.pxrd.simulate)=
-### PXRD ▸ Simulate a pattern...
-
-`module.pxrd.simulate`
-
-Calculate a powder diffraction pattern from this structure
-
-```{index} Simulate a pattern...
-```
-
-(cmd-refine_workbench)=
-### PXRD ▸ Refine against a measured pattern...
-
-`refine_workbench`
-
-Fit peaks and refine against a measured .xy pattern, in a window of its own; the runs go under the structure in front, or under the pattern's name if none is open
-
-```{index} Refine against a measured pattern...
 ```
 
 ## Window
@@ -2245,13 +2275,13 @@ Let an assistant such as Claude Code work in this window: the tabs open here are
 ```
 
 (cmd-show_log)=
-### Show Log
+### Show log file
 
 `show_log`
 
 Reveal the file this application writes its warnings and its crashes to
 
-```{index} Show Log
+```{index} Show log file
 ```
 
 (cmd-about)=
@@ -2297,13 +2327,13 @@ Show the selected file or run folder in the desktop's own file browser.
 ```
 
 (cmd-workspace_copy_path)=
-### Copy Path
+### Copy path
 
 `workspace_copy_path`
 
 Put the full path of what is selected on the clipboard, for a script or a terminal.
 
-```{index} Copy Path
+```{index} Copy path
 ```
 
 (cmd-workspace_rename)=

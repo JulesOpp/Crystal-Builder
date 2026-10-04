@@ -90,3 +90,16 @@ def test_a_copy_of_the_settings_does_not_share_the_ring_colours():
     copy = view.copy()
     copy.ring_colors[5] = (4, 5, 6)
     assert view.ring_color(5) == (1, 2, 3)
+
+
+def test_a_refused_ring_search_is_said_in_the_legend():
+    """Rings ticked over a graph too dense to search draws no faces
+    and says why, legend or no legend -- nothing at all would read as
+    a crystal without rings."""
+    cscl = Structure(lattice=Lattice.cubic(4.12), sites=[
+        Site("Cs", np.array([0.0, 0.0, 0.0])),
+        Site("Cl", np.array([0.5, 0.5, 0.5]))])
+    scene = build_scene(cscl, ViewSettings(show_rings=True,
+                                           show_legend=False))
+    assert scene.n_ring_faces == 0
+    assert scene.legend[-1][0] == "Rings: too dense to search"

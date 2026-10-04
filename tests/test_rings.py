@@ -88,3 +88,35 @@ def test_a_ring_stays_whole_when_an_atom_crosses_a_cell_face():
             corners - np.roll(corners, 1, axis=0), axis=1)
         assert steps.max() < 1.5
         assert ring[0][1] == (0, 0, 0)
+
+
+def _cscl():
+    """Eight bonds an atom, every one a ring of four through a face."""
+    return Structure(lattice=Lattice.cubic(4.12), sites=[
+        Site("Cs", np.array([0.0, 0.0, 0.0])),
+        Site("Cl", np.array([0.5, 0.5, 0.5]))])
+
+
+def test_a_graph_too_dense_to_search_is_refused_and_remembered():
+    """CsCl's two atoms have millions of paths of eight, and the
+    deposited Ni2Cl2BTDD (sites written twice) took the window past
+    1.3 GB without finishing.  Fails if the search has no budget, or
+    if the refusal is not memoised -- a scene is rebuilt on every
+    edit, and each one would pay the whole budget again."""
+    import time
+
+    cscl = _cscl()
+    start = time.perf_counter()
+    try:
+        rings.rings_of(cscl)
+    except rings.TooDense as refusal:
+        assert "Prepare for simulation" in str(refusal)
+    else:
+        raise AssertionError("CsCl was searched to the end")
+    first = time.perf_counter() - start
+    start = time.perf_counter()
+    try:
+        rings.rings_of(cscl)
+    except rings.TooDense:
+        pass
+    assert time.perf_counter() - start < first / 10

@@ -608,3 +608,25 @@ def test_the_estimate_counts_the_pre_relaxation_steps(quartz,
     used = sc.plan(quartz, cell_axes, direction="forward")
     assert sc.estimate(used, 1.0, 500, 500) == pytest.approx(
         2 * sc.estimate(used, 1.0, 500))
+
+
+@pytest.mark.slow
+def test_a_held_volume_is_the_volume_asked_for_when_the_shape_moves_far():
+    """The optimiser holds a volume to first order: a traceless strain
+    keeps it at the cell the strain is measured from, and loses it as
+    the strain squared.  MIL-53 breathing at 700 A^3 came out at 680,
+    and marked converged.  Fails if a point is handed back off its
+    volume, or counted converged when it is."""
+    from pathlib import Path
+
+    from xtal.io.cif_reader import read_cif
+
+    mil53 = read_cif(Path(__file__).resolve().parent.parent
+                     / "resources" / "samples" / "prepared"
+                     / "MIL-53.cif")
+    target = mil53.lattice.volume * 0.75
+    axes = [sc.Axis.over(co.CellVolume(), target, target, 1)]
+    result = _run(mil53, axes, method="smart", max_steps=300)
+    point = result.points[0]
+    assert point.finished
+    assert point.volume == pytest.approx(target, rel=1e-3)

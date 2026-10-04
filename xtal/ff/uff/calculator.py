@@ -213,6 +213,10 @@ class UFFCalculator(Calculator):
         si_out, sk_out = [], []
         force, c0, c1, c2, form = [], [], [], [], []
         geminal = set()
+        # A framework has a handful of distinct (types, orders) and
+        # tens of thousands of angles: 102 240 constants were 0.85 s
+        # on Ni2Cl2BTDD, nearly all of them repeats.
+        constants: dict = {}
 
         for centre in range(self.n_atoms):
             partners = self._adjacency[centre]
@@ -235,9 +239,13 @@ class UFFCalculator(Calculator):
                     k_out.append(ib)
                     si_out.append(ta)
                     sk_out.append(tb)
-                    force.append(terms.angle_force_constant(
-                        names[ia], names[centre], names[ib], theta0,
-                        orders[bond_a], orders[bond_b]))
+                    key = (names[ia], names[centre], names[ib],
+                           theta0, orders[bond_a], orders[bond_b])
+                    value = constants.get(key)
+                    if value is None:
+                        value = constants[key] = (
+                            terms.angle_force_constant(*key))
+                    force.append(value)
                     c0.append(k0)
                     c1.append(k1)
                     c2.append(k2)
@@ -279,11 +287,14 @@ class UFFCalculator(Calculator):
             for (i, t_ji, _b1) in near:
                 if i == k and np.array_equal(t_ji, t_jk):
                     continue
+                ji = t_ji.tolist()
                 for (m, t_kl, _b2) in far:
                     t_jl = t_jk + t_kl
-                    if m == j and np.allclose(t_jl, 0.0):
+                    # Plain floats with np.allclose's tolerances: 48 000
+                    # calls of it were a second of Ni2Cl2BTDD's build.
+                    if m == j and _near_zero(t_jl.tolist()):
                         continue
-                    if i == m and np.allclose(t_ji, t_jl):
+                    if i == m and _close(ji, t_jl.tolist()):
                         continue
                     i_out.append(i)
                     j_out.append(j)
@@ -518,6 +529,18 @@ class UFFCalculator(Calculator):
 # ======================================================================
 #  HELPERS
 # ======================================================================
+
+def _near_zero(v) -> bool:
+    """``np.allclose(v, 0.0)`` for a 3-vector, without the machinery."""
+    return all(abs(x) <= 1e-8 for x in v)
+
+
+def _close(a, b) -> bool:
+    """``np.allclose(a, b)`` for two 3-lists: ``|a - b| <= atol +
+    rtol * |b|`` with numpy's defaults."""
+    return all(abs(x - y) <= 1e-8 + 1e-5 * abs(y)
+               for x, y in zip(a, b, strict=True))
+
 
 def _adjacency(graph) -> list[list[tuple]]:
     """``atom -> [(neighbour, translation, bond index)]``.

@@ -434,3 +434,19 @@ def test_the_refusal_distance_is_the_one_the_pair_list_drops_at():
             .parameters["min_distance"].default is MIN_SEPARATION)
     assert "MIN_SEPARATION" in inspect.getsource(
         registry._refuse_coincident)
+
+
+@pytest.mark.parametrize("a, b", [
+    ([0, 0, 0], [0, 0, 0]),
+    ([1, 0, -1], [1, 0, -1]),
+    ([1, 0, -1], [1, 0, 1]),
+    ([1.0, 2.0, 3.0], [1.0 + 5e-9, 2.0, 3.0]),
+    ([1.0, 2.0, 3.0], [1.0 + 5e-5, 2.0, 3.0]),
+    ([0.0, 0.0, 0.0], [2e-8, 0.0, 0.0]),
+])
+def test_the_plain_float_tests_say_what_allclose_says(a, b):
+    """The torsion walk swapped np.allclose for these to save a second
+    on a framework; a different verdict would drop or keep a dihedral."""
+    from xtal.ff.uff.calculator import _close, _near_zero
+    assert _close(a, b) == bool(np.allclose(a, b))
+    assert _near_zero(b) == bool(np.allclose(b, 0.0))

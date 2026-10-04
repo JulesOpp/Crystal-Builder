@@ -37,6 +37,28 @@ DEFAULT_MAX_SIZE = 8
 #: which on a dense framework is minutes rather than seconds.
 LARGEST = 12
 
+#: How many paths the walk may extend before it stops, as a floor and
+#: a share per atom.  Every framework in ``resources/samples`` needs
+#: under 140 000 at eight (NU-1000, 558 atoms, is the most), NaCl
+#: 660 000; Ni2Cl2BTDD as deposited -- symmetry copies written as
+#: sites, 1152 atoms stacked on 378 places -- went past five million
+#: and 1.3 GB in two minutes without finishing, on the GUI thread, and
+#: so does a 2-atom CsCl cell.  A graph that dense has no rings
+#: anybody would draw, so it is refused rather than searched.
+BUDGET_FLOOR = 1_000_000
+BUDGET_PER_ATOM = 500
+
+
+class TooDense(ValueError):
+    """The graph has more paths than a ring search will walk."""
+
+    def __init__(self, n_atoms: int):
+        super().__init__(
+            f"The bond graph of these {n_atoms} atoms is too dense to "
+            "search for rings; Prepare for simulation merges sites "
+            "written twice, which is the usual cause.")
+        self.n_atoms = n_atoms
+
 
 def primitive(cell, graph, max_size: int = DEFAULT_MAX_SIZE) -> list:
     """Shortest-path rings of at most ``max_size`` atoms.
@@ -54,11 +76,12 @@ def primitive(cell, graph, max_size: int = DEFAULT_MAX_SIZE) -> list:
         for i in candidates}
     reach: dict[int, dict] = {}
     depth = max_size // 2
-    return [ring for ring in _cycles(adjacency, max_size)
+    budget = BUDGET_FLOOR + BUDGET_PER_ATOM * len(candidates)
+    return [ring for ring in _cycles(adjacency, max_size, budget)
             if _is_primitive(ring, adjacency, reach, depth)]
 
 
-def _cycles(adjacency, max_size) -> list:
+def _cycles(adjacency, max_size, budget=None) -> list:
     """Every simple cycle of at most ``max_size`` atoms that closes
     with no net translation, once.
 
@@ -70,9 +93,13 @@ def _cycles(adjacency, max_size) -> list:
     price is that one ring is then found from each copy of its lowest
     atom, so the copies are told apart by moving each ring home
     (:func:`_translated_home`).
+
+    Raises :class:`TooDense` once more than ``budget`` paths have been
+    extended.
     """
     rings: list = []
     seen: set = set()
+    left = budget
     for start in sorted(adjacency):
         origin = (start, (0, 0, 0))
         stack = [[origin]]
@@ -94,6 +121,10 @@ def _cycles(adjacency, max_size) -> list:
                     continue
                 if nxt in path:
                     continue
+                if left is not None:
+                    left -= 1
+                    if left < 0:
+                        raise TooDense(len(adjacency))
                 stack.append([*path, nxt])
     return rings
 
@@ -155,6 +186,10 @@ def rings_of(structure, rules=None,
     """:func:`primitive` over ``structure``'s P1 cell and stored graph,
     memoised until the chemistry changes.
 
+    Raises :class:`TooDense` for a graph too dense to search, and
+    remembers that too: the refusal costs the whole budget, and a
+    scene is rebuilt on every edit.
+
     A drag moves atoms and keeps every ring, so a positions-only edit
     keeps the answer too -- read against the cell's wrap *now*, as
     :class:`_Found` says.
@@ -164,8 +199,11 @@ def rings_of(structure, rules=None,
 
     def build():
         cell = p1.expand(structure)
-        return _Found(primitive(cell, bonding.graph(structure, rules),
-                                max_size), cell.tau)
+        try:
+            return _Found(primitive(cell, bonding.graph(structure, rules),
+                                    max_size), cell.tau)
+        except TooDense as refusal:
+            return _Refused(refusal, cell.n_atoms)
 
     cell = p1.expand(structure)
     found = structure.cached(key, build, invalidated_by=CHEMISTRY)
@@ -175,6 +213,17 @@ def rings_of(structure, rules=None,
         structure.drop_cache(key)
         found = structure.cached(key, build, invalidated_by=CHEMISTRY)
     return found.at(cell.tau)
+
+
+class _Refused:
+    """A search that ran out of budget, kept so it is not run again."""
+
+    def __init__(self, refusal: TooDense, n_atoms: int):
+        self.refusal = refusal
+        self.tau = range(n_atoms)
+
+    def at(self, _tau) -> list:
+        raise self.refusal
 
 
 class _Found:

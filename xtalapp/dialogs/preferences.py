@@ -143,7 +143,7 @@ class GeneralPage(QWidget):
             "a CIF becomes the project beside it on its first save, "
             "and that CIF is left where it is."))
         row = QHBoxLayout()
-        row.addWidget(QLabel("Keep unsaved changes every"))
+        row.addWidget(QLabel("Autosave unsaved changes every"))
         self.autosave_minutes = QSpinBox()
         self.autosave_minutes.setRange(0, 60)
         self.autosave_minutes.setSuffix(" min")

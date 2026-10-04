@@ -129,7 +129,7 @@ def test_modules_of_one_kind_sit_together_between_separators(window):
     kinds = [run[0] for run in runs]
     assert len(kinds) == len(set(kinds))
     # No "export": Blender's two entries are in File and nowhere else.
-    assert kinds[:3] == ["energy", "build", "characterise"]
+    assert kinds[:3] == ["build", "characterise", "energy"]
 
 
 def _submenu(menu, title):
@@ -149,16 +149,16 @@ def _submenu(menu, title):
 
 
 def test_the_three_forcefield_entries_moved_unchanged(window):
-    forcefield = _submenu(window.modules_menu, "Forcefield")
+    forcefield = _submenu(window.modules_menu, "Force Field")
     entries = [a.text() for a in forcefield.actions()]
-    assert entries == ["&Force Field panel", "&Single point energy",
+    assert entries == ["&Setup and atom types...", "&Single point energy",
                        "&Optimise geometry"]
     # And they are the very same actions, not copies of them.
     assert forcefield.actions()[1] is window.actions_["single_point"]
 
 
 def test_the_shortcuts_followed_the_entries_into_the_menu(window):
-    forcefield = _submenu(window.modules_menu, "Forcefield")
+    forcefield = _submenu(window.modules_menu, "Force Field")
     shortcuts = {s.toString() for a in forcefield.actions()
                  for s in a.shortcuts()}
     assert QKeySequence("Ctrl+E").toString() in shortcuts

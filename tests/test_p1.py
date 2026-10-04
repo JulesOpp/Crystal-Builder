@@ -49,6 +49,18 @@ def test_parent_coordinates_inverts_the_image(quartz):
         assert np.allclose(d - np.round(d), 0.0, atol=1e-10)
 
 
+def test_parent_coordinates_many_agrees_with_one_at_a_time(quartz):
+    """The batch inverts once per operation; each answer must still be
+    the one the per-atom call gives, or a drag slides sideways."""
+    cell = p1.expand(quartz)
+    atoms = np.arange(cell.n_atoms)
+    target = cell.frac + np.array([0.01, -0.02, 0.03])
+    many = p1.parent_coordinates_many(quartz, cell, atoms, target)
+    for k in atoms:
+        one = p1.parent_coordinates(quartz, cell, k, target[k])
+        assert np.allclose(many[k], one, atol=1e-12)
+
+
 def test_moving_an_image_moves_the_whole_orbit(rutile):
     """The mechanism behind symmetry-aware dragging: drop an image at a
     new position, map it back to the parent, and every image follows.

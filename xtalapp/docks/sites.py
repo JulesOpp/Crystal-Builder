@@ -42,6 +42,10 @@ NO_PARENT = QModelIndex()
 # Rows sampled when sizing a column to its contents.
 RESIZE_SAMPLE_ROWS = 30
 EDITABLE = {0, 1, 2, 3, 4, 5, 6}
+# Built once: Qt asks for the flags of every cell on a select-all, 88 000
+# calls on a 17 496-site P1 structure, and the enum arithmetic was 1 s.
+_READ_ONLY_FLAGS = Qt.ItemIsEnabled | Qt.ItemIsSelectable
+_EDITABLE_FLAGS = _READ_ONLY_FLAGS | Qt.ItemIsEditable
 
 
 class SiteTableModel(QAbstractTableModel):
@@ -150,10 +154,9 @@ class SiteTableModel(QAbstractTableModel):
         return None
 
     def flags(self, index):
-        base = Qt.ItemIsEnabled | Qt.ItemIsSelectable
         if index.column() in EDITABLE:
-            return base | Qt.ItemIsEditable
-        return base
+            return _EDITABLE_FLAGS
+        return _READ_ONLY_FLAGS
 
     # -- writing -------------------------------------------------------
 
@@ -198,6 +201,8 @@ class SitesDock(QDockWidget):
         self.setObjectName("SitesDock")
         self.document = None
         self._syncing = False
+        # A selection that changed while the table was not on screen.
+        self._stale = False
 
         self.model = SiteTableModel(parent=self)
         self.table = QTableView()
@@ -239,18 +244,42 @@ class SitesDock(QDockWidget):
         """
         if self.document is None:
             return
+        # A dock tabbed behind another is not looked at, and building
+        # the selection of a 17 496-site table is seconds; showEvent
+        # catches it up when it is raised.
+        if not self.isVisibleTo(self.window()):
+            self._stale = True
+            return
+        self._stale = False
         self._syncing = True
         rows = sorted(self.document.selected_sites())
         last = self.model.columnCount() - 1
         chosen = QItemSelection()
+        # Consecutive rows are one range: select-all is one, where a
+        # range a row made Qt merge 17 496 of them.
+        start = previous = None
         for row in rows:
-            chosen.select(self.model.index(row, 0),
-                          self.model.index(row, last))
+            if start is None:
+                start = previous = row
+            elif row == previous + 1:
+                previous = row
+            else:
+                chosen.select(self.model.index(start, 0),
+                              self.model.index(previous, last))
+                start = previous = row
+        if start is not None:
+            chosen.select(self.model.index(start, 0),
+                          self.model.index(previous, last))
         self.table.selectionModel().select(
             chosen, QItemSelectionModel.ClearAndSelect)
         if rows:
             self.table.scrollTo(self.model.index(rows[0], 0))
         self._syncing = False
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        if self._stale:
+            self.sync_selection()
 
     def _on_rows_selected(self, *_args) -> None:
         if self._syncing or self.document is None:

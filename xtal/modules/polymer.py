@@ -305,7 +305,7 @@ POLYMER = Module(
     check=available,
     provides=frozenset({"structure", "table"}),
     actions=(
-        Action(name="build", label="Build amorphous polymer...",
+        Action(name="build", label="Build an amorphous polymer...",
                tip="Chains grown into a box at a density; the result "
                    "opens in a new tab",
                kind="build",

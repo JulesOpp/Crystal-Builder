@@ -119,13 +119,13 @@ class SymmetryActions:
         group = document.structure.space_group
         if group.is_centrosymmetric:
             QMessageBox.information(
-                self, "Invert the structure",
+                self, "Mirror the structure",
                 f"{group.short_name} is centrosymmetric, so inversion "
                 f"is already one of its operations and the structure "
                 f"you would get is the one you already have.")
             return
         answer = QMessageBox.question(
-            self, "Invert the structure",
+            self, "Mirror the structure",
             f"{report.message}.\n\nThe cell is unchanged; the "
             f"coordinates and the space group both move. Continue?",
             QMessageBox.Yes | QMessageBox.No)

@@ -217,7 +217,7 @@ DFTB = Module(
     description="Density-functional tight binding: atom types have "
                 "no place in it, but the energy, the forces and the "
                 "geometry optimisation are asked for the same way.",
-    order=11, group="energy",
+    order=41, group="energy",
     check=_available,
     provides=frozenset({"energy", "forces", "structure",
                         "trajectory"}),
@@ -251,7 +251,7 @@ DFTB = Module(
                    "needs the parameter set's wfc.*.hsd",
                params=ORBITAL_PARAMS, run=_orbital, dialog="dftb-run",
                kind="orbital", check=_waveplot),
-        Action(name="relax", label="Optimise with DFTB+'s driver...",
+        Action(name="relax", label="Optimise (DFTB+ driver)...",
                tip="One DFTB+ run relaxes the atoms, and the cell if "
                    "asked; the answer is mapped back onto the space "
                    "group",

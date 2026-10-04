@@ -134,3 +134,49 @@ def pattern_window() -> None:
 
 pore_surface()
 pattern_window()
+
+
+def refinement_workbench() -> None:
+    """The refinement workbench over NaCl with a synthetic pattern
+    loaded and its lines found (the refine extra).
+
+    No measured pattern ships with the application, so the "measured"
+    one is calculated by RietX from the structure, with Poisson noise
+    on a flat background, as the test suite's fixture does.
+    """
+    import tempfile
+
+    import numpy as np
+
+    from xtal.io.xy import write_xy
+    from xtal.powder import bridge
+    from xtal.powder.data import Radiation
+
+    doc = _open(SAMPLES / "simple" / "NaCl.cif")
+    two_theta = np.arange(20.0, 80.0, 0.02)
+    y = bridge.predict(doc.structure, Radiation("cu"), two_theta)
+    counts = np.random.default_rng(0).poisson(y / y.max() * 5000 + 100)
+    path = write_xy(two_theta, counts,
+                    Path(tempfile.mkdtemp()) / "nacl.xy",
+                    header="synthetic NaCl, Cu Ka1+Ka2")
+    win.actions_["refine_workbench"].trigger()              # noqa: F821
+    bench = win._workbenches[id(win.current_document())]    # noqa: F821
+    bench.load_pattern(str(path))
+    settle(600)                                             # noqa: F821
+    bench.run_step()
+    import time
+    deadline = time.monotonic() + 120
+    while bench.worker is not None:
+        app.processEvents()                                 # noqa: F821
+        if time.monotonic() > deadline:
+            raise TimeoutError("the peak step did not finish")
+    settle(900)                                             # noqa: F821
+    bench.resize(1300, 860)
+    bench.show()
+    settle(900)                                             # noqa: F821
+    out = _out("refinement-workbench")
+    _save(bench.grab(), out)
+    bench.close()
+
+
+refinement_workbench()

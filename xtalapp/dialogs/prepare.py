@@ -34,6 +34,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.core import prepare
+from xtalapp import manual
 from xtalapp.dialogs.answered import answered
 from xtalapp.widgets import tone
 
@@ -46,8 +47,12 @@ class PrepareDialog(QDialog):
         self.setWindowTitle("Prepare for simulation")
         self.document = document
 
-        self.found = QLabel(document.diagnose_preparation().text())
+        diagnosis = document.diagnose_preparation()
+        self.found = QLabel(diagnosis.text())
         self.found.setWordWrap(True)
+        # With nothing found, the headline under the boxes says so;
+        # saying it above them too read as the dialog repeating itself.
+        self.found.setVisible(bool(diagnosis))
 
         self.boxes = {}
         layout = QVBoxLayout(self)
@@ -75,6 +80,7 @@ class PrepareDialog(QDialog):
 
         self.buttons = QDialogButtonBox(QDialogButtonBox.Ok
                                         | QDialogButtonBox.Cancel)
+        manual.add_help_button(self.buttons, "structure/prepare")
         self.buttons.button(QDialogButtonBox.Ok).setText("Prepare")
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)
@@ -97,7 +103,8 @@ class PrepareDialog(QDialog):
                 self.steps())
         finally:
             QApplication.restoreOverrideCursor()
-        self.headline.setText(report.message)
+        message = report.message
+        self.headline.setText(message[:1].upper() + message[1:])
         self.caution.setText("\n\n".join(report.cautions))
         self.caution.setVisible(bool(report.cautions))
         chosen = [s for s in prepare.STEPS if s in self.steps()]
