@@ -38,12 +38,44 @@ to install:
 RDKit is not installed, so there is nothing to build a molecule from -- "<python>" -m pip install -e "<source checkout>[build]"
 ```
 
-A second extra, `sketch`, adds a drawable canvas
-(rdeditor, <https://github.com/EBjerrum/rdeditor>) to the dialog;
-without it the picture is a read-only depiction and the dialog says
-so underneath.  The two are separate because RDKit is a library and
-the editor brings a widget toolkit with it, which somebody turning
-SMILES into structures on a cluster node must not be handed.
+### The sketcher
+
+The canvas under the string is a sketcher, and needs nothing beyond
+`build`.  What is drawn is the string, and what is typed is drawn:
+
+- **Click** the page to place the chosen element, an atom to grow a
+  bond from it (or change it to the chosen element), a bond to cycle
+  single, double, triple.  **Drag** out of an atom to draw a bond.
+- **Any element**: the common ones are buttons, the periodic table
+  button gives the rest, transition metals included.
+- **Hover an atom and type** its new symbol.  A second letter typed
+  quickly makes a two-letter element (C then l is Cl), as one undo
+  step.  `1`, `2`, `3` over a bond set its order; `+` and `-` set a
+  charge; `*` makes a connection point.
+- **Ctrl+A** selects every atom and bond, and a tool chosen with a
+  selection applies to all of it: Ctrl+A then *Double* makes every
+  bond double.  Delete removes the selection.
+- **Rings** of 3 to 8 and benzene go on the empty page, on a lone
+  atom (which becomes a corner), off an atom with bonds (as a
+  substituent), or fused onto a bond.
+- **Dative** bonds point from donor to metal.  An ordinary bond to a
+  metal is drawn as what it is, so `N` on platinum is an amido NH2;
+  an ammine is a dative bond, or an H count of three set with *H+*.
+
+### Metals
+
+A metal is built with the shape of its coordination: four neighbours
+are square planar for Ni, Pd, Pt, Au, Rh, Ir and Cu and tetrahedral
+otherwise; five are a square pyramid when one of them is a metal (a
+paddlewheel) and a trigonal bipyramid otherwise; two, three, six,
+seven and eight are linear, trigonal, octahedral, pentagonal
+bipyramidal and square antiprismatic.  **Right-click a metal** to
+choose another shape.  The metal and the atoms bonded to it are placed
+on the shape first and the rest of the molecule is grown round them,
+then relaxed with UFF4MOF holding the shape.  A molecule that cannot
+be built within a few degrees of its shapes is refused with a reason,
+never handed over bent, and so is a metal bonded to every atom of a
+ring (a sandwich), which has no shape here.
 
 ### Connection points
 

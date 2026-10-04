@@ -72,8 +72,8 @@ Bundled and working, with nothing to install:
   into the application, with its 867 building blocks and the RCSR
   topologies, so a framework from a net, a node and a linker needs
   nothing else.
-- **RDKit and rdeditor**, so *Build from SMILES* and the molecule
-  sketcher both work.
+- **RDKit**, so *Build from SMILES* and the molecule sketcher both
+  work.
 - **matplotlib** {cite}`hunter2007matplotlib`, for the PXRD pattern
   window.
 
@@ -132,7 +132,7 @@ whether an environment works.
 | `gui` | PySide6, VTK | The window itself |
 | `ase` | ASE {cite}`larsen2017ase` | The MOF builder; PORMAKE is written over it |
 | `build` | RDKit | *Insert molecule*, a molecule from a SMILES string, and the fragment library |
-| `sketch` | rdeditor | Drawing the molecule instead of typing it |
+| `sketch` | (none) | The old name for `build`, kept so an install line written before still works |
 | `pxrd` | matplotlib | The PXRD pattern window: zoom, an overlaid measured pattern, vector export |
 | `mace` | mace-torch | The MACE engine {cite}`batatia2022mace`.  Brings PyTorch |
 | `orb` | orb-models | The ORB-v3 engine {cite}`rhodes2025orbv3`.  Brings PyTorch |

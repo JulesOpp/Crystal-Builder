@@ -189,8 +189,8 @@ the Preferences page are listed under {ref}`external-programs`.
 
 ## Optional Python packages
 
-The MOF builder needs `ase`, the molecule builder RDKit, the sketcher
-rdeditor, the PXRD window matplotlib, and each machine-learned engine
+The MOF builder needs `ase`, the molecule builder and its sketcher
+RDKit, the PXRD window matplotlib, and each machine-learned engine
 its own extra.  The rule for detecting them is the same everywhere in
 the tree, and the repository states it as an invariant: **the check is
 `find_spec` and never an import**.  The reason is in the checks
