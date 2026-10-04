@@ -18,7 +18,7 @@ asked about, not crash -- and for files that must never be lost.
   terminated sheet that follows a net, at the density asked for, with
   Stone-Wales defects and the rings Gauss-Bonnet fixes said up front.
   `xtal run carbon.build` does the same from a script.
-- **Amorphous polymers**: *Modules ▸ Build amorphous polymer…* packs
+- **Amorphous polymers**: *Modules ▸ Build an amorphous polymer…* packs
   chains of a monomer -- eleven in the library, a starred SMILES, the
   sketch, or one drawn and saved with *Structure ▸ Building blocks ▸
   Save as a monomer…* -- into a periodic box or a membrane at a
@@ -35,10 +35,20 @@ asked about, not crash -- and for files that must never be lost.
   you draw -- bonded as built, keeping the space group where the
   substituent allows.
 - **Bulk modulus** from an equation of state through a volume scan.
-- **Slabs and LAMMPS**: *Cell ▸ Slab…* cuts along (hkl) with vacuum
-  above and carries the bonds; Export writes a LAMMPS data file, atom
-  style full, with the bonds as drawn. *Cell ▸ Move origin…*, *Select
-  ▸ Advanced Selection…* and *File ▸ Render in Blender…* join them.
+- **Slabs, LAMMPS and PDB**: *Cell ▸ Slab…* cuts along (hkl) with
+  vacuum above and carries the bonds; Export writes a LAMMPS data
+  file, atom style full, with the bonds as drawn, and *Open…* reads
+  one back with its charges and bonds; Export writes a periodic PDB
+  for PyMOL, VMD and Mercury; a computed charge (EQeq, Mulliken) is
+  written to the CIF's `_atom_site_charge`, where RASPA and Zeo++
+  read it. *Cell ▸ Move origin…*, *Select ▸ Advanced selection…* and
+  *File ▸ Render in Blender…* join them.
+- **A tidier window**: the Modules menu leads with the builders
+  (*Build a molecule with the 2D sketcher…* replaces *Molecule from
+  SMILES…*); the Force Field panel puts Single point and Optimise
+  under the model and folds the atom types away; the Style panel
+  gathers the pore controls into one group and hides rows that belong
+  to another style; the mouse modes are Ctrl+1 to Ctrl+7.
 - **Powder refinement**: a TOPAS-like parameter table on every
   fitting step, a diffractometer's own file (`.rasx`, Bruker `.raw`,
   `.uxd`) read directly, every tick naming its reflection, and zero
@@ -153,8 +163,8 @@ Bundled and working, with nothing to install:
 - **The MOF builder.** PORMAKE is vendored into the application — its
   867 building blocks and the RCSR topologies included — so a
   framework from a net, a node and a linker needs nothing else.
-- **RDKit and rdeditor**, so *Build from SMILES* and the molecule
-  sketcher both work.
+- **RDKit and the 2D sketcher**, so *Build a molecule with the 2D
+  sketcher…* and every window that draws a molecule work.
 - **matplotlib**, for the PXRD pattern window: zooming, overlaying a
   measured `.xy` file, and exporting the figure as a vector.
 - **The refinement workbench.** RietX is bundled, so Pawley and
@@ -208,10 +218,20 @@ need more than that.
 - **A polymer model is packed, not equilibrated.** Its density and
   contacts are right; its chains have not relaxed at their own scale,
   which takes molecular dynamics this application does not run.
+- **What 1.0 does not do**, so nobody looks for it: adsorption
+  (GCMC, Henry coefficients) -- write the CIF, with its charges, for
+  RASPA; molecular dynamics with the machine-learned engines (DFTB+'s
+  own MD is there); fetching structures from the COD, CoRE MOF or the
+  Materials Project; input files for VASP, Quantum ESPRESSO or CP2K
+  beyond the POSCAR. Each is on the list for a 1.x release.
+- **Style ▸ Rings refuses a graph too dense to search** -- a
+  deposited CIF with its symmetry copies written as sites, or a
+  close-packed salt -- and says so in the legend. *Prepare for
+  simulation* first.
 
 ## Reporting something
 
-*Help → Show log* reveals a rotating log file that records start-up,
+*Help → Show log file* reveals a rotating log file that records start-up,
 plugin failures, external process output and any uncaught exception's
 traceback. Attaching it turns "it closed" into something that can be
 fixed.
