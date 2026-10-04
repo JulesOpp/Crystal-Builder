@@ -108,8 +108,8 @@ porous-materials user:
   MP4/GIF.
 - **Batch mode for the CLI** (S-M): `convert`, `inspect` and `run`
   over a folder, one JSON line a structure.
-- **Per-dialog help** (S): a ? button on the builder, refinement and
-  ORCA dialogs opening the manual's `(mod-...)` anchor.
+- **Help on the refinement workbench** (S): the seven dialogs have a
+  Help button opening their page; the workbench, a window, does not.
 - **Tips and help strings** (S): 33 commands with no `tip=` and 30
   settings with no `Param.help` -- `reference.py` lists them; the
   wording is the owner's.
