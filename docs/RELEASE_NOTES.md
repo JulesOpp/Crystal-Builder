@@ -4,12 +4,15 @@ Build, manipulate, analyse and export crystal structures. Read and
 write CIF, edit symmetry and bonding, run a force field, DFTB+ or
 Zeo++ on the result.
 
-## Crystal Builder 1.0
+## Crystal Builder 0.5
 
-The first release meant to be relied on. Everything since 0.4.0 is
-below; the fixes that close it out were made for one concern above
-the rest -- a large cell on a machine short of memory should be
-asked about, not crash -- and for files that must never be lost.
+A preview of 1.0, put out to be used and argued with before 1.0 is
+fixed. Everything since 0.4.0 is below, including the work meant to
+make 1.0 dependable: a large cell on a machine short of memory
+should be asked about, not crash, and a file must never be lost.
+**Feedback is the point of this release** -- what confused you,
+what broke, what you looked for and did not find. *Reporting
+something* at the end says how.
 
 ## New since 0.4.0
 
@@ -68,7 +71,7 @@ asked about, not crash -- and for files that must never be lost.
 - **Fill pores** can put one guest at a point, or one beside each
   selected atom; the pore sphere can be D_i, D_if or any cavity.
 
-## Fixed for 1.0
+## Fixed since 0.4.0
 
 - **Saving never destroys the last good file.** A project, a CIF and
   a LAMMPS file are written beside the old one and swapped in only
@@ -218,12 +221,12 @@ need more than that.
 - **A polymer model is packed, not equilibrated.** Its density and
   contacts are right; its chains have not relaxed at their own scale,
   which takes molecular dynamics this application does not run.
-- **What 1.0 does not do**, so nobody looks for it: adsorption
+- **What 0.5 does not do**, so nobody looks for it: adsorption
   (GCMC, Henry coefficients) -- write the CIF, with its charges, for
   RASPA; molecular dynamics with the machine-learned engines (DFTB+'s
   own MD is there); fetching structures from the COD, CoRE MOF or the
   Materials Project; input files for VASP, Quantum ESPRESSO or CP2K
-  beyond the POSCAR. Each is on the list for a 1.x release.
+  beyond the POSCAR. Each is on the list for after 1.0.
 - **Style ▸ Rings refuses a graph too dense to search** -- a
   deposited CIF with its symmetry copies written as sites, or a
   close-packed salt -- and says so in the legend. *Prepare for
