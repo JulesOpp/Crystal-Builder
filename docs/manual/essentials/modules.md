@@ -20,6 +20,10 @@ characterises a structure (*Porosity*, *PXRD*), then the calculations
 submenu is one thing that module does.  The same tree, with the *Stop* button for the run in
 progress, is the {ref}`Modules panel <panel-modules_dock>`.
 
+The dialogs of the builders, *ORCA ▸ Input file…*, *Prepare for
+simulation…* and *Energy scan* have a **Help** button that opens the
+page of this manual describing them.
+
 Whether a module *can* run is asked again every time the menu opens,
 so a program installed while the window was open stops being greyed
 out without a restart.  A greyed submenu's tooltip is its reason: for
