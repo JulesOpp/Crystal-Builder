@@ -17,8 +17,9 @@ groups: the builders (*MOF builder*, *Net builder*, *Molecule
 builder*, *Disordered carbon builder*, *Polymer builder*), then what
 characterises a structure (*Porosity*, *PXRD*), then the calculations
 (*Force Field*, *DFTB+*, *Energy scan*, *ORCA*).  Each entry inside a
-submenu is one thing that module does.  The same tree, with the *Stop* button for the run in
-progress, is the {ref}`Modules panel <panel-modules_dock>`.
+submenu is one thing that module does.  The same tree, with the
+*Stop* button for the run in progress, is the {ref}`Modules panel
+<panel-modules_dock>`.
 
 The dialogs of the builders, *ORCA ▸ Input file…*, *Prepare for
 simulation…* and *Energy scan* have a **Help** button that opens the
