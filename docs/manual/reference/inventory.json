@@ -953,6 +953,30 @@
    "checkable": true
   },
   {
+   "key": "assign_eqeq_charges",
+   "section": "Structure",
+   "path": "Charges ▸ Assign EQeq charges",
+   "shortcut": "",
+   "tip": "Equilibrate charges over the cell (Wilmer, Kim and Snurr 2012) and write them onto the sites, where a CIF's _atom_site_charge and a LAMMPS file's q carry them.  An estimate to look over, as the status bar says",
+   "checkable": false
+  },
+  {
+   "key": "keep_shown_charges",
+   "section": "Structure",
+   "path": "Charges ▸ Keep the charges shown",
+   "shortcut": "",
+   "tip": "Write the charges drawn over the atoms -- a DFTB+ Mulliken run's -- onto the sites, so a save or an export carries them",
+   "checkable": false
+  },
+  {
+   "key": "clear_site_charges",
+   "section": "Structure",
+   "path": "Charges ▸ Clear the sites' charges",
+   "shortcut": "",
+   "tip": "Take every charge off the sites, oxidation states read from the file included",
+   "checkable": false
+  },
+  {
    "key": "mark_connection_points",
    "section": "Structure",
    "path": "Building blocks ▸ Mark connection points",

@@ -134,6 +134,14 @@ table is an open question (`docs/TODO.md`).
 - QEq's note says that its integrals are not the paper's and that
   hydrogen has no charge-dependent hardness here, which is what keeps
   QEq's O--H and C--H charges smaller than these.
+- For an energy they stay inside the force field.  To keep them --
+  for a CIF's `_atom_site_charge`, which RASPA and Zeo++ read, or a
+  LAMMPS file's `q` -- *Structure ▸ Charges ▸* {ref}`Assign EQeq
+  charges <cmd-assign_eqeq_charges>` writes them onto the sites as
+  one undo step, each site the mean of its images.  {ref}`Keep the
+  charges shown <cmd-keep_shown_charges>` does the same for a DFTB+
+  Mulliken run's, and {ref}`Clear the sites' charges
+  <cmd-clear_site_charges>` takes them all off.
 
 ## Worked example: MOF-5 under EQeq and QEq
 

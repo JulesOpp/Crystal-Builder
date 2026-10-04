@@ -1200,6 +1200,36 @@ Re-perceive the bonds after every edit that moves an atom, instead of only when 
 ```{index} Bonds follow the geometry
 ```
 
+(cmd-assign_eqeq_charges)=
+### Charges ▸ Assign EQeq charges
+
+`assign_eqeq_charges`
+
+Equilibrate charges over the cell (Wilmer, Kim and Snurr 2012) and write them onto the sites, where a CIF's _atom_site_charge and a LAMMPS file's q carry them.  An estimate to look over, as the status bar says
+
+```{index} Assign EQeq charges
+```
+
+(cmd-keep_shown_charges)=
+### Charges ▸ Keep the charges shown
+
+`keep_shown_charges`
+
+Write the charges drawn over the atoms -- a DFTB+ Mulliken run's -- onto the sites, so a save or an export carries them
+
+```{index} Keep the charges shown
+```
+
+(cmd-clear_site_charges)=
+### Charges ▸ Clear the sites' charges
+
+`clear_site_charges`
+
+Take every charge off the sites, oxidation states read from the file included
+
+```{index} Clear the sites' charges
+```
+
 (cmd-mark_connection_points)=
 ### Building blocks ▸ Mark connection points
 

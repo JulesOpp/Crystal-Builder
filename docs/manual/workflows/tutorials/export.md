@@ -114,34 +114,30 @@ they leave.  Use the prepared MOF-5, 106 atoms in its primitive cell.
 
 1. Open *File ▸ Open Sample ▸ Prepared for simulation ▸*
    {ref}`MOF-5 <cmd-sample_prep_mof5>`.
-2. In the Force Field panel, tick **Include electrostatics** and choose
-   **Equilibrate (EQeq)** under *Charges from*, then press {ref}`Single point energy
-   <cmd-single_point>`.  The panel shows the method's note as a
-   warning -- *an estimate to look over, not a published result;
-   metals expanded about Zn +2* -- and the charges are used for that
-   energy ({doc}`/energy/charges`).
-3. Equilibrated charges are a property of the sites, and putting
-   them there is a step of its own.  The window computes them for an
-   energy but, in the version this page was written against, has no menu
-   command that writes them to the sites; the inspector's *Charge* box sets one site at a time.
-   For the whole cell, the route is a script:
+2. Choose *Structure ▸ Charges ▸* {ref}`Assign EQeq charges
+   <cmd-assign_eqeq_charges>`.  The charges are equilibrated over the
+   cell and written onto the sites as one undo step, and the status
+   bar gives their range with the method's caveat -- *an estimate to
+   look over, not a published result; metals expanded about Zn +2*
+   ({doc}`/energy/charges`).  A DFTB+ Mulliken run's charges, drawn
+   over the atoms, are kept the same way with {ref}`Keep the charges
+   shown <cmd-keep_shown_charges>`.
+3. *File ▸ Export…* as CIF.  From a script the same step is
 
 ```python
-import numpy as np
-from xtal.agent import Session
-from xtal.io.cif_writer import cif_string
+from xtal.io import read_cif, write_cif
+from xtal.ff.charges import sites
 
-s = Session.open("resources/samples/prepared/MOF-5.cif")
-calc, _ = s._calculator("uff", {"coulomb": True, "charges": "eqeq"})
-for site, q in zip(s.structure.sites, np.asarray(calc.charges)):
-    site.charge = float(q)          # P1: one charge per site
-open("MOF-5_eqeq.cif", "w").write(cif_string(s.structure))
+structure = read_cif("resources/samples/prepared/MOF-5.cif")
+values, note = sites.eqeq_values(structure)
+charges, spread = sites.per_site(structure, values)
+for site, q in zip(structure.sites, charges):
+    site.charge = q
+write_cif(structure, "MOF-5_eqeq.cif")
 ```
 
-(`_calculator` is the engine the window builds; the structure is P1, so
-a site is an atom and the charges line up.  Charges per site, not per
-atom, is what a CIF holds: a cell with symmetry needs the same value
-on each atom of an orbit, which EQeq gives.)
+A CIF holds charges per site, not per atom: each site takes the mean
+of its images', which in a cell with symmetry EQeq gives alike.
 
 What the charges are, by element:
 
