@@ -31,14 +31,21 @@ its own options, and `-h` for its own help:
 ```console
 $ xtal --help
 usage: xtal [-h] [--version]
-            {info,symmetry,convert,prepare,bonds,types,energy,optimize,formats,modules,engines,run}
-            ...
+            {info,inspect,render,capabilities,skill,mcp,symmetry,convert,prepare,bonds,types,energy,optimize,formats,modules,engines,run} ...
 
 Build, inspect and convert crystal structures.
 
 positional arguments:
-  {info,symmetry,convert,prepare,bonds,types,energy,optimize,formats,modules,engines,run}
+  {info,inspect,render,capabilities,skill,mcp,symmetry,convert,prepare,bonds,types,energy,optimize,formats,modules,engines,run}
     info                cell, formula, density
+    inspect             what a structure is and what is wrong with it:
+                        composition, symmetry, coordination, and coded
+                        diagnostics with their remedies
+    render              draw the structure to a PNG, as the viewport would
+    capabilities        what this install can run: engines, modules, rendering
+    skill               the AI assistant skill that drives this program
+    mcp                 serve the agent verbs as MCP tools over stdio, for an
+                        AI assistant
     symmetry            detect the space group
     convert             convert and transform
     prepare             merge copied sites, order disorder, drop solvent, add
@@ -659,7 +666,8 @@ options:
 1. Name the action as `module.action`, exactly as `xtal modules`
    prints it.
 2. Give the structure file, unless the module builds one
-   (`mof.build`, `build.molecule`, `net.draw`), in which case there
+   (`mof.build`, `build.molecule`, `carbon.build`, `polymer.build`,
+   `net.draw`), in which case there
    is no file to give.
 3. Set each parameter with `-p name=value`.  Values are typed as
    text and converted by the parameter itself -- `-p draw=False`, `-p
@@ -707,7 +715,41 @@ with the command and what it printed: {doc}`scan.run
 the {doc}`grid entries </porosity/grid>`, {doc}`pxrd.simulate
 </porosity/pxrd>`, {doc}`mof.build </frameworks/mof-builder>`,
 {doc}`build.molecule </frameworks/molecule-builder>`, {doc}`net.draw
-</frameworks/nets>` and the {doc}`native DFTB+ runs </energy/dftb>`.
+</frameworks/nets>`, {doc}`carbon.build </frameworks/carbon>`,
+{doc}`polymer.build </frameworks/polymer>`, {doc}`orca.input </energy/orca>`,
+the {doc}`powder refinement steps </porosity/refinement>` and the
+{doc}`native DFTB+ runs </energy/dftb>`.
+
+## Driving it from an AI assistant
+
+```{index} single: command line; xtal mcp
+```
+```{index} single: command line; xtal skill
+```
+
+Four more subcommands exist for an assistant rather than a person,
+and are the subject of {doc}`the assistant page <assistant>`:
+
+`xtal inspect FILE --json`
+: What a structure is and what is wrong with it, as coded
+  diagnostics each carrying its remedy -- the first thing an assistant
+  reads.
+
+`xtal capabilities [NAME]`
+: What this install can run: engines, module actions and whether it
+  can render.  `--verbose` is the full listing.
+
+`xtal skill path` and `xtal skill install`
+: Where the shipped skill is, and a copy of it put where Claude Code
+  reads it: `--user` (the default, `~/.claude/skills`) or `--project
+  DIR`.  A copy you have edited is replaced only with `--force`.
+
+`xtal mcp`
+: The same verbs as MCP tools over standard input and output, for a
+  client that starts the command itself.  By default it forwards to
+  the window when one is serving and otherwise works on files of its
+  own; `--window` insists on the window and fails when none answers,
+  `--headless` never looks for one.
 
 ## Exit status and error messages
 

@@ -5,7 +5,8 @@ the same workspace, leaving the same files.  This chapter is where a
 scripting user starts: the command and each of its subcommands, what
 a workspace and a run folder look like on disk, what a run leaves
 behind and how to read it from a script, the core as a Python
-library, and what to record so that a result can be repeated.
+library, what to record so that a result can be repeated, and how an AI
+assistant drives the same verbs in the window or without it.
 
 The science is in the chapters before this one.  Where a command here
 runs a method -- a force field, a relaxation, a scan, a builder -- the
@@ -18,6 +19,7 @@ optimisation </structure/index>`, {doc}`porosity and properties
 :maxdepth: 1
 
 cli
+assistant
 workspaces
 reports
 scripting
