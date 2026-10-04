@@ -120,6 +120,15 @@ view.
    {term}`P1`, with its bonds stated and a report in the Results panel.
    *Stop* is honoured between steps, including during the relaxation.
 
+
+:::{figure} /figures/frameworks/carbon-builder.png
+:name: fig-frameworks-carbon-builder
+:width: 80%
+
+The disordered-carbon builder at its defaults: the four groups, and
+below them what Gauss-Bonnet already fixes for this net.
+:::
+
 The defaults aim at one example material -- `dia`, 2 × 2 × 2, 0.42
 g/cm³, H/C 0.07, F/C 0.29, O/C 0.044 and a sheet coverage of 0.38 -- and
 match its density, ring ratios, hexagon share and pore-size peak.

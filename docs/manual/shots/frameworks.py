@@ -197,6 +197,44 @@ def molecule_builder() -> None:
     grab_dialog(dialog, "molecule-builder", 560, 640)
 
 
+# ----------------------------------------------------------------------
+#  frameworks/carbon.md and polymer.md
+# ----------------------------------------------------------------------
+
+def carbon_builder() -> None:
+    """The disordered-carbon builder at its defaults."""
+    from xtalapp.dialogs.carbon_build import CarbonBuildDialog
+
+    module, action = MODULES.find("carbon.build")
+    dialog = CarbonBuildDialog(module, action, win,         # noqa: F821
+                               action.coerce({}))
+    grab_dialog(dialog, "carbon-builder", 900, 760)
+
+
+def polymer_builder() -> None:
+    """The polymer builder with a polyethylene-like monomer typed in."""
+    from xtalapp.dialogs.polymer_build import PolymerBuildDialog
+
+    module, action = MODULES.find("polymer.build")
+    initial = action.coerce({"monomer": "*CC*"})
+    dialog = PolymerBuildDialog(module, action, win, initial)  # noqa: F821
+    # The form scrolls and a laptop screen caps the dialog, so the
+    # groups under the canvas come out squashed to nothing in a grab
+    # of the dialog.  The scrolled content is grabbed at its own
+    # height instead: the whole form, without the readout and buttons.
+    from PySide6.QtWidgets import QScrollArea
+    dialog.show()
+    settle(900)                                             # noqa: F821
+    inner = dialog.findChild(QScrollArea).widget()
+    inner.resize(inner.width(), inner.sizeHint().height())
+    settle(600)                                             # noqa: F821
+    path = FIGURES / "polymer-builder.png"
+    if not inner.grab().save(str(path)):
+        raise OSError(f"could not write {path}")
+    dialog.close()
+    say(f"wrote {path.relative_to(ROOT)}")
+
+
 build_report()
 net_panel()
 net_builder()
@@ -204,3 +242,5 @@ draw_block()
 layer_builder()
 layer_built()
 molecule_builder()
+carbon_builder()
+polymer_builder()

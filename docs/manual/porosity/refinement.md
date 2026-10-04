@@ -82,6 +82,17 @@ coincident lines are exactly the ones you cannot tell apart by eye.
 The traces are updated and not redrawn, so a live refinement does not
 reset your zoom.
 
+
+:::{figure} /figures/porosity/refinement-workbench.png
+:name: fig-porosity-refinement-workbench
+:width: 90%
+
+The refinement workbench on a synthetic NaCl pattern after *Find
+peaks*: the step list, the observed and calculated curves with the
+reflection ticks and difference below, the fitted lines, and the
+Peaks step's settings.
+:::
+
 ## The steps
 
 The list on the left runs in the order a refinement goes.  Each step is

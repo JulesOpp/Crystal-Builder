@@ -158,6 +158,16 @@ no bond crosses *c*.
 4. **Run**.  The model opens in a tab of its own in {term}`P1`, with
    the report in the Results panel.  *Stop* is honoured between steps.
 
+
+:::{figure} /figures/frameworks/polymer-builder.png
+:name: fig-frameworks-polymer-builder
+:width: 60%
+
+The polymer builder's form with polyethylene's monomer drawn, shown
+at its full height (the dialog itself scrolls): the monomer and its
+canvas, then Sequence, Size, Box and Growth.
+:::
+
 On the command line it is `xtal run polymer.build`, which builds and so
 takes no file.  Six chains of twenty polyethylene units, at the
 default density:
