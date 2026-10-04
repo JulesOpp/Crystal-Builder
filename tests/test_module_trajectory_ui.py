@@ -89,3 +89,18 @@ def test_opening_an_orca_trajectory_plays_it_in_the_transport_bar(
     assert document.playback.n_frames == 4
     assert window.trajectory_dock.is_open
     assert not document.modified
+
+
+def test_a_one_frame_orca_xyz_opens_as_a_structure_to_edit(window,
+                                                          tmp_path):
+    """ORCA's final geometry has the run's comment line; opened into
+    playback it refused every edit until a frame was adopted."""
+    path = tmp_path / "water.xyz"
+    path.write_text("3\nCoordinates from ORCA-job water E -76.4\n"
+                    "O 0.0 0.0 0.0\nH 0.76 0.58 0.0\n"
+                    "H -0.76 0.58 0.0\n")
+
+    document = window.open_path(path)
+
+    assert not document.is_playing
+    assert not window.trajectory_dock.is_open

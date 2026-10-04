@@ -458,12 +458,15 @@ structure.
 ```{index} single: ORCA; trajectory
 ```
 
-An ORCA trajectory (`job_trj.xyz` -- an optimisation, a scan or an
-MD) is opened like any structure, with *File ▸ Open* or from the tree,
-and plays at once: the tab is its first frame and the run is in the
-*Trajectory* panel.  ORCA writes no cell, so every frame goes in one
-box with 5 Å of vacuum round the space the whole run covers -- one
-box, so the molecule moves and the cell does not.  The energy on
+An `.xyz` of more than one frame -- an ORCA trajectory
+(`job_trj.xyz`: an optimisation, a scan or an MD), or any other
+program's -- is opened like any structure, with *File ▸ Open* or from
+the tree, and plays at once: the tab is its first frame and the run is
+in the *Trajectory* panel.  An `.xyz` of one frame, ORCA's final
+`job.xyz` included, is a structure and opens for editing.  ORCA
+writes no cell, so every frame goes in one box with 5 Å of vacuum
+round the space the whole run covers -- one box, so the molecule moves
+and the cell does not.  The energy on
 ORCA's comment line (`E -76.4012`, in hartree) is read and shown in
 kcal/mol, like every other energy here.
 

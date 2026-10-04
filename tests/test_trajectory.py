@@ -198,17 +198,25 @@ def _orca_run(path, steps=3):
     return path
 
 
-def test_an_orca_trajectory_is_known_by_its_name_or_its_comment(
+def test_an_xyz_is_a_run_only_when_it_has_more_than_one_frame(
         tmp_path):
-    """A renamed ORCA run still opens as a run, and a single-frame
-    molecule called anything else does not."""
-    from xtal.io.trajectory import is_orca_trajectory
+    """ORCA's final ``job.xyz`` carries the same comment line as its
+    ``_trj.xyz``, and a ``_trj.xyz`` of one step is one frame: taken
+    for runs, both opened into playback and refused every edit."""
+    from xtal.io.trajectory import is_multi_frame_xyz
 
-    assert is_orca_trajectory(_orca_run(tmp_path / "opt_trj.xyz"))
-    assert is_orca_trajectory(_orca_run(tmp_path / "renamed.xyz"))
+    assert is_multi_frame_xyz(_orca_run(tmp_path / "opt_trj.xyz"))
+    assert is_multi_frame_xyz(_orca_run(tmp_path / "renamed.xyz"))
+    assert not is_multi_frame_xyz(_orca_run(tmp_path / "job.xyz",
+                                            steps=1))
+    assert not is_multi_frame_xyz(_orca_run(tmp_path / "one_trj.xyz",
+                                            steps=1))
     plain = tmp_path / "plain.xyz"
-    plain.write_text("1\nmethane, nearly\nC 0 0 0\n")
-    assert not is_orca_trajectory(plain)
+    plain.write_text("1\nmethane, nearly\nC 0 0 0\n\n\n")
+    assert not is_multi_frame_xyz(plain)
+    run = tmp_path / "run.extxyz"
+    run.write_text(_orca_run(tmp_path / "x.xyz").read_text())
+    assert not is_multi_frame_xyz(run)
 
 
 def test_an_orca_frame_carries_its_energy_in_kcal_per_mol(tmp_path):

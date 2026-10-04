@@ -37,7 +37,7 @@ from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox
 
 from xtal.core.structure import Structure
 from xtal.io import FORMATS
-from xtal.io.trajectory import is_orca_trajectory
+from xtal.io.trajectory import is_multi_frame_xyz
 from xtal.workspace import resolved
 from xtalapp import samples
 from xtalapp.dialogs.answered import answered
@@ -251,10 +251,11 @@ class DocumentSet:
         self._announce_warnings(document)
         self.window.autosaver.offer(document)
         self._announce_agent(document)
-        if is_orca_trajectory(path):
+        if is_multi_frame_xyz(path):
             # The structure is the run's first frame; the run is what
             # was asked for, so it plays at once rather than waiting
-            # to be found in the tree.
+            # to be found in the tree.  A file of one frame is a
+            # structure to edit, whatever program wrote it.
             dock = self.window.trajectory_dock
             dock.set_document(document)
             dock.open_path(path)

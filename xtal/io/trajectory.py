@@ -366,23 +366,35 @@ def _orca_info(comment: str) -> dict:
     return info
 
 
-def is_orca_trajectory(path) -> bool:
-    """Is this ORCA's ``_trj.xyz``: a molecule's frames with no cell?
+def is_multi_frame_xyz(path) -> bool:
+    """Is this ``.xyz`` a run -- more than one frame -- and not a
+    structure?
 
-    By the name ORCA gives it, or by the comment line ORCA writes, so
-    a renamed copy is still known.  Only the first two lines are read.
+    The count of frames decides, and never the name or the comment
+    line: ORCA writes "Coordinates from ORCA-job" on the one-frame
+    ``job.xyz`` of its final geometry too, and that file opened into
+    playback could not be edited until a frame was adopted.  The atom
+    count on the first line says where the second frame would start,
+    so a file of one frame is read no further than its first frame.
     """
     path = Path(path)
     if path.suffix.lower() != ".xyz":
         return False
-    if path.name.lower().endswith("_trj.xyz"):
-        return True
     try:
         with open(path, encoding="utf-8", errors="replace") as handle:
-            handle.readline()
-            return _ORCA_RE.search(handle.readline()) is not None
-    except OSError:
+            first = handle.readline().split()
+            n_atoms = int(first[0]) if first else -1
+            if n_atoms < 0:
+                return False
+            for _ in range(n_atoms + 1):     # comment line, then atoms
+                if not handle.readline():
+                    return False
+            for line in handle:
+                if line.strip():
+                    return True
+    except (OSError, ValueError):
         return False
+    return False
 
 
 def boxed(frames: list[Frame], pad: float = PAD) -> list[Frame]:
