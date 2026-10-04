@@ -12,11 +12,12 @@ this manual each calculation is described.
 
 The menu is built from the module registry and nothing else, so a
 module installed as a {term}`plug-in` appears in it without the
-application changing.  Each submenu is a {term}`module` --
-*Forcefield*, *DFTB+*, *ORCA*,
-*Porosity*, *MOF builder*, *Molecule builder*, *PXRD*, *Energy scan*,
-*Net builder*, *Blender* -- and each entry inside it is one thing that
-module does.  The same tree, with the *Stop* button for the run in
+application changing.  Each submenu is a {term}`module`, in three
+groups: the builders (*MOF builder*, *Net builder*, *Molecule
+builder*, *Disordered carbon builder*, *Polymer builder*), then what
+characterises a structure (*Porosity*, *PXRD*), then the calculations
+(*Force Field*, *DFTB+*, *Energy scan*, *ORCA*).  Each entry inside a
+submenu is one thing that module does.  The same tree, with the *Stop* button for the run in
 progress, is the {ref}`Modules panel <panel-modules_dock>`.
 
 Whether a module *can* run is asked again every time the menu opens,
@@ -31,7 +32,7 @@ entries, which read their numbers off the application's own grid --
 stay enabled beside their greyed Zeo++ twins.
 
 Two entries keep the keys they had when they were the whole of a
-*Calculate* menu: *Forcefield ▸* {ref}`Single point energy
+*Calculate* menu: *Force Field ▸* {ref}`Single point energy
 <cmd-single_point>` is {kbd}`Ctrl+E` and {ref}`Optimise geometry
 <cmd-optimize>` is {kbd}`Ctrl+Shift+E`.  Their DFTB+ counterparts have
 no key on purpose: a DFTB+ run is launched from its panel or this

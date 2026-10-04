@@ -2,276 +2,6 @@
 
 # Module reference
 
-(mod-forcefield)=
-## Forcefield
-
-Universal Force Field: atom types, energies and geometry optimisation, under the space group.
-
-```{index} Forcefield
-```
-
-(mod-forcefield-setup)=
-### Setup and atom types...
-
-Atom types, electrostatics, and how the run is going
-
-No settings.
-
-(mod-forcefield-single-point)=
-### Single point energy
-
-Energy and per-term breakdown at this geometry
-
-No settings.
-
-(mod-forcefield-optimise)=
-### Optimise geometry
-
-Relax the structure within its space group
-
-No settings.
-
-(mod-dftb)=
-## DFTB+
-
-Density-functional tight binding: atom types have no place in it, but the energy, the forces and the geometry optimisation are asked for the same way.
-
-```{index} DFTB+
-```
-
-(mod-dftb-setup)=
-### Setup and parameters...
-
-Hamiltonian, parameter directory, dispersion, and how the run is going
-
-No settings.
-
-(mod-dftb-single-point)=
-### Single point energy
-
-Energy and per-term breakdown at this geometry
-
-No settings.
-
-(mod-dftb-optimise)=
-### Optimise geometry
-
-Relax the structure within its space group
-
-No settings.
-
-(mod-dftb-band-structure)=
-### Band structure...
-
-Eigenvalues along a path through the Brillouin zone, from charges converged on a mesh
-
-```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
-```
-
-| Setting | Accepts | Default | What it is |
-|---|---|---|---|
-| **Path** | text |  | The corners to visit, as ASE names them: 'GXWKGLUWLK,UX'.  A comma is a jump.  Empty is ASE's recommended path for this cell |
-| **Points per 1/A** | float, 2 to 500 | `40.0` | How finely each segment is sampled |
-| **Density of states beside it** | bool | `True` | Projected onto each element, from the run on the mesh that converges the charges -- no extra invocation, and as fine as that mesh |
-| **DOS broadening** | float, 0.005 to 2 eV | `0.1` |  |
-
-(mod-dftb-dos)=
-### Density of states...
-
-Total and projected onto each element, on a dense mesh
-
-```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
-```
-
-| Setting | Accepts | Default | What it is |
-|---|---|---|---|
-| **K-point spacing** | float, 0.01 to 1 1/A | `0.1` | Denser than the charges need: a density of states is an integral over the zone |
-| **Broadening** | float, 0.005 to 2 eV | `0.1` | DFTB+ does not broaden; this Gaussian width is ours |
-| **Resolve s, p and d** | bool | `False` |  |
-
-(mod-dftb-charges)=
-### Mulliken charges
-
-A charge on every atom, and the atoms coloured by it
-
-No settings.
-
-(mod-dftb-orbital)=
-### Orbital...
-
-One state as its two lobes, through waveplot; needs the parameter set's wfc.*.hsd
-
-```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
-```
-
-| Setting | Accepts | Default | What it is |
-|---|---|---|---|
-| **State** | one of Highest occupied (HOMO - n), Lowest empty (LUMO + n), By index | `homo` |  |
-| **n** | int, 0 to 1000 | `0` | How many states below the HOMO, or above the LUMO |
-| **Index** | int, 1 to 1000000 | `1` | The state, counting from 1 |
-| **k-point** | int, 1 to 100000 | `1` |  |
-| **Spin** | int, 1 to 2 | `1` |  |
-| **Isovalue** | float, 1e-05 to 10 | `0.02` | Drawn at plus and minus this |
-| **Grid points per A** | float, 1 to 20 | `4.0` |  |
-
-(mod-dftb-relax)=
-### Optimise with DFTB+'s driver...
-
-One DFTB+ run relaxes the atoms, and the cell if asked; the answer is mapped back onto the space group
-
-```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
-```
-
-| Setting | Accepts | Default | What it is |
-|---|---|---|---|
-| **Relax the cell as well** | bool | `False` | DFTB+'s LatticeOpt, against its analytic stress |
-| **External pressure** | float, -100 to 1000 GPa | `0.0` |  |
-| **Optimiser** | one of L-BFGS, Conjugate gradient | `lbfgs` |  |
-| **Largest force** | float, 1e-07 to 0.1 Ha/Bohr | `0.0001` | Converged when no force component is larger |
-| **Step limit** | int, 1 to 100000 | `200` |  |
-| **Hold the frozen sites still** | bool | `True` | The sites frozen in the structure are left out of DFTB+'s MovedAtoms |
-
-(mod-dftb-modes)=
-### Vibrational modes...
-
-The Hessian by finite differences and its modes.  It costs six evaluations per free atom, and a structure that has not been relaxed first gives imaginary modes that mean nothing
-
-```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
-```
-
-| Setting | Accepts | Default | What it is |
-|---|---|---|---|
-| **Displacement** | float, 1e-06 to 0.01 Bohr | `0.0001` | How far each atom is moved each way along each axis |
-| **Hold the frozen sites still** | bool | `True` | The sites frozen in the structure are left out of DFTB+'s MovedAtoms |
-
-(mod-dftb-md)=
-### Molecular dynamics...
-
-Velocity Verlet, with a thermostat; the frames go to the transport bar
-
-```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
-```
-
-| Setting | Accepts | Default | What it is |
-|---|---|---|---|
-| **Steps** | int, 1 to 10000000 | `500` |  |
-| **Time step** | float, 0.01 to 10 fs | `1.0` | Half a femtosecond or less with hydrogen in the structure |
-| **Thermostat** | one of None (constant energy), Berendsen, Nose-Hoover | `nose-hoover` |  |
-| **Temperature** | float, 0 to 10000 K | `300.0` | The thermostat's, or the starting temperature with none |
-| **Coupling** | float, 1e-06 to 100000 | `3200.0` | Nose-Hoover's in cm^-1; Berendsen's is a fraction between 0 and 1 |
-| **Write every** | int, 1 to 100000 steps | `10` | A frame for the transport bar, and a line of md.out |
-| **Hold the frozen sites still** | bool | `True` | The sites frozen in the structure are left out of DFTB+'s MovedAtoms |
-
-(mod-scan)=
-## Energy scan
-
-Walk one or two coordinates and relax everything else at each point, to map the energy landscape of a flexible structure.  An axis is a lattice parameter, the cell volume, or an internal coordinate -- a distance, an angle, a dihedral, or the angle between two planes -- and it is held by a constraint rather than by freezing the atoms that define it.  Every point is left behind as a structure to open.
-
-```{index} Energy scan
-```
-
-(mod-scan-run)=
-### Relaxed scan...
-
-Map the energy landscape over one or two coordinates
-
-```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
-```
-
-| Setting | Accepts | Default | What it is |
-|---|---|---|---|
-| **Engine** | one of | `uff` | Which energy engine relaxes each point.  For a flexible framework a machine-learned potential is the better choice: UFF4MOF was never fitted to reproduce a breathing double well. |
-| **First axis** | text | `volume` | A cell parameter (a, b, c, alpha, beta, gamma), 'volume', or an internal coordinate over P1 atom indices: 'distance 0, 5', 'angle 0, 1, 2', 'torsion 0, 1, 2, 3', 'plane 0+1+2, 6+7+8'.  Atoms joined by '+' are their centroid, and it follows them. |
-| **From** | float | `0.0` |  |
-| **To** | float | `0.0` |  |
-| **Points** | int, 1 to 201 | `9` |  |
-| **Second axis** | text |  | Leave empty for a one-dimensional scan.  A cell parameter (a, b, c, alpha, beta, gamma), 'volume', or an internal coordinate over P1 atom indices: 'distance 0, 5', 'angle 0, 1, 2', 'torsion 0, 1, 2, 3', 'plane 0+1+2, 6+7+8'.  Atoms joined by '+' are their centroid, and it follows them. |
-| **From** | float | `0.0` |  |
-| **To** | float | `0.0` |  |
-| **Points** | int, 1 to 201 | `9` |  |
-| **Starting geometry** | one of Carry on from the nearest point, Restart from this structure | `previous` | Carrying the last relaxed geometry into the next cell is what makes a scan affordable, and it is also what makes it path-dependent: near a transition the optimiser stays in the basin it arrived in. |
-| **Direction** | one of Both, and report each, Forwards only, Backwards only | `both` | Walking the grid both ways and drawing both is how hysteresis shows up instead of hiding in one curve. |
-| **Optimiser** | one of abnr, conjugate_gradient, fire, lbfgs, quasi_newton, smart, steepest_descent | `smart` | Smart descends steeply at first and changes rule as the forces fall, which is what a scan wants: every point after the first starts near a minimum, but the first one may not. |
-| **Steps per point** | int, 1 to 100000 | `500` | A point that stops at the limit is reported as not converged and drawn apart, so this is a ceiling rather than a target. |
-| **Force tolerance** | float, at least 1e-06 kcal/mol/A | `0.05` |  |
-| **Pre-relax with** | one of Nothing |  | A cheaper engine run at every point before the one the landscape is of -- UFF4MOF ahead of MACE, say.  A volume step moves every atom with the cell, and this spends the long walk back at the cheap price.  Only the main engine's energy is reported. |
-| **Pre-relaxation steps** | int, 1 to 100000 | `500` |  |
-| **Pre-relaxation tolerance** | float, at least 1e-06 kcal/mol/A | `0.5` | Loose on purpose: the cheap engine's minimum is not the one wanted, so converging to it tightly buys nothing. |
-
-(mod-scan-bulk_modulus)=
-### Bulk modulus...
-
-Compress and expand the cell with the shape free and fit an equation of state: B0, B0' and V0
-
-```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
-```
-
-| Setting | Accepts | Default | What it is |
-|---|---|---|---|
-| **Engine** | one of | `uff` | Which energy engine relaxes each point.  For a flexible framework a machine-learned potential is the better choice: UFF4MOF was never fitted to reproduce a breathing double well. |
-| **First axis** | text | `volume` | A cell parameter (a, b, c, alpha, beta, gamma), 'volume', or an internal coordinate over P1 atom indices: 'distance 0, 5', 'angle 0, 1, 2', 'torsion 0, 1, 2, 3', 'plane 0+1+2, 6+7+8'.  Atoms joined by '+' are their centroid, and it follows them. |
-| **From** | float | `0.0` |  |
-| **To** | float | `0.0` |  |
-| **Points** | int, 1 to 201 | `9` |  |
-| **Starting geometry** | one of Carry on from the nearest point, Restart from this structure | `previous` | Carrying the last relaxed geometry into the next cell is what makes a scan affordable, and it is also what makes it path-dependent: near a transition the optimiser stays in the basin it arrived in. |
-| **Direction** | one of Both, and report each, Forwards only, Backwards only | `forward` | Walking the grid both ways and drawing both is how hysteresis shows up instead of hiding in one curve. |
-| **Optimiser** | one of abnr, conjugate_gradient, fire, lbfgs, quasi_newton, smart, steepest_descent | `smart` | Smart descends steeply at first and changes rule as the forces fall, which is what a scan wants: every point after the first starts near a minimum, but the first one may not. |
-| **Steps per point** | int, 1 to 100000 | `500` | A point that stops at the limit is reported as not converged and drawn apart, so this is a ceiling rather than a target. |
-| **Force tolerance** | float, at least 1e-06 kcal/mol/A | `0.05` |  |
-| **Pre-relax with** | one of Nothing |  | A cheaper engine run at every point before the one the landscape is of -- UFF4MOF ahead of MACE, say.  A volume step moves every atom with the cell, and this spends the long walk back at the cheap price.  Only the main engine's energy is reported. |
-| **Pre-relaxation steps** | int, 1 to 100000 | `500` |  |
-| **Pre-relaxation tolerance** | float, at least 1e-06 kcal/mol/A | `0.5` | Loose on purpose: the cheap engine's minimum is not the one wanted, so converging to it tightly buys nothing. |
-| **Relax the cell first** | bool | `True` | Relax the cell, shape and volume, before the scan and centre the volumes on where it settles.  A scan round the input's volume puts V0 at its edge -- or outside it -- whenever the engine's minimum is not the deposited cell's, and the fit then refuses. |
-| **Span** | float, 0.5 to 40 % | `6.0` | How far either side of the volume to go, when no From and To are given.  Within a few percent the energy is close to a parabola and the modulus is the cell's; much further and it is the equation of state's. |
-
-(mod-orca)=
-## ORCA
-
-ORCA quantum chemistry: an input file for the structure, written here and run wherever ORCA is.
-
-```{index} ORCA
-```
-
-(mod-orca-input)=
-### Input file...
-
-An ORCA input and the coordinates it reads, in a run folder: the functional, basis, job and blocks chosen here, the charge and multiplicity checked against the electrons
-
-```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
-```
-
-| Setting | Accepts | Default | What it is |
-|---|---|---|---|
-| **Functional** | text | `BP86` | An ORCA native functional keyword (Tables 3.1-3.9) |
-| **Basis set** | text | `def2-SVP` | An ORCA built-in orbital basis (Tables 2.12-2.33); a 3c method writes none |
-| **Dispersion** | one of None, D3(BJ), D3(0), D4 |  | Added to the ! line; not with a functional that already has one |
-| **RI** | one of ORCA's default, RIJCOSX, RI-J, RI-JK, No RI |  | ORCA's default is RI-J for a pure functional and RIJCOSX for a hybrid; a choice writes its auxiliary basis too |
-| **Job** | one of Single point, Optimise (Opt), Transition state (OptTS) | `sp` | A single point, an optimisation, or a transition state search |
-| **Optimisation** | one of Normal, Loose, Tight, Very tight | `Opt` | How tightly an optimisation converges |
-| **Cartesian (COpt)** | bool | `False` | Optimise in Cartesian rather than internal coordinates |
-| **Frequencies (Freq)** | bool | `False` | Vibrational frequencies, after the optimisation if there is one |
-| **Geometry MaxIter** | int, 0 to 100000 | `0` | %geom MaxIter; 0 is ORCA's own, max(3N, 50) |
-| **Calc_Hess** | bool | `False` | An exact Hessian before the first step |
-| **SCF convergence** | one of ORCA's default, Sloppy, Loose, Medium, Normal, Strong, Tight, Very tight, Extreme |  | TightSCF and the like, Table 2.9 |
-| **SCF solver** | one of ORCA's default, EasyConv, SlowConv, VerySlowConv |  | SlowConv for most transition-metal complexes |
-| **SCF MaxIter** | int, 0 to 100000 | `0` | %scf MaxIter; 0 is ORCA's own |
-| **SCF guess** | one of ORCA's default, PModel, PAtom, Hueckel, HCore |  | %scf Guess; the default is ORCA's own |
-| **TD-DFT roots** | int, 0 to 10000 | `0` | Excited states for a UV-Vis spectrum; 0 writes no %tddft block |
-| **Triplets** | bool | `False` | Singlet-triplet excitations as well |
-| **TD-DFT with Opt or Freq** | one of Ground state, then the spectrum (two steps), Excited state IRoot (one step) | `ground` | Optimise the ground state and then take its spectrum, in two steps, or optimise excited state IRoot itself |
-| **IRoot** | int, 1 to 10000 | `1` | The excited state followed, counting from 1 |
-| **Triplet IRoot** | bool | `False` | Follow a triplet root (needs Triplets) |
-| **Solvation** | one of Gas phase, C-PCM, SMD |  | An implicit solvent, C-PCM or SMD |
-| **Solvent** | text | `water` | Any name of Table 2.56, e.g. water, dmf, thf |
-| **Processes (%pal)** | int, 1 to 4096 | `1` | Above one, a %pal block |
-| **Memory per process** | int, 0 to 10000000 MB | `0` | %maxcore; 0 writes none |
-| **Charge** | int, -1000 to 1000 | `0` | Of the atoms written |
-| **Multiplicity** | int, 1 to 1000 | `1` | 2S+1; refused when the electron count cannot have it |
-| **More keywords** | text |  | Added to the end of the ! line as written |
-| **More blocks** | text |  | % blocks of your own, written before the coordinates |
-| **Atoms** | text |  | Cell atom indices to write; blank is the whole cell |
-| **File name** | text |  | The .inp and .xyz are named after this |
-
 (mod-mof)=
 ## MOF builder
 
@@ -281,7 +11,7 @@ Build a framework from a topology, a metal node and a linker, with PORMAKE.  The
 ```
 
 (mod-mof-build)=
-### Build a framework...
+### Build a framework (MOF)...
 
 Pick a net, a node and a linker; the framework opens in a new tab
 
@@ -332,7 +62,7 @@ Build a molecule from a SMILES string, with RDKit.  It opens in a tab of its own
 ```
 
 (mod-build-molecule)=
-### Molecule from SMILES...
+### Build a molecule with the 2D sketcher...
 
 Build a molecule; it opens in a new tab
 
@@ -393,7 +123,7 @@ Pack amorphous polymer chains into a box or a membrane at a density: homopolymer
 ```
 
 (mod-polymer-build)=
-### Build amorphous polymer...
+### Build an amorphous polymer...
 
 Chains grown into a box at a density; the result opens in a new tab
 
@@ -836,6 +566,276 @@ Refine with energy at a list of weights, and suggest the one where the fit and t
 | **Max iterations** | int, 0 to 100000 | `100` | The most iterations each stage of the fit runs (TOPAS iters), a RietX plan's stages too.  0 fits nothing: the pattern is calculated at the parameters as they stand, and the R values say how well they fit -- nothing moves and nothing is committed. |
 | **Tolerance** | text | `1e-9` | When a fit is done: the relative fall in χ² below which its last stage stops (RietX's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser. |
 | **Parameters** | path |  | A file of parameters to start from, one a line as the workbench's Copy writes them: name value ± esd Refine, or NoRefine.  Its flags say what is refined and the Refine boxes are not read; a row it leaves out starts from RietX's preset.  Empty starts from the preset, freed as the boxes say. |
+
+(mod-forcefield)=
+## Force Field
+
+Universal Force Field: atom types, energies and geometry optimisation, under the space group.
+
+```{index} Force Field
+```
+
+(mod-forcefield-setup)=
+### Setup and atom types...
+
+Atom types, electrostatics, and how the run is going
+
+No settings.
+
+(mod-forcefield-single-point)=
+### Single point energy
+
+Energy and per-term breakdown at this geometry
+
+No settings.
+
+(mod-forcefield-optimise)=
+### Optimise geometry
+
+Relax the structure within its space group
+
+No settings.
+
+(mod-dftb)=
+## DFTB+
+
+Density-functional tight binding: atom types have no place in it, but the energy, the forces and the geometry optimisation are asked for the same way.
+
+```{index} DFTB+
+```
+
+(mod-dftb-setup)=
+### Setup and parameters...
+
+Hamiltonian, parameter directory, dispersion, and how the run is going
+
+No settings.
+
+(mod-dftb-single-point)=
+### Single point energy
+
+Energy and per-term breakdown at this geometry
+
+No settings.
+
+(mod-dftb-optimise)=
+### Optimise geometry
+
+Relax the structure within its space group
+
+No settings.
+
+(mod-dftb-band-structure)=
+### Band structure...
+
+Eigenvalues along a path through the Brillouin zone, from charges converged on a mesh
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Path** | text |  | The corners to visit, as ASE names them: 'GXWKGLUWLK,UX'.  A comma is a jump.  Empty is ASE's recommended path for this cell |
+| **Points per 1/A** | float, 2 to 500 | `40.0` | How finely each segment is sampled |
+| **Density of states beside it** | bool | `True` | Projected onto each element, from the run on the mesh that converges the charges -- no extra invocation, and as fine as that mesh |
+| **DOS broadening** | float, 0.005 to 2 eV | `0.1` |  |
+
+(mod-dftb-dos)=
+### Density of states...
+
+Total and projected onto each element, on a dense mesh
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **K-point spacing** | float, 0.01 to 1 1/A | `0.1` | Denser than the charges need: a density of states is an integral over the zone |
+| **Broadening** | float, 0.005 to 2 eV | `0.1` | DFTB+ does not broaden; this Gaussian width is ours |
+| **Resolve s, p and d** | bool | `False` |  |
+
+(mod-dftb-charges)=
+### Mulliken charges
+
+A charge on every atom, and the atoms coloured by it
+
+No settings.
+
+(mod-dftb-orbital)=
+### Orbital...
+
+One state as its two lobes, through waveplot; needs the parameter set's wfc.*.hsd
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **State** | one of Highest occupied (HOMO - n), Lowest empty (LUMO + n), By index | `homo` |  |
+| **n** | int, 0 to 1000 | `0` | How many states below the HOMO, or above the LUMO |
+| **Index** | int, 1 to 1000000 | `1` | The state, counting from 1 |
+| **k-point** | int, 1 to 100000 | `1` |  |
+| **Spin** | int, 1 to 2 | `1` |  |
+| **Isovalue** | float, 1e-05 to 10 | `0.02` | Drawn at plus and minus this |
+| **Grid points per A** | float, 1 to 20 | `4.0` |  |
+
+(mod-dftb-relax)=
+### Optimise (DFTB+ driver)...
+
+One DFTB+ run relaxes the atoms, and the cell if asked; the answer is mapped back onto the space group
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Relax the cell as well** | bool | `False` | DFTB+'s LatticeOpt, against its analytic stress |
+| **External pressure** | float, -100 to 1000 GPa | `0.0` |  |
+| **Optimiser** | one of L-BFGS, Conjugate gradient | `lbfgs` |  |
+| **Largest force** | float, 1e-07 to 0.1 Ha/Bohr | `0.0001` | Converged when no force component is larger |
+| **Step limit** | int, 1 to 100000 | `200` |  |
+| **Hold the frozen sites still** | bool | `True` | The sites frozen in the structure are left out of DFTB+'s MovedAtoms |
+
+(mod-dftb-modes)=
+### Vibrational modes...
+
+The Hessian by finite differences and its modes.  It costs six evaluations per free atom, and a structure that has not been relaxed first gives imaginary modes that mean nothing
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Displacement** | float, 1e-06 to 0.01 Bohr | `0.0001` | How far each atom is moved each way along each axis |
+| **Hold the frozen sites still** | bool | `True` | The sites frozen in the structure are left out of DFTB+'s MovedAtoms |
+
+(mod-dftb-md)=
+### Molecular dynamics...
+
+Velocity Verlet, with a thermostat; the frames go to the transport bar
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Steps** | int, 1 to 10000000 | `500` |  |
+| **Time step** | float, 0.01 to 10 fs | `1.0` | Half a femtosecond or less with hydrogen in the structure |
+| **Thermostat** | one of None (constant energy), Berendsen, Nose-Hoover | `nose-hoover` |  |
+| **Temperature** | float, 0 to 10000 K | `300.0` | The thermostat's, or the starting temperature with none |
+| **Coupling** | float, 1e-06 to 100000 | `3200.0` | Nose-Hoover's in cm^-1; Berendsen's is a fraction between 0 and 1 |
+| **Write every** | int, 1 to 100000 steps | `10` | A frame for the transport bar, and a line of md.out |
+| **Hold the frozen sites still** | bool | `True` | The sites frozen in the structure are left out of DFTB+'s MovedAtoms |
+
+(mod-scan)=
+## Energy scan
+
+Walk one or two coordinates and relax everything else at each point, to map the energy landscape of a flexible structure.  An axis is a lattice parameter, the cell volume, or an internal coordinate -- a distance, an angle, a dihedral, or the angle between two planes -- and it is held by a constraint rather than by freezing the atoms that define it.  Every point is left behind as a structure to open.
+
+```{index} Energy scan
+```
+
+(mod-scan-run)=
+### Relaxed scan...
+
+Map the energy landscape over one or two coordinates
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Engine** | one of | `uff` | Which energy engine relaxes each point.  For a flexible framework a machine-learned potential is the better choice: UFF4MOF was never fitted to reproduce a breathing double well. |
+| **First axis** | text | `volume` | A cell parameter (a, b, c, alpha, beta, gamma), 'volume', or an internal coordinate over P1 atom indices: 'distance 0, 5', 'angle 0, 1, 2', 'torsion 0, 1, 2, 3', 'plane 0+1+2, 6+7+8'.  Atoms joined by '+' are their centroid, and it follows them. |
+| **From** | float | `0.0` |  |
+| **To** | float | `0.0` |  |
+| **Points** | int, 1 to 201 | `9` |  |
+| **Second axis** | text |  | Leave empty for a one-dimensional scan.  A cell parameter (a, b, c, alpha, beta, gamma), 'volume', or an internal coordinate over P1 atom indices: 'distance 0, 5', 'angle 0, 1, 2', 'torsion 0, 1, 2, 3', 'plane 0+1+2, 6+7+8'.  Atoms joined by '+' are their centroid, and it follows them. |
+| **From** | float | `0.0` |  |
+| **To** | float | `0.0` |  |
+| **Points** | int, 1 to 201 | `9` |  |
+| **Starting geometry** | one of Carry on from the nearest point, Restart from this structure | `previous` | Carrying the last relaxed geometry into the next cell is what makes a scan affordable, and it is also what makes it path-dependent: near a transition the optimiser stays in the basin it arrived in. |
+| **Direction** | one of Both, and report each, Forwards only, Backwards only | `both` | Walking the grid both ways and drawing both is how hysteresis shows up instead of hiding in one curve. |
+| **Optimiser** | one of abnr, conjugate_gradient, fire, lbfgs, quasi_newton, smart, steepest_descent | `smart` | Smart descends steeply at first and changes rule as the forces fall, which is what a scan wants: every point after the first starts near a minimum, but the first one may not. |
+| **Steps per point** | int, 1 to 100000 | `500` | A point that stops at the limit is reported as not converged and drawn apart, so this is a ceiling rather than a target. |
+| **Force tolerance** | float, at least 1e-06 kcal/mol/A | `0.05` |  |
+| **Pre-relax with** | one of Nothing |  | A cheaper engine run at every point before the one the landscape is of -- UFF4MOF ahead of MACE, say.  A volume step moves every atom with the cell, and this spends the long walk back at the cheap price.  Only the main engine's energy is reported. |
+| **Pre-relaxation steps** | int, 1 to 100000 | `500` |  |
+| **Pre-relaxation tolerance** | float, at least 1e-06 kcal/mol/A | `0.5` | Loose on purpose: the cheap engine's minimum is not the one wanted, so converging to it tightly buys nothing. |
+
+(mod-scan-bulk_modulus)=
+### Bulk modulus...
+
+Compress and expand the cell with the shape free and fit an equation of state: B0, B0' and V0
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Engine** | one of | `uff` | Which energy engine relaxes each point.  For a flexible framework a machine-learned potential is the better choice: UFF4MOF was never fitted to reproduce a breathing double well. |
+| **First axis** | text | `volume` | A cell parameter (a, b, c, alpha, beta, gamma), 'volume', or an internal coordinate over P1 atom indices: 'distance 0, 5', 'angle 0, 1, 2', 'torsion 0, 1, 2, 3', 'plane 0+1+2, 6+7+8'.  Atoms joined by '+' are their centroid, and it follows them. |
+| **From** | float | `0.0` |  |
+| **To** | float | `0.0` |  |
+| **Points** | int, 1 to 201 | `9` |  |
+| **Starting geometry** | one of Carry on from the nearest point, Restart from this structure | `previous` | Carrying the last relaxed geometry into the next cell is what makes a scan affordable, and it is also what makes it path-dependent: near a transition the optimiser stays in the basin it arrived in. |
+| **Direction** | one of Both, and report each, Forwards only, Backwards only | `forward` | Walking the grid both ways and drawing both is how hysteresis shows up instead of hiding in one curve. |
+| **Optimiser** | one of abnr, conjugate_gradient, fire, lbfgs, quasi_newton, smart, steepest_descent | `smart` | Smart descends steeply at first and changes rule as the forces fall, which is what a scan wants: every point after the first starts near a minimum, but the first one may not. |
+| **Steps per point** | int, 1 to 100000 | `500` | A point that stops at the limit is reported as not converged and drawn apart, so this is a ceiling rather than a target. |
+| **Force tolerance** | float, at least 1e-06 kcal/mol/A | `0.05` |  |
+| **Pre-relax with** | one of Nothing |  | A cheaper engine run at every point before the one the landscape is of -- UFF4MOF ahead of MACE, say.  A volume step moves every atom with the cell, and this spends the long walk back at the cheap price.  Only the main engine's energy is reported. |
+| **Pre-relaxation steps** | int, 1 to 100000 | `500` |  |
+| **Pre-relaxation tolerance** | float, at least 1e-06 kcal/mol/A | `0.5` | Loose on purpose: the cheap engine's minimum is not the one wanted, so converging to it tightly buys nothing. |
+| **Relax the cell first** | bool | `True` | Relax the cell, shape and volume, before the scan and centre the volumes on where it settles.  A scan round the input's volume puts V0 at its edge -- or outside it -- whenever the engine's minimum is not the deposited cell's, and the fit then refuses. |
+| **Span** | float, 0.5 to 40 % | `6.0` | How far either side of the volume to go, when no From and To are given.  Within a few percent the energy is close to a parabola and the modulus is the cell's; much further and it is the equation of state's. |
+
+(mod-orca)=
+## ORCA
+
+ORCA quantum chemistry: an input file for the structure, written here and run wherever ORCA is.
+
+```{index} ORCA
+```
+
+(mod-orca-input)=
+### Input file...
+
+An ORCA input and the coordinates it reads, in a run folder: the functional, basis, job and blocks chosen here, the charge and multiplicity checked against the electrons
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Functional** | text | `BP86` | An ORCA native functional keyword (Tables 3.1-3.9) |
+| **Basis set** | text | `def2-SVP` | An ORCA built-in orbital basis (Tables 2.12-2.33); a 3c method writes none |
+| **Dispersion** | one of None, D3(BJ), D3(0), D4 |  | Added to the ! line; not with a functional that already has one |
+| **RI** | one of ORCA's default, RIJCOSX, RI-J, RI-JK, No RI |  | ORCA's default is RI-J for a pure functional and RIJCOSX for a hybrid; a choice writes its auxiliary basis too |
+| **Job** | one of Single point, Optimise (Opt), Transition state (OptTS) | `sp` | A single point, an optimisation, or a transition state search |
+| **Optimisation** | one of Normal, Loose, Tight, Very tight | `Opt` | How tightly an optimisation converges |
+| **Cartesian (COpt)** | bool | `False` | Optimise in Cartesian rather than internal coordinates |
+| **Frequencies (Freq)** | bool | `False` | Vibrational frequencies, after the optimisation if there is one |
+| **Geometry MaxIter** | int, 0 to 100000 | `0` | %geom MaxIter; 0 is ORCA's own, max(3N, 50) |
+| **Calc_Hess** | bool | `False` | An exact Hessian before the first step |
+| **SCF convergence** | one of ORCA's default, Sloppy, Loose, Medium, Normal, Strong, Tight, Very tight, Extreme |  | TightSCF and the like, Table 2.9 |
+| **SCF solver** | one of ORCA's default, EasyConv, SlowConv, VerySlowConv |  | SlowConv for most transition-metal complexes |
+| **SCF MaxIter** | int, 0 to 100000 | `0` | %scf MaxIter; 0 is ORCA's own |
+| **SCF guess** | one of ORCA's default, PModel, PAtom, Hueckel, HCore |  | %scf Guess; the default is ORCA's own |
+| **TD-DFT roots** | int, 0 to 10000 | `0` | Excited states for a UV-Vis spectrum; 0 writes no %tddft block |
+| **Triplets** | bool | `False` | Singlet-triplet excitations as well |
+| **TD-DFT with Opt or Freq** | one of Ground state, then the spectrum (two steps), Excited state IRoot (one step) | `ground` | Optimise the ground state and then take its spectrum, in two steps, or optimise excited state IRoot itself |
+| **IRoot** | int, 1 to 10000 | `1` | The excited state followed, counting from 1 |
+| **Triplet IRoot** | bool | `False` | Follow a triplet root (needs Triplets) |
+| **Solvation** | one of Gas phase, C-PCM, SMD |  | An implicit solvent, C-PCM or SMD |
+| **Solvent** | text | `water` | Any name of Table 2.56, e.g. water, dmf, thf |
+| **Processes (%pal)** | int, 1 to 4096 | `1` | Above one, a %pal block |
+| **Memory per process** | int, 0 to 10000000 MB | `0` | %maxcore; 0 writes none |
+| **Charge** | int, -1000 to 1000 | `0` | Of the atoms written |
+| **Multiplicity** | int, 1 to 1000 | `1` | 2S+1; refused when the electron count cannot have it |
+| **More keywords** | text |  | Added to the end of the ! line as written |
+| **More blocks** | text |  | % blocks of your own, written before the coordinates |
+| **Atoms** | text |  | Cell atom indices to write; blank is the whole cell |
+| **File name** | text |  | The .inp and .xyz are named after this |
 
 (mod-blender)=
 ## Blender

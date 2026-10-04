@@ -21,7 +21,7 @@ process.
 ```
 
 1. Open *Modules ▸ MOF builder ▸*
-   {ref}`Build a framework… <cmd-module.mof.build>`.  The dialog
+   {ref}`Build a framework (MOF)… <cmd-module.mof.build>`.  The dialog
    ({numref}`fig-first-build-mof-builder`) has a topology list at the
    top and one row per slot the chosen net has underneath.
 2. Under **Topology**, type `acs` in the name box and select **acs**
@@ -80,7 +80,7 @@ cell is a fit, not a hexagonal one.
 ```{index} single: Force Field panel; first build
 ```
 
-1. Open the panel with *Modules ▸ Forcefield ▸*
+1. Open the panel with *Modules ▸ Force Field ▸*
    {ref}`Force Field panel <cmd-show_ff>`.
 2. Under **Model**, leave *Force field* at **UFF** and *Parameters* at
    **UFF4MOF (UFF plus framework nodes)** -- the default, and the one
@@ -224,7 +224,7 @@ The name comes from the RCSR {cite}`okeeffe2008rcsr`, matched on the
 coordination sequence and point symbol of the net you drew.  It is
 the net you built on ({numref}`fig-first-build-net-acs`), recovered
 from the framework by drawing rather than remembered from the
-builder.  **Export Net for Systre…** in the same panel writes the net
+builder.  **Export net for Systre…** in the same panel writes the net
 as a `.cgd` file for Systre {cite}`delgadofriedrichs2003systre` to
 name, which is a second opinion that does not come from the code that
 gave the first.

@@ -83,7 +83,7 @@ exists.
 
 Between saves, every tab edited since the last tick is
 {term}`autosaved <autosave>`.
-The interval is *Preferences ▸ General ▸ Keep unsaved changes every …
+The interval is *Preferences ▸ General ▸ Autosave unsaved changes every …
 min* (two minutes to start with; *never* turns it off), and the copy
 goes to the workspace's `.autosave/` folder, mirroring the file's
 place in the workspace -- never over the file itself.  It is deleted
@@ -133,7 +133,7 @@ the document's file.
    {ref}`Render in Blender… <cmd-render_blender>`, beside it, renders
    the same cell in a lit scene and keeps `scene.blend` to open in
    Blender ({doc}`/utilities/render`).
-4. {ref}`Export Net for Systre… <cmd-export_net>` writes the
+4. {ref}`Export net for Systre… <cmd-export_net>` writes the
    {term}`net` drawn over the structure as a `.cgd` file for Systre
    {cite}`delgadofriedrichs2003systre` to name -- a second opinion on
    the *Net* panel that does not come from the code that gave the

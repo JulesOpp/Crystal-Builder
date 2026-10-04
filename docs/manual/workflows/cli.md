@@ -596,7 +596,7 @@ zeopp
       -p radii_file=''   path, radii file
 [...]
 mof
-  mof.build            Build a framework...
+  mof.build            Build a framework (MOF)...
       -p topology='pcu'   text, topology
       -p nodes=''   text, node building blocks
       -p edges=''   text, linkers

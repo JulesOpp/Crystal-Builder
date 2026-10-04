@@ -238,7 +238,7 @@ of 24 that could turn*.
 
 ## Settings
 
-*Node orientation* is one parameter of {ref}`Build a framework…
+*Node orientation* is one parameter of {ref}`Build a framework (MOF)…
 <mod-mof-build>`, `-p orientation=consistent` or `as-found` on the
 command line.  The linker's angle has no setting: there is no earlier
 decision to be faithful to.

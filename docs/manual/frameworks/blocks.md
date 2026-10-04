@@ -266,9 +266,9 @@ does.
 ## Settings
 
 The block file format, the two folders and the picker's fields are
-those of {ref}`Build a framework… <mod-mof-build>`; the drawing
+those of {ref}`Build a framework (MOF)… <mod-mof-build>`; the drawing
 dialog's four fields are the molecule builder's, listed under
-{ref}`Molecule from SMILES… <mod-build-molecule>`.
+{ref}`Build a molecule with the 2D sketcher… <mod-build-molecule>`.
 
 ## Limitations
 

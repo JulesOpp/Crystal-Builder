@@ -12,6 +12,7 @@ what is there now.  What was built:
 | § 3 | The element combo sits with Add atom; Reset view and the axis views close the bar | `menus.py:build_toolbar` |
 | § 4 | Nothing renamed, so nothing in the six files changed | — |
 | § 5 | 2026-10: Structure regrouped with a Bonds and a Building blocks submenu; Select... → Advanced Selection...; Blender in File only; a periodic table beside the element box | `menus.py:build_menus`, `build_toolbar` |
+| § 6 | 2026-10-04, the v1.0 review: sentence case throughout; builders lead Modules; the builders' names say what they build; Mirror the structure beside Reduce to P1; By element beside Same element; the mouse modes are Ctrl+1 to Ctrl+7 | `menus.py:build_menus`, `xtal/modules/*.py` |
 
 Nothing was renamed, which is why § 4 cost nothing: every registry key
 is the key it was, and the seven new tests in
@@ -252,4 +253,29 @@ to a literal: renaming a module there is one edit and no test change.
   glyph) sits after the element box: the pick goes in the box and the
   mouse goes to Add atom.  The words between the boxes ("cells", the
   axis letters, "along") take the toolbar buttons' font.
+
+## 6. The v1.0 review (2026-10-04)
+
+Registry keys are unchanged; only labels and order moved.
+
+* **Sentence case everywhere** a label had drifted to title case:
+  Select all, Select none, Advanced selection..., Show only selected,
+  Show all, Export net for Systre..., Open workspace..., New
+  workspace..., Show log file.  *Save File* stays: it is the name the
+  conversion invariant is written about.
+* **Modules: builders first**, then Porosity and PXRD, then the
+  calculations -- building something is what a first visit is for.
+  *Forcefield* is *Force Field*, as the panel is, and its panel entry
+  is the module's own *Setup and atom types...*.  DFTB+'s entries lose
+  the `DFTB+:` prefix their submenu already says, and its driver run
+  is *Optimise (DFTB+ driver)...*.
+* **Builders say what they build**: Build a framework (MOF)..., Build
+  a molecule with the 2D sketcher... (it was *Molecule from SMILES*,
+  from before the sketcher), Build an amorphous polymer....
+* **Select**: Same element and By element sit together; Grow last.
+* **Symmetry**: *Invert the structure* read too close to *Invert
+  selection*; it is *Mirror the structure (change hand)*, beside
+  Reduce to P1, the other entry that rewrites the structure.
+* **Mouse modes**: Ctrl+1 to Ctrl+7 in toolbar order; the bare digits
+  were already the views along a, b, c.
 

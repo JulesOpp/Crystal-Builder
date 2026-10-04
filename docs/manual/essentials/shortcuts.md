@@ -37,11 +37,18 @@ records the first, and the second is noted in the table.
 | Edit | {ref}`Paste <cmd-paste>` | {kbd}`Ctrl+V` |
 | Edit | {ref}`Duplicate <cmd-duplicate>` | {kbd}`Ctrl+D` |
 | Edit | {ref}`Delete <cmd-delete_selection>` | {kbd}`Del`, also {kbd}`Backspace` |
-| Select | {ref}`Select All <cmd-select_all>` | {kbd}`Ctrl+A` |
+| Select | {ref}`Select all <cmd-select_all>` | {kbd}`Ctrl+A` |
 | Select | {ref}`Invert selection <cmd-invert_selection>` | {kbd}`Ctrl+I` |
 | Select | {ref}`Grow ▸ Grow to bonded neighbours <cmd-expand_bonded>` | {kbd}`Ctrl+G` |
 | Select | {ref}`Grow ▸ Grow to whole fragment <cmd-expand_fragment>` | {kbd}`Ctrl+Shift+G` |
 | Structure | {ref}`Add atom… <cmd-add_atom_dialog>` | {kbd}`Ctrl+Shift+A` |
+| Structure | {ref}`Mouse mode ▸ Select <cmd-mode_select>` | {kbd}`Ctrl+1` |
+| Structure | {ref}`Mouse mode ▸ Box select <cmd-mode_box_select>` | {kbd}`Ctrl+2` |
+| Structure | {ref}`Mouse mode ▸ Add atom <cmd-mode_add_atom>` | {kbd}`Ctrl+3` |
+| Structure | {ref}`Mouse mode ▸ Add bond <cmd-mode_add_bond>` | {kbd}`Ctrl+4` |
+| Structure | {ref}`Mouse mode ▸ Draw net <cmd-mode_topology>` | {kbd}`Ctrl+5` |
+| Structure | {ref}`Mouse mode ▸ Move <cmd-mode_move>` | {kbd}`Ctrl+6` |
+| Structure | {ref}`Mouse mode ▸ Measure <cmd-mode_measure>` | {kbd}`Ctrl+7` |
 | Structure | {ref}`Reset bonds to automatic <cmd-reset_bonds>` | {kbd}`Ctrl+B` |
 | Symmetry | {ref}`Find symmetry… <cmd-find_symmetry>` | {kbd}`Ctrl+Shift+F` |
 | Measure | {ref}`Measure selection <cmd-measure_selection>` | {kbd}`Ctrl+M` |
@@ -51,8 +58,8 @@ records the first, and the second is noted in the table.
 | View | {ref}`Along b <cmd-view_b>` | {kbd}`2` |
 | View | {ref}`Along c <cmd-view_c>` | {kbd}`3` |
 | View | {ref}`Reset view <cmd-reset_view>` | {kbd}`Ctrl+0` |
-| Modules | {ref}`Forcefield ▸ Single point energy <cmd-single_point>` | {kbd}`Ctrl+E` |
-| Modules | {ref}`Forcefield ▸ Optimise geometry <cmd-optimize>` | {kbd}`Ctrl+Shift+E` |
+| Modules | {ref}`Force Field ▸ Single point energy <cmd-single_point>` | {kbd}`Ctrl+E` |
+| Modules | {ref}`Force Field ▸ Optimise geometry <cmd-optimize>` | {kbd}`Ctrl+Shift+E` |
 | Help | {ref}`Crystal Builder Help <cmd-help_contents>` | {kbd}`Ctrl+?` |
 | -- | {ref}`Cancel the current gesture <cmd-cancel_gesture>` | {kbd}`Esc` |
 
@@ -65,7 +72,7 @@ Three things about the table that are choices rather than accidents:
   reflex.  The toolbar button is *Recalculate*, because a button is
   pressed by aim rather than by memory and the destructive one of a
   pair is the wrong thing to leave under the cursor.
-- *Select None* has no key: {kbd}`Esc` is one action, and clearing
+- *Select none* has no key: {kbd}`Esc` is one action, and clearing
   the selection is its last rung, after a half-finished gesture and a
   mode.  Two actions on one key is, in Qt, neither of them firing.
 - The DFTB+ single point and optimisation have no key, because

@@ -356,7 +356,7 @@ needs the cell re-expressed, it says so, the crystal itself does not
 move, and the view resets so the new cell is framed rather than the old
 one.
 
-*Invert the structure* is the other hand of the same crystal --
+*Mirror the structure (change hand)* is the other hand of the same crystal --
 coordinates and space group together, since doing only the first
 leaves atoms that no longer obey their own symmetry.  P4_1 comes back
 as P4_3.  The Structure panel says which hand you are in at all times,
@@ -405,13 +405,13 @@ setting one C-O of an acetate sets the other, and it is saved with the
 project.  It reaches the force field's atom typing, and through that
 *Add hydrogens* -- see above.
 
-An edit over a selection is **one** edit: Select All on MFU-4l names
+An edit over a selection is **one** edit: Select all on MFU-4l names
 848 bonds, and setting their type is a single command, a single change
 to the structure and a single redraw -- not 848 of each -- so it is one
 `Ctrl+Z` and takes about a second rather than half a minute.
 
 The commands that name a **region** take the bonds inside it as well as
-the atoms: *Select All*, the box, *Invert* and the three *Grow*
+the atoms: *Select all*, the box, *Invert* and the three *Grow*
 commands, so "select the linker, call its bonds aromatic" is one
 gesture rather than eleven clicks.  A bond with one end outside the
 region is not in it.  Clicking an atom, selecting by element or picking

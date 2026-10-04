@@ -299,7 +299,7 @@ behind, and the panel says so once.
 
 ## In the window
 
-1. Open the panel with *Modules ▸ Forcefield ▸*
+1. Open the panel with *Modules ▸ Force Field ▸*
    {ref}`Force Field panel <cmd-show_ff>` ({ref}`panel-ff_dock`), and
    choose the engine and its options under **Model**; the atom-type
    table underneath is the typing the energy will rest on.
@@ -312,7 +312,7 @@ behind, and the panel says so once.
    Every step is announced in the plot and the status line whatever
    it says; on a large cell the repaint is the most expensive thing
    happening, so a long run is often best watched as the plot alone.
-4. Press **Optimise** (or *Modules ▸ Forcefield ▸*
+4. Press **Optimise** (or *Modules ▸ Force Field ▸*
    {ref}`Optimise geometry <cmd-optimize>`, {kbd}`Ctrl+Shift+E`).  The
    structure moves in the view, the energy and largest force are
    plotted live, and the button becomes **Stop**; **Pause** holds the
