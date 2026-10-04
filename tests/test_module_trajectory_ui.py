@@ -71,3 +71,21 @@ def test_frames_of_a_tab_no_longer_in_front_are_not_opened_over_another(
 
     assert not ran.is_playing
     assert not other.is_playing
+
+
+def test_opening_an_orca_trajectory_plays_it_in_the_transport_bar(
+        window, tmp_path):
+    """ORCA's ``_trj.xyz`` is a run, and opened as a structure alone
+    it was its first frame with the rest of the run nowhere."""
+    path = tmp_path / "water_trj.xyz"
+    path.write_text("".join(
+        f"3\nCoordinates from ORCA-job water E -76.4{step}\n"
+        f"O 0.0 0.0 {0.1 * step}\nH 0.76 0.58 0.0\nH -0.76 0.58 0.0\n"
+        for step in range(4)))
+
+    document = window.open_path(path)
+
+    assert document.is_playing
+    assert document.playback.n_frames == 4
+    assert window.trajectory_dock.is_open
+    assert not document.modified

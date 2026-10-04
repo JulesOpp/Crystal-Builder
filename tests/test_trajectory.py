@@ -184,3 +184,61 @@ def test_an_empty_structure_still_writes_a_frame():
 
     assert frame.n_atoms == 0
     assert read_frames(frame.text())[0].n_atoms == 0
+
+
+def _orca_run(path, steps=3):
+    """An ORCA ``_trj.xyz``: prose comment lines, hartree, no cell."""
+    text = ""
+    for step in range(steps):
+        text += (f"3\nCoordinates from ORCA-job water E "
+                 f"{-76.4 - 0.001 * step:.6f}\n"
+                 f"O   0.0  0.0  {0.1 * step:.4f}\n"
+                 f"H   0.76 0.58 0.0\nH  -0.76 0.58 0.0\n")
+    path.write_text(text)
+    return path
+
+
+def test_an_orca_trajectory_is_known_by_its_name_or_its_comment(
+        tmp_path):
+    """A renamed ORCA run still opens as a run, and a single-frame
+    molecule called anything else does not."""
+    from xtal.io.trajectory import is_orca_trajectory
+
+    assert is_orca_trajectory(_orca_run(tmp_path / "opt_trj.xyz"))
+    assert is_orca_trajectory(_orca_run(tmp_path / "renamed.xyz"))
+    plain = tmp_path / "plain.xyz"
+    plain.write_text("1\nmethane, nearly\nC 0 0 0\n")
+    assert not is_orca_trajectory(plain)
+
+
+def test_an_orca_frame_carries_its_energy_in_kcal_per_mol(tmp_path):
+    """Read as hartree, the energy plot would put an ORCA run on a
+    scale six hundred times flatter than every other run's."""
+    trajectory = read_trajectory(_orca_run(tmp_path / "w_trj.xyz"))
+
+    assert trajectory.n_frames == 3
+    assert trajectory[1].info["energy_Eh"] == pytest.approx(-76.401)
+    assert trajectory[1].energy == pytest.approx(-76.401 * 627.5094740631)
+    assert trajectory[0].info["job"] == "water"
+
+
+def test_a_run_with_no_cell_plays_in_the_box_its_structure_opens_in(
+        tmp_path):
+    """The structure is the first frame and the trajectory is every
+    frame: boxed apart, they are two crystals, and frame one plays
+    as the molecule jumping by the difference between their pads."""
+    from xtalapp.playback import open_playback
+
+    path = _orca_run(tmp_path / "w_trj.xyz")
+    structure = FORMATS.read(path)
+    trajectory = read_trajectory(path)
+
+    assert trajectory.is_fixed_cell
+    assert np.allclose(structure.lattice.matrix, trajectory.lattice.matrix)
+    playback = open_playback(structure, trajectory, path)
+    assert np.allclose(playback.frac_at(0, structure.lattice),
+                       structure.frac)
+    moved = structure.lattice.to_cart(
+        playback.frac_at(2, structure.lattice) - structure.frac)
+    assert np.allclose(moved[0], [0.0, 0.0, 0.2])
+    assert np.allclose(moved[1:], 0.0)

@@ -46,6 +46,15 @@ PROPERTIES = "species:S:1:pos:R:3"
 _INFO_RE = re.compile(r'([A-Za-z_][A-Za-z0-9_]*)\s*=\s*'
                       r'(?:"([^"]*)"|(\S+))')
 
+# ORCA's ``_trj.xyz`` (an optimisation, a scan, an MD) writes prose,
+# not key=value: "Coordinates from ORCA-job NAME E -1234.567890", the
+# energy in hartree.  kcal/mol is what every energy here is in.
+_ORCA_RE = re.compile(r'Coordinates from ORCA-job\s+(\S+)'
+                      r'(?:\s+E\s+(\S+))?')
+HARTREE = 627.5094740631
+
+PAD = 5.0           # Angstrom of vacuum round a trajectory with no cell
+
 
 def parse_info(comment: str) -> dict:
     """The ``key=value`` pairs of an extended XYZ comment line.
@@ -332,12 +341,73 @@ def _read_frame(lines: list[str], start: int) -> tuple[Frame, int]:
     cart = (np.array(coordinates, dtype=float).reshape(n_atoms, 3)
             if n_atoms else np.zeros((0, 3)))
 
+    if "energy" not in info:
+        info.update(_orca_info(lines[start + 1]
+                               if start + 1 < len(lines) else ""))
     matrix = info.pop("Lattice", None)
     info.pop("Properties", None)
     lattice = (Lattice(np.asarray(matrix, dtype=float))
                if isinstance(matrix, np.ndarray) else None)
     return Frame(tuple(symbols), cart, lattice, info), \
         start + 2 + n_atoms
+
+
+def _orca_info(comment: str) -> dict:
+    match = _ORCA_RE.search(comment)
+    if match is None:
+        return {}
+    info = {"job": match.group(1)}
+    try:
+        hartree = float(match.group(2))
+    except (TypeError, ValueError):
+        return info
+    info["energy"] = hartree * HARTREE
+    info["energy_Eh"] = hartree
+    return info
+
+
+def is_orca_trajectory(path) -> bool:
+    """Is this ORCA's ``_trj.xyz``: a molecule's frames with no cell?
+
+    By the name ORCA gives it, or by the comment line ORCA writes, so
+    a renamed copy is still known.  Only the first two lines are read.
+    """
+    path = Path(path)
+    if path.suffix.lower() != ".xyz":
+        return False
+    if path.name.lower().endswith("_trj.xyz"):
+        return True
+    try:
+        with open(path, encoding="utf-8", errors="replace") as handle:
+            handle.readline()
+            return _ORCA_RE.search(handle.readline()) is not None
+    except OSError:
+        return False
+
+
+def boxed(frames: list[Frame], pad: float = PAD) -> list[Frame]:
+    """Cell-less frames, put in one box with ``pad`` of vacuum.
+
+    One box for every frame and not a box each: playback maps a frame
+    through the open structure's cell, so a cell that changed from
+    frame to frame would play as a crystal breathing.  The box is the
+    span the atoms cover over the whole run, so nothing wraps through
+    a face while it moves, and every frame is shifted by the same
+    vector, so the motion is the run's.  A file with a cell is left
+    as it is.
+    """
+    if not frames or any(f.lattice is not None for f in frames):
+        return frames
+    every = [f.cart for f in frames if f.n_atoms]
+    if not every:
+        return frames
+    stacked = np.concatenate(every)
+    low = stacked.min(axis=0)
+    span = stacked.max(axis=0) - low
+    lattice = Lattice(np.diag(np.maximum(span + 2 * pad, 1.0)))
+    shift = pad - low
+    return [Frame(f.elements, f.cart + shift, lattice, dict(f.info))
+            for f in frames]
 
 
 def read_trajectory(path) -> Trajectory:
@@ -347,11 +417,16 @@ def read_trajectory(path) -> Trajectory:
     as forwards, and a run of a few hundred frames is a few tens of
     megabytes.  A file too large for that is a reason to write a
     windowed reader, not a reason to make every playback seek.
+
+    Frames with no cell -- an ORCA ``_trj.xyz``, any molecule's run --
+    are put in one shared box (:func:`boxed`), which is the cell
+    :func:`xtal.io.xyz.read_xyz` gives the structure such a file opens
+    as, so the two can be played against each other.
     """
     path = Path(path)
     if path.suffix.lower() == ".traj":
         return Trajectory(_ase_frames(path), path=path)
-    return Trajectory(read_frames(read_text(path)), path=path)
+    return Trajectory(boxed(read_frames(read_text(path))), path=path)
 
 
 def ase_available() -> bool:

@@ -59,8 +59,42 @@ def xyz_string(structure: Structure, comment: str = "") -> str:
 
 
 def read_xyz(path) -> Structure:
-    return read_xyz_string(read_text(path),
-                           name=str(path))
+    """The first frame of an XYZ file, as a structure.
+
+    A cell-less file of several frames -- ORCA's ``_trj.xyz``, any
+    molecule's run -- is put in the box the whole run fits in
+    (:func:`xtal.io.trajectory.boxed`) rather than the first frame's:
+    that is the cell the trajectory plays in, and a structure in a
+    box of its own would be a different crystal to play it against.
+    """
+    text = read_text(path)
+    first = _first_of_a_run(text, str(path))
+    if first is not None:
+        return first
+    return read_xyz_string(text, name=str(path))
+
+
+def _first_of_a_run(text: str, name: str) -> Structure | None:
+    lines = text.splitlines()
+    try:
+        n_atoms = int(lines[0].split()[0])
+    except (ValueError, IndexError):
+        return None
+    rest = lines[2 + n_atoms:]
+    if (len(lines) < 2 or _LATTICE_RE.search(lines[1])
+            or not any(line.strip() for line in rest)):
+        return None
+    from xtal.io.trajectory import boxed, read_frames
+    try:
+        frames = boxed(read_frames(text))
+    except ValueError:
+        # Not a run after all: trailing text the single-frame reader
+        # has always ignored.
+        return None
+    structure = frames[0].to_structure()
+    structure.meta.update({"source": name, "format": "xyz",
+                           "warnings": [_NO_LATTICE]})
+    return structure
 
 
 def read_xyz_all(path) -> list[Structure]:

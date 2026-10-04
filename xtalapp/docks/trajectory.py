@@ -17,9 +17,10 @@ puts the atoms back where they were.
 
 Anything that is a trajectory opens here, not only this application's
 own runs: an ASE relaxation, a DFTB+ MD, a LAMMPS dump converted to
-extxyz.  What is refused is a trajectory of a *different* crystal --
-matching atom counts alone would let one run drive another structure,
-which would be nonsense drawn convincingly.
+extxyz, an ORCA ``_trj.xyz`` -- which plays the moment it is opened,
+over its own first frame.  What is refused is a trajectory of a
+*different* crystal -- matching atom counts alone would let one run
+drive another structure, which would be nonsense drawn convincingly.
 """
 
 from __future__ import annotations

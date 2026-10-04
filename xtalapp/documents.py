@@ -37,6 +37,7 @@ from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox
 
 from xtal.core.structure import Structure
 from xtal.io import FORMATS
+from xtal.io.trajectory import is_orca_trajectory
 from xtal.workspace import resolved
 from xtalapp import samples
 from xtalapp.dialogs.answered import answered
@@ -250,6 +251,13 @@ class DocumentSet:
         self._announce_warnings(document)
         self.window.autosaver.offer(document)
         self._announce_agent(document)
+        if is_orca_trajectory(path):
+            # The structure is the run's first frame; the run is what
+            # was asked for, so it plays at once rather than waiting
+            # to be found in the tree.
+            dock = self.window.trajectory_dock
+            dock.set_document(document)
+            dock.open_path(path)
         return document
 
     def _already_open(self, document, clicked: Path, source=None,
