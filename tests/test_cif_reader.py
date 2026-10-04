@@ -138,3 +138,28 @@ def test_a_disorder_group_survives_writing_and_reading(rutile):
 
     assert back.sites[1].props.get("disorder_group") == 2
     assert "disorder_group" not in back.sites[0].props
+
+
+def test_a_computed_charge_goes_through_a_cif_and_an_oxidation_state_stays_in_the_symbol(  # noqa: E501
+        rutile):
+    """EQeq's charges were dropped on save -- a fractional charge had
+    no column -- so they could not reach RASPA or Zeo++, which read
+    ``_atom_site_charge``.  A whole-number charge is still written as
+    the type symbol (Ti4+), and a file without the column reads as it
+    did."""
+    computed = rutile.copy()
+    for site, q in zip(computed.sites, (1.2875, -0.64375), strict=False):
+        site.charge = q
+    text = cif_string(computed)
+    assert "_atom_site_charge" in text
+    back = read_cif_string(text)
+    assert [s.charge for s in back.sites] == pytest.approx(
+        [1.2875, -0.64375])
+
+    formal = rutile.copy()
+    formal.sites[0].charge = 4.0
+    formal.sites[1].charge = -2.0
+    text = cif_string(formal)
+    assert "_atom_site_charge" not in text
+    assert "Ti4+" in text
+    assert [s.charge for s in read_cif_string(text).sites] == [4.0, -2.0]

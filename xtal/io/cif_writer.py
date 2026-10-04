@@ -168,6 +168,13 @@ def cif_string(structure: Structure, expand_to_p1: bool = False,
                        for s in source.sites)
     if has_disorder:
         lines.append("_atom_site_disorder_group")
+    # A computed charge (EQeq, Mulliken) in the column RASPA and
+    # Zeo++ read, beside the type symbol's oxidation state.  Dropped,
+    # as it was, Set charges' "they belong in the file" was false and
+    # the charges could not leave the application.
+    has_partial = any(_is_partial(s.charge) for s in source.sites)
+    if has_partial:
+        lines.append("_atom_site_charge")
 
     labelled = source.copy()
     labelled.ensure_labels()
@@ -182,6 +189,9 @@ def cif_string(structure: Structure, expand_to_p1: bool = False,
             row += f" {u:8.5f}"
         if has_disorder:
             row += f" {_quote(str(site.props.get('disorder_group') or '.'))}"
+        if has_partial:
+            row += (" ?" if site.charge is None
+                    else f" {site.charge: .5f}")
         lines.append(row)
 
     lines += _aniso_loop(labelled)
@@ -347,15 +357,19 @@ def _aniso_loop(structure) -> list[str]:
     return lines
 
 
+def _is_partial(charge) -> bool:
+    return charge is not None and abs(charge - round(charge)) > 1e-6
+
+
 def _type_symbol(site) -> str:
     """Element with its oxidation state, CIF style: Ti4+, O2-.
 
-    Only whole-number charges are written: a fractional charge is a
-    computed quantity (a QEq or Mulliken charge), not part of the
-    structure, and CIF has no honest place for it here.
+    Only whole-number charges are written here: a fractional charge
+    is a computed quantity (a QEq or Mulliken charge), which goes in
+    ``_atom_site_charge`` instead.
     """
     charge = site.charge
-    if charge is None or abs(charge - round(charge)) > 1e-6:
+    if charge is None or _is_partial(charge):
         return site.element
     n = int(round(charge))
     if n == 0:
