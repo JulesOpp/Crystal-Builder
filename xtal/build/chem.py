@@ -447,3 +447,169 @@ def smiles_of(Chem, mol) -> str:
         return Chem.MolToSmiles(mol)
     except (ValueError, RuntimeError):          # pragma: no cover
         return "the molecule"
+
+
+# ======================================================================
+#  THE SKETCH: a drawing to a string and back
+# ======================================================================
+#
+# :mod:`xtal.build.sketch` holds no RDKit, so the two directions are
+# here.  The string is CXSMILES: a plain SMILES when nothing but atoms
+# and bonds was drawn -- every saved parameter still reads -- and an
+# ``|atomProp:...|`` tail when a metal was given a shape by hand.
+
+#: The atom property a hand-chosen metal shape rides under.
+SHAPE_PROP = "xtal_shape"
+
+_SKETCH_ORDERS = {"single": "SINGLE", "double": "DOUBLE",
+                  "triple": "TRIPLE", "aromatic": "AROMATIC",
+                  "dative": "DATIVE"}
+
+
+def sketch_mol(sketch, sanitize: bool = True):
+    """The RDKit molecule a drawing describes.
+
+    Raises :class:`BuildError` saying why when it will not sanitize
+    -- a ring drawn aromatic that has no Kekulé form, a carbon with
+    five bonds -- because the canvas shows that sentence under the
+    drawing.
+    """
+    if not installed():
+        raise BuildError(MISSING)
+    from rdkit import Chem, rdBase
+
+    from xtal.build.sketch import CONNECTION as POINT
+    from xtal.build.sketch import is_metal
+
+    mol = Chem.RWMol()
+    for atom in sketch.atoms:
+        if atom.element == POINT:
+            new = Chem.Atom(0)
+            new.SetAtomMapNum(int(atom.map_number))
+        else:
+            new = Chem.Atom(atom.element)
+            new.SetFormalCharge(int(atom.charge))
+            if atom.hydrogens is not None or is_metal(atom.element):
+                new.SetNumExplicitHs(int(atom.hydrogens or 0))
+                new.SetNoImplicit(True)
+            if atom.shape:
+                new.SetProp(SHAPE_PROP, atom.shape)
+        mol.AddAtom(new)
+    for bond in sketch.bonds:
+        kind = getattr(Chem.BondType, _SKETCH_ORDERS[bond.order])
+        mol.AddBond(int(bond.a), int(bond.b), kind)
+        if bond.order == "aromatic":
+            mol.GetAtomWithIdx(bond.a).SetIsAromatic(True)
+            mol.GetAtomWithIdx(bond.b).SetIsAromatic(True)
+            mol.GetBondBetweenAtoms(bond.a, bond.b).SetIsAromatic(True)
+    mol = mol.GetMol()
+    if sanitize:
+        with rdBase.BlockLogs():
+            try:
+                Chem.SanitizeMol(mol)
+            except (ValueError, RuntimeError) as exc:
+                raise BuildError(_sanitize_reason(exc)) from None
+    return mol
+
+
+def sketch_smiles(sketch) -> str:
+    """The drawing as canonical CXSMILES, ``""`` for an empty page."""
+    if not sketch.atoms:
+        return ""
+    from rdkit import Chem
+
+    return Chem.MolToCXSmiles(sketch_mol(sketch))
+
+
+def sketch_from_smiles(text: str):
+    """A drawing of a string, laid out flat by RDKit.
+
+    Hydrogens written as atoms stay atoms; ``[NH3]`` is an H count of
+    three and a plain ``N`` is left to its valence, so the string the
+    drawing writes back is the one it was given.
+    """
+    if not installed():
+        raise BuildError(MISSING)
+    from rdkit import Chem, rdBase
+    from rdkit.Chem import rdDepictor
+
+    from xtal.build.sketch import BOND, CONNECTION, Sketch
+
+    text = str(text or "").strip()
+    if not text:
+        return Sketch()
+    with rdBase.BlockLogs():
+        mol = Chem.MolFromSmiles(text)
+    if mol is None:
+        raise BuildError(f"{text!r} is not a SMILES string RDKit can "
+                         f"read")
+    # Drawn as a chemist draws it: alternating single and double.
+    # Sanitizing the drawing perceives the aromaticity again, so the
+    # string written back is the one read.
+    with rdBase.BlockLogs():
+        try:
+            Chem.Kekulize(mol, clearAromaticFlags=True)
+        except (ValueError, RuntimeError):      # pragma: no cover
+            pass
+    rdDepictor.SetPreferCoordGen(True)
+    rdDepictor.Compute2DCoords(mol)
+    # RDKit lays bonds out at 1.5; the page draws them at BOND.
+    scale = BOND / 1.5
+    positions = mol.GetConformer().GetPositions()
+    sketch = Sketch()
+    for atom, (x, y, _z) in zip(mol.GetAtoms(), positions, strict=True):
+        if atom.GetAtomicNum() == 0:
+            k = sketch.add_atom(CONNECTION, x * scale, y * scale)
+            sketch.atoms[k].map_number = atom.GetAtomMapNum()
+            continue
+        k = sketch.add_atom(atom.GetSymbol(), x * scale, y * scale)
+        drawn = sketch.atoms[k]
+        drawn.charge = atom.GetFormalCharge()
+        if atom.GetNoImplicit():
+            drawn.hydrogens = atom.GetNumExplicitHs()
+        if atom.HasProp(SHAPE_PROP):
+            drawn.shape = atom.GetProp(SHAPE_PROP)
+    names = {v: k for k, v in _SKETCH_ORDERS.items()}
+    for bond in mol.GetBonds():
+        order = names.get(str(bond.GetBondType()), "single")
+        sketch.bonds.append(_sketch_bond(bond, order))
+    return sketch
+
+
+def _sketch_bond(bond, order):
+    from xtal.build.sketch import SketchBond
+
+    return SketchBond(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx(),
+                      order)
+
+
+def canonical(text: str) -> str:
+    """The string as RDKit would write it, or the string itself.
+
+    Unchanged for anything unreadable, which is what makes this safe
+    to compare with: two identical half-typed strings still match,
+    and two different ones still differ.
+    """
+    text = str(text or "").strip()
+    if not text or not installed():
+        return text
+    from rdkit import Chem, rdBase
+
+    with rdBase.BlockLogs():
+        mol = Chem.MolFromSmiles(text)
+    if mol is None:
+        return text
+    mol.RemoveAllConformers()
+    return Chem.MolToCXSmiles(mol)
+
+
+def _sanitize_reason(exc) -> str:
+    """RDKit's complaint, said for a person drawing: which atom, and
+    what is wrong with it."""
+    text = str(exc).strip().splitlines()[0] if str(exc).strip() else ""
+    if "Explicit valence" in text or "valence" in text.lower():
+        return f"too many bonds: {text}"
+    if "kekulize" in text.lower():
+        return ("a ring drawn aromatic has no alternating single and "
+                f"double bonds: {text}")
+    return text or "RDKit cannot make a molecule of this drawing"
