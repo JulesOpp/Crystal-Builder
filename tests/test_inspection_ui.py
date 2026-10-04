@@ -238,6 +238,19 @@ def test_inspector_with_many_atoms(open_rutile):
     assert "2 site(s)" in inspector.details.toPlainText()
 
 
+def test_inspector_caps_a_long_site_listing_and_says_so(
+        open_rutile, monkeypatch):
+    """A select-all on a big P1 cell must not lay out a line a site."""
+    from xtalapp.docks import inspector
+    monkeypatch.setattr(inspector, "MAX_LISTED_SITES", 1)
+    window, document = open_rutile
+    document.select_all()
+    text = window.inspector_dock.details.toPlainText()
+    assert "2 site(s)" in text
+    assert "... and 1 more" in text
+    assert "O " not in text.split("2 site(s)")[1].split("...")[0]
+
+
 # ------------------------------------------------------- site table
 
 def test_site_table_lists_the_asymmetric_unit(open_rutile):

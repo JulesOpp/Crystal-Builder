@@ -61,6 +61,12 @@ def _force_field_type(document, atom: int) -> str:
     return f"{name}  ({description})" if description else name
 
 
+# A select-all on a P1 supercell is thousands of sites, and a listing
+# nobody can read is seconds of text laid out: 17 496 lines was the
+# cost of every selection change.
+MAX_LISTED_SITES = 200
+
+
 class InspectorDock(QDockWidget):
     """Properties of the current selection."""
 
@@ -253,12 +259,15 @@ class InspectorDock(QDockWidget):
         sites = sorted(document.selected_sites())
         lines = [f"{len(document.selection.atoms)} atoms from "
                  f"{len(sites)} site(s)", ""]
-        for index in sites:
+        cell = document.cell
+        for index in sites[:MAX_LISTED_SITES]:
             site = document.structure.sites[index]
             x, y, z = site.frac
             lines.append(f"  {site.label or site.element:<8s} "
                          f"{site.element:<3s} {x: .5f} {y: .5f} "
-                         f"{z: .5f}  x{document.cell.multiplicity(index)}")
+                         f"{z: .5f}  x{cell.multiplicity(index)}")
+        if len(sites) > MAX_LISTED_SITES:
+            lines.append(f"  ... and {len(sites) - MAX_LISTED_SITES} more")
         lines.append("")
         lines.append("The element box applies to all of them.")
         self.details.setPlainText("\n".join(lines))
