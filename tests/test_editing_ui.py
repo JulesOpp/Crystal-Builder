@@ -368,6 +368,19 @@ def test_move_dock_reports_what_symmetry_will_do(window, rutile_cif):
     assert "whole orbit moves" not in window.move_dock.summary.text()
 
 
+def test_the_move_buttons_are_greyed_until_something_is_selected(
+        window, rutile_cif):
+    """The header said Nothing selected while Apply, Mirror and Make
+    planar invited a click, which Measure and the Inspector never do.
+    The steps stay editable, so a move can be set up first."""
+    document = window.open_path(rutile_cif)
+    dock = window.move_dock
+    assert not any(b.isEnabled() for b in dock.actions + dock.nudges)
+    assert dock.steps[0].isEnabled()
+    document.select([2])
+    assert all(b.isEnabled() for b in dock.actions + dock.nudges)
+
+
 def test_move_dock_does_nothing_without_a_selection(empty_document):
     window, document = empty_document
     window.move_dock.steps[0].setValue(0.5)

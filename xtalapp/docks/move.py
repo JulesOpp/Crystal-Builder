@@ -98,7 +98,10 @@ class MoveDock(QDockWidget):
         self.steps = []
         self.nudges = []
         grid = QGridLayout()
-        grid.addWidget(self.units, 0, 0, 1, 3)
+        units = QHBoxLayout()
+        units.addWidget(QLabel("Units"))
+        units.addWidget(self.units, 1)
+        grid.addLayout(units, 0, 0, 1, 3)
         for column, axis in enumerate("xyz"):
             spin = QDoubleSpinBox()
             spin.setRange(-99.0, 99.0)
@@ -129,13 +132,14 @@ class MoveDock(QDockWidget):
         apply_button = QPushButton("Apply")
         apply_button.clicked.connect(
             lambda: self.translate(sign=1.0))
-        back_button = QPushButton("Apply -")
+        back_button = QPushButton("Apply in reverse")
         back_button.setToolTip("Translate by the negative of the step")
         back_button.clicked.connect(
             lambda: self.translate(sign=-1.0))
         buttons = QHBoxLayout()
         buttons.addWidget(apply_button)
         buttons.addWidget(back_button)
+        self.actions = [apply_button, back_button]
 
         inner = QVBoxLayout(box)
         inner.addLayout(grid)
@@ -156,6 +160,7 @@ class MoveDock(QDockWidget):
                                        "cell origin"])
         apply_button = QPushButton("Apply")
         apply_button.clicked.connect(lambda: self.rotate())
+        self.actions.append(apply_button)
 
         spin_arrows = QHBoxLayout()
         for glyph, sign in (("\u21ba", -1.0), ("\u21bb", 1.0)):
@@ -166,12 +171,12 @@ class MoveDock(QDockWidget):
             self.nudges.append(button)
 
         grid = QGridLayout(box)
-        grid.addWidget(QLabel("axis"), 0, 0)
+        grid.addWidget(QLabel("Axis"), 0, 0)
         grid.addWidget(self.rotation_axis, 0, 1)
-        grid.addWidget(QLabel("angle"), 1, 0)
+        grid.addWidget(QLabel("Angle"), 1, 0)
         grid.addWidget(self.angle, 1, 1)
         grid.addLayout(spin_arrows, 2, 1)
-        grid.addWidget(QLabel("about"), 3, 0)
+        grid.addWidget(QLabel("About"), 3, 0)
         grid.addWidget(self.rotation_centre, 3, 1)
         grid.addWidget(apply_button, 4, 0, 1, 2)
         return box
@@ -182,8 +187,9 @@ class MoveDock(QDockWidget):
         self.mirror_axis.addItems(list(AXES))
         apply_button = QPushButton("Mirror")
         apply_button.clicked.connect(lambda: self.mirror())
+        self.actions.append(apply_button)
         row = QHBoxLayout()
-        row.addWidget(QLabel("normal"))
+        row.addWidget(QLabel("Normal"))
         row.addWidget(self.mirror_axis, 1)
         row.addWidget(apply_button)
 
@@ -192,6 +198,7 @@ class MoveDock(QDockWidget):
             "Flatten the selection onto its best-fit plane -- for a "
             "ring that came out of a builder slightly puckered")
         self.planar_button.clicked.connect(lambda: self.planarize())
+        self.actions.append(self.planar_button)
 
         inner = QVBoxLayout(box)
         inner.addLayout(row)
@@ -237,6 +244,11 @@ class MoveDock(QDockWidget):
         enabled = (document is not None
                    and bool(document.selection.atoms))
         self.widget().setEnabled(document is not None)
+        # The steps stay editable, so a move can be set up before
+        # anything is picked; what would act on nothing is greyed, as
+        # Measure and the Inspector grey theirs.
+        for button in self.actions + self.nudges:
+            button.setEnabled(enabled)
         if not enabled:
             self.summary.setText("Nothing selected")
             return
