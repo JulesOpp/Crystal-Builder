@@ -162,7 +162,8 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
             "xtal.polymer", "xtal.orca",
             "xtal.agent", "xtal.agent.skill", "xtal.powder",
             "xtalapp", "xtalapp.viewport", "xtalapp.docks",
-            "xtalapp.dialogs", "xtalapp.widgets", "xtalapp.refine"]
+            "xtalapp.dialogs", "xtalapp.widgets", "xtalapp.widgets.sketcher",
+            "xtalapp.refine"]
 
 # The RCSR index is not optional and is not an external asset: the net
 # panel cannot name anything without it, so it travels inside the
