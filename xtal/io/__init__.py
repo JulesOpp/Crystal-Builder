@@ -123,7 +123,7 @@ FORMATS.register(Format(
     # the first of them silently answers a different question.
     read_all=read_xyz_all,
     write=write_xyz,
-    keeps=frozenset({"occupancy"}),
+    keeps=frozenset(),
 ))
 
 FORMATS.register(Format(

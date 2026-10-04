@@ -45,15 +45,17 @@ def xyz_string(structure: Structure, comment: str = "") -> str:
     cart = cell.cart
     flat = " ".join(f"{v:.8f}"
                     for v in structure.lattice.matrix.ravel())
-    header = (f'Lattice="{flat}" '
-              f'Properties=species:S:1:pos:R:3:occupancy:R:1')
+    # Four columns and nothing else: a fifth is read as a charge by
+    # most programs that take plain XYZ, and an occupancy there is not
+    # one.  The reader still takes a fifth column as occupancy.
+    header = f'Lattice="{flat}" Properties=species:S:1:pos:R:3'
     if comment:
         header += f' comment="{comment}"'
     lines = [str(cell.n_atoms), header]
     for k in range(cell.n_atoms):
         x, y, z = cart[k]
         lines.append(f"{cell.elements[k]:<4s} {x: 14.8f} {y: 14.8f} "
-                     f"{z: 14.8f} {cell.occupancy[k]:6.3f}")
+                     f"{z: 14.8f}")
     lines.append("")
     return "\n".join(lines)
 

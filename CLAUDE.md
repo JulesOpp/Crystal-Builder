@@ -472,6 +472,13 @@ stress case).
   once; a segfault's stack goes to `faults.log` beside the log.
 - **Manually set bond types take precedence** over any distance-based
   determination.
+- **An inferred bond type is held once it is read.** The first
+  `bonding.orders` answer for each bond is written into
+  `PerceivedBonds.orders` (keyed by `structure.order_key`, which
+  survives a wrap) and is the answer from then on -- through Add atom,
+  Move, an optimisation (cell too), Delete, undo, Reduce to P1 and a
+  save. Only a bond nobody has asked about is inferred, over the
+  geometry as it is then; Recalculate Bonds starts afresh.
 - **A drag moves the copy the cursor has hold of.** Move mode displaces
   *sites*, but the delta it is given is the one the drawn atom sees, so
   the site moves by the inverse of the operation that generated it

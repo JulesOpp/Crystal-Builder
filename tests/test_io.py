@@ -641,3 +641,12 @@ def test_a_label_outside_ascii_reads_back_unchanged(tmp_path, rutile,
     rutile.sites[0].label = label
     path = write_cif(rutile, tmp_path / "labelled.cif")
     assert read_cif(path).sites[0].label == label
+
+
+def test_xyz_writes_an_element_and_three_coordinates_per_line(rutile):
+    """A fifth column is read as a charge by the programs that take
+    plain XYZ; the occupancy written there was not one."""
+    lines = xyz_string(rutile).splitlines()
+    assert "occupancy" not in lines[1]
+    for line in lines[2:]:
+        assert len(line.split()) == 4

@@ -40,7 +40,7 @@ from xtal.core import p1
 from xtal.core.lattice import Lattice
 from xtal.core.site import Site
 from xtal.core.spacegroup import SpaceGroup
-from xtal.core.structure import Bond, Structure
+from xtal.core.structure import Bond, Structure, order_key
 
 DEFAULT_SYMPREC = 1e-5          # Angstrom-ish; spglib's own default
 DEFAULT_ANGLE_TOLERANCE = -1.0  # negative = derive from symprec
@@ -268,9 +268,13 @@ def reduce_to_p1(structure: Structure) -> Structure:
         # Read against the original's wrap as it is now, which is where
         # the new sites are; their own wrap is then zero.
         flat = p1.expand(out)
+        tau = np.asarray(cell.tau, dtype=int)
+        orders = {order_key(i, j, np.asarray(image) - tau[j] + tau[i],
+                            flat.tau): order
+                  for (i, j, image), order in stored.orders.items()}
         out.set_perceived(bonding.rebase(stored.bonds, stored.tau,
                                          cell.tau),
-                          stored.signature, flat)
+                          stored.signature, flat, orders)
     return out
 
 

@@ -297,6 +297,13 @@ class PerceivedBonds:
     signature: str
     elements: tuple[str, ...]
     tau: np.ndarray                 # (n_atoms, 3) int
+    #: The order inferred for each bond the first time anybody asked,
+    #: keyed by :func:`order_key`, and from then on the answer.  An
+    #: inference is read off the geometry, and an atom added beside a
+    #: ring, a drag or a relaxed cell would otherwise turn an aromatic
+    #: ring single on the next read.  Bond types change when the bonds
+    #: are recalculated, or when the user sets one, and not otherwise.
+    orders: dict = field(default_factory=dict)
 
     @property
     def n_atoms(self) -> int:
@@ -308,6 +315,8 @@ class PerceivedBonds:
             "elements": list(self.elements),
             "tau": np.asarray(self.tau, dtype=int).tolist(),
             "bonds": [b.to_list() for b in self.bonds],
+            "orders": [[i, j, *image, order] for (i, j, image), order
+                       in sorted(self.orders.items())],
         }
 
     @classmethod
@@ -318,8 +327,27 @@ class PerceivedBonds:
             raise ValueError(
                 f"the stored bond graph has {len(elements)} elements "
                 f"but {len(tau)} wrap translations")
+        orders = {(int(i), int(j), (int(u), int(v), int(w))): float(o)
+                  for i, j, u, v, w, o in d.get("orders", [])}
         return cls([CellBond.from_list(row) for row in d["bonds"]],
-                   str(d["signature"]), elements, tau)
+                   str(d["signature"]), elements, tau, orders)
+
+
+def order_key(i: int, j: int, image, tau) -> tuple:
+    """What names a P1 bond in :attr:`PerceivedBonds.orders`.
+
+    The image is read as ``image + tau[j] - tau[i]``, the part of the
+    separation an atom drifting across a cell face does not change --
+    see :func:`xtal.core.bonding.rebase` -- so a held order stays on
+    its bond however far the atoms are moved.
+    """
+    tau = np.asarray(tau, dtype=int)
+    sep = tuple(int(v) for v in np.asarray(image, dtype=int)
+                + tau[int(j)] - tau[int(i)])
+    flipped = tuple(-v for v in sep)
+    if (int(j), sep) < (int(i), flipped):
+        return (int(j), int(i), flipped)
+    return (int(i), int(j), sep)
 
 
 # ======================================================================
@@ -786,7 +814,8 @@ class Structure:
 
     # -- the stored bond graph -----------------------------------------
 
-    def set_perceived(self, bonds, signature: str, cell) -> None:
+    def set_perceived(self, bonds, signature: str, cell,
+                      orders=None) -> None:
         """Record the distance-perceived bonds of ``cell``.
 
         Deliberately not a mutation: nothing about the crystal changed,
@@ -796,7 +825,8 @@ class Structure:
         """
         self.perceived = PerceivedBonds(
             list(bonds), signature, tuple(cell.elements),
-            np.array(cell.tau, dtype=int).reshape(-1, 3))
+            np.array(cell.tau, dtype=int).reshape(-1, 3),
+            dict(orders or {}))
 
     def clear_perceived(self) -> None:
         """Forget the stored graph, so the next read perceives again.
@@ -833,7 +863,8 @@ class Structure:
                        PerceivedBonds(list(self.perceived.bonds),
                                       self.perceived.signature,
                                       self.perceived.elements,
-                                      self.perceived.tau.copy())),
+                                      self.perceived.tau.copy(),
+                                      dict(self.perceived.orders))),
         )
 
     def to_dict(self) -> dict:

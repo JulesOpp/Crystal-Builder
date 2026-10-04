@@ -41,7 +41,7 @@ import numpy as np
 from xtal.core import elements as el
 from xtal.core import neighbors, p1, transforms
 from xtal.core import structure as structure_module
-from xtal.core.structure import CHEMISTRY, Bond, CellBond
+from xtal.core.structure import CHEMISTRY, Bond, CellBond, order_key
 
 # Two atoms bond when d <= (r_i + r_j) * SCALE + DELTA, with covalent
 # radii.  1.15 / 0.0 reproduces what VESTA and Mercury draw for common
@@ -345,7 +345,8 @@ def _by_distance(structure, rules, cell, store: bool) -> list[CellBond]:
                                    subset=range(stored.n_atoms,
                                                 cell.n_atoms))
             if store:
-                structure.set_perceived(grown, signature, cell)
+                structure.set_perceived(grown, signature, cell,
+                                        stored.orders)
             return grown
 
     fresh = _search(rules, cell, structure.lattice)
@@ -386,7 +387,7 @@ def hold_perception(structure, rules: BondRules | None = None) -> bool:
     if not _appended_to(stored.elements, cell.elements):
         return False
     kept = rebase(stored.bonds, stored.tau, cell.tau[:stored.n_atoms])
-    structure.set_perceived(kept, stored.signature, cell)
+    structure.set_perceived(kept, stored.signature, cell, stored.orders)
     return True
 
 
@@ -441,8 +442,11 @@ def hold_through_removal(structure, before, removed) -> bool:
                      bond.image, bond.distance, bond.explicit,
                      bond.order, bond.stated)
             for bond in stored.bonds if keep[bond.i] and keep[bond.j]]
+    orders = {(int(index[i]), int(index[j]), image): order
+              for (i, j, image), order in stored.orders.items()
+              if keep[i] and keep[j]}
     structure.set_perceived(rebase(kept, stored.tau[keep], cell.tau),
-                            stored.signature, cell)
+                            stored.signature, cell, orders)
     return True
 
 
@@ -472,8 +476,10 @@ def hold_through_retype(structure, before) -> bool:
     dummy = [el.is_dummy(symbol) for symbol in cell.elements]
     kept = [bond for bond in stored.bonds
             if not (dummy[bond.i] or dummy[bond.j])]
+    orders = {key: order for key, order in stored.orders.items()
+              if not (dummy[key[0]] or dummy[key[1]])}
     structure.set_perceived(rebase(kept, stored.tau, cell.tau),
-                            stored.signature, cell)
+                            stored.signature, cell, orders)
     return True
 
 
@@ -1221,14 +1227,21 @@ def orders(structure, rules: BondRules | None = None) -> np.ndarray:
     inferred at all -- perception decides whether two atoms are bonded,
     not what the bond is.
 
-    Memoised against everything but a geometry change, like the
-    perception it is read over: bonds do not become double because two
-    atoms drifted together.
+    Inferred once per bond and then **held**
+    (:attr:`~xtal.core.structure.PerceivedBonds.orders`): bonds do not
+    become double because two atoms drifted together, nor a ring
+    single because a hydrogen was added beside it or the cell was
+    relaxed.  Only a bond nobody has asked about yet is inferred, over
+    the geometry as it is then; Recalculate Bonds starts afresh.
     """
     key = f"bond-orders:{rules.signature() if rules else ''}"
     bonds = graph(structure, rules).bonds
-    out = structure.cached(key, lambda: _infer_orders(structure, rules),
-                           invalidated_by=CHEMISTRY)
+
+    def build():
+        return _held_orders(structure, rules, bonds,
+                            _infer_orders(structure, rules))
+
+    out = structure.cached(key, build, invalidated_by=CHEMISTRY)
     if len(out) != len(bonds):
         # One order per bond of the graph, *this* graph.  A
         # positions-only edit that moves an atom off a special position
@@ -1238,8 +1251,44 @@ def orders(structure, rules: BondRules | None = None) -> np.ndarray:
         # it is the wrong length, and the code that draws bond orders
         # indexes off the end of it.
         structure.drop_cache(key)
-        out = structure.cached(key, lambda: _infer_orders(structure, rules),
-                               invalidated_by=CHEMISTRY)
+        bonds = graph(structure, rules).bonds
+        out = structure.cached(key, build, invalidated_by=CHEMISTRY)
+    return out
+
+
+def _held_orders(structure, rules, bonds, inferred) -> np.ndarray:
+    """``inferred``, with every bond answered before given that answer
+    again, and every bond answered now written down.
+
+    A stated order is the user's and is neither held nor overridden.
+    The record is replaced rather than added to, because an undo puts
+    back the very :class:`PerceivedBonds` it saved, and atoms added
+    after that would otherwise find orders held for the ones it took
+    away.
+    """
+    stored = structure.perceived
+    rules = rules or BondRules.from_dict(structure.bond_rules)
+    if stored is None or stored.signature != rules.signature():
+        return inferred
+    tau = p1.expand(structure).tau
+    if len(tau) != stored.n_atoms:
+        return inferred
+    out = np.array(inferred, dtype=float)
+    fresh = {}
+    for k, bond in enumerate(bonds):
+        if bond.explicit and (
+                bond.stated
+                or abs(bond.order - 1.0) > STATED_ORDER_TOLERANCE):
+            continue
+        name = order_key(bond.i, bond.j, bond.image, tau)
+        held = stored.orders.get(name)
+        if held is None:
+            fresh[name] = float(out[k])
+        else:
+            out[k] = held
+    if fresh:
+        structure.perceived = replace(
+            stored, orders={**stored.orders, **fresh})
     return out
 
 
