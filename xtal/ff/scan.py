@@ -543,12 +543,8 @@ def _one_point(build, original, start, prepared, index, targets,
             # long way, and the log says the shortcut was not taken.
             skipped = str(error)
     try:
-        held = _held(at, prepared, targets)
-        result = optimize.run(
-            build(at), at, cancel=cancel,
-            relax_cell=prepared.relax_cell,
-            freedom=prepared.freedom, constraints=held,
-            **optimiser)
+        result, steps, drift = _relaxed_at_volume(
+            build, at, prepared, targets, lattice, cancel, optimiser)
     except CalculatorStopped:
         return _failed(index, targets, branch, at, blank,
                        "stopped")
@@ -569,14 +565,67 @@ def _one_point(build, original, start, prepared, index, targets,
         return _failed(index, targets, branch, at, blank, broken)
     achieved = _achieved(original, prepared, result.frac, matrix,
                          relaxed)
+    converged = bool(result.converged) and drift <= VOLUME_SLACK
+    message = result.message
+    if drift > VOLUME_SLACK:
+        message = (f"the volume came out {100 * drift:.2f}% off its "
+                   f"target after {VOLUME_PASSES} passes")
     return ScanPoint(
         index=index, targets=targets, achieved=achieved,
-        energy=float(result.energy), converged=bool(result.converged),
-        steps=int(result.steps), max_force=float(result.max_force),
+        energy=float(result.energy), converged=converged,
+        steps=steps, max_force=float(result.max_force),
         frac=result.frac, matrix=matrix,
         parameters=tuple(float(v) for v in relaxed.parameters),
-        branch=branch, message=result.message,
+        branch=branch, message=message,
         pre_steps=pre_steps, pre_skipped=skipped)
+
+
+#: How far, as a fraction, a held volume may come out from its target.
+#: The optimiser holds it to first order -- the strain subspace is
+#: worked out at the cell it starts from, where a traceless strain
+#: keeps the volume, but ``det(I + e)`` of a traceless ``e`` falls
+#: with ``e`` squared.  MIL-53 breathing at 700 A^3 lost 20 A^3 of it,
+#: 2.9 %, every point a little short, all marked converged.  Held
+#: this way the same scan is within 0.012 % at every point.
+VOLUME_SLACK = 1e-3
+#: Relaxations at most per point.  Each starts from the last one
+#: scaled back to the target and is linearised there, so what it
+#: loses is the square of a much smaller change of shape.
+VOLUME_PASSES = 4
+
+
+def _relaxed_at_volume(build, at, prepared, targets, lattice, cancel,
+                       optimiser):
+    """``(result, steps, drift)``: the relaxation at this point, run
+    again from the target volume until the volume it holds is the one
+    asked for -- see :data:`VOLUME_SLACK`.  Anything but a held volume
+    is one relaxation, as it always was."""
+    target = abs(float(np.linalg.det(lattice.matrix)))
+    holds_volume = prepared.relax_cell and \
+        prepared.freedom.held == ("volume",)
+    steps = 0
+    for _attempt in range(VOLUME_PASSES if holds_volume else 1):
+        held = _held(at, prepared, targets)
+        result = optimize.run(
+            build(at), at, cancel=cancel,
+            relax_cell=prepared.relax_cell,
+            freedom=prepared.freedom, constraints=held,
+            **optimiser)
+        steps += int(result.steps)
+        if not holds_volume or result.stopped \
+                or result.matrix is None:
+            return result, steps, 0.0
+        volume = abs(float(np.linalg.det(result.matrix)))
+        drift = abs(volume - target) / target
+        if drift <= VOLUME_SLACK:
+            break
+        relaxed = at.copy()
+        for site, row in zip(relaxed.sites, result.frac, strict=True):
+            site.frac = row
+        relaxed.set_lattice(Lattice(result.matrix).scaled_to_volume(
+            target))
+        at = relaxed
+    return result, steps, drift
 
 
 def _prerelaxed(prerelax, at, prepared, targets, cancel, optimiser):
