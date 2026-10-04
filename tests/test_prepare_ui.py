@@ -92,7 +92,9 @@ def test_a_framework_without_trimers_has_no_caution(qtbot):
 def test_nothing_to_prepare_cannot_be_pressed(qtbot, quartz):
     dialog = PrepareDialog(Document(quartz))
     qtbot.addWidget(dialog)
-    assert dialog.headline.text() == "nothing to prepare"
+    assert dialog.headline.text() == "Nothing to prepare"
+    # Said once, under the boxes, and not above them as well.
+    assert dialog.found.isHidden()
     assert "no deuterium" in dialog.detail.toPlainText()
     assert not _ok(dialog).isEnabled()
 
