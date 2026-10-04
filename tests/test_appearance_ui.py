@@ -300,17 +300,19 @@ def test_the_style_panel_is_headed_groups_in_the_agreed_order(window):
     the order is what one column reads, and the manual photographs it."""
     dock = window.style_dock
     assert [group.title() for group in dock.groups] == [
-        "Drawing", "Transparency", "Show", "Scene", "Colours",
-        "Rings", "Colour by", "Depth cue"]
+        "Drawing", "Transparency", "Pores", "Show", "Scene",
+        "Colours", "Rings", "Colour by", "Depth cue"]
     homes = {"Drawing": (dock.style, dock.atom_scale, dock.bond_radius,
                          dock.ellipsoid_probability, dock.octants,
                          dock.carbon, dock.color_labels),
              "Transparency": (dock.opacity, dock.pore_opacity,
                               dock.ring_opacity),
-             "Scene": (dock.background, dock.labels, dock.legend,
-                       dock.pore_spheres),
-             "Show": (dock.cell_box, dock.cell_axes, dock.topology,
-                      dock.pore_network, dock.pore_sphere_box),
+             "Pores": (dock.pore_network, dock.pore_sphere_box,
+                       dock.pore_spheres, dock.pore_cavity,
+                       dock.pore_copy),
+             "Scene": (dock.background, dock.labels),
+             "Show": (dock.atoms_box, dock.bonds_box, dock.topology,
+                      dock.cell_box, dock.cell_axes, dock.legend),
              "Colours": tuple(dock.flat.values()),
              "Rings": (dock.rings, dock.ring_max_size,
                        *dock.ring_swatches.values()),
@@ -345,7 +347,7 @@ def test_a_wide_style_panel_puts_its_groups_side_by_side(qtbot, window,
     needed = columns.layout().two_column_width() + _frame(dock)
     if needed > 520:
         columns = _laid_out_at(qtbot, dock, needed)
-    drawing, show, scene = dock.groups[0], dock.groups[2], dock.groups[3]
+    drawing, show, scene = dock.groups[0], dock.groups[3], dock.groups[4]
     assert columns.two_columns()
     assert drawing.y() == show.y()
     assert show.x() > drawing.x() + drawing.width()
