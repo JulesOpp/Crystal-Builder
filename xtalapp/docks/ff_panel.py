@@ -82,6 +82,7 @@ from xtal.ff.uff import calculator as uff_calculator
 from xtal.ff.uff import params
 from xtalapp import extras
 from xtalapp.dialogs.module_form import ParamForm
+from xtalapp.docks.columns import Collapsible
 from xtalapp.plot import TracePlot
 from xtalapp.widgets.atom_types import (
     COLUMNS,  # noqa: F401
@@ -149,6 +150,11 @@ def engine_note_html(available) -> str:
     return (f"{html.escape(available.what)} -- the command to install it "
             'is on <a href="engines">Preferences &gt; Engines</a>')
 
+#: The chooser's order; an engine not named here follows, in the
+#: registry's order.
+ENGINE_ORDER = ("uff", "xtb", "dftb", "mace", "orb", "mattersim")
+
+
 class ForceFieldDock(QDockWidget):
     """Atom types, a single point, and a geometry optimisation.
 
@@ -194,6 +200,12 @@ class ForceFieldDock(QDockWidget):
 
         self.engines = (list(ENGINES) if engines is None
                         else [ENGINES.get(name) for name in engines])
+        # The force field, then the tight-binding methods from the
+        # fastest, then the machine-learned potentials: by what kind
+        # of method each is, where the registry's order is merely the
+        # order they were written in.
+        first = {name: k for k, name in enumerate(ENGINE_ORDER)}
+        self.engines.sort(key=lambda e: first.get(e.name, len(first)))
 
         self.engine = QComboBox()
         for engine in self.engines:
@@ -381,6 +393,7 @@ class ForceFieldDock(QDockWidget):
 
         self.setWidget(self._build())
         self.set_document(None)
+        self.mark_unavailable()
 
     def _build(self) -> QWidget:
         setup = QFormLayout()
@@ -445,24 +458,37 @@ class ForceFieldDock(QDockWidget):
         buttons.addWidget(self.run_button)
         buttons.addWidget(self.pause_button)
 
+        # The buttons straight under the model, and the type table
+        # folded at the bottom: with the table second and the buttons
+        # under eight Optimisation rows, Single point and Optimise were
+        # below the fold of a 420 px dock, behind a table that almost
+        # nobody edits.  The fold opens itself when typing has
+        # something to say (``refresh``).
         top = QVBoxLayout()
         top.setContentsMargins(8, 8, 8, 4)
         top.setSpacing(6)
         top.addWidget(setup_box)
-        self.table_heading = QLabel(TYPES_HEADING)
-        top.addWidget(self.table_heading)
-        top.addWidget(self.table, 1)
+        top.addLayout(buttons)
+        top.addWidget(run_box)
+        top.addStretch(1)
         top_widget = QWidget()
         top_widget.setLayout(top)
+
+        self.table_heading = QLabel(TYPES_HEADING)
+        types = QWidget()
+        types_layout = QVBoxLayout(types)
+        types_layout.setContentsMargins(0, 0, 0, 0)
+        types_layout.addWidget(self.table_heading)
+        types_layout.addWidget(self.table, 1)
+        self.types_fold = Collapsible("Atom types", types)
 
         bottom = QVBoxLayout()
         bottom.setContentsMargins(8, 4, 8, 8)
         bottom.setSpacing(6)
-        bottom.addWidget(run_box)
-        bottom.addLayout(buttons)
         bottom.addWidget(self.plot, 1)
         bottom.addWidget(self.report)
         bottom.addWidget(self.notes)
+        bottom.addWidget(self.types_fold)
         bottom_widget = QWidget()
         bottom_widget.setLayout(bottom)
 
@@ -533,9 +559,11 @@ class ForceFieldDock(QDockWidget):
             self.table.setRowCount(0)
             self.table.setVisible(False)
             self.table_heading.setVisible(False)
+            self.types_fold.setVisible(False)
             return
         self.table.setVisible(True)
         self.table_heading.setVisible(True)
+        self.types_fold.setVisible(True)
         if not enabled:
             self.table.setRowCount(0)
             self._say("")
@@ -549,7 +577,12 @@ class ForceFieldDock(QDockWidget):
         except Exception as exc:                    # noqa: BLE001
             self._say(str(exc))
             return
-        self._say(warnings_text(rows))
+        warned = warnings_text(rows)
+        self._say(warned)
+        if warned:
+            # An atom typed by a guess is what the table is there to
+            # be read for.
+            self.types_fold.set_open(True)
 
     def _out_of_sight(self) -> bool:
         """Closed, or tabbed behind another panel, in a window that is
@@ -568,6 +601,8 @@ class ForceFieldDock(QDockWidget):
     def showEvent(self, event) -> None:      # noqa: N802  (Qt's name)
         """Catch up on whatever happened while nobody was looking."""
         super().showEvent(event)
+        # An extra installed or a binary named in Preferences since.
+        self.mark_unavailable()
         if self._stale:
             self.refresh()
 
@@ -587,6 +622,18 @@ class ForceFieldDock(QDockWidget):
         """A different engine asks for different things."""
         self._show_engine()
         self.refresh()
+
+    def mark_unavailable(self) -> None:
+        """Say in the chooser which engines cannot run, before one is
+        chosen -- the note under it says why only once it is."""
+        for index in range(self.engine.count()):
+            name = self.engine.itemData(index)
+            engine = ENGINES.get(name)
+            available = engine.availability(
+                **(self.options_for(name) or {}))
+            self.engine.setItemText(
+                index, engine.label if available
+                else f"{engine.label} (not available)")
 
     def _show_engine(self) -> None:
         """Show the controls the chosen engine actually has, and say
