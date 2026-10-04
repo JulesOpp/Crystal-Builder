@@ -81,6 +81,17 @@ def test_dict_round_trip():
     assert back.element_colors["Fe"] == (10, 20, 30)
 
 
+def test_switched_off_pairs_round_trip():
+    """Bond Rules' Polyhedra column is saved with the view, and a copy
+    does not share the tuple's owner with the original."""
+    s = ViewSettings(polyhedron_pairs_off=("O-Ti",),
+                     polyhedron_centres=("C",))
+    back = ViewSettings.from_dict(s.to_dict())
+    assert back.polyhedron_pairs_off == ("O-Ti",)
+    assert back.polyhedron_centres == ("C",)
+    assert s.copy().polyhedron_pairs_off == ("O-Ti",)
+
+
 def test_the_appearance_choices_survive_a_session():
     """Colours the user chose for the net and the planes, and whether
     the ellipsoids are shaded -- all of it saved with the project, none

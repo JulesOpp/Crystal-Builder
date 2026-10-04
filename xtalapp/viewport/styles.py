@@ -110,13 +110,13 @@ class DrawStyle:
         """Which elements get a coordination polyhedron, decided once
         for the whole structure rather than atom by atom.
 
-        Centres named in the settings are the user speaking, and they
-        win.  With none named the style decides, and the two styles
-        want different things: the polyhedral picture takes anything
-        with enough neighbours, which is right for a dense oxide, and
-        the mixed one takes only the metals -- because in an MOF the
-        linker has four-coordinate carbons too, and drawing those as
-        tetrahedra is the picture this style exists to avoid.
+        Centres named in the settings are the user speaking -- Bond
+        Rules' centre list -- and they win.  With none named both
+        polyhedral styles take only the metals: an MOF's linker has
+        four-coordinate carbons, and since a triangle is a polyhedron
+        too, rutile's three-coordinate oxygens would otherwise lay a
+        triangle over every TiO6.  A carbonate or a silicate's
+        polyhedra are one tick in Bond Rules away.
 
         **A structure with no metals in it is the case that rule gets
         wrong**, and it takes the whole structure to see it: asked one
@@ -213,7 +213,7 @@ register(DrawStyle(
 register(DrawStyle(
     name="polyhedra", label="Polyhedra",
     radius_source="covalent", radius_factor=0.25,
-    draw_bonds=False, draw_polyhedra=True,
+    draw_bonds=False, draw_polyhedra=True, polyhedra_centres="metals",
     description="Coordination polyhedra as translucent hulls, "
                 "coloured by the atom at the centre",
 ))

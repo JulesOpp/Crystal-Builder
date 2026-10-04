@@ -379,6 +379,17 @@ stress case).
   ring (graphene's two-atom cell), which `bonding.find_rings` -- the
   aromaticity search -- does not do. A face is drawn only where every
   atom of its ring is.
+- **A polyhedron is drawn from the stored graph, and what makes one is
+  view state.** `builder._emit_polyhedra`: the vertices are a centre's
+  bonded neighbours; three, or a flat set (square-planar MX4), is one
+  two-sided face fanned in its plane (`_planar_face`), more is the
+  convex hull. Both polyhedral styles take the **metals** as centres
+  unless Bond Rules names others (`ViewSettings.polyhedron_centres`),
+  and Bond Rules' *Polyhedra* column is
+  `ViewSettings.polyhedron_pairs_off` -- an unticked pair is no vertex
+  and its bond is drawn as a bond. **Never in `BondRules`**: its
+  `signature()` keys the stored graph, so a tick there would perceive
+  the bonds again.
 - **A dummy atom is a marker, not chemistry.** `X` — see
   `elements.DUMMY_ELEMENTS`. Perception never bonds one, and nothing
   that reasons chemically is ever handed one — it is **held back at

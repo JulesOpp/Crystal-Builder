@@ -35,6 +35,14 @@ The per-pair table is keyed on the elements actually in the structure,
 which keeps it to a handful of rows for anything real -- and makes
 "which atoms are included" a question about this crystal rather than
 about the periodic table.
+
+**Polyhedra are asked here and kept in the view.**  Which pairs make a
+polyhedron and which elements sit at the centre of one are VESTA's
+questions, and this is where VESTA asks them, but the answers are how
+the crystal is *drawn* (``ViewSettings.polyhedron_pairs_off`` and
+``polyhedron_centres``).  Kept in the rules they would change
+``BondRules.signature()``, and a changed signature perceives the bonds
+again -- which only Recalculate Bonds may do.
 """
 
 from __future__ import annotations
@@ -46,6 +54,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QDoubleSpinBox,
     QFormLayout,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
@@ -58,7 +67,9 @@ from PySide6.QtWidgets import (
 
 from xtal.commands import bonds as bond_commands
 from xtal.core import bonding
+from xtal.core import elements as el
 from xtalapp.dialogs.answered import answered
+from xtalapp.viewport.builder import pairs_off as view_pairs_off
 
 # The slider is a coarse sweep over the useful range of ``scale``; the
 # spin box beside it is what actually sets the value.
@@ -102,6 +113,8 @@ class BondRulesDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.addWidget(self._build_tolerance(rules))
         layout.addWidget(self._build_pairs(rules))
+        self.centre_box = self._build_centres()
+        layout.addWidget(self.centre_box)
 
         self.summary = QLabel()
         self.summary.setWordWrap(True)
@@ -227,9 +240,13 @@ class BondRulesDialog(QDialog):
             self.pairs = sorted(
                 (a, b) for i, a in enumerate(elements)
                 for b in elements[i:])
-        self.table = QTableWidget(len(self.pairs), 4)
+        self.table = QTableWidget(len(self.pairs), 5)
         self.table.setHorizontalHeaderLabels(
-            ["Pair", "Bond", "Min (A)", "Max (A)"])
+            ["Pair", "Bond", "Min (A)", "Max (A)", "Polyhedra"])
+        self.table.horizontalHeaderItem(4).setToolTip(
+            "Whether a bond between this pair makes a vertex of a "
+            "coordination polyhedron.  How the crystal is drawn, not "
+            "what is bonded: unticked, the bond is drawn as a bond")
         self.table.verticalHeader().setVisible(False)
         # The pair is sized to its text and the distances share what
         # is left.  Pair was the stretched column, with the other three
@@ -240,7 +257,10 @@ class BondRulesDialog(QDialog):
         header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.Stretch)
         header.setSectionResizeMode(3, QHeaderView.Stretch)
+        header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
         forbidden = {tuple(sorted(p)) for p in rules.forbidden}
+        view = self._view()
+        off = set() if view is None else view_pairs_off(view)
 
         for row, pair in enumerate(self.pairs):
             name = QTableWidgetItem(f"{pair[0]} - {pair[1]}")
@@ -259,6 +279,15 @@ class BondRulesDialog(QDialog):
             self.table.setItem(row, 3, QTableWidgetItem(
                 AUTOMATIC if hi is None else f"{float(hi):g}"))
 
+            polyhedra = QTableWidgetItem()
+            polyhedra.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
+            polyhedra.setCheckState(
+                Qt.Unchecked if "-".join(pair) in off else Qt.Checked)
+            self.table.setItem(row, 4, polyhedra)
+
+        # Defaults are bond rules and nothing else: there is no view
+        # for a polyhedron to be drawn in.
+        self.table.setColumnHidden(4, self.defaults_mode)
         self._fit_columns()
         self.table.itemChanged.connect(self._preview)
         layout.addWidget(self.table)
@@ -278,6 +307,77 @@ class BondRulesDialog(QDialog):
             empty.setWordWrap(True)
             layout.addWidget(empty)
         return box
+
+    def _view(self):
+        return None if self.document is None else \
+            getattr(self.document, "view", None)
+
+    def _automatic_centres(self) -> tuple:
+        """The centres nobody named: the metals, or every element of a
+        structure with none -- what both polyhedral styles draw."""
+        present = sorted(set(self.structure.elements))
+        metals = [e for e in present if _is_metal(e)]
+        return tuple(metals or present)
+
+    def _build_centres(self) -> QGroupBox:
+        """A tick per element of the crystal: which ones are drawn at
+        the middle of a polyhedron.  Ticked as they are drawn now, so
+        an untouched box is no change."""
+        box = QGroupBox("Polyhedron centres")
+        layout = QVBoxLayout(box)
+        note = QLabel("Elements drawn with a coordination polyhedron "
+                      "round them (the Polyhedra styles).  Nothing "
+                      "named means the metals.")
+        note.setWordWrap(True)
+        layout.addWidget(note)
+        grid = QGridLayout()
+        layout.addLayout(grid)
+        self.centre_boxes: dict = {}
+        view = self._view()
+        if self.structure is None or view is None:
+            box.setVisible(False)
+            return box
+        chosen = (set(view.polyhedron_centres)
+                  or set(self._automatic_centres()))
+        for k, symbol in enumerate(sorted(set(self.structure.elements))):
+            tick = QCheckBox(symbol)
+            tick.setChecked(symbol in chosen)
+            grid.addWidget(tick, k // 6, k % 6)
+            self.centre_boxes[symbol] = tick
+        return box
+
+    def pairs_off(self) -> tuple:
+        """The pairs whose Polyhedra tick is off, as ``"A-B"``."""
+        return tuple("-".join(pair) for row, pair in enumerate(self.pairs)
+                     if self.table.item(row, 4).checkState()
+                     != Qt.Checked)
+
+    def centres(self) -> tuple:
+        """The named centres, or ``()`` while they are the automatic
+        ones -- so a structure keeps following the rule until somebody
+        says otherwise."""
+        ticked = tuple(sorted(s for s, tick in self.centre_boxes.items()
+                              if tick.isChecked()))
+        if not self.centre_boxes or \
+                set(ticked) == set(self._automatic_centres()):
+            return ()
+        return ticked
+
+    def apply_view(self) -> bool:
+        """Hand the polyhedra answers to the document's view; whether
+        anything changed.  Not an undo step: nothing about the crystal
+        has."""
+        view = self._view()
+        if view is None:
+            return False
+        changes = {}
+        if set(self.pairs_off()) != set(view.polyhedron_pairs_off):
+            changes["polyhedron_pairs_off"] = self.pairs_off()
+        if self.centres() != tuple(view.polyhedron_centres):
+            changes["polyhedron_centres"] = self.centres()
+        if changes:
+            self.document.update_view(**changes)
+        return bool(changes)
 
     def _fit_columns(self) -> None:
         """Hold the table wide enough that no column scrolls away."""
@@ -324,8 +424,13 @@ class BondRulesDialog(QDialog):
         self.delta.setValue(bonding.DEFAULT_DELTA)
         self.min_distance.setValue(bonding.MIN_BOND_DISTANCE)
         self.metal_metal.setChecked(False)
+        automatic = set(self._automatic_centres()) \
+            if self.centre_boxes else set()
+        for symbol, tick in self.centre_boxes.items():
+            tick.setChecked(symbol in automatic)
         for row in range(self.table.rowCount()):
             self.table.item(row, 1).setCheckState(Qt.Checked)
+            self.table.item(row, 4).setCheckState(Qt.Checked)
             self.table.item(row, 2).setText(AUTOMATIC)
             self.table.item(row, 3).setText(AUTOMATIC)
         self._loading = False
@@ -396,8 +501,12 @@ class BondRulesDialog(QDialog):
             rules = dialog.rules().to_dict()
             if settings is not None and dialog.remember.isChecked():
                 settings.set_default_bond_rules(rules)
+            redrawn = dialog.apply_view()
 
             if not added and not removed:
+                if redrawn:
+                    return (f"polyhedra redrawn; bond rules unchanged: "
+                            f"{total} bonds")
                 return f"bond rules unchanged: {total} bonds"
             document.run(bond_commands.SetBondRules(rules))
             return (f"bond rules applied: {added} added, {removed} removed "
@@ -420,6 +529,13 @@ class BondRulesDialog(QDialog):
                 return False
             settings.set_default_bond_rules(dialog.rules().to_dict())
             return True
+
+
+def _is_metal(symbol: str) -> bool:
+    try:
+        return el.element(symbol).is_metal
+    except (KeyError, ValueError):
+        return False
 
 
 def _number(item) -> float | None:
