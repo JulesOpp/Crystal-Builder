@@ -119,6 +119,7 @@ PACKAGE_DATA = {
     "xtal/ff/charges": ["data/*.csv"],      # EQeq's ionisation table
     # The script Blender runs for Export as STL, by path.
     "xtal/modules": ["data/*.py"],
+    "xtal/orca": ["data/*.json"],           # ORCA's basis sets, solvents
     # PORMAKE's nets and building blocks, vendored with it: 3271
     # files, 2.8 MB of bytes and about 13 MB once installed, because
     # a file that small is a 4 KB block.  The builder is broken

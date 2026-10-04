@@ -1625,6 +1625,14 @@
    "checkable": false
   },
   {
+   "key": "module.orca.input",
+   "section": "Modules",
+   "path": "ORCA ▸ Input file...",
+   "shortcut": "",
+   "tip": "An ORCA input and the coordinates it reads, in a run folder: the functional, basis, job and blocks chosen here, the charge and multiplicity checked against the electrons",
+   "checkable": false
+  },
+  {
    "key": "module.mof.build",
    "section": "Modules",
    "path": "MOF builder ▸ Build a framework...",
@@ -1669,7 +1677,7 @@
    "section": "Modules",
    "path": "Porosity ▸ Pore diameters and channels...",
    "shortcut": "",
-   "tip": "The largest included and free spheres -- D_i, D_f and D_if -- and the channels they run through",
+   "tip": "Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set) -- it is at https://www.zeoplusplus.org/",
    "checkable": false
   },
   {
@@ -1677,7 +1685,7 @@
    "section": "Modules",
    "path": "Porosity ▸ Surface area...",
    "shortcut": "",
-   "tip": "The area a gas molecule can touch, which is what a BET measurement sees",
+   "tip": "Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set) -- it is at https://www.zeoplusplus.org/",
    "checkable": false
   },
   {
@@ -1693,7 +1701,7 @@
    "section": "Modules",
    "path": "Porosity ▸ Accessible volume...",
    "shortcut": "",
-   "tip": "How much of the cell a gas molecule can occupy, which is the pore volume a paper quotes",
+   "tip": "Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set) -- it is at https://www.zeoplusplus.org/",
    "checkable": false
   },
   {
@@ -1709,7 +1717,7 @@
    "section": "Modules",
    "path": "Porosity ▸ Pore size distribution...",
    "shortcut": "",
-   "tip": "How much of the pore space sits at each diameter, as a histogram",
+   "tip": "Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set) -- it is at https://www.zeoplusplus.org/",
    "checkable": false
   },
   {
@@ -2405,6 +2413,225 @@
        "accepts": "float, 0.5 to 40 %",
        "default": "6.0",
        "help": "How far either side of the volume to go, when no From and To are given.  Within a few percent the energy is close to a parabola and the modulus is the cell's; much further and it is the equation of state's."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "orca",
+   "label": "ORCA",
+   "description": "ORCA quantum chemistry: an input file for the structure, written here and run wherever ORCA is.",
+   "actions": [
+    {
+     "name": "input",
+     "label": "Input file...",
+     "tip": "An ORCA input and the coordinates it reads, in a run folder: the functional, basis, job and blocks chosen here, the charge and multiplicity checked against the electrons",
+     "dialog": "orca-input",
+     "shell": "",
+     "params": [
+      {
+       "name": "functional",
+       "label": "Functional",
+       "accepts": "text",
+       "default": "BP86",
+       "help": "An ORCA native functional keyword (Tables 3.1-3.9)"
+      },
+      {
+       "name": "basis",
+       "label": "Basis set",
+       "accepts": "text",
+       "default": "def2-SVP",
+       "help": "An ORCA built-in orbital basis (Tables 2.12-2.33); a 3c method writes none"
+      },
+      {
+       "name": "dispersion",
+       "label": "Dispersion",
+       "accepts": "one of None, D3(BJ), D3(0), D4",
+       "default": "",
+       "help": "Added to the ! line; not with a functional that already has one"
+      },
+      {
+       "name": "ri",
+       "label": "RI",
+       "accepts": "one of ORCA's default, RIJCOSX, RI-J, RI-JK, No RI",
+       "default": "",
+       "help": "ORCA's default is RI-J for a pure functional and RIJCOSX for a hybrid; a choice writes its auxiliary basis too"
+      },
+      {
+       "name": "run",
+       "label": "Job",
+       "accepts": "one of Single point, Optimise (Opt), Transition state (OptTS)",
+       "default": "sp",
+       "help": "A single point, an optimisation, or a transition state search"
+      },
+      {
+       "name": "opt_level",
+       "label": "Optimisation",
+       "accepts": "one of Normal, Loose, Tight, Very tight",
+       "default": "Opt",
+       "help": "How tightly an optimisation converges"
+      },
+      {
+       "name": "cartesian",
+       "label": "Cartesian (COpt)",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Optimise in Cartesian rather than internal coordinates"
+      },
+      {
+       "name": "freq",
+       "label": "Frequencies (Freq)",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Vibrational frequencies, after the optimisation if there is one"
+      },
+      {
+       "name": "max_iter",
+       "label": "Geometry MaxIter",
+       "accepts": "int, 0 to 100000",
+       "default": "0",
+       "help": "%geom MaxIter; 0 is ORCA's own, max(3N, 50)"
+      },
+      {
+       "name": "calc_hess",
+       "label": "Calc_Hess",
+       "accepts": "bool",
+       "default": "False",
+       "help": "An exact Hessian before the first step"
+      },
+      {
+       "name": "scf_threshold",
+       "label": "SCF convergence",
+       "accepts": "one of ORCA's default, Sloppy, Loose, Medium, Normal, Strong, Tight, Very tight, Extreme",
+       "default": "",
+       "help": "TightSCF and the like, Table 2.9"
+      },
+      {
+       "name": "scf_solver",
+       "label": "SCF solver",
+       "accepts": "one of ORCA's default, EasyConv, SlowConv, VerySlowConv",
+       "default": "",
+       "help": "SlowConv for most transition-metal complexes"
+      },
+      {
+       "name": "scf_max_iter",
+       "label": "SCF MaxIter",
+       "accepts": "int, 0 to 100000",
+       "default": "0",
+       "help": "%scf MaxIter; 0 is ORCA's own"
+      },
+      {
+       "name": "scf_guess",
+       "label": "SCF guess",
+       "accepts": "one of ORCA's default, PModel, PAtom, Hueckel, HCore",
+       "default": "",
+       "help": "%scf Guess; the default is ORCA's own"
+      },
+      {
+       "name": "tddft_nroots",
+       "label": "TD-DFT roots",
+       "accepts": "int, 0 to 10000",
+       "default": "0",
+       "help": "Excited states for a UV-Vis spectrum; 0 writes no %tddft block"
+      },
+      {
+       "name": "tddft_triplets",
+       "label": "Triplets",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Singlet-triplet excitations as well"
+      },
+      {
+       "name": "tddft_state",
+       "label": "TD-DFT with Opt or Freq",
+       "accepts": "one of Ground state, then the spectrum (two steps), Excited state IRoot (one step)",
+       "default": "ground",
+       "help": "Optimise the ground state and then take its spectrum, in two steps, or optimise excited state IRoot itself"
+      },
+      {
+       "name": "tddft_iroot",
+       "label": "IRoot",
+       "accepts": "int, 1 to 10000",
+       "default": "1",
+       "help": "The excited state followed, counting from 1"
+      },
+      {
+       "name": "tddft_iroot_triplet",
+       "label": "Triplet IRoot",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Follow a triplet root (needs Triplets)"
+      },
+      {
+       "name": "solvation",
+       "label": "Solvation",
+       "accepts": "one of Gas phase, C-PCM, SMD",
+       "default": "",
+       "help": "An implicit solvent, C-PCM or SMD"
+      },
+      {
+       "name": "solvent",
+       "label": "Solvent",
+       "accepts": "text",
+       "default": "water",
+       "help": "Any name of Table 2.56, e.g. water, dmf, thf"
+      },
+      {
+       "name": "nprocs",
+       "label": "Processes (%pal)",
+       "accepts": "int, 1 to 4096",
+       "default": "1",
+       "help": "Above one, a %pal block"
+      },
+      {
+       "name": "maxcore_mb",
+       "label": "Memory per process",
+       "accepts": "int, 0 to 10000000 MB",
+       "default": "0",
+       "help": "%maxcore; 0 writes none"
+      },
+      {
+       "name": "charge",
+       "label": "Charge",
+       "accepts": "int, -1000 to 1000",
+       "default": "0",
+       "help": "Of the atoms written"
+      },
+      {
+       "name": "multiplicity",
+       "label": "Multiplicity",
+       "accepts": "int, 1 to 1000",
+       "default": "1",
+       "help": "2S+1; refused when the electron count cannot have it"
+      },
+      {
+       "name": "extra_keywords",
+       "label": "More keywords",
+       "accepts": "text",
+       "default": "",
+       "help": "Added to the end of the ! line as written"
+      },
+      {
+       "name": "extra_blocks",
+       "label": "More blocks",
+       "accepts": "text",
+       "default": "",
+       "help": "% blocks of your own, written before the coordinates"
+      },
+      {
+       "name": "atoms",
+       "label": "Atoms",
+       "accepts": "text",
+       "default": "",
+       "help": "Cell atom indices to write; blank is the whole cell"
+      },
+      {
+       "name": "name",
+       "label": "File name",
+       "accepts": "text",
+       "default": "",
+       "help": "The .inp and .xyz are named after this"
       }
      ]
     }

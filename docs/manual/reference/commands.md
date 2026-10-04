@@ -2050,6 +2050,16 @@ Compress and expand the cell with the shape free and fit an equation of state: B
 ```{index} Bulk modulus...
 ```
 
+(cmd-module.orca.input)=
+### ORCA ▸ Input file...
+
+`module.orca.input`
+
+An ORCA input and the coordinates it reads, in a run folder: the functional, basis, job and blocks chosen here, the charge and multiplicity checked against the electrons
+
+```{index} Input file...
+```
+
 (cmd-module.mof.build)=
 ### MOF builder ▸ Build a framework...
 
@@ -2105,7 +2115,7 @@ Chains grown into a box at a density; the result opens in a new tab
 
 `module.zeopp.diameters`
 
-The largest included and free spheres -- D_i, D_f and D_if -- and the channels they run through
+Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set) -- it is at https://www.zeoplusplus.org/
 
 ```{index} Pore diameters and channels...
 ```
@@ -2115,7 +2125,7 @@ The largest included and free spheres -- D_i, D_f and D_if -- and the channels t
 
 `module.zeopp.surface-area`
 
-The area a gas molecule can touch, which is what a BET measurement sees
+Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set) -- it is at https://www.zeoplusplus.org/
 
 ```{index} Surface area...
 ```
@@ -2135,7 +2145,7 @@ The same area in a second or two rather than several: sampled here on this appli
 
 `module.zeopp.volume`
 
-How much of the cell a gas molecule can occupy, which is the pore volume a paper quotes
+Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set) -- it is at https://www.zeoplusplus.org/
 
 ```{index} Accessible volume...
 ```
@@ -2155,7 +2165,7 @@ The same volume in a second or two -- MFU-4l's occupiable volume is 1.7 s here a
 
 `module.zeopp.psd`
 
-How much of the pore space sits at each diameter, as a histogram
+Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set) -- it is at https://www.zeoplusplus.org/
 
 ```{index} Pore size distribution...
 ```

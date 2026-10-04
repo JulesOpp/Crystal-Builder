@@ -13,7 +13,7 @@ this manual each calculation is described.
 The menu is built from the module registry and nothing else, so a
 module installed as a {term}`plug-in` appears in it without the
 application changing.  Each submenu is a {term}`module` --
-*Forcefield*, *DFTB+*,
+*Forcefield*, *DFTB+*, *ORCA*,
 *Porosity*, *MOF builder*, *Molecule builder*, *PXRD*, *Energy scan*,
 *Net builder*, *Blender* -- and each entry inside it is one thing that
 module does.  The same tree, with the *Stop* button for the run in
@@ -46,6 +46,23 @@ menu, not by reflex.
   {doc}`Energy Models </energy/index>` for the engines and what they
   are good at, and {doc}`Structure and Optimisation
   </structure/index>` for the optimisers and the *Energy scan*.
+- *ORCA ▸ Input file…* writes an ORCA input and the coordinates it
+  reads into a run folder, for ORCA to run wherever it is installed:
+  the functional and basis by family or by search, the job, the
+  `%scf`, `%geom` and `%tddft` blocks, solvation and resources, with
+  the input shown as it is chosen.  ORCA has no cell, so the atoms
+  are the cell's -- or the selected ones -- with each molecule made
+  whole across the cell faces, and a framework written as cut.  A
+  multiplicity the electron count cannot have is refused before
+  anything is written.  TD-DFT beside an optimisation or frequencies
+  is, by default, the ground state optimised and then the spectrum
+  at that geometry, as a two-step `%compound` job; ORCA's own reading
+  of that combination -- following excited state IRoot -- is the
+  other choice, offered only for the functionals ORCA can follow an
+  excited state with.  The coordinates are
+  `<name>_from_crystal_builder.xyz`, because an optimisation writes
+  its last geometry to `<name>.xyz`.  Every setting:
+  {ref}`mod-orca-input`.
 - *Porosity* (pore diameters and channels, surface area, accessible
   volume, pore size distribution, and the *(faster)* grid entries)
   and *PXRD*: {doc}`Porosity and Properties </porosity/index>`.

@@ -1,0 +1,3686 @@
+{
+ "source": "ORCA 6.1 manual, Tables 2.12-2.33 and 2.56",
+ "written_by": "scripts/orca_tables.py",
+ "families": [
+  {
+   "family": "Pople",
+   "table": "2.12",
+   "bases": [
+    {
+     "key": "STO-3G",
+     "elements": "H–I",
+     "ecp": ""
+    },
+    {
+     "key": "3-21G",
+     "elements": "H–Cs",
+     "ecp": ""
+    },
+    {
+     "key": "3-21GSP",
+     "elements": "H–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "4-22GSP",
+     "elements": "H–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "6-31G",
+     "elements": "H–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "6-31G*",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "m6-31G",
+     "elements": "Sc–Cu",
+     "ecp": ""
+    },
+    {
+     "key": "m6-31G*",
+     "elements": "Sc–Cu",
+     "ecp": ""
+    },
+    {
+     "key": "6-31G**",
+     "elements": "H–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "6-31G(d)",
+     "elements": "H–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "6-31G(d,p)",
+     "elements": "H–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "6-31G(2d)",
+     "elements": "H–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "6-31G(2d,p)",
+     "elements": "H–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "6-31G(2d,2p)",
+     "elements": "H–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "6-31G(2df)",
+     "elements": "H–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "6-31G(2df,2p)",
+     "elements": "H–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "6-31G(2df,2pd)",
+     "elements": "H–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "6-31+G*",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "6-31+G**",
+     "elements": "H–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "6-31+G(d)",
+     "elements": "H–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "6-31+G(d,p)",
+     "elements": "H–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "6-31+G(2d)",
+     "elements": "H–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "6-31+G(2d,p)",
+     "elements": "H–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "6-31+G(2d,2p)",
+     "elements": "H–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "6-31+G(2df)",
+     "elements": "H–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "6-31+G(2df,2p)",
+     "elements": "H–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "6-31+G(2df,2pd)",
+     "elements": "H–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "6-31++G**",
+     "elements": "H–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "6-31++G(d,p)",
+     "elements": "H–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "6-31++G(2d,p)",
+     "elements": "H–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "6-31++G(2d,2p)",
+     "elements": "H–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "6-31++G(2df,2p)",
+     "elements": "H–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "6-31++G(2df,2pd)",
+     "elements": "H–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "6-311G",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311G*",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311G**",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311G(d)",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311G(d,p)",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311G(2d)",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311G(2d,p)",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311G(2d,2p)",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311G(2df)",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311G(2df,2p)",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311G(2df,2pd)",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311G(3df)",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311G(3df,3pd)",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311+G*",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311+G**",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311+G(d)",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311+G(d,p)",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311+G(2d)",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311+G(2d,p)",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311+G(2d,2p)",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311+G(2df)",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311+G(2df,2p)",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311+G(2df,2pd)",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311+G(3df)",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311+G(3df,2p)",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311+G(3df,3pd)",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311++G**",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311++G(d,p)",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311++G(2d,p)",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311++G(2d,2p)",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311++G(2df,2p)",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311++G(2df,2pd)",
+     "elements": "H–Br",
+     "ecp": ""
+    },
+    {
+     "key": "6-311++G(3df,3pd)",
+     "elements": "H–Br",
+     "ecp": ""
+    }
+   ]
+  },
+  {
+   "family": "Ahlrichs (def)",
+   "table": "2.13",
+   "bases": [
+    {
+     "key": "SV",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "SV(P)",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "SVP",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "TZV",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "TZV(P)",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "TZVP",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "TZVPP",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "QZVP",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "QZVPP",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "def-SV(P)",
+     "elements": "H–Lr",
+     "ecp": "def-ECP(Rb–Lr)"
+    },
+    {
+     "key": "def-SVP",
+     "elements": "H–Lr",
+     "ecp": "def-ECP(Rb–Lr)"
+    },
+    {
+     "key": "def-TZVP",
+     "elements": "H–Lr",
+     "ecp": "def-ECP(Rb–Lr)"
+    },
+    {
+     "key": "def-TZVPP",
+     "elements": "H–Lr",
+     "ecp": "def-ECP(Rb–Lr)"
+    },
+    {
+     "key": "ma-def-TZVP",
+     "elements": "Fr–Lr",
+     "ecp": "def-ECP(Fr–Lr)"
+    },
+    {
+     "key": "old-SV",
+     "elements": "H–I",
+     "ecp": ""
+    },
+    {
+     "key": "old-SV(P)",
+     "elements": "H–I",
+     "ecp": ""
+    },
+    {
+     "key": "old-SVP",
+     "elements": "H–I",
+     "ecp": ""
+    },
+    {
+     "key": "old-TZV",
+     "elements": "H–I",
+     "ecp": ""
+    },
+    {
+     "key": "old-TZV(P)",
+     "elements": "H–I",
+     "ecp": ""
+    },
+    {
+     "key": "old-TZVP",
+     "elements": "H–I",
+     "ecp": ""
+    },
+    {
+     "key": "old-TZVPP",
+     "elements": "H–I",
+     "ecp": ""
+    }
+   ]
+  },
+  {
+   "family": "Karlsruhe def2",
+   "table": "2.14",
+   "bases": [
+    {
+     "key": "def2-SVP",
+     "elements": "H–Rn",
+     "ecp": "def2-ECP(Rb–Rn)"
+    },
+    {
+     "key": "def2-SV(P)",
+     "elements": "H–Rn",
+     "ecp": "def2-ECP(Rb–Rn)"
+    },
+    {
+     "key": "def2-TZVP",
+     "elements": "H–Rn",
+     "ecp": "def2-ECP(Rb–Rn)"
+    },
+    {
+     "key": "def2-TZVP(-f)",
+     "elements": "H–Rn",
+     "ecp": "def2-ECP(Rb–Rn)"
+    },
+    {
+     "key": "def2-TZVPP",
+     "elements": "H–Rn",
+     "ecp": "def2-ECP(Rb–Rn)"
+    },
+    {
+     "key": "def2-QZVP",
+     "elements": "H–Rn",
+     "ecp": "def2-ECP(Rb–Rn)"
+    },
+    {
+     "key": "def2-QZVPP",
+     "elements": "H–Rn",
+     "ecp": "def2-ECP(Rb–Rn)"
+    },
+    {
+     "key": "def2-SVPD",
+     "elements": "H–Rn",
+     "ecp": "def2-ECP(Rb–Rn)"
+    },
+    {
+     "key": "def2-TZVPD",
+     "elements": "H–Rn",
+     "ecp": "def2-ECP(Rb–Rn)"
+    },
+    {
+     "key": "def2-TZVPPD",
+     "elements": "H–Rn",
+     "ecp": "def2-ECP(Rb–Rn)"
+    },
+    {
+     "key": "def2-QZVPD",
+     "elements": "H–Rn",
+     "ecp": "def2-ECP(Rb–Rn)"
+    },
+    {
+     "key": "def2-QZVPPD",
+     "elements": "H–Rn",
+     "ecp": "def2-ECP(Rb–Rn)"
+    },
+    {
+     "key": "ma-def2-SVP",
+     "elements": "H–Rn",
+     "ecp": "def2-ECP(Rb–Rn)"
+    },
+    {
+     "key": "ma-def2-SV(P)",
+     "elements": "H–Rn",
+     "ecp": "def2-ECP(Rb–Rn)"
+    },
+    {
+     "key": "ma-def2-mSVP",
+     "elements": "H–Rn",
+     "ecp": "def2-ECP(Rb–Rn)"
+    },
+    {
+     "key": "ma-def2-TZVP",
+     "elements": "H–Rn",
+     "ecp": "def2-ECP(Rb–Rn)"
+    },
+    {
+     "key": "ma-def2-TZVP(-f)",
+     "elements": "H–Rn",
+     "ecp": "def2-ECP(Rb–Rn)"
+    },
+    {
+     "key": "ma-def2-TZVPP",
+     "elements": "H–Rn",
+     "ecp": "def2-ECP(Rb–Rn)"
+    },
+    {
+     "key": "ma-def2-QZVPP",
+     "elements": "H–Rn",
+     "ecp": "def2-ECP(Rb–Rn)"
+    }
+   ]
+  },
+  {
+   "family": "Karlsruhe dhf",
+   "table": "2.15",
+   "bases": [
+    {
+     "key": "dhf-SV(P)",
+     "elements": "H–Rn",
+     "ecp": "dhf-ECP(Rb–Rn)"
+    },
+    {
+     "key": "dhf-SVP",
+     "elements": "H–Rn",
+     "ecp": "dhf-ECP(Rb–Rn)"
+    },
+    {
+     "key": "dhf-TZVP",
+     "elements": "H–Rn",
+     "ecp": "dhf-ECP(Rb–Rn)"
+    },
+    {
+     "key": "dhf-TZVPP",
+     "elements": "H–Rn",
+     "ecp": "dhf-ECP(Rb–Rn)"
+    },
+    {
+     "key": "dhf-QZVP",
+     "elements": "H–Rn",
+     "ecp": "dhf-ECP(Rb–Rn)"
+    },
+    {
+     "key": "dhf-QZVPP",
+     "elements": "H–Rn",
+     "ecp": "dhf-ECP(Rb–Rn)"
+    },
+    {
+     "key": "dhf-SVP-2c",
+     "elements": "H–Rn",
+     "ecp": "dhf-ECP-2c(Rb–Rn)"
+    },
+    {
+     "key": "dhf-TZVP-2c",
+     "elements": "H–Rn",
+     "ecp": "dhf-ECP-2c(Rb–Rn)"
+    },
+    {
+     "key": "dhf-TZVPP-2c",
+     "elements": "H–Rn",
+     "ecp": "dhf-ECP-2c(Rb–Rn)"
+    },
+    {
+     "key": "dhf-QZVP-2c",
+     "elements": "H–Rn",
+     "ecp": "dhf-ECP-2c(Rb–Rn)"
+    },
+    {
+     "key": "dhf-QZVPP-2c",
+     "elements": "H–Rn",
+     "ecp": "dhf-ECP-2c(Rb–Rn)"
+    }
+   ]
+  },
+  {
+   "family": "Jensen (pc)",
+   "table": "2.16",
+   "bases": [
+    {
+     "key": "pc-0",
+     "elements": "H–Ca,Ga–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "pc-1",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "pc-2",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "pc-3",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "pc-4",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "aug-pc-0",
+     "elements": "H–Ca,Ga–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "aug-pc-1",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "aug-pc-2",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "aug-pc-3",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "aug-pc-4",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "pcseg-0",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "pcseg-1",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "pcseg-2",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "pcseg-3",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "pcseg-4",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "aug-pcseg-0",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "aug-pcseg-1",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "aug-pcseg-2",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "aug-pcseg-3",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "aug-pcseg-4",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "pcSseg-0",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "pcSseg-1",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "pcSseg-2",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "pcSseg-3",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "pcSseg-4",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "aug-pcSseg-0",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "aug-pcSseg-1",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "aug-pcSseg-2",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "aug-pcSseg-3",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "aug-pcSseg-4",
+     "elements": "H–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "pcJ-0",
+     "elements": "H–He,B–Ne,Al–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "pcJ-1",
+     "elements": "H–He,B–Ne,Al–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "pcJ-2",
+     "elements": "H–He,B–Ne,Al–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "pcJ-3",
+     "elements": "H–He,B–Ne,Al–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "pcJ-4",
+     "elements": "H–He,B–Ne,Al–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "aug-pcJ-0",
+     "elements": "H–He,B–Ne,Al–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "aug-pcJ-1",
+     "elements": "H–He,B–Ne,Al–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "aug-pcJ-2",
+     "elements": "H–He,B–Ne,Al–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "aug-pcJ-3",
+     "elements": "H–He,B–Ne,Al–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "aug-pcJ-4",
+     "elements": "H–He,B–Ne,Al–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "pcH-1",
+     "elements": "H,He,B–Ne,Al–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "pcH-2",
+     "elements": "H,He,B–Ne,Al–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "pcH-3",
+     "elements": "H,He,B–Ne,Al–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "pcH-4",
+     "elements": "H,He,B–Ne,Al–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "aug-pcH-1",
+     "elements": "H,He,B–Ne,Al–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "aug-pcH-2",
+     "elements": "H,He,B–Ne,Al–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "aug-pcH-3",
+     "elements": "H,He,B–Ne,Al–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "aug-pcH-4",
+     "elements": "H,He,B–Ne,Al–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "pcX-1",
+     "elements": "Li–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "pcX-2",
+     "elements": "Li–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "pcX-3",
+     "elements": "Li–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "pcX-4",
+     "elements": "Li–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "aug-pcX-1",
+     "elements": "Li–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "aug-pcX-2",
+     "elements": "Li–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "aug-pcX-3",
+     "elements": "Li–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "aug-pcX-4",
+     "elements": "Li–Ar",
+     "ecp": ""
+    }
+   ]
+  },
+  {
+   "family": "Hydrogenic Gaussian (HGBS)",
+   "table": "2.17",
+   "bases": [
+    {
+     "key": "HGBS-5",
+     "elements": "H–Og",
+     "ecp": ""
+    },
+    {
+     "key": "HGBS-7",
+     "elements": "H–Og",
+     "ecp": ""
+    },
+    {
+     "key": "HGBS-9",
+     "elements": "H–Og",
+     "ecp": ""
+    },
+    {
+     "key": "HGBSP1-5",
+     "elements": "H–Og",
+     "ecp": ""
+    },
+    {
+     "key": "HGBSP1-7",
+     "elements": "H–Og",
+     "ecp": ""
+    },
+    {
+     "key": "HGBSP1-9",
+     "elements": "H–Og",
+     "ecp": ""
+    },
+    {
+     "key": "HGBSP2-5",
+     "elements": "H–Og",
+     "ecp": ""
+    },
+    {
+     "key": "HGBSP2-7",
+     "elements": "H–Og",
+     "ecp": ""
+    },
+    {
+     "key": "HGBSP2-9",
+     "elements": "H–Og",
+     "ecp": ""
+    },
+    {
+     "key": "HGBSP3-5",
+     "elements": "H–Og",
+     "ecp": ""
+    },
+    {
+     "key": "HGBSP3-7",
+     "elements": "H–Og",
+     "ecp": ""
+    },
+    {
+     "key": "HGBSP3-9",
+     "elements": "H–Og",
+     "ecp": ""
+    },
+    {
+     "key": "AHGBS-5",
+     "elements": "H–Og",
+     "ecp": ""
+    },
+    {
+     "key": "AHGBS-7",
+     "elements": "H–Og",
+     "ecp": ""
+    },
+    {
+     "key": "AHGBS-9",
+     "elements": "H–Og",
+     "ecp": ""
+    },
+    {
+     "key": "AHGBSP1-5",
+     "elements": "H–Og",
+     "ecp": ""
+    },
+    {
+     "key": "AHGBSP1-7",
+     "elements": "H–Og",
+     "ecp": ""
+    },
+    {
+     "key": "AHGBSP1-9",
+     "elements": "H–Og",
+     "ecp": ""
+    },
+    {
+     "key": "AHGBSP2-5",
+     "elements": "H–Og",
+     "ecp": ""
+    },
+    {
+     "key": "AHGBSP2-7",
+     "elements": "H–Og",
+     "ecp": ""
+    },
+    {
+     "key": "AHGBSP2-9",
+     "elements": "H–Og",
+     "ecp": ""
+    },
+    {
+     "key": "AHGBSP3-5",
+     "elements": "H–Og",
+     "ecp": ""
+    },
+    {
+     "key": "AHGBSP3-7",
+     "elements": "H–Og",
+     "ecp": ""
+    },
+    {
+     "key": "AHGBSP3-9",
+     "elements": "H–Og",
+     "ecp": ""
+    }
+   ]
+  },
+  {
+   "family": "Sapporo",
+   "table": "2.18",
+   "bases": [
+    {
+     "key": "Sapporo-DZP-2012",
+     "elements": "H–Xe",
+     "ecp": ""
+    },
+    {
+     "key": "Sapporo-TZP-2012",
+     "elements": "H–Xe",
+     "ecp": ""
+    },
+    {
+     "key": "Sapporo-QZP-2012",
+     "elements": "H–Xe",
+     "ecp": ""
+    }
+   ]
+  },
+  {
+   "family": "Partridge",
+   "table": "2.19",
+   "bases": [
+    {
+     "key": "Partridge-1",
+     "elements": "H,Li–Sr",
+     "ecp": ""
+    },
+    {
+     "key": "Partridge-2",
+     "elements": "H,Li–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "Partridge-3",
+     "elements": "H,Li–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "Partridge-4",
+     "elements": "Sc–Zn",
+     "ecp": ""
+    }
+   ]
+  },
+  {
+   "family": "CRENB",
+   "table": "2.20",
+   "bases": [
+    {
+     "key": "CRENBL",
+     "elements": "H,Li–Og",
+     "ecp": "CRENBL-ECP(Li–Og)"
+    }
+   ]
+  },
+  {
+   "family": "LANL",
+   "table": "2.21",
+   "bases": [
+    {
+     "key": "LANL08",
+     "elements": "Na–La,Hf–Bi",
+     "ecp": "HayWadt (Na–La, Hf–Bi)"
+    },
+    {
+     "key": "LANL08(f)",
+     "elements": "Sc–Cu,Y–Ag,La,Hf–Au",
+     "ecp": "HayWadt (Sc–Cu, Y–Ag, La, Hf–Au)"
+    },
+    {
+     "key": "LANL2DZ",
+     "elements": "H,Li–La,Hf–Bi,U–Pu",
+     "ecp": "HayWadt (Na–La, Hf–Bi, U–Pu)"
+    },
+    {
+     "key": "LANL2TZ",
+     "elements": "Sc–Zn,Y–Cd,La,Hf–Hg",
+     "ecp": "HayWadt (Sc–Zn, Y–Cd, La, Hf–Hg)"
+    },
+    {
+     "key": "LANL2TZ(f)",
+     "elements": "Sc–Cu,Y–Ag,La,Hf–Au",
+     "ecp": "HayWadt (Sc–Cu, Y–Ag, La, Hf–Au)"
+    }
+   ]
+  },
+  {
+   "family": "Correlation-consistent",
+   "table": "2.22",
+   "bases": [
+    {
+     "key": "cc-pVDZ",
+     "elements": "H–Ar,Ca–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "cc-pVTZ",
+     "elements": "H–Ar,Ca–Kr,Y,Ag,Au",
+     "ecp": ""
+    },
+    {
+     "key": "cc-pVQZ",
+     "elements": "H–Ar,Ca–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "cc-pV5Z",
+     "elements": "H–Ar,Ca–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "cc-pV6Z",
+     "elements": "H–He,Be–Ne,Al–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "aug-cc-pVDZ",
+     "elements": "H–Ar,Sc–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "aug-cc-pVTZ",
+     "elements": "H–Ar,Sc–Kr,Ag,Au",
+     "ecp": ""
+    },
+    {
+     "key": "aug-cc-pVQZ",
+     "elements": "H–Ar,Sc–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "aug-cc-pV5Z",
+     "elements": "H–Ar,Sc–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "aug-cc-pV6Z",
+     "elements": "H–He,B–Ne,Al–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "cc-pVD(+d)Z",
+     "elements": "Na–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "cc-pVT(+d)Z",
+     "elements": "Na–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "cc-pVQ(+d)Z",
+     "elements": "Na–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "cc-pV5(+d)Z",
+     "elements": "Na–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "aug-cc-pVD(+d)Z",
+     "elements": "Al–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "aug-cc-pVT(+d)Z",
+     "elements": "Al–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "aug-cc-pVQ(+d)Z",
+     "elements": "Al–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "aug-cc-pV5(+d)Z",
+     "elements": "Al–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "aug-cc-pV6(+d)Z",
+     "elements": "Al–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "apr-cc-pV(Q+d)Z",
+     "elements": "H–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "may-cc-pV(T+d)Z",
+     "elements": "H–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "may-cc-pV(Q+d)Z",
+     "elements": "H–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "jun-cc-pV(D+d)Z",
+     "elements": "H–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "jun-cc-pV(T+d)Z",
+     "elements": "H–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "jun-cc-pV(Q+d)Z",
+     "elements": "H–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "jul-cc-pV(D+d)Z",
+     "elements": "H–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "jul-cc-pV(T+d)Z",
+     "elements": "H–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "jul-cc-pV(Q+d)Z",
+     "elements": "H–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "maug-cc-pV(D+d)Z",
+     "elements": "H–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "maug-cc-pV(T+d)Z",
+     "elements": "H–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "maug-cc-pV(Q+d)Z",
+     "elements": "H–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "cc-pCVDZ",
+     "elements": "H–Ar,Ca,Ga–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "cc-pCVTZ",
+     "elements": "H–Ar,Ca,Ga–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "cc-pCVQZ",
+     "elements": "H–Ar,Ca,Ga–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "cc-pCV5Z",
+     "elements": "H–Ar,Ca,Ga–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "cc-pCV6Z",
+     "elements": "H–He,B–Ne,Al–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "aug-cc-pCVDZ",
+     "elements": "H–Ar,Ga–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "aug-cc-pCVTZ",
+     "elements": "H–Ar,Ga–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "aug-cc-pCVQZ",
+     "elements": "H–Ar,Ga–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "aug-cc-pCV5Z",
+     "elements": "H–Ar,Ga–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "aug-cc-pCV6Z",
+     "elements": "H–He,B–Ne,Al–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "cc-pwCVDZ",
+     "elements": "H–Ar,Ca,Ga–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "cc-pwCVTZ",
+     "elements": "H–Ar,Ca–Kr,Ag,Au",
+     "ecp": ""
+    },
+    {
+     "key": "cc-pwCVQZ",
+     "elements": "H–Ar,Ca–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "cc-pwCV5Z",
+     "elements": "H–Ar,Ca–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "aug-cc-pwCVDZ",
+     "elements": "H–Ar,Ga–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "aug-cc-pwCVTZ",
+     "elements": "H–Ar,Sc–Kr,Ag,Au",
+     "ecp": ""
+    },
+    {
+     "key": "aug-cc-pwCVQZ",
+     "elements": "H–Ar,Sc–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "aug-cc-pwCV5Z",
+     "elements": "H–Ar,Sc–Kr",
+     "ecp": ""
+    },
+    {
+     "key": "cc-pVDZ-PP",
+     "elements": "Ca,Cu–Kr,Sr–Xe,Ba,Hf–Rn,Ra,U",
+     "ecp": "SK-MCDHF-RSC (Ca, Cu–Kr, Sr–Xe, Ba, Hf–Ra, U)"
+    },
+    {
+     "key": "cc-pVTZ-PP",
+     "elements": "Ca,Cu–Kr,Sr–Xe,Ba,Hf–Rn,Ra,U",
+     "ecp": "SK-MCDHF-RSC (Ca, Cu–Kr, Sr–Xe, Ba, Hf–Ra, U)"
+    },
+    {
+     "key": "cc-pVQZ-PP",
+     "elements": "Ca,Cu–Kr,Sr–Xe,Ba,Hf–Rn,Ra,U",
+     "ecp": "SK-MCDHF-RSC (Ca, Cu–Kr, Sr–Xe, Ba, Hf–Ra, U)"
+    },
+    {
+     "key": "cc-pV5Z-PP",
+     "elements": "Ca,Cu–Kr,Sr–Xe,Ba,Hf–Rn,Ra",
+     "ecp": "SK-MCDHF-RSC (Ca, Cu–Kr, Sr–Xe, Ba, Hf–Ra, U)"
+    },
+    {
+     "key": "aug-cc-pVDZ-PP",
+     "elements": "Ca,Cu–Kr,Sr–Xe,Ba,Hf–Rn,Ra",
+     "ecp": "SK-MCDHF-RSC (Ca, Cu–Kr, Sr–Xe, Ba, Hf–Ra, U)"
+    },
+    {
+     "key": "aug-cc-pVTZ-PP",
+     "elements": "Ca,Cu–Kr,Sr–Xe,Ba,Hf–Rn,Ra",
+     "ecp": "SK-MCDHF-RSC (Ca, Cu–Kr, Sr–Xe, Ba, Hf–Ra, U)"
+    },
+    {
+     "key": "aug-cc-pVQZ-PP",
+     "elements": "Ca,Cu–Kr,Sr–Xe,Ba,Hf–Rn,Ra",
+     "ecp": "SK-MCDHF-RSC (Ca, Cu–Kr, Sr–Xe, Ba, Hf–Ra, U)"
+    },
+    {
+     "key": "aug-cc-pV5Z-PP",
+     "elements": "Ca,Cu–Kr,Sr–Xe,Ba,Hf–Rn,Ra",
+     "ecp": "SK-MCDHF-RSC (Ca, Cu–Kr, Sr–Xe, Ba, Hf–Ra, U)"
+    },
+    {
+     "key": "cc-pCVDZ-PP",
+     "elements": "Ca,Sr,Ba,Ra",
+     "ecp": "SK-MCDHF-RSC"
+    },
+    {
+     "key": "cc-pCVTZ-PP",
+     "elements": "Ca,Sr,Ba,Ra",
+     "ecp": "SK-MCDHF-RSC"
+    },
+    {
+     "key": "cc-pCVQZ-PP",
+     "elements": "Ca,Sr,Ba,Ra",
+     "ecp": "SK-MCDHF-RSC"
+    },
+    {
+     "key": "cc-pCV5Z-PP",
+     "elements": "Ca,Sr,Ba,Ra",
+     "ecp": "SK-MCDHF-RSC"
+    },
+    {
+     "key": "aug-cc-pCVDZ-PP",
+     "elements": "Ca,Sr,Ba,Ra",
+     "ecp": "SK-MCDHF-RSC"
+    },
+    {
+     "key": "aug-cc-pCVTZ-PP",
+     "elements": "Ca,Sr,Ba,Ra",
+     "ecp": "SK-MCDHF-RSC"
+    },
+    {
+     "key": "aug-cc-pCVQZ-PP",
+     "elements": "Ca,Sr,Ba,Ra",
+     "ecp": "SK-MCDHF-RSC"
+    },
+    {
+     "key": "aug-cc-pCV5Z-PP",
+     "elements": "Ca,Sr,Ba,Ra",
+     "ecp": "SK-MCDHF-RSC"
+    },
+    {
+     "key": "cc-pwCVDZ-PP",
+     "elements": "Ca,Cu–Kr,Sr–Xe,Ba,Hf–Rn,Ra,U",
+     "ecp": "SK-MCDHF-RSC (Ca, Cu–Kr, Sr–Xe, Ba, Hf–Ra, U)"
+    },
+    {
+     "key": "cc-pwCVTZ-PP",
+     "elements": "Ca,Cu–Kr,Sr–Xe,Ba,Hf–Rn,Ra,U",
+     "ecp": "SK-MCDHF-RSC (Ca, Cu–Kr, Sr–Xe, Ba, Hf–Ra, U)"
+    },
+    {
+     "key": "cc-pwCVQZ-PP",
+     "elements": "Ca,Cu–Kr,Sr–Xe,Ba,Hf–Rn,Ra,U",
+     "ecp": "SK-MCDHF-RSC (Ca, Cu–Kr, Sr–Xe, Ba, Hf–Ra, U)"
+    },
+    {
+     "key": "cc-pwCV5Z-PP",
+     "elements": "Ca,Cu–Kr,Sr–Xe,Ba,Hf–Rn,Ra",
+     "ecp": "SK-MCDHF-RSC (Ca, Cu–Kr, Sr–Xe, Ba, Hf–Ra, U)"
+    },
+    {
+     "key": "aug-cc-pwCVDZ-PP",
+     "elements": "Ca,Cu–Kr,Sr–Xe,Ba,Hf–Rn,Ra",
+     "ecp": "SK-MCDHF-RSC (Ca, Cu–Kr, Sr–Xe, Ba, Hf–Ra, U)"
+    },
+    {
+     "key": "aug-cc-pwCVTZ-PP",
+     "elements": "Ca,Cu–Kr,Sr–Xe,Ba,Hf–Rn,Ra",
+     "ecp": "SK-MCDHF-RSC (Ca, Cu–Kr, Sr–Xe, Ba, Hf–Ra, U)"
+    },
+    {
+     "key": "aug-cc-pwCVQZ-PP",
+     "elements": "Ca,Cu–Kr,Sr–Xe,Ba,Hf–Rn,Ra",
+     "ecp": "SK-MCDHF-RSC (Ca, Cu–Kr, Sr–Xe, Ba, Hf–Ra, U)"
+    },
+    {
+     "key": "aug-cc-pwCV5Z-PP",
+     "elements": "Ca,Cu–Kr,Sr–Xe,Ba,Hf–Rn,Ra",
+     "ecp": "SK-MCDHF-RSC (Ca, Cu–Kr, Sr–Xe, Ba, Hf–Ra, U)"
+    },
+    {
+     "key": "aug-cc-pVTZ-J",
+     "elements": "H,B–F,Al–Cl,Sc–Zn,Se",
+     "ecp": ""
+    },
+    {
+     "key": "haV(T+d)Z",
+     "elements": "H–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "haV(Q+d)Z",
+     "elements": "H–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "haV(5+d)Z",
+     "elements": "H–Ar",
+     "ecp": ""
+    }
+   ]
+  },
+  {
+   "family": "F12",
+   "table": "2.23",
+   "bases": [
+    {
+     "key": "cc-pVDZ-F12",
+     "elements": "H–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "cc-pVTZ-F12",
+     "elements": "H–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "cc-pVQZ-F12",
+     "elements": "H–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "cc-pCVDZ-F12",
+     "elements": "Li–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "cc-pCVTZ-F12",
+     "elements": "Li–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "cc-pCVQZ-F12",
+     "elements": "Li–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "cc-pVDZ-PP-F12",
+     "elements": "Ga–Kr,In–Xe,Tl–Rn",
+     "ecp": "SK-MCDHF-RSC (Ga–Kr, In–Xe, Tl–Rn)"
+    },
+    {
+     "key": "cc-pVTZ-PP-F12",
+     "elements": "Ga–Kr,In–Xe,Tl–Rn",
+     "ecp": "SK-MCDHF-RSC (Ga–Kr, In–Xe, Tl–Rn)"
+    },
+    {
+     "key": "cc-pVQZ-PP-F12",
+     "elements": "Ga–Kr,In–Xe,Tl–Rn",
+     "ecp": "SK-MCDHF-RSC (Ga–Kr, In–Xe, Tl–Rn)"
+    }
+   ]
+  },
+  {
+   "family": "ANO",
+   "table": "2.24",
+   "bases": [
+    {
+     "key": "ANO-SZ",
+     "elements": "H–Ar,Sc–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "ANO-pVDZ",
+     "elements": "H–Ar,Sc–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "ANO-pVTZ",
+     "elements": "H–Ar,Sc–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "ANO-pVQZ",
+     "elements": "H–Ar,Sc–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "ANO-pV5Z",
+     "elements": "H–Ar,Sc–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "ANO-pV6Z",
+     "elements": "H–Ar,Sc–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "aug-ANO-pVDZ",
+     "elements": "H–Ar,Sc–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "aug-ANO-pVTZ",
+     "elements": "H–Ar,Sc–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "aug-ANO-pVQZ",
+     "elements": "H–Ar,Sc–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "aug-ANO-pV5Z",
+     "elements": "H–Ar,Sc–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "saug-ANO-pVDZ",
+     "elements": "H–Ar,Sc–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "saug-ANO-pVTZ",
+     "elements": "H–Ar,Sc–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "saug-ANO-pVQZ",
+     "elements": "H–Ar,Sc–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "saug-ANO-pV5Z",
+     "elements": "H–Ar,Sc–Zn",
+     "ecp": ""
+    }
+   ]
+  },
+  {
+   "family": "Miscellaneous",
+   "table": "2.25",
+   "bases": [
+    {
+     "key": "D95",
+     "elements": "H,Li,B–Ne,Al–Cl",
+     "ecp": ""
+    },
+    {
+     "key": "D95p",
+     "elements": "H,Li,B–Ne,Al–Cl",
+     "ecp": ""
+    },
+    {
+     "key": "EPR-II",
+     "elements": "H,B–F",
+     "ecp": ""
+    },
+    {
+     "key": "EPR-III",
+     "elements": "H,B–F",
+     "ecp": ""
+    },
+    {
+     "key": "IGLO-II",
+     "elements": "H,B–F,Al–Cl",
+     "ecp": ""
+    },
+    {
+     "key": "IGLO-III",
+     "elements": "H,B–F,Al–Cl",
+     "ecp": ""
+    },
+    {
+     "key": "UGBS",
+     "elements": "H–Th,Pu–Am,Cf–Lr",
+     "ecp": ""
+    },
+    {
+     "key": "CP",
+     "elements": "Sc–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "CP(PPP)",
+     "elements": "Sc–Zn",
+     "ecp": ""
+    },
+    {
+     "key": "Wachters+f",
+     "elements": "Sc–Cu",
+     "ecp": ""
+    },
+    {
+     "key": "W1-mtsmall",
+     "elements": "H–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "W1-DZ",
+     "elements": "H–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "W1-TZ",
+     "elements": "H–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "W1-QZ",
+     "elements": "H–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "W1-Opt",
+     "elements": "H–Ar",
+     "ecp": ""
+    },
+    {
+     "key": "MINI",
+     "elements": "H–Ca",
+     "ecp": ""
+    },
+    {
+     "key": "MINIS",
+     "elements": "H–Ca",
+     "ecp": ""
+    },
+    {
+     "key": "MIDI",
+     "elements": "H–Na,Al–K",
+     "ecp": ""
+    },
+    {
+     "key": "MINIX",
+     "elements": "H–Rn",
+     "ecp": "def-ECP(Rb–Lr)"
+    },
+    {
+     "key": "def2-mSVP",
+     "elements": "H–Rn",
+     "ecp": "def2-ECP (Rb–Rn)"
+    },
+    {
+     "key": "def2-mTZVP",
+     "elements": "H–Rn",
+     "ecp": "def2-ECP (Rb–Rn)"
+    },
+    {
+     "key": "def2-mTZVPP",
+     "elements": "H–Lr",
+     "ecp": "def2-ECP (Rb–Rn)"
+    },
+    {
+     "key": "vDZP",
+     "elements": "H–Rn",
+     "ecp": "vDZP-ECP(B–Rn)"
+    }
+   ]
+  },
+  {
+   "family": "Relativistic Ahlrichs",
+   "table": "2.26",
+   "bases": [
+    {
+     "key": "DKH-SV(P)",
+     "elements": "H–Kr",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "DKH-SVP",
+     "elements": "H–Kr",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "DKH-TZV(P)",
+     "elements": "H–Kr",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "DKH-TZVP",
+     "elements": "H–Kr",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "DKH-TZVPP",
+     "elements": "H–Kr",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "DKH-QZVP",
+     "elements": "H–Kr",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "DKH-QZVPP",
+     "elements": "H–Kr",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "ZORA-SV(P)",
+     "elements": "H–Kr",
+     "relativistic": "ZORA"
+    },
+    {
+     "key": "ZORA-SVP",
+     "elements": "H–Kr",
+     "relativistic": "ZORA"
+    },
+    {
+     "key": "ZORA-TZV(P)",
+     "elements": "H–Kr",
+     "relativistic": "ZORA"
+    },
+    {
+     "key": "ZORA-TZVP",
+     "elements": "H–Kr",
+     "relativistic": "ZORA"
+    },
+    {
+     "key": "ZORA-TZVPP",
+     "elements": "H–Kr",
+     "relativistic": "ZORA"
+    },
+    {
+     "key": "ZORA-QZVP",
+     "elements": "H–Kr",
+     "relativistic": "ZORA"
+    },
+    {
+     "key": "ZORA-QZVPP",
+     "elements": "H–Kr",
+     "relativistic": "ZORA"
+    },
+    {
+     "key": "old-DKH-SV(P)",
+     "elements": "H–I",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "old-DKH-SVP",
+     "elements": "H–I",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "old-DKH-TZV(P)",
+     "elements": "H–I",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "old-DKH-TZVP",
+     "elements": "H–I",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "old-DKH-TZVPP",
+     "elements": "H–I",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "old-ZORA-SV(P)",
+     "elements": "H–I",
+     "relativistic": "ZORA"
+    },
+    {
+     "key": "old-ZORA-SVP",
+     "elements": "H–I",
+     "relativistic": "ZORA"
+    },
+    {
+     "key": "old-ZORA-TZV(P)",
+     "elements": "H–I",
+     "relativistic": "ZORA"
+    },
+    {
+     "key": "old-ZORA-TZVP",
+     "elements": "H–I",
+     "relativistic": "ZORA"
+    },
+    {
+     "key": "old-ZORA-TZVPP",
+     "elements": "H–I",
+     "relativistic": "ZORA"
+    }
+   ]
+  },
+  {
+   "family": "Relativistic Karlsruhe",
+   "table": "2.27",
+   "bases": [
+    {
+     "key": "DKH-def2-SVP",
+     "elements": "H–Kr",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "DKH-def2-SV(P)",
+     "elements": "H–Kr",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "DKH-def2-TZVP",
+     "elements": "H–Kr",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "DKH-def2-TZVP(-f)",
+     "elements": "H–Kr",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "DKH-def2-TZVPP",
+     "elements": "H–Kr",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "DKH-def2-QZVPP",
+     "elements": "H–Kr",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "ZORA-def2-SVP",
+     "elements": "H–Kr",
+     "relativistic": "ZORA"
+    },
+    {
+     "key": "ZORA-def2-SV(P)",
+     "elements": "H–Kr",
+     "relativistic": "ZORA"
+    },
+    {
+     "key": "ZORA-def2-TZVP",
+     "elements": "H–Kr",
+     "relativistic": "ZORA"
+    },
+    {
+     "key": "ZORA-def2-TZVP(-f)",
+     "elements": "H–Kr",
+     "relativistic": "ZORA"
+    },
+    {
+     "key": "ZORA-def2-TZVPP",
+     "elements": "H–Kr",
+     "relativistic": "ZORA"
+    },
+    {
+     "key": "ZORA-def2-QZVPP",
+     "elements": "H–Kr",
+     "relativistic": "ZORA"
+    },
+    {
+     "key": "ma-DKH-def2-SVP",
+     "elements": "H–Kr",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "ma-DKH-def2-SV(P)",
+     "elements": "H–Kr",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "ma-DKH-def2-TZVP",
+     "elements": "H–Kr",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "ma-DKH-def2-TZVP(-f)",
+     "elements": "H–Kr",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "ma-DKH-def2-TZVPP",
+     "elements": "H–Kr",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "ma-DKH-def2-QZVPP",
+     "elements": "H–Kr",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "ma-ZORA-def2-SVP",
+     "elements": "H–Kr",
+     "relativistic": "ZORA"
+    },
+    {
+     "key": "ma-ZORA-def2-SV(P)",
+     "elements": "H–Kr",
+     "relativistic": "ZORA"
+    },
+    {
+     "key": "ma-ZORA-def2-TZVP",
+     "elements": "H–Kr",
+     "relativistic": "ZORA"
+    },
+    {
+     "key": "ma-ZORA-def2-TZVP(-f)",
+     "elements": "H–Kr",
+     "relativistic": "ZORA"
+    },
+    {
+     "key": "ma-ZORA-def2-TZVPP",
+     "elements": "H–Kr",
+     "relativistic": "ZORA"
+    },
+    {
+     "key": "ma-ZORA-def2-QZVPP",
+     "elements": "H–Kr",
+     "relativistic": "ZORA"
+    }
+   ]
+  },
+  {
+   "family": "Relativistic SARC",
+   "table": "2.28",
+   "bases": [
+    {
+     "key": "SARC-DKH-SVP",
+     "elements": "Hf–Hg",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "SARC-DKH-TZVP",
+     "elements": "Rb–Rn,Ac–Lr",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "SARC-DKH-TZVPP",
+     "elements": "Rb–Rn,Ac–Lr",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "SARC-ZORA-SVP",
+     "elements": "Hf–Hg",
+     "relativistic": "ZORA"
+    },
+    {
+     "key": "SARC-ZORA-TZVP",
+     "elements": "Rb–Rn,Ac–Lr",
+     "relativistic": "ZORA"
+    },
+    {
+     "key": "SARC-ZORA-TZVPP",
+     "elements": "Rb–Rn,Ac–Lr",
+     "relativistic": "ZORA"
+    }
+   ]
+  },
+  {
+   "family": "Relativistic SARC2",
+   "table": "2.29",
+   "bases": [
+    {
+     "key": "SARC2-DKH-QZV",
+     "elements": "La–Lu",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "SARC2-DKH-QZVP",
+     "elements": "La–Lu",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "SARC2-ZORA-QZV",
+     "elements": "La–Lu",
+     "relativistic": "ZORA"
+    },
+    {
+     "key": "SARC2-ZORA-QZVP",
+     "elements": "La–Lu",
+     "relativistic": "ZORA"
+    }
+   ]
+  },
+  {
+   "family": "Relativistic x2c",
+   "table": "2.30",
+   "bases": [
+    {
+     "key": "x2c-SV(P)all",
+     "elements": "H–Rn",
+     "relativistic": "X2C"
+    },
+    {
+     "key": "x2c-SVPall",
+     "elements": "H–Rn",
+     "relativistic": "X2C"
+    },
+    {
+     "key": "x2c-TZVPall",
+     "elements": "H–Rn",
+     "relativistic": "X2C"
+    },
+    {
+     "key": "x2c-TZVPPall",
+     "elements": "H–Rn",
+     "relativistic": "X2C"
+    },
+    {
+     "key": "x2c-QZVPall",
+     "elements": "H–Rn",
+     "relativistic": "X2C"
+    },
+    {
+     "key": "x2c-QZVPPall",
+     "elements": "H–Rn",
+     "relativistic": "X2C"
+    },
+    {
+     "key": "x2c-SV(P)all-s",
+     "elements": "H–Rn",
+     "relativistic": "X2C"
+    },
+    {
+     "key": "x2c-SVPall-s",
+     "elements": "H–Rn",
+     "relativistic": "X2C"
+    },
+    {
+     "key": "x2c-TZVPall-s",
+     "elements": "H–Rn",
+     "relativistic": "X2C"
+    },
+    {
+     "key": "x2c-TZVPPall-s",
+     "elements": "H–Rn",
+     "relativistic": "X2C"
+    },
+    {
+     "key": "x2c-QZVPall-s",
+     "elements": "H–Rn",
+     "relativistic": "X2C"
+    },
+    {
+     "key": "x2c-QZVPPall-s",
+     "elements": "H–Rn",
+     "relativistic": "X2C"
+    },
+    {
+     "key": "x2c-SV(P)all-2c",
+     "elements": "H–Rn",
+     "relativistic": "SO-X2C"
+    },
+    {
+     "key": "x2c-SVPall-2c",
+     "elements": "H–Rn",
+     "relativistic": "SO-X2C"
+    },
+    {
+     "key": "x2c-TZVPall-2c",
+     "elements": "H–Rn",
+     "relativistic": "SO-X2C"
+    },
+    {
+     "key": "x2c-TZVPPall-2c",
+     "elements": "H–Rn",
+     "relativistic": "SO-X2C"
+    },
+    {
+     "key": "x2c-QZVPall-2c",
+     "elements": "H–Rn",
+     "relativistic": "SO-X2C"
+    },
+    {
+     "key": "x2c-QZVPPall-2c",
+     "elements": "H–Rn",
+     "relativistic": "SO-X2C"
+    },
+    {
+     "key": "x2c-QZVPall-2c-s",
+     "elements": "H–Rn",
+     "relativistic": "SO-X2C"
+    },
+    {
+     "key": "x2c-QZVPPall-2c-s",
+     "elements": "H–Rn",
+     "relativistic": "SO-X2C"
+    }
+   ]
+  },
+  {
+   "family": "Relativistic Sapporo",
+   "table": "2.31",
+   "bases": [
+    {
+     "key": "Sapporo-DKH3-DZP-2012",
+     "elements": "K–Rn",
+     "relativistic": "DKH3"
+    },
+    {
+     "key": "Sapporo-DKH3-TZP-2012",
+     "elements": "K–Rn",
+     "relativistic": "DKH3"
+    },
+    {
+     "key": "Sapporo-DKH3-QZP-2012",
+     "elements": "K–Rn",
+     "relativistic": "DKH3"
+    }
+   ]
+  },
+  {
+   "family": "Relativistic correlation-consistent",
+   "table": "2.32",
+   "bases": [
+    {
+     "key": "cc-pVDZ-DK",
+     "elements": "H–Ar,Sc–Kr",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "cc-pVTZ-DK",
+     "elements": "H–Ar,Sc–Kr,Y–Xe,Hf–Rn",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "cc-pVQZ-DK",
+     "elements": "H–Ar,Sc–Kr,In–Xe,Tl–Rn",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "cc-pV5Z-DK",
+     "elements": "H–Ar,Sc–Kr",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "cc-pVDZ-DK3",
+     "elements": "U",
+     "relativistic": "DKH3"
+    },
+    {
+     "key": "cc-pVTZ-DK3",
+     "elements": "U",
+     "relativistic": "DKH3"
+    },
+    {
+     "key": "cc-pVQZ-DK3",
+     "elements": "U",
+     "relativistic": "DKH3"
+    },
+    {
+     "key": "aug-cc-pVDZ-DK",
+     "elements": "H–Ar,Sc–Kr",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "aug-cc-pVTZ-DK",
+     "elements": "H–Ar,Sc–Kr,Y–Xe,Hf–Rn",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "aug-cc-pVQZ-DK",
+     "elements": "H–Ar,Sc–Kr,In–Xe,Tl–Rn",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "aug-cc-pV5Z-DK",
+     "elements": "H–Ar,Sc–Kr",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "cc-pwCVDZ-DK",
+     "elements": "H–Be,Na–Mg,Ca–Zn",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "cc-pwCVTZ-DK",
+     "elements": "H–Be,Na–Mg,Ca–Zn,Y–Xe,Hf–Rn",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "cc-pwCVQZ-DK",
+     "elements": "H–Be,Na–Mg,Ca–Zn,In–Xe,Tl–Rn",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "cc-pwCV5Z-DK",
+     "elements": "H–Be,Na–Mg,Ca–Zn",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "cc-pwCVDZ-DK3",
+     "elements": "U",
+     "relativistic": "DKH3"
+    },
+    {
+     "key": "cc-pwCVTZ-DK3",
+     "elements": "U",
+     "relativistic": "DKH3"
+    },
+    {
+     "key": "cc-pwCVQZ-DK3",
+     "elements": "U",
+     "relativistic": "DKH3"
+    },
+    {
+     "key": "aug-cc-pwCVDZ-DK",
+     "elements": "H–Be,Na–Mg,Sc–Zn",
+     "relativistic": "DKH3"
+    },
+    {
+     "key": "aug-cc-pwCVTZ-DK",
+     "elements": "H–Be,Na–Mg,Sc–Zn,Y–Xe,Hf–Rn",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "aug-cc-pwCVQZ-DK",
+     "elements": "H–Be,Na–Mg,Sc–Zn,In–Xe,Tl–Rn",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "aug-cc-pwCV5Z-DK",
+     "elements": "H–Be,Na–Mg,Sc–Zn",
+     "relativistic": "DKH2"
+    }
+   ]
+  },
+  {
+   "family": "Relativistic ANO-RCC",
+   "table": "2.33",
+   "bases": [
+    {
+     "key": "ANO-RCC-Full",
+     "elements": "H–Cm",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "ANO-RCC-DZP",
+     "elements": "H–Cm",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "ANO-RCC-TZP",
+     "elements": "H–Cm",
+     "relativistic": "DKH2"
+    },
+    {
+     "key": "ANO-RCC-QZP",
+     "elements": "H–Cm",
+     "relativistic": "DKH2"
+    }
+   ]
+  }
+ ],
+ "solvents": [
+  {
+   "names": [
+    "1,1,1-trichloroethane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1,1,2-trichloroethane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1,2,4-trimethylbenzene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1,2-dibromoethane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1,2-dichloroethane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1,2-ethanediol"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1,4-dioxane",
+    "dioxane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1-bromo-2-methylpropane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1-bromooctane",
+    "bromooctane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1-bromopentane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1-bromopropane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1-butanol",
+    "butanol"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1-chlorohexane",
+    "chlorohexane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1-chloropentane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1-chloropropane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1-decanol",
+    "decanol"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1-fluorooctane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1-heptanol",
+    "heptanol"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1-hexanol",
+    "hexanol"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1-hexene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1-hexyne"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1-iodobutane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1-iodohexadecane",
+    "hexadecyliodide"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1-iodopentane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1-iodopropane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1-nitropropane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1-nonanol",
+    "nonanol"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1-octanol",
+    "octanol"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1-pentanol",
+    "pentanol"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1-pentene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "1-propanol",
+    "propanol"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "2,2,2-trifluoroethanol"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "2,2,4-trimethylpentane",
+    "isooctane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "2,4-dimethylpentane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "2,4-dimethylpyridine"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "2,6-dimethylpyridine"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "2-bromopropane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "2-butanol",
+    "secbutanol"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "2-chlorobutane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "2-heptanone"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "2-hexanone"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "2-methoxyethanol",
+    "methoxyethanol"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "2-methyl-1-propanol",
+    "isobutanol"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "2-methyl-2-propanol"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "2-methylpentane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "2-methylpyridine",
+    "2methylpyridine"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "2-nitropropane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "2-octanone"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "2-pentanone"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "2-propanol",
+    "isopropanol"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "2-propen-1-ol"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "e-2-pentene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "3-methylpyridine"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "3-pentanone"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "4-heptanone"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "4-methyl-2-pentanone",
+    "4methyl2pentanone"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "4-methylpyridine"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "5-nonanone"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "acetic acid",
+    "aceticacid"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "acetone"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "acetonitrile",
+    "mecn",
+    "ch3cn"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "acetophenone"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "ammonia"
+   ],
+   "cpcm": true,
+   "smd": false
+  },
+  {
+   "names": [
+    "aniline"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "anisole"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "benzaldehyde"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "benzene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "benzonitrile"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "benzyl alcohol",
+    "benzylalcohol"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "bromobenzene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "bromoethane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "bromoform"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "butanal"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "butanoic acid"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "butanone"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "butanonitrile"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "butyl ethanoate",
+    "butyl acetate",
+    "butylacetate"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "butylamine"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "n-butylbenzene",
+    "butylbenzene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "sec-butylbenzene",
+    "secbutylbenzene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "tert-butylbenzene",
+    "tbutylbenzene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "carbon disulfide",
+    "carbondisulfide",
+    "cs2"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "carbon tetrachloride",
+    "ccl4"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "chlorobenzene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "chloroform",
+    "chcl3"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "a-chlorotoluene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "o-chlorotoluene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "conductor"
+   ],
+   "cpcm": true,
+   "smd": false
+  },
+  {
+   "names": [
+    "m-cresol",
+    "mcresol"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "o-cresol"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "cyclohexane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "cyclohexanone"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "cyclopentane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "cyclopentanol"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "cyclopentanone"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "decalin"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "cis-decalin"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "n-decane",
+    "decane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "dibromomethane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "dibutylether"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "o-dichlorobenzene",
+    "odichlorobenzene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "e-1,2-dichloroethene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "z-1,2-dichloroethene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "dichloromethane",
+    "ch2cl2",
+    "dcm"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "diethyl ether",
+    "diethylether"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "diethyl sulfide"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "diethylamine"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "diiodomethane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "diisopropyl ether",
+    "diisopropylether"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "cis-1,2-dimethylcyclohexane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "dimethyl disulfide"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "n,n-dimethylacetamide",
+    "dimethylacetamide"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "n,n-dimethylformamide",
+    "dimethylformamide",
+    "dmf"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "dimethylsulfoxide",
+    "dmso"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "diphenylether"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "dipropylamine"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "n-dodecane",
+    "dodecane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "ethanethiol"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "ethanol"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "ethyl acetate",
+    "ethylacetate",
+    "ethanoate"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "ethyl methanoate"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "ethyl phenyl ether",
+    "ethoxybenzene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "ethylbenzene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "fluorobenzene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "formamide"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "formic acid"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "n-heptane",
+    "heptane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "n-hexadecane",
+    "hexadecane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "n-hexane",
+    "hexane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "hexanoic acid"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "iodobenzene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "iodoethane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "iodomethane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "isopropylbenzene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "p-isopropyltoluene",
+    "isopropyltoluene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "mesitylene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "methanol"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "methyl benzoate"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "methyl butanoate"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "methyl ethanoate"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "methyl methanoate"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "methyl propanoate"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "n-methylaniline"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "methylcyclohexane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "n-methylformamide",
+    "methylformamide"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "nitrobenzene",
+    "phno2"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "nitroethane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "nitromethane",
+    "meno2"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "o-nitrotoluene",
+    "onitrotoluene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "n-nonane",
+    "nonane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "n-octane",
+    "octane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "n-pentadecane",
+    "pentadecane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "pentanal"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "n-pentane",
+    "pentane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "pentanoic acid"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "pentyl ethanoate"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "pentylamine"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "perfluorobenzene",
+    "hexafluorobenzene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "phenol"
+   ],
+   "cpcm": true,
+   "smd": false
+  },
+  {
+   "names": [
+    "propanal"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "propanoic acid"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "propanonitrile"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "propyl ethanoate"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "propylamine"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "pyridine"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "tetrachloroethene",
+    "c2cl4"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "tetrahydrofuran",
+    "thf"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "tetrahydrothiophene-s,s-dioxide /"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "/ tetrahydrothiophenedioxide",
+    "sulfolane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "tetralin"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "thiophene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "thiophenol"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "toluene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "trans-decalin"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "tributylphosphate"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "trichloroethene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "triethylamine"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "n-undecane",
+    "undecane"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "water",
+    "h2o"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "xylene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "m-xylene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "o-xylene"
+   ],
+   "cpcm": true,
+   "smd": true
+  },
+  {
+   "names": [
+    "p-xylene"
+   ],
+   "cpcm": true,
+   "smd": true
+  }
+ ]
+}

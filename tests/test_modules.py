@@ -84,7 +84,7 @@ def test_the_energy_modules_come_first_and_the_builders_together():
                 if m.name != "stub"]
     assert built_in == [
         ("energy", "Forcefield"), ("energy", "DFTB+"),
-        ("energy", "Energy scan"),
+        ("energy", "Energy scan"), ("energy", "ORCA"),
         ("build", "MOF builder"), ("build", "Net builder"),
         ("build", "Molecule builder"),
         ("build", "Disordered carbon builder"),
