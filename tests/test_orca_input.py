@@ -268,3 +268,96 @@ def test_deuterium_is_written_as_hydrogen():
                                   [[0.5, 0.5, 0.5], [0.596, 0.5, 0.5],
                                    [0.476, 0.593, 0.5]])
     assert orca.cluster(heavy).elements == ["O", "H", "H"]
+
+
+# -- TD-DFT beside an optimisation -------------------------------------
+
+def _steps(text):
+    return text.split("NewStep")[1:]
+
+
+def test_tddft_on_a_single_point_is_one_step():
+    text = orca.render(OrcaInput(tddft_nroots=5), "a.xyz")
+    assert "%compound" not in text
+    assert "iroot" not in text
+
+
+def test_opt_with_tddft_is_the_ground_state_then_the_spectrum():
+    """ORCA follows excited state IRoot when %tddft sits beside Opt
+    (manual, 5.6.16).  A UV-Vis of the relaxed structure is the ground
+    state optimised and the excitations at that geometry: two steps,
+    the second taking the first's geometry."""
+    text = orca.render(OrcaInput(run="opt", freq=True, max_iter=80,
+                                 tddft_nroots=5), "a.xyz")
+    first, second = _steps(text)
+    assert "! BP86 def2-SVP Opt Freq" in first
+    assert "%geom" in first and "%tddft" not in first
+    assert "! BP86 def2-SVP\n" in second
+    assert "Opt" not in second and "Freq" not in second
+    assert "%tddft" in second and "%geom" not in second
+    assert text.rstrip().endswith("End")
+    assert text.count("*xyzfile") == 1
+
+
+def test_freq_alone_with_tddft_is_also_two_steps():
+    """Freq beside %tddft is an excited-state Hessian too."""
+    first, second = _steps(orca.render(
+        OrcaInput(freq=True, tddft_nroots=5), "a.xyz"))
+    assert "Freq" in first and "%tddft" in second
+
+
+def test_resources_belong_to_the_whole_compound_job():
+    text = orca.render(OrcaInput(run="opt", tddft_nroots=5, nprocs=8,
+                                 maxcore_mb=2000), "a.xyz")
+    head = text.split("%compound")[0]
+    assert "%pal\n  nprocs 8\nend" in head and "%maxcore 2000" in head
+    assert "%pal" not in text.split("%compound")[1]
+
+
+def test_the_excited_route_writes_iroot_in_one_step():
+    text = orca.render(OrcaInput(functional="PBE0", run="opt",
+                                 tddft_nroots=5, tddft_triplets=True,
+                                 tddft_state="excited", tddft_iroot=2,
+                                 tddft_iroot_triplet=True), "a.xyz")
+    assert "%compound" not in text
+    assert "%tddft\n  nroots 5\n  triplets true\n  iroot 2\n" \
+        "  irootmult triplet\nend" in text
+
+
+def test_an_iroot_beyond_the_roots_is_refused(dry_ice):
+    found = orca.cluster(dry_ice)
+    refused, _ = orca.problems(OrcaInput(
+        functional="PBE0", run="opt", tddft_nroots=3,
+        tddft_state="excited", tddft_iroot=4), found)
+    assert refused == ["IRoot 4 is not one of the 3 roots"]
+
+
+def test_a_triplet_iroot_needs_the_triplets(dry_ice):
+    found = orca.cluster(dry_ice)
+    refused, _ = orca.problems(OrcaInput(
+        functional="PBE0", run="opt", tddft_nroots=3,
+        tddft_state="excited", tddft_iroot_triplet=True), found)
+    assert refused == ["A triplet IRoot needs the triplets computed"]
+
+
+def test_an_excited_state_orca_cannot_follow_is_refused(dry_ice):
+    """BP86 has B88 exchange, whose third derivative ORCA 6.1 lacks:
+    it stops before the first SCF.  The two-step route needs no
+    excited gradient and is fine."""
+    found = orca.cluster(dry_ice)
+    excited = OrcaInput(run="opt", tddft_nroots=3,
+                        tddft_state="excited")
+    refused, _ = orca.problems(excited, found)
+    assert any("cannot follow an excited state with BP86" in r
+               for r in refused)
+    ground = OrcaInput(run="opt", tddft_nroots=3)
+    assert orca.problems(ground, found)[0] == []
+
+
+def test_vv10_functionals_have_no_tddft_at_all(dry_ice):
+    found = orca.cluster(dry_ice)
+    refused, _ = orca.problems(OrcaInput(functional="WB97X-V",
+                                         tddft_nroots=3), found)
+    assert any("no TD-DFT with WB97X-V" in r for r in refused)
+    assert orca.problems(OrcaInput(functional="WB97X-V"),
+                         found)[0] == []

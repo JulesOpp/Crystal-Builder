@@ -33,10 +33,22 @@ def test_the_run_writes_the_input_and_the_xyz_side_by_side(
     assert result.ok, result.message
     inp = (run / "dry_ice.inp").read_text()
     assert "! BP86 def2-SVP Freq" in inp
-    assert inp.rstrip().endswith("*xyzfile 0 1 dry_ice.xyz")
-    xyz = (run / "dry_ice.xyz").read_text().splitlines()
+    assert inp.rstrip().endswith(
+        "*xyzfile 0 1 dry_ice_from_crystal_builder.xyz")
+    xyz = (run / "dry_ice_from_crystal_builder.xyz").read_text() \
+        .splitlines()
     assert xyz[0] == "12"
     assert "88 electrons, singlet" in result.message
+
+
+def test_the_coordinates_are_not_where_orca_writes_its_geometry(
+        tmp_path, dry_ice):
+    """An optimisation of dry_ice.inp writes its last geometry to
+    dry_ice.xyz; the structure handed to it must not be that file."""
+    run = tmp_path / "run"
+    _run(dry_ice, _Folder(run), name="dry_ice", run="opt")
+    assert not (run / "dry_ice.xyz").exists()
+    assert (run / "dry_ice_from_crystal_builder.xyz").exists()
 
 
 def test_a_refused_spin_writes_nothing(tmp_path, dry_ice):
@@ -67,7 +79,8 @@ def test_a_selection_behind_a_marker_is_the_atoms_it_named(tmp_path):
     result = _run(marked, _Folder(run), atoms="1 2 3", name="co2")
     assert result.ok, result.message
     atoms = [line.split()[0] for line in
-             (run / "co2.xyz").read_text().splitlines()[2:]]
+             (run / "co2_from_crystal_builder.xyz").read_text()
+             .splitlines()[2:]]
     assert sorted(atoms) == ["C", "O", "O"]
 
 
@@ -93,9 +106,11 @@ def test_xtal_run_orca_input_takes_the_same_parameters(
     written = list(root.rglob("*.inp"))
     assert len(written) == 1
     text = written[0].read_text()
-    assert "! B3LYP def2-TZVP Opt Freq" in text
-    assert "%tddft\n  nroots 10" in text
-    assert "%scf\n  MaxIter 300\nend" in text
-    xyz = written[0].with_suffix(".xyz")
+    # Opt with TD-DFT is the ground state then the spectrum by default.
+    assert "  ! B3LYP def2-TZVP Opt Freq" in text
+    assert "  %tddft\n    nroots 10" in text
+    assert "  %scf\n    MaxIter 300\n  end" in text
+    xyz = written[0].with_name(
+        written[0].stem + "_from_crystal_builder.xyz")
     assert xyz.exists()
     assert f"*xyzfile 0 1 {xyz.name}" in text

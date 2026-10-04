@@ -128,15 +128,49 @@ def test_the_preview_follows_every_change(make):
     dialog.max_iter.setValue(200)
     dialog.freq.setChecked(True)
     dialog.scf_max_iter.setValue(300)
-    dialog.tddft.setChecked(True)
-    dialog.nroots.setValue(12)
-    dialog.triplets.setChecked(True)
     text = dialog.preview.toPlainText()
     assert "! BP86 def2-SVP Opt Freq" in text
     assert "%geom\n  MaxIter 200\nend" in text
     assert "%scf\n  MaxIter 300\nend" in text
-    assert "%tddft\n  nroots 12\n  triplets true\nend" in text
-    assert text.rstrip().endswith("*xyzfile 0 1 dry_ice.xyz")
+    assert text.rstrip().endswith(
+        "*xyzfile 0 1 dry_ice_from_crystal_builder.xyz")
+    dialog.tddft.setChecked(True)
+    dialog.nroots.setValue(12)
+    dialog.triplets.setChecked(True)
+    text = dialog.preview.toPlainText()
+    assert "%compound" in text
+    assert "  %tddft\n    nroots 12\n    triplets true\n  end" in text
+
+
+def test_the_route_is_asked_only_when_the_geometry_moves(make):
+    """A single point has one TD-DFT; Opt or Freq has two, and IRoot
+    belongs to the excited one alone."""
+    dialog = make()
+    dialog.tddft.setChecked(True)
+    assert not dialog.tddft_state.isEnabled()
+    dialog.run.setCurrentIndex(dialog.run.findData("opt"))
+    assert dialog.tddft_state.isEnabled()
+    assert dialog.tddft_state.currentData() == "ground"
+    assert dialog.iroot.isHidden()
+    dialog.functional.set_key("PBE0")
+    dialog.tddft_state.setCurrentIndex(
+        dialog.tddft_state.findData("excited"))
+    assert not dialog.iroot.isHidden()
+    dialog.iroot.setValue(2)
+    text = dialog.preview.toPlainText()
+    assert "%compound" not in text
+    assert "  iroot 2\n" in text
+
+
+def test_an_excited_state_bp86_cannot_follow_greys_write(make):
+    dialog = make()
+    dialog.tddft.setChecked(True)
+    dialog.run.setCurrentIndex(dialog.run.findData("opt"))
+    dialog.tddft_state.setCurrentIndex(
+        dialog.tddft_state.findData("excited"))
+    assert not _write(dialog).isEnabled()
+    assert "cannot follow an excited state with BP86" in \
+        dialog.problems.text()
 
 
 def test_dispersion_greys_for_a_functional_that_has_its_own(make):

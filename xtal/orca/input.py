@@ -19,10 +19,24 @@ one.  ORCA says the same thing, but only after the queue: here it is
 said before anything is written.  An ECP takes an even number of
 electrons away, so the parity holds with one.
 
-What is written is ``<name>.inp``, which reads ``<name>.xyz`` beside
-it by ``*xyzfile``.  That line takes the name **unquoted** and has
-**no closing asterisk** -- either is an ORCA input error -- so the
-name is made of characters that need no quotes.
+What is written is ``<name>.inp``, which reads
+``<name>_from_crystal_builder.xyz`` beside it by ``*xyzfile``.  Not
+``<name>.xyz``: that is the name ORCA writes an optimised geometry
+to, over the file it started from, and the structure that was handed
+to it is then gone and a second run starts somewhere else.  The line
+takes the name **unquoted** and has **no closing asterisk** -- either
+is an ORCA input error -- so the name is made of characters that need
+no quotes.
+
+**TD-DFT beside an optimisation or frequencies is two different
+questions**, and ORCA answers only one of them by default: with a
+``%tddft`` block, ``Opt`` and ``Freq`` follow the excited state IRoot
+(manual, section 5.6.16).  A UV-Vis spectrum of the relaxed structure
+is the other one -- the ground state optimised, then the excitations
+at that geometry -- and is written as a ``%compound`` job of two
+steps, the second taking the first's geometry.  ``tddft_state`` says
+which; ``"ground"`` is the default because it is what a spectrum
+usually means.
 """
 
 from __future__ import annotations
@@ -60,6 +74,12 @@ class OrcaInput:
     scf_guess: str = ""             # %scf
     tddft_nroots: int = 0           # 0 is no %tddft block
     tddft_triplets: bool = False
+    #: With an optimisation or frequencies: the ground state then the
+    #: spectrum ("ground", two steps), or excited state ``tddft_iroot``
+    #: itself ("excited", one step).
+    tddft_state: str = "ground"
+    tddft_iroot: int = 1
+    tddft_iroot_triplet: bool = False
     solvation: str = ""             # "" | "CPCM" | "SMD"
     solvent: str = "water"
     nprocs: int = 1                 # %pal, only above one
@@ -165,6 +185,25 @@ def describe(n_electrons: int, multiplicity: int) -> str:
     return f"{n_electrons} electrons, {name}"
 
 
+def follows_geometry(inp: OrcaInput) -> bool:
+    """Whether the job moves or differentiates the geometry -- what a
+    ``%tddft`` block turns into an excited-state question."""
+    return inp.run != "sp" or bool(inp.freq)
+
+
+def two_steps(inp: OrcaInput) -> bool:
+    """The ground state optimised (or its frequencies), then the
+    spectrum at that geometry: a ``%compound`` job."""
+    return inp.tddft_nroots > 0 and follows_geometry(inp) \
+        and inp.tddft_state == "ground"
+
+
+def excited(inp: OrcaInput) -> bool:
+    """One step that optimises excited state IRoot itself."""
+    return inp.tddft_nroots > 0 and follows_geometry(inp) \
+        and inp.tddft_state == "excited"
+
+
 def problems(inp: OrcaInput, found: Cluster) -> tuple[list, list]:
     """``(refusals, cautions)``: what stops the file being written,
     and what it is written with but should be read first."""
@@ -187,6 +226,25 @@ def problems(inp: OrcaInput, found: Cluster) -> tuple[list, list]:
             refusals.append(why)
     if inp.tddft_nroots < 0:
         refusals.append("The number of TD-DFT roots cannot be negative")
+    if inp.tddft_nroots > 0 and functional is not None \
+            and functional.key in catalogue.NO_TDDFT:
+        refusals.append(f"ORCA has no TD-DFT with {functional.key}'s "
+                        f"VV10 correlation; use its -D3BJ or -D4 "
+                        f"variant")
+    if excited(inp) and functional is not None \
+            and functional.key not in catalogue.NO_TDDFT \
+            and functional.key not in catalogue.EXCITED_GRADIENT:
+        refusals.append(f"ORCA cannot follow an excited state with "
+                        f"{functional.key} (no TD-DFT gradient for it); "
+                        f"take the ground state then the spectrum, or "
+                        f"e.g. PBE0, CAM-B3LYP or wB97X-D3")
+    if excited(inp):
+        if not 1 <= inp.tddft_iroot <= inp.tddft_nroots:
+            refusals.append(f"IRoot {inp.tddft_iroot} is not one of "
+                            f"the {inp.tddft_nroots} roots")
+        if inp.tddft_iroot_triplet and not inp.tddft_triplets:
+            refusals.append("A triplet IRoot needs the triplets "
+                            "computed")
     if inp.solvation:
         solvent = catalogue.solvent(inp.solvent)
         if solvent is None:
@@ -230,9 +288,9 @@ def problems(inp: OrcaInput, found: Cluster) -> tuple[list, list]:
     if inp.run == "optts" and not inp.calc_hess:
         cautions.append("OptTS works best from an exact Hessian; "
                         "consider Calc_Hess")
-    if inp.tddft_nroots and inp.freq:
-        cautions.append("Frequencies with TD-DFT are of the excited "
-                        "state, and numerical")
+    if excited(inp) and inp.freq:
+        cautions.append("Excited-state frequencies are numerical: a "
+                        "calculation per displacement")
     return refusals, cautions
 
 
@@ -242,8 +300,10 @@ def safe_name(stem: str) -> str:
     return name or "structure"
 
 
-def keywords(inp: OrcaInput) -> list[str]:
-    """The ``!`` line, in the order a person writes one."""
+def keywords(inp: OrcaInput, geometry: bool = True) -> list[str]:
+    """The ``!`` line, in the order a person writes one; without the
+    optimisation and frequencies for ``geometry=False``, the spectrum
+    step of a two-step job."""
     functional = catalogue.functional(inp.functional)
     basis = catalogue.basis(inp.basis)
     own_basis = functional is not None and functional.own_basis
@@ -271,24 +331,35 @@ def keywords(inp: OrcaInput) -> list[str]:
         else:
             words.append(f"{inp.solvation}({name})")
     words += [w for w in (inp.scf_threshold, inp.scf_solver) if w]
-    if inp.run == "opt":
-        words.append(inp.opt_level)
-    elif inp.run == "optts":
-        words.append("OptTS")
-    if inp.run != "sp" and inp.cartesian:
-        words.append("COpt")
-    if inp.freq:
-        words.append("Freq")
+    if geometry:
+        if inp.run == "opt":
+            words.append(inp.opt_level)
+        elif inp.run == "optts":
+            words.append("OptTS")
+        if inp.run != "sp" and inp.cartesian:
+            words.append("COpt")
+        if inp.freq:
+            words.append("Freq")
     words += inp.extra_keywords.split()
     return list(dict.fromkeys(words))
 
 
-def blocks(inp: OrcaInput) -> list[str]:
+def resources(inp: OrcaInput) -> list[str]:
+    """%pal and %maxcore: the whole job's, never a step's."""
     out = []
     if inp.nprocs and inp.nprocs > 1:
         out.append(f"%pal\n  nprocs {inp.nprocs}\nend")
     if inp.maxcore_mb:
         out.append(f"%maxcore {inp.maxcore_mb}")
+    return out
+
+
+def blocks(inp: OrcaInput, geometry: bool = True,
+           tddft: bool = True) -> list[str]:
+    """The blocks of one step: %scf, %geom when it moves the
+    geometry, %tddft when it computes the spectrum, %cpcm, the extras.
+    """
+    out = []
     scf = []
     if inp.scf_max_iter:
         scf.append(f"  MaxIter {inp.scf_max_iter}")
@@ -296,7 +367,7 @@ def blocks(inp: OrcaInput) -> list[str]:
         scf.append(f"  Guess {inp.scf_guess}")
     if scf:
         out.append("%scf\n" + "\n".join(scf) + "\nend")
-    if inp.run != "sp":
+    if geometry and inp.run != "sp":
         geom = []
         if inp.max_iter:
             geom.append(f"  MaxIter {inp.max_iter}")
@@ -304,9 +375,14 @@ def blocks(inp: OrcaInput) -> list[str]:
             geom.append("  Calc_Hess true")
         if geom:
             out.append("%geom\n" + "\n".join(geom) + "\nend")
-    if inp.tddft_nroots > 0:
-        out.append(f"%tddft\n  nroots {inp.tddft_nroots}\n  triplets "
-                   f"{'true' if inp.tddft_triplets else 'false'}\nend")
+    if tddft and inp.tddft_nroots > 0:
+        lines = [f"  nroots {inp.tddft_nroots}",
+                 f"  triplets {'true' if inp.tddft_triplets else 'false'}"]
+        if excited(inp):
+            lines.append(f"  iroot {inp.tddft_iroot}")
+            if inp.tddft_iroot_triplet:
+                lines.append("  irootmult triplet")
+        out.append("%tddft\n" + "\n".join(lines) + "\nend")
     if inp.solvation:
         solvent = catalogue.solvent(inp.solvent)
         name = solvent.name if solvent else inp.solvent
@@ -325,12 +401,32 @@ def render(inp: OrcaInput, xyz_name: str, title: str = "") -> str:
     lines = []
     if title:
         lines.append(f"# {title}")
-    lines.append("! " + " ".join(keywords(inp)))
-    lines.append("")
-    for block in blocks(inp):
-        lines += [block, ""]
     # No closing "*": with *xyzfile that is an input error.
-    lines.append(f"*xyzfile {inp.charge} {inp.multiplicity} {xyz_name}")
+    coordinates = f"*xyzfile {inp.charge} {inp.multiplicity} {xyz_name}"
+    if not two_steps(inp):
+        lines += ["! " + " ".join(keywords(inp)), ""]
+        for block in resources(inp) + blocks(inp):
+            lines += [block, ""]
+        lines.append(coordinates)
+        return "\n".join(lines) + "\n"
+    # A step with no coordinates of its own takes the geometry the
+    # step before it ended on (manual, section 8, NewStep).
+    for block in resources(inp):
+        lines += [block, ""]
+    lines += [coordinates, "", "%compound"]
+    steps = (("Step 1: the ground state, " + (
+                  "optimised" if inp.run != "sp" else "frequencies")
+              + (" with frequencies" if inp.run != "sp" and inp.freq
+                 else ""), True, False),
+             ("Step 2: the excited states at that geometry", False,
+              True))
+    for comment, geometry, tddft in steps:
+        lines += [f"  # {comment}", "  NewStep",
+                  "  ! " + " ".join(keywords(inp, geometry=geometry))]
+        for block in blocks(inp, geometry=geometry, tddft=tddft):
+            lines += ["  " + line for line in block.splitlines()]
+        lines.append("  StepEnd")
+    lines.append("End")
     return "\n".join(lines) + "\n"
 
 

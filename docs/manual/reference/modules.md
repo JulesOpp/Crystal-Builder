@@ -258,6 +258,9 @@ An ORCA input and the coordinates it reads, in a run folder: the functional, bas
 | **SCF guess** | one of ORCA's default, PModel, PAtom, Hueckel, HCore |  | %scf Guess; the default is ORCA's own |
 | **TD-DFT roots** | int, 0 to 10000 | `0` | Excited states for a UV-Vis spectrum; 0 writes no %tddft block |
 | **Triplets** | bool | `False` | Singlet-triplet excitations as well |
+| **TD-DFT with Opt or Freq** | one of Ground state, then the spectrum (two steps), Excited state IRoot (one step) | `ground` | Optimise the ground state and then take its spectrum, in two steps, or optimise excited state IRoot itself |
+| **IRoot** | int, 1 to 10000 | `1` | The excited state followed, counting from 1 |
+| **Triplet IRoot** | bool | `False` | Follow a triplet root (needs Triplets) |
 | **Solvation** | one of Gas phase, C-PCM, SMD |  | An implicit solvent, C-PCM or SMD |
 | **Solvent** | text | `water` | Any name of Table 2.56, e.g. water, dmf, thf |
 | **Processes (%pal)** | int, 1 to 4096 | `1` | Above one, a %pal block |

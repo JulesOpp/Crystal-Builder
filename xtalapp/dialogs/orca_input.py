@@ -40,6 +40,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from xtal.modules.orca import coordinates_name, orca_input
 from xtal.orca import catalogue
 from xtal.orca import input as orca
 from xtalapp.dialogs.answered import answered
@@ -141,9 +142,18 @@ class OrcaInputDialog(QDialog):
         self.tddft.setChecked(False)
         self.nroots = _spin(1, 10000, 10)
         self.triplets = QCheckBox("Triplets too")
+        # With Opt or Freq, ORCA follows excited state IRoot unless
+        # told otherwise; which one is meant is asked, not assumed.
+        self.tddft_state = _choice(catalogue.TDDFT_STATES)
+        self.iroot = _spin(1, 10000, 1)
+        self.iroot_triplet = QCheckBox("Follow a triplet root")
         excited = QFormLayout(self.tddft)
         excited.addRow("Roots (nroots)", self.nroots)
         excited.addRow("", self.triplets)
+        excited.addRow("With Opt or Freq", self.tddft_state)
+        excited.addRow("IRoot", self.iroot)
+        excited.addRow("", self.iroot_triplet)
+        self._excited_rows = (excited, self.iroot, self.iroot_triplet)
 
         # -- environment -----------------------------------------------
         self.solvation = _choice(catalogue.SOLVATIONS)
@@ -260,6 +270,9 @@ class OrcaInputDialog(QDialog):
                        self.scf_guess.currentIndexChanged,
                        self.tddft.toggled, self.nroots.valueChanged,
                        self.triplets.toggled,
+                       self.tddft_state.currentIndexChanged,
+                       self.iroot.valueChanged,
+                       self.iroot_triplet.toggled,
                        self.solvation.currentIndexChanged,
                        self.solvent.currentTextChanged,
                        self.charge.valueChanged,
@@ -311,6 +324,9 @@ class OrcaInputDialog(QDialog):
             "tddft_nroots": (self.nroots.value()
                              if self.tddft.isChecked() else 0),
             "tddft_triplets": self.triplets.isChecked(),
+            "tddft_state": self.tddft_state.currentData(),
+            "tddft_iroot": self.iroot.value(),
+            "tddft_iroot_triplet": self.iroot_triplet.isChecked(),
             "solvation": self.solvation.currentData(),
             "solvent": self._solvent_name(),
             "nprocs": self.nprocs.value(),
@@ -337,13 +353,15 @@ class OrcaInputDialog(QDialog):
                           ("scf_threshold", self.scf_threshold),
                           ("scf_solver", self.scf_solver),
                           ("scf_guess", self.scf_guess),
+                          ("tddft_state", self.tddft_state),
                           ("solvation", self.solvation)):
             if name in values:
                 _set_choice(box, values[name])
         for name, box in (("cartesian", self.cartesian),
                           ("freq", self.freq),
                           ("calc_hess", self.calc_hess),
-                          ("tddft_triplets", self.triplets)):
+                          ("tddft_triplets", self.triplets),
+                          ("tddft_iroot_triplet", self.iroot_triplet)):
             if name in values:
                 box.setChecked(bool(values[name]))
         for name, box in (("max_iter", self.max_iter),
@@ -351,6 +369,7 @@ class OrcaInputDialog(QDialog):
                           ("charge", self.charge),
                           ("multiplicity", self.multiplicity),
                           ("nprocs", self.nprocs),
+                          ("tddft_iroot", self.iroot),
                           ("maxcore_mb", self.maxcore)):
             if name in values:
                 box.setValue(int(values[name] or 0))
@@ -378,8 +397,6 @@ class OrcaInputDialog(QDialog):
         return self._clusters[chosen]
 
     def refresh(self, *_args) -> None:
-        from xtal.modules.orca import orca_input
-
         values = self.values()
         inp = orca_input(values)
         found = self.cluster()
@@ -394,11 +411,18 @@ class OrcaInputDialog(QDialog):
             widget.setEnabled(optimising)
         self.opt_level.setEnabled(inp.run == "opt")
         self.solvent.setEnabled(bool(inp.solvation))
+        # The route matters only when something follows the geometry,
+        # and IRoot only on the excited route.
+        form, *rows = self._excited_rows
+        follows = orca.follows_geometry(inp)
+        self.tddft_state.setEnabled(follows)
+        for widget in rows:
+            form.setRowVisible(widget, orca.excited(inp))
 
         refused, cautions = orca.problems(inp, found)
         stem = orca.safe_name(self._name)
         self.preview.setPlainText(orca.render(
-            inp, f"{stem}.xyz", title=f"{self._name}, from Crystal "
+            inp, coordinates_name(stem), title=f"{self._name}, from Crystal "
                                       f"Builder"))
         n = orca.electrons(found.elements, inp.charge)
         self.electrons.setText(

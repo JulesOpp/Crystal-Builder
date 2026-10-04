@@ -89,6 +89,15 @@ PARAMS = (
                "%tddft block"),
     Param("tddft_triplets", "Triplets", kind="bool", default=False,
           help="Singlet-triplet excitations as well"),
+    Param("tddft_state", "TD-DFT with Opt or Freq", kind="choice",
+          default="ground", choices=_pairs(catalogue.TDDFT_STATES),
+          help="Optimise the ground state and then take its spectrum, "
+               "in two steps, or optimise excited state IRoot itself"),
+    Param("tddft_iroot", "IRoot", kind="int", default=1, minimum=1,
+          maximum=10000,
+          help="The excited state followed, counting from 1"),
+    Param("tddft_iroot_triplet", "Triplet IRoot", kind="bool",
+          default=False, help="Follow a triplet root (needs Triplets)"),
     Param("solvation", "Solvation", kind="choice", default="",
           choices=_pairs(catalogue.SOLVATIONS),
           help="An implicit solvent, C-PCM or SMD"),
@@ -127,6 +136,12 @@ def orca_input(params: dict) -> orca.OrcaInput:
     return orca.OrcaInput(**given)
 
 
+def coordinates_name(stem: str) -> str:
+    """Never ``<stem>.xyz``: an optimisation writes its last geometry
+    there, over the structure it was handed."""
+    return f"{stem}_from_crystal_builder.xyz"
+
+
 def atoms_of(text: str) -> list[int] | None:
     """``"0 4 5"`` or ``"0,4,5"`` as cell indices; blank is ``None``,
     the whole cell."""
@@ -147,7 +162,7 @@ def write_input(job) -> JobResult:
     title = str(job.param("name", "") or
                 job.structure.meta.get("title") or "structure")
     stem = orca.safe_name(title)
-    xyz = f"{stem}.xyz"
+    xyz = coordinates_name(stem)
     text = orca.render(inp, xyz, title=f"{title}, from Crystal Builder")
     written = (job.file(f"{stem}.inp"), job.file(xyz))
     atomic.write_text(written[1], orca.xyz_text(found, title),

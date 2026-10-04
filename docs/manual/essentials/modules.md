@@ -54,7 +54,15 @@ menu, not by reflex.
   are the cell's -- or the selected ones -- with each molecule made
   whole across the cell faces, and a framework written as cut.  A
   multiplicity the electron count cannot have is refused before
-  anything is written.  Every setting: {ref}`mod-orca-input`.
+  anything is written.  TD-DFT beside an optimisation or frequencies
+  is, by default, the ground state optimised and then the spectrum
+  at that geometry, as a two-step `%compound` job; ORCA's own reading
+  of that combination -- following excited state IRoot -- is the
+  other choice, offered only for the functionals ORCA can follow an
+  excited state with.  The coordinates are
+  `<name>_from_crystal_builder.xyz`, because an optimisation writes
+  its last geometry to `<name>.xyz`.  Every setting:
+  {ref}`mod-orca-input`.
 - *Porosity* (pore diameters and channels, surface area, accessible
   volume, pore size distribution, and the *(faster)* grid entries)
   and *PXRD*: {doc}`Porosity and Properties </porosity/index>`.

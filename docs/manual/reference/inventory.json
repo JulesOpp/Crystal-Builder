@@ -1677,7 +1677,7 @@
    "section": "Modules",
    "path": "Porosity ▸ Pore diameters and channels...",
    "shortcut": "",
-   "tip": "The largest included and free spheres -- D_i, D_f and D_if -- and the channels they run through",
+   "tip": "Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set) -- it is at https://www.zeoplusplus.org/",
    "checkable": false
   },
   {
@@ -1685,7 +1685,7 @@
    "section": "Modules",
    "path": "Porosity ▸ Surface area...",
    "shortcut": "",
-   "tip": "The area a gas molecule can touch, which is what a BET measurement sees",
+   "tip": "Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set) -- it is at https://www.zeoplusplus.org/",
    "checkable": false
   },
   {
@@ -1701,7 +1701,7 @@
    "section": "Modules",
    "path": "Porosity ▸ Accessible volume...",
    "shortcut": "",
-   "tip": "How much of the cell a gas molecule can occupy, which is the pore volume a paper quotes",
+   "tip": "Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set) -- it is at https://www.zeoplusplus.org/",
    "checkable": false
   },
   {
@@ -1717,7 +1717,7 @@
    "section": "Modules",
    "path": "Porosity ▸ Pore size distribution...",
    "shortcut": "",
-   "tip": "How much of the pore space sits at each diameter, as a histogram",
+   "tip": "Zeo++ is not installed, or not on PATH (XTAL_ZEOPP is not set) -- it is at https://www.zeoplusplus.org/",
    "checkable": false
   },
   {
@@ -2541,6 +2541,27 @@
        "accepts": "bool",
        "default": "False",
        "help": "Singlet-triplet excitations as well"
+      },
+      {
+       "name": "tddft_state",
+       "label": "TD-DFT with Opt or Freq",
+       "accepts": "one of Ground state, then the spectrum (two steps), Excited state IRoot (one step)",
+       "default": "ground",
+       "help": "Optimise the ground state and then take its spectrum, in two steps, or optimise excited state IRoot itself"
+      },
+      {
+       "name": "tddft_iroot",
+       "label": "IRoot",
+       "accepts": "int, 1 to 10000",
+       "default": "1",
+       "help": "The excited state followed, counting from 1"
+      },
+      {
+       "name": "tddft_iroot_triplet",
+       "label": "Triplet IRoot",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Follow a triplet root (needs Triplets)"
       },
       {
        "name": "solvation",

@@ -203,6 +203,33 @@ FUNCTIONALS: dict[str, tuple[Functional, ...]] = {
                    COMPOSITE, "3.6", hybrid=True)),
 }
 
+#: Functionals ORCA 6.1 can follow an excited state with -- an
+#: analytic TD-DFT gradient, which ``Opt`` or ``Freq`` beside a
+#: ``%tddft`` block asks for.  Measured, not read: every native
+#: functional on H2, ``Opt`` with ``%tddft iroot 1`` and one geometry
+#: step, ORCA 6.1.0 (2026-10-04).  The rest refuse before the first
+#: SCF: B88 exchange (BP86, B3LYP, B2PLYP...) for want of its third
+#: derivative, the mPW, TPSS and M06-L families and four of the wB97X
+#: dispersion variants for want of a native kernel, PWPB95 and
+#: DSD-PBEB95 without NumGrad, and every double hybrid ("not yet
+#: implemented").  A spectrum *at* an optimised ground state needs
+#: none of this, which is why that is the default route.
+EXCITED_GRADIENT = frozenset({
+    "HFS", "LDA", "VWN5", "VWN3", "PWLDA",
+    "GLYP", "OLYP", "XLYP", "PW91", "PBE", "RPBE", "REVPBE", "PWP",
+    "B97M-D3BJ", "B97M-D4", "SCANFUNC", "RSCAN", "R2SCAN",
+    "O3LYP", "X3LYP", "PW1PW", "PBE0", "REVPBE0", "REVPBE38",
+    "R2SCANH", "R2SCAN0", "R2SCAN50",
+    "WB97", "WB97X", "WB97X-D3", "CAM-B3LYP", "LC-BLYP",
+    "WB97M-D3BJ", "WB97M-D4", "WB97M-D4REV",
+    "B97-3C", "PBEH-3C", "R2SCAN-3C",
+})
+
+#: VV10's nonlocal correlation has no TD-DFT in ORCA 6.1 at all, not
+#: even for a single point: "DFT-NL dispersion correction is not yet
+#: possible with TDDFT", and the run is skipped.
+NO_TDDFT = frozenset({"B97M-V", "WB97X-V", "WB97M-V"})
+
 DEFAULT_FUNCTIONAL = "BP86"
 DEFAULT_BASIS = "def2-SVP"
 
@@ -343,3 +370,6 @@ OPT_LEVELS = (("Opt", "Normal"), ("LooseOpt", "Loose"),
 RUNS = (("sp", "Single point"), ("opt", "Optimise (Opt)"),
         ("optts", "Transition state (OptTS)"))
 SOLVATIONS = (("", "Gas phase"), ("CPCM", "C-PCM"), ("SMD", "SMD"))
+TDDFT_STATES = (
+    ("ground", "Ground state, then the spectrum (two steps)"),
+    ("excited", "Excited state IRoot (one step)"))

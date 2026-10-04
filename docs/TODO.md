@@ -596,11 +596,10 @@ Modules ▸ ORCA ▸ Input file… shipped on `features/orca-input`
 (2026-10-04): it writes the `.inp` and `.xyz` and runs nothing.
 - **Running ORCA**: a `Program` for the `orca` binary (it must be
   called by its full path for parallel runs), a Run entry beside
-  Input file, Stop reaching it.  On this machine ORCA 6.1 from
-  `/Applications/orca61` ran single points, optimisations, C-PCM and
-  `%scf` inputs to normal termination but aborted in PROPINT, CIS and
-  SCF RESPONSE (TD-DFT, Freq) even for a hand-written input, inside
-  the agent's sandbox -- check outside it before building on it.
+  Input file, Stop reaching it.  ORCA 6.1 is at
+  `/Applications/orca61`, and every route the dialog writes has run
+  to normal termination there (2026-10-04), the two-step TD-DFT
+  `%compound` job included.
 - **Reading the `.out`**: the final energy, the TD-DFT states as a
   UV-Vis stick spectrum and broadened curve in the Results panel, the
   frequencies; `_trj.xyz` already opens as a run.

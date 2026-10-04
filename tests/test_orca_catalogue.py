@@ -121,3 +121,12 @@ def test_every_functional_is_in_its_table():
 
     assert [f.key for f in catalogue.all_functionals()
             if not found(f.key)] == []
+
+
+def test_the_measured_tddft_tables_name_real_functionals():
+    """Written from an ORCA run; a renamed key would silently stop
+    refusing."""
+    keys = {f.key for f in catalogue.all_functionals()}
+    assert catalogue.EXCITED_GRADIENT <= keys
+    assert catalogue.NO_TDDFT <= keys
+    assert not catalogue.EXCITED_GRADIENT & catalogue.NO_TDDFT
