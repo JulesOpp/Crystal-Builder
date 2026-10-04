@@ -125,7 +125,7 @@ def test_a_help_button_opens_its_page_and_greys_without_one(
     opened = []
     monkeypatch.setattr(
         "PySide6.QtGui.QDesktopServices.openUrl",
-        lambda url: opened.append(url.toLocalFile()) or True)
+        lambda url: opened.append(Path(url.toLocalFile())) or True)
     monkeypatch.setattr(manual, "root", lambda: tmp_path)
     box = QDialogButtonBox()
     qtbot.addWidget(box)
@@ -139,4 +139,4 @@ def test_a_help_button_opens_its_page_and_greys_without_one(
     qtbot.addWidget(box)
     manual.add_help_button(box, "frameworks/carbon")
     box.button(QDialogButtonBox.Help).click()
-    assert opened == [str(built / "carbon.html")]
+    assert opened == [built / "carbon.html"]
