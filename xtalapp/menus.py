@@ -417,10 +417,14 @@ def build_actions(window):
         tip="Re-perceive the bonds after every edit that moves an "
             "atom, instead of only when you ask")
 
-    for mode_name in modes.names():
+    # Ctrl+1 to Ctrl+7, in the toolbar's order: the modes are pressed
+    # more than anything but the camera, and the bare digits already
+    # look along a, b and c.  Ctrl+0, beside them, resets the view.
+    for number, mode_name in enumerate(modes.names(), start=1):
         mode = modes.get(mode_name)
         add(f"mode_{mode_name}", mode.label,
             lambda checked=False, m=mode_name: window.set_mode(m),
+            f"Ctrl+{number}" if number < 10 else None,
             checkable=True, checked=(mode_name == "select"),
             tip=mode.hint, group="mode")
 
