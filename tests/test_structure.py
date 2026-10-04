@@ -178,6 +178,31 @@ def test_cached_values_survive_reads_and_die_on_writes():
     assert len(calls) == 2              # recomputed after the mutation
 
 
+def test_a_cache_entry_dies_only_to_the_changes_it_names():
+    """The flags of a mask are memoised; each mask must still see
+    exactly its own kinds of change."""
+    s = rocksalt()
+    calls = {"pos": 0, "chem": 0}
+
+    def count(name):
+        def factory():
+            calls[name] += 1
+            return calls[name]
+        return factory
+
+    for _ in range(2):
+        s.cached("pos", count("pos"), Change.POSITIONS)
+        s.cached("chem", count("chem"), Change.TOPOLOGY | Change.CELL)
+    s.touch(Change.POSITIONS)
+    s.cached("pos", count("pos"), Change.POSITIONS)
+    s.cached("chem", count("chem"), Change.TOPOLOGY | Change.CELL)
+    assert calls == {"pos": 2, "chem": 1}
+    s.touch(Change.CELL)
+    s.cached("pos", count("pos"), Change.POSITIONS)
+    s.cached("chem", count("chem"), Change.TOPOLOGY | Change.CELL)
+    assert calls == {"pos": 2, "chem": 2}
+
+
 # ------------------------------------------------- copying / round trips
 
 def test_copy_shares_nothing_mutable():
