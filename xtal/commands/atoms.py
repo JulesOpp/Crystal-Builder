@@ -328,6 +328,15 @@ class MoveSites(Command):
             np.asarray(delta, dtype=float).reshape(3))
         return cls.by_delta(structure, indices, frac_delta, label)
 
+    @staticmethod
+    def _first_image_of_each_site(cell, atoms) -> np.ndarray:
+        """The lowest-numbered of the named atoms for each site, in
+        atom order: where two images of a site are named, the first
+        wins."""
+        named = np.unique(np.asarray(list(atoms), dtype=int))
+        _, first = np.unique(cell.site_idx[named], return_index=True)
+        return named[np.sort(first)]
+
     @classmethod
     def by_image_delta(cls, structure, cell, atoms, delta,
                        label: str = "Move atoms") -> MoveSites:
@@ -350,14 +359,11 @@ class MoveSites(Command):
         """
         frac_delta = structure.lattice.to_frac(
             np.asarray(delta, dtype=float).reshape(3))
-        targets: dict = {}
-        for atom in sorted({int(a) for a in atoms}):
-            site = int(cell.site_idx[atom])
-            if site in targets:
-                continue
-            targets[site] = p1.parent_coordinates(
-                structure, cell, atom, cell.frac[atom] + frac_delta)
-        return cls(targets, label)
+        chosen = cls._first_image_of_each_site(cell, atoms)
+        parents = p1.parent_coordinates_many(
+            structure, cell, chosen, cell.frac[chosen] + frac_delta)
+        return cls(dict(zip(cell.site_idx[chosen].tolist(), parents,
+                            strict=True)), label)
 
     @classmethod
     def by_image_rotation(cls, structure, cell, atoms, axis,
@@ -379,16 +385,12 @@ class MoveSites(Command):
         """
         matrix = rotation_matrix(axis, angle_degrees)
         centre = np.asarray(centre, dtype=float).reshape(3)
-        targets: dict = {}
-        for atom in sorted({int(a) for a in atoms}):
-            site = int(cell.site_idx[atom])
-            if site in targets:
-                continue
-            moved = centre + matrix @ (cell.cart[atom] - centre)
-            targets[site] = p1.parent_coordinates(
-                structure, cell, atom,
-                structure.lattice.to_frac(moved))
-        return cls(targets, label)
+        chosen = cls._first_image_of_each_site(cell, atoms)
+        moved = centre + (cell.cart[chosen] - centre) @ matrix.T
+        parents = p1.parent_coordinates_many(
+            structure, cell, chosen, structure.lattice.to_frac(moved))
+        return cls(dict(zip(cell.site_idx[chosen].tolist(), parents,
+                            strict=True)), label)
 
     def do(self, host) -> None:
         structure = host.structure
