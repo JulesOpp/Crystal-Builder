@@ -14,6 +14,9 @@ its settings (a link to the {ref}`generated reference
 <reference-appendix>`, which is written by the application itself),
 and its limitations.
 
+ORCA is the one program here that is only written for: {doc}`orca`
+makes its input file and leaves running it to you.
+
 Every {term}`engine` answers the same three questions -- the energy, the force
 on each atom and, where it can, the stress on the cell -- and the
 optimiser, the relaxed scan and the Force Field panel ask them the same
@@ -34,6 +37,7 @@ uff
 charges
 xtb
 dftb
+orca
 ml
 dispersion
 choosing
