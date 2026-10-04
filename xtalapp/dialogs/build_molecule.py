@@ -53,6 +53,7 @@ from PySide6.QtWidgets import (
 from xtal.build import BuildError, library
 from xtal.commands.clipboard import PasteFragment
 from xtal.modules.build import molecule_for
+from xtalapp import manual
 from xtalapp.dialogs import sketch
 from xtalapp.dialogs.answered import answered
 from xtalapp.widgets.tone import HINT, WARNING, set_tone
@@ -114,6 +115,7 @@ class BuildMoleculeDialog(QDialog):
     def _build_ui(self) -> None:
         self.buttons = QDialogButtonBox(QDialogButtonBox.Ok |
                                         QDialogButtonBox.Cancel)
+        manual.add_help_button(self.buttons, "frameworks/molecule-builder")
         self.ok_button = self.buttons.button(QDialogButtonBox.Ok)
         self.ok_button.setText("Insert" if self.pastes else "Build")
         self.buttons.accepted.connect(self.accept)

@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
 from xtal.carbon import build as carbon_build
 from xtal.carbon.surface import SurfaceError
 from xtal.modules.carbon import parse_repeat
+from xtalapp import manual
 from xtalapp.dialogs.answered import answered
 from xtalapp.widgets.tone import HINT, WARNING, set_tone
 
@@ -82,6 +83,7 @@ class CarbonBuildDialog(QDialog):
 
         self.buttons = QDialogButtonBox(QDialogButtonBox.Ok
                                         | QDialogButtonBox.Cancel)
+        manual.add_help_button(self.buttons, "frameworks/carbon")
         self.buttons.button(QDialogButtonBox.Ok).setText("Build")
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)

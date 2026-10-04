@@ -34,6 +34,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.core import prepare
+from xtalapp import manual
 from xtalapp.dialogs.answered import answered
 from xtalapp.widgets import tone
 
@@ -79,6 +80,7 @@ class PrepareDialog(QDialog):
 
         self.buttons = QDialogButtonBox(QDialogButtonBox.Ok
                                         | QDialogButtonBox.Cancel)
+        manual.add_help_button(self.buttons, "structure/prepare")
         self.buttons.button(QDialogButtonBox.Ok).setText("Prepare")
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)

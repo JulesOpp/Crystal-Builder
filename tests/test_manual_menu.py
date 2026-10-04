@@ -101,3 +101,42 @@ def test_a_checkout_that_never_built_it_is_told_how(
     assert not opened
     said = window.statusBar().currentMessage()
     assert "sphinx-build -b html docs/manual build/manual/html" in said
+
+
+def test_every_dialog_help_button_names_a_page_the_manual_has():
+    """A ? on a builder's dialog that opened nothing -- a page renamed
+    or moved -- would be found by somebody already stuck.  Read off
+    the source, so it holds without a built manual."""
+    import re
+
+    source = Path(manual.__file__).resolve().parent / "dialogs"
+    docs = Path(manual.__file__).resolve().parent.parent / "docs" / "manual"
+    named = re.findall(r'add_help_button\([^,]+, "([^"]+)"\)',
+                       "".join(p.read_text() for p in source.glob("*.py")))
+    assert len(named) >= 7
+    for name in named:
+        assert (docs / f"{name}.md").is_file(), name
+
+
+def test_a_help_button_opens_its_page_and_greys_without_one(
+        qtbot, tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QDialogButtonBox
+
+    opened = []
+    monkeypatch.setattr(
+        "PySide6.QtGui.QDesktopServices.openUrl",
+        lambda url: opened.append(url.toLocalFile()) or True)
+    monkeypatch.setattr(manual, "root", lambda: tmp_path)
+    box = QDialogButtonBox()
+    qtbot.addWidget(box)
+    manual.add_help_button(box, "frameworks/carbon")
+    assert not box.button(QDialogButtonBox.Help).isEnabled()
+
+    built = tmp_path.joinpath(*manual.CHECKOUT, "frameworks")
+    built.mkdir(parents=True)
+    (built / "carbon.html").write_text("<p>carbon</p>")
+    box = QDialogButtonBox()
+    qtbot.addWidget(box)
+    manual.add_help_button(box, "frameworks/carbon")
+    box.button(QDialogButtonBox.Help).click()
+    assert opened == [str(built / "carbon.html")]

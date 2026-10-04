@@ -78,6 +78,7 @@ from xtal.mof import Catalog
 from xtal.mof.build import BuildRequest
 from xtal.mof.catalog import matches_search
 from xtal.references import PORMAKE, RCSR, rcsr_net
+from xtalapp import manual
 from xtalapp.dialogs.answered import answered
 from xtalapp.dialogs.mof_preview import (
     ORBIT_COLORS,
@@ -334,6 +335,7 @@ class MofBuildDialog(QDialog):
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok |
                                    QDialogButtonBox.Cancel)
+        manual.add_help_button(buttons, "frameworks/mof-builder")
         self.build_button = buttons.button(QDialogButtonBox.Ok)
         self.build_button.setText("Build")
         buttons.accepted.connect(self.accept)
