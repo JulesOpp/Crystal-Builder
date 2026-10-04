@@ -396,6 +396,21 @@ def build_actions(window):
             "and take what the distance criteria give.  The only "
             "way back from a deleted bond once the undo stack has "
             "gone, because a deletion is saved with the project.")
+    add("assign_eqeq_charges", "Assign &EQeq charges",
+        window.assign_eqeq_charges,
+        tip="Equilibrate charges over the cell (Wilmer, Kim and Snurr "
+            "2012) and write them onto the sites, where a CIF's "
+            "_atom_site_charge and a LAMMPS file's q carry them.  An "
+            "estimate to look over, as the status bar says")
+    add("keep_shown_charges", "&Keep the charges shown",
+        window.keep_shown_charges,
+        tip="Write the charges drawn over the atoms -- a DFTB+ "
+            "Mulliken run's -- onto the sites, so a save or an export "
+            "carries them")
+    add("clear_site_charges", "&Clear the sites' charges",
+        window.clear_site_charges,
+        tip="Take every charge off the sites, oxidation states read "
+            "from the file included")
     add("bond_rules", "&Bond rules...", window.edit_bond_rules,
         tip="Which atoms bond, and how close they have to be")
     # One action per bond type, in an exclusive group: the menu
@@ -706,6 +721,10 @@ def build_menus(window):
     window.bond_type_menu = add_bond_type_menu(window, bonds_menu)
     window.actions_.fill_menu(bonds_menu, [None, "bond_rules",
                                            "bonds_follow"])
+    charges_menu = submenu(structure_menu, "C&harges")
+    window.actions_.fill_menu(charges_menu, [
+        "assign_eqeq_charges", "keep_shown_charges", None,
+        "clear_site_charges"])
     blocks_menu = submenu(structure_menu, "Building b&locks")
     window.actions_.fill_menu(blocks_menu, [
         "mark_connection_points", "mark_one_connection_point",

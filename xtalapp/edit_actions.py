@@ -246,6 +246,26 @@ class EditActions:
         if document is not None:
             self.show_status(document.recompute_bonds())
 
+    def _charge_action(self, verb) -> None:
+        """One of the three charge commands, its refusal in the status
+        bar: EQeq refuses a cell too big for its dense solve."""
+        document = self.current_document()
+        if document is None:
+            return
+        try:
+            self.show_status(getattr(document, verb)())
+        except ValueError as exc:
+            self.show_status(str(exc))
+
+    def assign_eqeq_charges(self) -> None:
+        self._charge_action("assign_eqeq_charges")
+
+    def keep_shown_charges(self) -> None:
+        self._charge_action("keep_shown_charges")
+
+    def clear_site_charges(self) -> None:
+        self._charge_action("clear_site_charges")
+
     def reset_bonds(self) -> None:
         """Throw away the bond edits and perceive again.
 

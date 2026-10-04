@@ -1928,6 +1928,44 @@ class Document(QObject):
         self.run(ff_commands.SetCharges(charges))
         return f"set charges on {len(charges)} site(s)"
 
+    # Writing computed charges onto the sites, where a save and an
+    # export can carry them (a CIF's ``_atom_site_charge``, a LAMMPS
+    # file's q).  Each is one undo step.  Before these nothing in the
+    # window called ``SetCharges``: EQeq ran inside the force field
+    # and a Mulliken run drew its charges and kept them nowhere.
+
+    def assign_eqeq_charges(self) -> str:
+        from xtal.commands import ff as ff_commands
+        from xtal.ff.charges import sites
+
+        values, note = sites.eqeq_values(self._structure)
+        charges, spread = sites.per_site(self._structure, values)
+        self.run(ff_commands.SetCharges(charges, label="EQeq charges"))
+        return _charges_said("EQeq", charges, spread, note)
+
+    def keep_shown_charges(self) -> str:
+        """The charges drawn over the atoms -- a Mulliken run's --
+        written onto the sites."""
+        from xtal.commands import ff as ff_commands
+        from xtal.ff.charges import sites
+
+        if self.charges is None or self.charges.n_atoms != self.cell.n_atoms:
+            return "no charges are shown to keep"
+        charges, spread = sites.per_site(self._structure,
+                                         self.charges.values)
+        self.run(ff_commands.SetCharges(
+            charges, label=f"Keep {self.charges.label}s"))
+        return _charges_said(self.charges.label, charges, spread, "")
+
+    def clear_site_charges(self) -> str:
+        from xtal.commands import ff as ff_commands
+
+        if all(s.charge is None for s in self._structure.sites):
+            return "no site has a charge"
+        self.run(ff_commands.SetCharges(
+            [None] * self._structure.n_sites, label="Clear charges"))
+        return "cleared every site's charge"
+
     # ==================================================================
     #  MEASUREMENTS
     # ==================================================================
@@ -2468,3 +2506,15 @@ def _atoms_of_sites(cell, site_indices) -> set:
     for index in site_indices:
         atoms |= {int(k) for k in cell.indices_of_site(index)}
     return atoms
+
+
+def _charges_said(source, charges, spread, note) -> str:
+    """What writing charges onto the sites did, for the status bar."""
+    given = [q for q in charges if q is not None]
+    said = (f"{source} charges on {len(given)} site(s), "
+            f"{min(given):+.3f} to {max(given):+.3f} e")
+    if spread > 1e-3:
+        said += (f"; images of one site differed by up to {spread:.3f} "
+                 f"e, so each site has their mean")
+    return f"{said}. {note}" if note else said
+
