@@ -537,7 +537,8 @@ def test_the_style_dock_says_which_background_is_showing(window,
     dock = window.style_dock
 
     for name, color in BACKGROUNDS.items():
-        document.update_view(background=color)
+        document.update_view(background=color,
+                             background_follows_theme=False)
         assert dock.background.currentData() == name
         assert dock.background.currentText() == name.capitalize()
 
@@ -549,6 +550,29 @@ def test_a_background_chosen_in_the_dock_reaches_the_view(window,
 
     dock.background.setCurrentIndex(dock.background.findData("paper"))
 
+    assert tuple(document.view.background) == BACKGROUNDS["paper"]
+    assert not document.modified
+
+
+def test_the_style_dock_can_follow_the_system_and_stop_following_it(
+        window, rutile_cif):
+    """As View > Background and Preferences can.  The panel had no
+    such entry, so it read White or Slate over a view that was
+    following -- and a colour picked there left the view following,
+    for the next theme change to paint over a colour chosen by
+    hand."""
+    from xtalapp.viewport.view_settings import FOLLOW_THE_SYSTEM
+
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+
+    dock.background.setCurrentIndex(
+        dock.background.findData(FOLLOW_THE_SYSTEM))
+    assert document.view.background_follows_theme
+    assert dock.background.currentData() == FOLLOW_THE_SYSTEM
+
+    dock.background.setCurrentIndex(dock.background.findData("paper"))
+    assert not document.view.background_follows_theme
     assert tuple(document.view.background) == BACKGROUNDS["paper"]
     assert not document.modified
 
@@ -584,7 +608,8 @@ def test_a_cancelled_background_dialog_leaves_the_view_alone(
         window, rutile_cif, monkeypatch):
     document = window.open_path(rutile_cif)
     dock = window.style_dock
-    document.update_view(background=BACKGROUNDS["slate"])
+    document.update_view(background=BACKGROUNDS["slate"],
+                         background_follows_theme=False)
     monkeypatch.setattr(QColorDialog, "getColor",
                         lambda *a, **k: QColor())          # invalid
 

@@ -51,8 +51,10 @@ from xtalapp.viewport import colormaps, styles
 from xtalapp.viewport.scene import CUE_MIN_SPAN, cue_fraction
 from xtalapp.viewport.view_settings import (
     BACKGROUNDS,
+    FOLLOW_THE_SYSTEM,
     PORE_SPHERES,
     RING_COLORS,
+    theme_background,
 )
 
 #: The flat colours that belong to no element: the net a chemist drew
@@ -408,6 +410,12 @@ class StylePanelDock(QDockWidget):
         # whatever the picture was.  ``preferences.py`` carries names
         # for the same reason.
         self.background = QComboBox()
+        # Follow the system first, as in View > Background and
+        # Preferences.  Without it the panel read White or Slate over
+        # a view that was following, and picking a colour here left
+        # the view following -- so the next theme change painted over
+        # a colour chosen by hand.
+        self.background.addItem("Follow the system", FOLLOW_THE_SYSTEM)
         for name in BACKGROUNDS:
             self.background.addItem(name.capitalize(), name)
         self.background.addItem("Custom...", CUSTOM_BACKGROUND)
@@ -758,7 +766,9 @@ class StylePanelDock(QDockWidget):
         self.bond_radius.setValue(view.bond_radius)
         self.opacity.setValue(round(view.polyhedron_opacity * 100))
         self._choose(self.labels, view.label_mode)
-        self._choose(self.background, _background_name(view.background))
+        self._choose(self.background,
+                     FOLLOW_THE_SYSTEM if view.background_follows_theme
+                     else _background_name(view.background))
         self._choose(self.ellipsoid_probability,
                      view.ellipsoid_probability)
         ellipsoids = styles.get(view.style).ellipsoids
@@ -951,10 +961,16 @@ class StylePanelDock(QDockWidget):
         self._set(depth_cue_end=value / 100.0)
 
     def _on_background(self, _index: int) -> None:
-        """One of the four named backgrounds."""
-        color = BACKGROUNDS.get(self.background.currentData())
+        """One of the four named backgrounds, or following the system."""
+        name = self.background.currentData()
+        if name == FOLLOW_THE_SYSTEM:
+            self._set(background=theme_background(),
+                      background_follows_theme=True)
+            return
+        color = BACKGROUNDS.get(name)
         if color is not None:
-            self._set(background=tuple(color))
+            self._set(background=tuple(color),
+                      background_follows_theme=False)
 
     def _on_custom_background(self, index: int) -> None:
         """*Custom...*, which is a button wearing a combo entry.
@@ -972,7 +988,8 @@ class StylePanelDock(QDockWidget):
         chosen = QColorDialog.getColor(current, self, "Background")
         if chosen.isValid():
             self._set(background=(chosen.red(), chosen.green(),
-                                  chosen.blue()))
+                                  chosen.blue()),
+                      background_follows_theme=False)
         else:
             self.refresh()              # put the old choice back
 
