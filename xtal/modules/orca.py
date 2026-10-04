@@ -195,7 +195,7 @@ ORCA = Module(
     name="orca", label="ORCA",
     description="ORCA quantum chemistry: an input file for the "
                 "structure, written here and run wherever ORCA is.",
-    order=13, group="energy", actions=(INPUT,))
+    order=43, group="energy", actions=(INPUT,))
 
 
 def register(registry=MODULES) -> Module:

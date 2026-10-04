@@ -424,7 +424,7 @@ PORMAKE = Module(
     check=available,
     provides=frozenset({"structure", "table"}),
     actions=(
-        Action(name="build", label="Build a framework...",
+        Action(name="build", label="Build a framework (MOF)...",
                tip="Pick a net, a node and a linker; the framework "
                    "opens in a new tab",
                kind="build",

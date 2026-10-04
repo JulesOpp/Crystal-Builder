@@ -426,10 +426,10 @@ class WorkspaceDock(QDockWidget):
     def _rebuild_menu(self, recent=()) -> None:
         self.menu.clear()
         self.menu.addAction(
-            "Open Workspace...",
+            "Open workspace...",
             lambda: self.workspaceRequested.emit("open"))
         self.menu.addAction(
-            "New Workspace...",
+            "New workspace...",
             lambda: self.workspaceRequested.emit("new"))
         paths = [p for p in recent if p]
         if paths:

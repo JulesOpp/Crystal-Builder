@@ -165,7 +165,7 @@ def build_actions(window):
         tip="Write a file for something else to read -- a CIF, an "
             "XYZ.  One way: it never becomes this document's file")
     add("export_image", "Export &Image...", window.export_image)
-    add("export_net", "Export &Net for Systre...", window.export_net,
+    add("export_net", "Export &net for Systre...", window.export_net,
         tip="The net drawn on this structure as a .cgd file, for "
             "Systre to name -- a second opinion on the Net panel that "
             "does not come from the code that gave the first")
@@ -177,11 +177,11 @@ def build_actions(window):
         tip="One unit cell with its bonds, lit and rendered by "
             "Blender, the scene kept beside the picture.  Blender has "
             "to be installed -- see Preferences > Engines")
-    add("open_workspace", "&Open Workspace...",
+    add("open_workspace", "&Open workspace...",
         window.open_workspace_dialog,
         tip="A folder that structures and their calculations live "
             "in")
-    add("new_workspace", "&New Workspace...",
+    add("new_workspace", "&New workspace...",
         window.new_workspace_dialog)
     add("close_tab", "&Close", window.close_current, "Ctrl+W")
     add("close_all_tabs", "Close A&ll", window.close_all_documents,
@@ -284,14 +284,14 @@ def build_actions(window):
             "run found.  The pore sphere is its own box in the Style "
             "panel.  Nothing is drawn until Modules > Zeo++ has "
             "answered")
-    add("show_only_selected", "Show &Only Selected",
+    add("show_only_selected", "Show &only selected",
         window.show_only_selected,
         tip="Draw the selected atoms and nothing else -- every phenol, "
             "say, to see what a substitution did to them.  Only the "
             "picture changes: the hidden atoms are still in the "
             "structure, and in every calculation and every save")
-    add("show_all", "Show A&ll", window.show_all,
-        tip="Draw every atom again after Show Only Selected")
+    add("show_all", "Show a&ll", window.show_all,
+        tip="Draw every atom again after Show only selected")
     add("clear_overlays", "Clear c&harges and orbital",
         window.clear_overlays,
         tip="Take a DFTB+ run's atom colouring and orbital lobes off "
@@ -456,12 +456,12 @@ def build_actions(window):
     add("clear_measurements", "Clear &measurements",
         window.clear_measurements)
 
-    add("select_all", "Select &All", window.select_all, "Ctrl+A")
+    add("select_all", "Select &all", window.select_all, "Ctrl+A")
     # No key of its own: Escape is one action, and clearing the
     # selection is its last rung -- see MainWindow.cancel_gesture.
     # Two actions on the same key is an "ambiguous shortcut overload",
     # which is Qt for neither of them firing.
-    add("select_none", "Select &None", window.select_none,
+    add("select_none", "Select &none", window.select_none,
         tip="Escape, when there is no gesture or mode to leave first")
     add("invert_selection", "&Invert selection",
         window.invert_selection, "Ctrl+I")
@@ -471,7 +471,7 @@ def build_actions(window):
         window.select_bonds_between,
         tip="Select every bond joining two elements, and no atoms -- "
             "so Delete and Bond type act on those bonds alone")
-    add("select_dialog", "&Advanced Selection...",
+    add("select_dialog", "&Advanced selection...",
         window.open_select_dialog,
         tip="Select by label, coordination, what an atom is bonded "
             "to, a box, a point, or bonds by length and order -- and "
@@ -516,7 +516,8 @@ def build_actions(window):
         window.descend_to_subgroup,
         tip="Drop to a maximal subgroup so that an orbit splits "
             "and its atoms become independent")
-    add("invert", "&Invert the structure", window.invert_structure,
+    add("invert", "&Mirror the structure (change hand)",
+        window.invert_structure,
         tip="The same crystal in the other hand: the coordinates "
             "and the space group together")
     add("merge_duplicates", "Merge &duplicate sites...",
@@ -551,18 +552,18 @@ def build_actions(window):
     add("optimize", "&Optimise geometry", window.optimize_geometry,
         "Ctrl+Shift+E",
         tip="Relax the structure within its space group")
-    add("show_ff", "&Force Field panel", window.show_force_field,
+    add("show_ff", "&Setup and atom types...", window.show_force_field,
         tip="Atom types, electrostatics, and how the run is going")
 
     # DFTB+'s own three, the same shape as UFF's above and kept
     # deliberately unshortcut'd: Ctrl+E and Ctrl+Shift+E already
     # mean "run UFF", and a DFTB+ run is launched from its own
     # panel or the Modules menu rather than a reflex keystroke.
-    add("dftb_single_point", "DFTB+: &Single point energy",
+    add("dftb_single_point", "&Single point energy",
         window.dftb_single_point,
         tip="Energy and per-term breakdown at this geometry, "
             "through DFTB+")
-    add("dftb_optimize", "DFTB+: &Optimise geometry",
+    add("dftb_optimize", "&Optimise geometry",
         window.dftb_optimize,
         tip="Relax the structure within its space group, "
             "through DFTB+")
@@ -595,7 +596,7 @@ def build_actions(window):
     add("workspace_reveal", REVEAL_LABEL, window.reveal_selected_artifact,
         tip="Show the selected file or run folder in the desktop's own "
             "file browser.")
-    add("workspace_copy_path", "&Copy Path",
+    add("workspace_copy_path", "&Copy path",
         window.copy_selected_artifact_path,
         tip="Put the full path of what is selected on the clipboard, "
             "for a script or a terminal.")
@@ -607,7 +608,7 @@ def build_actions(window):
         tip="Put a run's folder in the desktop's wastebasket.  Only a "
             "run: the structure it was run on stays, and nothing here "
             "is ever deleted outright.")
-    add("show_log", "Show &Log", window.show_log,
+    add("show_log", "Show &log file", window.show_log,
         tip="Reveal the file this application writes its warnings "
             "and its crashes to")
     add("install_ai_skill", "Set up an &AI assistant",
@@ -649,8 +650,8 @@ def build_menus(window):
     build_sample_menu(window)
     window.actions_.fill_menu(file_menu, [
         None, "save", "save_as",
-        None, "export", "export_image", "export_stl", "render_blender",
-        "export_net",
+        None, "export", "export_net", "export_image", "export_stl",
+        "render_blender",
         None, "new_workspace", "open_workspace",
         None, "close_tab", "close_all_tabs"])
     file_menu.addSeparator()
@@ -664,10 +665,14 @@ def build_menus(window):
         None, "delete_selection", "delete_bond"])
 
     select_menu = submenu(bar, "&Select")
+    # Same element and By element are one intent and sit together;
+    # Grow, which starts from a selection rather than making one, last.
     window.actions_.fill_menu(select_menu, [
         "select_all", "select_none", "invert_selection", None,
-        "select_same", "select_bonds", "select_dialog"])
+        "select_same"])
     window.element_menu = submenu(select_menu, "By &element")
+    window.actions_.fill_menu(select_menu, [
+        "select_bonds", "select_dialog", None])
     grow_menu = submenu(select_menu, "&Grow")
     window.actions_.fill_menu(grow_menu, ["expand_bonded",
                                         "expand_neighbours",
@@ -714,8 +719,8 @@ def build_menus(window):
     window.actions_.fill_menu(symmetry_menu, [
         "find_symmetry", "set_space_group", "subgroup", None,
         "standardize", "primitive", None,
-        "wyckoff", "merge_duplicates", "invert",
-        None, "reduce_p1"])
+        "wyckoff", "merge_duplicates",
+        None, "invert", "reduce_p1"])
 
     cell_menu = submenu(bar, "&Cell")
     window.actions_.fill_menu(cell_menu, [
@@ -738,9 +743,9 @@ def build_menus(window):
                     "show_topology", "show_cell", "show_axes",
                     "show_planes",
                     "show_pores", "labels", "show_legend",
-                    "show_scale_bar"])
+                    "show_scale_bar", None, "clear_overlays"])
     window.actions_.fill_menu(view_menu, [
-        "show_only_selected", "show_all", None, "clear_overlays"])
+        "show_only_selected", "show_all"])
     view_menu.addSeparator()
     background_menu = submenu(view_menu, "&Background")
     background_menu.addAction(

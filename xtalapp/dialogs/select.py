@@ -112,7 +112,7 @@ class SelectDialog(QDialog):
 
     def __init__(self, document, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Advanced Selection")
+        self.setWindowTitle("Advanced selection")
         self.document = document
         elements = sorted(set(document.cell.elements))
 
