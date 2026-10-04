@@ -155,7 +155,7 @@ no bond crosses *c*.
 3. **Push-off steps** and **Trials per step** trade time for room in a
    full box.  **Most atoms** refuses a recipe that would make more
    before anything is grown.
-4. **Run**.  The model opens in a tab of its own in {term}`P1`, with
+4. Press **Build**.  The model opens in a tab of its own in {term}`P1`, with
    the report in the Results panel.  *Stop* is honoured between steps.
 
 

@@ -116,7 +116,7 @@ view.
    oxygen is shared among a ring ether, a hydroxyl and a carbonyl.
 5. **Seed**: the same seed and recipe build the same carbon, atom for
    atom.  Another seed is another draw of the disorder.
-6. Press **Run**.  The structure opens in a tab of its own, in
+6. Press **Build**.  The structure opens in a tab of its own, in
    {term}`P1`, with its bonds stated and a report in the Results panel.
    *Stop* is honoured between steps, including during the relaxation.
 
