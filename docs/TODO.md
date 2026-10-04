@@ -590,6 +590,25 @@ polymer…, packing only.
 - **Entanglement**: a primitive-path analysis (Z1-style) once a model
   can be equilibrated.
 
+### ORCA after the input file
+
+Modules ▸ ORCA ▸ Input file… shipped on `features/orca-input`
+(2026-10-04): it writes the `.inp` and `.xyz` and runs nothing.
+- **Running ORCA**: a `Program` for the `orca` binary (it must be
+  called by its full path for parallel runs), a Run entry beside
+  Input file, Stop reaching it.  On this machine ORCA 6.1 from
+  `/Applications/orca61` ran single points, optimisations, C-PCM and
+  `%scf` inputs to normal termination but aborted in PROPINT, CIS and
+  SCF RESPONSE (TD-DFT, Freq) even for a hand-written input, inside
+  the agent's sandbox -- check outside it before building on it.
+- **Reading the `.out`**: the final energy, the TD-DFT states as a
+  UV-Vis stick spectrum and broadened curve in the Results panel, the
+  frequencies; `_trj.xyz` already opens as a run.
+- **The agent verb**: `Session.orca_input`, so an assistant writes
+  the same file (the shipped skill changes in the same commit).
+- **LibXC functionals** (Table 3.12, `! LibXC(KEY)`), if anybody asks
+  for one ORCA has no native version of.
+
 ### A crash of the application still leaves its program running
 
 Since #22 a run's program ends with Stop, Ctrl+C, SIGTERM and a normal

@@ -2050,6 +2050,16 @@ Compress and expand the cell with the shape free and fit an equation of state: B
 ```{index} Bulk modulus...
 ```
 
+(cmd-module.orca.input)=
+### ORCA ▸ Input file...
+
+`module.orca.input`
+
+An ORCA input and the coordinates it reads, in a run folder: the functional, basis, job and blocks chosen here, the charge and multiplicity checked against the electrons
+
+```{index} Input file...
+```
+
 (cmd-module.mof.build)=
 ### MOF builder ▸ Build a framework...
 

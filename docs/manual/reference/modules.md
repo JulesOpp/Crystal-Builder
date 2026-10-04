@@ -224,6 +224,51 @@ Compress and expand the cell with the shape free and fit an equation of state: B
 | **Relax the cell first** | bool | `True` | Relax the cell, shape and volume, before the scan and centre the volumes on where it settles.  A scan round the input's volume puts V0 at its edge -- or outside it -- whenever the engine's minimum is not the deposited cell's, and the fit then refuses. |
 | **Span** | float, 0.5 to 40 % | `6.0` | How far either side of the volume to go, when no From and To are given.  Within a few percent the energy is close to a parabola and the modulus is the cell's; much further and it is the equation of state's. |
 
+(mod-orca)=
+## ORCA
+
+ORCA quantum chemistry: an input file for the structure, written here and run wherever ORCA is.
+
+```{index} ORCA
+```
+
+(mod-orca-input)=
+### Input file...
+
+An ORCA input and the coordinates it reads, in a run folder: the functional, basis, job and blocks chosen here, the charge and multiplicity checked against the electrons
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Functional** | text | `BP86` | An ORCA native functional keyword (Tables 3.1-3.9) |
+| **Basis set** | text | `def2-SVP` | An ORCA built-in orbital basis (Tables 2.12-2.33); a 3c method writes none |
+| **Dispersion** | one of None, D3(BJ), D3(0), D4 |  | Added to the ! line; not with a functional that already has one |
+| **RI** | one of ORCA's default, RIJCOSX, RI-J, RI-JK, No RI |  | ORCA's default is RI-J for a pure functional and RIJCOSX for a hybrid; a choice writes its auxiliary basis too |
+| **Job** | one of Single point, Optimise (Opt), Transition state (OptTS) | `sp` | A single point, an optimisation, or a transition state search |
+| **Optimisation** | one of Normal, Loose, Tight, Very tight | `Opt` | How tightly an optimisation converges |
+| **Cartesian (COpt)** | bool | `False` | Optimise in Cartesian rather than internal coordinates |
+| **Frequencies (Freq)** | bool | `False` | Vibrational frequencies, after the optimisation if there is one |
+| **Geometry MaxIter** | int, 0 to 100000 | `0` | %geom MaxIter; 0 is ORCA's own, max(3N, 50) |
+| **Calc_Hess** | bool | `False` | An exact Hessian before the first step |
+| **SCF convergence** | one of ORCA's default, Sloppy, Loose, Medium, Normal, Strong, Tight, Very tight, Extreme |  | TightSCF and the like, Table 2.9 |
+| **SCF solver** | one of ORCA's default, EasyConv, SlowConv, VerySlowConv |  | SlowConv for most transition-metal complexes |
+| **SCF MaxIter** | int, 0 to 100000 | `0` | %scf MaxIter; 0 is ORCA's own |
+| **SCF guess** | one of ORCA's default, PModel, PAtom, Hueckel, HCore |  | %scf Guess; the default is ORCA's own |
+| **TD-DFT roots** | int, 0 to 10000 | `0` | Excited states for a UV-Vis spectrum; 0 writes no %tddft block |
+| **Triplets** | bool | `False` | Singlet-triplet excitations as well |
+| **Solvation** | one of Gas phase, C-PCM, SMD |  | An implicit solvent, C-PCM or SMD |
+| **Solvent** | text | `water` | Any name of Table 2.56, e.g. water, dmf, thf |
+| **Processes (%pal)** | int, 1 to 4096 | `1` | Above one, a %pal block |
+| **Memory per process** | int, 0 to 10000000 MB | `0` | %maxcore; 0 writes none |
+| **Charge** | int, -1000 to 1000 | `0` | Of the atoms written |
+| **Multiplicity** | int, 1 to 1000 | `1` | 2S+1; refused when the electron count cannot have it |
+| **More keywords** | text |  | Added to the end of the ! line as written |
+| **More blocks** | text |  | % blocks of your own, written before the coordinates |
+| **Atoms** | text |  | Cell atom indices to write; blank is the whole cell |
+| **File name** | text |  | The .inp and .xyz are named after this |
+
 (mod-mof)=
 ## MOF builder
 

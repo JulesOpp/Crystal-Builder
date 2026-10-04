@@ -46,6 +46,7 @@ _BY_NAME = {
                        "BandStructureDialog"),
     "dftb-run": ("xtalapp.dialogs.dftb_run", "DftbRunDialog"),
     "scan": ("xtalapp.dialogs.scan", "ScanDialog"),
+    "orca-input": ("xtalapp.dialogs.orca_input", "OrcaInputDialog"),
 }
 
 
