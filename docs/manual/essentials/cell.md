@@ -77,6 +77,46 @@ about a particular cell, and it stops meaning anything the moment the
 cell changes.  *Symmetry ▸ Find symmetry…* recovers whatever symmetry
 the supercell has.
 
+## Slab
+
+```{index} single: slab
+```
+```{index} single: surface; slab along (hkl)
+```
+
+{ref}`Slab… <cmd-slab>` cuts a slab of the structure along a lattice
+plane (hkl), with vacuum above it, for a surface or a film.
+
+1. **Plane (hkl)** is a Miller index of the cell *as it is* -- the
+   conventional cell for a centred group, which is what a
+   crystallographer means by (111) of rock salt.  Indices go to ±9.
+2. **Layers** is how many spacings of the plane thick the slab is (3 to
+   start, up to 50).  A layer is one d(hkl) and holds exactly the atoms
+   of one cell, so the surface cell is the plane's own lattice.
+3. **Vacuum above** is empty space along the plane normal, 15 Å to
+   start.  The cell's *c* is turned to the normal, which moves no atom.
+4. **Termination** moves the cut up the normal by that fraction of a
+   layer (0 to 0.99), which is how a different set of atoms ends up on
+   the surface.
+5. The line under the form says what will come out before it does:
+   *(1 0 0) slab, 3 layers, 77.60 Å thick under 15 Å of vacuum: 1272 sites,
+   1272 atoms, V = 61951.60 Å³; 16 bonds cut at the surfaces, left
+   unsaturated* -- here for MOF-5's (1 0 0).  OK is greyed, with the
+   reason, when the plane or size is not possible.
+
+:::{note}
+**A slab carries its graph.**  Each stored bond is taken to every copy
+of its first atom and kept where its partner is in the slab too, so
+the bonds the two surfaces cut are simply gone, and counted -- not
+perceived again, which would bond whatever you had unbonded.  A
+supercell still perceives afresh.  The cut atoms are left as they are:
+capping them is chemistry, and *Add hydrogens* is yours to ask for.
+The result is in {term}`P1`, and the whole operation is one undo step.
+:::
+
+An assistant has the same operation as the `slab` verb
+({doc}`/workflows/assistant`).
+
 ## Reductions and wrapping
 
 ```{index} single: Niggli reduction

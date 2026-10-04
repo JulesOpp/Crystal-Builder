@@ -257,4 +257,67 @@ Plug-in
   A package installed beside Crystal Builder whose
   `crystal_builder.plugins` entry point registers formats, engines or
   modules when the program starts.
+
+ZTC
+  A zeolite-templated carbon: the thin carbon sheet left when a
+  zeolite's pores are filled with carbon and the zeolite dissolved
+  away.  Connected in three dimensions because the pores were; built by
+  the {doc}`carbon builder </frameworks/carbon>`.
+
+Schwarzite
+  A periodic, negatively curved surface of three-coordinate carbon,
+  with pentagons and heptagons as well as hexagons.
+
+Gauss--Bonnet
+  The theorem that fixes, on a closed sheet, the sum over its rings of
+  (6 minus the ring's size) at six times the Euler characteristic.  It
+  is why the carbon builder's pentagon-to-heptagon balance is set by
+  the net and not chosen.
+
+Stone--Wales defect
+  Four hexagons turned into a 5-7-7-5 group by rotating one bond.
+
+Monomer
+  In the polymer builder, a repeat unit with exactly two connection
+  points: the head, bonded to the unit before it, and the tail, bonded
+  to the unit after.  A ladder monomer's point stands for two atoms.
+
+Ladder polymer
+  A polymer whose units are joined by two bonds at each joint, such as
+  PIM-1, so that a joint has no torsion and the chain's freedom is
+  which atom meets which.
+
+Packed, not equilibrated
+  What the polymer builder's model is: the right density and no close
+  contacts, with chains that have not relaxed at their own scale.
+
+Pawley fit
+  A fit of a unit cell and space group to a whole powder pattern in
+  which every reflection's intensity is a free number.  Le Bail's
+  version re-partitions the observed intensity between cycles instead.
+  It tests a cell from indexing before a structure is put in it.
+
+Rietveld refinement
+  A fit of a structure's own atoms, cell and profile to a whole powder
+  pattern.  With energy, the same fit with a force field's energy
+  weighted in.
+
+Indexing
+  Finding the unit cells that explain the positions of a pattern's
+  lines.
+
+MCP
+  The Model Context Protocol, by which an AI assistant calls tools.
+  `xtal mcp` and the window's server offer the application's verbs as
+  MCP tools ({doc}`/workflows/assistant`).
+
+Skill
+  A document that tells an AI assistant how to work in a domain: for
+  Crystal Builder, the protocol for building and checking structures,
+  installed by *Help ▸ Set up an AI assistant*.
+
+Cluster
+  What ORCA is given in place of a periodic structure: the cell's atoms
+  (or the selected ones) with each molecule made whole, and a framework
+  written as cut ({doc}`/energy/orca`).
 ```
