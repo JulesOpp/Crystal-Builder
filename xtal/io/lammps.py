@@ -28,6 +28,14 @@ round, for the same reason.
 LAMMPS finds a bond's partner at the closest image, so in a cell that
 small it would bond the wrong copy and say nothing.  A supercell is
 the answer, and the message says so.
+
+**Read back** (:func:`read_lammps_data`) for the result of a run: the
+box, the atoms and their charges in P1, the element of each type from
+the comment this writer puts after its mass or else the element of
+that mass, and the bonds stated as the graph at the closest image --
+the image LAMMPS bonded -- so nothing is perceived on open.  Any
+``atom_style`` with the columns of ``full``, ``charge``, ``molecular``
+or ``atomic``, named in the Atoms header or told apart by count.
 """
 
 from __future__ import annotations
@@ -37,7 +45,9 @@ from pathlib import Path
 import numpy as np
 
 from xtal.core import bonding, elements, p1
-from xtal.core.structure import Structure
+from xtal.core.lattice import Lattice
+from xtal.core.site import Site
+from xtal.core.structure import CellBond, Structure
 from xtal.io import atomic
 
 
@@ -196,3 +206,131 @@ def _refuse_long_bonds(bonds, cell, lattice) -> None:
                 f"is {nearest:.2f} A away -- LAMMPS takes a bond's "
                 f"partner at the closest image, so it would bond that "
                 f"one.  Make a supercell first")
+
+
+#: Where x, y, z and the charge are in an Atoms row, by atom style
+#: (columns counted from 0; ``None``, no charge column).
+_STYLES = {"full": (4, 3), "charge": (3, 2), "molecular": (3, None),
+           "atomic": (2, None)}
+#: The style a row of so many columns is, without a header naming it
+#: (image flags add three).  Six is ``charge`` or ``molecular`` and
+#: cannot be told apart, so it is the one with a charge.
+_BY_COUNT = {7: "full", 6: "charge", 5: "atomic"}
+
+
+def read_lammps_data(path) -> Structure:
+    path = Path(path)
+    structure = lammps_data_from_string(
+        path.read_text(encoding="utf-8", errors="replace"))
+    structure.meta["source"] = str(path)
+    structure.meta.setdefault("title", path.stem)
+    return structure
+
+
+def lammps_data_from_string(text: str) -> Structure:
+    """A LAMMPS data file as a P1 structure with its bonds stated."""
+    lines = text.splitlines()
+    box = np.zeros((3, 3))
+    origin = np.zeros(3)
+    sections: dict[str, tuple[str, list[list[str]]]] = {}
+    n = 1
+    while n < len(lines):
+        body, _, comment = lines[n].partition("#")
+        words = body.split()
+        if len(words) == 4 and words[2:] in (["xlo", "xhi"],
+                                             ["ylo", "yhi"],
+                                             ["zlo", "zhi"]):
+            axis = "xyz".index(words[2][0])
+            origin[axis] = float(words[0])
+            box[axis, axis] = float(words[1]) - float(words[0])
+        elif len(words) == 6 and words[3:] == ["xy", "xz", "yz"]:
+            box[1, 0], box[2, 0], box[2, 1] = map(float, words[:3])
+        elif (len(words) == 1 and words[0].isalpha()) or (
+                len(words) == 2 and words[1] == "Coeffs"):
+            name = body.strip()
+            rows = []
+            n += 1
+            while n < len(lines) and not lines[n].strip():
+                n += 1
+            while n < len(lines) and lines[n].strip():
+                row_body, _, row_comment = lines[n].partition("#")
+                rows.append(row_body.split() + (
+                    ["#", row_comment.strip()] if row_comment.strip()
+                    else []))
+                n += 1
+            sections[name] = (comment.strip(), rows)
+            continue
+        n += 1
+    if "Atoms" not in sections:
+        raise ValueError("a LAMMPS data file with no Atoms section")
+    if not np.all(np.diag(box) > 0):
+        raise ValueError("a LAMMPS data file with no box")
+
+    symbols = _type_symbols(sections.get("Masses", ("", []))[1])
+    header, rows = sections["Atoms"]
+    atoms = [r[:r.index("#")] if "#" in r else r for r in rows]
+    style = header.split()[0] if header.split() else None
+    if style not in _STYLES:
+        style = _BY_COUNT.get(len(atoms[0]) if len(atoms[0]) in _BY_COUNT
+                              else len(atoms[0]) - 3)
+    if style not in _STYLES:
+        raise ValueError(
+            f"cannot tell the atom style of a row of {len(atoms[0])} "
+            f"columns; name it after Atoms, as in 'Atoms  # full'")
+    at, q_at = _STYLES[style]
+    type_at = 2 if style in ("full", "molecular") else 1
+    atoms.sort(key=lambda r: int(r[0]))
+    inverse = np.linalg.inv(box)
+    sites, index = [], {}
+    for k, row in enumerate(atoms):
+        symbol = symbols.get(row[type_at])
+        if symbol is None:
+            raise ValueError(f"atom type {row[type_at]} has no mass")
+        cart = np.array([float(v) for v in row[at:at + 3]]) - origin
+        frac = cart @ inverse
+        sites.append(Site(symbol, frac - np.floor(frac),
+                          charge=(float(row[q_at]) if q_at is not None
+                                  else None)))
+        index[row[0]] = k
+    structure = Structure(lattice=Lattice(box), sites=sites)
+    structure.ensure_labels()
+    _state_bonds(structure, sections.get("Bonds", ("", []))[1], index)
+    return structure
+
+
+def _type_symbols(masses) -> dict[str, str]:
+    """Each atom type's element: the comment after its mass, which is
+    where this writer and most others name it, else the element whose
+    mass it is."""
+    table = [(elements.mass(s), s) for s in elements.all_symbols()
+             if not elements.is_dummy(s)]
+    found = {}
+    for row in masses:
+        named = (elements.canonical_symbol(row[row.index("#") + 1])
+                 if "#" in row else None)
+        if named is None:
+            mass = float(row[1])
+            named = min(table, key=lambda m: abs(m[0] - mass))[1]
+        found[row[0]] = named
+    return found
+
+
+def _state_bonds(structure, rows, index) -> None:
+    """The file's bonds as the stored graph, each at its closest
+    image -- the one LAMMPS bonds."""
+    if not rows:
+        return
+    from xtal.core.bonding import BondRules
+
+    cell = p1.expand(structure)
+    matrix = structure.lattice.matrix
+    bonds = []
+    for row in rows:
+        i, j = index[row[2]], index[row[3]]
+        image = -np.round(cell.frac[j] - cell.frac[i]).astype(int)
+        length = float(np.linalg.norm(
+            (cell.frac[j] + image - cell.frac[i]) @ matrix))
+        bonds.append(CellBond(i, j, tuple(int(v) for v in image),
+                              length))
+    rules = BondRules.from_dict(structure.bond_rules)
+    structure.set_perceived(bonds, rules.signature(), cell)

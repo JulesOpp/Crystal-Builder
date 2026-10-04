@@ -125,3 +125,38 @@ def test_nothing_in_the_file_reads_as_the_end_of_a_chain(halite):
     of a chain, and renumbers every atom after it."""
     text = pdb_text(cellcut.cut_cell(halite))
     assert not any("TER" in line for line in text.splitlines())
+
+
+# ------------------------------------------------------------ periodic
+
+def test_the_periodic_pdb_has_its_cell_its_atoms_and_the_bonds_inside_it(
+        dry_ice):
+    """For PyMOL and VMD: CRYST1, every P1 atom where CRYST1 puts it
+    (a along x, b in the xy plane), and a CONECT for each stored bond
+    that stays inside the cell -- one through a face would be drawn
+    across the whole cell, so it is left out."""
+    from xtal.io import FORMATS
+    from xtal.io.pdb import periodic_pdb_text
+
+    text = periodic_pdb_text(dry_ice)
+    cell = p1.expand(dry_ice)
+    first = text.splitlines()[0]
+    assert first.startswith("CRYST1")
+    assert float(first[6:15]) == pytest.approx(
+        dry_ice.lattice.parameters[0], abs=1e-3)
+    atoms = _atoms(text)
+    assert len(atoms) == cell.n_atoms
+
+    xyz = np.array([[float(line[30:38]), float(line[38:46]),
+                     float(line[46:54])] for line in atoms])
+    pairs = _conect_pairs(text)
+    assert pairs
+    for i, j in pairs:
+        length = np.linalg.norm(xyz[i - 1] - xyz[j - 1])
+        assert 1.0 < length < 1.3                   # C=O, not a span
+    inside = sum(1 for b in bonding.graph(dry_ice).bonds
+                 if not np.any(np.asarray(b.image)
+                               + np.floor(cell.frac[b.j])
+                               - np.floor(cell.frac[b.i])))
+    assert len(pairs) == inside
+    assert FORMATS.get("pdb").settles_bonds

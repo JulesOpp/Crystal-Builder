@@ -12,19 +12,27 @@ never works a bond out for itself.  So the atom name is the element
 spelled the standard way, nothing else is written that could contain
 ``TER``, and every bond is a CONECT.
 
-**Not a registered format.**  :mod:`xtal.io.registry` writes a
-*structure*, through :func:`xtal.io.export.for_export`, which strips
-suppressions -- and the bond graph of what comes out would then be
-perceived again, bringing back every bond the user took away.  What
-this writes is a :class:`~xtal.core.cellcut.CellCut`, whose bonds were
-settled before it was made.  There is no CRYST1 either: the cell has
-been cut out of the crystal, and a reader that saw a cell would put
-the periodicity back.
+:func:`pdb_text` is that file, from a
+:class:`~xtal.core.cellcut.CellCut` whose bonds were settled before it
+was made, with no CRYST1: the cell has been cut out of the crystal,
+and a reader that saw a cell would put the periodicity back.
+
+:func:`periodic_pdb_text` is the registered *PDB* export, for PyMOL,
+VMD and Mercury: CRYST1, the P1 cell's atoms in the frame CRYST1
+implies (*a* along x, *b* in the xy plane -- LAMMPS's box, so
+:func:`xtal.io.lammps.lammps_box` turns the cell), and a CONECT for
+every stored bond inside the cell.  A bond through a cell face is left
+out, since CONECT joins two serials and has no image to say which copy
+is meant; a viewer drawing it would draw it across the cell.  Like
+the LAMMPS file it is registered with ``settles_bonds`` and reads the
+graph on screen itself, markers dropped.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
+
+import numpy as np
 
 from xtal.io import atomic
 
@@ -58,6 +66,59 @@ def pdb_text(cut) -> str:
                          + "".join(f"{p:5d}" for p in chunk))
     lines.append("END")
     return "\n".join(lines) + "\n"
+
+
+def periodic_pdb_text(structure) -> str:
+    """The P1 cell as a PDB with its CRYST1 and its bonds."""
+    from xtal.core import bonding, elements, p1
+    from xtal.io.lammps import lammps_box
+
+    cell = p1.expand(structure)
+    kept = [k for k in range(cell.n_atoms)
+            if not elements.is_dummy(cell.elements[k])]
+    if not kept:
+        raise ValueError("a PDB needs at least one atom that is not a "
+                         "marker")
+    if len(kept) > MAX_ATOMS:
+        raise ValueError(
+            f"{len(kept)} atoms is more than a PDB can number "
+            f"({MAX_ATOMS})")
+    serial = {k: n + 1 for n, k in enumerate(kept)}
+    box, rotation = lammps_box(structure.lattice.matrix)
+    frac = cell.frac[kept]
+    wrap = np.floor(frac).astype(int)
+    cart = structure.lattice.to_cart(frac - wrap) @ rotation
+    a, b, c, alpha, beta, gamma = structure.lattice.parameters
+    lines = [f"CRYST1{a:9.3f}{b:9.3f}{c:9.3f}{alpha:7.2f}{beta:7.2f}"
+             f"{gamma:7.2f} P 1           1"]
+    for n, k in enumerate(kept):
+        lines.append(_hetatm(n + 1, cell.elements[k], *cart[n]))
+    shift = dict(zip(kept, wrap, strict=True))
+    partners: dict[int, list[int]] = {}
+    for bond in bonding.graph(structure).bonds:
+        if bond.i not in serial or bond.j not in serial:
+            continue
+        image = np.asarray(bond.image) + shift[bond.j] - shift[bond.i]
+        if np.any(image):
+            continue                    # through a face: see above
+        i, j = serial[bond.i], serial[bond.j]
+        partners.setdefault(i, []).append(j)
+        partners.setdefault(j, []).append(i)
+    for i in sorted(partners):
+        bonded = sorted(partners[i])
+        for start in range(0, len(bonded), PARTNERS_PER_LINE):
+            chunk = bonded[start:start + PARTNERS_PER_LINE]
+            lines.append(f"CONECT{i:5d}"
+                         + "".join(f"{p:5d}" for p in chunk))
+    lines.append("END")
+    return "\n".join(lines) + "\n"
+
+
+def write_periodic_pdb(structure, path) -> Path:
+    path = Path(path)
+    atomic.write_text(path, periodic_pdb_text(structure),
+                      encoding="utf-8")
+    return path
 
 
 def write_pdb(cut, path) -> Path:
