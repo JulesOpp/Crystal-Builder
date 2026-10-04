@@ -748,6 +748,43 @@ def test_the_cell_frame_follows_a_relaxing_lattice():
     assert after == pytest.approx(before * 0.9, rel=1e-5)
 
 
+def test_a_bond_wrapping_across_a_face_keeps_its_own_colours():
+    """An optimisation that carries an H over a cell face turns its
+    N-H bond into two stubs, and stubs are listed after whole bonds:
+    as many halves as before, of the same orders, in another order.
+    ``set_positions`` moved the points and kept the colours, so the
+    C-Cl bond was drawn in the N-H bond's blue and white."""
+    from xtal import Lattice, Structure
+    from xtal.commands.ff import ApplyOptimizedGeometry
+    from xtalapp.viewport.scene import split_by_order
+    settings = ViewSettings(show_cell=False)
+    structure = Structure.from_arrays(
+        Lattice.cubic(10.0), ["N", "H", "C", "Cl"],
+        [[0.93, 0.2, 0.2], [0.99, 0.2, 0.2],
+         [0.30, 0.5, 0.5], [0.477, 0.5, 0.5]], space_group="P1")
+
+    scene = vtk_scene.VtkScene()
+    before = build_scene(structure, settings)
+    scene.set_model(before)
+
+    class Host:
+        pass
+    host = Host()
+    host.structure = structure
+    ApplyOptimizedGeometry([[0.95, 0.2, 0.2], [1.01, 0.2, 0.2],
+                            [0.30, 0.5, 0.5], [0.477, 0.5, 0.5]]
+                           ).do(host)
+    relaxed = build_scene(structure, settings)
+    assert relaxed.n_bond_halves == before.n_bond_halves
+    assert np.array_equal(relaxed.bond_orders, before.bond_orders)
+    scene.set_positions(relaxed)
+
+    drawn = scene._bond_poly.GetCellData().GetScalars()
+    drawn = np.array([drawn.GetTuple3(k)
+                      for k in range(drawn.GetNumberOfTuples())])
+    assert np.array_equal(drawn, split_by_order(relaxed)[0][2])
+
+
 # ======================================================= the scale bar
 
 def test_a_nice_length_is_one_two_or_five_per_decade():

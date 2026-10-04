@@ -1359,12 +1359,23 @@ class VtkScene:
         self._set_labels(model)
 
     def _same_shape(self, model) -> bool:
-        """Does this model draw the same things as the current one?"""
+        """Does this model draw the same things as the current one?
+
+        The colours and radii are compared and not only the counts,
+        because they are what :meth:`set_positions` leaves standing.
+        An atom carried over a cell face turns its bond into two stubs,
+        listed after the whole bonds: as many halves as before, in
+        another order, and the old colours on them.
+        """
         current = self.model
         return (model.n_atoms == current.n_atoms
                 and model.draws_ellipsoids == current.draws_ellipsoids
                 and model.ellipsoid_octants == current.ellipsoid_octants
                 and model.n_bond_halves == current.n_bond_halves
+                and np.array_equal(model.colors, current.colors)
+                and np.array_equal(model.radii, current.radii)
+                and np.array_equal(model.bond_colors,
+                                   current.bond_colors)
                 and np.array_equal(model.bond_orders,
                                    current.bond_orders)
                 and model.bond_render == current.bond_render
