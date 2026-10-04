@@ -79,6 +79,50 @@ Raised by the same review and deliberately left out of 1.0:
   the crystal; Phase 5 releases its caches and trims by atoms, but a
   diff is what would make deep history cheap.
 
+## After v1.0: what the 2026-10-04 review found
+
+The review of UI, functionality, performance and the manual on
+`features/v1-review` fixed what it found that was small (the ring
+search's budget, the menus, the Style and Force Field panels, the
+Move panel, the Sites/Inspector/drag speed-ups, CIF partial charges,
+LAMMPS import, PDB export, the missing manual pages, the figures,
+the tutorials).  What it raised and left, roughly by value to a
+porous-materials user:
+
+- **RASPA input** (M): `simulation.input`, the pseudo-atoms and the
+  mixing rules from UFF, the cell count from the cutoff -- a module
+  that writes and never runs, as `orca.input` does.  The CIF already
+  carries EQeq charges in `_atom_site_charge`.
+- **A defect builder** (M): remove whole linkers or clusters and cap
+  what is left with OH/H2O by the `prepare` rules -- UiO-66's missing
+  linkers are the case everybody asks for.
+- **Fetch a structure** (M): COD and CoRE MOF by id or formula, into
+  the workspace through `place_in_workspace`.
+- **CP2K, Quantum ESPRESSO and VASP inputs** (M each): the ORCA
+  writer is the pattern.
+- **Open metal sites** (S-M): a Colour by entry and a selection from
+  the coordination the graph already gives.
+- **MD and phonons on the ASE engines** (L): NVT/NPT with MACE, ORB
+  and MatterSim; finite-difference modes as DFTB+ has.
+- **A movie of a trajectory** (S-M): the player exists; frames to
+  MP4/GIF.
+- **Batch mode for the CLI** (S-M): `convert`, `inspect` and `run`
+  over a folder, one JSON line a structure.
+- **Per-dialog help** (S): a ? button on the builder, refinement and
+  ORCA dialogs opening the manual's `(mod-...)` anchor.
+- **Tips and help strings** (S): 33 commands with no `tip=` and 30
+  settings with no `Param.help` -- `reference.py` lists them; the
+  wording is the owner's.
+- **The polymer and carbon dialogs' heights** (S): at a screen-capped
+  height the polymer builder's groups crowd its readout, and the
+  carbon builder's groups leave rows of empty space.
+- **voids.classify still holds all 13 directions' links** (S): int32
+  took MFU-4l at 0.25 A from 1090 to 708 MB; streaming the directions
+  is the rest.
+- **Citations the new pages lack**: ZTC and schwarzite literature and
+  the remesh's are not in `references.bib`; the carbon, polymer and
+  refinement pages' science wants the owner's reading.
+
 ## The interface stretch
 
 Planned 2026-09-13: one phase per session, in
@@ -353,18 +397,16 @@ the user's.  If a drag still misbehaves -- especially one that ends
 over the 3D view, which is still a native window -- that is the next
 place to look.
 
-### Four things the deep review's UI pass found and phase 5 left
+### Three things the deep review's UI pass found and phase 5 left
 
 From `review/reports/ui-ux.md`, written 2026-09-18 against v0.2.1 and
 still true.  None was in the shell track's plan; each is small and
 none is urgent.
 
-* **The Move panel's buttons are live with nothing selected** --
-  Apply, Apply -, Mirror and Make planar all invite a click while the
-  panel's own header says `Nothing selected`.  Measure and Inspector
-  disable correctly, so this is an inconsistency rather than a house
-  rule.  `Edit > Paste` is the same with an empty clipboard.  And
-  `Apply -` is not a label anybody reads correctly.
+* **`Edit > Paste` is live with an empty clipboard** -- it reads the
+  system clipboard as well as its own, so knowing it is empty means
+  parsing it on every refresh; it says *nothing to paste* instead.
+  (The Move panel half of this entry shipped on 2026-10-04.)
 * **The Trajectory panel's labels overlap at 440 px** -- `Loop` and
   `Speed` paint over each other, and `No trajectory open` over the
   Adopt button.  The dock's minimum is small because the scroll area
