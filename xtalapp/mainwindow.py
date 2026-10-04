@@ -209,6 +209,14 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
 
         self.status_label = QLabel("")
         self.statusBar().addWidget(self.status_label, 1)
+        # Qt hides a status-bar widget under a passing message only if
+        # the widget is visible when the message arrives.  A file's
+        # import warnings are said before the window is shown, so the
+        # label came up afterwards painted under the message -- two
+        # sentences over each other, neither readable.  The label is
+        # hidden by the message itself, whenever it is said.
+        self.statusBar().messageChanged.connect(
+            lambda text: self.status_label.setVisible(not text))
         self.selection_label = QLabel("")
         self.statusBar().addPermanentWidget(self.selection_label)
 
