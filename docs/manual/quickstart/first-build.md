@@ -312,3 +312,11 @@ is not the one printed here; the figures above come from that run.
 If a step gives you a different answer, the application or this page
 has changed since it was last run.
 :::
+
+## Where to go next
+
+The {doc}`worked tutorials </workflows/tutorials/index>` take the same
+steps to other tasks, each from a shipped sample with the numbers to
+expect: preparing and relaxing a deposited MOF, the porosity of
+HKUST-1, drawing a linker and building on it, a powder pattern, a
+scan of a flexible framework, and exporting for other codes.

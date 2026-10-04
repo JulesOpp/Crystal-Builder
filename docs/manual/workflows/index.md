@@ -15,6 +15,10 @@ page links to the chapter that explains it rather than repeating it:
 optimisation </structure/index>`, {doc}`porosity and properties
 </porosity/index>` and {doc}`frameworks and nets </frameworks/index>`.
 
+The {doc}`worked tutorials <tutorials/index>` at the end of the
+chapter put the methods to work on shipped samples, one task each,
+with the window's steps and the command beside them.
+
 ```{toctree}
 :maxdepth: 1
 
@@ -24,4 +28,5 @@ workspaces
 reports
 scripting
 reproducing
+tutorials/index
 ```
