@@ -119,14 +119,19 @@ def _links(field, lattice, tree, radii, lowest, highest) -> list:
     probe up to ``highest`` needs it."""
     shape = np.array(field.shape)
     flat = field.ravel()
-    start = np.flatnonzero(flat >= lowest)
-    ijk = np.unravel_index(start, field.shape)
+    # 32-bit indices: a grid is never 2**31 points (the size limit
+    # refuses it first), and the link arrays were the peak -- 970 MB
+    # over 1.5 million points as 64-bit.
+    index = np.int32 if flat.size < 2**31 else np.int64
+    start = np.flatnonzero(flat >= lowest).astype(index)
+    ijk = [axis.astype(index) for axis in
+           np.unravel_index(start, field.shape)]
     strides = (field.shape[1] * field.shape[2], field.shape[2], 1)
     # Per axis and per step of -1, 0 or +1: where an index lands, and
     # which cell it lands in, as lookups rather than arithmetic on
     # every point thirteen times over.
-    lands = [{d: (np.arange(n) + d) % n for d in (-1, 0, 1)}
-             for n in field.shape]
+    lands = [{d: ((np.arange(n) + d) % n).astype(index)
+              for d in (-1, 0, 1)} for n in field.shape]
     cells = [{d: (np.arange(n) + d) // n + 1 for d in (-1, 0, 1)}
              for n in field.shape]
     links = []
@@ -153,7 +158,10 @@ def _links(field, lattice, tree, radii, lowest, highest) -> list:
             gate[ask] = np.minimum(
                 gate[ask],
                 grids.surface_distance(tree, radii, lattice, middle))
-        links.append((a, b, wrap, gate))
+        # A segment no probe from ``lowest`` up can use is no link, so
+        # it is not held through the two splits that follow.
+        keep = gate >= lowest
+        links.append((a[keep], b[keep], wrap[keep], gate[keep]))
     return links
 
 
@@ -165,7 +173,8 @@ def _split(field, links, probe):
     if not count:
         nothing = np.zeros(field.shape, dtype=bool)
         return nothing, nothing, 0, 0
-    node = np.full(len(flat), -1, dtype=np.int64)
+    node = np.full(len(flat), -1, dtype=np.int32
+                   if len(flat) < 2**31 else np.int64)
     node[open_] = np.arange(count)
 
     inside_a, inside_b, across = [], [], []
