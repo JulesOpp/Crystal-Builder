@@ -181,6 +181,25 @@ def test_a_ring_fused_on_a_clicked_bond(editor):
     assert editor.smiles() == "c1ccccc1"
 
 
+def test_a_five_ring_template_is_one_click(editor):
+    view = editor.view
+    editor.tools.check("Thiophene")
+    _click(view, 0.0, 0.0)
+    assert editor.smiles() == "c1ccsc1"
+
+
+def test_the_gestures_are_down_the_left_of_the_page(editor):
+    """Bonds, rings and charges in a palette beside the page, each a
+    picture; the elements and commands stay above it."""
+    side = editor.tools.side
+    assert side.geometry().right() < editor.view.geometry().left()
+    for name in ("Select", "Double", "6", "Pyrrole", "+"):
+        assert side.isAncestorOf(editor.tools.button(name)), name
+    for name in ("C", "Undo"):
+        assert not side.isAncestorOf(editor.tools.button(name)), name
+    assert not editor.tools.button("Benzene").icon().isNull()
+
+
 # ------------------------------------------------- metals and points
 
 def test_a_metal_from_the_periodic_table_takes_bonds(editor):

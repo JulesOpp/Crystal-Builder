@@ -48,9 +48,14 @@ is embedded with the metal and the atoms bonded to it pinned to a
 polyhedron (:mod:`xtal.build.coordination`): directly for one metal,
 both ends together for a metal-metal bond, round the shared atom for a
 mu-oxo cluster, and as distance bounds otherwise.  The angles are
-measured afterwards and a molecule off its shapes is refused, never
-handed over; the relax is our UFF4MOF with the shape held.  A molecule
-with no metal never reaches any of it.
+measured afterwards; the relax is our UFF4MOF with the shape held.  A
+metal with one bond, or more than any shape has, has no shape and is
+embedded as the organic part is.  **A drawing its shapes cannot take
+is still built** -- a metal in a four-membered ring cannot be
+tetrahedral -- as near as it will go, relaxed with nothing held, and
+the build says so in ``notes`` rather than refusing: what was drawn is
+what the person wants, and a refusal left them nothing to look at.  A
+molecule with no metal never reaches any of it.
 
 The one honest caveat is sterics: a hydrogen is smaller than the
 carboxylate it stands in for, so a crowded ortho-substituted linker
@@ -106,7 +111,8 @@ def installed() -> bool:
         return False
 
 
-def embed(smiles: str, seed: int = 0xf00d, optimise: bool = True):
+def embed(smiles: str, seed: int = 0xf00d, optimise: bool = True,
+          notes: list | None = None):
     """``(symbols, cart, bonds, connections)`` for one SMILES string.
 
     ``cart`` is centroid-centred, matching
@@ -114,6 +120,10 @@ def embed(smiles: str, seed: int = 0xf00d, optimise: bool = True):
     result drops straight into a paste.  ``bonds`` are ``(i, j,
     order)`` in local indices and ``connections`` indexes the ``X``
     atoms in the order their ``[*:n]`` map numbers ask for.
+
+    ``notes``, given a list, is told what the build had to give up --
+    a metal whose shape the drawing could not take -- in a sentence
+    for a person.
 
     ``seed`` is fixed rather than random on purpose: a test that
     asserts a bond length has to get the same conformer every run, and
@@ -153,7 +163,8 @@ def embed(smiles: str, seed: int = 0xf00d, optimise: bool = True):
     # AddHs appends, so every index taken above stays valid and no
     # remapping is needed after this point.
     mol = Chem.AddHs(mol)
-    cart = _conformer(Chem, AllChem, mol, dummies, seed, optimise)
+    cart = _conformer(Chem, AllChem, mol, dummies, seed, optimise,
+                      [] if notes is None else notes)
 
     symbols = [CONNECTION if atom.GetAtomicNum() == 0
                else atom.GetSymbol() for atom in mol.GetAtoms()]
@@ -243,7 +254,7 @@ def _dummies(mol) -> list[int]:
     return [index for _, index in sorted(found)]
 
 
-def _conformer(Chem, AllChem, mol, dummies, seed, optimise):
+def _conformer(Chem, AllChem, mol, dummies, seed, optimise, notes):
     """Embed and relax a copy in which the connection points are
     hydrogens, and hand back the coordinates of ``mol``'s atoms.
 
@@ -254,7 +265,8 @@ def _conformer(Chem, AllChem, mol, dummies, seed, optimise):
     """
     ladder = _ladder_caps(Chem, mol, dummies)
     if ladder is not None:
-        return _embedded(Chem, AllChem, mol, *ladder, seed, optimise)
+        return _embedded(Chem, AllChem, mol, *ladder, seed, optimise,
+                         notes)
     capped = Chem.RWMol(mol)
     caps = {}
     for index in dummies:
@@ -277,7 +289,8 @@ def _conformer(Chem, AllChem, mol, dummies, seed, optimise):
             capped.AddBond(member, hydrogen, Chem.BondType.SINGLE)
             caps[index].append((member, hydrogen))
     capped = capped.GetMol()
-    cart = _coordinates(Chem, AllChem, mol, capped, seed, optimise)
+    cart = _coordinates(Chem, AllChem, mol, capped, seed, optimise,
+                        notes)
     points = set(dummies)
     for index, pairs in caps.items():
         if len(pairs) > 1:
@@ -288,7 +301,7 @@ def _conformer(Chem, AllChem, mol, dummies, seed, optimise):
     return cart[:mol.GetNumAtoms()]
 
 
-def _coordinates(Chem, AllChem, mol, capped, seed, optimise):
+def _coordinates(Chem, AllChem, mol, capped, seed, optimise, notes):
     """Sanitize, embed and relax ``capped``; its positions."""
     try:
         Chem.SanitizeMol(capped)
@@ -296,9 +309,10 @@ def _coordinates(Chem, AllChem, mol, capped, seed, optimise):
         raise BuildError(f"{Chem.MolToSmiles(mol)} will not sanitize: "
                          f"{exc}") from None
 
-    centres = _metal_centres(Chem, capped)
+    centres = _metal_centres(Chem, capped, notes)
     if centres:
-        return _metal_coordinates(Chem, capped, centres, seed, optimise)
+        return _metal_coordinates(Chem, capped, centres, seed, optimise,
+                                  notes)
     if AllChem.EmbedMolecule(capped, randomSeed=seed) != 0:
         # A ring system ETKDG cannot reach from its distance bounds
         # sometimes embeds from random coordinates instead, so this is
@@ -327,11 +341,18 @@ SHAPE_TOLERANCE = 5.0
 BRIDGED_TOLERANCE = 15.0
 
 
-def _metal_centres(Chem, mol) -> list:
+def _metal_centres(Chem, mol, notes: list | None = None) -> list:
     """``(metal, neighbours, shape, vertex_of, bridged)`` for every
     metal of the
     molecule, its shape the drawing's own or the default.  Empty for
     an organic molecule, which then embeds exactly as it always has.
+
+    A metal with one bond has no geometry to keep, and one with more
+    bonds than any shape has corners (a sandwich) none we know, so
+    neither is a centre: they are embedded as the organic part is.  A
+    shape chosen for another number of bonds -- the drawing changed
+    after the right-click -- gives way to the default, and ``notes``
+    says so.
     """
     from xtal.build import coordination
     from xtal.build.sketch import is_metal
@@ -346,22 +367,27 @@ def _metal_centres(Chem, mol) -> list:
                   if is_metal(mol.GetAtomWithIdx(n).GetSymbol())]
         shape = (atom.GetProp(SHAPE_PROP) if atom.HasProp(SHAPE_PROP)
                  else "")
-        if not neighbours:
+        if len(neighbours) < 2:
             continue
+        if shape and (shape not in coordination.SHAPES or len(
+                coordination.SHAPES[shape][1]) != len(neighbours)):
+            if notes is not None:
+                notes.append(
+                    f"{atom.GetSymbol()} was made "
+                    f"{shape.replace('_', ' ')} but has "
+                    f"{len(neighbours)} bonds, so it was built with "
+                    f"the shape for that many")
+            shape = ""
         if not shape:
             shape = coordination.default_shape(
                 atom.GetSymbol(), len(neighbours), len(metals))
-        if shape is None or shape not in coordination.SHAPES:
-            raise BuildError(
-                f"{atom.GetSymbol()} has {len(neighbours)} bonds, and "
-                f"there is no shape here for that many -- a ring "
-                f"bonded through every atom (a sandwich) is drawn as "
-                f"bonds to a marker at its centre, or not at all")
-        if len(coordination.SHAPES[shape][1]) != len(neighbours):
-            raise BuildError(
-                f"{atom.GetSymbol()} is drawn {shape.replace('_', ' ')}"
-                f", which has {len(coordination.SHAPES[shape][1])} "
-                f"corners, but has {len(neighbours)} bonds")
+        if shape is None:
+            if notes is not None:
+                notes.append(
+                    f"{atom.GetSymbol()} has {len(neighbours)} bonds, "
+                    f"more than any shape here, so it was built "
+                    f"without one")
+            continue
         chelated = [(a, b) for a, b in _pairs(len(neighbours))
                     if _through_ligand(mol, neighbours[a], neighbours[b],
                                        atom.GetIdx())]
@@ -421,7 +447,7 @@ def _through_ligand(mol, a, b, metal, limit: int = 4) -> bool:
     return False
 
 
-def _metal_coordinates(Chem, mol, centres, seed, optimise):
+def _metal_coordinates(Chem, mol, centres, seed, optimise, notes):
     """Embed with every metal's neighbours on its shape.
 
     One metal: ETKDG with the metal and its donors pinned where the
@@ -430,9 +456,14 @@ def _metal_coordinates(Chem, mol, centres, seed, optimise):
     several metals, whose places relative to one another nobody knows,
     the shapes go in as distances instead: each metal-donor bond and
     every donor-donor distance the shape implies, smoothed into the
-    bounds ETKDG embeds from.  Either way the angles are measured, and
-    a molecule further than :data:`SHAPE_TOLERANCE` from its shapes is
-    refused rather than handed over.
+    bounds ETKDG embeds from.  Either way the angles are measured.
+
+    A molecule further than :data:`SHAPE_TOLERANCE` from its shapes
+    is the closest attempt, or ETKDG's own geometry when no attempt
+    embedded at all, relaxed with nothing held -- holding a shape the
+    drawing cannot take only keeps the strain in -- and ``notes`` says
+    which shapes were given up.  Only a molecule ETKDG cannot embed
+    even without them is refused.
     """
     from rdkit.Chem import rdDistGeom
 
@@ -468,18 +499,41 @@ def _metal_coordinates(Chem, mol, centres, seed, optimise):
             worst, cart = error, found
         if error <= 0.0:
             break
+    held = True
     if cart is None or worst > 0.0:
+        off = (centres if cart is None
+               else [c for c in centres if _shape_error(cart, [c]) > 0])
         names = ", ".join(sorted({
             f"{mol.GetAtomWithIdx(c[0]).GetSymbol()} "
-            f"{c[2].replace('_', ' ')}" for c in centres}))
-        raise BuildError(
-            f"RDKit could not build {smiles_of(Chem, mol)} with {names}"
-            + ("" if cart is None else
-               f" (off by {worst:.0f} degrees more than allowed)")
-            + " -- try another shape for the metal (right-click it)")
+            f"{c[2].replace('_', ' ')}" for c in off}))
+        if cart is None:
+            cart = _unshaped(mol, seed)
+        if cart is None:
+            raise BuildError(f"RDKit could not find a 3D geometry for "
+                             f"{smiles_of(Chem, mol)}")
+        held = False
+        notes.append(
+            f"this drawing does not fit {names}, so it was built as "
+            f"near as it would go -- right-click a metal for another "
+            f"shape")
     if optimise:
-        cart = _relax_round_metals(mol, cart, centres)
+        cart = _relax_round_metals(mol, cart, centres, held)
     return cart
+
+
+def _unshaped(mol, seed):
+    """ETKDG's own geometry, no shape asked of any metal, or ``None``."""
+    from rdkit.Chem import rdDistGeom
+
+    for random in (False, True):
+        params = rdDistGeom.ETKDGv3()
+        params.randomSeed = seed
+        params.useRandomCoords = random
+        params.ignoreSmoothingFailures = True
+        if rdDistGeom.EmbedMolecule(mol, params) == 0:
+            return np.array(mol.GetConformer().GetPositions(),
+                            dtype=float)
+    return None
 
 
 def _shape_error(cart, centres) -> float:
@@ -765,11 +819,12 @@ def _side(a: float, b: float, angle: float) -> float:
                          0.0))
 
 
-def _relax_round_metals(mol, cart, centres):
+def _relax_round_metals(mol, cart, centres, hold: bool = True):
     """UFF4MOF -- ours, which has the metals RDKit's UFF lacks -- with
     every metal and its donors held, so the ligands relax and the
-    shape stays the shape.  Unrelaxed if it cannot be set up: the
-    embedded geometry is already a sensible molecule."""
+    shape stays the shape; nothing is held when the shape was given
+    up.  Unrelaxed if it cannot be set up: the embedded geometry is
+    already a sensible molecule."""
     from xtal.core import bonding, p1
     from xtal.core.lattice import Lattice
     from xtal.core.structure import Bond, Structure
@@ -794,7 +849,7 @@ def _relax_round_metals(mol, cart, centres):
         [], bonding.BondRules.from_dict(structure.bond_rules).signature(),
         p1.expand(structure))
     held = set()
-    for metal, neighbours, *_rest in centres:
+    for metal, neighbours, *_rest in centres if hold else ():
         held.add(metal)
         held.update(neighbours)
     try:
@@ -901,11 +956,13 @@ def _path(mol, start: int, goal: int, avoid) -> tuple | None:
     return tuple(reversed(path))
 
 
-def _embedded(Chem, AllChem, mol, capped, where, caps, seed, optimise):
+def _embedded(Chem, AllChem, mol, capped, where, caps, seed, optimise,
+              notes):
     """The coordinates of ``mol`` from a ladder-capped embedding: each
     point out from its members toward the copies standing in for the
     next unit."""
-    cart = _coordinates(Chem, AllChem, mol, capped, seed, optimise)
+    cart = _coordinates(Chem, AllChem, mol, capped, seed, optimise,
+                        notes)
     out = np.zeros((mol.GetNumAtoms(), 3))
     for i, j in where.items():
         out[i] = cart[j]

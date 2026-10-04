@@ -122,12 +122,15 @@ def build_molecule(job) -> JobResult:
         # crash, the same way a block that does not fit its slot is.
         return JobResult.failure(str(exc))
     job.say(f"built {molecule.formula} from {molecule.smiles}")
+    for note in molecule.notes:
+        job.say(note)
     structure = molecule.to_structure()
     connections = (f"; {molecule.n_connections} connection point(s)"
                    if molecule.n_connections else "")
+    notes = "".join(f"; {note}" for note in molecule.notes)
     return JobResult(
         message=f"{molecule.formula}, {molecule.n_atoms} atom(s)"
-                f"{connections}",
+                f"{connections}{notes}",
         structure=structure)
 
 

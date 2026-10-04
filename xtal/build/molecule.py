@@ -47,6 +47,9 @@ class Molecule:
     connections: tuple[int, ...] = ()   # indices of the X atoms
     smiles: str = ""
     name: str = ""
+    #: What the build gave up, in sentences: a metal's shape the
+    #: drawing could not take.  Said, never a reason to refuse.
+    notes: tuple[str, ...] = ()
 
     @property
     def n_atoms(self) -> int:
@@ -103,6 +106,15 @@ class Molecule:
             lattice.to_frac(self.cart + centre), space_group="P1")
         for i, j, order in self.bonds:
             structure.add_bond(Bond(int(i), int(j), (0, 0, 0), order))
+        # The drawing's bonds are the whole graph, so distance is
+        # stated to find nothing.  Left to perceive, a metallacycle
+        # came back bonded across itself: Co in a four-membered ring
+        # is 2.25 A from the far carbon, and the drawing never said so.
+        from xtal.core import p1
+        from xtal.core.bonding import BondRules
+        structure.set_perceived(
+            [], BondRules.from_dict(structure.bond_rules).signature(),
+            p1.expand(structure))
         structure.meta["title"] = self.name or self.smiles
         return structure
 
@@ -118,8 +130,9 @@ def from_smiles(text: str, name: str = "", seed: int = 0xf00d,
     and a benzene with a silent extra hydrogen is a worse answer than
     being told this box does not do connection points.
     """
-    elements, cart, bonds, connections = embed(text, seed=seed,
-                                               optimise=optimise)
+    notes: list[str] = []
+    elements, cart, bonds, connections = embed(
+        text, seed=seed, optimise=optimise, notes=notes)
     if connections and not connection_points:
         from xtal.build.chem import BuildError
         raise BuildError(
@@ -127,4 +140,4 @@ def from_smiles(text: str, name: str = "", seed: int = 0xf00d,
             f"which are only used when saving a building block")
     return Molecule(elements=elements, cart=cart, bonds=bonds,
                     connections=connections, smiles=str(text).strip(),
-                    name=name)
+                    name=name, notes=tuple(notes))

@@ -32,7 +32,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QPalette
-from PySide6.QtWidgets import QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from xtal import build
 from xtal.build import chem
@@ -73,7 +73,11 @@ class SketchEditor(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(2)
         layout.addWidget(self.tools)
-        layout.addWidget(self.view, 1)
+        page = QHBoxLayout()
+        page.setSpacing(2)
+        page.addWidget(self.tools.side)
+        page.addWidget(self.view, 1)
+        layout.addLayout(page, 1)
         self._smiles = ""
         self.view.edited.connect(self._on_edit)
 

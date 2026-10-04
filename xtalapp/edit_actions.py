@@ -132,6 +132,8 @@ class EditActions:
             return
         self.show_status(document.paste(molecule.to_fragment(),
                                         self.paste_offset()))
+        if molecule.notes:
+            self.show_message("; ".join(molecule.notes))
 
     def paste_offset(self):
         """Where something dropped into the structure lands.

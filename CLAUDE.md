@@ -22,7 +22,7 @@ bonding, run force field / DFTB+ / Zeo++ calculations on the result.
 | `xtal/agent/serve.py` | `xtal mcp`: the tools over stdio. A proxy to the window when one is serving, else a `HeadlessHost` of its own sessions; `--window` and `--headless` insist on one. |
 | `xtal/agent/discovery.py`, `proxy.py` | How `xtal mcp` finds a serving window (`mcp.json` in the application-data folder: port, token, pid; `XTAL_APP_DATA` overrides; `launcher()` is the `xtal` a client's line names), and the stdio-to-HTTP forwarding to it. |
 | `xtalapp/` | The Qt/PySide6 + VTK GUI shell. Holds no crystallography of its own. |
-| `xtalapp/widgets/sketcher/` | The 2D sketcher every window that draws a molecule embeds, through `build_molecule.sketch_for` and `dialogs/sketch.SketchEditor` (`set_smiles` in, `smilesChanged` out). Our own painted canvas over `xtal.build.sketch.Sketch`, replacing rdeditor: any element, Ctrl+A over atoms and bonds, a tool chosen with a selection applied to all of it, an element typed over the hovered atom (two letters typed fast are one element, one undo step), a metal's shape and a point's head/tail on right-click (raised through `menus.popup`). Needs `build` only; `sketch` is now an alias for it. |
+| `xtalapp/widgets/sketcher/` | The 2D sketcher every window that draws a molecule embeds, through `build_molecule.sketch_for` and `dialogs/sketch.SketchEditor` (`set_smiles` in, `smilesChanged` out). Our own painted canvas over `xtal.build.sketch.Sketch`, replacing rdeditor: any element, Ctrl+A over atoms and bonds, a tool chosen with a selection applied to all of it, the gestures (bonds, rings and the five-ring templates -- `sketch.TEMPLATES` -- charges) as pictures in a palette left of the page and the elements and commands above it, an element typed over the hovered atom (two letters typed fast are one element, one undo step), a metal's shape and a point's head/tail on right-click (raised through `menus.popup`). Needs `build` only; `sketch` is now an alias for it. |
 | `xtalapp/mainwindow.py` | The shell: menus, docks, tabs, and three mixins it inherits -- `shell_state.ShellRefresh` (refreshing and enabling), `symmetry_actions.SymmetryActions`, `edit_actions.EditActions`. See "Working in mainwindow" below. |
 | `xtalapp/document.py` | `Document` — a structure plus its undo stack. The GUI asks the Document to change things; it does not edit structures directly. |
 | `xtalapp/agent_host.py` | The window as a `Host`: a `WindowSession` per tab whose verbs go through that tab's `Document.run`, crossing to the GUI thread by `Bridge`. The assistant's current tab is its own (`open`, `switch`), never the one the person clicked, and each answer names it (`data["document"]`). Refuses with `WINDOW_BUSY` during playback or a calculation; an `AgentCalculation` is counted like the panel's. |
@@ -398,11 +398,20 @@ stress case).
   drawing's `xtal_shape` atom property) -- one metal directly, a
   metal-metal pair end to end with the donors leaning 6 degrees in,
   metals sharing a mu-O round it, otherwise as distance bounds with
-  every bound through a metal let go first -- then measured, and
-  **refused if off by more than 5 degrees** (15 for a metal bonded to
-  a metal, whose direction is never pinned), never handed over bent.
-  The ligands relax under our UFF4MOF with the shape held; RDKit's
-  UFF has no Pt+2. A molecule with no metal never reaches any of it
+  every bound through a metal let go first -- then measured against
+  5 degrees (15 for a metal bonded to a metal, whose direction is
+  never pinned). The ligands relax under our UFF4MOF with the shape
+  held; RDKit's UFF has no Pt+2. **A drawing no shape fits is still
+  built, and says so** (`embed(notes=...)`, `Molecule.notes`, the
+  dialog's footer in warning tone): the closest attempt, or ETKDG's
+  own when none embeds, relaxed with nothing held -- a Co in a
+  four-membered ring cannot be tetrahedral, and a refusal left nothing
+  to look at. A metal with one bond, or more than any shape has (a
+  sandwich), gets no shape; a right-clicked shape for another count
+  gives way to the default. **A built molecule's bonds are the
+  drawing's**: `Molecule.to_structure` states the perceived graph
+  empty, so distance adds nothing (the Co was bonded across its ring,
+  2.25 A). A molecule with no metal never reaches any of it
   and embeds bit for bit as before. A bond to a metal is drawn as
   what it is: `N` on Pt is amido NH2, an ammine is dative or three H.
 - **A dummy atom is a marker, not chemistry.** `X` — see

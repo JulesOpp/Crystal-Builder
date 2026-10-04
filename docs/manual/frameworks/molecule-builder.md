@@ -46,6 +46,10 @@ The canvas under the string is a sketcher, and needs nothing beyond
 - **Click** the page to place the chosen element, an atom to grow a
   bond from it (or change it to the chosen element), a bond to cycle
   single, double, triple.  **Drag** out of an atom to draw a bond.
+- **The gestures are down the left** -- select, erase, the bond
+  types, the rings and the charges, each a picture of what it draws
+  -- and the elements and Undo, Redo, Clean and Fit are above the
+  page.
 - **Any element**: the common ones are buttons, the periodic table
   button gives the rest, transition metals included.
 - **Hover an atom and type** its new symbol.  A second letter typed
@@ -55,7 +59,8 @@ The canvas under the string is a sketcher, and needs nothing beyond
 - **Ctrl+A** selects every atom and bond, and a tool chosen with a
   selection applies to all of it: Ctrl+A then *Double* makes every
   bond double.  Delete removes the selection.
-- **Rings** of 3 to 8 and benzene go on the empty page, on a lone
+- **Rings** of 3 to 8, and benzene, pyridine, cyclopentadiene,
+  pyrrole, furan and thiophene, go on the empty page, on a lone
   atom (which becomes a corner), off an atom with bonds (as a
   substituent), or fused onto a bond.
 - **Dative** bonds point from donor to metal.  An ordinary bond to a
@@ -72,10 +77,15 @@ seven and eight are linear, trigonal, octahedral, pentagonal
 bipyramidal and square antiprismatic.  **Right-click a metal** to
 choose another shape.  The metal and the atoms bonded to it are placed
 on the shape first and the rest of the molecule is grown round them,
-then relaxed with UFF4MOF holding the shape.  A molecule that cannot
-be built within a few degrees of its shapes is refused with a reason,
-never handed over bent, and so is a metal bonded to every atom of a
-ring (a sandwich), which has no shape here.
+then relaxed with UFF4MOF holding the shape.  A metal with a single
+bond has no shape to keep, and one bonded to every atom of a ring (a
+sandwich) has none here; both are built as the rest of the molecule
+is.  A drawing its shapes cannot take -- a metal in a four-membered
+ring cannot be tetrahedral -- is still built, as near to them as it
+will go and relaxed with nothing held, and the line under the
+drawing says which shape was given up.  The bonds of what is built
+are exactly the ones drawn: nothing is bonded afterwards because it
+happens to sit close.
 
 ### Connection points
 

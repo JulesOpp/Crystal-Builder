@@ -42,7 +42,14 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QMenu, QWidget
 
 from xtal.build import chem, coordination
-from xtal.build.sketch import BOND, CONNECTION, Sketch, is_element, symbol
+from xtal.build.sketch import (
+    BOND,
+    CONNECTION,
+    TEMPLATES,
+    Sketch,
+    is_element,
+    symbol,
+)
 from xtal.core import elements as el
 from xtalapp.widgets import tone
 
@@ -80,7 +87,7 @@ class SketchCanvas(QWidget):
         self.tool = "draw"
         self.element = "C"
         self.order = "single"
-        self.ring: tuple[int, bool] = (6, True)
+        self.ring: tuple[int, bool, str] = (6, True, "")
         self.scale = SCALE
         self.offset = QPointF(0.0, 0.0)
         # Refit on every resize until somebody draws: a drawing set
@@ -205,9 +212,9 @@ class SketchCanvas(QWidget):
                 self.set_order(self.selected_bonds, arg)
             return
         if kind == "ring":
-            size, aromatic = (6, True) if arg == "benzene" else \
-                (int(arg), False)
-            self.tool, self.ring = "ring", (size, aromatic)
+            self.tool, self.ring = "ring", (
+                TEMPLATES[arg] if arg in TEMPLATES else
+                (int(arg), False, ""))
             return
         if kind in ("charge", "hydrogen"):
             self.tool = tool
@@ -551,8 +558,9 @@ class SketchCanvas(QWidget):
                 s.grow(k, "C", _plain(self.order))
             self.edit(change)
         elif self.tool == "ring":
-            size, aromatic = self.ring
-            self.edit(lambda s: s.add_ring(size, aromatic, at=(x, y)))
+            size, aromatic, hetero = self.ring
+            self.edit(lambda s: s.add_ring(size, aromatic, at=(x, y),
+                                           hetero=hetero))
         else:
             self.clear_selection()
 
@@ -568,8 +576,9 @@ class SketchCanvas(QWidget):
         elif tool == "bond":
             self.edit(lambda s: _grow_bond(s, atom, self.order))
         elif tool == "ring":
-            size, aromatic = self.ring
-            self.edit(lambda s: s.add_ring(size, aromatic, atom=atom))
+            size, aromatic, hetero = self.ring
+            self.edit(lambda s: s.add_ring(size, aromatic, atom=atom,
+                                           hetero=hetero))
         elif tool == "erase":
             self.edit(lambda s: s.delete([atom]))
         elif tool.startswith(("charge:", "hydrogen:")):
@@ -590,8 +599,9 @@ class SketchCanvas(QWidget):
             current = self.sketch.bonds[bond].order
             self.set_order([bond], _CYCLE.get(current, "single"))
         elif tool == "ring":
-            size, aromatic = self.ring
-            self.edit(lambda s: s.add_ring(size, aromatic, bond=bond))
+            size, aromatic, hetero = self.ring
+            self.edit(lambda s: s.add_ring(size, aromatic, bond=bond,
+                                           hetero=hetero))
         elif tool == "erase":
             self.edit(lambda s: s.delete(bonds=[bond]))
 

@@ -425,13 +425,14 @@ and bonds, a type applied to a selection, typing over the hovered atom
   zigzag-chain drag; the marquee and click-to-grow cover the same
   ground more slowly.
 - **Sandwich complexes.**  A metal bonded to every carbon of a ring
-  (ferrocene) is refused with a reason: no shape has ten corners, and
-  an eta-5 ring wants its centroid at one vertex, which is a marker
-  `coordination` does not place.
+  (ferrocene) is built with no shape -- ETKDG's own geometry, and a
+  note -- since no shape has ten corners: an eta-5 ring wants its
+  centroid at one vertex, which is a marker `coordination` does not
+  place.
 - **Clusters beyond one hub.**  A paddlewheel and a mu-O cluster
-  (Zn4O) build; two hubs, or a metal-metal bond inside a larger
-  cluster, fall to the distance-bounds tier, which can miss and is
-  then refused.
+  (Zn4O) build on their shapes; two hubs, or a metal-metal bond inside
+  a larger cluster, fall to the distance-bounds tier, which can miss
+  and then builds off its shapes with a note.
 
 ## Symmetry
 

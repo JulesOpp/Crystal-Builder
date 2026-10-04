@@ -55,7 +55,7 @@ from xtal.commands.clipboard import PasteFragment
 from xtal.modules.build import molecule_for
 from xtalapp.dialogs import sketch
 from xtalapp.dialogs.answered import answered
-from xtalapp.widgets.tone import HINT, set_tone
+from xtalapp.widgets.tone import HINT, WARNING, set_tone
 
 #: The action that pastes into the open cell, by name.  Everything
 #: else this dialog is opened for builds a document of its own.
@@ -187,7 +187,10 @@ class BuildMoleculeDialog(QDialog):
             self.molecule = None
             self._say(str(exc), bad=True)
             return
-        self._say(self._outcome(self.molecule))
+        outcome = self._outcome(self.molecule)
+        if self.molecule.notes:
+            outcome += "<br>" + "<br>".join(self.molecule.notes)
+        self._say(outcome, warn=bool(self.molecule.notes))
 
     def _outcome(self, molecule) -> str:
         """What pressing the button will do, in one sentence."""
@@ -216,9 +219,12 @@ class BuildMoleculeDialog(QDialog):
         document = current() if callable(current) else None
         return getattr(document, "structure", None)
 
-    def _say(self, message: str, bad: bool = False) -> None:
+    def _say(self, message: str, bad: bool = False,
+             warn: bool = False) -> None:
         self.footer.setText(message)
-        if bad:
+        if warn:
+            set_tone(self.footer, WARNING)
+        elif bad:
             set_tone(self.footer, None)
             self.footer.setStyleSheet("color: palette(link-visited);")
         else:

@@ -48,6 +48,20 @@ ORDERS = ("single", "double", "triple", "aromatic", "dative")
 #: What a connection point is called on the page and in a structure.
 CONNECTION = "X"
 
+#: The rings drawn whole: ``name -> (size, aromatic, heteroatom)``.
+#: The heteroatom is the ring's last atom, the one the alternating
+#: double bonds leave out of a five-ring -- pyrrole's NH, furan's O --
+#: and on a double bond in pyridine.  Cyclopentadiene is the CH2 form,
+#: which is what a Cp drawn on a metal starts as.
+TEMPLATES = {
+    "benzene": (6, True, ""),
+    "pyridine": (6, True, "N"),
+    "cyclopentadiene": (5, True, ""),
+    "pyrrole": (5, True, "N"),
+    "furan": (5, True, "O"),
+    "thiophene": (5, True, "S"),
+}
+
 #: A bond's length on the page.  The canvas scales; nothing else
 #: needs a unit.
 BOND = 1.0
@@ -238,7 +252,7 @@ class Sketch:
 
     def add_ring(self, size: int, aromatic: bool = False, *,
                  bond: int | None = None, atom: int | None = None,
-                 at=(0.0, 0.0)) -> list[int]:
+                 at=(0.0, 0.0), hetero: str = "") -> list[int]:
         """A regular ``size``-ring fused onto a bond, on an atom, or
         free at a point; its atoms, in order round it.  On a lone atom
         the atom is one of its corners; on an atom with bonds the ring
@@ -246,7 +260,9 @@ class Sketch:
         nitrogen is drawn as.
 
         Fused or hung, the ring goes on the side away from what is
-        there already, which is where a chemist draws it.
+        there already, which is where a chemist draws it.  ``hetero``
+        is the element of the ring's last atom, always a new one
+        (:data:`TEMPLATES`).
         """
         if size < 3:
             raise ValueError("a ring has at least three atoms")
@@ -301,6 +317,8 @@ class Sketch:
             for k in range(0, size - 1, 2):
                 self.bonds[self.bond_between(
                     ring[k], ring[k + 1])].order = "double"
+        if hetero:
+            self.atoms[ring[-1]].element = symbol(hetero)
         return ring
 
     def _crowd_side(self, a, b, mx, my, nx, ny) -> float:

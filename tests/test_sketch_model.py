@@ -12,7 +12,7 @@ import math
 import pytest
 
 from xtal.build import MISSING, chem, installed, library
-from xtal.build.sketch import BOND, Sketch, symbol
+from xtal.build.sketch import BOND, TEMPLATES, Sketch, symbol
 
 needs_rdkit = pytest.mark.skipif(not installed(), reason=MISSING)
 
@@ -97,6 +97,24 @@ def test_a_head_is_one_point_only():
 
 
 # --------------------------------------------------- strings, both ways
+
+@needs_rdkit
+@pytest.mark.parametrize("name, smiles", [
+    ("benzene", "c1ccccc1"), ("pyridine", "c1ccncc1"),
+    ("cyclopentadiene", "C1=CCC=C1"), ("pyrrole", "c1cc[nH]c1"),
+    ("furan", "c1ccoc1"), ("thiophene", "c1ccsc1")])
+def test_every_ring_template_draws_its_molecule(name, smiles):
+    """The heteroatom is the atom the double bonds leave out of a
+    five-ring; on one in pyridine.  On a free page and fused onto a
+    bond alike, since a fused ring's last atom is always a new one."""
+    size, aromatic, hetero = TEMPLATES[name]
+    sketch = Sketch()
+    sketch.add_ring(size, aromatic, hetero=hetero)
+    assert chem.sketch_smiles(sketch) == smiles
+    chain = _chain(2)
+    chain.add_ring(size, aromatic, bond=0, hetero=hetero)
+    assert chem.sketch_smiles(chain) == smiles
+
 
 @needs_rdkit
 def test_a_smiles_survives_the_sketch_round_trip():

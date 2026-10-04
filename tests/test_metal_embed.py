@@ -3,7 +3,8 @@ and the metal path of ``xtal.build.chem.embed``).
 
 ETKDG alone gave cisplatin Cl-Pt-Cl angles of 97-120 degrees and
 Fe(OH)6 angles from 65 to 151, and said nothing.  Each case here is one
-the plan named; a regression is a complex that builds wrong or refuses.
+the plan named; a regression is a complex that builds wrong or refuses
+-- and a drawing no shape fits is built anyway, with a note.
 """
 
 from __future__ import annotations
@@ -99,15 +100,67 @@ def test_the_relax_leaves_the_metal_and_its_donors_where_they_were():
         coordination.bond_length("Pt", "Cl"), abs=0.03)
 
 
-def test_a_sandwich_is_refused_with_a_reason():
-    with pytest.raises(chem.BuildError, match="sandwich"):
-        chem.embed("[CH]12[CH]3[CH]4[CH]5[CH]1[Fe]23456789[CH]%10[CH]6"
-                   "[CH]7[CH]8[CH]9%10")
+def test_a_sandwich_is_built_without_a_shape():
+    """Ten bonds is no polyhedron here; the iron is embedded as the
+    rings are, and the build says so rather than refusing."""
+    notes = []
+    symbols, _cart, bonds, _points = chem.embed(
+        "[CH]12[CH]3[CH]4[CH]5[CH]1[Fe]23456789[CH]%10[CH]6"
+        "[CH]7[CH]8[CH]9%10", notes=notes)
+    assert symbols.count("Fe") == 1
+    assert sum("Fe" in (symbols[i], symbols[j]) for i, j, _ in bonds) \
+        == 10
+    assert any("without one" in note for note in notes)
 
 
-def test_a_shape_with_the_wrong_number_of_corners_is_refused():
-    with pytest.raises(chem.BuildError, match="corners"):
-        chem.embed("Cl[Zn](Cl)(Cl)Cl |atomProp:1.xtal_shape.octahedral|")
+def test_a_metal_with_one_bond_needs_no_shape():
+    """One bond defines no angle: nothing to pin, nothing to say."""
+    from rdkit import Chem
+
+    notes = []
+    symbols, _cart, bonds, _points = chem.embed("[CH3][Fe]", notes=notes)
+    assert "Fe" in symbols and notes == []
+    assert chem._metal_centres(
+        Chem, Chem.AddHs(Chem.MolFromSmiles("[CH3][Fe]"))) == []
+
+
+def test_a_shape_for_another_number_of_bonds_gives_way_to_the_default():
+    """The drawing changed after the right-click: the shape it has
+    corners for now is used, and the build says so."""
+    notes = []
+    chem.embed("Cl[Zn](Cl)(Cl)Cl |atomProp:1.xtal_shape.octahedral|",
+               notes=notes)
+    assert any("octahedral" in note for note in notes)
+
+
+METALLACYCLE = "[CH3][Co]1([CH3])[CH2]C([SiH2][Fe]([OH])[OH])[CH2]1"
+
+
+def test_a_drawing_its_shapes_cannot_take_is_still_built():
+    """A cobalt in a four-membered ring cannot be tetrahedral.  It was
+    refused; it is built as near as it goes, every bond where it was
+    drawn and a sensible length, and the build says which shape it
+    gave up."""
+    notes = []
+    symbols, cart, bonds, _points = chem.embed(METALLACYCLE, notes=notes)
+    assert any("Co tetrahedral" in note for note in notes)
+    for i, j, _order in bonds:
+        length = float(np.linalg.norm(cart[i] - cart[j]))
+        assert 0.9 < length < 2.6, (symbols[i], symbols[j], length)
+
+
+def test_a_built_molecule_has_the_bonds_it_was_drawn_with_and_no_more():
+    """Perceived by distance, the cobalt in its four-membered ring was
+    bonded to the far carbon, 2.25 A across it."""
+    from xtal.build.molecule import from_smiles
+    from xtal.core import bonding
+
+    molecule = from_smiles("[CH3][Co]1([CH3])([OH])[CH2]C([SiH2][Fe]"
+                           "([OH])([OH])[OH])[CH2]1")
+    structure = molecule.to_structure()
+    drawn = {frozenset((i, j)) for i, j, _ in molecule.bonds}
+    got = {frozenset((b.i, b.j)) for b in bonding.perceive(structure)}
+    assert got == drawn
 
 
 # --------------------------------------------- the shapes on their own
