@@ -162,7 +162,7 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
             "xtal.modules", "xtal.modules.dftb_runs", "xtal.analysis",
             "xtal.mof", "xtal.mof.pormake", "xtal.mof.library",
             "xtal.build", "xtal.build.data", "xtal.carbon",
-            "xtal.polymer",
+            "xtal.polymer", "xtal.orca",
             "xtal.agent", "xtal.agent.skill", "xtal.powder",
             "xtalapp", "xtalapp.viewport", "xtalapp.docks",
             "xtalapp.dialogs", "xtalapp.widgets", "xtalapp.refine"]
@@ -188,6 +188,10 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
 # The script Blender runs for Export as STL.  Handed to Blender by
 # path, so it has to be a file on disk in the installed package.
 "xtal.modules" = ["data/*.py"]
+# ORCA's basis sets and solvents, read off its manual by
+# scripts/orca_tables.py.  The ORCA input dialog's basis picker is
+# empty without them.  45 KB.
+"xtal.orca" = ["data/*.json"]
 # PORMAKE's nets and building blocks, vendored with it.  Not optional
 # by the same argument: a topology picker with nothing in it is not a
 # smaller MOF builder, it is a broken one, and there is no second
