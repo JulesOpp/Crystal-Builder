@@ -54,8 +54,16 @@ The canvas under the string is a sketcher, and needs nothing beyond
   button gives the rest, transition metals included.
 - **Hover an atom and type** its new symbol.  A second letter typed
   quickly makes a two-letter element (C then l is Cl), as one undo
-  step.  `1`, `2`, `3` over a bond set its order; `+` and `-` set a
+  step.  The atom's own symbol again takes one hydrogen off, and
+  from none goes back round to a full valence: CH3, CH2, CH, C,
+  CH3.  `1`, `2`, `3` over a bond set its order, and `4` to `8`
+  fuse a saturated ring of that size onto it; `+` and `-` set a
   charge; `*` makes a connection point.
+- **Zoom and pan** to draw a large molecule a part at a time: the
+  wheel or a pinch zooms about the pointer, Ctrl+= and Ctrl+-
+  zoom in and out and Ctrl+0 (or *Fit*) fits the drawing; two
+  fingers on a trackpad, the middle button, or Space held while
+  dragging move the page.
 - **Ctrl+A** selects every atom and bond, and a tool chosen with a
   selection applies to all of it: Ctrl+A then *Double* makes every
   bond double.  Delete removes the selection.

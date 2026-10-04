@@ -13,7 +13,7 @@ import pytest
 pytest.importorskip("PySide6")
 pytest.importorskip("pytestqt")
 
-from PySide6.QtCore import Qt  # noqa: E402
+from PySide6.QtCore import QPoint, QPointF, Qt  # noqa: E402
 from PySide6.QtTest import QTest  # noqa: E402
 from PySide6.QtWidgets import QMenu  # noqa: E402
 
@@ -143,6 +143,65 @@ def test_typing_on_a_bond_sets_its_order(editor):
     QTest.keyClicks(view, "2")
     assert view.sketch.bonds[1].order == "double"
     assert view.sketch.bonds[0].order == "single"
+
+
+def test_typing_a_ring_size_on_a_bond_fuses_a_saturated_ring(editor):
+    """4 to 8 over a bond is cyclobutane to cyclooctane fused there,
+    one undo step; 1-3 stay the bond's order."""
+    view = editor.view
+    view.set_sketch(_chain(2))
+    for size in "45678":
+        _hover_bond(view, 0)
+        QTest.keyClicks(view, size)
+        assert len(view.sketch) == int(size)
+        assert {b.order for b in view.sketch.bonds} == {"single"}
+        view.undo()
+        assert len(view.sketch) == 2
+    _hover_bond(view, 0)
+    QTest.keyClicks(view, "5")
+    assert editor.smiles() == "C1CCCC1"
+
+
+def test_typing_an_atoms_own_element_takes_a_hydrogen_off(editor):
+    """CH3, CH2, CH, C and round to CH3 again -- left automatic, so
+    the label and the string follow what is drawn after."""
+    view = editor.view
+    view.set_sketch(_chain(2))
+    seen = []
+    for _ in range(4):
+        _hover(view, 1)
+        QTest.keyClicks(view, "c")
+        view._typed = None                  # each a separate keystroke
+        seen.append(view.hydrogens[1])
+    assert seen == [2, 1, 0, 3]
+    assert view.sketch.atoms[1].hydrogens is None
+
+
+def test_a_lone_carbon_cycles_down_from_methane(editor):
+    view = editor.view
+    view.set_sketch(_chain(1))
+    _hover(view, 0)
+    QTest.keyClicks(view, "c")
+    assert view.hydrogens[0] == 3
+    view._typed = None
+    for _ in range(3):
+        QTest.keyClicks(view, "c")
+        view._typed = None
+    assert view.sketch.atoms[0].hydrogens == 0      # bare C, as asked
+    QTest.keyClicks(view, "c")
+    assert view.hydrogens[0] == 4
+
+
+def test_c_then_l_on_a_carbon_is_still_chlorine_in_one_step(editor):
+    view = editor.view
+    view.set_sketch(_chain(2))
+    _hover(view, 1)
+    QTest.keyClicks(view, "cl")
+    assert view.sketch.atoms[1].element == "Cl"
+    assert view.sketch.atoms[1].hydrogens is None
+    view.undo()
+    assert view.sketch.atoms[1].element == "C"
+    assert view.hydrogens[1] == 3
 
 
 def test_delete_removes_the_selection(editor):
@@ -280,3 +339,89 @@ def test_a_drawing_that_is_not_a_molecule_leaves_the_box_alone(editor):
     view.edit(lambda s: s.grow(0, "F"))
     assert "too many bonds" in view.problem
     assert editor.smiles() == before
+
+
+# ------------------------------------------------------- zoom and pan
+
+def test_zooming_keeps_the_point_under_the_pointer(editor):
+    view = editor.view
+    view.set_sketch(_chain(3))
+    pointer = view.to_screen(*view.sketch.point(2))
+    before = view.scale
+    view.zoom_by(2.0, pointer)
+    assert view.scale == pytest.approx(min(2 * before,
+                                           canvas_module.MAX_SCALE))
+    after = view.to_screen(*view.sketch.point(2))
+    assert after.x() == pytest.approx(pointer.x())
+    assert after.y() == pytest.approx(pointer.y())
+
+
+def test_zoom_stops_at_its_limits(editor):
+    view = editor.view
+    view.zoom_by(1e6)
+    assert view.scale == canvas_module.MAX_SCALE
+    view.zoom_by(1e-6)
+    assert view.scale == canvas_module.MIN_SCALE
+
+
+def test_ctrl_plus_and_minus_zoom_and_never_charge_an_atom(editor):
+    view = editor.view
+    view.set_sketch(_chain(2))
+    _hover(view, 0)
+    before = view.scale
+    QTest.keyClick(view, Qt.Key_Equal, Qt.ControlModifier)
+    assert view.scale > before
+    QTest.keyClick(view, Qt.Key_Minus, Qt.ControlModifier)
+    assert view.scale == pytest.approx(before)
+    assert view.sketch.atoms[0].charge == 0
+
+
+def test_a_middle_drag_pans_and_draws_nothing(editor):
+    view = editor.view
+    view.set_sketch(_chain(2))
+    start = view.to_screen(-3.0, -3.0).toPoint()
+    end = start + QPoint(40, 25)
+    before = QPointF(view.offset)
+    QTest.mousePress(view, Qt.MiddleButton, Qt.NoModifier, start)
+    QTest.mouseMove(view, end)
+    QTest.mouseRelease(view, Qt.MiddleButton, Qt.NoModifier, end)
+    assert view.offset.x() - before.x() == pytest.approx(40)
+    assert view.offset.y() - before.y() == pytest.approx(25)
+    assert len(view.sketch) == 2
+
+
+def test_space_and_a_drag_pans_instead_of_drawing_a_bond(editor):
+    view = editor.view
+    view.set_sketch(_chain(2))
+    start = view.to_screen(-3.0, -3.0).toPoint()
+    end = start + QPoint(60, 0)
+    QTest.keyPress(view, Qt.Key_Space)
+    QTest.mousePress(view, Qt.LeftButton, Qt.NoModifier, start)
+    QTest.mouseMove(view, end)
+    QTest.mouseRelease(view, Qt.LeftButton, Qt.NoModifier, end)
+    QTest.keyRelease(view, Qt.Key_Space)
+    assert len(view.sketch) == 2
+    assert not view._space
+
+
+def _wheel(view, angle, pixels, phase):
+    from PySide6.QtGui import QWheelEvent
+    at = QPointF(view.width() / 2, view.height() / 2)
+    event = QWheelEvent(at, view.mapToGlobal(at), pixels, angle,
+                        Qt.NoButton, Qt.NoModifier, phase, False)
+    view.wheelEvent(event)
+
+
+def test_a_wheel_zooms_and_a_trackpad_pans(editor):
+    """A mouse wheel's notch zooms in; two fingers on a trackpad (a
+    scroll with phases) move the page and leave the scale alone."""
+    view = editor.view
+    view.set_sketch(_chain(3))
+    before = view.scale
+    _wheel(view, QPoint(0, 120), QPoint(0, 0), Qt.NoScrollPhase)
+    assert view.scale == pytest.approx(before * canvas_module.WHEEL_ZOOM)
+    scale, offset = view.scale, QPointF(view.offset)
+    _wheel(view, QPoint(0, 0), QPoint(12, -30), Qt.ScrollUpdate)
+    assert view.scale == scale
+    assert view.offset.x() - offset.x() == pytest.approx(12)
+    assert view.offset.y() - offset.y() == pytest.approx(-30)

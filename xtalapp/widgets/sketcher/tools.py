@@ -100,7 +100,8 @@ class SketchTools(QWidget):
         bonds = [self._tool(
             name, f"bond:{order}",
             f"{name} bond: click a bond to set it, an atom to grow "
-            f"one; with bonds selected, all of them change", inner,
+            f"one; with bonds selected, all of them change (or "
+            f"hover a bond and type 1-3)", inner,
             _bond_picture(order)) for name, order in BONDS]
         for k in range(0, len(bonds), COLUMNS):
             row_of(bonds[k:k + COLUMNS])
@@ -122,7 +123,8 @@ class SketchTools(QWidget):
             layout.addWidget(self._tool(
                 symbol, f"element:{symbol}",
                 f"Draw {symbol}; with atoms selected, make them {symbol}"
-                f" (or hover an atom and type {symbol})"))
+                f" (or hover an atom and type {symbol}; typed over a "
+                f"{symbol}, one hydrogen fewer)"))
         self.table = PeriodicTableToolButton(
             self, current=lambda: self.canvas.element)
         self.table.chosen.connect(self._from_table)
@@ -137,7 +139,9 @@ class SketchTools(QWidget):
                 ("Undo", canvas.undo, "Undo (Ctrl+Z)"),
                 ("Redo", canvas.redo, "Redo (Shift+Ctrl+Z)"),
                 ("Clean", canvas.clean, "Lay the drawing out again"),
-                ("Fit", canvas.fit, "Fit the drawing to the page")):
+                ("Fit", canvas.fit, "Fit the drawing to the page "
+                 "(Ctrl+0); scroll or pinch to zoom, Space-drag to "
+                 "pan")):
             layout.addWidget(self._command(name, slot, tip))
         self._paint()
         self.check("C")
@@ -247,8 +251,9 @@ def _ring_tip(name: str, size: str) -> str:
     if size in TEMPLATES:
         return (f"{name}: on empty page, an atom (hung off it) or a "
                 f"bond (fused)")
+    typed = f"; or hover a bond and type {size}" if size != "3" else ""
     return (f"A {size}-membered ring: on empty page, an atom (spiro) "
-            f"or a bond (fused)")
+            f"or a bond (fused){typed}")
 
 
 def _bar(parent) -> QFrame:

@@ -17,6 +17,12 @@ one applies to all of it: Ctrl+A then Double makes every bond double,
 Ctrl+A then N makes every atom nitrogen.  With nothing selected a key
 applies to what the pointer is over -- hover an atom and press O.
 
+**The page zooms and pans** so a big molecule can be drawn a corner
+at a time: the wheel or a pinch zooms about the pointer, two fingers
+on a trackpad, the middle button or Space held with a drag pan, and
+Ctrl+= / Ctrl+- / Ctrl+0 zoom in, out and fit -- never + and -
+alone, which are an atom's charge.
+
 **Painted, not a scene graph.**  A drawing is small and redrawn whole;
 hit-testing is a distance to a point or a segment, in model units, and
 keeping it in this file is what keeps hover, keys and clicks agreeing
@@ -28,7 +34,7 @@ from __future__ import annotations
 import math
 import time
 
-from PySide6.QtCore import QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import QEvent, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QFont,
@@ -59,6 +65,12 @@ TYPE_AHEAD = 0.7
 
 #: Pixels per bond length before anything is fitted.
 SCALE = 56.0
+
+#: How far in and out the page goes, in pixels per bond length.
+MIN_SCALE, MAX_SCALE = 6.0, 320.0
+
+#: One wheel notch (120 eighths of a degree) zooms by this much.
+WHEEL_ZOOM = 1.15
 
 #: The one-letter symbols a key gives at once.
 _ONE_LETTER = frozenset(s for s in el.all_symbols() if len(s) == 1)
@@ -102,6 +114,8 @@ class SketchCanvas(QWidget):
         self._dragging = False
         self._moving: tuple | None = None
         self._marquee: QRectF | None = None
+        self._pan: QPointF | None = None
+        self._space = False
         self.hydrogens: dict[int, int] = {}
         self.problem = ""
         self.smiles = ""
@@ -249,6 +263,38 @@ class SketchCanvas(QWidget):
                     s.set_hydrogens([k], current + delta)
         self.edit(change)
 
+    def cycle_hydrogens(self, atoms) -> None:
+        """One hydrogen fewer on each atom, modulo what its valence
+        holds; back at the full count the atom is automatic again, so
+        a bond drawn to it later still takes a hydrogen off."""
+        atoms = sorted(atoms)
+        full = self._full_hydrogens(atoms)
+        if not any(full.values()):
+            return
+
+        def change(s):
+            for k in atoms:
+                most = full.get(k, 0)
+                if not most:
+                    continue
+                current = s.atoms[k].hydrogens
+                if current is None:
+                    current = self.hydrogens.get(k, most)
+                fewer = (min(current, most) - 1) % (most + 1)
+                s.atoms[k].hydrogens = None if fewer == most else fewer
+        self.edit(change)
+
+    def _full_hydrogens(self, atoms) -> dict[int, int]:
+        """How many hydrogens each atom has with its count left to its
+        valence; RDKit's answer, as the labels are."""
+        trial = self.sketch.copy()
+        trial.set_hydrogens(atoms, None)
+        try:
+            mol = chem.sketch_mol(trial)
+        except chem.BuildError:
+            return {}
+        return {k: mol.GetAtomWithIdx(k).GetTotalNumHs() for k in atoms}
+
     def delete_selection(self) -> bool:
         atoms, bonds = sorted(self.selected_atoms), \
             sorted(self.selected_bonds)
@@ -293,6 +339,15 @@ class SketchCanvas(QWidget):
                 self.set_order(bonds, order)
                 return True
             return False
+        if text in "45678":
+            # One bond only: two rings fused at once on a selection
+            # would be drawn over each other.
+            bonds = self._target_bonds()
+            if len(bonds) != 1:
+                return False
+            size, bond = int(text), bonds[0]
+            self.edit(lambda s: s.add_ring(size, bond=bond))
+            return True
         if text in "+-" and atoms:
             self._step_atoms("charge", 1 if text == "+" else -1, atoms)
             return True
@@ -335,7 +390,13 @@ class SketchCanvas(QWidget):
         first = letter.upper()
         applies = (first in _ONE_LETTER
                    or (first == CONNECTION and self.connection_points))
-        if applies:
+        if applies and all(self.sketch.atoms[k].element == first
+                           for k in atoms):
+            # Its own element again takes a hydrogen off, and from none
+            # goes back round to a full valence: CH3, CH2, CH, C, CH3.
+            # Still the type-ahead's step, so C then l is chlorine.
+            self.cycle_hydrogens(atoms)
+        elif applies:
             self.set_element(atoms, first)
         self._typed = (first, atoms, now, applies)
         return applies
@@ -353,6 +414,16 @@ class SketchCanvas(QWidget):
                 self.undo()
         elif command and key == Qt.Key_Y:
             self.redo()
+        elif command and key in (Qt.Key_Equal, Qt.Key_Plus):
+            self.zoom_by(WHEEL_ZOOM ** 2)
+        elif command and key == Qt.Key_Minus:
+            self.zoom_by(WHEEL_ZOOM ** -2)
+        elif command and key == Qt.Key_0:
+            self.fit()
+        elif key == Qt.Key_Space and not modifiers:
+            if not event.isAutoRepeat():
+                self._space = True
+                self.setCursor(Qt.OpenHandCursor)
         elif key in (Qt.Key_Delete, Qt.Key_Backspace):
             self.delete_selection()
         elif key == Qt.Key_Escape and (self.selected_atoms
@@ -362,6 +433,20 @@ class SketchCanvas(QWidget):
             super().keyPressEvent(event)
             return
         event.accept()
+
+    def keyReleaseEvent(self, event) -> None:
+        if event.key() == Qt.Key_Space and not event.isAutoRepeat():
+            self._space = False
+            if self._pan is None:
+                self.unsetCursor()
+        super().keyReleaseEvent(event)
+
+    def focusOutEvent(self, event) -> None:
+        # A Space released in another window never reaches this one.
+        self._space = False
+        if self._pan is None:
+            self.unsetCursor()
+        super().focusOutEvent(event)
 
     # ==================================================================
     #  GEOMETRY
@@ -391,6 +476,56 @@ class SketchCanvas(QWidget):
         self.offset = QPointF(width / 2 - cx * self.scale,
                               height / 2 + cy * self.scale)
         self.update()
+
+    def zoom_by(self, factor: float, about: QPointF | None = None) -> None:
+        """Zoom by ``factor``, keeping the page point under ``about``
+        (the middle of the page if not given) where it is."""
+        if about is None:
+            about = QPointF(self.width() / 2, self.height() / 2)
+        scale = min(MAX_SCALE, max(MIN_SCALE, self.scale * factor))
+        if scale == self.scale:
+            return
+        x, y = self.to_model(about)
+        self.scale = scale
+        self.offset = QPointF(about.x() - x * scale,
+                              about.y() + y * scale)
+        self._auto_fit = False
+        self.hover_at(about)
+        self.update()
+
+    def pan_by(self, dx: float, dy: float) -> None:
+        """Move the drawing ``dx``, ``dy`` pixels across the page."""
+        self.offset = QPointF(self.offset.x() + dx, self.offset.y() + dy)
+        self._auto_fit = False
+        self.update()
+
+    def wheelEvent(self, event) -> None:
+        """A mouse wheel zooms; two fingers on a trackpad pan, unless
+        Ctrl is held, which zooms with either."""
+        zoom = bool(event.modifiers() & Qt.ControlModifier)
+        # A trackpad's scroll has phases; a wheel's has none, and on
+        # macOS a wheel reports a pixel delta too, so that cannot say.
+        trackpad = event.phase() != Qt.NoScrollPhase
+        if trackpad and not zoom:
+            delta = event.pixelDelta()
+            if delta.isNull():
+                delta = event.angleDelta() / 8
+            self.pan_by(delta.x(), delta.y())
+        else:
+            notches = event.angleDelta().y() / 120.0
+            if not notches:
+                notches = event.pixelDelta().y() / 50.0
+            self.zoom_by(WHEEL_ZOOM ** notches, event.position())
+        event.accept()
+
+    def event(self, event) -> bool:
+        if event.type() == QEvent.NativeGesture and \
+                event.gestureType() == Qt.ZoomNativeGesture:
+            self.zoom_by(1.0 + event.value(),
+                         self.mapFromGlobal(event.globalPosition()))
+            event.accept()
+            return True
+        return super().event(event)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -430,6 +565,12 @@ class SketchCanvas(QWidget):
     # ==================================================================
 
     def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MiddleButton or (
+                event.button() == Qt.LeftButton and self._space):
+            self._pan = event.position()
+            self.setCursor(Qt.ClosedHandCursor)
+            event.accept()
+            return
         if event.button() != Qt.LeftButton:
             super().mousePressEvent(event)
             return
@@ -457,6 +598,11 @@ class SketchCanvas(QWidget):
 
     def mouseMoveEvent(self, event) -> None:
         point = event.position()
+        if self._pan is not None:
+            delta = point - self._pan
+            self._pan = point
+            self.pan_by(delta.x(), delta.y())
+            return
         if self._press is None:
             self.hover_at(point)
             return
@@ -472,6 +618,14 @@ class SketchCanvas(QWidget):
             self.hover_at(point)
 
     def mouseReleaseEvent(self, event) -> None:
+        if self._pan is not None and event.button() in (
+                Qt.MiddleButton, Qt.LeftButton):
+            self._pan = None
+            if self._space:
+                self.setCursor(Qt.OpenHandCursor)
+            else:
+                self.unsetCursor()
+            return
         if event.button() != Qt.LeftButton or self._press is None:
             super().mouseReleaseEvent(event)
             return
@@ -708,8 +862,11 @@ class SketchCanvas(QWidget):
             self.rect().adjusted(12, 12, -12, -12),
             Qt.AlignCenter | Qt.TextWordWrap,
             "Click to place an atom, drag to draw a bond.  Hover an "
-            "atom and type a symbol to change it (C then l is Cl); "
-            "Ctrl+A selects everything.")
+            "atom and type a symbol to change it (C then l is Cl), "
+            "its own symbol again for one hydrogen fewer; hover a "
+            "bond and type 1-3 for its order or 4-8 for a ring.  "
+            "Scroll or pinch to zoom, two fingers or Space-drag to "
+            "pan; Ctrl+A selects everything.")
 
     def _paint_marks(self, painter, highlight) -> None:
         """Selection and hover, under everything else."""
