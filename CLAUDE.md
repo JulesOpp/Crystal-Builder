@@ -493,6 +493,16 @@ stress case).
   atom and a primitive cell the atom standing for any hidden one.
   `test_every_structure_operation_states_a_map_that_finds_its_atoms`
   sweeps every operation, and a new one fails it until it is added.
+  **An atom group is the same view state with a name**
+  (`xtal/core/atom_groups.py`, `Document.atom_groups`): a hidden
+  group is in `hidden_mask` beside Show Only Selected's set, a
+  colour is drawn in place of the element's on the atom and its bond
+  halves, and both follow their atoms exactly as the hidden set does
+  (`Document._keep_atom_groups`). Never an undo step and never in a
+  CIF or an export, but **saved in the project's session** -- a
+  restore that no longer fits its cell is dropped. Where groups
+  overlap the later wins; *Colour by* and charges draw over all of
+  them, and Show All ticks every group again.
 - **A size is estimated before it is built, and the profile
   decides.** `xtal/core/limits.py` counts a supercell (`n x |det P|`),
   the atoms a display range draws, a porosity grid's points and a

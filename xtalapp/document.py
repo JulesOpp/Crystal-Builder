@@ -22,6 +22,7 @@ clean again, exactly as in any other editor.
 from __future__ import annotations
 
 from contextlib import nullcontext
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -44,6 +45,7 @@ from xtal.commands.clipboard import (
     PasteFragment,
 )
 from xtal.core import (
+    atom_groups,
     bonding,
     groups,
     measure,
@@ -112,6 +114,7 @@ class Document(QObject):
     planesChanged = Signal()            # a plane defined or dropped
     poresChanged = Signal()             # a pore network drawn or dropped
     overlayChanged = Signal()           # charges or an orbital, likewise
+    atomGroupsChanged = Signal()        # an atom group made, hidden...
     viewChanged = Signal()
     historyChanged = Signal()
     modifiedChanged = Signal(bool)
@@ -168,6 +171,12 @@ class Document(QObject):
         # renumbers the cell keeps the same atoms hidden.
         self.hidden: frozenset = frozenset()
         self._hidden_where = tracking.Record()
+        # Named sets of atoms drawn in a colour of their own, or not
+        # drawn (`xtal.core.atom_groups`).  View state like the hidden
+        # set -- not an undo step, never in the structure, a CIF or an
+        # export -- but written into the project's session, because a
+        # person who coloured the linkers wants them coloured tomorrow.
+        self.atom_groups: list[atom_groups.AtomGroup] = []
         # Whether ``view`` came out of a saved project.  A project
         # carries the view it was saved with and the preference for
         # what a *new* document looks like must not overwrite it --
@@ -273,6 +282,9 @@ class Document(QObject):
                       for k in sorted(self.selection.bonds)],
             "measurements": [m.to_dict() for m in self.measurements],
             "planes": [p.to_dict() for p in self.planes],
+            **({"atom_groups": [g.to_dict(self.cell)
+                                for g in self.atom_groups]}
+               if self.atom_groups else {}),
             **({"pores": self.pores.to_dict()}
                if self.pores is not None else {}),
             **({"charges": self.charges.to_dict()}
@@ -310,6 +322,12 @@ class Document(QObject):
                         color=None if color is None else tuple(color)))
             except (KeyError, TypeError, ValueError):
                 continue
+        for record in session.get("atom_groups", []):
+            group = (atom_groups.from_dict(record, cell,
+                                           self._structure.lattice)
+                     if isinstance(record, dict) else None)
+            if group is not None:
+                self.atom_groups.append(group)
         for record in session.get("measurements", []):
             try:
                 saved = measure.Measurement.from_dict(record)
@@ -377,11 +395,13 @@ class Document(QObject):
         self.selection.clear()
         self.measurements = []
         self.planes = []
+        self.atom_groups = []
         self._restore_session(session)
         self.viewChanged.emit()
         self.selectionChanged.emit()
         self.measurementsChanged.emit()
         self.planesChanged.emit()
+        self.atomGroupsChanged.emit()
         return label
 
     def export(self, path, selection_only: bool = False,
@@ -682,6 +702,7 @@ class Document(QObject):
             self._remeasure()
         self._stale_pores(change)
         self._keep_hidden(change, command, undone)
+        self._keep_atom_groups(change, command, undone)
         self._announce_modified()
         self.structureChanged.emit(int(change))
         self.historyChanged.emit()
@@ -2382,30 +2403,135 @@ class Document(QObject):
         return self.shown_summary()
 
     def show_all(self) -> str:
-        """View > Show All: back to every atom."""
+        """View > Show All: back to every atom -- the Show Only
+        Selected set let go and every hidden atom group ticked again.
+        The groups themselves and their colours stay."""
         if self.hidden:
             self._hide(())
             self.viewChanged.emit()
+        if any(not g.shown for g in self.atom_groups):
+            self.atom_groups = [replace(g, shown=True)
+                                for g in self.atom_groups]
+            self.atomGroupsChanged.emit()
         return f"showing all {self.cell.n_atoms} atoms"
 
     def hidden_mask(self):
         """(N,) bool over the P1 cell, or ``None`` with nothing
-        hidden -- what the scene builder leaves out."""
+        hidden -- what the scene builder leaves out: Show Only
+        Selected's set and every hidden atom group."""
         n_atoms = self.cell.n_atoms
-        atoms = [a for a in self.hidden if a < n_atoms]
-        if not atoms:
-            return None
-        mask = np.zeros(n_atoms, bool)
-        mask[atoms] = True
-        return mask
+        mask = atom_groups.hidden(self.atom_groups, n_atoms)
+        mask[[a for a in self.hidden if a < n_atoms]] = True
+        return mask if mask.any() else None
 
     def shown_summary(self) -> str:
         """"412 of 3188 atoms shown", or ``""`` with none hidden."""
-        if not self.hidden:
+        mask = self.hidden_mask()
+        if mask is None:
             return ""
-        n_atoms = self.cell.n_atoms
-        return (f"{n_atoms - len(self.hidden)} of {n_atoms} atoms "
+        n_atoms = len(mask)
+        return (f"{n_atoms - int(mask.sum())} of {n_atoms} atoms "
                 f"shown")
+
+    # -- atom groups ----------------------------------------------------
+    #
+    # None of these is an undo step: a group is how the crystal is
+    # drawn, and Ctrl+Z taking back a colour instead of the last edit
+    # would be undoing the wrong thing.  Each says what it did, as a
+    # status-bar line.
+
+    def make_atom_group(self, atoms=None, name: str = "", color=None,
+                        shown: bool = True) -> str:
+        """A new atom group of ``atoms`` -- the selection by default --
+        put last in the list, so its colour is drawn over any earlier
+        group's."""
+        n_atoms = self.cell.n_atoms
+        chosen = {int(a) for a in (self.selection.atoms if atoms is None
+                                   else atoms) if 0 <= int(a) < n_atoms}
+        if not chosen:
+            return "nothing selected to group"
+        stem = "Group" if shown else "Hidden"
+        group = atom_groups.make(
+            self.cell, self._structure.lattice, chosen,
+            name or atom_groups.next_name(self.atom_groups, stem),
+            color=color, shown=shown)
+        self.atom_groups.append(group)
+        self.atomGroupsChanged.emit()
+        verb = "hid" if not shown else "grouped"
+        return f"{group.name}: {verb} {len(chosen)} atoms"
+
+    def rename_atom_group(self, row: int, name: str) -> None:
+        name = name.strip()
+        if name and self._atom_group(row) is not None \
+                and self.atom_groups[row].name != name:
+            self._set_atom_group(row, name=name)
+
+    def set_atom_group_color(self, row: int, color) -> None:
+        """Colour a group, or ``None`` to draw it in its elements'
+        colours again."""
+        color = None if color is None else tuple(int(c) for c in color)
+        group = self._atom_group(row)
+        if group is not None and group.color != color:
+            self._set_atom_group(row, color=color)
+
+    def set_atom_group_shown(self, row: int, shown: bool) -> None:
+        group = self._atom_group(row)
+        if group is not None and group.shown != bool(shown):
+            self._set_atom_group(row, shown=bool(shown))
+
+    def select_atom_group(self, row: int) -> str:
+        """Select the group's atoms, in place of the selection."""
+        group = self._atom_group(row)
+        if group is None:
+            return ""
+        if group.empty:
+            return f"{group.name} has no atoms left"
+        self.selection.set_atoms(sorted(group.atoms))
+        self.selectionChanged.emit()
+        return f"selected {len(group.atoms)} atoms of {group.name}"
+
+    def remove_atom_group(self, row: int) -> None:
+        """Forget a group.  Its atoms are drawn as they would have been
+        without it, hidden ones included."""
+        if self._atom_group(row) is not None:
+            del self.atom_groups[row]
+            self.atomGroupsChanged.emit()
+
+    def atom_group_colors(self):
+        """``(rgb, mask)`` over the P1 cell for the scene builder, or
+        ``None`` when no group has a colour."""
+        if not any(g.color is not None for g in self.atom_groups):
+            return None
+        return atom_groups.colors(self.atom_groups, self.cell.n_atoms)
+
+    def _atom_group(self, row: int):
+        return (self.atom_groups[row]
+                if 0 <= row < len(self.atom_groups) else None)
+
+    def _set_atom_group(self, row: int, **changes) -> None:
+        self.atom_groups[row] = replace(self.atom_groups[row], **changes)
+        self.atomGroupsChanged.emit()
+
+    def _keep_atom_groups(self, change: Change, command=None,
+                          undone: bool = False) -> None:
+        """Every atom group on its own atoms after an edit -- by the
+        same rules as the hidden set (:meth:`_keep_hidden`): a
+        symmetry or cell change's map, backwards for an undo; the
+        indices when the numbering is kept; element and position when
+        it is not."""
+        if not self.atom_groups:
+            return
+        via = command.atom_map() if command is not None else None
+        if via is not None and undone:
+            via = via.inverse()
+        before = self.atom_groups
+        self.atom_groups = atom_groups.follow(
+            before, self.cell, self._structure.lattice, via=via,
+            renumbered=bool(change & CHEMISTRY),
+            moved=bool(change & Change.POSITIONS))
+        if any(a.atoms != b.atoms
+               for a, b in zip(before, self.atom_groups, strict=True)):
+            self.atomGroupsChanged.emit()
 
     def _hide(self, atoms) -> None:
         self.hidden = frozenset(int(a) for a in atoms)

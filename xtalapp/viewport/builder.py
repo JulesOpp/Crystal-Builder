@@ -92,7 +92,8 @@ OCCUPANCY_TOL = 1e-3
 def build_scene(structure, settings, selection=None,
                 bond_rules=None, view_direction=None,
                 planes=(), pores=None, charges=None,
-                orbital=None, hidden=None) -> SceneModel:
+                orbital=None, hidden=None,
+                atom_colors=None) -> SceneModel:
     """Build the render model for one structure.
 
     ``selection`` is a :class:`xtal.core.selection.Selection` over P1
@@ -123,6 +124,13 @@ def build_scene(structure, settings, selection=None,
     not drawn, not completed as ghosts, and no bond to them drawn --
     so nothing of them can be clicked either.  They are still in the
     structure, and in every calculation made on it.
+
+    ``atom_colors`` is ``(rgb, mask)`` over the P1 cell: the atom
+    groups' colours (:func:`xtal.core.atom_groups.colors`), drawn in
+    place of the element's on the atoms the mask names and so on
+    their bond halves too.  *Colour by* and charges draw over them --
+    a number is the whole point of that picture -- and *Element*
+    brings them back, because nothing here stores a colour.
 
     ``view_direction`` is the camera's direction of projection, and is
     used for one thing only: laying the second tube of a bond that has
@@ -181,6 +189,11 @@ def build_scene(structure, settings, selection=None,
                               settings, bond_rules)
                   if settings.show_rings and cell.n_atoms else ())
     drawn.finish()
+    painted = _painted(atom_colors, cell.n_atoms)
+    if painted is not None and drawn.count:
+        rgb, mask = painted
+        mine = mask[drawn.atom]
+        drawn.color[mine] = rgb[drawn.atom[mine]]
     color_by = scalars.QUANTITIES.get(settings.color_by)
     if color_by is not None and color_by.per == "bond" and graph is None \
             and cell.n_atoms:
@@ -230,7 +243,8 @@ def build_scene(structure, settings, selection=None,
     if style.atom_render == "label":
         sketched = _sketch_fields(cell, graph, folding, drawn, halves,
                                   starts, ends, settings,
-                                  show_atoms and folding is not None)
+                                  show_atoms and folding is not None,
+                                  painted)
         ink = sketched.pop("ink")
         if "radii" in sketched:
             drawn.radius = sketched.pop("radii")
@@ -479,6 +493,20 @@ def _emit_atoms(cell, settings, style, hidden=None) -> _Drawn:
     return drawn
 
 
+def _painted(atom_colors, n_atoms):
+    """The atom groups' ``(rgb, mask)``, or ``None`` when there is
+    none or it is for a cell of another size -- a stale colouring is
+    another crystal's."""
+    if atom_colors is None:
+        return None
+    rgb, mask = atom_colors
+    rgb = np.asarray(rgb, np.uint8).reshape(-1, 3)
+    mask = np.asarray(mask, bool)
+    if len(rgb) != n_atoms or len(mask) != n_atoms or not mask.any():
+        return None
+    return rgb, mask
+
+
 def _appearance(cell, settings, style):
     """Radius and colour per *P1 atom*, looked up once per element
     rather than once per drawn instance."""
@@ -494,7 +522,7 @@ def _appearance(cell, settings, style):
 
 
 def _sketch_fields(cell, graph, folding, drawn, halves, starts, ends,
-                   settings, labelled) -> dict:
+                   settings, labelled, painted=None) -> dict:
     """The scene model's label-style fields, and what a label style
     puts in place of the radii and colours: a pick radius the size of
     the label, and ink.
@@ -502,6 +530,10 @@ def _sketch_fields(cell, graph, folding, drawn, halves, starts, ends,
     The sizes are fractions of the picture's own median bond
     (:func:`sketch.bond_scale`), so a label is the same size against
     its bonds in a framework and in a molecular crystal.
+
+    With *colour labels* on, an atom in a coloured atom group is
+    written in the group's colour -- a carbon too, since somebody
+    chose it -- and with it off every label is ink, as before.
     """
     background = tuple(settings.background)
     ink = (0, 0, 0) if sum(background) / 3 > 128 else (255, 255, 255)
@@ -521,6 +553,9 @@ def _sketch_fields(cell, graph, folding, drawn, halves, starts, ends,
         [settings.color_for(e) if colored and e not in ("C", "H")
          and not el.is_dummy(e) else ink for e in elements],
         np.uint8).reshape(-1, 3)
+    if colored and painted is not None:
+        rgb, mask = painted
+        colors[mask] = rgb[mask]
     atoms = drawn.atom
     extents = table[atoms]
     pick = np.maximum(extents.max(axis=1), sketch.VERTEX_PICK * scale)
