@@ -155,6 +155,10 @@ class ViewSettings:
     show_bonds: bool = True
     show_cell: bool = True
     show_axes: bool = True
+    # How large the a, b, c triad in the corner is, against its
+    # default.  A figure exported for a slide wants it larger than a
+    # window on a laptop does.
+    axes_scale: float = 1.0
     # Draw a double bond as two tubes and a triple as three.  On by
     # default: a framework whose bonds are all single loses nothing by
     # it, and a structure that is not is unreadable without it.  An MOF
@@ -407,6 +411,7 @@ class ViewSettings:
             "show_bonds": self.show_bonds,
             "show_cell": self.show_cell,
             "show_axes": self.show_axes,
+            "axes_scale": self.axes_scale,
             "show_bond_orders": self.show_bond_orders,
             "show_topology": self.show_topology,
             "topology_color": list(self.topology_color),
@@ -466,7 +471,7 @@ class ViewSettings:
         s = cls()
         for key in ("style", "atom_scale", "bond_radius", "show_atoms",
                     "show_bonds", "show_cell", "show_axes",
-                    "show_bond_orders", "show_topology",
+                    "axes_scale", "show_bond_orders", "show_topology",
                     "show_planes", "show_pores", "pore_spheres",
                     "pore_cavity", "pore_copy",
                     "show_pore_spheres",

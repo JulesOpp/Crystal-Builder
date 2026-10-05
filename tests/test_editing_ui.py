@@ -417,7 +417,7 @@ def test_move_dock_rotate_and_mirror_buttons_fire(window, rutile_cif):
     window.move_dock.angle.setValue(30.0)
     _button_labelled(window.move_dock, "Apply", box="Rotate").click()
     _button_labelled(window.move_dock, "Mirror",
-                     box="Reflect and flatten").click()
+                     box="Reflect").click()
     assert document.stack.depth == 2
 
 

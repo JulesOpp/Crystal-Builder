@@ -300,8 +300,8 @@ def test_the_style_panel_is_headed_groups_in_the_agreed_order(window):
     the order is what one column reads, and the manual photographs it."""
     dock = window.style_dock
     assert [group.title() for group in dock.groups] == [
-        "Drawing", "Transparency", "Pores", "Show", "Scene",
-        "Colours", "Rings", "Colour by", "Depth cue"]
+        "Drawing", "Transparency", "Show", "Scene", "Colours",
+        "Pores", "Rings", "Colour by", "Depth cue"]
     homes = {"Drawing": (dock.style, dock.atom_scale, dock.bond_radius,
                          dock.ellipsoid_probability, dock.octants,
                          dock.carbon, dock.color_labels),
@@ -312,7 +312,8 @@ def test_the_style_panel_is_headed_groups_in_the_agreed_order(window):
                        dock.pore_copy),
              "Scene": (dock.background, dock.labels),
              "Show": (dock.atoms_box, dock.bonds_box, dock.topology,
-                      dock.cell_box, dock.cell_axes, dock.legend),
+                      dock.cell_box, dock.cell_axes, dock.axes_scale,
+                      dock.legend),
              "Colours": tuple(dock.flat.values()),
              "Rings": (dock.rings, dock.ring_max_size,
                        *dock.ring_swatches.values()),
@@ -325,10 +326,12 @@ def test_the_style_panel_is_headed_groups_in_the_agreed_order(window):
     for group in dock.groups:
         for control in homes[group.title()]:
             assert group.isAncestorOf(control), (group.title(), control)
-    # The element table is below the groups, not in either column.
+    # The atom groups and the element table are below the groups,
+    # side by side with each other and in neither column.
     body = dock.widget().widget().layout()
-    assert body.indexOf(dock.columns) < body.indexOf(
-        dock.elements.parentWidget())
+    assert body.indexOf(dock.columns) < body.indexOf(dock.lists)
+    assert dock.lists.isAncestorOf(dock.elements)
+    assert dock.lists.isAncestorOf(dock.atom_groups)
 
 
 def _frame(dock) -> int:
@@ -347,14 +350,18 @@ def test_a_wide_style_panel_puts_its_groups_side_by_side(qtbot, window,
     needed = columns.layout().two_column_width() + _frame(dock)
     if needed > 520:
         columns = _laid_out_at(qtbot, dock, needed)
-    drawing, show, scene = dock.groups[0], dock.groups[3], dock.groups[4]
     assert columns.two_columns()
-    assert drawing.y() == show.y()
-    assert show.x() > drawing.x() + drawing.width()
-    # Scene is on the right, under Show: on the left it made that
-    # column three times the height of the other.
-    assert scene.x() == show.x()
-    assert scene.y() > show.y()
+    left = [g for g in dock.groups if g.x() == dock.groups[0].x()]
+    right = [g for g in dock.groups if g not in left]
+    assert left and right
+    assert right[0].y() == left[0].y()
+    assert right[0].x() > left[0].x() + left[0].width()
+    # Cut where the columns come out even: a fixed cut left the right
+    # column 550 px longer than the left.
+    def bottom(column):
+        return max(g.geometry().bottom() for g in column)
+    tallest = max(g.height() for g in dock.groups)
+    assert abs(bottom(left) - bottom(right)) <= tallest
 
 
 def test_the_style_panel_scrolls_no_further_than_its_last_control(
@@ -370,8 +377,7 @@ def test_the_style_panel_scrolls_no_further_than_its_last_control(
         columns = _laid_out_at(qtbot, dock, needed)
     assert columns.two_columns()
     inner = dock.widget().widget()
-    table = dock.elements.parentWidget()
-    bottom = table.geometry().bottom()
+    bottom = dock.lists.geometry().bottom()
     margin = inner.layout().contentsMargins().bottom()
     assert inner.height() <= max(bottom + margin + 1,
                                  dock.widget().viewport().height())
@@ -1086,3 +1092,93 @@ def test_the_pore_network_box_and_the_view_menu_are_one_setting(
     assert document.view.show_pores
     assert dock.pore_network.isChecked()
     assert not document.modified
+
+
+def test_the_cell_axes_size_slider_scales_the_triad(window, rutile_cif):
+    """The triad was one size, too small on a slide and nothing to be
+    done about it.  A view setting like the others: no undo step, saved
+    with the project, greyed while the triad is off."""
+    from xtalapp.viewport.view_settings import ViewSettings
+
+    document = window.open_path(rutile_cif)
+    dock = window.style_dock
+    assert dock.axes_scale.value() == 100
+
+    dock.axes_scale.setValue(200)
+    assert document.view.axes_scale == pytest.approx(2.0)
+    assert not document.modified
+    assert not document.stack.can_undo
+    assert ViewSettings.from_dict(
+        document.view.to_dict()).axes_scale == pytest.approx(2.0)
+
+    dock.cell_axes.setChecked(False)
+    assert not dock.axes_scale.isEnabled()
+
+
+def test_a_larger_triad_grows_out_of_its_corner():
+    """A square on the shorter side, anchored at the corner: a fraction
+    of each side was a tall box in a tall window, and the triad at its
+    middle floated up into the structure as it grew.  The scale bar
+    starts clear of it, and where it always did at the default size."""
+    from xtalapp.viewport.vtk_scene import (
+        AXES_SIDE,
+        BAR_X,
+        axes_viewport,
+        bar_x,
+    )
+
+    tall = (800, 1200)
+    x0, y0, x1, y1 = axes_viewport(2.0, tall)
+    assert (x0, y0) == (0.0, 0.0)
+    assert x1 * tall[0] == pytest.approx(y1 * tall[1])
+    assert x1 * tall[0] == pytest.approx(2 * AXES_SIDE * 800)
+    wide = (1200, 800)
+    assert bar_x(1.0, wide) == pytest.approx(BAR_X)
+    assert bar_x(0.5, wide) == pytest.approx(BAR_X)
+    for size in (tall, wide):
+        for scale in (1.0, 2.0, 3.0):
+            assert bar_x(scale, size) > axes_viewport(scale, size)[2]
+    assert max(axes_viewport(100.0, tall)) <= 1.0
+
+
+def test_the_element_table_is_as_tall_as_its_elements(window,
+                                                      rutile_cif):
+    """Held at eight rows it was six rows of white under rutile's
+    two."""
+    window.open_path(rutile_cif)
+    table = window.style_dock.elements
+    header = table.horizontalHeader().sizeHint().height()
+    row = table.verticalHeader().defaultSectionSize()
+    assert table.height() == header + 2 * row + 2 * table.frameWidth()
+
+
+def test_the_atom_group_buttons_sit_three_to_a_row(qtbot, window,
+                                                   rutile_cif):
+    """One button a row was five rows of mostly empty button."""
+    window.open_path(rutile_cif)
+    dock = window.style_dock
+    _laid_out_at(qtbot, dock, 360)
+    buttons = dock.atom_group_buttons
+    first = (dock.group_selected_button, buttons["select"],
+             buttons["delete"])
+    assert len({b.y() for b in first}) == 1
+    assert first[0].x() < first[1].x() < first[2].x()
+    assert buttons["colour"].y() == buttons["elements"].y() > first[0].y()
+
+
+def test_no_group_is_cut_short_at_the_top_of_a_column(qtbot, window,
+                                                      rutile_cif):
+    """Qt's macOS edge rule set the first group of each column 15 px
+    shorter than its frame, and its last row of buttons came out
+    squashed flat."""
+    window.open_path(rutile_cif)
+    dock = window.style_dock
+    columns = _laid_out_at(qtbot, dock, 900)
+    assert columns.two_columns()
+    for group in dock.groups:
+        if not group.isVisible():
+            continue
+        need = (group.heightForWidth(group.width())
+                if group.hasHeightForWidth()
+                else group.sizeHint().height())
+        assert group.height() >= need, group.title()

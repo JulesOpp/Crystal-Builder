@@ -74,6 +74,8 @@ from xtalapp.viewport.builder import (  # noqa: E402
 from xtalapp.viewport.svg_export import write_svg  # noqa: E402
 from xtalapp.viewport.vtk_scene import (  # noqa: E402
     VtkScene,
+    axes_viewport,
+    bar_x,
     cell_axes,
     orientation_marker,
     projection_for,
@@ -212,6 +214,12 @@ class ViewportWidget(QWidget):
             self._marker = orientation_marker(self._interactor)
             self._initialised = True
             self.rebuild(reset_camera=True)
+
+    def resizeEvent(self, event):
+        """The triad's square is a fraction of the shorter side, so a
+        new shape is a new corner for it."""
+        super().resizeEvent(event)
+        self._refresh_marker()
 
     def closeEvent(self, event):
         self._interactor.Finalize()
@@ -393,6 +401,12 @@ class ViewportWidget(QWidget):
                 or not np.allclose(matrix, self._marker_matrix)):
             self._marker.SetOrientationMarker(cell_axes(matrix))
             self._marker_matrix = matrix.copy()
+        scale = self.document.view.axes_scale
+        size = (self._interactor.width(), self._interactor.height())
+        corner = axes_viewport(scale, size)
+        if tuple(self._marker.GetViewport()) != corner:
+            self._marker.SetViewport(*corner)
+            self.scene.move_scale_bar(bar_x(scale, size))
         shown = bool(self.document.view.show_axes)
         if bool(self._marker.GetEnabled()) != shown:
             self._marker.SetEnabled(int(shown))

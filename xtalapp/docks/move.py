@@ -40,6 +40,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtalapp.docks import scrolling
+from xtalapp.docks.columns import ReflowColumns
 
 # A held arrow repeats at this rate, after this delay.  Slow enough
 # that one press is one step, fast enough that holding it reads as a
@@ -76,9 +77,15 @@ class MoveDock(QDockWidget):
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(8)
         layout.addWidget(self.summary)
-        layout.addWidget(self._build_translate())
-        layout.addWidget(self._build_rotate())
-        layout.addWidget(self._build_mirror())
+        # Side by side when the column is wide enough, stacked in this
+        # order when it is not -- the Style panel's arrangement.  Reflect
+        # under Translate, because the two columns are then the same
+        # height: Translate | Rotate, Reflect, Flatten left half the
+        # panel empty.
+        self.columns = ReflowColumns(
+            [self._build_translate(), self._build_mirror(),
+             self._build_rotate(), self._build_flatten()], split=None)
+        layout.addWidget(self.columns)
         layout.addStretch(1)
 
         container = QWidget()
@@ -170,29 +177,41 @@ class MoveDock(QDockWidget):
             spin_arrows.addWidget(button)
             self.nudges.append(button)
 
+        # The arrows beside the angle they turn by, as Translate's sit
+        # under their steps; a row of their own was a row of nothing.
+        angle = QHBoxLayout()
+        angle.addWidget(self.angle, 1)
+        angle.addLayout(spin_arrows)
         grid = QGridLayout(box)
         grid.addWidget(QLabel("Axis"), 0, 0)
         grid.addWidget(self.rotation_axis, 0, 1)
         grid.addWidget(QLabel("Angle"), 1, 0)
-        grid.addWidget(self.angle, 1, 1)
-        grid.addLayout(spin_arrows, 2, 1)
-        grid.addWidget(QLabel("About"), 3, 0)
-        grid.addWidget(self.rotation_centre, 3, 1)
-        grid.addWidget(apply_button, 4, 0, 1, 2)
+        grid.addLayout(angle, 1, 1)
+        grid.addWidget(QLabel("About"), 2, 0)
+        grid.addWidget(self.rotation_centre, 2, 1)
+        grid.addWidget(apply_button, 3, 0, 1, 2)
+        # The fields fill the box rather than the labels' column,
+        # which put a label at one edge and its field at the other.
+        grid.setColumnStretch(1, 1)
         return box
 
     def _build_mirror(self) -> QGroupBox:
-        box = QGroupBox("Reflect and flatten")
+        box = QGroupBox("Reflect")
         self.mirror_axis = QComboBox()
         self.mirror_axis.addItems(list(AXES))
         apply_button = QPushButton("Mirror")
         apply_button.clicked.connect(lambda: self.mirror())
         self.actions.append(apply_button)
-        row = QHBoxLayout()
+        row = QHBoxLayout(box)
         row.addWidget(QLabel("Normal"))
         row.addWidget(self.mirror_axis, 1)
         row.addWidget(apply_button)
+        return box
 
+    def _build_flatten(self) -> QGroupBox:
+        """Its own group: it takes no normal, and sharing Reflect's box
+        read as though the plane were the one chosen there."""
+        box = QGroupBox("Flatten")
         self.planar_button = QPushButton("Make planar")
         self.planar_button.setToolTip(
             "Flatten the selection onto its best-fit plane -- for a "
@@ -201,7 +220,6 @@ class MoveDock(QDockWidget):
         self.actions.append(self.planar_button)
 
         inner = QVBoxLayout(box)
-        inner.addLayout(row)
         inner.addWidget(self.planar_button)
         return box
 

@@ -37,9 +37,24 @@ _WIDE = 4096
 
 
 def _height(item, width: int) -> int:
-    if item.hasHeightForWidth():
-        return max(item.heightForWidth(width), item.minimumSize().height())
-    return item.sizeHint().height()
+    """How tall ``item`` is at ``width``, measured on its widget.
+
+    Not on the layout item: on macOS a group box's item is its frame
+    without the title, and the item at the top of a column was set
+    through Qt's edge rule that keeps a widget inside its parent --
+    every column's first group came out 15 px short of its frame, its
+    last row of buttons squashed flat.  :meth:`_ReflowLayout.
+    setGeometry` places the widget itself to match.
+    """
+    widget = item.widget()
+    if widget is None:
+        if item.hasHeightForWidth():
+            return max(item.heightForWidth(width),
+                       item.minimumSize().height())
+        return item.sizeHint().height()
+    if widget.hasHeightForWidth():
+        return max(widget.heightForWidth(width), widget.minimumHeight())
+    return max(widget.sizeHint().height(), widget.minimumHeight())
 
 
 def _unwrapped(item) -> int:
@@ -64,9 +79,11 @@ def _unwrapped(item) -> int:
 
 class _ReflowLayout(QLayout):
     """The first ``split`` items on the left, the rest on the right --
-    or all of them in one column, in that same order."""
+    or all of them in one column, in that same order.  With ``split``
+    ``None`` the cut is wherever the two columns come out most nearly
+    the same height."""
 
-    def __init__(self, parent=None, split: int = 0):
+    def __init__(self, parent=None, split: int | None = 0):
         super().__init__(parent)
         self._items = []
         self.split = split
@@ -122,8 +139,28 @@ class _ReflowLayout(QLayout):
         return self._two_column_width
 
     def two_columns_at(self, width: int) -> bool:
-        return (0 < self.split < len(self._shown())
-                and width >= self.two_column_width())
+        shown = len(self._shown())
+        split = 1 if self.split is None else self.split
+        return 0 < split < shown and width >= self.two_column_width()
+
+    def _balanced(self, shown: list, column: int) -> int:
+        """How many go on the left for the shorter of the two columns.
+
+        A fixed split is right for one picture of the panel only: a
+        style that shows four more rows, a fold opened, a group with
+        nothing to say hidden, and the column that was balanced is
+        half empty.  The Style panel's right-hand column ran 550 px
+        past its left that way.
+        """
+        heights = [_height(item, column) for item in shown]
+        total = sum(heights)
+        best, best_split, left = None, 1, 0
+        for split in range(1, len(shown)):
+            left += heights[split - 1]
+            tallest = max(left, total - left)
+            if best is None or tallest < best:
+                best, best_split = tallest, split
+        return best_split
 
     def _columns(self, width: int) -> list[tuple[list, int]]:
         """Each column's items and its width, for a total ``width``."""
@@ -132,8 +169,10 @@ class _ReflowLayout(QLayout):
         if not self.two_columns_at(width):
             return [(shown, inner)]
         half = (inner - self.spacing()) // 2
-        return [(shown[:self.split], half),
-                (shown[self.split:], inner - self.spacing() - half)]
+        split = (self._balanced(shown, half) if self.split is None
+                 else self.split)
+        return [(shown[:split], half),
+                (shown[split:], inner - self.spacing() - half)]
 
     def hasHeightForWidth(self) -> bool:
         return True
@@ -177,10 +216,20 @@ class _ReflowLayout(QLayout):
             y = rect.y() + m.top()
             for item in items:
                 height = _height(item, column)
-                item.setGeometry(QRect(QPoint(x, y), QSize(column,
-                                                           height)))
+                place = QRect(QPoint(x, y), QSize(column, height))
+                if item.widget() is not None:
+                    item.widget().setGeometry(place)
+                else:
+                    item.setGeometry(place)
                 y += height + self.spacing()
             x += column + self.spacing()
+        owner = self.parentWidget()
+        if getattr(owner, "_hold_height", False):
+            # Here and not on resize: a fold opened inside a group
+            # makes it taller at the same width.
+            need = self.heightForWidth(rect.width())
+            if owner.minimumHeight() != need:
+                owner.setMinimumHeight(need)
 
 
 class ReflowColumns(QWidget):
@@ -188,23 +237,32 @@ class ReflowColumns(QWidget):
 
     ``split`` is how many go in the left-hand column; one column reads
     in the order they were given, so the order is chosen for the
-    narrow case and the split for the wide one.
+    narrow case and the split for the wide one.  ``None`` cuts where
+    the columns come out most even, at every width and every time a
+    group grows or shrinks.
+
+    ``hold_height`` is for a parent that does not ask for height for
+    width -- a splitter -- which would otherwise squeeze one column's
+    worth of groups into the height of the tallest of them.
     """
 
-    def __init__(self, widgets, split: int, parent=None):
+    def __init__(self, widgets, split: int | None, parent=None,
+                 hold_height: bool = False):
         super().__init__(parent)
         self.widgets = list(widgets)
         layout = _ReflowLayout(self, split)
         layout.setContentsMargins(0, 0, 0, 0)
-        # A group's title sits above its frame on macOS, so at 8 px it
-        # touched the frame of the group above.
-        layout.setSpacing(14)
+        # A group's title is inside the rectangle it is given (see
+        # `_height`), so this is the gap from one frame to the next
+        # title.  It was 14 when the title sat outside, and doubled.
+        layout.setSpacing(6)
         for widget in self.widgets:
             layout.addWidget(widget)
         policy = QSizePolicy(QSizePolicy.Policy.Preferred,
                              QSizePolicy.Policy.Preferred)
         policy.setHeightForWidth(True)
         self.setSizePolicy(policy)
+        self._hold_height = hold_height
 
     def two_columns(self) -> bool:
         """Whether it is laid out in two columns at its present width."""

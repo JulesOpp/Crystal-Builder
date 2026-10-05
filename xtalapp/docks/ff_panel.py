@@ -82,7 +82,7 @@ from xtal.ff.uff import calculator as uff_calculator
 from xtal.ff.uff import params
 from xtalapp import extras
 from xtalapp.dialogs.module_form import ParamForm
-from xtalapp.docks.columns import Collapsible
+from xtalapp.docks.columns import Collapsible, ReflowColumns
 from xtalapp.plot import TracePlot
 from xtalapp.widgets.atom_types import (
     COLUMNS,  # noqa: F401
@@ -153,6 +153,12 @@ def engine_note_html(available) -> str:
 #: The chooser's order; an engine not named here follows, in the
 #: registry's order.
 ENGINE_ORDER = ("uff", "xtb", "dftb", "mace", "orb", "mattersim")
+
+
+#: How many letters a combo is wide enough for before it elides.
+COMBO_LETTERS = 10
+#: How many atom types the table shows, opened, before it scrolls.
+TYPE_ROWS = 10
 
 
 class ForceFieldDock(QDockWidget):
@@ -454,22 +460,39 @@ class ForceFieldDock(QDockWidget):
         run_box.setLayout(run)
 
         buttons = QHBoxLayout()
+        buttons.setContentsMargins(0, 0, 0, 0)
         buttons.addWidget(self.energy_button)
         buttons.addWidget(self.run_button)
         buttons.addWidget(self.pause_button)
+        buttons_widget = QWidget()
+        buttons_widget.setLayout(buttons)
 
         # The buttons straight under the model, and the type table
         # folded at the bottom: with the table second and the buttons
         # under eight Optimisation rows, Single point and Optimise were
         # below the fold of a 420 px dock, behind a table that almost
         # nobody edits.  The fold opens itself when typing has
-        # something to say (``refresh``).
+        # something to say (``refresh``).  A wide panel puts the model
+        # and its buttons beside Optimisation, as the Style panel puts
+        # its groups; ``hold_height`` because a splitter does not ask
+        # a pane for its height at a width.
+        # A combo as wide as its longest entry -- "Smart (descent, then
+        # ABNR, then quasi-Newton)" -- set the width two columns need
+        # past any column anybody opens.  Shortened, the entry is
+        # elided in the closed box and read in full in the open list.
+        for combo in (setup_box.findChildren(QComboBox)
+                      + run_box.findChildren(QComboBox)):
+            combo.setSizeAdjustPolicy(
+                QComboBox.SizeAdjustPolicy
+                .AdjustToMinimumContentsLengthWithIcon)
+            combo.setMinimumContentsLength(COMBO_LETTERS)
+        self.columns = ReflowColumns(
+            [setup_box, buttons_widget, run_box], split=2,
+            hold_height=True)
         top = QVBoxLayout()
         top.setContentsMargins(8, 8, 8, 4)
         top.setSpacing(6)
-        top.addWidget(setup_box)
-        top.addLayout(buttons)
-        top.addWidget(run_box)
+        top.addWidget(self.columns)
         top.addStretch(1)
         top_widget = QWidget()
         top_widget.setLayout(top)
@@ -480,6 +503,12 @@ class ForceFieldDock(QDockWidget):
         types_layout.setContentsMargins(0, 0, 0, 0)
         types_layout.addWidget(self.table_heading)
         types_layout.addWidget(self.table, 1)
+        # Opened, the table was four rows tall under a plot that took
+        # every pixel it was offered; it is opened to be read.
+        self.table.setMinimumHeight(
+            self.table.horizontalHeader().sizeHint().height()
+            + TYPE_ROWS * self.table.verticalHeader().defaultSectionSize()
+            + 2 * self.table.frameWidth())
         self.types_fold = Collapsible("Atom types", types)
 
         bottom = QVBoxLayout()

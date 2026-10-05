@@ -183,7 +183,8 @@ LEGEND_HEADING_X = 0.99
 # and how much of the width it aims for before the length is rounded
 # to something a reader can multiply by.
 # Clear of the orientation gizmo, which owns the bottom-left corner
-# out to x = 0.16 -- see :func:`orientation_marker`.
+# out to about x = 0.16 at its default size -- see
+# :func:`axes_viewport` and :func:`bar_x`.
 BAR_X = 0.21
 BAR_Y = 0.055
 BAR_TICK = 0.012            # half-height of the end caps
@@ -540,6 +541,9 @@ class VtkScene:
         self._octant_points = np.zeros((0, 3), float)
         self._octant_cue_state = None
         self._bar_on = False
+        # Moved right by the window when the corner triad is drawn
+        # larger, see :func:`bar_x`.
+        self.bar_x = BAR_X
         self._bar_observer = None
         # The Skeletal style: its ink is cut for one camera, so it is
         # recut from an observer while the style is drawn.
@@ -1938,6 +1942,11 @@ class VtkScene:
         self._watch_camera()
         self._refresh_scale_bar()
 
+    def move_scale_bar(self, left: float) -> None:
+        """Start the bar at ``left``, a fraction of the window across."""
+        self.bar_x = float(left)
+        self._refresh_scale_bar()
+
     def _refresh_scale_bar(self) -> None:
         """Put the bar where the current camera says it belongs.
 
@@ -1965,18 +1974,19 @@ class VtkScene:
             return
         length = _nice_length(span * BAR_TARGET)
         fraction = length / span
-        right = BAR_X + fraction
+        left = self.bar_x
+        right = left + fraction
         # the bar, then a cap at each end
         self._bar_poly.SetPoints(_points(np.array([
-            [BAR_X, BAR_Y, 0.0], [right, BAR_Y, 0.0],
-            [BAR_X, BAR_Y - BAR_TICK, 0.0],
-            [BAR_X, BAR_Y + BAR_TICK, 0.0],
+            [left, BAR_Y, 0.0], [right, BAR_Y, 0.0],
+            [left, BAR_Y - BAR_TICK, 0.0],
+            [left, BAR_Y + BAR_TICK, 0.0],
             [right, BAR_Y - BAR_TICK, 0.0],
             [right, BAR_Y + BAR_TICK, 0.0]])))
         self._bar_poly.Modified()
         self.bar_label.SetInput(f"{length:g} A")
         self.bar_label.GetPositionCoordinate().SetValue(
-            (BAR_X + right) / 2.0, BAR_Y + BAR_TICK * 1.6)
+            (left + right) / 2.0, BAR_Y + BAR_TICK * 1.6)
         ink = ((0.0, 0.0, 0.0) if self.model is None
                or sum(self.model.background) / 3 > 128
                else (1.0, 1.0, 1.0))
@@ -2342,6 +2352,37 @@ def cell_axes(matrix) -> vtkPropAssembly:
     return parts
 
 
+#: The side of the square the triad is drawn in, as a fraction of the
+#: window's shorter side, at its default size.
+AXES_SIDE = 0.24
+#: The largest the triad may be made, against its default.
+AXES_SCALE_MAX = 3.0
+#: How far past the triad's square the scale bar starts.
+BAR_GAP = 0.03
+
+
+def axes_viewport(scale: float = 1.0, size=(1, 1)
+                  ) -> tuple[float, float, float, float]:
+    """The corner the triad is drawn in, at ``scale`` times its size,
+    for a window ``size`` (width, height) across.
+
+    A square anchored at the corner, so the triad grows out of it.  A
+    fixed fraction of the width and of the height was a tall box in a
+    tall window, and the triad -- drawn at the middle of its box --
+    floated up into the structure as it was made larger.
+    """
+    width, height = (max(int(v), 1) for v in size)
+    scale = min(max(float(scale), 0.1), AXES_SCALE_MAX)
+    side = min(AXES_SIDE * scale * min(width, height), width, height)
+    return (0.0, 0.0, side / width, side / height)
+
+
+def bar_x(axes_scale: float = 1.0, size=(1, 1)) -> float:
+    """Where the scale bar starts: clear of the triad's square however
+    large it is drawn, and never left of where it always started."""
+    return max(BAR_X, axes_viewport(axes_scale, size)[2] + BAR_GAP)
+
+
 def orientation_marker(interactor, matrix=None
                        ) -> vtkOrientationMarkerWidget:
     """The a, b, c triad in the corner.
@@ -2354,7 +2395,7 @@ def orientation_marker(interactor, matrix=None
     widget.SetOrientationMarker(
         cell_axes(np.eye(3) if matrix is None else matrix))
     widget.SetInteractor(interactor)
-    widget.SetViewport(0.0, 0.0, 0.18, 0.24)
+    widget.SetViewport(*axes_viewport())
     widget.SetEnabled(1)
     widget.InteractiveOff()
     return widget

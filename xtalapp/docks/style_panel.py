@@ -100,6 +100,9 @@ SWATCH_WIDTH = 44
 #: Ring swatches to a row: four of them are 176 px with their gaps,
 #: inside what a panel may ask of its column.
 RING_SWATCHES_PER_ROW = 4
+#: The corner triad's size, in percent of its default.
+AXES_SCALE_MIN = 50
+AXES_SCALE_MAX = 300
 #: How many elements the table shows before it scrolls.
 ELEMENT_ROWS = 8
 #: How many atom groups the list shows before it scrolls.
@@ -214,10 +217,12 @@ class StylePanelDock(QDockWidget):
         body.setSpacing(8)
         self.columns = self._build_global()
         body.addWidget(self.columns)
-        body.addWidget(self._atom_groups_group())
-        # Full width and below both columns: a table is the one thing
-        # here that is as wide as it is given.
-        body.addWidget(self._build_elements())
+        # Below both columns and side by side with each other: a list
+        # and a table, each with its buttons, each as tall as the
+        # other near enough, and both as wide as they are given.
+        self.lists = ReflowColumns(
+            [self._atom_groups_group(), self._build_elements()], split=1)
+        body.addWidget(self.lists)
         body.addStretch(1)
 
         inner = QWidget()
@@ -230,25 +235,22 @@ class StylePanelDock(QDockWidget):
     def _build_global(self) -> ReflowColumns:
         """The nine groups, in the order one column reads them.
 
-        Two columns put Drawing, Transparency and Pores -- how the
-        atoms and what was measured among them are drawn -- on the
-        left, and Show, Scene, Colours and the rest -- what is drawn
-        with them and around them -- on the right.  One column was
-        747 px of controls with no heading anywhere, and the thing
-        somebody came to change was always below the fold.
-        Scene was on the left until 2026-10, which made that column
-        1250 px against the right's 420.  The pore controls were split
-        between Show and Scene until the v1.0 review; they are one
-        group now, on the left under Transparency, where Drawing's
-        rows for other styles no longer take room -- they are hidden
-        under a style they do not apply to rather than greyed.
+        What is drawn and how -- Drawing, Transparency, Show, Scene,
+        Colours -- then what a calculation or a choice adds over it --
+        Pores, Rings, Colour by, Depth cue.  Two columns cut that
+        order wherever the two come out most even (``split=None``):
+        a fixed cut was balanced for one style only, and the
+        right-hand column ran 550 px past the left with a skeletal
+        style's rows hidden.  One column was 747 px of controls with
+        no heading anywhere, and the thing somebody came to change was
+        always below the fold.
         """
         self.groups = [self._drawing_group(), self._transparency_group(),
-                       self._pores_group(),
                        self._show_group(), self._scene_group(),
-                       self._colours_group(), self._rings_group(),
-                       self._color_by_group(), self._depth_cue_group()]
-        return ReflowColumns(self.groups, split=3)
+                       self._colours_group(), self._pores_group(),
+                       self._rings_group(), self._color_by_group(),
+                       self._depth_cue_group()]
+        return ReflowColumns(self.groups, split=None)
 
     @staticmethod
     def _form(title: str) -> tuple[QGroupBox, QFormLayout]:
@@ -545,9 +547,22 @@ class StylePanelDock(QDockWidget):
         self.legend = QCheckBox("Element legend")
         self.legend.toggled.connect(
             lambda v: self._set(show_legend=v))
+        # Under its tick, indented like a choice that belongs to it.
+        self.axes_scale = QSlider(Qt.Horizontal)
+        self.axes_scale.setRange(AXES_SCALE_MIN, AXES_SCALE_MAX)
+        self.axes_scale.setToolTip(
+            "How large the a, b, c triad is drawn, against its default")
+        self.axes_scale.valueChanged.connect(
+            lambda v: self._set(axes_scale=v / 100.0))
+        axes_size = QHBoxLayout()
+        axes_size.setContentsMargins(22, 0, 0, 0)
+        axes_size.addWidget(QLabel("Size"))
+        axes_size.addWidget(self.axes_scale, 1)
         for check in (self.atoms_box, self.bonds_box, self.topology,
-                      self.cell_box, self.cell_axes, self.legend):
+                      self.cell_box, self.cell_axes):
             column.addWidget(check)
+        column.addLayout(axes_size)
+        column.addWidget(self.legend)
         return box
 
     def _colours_group(self) -> QGroupBox:
@@ -747,31 +762,35 @@ class StylePanelDock(QDockWidget):
         self.elements.horizontalHeader().setSectionResizeMode(
             QHeaderView.Stretch)
         self.elements.cellDoubleClicked.connect(self._on_element_cell)
-        # A set number of rows that scroll inside the table.  Stretched
-        # to fill the panel it was 4 rows of MOF-5 and 400 px of white,
-        # and it pushed everything above it apart as the column grew.
-        header = self.elements.horizontalHeader().sizeHint().height()
-        row = self.elements.verticalHeader().defaultSectionSize()
-        frame = 2 * self.elements.frameWidth()
-        self.elements.setFixedHeight(header + ELEMENT_ROWS * row + frame)
+        self._fit_elements(0)
 
-        reset = QPushButton("Reset colours and radii")
+        reset = QPushButton("Reset Colours and Radii")
         reset.setToolTip(
             "Back to the element palette and the standard radii")
         reset.clicked.connect(self.reset_elements)
 
-        layout = QVBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
+        box = QGroupBox("Elements")
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(*GROUP_MARGINS)
         layout.addWidget(self.elements)
         layout.addWidget(reset)
-        page = QWidget()
-        page.setLayout(layout)
-        return page
+        return box
+
+    def _fit_elements(self, rows: int) -> None:
+        """As tall as the elements there are, up to ``ELEMENT_ROWS``,
+        then scroll.  Stretched to fill the panel it was 4 rows of
+        MOF-5 and 400 px of white; held at eight rows it was still
+        four rows of white under rutile's two."""
+        header = self.elements.horizontalHeader().sizeHint().height()
+        row = self.elements.verticalHeader().defaultSectionSize()
+        frame = 2 * self.elements.frameWidth()
+        shown = min(max(rows, 1), ELEMENT_ROWS)
+        self.elements.setFixedHeight(header + shown * row + frame)
 
     def _atom_groups_group(self) -> QGroupBox:
         """Named sets of atoms, each with a show tick, a swatch and a
-        name edited in place.  Full width, like the element table,
-        because a name is as wide as somebody makes it."""
+        name edited in place.  Beside the element table, and as wide
+        as it, because a name is as wide as somebody makes it."""
         box = QGroupBox("Atom groups")
         layout = QVBoxLayout(box)
         layout.setContentsMargins(*GROUP_MARGINS)
@@ -790,47 +809,51 @@ class StylePanelDock(QDockWidget):
         self.atom_groups.setFixedHeight(
             ATOM_GROUP_ROWS * row + 2 * self.atom_groups.frameWidth())
         self.atom_groups_hint = QLabel(
-            "Select atoms and choose View > Group selected atoms... "
-            "to make one")
+            "Select atoms, then Group Selected")
         self.atom_groups_hint.setWordWrap(True)
         set_tone(self.atom_groups_hint, HINT)
 
         buttons = QGridLayout()
         self.atom_group_buttons = {}
         for key, label, tip, slot in [
-                ("select", "Select Group", "Select the group's atoms, "
+                ("select", "Select", "Select the group's atoms, "
                  "in place of the selection", self._select_atom_group),
                 ("colour", "Set Colour", "Draw the group in a colour",
                  self._colour_atom_group),
-                ("elements", "Reset to Element Colours", "Draw the "
+                ("elements", "Element Colours", "Draw the "
                  "group in its elements' colours again",
                  self._uncolour_atom_group),
-                ("delete", "Delete Group", "Forget the group; its atoms "
+                ("delete", "Delete", "Forget the group; its atoms "
                  "are drawn as they would be without it",
                  self._delete_atom_group)]:
             button = QPushButton(label)
             button.setToolTip(tip)
             button.clicked.connect(lambda _checked=False, f=slot: f())
             self.atom_group_buttons[key] = button
-        # Select and Delete share a row; the colour buttons take one
-        # each, since Reset to Element Colours beside anything is wider
-        # than a column may be (`docks.MAXIMUM_MINIMUM`).
-        buttons.addWidget(self.atom_group_buttons["select"], 0, 0)
-        buttons.addWidget(self.atom_group_buttons["delete"], 0, 1)
-        buttons.addWidget(self.atom_group_buttons["colour"], 1, 0, 1, 2)
-        buttons.addWidget(self.atom_group_buttons["elements"], 2, 0, 1, 2)
-
         # The menu's command, so its enabling (atoms selected, nothing
         # playing) is the one rule; wired by `use_group_action`.
-        self.group_selected_button = QPushButton("Group Selected Atoms")
+        self.group_selected_button = QPushButton("Group Selected")
         self.group_selected_button.setToolTip(
-            "Name the selected atoms as a new atom group")
+            "Name the selected atoms as a new atom group "
+            "(View > Group selected atoms...)")
         self.group_selected_button.setEnabled(False)
+
+        # Three to a row and then two, on a grid of six so each row
+        # shares its width out evenly: one button a row was five rows
+        # of mostly empty button.  The labels are short so that three
+        # still fit a column dragged nearly shut.
+        buttons.addWidget(self.group_selected_button, 0, 0, 1, 2)
+        buttons.addWidget(self.atom_group_buttons["select"], 0, 2, 1, 2)
+        buttons.addWidget(self.atom_group_buttons["delete"], 0, 4, 1, 2)
+        buttons.addWidget(self.atom_group_buttons["colour"], 1, 0, 1, 3)
+        buttons.addWidget(self.atom_group_buttons["elements"], 1, 3, 1, 3)
+        for column in range(6):
+            buttons.setColumnStretch(column, 1)
 
         layout.addWidget(self.atom_groups_hint)
         layout.addWidget(self.atom_groups)
-        layout.addWidget(self.group_selected_button)
         layout.addLayout(buttons)
+        layout.addStretch(1)
         return box
 
     def use_group_action(self, action) -> None:
@@ -945,6 +968,8 @@ class StylePanelDock(QDockWidget):
         self.bonds_box.setChecked(view.show_bonds)
         self.cell_box.setChecked(view.show_cell)
         self.cell_axes.setChecked(view.show_axes)
+        self.axes_scale.setValue(round(view.axes_scale * 100))
+        self.axes_scale.setEnabled(view.show_axes)
         self.topology.setChecked(view.show_topology)
         self._choose(self.pore_spheres, view.pore_spheres)
         self.pore_network.setChecked(view.show_pores)
@@ -1030,6 +1055,7 @@ class StylePanelDock(QDockWidget):
                          key=el.atomic_number)
         view = document.view
         self.elements.setRowCount(len(symbols))
+        self._fit_elements(len(symbols))
         for row, symbol in enumerate(symbols):
             color = view.color_for(symbol)
             radius = view.base_radius(symbol, "covalent")
