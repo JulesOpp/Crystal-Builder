@@ -43,7 +43,15 @@ from xtal.commands.clipboard import (
     InsertMolecules,
     PasteFragment,
 )
-from xtal.core import bonding, groups, measure, p1, properties, symmetry
+from xtal.core import (
+    bonding,
+    groups,
+    measure,
+    p1,
+    properties,
+    symmetry,
+    tracking,
+)
 from xtal.core import selection as sel
 from xtal.core.selection import Selection
 from xtal.core.structure import CHEMISTRY, TOPOLOGY, Change
@@ -159,7 +167,7 @@ class Document(QObject):
         # ``_hidden_where`` is where they were, so an edit that
         # renumbers the cell keeps the same atoms hidden.
         self.hidden: frozenset = frozenset()
-        self._hidden_where = ((), np.zeros((0, 3)))
+        self._hidden_where = tracking.Record()
         # Whether ``view`` came out of a saved project.  A project
         # carries the view it was saved with and the preference for
         # what a *new* document looks like must not overwrite it --
@@ -2400,11 +2408,7 @@ class Document(QObject):
 
     def _hide(self, atoms) -> None:
         self.hidden = frozenset(int(a) for a in atoms)
-        cell = self.cell
-        order = sorted(self.hidden)
-        self._hidden_where = (tuple(cell.elements[a] for a in order),
-                              np.asarray(cell.frac[order], float)
-                              .reshape(-1, 3))
+        self._hidden_where = tracking.record(self.cell, self.hidden)
 
     def _keep_hidden(self, change: Change) -> None:
         """The same atoms hidden after an edit, wherever it put them
@@ -2422,26 +2426,11 @@ class Document(QObject):
             return
         cell = self.cell
         if not change & CHEMISTRY and max(self.hidden) < cell.n_atoms \
-                and len(self._hidden_where[0]) == len(self.hidden):
+                and len(self._hidden_where) == len(self.hidden):
             if change & Change.POSITIONS:
                 self._hide(self.hidden)     # moved, not renumbered
             return
-        from scipy.spatial import cKDTree
-
-        symbols, where = self._hidden_where
-        found: set[int] = set()
-        if cell.n_atoms and len(symbols):
-            home = np.mod(np.asarray(cell.frac, float), 1.0)
-            home[home >= 1.0] = 0.0
-            wanted = np.mod(where, 1.0)
-            wanted[wanted >= 1.0] = 0.0
-            tree = cKDTree(home, boxsize=1.0)
-            distance, atom = tree.query(wanted)
-            for symbol, d, a in zip(symbols, distance, atom,
-                                    strict=True):
-                if d < 1e-4 and cell.elements[int(a)] == symbol:
-                    found.add(int(a))
-        self._hide(found)
+        self._hide(tracking.find(cell, self._hidden_where))
 
     def set_cells(self, na: float, nb: float, nc: float) -> None:
         self.view.set_cells(na, nb, nc)
