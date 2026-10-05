@@ -108,6 +108,8 @@ def build_docks(window):
     window.move_dock = MoveDock(window)
     window.move_dock.statusMessage.connect(window.show_status)
     window.style_dock = StylePanelDock(window)
+    window.style_dock.use_group_action(
+        window.actions_["group_selected"])
 
     window.measure_dock = MeasureDock(window)
     window.measure_dock.targetChanged.connect(window._on_measure_target)

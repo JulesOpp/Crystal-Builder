@@ -81,6 +81,8 @@ def add_help_button(buttons, name: str) -> None:
     from PySide6.QtWidgets import QDialogButtonBox
 
     button = buttons.addButton(QDialogButtonBox.Help)
+    # Never the default: Return belongs to the dialog's own action.
+    button.setAutoDefault(False)
     found = page(name)
     if found is None:
         button.setEnabled(False)

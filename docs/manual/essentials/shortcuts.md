@@ -39,7 +39,6 @@ records the first, and the second is noted in the table.
 | Edit | {ref}`Delete <cmd-delete_selection>` | {kbd}`Del`, also {kbd}`Backspace` |
 | Select | {ref}`Select all <cmd-select_all>` | {kbd}`Ctrl+A` |
 | Select | {ref}`Invert selection <cmd-invert_selection>` | {kbd}`Ctrl+I` |
-| Select | {ref}`Grow ▸ Grow to bonded neighbours <cmd-expand_bonded>` | {kbd}`Ctrl+G` |
 | Select | {ref}`Grow ▸ Grow to whole fragment <cmd-expand_fragment>` | {kbd}`Ctrl+Shift+G` |
 | Structure | {ref}`Add atom… <cmd-add_atom_dialog>` | {kbd}`Ctrl+Shift+A` |
 | Structure | {ref}`Mouse mode ▸ Select <cmd-mode_select>` | {kbd}`Ctrl+1` |
@@ -54,6 +53,7 @@ records the first, and the second is noted in the table.
 | Measure | {ref}`Measure selection <cmd-measure_selection>` | {kbd}`Ctrl+M` |
 | Measure | {ref}`Define plane from selection <cmd-define_plane>` | {kbd}`Ctrl+Shift+P` |
 | View | {ref}`Display range… <cmd-display_range>` | {kbd}`Ctrl+R` |
+| View | {ref}`Group selected atoms… <cmd-group_selected>` | {kbd}`Ctrl+G` |
 | View | {ref}`Along a <cmd-view_a>` | {kbd}`1` |
 | View | {ref}`Along b <cmd-view_b>` | {kbd}`2` |
 | View | {ref}`Along c <cmd-view_c>` | {kbd}`3` |

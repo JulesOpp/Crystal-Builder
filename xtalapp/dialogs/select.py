@@ -36,12 +36,12 @@ from PySide6.QtWidgets import (
     QPushButton,
     QSpinBox,
     QStackedWidget,
-    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 from xtal.core import groups
+from xtalapp import manual
 from xtalapp.widgets.tone import HINT, set_tone
 
 ANY = "Any element"
@@ -112,26 +112,18 @@ RULE_HELP = {
            "every edge through.",
 }
 
-#: What each way of combining does to what is already selected.
-COMBINE_HELP = {
-    "replace": "Forget the current selection and take what the rule "
-               "finds.",
-    "add": "Keep the current selection and add what the rule finds.",
-    "remove": "Take what the rule finds out of the current selection.",
-    "intersect": "Keep only the atoms both in the current selection and "
-                 "found by the rule.",
-}
-
 INTRO = ("Choose a rule, fill in its fields, then choose how it "
          "combines with what is already selected and press Apply.  "
          "The window stays open, so rules can be applied one after "
          "another to build up a selection.")
 
-EXAMPLE = ("Four-coordinate Zn in the lower half of the cell:\n"
-           "1.  Select Coordination, Zn, exactly 4, and Replace the "
-           "selection; press Apply.\n"
-           "2.  Select Inside a box, from 0, 0, 0 to 1, 1, 0.5, and "
-           "Intersect with the selection; press Apply.")
+#: The manual's page on this dialog, with a worked two-rule example.
+MANUAL_PAGE = "essentials/select"
+
+#: Wide enough that the longest rule's help line wraps to three lines
+#: rather than six, and the functional groups' names with their
+#: counts fit the chooser.
+MINIMUM_WIDTH = 460
 
 #: The bond orders a person names, and what they are called.
 ORDERS = (("Any order", None), ("Single", 1.0), ("Aromatic", 1.5),
@@ -225,19 +217,6 @@ class SelectDialog(QDialog):
 
         self.intro = _hint(INTRO)
         self.rule_help = _hint("")
-        self.how_help = _hint("")
-        self.example = _hint(EXAMPLE)
-        # Folded: it is read once, and left open it would make the
-        # dialog a third taller every time after.
-        self.example.setVisible(False)
-        self.example_button = QToolButton()
-        self.example_button.setText("Example")
-        self.example_button.setToolButtonStyle(
-            Qt.ToolButtonTextBesideIcon)
-        self.example_button.setArrowType(Qt.RightArrow)
-        self.example_button.setCheckable(True)
-        self.example_button.setAutoRaise(True)
-        self.example_button.toggled.connect(self._show_example)
 
         top = QFormLayout()
         top.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
@@ -247,7 +226,6 @@ class SelectDialog(QDialog):
         bottom = QFormLayout()
         bottom.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         bottom.addRow("and", self.how)
-        bottom.addRow(self.how_help)
 
         self.buttons = QDialogButtonBox(QDialogButtonBox.Close)
         self.apply_button = QPushButton("&Apply")
@@ -259,6 +237,7 @@ class SelectDialog(QDialog):
         self.apply_button.setDefault(True)
         self.apply_button.clicked.connect(self.apply)
         self.buttons.rejected.connect(self.reject)
+        manual.add_help_button(self.buttons, MANUAL_PAGE)
 
         layout = QVBoxLayout(self)
         layout.addWidget(self.intro)
@@ -266,37 +245,28 @@ class SelectDialog(QDialog):
         layout.addWidget(self.pages)
         layout.addLayout(bottom)
         layout.addWidget(self.found)
-        layout.addWidget(self.example_button)
-        layout.addWidget(self.example)
         layout.addWidget(self.buttons)
+        self.setMinimumWidth(MINIMUM_WIDTH)
 
         self.rule.currentIndexChanged.connect(self._turn_to)
-        self.rule.currentIndexChanged.connect(self._explain)
         self.rule.currentIndexChanged.connect(self.recount)
-        self.how.currentIndexChanged.connect(self._explain)
         self.how.currentIndexChanged.connect(self.recount)
         for signal in (document.selectionChanged,
                        document.structureChanged):
             signal.connect(self.recount)
         self._turn_to(self.rule.currentIndex())
-        self._explain()
         self.recount()
 
     def _turn_to(self, index: int) -> None:
+        # The help line first: sized before its text changed, the
+        # dialog kept the last rule's one line and cut Functional
+        # group's three off.
+        self.rule_help.setText(RULE_HELP[self.rule.itemData(index)])
         self.pages.setCurrentIndex(index)
         self.pages.updateGeometry()
         if self.isVisible():
+            self.layout().activate()
             self.adjustSize()
-
-    def _explain(self, *_args) -> None:
-        self.rule_help.setText(RULE_HELP[self.rule.currentData()])
-        self.how_help.setText(COMBINE_HELP[self.how.currentData()])
-
-    def _show_example(self, shown: bool) -> None:
-        self.example.setVisible(shown)
-        self.example_button.setArrowType(
-            Qt.DownArrow if shown else Qt.RightArrow)
-        self.adjustSize()
 
     # -- what the form says ---------------------------------------------
 

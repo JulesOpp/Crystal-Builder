@@ -981,7 +981,7 @@ Select by label, coordination, what an atom is bonded to, a box, a point, or bon
 (cmd-expand_bonded)=
 ### Grow ▸ Grow to bonded neighbours
 
-`expand_bonded` · Ctrl+G
+`expand_bonded`
 
 *No description yet.*
 
@@ -1831,7 +1831,7 @@ Draw every atom again after Show only selected, and tick every hidden atom group
 (cmd-group_selected)=
 ### Group selected atoms...
 
-`group_selected`
+`group_selected` · Ctrl+G
 
 Name the selected atoms as an atom group, listed in the Style panel, where it can be coloured, hidden and selected again.  Only the picture changes
 

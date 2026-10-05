@@ -51,7 +51,7 @@ included.  Both are on the {doc}`mouse modes <mouse-modes>` page.
    which is how a whole class of bonds is deleted or typed in one
    step.
 6. *Grow* extends what you have: {ref}`Grow to bonded neighbours
-   <cmd-expand_bonded>` ({kbd}`Ctrl+G`) adds the atoms one bond away,
+   <cmd-expand_bonded>` adds the atoms one bond away,
    and again on each press; {ref}`Grow to whole fragment
    <cmd-expand_fragment>` ({kbd}`Ctrl+Shift+G`) takes the connected
    molecule or framework; {ref}`Grow to symmetry orbit
@@ -73,10 +73,26 @@ included.  Both are on the {doc}`mouse modes <mouse-modes>` page.
    it: the four-coordinate zinc, then *Intersect* with a box, is the
    zinc of one layer.  The count beside *Apply* is what *Apply* will
    leave selected, and the dialog stays open for the next rule.  A
-   line under each chooser says what the rule and the combine choice
-   do, and *Example* unfolds a worked two-rule selection.
+   line under the rule says what it does, and *Help* opens this page.
    Counts of bonds are the bond graph's, so they say what the bonds
    say now; lengths are the bonds' as the atoms stand.
+
+   For example, to select the four-coordinate zinc in the lower half
+   of the cell:
+
+   1. Choose *Coordination*, *Zn*, *exactly* 4, and *Replace the
+      selection*; press *Apply*.
+   2. Choose *Inside a box*, from 0, 0, 0 to 1, 1, 0.5, and *Intersect
+      with the selection*; press *Apply*.
+
+   The four ways of combining are:
+
+   - *Replace the selection* forgets what was selected and takes what
+     the rule finds.
+   - *Add to the selection* keeps it and adds what the rule finds.
+   - *Remove from the selection* takes what the rule finds out of it.
+   - *Intersect with the selection* keeps only the atoms that are both
+     selected already and found by the rule.
 8. *Functional group* in the same dialog lists the groups the
    structure has, each with its count -- a hydroxyl on a phenol or an
    alcohol, a carboxylic acid or carboxylate, a ketone or quinone, an
@@ -98,18 +114,22 @@ included.  Both are on the {doc}`mouse modes <mouse-modes>` page.
    show only those, substitute them with an acetyl, and the picture is
    the new esters.
 10. To keep a set of atoms apart for longer, name it as an **atom
-    group**: {ref}`Group selected atoms... <cmd-group_selected>`,
+    group**: {ref}`Group selected atoms... <cmd-group_selected>`
+    ({kbd}`Ctrl+G`),
     {ref}`Colour selected atoms... <cmd-color_selected>` and
     {ref}`Hide selected <cmd-hide_selected>` in the View menu (and the
     atom's context menu) each make one.  The groups are listed in the
     Style panel under *Atom groups*: untick one to hide its atoms and
-    tick it to draw them again, double-click a name to rename it, and
-    *Select*, *Colour...*, *Element colours* and *Delete* act on the
-    group chosen in the list.  A colour is drawn on the atoms and their
+    tick it to draw them again, and double-click a name to rename it.
+    *Group Selected Atoms* there makes a new group, and *Select Group*,
+    *Set Colour*, *Reset to Element Colours* and *Delete Group* act on
+    the group chosen in the list.  A colour is drawn on the atoms and their
     halves of each bond, in place of the element's.  Several groups can
     be hidden at once and shown one at a time, and where two overlap
-    the later one's colour wins.  Like Show only selected, a group is
-    only the picture: it is not an undo step, never reaches a CIF or an
+    the later one's colour wins.  Making, colouring and deleting a
+    group are undo steps, so {kbd}`Ctrl+Z` takes back a group deleted
+    by mistake; hiding and renaming one are not.  Like Show only
+    selected, a group is only the picture: it never reaches a CIF or an
     export, and follows its atoms through an edit, a supercell or a
     change of symmetry.  It is saved with the project, and *Show all*
     ticks every hidden group again.

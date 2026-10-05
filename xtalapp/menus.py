@@ -294,7 +294,7 @@ def build_actions(window):
         tip="Draw every atom again after Show only selected, and "
             "tick every hidden atom group")
     add("group_selected", "&Group selected atoms...",
-        window.group_selected,
+        window.group_selected, "Ctrl+G",
         tip="Name the selected atoms as an atom group, listed in the "
             "Style panel, where it can be coloured, hidden and "
             "selected again.  Only the picture changes")
@@ -511,7 +511,7 @@ def build_actions(window):
             "to, a box, a point, or bonds by length and order -- and "
             "add, remove or intersect with what is held")
     add("expand_bonded", "Grow to &bonded neighbours",
-        lambda: window.expand_selection("shell"), "Ctrl+G")
+        lambda: window.expand_selection("shell"))
     add("expand_neighbours", "Grow to &neighbours only",
         lambda: window.expand_selection("neighbours"),
         tip="The atoms one bond from the selection, and the "

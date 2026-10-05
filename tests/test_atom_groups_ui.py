@@ -2,8 +2,8 @@
 
 What breaks if these regress: a colour or a hidden group that lands on
 the wrong atoms after an edit, a hidden atom left out of a save or a
-calculation, a colour written into a CIF, or Ctrl+Z taking back a
-colour instead of the last edit.  The model is in
+calculation, a colour written into a CIF, or Ctrl+Z missing a
+group made, coloured or deleted.  The model is in
 ``test_atom_groups.py``.
 """
 
@@ -93,19 +93,59 @@ def test_showing_a_hidden_group_again_draws_it(rutile):
     assert set(_scene(document).atom_index.tolist()) == set(ti)
 
 
-def test_making_or_hiding_a_group_is_not_an_undo_step(rutile):
-    """A colour is how the crystal is drawn, not a change to it."""
+def test_making_colouring_and_deleting_a_group_are_undo_steps(rutile):
+    """Ctrl+Z takes back a group made, a colour put on one and a group
+    deleted, and Ctrl+Shift+Z puts each back -- a misclick on Delete
+    Group would otherwise lose the group for good."""
     document = Document(rutile)
     seen = []
     document.atomGroupsChanged.connect(lambda: seen.append(1))
     document.make_atom_group([0], color=RED)
-    document.set_atom_group_shown(0, False)
     document.set_atom_group_color(0, (0, 255, 0))
+    document.remove_atom_group(0)
+    assert document.atom_groups == [] and document.modified
+    assert len(seen) == 3
+
+    assert document.undo() == "Delete atom group"
+    assert document.atom_groups[0].color == (0, 255, 0)
+    assert document.undo() == "Colour atom group"
+    assert document.atom_groups[0].color == RED
+    assert document.undo() == "Colour selected atoms"
+    assert document.atom_groups == [] and not document.modified
+    assert len(seen) == 6
+
+    document.redo()
+    document.redo()
+    assert document.atom_groups[0].color == (0, 255, 0)
+    document.redo()
+    assert document.atom_groups == []
+
+
+def test_hiding_and_renaming_a_group_are_not_undo_steps(rutile):
+    """A tick is how a hidden group is looked at, so Ctrl+Z after one
+    takes back the last edit, not the look; a rename carries through
+    an undo and redo of the group's making."""
+    document = Document(rutile)
+    document.make_atom_group([0])
+    document.set_atom_group_shown(0, False)
     document.rename_atom_group(0, "the Ti")
-    assert len(seen) == 4
-    assert not document.can_undo
-    assert not document.modified
-    assert document.atom_groups[0].name == "the Ti"
+    assert document.undo_label == "Group selected atoms"
+    document.undo()
+    document.redo()
+    group, = document.atom_groups
+    assert group.name == "the Ti" and not group.shown
+
+
+def test_a_group_step_refreshes_no_crystal_panel(rutile):
+    """A colour is not a change to the crystal: announcing one as
+    ``structureChanged`` rebuilt the site table and the scene."""
+    document = Document(rutile)
+    changed = []
+    document.structureChanged.connect(changed.append)
+    document.make_atom_group([0], color=RED)
+    document.undo()
+    document.redo()
+    assert changed == []
 
 
 def test_an_empty_selection_makes_no_group(rutile):
@@ -298,7 +338,6 @@ def test_colour_selected_makes_a_group_in_the_chosen_colour(
 
     [group] = document.atom_groups
     assert group.color == RED and group.atoms == frozenset(ti)
-    assert not document.modified
 
 
 def test_group_selected_takes_the_name_it_is_given(opened, monkeypatch):
@@ -356,3 +395,28 @@ def test_renaming_a_group_in_the_list_renames_it(opened, qtbot):
     document.make_atom_group([0])
     window.style_dock.atom_groups.item(0).setText("Apex")
     qtbot.waitUntil(lambda: document.atom_groups[0].name == "Apex")
+
+
+def test_ctrl_g_groups_the_selection(opened):
+    """Ctrl+G is Group selected atoms; Grow to bonded neighbours has
+    no key of its own any more."""
+    window, _document = opened
+    assert window.actions_["group_selected"].shortcut().toString() \
+        == "Ctrl+G"
+    assert window.actions_["expand_bonded"].shortcut().isEmpty()
+
+
+def test_group_selected_atoms_in_the_panel_follows_the_menu(
+        opened, monkeypatch):
+    """The panel's button is the View menu's command: greyed with
+    nothing selected, and a group made when pressed."""
+    window, document = opened
+    button = window.style_dock.group_selected_button
+    document.select([])
+    assert not button.isEnabled()
+    document.select([0])
+    assert button.isEnabled()
+    monkeypatch.setattr(QInputDialog, "getText",
+                        staticmethod(lambda *a, **k: ("Apex", True)))
+    button.click()
+    assert [g.name for g in document.atom_groups] == ["Apex"]

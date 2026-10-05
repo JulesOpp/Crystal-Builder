@@ -797,27 +797,51 @@ class StylePanelDock(QDockWidget):
 
         buttons = QGridLayout()
         self.atom_group_buttons = {}
-        for column, (key, label, tip, slot) in enumerate([
-                ("select", "Select", "Select the group's atoms, in "
-                 "place of the selection", self._select_atom_group),
-                ("colour", "Colour...", "Draw the group in a colour",
+        for key, label, tip, slot in [
+                ("select", "Select Group", "Select the group's atoms, "
+                 "in place of the selection", self._select_atom_group),
+                ("colour", "Set Colour", "Draw the group in a colour",
                  self._colour_atom_group),
-                ("elements", "Element colours", "Draw the group in its "
-                 "elements' colours again", self._uncolour_atom_group),
-                ("delete", "Delete", "Forget the group; its atoms are "
-                 "drawn as they would be without it",
-                 self._delete_atom_group)]):
+                ("elements", "Reset to Element Colours", "Draw the "
+                 "group in its elements' colours again",
+                 self._uncolour_atom_group),
+                ("delete", "Delete Group", "Forget the group; its atoms "
+                 "are drawn as they would be without it",
+                 self._delete_atom_group)]:
             button = QPushButton(label)
             button.setToolTip(tip)
             button.clicked.connect(lambda _checked=False, f=slot: f())
             self.atom_group_buttons[key] = button
-            # Two to a row: four abreast is wider than a column may be.
-            buttons.addWidget(button, column // 2, column % 2)
+        # Select and Delete share a row; the colour buttons take one
+        # each, since Reset to Element Colours beside anything is wider
+        # than a column may be (`docks.MAXIMUM_MINIMUM`).
+        buttons.addWidget(self.atom_group_buttons["select"], 0, 0)
+        buttons.addWidget(self.atom_group_buttons["delete"], 0, 1)
+        buttons.addWidget(self.atom_group_buttons["colour"], 1, 0, 1, 2)
+        buttons.addWidget(self.atom_group_buttons["elements"], 2, 0, 1, 2)
+
+        # The menu's command, so its enabling (atoms selected, nothing
+        # playing) is the one rule; wired by `use_group_action`.
+        self.group_selected_button = QPushButton("Group Selected Atoms")
+        self.group_selected_button.setToolTip(
+            "Name the selected atoms as a new atom group")
+        self.group_selected_button.setEnabled(False)
 
         layout.addWidget(self.atom_groups_hint)
         layout.addWidget(self.atom_groups)
+        layout.addWidget(self.group_selected_button)
         layout.addLayout(buttons)
         return box
+
+    def use_group_action(self, action) -> None:
+        """Group Selected Atoms presses View > Group selected atoms...,
+        and is greyed whenever that is."""
+        self.group_selected_button.clicked.connect(
+            lambda _checked=False: action.trigger())
+        action.changed.connect(
+            lambda: self.group_selected_button.setEnabled(
+                action.isEnabled()))
+        self.group_selected_button.setEnabled(action.isEnabled())
 
     # -- binding -------------------------------------------------------
 

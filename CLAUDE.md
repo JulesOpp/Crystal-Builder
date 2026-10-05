@@ -514,7 +514,10 @@ stress case).
   group is in `hidden_mask` beside Show Only Selected's set, a
   colour is drawn in place of the element's on the atom and its bond
   halves, and both follow their atoms exactly as the hidden set does
-  (`Document._keep_atom_groups`). Never an undo step and never in a
+  (`Document._keep_atom_groups`). **Making, colouring and deleting
+  one are undo steps** (`xtal/commands/atom_groups.py`) that touch no
+  crystal and announce `atomGroupsChanged`, never `structureChanged`;
+  a tick and a rename are not. Never in a
   CIF or an export, but **saved in the project's session** -- a
   restore that no longer fits its cell is dropped. Where groups
   overlap the later wins; *Colour by* and charges draw over all of

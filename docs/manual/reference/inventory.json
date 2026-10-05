@@ -780,7 +780,7 @@
    "key": "expand_bonded",
    "section": "Select",
    "path": "Grow ▸ Grow to bonded neighbours",
-   "shortcut": "Ctrl+G",
+   "shortcut": "",
    "tip": "",
    "checkable": false
   },
@@ -1452,7 +1452,7 @@
    "key": "group_selected",
    "section": "View",
    "path": "Group selected atoms...",
-   "shortcut": "",
+   "shortcut": "Ctrl+G",
    "tip": "Name the selected atoms as an atom group, listed in the Style panel, where it can be coloured, hidden and selected again.  Only the picture changes",
    "checkable": false
   },

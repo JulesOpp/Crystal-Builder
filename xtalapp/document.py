@@ -38,6 +38,12 @@ from xtal.commands import cell as cell_commands
 from xtal.commands import connections as connection_commands
 from xtal.commands import interpenetrate as interpenetrate_commands
 from xtal.commands import symmetry as symmetry_commands
+from xtal.commands.atom_groups import (
+    AddAtomGroup,
+    AtomGroupEdit,
+    ColourAtomGroup,
+    RemoveAtomGroup,
+)
 from xtal.commands.base import Command
 from xtal.commands.clipboard import (
     Fragment,
@@ -173,8 +179,9 @@ class Document(QObject):
         self._hidden_where = tracking.Record()
         # Named sets of atoms drawn in a colour of their own, or not
         # drawn (`xtal.core.atom_groups`).  View state like the hidden
-        # set -- not an undo step, never in the structure, a CIF or an
-        # export -- but written into the project's session, because a
+        # set -- never in the structure, a CIF or an export, though
+        # making, colouring and deleting one are undo steps -- and
+        # written into the project's session, because a
         # person who coloured the linkers wants them coloured tomorrow.
         self.atom_groups: list[atom_groups.AtomGroup] = []
         # Whether ``view`` came out of a saved project.  A project
@@ -644,7 +651,7 @@ class Document(QObject):
             command = self.stack.undo(self)
             if command is None:
                 return ""
-            self._after_change(command.change, command, undone=True)
+            self._after(command, undone=True)
         return command.label
 
     def redo(self) -> str:
@@ -653,7 +660,7 @@ class Document(QObject):
             command = self.stack.redo(self)
             if command is None:
                 return ""
-            self._after_change(command.change, command)
+            self._after(command)
         return command.label
 
     @property
@@ -671,6 +678,20 @@ class Document(QObject):
     @property
     def redo_label(self) -> str:
         return self.stack.redo_label
+
+    def _after(self, command, undone: bool = False) -> None:
+        if isinstance(command, AtomGroupEdit):
+            self._after_atom_group_edit()
+        else:
+            self._after_change(command.change, command, undone=undone)
+
+    def _after_atom_group_edit(self) -> None:
+        """An atom group step touched no crystal, so no panel that
+        shows one is refreshed -- ``structureChanged`` would rebuild
+        the site table and the scene for a colour."""
+        self.atomGroupsChanged.emit()
+        self._announce_modified()
+        self.historyChanged.emit()
 
     def _after_change(self, change: Change, command=None,
                       undone: bool = False) -> None:
@@ -2435,10 +2456,19 @@ class Document(QObject):
 
     # -- atom groups ----------------------------------------------------
     #
-    # None of these is an undo step: a group is how the crystal is
-    # drawn, and Ctrl+Z taking back a colour instead of the last edit
-    # would be undoing the wrong thing.  Each says what it did, as a
-    # status-bar line.
+    # Making, deleting and colouring a group are undo steps
+    # (`xtal.commands.atom_groups`) that touch no crystal; renaming
+    # and ticking are not, since a tick is how a hidden group is
+    # looked at and Ctrl+Z should not have to step through every look.
+    # Each says what it did, as a status-bar line.
+
+    def _run_atom_group_edit(self, command) -> None:
+        """Push a group step.  Not refused while a calculation holds
+        the document: it is applied over no geometry, and the run's
+        result lands on top of it as one more step."""
+        self.stack.push(command, self)
+        self._after_atom_group_edit()
+        self._say_trimmed()
 
     def make_atom_group(self, atoms=None, name: str = "", color=None,
                         shown: bool = True) -> str:
@@ -2455,8 +2485,10 @@ class Document(QObject):
             self.cell, self._structure.lattice, chosen,
             name or atom_groups.next_name(self.atom_groups, stem),
             color=color, shown=shown)
-        self.atom_groups.append(group)
-        self.atomGroupsChanged.emit()
+        label = ("Hide selected" if not shown
+                 else "Colour selected atoms" if color is not None
+                 else "Group selected atoms")
+        self._run_atom_group_edit(AddAtomGroup(group, label))
         verb = "hid" if not shown else "grouped"
         return f"{group.name}: {verb} {len(chosen)} atoms"
 
@@ -2472,7 +2504,9 @@ class Document(QObject):
         color = None if color is None else tuple(int(c) for c in color)
         group = self._atom_group(row)
         if group is not None and group.color != color:
-            self._set_atom_group(row, color=color)
+            self._run_atom_group_edit(ColourAtomGroup(
+                row, color, "Colour atom group" if color is not None
+                else "Reset to element colours"))
 
     def set_atom_group_shown(self, row: int, shown: bool) -> None:
         group = self._atom_group(row)
@@ -2494,8 +2528,7 @@ class Document(QObject):
         """Forget a group.  Its atoms are drawn as they would have been
         without it, hidden ones included."""
         if self._atom_group(row) is not None:
-            del self.atom_groups[row]
-            self.atomGroupsChanged.emit()
+            self._run_atom_group_edit(RemoveAtomGroup(row))
 
     def atom_group_colors(self):
         """``(rgb, mask)`` over the P1 cell for the scene builder, or
