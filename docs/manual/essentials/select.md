@@ -72,7 +72,9 @@ included.  Both are on the {doc}`mouse modes <mouse-modes>` page.
    selection, *adds* to it, *removes* from it or *intersects* with
    it: the four-coordinate zinc, then *Intersect* with a box, is the
    zinc of one layer.  The count beside *Apply* is what *Apply* will
-   leave selected, and the dialog stays open for the next rule.
+   leave selected, and the dialog stays open for the next rule.  A
+   line under each chooser says what the rule and the combine choice
+   do, and *Example* unfolds a worked two-rule selection.
    Counts of bonds are the bond graph's, so they say what the bonds
    say now; lengths are the bonds' as the atoms stand.
 8. *Functional group* in the same dialog lists the groups the

@@ -174,3 +174,60 @@ def test_selecting_hydroxyl_handles_selects_only_their_hydrogens(qtbot):
     kind.setCurrentIndex(kind.findData("carboxylic_acid"))
     dialog.apply()
     assert document.selection.atoms == {7, 8, 9, 10}
+
+
+def test_every_rule_and_combine_choice_has_help_text():
+    """A rule or combine choice added without a line saying what it
+    does would leave the help blank exactly where it is new -- and
+    the help is the only place the form says what a rule does."""
+    from xtal.core import selection
+    from xtalapp.dialogs import select
+
+    rules = [rule for rule, _text in select.RULES]
+    hows = [how for how, _text in select.COMBINE]
+    assert set(rules) == set(selection.RULES)
+    assert set(hows) == set(selection.COMBINE)
+    assert set(select.RULE_HELP) == set(rules)
+    assert set(select.COMBINE_HELP) == set(hows)
+    assert all(text.strip() for text in select.RULE_HELP.values())
+    assert all(text.strip() for text in select.COMBINE_HELP.values())
+
+
+def test_the_help_line_follows_the_chosen_rule(qtbot, rutile):
+    """Choosing another rule or combine choice changes the line under
+    it; a help line stuck on the first rule would explain the wrong
+    form."""
+    from xtalapp.dialogs.select import COMBINE_HELP, RULE_HELP
+
+    dialog = SelectDialog(Document(rutile))
+    qtbot.addWidget(dialog)
+    assert dialog.rule_help.text() == RULE_HELP["element"]
+    assert dialog.how_help.text() == COMBINE_HELP["replace"]
+    _choose(dialog, "box", "intersect")
+    assert dialog.rule_help.text() == RULE_HELP["box"]
+    assert dialog.how_help.text() == COMBINE_HELP["intersect"]
+
+
+def test_the_example_is_folded_until_asked_for(qtbot, rutile):
+    """The worked example is read once; open by default it would make
+    the dialog taller for everybody every time after."""
+    dialog = SelectDialog(Document(rutile))
+    qtbot.addWidget(dialog)
+    dialog.show()
+    assert not dialog.example.isVisible()
+    dialog.example_button.setChecked(True)
+    assert dialog.example.isVisible()
+    dialog.example_button.setChecked(False)
+    assert not dialog.example.isVisible()
+
+
+def test_a_short_rule_does_not_keep_the_tallest_rules_height(qtbot,
+                                                             rutile):
+    """The pages share a stack, and a stack is as tall as its tallest
+    page: the box's two rows sat over the Bonds page's blank space."""
+    dialog = SelectDialog(Document(rutile))
+    qtbot.addWidget(dialog)
+    _choose(dialog, "bonds")
+    tall = dialog.pages.sizeHint().height()
+    _choose(dialog, "box")
+    assert dialog.pages.sizeHint().height() < tall
