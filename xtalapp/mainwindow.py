@@ -29,6 +29,7 @@ from PySide6.QtGui import QColor, QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
     QColorDialog,
+    QInputDialog,
     QLabel,
     QMainWindow,
     QMessageBox,
@@ -39,7 +40,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.commands.clipboard import Fragment
-from xtal.core import limits
+from xtal.core import atom_groups, limits
 from xtal.workspace import resolved
 from xtalapp import docks, external, layout, menus, windows, workers
 from xtalapp.actions import ActionRegistry
@@ -524,6 +525,31 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         if document is not None:
             self.show_status(document.show_all())
 
+    def group_selected(self) -> None:
+        document = self.current_document()
+        if document is None or not document.selection.atoms:
+            return
+        name, ok = QInputDialog.getText(
+            self, "Group selected atoms", "Name:",
+            text=atom_groups.next_name(document.atom_groups))
+        if ok and name.strip():
+            self.show_status(document.make_atom_group(name=name.strip()))
+
+    def color_selected(self) -> None:
+        document = self.current_document()
+        if document is None or not document.selection.atoms:
+            return
+        chosen = QColorDialog.getColor(
+            QColor(255, 0, 0), self, "Colour selected atoms")
+        if chosen.isValid():
+            self.show_status(document.make_atom_group(
+                color=(chosen.red(), chosen.green(), chosen.blue())))
+
+    def hide_selected(self) -> None:
+        document = self.current_document()
+        if document is not None:
+            self.show_status(document.make_atom_group(shown=False))
+
     def clear_overlays(self) -> None:
         document = self.current_document()
         if document is not None:
@@ -719,7 +745,8 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
                  None,
                  "expand_bonded", "expand_neighbours",
                  "expand_fragment", "expand_orbit", "select_same",
-                 None, "copy", "cut", "duplicate",
+                 None, "hide_selected", "color_selected",
+                 "group_selected", None, "copy", "cut", "duplicate",
                  "add_centroid", MEASURE_ENTRY, None,
                  "recompute_bonds", None,
                  "edit_cell", "display_range"],

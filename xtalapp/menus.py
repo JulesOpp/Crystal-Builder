@@ -291,7 +291,22 @@ def build_actions(window):
             "picture changes: the hidden atoms are still in the "
             "structure, and in every calculation and every save")
     add("show_all", "Show a&ll", window.show_all,
-        tip="Draw every atom again after Show only selected")
+        tip="Draw every atom again after Show only selected, and "
+            "tick every hidden atom group")
+    add("group_selected", "&Group selected atoms...",
+        window.group_selected,
+        tip="Name the selected atoms as an atom group, listed in the "
+            "Style panel, where it can be coloured, hidden and "
+            "selected again.  Only the picture changes")
+    add("color_selected", "&Colour selected atoms...",
+        window.color_selected,
+        tip="Draw the selected atoms, and their halves of each bond, "
+            "in a colour of your choosing -- a new atom group in the "
+            "Style panel.  The elements and every save are untouched")
+    add("hide_selected", "&Hide selected", window.hide_selected,
+        tip="Leave the selected atoms out of the picture as a hidden "
+            "atom group; its tick in the Style panel shows them "
+            "again.  They stay in the structure and every calculation")
     add("clear_overlays", "Clear c&harges and orbital",
         window.clear_overlays,
         tip="Take a DFTB+ run's atom colouring and orbital lobes off "
@@ -768,7 +783,8 @@ def build_menus(window):
                     "show_pores", "labels", "show_legend",
                     "show_scale_bar", None, "clear_overlays"])
     window.actions_.fill_menu(view_menu, [
-        "show_only_selected", "show_all"])
+        "show_only_selected", "show_all", None, "group_selected",
+        "color_selected", "hide_selected"])
     view_menu.addSeparator()
     background_menu = submenu(view_menu, "&Background")
     background_menu.addAction(

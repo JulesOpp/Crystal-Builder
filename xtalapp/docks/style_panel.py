@@ -19,8 +19,8 @@ why changing a colour cannot corrupt a structure.
 from __future__ import annotations
 
 import numpy as np
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QPainter
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -33,6 +33,9 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
     QPushButton,
     QSlider,
     QSpinBox,
@@ -56,6 +59,7 @@ from xtalapp.viewport.view_settings import (
     RING_COLORS,
     theme_background,
 )
+from xtalapp.widgets.tone import HINT, set_tone
 
 #: The flat colours that belong to no element: the net a chemist drew
 #: over the framework, the planes the user defined, and the pore
@@ -98,6 +102,10 @@ SWATCH_WIDTH = 44
 RING_SWATCHES_PER_ROW = 4
 #: How many elements the table shows before it scrolls.
 ELEMENT_ROWS = 8
+#: How many atom groups the list shows before it scrolls.
+ATOM_GROUP_ROWS = 5
+#: The swatch beside a group's name, in pixels.
+ATOM_GROUP_SWATCH = 12
 # Sliders are integers; these turn a percentage into a scale factor.
 SCALE_STEPS = 200
 SCALE_MAX = 3.0
@@ -206,6 +214,7 @@ class StylePanelDock(QDockWidget):
         body.setSpacing(8)
         self.columns = self._build_global()
         body.addWidget(self.columns)
+        body.addWidget(self._atom_groups_group())
         # Full width and below both columns: a table is the one thing
         # here that is as wide as it is given.
         body.addWidget(self._build_elements())
@@ -759,12 +768,64 @@ class StylePanelDock(QDockWidget):
         page.setLayout(layout)
         return page
 
+    def _atom_groups_group(self) -> QGroupBox:
+        """Named sets of atoms, each with a show tick, a swatch and a
+        name edited in place.  Full width, like the element table,
+        because a name is as wide as somebody makes it."""
+        box = QGroupBox("Atom groups")
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(*GROUP_MARGINS)
+        self.atom_groups = QListWidget()
+        self.atom_groups.setToolTip(
+            "Untick a group to hide its atoms; double-click a name to "
+            "rename it.  Only the picture changes")
+        self.atom_groups.setEditTriggers(
+            QAbstractItemView.DoubleClicked
+            | QAbstractItemView.EditKeyPressed)
+        self.atom_groups.itemChanged.connect(self._on_atom_group_item)
+        self.atom_groups.currentRowChanged.connect(
+            lambda _row: self._enable_atom_group_buttons())
+        row = self.atom_groups.sizeHintForRow(0)
+        row = row if row > 0 else self.fontMetrics().height() + 6
+        self.atom_groups.setFixedHeight(
+            ATOM_GROUP_ROWS * row + 2 * self.atom_groups.frameWidth())
+        self.atom_groups_hint = QLabel(
+            "Select atoms and choose View > Group selected atoms... "
+            "to make one")
+        self.atom_groups_hint.setWordWrap(True)
+        set_tone(self.atom_groups_hint, HINT)
+
+        buttons = QGridLayout()
+        self.atom_group_buttons = {}
+        for column, (key, label, tip, slot) in enumerate([
+                ("select", "Select", "Select the group's atoms, in "
+                 "place of the selection", self._select_atom_group),
+                ("colour", "Colour...", "Draw the group in a colour",
+                 self._colour_atom_group),
+                ("elements", "Element colours", "Draw the group in its "
+                 "elements' colours again", self._uncolour_atom_group),
+                ("delete", "Delete", "Forget the group; its atoms are "
+                 "drawn as they would be without it",
+                 self._delete_atom_group)]):
+            button = QPushButton(label)
+            button.setToolTip(tip)
+            button.clicked.connect(lambda _checked=False, f=slot: f())
+            self.atom_group_buttons[key] = button
+            # Two to a row: four abreast is wider than a column may be.
+            buttons.addWidget(button, column // 2, column % 2)
+
+        layout.addWidget(self.atom_groups_hint)
+        layout.addWidget(self.atom_groups)
+        layout.addLayout(buttons)
+        return box
+
     # -- binding -------------------------------------------------------
 
     def set_document(self, document) -> None:
         changed = document is not self.document
         self.document = document
         self.refresh()
+        self.refresh_atom_groups()
         # Open for a document that fades, folded for one that does not
         # -- and only when the document changes, so a fold somebody
         # opened by hand stays open while they work in it.
@@ -1105,6 +1166,114 @@ class StylePanelDock(QDockWidget):
         radii = dict(view.element_radii)
         radii[symbol] = float(value)
         self.document.update_view(element_radii=radii)
+
+    # -- atom groups ---------------------------------------------------
+
+    def refresh_atom_groups(self) -> None:
+        """The list rebuilt from the document's groups.  Called when a
+        group changes and when the document does, never from
+        :meth:`refresh`, which runs on every spin box."""
+        groups = [] if self.document is None \
+            else self.document.atom_groups
+        current = self.atom_groups.currentRow()
+        self.atom_groups.blockSignals(True)
+        self.atom_groups.clear()
+        for group in groups:
+            item = QListWidgetItem(group.name)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable
+                          | Qt.ItemIsEditable)
+            item.setCheckState(Qt.Checked if group.shown
+                               else Qt.Unchecked)
+            item.setIcon(self._swatch(group.color))
+            item.setToolTip(
+                f"{len(group.atoms)} atoms" if not group.empty
+                else "no atoms left: they were deleted, or a symmetry "
+                     "change left none of them")
+            self.atom_groups.addItem(item)
+        if groups:
+            self.atom_groups.setCurrentRow(
+                min(max(current, 0), len(groups) - 1))
+        self.atom_groups.blockSignals(False)
+        self.atom_groups.setVisible(bool(groups))
+        self.atom_groups_hint.setVisible(not groups)
+        self._enable_atom_group_buttons()
+
+    @staticmethod
+    def _swatch(color) -> QIcon:
+        """The group's colour, or an empty square for the elements'."""
+        pixmap = QPixmap(ATOM_GROUP_SWATCH, ATOM_GROUP_SWATCH)
+        pixmap.fill(Qt.transparent if color is None else QColor(*color))
+        painter = QPainter(pixmap)
+        painter.setPen(QColor(128, 128, 128))
+        painter.drawRect(0, 0, ATOM_GROUP_SWATCH - 1,
+                         ATOM_GROUP_SWATCH - 1)
+        painter.end()
+        return QIcon(pixmap)
+
+    def _enable_atom_group_buttons(self) -> None:
+        row = self._atom_group_row()
+        group = None if row is None else self.document.atom_groups[row]
+        for key, button in self.atom_group_buttons.items():
+            on = group is not None
+            if key == "select":
+                on = on and not group.empty
+            elif key == "elements":
+                on = on and group.color is not None
+            button.setEnabled(on)
+
+    def _atom_group_row(self):
+        row = self.atom_groups.currentRow()
+        if self.document is None \
+                or not 0 <= row < len(self.document.atom_groups):
+            return None
+        return row
+
+    def _on_atom_group_item(self, item: QListWidgetItem) -> None:
+        """A tick or a rename.  Applied on the next turn of the event
+        loop: either one rebuilds the list, and clearing a list from
+        inside its own ``itemChanged`` deletes the item Qt is still
+        handing round."""
+        if self.document is None:
+            return
+        row = self.atom_groups.row(item)
+        shown = item.checkState() == Qt.Checked
+        name = item.text()
+        document = self.document
+
+        def apply():
+            if document is not self.document:
+                return
+            document.set_atom_group_shown(row, shown)
+            document.rename_atom_group(row, name)
+
+        QTimer.singleShot(0, apply)
+
+    def _select_atom_group(self) -> None:
+        row = self._atom_group_row()
+        if row is not None:
+            self.document.select_atom_group(row)
+
+    def _colour_atom_group(self) -> None:
+        row = self._atom_group_row()
+        if row is None:
+            return
+        group = self.document.atom_groups[row]
+        chosen = QColorDialog.getColor(
+            QColor(*(group.color or (255, 0, 0))), self,
+            f"{group.name} colour")
+        if chosen.isValid():
+            self.document.set_atom_group_color(
+                row, (chosen.red(), chosen.green(), chosen.blue()))
+
+    def _uncolour_atom_group(self) -> None:
+        row = self._atom_group_row()
+        if row is not None:
+            self.document.set_atom_group_color(row, None)
+
+    def _delete_atom_group(self) -> None:
+        row = self._atom_group_row()
+        if row is not None:
+            self.document.remove_atom_group(row)
 
     def reset_elements(self) -> None:
         if self.document is not None:

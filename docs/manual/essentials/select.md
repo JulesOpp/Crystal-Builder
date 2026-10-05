@@ -97,6 +97,22 @@ included.  Both are on the {doc}`mouse modes <mouse-modes>` page.
    hidden, and what it adds is shown: select every phenol's hydrogen,
    show only those, substitute them with an acetyl, and the picture is
    the new esters.
+10. To keep a set of atoms apart for longer, name it as an **atom
+    group**: {ref}`Group selected atoms... <cmd-group_selected>`,
+    {ref}`Colour selected atoms... <cmd-color_selected>` and
+    {ref}`Hide selected <cmd-hide_selected>` in the View menu (and the
+    atom's context menu) each make one.  The groups are listed in the
+    Style panel under *Atom groups*: untick one to hide its atoms and
+    tick it to draw them again, double-click a name to rename it, and
+    *Select*, *Colour...*, *Element colours* and *Delete* act on the
+    group chosen in the list.  A colour is drawn on the atoms and their
+    halves of each bond, in place of the element's.  Several groups can
+    be hidden at once and shown one at a time, and where two overlap
+    the later one's colour wins.  Like Show only selected, a group is
+    only the picture: it is not an undo step, never reaches a CIF or an
+    export, and follows its atoms through an edit, a supercell or a
+    change of symmetry.  It is saved with the project, and *Show all*
+    ticks every hidden group again.
 
 The four *Grow* entries and *Select same element* are also in the
 context menu of an atom, and *Select all* and *Select none* in the

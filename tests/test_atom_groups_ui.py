@@ -12,8 +12,18 @@ import pytest
 
 pytest.importorskip("PySide6")
 
+from PySide6.QtCore import Qt  # noqa: E402
+from PySide6.QtGui import QColor  # noqa: E402
+from PySide6.QtWidgets import (  # noqa: E402
+    QColorDialog,
+    QInputDialog,
+    QWidget,
+)
+
 from xtal.core import p1  # noqa: E402
 from xtalapp.document import Document  # noqa: E402
+from xtalapp.mainwindow import MainWindow  # noqa: E402
+from xtalapp.settings import AppSettings  # noqa: E402
 from xtalapp.viewport.builder import build_scene  # noqa: E402
 
 RED = (255, 0, 0)
@@ -221,3 +231,128 @@ def test_a_group_whose_atoms_are_deleted_stays_in_the_list_empty(rutile):
     group, = document.atom_groups
     assert group.empty and group.name == "lone Ti"
     assert document.select_atom_group(0) == "lone Ti has no atoms left"
+
+
+# ---------------------------------------------------- the window's half
+
+class _Stub(QWidget):
+    def __init__(self, document, parent=None):
+        super().__init__(parent)
+        self.document = document
+
+
+@pytest.fixture
+def opened(qtbot, tmp_path, rutile_cif):
+    settings = AppSettings("CrystalBuilderTest", f"Groups{tmp_path.name}")
+    settings.clear_window()
+    settings.last_directory = str(tmp_path)
+    window = MainWindow(viewport_factory=_Stub, settings=settings)
+    qtbot.addWidget(window)
+    return window, window.open_path(rutile_cif)
+
+
+GROUP_ACTIONS = ("group_selected", "color_selected", "hide_selected")
+
+
+def test_the_group_actions_need_a_selection(opened):
+    """Greyed with nothing selected, live with an atom held -- and
+    live during playback too, since none of them edits the crystal."""
+    window, document = opened
+    document.select([])
+    assert not any(window.actions_[k].isEnabled() for k in GROUP_ACTIONS)
+    document.select([0])
+    assert all(window.actions_[k].isEnabled() for k in GROUP_ACTIONS)
+
+
+def test_hide_selected_makes_a_hidden_group_that_its_tick_shows_again(
+        opened, qtbot):
+    """The selected atoms leave the picture as a hidden group listed,
+    unticked, in the Style panel; ticking it draws them again."""
+    window, document = opened
+    ti = _titanium(document)
+    document.select(ti)
+    window.actions_["hide_selected"].trigger()
+
+    assert len(document.atom_groups) == 1
+    assert document.hidden_mask()[ti].all()
+    panel = window.style_dock.atom_groups
+    assert panel.count() == 1
+    item = panel.item(0)
+    assert item.text() == "Hidden 1"
+    assert item.checkState() == Qt.Unchecked
+
+    item.setCheckState(Qt.Checked)
+    qtbot.waitUntil(lambda: document.hidden_mask() is None)
+    assert document.atom_groups[0].shown
+    assert window.style_dock.atom_groups.item(0).checkState() == Qt.Checked
+
+
+def test_colour_selected_makes_a_group_in_the_chosen_colour(
+        opened, monkeypatch):
+    window, document = opened
+    monkeypatch.setattr(QColorDialog, "getColor",
+                        staticmethod(lambda *a, **k: QColor(*RED)))
+    ti = _titanium(document)
+    document.select(ti)
+    window.actions_["color_selected"].trigger()
+
+    [group] = document.atom_groups
+    assert group.color == RED and group.atoms == frozenset(ti)
+    assert not document.modified
+
+
+def test_group_selected_takes_the_name_it_is_given(opened, monkeypatch):
+    window, document = opened
+    monkeypatch.setattr(QInputDialog, "getText",
+                        staticmethod(lambda *a, **k: ("Titanium", True)))
+    document.select(_titanium(document))
+    window.actions_["group_selected"].trigger()
+    assert [g.name for g in document.atom_groups] == ["Titanium"]
+
+
+def test_the_atom_context_menu_offers_hide_and_colour(opened):
+    window, document = opened
+    document.select([0])
+    texts = [a.text() for a in window.build_context_menu("atom").actions()]
+    assert window.actions_["hide_selected"].text() in texts
+    assert window.actions_["color_selected"].text() in texts
+
+
+def test_the_style_panel_lists_each_group_with_its_tick_and_swatch(
+        opened):
+    """One row a group, ticked by whether it is drawn, with a swatch;
+    the hint shows only while there is none, and Element colours is
+    live only for a coloured group."""
+    window, document = opened
+    dock = window.style_dock
+    assert not dock.atom_groups_hint.isHidden()
+    assert dock.atom_groups.isHidden()
+
+    document.make_atom_group([0], color=RED)
+    document.make_atom_group([1], shown=False)
+    panel = dock.atom_groups
+    assert [panel.item(r).text() for r in range(panel.count())] \
+        == ["Group 1", "Hidden 1"]
+    assert [panel.item(r).checkState() for r in range(2)] \
+        == [Qt.Checked, Qt.Unchecked]
+    assert not panel.item(0).icon().isNull()
+    assert dock.atom_groups_hint.isHidden()
+
+    panel.setCurrentRow(0)
+    assert dock.atom_group_buttons["elements"].isEnabled()
+    dock.atom_group_buttons["elements"].click()
+    assert document.atom_groups[0].color is None
+    assert not dock.atom_group_buttons["elements"].isEnabled()
+
+    panel.setCurrentRow(1)
+    dock.atom_group_buttons["select"].click()
+    assert document.selection.atoms == {1}
+    dock.atom_group_buttons["delete"].click()
+    assert [g.name for g in document.atom_groups] == ["Group 1"]
+
+
+def test_renaming_a_group_in_the_list_renames_it(opened, qtbot):
+    window, document = opened
+    document.make_atom_group([0])
+    window.style_dock.atom_groups.item(0).setText("Apex")
+    qtbot.waitUntil(lambda: document.atom_groups[0].name == "Apex")

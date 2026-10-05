@@ -28,7 +28,8 @@ from xtalapp.viewport.view_settings import BOUNDARIES
 # these changes the crystal.
 READING = ("select_same", "expand_bonded", "expand_neighbours",
            "expand_fragment", "expand_orbit", "copy",
-           "show_only_selected")
+           "show_only_selected", "group_selected", "color_selected",
+           "hide_selected")
 # Editing with at least one atom held.
 EDITING_ATOMS = ("change_element", "cut", "duplicate",
                  "mark_connection_points")
@@ -329,6 +330,11 @@ class ShellRefresh:
     def _on_measurements_changed(self) -> None:
         self.measure_dock.refresh()
         self._refresh_plane_actions()
+
+    def _on_atom_groups_changed(self) -> None:
+        """The Style panel's list alone: a group is drawn by the
+        viewport, which listens for itself."""
+        self.style_dock.refresh_atom_groups()
 
     def _on_planes_changed(self) -> None:
         self.measure_dock.refresh_planes()

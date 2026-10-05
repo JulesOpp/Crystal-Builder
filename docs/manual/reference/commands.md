@@ -1823,9 +1823,39 @@ Draw the selected atoms and nothing else -- every phenol, say, to see what a sub
 
 `show_all`
 
-Draw every atom again after Show only selected
+Draw every atom again after Show only selected, and tick every hidden atom group
 
 ```{index} Show all
+```
+
+(cmd-group_selected)=
+### Group selected atoms...
+
+`group_selected`
+
+Name the selected atoms as an atom group, listed in the Style panel, where it can be coloured, hidden and selected again.  Only the picture changes
+
+```{index} Group selected atoms...
+```
+
+(cmd-color_selected)=
+### Colour selected atoms...
+
+`color_selected`
+
+Draw the selected atoms, and their halves of each bond, in a colour of your choosing -- a new atom group in the Style panel.  The elements and every save are untouched
+
+```{index} Colour selected atoms...
+```
+
+(cmd-hide_selected)=
+### Hide selected
+
+`hide_selected`
+
+Leave the selected atoms out of the picture as a hidden atom group; its tick in the Style panel shows them again.  They stay in the structure and every calculation
+
+```{index} Hide selected
 ```
 
 (cmd-display_range)=
