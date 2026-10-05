@@ -288,6 +288,17 @@ stress case).
   and **not when an element changes**: O to S keeps the oxygen's
   bonds (`bonding.hold_through_retype`), except that an atom made a
   dummy loses its perceived ones.
+  **Nor when a move splits or merges an orbit**: an atom dragged off
+  its mirror is generated twice as often (MOF-5's C97, 96 to 192), and
+  each copy takes the bonds of the atom the same operation made
+  (`bonding.hold_through_move`, from the commands' `moving_sites`).
+  A drag carries from where it *began* (`carry_from` on merge), or an
+  atom crossing another mirror picks up its copy's bonds there.
+  A move that **renumbers** the cell without changing its count (Zn1
+  near its 3-fold axis, from one mirror to another: 488 atoms either
+  side) is recorded as `Change.TOPOLOGY` (`atoms._renumbered`), since
+  every memo over P1 atoms checked only the count and drew the last
+  frame's bonds over the new numbering, 42 A long.
   `AddSites(perceive=False)` and `bonding.hold_perception` are how;
   Add hydrogens is the deliberate exception, because bonding what it
   adds is the whole operation. **A slab carries its graph**
@@ -315,8 +326,13 @@ stress case).
   `resources/samples`, and no two real atoms are that close. Where the
   atom *goes* is unchanged: the first operation to reach a point still
   wins, which near a special position is the identity. Snapping a site
-  onto the position is idealisation, and Standardize is where that
-  lives.
+  onto the position is idealisation, and lives in two places:
+  Standardize, and **Merge Duplicate Sites**, which puts back a site
+  that has split into copies of *itself* within its tolerance
+  (`symmetry.snap_to_special_positions`: the mean of the images the
+  near-symmetry makes, kept only if the multiplicity drops, bonds
+  carried). The copies of a split site are over 0.05 A apart, so this
+  needs a tolerance above the default; the dialog goes to 1 A.
 - **Preparing for simulation is a rebuild, one undo step, and every
   step says what it chose.** Structure ▸ Prepare for simulation… and
   `xtal prepare` run `xtal/core/prepare.py`: sites written twice
@@ -480,8 +496,32 @@ stress case).
   completed as a ghost, no bond to it drawn, so it cannot be picked
   -- and every calculation, export and save sees the whole cell. An
   edit keeps the same atoms hidden by where they are
-  (`Document._keep_hidden`), because a substitution renumbers the
-  cell; what an edit adds is shown.
+  (`Document._keep_hidden`, `xtal/core/tracking.py`), because a
+  substitution renumbers the cell; what an edit adds is shown.
+  **Through a symmetry or cell change the command says where the
+  atoms went**: every `StructureOperation` states
+  `atom_map()` (`old = M·new + t`, inverted for an undo) -- the two
+  lattices' map unless it moves the origin or the atoms, and
+  Standardize (spglib's `P, p`), Invert, a subgroup's setting, a slab
+  and Move origin say so. Where they were is not enough: Standardize
+  moves ZIF-8's origin and lost 93 of its 102 atoms that way. Matched
+  both ways at 0.05 A, so a supercell hides every copy of a hidden
+  atom and a primitive cell the atom standing for any hidden one.
+  `test_every_structure_operation_states_a_map_that_finds_its_atoms`
+  sweeps every operation, and a new one fails it until it is added.
+  **An atom group is the same view state with a name**
+  (`xtal/core/atom_groups.py`, `Document.atom_groups`): a hidden
+  group is in `hidden_mask` beside Show Only Selected's set, a
+  colour is drawn in place of the element's on the atom and its bond
+  halves, and both follow their atoms exactly as the hidden set does
+  (`Document._keep_atom_groups`). **Making, colouring and deleting
+  one are undo steps** (`xtal/commands/atom_groups.py`) that touch no
+  crystal and announce `atomGroupsChanged`, never `structureChanged`;
+  a tick and a rename are not. Never in a
+  CIF or an export, but **saved in the project's session** -- a
+  restore that no longer fits its cell is dropped. Where groups
+  overlap the later wins; *Colour by* and charges draw over all of
+  them, and Show All ticks every group again.
 - **A size is estimated before it is built, and the profile
   decides.** `xtal/core/limits.py` counts a supercell (`n x |det P|`),
   the atoms a display range draws, a porosity grid's points and a

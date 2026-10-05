@@ -780,7 +780,7 @@
    "key": "expand_bonded",
    "section": "Select",
    "path": "Grow ▸ Grow to bonded neighbours",
-   "shortcut": "Ctrl+G",
+   "shortcut": "",
    "tip": "",
    "checkable": false
   },
@@ -1445,7 +1445,31 @@
    "section": "View",
    "path": "Show all",
    "shortcut": "",
-   "tip": "Draw every atom again after Show only selected",
+   "tip": "Draw every atom again after Show only selected, and tick every hidden atom group",
+   "checkable": false
+  },
+  {
+   "key": "group_selected",
+   "section": "View",
+   "path": "Group selected atoms...",
+   "shortcut": "Ctrl+G",
+   "tip": "Name the selected atoms as an atom group, listed in the Style panel, where it can be coloured, hidden and selected again.  Only the picture changes",
+   "checkable": false
+  },
+  {
+   "key": "color_selected",
+   "section": "View",
+   "path": "Colour selected atoms...",
+   "shortcut": "",
+   "tip": "Draw the selected atoms, and their halves of each bond, in a colour of your choosing -- a new atom group in the Style panel.  The elements and every save are untouched",
+   "checkable": false
+  },
+  {
+   "key": "hide_selected",
+   "section": "View",
+   "path": "Hide selected",
+   "shortcut": "",
+   "tip": "Leave the selected atoms out of the picture as a hidden atom group; its tick in the Style panel shows them again.  They stay in the structure and every calculation",
    "checkable": false
   },
   {

@@ -41,6 +41,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.core import groups
+from xtalapp import manual
 from xtalapp.widgets.tone import HINT, set_tone
 
 ANY = "Any element"
@@ -70,6 +71,60 @@ COMBINE = (
     ("intersect", "Intersect with the selection"),
 )
 
+#: What each rule does, said under the chooser.  The form's fields
+#: name their numbers but not what the rule does with them, and "Within
+#: a distance of the selection" keeps the selection while "Neighbours"
+#: lets it go -- nothing on the form said which.
+RULE_HELP = {
+    "element": "Every atom of the ticked elements.",
+    "label": "Every atom whose site label matches: * is any run of "
+             "characters, ? any one, and the case counts (O1* is O1, "
+             "O1A and O12).",
+    "site": "Every symmetry copy of one site of the asymmetric unit.",
+    "coordination": "Atoms of an element with exactly, at least or at "
+                    "most this many bonded neighbours -- counted off "
+                    "the bonds as they are drawn now, not distances.",
+    "bonded_to": "Every atom bonded to at least one atom of this "
+                 "element; the element's own atoms only where two of "
+                 "them are bonded.",
+    "neighbours": "The atoms one bond from the selection, without the "
+                  "selection itself -- select something first.",
+    "shell": "The selection and every atom up to this many bonds from "
+             "it, with the bonds among them -- select something "
+             "first.",
+    "radius": "Every atom within this distance of any selected atom, "
+              "the selection included, with the bonds among them -- "
+              "select something first.",
+    "point": "Every atom within this distance of a point, with the "
+             "bonds among them.  The point is in fractions of the "
+             "cell: 0.5, 0.5, 0.5 is its middle.",
+    "box": "Every atom inside a box, faces included, with the bonds "
+           "among them.  In fractions of the cell, 0 to 1 on each "
+           "axis: 0, 0, 0.5 to 1, 1, 1 is the upper half.",
+    "group": "The atoms of a functional group, found from the bonds; "
+             "the number beside each is how many the structure has.  "
+             "Take the whole group, or only the atom of each that "
+             "Replace with group would swap.",
+    "bonds": "Bonds, not atoms: between two elements, of an order, a "
+             "length, or drawn by hand.  A field left at Any or no bound "
+             "lets every bond through.",
+    "net": "The edges of the drawn net, by length; no bound lets "
+           "every edge through.",
+}
+
+INTRO = ("Choose a rule, fill in its fields, then choose how it "
+         "combines with what is already selected and press Apply.  "
+         "The window stays open, so rules can be applied one after "
+         "another to build up a selection.")
+
+#: The manual's page on this dialog, with a worked two-rule example.
+MANUAL_PAGE = "essentials/select"
+
+#: Wide enough that the longest rule's help line wraps to three lines
+#: rather than six, and the functional groups' names with their
+#: counts fit the chooser.
+MINIMUM_WIDTH = 460
+
 #: The bond orders a person names, and what they are called.
 ORDERS = (("Any order", None), ("Single", 1.0), ("Aromatic", 1.5),
           ("Double", 2.0), ("Triple", 3.0))
@@ -95,6 +150,29 @@ def _distance(value: float = 0.0) -> QDoubleSpinBox:
     spin.setSuffix(" Å")
     spin.setValue(value)
     return spin
+
+
+def _hint(text: str) -> QLabel:
+    label = QLabel(text)
+    label.setWordWrap(True)
+    set_tone(label, HINT)
+    return label
+
+
+class _Pages(QStackedWidget):
+    """A stack as tall as the page in front.
+
+    A stack is as tall as its tallest page, so a box's two rows sat
+    over the Bonds page's five rows of blank space."""
+
+    def sizeHint(self):
+        page = self.currentWidget()
+        return page.sizeHint() if page else super().sizeHint()
+
+    def minimumSizeHint(self):
+        page = self.currentWidget()
+        return (page.minimumSizeHint() if page
+                else super().minimumSizeHint())
 
 
 def _triple(make) -> tuple[QWidget, list]:
@@ -123,7 +201,7 @@ class SelectDialog(QDialog):
         for how, text in COMBINE:
             self.how.addItem(text, how)
 
-        self.pages = QStackedWidget()
+        self.pages = _Pages()
         self._read = {}
         for rule, _text in RULES:
             page, read = getattr(self, f"_page_{rule}")(elements)
@@ -133,10 +211,17 @@ class SelectDialog(QDialog):
         self.found = QLabel()
         set_tone(self.found, HINT)
         self.found.setWordWrap(True)
+        self.found.setToolTip("What Apply would leave selected, with "
+                              "the rule and the combine choice as "
+                              "they are now")
+
+        self.intro = _hint(INTRO)
+        self.rule_help = _hint("")
 
         top = QFormLayout()
         top.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         top.addRow("Select", self.rule)
+        top.addRow(self.rule_help)
 
         bottom = QFormLayout()
         bottom.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
@@ -152,22 +237,36 @@ class SelectDialog(QDialog):
         self.apply_button.setDefault(True)
         self.apply_button.clicked.connect(self.apply)
         self.buttons.rejected.connect(self.reject)
+        manual.add_help_button(self.buttons, MANUAL_PAGE)
 
         layout = QVBoxLayout(self)
+        layout.addWidget(self.intro)
         layout.addLayout(top)
         layout.addWidget(self.pages)
         layout.addLayout(bottom)
         layout.addWidget(self.found)
         layout.addWidget(self.buttons)
+        self.setMinimumWidth(MINIMUM_WIDTH)
 
-        self.rule.currentIndexChanged.connect(
-            self.pages.setCurrentIndex)
+        self.rule.currentIndexChanged.connect(self._turn_to)
         self.rule.currentIndexChanged.connect(self.recount)
         self.how.currentIndexChanged.connect(self.recount)
         for signal in (document.selectionChanged,
                        document.structureChanged):
             signal.connect(self.recount)
+        self._turn_to(self.rule.currentIndex())
         self.recount()
+
+    def _turn_to(self, index: int) -> None:
+        # The help line first: sized before its text changed, the
+        # dialog kept the last rule's one line and cut Functional
+        # group's three off.
+        self.rule_help.setText(RULE_HELP[self.rule.itemData(index)])
+        self.pages.setCurrentIndex(index)
+        self.pages.updateGeometry()
+        if self.isVisible():
+            self.layout().activate()
+            self.adjustSize()
 
     # -- what the form says ---------------------------------------------
 
@@ -227,14 +326,6 @@ class SelectDialog(QDialog):
             box.addItem(symbol, symbol)
         self._watch(box)
         return box
-
-    def _note(self, text: str):
-        page, form = self._form()
-        note = QLabel(text)
-        note.setWordWrap(True)
-        set_tone(note, HINT)
-        form.addRow(note)
-        return page
 
     def _page_element(self, elements):
         page, form = self._form()
@@ -308,9 +399,8 @@ class SelectDialog(QDialog):
         return page, lambda: {"element": element.currentData()}
 
     def _page_neighbours(self, _elements):
-        return (self._note("The atoms one bond from the selection, "
-                           "and not the selection itself."),
-                lambda: {})
+        # Nothing to fill in: the help line above says what it does.
+        return QWidget(), lambda: {}
 
     def _page_shell(self, _elements):
         page, form = self._form()

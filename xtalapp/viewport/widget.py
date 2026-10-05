@@ -232,6 +232,7 @@ class ViewportWidget(QWidget):
             self.document.planesChanged.disconnect(self._on_view)
             self.document.poresChanged.disconnect(self._on_view)
             self.document.overlayChanged.disconnect(self._on_view)
+            self.document.atomGroupsChanged.disconnect(self._on_view)
         self.document = document
         document.structureChanged.connect(self._on_structure)
         document.previewChanged.connect(self._on_preview)
@@ -246,6 +247,8 @@ class ViewportWidget(QWidget):
         # no structure signal is going to say it.
         document.poresChanged.connect(self._on_view)
         document.overlayChanged.connect(self._on_view)
+        # An atom group's colour or tick is the picture alone too.
+        document.atomGroupsChanged.connect(self._on_view)
         self.rebuild(reset_camera=True)
 
     def set_mode(self, name: str) -> None:
@@ -322,7 +325,8 @@ class ViewportWidget(QWidget):
                             pores=self.document.pores,
                             charges=self.document.charges,
                             orbital=self.document.orbital,
-                            hidden=self.document.hidden_mask())
+                            hidden=self.document.hidden_mask(),
+                            atom_colors=self.document.atom_group_colors())
         self.model = model
         self.scene.set_positions(model)
         self._safe_render()
@@ -358,7 +362,8 @@ class ViewportWidget(QWidget):
                             pores=self.document.pores,
                             charges=self.document.charges,
                             orbital=self.document.orbital,
-                            hidden=self.document.hidden_mask())
+                            hidden=self.document.hidden_mask(),
+                            atom_colors=self.document.atom_group_colors())
         self.model = model
         self.scene.set_model(model)
         self.scene.set_projection(self.document.view.projection)

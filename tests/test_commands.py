@@ -205,6 +205,182 @@ def test_redoing_a_delete_gives_the_bonds_the_delete_gave(quartz,
     assert [b.key() for b in bonding.perceive(host.structure)] == after
 
 
+def _off_the_axis(structure):
+    """Quartz with Si1 moved 0.3 A off its two-fold axis, which takes
+    its orbit from three atoms to six."""
+    cell = p1.expand(structure)
+    return atom_commands.MoveSites.by_image_delta(
+        structure, cell, cell.indices_of_site(0)[:1], [0.0, 0.0, 0.3])
+
+
+def _degrees(structure, bonds):
+    cell = p1.expand(structure)
+    degree = np.zeros(cell.n_atoms, dtype=int)
+    for bond in bonds:
+        degree[bond.i] += 1
+        degree[bond.j] += 1
+    return cell, degree
+
+
+def test_a_move_that_splits_an_orbit_keeps_the_bonds_it_had(
+        quartz, monkeypatch):
+    """Moving an atom off its special position doubles its orbit, and
+    the stored graph then describes a cell that is gone -- so the next
+    read perceived every bond again at the new geometry, and bonds
+    followed the drag with Bonds follow the geometry off (MOF-5's C97
+    off its mirror).  Each copy has its parent's bonds instead."""
+    from xtal.core import bonding
+
+    host = Host(quartz.copy())
+    held = _held_graph(host.structure)
+    _, before = _degrees(host.structure,
+                         bonding.perceive(host.structure))
+    monkeypatch.setattr(bonding, "_search", _no_perception)
+    _off_the_axis(host.structure).do(host)
+    bonds = bonding.perceive(host.structure)
+    cell, after = _degrees(host.structure, bonds)
+    assert cell.n_atoms == 12
+    assert len(bonds) == 2 * len(held)     # every bond is on an Si
+    silicon = cell.indices_of_site(0)
+    assert sorted(after[silicon]) == sorted(2 * list(before[:3]))
+    assert all({cell.elements[b.i], cell.elements[b.j]} == {"Si", "O"}
+               for b in bonds)
+
+
+def test_a_split_orbit_bonds_each_copy_to_the_partners_beside_it(quartz):
+    """Each copy's bonds go to the partners its own symmetry carries,
+    not across to the far side of the cell: no carried bond is longer
+    than the move could have stretched it."""
+    from xtal.core import bonding
+
+    host = Host(quartz.copy())
+    longest = max(b.distance for b in bonding.perceive(host.structure))
+    _off_the_axis(host.structure).do(host)
+    cell = p1.expand(host.structure)
+    matrix = host.structure.lattice.matrix
+    assert max(b.length(cell.frac, matrix)
+               for b in bonding.perceive(host.structure)) < longest + 0.35
+
+
+def test_moving_back_onto_the_axis_gives_back_the_bonds_it_had(quartz,
+                                                              stack):
+    """The merge half: the two copies become one atom again, with the
+    bonds both had, and undo puts back the graph it started with."""
+    from xtal.core import bonding
+
+    host = Host(quartz.copy())
+    held = _held_graph(host.structure)
+    start = host.structure.sites[0].frac.copy()
+    stack.push(_off_the_axis(host.structure), host)
+    bonding.perceive(host.structure)        # drawn, as a window would
+    stack.push(atom_commands.MoveSites({0: start}), host)
+    assert sorted(b.key() for b in bonding.perceive(host.structure)) \
+        == sorted(held)
+    stack.push(_off_the_axis(host.structure), host)
+    stack.undo(host)
+    assert [b.key() for b in bonding.perceive(host.structure)] == held
+
+
+def test_dragging_mof5s_ring_carbon_off_its_mirror_keeps_its_ring(
+        monkeypatch):
+    """The report: Find Symmetry on MOF-5, drag C97, and the bonds
+    followed the drag.  Each of the 192 carbons C97 splits into keeps
+    the C49, C97 and H1 it had -- C49--C97 is written from the C49
+    end, which is the case quartz's Si--O bonds cannot show."""
+    from pathlib import Path
+
+    from xtal.core import bonding, symmetry
+    from xtal.io import read_cif
+
+    source = (Path(__file__).resolve().parent.parent
+              / "resources" / "samples" / "MOF-5.cif")
+    if not source.is_file():
+        pytest.skip("resources/samples/MOF-5.cif is not in this tree")
+    structure, _ = symmetry.asymmetrize(read_cif(source))
+    host = Host(structure)
+    bonding.perceive(structure)
+    monkeypatch.setattr(bonding, "_search", _no_perception)
+    site = [s.label for s in structure.sites].index("C97")
+    cell = p1.expand(structure)
+    atom_commands.MoveSites.by_image_delta(
+        structure, cell, cell.indices_of_site(site)[:1],
+        [0.3, 0.2, 0.1]).do(host)
+    cell = p1.expand(structure)
+    partners: dict[int, list] = {}
+    for bond in bonding.perceive(structure):
+        for a, b in ((bond.i, bond.j), (bond.j, bond.i)):
+            partners.setdefault(a, []).append(cell.labels[b])
+    carbons = cell.indices_of_site(site)
+    assert len(carbons) == 192
+    assert {tuple(sorted(partners[a])) for a in carbons} \
+        == {("C49", "C97", "H1")}
+
+
+def test_a_drag_across_another_axis_keeps_only_the_bonds_it_began_with(
+        quartz, stack):
+    """A drag is many moves merged into one step.  Carried one move at
+    a time, an atom dragged across another two-fold axis merged there
+    with the copy on the far side, took that copy's bonds as well as
+    its own, and kept both when it came off again.  The graph is
+    carried from where the gesture began, so the long way round gives
+    what going straight there gives."""
+    from xtal.core import bonding
+
+    path = [[0.4697, 0.03, 0.42], [0.4697, 0.0, 1 / 6],
+            [0.4697, 0.03, 0.12]]
+    straight = Host(quartz.copy())
+    _held_graph(straight.structure)
+    stack.push(atom_commands.MoveSites({0: path[-1]}), straight)
+    expected = sorted(b.key() for b in bonding.perceive(straight.structure))
+
+    dragged = Host(quartz.copy())
+    _held_graph(dragged.structure)
+    drag = CommandStack()
+    for frac in path:
+        drag.push(atom_commands.MoveSites({0: frac}), dragged)
+        bonding.perceive(dragged.structure)     # drawn every frame
+    assert drag.depth == 1
+    assert sorted(b.key() for b in bonding.perceive(dragged.structure)) \
+        == expected
+
+
+def test_a_drag_from_one_mirror_to_another_redraws_over_the_new_cell(
+        stack):
+    """Zn1 dragged near its three-fold axis in MOF-5 sits on one mirror
+    in one frame and on another in the next: 488 atoms both times, but
+    numbered differently.  What was drawn was memoised against the
+    count alone, so the next frame drew the last frame's bonds over the
+    new numbering -- Zn--O bonds 42 A long across the cell."""
+    from pathlib import Path
+
+    from xtal.core import bonding, symmetry
+    from xtal.io import read_cif
+
+    source = (Path(__file__).resolve().parent.parent
+              / "resources" / "samples" / "MOF-5.cif")
+    if not source.is_file():
+        pytest.skip("resources/samples/MOF-5.cif is not in this tree")
+    structure, _ = symmetry.asymmetrize(read_cif(source))
+    host = Host(structure)
+    bonding.perceive(structure)
+    atom = int(p1.expand(structure).indices_of_site(0)[23])
+    layouts = []
+    for delta in ([-0.0052, 0.0499, 0.0198], [-0.0492, -0.0002, -0.0187]):
+        stack.push(atom_commands.MoveSites.by_image_delta(
+            structure, p1.expand(structure), [atom], delta), host)
+        cell = p1.expand(structure)
+        layouts.append(cell.op_idx.copy())
+        longest = max(b.length(cell.frac, structure.lattice.matrix)
+                      for b in bonding.perceive(structure))
+        assert longest < 2.1
+    assert len(layouts[0]) == len(layouts[1])
+    assert not np.array_equal(*layouts)
+
+
+def _no_perception(*args, **kwargs):
+    raise AssertionError("the cell was perceived again")
+
+
 def test_move_sites_by_delta_and_cartesian(host, stack):
     start = host.structure.sites[1].frac.copy()
     stack.push(atom_commands.MoveSites.by_delta(

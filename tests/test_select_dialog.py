@@ -174,3 +174,78 @@ def test_selecting_hydroxyl_handles_selects_only_their_hydrogens(qtbot):
     kind.setCurrentIndex(kind.findData("carboxylic_acid"))
     dialog.apply()
     assert document.selection.atoms == {7, 8, 9, 10}
+
+
+def test_every_rule_and_combine_choice_has_help_text():
+    """A rule or combine choice added without a line saying what it
+    does would leave the help blank exactly where it is new -- and
+    the help is the only place the form says what a rule does."""
+    from xtal.core import selection
+    from xtalapp.dialogs import select
+
+    rules = [rule for rule, _text in select.RULES]
+    hows = [how for how, _text in select.COMBINE]
+    assert set(rules) == set(selection.RULES)
+    assert set(hows) == set(selection.COMBINE)
+    assert set(select.RULE_HELP) == set(rules)
+    assert all(text.strip() for text in select.RULE_HELP.values())
+
+
+def test_the_help_line_follows_the_chosen_rule(qtbot, rutile):
+    """Choosing another rule changes the line under it; a help line
+    stuck on the first rule would explain the wrong form."""
+    from xtalapp.dialogs.select import RULE_HELP
+
+    dialog = SelectDialog(Document(rutile))
+    qtbot.addWidget(dialog)
+    assert dialog.rule_help.text() == RULE_HELP["element"]
+    _choose(dialog, "box", "intersect")
+    assert dialog.rule_help.text() == RULE_HELP["box"]
+
+
+def test_help_opens_the_manuals_select_page_and_apply_stays_default(
+        qtbot, rutile, monkeypatch):
+    """The worked example lives in the manual, behind Help; Return
+    still applies the rule rather than opening a browser."""
+    from PySide6.QtWidgets import QDialogButtonBox
+
+    from xtalapp import manual
+    from xtalapp.dialogs import select
+
+    asked = []
+    monkeypatch.setattr(manual, "page",
+                        lambda name: asked.append(name) or __file__)
+    dialog = SelectDialog(Document(rutile))
+    qtbot.addWidget(dialog)
+    help_button = dialog.buttons.button(QDialogButtonBox.Help)
+    assert help_button is not None and help_button.isEnabled()
+    assert asked == [select.MANUAL_PAGE]
+    assert not help_button.autoDefault()
+    assert dialog.apply_button.isDefault()
+
+
+def test_the_functional_group_page_is_wide_enough_to_read(qtbot,
+                                                          rutile):
+    """The help line under Functional group wrapped to six lines and
+    was cut off at the dialog's old width."""
+    from xtalapp.dialogs import select
+
+    dialog = SelectDialog(Document(rutile))
+    qtbot.addWidget(dialog)
+    dialog.show()
+    _choose(dialog, "group", "replace")
+    assert dialog.width() >= select.MINIMUM_WIDTH
+    label = dialog.rule_help
+    assert label.height() >= label.heightForWidth(label.width())
+
+
+def test_a_short_rule_does_not_keep_the_tallest_rules_height(qtbot,
+                                                             rutile):
+    """The pages share a stack, and a stack is as tall as its tallest
+    page: the box's two rows sat over the Bonds page's blank space."""
+    dialog = SelectDialog(Document(rutile))
+    qtbot.addWidget(dialog)
+    _choose(dialog, "bonds")
+    tall = dialog.pages.sizeHint().height()
+    _choose(dialog, "box")
+    assert dialog.pages.sizeHint().height() < tall

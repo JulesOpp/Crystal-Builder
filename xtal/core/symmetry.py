@@ -36,11 +36,11 @@ from dataclasses import dataclass, field
 import numpy as np
 import spglib
 
-from xtal.core import p1
+from xtal.core import p1, tracking
 from xtal.core.lattice import Lattice
 from xtal.core.site import Site
 from xtal.core.spacegroup import SpaceGroup
-from xtal.core.structure import Bond, Structure, order_key
+from xtal.core.structure import Bond, Change, Structure, order_key
 
 DEFAULT_SYMPREC = 1e-5          # Angstrom-ish; spglib's own default
 DEFAULT_ANGLE_TOLERANCE = -1.0  # negative = derive from symprec
@@ -61,10 +61,17 @@ class SymmetryReport:
     n_before: int = 0
     n_after: int = 0
     merged: int = 0
+    #: Sites put back on the special position they had been moved off
+    #: (:func:`merge_duplicates`).
+    snapped: int = 0
     unmatched: list[int] = field(default_factory=list)
     #: The agent's diagnostic code for a refusal that has its own,
     #: such as ``SIZE_LIMIT``; empty for every other report.
     code: str = ""
+    #: Where the operation put the atoms, when it moved them in space
+    #: (:class:`xtal.core.tracking.AtomMap`); ``None`` when every atom
+    #: kept its Cartesian position.
+    atom_map: object = None
 
     def __bool__(self) -> bool:
         return self.ok
@@ -458,6 +465,8 @@ def standardize(structure: Structure,
         raise ValueError("cell standardisation failed")
 
     lattice_rows, positions, numbers = std
+    moved = _standard_map(structure, detect(structure, symprec),
+                          lattice_rows, to_primitive, idealize)
     sites = []
     for pos, num in zip(positions, numbers, strict=True):
         element, occ = back[int(num)]
@@ -471,7 +480,32 @@ def standardize(structure: Structure,
         n_before=len(cell[1]), n_after=len(sites),
         message=(f"standardised to the {kind} cell: {len(sites)} atoms, "
                  f"V = {out.lattice.volume:.2f} A^3"),
+        atom_map=moved,
     )
+
+
+def _standard_map(structure, info, rows, to_primitive: bool,
+                  idealize: bool) -> tracking.AtomMap:
+    """Where :func:`standardize` put the atoms, as spglib says it did.
+
+    Not the two lattices' map: the standard setting may move the origin
+    as well as the axes, and ZIF-8 and MIL-53 come out of it with no
+    atom where any atom was.  spglib's dataset has ``x_std = P x + p``
+    for the conventional cell; the primitive cell is that cell's,
+    centring taken out, at the same origin -- measured against the
+    idealised conventional lattice, or the unidealised one ``P`` makes
+    of the input's when the cell is not idealised.
+    """
+    inverse = np.linalg.inv(np.asarray(info.transformation_matrix, float))
+    basis = np.eye(3)
+    if to_primitive:
+        conventional = (np.asarray(info.std_lattice, float) if idealize
+                        else inverse.T @ structure.lattice.matrix)
+        basis = (np.asarray(rows, float)
+                 @ np.linalg.inv(conventional)).T
+    return tracking.AtomMap(
+        inverse @ basis,
+        -inverse @ np.asarray(info.origin_shift, float))
 
 
 def asymmetrize(structure: Structure,
@@ -493,6 +527,7 @@ def asymmetrize(structure: Structure,
     info = detect(structure, symprec)
     work = structure
     notes: list[str] = []
+    moved = None
 
     if not info.is_standard_setting:
         if not standardize_cell:
@@ -505,6 +540,7 @@ def asymmetrize(structure: Structure,
             )
         work, std_report = standardize(structure, symprec)
         notes.append(std_report.message)
+        moved = std_report.atom_map
         info = detect(work, symprec)
 
     cell = p1.expand(work)
@@ -557,6 +593,7 @@ def asymmetrize(structure: Structure,
                  f"{cell.n_atoms} atoms -> {len(sites)} independent "
                  f"sites"),
         warnings=notes,
+        atom_map=moved,
     )
     return out, report
 
@@ -739,6 +776,13 @@ def invert(structure: Structure) -> tuple[Structure, SymmetryReport]:
     report = SymmetryReport(
         n_before=structure.n_sites, n_after=out.n_sites,
         message=message)
+    if not group.is_centrosymmetric:
+        # Every atom went to its image, so that is where what follows
+        # it goes too.  A centrosymmetric crystal is drawn exactly as
+        # it was, and an atom that jumped to its inversion partner
+        # would look like it had moved for no reason.
+        undo = np.linalg.inv(rot)
+        report.atom_map = tracking.AtomMap(undo, -undo @ tran)
     if group.is_centrosymmetric:
         report.warnings.append(
             "nothing to undo: the inverted structure is the one you "
@@ -773,16 +817,23 @@ class MergePreview:
     atoms_before: int           # atoms in the unit cell
     atoms_after: int
     demoted: int                # groups keeping a later, more special site
+    snapped: int = 0            # sites put back on a special position
 
     def __bool__(self) -> bool:
-        return self.merged > 0
+        return self.merged > 0 or self.snapped > 0
 
     def message(self) -> str:
-        if not self.merged:
+        if not self:
             return f"no duplicates within {self.tol:g} A"
-        return (f"{self.merged} of {self.sites_before} sites merge -- "
-                f"{self.atoms_before} atoms in the cell become "
-                f"{self.atoms_after}")
+        parts = []
+        if self.snapped:
+            parts.append(f"{self.snapped} site(s) go back onto their "
+                         f"special position")
+        if self.merged:
+            parts.append(f"{self.merged} of {self.sites_before} sites "
+                         f"merge")
+        return (f"{' and '.join(parts)} -- {self.atoms_before} atoms "
+                f"in the cell become {self.atoms_after}")
 
 
 def duplicate_groups(structure: Structure,
@@ -866,6 +917,61 @@ def _site_name(structure: Structure, index: int) -> str:
     return structure.sites[index].label or f"site {index + 1}"
 
 
+def snap_to_special_positions(structure: Structure,
+                              tol: float = DEFAULT_MERGE_TOL):
+    """Sites put back on the special position they were moved off:
+    ``(structure, [(site, multiplicity before, after), ...])``, the
+    structure ``None`` when no site moves.
+
+    A site 0.06 A off MOF-5's three-fold axis is generated three times,
+    0.1 A apart -- 96 zinc for 32 -- and :func:`duplicate_groups` never
+    sees it, because it compares a site against the images of *other*
+    sites.  These are one atom: the operations whose image of the site
+    is within ``tol`` of it are the symmetry of the position it left,
+    and the mean of those images is that position, exactly, when they
+    form a group.  Repeated until it settles, in case the first set was
+    not closed.  Kept only if the multiplicity drops -- an atom merely
+    near an axis has not split -- and if no image moved further than
+    ``tol``, which is the promise the number makes.
+    """
+    if structure.is_p1:
+        return None, []
+    cell = p1.expand(structure)
+    ops = structure.space_group.operations
+    rot = np.array([op.rot for op in ops], dtype=float)
+    trans = np.array([op.trans for op in ops], dtype=float)
+    matrix = structure.lattice.matrix
+    out = None
+    snaps = []
+    for i, site in enumerate(structure.sites):
+        x = np.array(site.frac, dtype=float)
+        for _ in range(8):
+            images = rot @ x + trans
+            shift = np.round(images - x)
+            gap = np.linalg.norm((images - shift - x) @ matrix, axis=1)
+            mean = (images - shift)[gap < tol].mean(axis=0)
+            settled = np.linalg.norm((mean - x) @ matrix) < 1e-12
+            x = mean
+            if settled:
+                break
+        if np.linalg.norm((x - site.frac) @ matrix) > tol:
+            continue
+        wrapped = rot @ x + trans
+        wrapped -= np.floor(wrapped)
+        after = len(p1._distinct(wrapped, structure.lattice,
+                                 p1.SPECIAL_POSITION_TOL))
+        before = cell.multiplicity(i)
+        if after >= before:
+            continue
+        if out is None:
+            out = structure.copy()
+        out.sites[i].frac = x
+        snaps.append((i, before, after))
+    if out is not None:
+        out.touch(Change.POSITIONS)
+    return out, snaps
+
+
 def preview_merge(structure: Structure,
                   tol: float = DEFAULT_MERGE_TOL) -> MergePreview:
     """What :func:`merge_duplicates` would do at ``tol``.
@@ -874,7 +980,12 @@ def preview_merge(structure: Structure,
     it needs is memoised on the structure, so only the first tolerance
     pays for it, and the atom count afterwards is read off the
     multiplicities already computed rather than by expanding again.
+    A site that would go back onto its special position costs one more
+    expansion, of the structure with it there.
     """
+    atoms_before = p1.expand(structure).n_atoms
+    snapped, snaps = snap_to_special_positions(structure, tol)
+    structure = snapped if snapped is not None else structure
     cell = p1.expand(structure)
     groups = duplicate_groups(structure, tol)
     dropped = {i for g in groups for i in g if i != _keeper(cell, g)}
@@ -885,9 +996,10 @@ def preview_merge(structure: Structure,
         merged=len(dropped),
         sites_before=structure.n_sites,
         sites_after=len(kept),
-        atoms_before=cell.n_atoms,
+        atoms_before=atoms_before,
         atoms_after=sum(cell.multiplicity(i) for i in kept),
         demoted=demoted,
+        snapped=len(snaps),
     )
 
 
@@ -900,9 +1012,22 @@ def merge_duplicates(structure: Structure,
     Every symmetry-changing operation should offer this: generating a
     group over coordinates that were already the full cell is the
     standard way to end up with near-duplicate atoms.
+
+    A site that has split into copies of itself within ``tol`` -- moved
+    off its special position -- goes back onto it first
+    (:func:`snap_to_special_positions`), carrying its bonds: the atoms
+    it becomes are the ones it was, and nothing is perceived.
     """
-    cell = p1.expand(structure)
-    groups = duplicate_groups(structure, tol)
+    from xtal.core import bonding
+
+    before = p1.expand(structure)
+    snapped, snaps = snap_to_special_positions(structure, tol)
+    if snapped is not None:
+        bonding.hold_through_move(
+            snapped, before, [site.frac for site in structure.sites])
+    work = snapped if snapped is not None else structure.copy()
+    cell = p1.expand(work)
+    groups = duplicate_groups(work, tol)
 
     dropped: list[int] = []
     demoted: list[str] = []
@@ -919,14 +1044,18 @@ def merge_duplicates(structure: Structure,
                 f"{_site_name(structure, group[0])} "
                 f"({cell.multiplicity(group[0])})")
 
-    out = structure.copy()
+    out = work
     if dropped:
         out.remove_sites(sorted(dropped))
+    said = [f"put {_site_name(structure, i)} back on its special "
+            f"position ({a} atoms, not {b})" for i, b, a in snaps]
+    if dropped:
+        said.append(f"merged {len(dropped)} duplicate site(s)")
     report = SymmetryReport(
         n_before=structure.n_sites, n_after=out.n_sites,
-        merged=len(dropped),
-        message=(f"merged {len(dropped)} duplicate site(s) within "
-                 f"{tol:g} A" if dropped else "no duplicates found"),
+        merged=len(dropped), snapped=len(snaps),
+        message=(f"{'; '.join(said)} within {tol:g} A" if said
+                 else "no duplicates found"),
     )
     if demoted:
         report.warnings.append(

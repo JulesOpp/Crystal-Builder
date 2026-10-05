@@ -35,7 +35,7 @@ from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 
-from xtal.core import limits
+from xtal.core import limits, tracking
 from xtal.core.structure import Change, Structure
 
 DEFAULT_HISTORY = 200
@@ -87,6 +87,18 @@ class Command(ABC):
         history's budget; 0 for a step that remembers only a change."""
         return 0
 
+    def atom_map(self) -> tracking.AtomMap | None:
+        """Where this step put the atoms, for what follows them --
+        hidden atoms, atom groups -- once it has run.
+
+        ``None`` here: an edit that is not a rebuild keeps the
+        numbering, or renumbers atoms it leaves where they were, and
+        the atoms are found again by index or by place.  A rebuild
+        (:class:`StructureOperation`) states its map, because it may
+        move every atom.
+        """
+        return None
+
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self.label!r})"
 
@@ -122,6 +134,19 @@ class MacroCommand(Command):
 
     def held_atoms(self) -> int:
         return sum(command.held_atoms() for command in self.commands)
+
+    def atom_map(self) -> tracking.AtomMap | None:
+        """The steps' maps one after another, a step without one
+        taken as leaving the fractional coordinates where they were;
+        ``None`` when no step has one."""
+        maps = [command.atom_map() for command in self.commands]
+        if all(m is None for m in maps):
+            return None
+        out = tracking.AtomMap.identity()
+        for m in maps:
+            if m is not None:
+                out = out.then(m)
+        return out
 
     def __len__(self) -> int:
         return len(self.commands)
@@ -205,6 +230,20 @@ class StructureOperation(Command):
 
     def held_atoms(self) -> int:
         return _sites(self._old)
+
+    def atom_map(self) -> tracking.AtomMap | None:
+        """Every atom where it was in space: the two lattices' map,
+        which is a supercell's, a transformed cell's and a reduced
+        one's.  An operation that moves the origin or the atoms says
+        so -- in its report's ``atom_map``, or by overriding this --
+        and ``test_tracking`` holds every one to it."""
+        if self._old is None or self._result is None:
+            return None
+        stated = getattr(self.report, "atom_map", None)
+        if stated is not None:
+            return stated
+        return tracking.AtomMap.keeping_frame(self._old.lattice,
+                                              self._result[0].lattice)
 
 
 class SnapshotEdit(Command):

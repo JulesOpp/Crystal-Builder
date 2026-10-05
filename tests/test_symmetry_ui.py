@@ -1102,6 +1102,31 @@ def test_the_merge_slider_and_the_number_stay_together(qtbot,
     assert dialog.slider.value() == dialog._to_slider(0.02)
 
 
+def test_the_merge_tolerance_reaches_one_angstrom(qtbot, doubled):
+    """Half an Angstrom was too tight for an atom dragged off its
+    special position and wanted back on it."""
+    dialog = MergeDuplicatesDialog(doubled)
+    qtbot.addWidget(dialog)
+    assert dialog.tol.maximum() == pytest.approx(1.0)
+    dialog.slider.setValue(dialog.slider.maximum())
+    assert dialog.tol.value() == pytest.approx(1.0)
+
+
+def test_the_merge_dialog_offers_to_put_a_split_site_back(qtbot,
+                                                          quartz):
+    """Merge was greyed out over an atom moved off its axis: "no
+    duplicates" at any tolerance, because the copies were its own."""
+    moved = quartz.copy()
+    moved.sites[0].frac = moved.sites[0].frac + [0.0, 0.01, 0.0]
+    moved.touch()
+    dialog = MergeDuplicatesDialog(Document(moved))
+    qtbot.addWidget(dialog)
+    dialog.tol.setValue(0.2)
+    assert dialog.buttons.button(QDialogButtonBox.Ok).isEnabled()
+    assert "special position" in dialog.summary.text()
+    assert "12 atoms in the cell become 9" in dialog.summary.text()
+
+
 def test_the_merge_dialog_applies_the_tolerance_it_previewed(
         monkeypatch, qtbot, doubled):
     monkeypatch.setattr(MergeDuplicatesDialog, "exec",
