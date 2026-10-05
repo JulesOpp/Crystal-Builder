@@ -271,27 +271,43 @@ class SetSiteProperties(Command):
         names = ", ".join(sorted(values))
         self.label = f"Edit {names}"
         self._old: dict = {}
+        self._gesture = None          # see moving_sites
 
     def do(self, host) -> None:
         site = host.structure.sites[self.index]
         if not self._old:
             self._old = {key: _copy_value(getattr(site, key))
                          for key in self.values}
-        for key, value in self.values.items():
-            setattr(site, key, _copy_value(value))
-        host.structure.touch(self.change)
+
+        def write():
+            for key, value in self.values.items():
+                setattr(site, key, _copy_value(value))
+            host.structure.touch(self.change)
+
+        if self.change == Change.POSITIONS:
+            self._gesture = moving_sites(host.structure, write)
+        else:
+            write()
 
     def undo(self, host) -> None:
         site = host.structure.sites[self.index]
-        for key, value in self._old.items():
-            setattr(site, key, _copy_value(value))
-        host.structure.touch(self.change)
+
+        def write():
+            for key, value in self._old.items():
+                setattr(site, key, _copy_value(value))
+            host.structure.touch(self.change)
+
+        if self.change == Change.POSITIONS:
+            put_back(host.structure, self._gesture, write)
+        else:
+            write()
 
     def merge_with(self, other: Command) -> bool:
         if (isinstance(other, SetSiteProperties)
                 and other.index == self.index
                 and set(other.values) == set(self.values)):
             self.values = dict(other.values)
+            carry_from(self._gesture)
             return True
         return False
 
@@ -312,6 +328,7 @@ class MoveSites(Command):
                         for k, v in targets.items()}
         self.label = label
         self._old: dict = {}
+        self._gesture = None          # see moving_sites
 
     @classmethod
     def by_delta(cls, structure, indices, delta,
@@ -397,20 +414,18 @@ class MoveSites(Command):
         if not self._old:
             self._old = {i: structure.sites[i].frac.copy()
                          for i in self.targets}
-        for index, frac in self.targets.items():
-            structure.sites[index].frac = np.array(frac, dtype=float)
-        structure.touch(Change.POSITIONS)
+        self._gesture = moving_sites(
+            structure, lambda: _write_fracs(structure, self.targets))
 
     def undo(self, host) -> None:
-        structure = host.structure
-        for index, frac in self._old.items():
-            structure.sites[index].frac = np.array(frac, dtype=float)
-        structure.touch(Change.POSITIONS)
+        put_back(host.structure, self._gesture,
+                 lambda: _write_fracs(host.structure, self._old))
 
     def merge_with(self, other: Command) -> bool:
         if (isinstance(other, MoveSites)
                 and set(other.targets) == set(self.targets)):
             self.targets = dict(other.targets)
+            carry_from(self._gesture)
             return True
         return False
 
@@ -455,6 +470,7 @@ class TransformSites(Command):
             centre, dtype=float).reshape(3)
         self.label = label
         self._old: dict = {}
+        self._gesture = None          # see moving_sites
         # Where the atoms ended up.  Kept so that a redo replays the
         # result rather than re-deriving it -- which matters once these
         # merge, because a merged burst of nudges is one command whose
@@ -483,7 +499,8 @@ class TransformSites(Command):
         structure = host.structure
         lattice = structure.lattice
         if self._new:                       # a redo: replay the result
-            self._write(structure, self._new)
+            self._gesture = moving_sites(
+                structure, lambda: _write_fracs(structure, self._new))
             return
         self._old = {i: structure.sites[i].frac.copy()
                      for i in self.indices}
@@ -495,16 +512,12 @@ class TransformSites(Command):
         self._new = {index: lattice.to_frac(position)
                      for index, position in zip(self.indices, moved,
                                                 strict=True)}
-        self._write(structure, self._new)
+        self._gesture = moving_sites(
+            structure, lambda: _write_fracs(structure, self._new))
 
     def undo(self, host) -> None:
-        self._write(host.structure, self._old)
-
-    @staticmethod
-    def _write(structure, frac_by_index) -> None:
-        for index, frac in frac_by_index.items():
-            structure.sites[index].frac = np.array(frac, dtype=float)
-        structure.touch(Change.POSITIONS)
+        put_back(host.structure, self._gesture,
+                 lambda: _write_fracs(host.structure, self._old))
 
     def merge_with(self, other: Command) -> bool:
         """Absorb a later rotation of the same atoms.
@@ -519,6 +532,7 @@ class TransformSites(Command):
         if (isinstance(other, TransformSites)
                 and other.indices == self.indices):
             self._new = dict(other._new)
+            carry_from(self._gesture)
             return True
         return False
 
@@ -546,6 +560,7 @@ class PlanarizeSites(Command):
         self.label = label
         self.displacement = 0.0
         self._old: dict = {}
+        self._gesture = None          # see moving_sites
 
     def do(self, host) -> None:
         structure = host.structure
@@ -556,15 +571,102 @@ class PlanarizeSites(Command):
         cart = np.array([lattice.to_cart(structure.sites[i].frac)
                          for i in self.indices])
         moved, self.displacement = transforms.planarize(cart)
-        for index, position in zip(self.indices, moved, strict=True):
-            structure.sites[index].frac = lattice.to_frac(position)
-        structure.touch(Change.POSITIONS)
+        self._gesture = moving_sites(structure, lambda: _write_fracs(
+            structure, {index: lattice.to_frac(position)
+                        for index, position in zip(self.indices, moved,
+                                                   strict=True)}))
 
     def undo(self, host) -> None:
-        structure = host.structure
-        for index, frac in self._old.items():
-            structure.sites[index].frac = np.array(frac, dtype=float)
-        structure.touch(Change.POSITIONS)
+        put_back(host.structure, self._gesture,
+                 lambda: _write_fracs(host.structure, self._old))
+
+
+def _write_fracs(structure, frac_by_index) -> None:
+    for index, frac in frac_by_index.items():
+        structure.sites[index].frac = np.array(frac, dtype=float)
+    structure.touch(Change.POSITIONS)
+
+
+class _Gesture:
+    """Where a move began: the bond graph, the cell it was over and
+    every site's coordinates.  What an undo puts back, and what every
+    later frame of the same drag is carried from."""
+
+    def __init__(self, structure):
+        bonding.prepare_hold(structure)
+        self.structure = structure
+        self.perceived = structure.perceived
+        self.cell = p1.expand(structure)
+        self.fracs = [site.frac.copy() for site in structure.sites]
+
+
+def moving_sites(structure, write) -> _Gesture | None:
+    """Run ``write``, a move of sites, holding the stored bond graph
+    through it; returns where it began, for :func:`put_back` and
+    :func:`carry_from`.
+
+    A move keeps the graph while the cell keeps its atoms, but one that
+    takes an atom off a special position, or onto one, changes how many
+    the cell holds, and the graph was then thrown away and the whole
+    crystal perceived again -- bonds followed a drag that was meant to
+    leave them alone.  :func:`xtal.core.bonding.hold_through_move`
+    carries it instead.  Undo puts back the graph from before rather
+    than carrying it back, so a round trip is exact.  In P1 no orbit
+    can split, and nothing is captured.
+    """
+    if structure.is_p1:
+        write()
+        return None
+    gesture = _Gesture(structure)
+    write()
+    _renumbered(structure, gesture.cell)
+    bonding.hold_through_move(structure, gesture.cell, gesture.fracs)
+    return gesture
+
+
+def carry_from(gesture: _Gesture | None) -> None:
+    """Carry the graph from where a merged move began to where it is.
+
+    The frame just absorbed carried it from the frame before, and that
+    is wrong as soon as the drag crosses a mirror: the atom merges
+    there with its copy on the far side, takes that copy's bonds, and
+    keeps them when it comes off.  The atom dragged keeps the bonds it
+    started with.
+    """
+    if gesture is not None:
+        bonding.hold_through_move(gesture.structure, gesture.cell,
+                                  gesture.fracs, gesture.perceived)
+
+
+def put_back(structure, gesture: _Gesture | None, write) -> None:
+    """The undo half of :func:`moving_sites`: run ``write``, the move
+    back, and restore the graph from before.  In P1 the graph was
+    never at risk and is left as the undone move found it."""
+    if gesture is None:
+        write()
+        return
+    before = p1.expand(structure)
+    write()
+    _renumbered(structure, before)
+    structure.perceived = gesture.perceived
+
+
+def _renumbered(structure, before) -> None:
+    """Say so when a move has renumbered the cell.
+
+    A move is a change of positions, and what is worked out from the
+    cell's atoms -- the bonds drawn, the rings, the atom typing -- is
+    memoised past one, checked only by how many atoms there are.  But
+    an atom near a special position can go from one mirror to another
+    with the count the same and the atoms numbered differently: Zn1 by
+    its three-fold axis in MOF-5, 488 atoms either side, and the next
+    frame drew the last one's bonds over the new numbering, 42 A long.
+    The numbering is the cell's topology, so it is recorded as one.
+    """
+    after = p1.expand(structure)
+    if not (np.array_equal(after.site_idx, before.site_idx)
+            and np.array_equal(after.op_idx, before.op_idx)):
+        structure.touch(Change.TOPOLOGY)
 
 
 def new_site(element: str, frac, occupancy: float = 1.0,

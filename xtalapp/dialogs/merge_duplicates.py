@@ -39,13 +39,14 @@ from xtal.core import symmetry
 from xtalapp.dialogs.answered import answered
 
 # The slider sweeps; the spin box beside it sets.  The range stops at
-# half an Angstrom because merging atoms further apart than that is no
-# longer tidying up a file, it is editing the structure -- and a range
-# wide enough to include what nobody wants leaves the part they do
-# want in the first tenth of the travel.
+# one Angstrom: merging atoms further apart than that is no longer
+# tidying up a file, it is editing the structure.  It was half an
+# Angstrom, which was too tight for an atom dragged off its special
+# position and wanted back on it; a wider range costs the slider some
+# resolution near zero, which the spin box still has.
 SLIDER_STEPS = 100
 TOL_MIN = 0.001
-TOL_MAX = 0.5
+TOL_MAX = 1.0
 
 
 class MergeDuplicatesDialog(QDialog):
@@ -144,8 +145,15 @@ class MergeDuplicatesDialog(QDialog):
     def _detail(plan: symmetry.MergePreview) -> str:
         if not plan:
             return ("Nothing to merge at this tolerance. Widen it if "
-                    "the same atom was refined into two places.")
+                    "the same atom was refined into two places, or "
+                    "moved off a special position into copies of "
+                    "itself.")
         lines = [f"{plan.sites_after} independent sites remain."]
+        if plan.snapped:
+            lines.append(
+                f"{plan.snapped} site(s) were moved off a special "
+                f"position and split into copies of themselves; they "
+                f"go back onto it, with the bonds they had.")
         if plan.demoted:
             # Silent otherwise, and this is the case where merging
             # changes the formula if it picks wrong.

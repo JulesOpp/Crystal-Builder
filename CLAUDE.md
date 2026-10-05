@@ -288,6 +288,17 @@ stress case).
   and **not when an element changes**: O to S keeps the oxygen's
   bonds (`bonding.hold_through_retype`), except that an atom made a
   dummy loses its perceived ones.
+  **Nor when a move splits or merges an orbit**: an atom dragged off
+  its mirror is generated twice as often (MOF-5's C97, 96 to 192), and
+  each copy takes the bonds of the atom the same operation made
+  (`bonding.hold_through_move`, from the commands' `moving_sites`).
+  A drag carries from where it *began* (`carry_from` on merge), or an
+  atom crossing another mirror picks up its copy's bonds there.
+  A move that **renumbers** the cell without changing its count (Zn1
+  near its 3-fold axis, from one mirror to another: 488 atoms either
+  side) is recorded as `Change.TOPOLOGY` (`atoms._renumbered`), since
+  every memo over P1 atoms checked only the count and drew the last
+  frame's bonds over the new numbering, 42 A long.
   `AddSites(perceive=False)` and `bonding.hold_perception` are how;
   Add hydrogens is the deliberate exception, because bonding what it
   adds is the whole operation. **A slab carries its graph**
@@ -315,8 +326,13 @@ stress case).
   `resources/samples`, and no two real atoms are that close. Where the
   atom *goes* is unchanged: the first operation to reach a point still
   wins, which near a special position is the identity. Snapping a site
-  onto the position is idealisation, and Standardize is where that
-  lives.
+  onto the position is idealisation, and lives in two places:
+  Standardize, and **Merge Duplicate Sites**, which puts back a site
+  that has split into copies of *itself* within its tolerance
+  (`symmetry.snap_to_special_positions`: the mean of the images the
+  near-symmetry makes, kept only if the multiplicity drops, bonds
+  carried). The copies of a split site are over 0.05 A apart, so this
+  needs a tolerance above the default; the dialog goes to 1 A.
 - **Preparing for simulation is a rebuild, one undo step, and every
   step says what it chose.** Structure ▸ Prepare for simulation… and
   `xtal prepare` run `xtal/core/prepare.py`: sites written twice

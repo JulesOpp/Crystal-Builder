@@ -181,7 +181,12 @@ reported, not dropped.
 ### `merge_duplicates(tol)`
 
 Merges sites of one element that are the same atom. The remedy for
-`COINCIDENT_ATOMS` and `DUPLICATE_SITES`.
+`COINCIDENT_ATOMS` and `DUPLICATE_SITES`. A site moved slightly off a
+special position, so that it is generated as copies of itself `tol`
+apart, is first put back on that position, keeping its bonds
+(`data`'s report counts it as `snapped`). The copies of a site that has
+split are more than 0.05 A apart, so this needs `tol` above the
+default: 0.2 puts back MOF-5's Zn1 moved 0.08 A off its axis.
 
 ## Bonds
 

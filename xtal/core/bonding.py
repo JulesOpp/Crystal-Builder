@@ -483,6 +483,177 @@ def hold_through_retype(structure, before) -> bool:
     return True
 
 
+def hold_through_move(structure, before, old_fracs,
+                      stored=None) -> bool:
+    """Carry the stored perception through a move that split or merged
+    an orbit.  Says whether it had to.
+
+    A move leaves the stored graph alone while the cell keeps its atoms,
+    but an atom taken off a special position is generated twice as
+    often -- MOF-5's C97 off its mirror, 96 carbons to 192 -- and one
+    moved onto one merges its images.  The graph then describes a cell
+    that is gone, :func:`_by_distance` threw it away, and every bond in
+    the crystal was perceived again at the new geometry: a drag with
+    Bonds follow the geometry off drew bonds that followed it.
+
+    Instead each atom of the new cell takes the bonds of the atom the
+    same operation made before (``old_fracs`` is every site's
+    coordinates then).  A bond i--j is carried to a copy ``a`` of ``i``
+    by the operation ``g`` that takes ``i`` to ``a``: ``j`` goes where
+    ``g`` sends it, which is an atom of ``j``'s site, found by position.
+    No distance decides whether a bond exists, only which atom of a
+    stated partner it is.  Copies merging gives the one atom the bonds
+    of all of them.
+
+    ``stored`` is the graph ``before`` had, when that is not the one on
+    the structure now: a drag carries from where it began, not from
+    its last frame, or an atom dragged across a mirror merges with its
+    copy there and comes off it with both copies' bonds.
+    """
+    gesture = stored is not None
+    stored = stored if gesture else structure.perceived
+    if stored is None or stored.elements != tuple(before.elements):
+        return False
+    cell = p1.expand(structure)
+    if (cell.n_atoms == before.n_atoms
+            and np.array_equal(cell.site_idx, before.site_idx)
+            and np.array_equal(cell.op_idx, before.op_idx)):
+        if gesture:
+            structure.set_perceived(
+                rebase(stored.bonds, stored.tau, cell.tau),
+                stored.signature, cell, stored.orders)
+        return gesture
+    ops = structure.space_group.operations
+    rot = np.array([op.rot for op in ops], dtype=float)
+    trans = np.array([op.trans for op in ops], dtype=float)
+    old_x = np.asarray(old_fracs, dtype=float).reshape(-1, 3)
+    new_x = np.array([site.frac for site in structure.sites], dtype=float)
+    old_owner = _owners(before, old_x, rot, trans, structure.lattice)
+    new_owner = _owners(cell, new_x, rot, trans, structure.lattice)
+
+    # Every new atom an old one became, and an operation that shows it.
+    n_new = cell.n_atoms
+    pair = (old_owner * n_new + new_owner).ravel()
+    pair, first = np.unique(pair, return_index=True)
+    parent, child = np.divmod(pair, n_new)
+    via = first % len(ops)
+
+    # Each bond from either end: a bond is carried to the copies of its
+    # first atom, so C49--C97 read only from C49 reached one of the two
+    # carbons C97 split into, and the other lost its ring.
+    tau_then = np.asarray(before.tau, dtype=int)
+    kept = rebase(stored.bonds, stored.tau, tau_then)
+    if not kept:
+        structure.set_perceived([], stored.signature, cell, {})
+        return True
+    ends = np.array([(b.i, b.j) for b in kept], dtype=int)
+    images = np.array([b.image for b in kept], dtype=int)
+    which = np.concatenate([np.arange(len(kept))] * 2)
+    i = np.concatenate([ends[:, 0], ends[:, 1]])
+    j = np.concatenate([ends[:, 1], ends[:, 0]])
+    image = np.concatenate([images, -images])
+
+    # Every (directed bond, copy of its first atom), as flat arrays.
+    order = np.argsort(i, kind="stable")
+    lo = np.searchsorted(i[order], parent, "left")
+    count = np.searchsorted(i[order], parent, "right") - lo
+    which_pair = np.repeat(np.arange(len(parent)), count)
+    start = np.repeat(lo - np.cumsum(count) + count, count)
+    k = order[start + np.arange(int(count.sum()))]
+    a, o = child[which_pair], via[which_pair]
+    i, j, image, which = i[k], j[k], image[k], which[k]
+
+    # The bond as it runs now, between the images the old cell's
+    # operations make of the sites where they are now, turned by the
+    # operation that takes its first atom to the copy.
+    oi, oj = before.op_idx[i], before.op_idx[j]
+    here = (np.einsum("nij,nj->ni", rot[oi], new_x[before.site_idx[i]])
+            + trans[oi] + tau_then[i])
+    there = (np.einsum("nij,nj->ni", rot[oj], new_x[before.site_idx[j]])
+             + trans[oj] + tau_then[j] + image)
+    turn = np.einsum("nij,njk->nik", rot[o], np.linalg.inv(rot)[oi])
+    target = cell.frac[a] + np.einsum("nij,nj->ni", turn, there - here)
+
+    # Which atom of the partner's site is there.
+    matrix = structure.lattice.matrix
+    b = np.empty(len(a), dtype=int)
+    site_j = before.site_idx[j]
+    for site in np.unique(site_j):
+        rows = np.nonzero(site_j == site)[0]
+        atoms = cell.indices_of_site(int(site))
+        gap = target[rows, None, :] - cell.frac[atoms][None, :, :]
+        gap -= np.round(gap)
+        b[rows] = atoms[np.argmin(
+            np.linalg.norm(gap @ matrix, axis=2), axis=1)]
+    shift = np.round(target - cell.frac[b]).astype(int)
+
+    real = (a != b) | shift.any(axis=1)
+    a, b, shift, which = a[real], b[real], shift[real], which[real]
+    a, b, shift = _canonical(a, b, shift)
+    _, first = np.unique(np.column_stack([a, b, shift]), axis=0,
+                         return_index=True)
+    first.sort()
+    bonds = []
+    held = {}
+    if stored.orders:
+        names = _order_names(ends[:, 0], ends[:, 1], images, tau_then)
+        held = {n: stored.orders[name] for n, name in enumerate(names)
+                if name in stored.orders}
+    orders: dict[tuple, float] = {}
+    new_names = _order_names(a, b, shift, cell.tau) if held else None
+    for n in first:
+        bond = kept[which[n]]
+        bonds.append(CellBond(int(a[n]), int(b[n]),
+                              tuple(int(v) for v in shift[n]),
+                              bond.distance, bond.explicit, bond.order,
+                              bond.stated))
+        if int(which[n]) in held:
+            orders[new_names[n]] = held[int(which[n])]
+    bonds.sort(key=lambda b: (b.i, b.j, b.image))
+    structure.set_perceived(bonds, stored.signature, cell, orders)
+    return True
+
+
+def _canonical(i, j, image):
+    """:meth:`CellBond.key` over arrays: each bond from the end that
+    puts ``(i, -image)`` after ``(j, image)``."""
+    flip = (j < i) | ((j == i) & _lexless(image, -image))
+    return (np.where(flip, j, i), np.where(flip, i, j),
+            np.where(flip[:, None], -image, image))
+
+
+def _lexless(x, y):
+    less = x[:, 2] < y[:, 2]
+    for k in (1, 0):
+        less = (x[:, k] < y[:, k]) | ((x[:, k] == y[:, k]) & less)
+    return less
+
+
+def _order_names(i, j, image, tau):
+    """:func:`~xtal.core.structure.order_key` over arrays."""
+    tau = np.asarray(tau, dtype=int)
+    i, j, sep = _canonical(np.asarray(i), np.asarray(j),
+                           np.asarray(image) + tau[j] - tau[i])
+    return [(int(p), int(q), (int(u), int(v), int(w)))
+            for p, q, (u, v, w) in zip(i.tolist(), j.tolist(),
+                                       sep.tolist(), strict=True)]
+
+
+def _owners(cell, x, rot, trans, lattice) -> np.ndarray:
+    """``(n_sites, n_ops)``: the atom of ``cell`` each operation makes
+    of each site at ``x`` -- the kept one, or the one it coincides
+    with on a special position."""
+    owner = np.empty((len(x), len(rot)), dtype=int)
+    for s in range(len(x)):
+        atoms = cell.indices_of_site(s)
+        images = np.einsum("oij,j->oi", rot, x[s]) + trans
+        gap = images[:, None, :] - cell.frac[atoms][None, :, :]
+        gap -= np.round(gap)
+        owner[s] = atoms[np.argmin(
+            np.linalg.norm(gap @ lattice.matrix, axis=2), axis=1)]
+    return owner
+
+
 def _appended_to(before, after) -> bool:
     return (len(after) > len(before)
             and after[:len(before)] == tuple(before))
