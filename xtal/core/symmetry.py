@@ -36,7 +36,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import spglib
 
-from xtal.core import p1
+from xtal.core import p1, tracking
 from xtal.core.lattice import Lattice
 from xtal.core.site import Site
 from xtal.core.spacegroup import SpaceGroup
@@ -65,6 +65,10 @@ class SymmetryReport:
     #: The agent's diagnostic code for a refusal that has its own,
     #: such as ``SIZE_LIMIT``; empty for every other report.
     code: str = ""
+    #: Where the operation put the atoms, when it moved them in space
+    #: (:class:`xtal.core.tracking.AtomMap`); ``None`` when every atom
+    #: kept its Cartesian position.
+    atom_map: object = None
 
     def __bool__(self) -> bool:
         return self.ok
@@ -458,6 +462,8 @@ def standardize(structure: Structure,
         raise ValueError("cell standardisation failed")
 
     lattice_rows, positions, numbers = std
+    moved = _standard_map(structure, detect(structure, symprec),
+                          lattice_rows, to_primitive, idealize)
     sites = []
     for pos, num in zip(positions, numbers, strict=True):
         element, occ = back[int(num)]
@@ -471,7 +477,32 @@ def standardize(structure: Structure,
         n_before=len(cell[1]), n_after=len(sites),
         message=(f"standardised to the {kind} cell: {len(sites)} atoms, "
                  f"V = {out.lattice.volume:.2f} A^3"),
+        atom_map=moved,
     )
+
+
+def _standard_map(structure, info, rows, to_primitive: bool,
+                  idealize: bool) -> tracking.AtomMap:
+    """Where :func:`standardize` put the atoms, as spglib says it did.
+
+    Not the two lattices' map: the standard setting may move the origin
+    as well as the axes, and ZIF-8 and MIL-53 come out of it with no
+    atom where any atom was.  spglib's dataset has ``x_std = P x + p``
+    for the conventional cell; the primitive cell is that cell's,
+    centring taken out, at the same origin -- measured against the
+    idealised conventional lattice, or the unidealised one ``P`` makes
+    of the input's when the cell is not idealised.
+    """
+    inverse = np.linalg.inv(np.asarray(info.transformation_matrix, float))
+    basis = np.eye(3)
+    if to_primitive:
+        conventional = (np.asarray(info.std_lattice, float) if idealize
+                        else inverse.T @ structure.lattice.matrix)
+        basis = (np.asarray(rows, float)
+                 @ np.linalg.inv(conventional)).T
+    return tracking.AtomMap(
+        inverse @ basis,
+        -inverse @ np.asarray(info.origin_shift, float))
 
 
 def asymmetrize(structure: Structure,
@@ -493,6 +524,7 @@ def asymmetrize(structure: Structure,
     info = detect(structure, symprec)
     work = structure
     notes: list[str] = []
+    moved = None
 
     if not info.is_standard_setting:
         if not standardize_cell:
@@ -505,6 +537,7 @@ def asymmetrize(structure: Structure,
             )
         work, std_report = standardize(structure, symprec)
         notes.append(std_report.message)
+        moved = std_report.atom_map
         info = detect(work, symprec)
 
     cell = p1.expand(work)
@@ -557,6 +590,7 @@ def asymmetrize(structure: Structure,
                  f"{cell.n_atoms} atoms -> {len(sites)} independent "
                  f"sites"),
         warnings=notes,
+        atom_map=moved,
     )
     return out, report
 
@@ -739,6 +773,13 @@ def invert(structure: Structure) -> tuple[Structure, SymmetryReport]:
     report = SymmetryReport(
         n_before=structure.n_sites, n_after=out.n_sites,
         message=message)
+    if not group.is_centrosymmetric:
+        # Every atom went to its image, so that is where what follows
+        # it goes too.  A centrosymmetric crystal is drawn exactly as
+        # it was, and an atom that jumped to its inversion partner
+        # would look like it had moved for no reason.
+        undo = np.linalg.inv(rot)
+        report.atom_map = tracking.AtomMap(undo, -undo @ tran)
     if group.is_centrosymmetric:
         report.warnings.append(
             "nothing to undo: the inverted structure is the one you "

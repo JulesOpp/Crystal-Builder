@@ -31,7 +31,7 @@ from math import gcd
 
 import numpy as np
 
-from xtal.core import bonding, elements, p1
+from xtal.core import bonding, elements, p1, tracking
 from xtal.core.lattice import Lattice
 from xtal.core.spacegroup import SpaceGroup
 from xtal.core.structure import Structure
@@ -50,6 +50,9 @@ class Slab:
     thickness: float            # Angstrom, layers x d(hkl)
     vacuum: float               # Angstrom above the slab
     cut: int                    # chemical bonds the surfaces severed
+    #: Where each atom came from: a slab coordinate back to the
+    #: crystal's, for what follows atoms through the cut.
+    atom_map: tracking.AtomMap | None = None
 
 
 def surface_basis(hkl) -> np.ndarray:
@@ -234,4 +237,24 @@ def make_slab(structure: Structure, hkl, layers: int = 1,
         stored.signature, cell)
     g = gcd(gcd(abs(h[0]), abs(h[1])), abs(h[2]))
     return Slab(out, tuple(v // g for v in h), layers, thickness,
-                float(vacuum), cut)
+                float(vacuum), cut,
+                _back(basis, along, abs(rise), height, floor,
+                      float(shift)))
+
+
+def _back(basis, along, rise: float, height: float, floor: float,
+          shift: float) -> tracking.AtomMap:
+    """``place`` run backwards: a slab coordinate ``(u, v, w)`` is
+    ``z = (w - floor) height / rise`` layers up, at ``(u, v) - along z``
+    in the plane, in surface units -- which ``basis`` and the shift
+    take back to the crystal's.  The whole cells ``place`` folded off
+    are lattice translations, which is all a map needs to agree to."""
+    k = height / rise
+    surface = np.array([[1.0, 0.0, -along[0] * k],
+                        [0.0, 1.0, -along[1] * k],
+                        [0.0, 0.0, k]])
+    offset = np.array([along[0] * k * floor, along[1] * k * floor,
+                       -k * floor])
+    rows = np.asarray(basis, dtype=float)
+    return tracking.AtomMap(rows.T @ surface,
+                            rows.T @ offset + shift * rows[2])

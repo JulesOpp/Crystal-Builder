@@ -480,8 +480,19 @@ stress case).
   completed as a ghost, no bond to it drawn, so it cannot be picked
   -- and every calculation, export and save sees the whole cell. An
   edit keeps the same atoms hidden by where they are
-  (`Document._keep_hidden`), because a substitution renumbers the
-  cell; what an edit adds is shown.
+  (`Document._keep_hidden`, `xtal/core/tracking.py`), because a
+  substitution renumbers the cell; what an edit adds is shown.
+  **Through a symmetry or cell change the command says where the
+  atoms went**: every `StructureOperation` states
+  `atom_map()` (`old = M·new + t`, inverted for an undo) -- the two
+  lattices' map unless it moves the origin or the atoms, and
+  Standardize (spglib's `P, p`), Invert, a subgroup's setting, a slab
+  and Move origin say so. Where they were is not enough: Standardize
+  moves ZIF-8's origin and lost 93 of its 102 atoms that way. Matched
+  both ways at 0.05 A, so a supercell hides every copy of a hidden
+  atom and a primitive cell the atom standing for any hidden one.
+  `test_every_structure_operation_states_a_map_that_finds_its_atoms`
+  sweeps every operation, and a new one fails it until it is added.
 - **A size is estimated before it is built, and the profile
   decides.** `xtal/core/limits.py` counts a supercell (`n x |det P|`),
   the atoms a display range draws, a porosity grid's points and a

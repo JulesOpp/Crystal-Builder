@@ -24,7 +24,7 @@ from __future__ import annotations
 import numpy as np
 
 from xtal.commands.base import Command, StructureOperation
-from xtal.core import limits, p1
+from xtal.core import limits, p1, tracking
 from xtal.core import supercell as sc
 from xtal.core.lattice import Lattice
 from xtal.core.structure import Change
@@ -152,6 +152,9 @@ class MakeSlab(StructureOperation):
             report.message += (
                 f"; {made.cut} bond{'s' if made.cut != 1 else ''} cut "
                 f"at the surfaces, left unsaturated")
+        # The slab's c is turned to the plane's normal and the atoms
+        # moved up off the floor: not a frame the lattices can say.
+        report.atom_map = made.atom_map
         return made.structure, report
 
 
@@ -202,6 +205,11 @@ class ShiftOrigin(StructureOperation):
         return out, _report(
             structure, out,
             f"moved the origin to ({x:g}, {y:g}, {z:g})")
+
+    def atom_map(self):
+        """Every atom moved by ``-shift``, which the lattices alone do
+        not say."""
+        return tracking.AtomMap(np.eye(3), self.shift.copy())
 
 
 class WrapIntoCell(StructureOperation):

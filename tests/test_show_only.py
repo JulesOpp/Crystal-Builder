@@ -108,3 +108,43 @@ def test_the_view_menu_shows_only_the_selection_and_all_again(
     assert document.hidden_mask().sum() == 5
     window.actions_["show_all"].trigger()
     assert document.hidden_mask() is None
+
+
+def test_hidden_atoms_stay_hidden_through_a_supercell_and_a_standardize():
+    """One Zn of ZIF-8 shown, the rest hidden.  Standardize moves
+    ZIF-8's origin, so matched by where they were, 93 of its 102
+    atoms were lost; undo and a supercell renumber everything again.
+    The one Zn stays the one shown -- and in a 2x1x1, both copies."""
+    from pathlib import Path
+
+    from xtal.io import read_cif
+
+    sample = (Path(__file__).resolve().parents[1] / "resources"
+              / "samples" / "ZIF-8.cif")
+    document = Document(read_cif(sample))
+    cell = document.cell
+    zinc = cell.elements.index("Zn")
+    document.select([zinc])
+    document.show_only_selected()
+
+    def shown():
+        n_atoms = document.cell.n_atoms
+        return set(range(n_atoms)) - set(document.hidden)
+
+    report = document.standardize_cell(1e-3)
+    assert report.ok
+    after = document.cell
+    (one,) = shown()
+    assert after.elements[one] == "Zn"
+    went = report.atom_map.forward(cell.frac[zinc])
+    d = after.frac[one] - went
+    d -= d.round()
+    assert abs(d @ document.structure.lattice.matrix).max() < 1e-3
+
+    document.undo()
+    assert shown() == {zinc}
+
+    document.make_supercell(2, 1, 1)
+    bigger = document.cell
+    assert len(shown()) == 2
+    assert all(bigger.elements[a] == "Zn" for a in shown())

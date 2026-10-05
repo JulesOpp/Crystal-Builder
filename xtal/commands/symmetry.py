@@ -27,8 +27,10 @@ description of "this used to be P1 and now it is Fd-3m".
 
 from __future__ import annotations
 
+import numpy as np
+
 from xtal.commands.base import StructureOperation
-from xtal.core import subgroups, symmetry
+from xtal.core import subgroups, symmetry, tracking
 from xtal.core.spacegroup import SpaceGroup
 from xtal.core.structure import Change
 
@@ -203,6 +205,16 @@ class DescendToSubgroup(StructureOperation):
                     f"{self.subgroup.symbol}: a={a:.4f} b={b:.4f} "
                     f"c={c:.4f}, {al:.2f} {be:.2f} {ga:.2f}")
         return out, report
+
+    def atom_map(self):
+        """The subgroup's own setting: its basis and origin, which
+        :func:`xtal.core.supercell.change_setting` moved the atoms
+        by."""
+        if self.subgroup.keeps_the_cell:
+            return super().atom_map()
+        return tracking.AtomMap(
+            np.asarray(self.subgroup.basis, float).T,
+            np.asarray(self.subgroup.origin_shift, float))
 
 
 class MergeDuplicates(StructureOperation):

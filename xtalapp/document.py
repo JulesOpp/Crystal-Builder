@@ -580,7 +580,7 @@ class Document(QObject):
         self._refuse_if_busy()
         with _busy_unless_gesture(command):
             self.stack.push(command, self)
-            self._after_change(command.change)
+            self._after_change(command.change, command)
         self._say_trimmed()
         return command
 
@@ -624,7 +624,7 @@ class Document(QObject):
             command = self.stack.undo(self)
             if command is None:
                 return ""
-            self._after_change(command.change)
+            self._after_change(command.change, command, undone=True)
         return command.label
 
     def redo(self) -> str:
@@ -633,7 +633,7 @@ class Document(QObject):
             command = self.stack.redo(self)
             if command is None:
                 return ""
-            self._after_change(command.change)
+            self._after_change(command.change, command)
         return command.label
 
     @property
@@ -652,7 +652,8 @@ class Document(QObject):
     def redo_label(self) -> str:
         return self.stack.redo_label
 
-    def _after_change(self, change: Change) -> None:
+    def _after_change(self, change: Change, command=None,
+                      undone: bool = False) -> None:
         self.warnings = list(self._structure.meta.get("warnings", []))
         if (self.bonds_follow_geometry and change & Change.POSITIONS
                 and not change & CHEMISTRY):
@@ -680,7 +681,7 @@ class Document(QObject):
                 self.selectionChanged.emit()
             self._remeasure()
         self._stale_pores(change)
-        self._keep_hidden(change)
+        self._keep_hidden(change, command, undone)
         self._announce_modified()
         self.structureChanged.emit(int(change))
         self.historyChanged.emit()
@@ -2408,9 +2409,11 @@ class Document(QObject):
 
     def _hide(self, atoms) -> None:
         self.hidden = frozenset(int(a) for a in atoms)
-        self._hidden_where = tracking.record(self.cell, self.hidden)
+        self._hidden_where = tracking.record(
+            self.cell, self.hidden, self._structure.lattice)
 
-    def _keep_hidden(self, change: Change) -> None:
+    def _keep_hidden(self, change: Change, command=None,
+                     undone: bool = False) -> None:
         """The same atoms hidden after an edit, wherever it put them
         in the cell.
 
@@ -2421,10 +2424,24 @@ class Document(QObject):
         same element, same fractional coordinates -- so that is how
         the hidden ones are found again; what an edit added was never
         hidden, and is shown.
+
+        A symmetry or cell change may move every atom -- Standardize
+        moves ZIF-8's origin, Invert every atom of quartz -- and only
+        the command knows where to, so its map is followed instead,
+        backwards for an undo.  A supercell then hides every copy of
+        a hidden atom, and a primitive cell the atom that stands for
+        any hidden one.
         """
         if not self.hidden:
             return
         cell = self.cell
+        via = command.atom_map() if command is not None else None
+        if via is not None:
+            if undone:
+                via = via.inverse()
+            self._hide(tracking.follow(cell, self._structure.lattice,
+                                       self._hidden_where, via))
+            return
         if not change & CHEMISTRY and max(self.hidden) < cell.n_atoms \
                 and len(self._hidden_where) == len(self.hidden):
             if change & Change.POSITIONS:
