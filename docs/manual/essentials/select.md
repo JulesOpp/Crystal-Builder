@@ -122,8 +122,10 @@ included.  Both are on the {doc}`mouse modes <mouse-modes>` page.
     Style panel under *Atom groups*: untick one to hide its atoms and
     tick it to draw them again, and double-click a name to rename it.
     *Group Selected* there makes a new group, and *Select*, *Delete*,
-    *Set Colour* and *Element Colours* act on the group chosen in the
-    list.  A colour is drawn on the atoms and their
+    *Set Colour* and *Element Colours* act on the groups chosen in the
+    list: {kbd}`Shift`-click chooses a run of them and
+    {kbd}`Cmd`-click ({kbd}`Ctrl`-click elsewhere) adds or drops one,
+    and a tick on one of several chosen groups ticks them all.  A colour is drawn on the atoms and their
     halves of each bond, in place of the element's.  Several groups can
     be hidden at once and shown one at a time, and where two overlap
     the later one's colour wins.  Making, colouring and deleting a

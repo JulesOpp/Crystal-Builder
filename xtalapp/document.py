@@ -41,6 +41,7 @@ from xtal.commands import symmetry as symmetry_commands
 from xtal.commands.atom_groups import (
     AddAtomGroup,
     AtomGroupEdit,
+    AtomGroupSteps,
     ColourAtomGroup,
     RemoveAtomGroup,
 )
@@ -2520,37 +2521,71 @@ class Document(QObject):
                 and self.atom_groups[row].name != name:
             self._set_atom_group(row, name=name)
 
-    def set_atom_group_color(self, row: int, color) -> None:
-        """Colour a group, or ``None`` to draw it in its elements'
-        colours again."""
+    def set_atom_group_color(self, rows, color) -> None:
+        """Colour a group -- or every group of ``rows``, as one undo
+        step -- or ``None`` to draw them in their elements' colours
+        again."""
         color = None if color is None else tuple(int(c) for c in color)
-        group = self._atom_group(row)
-        if group is not None and group.color != color:
-            self._run_atom_group_edit(ColourAtomGroup(
-                row, color, "Colour atom group" if color is not None
-                else "Reset to element colours"))
+        label = ("Colour atom group" if color is not None
+                 else "Reset to element colours")
+        steps = [ColourAtomGroup(row, color, label)
+                 for row in self._atom_group_rows(rows)
+                 if self.atom_groups[row].color != color]
+        if steps:
+            self._run_atom_group_edit(self._one_step(
+                steps, "Colour atom groups" if color is not None
+                else "Reset groups to element colours"))
 
-    def set_atom_group_shown(self, row: int, shown: bool) -> None:
-        group = self._atom_group(row)
-        if group is not None and group.shown != bool(shown):
-            self._set_atom_group(row, shown=bool(shown))
+    def set_atom_group_shown(self, rows, shown: bool) -> None:
+        """Tick or untick a group, or every group of ``rows``."""
+        changed = False
+        for row in self._atom_group_rows(rows):
+            if self.atom_groups[row].shown != bool(shown):
+                self.atom_groups[row] = replace(self.atom_groups[row],
+                                                shown=bool(shown))
+                changed = True
+        if changed:
+            self.atomGroupsChanged.emit()
 
-    def select_atom_group(self, row: int) -> str:
-        """Select the group's atoms, in place of the selection."""
-        group = self._atom_group(row)
-        if group is None:
+    def select_atom_group(self, rows) -> str:
+        """Select the atoms of a group, or of every group of ``rows``,
+        in place of the selection."""
+        chosen = [self.atom_groups[r] for r in self._atom_group_rows(rows)]
+        if not chosen:
             return ""
-        if group.empty:
-            return f"{group.name} has no atoms left"
-        self.selection.set_atoms(sorted(group.atoms))
+        atoms = set().union(*(g.atoms for g in chosen))
+        named = (chosen[0].name if len(chosen) == 1
+                 else f"{len(chosen)} groups")
+        if not atoms:
+            return (f"{named} has no atoms left" if len(chosen) == 1
+                    else f"{named} have no atoms left")
+        self.selection.set_atoms(sorted(atoms))
         self.selectionChanged.emit()
-        return f"selected {len(group.atoms)} atoms of {group.name}"
+        return f"selected {len(atoms)} atoms of {named}"
 
-    def remove_atom_group(self, row: int) -> None:
-        """Forget a group.  Its atoms are drawn as they would have been
-        without it, hidden ones included."""
-        if self._atom_group(row) is not None:
-            self._run_atom_group_edit(RemoveAtomGroup(row))
+    def remove_atom_group(self, rows) -> None:
+        """Forget a group, or every group of ``rows`` as one undo
+        step.  Their atoms are drawn as they would have been without
+        them, hidden ones included."""
+        chosen = self._atom_group_rows(rows)
+        # From the bottom up, so each row is still where it was chosen
+        # when its turn comes, and an undo puts them back top down.
+        steps = [RemoveAtomGroup(row) for row in reversed(chosen)]
+        if steps:
+            self._run_atom_group_edit(self._one_step(
+                steps, "Delete atom groups"))
+
+    @staticmethod
+    def _one_step(steps, label: str):
+        return steps[0] if len(steps) == 1 \
+            else AtomGroupSteps(steps, label)
+
+    def _atom_group_rows(self, rows) -> list[int]:
+        """``rows`` -- one row or several -- as the sorted rows that
+        are in the list."""
+        rows = [rows] if isinstance(rows, int) else rows
+        return sorted({int(r) for r in rows
+                       if 0 <= int(r) < len(self.atom_groups)})
 
     def atom_group_colors(self):
         """``(rgb, mask)`` over the P1 cell for the scene builder, or

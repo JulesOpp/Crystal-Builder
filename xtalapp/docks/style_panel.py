@@ -19,7 +19,7 @@ why changing a colour cannot corrupt a structure.
 from __future__ import annotations
 
 import numpy as np
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QItemSelectionModel, Qt, QTimer
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -797,13 +797,17 @@ class StylePanelDock(QDockWidget):
         self.atom_groups = QListWidget()
         self.atom_groups.setToolTip(
             "Untick a group to hide its atoms; double-click a name to "
-            "rename it.  Only the picture changes")
+            "rename it.  Shift- or Ctrl-click to choose several, and "
+            "the buttons and ticks act on all of them.  Only the "
+            "picture changes")
         self.atom_groups.setEditTriggers(
             QAbstractItemView.DoubleClicked
             | QAbstractItemView.EditKeyPressed)
+        self.atom_groups.setSelectionMode(
+            QAbstractItemView.ExtendedSelection)
         self.atom_groups.itemChanged.connect(self._on_atom_group_item)
-        self.atom_groups.currentRowChanged.connect(
-            lambda _row: self._enable_atom_group_buttons())
+        self.atom_groups.itemSelectionChanged.connect(
+            self._enable_atom_group_buttons)
         row = self.atom_groups.sizeHintForRow(0)
         row = row if row > 0 else self.fontMetrics().height() + 6
         self.atom_groups.setFixedHeight(
@@ -816,15 +820,16 @@ class StylePanelDock(QDockWidget):
         buttons = QGridLayout()
         self.atom_group_buttons = {}
         for key, label, tip, slot in [
-                ("select", "Select", "Select the group's atoms, "
-                 "in place of the selection", self._select_atom_group),
-                ("colour", "Set Colour", "Draw the group in a colour",
-                 self._colour_atom_group),
-                ("elements", "Element Colours", "Draw the "
-                 "group in its elements' colours again",
+                ("select", "Select", "Select the chosen groups' "
+                 "atoms, in place of the selection",
+                 self._select_atom_group),
+                ("colour", "Set Colour", "Draw the chosen groups in a "
+                 "colour", self._colour_atom_group),
+                ("elements", "Element Colours", "Draw the chosen "
+                 "groups in their elements' colours again",
                  self._uncolour_atom_group),
-                ("delete", "Delete", "Forget the group; its atoms "
-                 "are drawn as they would be without it",
+                ("delete", "Delete", "Forget the chosen groups; their "
+                 "atoms are drawn as they would be without them",
                  self._delete_atom_group)]:
             button = QPushButton(label)
             button.setToolTip(tip)
@@ -1225,7 +1230,9 @@ class StylePanelDock(QDockWidget):
         :meth:`refresh`, which runs on every spin box."""
         groups = [] if self.document is None \
             else self.document.atom_groups
+        chosen = self._chosen_rows()
         current = self.atom_groups.currentRow()
+        before = self.atom_groups.count()
         self.atom_groups.blockSignals(True)
         self.atom_groups.clear()
         for group in groups:
@@ -1241,8 +1248,19 @@ class StylePanelDock(QDockWidget):
                      "change left none of them")
             self.atom_groups.addItem(item)
         if groups:
-            self.atom_groups.setCurrentRow(
-                min(max(current, 0), len(groups) - 1))
+            # The same rows chosen while the list is the same length (a
+            # tick, a colour); one row where the first chosen was once
+            # rows come or go, since the old numbers name other groups.
+            if chosen and len(groups) == before:
+                for row in chosen:
+                    self.atom_groups.item(row).setSelected(True)
+                self.atom_groups.setCurrentRow(
+                    current if 0 <= current < len(groups) else chosen[0],
+                    QItemSelectionModel.NoUpdate)
+            else:
+                start = chosen[0] if chosen else current
+                self.atom_groups.setCurrentRow(
+                    min(max(start, 0), len(groups) - 1))
         self.atom_groups.blockSignals(False)
         self.atom_groups.setVisible(bool(groups))
         self.atom_groups_hint.setVisible(not groups)
@@ -1261,31 +1279,39 @@ class StylePanelDock(QDockWidget):
         return QIcon(pixmap)
 
     def _enable_atom_group_buttons(self) -> None:
-        row = self._atom_group_row()
-        group = None if row is None else self.document.atom_groups[row]
+        chosen = [self.document.atom_groups[r]
+                  for r in self._atom_group_rows()]
         for key, button in self.atom_group_buttons.items():
-            on = group is not None
+            on = bool(chosen)
             if key == "select":
-                on = on and not group.empty
+                on = any(not g.empty for g in chosen)
             elif key == "elements":
-                on = on and group.color is not None
+                on = any(g.color is not None for g in chosen)
             button.setEnabled(on)
 
-    def _atom_group_row(self):
-        row = self.atom_groups.currentRow()
-        if self.document is None \
-                or not 0 <= row < len(self.document.atom_groups):
-            return None
-        return row
+    def _chosen_rows(self) -> list[int]:
+        """The rows selected in the list, top down."""
+        return sorted(self.atom_groups.row(item)
+                      for item in self.atom_groups.selectedItems())
+
+    def _atom_group_rows(self) -> list[int]:
+        """The chosen rows the document still has."""
+        if self.document is None:
+            return []
+        n_groups = len(self.document.atom_groups)
+        return [r for r in self._chosen_rows() if r < n_groups]
 
     def _on_atom_group_item(self, item: QListWidgetItem) -> None:
-        """A tick or a rename.  Applied on the next turn of the event
-        loop: either one rebuilds the list, and clearing a list from
-        inside its own ``itemChanged`` deletes the item Qt is still
-        handing round."""
+        """A tick or a rename.  A tick on a chosen row ticks every
+        chosen row, so several PARTs are hidden in one click.  Applied
+        on the next turn of the event loop: either one rebuilds the
+        list, and clearing a list from inside its own ``itemChanged``
+        deletes the item Qt is still handing round."""
         if self.document is None:
             return
         row = self.atom_groups.row(item)
+        chosen = self._chosen_rows()
+        rows = chosen if row in chosen else [row]
         shown = item.checkState() == Qt.Checked
         name = item.text()
         document = self.document
@@ -1293,37 +1319,38 @@ class StylePanelDock(QDockWidget):
         def apply():
             if document is not self.document:
                 return
-            document.set_atom_group_shown(row, shown)
+            document.set_atom_group_shown(rows, shown)
             document.rename_atom_group(row, name)
 
         QTimer.singleShot(0, apply)
 
     def _select_atom_group(self) -> None:
-        row = self._atom_group_row()
-        if row is not None:
-            self.document.select_atom_group(row)
+        rows = self._atom_group_rows()
+        if rows:
+            self.document.select_atom_group(rows)
 
     def _colour_atom_group(self) -> None:
-        row = self._atom_group_row()
-        if row is None:
+        rows = self._atom_group_rows()
+        if not rows:
             return
-        group = self.document.atom_groups[row]
+        first = self.document.atom_groups[rows[0]]
+        title = (f"{first.name} colour" if len(rows) == 1
+                 else f"Colour of {len(rows)} groups")
         chosen = QColorDialog.getColor(
-            QColor(*(group.color or (255, 0, 0))), self,
-            f"{group.name} colour")
+            QColor(*(first.color or (255, 0, 0))), self, title)
         if chosen.isValid():
             self.document.set_atom_group_color(
-                row, (chosen.red(), chosen.green(), chosen.blue()))
+                rows, (chosen.red(), chosen.green(), chosen.blue()))
 
     def _uncolour_atom_group(self) -> None:
-        row = self._atom_group_row()
-        if row is not None:
-            self.document.set_atom_group_color(row, None)
+        rows = self._atom_group_rows()
+        if rows:
+            self.document.set_atom_group_color(rows, None)
 
     def _delete_atom_group(self) -> None:
-        row = self._atom_group_row()
-        if row is not None:
-            self.document.remove_atom_group(row)
+        rows = self._atom_group_rows()
+        if rows:
+            self.document.remove_atom_group(rows)
 
     def reset_elements(self) -> None:
         if self.document is not None:

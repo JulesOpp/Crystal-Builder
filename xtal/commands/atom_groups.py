@@ -90,3 +90,22 @@ class ColourAtomGroup(AtomGroupEdit):
             host.atom_groups[self.row] = replace(
                 host.atom_groups[self.row], color=self.before)
 
+
+
+class AtomGroupSteps(AtomGroupEdit):
+    """Several group steps that undo as one -- a colour or a delete
+    applied to every group chosen in the list at once.  Not a
+    ``MacroCommand``, whose change would be ``Change.ALL`` for steps
+    that change nothing and rebuild every panel for a colour."""
+
+    def __init__(self, steps, label: str):
+        self.steps = list(steps)
+        self.label = label
+
+    def do(self, host) -> None:
+        for step in self.steps:
+            step.do(host)
+
+    def undo(self, host) -> None:
+        for step in reversed(self.steps):
+            step.undo(host)

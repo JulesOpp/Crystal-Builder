@@ -453,3 +453,104 @@ def test_a_saved_project_does_not_make_its_part_groups_again(tmp_path):
     again = Document.load(saved)
     assert [g.name for g in again.atom_groups] == ["PART 2", "PART -1"]
 
+
+def _click_row(qtbot, panel, row, modifier=Qt.NoModifier):
+    rect = panel.visualItemRect(panel.item(row))
+    qtbot.mouseClick(panel.viewport(), Qt.LeftButton, modifier,
+                     rect.center())
+
+
+def _four_groups(document):
+    for atom in range(4):
+        document.make_atom_group([atom])
+
+
+def test_shift_click_chooses_a_run_of_groups_and_cmd_click_adds_one(
+        opened, qtbot):
+    """As in a file list: a click chooses one row, shift-click the run
+    from it, and Ctrl-click (Command on a Mac, which Qt reports as
+    Control) adds or takes away a row."""
+    window, document = opened
+    _four_groups(document)
+    dock = window.style_dock
+    panel = dock.atom_groups
+    _click_row(qtbot, panel, 0)
+    _click_row(qtbot, panel, 2, Qt.ShiftModifier)
+    assert dock._chosen_rows() == [0, 1, 2]
+    _click_row(qtbot, panel, 1, Qt.ControlModifier)
+    assert dock._chosen_rows() == [0, 2]
+    _click_row(qtbot, panel, 3, Qt.ControlModifier)
+    assert dock._chosen_rows() == [0, 2, 3]
+
+
+def test_the_buttons_act_on_every_chosen_group(opened, monkeypatch):
+    """Select takes the union of their atoms; a colour, element
+    colours and a delete are each one undo step over all of them."""
+    window, document = opened
+    _four_groups(document)
+    dock = window.style_dock
+    panel = dock.atom_groups
+    for row in (1, 3):
+        panel.item(row).setSelected(True)
+    panel.item(0).setSelected(False)
+    assert dock._chosen_rows() == [1, 3]
+
+    dock.atom_group_buttons["select"].click()
+    assert document.selection.atoms == {1, 3}
+
+    monkeypatch.setattr(QColorDialog, "getColor",
+                        staticmethod(lambda *a, **k: QColor(*RED)))
+    dock.atom_group_buttons["colour"].click()
+    assert [g.color for g in document.atom_groups] \
+        == [None, RED, None, RED]
+    assert dock._chosen_rows() == [1, 3]
+    document.undo()
+    assert all(g.color is None for g in document.atom_groups)
+    document.redo()
+
+    dock.atom_group_buttons["elements"].click()
+    assert all(g.color is None for g in document.atom_groups)
+
+    dock.atom_group_buttons["delete"].click()
+    assert [g.name for g in document.atom_groups] \
+        == ["Group 1", "Group 3"]
+    document.undo()
+    assert [g.name for g in document.atom_groups] \
+        == ["Group 1", "Group 2", "Group 3", "Group 4"]
+
+
+def test_a_tick_on_a_chosen_group_ticks_every_chosen_group(
+        opened, qtbot):
+    """Unticking one of several chosen PARTs hides all of them; a tick
+    on a row that is not chosen is that row's alone."""
+    window, document = opened
+    _four_groups(document)
+    panel = window.style_dock.atom_groups
+    _click_row(qtbot, panel, 1)
+    _click_row(qtbot, panel, 2, Qt.ShiftModifier)
+    panel.item(2).setCheckState(Qt.Unchecked)
+    qtbot.waitUntil(lambda: [g.shown for g in document.atom_groups]
+                    == [True, False, False, True])
+    assert window.style_dock._chosen_rows() == [1, 2]
+    panel.item(0).setCheckState(Qt.Unchecked)
+    qtbot.waitUntil(lambda: [g.shown for g in document.atom_groups]
+                    == [False, False, False, True])
+
+
+def test_clicking_a_tick_keeps_the_rows_chosen(opened, qtbot):
+    """The mouse on a check box among chosen rows must not first
+    collapse the choice to that row, or the tick could only ever
+    reach one group."""
+    window, document = opened
+    _four_groups(document)
+    panel = window.style_dock.atom_groups
+    _click_row(qtbot, panel, 0)
+    _click_row(qtbot, panel, 2, Qt.ShiftModifier)
+    rect = panel.visualItemRect(panel.item(1))
+    box = rect.topLeft() + type(rect.topLeft())(
+        panel.style().pixelMetric(
+            panel.style().PixelMetric.PM_IndicatorWidth) // 2 + 3,
+        rect.height() // 2)
+    qtbot.mouseClick(panel.viewport(), Qt.LeftButton, Qt.NoModifier, box)
+    qtbot.waitUntil(lambda: [g.shown for g in document.atom_groups]
+                    == [False, False, False, True])
