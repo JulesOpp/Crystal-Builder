@@ -25,8 +25,11 @@ import numpy as np
 from xtal.commands.base import Command
 from xtal.core import bonding
 from xtal.core import elements as el
+from xtal.core.lattice import Lattice
 from xtal.core.site import Site
-from xtal.core.structure import Bond, Change
+from xtal.core.spacegroup import SpaceGroup
+from xtal.core.structure import Bond, Change, Structure
+from xtal.io.xyz import PAD
 
 
 @dataclass(frozen=True)
@@ -238,6 +241,31 @@ class PasteFragment(Command):
     def undo(self, host) -> None:
         _remove_copies(host.structure, self.indices, self._bonds)
         host.structure.perceived = self._perceived
+
+
+def boxed(structure: Structure, fragment: Fragment,
+          pad: float = PAD) -> Structure:
+    """``structure`` emptied into a P1 cube with ``fragment`` in the
+    middle, ``pad`` Angstrom of vacuum to every face.
+
+    What a paste into an empty document makes.  Pasted into the 10 A
+    cube File > New starts with, a piece of a framework hung out of
+    every face and met its own images, bonded or not, so the cell is
+    fitted to the fragment instead -- cubic, as
+    :meth:`xtal.build.molecule.Molecule.to_structure` makes it, so it
+    can be turned without running into a face.  The document's own
+    name and bond rules are kept; its cell had nothing in it to keep.
+    """
+    span = float(np.ptp(fragment.cart, axis=0).max()) \
+        if fragment.n_atoms else 0.0
+    lattice = Lattice.cubic(span + 2.0 * pad)
+    out = Structure(lattice=lattice, space_group=SpaceGroup.p1(),
+                    bond_rules=dict(structure.bond_rules),
+                    meta=dict(structure.meta))
+    centre = lattice.to_cart([0.5, 0.5, 0.5])
+    _add_copies(out, fragment,
+                [fragment.to_sites(lattice, centre - fragment.centroid)])
+    return out
 
 
 def _add_copies(structure, fragment, copies) -> tuple[list, list]:

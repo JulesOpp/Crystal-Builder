@@ -541,13 +541,23 @@ def test_the_focal_point_is_where_a_paste_is_offered(camera_window):
     assert list(camera_window.paste_offset()) == [3.0, 4.0, 6.0]
 
 
+def one_atom(window):
+    """A document with something in it already: into an empty one a
+    molecule gets a box of its own, and where it lands is not asked."""
+    from xtal.core.site import Site
+    from xtal.core.structure import Structure
+    structure = Structure.empty()
+    structure.add_sites([Site("Ne", [0.0, 0.0, 0.0])])
+    return window.document_set.new_document(structure)
+
+
 @needs_rdkit
 def test_a_molecule_lands_in_the_middle_of_the_picture(
         camera_window, monkeypatch):
     """A framework somebody has zoomed into puts the centre of the
     cell off screen, and a molecule that lands there has to be hunted
     for."""
-    document = camera_window.new_document()
+    document = one_atom(camera_window)
     monkeypatch.setattr(
         BuildMoleculeDialog, "ask",
         classmethod(lambda cls, *a, **k: {"smiles": "O", "name": "",
@@ -556,7 +566,7 @@ def test_a_molecule_lands_in_the_middle_of_the_picture(
     camera_window.insert_molecule_dialog()
 
     placed = document.structure.lattice.to_cart(
-        [s.frac for s in document.structure.sites])
+        [s.frac for s in document.structure.sites[1:]])
     assert placed.mean(axis=0) == pytest.approx(
         np.array(CameraViewport.focal), abs=1e-6)
 
@@ -564,7 +574,7 @@ def test_a_molecule_lands_in_the_middle_of_the_picture(
 @needs_rdkit
 def test_with_no_camera_it_lands_in_the_middle_of_the_cell(
         window, monkeypatch):
-    document = window.new_document()
+    document = one_atom(window)
     monkeypatch.setattr(
         BuildMoleculeDialog, "ask",
         classmethod(lambda cls, *a, **k: {"smiles": "O", "name": "",
@@ -572,7 +582,7 @@ def test_with_no_camera_it_lands_in_the_middle_of_the_cell(
                                           "seed": 1}))
     window.insert_molecule_dialog()
 
-    placed = np.array([s.frac for s in document.structure.sites])
+    placed = np.array([s.frac for s in document.structure.sites[1:]])
     assert placed.mean(axis=0) == pytest.approx([0.5, 0.5, 0.5],
                                                 abs=1e-6)
 

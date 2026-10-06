@@ -50,6 +50,7 @@ from xtal.commands.clipboard import (
     Fragment,
     InsertMolecules,
     PasteFragment,
+    boxed,
 )
 from xtal.core import (
     atom_groups,
@@ -2311,9 +2312,23 @@ class Document(QObject):
         return fragment
 
     def paste(self, fragment: Fragment, offset=None) -> str:
-        """Add a fragment; returns what it did, symmetry included."""
+        """Add a fragment; returns what it did, symmetry included.
+
+        Into a document with no atoms the fragment is a molecule, so
+        it gets a P1 box of its own with vacuum round it
+        (:func:`xtal.commands.clipboard.boxed`) rather than the cell
+        File > New left there, and ``offset`` is not read.
+        """
         if fragment.is_empty:
             return "nothing to paste"
+        if not self._structure.sites:
+            structure = boxed(self._structure, fragment)
+            self.replace_structure(structure,
+                                   f"Paste {fragment.formula}")
+            self.select(range(len(self.cell.elements)))
+            a = structure.lattice.parameters[0]
+            return (f"pasted {fragment.n_atoms} atom(s) as a molecule "
+                    f"in a {a:.1f} A P1 box")
         command = PasteFragment(fragment, offset)
         message = command.describe(self._structure)
         self.run(command)

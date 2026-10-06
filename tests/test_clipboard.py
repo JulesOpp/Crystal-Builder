@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from xtal.commands import CommandStack, Host
-from xtal.commands.clipboard import Fragment, PasteFragment
+from xtal.commands.clipboard import Fragment, PasteFragment, boxed
 from xtal.core import bonding, p1
 
 
@@ -171,6 +171,33 @@ def test_a_paste_lands_with_its_own_bonds_and_no_perceived_ones(
     CommandStack().push(RecomputeBonds(), host)
     assert [b for b in bonding.graph(host.structure).bonds
             if (b.i in pasted) != (b.j in pasted)]
+
+
+def test_a_fragment_boxed_alone_has_vacuum_round_it_and_its_own_bonds(
+        dry_ice):
+    """What a paste into an empty document makes: a P1 cube 5 A wider
+    than the molecule each way, the molecule in the middle, and the
+    bonds it was copied with as the whole graph.  Left in File >
+    New's 10 A cube, a piece of a framework met its own images."""
+    from xtal.core.structure import Structure
+    fragment = fragment_of(dry_ice,
+                           bonding.graph(dry_ice).fragments()[0].atoms)
+    empty = Structure.empty()
+    empty.meta["title"] = "untitled"
+
+    out = boxed(empty, fragment)
+
+    span = np.ptp(fragment.cart, axis=0).max()
+    a, b, c, alpha, beta, gamma = out.lattice.parameters
+    assert np.allclose([a, b, c], span + 10.0)
+    assert np.allclose([alpha, beta, gamma], 90.0)
+    assert out.space_group.is_p1 and out.n_sites == 3
+    assert out.meta["title"] == "untitled" and not empty.sites
+    cart = out.lattice.to_cart(p1.expand(out).frac)
+    assert np.allclose(cart.mean(axis=0),
+                       out.lattice.to_cart([0.5, 0.5, 0.5]))
+    assert cart.min() > 4.99 and cart.max() < a - 4.99
+    assert len(bonding.graph(out).bonds) == 2
 
 
 def test_undoing_a_paste_leaves_the_bonds_that_were_there(dry_ice):
