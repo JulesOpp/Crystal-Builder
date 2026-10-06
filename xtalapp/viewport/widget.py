@@ -184,6 +184,13 @@ class ViewportWidget(QWidget):
         self._preview_timer.timeout.connect(self._draw_preview)
 
         self._interactor = QVTKRenderWindowInteractor(self)
+        # A cursor of its own.  The interactor is a native view inside
+        # the window's, and on macOS a native view with no cursor shows
+        # whichever one the window's view was last given: selecting an
+        # atom enables the Inspector's text fields, Qt re-applies an
+        # I-beam to the window as it does so, and the viewport showed
+        # it until the selection was cleared.
+        self._interactor.setCursor(Qt.ArrowCursor)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self._interactor)
