@@ -451,7 +451,10 @@ occupancy travels; a file *without* a `Lattice=` entry is read into a
 P1 box with 5 Å of vacuum around the atoms and a warning saying so,
 which is the only honest thing to do with it.  This is also the
 format the clipboard uses, so copy and paste between this application
-and any other atomistic tool works.
+and any other atomistic tool works.  Pasted into a document with no
+atoms -- a fresh *File ▸ New* -- the fragment is taken as a molecule
+and given a cubic P1 box of its own with 5 Å of vacuum on every side,
+in place of the empty cell; one *Undo* gives the empty cell back.
 
 A relaxation is many XYZ frames in one file, each with its own
 comment line, and everything else on that line is `key=value` -- the

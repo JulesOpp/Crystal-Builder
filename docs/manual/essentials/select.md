@@ -121,9 +121,11 @@ included.  Both are on the {doc}`mouse modes <mouse-modes>` page.
     atom's context menu) each make one.  The groups are listed in the
     Style panel under *Atom groups*: untick one to hide its atoms and
     tick it to draw them again, and double-click a name to rename it.
-    *Group Selected Atoms* there makes a new group, and *Select Group*,
-    *Set Colour*, *Reset to Element Colours* and *Delete Group* act on
-    the group chosen in the list.  A colour is drawn on the atoms and their
+    *Group Selected* there makes a new group, and *Select*, *Delete*,
+    *Set Colour* and *Element Colours* act on the groups chosen in the
+    list: {kbd}`Shift`-click chooses a run of them and
+    {kbd}`Cmd`-click ({kbd}`Ctrl`-click elsewhere) adds or drops one,
+    and a tick on one of several chosen groups ticks them all.  A colour is drawn on the atoms and their
     halves of each bond, in place of the element's.  Several groups can
     be hidden at once and shown one at a time, and where two overlap
     the later one's colour wins.  Making, colouring and deleting a
@@ -132,7 +134,10 @@ included.  Both are on the {doc}`mouse modes <mouse-modes>` page.
     selected, a group is only the picture: it never reaches a CIF or an
     export, and follows its atoms through an edit, a supercell or a
     change of symmetry.  It is saved with the project, and *Show all*
-    ticks every hidden group again.
+    ticks every hidden group again.  A CIF that carries the SHELX
+    file it was refined with opens with a group for each disorder
+    component written there, named *PART 1*, *PART 2* (and *PART -1*
+    for one on a symmetry element): untick one to see the other alone.
 
 The four *Grow* entries and *Select same element* are also in the
 context menu of an atom, and *Select all* and *Select none* in the

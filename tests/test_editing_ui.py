@@ -271,6 +271,29 @@ def test_copy_and_paste_through_the_window(window, rutile_cif):
     assert document.structure.n_sites == before
 
 
+def test_a_paste_into_an_empty_document_is_a_molecule_in_a_box(
+        window, rutile_cif):
+    """Copied out of a crystal and pasted into File > New, a fragment
+    gets a P1 box sized to it with 5 A of vacuum, not the empty 10 A
+    cell it was dropped into, and Ctrl+Z gives that cell back."""
+    window.open_path(rutile_cif).select_element("O")
+    window.copy()
+    document = window.new_document()
+    empty = document.structure.lattice.parameters
+
+    message = document.paste(window.clipboard_fragment)
+
+    structure = document.structure
+    span = np.ptp(window.clipboard_fragment.cart, axis=0).max()
+    assert "P1 box" in message
+    assert structure.space_group.is_p1 and structure.n_sites == 4
+    assert np.allclose(structure.lattice.parameters[:3], span + 10.0)
+    assert len(document.selection.atoms) == 4
+    document.undo()
+    assert not document.structure.sites
+    assert document.structure.lattice.parameters == empty
+
+
 def test_cut_is_copy_plus_delete(window, rutile_cif):
     document = window.open_path(rutile_cif)
     document.select_element("O")
@@ -417,7 +440,7 @@ def test_move_dock_rotate_and_mirror_buttons_fire(window, rutile_cif):
     window.move_dock.angle.setValue(30.0)
     _button_labelled(window.move_dock, "Apply", box="Rotate").click()
     _button_labelled(window.move_dock, "Mirror",
-                     box="Reflect and flatten").click()
+                     box="Reflect").click()
     assert document.stack.depth == 2
 
 

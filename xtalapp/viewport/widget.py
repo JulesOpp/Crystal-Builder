@@ -73,9 +73,10 @@ from xtalapp.viewport.builder import (  # noqa: E402
 )
 from xtalapp.viewport.svg_export import write_svg  # noqa: E402
 from xtalapp.viewport.vtk_scene import (  # noqa: E402
+    TriadOverlay,
     VtkScene,
-    cell_axes,
-    orientation_marker,
+    axes_viewport,
+    bar_x,
     projection_for,
     write_image,
 )
@@ -183,6 +184,13 @@ class ViewportWidget(QWidget):
         self._preview_timer.timeout.connect(self._draw_preview)
 
         self._interactor = QVTKRenderWindowInteractor(self)
+        # A cursor of its own.  The interactor is a native view inside
+        # the window's, and on macOS a native view with no cursor shows
+        # whichever one the window's view was last given: selecting an
+        # atom enables the Inspector's text fields, Qt re-applies an
+        # I-beam to the window as it does so, and the viewport showed
+        # it until the selection was cleared.
+        self._interactor.setCursor(Qt.ArrowCursor)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self._interactor)
@@ -209,9 +217,15 @@ class ViewportWidget(QWidget):
         super().showEvent(event)
         if not self._initialised:
             self._interactor.Initialize()
-            self._marker = orientation_marker(self._interactor)
+            self._marker = TriadOverlay(self.scene.renderer)
             self._initialised = True
             self.rebuild(reset_camera=True)
+
+    def resizeEvent(self, event):
+        """The triad's square is a fraction of the shorter side, so a
+        new shape is a new corner for it."""
+        super().resizeEvent(event)
+        self._refresh_marker()
 
     def closeEvent(self, event):
         self._interactor.Finalize()
@@ -391,13 +405,17 @@ class ViewportWidget(QWidget):
                             dtype=float)
         if (self._marker_matrix is None
                 or not np.allclose(matrix, self._marker_matrix)):
-            self._marker.SetOrientationMarker(cell_axes(matrix))
+            self._marker.set_lattice(matrix)
             self._marker_matrix = matrix.copy()
+        scale = self.document.view.axes_scale
+        size = (self._interactor.width(), self._interactor.height())
+        corner = axes_viewport(scale, size)
+        if self._marker.viewport() != corner:
+            self._marker.set_viewport(*corner)
+            self.scene.move_scale_bar(bar_x(scale, size))
         shown = bool(self.document.view.show_axes)
-        if bool(self._marker.GetEnabled()) != shown:
-            self._marker.SetEnabled(int(shown))
-            if shown:
-                self._marker.InteractiveOff()
+        if self._marker.shown() != shown:
+            self._marker.set_shown(shown)
 
     # -- picking -------------------------------------------------------
 

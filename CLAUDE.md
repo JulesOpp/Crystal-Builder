@@ -521,7 +521,11 @@ stress case).
   CIF or an export, but **saved in the project's session** -- a
   restore that no longer fits its cell is dropped. Where groups
   overlap the later wins; *Colour by* and charges draw over all of
-  them, and Show All ticks every group again.
+  them, and Show All ticks every group again. **A CIF's embedded
+  SHELX file makes one group per non-zero PART** (`xtal/io/shelx.py`,
+  read from `_shelx_res_file`): the reader leaves
+  `meta["shelx_parts"]` and the Document pops it into groups as it is
+  built, so a reopened project never makes them twice.
 - **A size is estimated before it is built, and the profile
   decides.** `xtal/core/limits.py` counts a supercell (`n x |det P|`),
   the atoms a display range draws, a porosity grid's points and a

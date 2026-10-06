@@ -925,3 +925,52 @@ def test_ring_faces_reach_the_screen():
                                         ring_opacity=1.0)), SIZE)
     assert fraction_of(plain, is_yellow) < 0.001
     assert fraction_of(filled, is_yellow) > 0.05
+
+
+def _drawn_reach(overlay):
+    """The leftmost and lowest pixel the triad's arrows and label
+    points reach, in window pixels."""
+    renderer = overlay.renderer
+    points = np.vstack([np.zeros((1, 3)), overlay.directions,
+                        overlay.directions * vtk_scene._LABEL_AT])
+    shown = []
+    for point in points:
+        renderer.SetWorldPoint(*point, 1.0)
+        renderer.WorldToDisplay()
+        shown.append(renderer.GetDisplayPoint()[:2])
+    return np.min(shown, axis=0)
+
+
+@pytest.mark.parametrize("scale", [1.0, 2.5])
+@pytest.mark.parametrize("turn", [(0, 0), (140, 35), (-100, -60)])
+def test_the_triad_stays_in_the_corner_at_any_size_and_turn(rutile,
+                                                             scale,
+                                                             turn):
+    """VTK's marker widget framed the triad in the middle of its
+    square, so a larger one floated up into the structure.  Its
+    nearest point is the margin from the corner, its labels'
+    reach included, whichever way the scene is turned."""
+    scene = _with_a_bar(rutile)
+    overlay = vtk_scene.TriadOverlay(scene.renderer, rutile.lattice.matrix)
+    overlay.set_viewport(*vtk_scene.axes_viewport(scale, SIZE))
+    camera = scene.renderer.GetActiveCamera()
+    camera.Azimuth(turn[0])
+    camera.Elevation(turn[1])
+    camera.OrthogonalizeViewUp()
+    scene.window.Render()
+
+    low = _drawn_reach(overlay)
+    assert (low >= vtk_scene.TRIAD_MARGIN).all()
+    # And no further in than the arrow's and the label's own reach.
+    side = vtk_scene.axes_viewport(scale, SIZE)[2] * SIZE[0]
+    reach = (vtk_scene.TRIAD_MARGIN + vtk_scene.LABEL_OFFSET
+             + vtk_scene.LABEL_BOX * side + 0.1 * side)
+    assert (low <= reach).all()
+
+
+def test_a_hidden_triad_draws_nothing(rutile):
+    scene = _with_a_bar(rutile)
+    overlay = vtk_scene.TriadOverlay(scene.renderer)
+    overlay.set_shown(False)
+    assert not overlay.shown()
+    scene.window.Render()
