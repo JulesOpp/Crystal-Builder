@@ -73,11 +73,10 @@ from xtalapp.viewport.builder import (  # noqa: E402
 )
 from xtalapp.viewport.svg_export import write_svg  # noqa: E402
 from xtalapp.viewport.vtk_scene import (  # noqa: E402
+    TriadOverlay,
     VtkScene,
     axes_viewport,
     bar_x,
-    cell_axes,
-    orientation_marker,
     projection_for,
     write_image,
 )
@@ -211,7 +210,7 @@ class ViewportWidget(QWidget):
         super().showEvent(event)
         if not self._initialised:
             self._interactor.Initialize()
-            self._marker = orientation_marker(self._interactor)
+            self._marker = TriadOverlay(self.scene.renderer)
             self._initialised = True
             self.rebuild(reset_camera=True)
 
@@ -399,19 +398,17 @@ class ViewportWidget(QWidget):
                             dtype=float)
         if (self._marker_matrix is None
                 or not np.allclose(matrix, self._marker_matrix)):
-            self._marker.SetOrientationMarker(cell_axes(matrix))
+            self._marker.set_lattice(matrix)
             self._marker_matrix = matrix.copy()
         scale = self.document.view.axes_scale
         size = (self._interactor.width(), self._interactor.height())
         corner = axes_viewport(scale, size)
-        if tuple(self._marker.GetViewport()) != corner:
-            self._marker.SetViewport(*corner)
+        if self._marker.viewport() != corner:
+            self._marker.set_viewport(*corner)
             self.scene.move_scale_bar(bar_x(scale, size))
         shown = bool(self.document.view.show_axes)
-        if bool(self._marker.GetEnabled()) != shown:
-            self._marker.SetEnabled(int(shown))
-            if shown:
-                self._marker.InteractiveOff()
+        if self._marker.shown() != shown:
+            self._marker.set_shown(shown)
 
     # -- picking -------------------------------------------------------
 

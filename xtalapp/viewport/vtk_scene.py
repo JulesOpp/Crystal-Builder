@@ -78,7 +78,6 @@ from vtkmodules.vtkCommonTransforms import vtkTransform
 from vtkmodules.vtkFiltersCore import vtkTubeFilter
 from vtkmodules.vtkFiltersGeneral import vtkTransformFilter
 from vtkmodules.vtkFiltersSources import vtkArrowSource, vtkSphereSource
-from vtkmodules.vtkInteractionWidgets import vtkOrientationMarkerWidget
 from vtkmodules.vtkIOImage import (
     vtkJPEGWriter,
     vtkPNGWriter,
@@ -183,8 +182,8 @@ LEGEND_HEADING_X = 0.99
 # and how much of the width it aims for before the length is rounded
 # to something a reader can multiply by.
 # Clear of the orientation gizmo, which owns the bottom-left corner
-# out to about x = 0.16 at its default size -- see
-# :func:`axes_viewport` and :func:`bar_x`.
+# out to about x = 0.16 at its default size -- see :class:`TriadOverlay`
+# and :func:`bar_x`.
 BAR_X = 0.21
 BAR_Y = 0.055
 BAR_TICK = 0.012            # half-height of the end caps
@@ -2296,7 +2295,7 @@ def _arrow_along(direction, color) -> vtkActor:
         transform.RotateWXYZ(180.0, 0.0, 0.0, 1.0)
     source = vtkArrowSource()
     source.SetShaftRadius(0.04)
-    source.SetTipRadius(0.1)
+    source.SetTipRadius(ARROW_TIP_RADIUS)
     source.SetTipLength(0.25)
     moved = vtkTransformFilter()
     moved.SetInputConnection(source.GetOutputPort())
@@ -2309,6 +2308,16 @@ def _arrow_along(direction, color) -> vtkActor:
     return actor
 
 
+#: How far past an arrow's tip its label is attached, in arrow lengths.
+_LABEL_AT = 1.2
+#: A triad arrow's widest part, its cone, in arrow lengths.
+ARROW_TIP_RADIUS = 0.1
+#: A label's box, as a fraction of the triad's square, and how many
+#: pixels it is drawn below and left of the point it labels.
+LABEL_BOX = 0.06
+LABEL_OFFSET = 6
+
+
 def cell_axes(matrix) -> vtkPropAssembly:
     """Arrows along a, b and c, labelled and coloured like the edges
     of the cell they belong to.
@@ -2319,30 +2328,17 @@ def cell_axes(matrix) -> vtkPropAssembly:
     world attachment point and survive it.
     """
     parts = vtkPropAssembly()
-    # The marker widget frames what it is given by its bounds, and the
-    # arrows alone put every label outside them: turned, the a or the
-    # b was cut in half at the edge of the corner.  An invisible
-    # sphere round the whole triad makes room for the labels.
-    room = vtkSphereSource()
-    room.SetRadius(1.3)
-    room_mapper = vtkPolyDataMapper()
-    room_mapper.SetInputConnection(room.GetOutputPort())
-    padding = vtkActor()
-    padding.SetMapper(room_mapper)
-    padding.GetProperty().SetOpacity(0.0)
-    padding.PickableOff()
-    parts.AddPart(padding)
     for direction, color, name in zip(lattice_triad(matrix),
                                       AXIS_COLORS, "abc", strict=True):
         parts.AddPart(_arrow_along(direction, color))
         caption = vtkCaptionActor2D()
         caption.SetCaption(name)
-        caption.SetAttachmentPoint(*(direction * 1.2))
+        caption.SetAttachmentPoint(*(direction * _LABEL_AT))
         caption.BorderOff()
         caption.LeaderOff()
-        caption.SetPosition(-6, -6)
-        caption.SetWidth(0.06)
-        caption.SetHeight(0.06)
+        caption.SetPosition(-LABEL_OFFSET, -LABEL_OFFSET)
+        caption.SetWidth(LABEL_BOX)
+        caption.SetHeight(LABEL_BOX)
         text = caption.GetCaptionTextProperty()
         text.SetColor(*(np.asarray(color) / 255.0))
         text.BoldOn()
@@ -2383,22 +2379,105 @@ def bar_x(axes_scale: float = 1.0, size=(1, 1)) -> float:
     return max(BAR_X, axes_viewport(axes_scale, size)[2] + BAR_GAP)
 
 
-def orientation_marker(interactor, matrix=None
-                       ) -> vtkOrientationMarkerWidget:
-    """The a, b, c triad in the corner.
+#: How far, in pixels, the triad's lowest and leftmost point is kept
+#: from the bottom and the left of the window.
+TRIAD_MARGIN = 10
+#: Half the height of the triad's square, in arrow lengths.  Two puts
+#: an arrow at a quarter of the square, about the size it always was.
+TRIAD_HALF_HEIGHT = 2.0
+
+
+class TriadOverlay:
+    """The a, b, c triad, drawn over the scene in the bottom-left corner.
 
     It was a Cartesian X, Y, Z, which is the one frame nobody working
     in a crystal thinks in, and says nothing about which way c is in
     a monoclinic cell.  Without a lattice it is drawn for a cube.
+
+    Our own renderer rather than VTK's orientation marker widget,
+    which frames its prop in the middle of its square: a triad made
+    larger had its origin pushed out with that middle, up and away
+    from the corner into the structure.  Here the camera follows the
+    scene's turn, flat (parallel projection, so the size is the
+    slider's and not the perspective's), and is aimed before every
+    frame so that the triad's lowest and leftmost point -- an arrow
+    tip or a label, wherever they point now -- sits ``TRIAD_MARGIN``
+    pixels from the edges.  The camera is aimed and never its window
+    centre, which is what a tiled export moves.
     """
-    widget = vtkOrientationMarkerWidget()
-    widget.SetOrientationMarker(
-        cell_axes(np.eye(3) if matrix is None else matrix))
-    widget.SetInteractor(interactor)
-    widget.SetViewport(*axes_viewport())
-    widget.SetEnabled(1)
-    widget.InteractiveOff()
-    return widget
+
+    def __init__(self, main_renderer, matrix=None):
+        self.main = main_renderer
+        self.renderer = vtkRenderer()
+        self.renderer.SetLayer(1)
+        self.renderer.InteractiveOff()
+        self.renderer.GetActiveCamera().ParallelProjectionOn()
+        self.renderer.SetViewport(*axes_viewport())
+        window = main_renderer.GetRenderWindow()
+        window.SetNumberOfLayers(max(2, window.GetNumberOfLayers()))
+        window.AddRenderer(self.renderer)
+        self._prop = None
+        self.set_lattice(np.eye(3) if matrix is None else matrix)
+        main_renderer.AddObserver("StartEvent", self._follow)
+
+    def set_lattice(self, matrix) -> None:
+        self.directions = lattice_triad(matrix)
+        if self._prop is not None:
+            self.renderer.RemoveViewProp(self._prop)
+        self._prop = cell_axes(matrix)
+        self.renderer.AddViewProp(self._prop)
+
+    def viewport(self) -> tuple[float, float, float, float]:
+        return tuple(self.renderer.GetViewport())
+
+    def set_viewport(self, *corner) -> None:
+        self.renderer.SetViewport(*corner)
+
+    def shown(self) -> bool:
+        return bool(self.renderer.GetDraw())
+
+    def set_shown(self, shown: bool) -> None:
+        self.renderer.SetDraw(int(bool(shown)))
+
+    def _follow(self, *_args) -> None:
+        if not self.shown():
+            return
+        main = self.main.GetActiveCamera()
+        forward = np.asarray(main.GetDirectionOfProjection(), float)
+        right = np.cross(forward, np.asarray(main.GetViewUp(), float))
+        if np.linalg.norm(right) < 1e-9:
+            return
+        right /= np.linalg.norm(right)
+        up = np.cross(right, forward)
+        x0, y0, x1, y1 = self.viewport()
+        width, height = self.main.GetRenderWindow().GetSize()
+        across, tall = (x1 - x0) * width, (y1 - y0) * height
+        if across <= 0 or tall <= 0:
+            return
+        half = TRIAD_HALF_HEIGHT
+        per_pixel = 2.0 * half / tall
+        arrows = np.vstack([np.zeros((1, 3)), self.directions])
+        labels = self.directions * _LABEL_AT
+        # How far each point's drawing reaches past the point: an arrow
+        # its tip's radius, a label its whole caption box, which is a
+        # fraction of the square and hangs a few pixels off its point.
+        label_reach = (LABEL_OFFSET + LABEL_BOX * across) * per_pixel
+        margin = TRIAD_MARGIN * per_pixel
+        # The picture is centred on the focal point and spans the
+        # half-height above and below it; this puts the lowest x and
+        # the lowest y the triad draws the margin in from the corner.
+        low = [min((arrows @ axis).min() - ARROW_TIP_RADIUS,
+                   (labels @ axis).min() - label_reach)
+               for axis in (right, up)]
+        fx = low[0] + half * across / tall - margin
+        fy = low[1] + half - margin
+        focal = fx * right + fy * up
+        camera = self.renderer.GetActiveCamera()
+        camera.SetFocalPoint(*focal)
+        camera.SetPosition(*(focal - 10.0 * forward))
+        camera.SetViewUp(*up)
+        camera.SetParallelScale(half)
+        self.renderer.ResetCameraClippingRange()
 
 
 #: The raster writers, by the suffix the export dialog offers.  They
