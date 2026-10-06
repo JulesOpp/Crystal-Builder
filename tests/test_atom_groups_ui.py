@@ -7,6 +7,8 @@ group made, coloured or deleted.  The model is in
 ``test_atom_groups.py``.
 """
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -27,6 +29,8 @@ from xtalapp.settings import AppSettings  # noqa: E402
 from xtalapp.viewport.builder import build_scene  # noqa: E402
 
 RED = (255, 0, 0)
+UIO67 = Path(__file__).resolve().parents[1] \
+    / "resources/samples/cod/UiO-67.cif"
 
 
 def _scene(document):
@@ -420,3 +424,32 @@ def test_group_selected_atoms_in_the_panel_follows_the_menu(
                         staticmethod(lambda *a, **k: ("Apex", True)))
     button.click()
     assert [g.name for g in document.atom_groups] == ["Apex"]
+
+
+def test_a_cif_with_shelx_parts_opens_with_a_group_for_each_part():
+    """UiO-67's embedded ``.res`` puts its disordered oxygens and
+    linker in PART 1, 2 and -1: each is a group named after its PART,
+    holding every P1 copy of its sites and nothing else."""
+    document = Document.load(UIO67)
+    names = [g.name for g in document.atom_groups]
+    assert names == ["PART 1", "PART 2", "PART -1"]
+    cell = document.cell
+    for group in document.atom_groups:
+        part = group.name.split()[1]
+        expected = {a for a in range(cell.n_atoms)
+                    if str(document.structure.sites[
+                        int(cell.site_idx[a])].props.get(
+                            "disorder_group")) == part}
+        assert group.atoms == frozenset(expected) and expected
+        assert group.color is None and group.shown
+    assert "shelx_parts" not in document.structure.meta
+
+
+def test_a_saved_project_does_not_make_its_part_groups_again(tmp_path):
+    """A group deleted before the save stays deleted on reopening."""
+    document = Document.load(UIO67)
+    document.remove_atom_group(0)
+    saved = document.save(tmp_path / "uio.xtalproj")
+    again = Document.load(saved)
+    assert [g.name for g in again.atom_groups] == ["PART 2", "PART -1"]
+

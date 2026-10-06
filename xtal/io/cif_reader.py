@@ -32,6 +32,7 @@ from xtal.core.lattice import Lattice
 from xtal.core.site import Site
 from xtal.core.spacegroup import SpaceGroup
 from xtal.core.structure import Bond, CellBond, Structure
+from xtal.io import shelx
 from xtal.io.text import has_bom, read_text
 
 
@@ -263,6 +264,13 @@ def _from_small_structure(small, block, path: Path) -> Structure:
         value = block.find_value(tag)
         if value:
             structure.meta[key] = gemmi.cif.as_string(value)
+    # Read before the labels are made unique: a renamed ``C1_2`` is
+    # not the ``C1`` the instruction file names.
+    parts = shelx.site_parts(
+        [s.label for s in small.sites],
+        shelx.atom_parts(shelx.instruction_text(block)))
+    if parts:
+        structure.meta[shelx.PARTS_KEY] = parts
     if warnings:
         structure.meta["warnings"] = warnings
     structure.ensure_labels()

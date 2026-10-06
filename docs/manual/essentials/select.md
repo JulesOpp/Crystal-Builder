@@ -132,7 +132,10 @@ included.  Both are on the {doc}`mouse modes <mouse-modes>` page.
     selected, a group is only the picture: it never reaches a CIF or an
     export, and follows its atoms through an edit, a supercell or a
     change of symmetry.  It is saved with the project, and *Show all*
-    ticks every hidden group again.
+    ticks every hidden group again.  A CIF that carries the SHELX
+    file it was refined with opens with a group for each disorder
+    component written there, named *PART 1*, *PART 2* (and *PART -1*
+    for one on a symmetry element): untick one to see the other alone.
 
 The four *Grow* entries and *Select same element* are also in the
 context menu of an atom, and *Select all* and *Select none* in the

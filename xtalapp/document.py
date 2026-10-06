@@ -68,6 +68,7 @@ from xtal.io import (
     for_export,
     is_project,
     read_project,
+    shelx,
     write_project,
 )
 from xtal.io.project import EXTENSION as PROJECT_EXTENSION
@@ -183,7 +184,8 @@ class Document(QObject):
         # making, colouring and deleting one are undo steps -- and
         # written into the project's session, because a
         # person who coloured the linkers wants them coloured tomorrow.
-        self.atom_groups: list[atom_groups.AtomGroup] = []
+        self.atom_groups: list[atom_groups.AtomGroup] = (
+            self._disorder_groups())
         # Whether ``view`` came out of a saved project.  A project
         # carries the view it was saved with and the preference for
         # what a *new* document looks like must not overwrite it --
@@ -2491,6 +2493,26 @@ class Document(QObject):
         self._run_atom_group_edit(AddAtomGroup(group, label))
         verb = "hid" if not shown else "grouped"
         return f"{group.name}: {verb} {len(chosen)} atoms"
+
+    def _disorder_groups(self) -> list:
+        """``PART 1``, ``PART 2``, ... -- one group per disorder
+        component of the SHELX file a CIF carried (`xtal.io.shelx`),
+        so each component can be looked at alone.  Taken off the
+        structure's meta as it is read, so it is made once, when the
+        file is opened, and never again over a group somebody has
+        since renamed or deleted."""
+        parts = self._structure.meta.pop(shelx.PARTS_KEY, None)
+        if not parts:
+            return []
+        cell, lattice = self.cell, self._structure.lattice
+        groups = []
+        for part, sites in parts:
+            atoms = [int(a) for site in sites
+                     for a in cell.indices_of_site(int(site))]
+            if atoms:
+                groups.append(atom_groups.make(
+                    cell, lattice, atoms, f"PART {part}"))
+        return groups
 
     def rename_atom_group(self, row: int, name: str) -> None:
         name = name.strip()
