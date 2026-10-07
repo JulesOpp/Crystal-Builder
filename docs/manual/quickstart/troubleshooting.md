@@ -162,8 +162,15 @@ which leaves mattersim's own dependencies out.
 
 ## Reporting something
 
-*Help ▸* {ref}`Show Log <cmd-show_log>` reveals a rotating log file
-that records start-up, plug-in failures, external process output and
-any uncaught exception's traceback.  Attaching it to a report turns
-"it closed" into something that can be fixed.  The version to quote
-is in *Help ▸ About Crystal Builder*.
+*Help ▸* {ref}`Send Feedback <cmd-send_feedback>` opens an email to
+the developer in your own mail client, with the version, the system
+and the end of the log already in it -- which turns "it closed" into
+something that can be fixed.  A mail link carries no attachment, so
+the log goes in the body, its oldest lines trimmed if it is long and
+your home folder written `~`.  The crash box has a *Send feedback...*
+button that does the same with the error's traceback.  Where no mail
+client opens, the report is put on the clipboard instead.
+
+*Help ▸* {ref}`Show Log <cmd-show_log>` reveals the whole rotating log
+file, which records start-up, plug-in failures, external process
+output and any uncaught exception's traceback.

@@ -645,6 +645,11 @@ def build_actions(window):
     add("show_log", "Show &log file", window.show_log,
         tip="Reveal the file this application writes its warnings "
             "and its crashes to")
+    add("send_feedback", "Send &Feedback...", window.send_feedback,
+        tip="Report a bug, suggest a feature or say what in the "
+            "window could be better.  Opens an email in your own mail "
+            "client, with the version and, for a bug, the end of the "
+            "log in it; you see all of it before you send it.")
     add("install_ai_skill", "Set up an &AI assistant",
         window.install_ai_skill,
         tip="Put the crystal-builder skill where Claude Code reads it "
@@ -820,7 +825,7 @@ def build_menus(window):
     window.actions_.fill_menu(help_menu, ["help_contents", "user_manual",
                                           None, "install_ai_skill",
                                           "connect_ai_assistant",
-                                          "show_log",
+                                          "show_log", "send_feedback",
                                           None, "about"])
 
 def build_sample_menu(window) -> None:

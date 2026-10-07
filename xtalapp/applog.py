@@ -295,16 +295,35 @@ def _tell_somebody(kind, value, tb=None) -> None:
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
         copy = box.addButton("Copy details",
                              QMessageBox.ButtonRole.ActionRole)
+        report = box.addButton("Send feedback...",
+                               QMessageBox.ButtonRole.ActionRole)
         _showing = True
         try:
             with answered(box):
                 box.exec()
                 if box.clickedButton() is copy:
                     QApplication.clipboard().setText(details)
+                elif box.clickedButton() is report:
+                    _send_feedback(details)
         finally:
             _showing = False
     except Exception:                               # noqa: BLE001
         pass
+
+
+def _send_feedback(details: str) -> None:
+    """The feedback form as a bug, carrying this traceback.
+
+    Still inside the crash box's guard, so a fault raised while the
+    form is up is logged and not shown over it.
+    """
+    from PySide6.QtWidgets import QApplication
+
+    from xtalapp.dialogs.feedback import FeedbackDialog
+    message = FeedbackDialog.ask(QApplication.activeWindow(),
+                                 details=details)
+    if message:
+        _say(message)
 
 
 def install_qt_handler() -> None:

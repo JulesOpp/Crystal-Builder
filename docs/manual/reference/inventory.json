@@ -1833,6 +1833,14 @@
    "checkable": false
   },
   {
+   "key": "send_feedback",
+   "section": "Help",
+   "path": "Send Feedback...",
+   "shortcut": "",
+   "tip": "Report a bug, suggest a feature or say what in the window could be better.  Opens an email in your own mail client, with the version and, for a bug, the end of the log in it; you see all of it before you send it.",
+   "checkable": false
+  },
+  {
    "key": "about",
    "section": "Help",
    "path": "About Crystal Builder",
