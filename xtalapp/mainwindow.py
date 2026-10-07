@@ -993,6 +993,12 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
             return
         applog.reveal()
 
+    def send_feedback(self) -> None:
+        from xtalapp.dialogs.feedback import FeedbackDialog
+        message = FeedbackDialog.ask(self)
+        if message:
+            self.show_message(message, 12000)
+
     def preferences_dialog(self):
         """The Preferences window, wired to this one.
 

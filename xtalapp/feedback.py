@@ -198,7 +198,7 @@ def compose(kind: str, text: str, *, include_log: bool = False,
         else:
             log_lines = log_tail(log)
             fault_lines = last_fault(faults)
-    tb_lines = details.strip().splitlines()
+    tb_lines = _home_as_tilde(details.strip()).splitlines()
 
     dropped = 0
 

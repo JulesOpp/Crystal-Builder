@@ -2314,6 +2314,16 @@ Reveal the file this application writes its warnings and its crashes to
 ```{index} Show log file
 ```
 
+(cmd-send_feedback)=
+### Send Feedback...
+
+`send_feedback`
+
+Report a bug, suggest a feature or say what in the window could be better.  Opens an email in your own mail client, with the version and, for a bug, the end of the log in it; you see all of it before you send it.
+
+```{index} Send Feedback...
+```
+
 (cmd-about)=
 ### About Crystal Builder
 

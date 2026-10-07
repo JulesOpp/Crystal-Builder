@@ -95,7 +95,7 @@ rather than something two files happen to produce.
 | 7 | Cell | edit cell, supercell, slab, Niggli, Delaunay, wrap |
 | 8 | Modules | one submenu per registered module, a separator between `Module.group`s (energy · build · characterise · export) |
 | 9 | View | style, show, clear charges and orbital, background, display range, boundary, projection, axis views |
-| 10 | Help | log, about |
+| 10 | Help | log, feedback, about |
 | 11 | Window | one toggle per dock, reset layout |
 
 ### Now
