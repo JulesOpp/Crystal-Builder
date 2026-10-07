@@ -30,9 +30,17 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 VOLUME = "Crystal Builder"
+
+# hdiutil on a hosted runner fails now and then with "Resource busy"
+# while something (XProtect, Spotlight) still has the staged bundle
+# open: v0.5.1's Intel DMG failed so while the arm64 one, from the same
+# code, did not.  A few tries a little apart is all it needs.
+ATTEMPTS = 4
+PAUSE = 10
 
 
 def architecture() -> str:
@@ -60,13 +68,24 @@ def make(app: Path, into: Path, version: str) -> Path:
         shutil.copytree(app, staging / app.name, symlinks=True)
         (staging / "Applications").symlink_to("/Applications")
 
-        subprocess.run(
-            ["hdiutil", "create",
-             "-volname", VOLUME,
-             "-srcfolder", str(staging),
-             "-ov", "-format", "UDZO",
-             str(out)],
-            check=True, capture_output=True, text=True)
+        command = ["hdiutil", "create",
+                   "-volname", VOLUME,
+                   "-srcfolder", str(staging),
+                   "-ov", "-format", "UDZO",
+                   str(out)]
+        for attempt in range(1, ATTEMPTS + 1):
+            run = subprocess.run(command, capture_output=True, text=True)
+            if run.returncode == 0:
+                break
+            # The output was captured and the reason with it, which is
+            # how a failed release said nothing but "exit status 1".
+            print(f"hdiutil failed (try {attempt} of {ATTEMPTS}):\n"
+                  f"{run.stderr or run.stdout}", file=sys.stderr)
+            if attempt == ATTEMPTS:
+                raise subprocess.CalledProcessError(
+                    run.returncode, command, run.stdout, run.stderr)
+            out.unlink(missing_ok=True)
+            time.sleep(PAUSE)
     return out
 
 
