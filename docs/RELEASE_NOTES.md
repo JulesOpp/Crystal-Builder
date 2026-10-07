@@ -4,6 +4,40 @@ Build, manipulate, analyse and export crystal structures. Read and
 write CIF, edit symmetry and bonding, run a force field, DFTB+ or
 Zeo++ on the result.
 
+## Crystal Builder 0.5.1
+
+A small release on the way to 1.0: the first things 0.5's testers
+asked for, and a way to ask for the next ones from inside the app.
+
+- **Send feedback from the app**: *Help ▸ Send Feedback…* writes a
+  bug report, a feature request or a UI suggestion, shows the exact
+  email, and hands it to your mail client -- a bug report carrying
+  the end of the log. The crash box has a *Send feedback…* button
+  that carries its traceback.
+- **Atom groups**: *View ▸ Group selected atoms…* (Ctrl+G), *Colour
+  selected atoms…* and *Hide selected* make a named group you can
+  hide, colour and select again from the Style panel's list --
+  shift- and command-click choose several at once. Groups are undo
+  steps, follow their atoms through every edit and symmetry change,
+  and are saved in the project, never in a CIF.
+- **SHELX disorder parts**: a CIF that carries its `.res` file opens
+  with one atom group per non-zero PART, so each disorder component
+  can be hidden or coloured on its own.
+- **Hidden atoms stay hidden through Standardize**, a primitive or
+  supercell, a subgroup, a slab and Move origin: each says where it
+  put the atoms. Standardize lost ZIF-8's hidden atoms before.
+- **Dragging an atom off a mirror keeps its bonds**: each new copy
+  takes the bonds of the atom it was made from, and *Merge Duplicate
+  Sites* puts back a site that has split into copies of itself.
+- **Pasting into an empty document** gives the fragment a P1 box 5 Å
+  wider than it on every side, rather than a 10 Å cube where it met
+  its own images.
+- **Smaller things**: the Style, Move, Force Field and DFTB+ panels
+  are balanced in two columns; the axes triad stays in its corner at
+  any size; *Advanced selection* says what each rule does; the cursor
+  over the 3D view no longer turns to an I-beam when atoms are
+  selected (macOS).
+
 ## Crystal Builder 0.5
 
 A preview of 1.0, put out to be used and argued with before 1.0 is
@@ -233,6 +267,9 @@ need more than that.
   simulation* first.
 
 ## Reporting something
+
+*Help → Send Feedback…* is the quickest way: it composes the email,
+with the end of the log for a bug, and opens it in your mail client.
 
 *Help → Show log file* reveals a rotating log file that records start-up,
 plugin failures, external process output and any uncaught exception's
