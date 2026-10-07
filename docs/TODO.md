@@ -18,51 +18,9 @@ something runnable and a green suite, the rule
 
 # Scheduled
 
-## Before v1.0
-
-The fixes the 2026-10-03 review of `main` + #51 + #52 found to be owed
-before tagging, on `release/v1.0`, one commit a phase.  Decided:
-v1.0 ships **unsigned and says so**; a size limit **warns, then
-refuses**, its profile chosen in Preferences; duplicate CIF labels are
-**renamed on read** with a note.  The full plan, with its
-measurements, is `~/.claude/plans/v1-release-fixes.md`.
-
-| Phase | Delivers | Main files | Size |
-|---|---|---|---|
-| **8 — Release gate** | Push `main`, the owner's review, the bundle run on both Macs and Windows with `--selftest`, the ML engine tests locally, tag `v1.0.0` | -- | S |
-
-Phases 0-5 are done on `release/v1.0` (2026-10-03): the two PRs
-merged and every dialog through `answered`; saves atomic and titles
-outside ASCII written; a module's result adopted into the tab it ran
-on, and a workspace switch asking about a running calculation; an
-optimisation holding its document, one crash box at a time,
-`faulthandler` into `faults.log`, and an unknown style opening as the
-default; the CIF reader renaming repeated labels, refusing a missing
-cell, opening a `?` group number, saying when the file's operations
-were not used, and disorder groups written.  The merges are local --
-`main` has not been pushed and #51/#52 are still open.  Phase 5:
-undo steps below the top let go of their caches, and the history is
-trimmed by the sites it holds.  Phase 6: a supercell, the cells
-drawn, a porosity grid and a carbon repeat are counted before they
-are built (`xtal/core/limits.py`), asked about over a soft limit and
-refused over a hard one, the profile *Preferences ▸ General ▸ Large
-structures*.  Phase 7: Stop reaches a carbon build's relaxation, a
-hydroxyl's hydrogen needs room too (and a contact under 1 A is a
-warning), a copolymer's box is sized by its composition, a ladder
-with a plain monomer is refused, a unit's rotamers are capped at 243
-and shared by both hands, an edited monomer greys Build, and a build
-names itself in `meta["builder"]`.  Phase 8's code and docs:
-third-party notices written by `scripts/third_party_notices.py` in
-the bundle job and linked from About, selftest checks for the carbon
-and polymer builders and the notices, the 1.0 release notes and
-README, the manual's reference regenerated, the MatterSim hint test
-made machine-independent, the Rietveld frames wait lengthened, and
-ruff pinned.  What is left is the gate in the table, which waits on
-the owner.
-
 ## After v1.0 (1.0.x)
 
-Raised by the same review and deliberately left out of 1.0:
+Raised by the 2026-10-03 review of `main` and deliberately left out of 1.0:
 
 - **Signing**: a Developer ID for macOS (notarised) and a code-signing
   certificate for Windows.  `docs/PACKAGING.md` has the plan.

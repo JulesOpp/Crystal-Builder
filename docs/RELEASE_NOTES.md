@@ -4,141 +4,78 @@ Build, manipulate, analyse and export crystal structures. Read and
 write CIF, edit symmetry and bonding, run a force field, DFTB+ or
 Zeo++ on the result.
 
-## Crystal Builder 0.5.1
+## Crystal Builder 1.0
 
-A small release on the way to 1.0: the first things 0.5's testers
-asked for, and a way to ask for the next ones from inside the app.
+The first stable release. The 0.x previews were put out to be used
+and argued with, and what their testers found is in here; they have
+been retired in its favour.
 
-- **Send feedback from the app**: *Help ▸ Send Feedback…* writes a
-  bug report, a feature request or a UI suggestion, shows the exact
-  email, and hands it to your mail client -- a bug report carrying
-  the end of the log. The crash box has a *Send feedback…* button
-  that carries its traceback.
-- **Atom groups**: *View ▸ Group selected atoms…* (Ctrl+G), *Colour
-  selected atoms…* and *Hide selected* make a named group you can
-  hide, colour and select again from the Style panel's list --
-  shift- and command-click choose several at once. Groups are undo
-  steps, follow their atoms through every edit and symmetry change,
-  and are saved in the project, never in a CIF.
-- **SHELX disorder parts**: a CIF that carries its `.res` file opens
-  with one atom group per non-zero PART, so each disorder component
-  can be hidden or coloured on its own.
-- **Hidden atoms stay hidden through Standardize**, a primitive or
-  supercell, a subgroup, a slab and Move origin: each says where it
-  put the atoms. Standardize lost ZIF-8's hidden atoms before.
-- **Dragging an atom off a mirror keeps its bonds**: each new copy
-  takes the bonds of the atom it was made from, and *Merge Duplicate
-  Sites* puts back a site that has split into copies of itself.
-- **Pasting into an empty document** gives the fragment a P1 box 5 Å
-  wider than it on every side, rather than a 10 Å cube where it met
-  its own images.
-- **Smaller things**: the Style, Move, Force Field and DFTB+ panels
-  are balanced in two columns; the axes triad stays in its corner at
-  any size; *Advanced selection* says what each rule does; the cursor
-  over the 3D view no longer turns to an I-beam when atoms are
-  selected (macOS).
+## What it does
 
-## Crystal Builder 0.5
-
-A preview of 1.0, put out to be used and argued with before 1.0 is
-fixed. Everything since 0.4.0 is below, including the work meant to
-make 1.0 dependable: a large cell on a machine short of memory
-should be asked about, not crash, and a file must never be lost.
-**Feedback is the point of this release** -- what confused you,
-what broke, what you looked for and did not find. *Reporting
-something* at the end says how.
-
-## New since 0.4.0
-
-- **Disordered carbon**: *Modules ▸ Build a disordered carbon…*
-  makes a zeolite-templated carbon or a schwarzite as one connected,
-  terminated sheet that follows a net, at the density asked for, with
-  Stone-Wales defects and the rings Gauss-Bonnet fixes said up front.
-  `xtal run carbon.build` does the same from a script.
-- **Amorphous polymers**: *Modules ▸ Build an amorphous polymer…* packs
-  chains of a monomer -- eleven in the library, a starred SMILES, the
-  sketch, or one drawn and saved with *Structure ▸ Building blocks ▸
-  Save as a monomer…* -- into a periodic box or a membrane at a
-  target density, homopolymer or copolymer, at any tacticity, ladders
-  such as PIM-1 included. The model is packed, not equilibrated, and
-  the report says so.
-- **Seeing the chemistry**: *Style ▸ Rings* fills each ring with a
-  face coloured by its size; *Colour by* draws bond length,
-  coordination, angle, smallest ring or charge as a colour bar; the
-  Skeletal style draws a structure as a chemist would on paper, and
-  exports to SVG as text and strokes.
-- **Functional groups**: found, selected and shown by pattern, and a
-  hydrogen replaced by a whole group -- one from the library or one
-  you draw -- bonded as built, keeping the space group where the
-  substituent allows.
-- **Bulk modulus** from an equation of state through a volume scan.
-- **Slabs, LAMMPS and PDB**: *Cell ▸ Slab…* cuts along (hkl) with
-  vacuum above and carries the bonds; Export writes a LAMMPS data
-  file, atom style full, with the bonds as drawn, and *Open…* reads
-  one back with its charges and bonds; Export writes a periodic PDB
-  for PyMOL, VMD and Mercury; a computed charge (EQeq, Mulliken) is
-  written to the CIF's `_atom_site_charge`, where RASPA and Zeo++
-  read it. *Cell ▸ Move origin…*, *Select ▸ Advanced selection…* and
-  *File ▸ Render in Blender…* join them.
-- **A tidier window**: the Modules menu leads with the builders
-  (*Build a molecule with the 2D sketcher…* replaces *Molecule from
-  SMILES…*); the Force Field panel puts Single point and Optimise
-  under the model and folds the atom types away; the Style panel
-  gathers the pore controls into one group and hides rows that belong
-  to another style; the mouse modes are Ctrl+1 to Ctrl+7.
-- **Powder refinement**: a TOPAS-like parameter table on every
-  fitting step, a diffractometer's own file (`.rasx`, Bruker `.raw`,
-  `.uxd`) read directly, every tick naming its reflection, and zero
-  cycles as an evaluation.
+- **Structures in and out**: CIF with its bonds, a project
+  (`.xtalproj`) that keeps the view, measurements and runs beside the
+  crystal, and export to LAMMPS (atom style full, with the bonds as
+  drawn), periodic PDB for PyMOL, VMD and Mercury, POSCAR and XYZ. A
+  computed charge (EQeq, Mulliken) goes into the CIF's
+  `_atom_site_charge`, where RASPA and Zeo++ read it.
+- **Symmetry and cells**: space groups and their subgroups,
+  Standardize, primitive and supercells, *Cell ▸ Slab…* along (hkl)
+  with vacuum and the bonds carried, *Cell ▸ Move origin…*, and
+  *Structure ▸ Prepare for simulation…*, which merges duplicates,
+  orders disorder, removes solvent and adds hydrogens in one undo
+  step that says what it chose.
+- **Bonding you stay in charge of**: bonds change only when you press
+  *Recalculate Bonds* -- never on load, on an edit or after an
+  optimisation -- and a bond type set by hand always wins.
+- **Builders**: a MOF from a net, a node and a linker (PORMAKE, with
+  its 867 blocks and the RCSR nets); a molecule drawn in the 2D
+  sketcher, metals built with their coordination shape; a disordered
+  carbon (zeolite-templated or schwarzite) as one terminated sheet
+  that follows a net; an amorphous polymer packed into a box or a
+  membrane from eleven library monomers or your own; guests placed
+  in the pores; a hydrogen replaced by a whole functional group.
+- **Calculations**: UFF with UFF4MOF, xTB, DFTB+ (with band
+  structures and densities of states), and MACE, ORB-v3 and MatterSim
+  from Python; optimisation that keeps the space group; scans that
+  hold a distance, angle or cell volume and write each point as it
+  finishes; a bulk modulus from an equation of state; porosity with
+  Zeo++ or our own faster grid, with the pores drawn where they are.
+- **Powder diffraction**: a pattern from the structure, and a
+  refinement workbench (peaks, indexing, Pawley, Rietveld, Rietveld
+  with energies) against a measured `.xy` or a diffractometer's own
+  file (`.rasx`, Bruker `.raw`, `.uxd`, `.xrdml`), with a TOPAS-like
+  parameter table.
+- **Seeing the chemistry**: ball-and-stick, polyhedra, and a Skeletal
+  style drawn as a chemist would on paper; *Style ▸ Rings* fills each
+  ring by size; *Colour by* bond length, coordination, angle, smallest
+  ring or charge; atom groups (*View ▸ Group selected atoms…*,
+  Ctrl+G) to name, colour and hide a set of atoms, made for you from
+  a CIF's SHELX disorder PARTs.
 - **An AI assistant can work in the window**: *Help ▸ Connect an AI
   assistant…* lets any MCP client drive the open tabs, each change
-  one undo step in front of you, and the packaged app carries the
-  `xtal` program it connects through.
-- **More to open**: *Open Sample ▸ Simple materials* (eighteen
-  textbook solids), *Polymers* (polyethylene, alpha-iPP, cellulose
-  I-beta), and UiO-67, PCN-224, SIFSIX-3-Ni and SIFSIX-1-Cu from the
-  COD. Opening a file already open offers a fresh copy beside it.
-- **The MOF builder** states the bonds a framework is built with and
-  says when two atoms overlap; a linker is drawn as written where
-  nothing prefers an angle, and turned for room before it is turned
-  for its faces.
-- **Fill pores** can put one guest at a point, or one beside each
-  selected atom; the pore sphere can be D_i, D_if or any cavity.
+  one undo step in front of you.
+- **Samples to start from**: textbook solids, polymers, and MOFs from
+  the COD, under *File ▸ Open Sample*.
 
-## Fixed since 0.4.0
+## Made to be dependable
 
-- **Saving never destroys the last good file.** A project, a CIF and
-  a LAMMPS file are written beside the old one and swapped in only
-  once complete. A title outside ASCII (`α-quartz`) survives.
-- **Large structures are counted before they are built.** A
-  supercell, the cells drawn, a porosity grid and a carbon build are
-  estimated first: over a soft limit you are asked, over a hard one
-  it is refused with the largest size that fits. *Preferences ▸
-  General ▸ Large structures* sets how cautious: Standard (8 GB
-  machines), Generous, or Warn only. The supercell dialog no longer
-  builds the cell on every spin step.
-- **Undo stops hoarding memory**: steps below the top let go of what
-  they can rebuild, and the oldest whole-structure steps are released
-  once they hold too many atoms, the status bar saying so.
-- **A running calculation holds its tab.** An edit made under a
-  running optimisation is refused with a message rather than lost
-  when the result lands, and a module's result goes to the tab it
-  ran on, whichever is in front. Changing workspace asks before
-  stopping a calculation.
-- **Errors cannot stack**: one crash box at a time, each fault once,
-  with *Copy details*; a hard crash leaves its stack in `faults.log`
-  beside the log.
-- **The CIF reader says what it assumed.** Repeated atom labels are
-  renamed so bonds can name their atoms, and said; a cell with a
-  missing length is refused by name rather than read as a 1 Å cube;
-  a `?` space-group number opens; a file whose symmetry operations
-  match no tabulated setting says that they were not used. Disorder
-  groups are written back.
-- **The builders can be stopped and say the right thing**: Stop
-  reaches a carbon build's relaxation; a polymer copolymer is built
-  at the density asked for; a ladder monomer with a plain one is
-  refused; a monomer with many free bonds no longer takes minutes
-  before the first chain.
+- **Saving never destroys the last good file.** Every file is written
+  beside the old one and swapped in only once complete, and an
+  autosave every two minutes is offered back after a crash.
+- **Large structures are counted before they are built.** Over a
+  soft limit you are asked, over a hard one it is refused with the
+  largest size that fits; *Preferences ▸ General ▸ Large structures*
+  sets how cautious (Standard for 8 GB machines, Generous, or Warn
+  only). Undo lets go of what it can rebuild.
+- **A running calculation holds its tab**: an edit made under it is
+  refused with a message rather than lost, a result goes to the tab
+  it ran on, and quitting or changing workspace asks before stopping
+  it.
+- **The CIF reader says what it assumed**: repeated labels renamed, a
+  missing cell refused by name, unmatched symmetry operations
+  reported.
+- **Errors are one box at a time**, with *Copy details* and *Send
+  feedback…*; a hard crash leaves its stack in `faults.log`.
 
 ## Downloads
 
@@ -255,7 +192,7 @@ need more than that.
 - **A polymer model is packed, not equilibrated.** Its density and
   contacts are right; its chains have not relaxed at their own scale,
   which takes molecular dynamics this application does not run.
-- **What 0.5 does not do**, so nobody looks for it: adsorption
+- **What 1.0 does not do**, so nobody looks for it: adsorption
   (GCMC, Henry coefficients) -- write the CIF, with its charges, for
   RASPA; molecular dynamics with the machine-learned engines (DFTB+'s
   own MD is there); fetching structures from the COD, CoRE MOF or the
