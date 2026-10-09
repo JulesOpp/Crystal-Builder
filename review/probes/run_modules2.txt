@@ -1,0 +1,49 @@
+2026-09-18 20:20:08.872 python[25552:9821036] +[IMKClient subclass]: chose IMKClient_Legacy
+2026-09-18 20:20:08.872 python[25552:9821036] +[IMKInputSession subclass]: chose IMKInputSession_Legacy
+opened MOF-5.cif: 424 sites, 1 tab(s)
+== module dialogs ==
+  zeopp.volume: ModuleDialog title='Zeo++: Accessible volume' hint=443x418
+     buttons: 'Run'*DEF, 'Cancel'
+     params: [('gas', '', 'n2'), ('probe_radius', ' A', 1.86), ('channel_radius', ' A', 0.0), ('occupiable', '', True), ('samples', '', 50000), ('draw', '', True), ('spacing', ' A', 0.5), ('radii', '', 'builtin'), ('radii_file', '', None), ('high_accuracy', '', True)]
+     -> review/shots/dlg/mod-zeopp-volume.png
+  zeopp.psd: ModuleDialog title='Zeo++: Pore size distribution' hint=443x325
+     buttons: 'Run'*DEF, 'Cancel'
+     params: [('gas', '', 'custom'), ('probe_radius', ' A', 1.2), ('channel_radius', ' A', 0.0), ('samples', '', 20000), ('radii', '', 'builtin'), ('radii_file', '', None), ('high_accuracy', '', True)]
+     -> review/shots/dlg/mod-zeopp-psd.png
+  pxrd.simulate: ModuleDialog title='PXRD: Simulate a pattern' hint=363x484
+     buttons: 'Run'*DEF, 'Cancel'
+     params: [('source', '', 'cu-ka1'), ('wavelength', ' A', 1.5406), ('two_theta_min', ' deg', 5.0), ('two_theta_max', ' deg', 50.0), ('step', ' deg', 0.01), ('shape', '', 'pseudo-voigt'), ('eta', '', 0.5), ('caglioti_u', '', 0.004), ('caglioti_v', '', -0.002), ('caglioti_w', '', 0.01), ('b_overall', ' A^2', 0.0), ('show_absences', '', False)]
+     -> review/shots/dlg/mod-pxrd-simulate.png
+  scan.run: ScanDialog title='Energy scan: Relaxed scan' hint=557x506
+     buttons: 'Run'*DEF, 'Cancel'
+     params: [('engine', '', 'uff'), ('axis1', '', 'volume'), ('axis1_start', '', 0.0), ('axis1_stop', '', 0.0), ('axis1_steps', '', 9), ('axis2', '', ''), ('axis2_start', '', 0.0), ('axis2_stop', '', 0.0), ('axis2_steps', '', 9), ('seed', '', 'previous'), ('direction', '', 'both'), ('method', '', 'smart')]
+     -> review/shots/dlg/mod-scan-run.png
+  mof.build: MofBuildDialog title='MOF builder: Build a framework' hint=616x931
+     buttons: 'Build'*DEF, 'Cancel'
+     params: [('topology', '', 'pcu'), ('nodes', '', None), ('edges', '', None), ('topology_dir', '', None), ('bb_dir', '', None)]
+     -> review/shots/dlg/mod-mof-build.png
+  net.draw: NetDrawDialog title='Net builder: Draw a net' hint=556x508
+     buttons: 'Draw'*DEF, 'Cancel'
+     params: [('net', '', 'pcu'), ('scale', '', 8.0), ('beads', '', 8)]
+     -> review/shots/dlg/mod-net-draw.png
+  build.molecule: BuildMoleculeDialog title='Molecule builder: Molecule from SMILES' hint=826x690
+     buttons: 'Build'*DEF, 'Cancel'
+     params: [('smiles', '', None), ('name', '', None), ('optimise', '', True), ('seed', '', 61453)]
+     -> review/shots/dlg/mod-build-molecule.png
+  dftb.charges: DftbRunDialog title='DFTB+: Mulliken charges' hint=329x160
+     buttons: 'Run'*DEF, 'Cancel'
+     params: []
+     -> review/shots/dlg/mod-dftb-charges.png
+  dftb.band-structure: BandStructureDialog title='DFTB+: Band structure' hint=516x618
+     buttons: 'Run'*DEF, 'Cancel'
+     params: [('path', '', ''), ('density', '', 40.0), ('dos', '', True), ('sigma', ' eV', 0.1)]
+     -> review/shots/dlg/mod-dftb-band-structure.png
+  blender.export-stl: StlExportDialog title='Export as STL' hint=361x385
+     buttons: 'Run'*DEF, 'Cancel'
+     params: [('output', '', ''), ('bonded_partners', '', False), ('ball_scale', '', 0.8), ('h_scale', '', 2.0), ('stick_radius', ' A', 0.4), ('remesh', '', True), ('voxel_size', ' A', 0.1), ('max_tris', '', 1000000), ('target_size', ' mm', 0.0)]
+     -> review/shots/dlg/mod-blender-export-stl.png
+== subgroup dialog ==
+   buttons: 'Descend'*DEF, 'Cancel'
+== context menu in the viewport ==
+   menus in window: 31
+ran modules_dialogs.py
