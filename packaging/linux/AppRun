@@ -3,6 +3,7 @@ HERE="$(dirname "$(readlink -f "$0")")"
 # "<the AppImage> xtal mcp" is the line an AI assistant's client is
 # given: the xtal beside the window is inside this mount, which is gone
 # once the window quits, and the AppImage file is not.
+# xtal first always means the CLI: open a file named xtal as ./xtal.
 if [ "$1" = xtal ]; then
     shift
     exec "$HERE/usr/lib/crystal-builder/xtal" "$@"

@@ -47,6 +47,28 @@ from xtalapp.application import DESKTOP_ID  # noqa: E402
 
 WINDOW = "Crystal Builder"
 MIME = "crystal-builder.xml"
+#: The PNG's side, in pixels: the AppImage spec's recommended
+#: ``.DirIcon`` size, and a ``hicolor`` size every theme has.
+ICON_SIZE = 256
+
+
+def render_png(svg: Path, png: Path, size: int = ICON_SIZE) -> None:
+    """Draw ``svg`` as a ``size`` square PNG with a transparent
+    background.  Needs a ``QGuiApplication``."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QImage, QPainter
+    from PySide6.QtSvg import QSvgRenderer
+
+    renderer = QSvgRenderer(str(svg))
+    if not renderer.isValid():
+        raise ValueError(f"{svg} is not an svg Qt can draw")
+    image = QImage(size, size, QImage.Format.Format_ARGB32)
+    image.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(image)
+    renderer.render(painter)
+    painter.end()
+    if not image.save(str(png), "PNG"):
+        raise OSError(f"could not write {png}")
 
 
 def layout(collected: Path, appdir: Path) -> Path:
@@ -72,17 +94,23 @@ def layout(collected: Path, appdir: Path) -> Path:
 
     entry = f"{DESKTOP_ID}.desktop"
     icon = f"{DESKTOP_ID}.svg"
+    png = f"{DESKTOP_ID}.png"
     share = appdir / "usr" / "share"
+    hicolor = share / "icons" / "hicolor"
+    render_png(bundle.ICONS / "app.svg", appdir / png)
     for source, *targets in [
         (LINUX / entry, appdir / entry, share / "applications" / entry),
         (bundle.ICONS / "app.svg", appdir / icon,
-         share / "icons" / "hicolor" / "scalable" / "apps" / icon),
+         hicolor / "scalable" / "apps" / icon),
+        (appdir / png, hicolor / "256x256" / "apps" / png),
         (LINUX / MIME, share / "mime" / "packages" / MIME),
     ]:
         for target in targets:
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, target)
-    (appdir / ".DirIcon").symlink_to(icon)
+    # A PNG: thumbnailers draw the AppImage from .DirIcon and skip an
+    # svg.  The .desktop entry's Icon= still finds the svg.
+    (appdir / ".DirIcon").symlink_to(png)
     return appdir
 
 
@@ -125,6 +153,14 @@ def main(argv=None) -> int:
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
     version = args.version or bundle.version()
+
+    from PySide6.QtGui import QGuiApplication
+
+    if QGuiApplication.instance() is None:
+        # A build machine may have no display, and the icon is drawn
+        # into an image, never onto a screen.
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        app = QGuiApplication([])  # noqa: F841 -- held while it renders
 
     with tempfile.TemporaryDirectory() as tmp:
         appdir = layout(collected, Path(tmp) / "CrystalBuilder.AppDir")

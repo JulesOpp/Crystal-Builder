@@ -119,3 +119,16 @@ def test_the_stdio_line_runs_the_appimage_when_the_app_is_one(
     page = AgentPage(settings)
     qtbot.addWidget(page)
     assert page.stdio.text().startswith(f'"{image}" ')
+
+
+def test_the_stdio_line_quotes_a_launcher_path_with_a_space_outside_an_appimage(  # noqa: E501
+        tmp_path, monkeypatch):
+    """A packaged macOS build's ``xtal`` is inside ``Crystal
+    Builder.app``; unquoted, a client runs ``.../Crystal`` with
+    ``Builder.app/...`` as its first argument."""
+    monkeypatch.delenv("APPIMAGE", raising=False)
+    launcher = (tmp_path / "Crystal Builder.app" / "Contents" / "MacOS"
+                / "xtal")
+    monkeypatch.setattr(discovery, "launcher", lambda: launcher)
+
+    assert AgentPage.stdio_line() == f'"{launcher}" mcp'

@@ -18,6 +18,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
+from PySide6.QtGui import QImage
 
 from xtalapp.application import DESKTOP_ID
 
@@ -59,7 +60,7 @@ def collected(tmp_path) -> Path:
 
 
 @pytest.fixture
-def appdir(collected, tmp_path) -> Path:
+def appdir(qapp, collected, tmp_path) -> Path:
     return appimage.layout(collected, tmp_path / "CrystalBuilder.AppDir")
 
 
@@ -84,6 +85,7 @@ def test_the_appdir_has_the_layout_appimagetool_expects(appdir):
         appdir / "AppRun",
         appdir / f"{DESKTOP_ID}.desktop",
         appdir / f"{DESKTOP_ID}.svg",
+        appdir / f"{DESKTOP_ID}.png",
         lib / WINDOW,
         lib / "xtal",
         share / "applications" / f"{DESKTOP_ID}.desktop",
@@ -93,11 +95,24 @@ def test_the_appdir_has_the_layout_appimagetool_expects(appdir):
     ]:
         assert path.is_file(), path
 
+    assert (appdir / f"{DESKTOP_ID}.svg").read_bytes() == (
+        appimage.bundle.ICONS / "app.svg").read_bytes()
     icon = appdir / ".DirIcon"
     assert icon.is_symlink()
-    assert os.readlink(icon) == f"{DESKTOP_ID}.svg"
-    assert icon.read_bytes() == (appimage.bundle.ICONS
-                                 / "app.svg").read_bytes()
+    assert os.readlink(icon) == f"{DESKTOP_ID}.png"
+
+
+def test_the_dir_icon_is_a_256_pixel_png_for_thumbnailers(appdir):
+    """A file manager draws an AppImage with its ``.DirIcon``, and
+    thumbnailers read a PNG there and ignore an svg: the download
+    would show as a blank file."""
+    for path in [appdir / ".DirIcon",
+                 appdir / "usr" / "share" / "icons" / "hicolor"
+                 / "256x256" / "apps" / f"{DESKTOP_ID}.png"]:
+        assert path.read_bytes().startswith(b"\x89PNG")
+        image = QImage(str(path))
+        assert not image.isNull()
+        assert (image.width(), image.height()) == (256, 256)
 
 
 def test_apprun_is_executable_and_runs_the_collected_program(appdir):
@@ -148,7 +163,8 @@ def test_the_desktop_entry_names_the_app_its_icon_and_both_file_types(
     types = desktop["MimeType"].split(";")
     assert "chemical/x-cif" in types
     assert "application/x-crystal-builder-project" in types
-    assert "Science" in desktop["Categories"].split(";")
+    # One main category: a second puts the entry in two menus.
+    assert desktop["Categories"] == "Science;Chemistry;"
     assert desktop["StartupWMClass"] == "Crystal Builder"
     shared = (appdir / "usr" / "share" / "applications"
               / f"{DESKTOP_ID}.desktop")
@@ -214,7 +230,7 @@ def test_pack_names_the_appimage_after_the_version_and_sets_arch(
     assert argv == ["--no-appstream", str(appdir), str(made)]
 
 
-def test_layout_refuses_a_non_empty_appdir(collected, tmp_path):
+def test_layout_refuses_a_non_empty_appdir(qapp, collected, tmp_path):
     """A folder left from an earlier build would carry its files into
     this one's download, where nothing would notice them."""
     stale = tmp_path / "CrystalBuilder.AppDir"
