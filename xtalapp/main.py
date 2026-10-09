@@ -5,7 +5,10 @@ Application entry point (``crystal-builder`` on the command line).
 
 Sets QT_API before anything imports VTK's Qt bridge -- VTK picks its
 binding from that variable, and getting it wrong is an import-time
-crash rather than a friendly error.
+crash rather than a friendly error.  On Linux it also asks for X11
+(xcb) when a Wayland session offers XWayland: VTK's Qt bridge is
+``vtkXOpenGLRenderWindow`` whatever Qt is drawing on, and a
+``wl_surface`` handed to it as a window is not one.
 
 Plugins are loaded here, before the window is built: the Modules menu,
 the module tree, the format lists and the engine chooser are all built
@@ -37,6 +40,21 @@ import os
 import sys
 
 os.environ.setdefault("QT_API", "pyside6")
+
+# VTK's Qt bridge on Linux is X11, whatever Qt itself is drawing on.
+# QVTKRenderWindowInteractor hands VTK a window ID from `winId()`, and
+# on a Wayland session that is a `wl_surface` and not an X window, so
+# the first `XChangeWindowAttributes` VTK makes dies with "BadWindow
+# (invalid Window parameter)" before the 3D view is ever drawn.  The
+# X server it needs is XWayland, so a session offering both is asked
+# for xcb -- and *only* a session offering both: with no DISPLAY
+# there is no X server to ask for, and the choice is left alone.  An
+# explicit QT_QPA_PLATFORM still wins, because somebody who set one
+# knows something this does not.
+if (sys.platform.startswith("linux")
+        and os.environ.get("WAYLAND_DISPLAY")
+        and os.environ.get("DISPLAY")):
+    os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
 
 
 #: ``--selftest``, and where to put the image it draws.  Parsed by
