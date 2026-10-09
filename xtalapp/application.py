@@ -39,6 +39,7 @@ queue is released once something is listening.
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, Qt, Signal
@@ -71,6 +72,17 @@ def icon_path() -> Path:
     the window is given it here.
     """
     return Path(__file__).resolve().parent / "data" / "app.svg"
+
+
+def _apply_window_icon(app, platform: str = sys.platform) -> None:
+    """Give the windows :func:`icon_path`'s icon, on Linux only.
+
+    macOS and Windows take theirs from the bundle and the ``.exe``,
+    and on macOS the application's window icon is the Dock's: setting
+    it here would replace the bundle's at run time.
+    """
+    if platform.startswith("linux"):
+        app.setWindowIcon(QIcon(str(icon_path())))
 
 
 def keep_siblings_non_native() -> None:
@@ -106,7 +118,7 @@ class Application(QApplication):
         keep_siblings_non_native()
         super().__init__(list(argv or []))
         self.setDesktopFileName(DESKTOP_ID)
-        self.setWindowIcon(QIcon(str(icon_path())))
+        _apply_window_icon(self)
         self._pending: list[str] = []
         self._delivering = False
         self._quit_guard = None

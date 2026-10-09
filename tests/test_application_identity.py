@@ -17,6 +17,7 @@ import pytest
 pytest.importorskip("PySide6")
 pytest.importorskip("pytestqt")
 
+from xtalapp import application  # noqa: E402
 from xtalapp.application import DESKTOP_ID, icon_path  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -34,8 +35,34 @@ def test_the_application_names_its_desktop_entry(qapp):
 def test_the_application_has_its_own_window_icon(qapp):
     """Nothing else gives a Linux window an icon: the executable has
     no resource to read one from."""
-    assert icon_path().is_file()
-    assert not qapp.windowIcon().isNull()
+    before = qapp.windowIcon()
+    try:
+        application._apply_window_icon(qapp, "linux")
+        assert icon_path().is_file()
+        assert not qapp.windowIcon().isNull()
+    finally:
+        qapp.setWindowIcon(before)
+
+
+class _Recorder:
+    def __init__(self):
+        self.icons = []
+
+    def setWindowIcon(self, icon):
+        self.icons.append(icon)
+
+
+@pytest.mark.parametrize("platform", ["darwin", "win32"])
+def test_the_window_icon_is_left_to_the_bundle_on_macos_and_windows(
+        platform):
+    """On macOS the application's window icon *is* the Dock's, so
+    setting it would replace the bundle's at run time; on Windows the
+    ``.exe``'s icon already is the taskbar's and the title bar's."""
+    app = _Recorder()
+
+    application._apply_window_icon(app, platform)
+
+    assert app.icons == []
 
 
 def test_the_icon_ships_with_the_package():
