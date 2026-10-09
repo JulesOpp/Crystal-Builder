@@ -26,11 +26,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The three platforms we ship, and nothing else.  Linux used
-        # to carry the version sweep here because it is the cheap
-        # runner, but nothing is released for it: what that bought
-        # was three more ways for a red tick to mean something
-        # nobody is going to install.
+        # The platforms we ship, and nothing else.  Linux left this
+        # list while nothing was released for it -- a red tick there
+        # meant something nobody was going to install -- and is back
+        # because an AppImage is released for it now.  One row, not
+        # the version sweep it used to carry: the bundle is built on
+        # one Python, and so is every other row here.
         include:
           - os: macos-14          # Apple silicon
             python: "3.12"
@@ -41,6 +42,8 @@ jobs:
                                   # then fails the run.
           - os: windows-latest
             python: "3.12"
+          - os: ubuntu-latest
+            python: "3.12"
     steps:
       - uses: actions/checkout@v7
         with:
@@ -48,14 +51,16 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python }}
-      # Dormant while the matrix above ships no Linux entry, and kept
-      # rather than deleted because it is the whole of what anybody
-      # putting one back needs to know:
       # PySide6 links these and the runner images do not carry them,
       # so `import PySide6.QtGui` fails with
       # `libEGL.so.1: cannot open shared object file` before a single
       # test runs.  pytest-qt imports QtGui during pytest_configure,
       # which turns it into an INTERNALERROR rather than a skip.
+      # libosmesa6 and mesa-utils so that VTK finds an offscreen
+      # OpenGL and the render tests run rather than skip themselves:
+      # skipped, they are green on the one platform with no GPU and
+      # no Mesa of its own, which is exactly where they were meant to
+      # say something.  libfontconfig1 is Qt's way to any font at all.
       - name: Qt's system libraries (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -64,7 +69,8 @@ jobs:
             libegl1 libgl1 libdbus-1-3 libxkbcommon-x11-0 \
             libxcb-cursor0 libxcb-icccm4 libxcb-image0 \
             libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 \
-            libxcb-shape0 libxcb-xinerama0 libxcb-xfixes0
+            libxcb-shape0 libxcb-xinerama0 libxcb-xfixes0 \
+            libosmesa6 mesa-utils libfontconfig1
       # `ase` is here because the MOF builder needs it.  PORMAKE is
       # vendored (xtal/mof/pormake) and is written over ase.Atoms and
       # ase.neighborlist, so without this extra every build test
@@ -218,6 +224,10 @@ jobs:
           - os: windows-latest
             label: windows-x64
             spec: packaging/windows.spec
+          - os: ubuntu-22.04      # glibc 2.35 is the floor the AppImage
+            label: linux-x86_64   # runs on: it needs the glibc it was
+            spec: packaging/linux.spec   # built against or newer, so
+                                         # not ubuntu-latest.
     steps:
       - uses: actions/checkout@v7
         with:
@@ -310,10 +320,70 @@ jobs:
       - name: Third-party notices
         run: python scripts/third_party_notices.py
 
+      # PyInstaller collects what the platform plugin links from the
+      # build host, and a library that is not installed is not
+      # collected -- it is simply missing on the user's machine, where
+      # Qt then says only "could not load the Qt platform plugin xcb".
+      # The test job's list, which is what `xcb` needs, plus
+      # libfontconfig1.  glibc, libGL, libEGL and libxcb itself are
+      # left to the user's system; see docs/LINUX.md.
+      - name: Qt's system libraries (Linux bundle)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libegl1 libgl1 libdbus-1-3 libxkbcommon-x11-0 \
+            libxcb-cursor0 libxcb-icccm4 libxcb-image0 \
+            libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 \
+            libxcb-shape0 libxcb-xinerama0 libxcb-xfixes0 \
+            libfontconfig1
+
       - name: Build
         env:
           QT_API: pyside6
         run: pyinstaller --noconfirm ${{ matrix.spec }}
+
+      # The same reason as macOS's: most of the download is Qt the
+      # application never reaches and debug symbols nobody reads.  See
+      # the module docstring for what goes and why the rest stays.
+      - name: Strip (Linux)
+        if: runner.os == 'Linux'
+        run: python packaging/postbuild_linux.py "dist/Crystal Builder"
+
+      # Pinned to a numbered release and checked against the SHA-256
+      # GitHub reports for that asset (read 2026-10-09).  A release
+      # asset can be replaced under the same URL, and the project's
+      # own `continuous` tag is, every week: the checksum is what
+      # makes the tool that packs a release the one somebody looked
+      # at, and a download that changed fails here instead.  No
+      # libfuse2: the runners have no FUSE, so every AppImage this
+      # job starts, the tool included, extracts itself and runs
+      # (APPIMAGE_EXTRACT_AND_RUN=1).  Into the runner's temp and not
+      # the working directory, where the upload's `*.AppImage` would
+      # take it for the download and the release would attach it.
+      - name: appimagetool
+        if: runner.os == 'Linux'
+        working-directory: ${{ runner.temp }}
+        run: |
+          url=https://github.com/AppImage/appimagetool/releases/download
+          tag=1.9.1
+          sha=ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0
+          curl -fsSLO "$url/$tag/appimagetool-x86_64.AppImage"
+          echo "$sha  appimagetool-x86_64.AppImage" | sha256sum -c -
+          chmod +x appimagetool-x86_64.AppImage
+
+      # On every bundle run, not only on a tag: the AppImage is what
+      # the selftest below runs, because it is what a user downloads,
+      # and the folder it is packed from has another launcher path.
+      # appimage.py asks Qt for the PNG icon, offscreen.
+      - name: AppImage (Linux)
+        if: runner.os == 'Linux'
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+          QT_API: pyside6
+        run: |
+          python packaging/appimage.py "dist/Crystal Builder" . \
+              --tool "$RUNNER_TEMP/appimagetool-x86_64.AppImage"
 
       # The bundle's own smoke test, run against the built thing
       # rather than the checkout.  It is the only layer that can say
@@ -349,6 +419,39 @@ jobs:
               --selftest --selftest-image selftest.png | tee selftest.log
           grep -q "selftest passed" selftest.log \
               || { echo "::error::the selftest did not run to the end"; \
+                   exit 1; }
+          test -s selftest.png \
+              || { echo "::error::the selftest drew no image"; exit 1; }
+
+      # The AppImage itself, as a user starts it, and read back as the
+      # macOS one is.  xvfb because VTK gets no OpenGL context under
+      # the offscreen platform and segfaults; xcb on a virtual screen
+      # with Mesa's llvmpipe is a real context on the path a desktop
+      # takes.  The launcher line is the AppImage's own question: the
+      # `xtal` inside it must answer from the extracted folder, which
+      # is the line Preferences > AI assistant hands a client.
+      - name: Selftest (Linux)
+        if: runner.os == 'Linux'
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+          XTAL_NO_CONFIRM_CLOSE: "1"
+          QT_QPA_PLATFORM: xcb
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          sudo apt-get install -y --no-install-recommends \
+            xvfb mesa-utils libgl1-mesa-dri
+          set -o pipefail
+          images=(Crystal_Builder-*-x86_64.AppImage)
+          [ "${#images[@]}" = 1 ] && [ -f "${images[0]}" ] \
+              || { echo "::error::expected one AppImage, found" \
+                        "${images[*]}"; exit 1; }
+          xvfb-run -a -s "-screen 0 1280x1024x24" "./${images[0]}" \
+              --selftest --selftest-image selftest.png | tee selftest.log
+          grep -q "selftest passed" selftest.log \
+              || { echo "::error::the selftest did not run to the end"; \
+                   exit 1; }
+          grep -q "xtal launcher: .* answers" selftest.log \
+              || { echo "::error::the AppImage's xtal did not answer"; \
                    exit 1; }
           test -s selftest.png \
               || { echo "::error::the selftest drew no image"; exit 1; }
@@ -486,8 +589,9 @@ jobs:
             packaging\crystal-builder.iss
 
       # `error`, not `ignore`.  On a plain push only `selftest.png`
-      # matches -- the .dmg and the installer are made on a tag -- so
-      # this asks the one question `ignore` was silently answering
+      # matches -- the .dmg and the installer are made on a tag; the
+      # AppImage on every run, since the selftest runs it -- so this
+      # asks the one question `ignore` was silently answering
       # wrong: the Windows job uploaded no artifact at all for weeks
       # and said nothing, because the image it should have carried
       # was never drawn.
@@ -498,6 +602,7 @@ jobs:
           path: |
             *.dmg
             dist/*.exe
+            *.AppImage
             selftest.png
 
   release:
@@ -517,6 +622,7 @@ jobs:
           files: |
             artifacts/**/*.dmg
             artifacts/**/*.exe
+            artifacts/**/*.AppImage
           body_path: docs/RELEASE_NOTES.md
           draft: true
           fail_on_unmatched_files: true
