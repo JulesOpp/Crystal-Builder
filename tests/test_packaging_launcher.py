@@ -49,13 +49,15 @@ def _executables(spec: Path) -> tuple[dict[str, dict], list[str]]:
     return exes, collected
 
 
-@pytest.mark.parametrize("spec", ["macos.spec", "windows.spec"])
-def test_both_specs_build_an_xtal_launcher_beside_the_app(
+@pytest.mark.parametrize("spec",
+                         ["macos.spec", "windows.spec", "linux.spec"])
+def test_every_spec_builds_an_xtal_launcher_beside_the_app(
         spec, tmp_path, monkeypatch):
     """Two programs in one folder: the window, and ``xtal`` with a
     console, so that ``xtal mcp`` can speak over stdin and stdout.
     The window comes first in ``COLLECT`` because on macOS the first
-    executable is the one ``BUNDLE`` makes the ``.app``'s own."""
+    executable is the one ``BUNDLE`` makes the ``.app``'s own, and the
+    other two keep the same order so the three read alike."""
     exes, collected = _executables(bundle.HERE / spec)
     by_name = {kw["name"]: var for var, kw in exes.items()}
 
@@ -75,6 +77,52 @@ def test_both_specs_build_an_xtal_launcher_beside_the_app(
     assert bundle.launcher_path(app) == discovery.launcher()
     assert bundle.launcher_path(app).parent == tmp_path
     assert bundle.launcher_path(app).stem == LAUNCHER_NAME
+
+
+def _calls(spec: Path, name: str) -> list[ast.Call]:
+    """Every call the spec makes to the bare name ``name``."""
+    tree = ast.parse(spec.read_text(encoding="utf-8"))
+    return [node for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == name]
+
+
+def test_the_linux_spec_draws_from_the_shared_bundle_module():
+    """What goes in is :mod:`bundle`'s answer, as it is for the other
+    two specs.  A Linux spec with its own list of packages would drift
+    from them the first time an extra is added, and the AppImage would
+    be the one build without it."""
+    spec = bundle.HERE / "linux.spec"
+    tree = ast.parse(spec.read_text(encoding="utf-8"))
+    asked = {node.func.attr for node in ast.walk(tree)
+             if isinstance(node, ast.Call)
+             and isinstance(node.func, ast.Attribute)
+             and isinstance(node.func.value, ast.Name)
+             and node.func.value.id == "bundle"}
+    assert {"datas", "hiddenimports", "binaries"} <= asked
+
+    analyses = _calls(spec, "Analysis")
+    assert len(analyses) == 2
+    for call in analyses:
+        (excludes,) = [k.value for k in call.keywords
+                       if k.arg == "excludes"]
+        assert ast.unparse(excludes) == "bundle.EXCLUDES"
+
+
+def test_the_linux_spec_leaves_stripping_to_postbuild():
+    """On Linux PyInstaller's strip is a bare ``strip`` over every
+    library as it is collected.  ``postbuild_linux.py`` strips once,
+    with ``--strip-unneeded``, after the unused Qt modules are gone,
+    and prints the size before and after; a spec that stripped as well
+    would hide what that step saves and spend the time twice."""
+    spec = bundle.HERE / "linux.spec"
+    calls = _calls(spec, "EXE") + _calls(spec, "COLLECT")
+    assert len(calls) == 3
+    for call in calls:
+        (strip,) = [k.value for k in call.keywords if k.arg == "strip"]
+        assert isinstance(strip, ast.Constant)
+        assert strip.value is False
 
 
 def test_the_bundle_collects_mcp_without_its_cli(monkeypatch):
