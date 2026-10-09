@@ -380,7 +380,7 @@ def start(directory=None) -> Path:
 
 
 def reveal() -> bool:
-    """Show the log's folder in Finder or Explorer.
+    """Show the log's folder in the file manager.
 
     The folder and not the file: opening a rotating megabyte of text
     in whatever the desktop has claimed ``.log`` is a worse answer

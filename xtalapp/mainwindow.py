@@ -325,13 +325,13 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         return self.document_set.open_fresh_copy(source, name=name)
 
     def open_from_desktop(self, path) -> Document | None:
-        """A file handed over by Finder or Explorer.
+        """A file handed over by the file manager.
 
         The same open as any other, and then the window comes
-        forward: somebody who double-clicked a file in Finder is
-        asking to look at it, and leaving the structure open behind
-        whatever they clicked from is indistinguishable from nothing
-        having happened.
+        forward: somebody who double-clicked a file in the file
+        manager is asking to look at it, and leaving the structure
+        open behind whatever they clicked from is indistinguishable
+        from nothing having happened.
         """
         document = self.open_path(path)
         windows.present(self)

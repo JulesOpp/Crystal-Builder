@@ -142,7 +142,7 @@ USUAL_DIRS: tuple = () if sys.platform == "win32" else (
     "~/anaconda3/bin", "/opt/miniconda3/bin", "/opt/anaconda3/bin")
 
 #: How the status line names them: one place, not eight.
-USUAL_WHERE = "the usual Homebrew and conda folders"
+USUAL_WHERE = "the usual Homebrew, conda and system folders"
 
 
 @dataclass(frozen=True)

@@ -218,7 +218,7 @@ def _source(source: str) -> str:
     if source == "known":
         return "where it is usually installed"
     if source == "usual":
-        return "where Homebrew or conda puts it"
+        return "where Homebrew, conda or the system puts it"
     return f"named by {source}"
 
 

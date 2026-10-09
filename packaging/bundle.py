@@ -146,6 +146,9 @@ PACKAGE_DATA = {
     # copies out of the bundle: without it the entry has nothing to
     # install.
     "xtal/agent/skill": ["SKILL.md", "references/*.md"],
+    # The window's icon, which nothing but the application gives a
+    # Linux window: see `xtalapp.application.icon_path`.
+    "xtalapp": ["data/app.svg"],
 }
 
 #: Imported for their side effect and not for a name, or reached only
