@@ -151,6 +151,16 @@ All four are deleted, along with their imports.
   `error::DeprecationWarning` every build test failed on a *missing
   CIF* rather than on the deprecation. The `filterwarnings` entry that
   suppressed it is gone too.
+- **The CIF bond loop's neighbour cutoff is the longest bond, not a
+  fixed 6 A** (`framework.py`, `_write_cif`). `sny` with a
+  six-connected node and no linker joins the nodes directly, and the
+  longest of those joints is 7.02 A: the neighbour list did not
+  return it, the image map had no entry, and the writer raised
+  `KeyError` -- a build that succeeded and then could not be written
+  out. The cutoff is `max(6.0, longest + 0.5)`, which only adds
+  pairs: the minimum image chosen for every pair that was already in
+  the list is unchanged. `tests/test_mof_builder.py` writes a
+  two-atom framework with a 7.02 A bond and asserts the line.
 - **`read_cgd`'s overlap removal uses `xtal.core.neighbors`, not
   `ase.neighborlist.neighbor_list`.** A 0.1 cutoff over a net cell
   whose edges are about one unit long made ase bin the cell into a
