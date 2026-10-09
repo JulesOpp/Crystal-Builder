@@ -578,7 +578,7 @@ def test_rietx_is_collected_with_its_sources_on_disk():
     inside the PYZ archive does not have.  Both specs must say so."""
     assert "rietx" in bundle.COLLECT
     assert bundle.MODULE_COLLECTION_MODE["rietx"] == "pyz+py"
-    for spec in ("macos.spec", "windows.spec"):
+    for spec in ("macos.spec", "windows.spec", "linux.spec"):
         text = (bundle.HERE / spec).read_text(encoding="utf-8")
         assert "module_collection_mode=bundle.MODULE_COLLECTION_MODE" \
             in text, spec
