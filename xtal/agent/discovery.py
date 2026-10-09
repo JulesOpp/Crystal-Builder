@@ -227,3 +227,19 @@ def launcher() -> Path:
         return beside
     found = shutil.which(LAUNCHER_NAME)
     return Path(found) if found else beside
+
+
+def launcher_command() -> list[str]:
+    """The command a client's configuration starts, before ``mcp``.
+
+    :func:`launcher` alone, except in an AppImage.  There the ``xtal``
+    beside the application is inside a mount under ``/tmp`` that goes
+    when the window quits, so a client given that path finds nothing
+    the next time it starts; the ``.AppImage`` file, which the
+    AppImage runtime names in ``APPIMAGE``, lasts, and its ``AppRun``
+    runs the bundled ``xtal`` when its first argument is ``xtal``.
+    """
+    image = os.environ.get("APPIMAGE")
+    if image and Path(image).is_file():
+        return [image, LAUNCHER_NAME]
+    return [str(launcher())]

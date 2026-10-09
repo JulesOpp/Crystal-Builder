@@ -115,6 +115,31 @@ def test_the_launcher_beside_the_running_python_comes_before_path(
     assert discovery.launcher() == beside
 
 
+def test_the_launcher_command_names_the_appimage_when_running_from_one(
+        tmp_path, monkeypatch):
+    """Inside an AppImage the ``xtal`` beside the window is in a mount
+    that goes when the window quits, so a client given that path finds
+    nothing the next time it starts; the ``.AppImage`` file lasts, and
+    its ``AppRun`` starts the CLI when asked for ``xtal``."""
+    image = tmp_path / "Crystal_Builder-1.0-x86_64.AppImage"
+    image.write_bytes(b"")
+    monkeypatch.setenv("APPIMAGE", str(image))
+
+    assert discovery.launcher_command() == [str(image), "xtal"]
+
+
+def test_the_launcher_command_is_the_xtal_beside_the_app_otherwise(
+        tmp_path, monkeypatch):
+    """Everywhere else the line is :func:`launcher` alone, as it was;
+    an ``APPIMAGE`` left in the environment naming a file that is not
+    there is not an AppImage to run."""
+    monkeypatch.delenv("APPIMAGE", raising=False)
+    assert discovery.launcher_command() == [str(discovery.launcher())]
+
+    monkeypatch.setenv("APPIMAGE", str(tmp_path / "gone.AppImage"))
+    assert discovery.launcher_command() == [str(discovery.launcher())]
+
+
 def test_removing_the_file_never_raises(tmp_path, monkeypatch):
     """Windows refuses to delete a file ``xtal mcp`` has open; the
     window's close must still reach the workers it stops after."""

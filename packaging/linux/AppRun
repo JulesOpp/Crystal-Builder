@@ -1,0 +1,14 @@
+#!/bin/sh
+HERE="$(dirname "$(readlink -f "$0")")"
+# "<the AppImage> xtal mcp" is the line an AI assistant's client is
+# given: the xtal beside the window is inside this mount, which is gone
+# once the window quits, and the AppImage file is not.
+if [ "$1" = xtal ]; then
+    shift
+    exec "$HERE/usr/lib/crystal-builder/xtal" "$@"
+fi
+# Prefer Wayland, fall back to X11, and never override a choice the
+# user made.  Qt tries the platforms in order.
+: "${QT_QPA_PLATFORM:=wayland;xcb}"
+export QT_QPA_PLATFORM
+exec "$HERE/usr/lib/crystal-builder/Crystal Builder" "$@"

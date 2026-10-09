@@ -890,10 +890,8 @@ class AgentPage(QWidget):
 
     @staticmethod
     def stdio_line() -> str:
-        launcher = str(discovery.launcher())
-        if " " in launcher:
-            launcher = f'"{launcher}"'
-        return f"{launcher} mcp"
+        return " ".join(f'"{part}"' if " " in part else part
+                        for part in [*discovery.launcher_command(), "mcp"])
 
     def attach(self, server) -> None:
         """Follow ``server``: its state in the status line, its port
