@@ -51,18 +51,53 @@ def dump(*sonames: str, soname: str | None = None) -> str:
     return "\n".join(lines) + "\n"
 
 
+#: ``readelf -lW`` of a library whose LOAD segments are where the
+#: loader wants them: each offset and its address agree modulo the
+#: alignment (0x5f0 both, in the writable one).
+SEGMENTS = """
+Elf file type is DYN (Shared object file)
+Entry point 0x0
+There are 6 program headers, starting at offset 64
+
+Program Headers:
+  Type           Offset   VirtAddr           PhysAddr           FileSiz  MemSiz   Flg Align
+  LOAD           0x000000 0x0000000000000000 0x0000000000000000 0x0a2f58 0x0a2f58 R   0x1000
+  LOAD           0x0a3000 0x00000000000a3000 0x00000000000a3000 0x2b1c41 0x2b1c41 R E 0x1000
+  LOAD           0x355000 0x0000000000355000 0x0000000000355000 0x0c9a70 0x0c9a70 R   0x1000
+  LOAD           0x41f5f0 0x00000000004205f0 0x00000000004205f0 0x00fa30 0x0108f8 RW  0x1000
+  DYNAMIC        0x428d50 0x0000000000429d50 0x0000000000429d50 0x000220 0x000220 RW  0x8
+  GNU_STACK      0x000000 0x0000000000000000 0x0000000000000000 0x000000 0x000000 RW  0x10
+"""  # noqa: E501
+
+#: The same library as ``strip`` leaves one ``patchelf`` had rewritten:
+#: the writable segment's offset moved and its address did not, and
+#: the loader refuses it as "ELF load command address/offset not
+#: page-aligned".
+MISALIGNED = SEGMENTS.replace(
+    "LOAD           0x41f5f0", "LOAD           0x41e9c8")
+
+
 class Host:
     """``readelf`` and ``strip`` as a Linux build host answers them,
-    for files named in ``needs``; anything else is not ELF."""
+    for files named in ``needs``; anything else is not ELF.  A file
+    named in ``misaligned`` comes out of ``strip`` with a segment the
+    loader would refuse."""
 
     def __init__(self, needs: dict[str, tuple[str, ...]],
-                 refuses: tuple[str, ...] = ()):
+                 refuses: tuple[str, ...] = (),
+                 misaligned: tuple[str, ...] = ()):
         self.needs = needs
         self.refuses = set(refuses)
+        self.misaligned = set(misaligned)
         self.stripped: list[str] = []
 
     def __call__(self, argv, **kwargs):
         path = Path(argv[-1])
+        if argv[:2] == ["readelf", "-lW"]:
+            broken = (path.name in self.misaligned
+                      and path.name in self.stripped)
+            return subprocess.CompletedProcess(
+                argv, 0, MISALIGNED if broken else SEGMENTS, "")
         if argv[:3] == ["readelf", "-d", "--wide"]:
             if path.name not in self.needs:
                 return subprocess.CompletedProcess(
@@ -310,6 +345,69 @@ def test_the_report_counts_the_vendored_libraries_it_left_alone(
     assert ("left 2 auditwheel-vendored libraries unstripped (patchelf "
             "rewrote them; strip would break them)"
             in capsys.readouterr().out)
+
+
+def test_segments_that_agree_with_their_addresses_are_not_misaligned(
+        tmp_path):
+    library = _file(tmp_path / "libQt6Core.so.6")
+
+    def run(argv, **kwargs):
+        assert argv == ["readelf", "-lW", str(library)]
+        return subprocess.CompletedProcess(argv, 0, SEGMENTS, "")
+
+    assert postbuild_linux.misaligned(library, run=run) == ""
+
+
+def test_a_segment_whose_offset_and_address_disagree_is_named(tmp_path):
+    """The loader's "not page-aligned" is this: a LOAD segment's file
+    offset and its address must be equal modulo its alignment."""
+    library = _file(tmp_path / "libscipy_openblas64_-abc.so")
+
+    def run(argv, **kwargs):
+        return subprocess.CompletedProcess(argv, 0, MISALIGNED, "")
+
+    said = postbuild_linux.misaligned(library, run=run)
+
+    assert "0x41e9c8" in said and "0x4205f0" in said
+    assert "0x1000" in said
+
+
+def test_a_library_readelf_cannot_read_after_stripping_is_misaligned(
+        tmp_path):
+    """A stripped file nothing can read is not one to ship."""
+    library = _file(tmp_path / "libQt6Core.so.6")
+
+    def run(argv, **kwargs):
+        return subprocess.CompletedProcess(
+            argv, 1, "", "readelf: Error: no program headers\n")
+
+    assert postbuild_linux.misaligned(library, run=run)
+
+
+@needs_symlinks
+def test_a_library_strip_misaligns_is_put_back_as_it_was(collected,
+                                                         capsys):
+    """The ``.libs`` rule covers the files the evidence named, and no
+    more: any other file ``patchelf`` rewrote -- an extension module
+    auditwheel pointed at its ``.libs``, a library a wheel's own build
+    rewrote -- would come out of ``strip`` refused by the loader, and
+    only at a user's first import.  So every stripped file is read
+    back, and one the loader would refuse gets its original bytes
+    again; the rest stay stripped."""
+    gui = collected / QT / "lib" / "libQt6Gui.so.6"
+    gui.write_bytes(b"\x7fELF" + b"original" * 1000)
+    original = gui.read_bytes()
+    core = collected / QT / "lib" / "libQt6Core.so.6"
+    host = Host(NEEDS, misaligned=("libQt6Gui.so.6",))
+
+    count, saved = postbuild_linux.strip_all(collected, run=host)
+
+    assert gui.read_bytes() == original
+    assert core.stat().st_size == 1_000_000
+    out = capsys.readouterr().out
+    assert "restored libQt6Gui.so.6" in out
+    assert "not page-aligned" in out
+    assert count == len(host.stripped) - 1
 
 
 @needs_symlinks

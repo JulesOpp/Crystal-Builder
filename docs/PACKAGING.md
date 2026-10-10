@@ -725,8 +725,12 @@ Three steps, each its own file:
    keyboard) and every Qt module that is then unreachable from
    anything that runs (QtPdf, QtQuick, QtQml and their kin), then
    `strip --strip-unneeded` over every library, never over the two
-   programs, whose archive `strip` would cut off.  It prints the size
-   before and after.
+   programs, whose archive `strip` would cut off, nor over the
+   libraries auditwheel vendored into `*.libs` (rewritten by
+   `patchelf`, which `strip` then misaligns).  Every stripped file is
+   read back with `readelf -lW`, and one whose LOAD segments the
+   loader would refuse as not page-aligned is put back unstripped.
+   It prints the size before and after.
 3. **`packaging/appimage.py`**: lays out the AppDir in a temporary
    folder and runs `appimagetool` over it.
 

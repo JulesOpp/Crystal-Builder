@@ -16,8 +16,10 @@ reports nothing.  ``--strip-unneeded`` is the form distributions strip
 shared libraries with: it keeps every symbol relocation needs and the
 dynamic symbol table whole -- which is where a Python extension's
 ``PyInit_*`` and every exported Qt and VTK function are looked up --
-and drops the rest.  As on macOS, the selftest the caller runs against
-the AppImage is what proves the result still draws.
+and drops the rest.  Each stripped file is read back, and one the
+loader would refuse is put back as it was (:func:`misaligned`).  As on
+macOS, the selftest the caller runs against the AppImage is what
+proves the result still draws.
 
 What is pruned is decided from ``readelf -d``'s ``NEEDED`` entries,
 where macOS reads ``otool -L``.  Qt loads its plugins with ``dlopen``,
@@ -30,8 +32,10 @@ Nothing is signed: an AppImage has no signature to invalidate.
 from __future__ import annotations
 
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 #: The two programs ``linux.spec`` makes.  Each is PyInstaller's
@@ -272,40 +276,86 @@ def vendored(root: Path, path: Path) -> bool:
     """Whether ``path`` is in a folder auditwheel vendored a wheel's
     dependencies into: ``numpy.libs``, ``scipy.libs``, at any depth.
 
-    auditwheel rewrites each of those with ``patchelf``, and GNU
-    ``strip`` over a file ``patchelf`` has rewritten corrupts its
-    program headers.  The loader then refuses it -- "ELF load command
-    address/offset not page-aligned" -- which is how CI's AppImage
-    died at the first numpy import.  Only the folder is asked, not the
-    file: these are the files ``patchelf`` touched.
+    GNU ``strip`` over a file ``patchelf`` has rewritten can corrupt
+    its program headers, and the loader then refuses it -- "ELF load
+    command address/offset not page-aligned" -- which is how CI's
+    AppImage died at the first numpy import.  These folders are not
+    the only files ``patchelf`` touched: auditwheel also rewrites the
+    extension modules that load from them (``_multiarray_umath``'s
+    RPATH), and PySide6's own build rewrites its Qt libraries.  The
+    rule is what the evidence required, no more: the loader refused
+    OpenBLAS from ``numpy.libs``, and ``_multiarray_umath``, stripped,
+    loaded.  Anything else ``strip`` misaligns is caught after the
+    fact by :func:`misaligned` and put back.
     """
     return any(part.endswith(".libs")
                for part in path.relative_to(root).parts[:-1])
 
 
+def misaligned(path: Path, run=subprocess.run) -> str:
+    """What the loader would refuse in ``path``, or ``""``.
+
+    The loader maps each LOAD segment a page at a time, so a
+    segment's offset in the file and its address must be equal modulo
+    its alignment; one that is not is "ELF load command
+    address/offset not page-aligned".  A file ``readelf -lW`` cannot
+    read is refused too.
+    """
+    result = run(["readelf", "-lW", str(path)],
+                 capture_output=True, text=True)
+    if result.returncode != 0:
+        return (f"readelf could not read it: "
+                f"{result.stderr.strip().splitlines()[-1:]}")
+    for line in result.stdout.splitlines():
+        fields = line.split()
+        if not fields or fields[0] != "LOAD":
+            continue
+        offset, address = int(fields[1], 16), int(fields[2], 16)
+        align = int(fields[-1], 16)
+        if align > 1 and offset % align != address % align:
+            return (f"a LOAD segment at offset {offset:#x}, address "
+                    f"{address:#x}, alignment {align:#x} is not "
+                    "page-aligned")
+    return ""
+
+
 def strip_all(root: Path, run=subprocess.run) -> tuple[int, int]:
     """``strip --strip-unneeded`` over every library auditwheel did not
-    vendor.  Returns (files, bytes saved)."""
+    vendor, each read back and put back as it was if the loader would
+    now refuse it.  Returns (files, bytes saved)."""
     saved = 0
     count = 0
     left = 0
-    for path in libraries(root):
-        if vendored(root, path):
-            left += 1
-            continue
-        before = path.stat().st_size
-        result = run(["strip", "--strip-unneeded", str(path)],
-                     capture_output=True, text=True)
-        # A library that refuses to strip is left as it is rather than
-        # failing the build: the cost is size, not correctness.
-        if result.returncode != 0:
-            print(f"  could not strip {path.name}: "
-                  f"{result.stderr.strip().splitlines()[-1:]}")
-            continue
-        after = path.stat().st_size
-        if after < before:
-            saved += before - after
-            count += 1
+    with tempfile.TemporaryDirectory(prefix="unstripped-") as kept:
+        backup = Path(kept) / "original"
+        for path in libraries(root):
+            if vendored(root, path):
+                left += 1
+                continue
+            before = path.stat().st_size
+            shutil.copy2(path, backup)
+            result = run(["strip", "--strip-unneeded", str(path)],
+                         capture_output=True, text=True)
+            # A library that refuses to strip is left as it is rather
+            # than failing the build: the cost is size, not
+            # correctness.
+            if result.returncode != 0:
+                print(f"  could not strip {path.name}: "
+                      f"{result.stderr.strip().splitlines()[-1:]}")
+                continue
+            # The .libs rule names the files that broke, not every
+            # file patchelf has rewritten; one strip breaks the same
+            # way would load nowhere, and say so only at a user's
+            # first import.
+            wrong = misaligned(path, run=run)
+            if wrong:
+                shutil.copy2(backup, path)
+                print(f"  restored {path.name} unstripped: {wrong}")
+                continue
+            after = path.stat().st_size
+            if after < before:
+                saved += before - after
+                count += 1
     if left:
         print(f"  left {left} auditwheel-vendored libraries unstripped "
               f"(patchelf rewrote them; strip would break them)")
