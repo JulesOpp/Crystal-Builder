@@ -238,6 +238,18 @@ def test_pack_names_the_appimage_after_the_version_and_sets_arch(
     arch, *argv = record.read_text(encoding="utf-8").splitlines()
     assert arch == "x86_64"
     assert argv == ["--no-appstream", str(appdir), str(made)]
+    assert "--runtime-file" not in argv
+
+    runtime = tmp_path / "runtime-x86_64"
+    runtime.write_bytes(b"")
+    appimage.pack(appdir, tool, out, "1.2.3", runtime=runtime)
+
+    _arch, *argv = record.read_text(encoding="utf-8").splitlines()
+    # The runtime is the first bytes of every shipped AppImage, and
+    # appimagetool fetches whatever its upstream calls current unless
+    # it is handed one; CI hands it the pinned file.
+    assert argv == ["--runtime-file", str(runtime), "--no-appstream",
+                    str(appdir), str(made)]
 
 
 @needs_symlinks

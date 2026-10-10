@@ -350,17 +350,22 @@ jobs:
         if: runner.os == 'Linux'
         run: python packaging/postbuild_linux.py "dist/Crystal Builder"
 
-      # Pinned to a numbered release and checked against the SHA-256
-      # GitHub reports for that asset (read 2026-10-09).  A release
-      # asset can be replaced under the same URL, and the project's
-      # own `continuous` tag is, every week: the checksum is what
-      # makes the tool that packs a release the one somebody looked
-      # at, and a download that changed fails here instead.  No
-      # libfuse2: the runners have no FUSE, so every AppImage this
-      # job starts, the tool included, extracts itself and runs
-      # (APPIMAGE_EXTRACT_AND_RUN=1).  Into the runner's temp and not
-      # the working directory, where the upload's `*.AppImage` would
-      # take it for the download and the release would attach it.
+      # The tool and the runtime both, each pinned to a numbered
+      # release and checked against the SHA-256 GitHub reports for
+      # that asset (read 2026-10-09).  The runtime is the executable
+      # every AppImage starts with, and appimagetool downloads
+      # whatever upstream calls current at pack time unless it is
+      # handed one -- so pinning the tool alone left unpinned the
+      # first thing a user runs.  A release asset can be replaced
+      # under the same URL, and both projects' `continuous` tags are
+      # on every rebuild: the checksums make the pair that packs a
+      # release the pair somebody looked at, and a download that
+      # changed fails here instead.  No libfuse2: the runners have no
+      # FUSE, so every AppImage this job starts, the tool included,
+      # extracts itself and runs (APPIMAGE_EXTRACT_AND_RUN=1).  Into
+      # the runner's temp and not the working directory, where the
+      # upload's `*.AppImage` would take the tool for the download
+      # and the release would attach it.
       - name: appimagetool
         if: runner.os == 'Linux'
         working-directory: ${{ runner.temp }}
@@ -371,6 +376,11 @@ jobs:
           curl -fsSLO "$url/$tag/appimagetool-x86_64.AppImage"
           echo "$sha  appimagetool-x86_64.AppImage" | sha256sum -c -
           chmod +x appimagetool-x86_64.AppImage
+          url=https://github.com/AppImage/type2-runtime/releases/download
+          tag=20251108
+          sha=2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d
+          curl -fsSLO "$url/$tag/runtime-x86_64"
+          echo "$sha  runtime-x86_64" | sha256sum -c -
 
       # On every bundle run, not only on a tag: the AppImage is what
       # the selftest below runs, because it is what a user downloads,
@@ -383,14 +393,9 @@ jobs:
           QT_API: pyside6
         run: |
           python packaging/appimage.py "dist/Crystal Builder" . \
-              --tool "$RUNNER_TEMP/appimagetool-x86_64.AppImage"
+              --tool "$RUNNER_TEMP/appimagetool-x86_64.AppImage" \
+              --runtime "$RUNNER_TEMP/runtime-x86_64"
 
-      # The bundle's own smoke test, run against the built thing
-      # rather than the checkout.  It is the only layer that can say
-      # anything about copy_metadata, the resource lookups through
-      # PyInstaller's symlinks, and whether VTK still has an OpenGL
-      # context after the excludes.  XTAL_NO_CONFIRM_CLOSE per
-      # CLAUDE.md: a modal nobody answers hangs the job.
       # Strip and drop the unused Qt plugins, then sign.  Not a
       # tidying step: it is about 175 MB of the download, and
       # PyInstaller's own strip cannot do the larger half of it.  See
@@ -402,6 +407,13 @@ jobs:
         if: runner.os == 'macOS'
         run: python packaging/postbuild.py "dist/Crystal Builder.app"
 
+      # The bundle's own smoke test, run against the built thing
+      # rather than the checkout.  It is the only layer that can say
+      # anything about copy_metadata, the resource lookups through
+      # PyInstaller's symlinks, and whether VTK still has an OpenGL
+      # context after the excludes.  XTAL_NO_CONFIRM_CLOSE per
+      # CLAUDE.md: a modal nobody answers hangs the job.
+      #
       # Read back what it said, and not only what it returned.  The
       # exit code alone let a Windows run go green having died inside
       # the 3D view: no traceback, no `selftest FAILED`, no image, and

@@ -108,6 +108,34 @@ def test_the_appimage_is_built_and_uploaded_on_every_bundle_run(
     assert upload["with"]["if-no-files-found"] == "error"
 
 
+def test_every_linux_step_runs_on_linux_only(workflow):
+    """The bundle job's matrix is three operating systems; a Linux step
+    without its `if:` runs `sudo apt-get` on macOS and bash's arrays
+    under Windows' shell, and fails a bundle that was fine."""
+    build = workflow["jobs"]["build"]
+
+    for name in ("Qt's system libraries (Linux bundle)",
+                 "Strip (Linux)", "appimagetool", "AppImage (Linux)",
+                 "Selftest (Linux)"):
+        assert _step(build, name).get("if") == "runner.os == 'Linux'", (
+            name)
+
+
+def test_appimagetool_is_handed_a_pinned_runtime(workflow):
+    """appimagetool downloads the type2 runtime at pack time unless it
+    is given one, and that runtime is the start of every AppImage
+    shipped -- pinning the tool alone leaves the part a user runs
+    first unpinned."""
+    build = workflow["jobs"]["build"]
+    fetch = _step(build, "appimagetool")["run"]
+    packing = _step(build, "AppImage (Linux)")["run"]
+
+    assert "type2-runtime/releases/download" in fetch
+    assert len(re.findall(r"\b[0-9a-f]{64}\b", fetch)) == 2
+    assert fetch.count("sha256sum -c") == 2
+    assert "--runtime" in packing
+
+
 def test_the_release_attaches_the_appimage(workflow):
     """The draft release is assembled from the artifacts by pattern;
     without one for the AppImage it is built, uploaded and then left

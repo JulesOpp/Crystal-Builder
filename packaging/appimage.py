@@ -2,7 +2,7 @@
 Lay the Linux build out as an AppDir and pack it as an AppImage.
 
     python packaging/appimage.py "dist/Crystal Builder" dist/ \\
-        --tool ./appimagetool-x86_64.AppImage
+        --tool ./appimagetool-x86_64.AppImage --runtime ./runtime-x86_64
 
 ``linux.spec`` leaves ``dist/Crystal Builder/``, the window and
 ``xtal`` beside it.  That folder goes in whole as
@@ -114,7 +114,8 @@ def layout(collected: Path, appdir: Path) -> Path:
     return appdir
 
 
-def pack(appdir: Path, tool: Path, out: Path, version: str) -> Path:
+def pack(appdir: Path, tool: Path, out: Path, version: str,
+         runtime: Path | None = None) -> Path:
     """Run ``appimagetool`` over ``appdir`` and return the AppImage.
 
     ``ARCH`` is given because ``appimagetool`` otherwise guesses the
@@ -122,10 +123,16 @@ def pack(appdir: Path, tool: Path, out: Path, version: str) -> Path:
     more than one kind.  ``--no-appstream``: there is no AppStream
     metadata to check, and without the flag a missing file is a
     warning that reads like a failure in the build log.
+
+    ``runtime`` is the type2 runtime, the executable every AppImage
+    starts with.  Without it ``appimagetool`` downloads whatever its
+    upstream calls current at the moment it runs, so a release would
+    ship a first stage nobody pinned or looked at.
     """
     image = out / f"Crystal_Builder-{version}-x86_64.AppImage"
+    pinned = ["--runtime-file", str(runtime)] if runtime else []
     subprocess.run(
-        [str(tool), "--no-appstream", str(appdir), str(image)],
+        [str(tool), *pinned, "--no-appstream", str(appdir), str(image)],
         check=True, env={**os.environ, "ARCH": "x86_64"})
     return image
 
@@ -140,6 +147,10 @@ def main(argv=None) -> int:
                         help="where the AppImage goes")
     parser.add_argument("--tool", type=Path, required=True,
                         help="appimagetool")
+    parser.add_argument("--runtime", type=Path,
+                        help="the type2 runtime, handed to appimagetool "
+                             "as --runtime-file; it downloads one "
+                             "otherwise")
     parser.add_argument("--version",
                         help="the version in the file name; the "
                              "installed package's by default")
@@ -164,7 +175,8 @@ def main(argv=None) -> int:
 
     with tempfile.TemporaryDirectory() as tmp:
         appdir = layout(collected, Path(tmp) / "CrystalBuilder.AppDir")
-        image = pack(appdir, args.tool.resolve(), out, version)
+        image = pack(appdir, args.tool.resolve(), out, version,
+                     args.runtime.resolve() if args.runtime else None)
     print(f"{image.name}  {image.stat().st_size / 1e6:.0f} MB")
     return 0
 
