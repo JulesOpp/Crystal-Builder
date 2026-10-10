@@ -65,10 +65,12 @@ path set in this row, the environment variable `XTAL_BLENDER`, and
 the `PATH`; on macOS the standard location
 `/Applications/Blender.app/Contents/MacOS/Blender` is looked in on
 its own, so a Blender installed from the disk image is found without
-being named.  A preference beats the environment variable, because a
-variable is what a shell set and a preference is what a person set
-on purpose.  **Test** starts Blender for a moment and shows what it
-printed, since a binary can be found and still not run.  Installation
+being named; on Linux, `/usr/bin/blender` (a distribution's package)
+and `/snap/bin/blender` (the snap) are looked in the same way.  A
+preference beats the environment variable, because a variable is what
+a shell set and a preference is what a person set on purpose.
+**Test** starts Blender for a moment and shows what it printed, since
+a binary can be found and still not run.  Installation
 in general is {doc}`/quickstart/installation`.
 
 ## Exporting a cell

@@ -4,6 +4,14 @@ Build, manipulate, analyse and export crystal structures. Read and
 write CIF, edit symmetry and bonding, run a force field, DFTB+ or
 Zeo++ on the result.
 
+<!-- Retitle this section with the version when the release is cut:
+"## Crystal Builder <version>". -->
+## New since 1.0
+
+- **Linux: an AppImage for x86_64 (Ubuntu 22.04+, Debian 12+, Fedora
+  36+).** One file: make it executable and double-click it. See
+  *Linux* under *Opening it the first time*.
+
 ## Crystal Builder 1.0
 
 The first stable release. The 0.x previews were put out to be used
@@ -84,8 +92,13 @@ been retired in its favour.
 | A Mac with Apple silicon (M1 and later) | `Crystal-Builder-<version>-arm64.dmg` |
 | A Mac with an Intel processor | `Crystal-Builder-<version>-x86_64.dmg` |
 | Windows, 64-bit | `Crystal-Builder-<version>-setup.exe` |
+| Linux, x86_64 | `Crystal_Builder-<version>-x86_64.AppImage` |
 
-The Mac builds need **macOS 12.3 (Monterey) or later**.
+The Mac builds need **macOS 12.3 (Monterey) or later**. The Linux
+AppImage needs **glibc 2.35 or newer** (`ldd --version` shows it):
+Ubuntu 22.04 or newer, Debian 12 or newer, Fedora 36 or newer. RHEL 9
+and its rebuilds (glibc 2.34) and openSUSE Leap 15 (2.31) are not
+supported.
 
 There is no universal Mac build, and that is not an oversight: VTK
 publishes no universal2 wheel, so the two have to be built separately.
@@ -95,10 +108,11 @@ translates the other direction.
 
 ## Opening it the first time
 
-**Neither build is code-signed yet**, so both operating systems will
-say so, in the way each of them says it. Nothing here is a way around
-a security warning; it is what the warning is for and how to answer it
-if you trust where you got the file.
+**The macOS and Windows builds are not code-signed yet**, so both
+operating systems will say so, in the way each of them says it.
+Nothing here is a way around a security warning; it is what the
+warning is for and how to answer it if you trust where you got the
+file.
 
 **macOS.** Double-clicking gives *"Crystal Builder" cannot be opened
 because the developer cannot be verified*. Right-click (or
@@ -119,6 +133,19 @@ it works on a managed machine.
 A Developer ID certificate for macOS and a code-signing certificate
 for Windows are what remove both of these. They are on the list.
 
+**Linux.** Make the AppImage executable and run it:
+
+```bash
+chmod +x Crystal_Builder-*.AppImage
+./Crystal_Builder-*.AppImage
+```
+
+or mark it executable in its properties in your file manager and
+double-click it. If the window does not open under Wayland, start it
+on X11 with `QT_QPA_PLATFORM=xcb ./Crystal_Builder-*.AppImage`.
+Settings are in `~/.config/CrystalBuilder/CrystalBuilder.conf`; the
+log is in `~/.local/share/CrystalBuilder`.
+
 ## File associations
 
 The installer offers `.cif` and `.xtalproj` associations. `.cif` is
@@ -129,6 +156,10 @@ friendly thing for an installer to do. Tick it if you want it.
 
 Double-clicking a structure works both when the application is closed
 and when it is already open.
+
+On Linux the AppImage makes no menu entry or file associations of its
+own; AppImageLauncher or Gear Lever adds a menu entry, and the file
+types where the integrator installs them.
 
 ## What is in the download, and what is not
 

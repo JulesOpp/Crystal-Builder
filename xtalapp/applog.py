@@ -86,14 +86,15 @@ _faults = None
 def app_data() -> Path:
     """This application's folder under the platform's data directory.
 
-    ``~/Library/Application Support/CrystalBuilder`` here,
-    ``%LOCALAPPDATA%\\CrystalBuilder`` on Windows.  The log lives in
-    it and so does the folder :mod:`xtalapp.extras` puts on
-    ``sys.path``, which is why the lookup is a name of its own rather
-    than part of the log's.  The AI assistant's discovery file lives
-    here too, and ``xtal mcp`` reads it without Qt:
-    :func:`xtal.agent.discovery.platform_folder` is this rule written
-    out again, and a test holds the two together.
+    ``~/Library/Application Support/CrystalBuilder`` on macOS,
+    ``%LOCALAPPDATA%\\CrystalBuilder`` on Windows,
+    ``~/.local/share/CrystalBuilder`` (under ``$XDG_DATA_HOME`` if it
+    is set) on Linux.  The log lives in it and so does the folder
+    :mod:`xtalapp.extras` puts on ``sys.path``, which is why the
+    lookup is a name of its own rather than part of the log's.  The AI
+    assistant's discovery file lives here too, and ``xtal mcp`` reads
+    it without Qt: :func:`xtal.agent.discovery.platform_folder` is
+    this rule written out again, and a test holds the two together.
     """
     try:
         from PySide6.QtCore import QStandardPaths
@@ -380,7 +381,7 @@ def start(directory=None) -> Path:
 
 
 def reveal() -> bool:
-    """Show the log's folder in Finder or Explorer.
+    """Show the log's folder in the file manager.
 
     The folder and not the file: opening a rotating megabyte of text
     in whatever the desktop has claimed ``.log`` is a worse answer

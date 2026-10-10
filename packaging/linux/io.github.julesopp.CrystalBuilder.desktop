@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Crystal Builder
+Comment=Build, edit and analyse crystal structures
+Exec=AppRun %F
+Icon=io.github.julesopp.CrystalBuilder
+Categories=Science;Chemistry;
+MimeType=chemical/x-cif;application/x-crystal-builder-project;
+Terminal=false
+StartupWMClass=Crystal Builder

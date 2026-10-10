@@ -3,7 +3,7 @@
 A desktop application for building, manipulating, analysing and
 exporting crystal structures.  The visual and interaction model take some inspiration
 from **VESTA**; the symmetry and force-field capability take inspiration from **Materials
-Studio**.  Python throughout, shipped to macOS and Windows.
+Studio**.  Python throughout, shipped to macOS, Windows and Linux.
 
 ---
 
@@ -43,8 +43,8 @@ Studio**.  Python throughout, shipped to macOS and Windows.
       mainwindow.py and its mixins, document.py, documents.py,
       settings.py, workers.py, agent_server.py, selftest.py
     tests/       the test suite, headless and GUI
-    packaging/   PyInstaller specs, the bundle's file list, the DMG
-                 and the Windows installer
+    packaging/   PyInstaller specs, the bundle's file list, the DMG,
+                 the Windows installer and the Linux AppImage
     docs/        PLAN, TODO, release notes, packaging, the manual
 
 The wall between `xtal/` and `xtalapp/` is enforced by a test
@@ -61,6 +61,7 @@ prerequisites section.
 | A Mac with Apple silicon | `Crystal-Builder-<version>-arm64.dmg` |
 | A Mac with an Intel processor | `Crystal-Builder-<version>-x86_64.dmg` |
 | Windows, 64-bit | `Crystal-Builder-<version>-setup.exe` |
+| Linux, x86_64 | `Crystal_Builder-<version>-x86_64.AppImage` |
 
 from [Releases](https://github.com/JulesOpp/Crystal-Builder/releases).
 There is no universal Mac build: VTK publishes no universal2 wheel, so
@@ -78,8 +79,9 @@ known issues.
 
 ### Opening an unsigned build
 
-Neither build is code-signed yet, so each operating system warns the
-first time, and the warning is answered once:
+The macOS and Windows builds are not code-signed yet, so each
+operating system warns the first time, and the warning is answered
+once:
 
 - **macOS** says the developer cannot be verified. Right-click (or
   Control-click) *Crystal Builder* in Applications, choose **Open**,
@@ -91,6 +93,46 @@ first time, and the warning is answered once:
   administrator rights.
 
 Signing is planned for a 1.0.x release.
+
+### Linux
+
+The AppImage is one file that runs without being installed:
+
+```bash
+chmod +x Crystal_Builder-*.AppImage
+./Crystal_Builder-*.AppImage
+```
+
+or mark it executable in its properties in your file manager and
+double-click it.  It runs on x86_64, on Ubuntu 22.04 or newer, Debian
+12 or newer, Fedora 36 or newer -- any distribution with glibc 2.35 or
+newer (`ldd --version` shows it).  RHEL 9 and its rebuilds (glibc
+2.34) and openSUSE Leap 15 (2.31) are not supported: the AppImage
+refuses to start there.
+
+- **If the window does not open under Wayland**, start it on X11
+  instead: `QT_QPA_PLATFORM=xcb ./Crystal_Builder-*.AppImage`.  It
+  tries Wayland first and X11 second unless you set the variable.
+- **If it says it cannot mount itself**, the system has no FUSE.
+  Install it -- the `fuse3` package on most distributions; the
+  AppImage brings its own library, so `libfuse2` is not needed.
+  `APPIMAGE_EXTRACT_AND_RUN=1` runs it without FUSE, unpacked to a
+  temporary folder each time, but the AI assistant's client then needs
+  the variable in its command's environment too.
+- **A menu entry and file associations** for `.cif` and `.xtalproj`
+  are not made by the AppImage itself.
+  [AppImageLauncher](https://github.com/TheAssassin/AppImageLauncher)
+  or [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever) adds
+  a menu entry from the one the AppImage carries, and the file types
+  where the integrator installs them.
+- **External programs** (Zeo++, DFTB+, xtb, Blender) are found on
+  `PATH` or set in *Preferences ▸ Engines*, as on the other platforms;
+  `/usr/bin/blender` and `/snap/bin/blender` are looked in on their
+  own.
+- **Settings** are in `~/.config/CrystalBuilder/CrystalBuilder.conf`;
+  **the log**, the packages folder and the AI assistant's `mcp.json`
+  are in `~/.local/share/CrystalBuilder` (under `$XDG_DATA_HOME` if
+  you set it).
 
 ## Install (development)
 
@@ -143,9 +185,10 @@ installs.
 
 ### In a packaged build
 
-A frozen `.app` or `.exe` has no environment to install into: the
-Python inside it is not on your PATH and has no pip.  So the build
-carries everything above except MACE — the MOF builder, RDKit,
+A frozen `.app`, `.exe` or AppImage has no environment to install
+into: the Python inside it is not on your PATH and has no pip.  So the
+build carries everything above except the ML engines — the MOF
+builder, RDKit,
 rdeditor and matplotlib all work with nothing to do — and **does not
 carry PyTorch**, which is larger than the rest of the application put
 together.
@@ -165,8 +208,9 @@ and because `crystal-builder` is not on PyPI: the name resolves only
 against metadata written when the checkout was installed, which does
 not know an extra added since.  There is a second one on that page: the
 application puts a user-writable folder — `~/Library/Application
-Support/CrystalBuilder/packages`, `%APPDATA%\CrystalBuilder\packages`
-on Windows — first on its import path at start-up, so
+Support/CrystalBuilder/packages`, `%LOCALAPPDATA%\CrystalBuilder\packages`
+on Windows, `~/.local/share/CrystalBuilder/packages` on Linux — first
+on its import path at start-up, so
 
 ```bash
 pip install --target "<that folder>" <package>
@@ -226,9 +270,11 @@ The token is made afresh at every launch and is on the Preferences
 page, so paste the first line again after a restart -- after `claude
 mcp remove crystal-builder`, since `claude mcp add` will not replace a
 server of the same name.  A packaged install carries the `xtal`
-program beside the application, and the page gives its path.  With no
-window serving, `xtal mcp` works on files of its own, headless (it
-needs the `mcp` extra); `--window` and `--headless` insist on one or
+program beside the application, and the page gives its path.  From
+the Linux AppImage the command is
+`/path/to/Crystal_Builder-….AppImage xtal mcp`, which the page shows.
+With no window serving, `xtal mcp` works on files of its own, headless
+(it needs the `mcp` extra); `--window` and `--headless` insist on one or
 the other.  Start the window serving before `xtal mcp` starts; after
 that it may be switched off and on, and the next call follows it (a
 call made while it is off says so).

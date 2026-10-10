@@ -6,10 +6,10 @@ entry is **deleted when it ships**, like everything else in `docs/`.
 
 The goal is narrow and worth stating, because it is the thing that
 decides most of what follows.  **A person who has never installed
-Python gets a `.dmg` and a `.exe`, double-clicks a `.cif`, and the
-window opens.**  Not a conda environment, not `pip install`, not a
-README with a prerequisites section.  Everything below is either in
-service of that or is explicitly deferred.
+Python gets a `.dmg`, a `.exe` or an AppImage, double-clicks a
+`.cif`, and the window opens.**  Not a conda environment, not `pip
+install`, not a README with a prerequisites section.  Everything below
+is either in service of that or is explicitly deferred.
 
 ---
 
@@ -22,6 +22,7 @@ service of that or is explicitly deferred.
 | `packaging/macos.spec` | done; builds a `.app` that passes `--selftest` |
 | `packaging/postbuild.py` | done; strip and Qt pruning, then the ad-hoc signature |
 | `packaging/windows.spec`, `crystal-builder.iss` | **written, never run** — no Windows machine here; CI is the first execution |
+| `packaging/linux.spec`, `postbuild_linux.py`, `appimage.py` | done; the AppImage built on `ubuntu-22.04` and self-tested in CI (§ 11) |
 | `crystal-builder --selftest` | done; passes on a checkout and inside the bundle |
 | CI `build` + `release` jobs | written; build-on-main included, first run is the proof |
 | A tag | **none yet.** Until there is one, every build says `0.1.devN` |
@@ -502,6 +503,7 @@ plan got written on top of it.
 | `macos-14` | `Crystal-Builder-<v>-arm64.dmg` |
 | `macos-13` | `Crystal-Builder-<v>-x86_64.dmg` |
 | `windows-latest` | `Crystal-Builder-<v>-setup.exe` |
+| `ubuntu-22.04` | `Crystal_Builder-<v>-x86_64.AppImage` (§ 11) |
 
 Each: checkout with `fetch-depth: 0`, `pip install -e ".[gui,build,
 sketch,ase]"` plus `pyinstaller`, run the spec, run the § 8 smoke test
@@ -522,7 +524,7 @@ the whole value of having CI on three platforms already.
 ## 8. Testing a thing the suite cannot import
 
 The normal suite tests a source checkout and can say nothing about a
-bundle.  Three layers, cheapest first:
+bundle.  Four layers, cheapest first:
 
 1. **`tests/test_packaging.py`**, in the normal suite: assert that
    `bundle.py`'s `datas` names every path the three `bundled()`
@@ -562,10 +564,22 @@ bundle.  Three layers, cheapest first:
    one this section already argues: exercising `xtal.mof.build` proved
    the *feature* worked in the bundle and said nothing about the
    *button*, and only one of those is what a user has.
-3. **Look at it, once per release**, on both platforms, with the
+3. **Look at it, once per release**, on each platform, with the
    **run-app** skill's checklist: open a CIF, find symmetry, run a
    UFF optimisation to completion, run a Zeo++ job if a binary is
    present, save a `.xtalproj`, reopen it.
+4. **Before a release is announced, run the AppImage on a throwaway
+   x86_64 cloud VM with a desktop, in a Wayland session and in an
+   X11 one.**  Wayland first: it is GNOME's default on a current
+   Ubuntu and the platform `AppRun` tries first (`wayland;xcb`), and
+   CI only ever runs xcb.  In each, open a sample, rotate it, and
+   switch on *Preferences ▸ AI assistant*.  CI draws the selftest
+   under Xvfb with Mesa's software GL; it cannot prove Wayland on a
+   real desktop or a real GPU driver, and this is the one look that
+   does.  **If the Wayland session misbehaves where X11 does not,
+   `AppRun`'s default flips to `xcb;wayland`** before the release,
+   rather than leaving users to find `QT_QPA_PLATFORM=xcb`.  A
+   checklist item, not a CI job.
 
 ---
 
@@ -691,3 +705,137 @@ compress into 1.4 MB of the archive — is worth **16 MB of the `.app`** on its
 own, and `--selftest` still builds pcu inside the bundle.  The three
 measurements that settled it are recorded above `COLLECT`; § 4's
 "build the exclude list empirically" is what they are an instance of.
+
+---
+
+## 11. Linux
+
+**One x86_64 AppImage**, `Crystal_Builder-<version>-x86_64.AppImage`,
+built and self-tested in CI and attached to the draft release beside
+the DMGs and the installer.  The design record, with
+what was decided and rejected (`linuxdeploy`, Flatpak, `.deb`, a
+tarball), is [LINUX.md](LINUX.md).
+
+Three steps, each its own file:
+
+1. **`packaging/linux.spec`**: the same two programs from the same
+   `bundle.py` as the other specs -- the windowed `Crystal Builder`
+   and the console `xtal` -- in one `COLLECT`, onedir, with
+   PyInstaller's strip and UPX off.  An ELF file carries no icon and
+   no version resource, so the spec has neither; the AppDir carries
+   the icon.
+2. **`packaging/postbuild_linux.py`**: what `postbuild.py` does on
+   macOS, read off `readelf -d` instead of `otool -L`.  It removes the
+   two Qt plugins nothing here uses (`libqpdf.so`, the virtual
+   keyboard) and every Qt module that is then unreachable from
+   anything that runs (QtPdf, QtQuick, QtQml and their kin), then
+   `strip --strip-unneeded` over every library, never over the two
+   programs, whose archive `strip` would cut off, nor over the
+   libraries auditwheel vendored into `*.libs` (rewritten by
+   `patchelf`, which `strip` then misaligns).  Every stripped file is
+   read back with `readelf -lW`, and one whose LOAD segments the
+   loader would refuse as not page-aligned is put back unstripped.
+   It prints the size before and after.
+3. **`packaging/appimage.py`**: lays out the AppDir in a temporary
+   folder and runs `appimagetool` over it.
+
+The AppDir, every name after the desktop ID
+`io.github.julesopp.CrystalBuilder` (the window hands Qt the same ID,
+and on Wayland that is how the compositor finds the icon):
+
+```
+CrystalBuilder.AppDir/
+    AppRun                                  # packaging/linux/AppRun
+    io.github.julesopp.CrystalBuilder.desktop
+    io.github.julesopp.CrystalBuilder.svg   # Icon= finds this
+    io.github.julesopp.CrystalBuilder.png   # 256 px, drawn from app.svg
+    .DirIcon -> io.github.julesopp.CrystalBuilder.png
+    usr/lib/crystal-builder/                # the COLLECT folder, whole
+    usr/share/applications/                 # the .desktop again,
+    usr/share/icons/hicolor/{scalable,256x256}/apps/   # the icons and
+    usr/share/mime/packages/crystal-builder.xml        # the MIME types,
+                                            # where an integrator looks
+```
+
+- **`AppRun`** sets `QT_QPA_PLATFORM=wayland;xcb` unless the user has
+  set it, and runs the window with its arguments.  `AppImage xtal …`
+  runs the bundled `xtal` instead: the `xtal` inside is in a mount
+  that goes when the window quits, so the line Preferences ▸ AI
+  assistant gives a client is `<the .AppImage> xtal mcp`
+  (`discovery.launcher_command`, from the runtime's `APPIMAGE`).
+- **The `.desktop` entry**: `Exec=AppRun %F`,
+  `Categories=Science;Chemistry;`, `MimeType=chemical/x-cif;
+  application/x-crystal-builder-project;`, `Terminal=false`.  An
+  AppImage registers neither the entry nor the types itself; the
+  manual sends users to AppImageLauncher or Gear Lever, which read
+  these files.
+- **The PNG** because thumbnailers draw an AppImage from `.DirIcon`
+  and skip an svg.  `appimage.py` draws it with Qt, offscreen.
+
+**Which libraries are bundled and which are the user's.**  The rule is
+PyInstaller's own exclude list (`PyInstaller/depend/dylib.py`): glibc,
+the GL stack (libGL, libEGL, libdrm), `libxcb` itself and
+`libwayland-*` stay with the user's system, because they have to
+match the user's kernel, drivers and compositor, and bundling them is
+what breaks AppImages across distributions.  Every other library a
+wheel links is collected from the build host -- which is why the job
+installs Qt's xcb helpers (`libxcb-cursor0`, `-icccm4`, `-image0`,
+...), `libxkbcommon-x11-0` and `libfontconfig1` before it builds.  A
+library missing on the build host is missing from the download.
+
+**The programs the app starts get the user's library path back.**  The
+bootloader puts `_internal/` first on `LD_LIBRARY_PATH` and keeps the
+user's value in `LD_LIBRARY_PATH_ORIG`, and every child inherits it:
+DFTB+, xTB, Zeo++, Blender and the `xdg-open` behind Help ▸ User
+Manual would load the bundle's libstdc++, libssl or Qt and fail.  Both
+entry points call `xtal.runtime.restore_system_library_path()` first
+thing, as PyInstaller's own documentation advises, which puts the
+original back (or removes the variable if there was none).  The app
+itself loses nothing: glibc read the path once, at start-up.  The one
+child that is the application again, Extras ▸ Test's
+`--selftest-import`, is started with `PYINSTALLER_RESET_ENVIRONMENT=1`
+(`probe.probe_for_package`), as `selftest.check_launcher` starts
+`xtal`: a program of its own sets up `_internal/` on its path as the
+window did, where a child taken for the window's worker might not.
+The selftest runs that probe for numpy in the AppImage.
+
+**The glibc floor is 2.35, because the build host is `ubuntu-22.04`.**
+Everything compiled -- the bootloader and every collected library --
+asks for the glibc symbol versions of the machine it was built or
+collected on, and a system with an older glibc refuses to load it.
+22.04 is the oldest Ubuntu GitHub still hosts, and gives Ubuntu
+22.04+, Debian 12+, Fedora 36+.  The wheels set a lower floor
+(PySide6 6.9 is `manylinux_2_28`), so the runner is what decides it;
+building on `ubuntu-latest` would raise it with every image update.
+
+**The tool and the runtime are both pinned**: appimagetool 1.9.1 and
+type2-runtime 20251108, downloaded from their GitHub releases and
+checked against SHA-256s in `ci.yml`.  The runtime is the first
+thing a user's machine runs, and without `--runtime` appimagetool
+fetches whatever upstream calls current at pack time.  To move
+either, change the tag and the checksum together, from the release
+page's own SHA-256.
+
+**`APPIMAGE_EXTRACT_AND_RUN=1`** makes an AppImage unpack itself to a
+temporary folder and run from there instead of mounting itself with
+FUSE.  The runners have no FUSE, so the job sets it for every AppImage
+it starts, appimagetool included; a user in a container, or on a
+system without FUSE, can set it the same way -- but then the AI
+assistant's client needs it in the environment of the command it
+starts as well, which is why the README and the manual recommend
+installing FUSE instead.
+
+**What CI proves, and what it cannot.**  The selftest runs from the
+AppImage itself under `xvfb-run` with Mesa's llvmpipe: the 3D view
+draws (`selftest.png`, uploaded with the AppImage as the
+`linux-x86_64` artifact) and the `xtal` beside the window, inside the
+mount, answers with its `mcp`.  That is not the line a client is
+given, so the step after it, *Launcher through the AppImage*, runs
+`<the .AppImage> xtal capabilities --json` and `<the .AppImage> xtal
+mcp --headless` through `AppRun`, as a client does.  Every run drops
+setup-python's `LD_LIBRARY_PATH`, and *What the AppImage carries*
+extracts the image and requires its own `libxcb-cursor`,
+`libxkbcommon-x11`, `libX11` and `libfontconfig`, which the runner
+has installed for the build and would otherwise lend.  It cannot
+prove Wayland on a real desktop or a real GPU driver, which is § 8's
+fourth layer: a VM, by hand, before a release is announced.

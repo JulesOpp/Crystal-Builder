@@ -146,6 +146,9 @@ PACKAGE_DATA = {
     # copies out of the bundle: without it the entry has nothing to
     # install.
     "xtal/agent/skill": ["SKILL.md", "references/*.md"],
+    # The window's icon, which nothing but the application gives a
+    # Linux window: see `xtalapp.application.icon_path`.
+    "xtalapp": ["data/app.svg"],
 }
 
 #: Imported for their side effect and not for a name, or reached only
@@ -364,9 +367,13 @@ EXCLUDES = [
 def launcher_path(executable: Path) -> Path:
     """Where the ``xtal`` launcher lands: beside the application's own
     ``executable`` -- ``Contents/MacOS/xtal`` inside the ``.app``,
-    ``xtal.exe`` beside ``Crystal Builder.exe`` on Windows.  The same
-    rule as :func:`xtal.agent.discovery.launcher` in a frozen build,
-    which is what the Preferences page shows."""
+    ``xtal.exe`` beside ``Crystal Builder.exe`` on Windows, ``xtal``
+    beside ``Crystal Builder`` in the Linux folder
+    (``usr/lib/crystal-builder/`` inside the AppImage).  The same rule
+    as :func:`xtal.agent.discovery.launcher` in a frozen build, which
+    is what the Preferences page shows -- except in an AppImage, where
+    it names the ``.AppImage`` file instead
+    (:func:`~xtal.agent.discovery.launcher_command`)."""
     from xtal.agent.discovery import LAUNCHER_NAME
 
     name = (f"{LAUNCHER_NAME}.exe" if sys.platform == "win32"

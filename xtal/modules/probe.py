@@ -40,6 +40,7 @@ and hands what came back to :func:`summarise`.
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -63,6 +64,11 @@ DFTB_BANNER = re.compile(r"DFTB\+ (?:release \S+|\([A-Z]+ [\d.]+\))")
 
 #: How many lines of output are shown under a Test button.
 SHOWN_LINES = 2
+
+#: PyInstaller's documented way for one frozen program to start
+#: another as a program of its own, rather than as a worker of the
+#: one that started it.  See :func:`probe_for_package`.
+FRESH_PROGRAM = (("PYINSTALLER_RESET_ENVIRONMENT", "1"),)
 
 
 def _exits_zero(code: int, _output: str) -> bool:
@@ -95,6 +101,9 @@ class Probe:
     #: Picks the line worth showing out of the output, when there is
     #: one line that says it better than the first two do.
     headline: re.Pattern | None = field(default=None)
+    #: ``(name, value)`` pairs added to the environment the program
+    #: inherits; everything else is passed on as it is.
+    env: tuple = ()
 
     @property
     def name(self) -> str:
@@ -127,7 +136,8 @@ def probe_for(key: str, path) -> Probe | None:
 
 def probe_for_package(package: str, frozen: bool = False,
                       executable: str | None = None,
-                      timeout: float = 0.0, prepend=()) -> Probe:
+                      timeout: float = 0.0, prepend=(),
+                      platform: str | None = None) -> Probe:
     """How to ask whether a Python package imports.
 
     In a fresh interpreter, never this one: a package whose compiled
@@ -144,14 +154,28 @@ def probe_for_package(package: str, frozen: bool = False,
     own import path -- its packages folder -- so that the fresh
     interpreter finds the copy the application would load, and not
     another one or none.
+
+    A frozen Linux build's probe is started as a fresh program
+    (:data:`FRESH_PROGRAM`).  By the time Test is pressed the window
+    has handed its environment the user's library path back
+    (:mod:`xtal.runtime`), and the child would inherit that with the
+    bootloader's own variables: PyInstaller 6.9 and later may take
+    such a child for a worker of the running window, and whether a
+    Linux onedir worker puts ``_internal/`` back on its library path
+    is not documented.  Reset, it sets up its own path as the window
+    did.  ``selftest.check_launcher`` starts ``xtal`` the same way.
+    The macOS and Windows builds were never handed a path, and start
+    their probe as they always did.
     """
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.]*", package):
         raise ValueError(f"not a package name: {package!r}")
     executable = executable or sys.executable
     timeout = timeout or DEFAULT_TIMEOUT
+    platform = sys.platform if platform is None else platform
     if frozen:
+        fresh = FRESH_PROGRAM if platform.startswith("linux") else ()
         return Probe((executable, IMPORT_FLAG, package),
-                     timeout=timeout)
+                     timeout=timeout, env=fresh)
     top = package.split(".")[0]
     line = (f"import {package}; import {top}; "
             f"print({top!r}, getattr({top}, '__version__', ''))")
@@ -218,11 +242,12 @@ def summarise(probe: Probe, code: int | None, output: str,
 def run(probe: Probe) -> tuple[bool, str]:
     """Ask, and wait for the answer.  For tests and scripts; a dialog
     must not block on a program that takes seconds."""
+    env = {**os.environ, **dict(probe.env)} if probe.env else None
     with tempfile.TemporaryDirectory(prefix="xtal-probe-") as empty:
         try:
             done = subprocess.run(
                 [str(a) for a in probe.argv],
-                cwd=empty if probe.empty_cwd else None,
+                cwd=empty if probe.empty_cwd else None, env=env,
                 stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT, timeout=probe.timeout,
                 check=False)

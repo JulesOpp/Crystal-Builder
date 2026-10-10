@@ -239,6 +239,18 @@ def test_blender_is_found_where_macos_installs_it(tmp_path,
     assert sources == ["known"]
 
 
+def test_blender_is_looked_for_where_linux_installs_it():
+    """A distribution's package and the snap both put it outside
+    every folder an AppImage launched from the desktop is sure to
+    have on PATH; the macOS bundle is still the first place tried."""
+    from xtal.modules.blender import PROGRAM
+
+    assert PROGRAM.known[0] == (
+        "/Applications/Blender.app/Contents/MacOS/Blender")
+    assert "/usr/bin/blender" in PROGRAM.known
+    assert "/snap/bin/blender" in PROGRAM.known
+
+
 # ------------------------------------------------------ through the app
 
 @pytest.fixture

@@ -32,6 +32,7 @@ import sys
 import threading
 from pathlib import Path
 
+from xtal import runtime
 from xtal.core import bonding, properties, supercell, symmetry
 from xtal.io import FORMATS
 
@@ -1014,6 +1015,8 @@ def _terminated(_signum, _frame):
 
 
 def main(argv=None) -> int:
+    # Before anything can start DFTB+, xTB or ``xtal mcp``'s children.
+    runtime.restore_system_library_path()
     args = build_parser().parse_args(argv)
     # Only the main thread may set a handler, and a test calling main()
     # gets the one it had back.
