@@ -110,12 +110,14 @@ external programs).
   GitHub releases and checked against pinned SHA-256s: without the
   runtime, `appimagetool` fetches whatever upstream calls current at
   pack time.
-- Libraries. The build host installs Qt's xcb, xkbcommon and
-  fontconfig libraries so PyInstaller collects them into the
-  bundle. glibc, libGL, libEGL and the Wayland and X11 client
-  libraries stay with the user's system (the AppImage project's
-  exclude list); bundling those is what breaks AppImages across
-  distros.
+- Libraries. The rule, as built, is PyInstaller's own exclude list
+  (`PyInstaller/depend/dylib.py`; see `PACKAGING.md` § 11): glibc,
+  the GL/EGL/drm stack, `libxcb` and `libxcb-dri*`, and
+  `libwayland-*` stay with the user's system, because bundling those
+  is what breaks AppImages across distros. Every other library a
+  wheel links is collected from the build host -- `libX11` among
+  them -- which is why the build host installs Qt's xcb helpers,
+  xkbcommon and fontconfig first.
 - File associations and a menu entry. An AppImage does not
   register them itself. The manual points to AppImageLauncher or
   Gear Lever, which read the `.desktop` file inside. No installer
@@ -147,7 +149,8 @@ external programs).
 - Fixed in passing: the Windows packages folder, written as the
   roaming AppData in the README and the installation page, is
   `%LOCALAPPDATA%` (the code uses `LOCALAPPDATA`), and the README's
-  claim that packaged builds lack the MOF builder.
+  "everything above except MACE" became "except the ML engines" (no
+  claim that packaged builds lack the MOF builder was left).
 - `docs/PACKAGING.md`: a Linux section, and the release checklist
   item below.
 

@@ -706,8 +706,8 @@ measurements that settled it are recorded above `COLLECT`; § 4's
 ## 11. Linux
 
 **One x86_64 AppImage**, `Crystal_Builder-<version>-x86_64.AppImage`,
-built and self-tested in the same `build` job as the other two and
-attached to the draft release beside them.  The design record, with
+built and self-tested in CI and attached to the draft release beside
+the DMGs and the installer.  The design record, with
 what was decided and rejected (`linuxdeploy`, Flatpak, `.deb`, a
 tarball), is [LINUX.md](LINUX.md).
 

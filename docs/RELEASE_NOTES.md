@@ -4,6 +4,8 @@ Build, manipulate, analyse and export crystal structures. Read and
 write CIF, edit symmetry and bonding, run a force field, DFTB+ or
 Zeo++ on the result.
 
+<!-- Retitle this section with the version when the release is cut:
+"## Crystal Builder <version>". -->
 ## New since 1.0
 
 - **Linux: an AppImage for x86_64 (Ubuntu 22.04+, Debian 12+, Fedora
@@ -93,8 +95,10 @@ been retired in its favour.
 | Linux, x86_64 | `Crystal_Builder-<version>-x86_64.AppImage` |
 
 The Mac builds need **macOS 12.3 (Monterey) or later**. The Linux
-AppImage needs **glibc 2.35 or later**: Ubuntu 22.04 or newer, Debian
-12, Fedora 36 or newer, and other distributions from 2022 on.
+AppImage needs **glibc 2.35 or newer** (`ldd --version` shows it):
+Ubuntu 22.04 or newer, Debian 12 or newer, Fedora 36 or newer. RHEL 9
+and its rebuilds (glibc 2.34) and openSUSE Leap 15 (2.31) are not
+supported.
 
 There is no universal Mac build, and that is not an oversight: VTK
 publishes no universal2 wheel, so the two have to be built separately.
@@ -139,7 +143,8 @@ chmod +x Crystal_Builder-*.AppImage
 or mark it executable in its properties in your file manager and
 double-click it. If the window does not open under Wayland, start it
 on X11 with `QT_QPA_PLATFORM=xcb ./Crystal_Builder-*.AppImage`.
-Settings and the log are in `~/.local/share/CrystalBuilder`.
+Settings are in `~/.config/CrystalBuilder/CrystalBuilder.conf`; the
+log is in `~/.local/share/CrystalBuilder`.
 
 ## File associations
 
@@ -153,8 +158,8 @@ Double-clicking a structure works both when the application is closed
 and when it is already open.
 
 On Linux the AppImage makes no menu entry or file associations of its
-own; AppImageLauncher or Gear Lever adds both from the entry it
-carries.
+own; AppImageLauncher or Gear Lever adds a menu entry, and the file
+types where the integrator installs them.
 
 ## What is in the download, and what is not
 

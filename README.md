@@ -104,9 +104,11 @@ chmod +x Crystal_Builder-*.AppImage
 ```
 
 or mark it executable in its properties in your file manager and
-double-click it.  It runs on Ubuntu 22.04 or newer, Debian 12, Fedora
-36 or newer, and other distributions from 2022 on (it needs glibc
-2.35), on x86_64 only.
+double-click it.  It runs on x86_64, on Ubuntu 22.04 or newer, Debian
+12 or newer, Fedora 36 or newer -- any distribution with glibc 2.35 or
+newer (`ldd --version` shows it).  RHEL 9 and its rebuilds (glibc
+2.34) and openSUSE Leap 15 (2.31) are not supported: the AppImage
+refuses to start there.
 
 - **If the window does not open under Wayland**, start it on X11
   instead: `QT_QPA_PLATFORM=xcb ./Crystal_Builder-*.AppImage`.  It
@@ -115,12 +117,16 @@ double-click it.  It runs on Ubuntu 22.04 or newer, Debian 12, Fedora
   are not made by the AppImage itself.
   [AppImageLauncher](https://github.com/TheAssassin/AppImageLauncher)
   or [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever) adds
-  them from the entry the AppImage carries.
+  a menu entry from the one the AppImage carries, and the file types
+  where the integrator installs them.
 - **External programs** (Zeo++, DFTB+, xtb, Blender) are found on
   `PATH` or set in *Preferences ▸ Engines*, as on the other platforms;
   `/usr/bin/blender` and `/snap/bin/blender` are looked in on their
   own.
-- **Settings and the log** are in `~/.local/share/CrystalBuilder`.
+- **Settings** are in `~/.config/CrystalBuilder/CrystalBuilder.conf`;
+  **the log**, the packages folder and the AI assistant's `mcp.json`
+  are in `~/.local/share/CrystalBuilder` (under `$XDG_DATA_HOME` if
+  you set it).
 
 ## Install (development)
 

@@ -72,9 +72,11 @@ xattr -dr com.apple.quarantine "/Applications/Crystal Builder.app"
 ```
 
 The Linux download is an AppImage: one file that runs without being
-installed, on Ubuntu 22.04 or newer, Debian 12, Fedora 36 or newer,
-and other distributions from 2022 on.  It needs glibc 2.35 or later,
-which is what those have, and an x86_64 processor.
+installed, on an x86_64 processor, on Ubuntu 22.04 or newer, Debian 12
+or newer, Fedora 36 or newer -- any distribution with glibc 2.35 or
+newer (`ldd --version` shows it).  RHEL 9 and its rebuilds (glibc
+2.34) and openSUSE Leap 15 (2.31) are not supported: the AppImage
+refuses to start there.
 
 1. Download `Crystal_Builder-<version>-x86_64.AppImage`.
 2. Make it executable, in a terminal:
@@ -98,12 +100,15 @@ QT_QPA_PLATFORM=xcb ./Crystal_Builder-*.AppImage
 A value of `QT_QPA_PLATFORM` you have set yourself is always kept.
 
 An AppImage makes no menu entry and no file associations of its own.
-AppImageLauncher or Gear Lever adds both from the entry the AppImage
-carries: *Crystal Builder* in your applications menu, under Science
-where the menu has sections, and `.cif` and `.xtalproj` opened by
-double-clicking.
+AppImageLauncher or Gear Lever adds a menu entry from the one the
+AppImage carries -- *Crystal Builder*, under Science where the menu has
+sections -- and the `.cif` and `.xtalproj` file types where the
+integrator installs them.
 
-Settings and the log are in `~/.local/share/CrystalBuilder`.
+Settings are in `~/.config/CrystalBuilder/CrystalBuilder.conf`.  The
+log, the packages folder and the AI assistant's `mcp.json` are in
+`~/.local/share/CrystalBuilder`, or under `$XDG_DATA_HOME` if you set
+it.
 
 ### What is in the download, and what is not
 

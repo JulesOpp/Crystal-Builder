@@ -22,8 +22,9 @@ nothing in it needs Crystal Builder to read: every artefact is a real
 file with a real name in a format something else can open.  The
 application makes a default one on a first run rather than working
 without one -- a scratch folder cleaned on exit would one day throw
-away a six-hour run, and a folder under `~/Library/Application
-Support` or `~/.local/share` is one nobody can find -- and where new
+away a six-hour run, and a folder under the system's application
+data (`~/Library/Application Support`, `%LOCALAPPDATA%`,
+`~/.local/share`) is one nobody can find -- and where new
 workspaces go is a preference (*Preferences ▸ General*).  Deleting a
 folder in your file manager is a supported way to clean up, and so is
 adding a file by hand.
