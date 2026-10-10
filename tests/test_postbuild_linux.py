@@ -26,6 +26,11 @@ import postbuild_linux  # noqa: E402
 WINDOW = "Crystal Builder"
 QT = "_internal/PySide6/Qt"
 
+needs_symlinks = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="Windows runners make no symlinks without developer mode; "
+           "this script runs on Linux only")
+
 
 def dump(*sonames: str, soname: str | None = None) -> str:
     """``readelf -d --wide`` as binutils prints it: NEEDED among the
@@ -121,12 +126,8 @@ def collected(tmp_path) -> Path:
     _file(folder / QT / "plugins/platforminputcontexts"
           / "libqtvirtualkeyboardplugin.so")
     _file(folder / QT / "plugins/platforms/libqxcb.so")
-    try:
-        for name in ("libQt6Core.so.6", "libQt6Pdf.so.6"):
-            (folder / "_internal" / name).symlink_to(
-                f"PySide6/Qt/lib/{name}")
-    except OSError:
-        pytest.skip("this account cannot make symlinks")
+    for name in ("libQt6Core.so.6", "libQt6Pdf.so.6"):
+        (folder / "_internal" / name).symlink_to(f"PySide6/Qt/lib/{name}")
     return folder
 
 
@@ -168,6 +169,7 @@ def test_a_library_readelf_will_not_read_stops_the_prune(tmp_path):
         postbuild_linux.needed(library, run=Host({}))
 
 
+@needs_symlinks
 def test_an_orphan_nothing_needs_is_removed_and_one_still_needed_is_kept(
         collected, capsys):
     """A Python module that binds QtQuick keeps the whole chain under
@@ -188,6 +190,7 @@ def test_an_orphan_nothing_needs_is_removed_and_one_still_needed_is_kept(
     assert "removed libQt6Pdf.so.6" in out
 
 
+@needs_symlinks
 def test_a_candidate_a_remaining_library_needs_is_kept(
         collected, capsys):
     """Reachability decides what goes, but a library left behind that
@@ -206,6 +209,7 @@ def test_a_candidate_a_remaining_library_needs_is_kept(
             "needs it") in capsys.readouterr().out
 
 
+@needs_symlinks
 def test_a_library_reached_through_its_soname_link_passes_it_on(
         collected):
     """A library shipped as ``libQt6Pdf.so.6.9.0`` beside a
@@ -224,6 +228,7 @@ def test_a_library_reached_through_its_soname_link_passes_it_on(
         collected, run=Host(needs))
 
 
+@needs_symlinks
 def test_the_unused_plugins_go_first_so_their_frameworks_become_orphans(
         collected):
     """Before the plugins go, every candidate is reachable from one of
@@ -245,6 +250,7 @@ def test_the_unused_plugins_go_first_so_their_frameworks_become_orphans(
         "libQt6Core.so.6", "libQt6Gui.so.6", "libQt6Widgets.so.6"}
 
 
+@needs_symlinks
 def test_a_library_that_will_not_strip_is_reported_not_fatal(
         collected, capsys):
     """The cost of a library left unstripped is size, not correctness,
@@ -265,6 +271,7 @@ def test_a_library_that_will_not_strip_is_reported_not_fatal(
     assert WINDOW not in host.stripped and "xtal" not in host.stripped
 
 
+@needs_symlinks
 def test_dangling_links_are_dropped_after_pruning(collected):
     """PyInstaller 6 links a library it collects into a subfolder from
     ``_internal`` as well; removing the library leaves that link
@@ -277,6 +284,7 @@ def test_dangling_links_are_dropped_after_pruning(collected):
     assert (internal / "libQt6Core.so.6").exists()
 
 
+@needs_symlinks
 def test_the_report_says_the_size_before_and_after(collected, capsys):
     """The saving is the reason the step exists, so the log of every
     build says it, measured on disk rather than added up."""

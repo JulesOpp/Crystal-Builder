@@ -29,6 +29,10 @@ import appimage  # noqa: E402
 
 needs_sh = pytest.mark.skipif(sys.platform == "win32",
                               reason="AppRun is a POSIX shell script")
+needs_symlinks = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="Windows runners make no symlinks without developer mode; "
+           "this script runs on Linux only")
 
 WINDOW = "Crystal Builder"
 MIME = "{http://www.freedesktop.org/standards/shared-mime-info}"
@@ -52,10 +56,7 @@ def collected(tmp_path) -> Path:
              'echo "window $QT_QPA_PLATFORM"')
     _program(folder / "xtal", 'printf "%s\\n" xtal "$@"')
     (internal / "libQt6Core.so.6.9.0").write_bytes(b"\x7fELF")
-    try:
-        (internal / "libQt6Core.so.6").symlink_to("libQt6Core.so.6.9.0")
-    except OSError:
-        pytest.skip("this account cannot make symlinks")
+    (internal / "libQt6Core.so.6").symlink_to("libQt6Core.so.6.9.0")
     return folder
 
 
@@ -74,6 +75,7 @@ def _run(appdir: Path, *args: str, **env: str) -> str:
     return run.stdout
 
 
+@needs_symlinks
 def test_the_appdir_has_the_layout_appimagetool_expects(appdir):
     """``appimagetool`` refuses a folder without ``AppRun`` and a
     ``.desktop`` file at its top, takes the icon the entry names from
@@ -102,6 +104,7 @@ def test_the_appdir_has_the_layout_appimagetool_expects(appdir):
     assert os.readlink(icon) == f"{DESKTOP_ID}.png"
 
 
+@needs_symlinks
 def test_the_dir_icon_is_a_256_pixel_png_for_thumbnailers(appdir):
     """A file manager draws an AppImage with its ``.DirIcon``, and
     thumbnailers read a PNG there and ignore an svg: the download
@@ -115,6 +118,7 @@ def test_the_dir_icon_is_a_256_pixel_png_for_thumbnailers(appdir):
         assert (image.width(), image.height()) == (256, 256)
 
 
+@needs_symlinks
 def test_apprun_is_executable_and_runs_the_collected_program(appdir):
     """The AppImage runtime executes ``AppRun`` directly; without the
     executable bit the download does nothing when it is run."""
@@ -126,6 +130,7 @@ def test_apprun_is_executable_and_runs_the_collected_program(appdir):
 
 
 @needs_sh
+@needs_symlinks
 def test_apprun_honours_a_platform_the_user_chose(appdir):
     """Wayland first and X11 after it is the right default, and is
     wrong for somebody whose compositor's Wayland Qt mishandles: the
@@ -135,6 +140,7 @@ def test_apprun_honours_a_platform_the_user_chose(appdir):
 
 
 @needs_sh
+@needs_symlinks
 def test_apprun_runs_the_bundled_cli_when_asked_for_xtal(appdir):
     """An AI assistant's client is configured with ``<the AppImage>
     xtal mcp``: the mount the ``xtal`` beside the window lives in is
@@ -146,6 +152,7 @@ def test_apprun_runs_the_bundled_cli_when_asked_for_xtal(appdir):
     assert _run(appdir, "a structure.cif").strip() == "window wayland;xcb"
 
 
+@needs_symlinks
 def test_the_desktop_entry_names_the_app_its_icon_and_both_file_types(
         appdir):
     """The menu entry and the file associations an integrator makes
@@ -172,6 +179,7 @@ def test_the_desktop_entry_names_the_app_its_icon_and_both_file_types(
         appdir / f"{DESKTOP_ID}.desktop").read_bytes()
 
 
+@needs_symlinks
 def test_the_mime_file_declares_both_globs(appdir):
     """A desktop that has never seen ``.xtalproj`` learns it here, and
     one without ``chemical-mime-data`` learns ``.cif`` too."""
@@ -190,6 +198,7 @@ def test_the_mime_file_declares_both_globs(appdir):
     }
 
 
+@needs_symlinks
 def test_the_collected_folder_is_copied_with_its_symlinks(appdir):
     """PyInstaller links a library's soname to its file; followed, each
     is carried twice and the download grows by the size of Qt."""
@@ -199,6 +208,7 @@ def test_the_collected_folder_is_copied_with_its_symlinks(appdir):
     assert os.readlink(link) == "libQt6Core.so.6.9.0"
 
 
+@needs_symlinks
 def test_pack_names_the_appimage_after_the_version_and_sets_arch(
         appdir, tmp_path):
     """``appimagetool`` guesses the architecture from the files inside
@@ -230,6 +240,7 @@ def test_pack_names_the_appimage_after_the_version_and_sets_arch(
     assert argv == ["--no-appstream", str(appdir), str(made)]
 
 
+@needs_symlinks
 def test_layout_refuses_a_non_empty_appdir(qapp, collected, tmp_path):
     """A folder left from an earlier build would carry its files into
     this one's download, where nothing would notice them."""
