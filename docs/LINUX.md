@@ -1,7 +1,14 @@
 # Crystal Builder on Linux
 
+**Status: built** on branch `feature/linux-appimage`, and proven in CI
+by the run the pull request links: the AppImage packed on
+`ubuntu-22.04`, its selftest drawn under Xvfb, its `xtal` answering.
+What CI cannot prove is in § 5.
+
 Design record for the Linux download. Written 2026-10-08 against
-`v1.0.0`; branch `feature/linux-appimage`.
+`v1.0.0`; branch `feature/linux-appimage`.  The text below is what was
+decided; where the build changed a detail, the detail is corrected
+here.
 
 ## Goal
 
@@ -96,9 +103,13 @@ external programs).
     already knows `.cif` from `chemical-mime-data` keeps its own
     definition; one that does not learns it from ours.
 
-  `appimagetool`, downloaded in CI from its official GitHub release
-  and checked against a pinned SHA-256, packs
-  `Crystal_Builder-<version>-x86_64.AppImage`.
+  `appimagetool` packs `Crystal_Builder-<version>-x86_64.AppImage`.
+  Both it (1.9.1) and the type2 runtime it puts at the front of the
+  file (20251108, `appimage.py --runtime`, which `appimagetool` takes
+  as `--runtime-file`) are downloaded in CI from their official
+  GitHub releases and checked against pinned SHA-256s: without the
+  runtime, `appimagetool` fetches whatever upstream calls current at
+  pack time.
 - Libraries. The build host installs Qt's xcb, xkbcommon and
   fontconfig libraries so PyInstaller collects them into the
   bundle. glibc, libGL, libEGL and the Wayland and X11 client
@@ -133,9 +144,10 @@ external programs).
   words ("Ubuntu 22.04 or newer, Debian 12, Fedora 36 or newer");
   `QT_QPA_PLATFORM=xcb` if the window does not open under Wayland;
   menu entries through AppImageLauncher or Gear Lever.
-- Fixed in passing: `%APPDATA%` → `%LOCALAPPDATA%` in the README and
-  the installation page (the code uses `LOCALAPPDATA`), and the
-  README's claim that packaged builds lack the MOF builder.
+- Fixed in passing: the Windows packages folder, written as the
+  roaming AppData in the README and the installation page, is
+  `%LOCALAPPDATA%` (the code uses `LOCALAPPDATA`), and the README's
+  claim that packaged builds lack the MOF builder.
 - `docs/PACKAGING.md`: a Linux section, and the release checklist
   item below.
 

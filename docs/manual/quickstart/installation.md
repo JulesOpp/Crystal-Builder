@@ -19,6 +19,7 @@ page, <https://github.com/JulesOpp/Crystal-Builder/releases>:
 | A Mac with Apple silicon (M1 and later) | `Crystal-Builder-<version>-arm64.dmg` |
 | A Mac with an Intel processor | `Crystal-Builder-<version>-x86_64.dmg` |
 | Windows, 64-bit | `Crystal-Builder-<version>-setup.exe` |
+| Linux, x86_64 | `Crystal_Builder-<version>-x86_64.AppImage` |
 
 The Mac builds need **macOS 12.3 (Monterey) or later**.  There is no
 universal Mac build: VTK publishes no universal2 wheel, so the two are
@@ -35,14 +36,14 @@ works on a managed machine.  It offers `.cif` and `.xtalproj` file
 associations; `.cif` is unticked by default, because a `.cif` on a
 working machine usually already belongs to VESTA or Mercury.
 Double-clicking a structure then opens it whether the application is
-running or not.
+running or not.  On Linux, see {ref}`install-linux` below.
 
 ### Opening it the first time
 
-Neither build is code-signed yet, so both operating systems say so
-the first time, each in its own way.  Nothing below is a way around a
-security warning; it is what the warning is for, and how to answer it
-if you trust where you got the file.
+The macOS and Windows builds are not code-signed yet, so both
+operating systems say so the first time, each in its own way.  Nothing
+below is a way around a security warning; it is what the warning is
+for, and how to answer it if you trust where you got the file.
 
 **macOS.**  Double-clicking gives *"Crystal Builder" cannot be opened
 because the developer cannot be verified*.  Either:
@@ -63,6 +64,46 @@ xattr -dr com.apple.quarantine "/Applications/Crystal Builder.app"
 
 **Windows.**  SmartScreen shows *Windows protected your PC*.  Click
 **More info**, then **Run anyway**.
+
+(install-linux)=
+### Linux
+
+```{index} single: installation; Linux AppImage
+```
+
+The Linux download is an AppImage: one file that runs without being
+installed, on Ubuntu 22.04 or newer, Debian 12, Fedora 36 or newer,
+and other distributions from 2022 on.  It needs glibc 2.35 or later,
+which is what those have, and an x86_64 processor.
+
+1. Download `Crystal_Builder-<version>-x86_64.AppImage`.
+2. Make it executable, in a terminal:
+
+   ```bash
+   chmod +x Crystal_Builder-*.AppImage
+   ```
+
+   or in your file manager, in the file's properties.
+3. Double-click it, or run `./Crystal_Builder-*.AppImage`; a `.cif`
+   or `.xtalproj` named after it on the command line opens in the
+   window.
+
+The window tries Wayland first and X11 second.  **If it does not open
+under Wayland**, start it on X11:
+
+```bash
+QT_QPA_PLATFORM=xcb ./Crystal_Builder-*.AppImage
+```
+
+A value of `QT_QPA_PLATFORM` you have set yourself is always kept.
+
+An AppImage makes no menu entry and no file associations of its own.
+AppImageLauncher or Gear Lever adds both from the entry the AppImage
+carries: *Crystal Builder* in your applications menu, under Science
+where the menu has sections, and `.cif` and `.xtalproj` opened by
+double-clicking.
+
+Settings and the log are in `~/.local/share/CrystalBuilder`.
 
 ### What is in the download, and what is not
 
@@ -85,15 +126,17 @@ from a source install (below).
 **Zeo++, DFTB+, tblite and xtb are found, never carried.**  They have
 their own licences and citation terms, and several are conda
 packages.  Install them however you normally would and point at them
-in *Preferences ▸ Engines* (see {ref}`external-programs`).
+in *Preferences ▸ Engines* (see {ref}`external-programs`); on Linux, a
+program on your `PATH` is found as it is on the other platforms.
 
 **Plug-ins installed with `pip` do not load in a packaged build.**  A
 frozen application has no `pip` and nowhere to install one to, so the
 shipped build runs its own modules only.  *Preferences ▸ Engines*
 names a folder that is added to the import path at start-up --
 `~/Library/Application Support/CrystalBuilder/packages` on macOS,
-`%APPDATA%\CrystalBuilder\packages` on Windows -- and a package that
-is pure Python can be put there with `pip install --target`.  It is
+`%LOCALAPPDATA%\CrystalBuilder\packages` on Windows,
+`~/.local/share/CrystalBuilder/packages` on Linux -- and a package
+that is pure Python can be put there with `pip install --target`.  It is
 not reliable for a package with compiled dependencies, such as
 PyTorch, which has to match the build's exact Python version and ABI.
 
@@ -189,7 +232,7 @@ then at an environment variable, then on `PATH`:
 | The Slater-Koster parameters, a folder of `.skf` files from dftb.org | Every DFTB+ run; the pairs present are checked before anything is launched | `DFTB_PREFIX` |
 | tblite | GFN1-xTB and GFN2-xTB in the xTB engine; GFN2 under a periodic cell is tblite's alone | `XTAL_TBLITE` |
 | xtb {cite}`bannwarth2021xtb` | GFN-FF, which tblite does not implement | `XTAL_XTB` |
-| Blender, with the Atomic Blender add-on | *File ▸ Export as STL* | `XTAL_BLENDER` (and `/Applications/Blender.app` is looked in on its own) |
+| Blender, with the Atomic Blender add-on | *File ▸ Export as STL* | `XTAL_BLENDER` (and `/Applications/Blender.app` on macOS, `/usr/bin/blender` and `/snap/bin/blender` on Linux, are looked in on their own) |
 
 *Preferences ▸ Engines* ({ref}`Preferences… <cmd-preferences>`,
 {kbd}`Ctrl+,`) has a row per program ({numref}`fig-preferences-engines`).

@@ -74,7 +74,10 @@ to paste.
    The key is made afresh every time the application starts, so paste
    the line again after a restart.  For any assistant that starts a
    command itself (Claude Desktop, Cursor, Codex), the second line is
-   the full path of the `xtal` launcher followed by `mcp`.
+   the full path of the `xtal` launcher followed by `mcp`.  From the
+   Linux AppImage it is
+   `/path/to/Crystal_Builder-….AppImage xtal mcp`, which the page
+   shows.
 
 While the window serves, the **tabs open in it are the assistant's
 documents**.  Each thing it does is one step that Ctrl+Z takes back, and
