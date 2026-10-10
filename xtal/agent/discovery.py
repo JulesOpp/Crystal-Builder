@@ -238,8 +238,23 @@ def launcher_command() -> list[str]:
     the next time it starts; the ``.AppImage`` file, which the
     AppImage runtime names in ``APPIMAGE``, lasts, and its ``AppRun``
     runs the bundled ``xtal`` when its first argument is ``xtal``.
+
+    ``APPIMAGE`` alone is not proof that this is the AppImage: VS
+    Code, Cursor and the AppImage terminals export it to everything
+    they start, so a checkout run from one of them would name the
+    editor.  It is believed only by a frozen build whose own
+    executable is inside ``APPDIR``, which the runtime sets to the
+    mount that same ``APPIMAGE`` made.
     """
     image = os.environ.get("APPIMAGE")
-    if image and Path(image).is_file():
+    if image and _inside_appdir() and Path(image).is_file():
         return [image, LAUNCHER_NAME]
     return [str(launcher())]
+
+
+def _inside_appdir() -> bool:
+    mount = os.environ.get("APPDIR")
+    if not (mount and getattr(sys, "frozen", False)):
+        return False
+    here = Path(sys.executable).resolve()
+    return here.is_relative_to(Path(mount).resolve())

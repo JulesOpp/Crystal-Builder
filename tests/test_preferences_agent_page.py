@@ -114,6 +114,8 @@ def test_the_stdio_line_runs_the_appimage_when_the_app_is_one(
     image.parent.mkdir()
     image.write_bytes(b"")
     monkeypatch.setenv("APPIMAGE", str(image))
+    # Which AppImage is ours is test_agent_discovery's question.
+    monkeypatch.setattr(discovery, "_inside_appdir", lambda: True)
 
     assert AgentPage.stdio_line() == f'"{image}" xtal mcp'
     page = AgentPage(settings)
