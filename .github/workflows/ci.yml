@@ -435,13 +435,48 @@ jobs:
           test -s selftest.png \
               || { echo "::error::the selftest drew no image"; exit 1; }
 
+      # The runner would lend the AppImage what it lost: the build
+      # installed Qt's xcb helpers, xkbcommon and fontconfig here, and
+      # a selftest that passed on the runner's copies would fail on a
+      # desktop without them.  Removing them from the runner would
+      # test a machine nobody has, so the image is opened instead and
+      # asked whether it carries its own.
+      - name: What the AppImage carries (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          images=(Crystal_Builder-*-x86_64.AppImage)
+          [ "${#images[@]}" = 1 ] && [ -f "${images[0]}" ] \
+              || { echo "::error::expected one AppImage, found" \
+                        "${images[*]}"; exit 1; }
+          image="$PWD/${images[0]}"
+          unpacked="$(mktemp -d)"
+          cd "$unpacked"
+          "$image" --appimage-extract >/dev/null
+          lib=squashfs-root/usr/lib/crystal-builder
+          missing=0
+          for name in libxcb-cursor.so.0 libxkbcommon-x11.so.0 \
+                      libX11.so.6 libfontconfig.so.1; do
+            found="$(find "$lib" -name "$name" -print -quit)"
+            if [ -z "$found" ] || ! test -e "$found"; then
+              echo "::error::the AppImage does not carry $name"
+              missing=1
+            fi
+          done
+          echo "unpacked: $(du -sh squashfs-root | cut -f1)"
+          cd - >/dev/null
+          rm -rf "$unpacked"
+          exit "$missing"
+
       # The AppImage itself, as a user starts it, and read back as the
       # macOS one is.  xvfb because VTK gets no OpenGL context under
       # the offscreen platform and segfaults; xcb on a virtual screen
       # with Mesa's llvmpipe is a real context on the path a desktop
-      # takes.  The launcher line is the AppImage's own question: the
-      # `xtal` inside it must answer from the extracted folder, which
-      # is the line Preferences > AI assistant hands a client.
+      # takes.  Without setup-python's LD_LIBRARY_PATH, which points
+      # into the runner's tool cache: a user's desktop has no such
+      # path, and a library the bundle lost must not be found there.
+      # The launcher check runs the `xtal` beside the window, inside
+      # the extracted folder; the line a client is given goes through
+      # AppRun instead, and the next step runs that.
       - name: Selftest (Linux)
         if: runner.os == 'Linux'
         env:
@@ -450,6 +485,7 @@ jobs:
           QT_QPA_PLATFORM: xcb
           LIBGL_ALWAYS_SOFTWARE: "1"
         run: |
+          unset LD_LIBRARY_PATH
           sudo apt-get install -y --no-install-recommends \
             xvfb mesa-utils libgl1-mesa-dri
           set -o pipefail
@@ -467,6 +503,31 @@ jobs:
                    exit 1; }
           test -s selftest.png \
               || { echo "::error::the selftest drew no image"; exit 1; }
+
+      # `<the .AppImage> xtal mcp` is the line Preferences > AI
+      # assistant hands a client, and the selftest never runs it: it
+      # starts the `xtal` inside the mount.  This goes through AppRun's
+      # `xtal` branch as a client does, with the same two questions
+      # the selftest asks.  The library path is dropped for the
+      # AppImage alone: setup-python's own interpreter, which reads
+      # the answer, needs it.
+      - name: Launcher through the AppImage (Linux)
+        if: runner.os == 'Linux'
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: |
+          images=(Crystal_Builder-*-x86_64.AppImage)
+          env -u LD_LIBRARY_PATH \
+              "./${images[0]}" xtal capabilities --json >capabilities.json \
+              || { echo "::error::<AppImage> xtal capabilities failed"; \
+                   exit 1; }
+          python -c 'import json, sys; print(json.load(sys.stdin)["version"])' \
+              <capabilities.json \
+              || { echo "::error::<AppImage> xtal capabilities" \
+                        "answered no version"; exit 1; }
+          env -u LD_LIBRARY_PATH \
+              "./${images[0]}" xtal mcp --headless </dev/null \
+              || { echo "::error::<AppImage> xtal mcp failed"; exit 1; }
 
       # VTK needs an OpenGL context and the runner has no GPU.  What
       # stood here claimed Windows "falls back to the software

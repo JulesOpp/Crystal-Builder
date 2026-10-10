@@ -810,7 +810,14 @@ system without FUSE, can set it the same way.
 **What CI proves, and what it cannot.**  The selftest runs from the
 AppImage itself under `xvfb-run` with Mesa's llvmpipe: the 3D view
 draws (`selftest.png`, uploaded with the AppImage as the
-`linux-x86_64` artifact) and the bundled `xtal` answers, with its
-`mcp`.  It cannot prove Wayland on a real desktop or a real GPU
-driver, which is § 8's fourth layer: a VM, by hand, before a release
-is announced.
+`linux-x86_64` artifact) and the `xtal` beside the window, inside the
+mount, answers with its `mcp`.  That is not the line a client is
+given, so the step after it, *Launcher through the AppImage*, runs
+`<the .AppImage> xtal capabilities --json` and `<the .AppImage> xtal
+mcp --headless` through `AppRun`, as a client does.  Every run drops
+setup-python's `LD_LIBRARY_PATH`, and *What the AppImage carries*
+extracts the image and requires its own `libxcb-cursor`,
+`libxkbcommon-x11`, `libX11` and `libfontconfig`, which the runner
+has installed for the build and would otherwise lend.  It cannot
+prove Wayland on a real desktop or a real GPU driver, which is § 8's
+fourth layer: a VM, by hand, before a release is announced.

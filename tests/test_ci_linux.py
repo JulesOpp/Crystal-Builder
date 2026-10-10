@@ -59,11 +59,14 @@ def test_the_linux_bundle_is_built_on_the_glibc_floor(workflow):
 
 def test_the_linux_selftest_runs_the_appimage_and_reads_its_output(
         workflow):
-    """The AppImage is what a user downloads; the folder it was packed
-    from has a different launcher path, so a selftest of the folder
-    says nothing about `launcher_command()` answering from the file.
-    And the exit code alone is what let a Windows run go green having
-    died inside the 3D view, so its output is read back."""
+    """The AppImage is what a user downloads, and the folder it was
+    packed from is not: a library the packing lost, or one the runner
+    lends, is found only by starting the file.  The selftest's
+    launcher check runs the `xtal` beside the window inside the mount,
+    not the `<AppImage> xtal` a client is given; the step after this
+    one runs that.  And the exit code alone is what let a Windows run
+    go green having died inside the 3D view, so its output is read
+    back."""
     build = workflow["jobs"]["build"]
     run = _step(build, "Selftest (Linux)")["run"]
 
@@ -74,6 +77,53 @@ def test_the_linux_selftest_runs_the_appimage_and_reads_its_output(
     assert "APPIMAGE_EXTRACT_AND_RUN=1" in run or (
         _step(build, "Selftest (Linux)").get("env", {})
         .get("APPIMAGE_EXTRACT_AND_RUN") == "1")
+
+
+def test_the_appimage_runs_its_own_xtal_through_apprun(workflow):
+    """`<the .AppImage> xtal mcp` is the line Preferences ▸ AI
+    assistant hands a client, and nothing else runs it: the selftest
+    starts the `xtal` beside the window, inside the mount, and never
+    goes through `AppRun`'s `xtal` branch.  An `AppRun` that lost that
+    branch would open a window for every client that starts."""
+    build = workflow["jobs"]["build"]
+    names = [s.get("name") for s in build["steps"]]
+    step = _step(build, "Launcher through the AppImage (Linux)")
+    run = step["run"]
+
+    assert (names.index("Launcher through the AppImage (Linux)")
+            == names.index("Selftest (Linux)") + 1)
+    assert step.get("if") == "runner.os == 'Linux'"
+    assert step.get("env", {}).get("APPIMAGE_EXTRACT_AND_RUN") == "1"
+    assert '"./${images[0]}" xtal capabilities --json' in run
+    assert '"./${images[0]}" xtal mcp --headless </dev/null' in run
+    assert "python -c" in run and "version" in run
+
+
+def test_the_linux_selftest_cannot_borrow_the_runners_libraries(
+        workflow):
+    """setup-python leaves `LD_LIBRARY_PATH` pointing into the tool
+    cache, and the build installed Qt's xcb helpers, xkbcommon and
+    fontconfig on the runner: an AppImage that lost any of them would
+    still start here, and nowhere else.  So the runs drop the path,
+    and the image is opened to see that it carries them itself."""
+    build = workflow["jobs"]["build"]
+    names = [s.get("name") for s in build["steps"]]
+    carries = _step(build, "What the AppImage carries (Linux)")["run"]
+
+    for name in ("Selftest (Linux)",
+                 "Launcher through the AppImage (Linux)"):
+        run = _step(build, name)["run"]
+        assert ("unset LD_LIBRARY_PATH" in run
+                or "env -u LD_LIBRARY_PATH" in run), name
+    assert (names.index("AppImage (Linux)")
+            < names.index("What the AppImage carries (Linux)")
+            < names.index("Selftest (Linux)"))
+    assert "--appimage-extract" in carries
+    assert "squashfs-root/usr/lib/crystal-builder" in carries
+    for library in ("libxcb-cursor.so.0", "libxkbcommon-x11.so.0",
+                    "libX11.so.6", "libfontconfig.so.1"):
+        assert library in carries
+    assert "::error::" in carries
 
 
 def test_appimagetool_is_checked_against_a_pinned_checksum(workflow):
@@ -116,7 +166,9 @@ def test_every_linux_step_runs_on_linux_only(workflow):
 
     for name in ("Qt's system libraries (Linux bundle)",
                  "Strip (Linux)", "appimagetool", "AppImage (Linux)",
-                 "Selftest (Linux)"):
+                 "What the AppImage carries (Linux)",
+                 "Selftest (Linux)",
+                 "Launcher through the AppImage (Linux)"):
         assert _step(build, name).get("if") == "runner.os == 'Linux'", (
             name)
 

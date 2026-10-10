@@ -1,9 +1,10 @@
 # Crystal Builder on Linux
 
-**Status: built** on branch `feature/linux-appimage`, and proven in CI
-by the run the pull request links: the AppImage packed on
-`ubuntu-22.04`, its selftest drawn under Xvfb, its `xtal` answering.
-What CI cannot prove is in § 5.
+**Status: built** on branch `feature/linux-appimage`.  CI: see the PR.
+The bundle job packs the AppImage on `ubuntu-22.04`, opens it to check
+it carries the libraries the runner would otherwise lend, draws its
+selftest under Xvfb, and runs `<the AppImage> xtal` through `AppRun`
+as a client does.  What CI cannot prove is in § 5.
 
 Design record for the Linux download. Written 2026-10-08 against
 `v1.0.0`; branch `feature/linux-appimage`.  The text below is what was
@@ -131,11 +132,26 @@ external programs).
   replaced with one that says why it is back: something is
   released for it now.
 - Bundle job: a `linux-x86_64` row on `ubuntu-22.04` runs the
-  build, `postbuild_linux.py` and `appimage.py`, then the selftest
-  from the AppImage itself under `xvfb-run` with Mesa's llvmpipe:
-  the 3D view draws, and the launcher check prints
-  `xtal launcher: … answers, version …; mcp answers`. The selftest
-  image and the AppImage are uploaded as artifacts.
+  build, `postbuild_linux.py` and `appimage.py`, then three checks
+  of the AppImage itself, each with setup-python's
+  `LD_LIBRARY_PATH` dropped so the runner's tool cache lends it
+  nothing:
+  - *What the AppImage carries*: extracted, it must hold
+    `libxcb-cursor.so.0`, `libxkbcommon-x11.so.0`, `libX11.so.6` and
+    `libfontconfig.so.1` of its own, since the runner has them
+    installed for the build and would lend them otherwise; its
+    unpacked size is printed.
+  - *Selftest*, under `xvfb-run` with Mesa's llvmpipe: the 3D view
+    draws, and the launcher check prints `xtal launcher: … answers, version …; mcp answers`.  That
+    check runs the `xtal` beside the window, inside the mount -- not
+    the line a client is given.
+  - *Launcher through the AppImage*: `<the AppImage> xtal
+    capabilities --json` must answer with a version and `<the
+    AppImage> xtal mcp --headless` with stdin closed must exit 0,
+    through `AppRun`'s `xtal` branch, which is the command
+    Preferences ▸ AI assistant hands a client.
+
+  The selftest image and the AppImage are uploaded as artifacts.
 - Release job: attaches the AppImage to the draft release beside
   the DMG and `setup.exe`.
 
