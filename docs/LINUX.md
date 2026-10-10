@@ -142,7 +142,9 @@ external programs).
     installed for the build and would lend them otherwise; its
     unpacked size is printed.
   - *Selftest*, under `xvfb-run` with Mesa's llvmpipe: the 3D view
-    draws, and the launcher check prints `xtal launcher: … answers, version …; mcp answers`.  That
+    draws, the window icon draws (Qt's SVG plugins came along),
+    Extras ▸ Test's probe imports numpy in a child started as a
+    fresh program, and the launcher check prints `xtal launcher: … answers, version …; mcp answers`.  That
     check runs the `xtal` beside the window, inside the mount -- not
     the line a client is given.
   - *Launcher through the AppImage*: `<the AppImage> xtal

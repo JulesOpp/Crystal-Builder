@@ -36,7 +36,13 @@ import importlib.util
 import shutil
 import tempfile
 
-from PySide6.QtCore import QProcess, Qt, QTimer, Signal
+from PySide6.QtCore import (
+    QProcess,
+    QProcessEnvironment,
+    Qt,
+    QTimer,
+    Signal,
+)
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -750,6 +756,11 @@ class EnginesPage(QWidget):
         if probe.empty_cwd:
             empty = tempfile.mkdtemp(prefix="xtal-probe-")
             process.setWorkingDirectory(empty)
+        if probe.env:
+            environment = QProcessEnvironment.systemEnvironment()
+            for name, value in probe.env:
+                environment.insert(name, value)
+            process.setProcessEnvironment(environment)
         timer = QTimer(self)
         timer.setSingleShot(True)
         state = {"timed_out": False}

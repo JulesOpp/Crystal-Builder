@@ -782,7 +782,13 @@ Manual would load the bundle's libstdc++, libssl or Qt and fail.  Both
 entry points call `xtal.runtime.restore_system_library_path()` first
 thing, as PyInstaller's own documentation advises, which puts the
 original back (or removes the variable if there was none).  The app
-itself loses nothing: glibc read the path once, at start-up.
+itself loses nothing: glibc read the path once, at start-up.  The one
+child that is the application again, Extras ▸ Test's
+`--selftest-import`, is started with `PYINSTALLER_RESET_ENVIRONMENT=1`
+(`probe.probe_for_package`), as `selftest.check_launcher` starts
+`xtal`: a program of its own sets up `_internal/` on its path as the
+window did, where a child taken for the window's worker might not.
+The selftest runs that probe for numpy in the AppImage.
 
 **The glibc floor is 2.35, because the build host is `ubuntu-22.04`.**
 Everything compiled -- the bootloader and every collected library --

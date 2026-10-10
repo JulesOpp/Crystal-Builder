@@ -595,6 +595,84 @@ def check_launcher(executable) -> str:
             "mcp answers")
 
 
+def _frozen_linux(frozen, platform) -> bool:
+    frozen = getattr(sys, "frozen", False) if frozen is None else frozen
+    platform = sys.platform if platform is None else platform
+    return bool(frozen) and platform.startswith("linux")
+
+
+def check_frozen_probe(report, frozen=None, platform=None,
+                       ask=None) -> None:
+    """Extras ▸ Test answers in a frozen Linux build.
+
+    The button starts the application again with the import flag, and
+    by then the window has handed its environment the user's library
+    path back (:mod:`xtal.runtime`): whether the child still finds the
+    bundle's libraries rests on its starting as a program of its own,
+    which :func:`xtal.modules.probe.probe_for_package` asks for.  So
+    the same probe is run here, for numpy, whose OpenBLAS is the
+    library the loader refused once already.  ``ask`` stands in for
+    :func:`xtal.modules.probe.run` in a test.  Nothing to prove off
+    Linux, where no path is handed back, or in a checkout, whose
+    probe is a plain interpreter.
+    """
+    from xtal.modules import probe
+
+    if not _frozen_linux(frozen, platform):
+        report("Test button: skipped: not a frozen Linux build")
+        return
+    # A minute, not the button's five seconds: the child is the whole
+    # application starting, on a runner extracting it to a disk.
+    asked = probe.probe_for_package(
+        "numpy", frozen=True, timeout=60,
+        platform=sys.platform if platform is None else platform)
+    ok, sentence = (probe.run if ask is None else ask)(asked)
+    if not ok:
+        raise AssertionError(
+            f"Extras > Test could not import numpy in this build: "
+            f"{sentence}")
+    report(f"Test button: {sentence}")
+
+
+def _icon_draws(path: Path) -> bool:
+    from PySide6.QtGui import QIcon
+    from PySide6.QtWidgets import QApplication
+
+    app = QApplication.instance()
+    if app is None:
+        from xtalapp.application import keep_siblings_non_native
+
+        keep_siblings_non_native()
+        app = QApplication([sys.argv[0]])
+    return not QIcon(str(path)).pixmap(64, 64).isNull()
+
+
+def check_window_icon(report, frozen=None, platform=None,
+                      draws=None) -> None:
+    """The window's icon draws, in a frozen Linux build.
+
+    A Linux window has its icon from
+    :func:`xtalapp.application.icon_path`, an SVG, and Qt draws an
+    SVG only through its plugins: a build that lost them gives every
+    window and the task bar a blank icon, and nothing says so.  macOS
+    and Windows take theirs from the bundle and the ``.exe``.
+    ``draws`` stands in for the drawing in a test.
+    """
+    from xtalapp.application import icon_path
+
+    if not _frozen_linux(frozen, platform):
+        report("window icon: skipped: not a frozen Linux build")
+        return
+    path = icon_path()
+    if not (_icon_draws if draws is None else draws)(path):
+        raise AssertionError(
+            f"the window icon {path} draws nothing at 64 px: Qt's SVG "
+            "plugins (iconengines/libqsvgicon.so, "
+            "imageformats/libqsvg.so) are not in this build, so every "
+            "window and the task bar show a blank icon")
+    report(f"window icon: {path.name} draws at 64 px")
+
+
 def check_window(report, shot: Path | None) -> None:
     """Build the real window, open a sample, and draw it.
 
@@ -709,8 +787,13 @@ def run(shot: Path | None = None, out=None) -> int:
         ("polymer builder", check_polymer_builder),
         ("xtal launcher",
          lambda r: r(check_launcher(Path(sys.executable)))),
+        ("Extras > Test", check_frozen_probe),
         ("powder refinement", check_powder),
         ("window and 3D view", lambda r: check_window(r, shot)),
+        # After the window, whose QApplication it draws with: made
+        # here first, it would be made without the attribute the
+        # window check sets before making one.
+        ("window icon", check_window_icon),
     ]
 
     failures = 0
