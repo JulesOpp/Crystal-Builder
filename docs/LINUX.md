@@ -188,9 +188,12 @@ Unit tests, run on every platform:
 CI proves the build, the selftest image under X11 with software GL,
 and the launcher. It cannot prove Wayland on a real desktop or a
 real GPU driver. Before a release is announced: run the AppImage on
-a throwaway x86_64 cloud VM with a desktop, open a sample, rotate
-it, and switch on Preferences ▸ AI assistant. This is a checklist
-item in `PACKAGING.md`, not a CI job.
+a throwaway x86_64 cloud VM with a desktop, in a Wayland session
+(GNOME's default, and what `AppRun` tries first) and in an X11 one,
+open a sample, rotate it, and switch on Preferences ▸ AI assistant.
+If Wayland misbehaves where X11 does not, `AppRun`'s default flips
+to `xcb;wayland`. This is a checklist item in `PACKAGING.md`, not a
+CI job.
 
 ## Not in scope
 

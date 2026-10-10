@@ -113,6 +113,12 @@ refuses to start there.
 - **If the window does not open under Wayland**, start it on X11
   instead: `QT_QPA_PLATFORM=xcb ./Crystal_Builder-*.AppImage`.  It
   tries Wayland first and X11 second unless you set the variable.
+- **If it says it cannot mount itself**, the system has no FUSE.
+  Install it -- the `fuse3` package on most distributions; the
+  AppImage brings its own library, so `libfuse2` is not needed.
+  `APPIMAGE_EXTRACT_AND_RUN=1` runs it without FUSE, unpacked to a
+  temporary folder each time, but the AI assistant's client then needs
+  the variable in its command's environment too.
 - **A menu entry and file associations** for `.cif` and `.xtalproj`
   are not made by the AppImage itself.
   [AppImageLauncher](https://github.com/TheAssassin/AppImageLauncher)

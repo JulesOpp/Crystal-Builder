@@ -99,6 +99,13 @@ QT_QPA_PLATFORM=xcb ./Crystal_Builder-*.AppImage
 
 A value of `QT_QPA_PLATFORM` you have set yourself is always kept.
 
+**If it says it cannot mount itself**, the system has no FUSE.
+Install it -- the `fuse3` package on most distributions; the AppImage
+brings its own library, so `libfuse2` is not needed.  Setting
+`APPIMAGE_EXTRACT_AND_RUN=1` runs it without FUSE, unpacked to a
+temporary folder each time, but the AI assistant's client then needs
+the variable in its command's environment too.
+
 An AppImage makes no menu entry and no file associations of its own.
 AppImageLauncher or Gear Lever adds a menu entry from the one the
 AppImage carries -- *Crystal Builder*, under Science where the menu has

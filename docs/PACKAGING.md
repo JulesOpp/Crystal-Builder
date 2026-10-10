@@ -524,7 +524,7 @@ the whole value of having CI on three platforms already.
 ## 8. Testing a thing the suite cannot import
 
 The normal suite tests a source checkout and can say nothing about a
-bundle.  Three layers, cheapest first:
+bundle.  Four layers, cheapest first:
 
 1. **`tests/test_packaging.py`**, in the normal suite: assert that
    `bundle.py`'s `datas` names every path the three `bundled()`
@@ -569,12 +569,17 @@ bundle.  Three layers, cheapest first:
    UFF optimisation to completion, run a Zeo++ job if a binary is
    present, save a `.xtalproj`, reopen it.
 4. **Before a release is announced, run the AppImage on a throwaway
-   x86_64 cloud VM with a desktop** (a current Ubuntu with GNOME on
-   Wayland is the case CI cannot reach): open a sample, rotate it,
-   and switch on *Preferences ▸ AI assistant*.  CI draws the selftest
+   x86_64 cloud VM with a desktop, in a Wayland session and in an
+   X11 one.**  Wayland first: it is GNOME's default on a current
+   Ubuntu and the platform `AppRun` tries first (`wayland;xcb`), and
+   CI only ever runs xcb.  In each, open a sample, rotate it, and
+   switch on *Preferences ▸ AI assistant*.  CI draws the selftest
    under Xvfb with Mesa's software GL; it cannot prove Wayland on a
    real desktop or a real GPU driver, and this is the one look that
-   does.  A checklist item, not a CI job.
+   does.  **If the Wayland session misbehaves where X11 does not,
+   `AppRun`'s default flips to `xcb;wayland`** before the release,
+   rather than leaving users to find `QT_QPA_PLATFORM=xcb`.  A
+   checklist item, not a CI job.
 
 ---
 
@@ -815,7 +820,10 @@ page's own SHA-256.
 temporary folder and run from there instead of mounting itself with
 FUSE.  The runners have no FUSE, so the job sets it for every AppImage
 it starts, appimagetool included; a user in a container, or on a
-system without FUSE, can set it the same way.
+system without FUSE, can set it the same way -- but then the AI
+assistant's client needs it in the environment of the command it
+starts as well, which is why the README and the manual recommend
+installing FUSE instead.
 
 **What CI proves, and what it cannot.**  The selftest runs from the
 AppImage itself under `xvfb-run` with Mesa's llvmpipe: the 3D view
