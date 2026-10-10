@@ -268,12 +268,31 @@ def drop_dangling_links(root: Path) -> int:
     return count
 
 
+def vendored(root: Path, path: Path) -> bool:
+    """Whether ``path`` is in a folder auditwheel vendored a wheel's
+    dependencies into: ``numpy.libs``, ``scipy.libs``, at any depth.
+
+    auditwheel rewrites each of those with ``patchelf``, and GNU
+    ``strip`` over a file ``patchelf`` has rewritten corrupts its
+    program headers.  The loader then refuses it -- "ELF load command
+    address/offset not page-aligned" -- which is how CI's AppImage
+    died at the first numpy import.  Only the folder is asked, not the
+    file: these are the files ``patchelf`` touched.
+    """
+    return any(part.endswith(".libs")
+               for part in path.relative_to(root).parts[:-1])
+
+
 def strip_all(root: Path, run=subprocess.run) -> tuple[int, int]:
-    """``strip --strip-unneeded`` over every library.  Returns (files,
-    bytes saved)."""
+    """``strip --strip-unneeded`` over every library auditwheel did not
+    vendor.  Returns (files, bytes saved)."""
     saved = 0
     count = 0
+    left = 0
     for path in libraries(root):
+        if vendored(root, path):
+            left += 1
+            continue
         before = path.stat().st_size
         result = run(["strip", "--strip-unneeded", str(path)],
                      capture_output=True, text=True)
@@ -287,6 +306,9 @@ def strip_all(root: Path, run=subprocess.run) -> tuple[int, int]:
         if after < before:
             saved += before - after
             count += 1
+    if left:
+        print(f"  left {left} auditwheel-vendored libraries unstripped "
+              f"(patchelf rewrote them; strip would break them)")
     return count, saved
 
 

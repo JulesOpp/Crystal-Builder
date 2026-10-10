@@ -271,6 +271,47 @@ def test_a_library_that_will_not_strip_is_reported_not_fatal(
     assert WINDOW not in host.stripped and "xtal" not in host.stripped
 
 
+#: Where auditwheel leaves a wheel's vendored libraries: rewritten by
+#: ``patchelf``, which ``strip`` then corrupts.
+VENDORED = "_internal/numpy.libs/libscipy_openblas64_-abc.so"
+
+
+@needs_symlinks
+def test_libraries_auditwheel_vendored_are_left_unstripped(collected):
+    """CI's AppImage died at the first numpy import, the loader
+    refusing ``libscipy_openblas64_`` as "ELF load command
+    address/offset not page-aligned": ``strip`` had rewritten a file
+    ``patchelf`` already had.  A Qt library beside it is still
+    stripped."""
+    vendored = _file(collected / VENDORED, 4096)
+    host = Host(NEEDS)
+
+    postbuild_linux.strip_all(collected, run=host)
+
+    assert vendored.stat().st_size == 4096
+    assert "libscipy_openblas64_-abc.so" not in host.stripped
+    assert "libQt6Core.so.6" in host.stripped
+
+
+@needs_symlinks
+def test_the_report_counts_the_vendored_libraries_it_left_alone(
+        collected, capsys):
+    """Without the count, a build log that stripped fewer libraries
+    than the last says nothing of why.  A ``.libs`` folder deeper in
+    the tree is auditwheel's as well."""
+    _file(collected / VENDORED)
+    _file(collected / "_internal/scipy/scipy.libs/libgfortran-0.so.5")
+    needs = dict(NEEDS, **{
+        "libscipy_openblas64_-abc.so": ("libc.so.6",),
+        "libgfortran-0.so.5": ("libc.so.6",)})
+
+    assert postbuild_linux.main([str(collected)], run=Host(needs)) == 0
+
+    assert ("left 2 auditwheel-vendored libraries unstripped (patchelf "
+            "rewrote them; strip would break them)"
+            in capsys.readouterr().out)
+
+
 @needs_symlinks
 def test_dangling_links_are_dropped_after_pruning(collected):
     """PyInstaller 6 links a library it collects into a subfolder from
