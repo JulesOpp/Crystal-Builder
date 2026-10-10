@@ -94,6 +94,13 @@ def open_window(workspace, sample=None, paths=(), **window_options):
 
 
 def main(argv=None) -> int:
+    # First, so that the QApplication, the login shell ``shellenv``
+    # asks and every ``xdg-open`` start with the user's library path
+    # and not the bundle's.  See :mod:`xtal.runtime`.
+    from xtal import runtime
+
+    runtime.restore_system_library_path()
+
     from xtal import __version__, plugins
     from xtalapp import applog, extras
     from xtalapp.application import Application

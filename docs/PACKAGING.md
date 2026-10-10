@@ -774,6 +774,16 @@ installs Qt's xcb helpers (`libxcb-cursor0`, `-icccm4`, `-image0`,
 ...), `libxkbcommon-x11-0` and `libfontconfig1` before it builds.  A
 library missing on the build host is missing from the download.
 
+**The programs the app starts get the user's library path back.**  The
+bootloader puts `_internal/` first on `LD_LIBRARY_PATH` and keeps the
+user's value in `LD_LIBRARY_PATH_ORIG`, and every child inherits it:
+DFTB+, xTB, Zeo++, Blender and the `xdg-open` behind Help ▸ User
+Manual would load the bundle's libstdc++, libssl or Qt and fail.  Both
+entry points call `xtal.runtime.restore_system_library_path()` first
+thing, as PyInstaller's own documentation advises, which puts the
+original back (or removes the variable if there was none).  The app
+itself loses nothing: glibc read the path once, at start-up.
+
 **The glibc floor is 2.35, because the build host is `ubuntu-22.04`.**
 Everything compiled -- the bootloader and every collected library --
 asks for the glibc symbol versions of the machine it was built or
