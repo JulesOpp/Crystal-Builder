@@ -1,6 +1,6 @@
-"""A measured pattern, a radiation, and whether RietX is there.
+"""A measured pattern, a radiation, and whether rietx is there.
 
-None of this needs RietX installed, and that is part of what it
+None of this needs rietx installed, and that is part of what it
 tests: the refinement entries have to be able to say *why* they are
 greyed out on a machine without the ``refine`` extra.
 """

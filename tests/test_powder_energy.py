@@ -79,7 +79,7 @@ def rutile_data(rutile_xy_shared):
 
 
 def test_weight_zero_matches_a_plain_rietveld_position_fit(rutile_data):
-    """At w = 0 the energy has no say, and the answer is RietX's own
+    """At w = 0 the energy has no say, and the answer is rietx's own
     position fit: the oxygen back at 0.3053 from 0.29."""
     plain = rietveld(_rutile(), rutile_data, CU,
                      RietveldOptions(cell=False))
@@ -119,7 +119,7 @@ def test_a_weight_between_lands_between_the_two_ends(quartz_data):
 
 
 def test_the_pattern_gradient_matches_central_differences(rutile_data):
-    """Breaks if RietX's private residual or Jacobian changes meaning:
+    """Breaks if rietx's private residual or Jacobian changes meaning:
     the gradient R+E descends is 2 J^T r, read off them."""
     term, *_rest = bridge.pattern_term(
         _rutile(), rutile_data, CU,
@@ -302,7 +302,7 @@ def test_with_energy_and_nothing_flagged_fits_nothing_first(rutile_data):
     """Only the positions flagged: no fit comes first, the peak shape
     the set gives is the one the atoms answer to, and the curve still
     has its background and ticks.  Without it the start of a run with
-    energy is a Rietveld fit from RietX's preset nobody can see."""
+    energy is a Rietveld fit from rietx's preset nobody can see."""
     first = rietveld(_rutile(), rutile_data, CU,
                      RietveldOptions(cell=False))
     start = first.parameters.copy()

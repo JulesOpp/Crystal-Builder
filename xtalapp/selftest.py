@@ -407,7 +407,7 @@ def check_mof_builder(report) -> None:
 def check_powder(report) -> None:
     """The refinement workbench refines, in this build.
 
-    RietX is collected whole (``packaging/bundle.py``): its scattering
+    rietx is collected whole (``packaging/bundle.py``): its scattering
     tables are data files found by path, its kernels are numba's, and
     numba caches them keyed on source files that a bundle carries only
     because it was told to.  Any of the three can be lost with the
@@ -426,9 +426,9 @@ def check_powder(report) -> None:
     if not powder.available():
         if extras.frozen():
             raise AssertionError(
-                "RietX is missing, but the extras page says the "
+                "rietx is missing, but the extras page says the "
                 "refinement workbench is bundled")
-        report("RietX: not installed in this checkout, skipped")
+        report("rietx: not installed in this checkout, skipped")
         return
 
     import numpy as np

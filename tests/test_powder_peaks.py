@@ -44,7 +44,7 @@ def test_every_strong_rutile_line_is_found_within_a_hundredth_of_a_degree(
 
 
 def test_a_line_fitted_twice_is_counted_once(fit):
-    """RietX's windows overlap at rutile's 101 and both fit it.
+    """rietx's windows overlap at rutile's 101 and both fit it.
     Counted twice, indexing weights that d-spacing double and the
     curve draws the line twice as tall as it is."""
     near = [p for p in fit.peaks if abs(p.two_theta - 36.08) < 0.02
@@ -55,14 +55,14 @@ def test_a_line_fitted_twice_is_counted_once(fit):
 
 def test_the_calculated_curve_follows_the_data(fit):
     """What the workbench draws over the pattern.  It is rebuilt from
-    the fitted lines with the Kα2 put back, which RietX's own windows
+    the fitted lines with the Kα2 put back, which rietx's own windows
     can cut off."""
     residual = fit.y_obs - fit.y_calc
     assert np.sqrt(np.mean(residual ** 2)) < 0.01 * fit.y_obs.max()
 
 
 def test_excluding_a_peak_keeps_it_out_of_the_indexing_list(fit):
-    """TOPAS's "comment out a peak".  RietX's own ``usable`` is what
+    """TOPAS's "comment out a peak".  rietx's own ``usable`` is what
     every indexing engine reads, so the untick has to arrive as its
     ``excluded`` flag, not as a row missing from a copy."""
     before = len(fit.for_indexing().usable())
@@ -249,7 +249,7 @@ def test_refining_peaks_converges_in_tens_of_steps(fit, rutile_xy,
 def test_a_line_set_by_hand_is_refined_from_where_it_was_put(
         fit, rutile_xy):
     """A person moves a line, or gives it an area, for a better start
-    than the one found; the fit's esds and RietX's own record of the
+    than the one found; the fit's esds and rietx's own record of the
     line no longer describe it, so both go."""
     from xtal.powder.data import PowderError
     from xtal.powder.peaks import refine_peaks

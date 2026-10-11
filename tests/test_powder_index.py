@@ -22,7 +22,7 @@ from xtal.powder.peaks import PeakOptions, fit_peaks  # noqa: E402
 
 #: Rutile's cell is 4.594 x 2.959 A, so a 6 A bound on the search
 #: holds it and costs seconds rather than the minutes 50 A does.  The
-#: allowance is RietX's own measured one: the 1° default ranks a wrong
+#: allowance is rietx's own measured one: the 1° default ranks a wrong
 #: cell first on this pattern, from 0.5° up.
 SMALL = dict(longest_axis=6.0, budget=20.0, zero_error=0.0)
 
@@ -51,7 +51,7 @@ def tetragonal(rutile_xy_shared):
 # -- asking ----------------------------------------------------------------
 
 def test_a_bravais_selection_is_the_systems_and_centrings_searched():
-    """hP is one of TOPAS's boxes and two of RietX's systems: the
+    """hP is one of TOPAS's boxes and two of rietx's systems: the
     hexagonal and trigonal-P metrics are one lattice."""
     assert _lattices(parse_bravais("oC, hP tI"), ()) == {
         "orthorhombic": ["C"], "tetragonal": ["I"],
@@ -61,7 +61,7 @@ def test_a_bravais_selection_is_the_systems_and_centrings_searched():
 
 def test_a_space_group_names_the_lattice_it_is_on():
     """An A-centred setting is C-centred on other axes, and C is the
-    setting RietX searches."""
+    setting rietx searches."""
     names = "C2221, A 21 2 2, R-3m, P3121, Fm-3m, 136"
     assert [bravais_of_group(g) for g in parse_space_groups(names)] == \
         ["oC", "oC", "hR", "hP", "cF", "tP"]
@@ -91,7 +91,7 @@ def test_an_unknown_lattice_or_group_is_refused_by_name():
 @pytest.mark.slow
 def test_rutile_indexes_first_as_primitive_tetragonal_at_its_own_cell(
         tetragonal):
-    """The pattern was simulated from a = 4.594, c = 2.959.  RietX
+    """The pattern was simulated from a = 4.594, c = 2.959.  rietx
     fits c 0.002 A short with a shift it had to assume, so a few
     thousandths is what the search can promise, not one."""
     top = tetragonal.rows[0]
@@ -103,7 +103,7 @@ def test_rutile_indexes_first_as_primitive_tetragonal_at_its_own_cell(
 
 @pytest.mark.slow
 def test_no_winner_is_invented_where_riet_x_names_none(tetragonal):
-    """RietX withholds its best when the engines or the figures of
+    """rietx withholds its best when the engines or the figures of
     merit disagree; a best of ours would be a confident guess."""
     if tetragonal.best is None:
         assert all(row.confidence != "high" for row in tetragonal.rows)
@@ -158,7 +158,7 @@ def test_a_space_group_selection_ranks_only_classes_that_contain_it(
 @pytest.mark.slow
 def test_the_pass_after_the_last_validation_is_named_while_it_runs(
         rutile_xy_shared):
-    """RietX's sweep for sub- and supercells runs after the last
+    """rietx's sweep for sub- and supercells runs after the last
     validation and announces nothing: 9 s past a 60 s budget on a MOF
     pattern, with "validating cubic P, 12 of 26" on screen as though
     that had stalled."""
@@ -232,7 +232,7 @@ def test_cells_sort_by_gof_or_by_gof_over_the_unindexed_lines():
 
 def test_a_budget_of_zero_is_no_limit_rather_than_riet_xs_two_minutes(
         monkeypatch):
-    """Left unset, RietX's ceiling falls to its quick preset's 120 s;
+    """Left unset, rietx's ceiling falls to its quick preset's 120 s;
     no limit is its full preset, asked by name."""
     from xtal.powder import bridge
 

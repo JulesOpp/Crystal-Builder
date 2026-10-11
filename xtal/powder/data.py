@@ -3,15 +3,15 @@ xtal.powder.data
 ================
 A measured pattern and the radiation it was measured with.
 
-Neither needs RietX.  A pattern is three arrays read from a ``.xy``
--- or from a diffractometer's own file, which RietX reads, and which
+Neither needs rietx.  A pattern is three arrays read from a ``.xy``
+-- or from a diffractometer's own file, which rietx reads, and which
 :meth:`PowderData.from_file` hands to the bridge only then; a
 radiation is a choice from a list and, for a synchrotron, a number.
 What each *means* to a refinement -- which wavelengths, which
-polarisation, which geometry -- is RietX's instrument presets, and
+polarisation, which geometry -- is rietx's instrument presets, and
 :func:`xtal.powder.bridge.instrument` is where one becomes the other.
 Keeping the wavelengths out of this file is deliberate: the Kα
-doublets are RietX's to state (from the same reference tables TOPAS
+doublets are rietx's to state (from the same reference tables TOPAS
 reads), and a second copy here is a second place for 1.5444 to be
 1.5443.
 """
@@ -41,7 +41,7 @@ class PowderStopped(Exception):
     """
 
 
-#: What the radiation box offers: ``(key, label, RietX preset)``.
+#: What the radiation box offers: ``(key, label, rietx preset)``.
 #: A laboratory tube is a Kα doublet unless an incident-beam
 #: monochromator removed Kα2, which is why each anode is offered both
 #: ways -- TOPAS's ``CuKa2`` against ``CuKa1``.  ``synchrotron`` is
@@ -95,7 +95,7 @@ class Radiation:
 
     @property
     def preset(self) -> str:
-        """RietX's name for this tube, or ``""`` for a synchrotron."""
+        """rietx's name for this tube, or ``""`` for a synchrotron."""
         return next(p for key, _l, p in RADIATIONS if key == self.kind)
 
     @property
@@ -110,14 +110,14 @@ class Radiation:
 class PowderData:
     """A measured pattern: 2θ in degrees, counts, and their errors.
 
-    ``sigma`` is ``None`` when the file gave none, and RietX then
+    ``sigma`` is ``None`` when the file gave none, and rietx then
     weights by counting statistics, which is what TOPAS's default
     weighting is too.
 
     ``notes`` are what a vendor reader assumed or repaired -- scan 0
     of three taken because nobody chose, a scan stored high to low --
     and ``meta`` what the file says about itself (``anode``,
-    ``wavelength``, ``scan_count``), RietX's keys.  Both are empty for
+    ``wavelength``, ``scan_count``), rietx's keys.  Both are empty for
     a ``.xy``, which says nothing.
     """
 
@@ -162,9 +162,9 @@ class PowderData:
         """Read a pattern, two columns or a diffractometer's own file.
 
         Two-column text stays on :func:`~xtal.io.xy.read_columns`,
-        which needs no RietX and reads the headers and commas that
-        RietX's stricter reader would refuse.  Anything else goes to
-        RietX, which recognises a format by its bytes rather than its
+        which needs no rietx and reads the headers and commas that
+        rietx's stricter reader would refuse.  Anything else goes to
+        rietx, which recognises a format by its bytes rather than its
         suffix -- six vendors write ``.raw``.
         """
         path = Path(path)

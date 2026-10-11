@@ -3092,7 +3092,7 @@
        "label": "Zero error allowance",
        "accepts": "float, 0 to 1 °",
        "default": "0.3",
-       "help": "How far a systematic 2θ shift may move the lines, TOPAS's index_zero_error, from 0 to 1°.  0 lets RietX measure it from line pairs, or assume 0.05°.  A wide allowance finds a cell through a badly aligned sample and lets wrong cells match too: on a clean rutile pattern the right cell ranks first up to 0.3° and a wrong one does from 0.5°."
+       "help": "How far a systematic 2θ shift may move the lines, TOPAS's index_zero_error, from 0 to 1°.  0 lets rietx measure it from line pairs, or assume 0.05°.  A wide allowance finds a cell through a badly aligned sample and lets wrong cells match too: on a clean rutile pattern the right cell ranks first up to 0.3° and a wrong one does from 0.5°."
       },
       {
        "name": "max_volume",
@@ -3248,14 +3248,14 @@
        "label": "Tolerance",
        "accepts": "text",
        "default": "1e-9",
-       "help": "When a fit is done: the relative fall in χ² below which its last stage stops (RietX's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser."
+       "help": "When a fit is done: the relative fall in χ² below which its last stage stops (rietx's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser."
       },
       {
        "name": "parameters",
        "label": "Parameters",
        "accepts": "path",
        "default": "",
-       "help": "A file of parameters to start from, one a line as the workbench's Copy writes them: name value ± esd Refine, or NoRefine.  Its flags say what is refined and the Refine boxes are not read; a row it leaves out starts from RietX's preset.  Empty starts from the preset, freed as the boxes say."
+       "help": "A file of parameters to start from, one a line as the workbench's Copy writes them: name value ± esd Refine, or NoRefine.  Its flags say what is refined and the Refine boxes are not read; a row it leaves out starts from rietx's preset.  Empty starts from the preset, freed as the boxes say."
       }
      ]
     },
@@ -3341,7 +3341,7 @@
        "label": "Zero error allowance",
        "accepts": "float, 0 to 1 °",
        "default": "0.3",
-       "help": "How far a systematic 2θ shift may move the lines, TOPAS's index_zero_error, from 0 to 1°.  0 lets RietX measure it from line pairs, or assume 0.05°.  A wide allowance finds a cell through a badly aligned sample and lets wrong cells match too: on a clean rutile pattern the right cell ranks first up to 0.3° and a wrong one does from 0.5°."
+       "help": "How far a systematic 2θ shift may move the lines, TOPAS's index_zero_error, from 0 to 1°.  0 lets rietx measure it from line pairs, or assume 0.05°.  A wide allowance finds a cell through a badly aligned sample and lets wrong cells match too: on a clean rutile pattern the right cell ranks first up to 0.3° and a wrong one does from 0.5°."
       },
       {
        "name": "max_volume",
@@ -3460,14 +3460,14 @@
        "label": "Tolerance",
        "accepts": "text",
        "default": "1e-9",
-       "help": "When a fit is done: the relative fall in χ² below which its last stage stops (RietX's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser."
+       "help": "When a fit is done: the relative fall in χ² below which its last stage stops (rietx's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser."
       },
       {
        "name": "rietveld_plan",
        "label": "Plan",
-       "accepts": "one of The Refine flags, RietX: McCusker, structural, RietX: McCusker, profile, RietX: lab Bragg-Brentano, RietX: sample on a calibrated instrument",
+       "accepts": "one of The Refine flags, rietx: McCusker, structural, rietx: McCusker, profile, rietx: lab Bragg-Brentano, rietx: sample on a calibrated instrument",
        "default": "",
-       "help": "What is freed, and in what order.  The Refine flags -- the workbench's parameter table, a parameters file, or the boxes -- free in McCusker's order: background and scale, line positions, cell, widths, then the atoms.  RietX's own plans ignore the flags, and start from the values."
+       "help": "What is freed, and in what order.  The Refine flags -- the workbench's parameter table, a parameters file, or the boxes -- free in McCusker's order: background and scale, line positions, cell, widths, then the atoms.  rietx's own plans ignore the flags, and start from the values."
       },
       {
        "name": "rietveld_start",
@@ -3579,21 +3579,21 @@
        "label": "Max iterations",
        "accepts": "int, 0 to 100000",
        "default": "100",
-       "help": "The most iterations each stage of the fit runs (TOPAS iters), a RietX plan's stages too.  0 fits nothing: the pattern is calculated at the parameters as they stand, and the R values say how well they fit -- nothing moves and nothing is committed."
+       "help": "The most iterations each stage of the fit runs (TOPAS iters), a rietx plan's stages too.  0 fits nothing: the pattern is calculated at the parameters as they stand, and the R values say how well they fit -- nothing moves and nothing is committed."
       },
       {
        "name": "rietveld_tolerance",
        "label": "Tolerance",
        "accepts": "text",
        "default": "1e-9",
-       "help": "When a fit is done: the relative fall in χ² below which its last stage stops (RietX's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser."
+       "help": "When a fit is done: the relative fall in χ² below which its last stage stops (rietx's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser."
       },
       {
        "name": "parameters",
        "label": "Parameters",
        "accepts": "path",
        "default": "",
-       "help": "A file of parameters to start from, one a line as the workbench's Copy writes them: name value ± esd Refine, or NoRefine.  Its flags say what is refined and the Refine boxes are not read; a row it leaves out starts from RietX's preset.  Empty starts from the preset, freed as the boxes say."
+       "help": "A file of parameters to start from, one a line as the workbench's Copy writes them: name value ± esd Refine, or NoRefine.  Its flags say what is refined and the Refine boxes are not read; a row it leaves out starts from rietx's preset.  Empty starts from the preset, freed as the boxes say."
       }
      ]
     },
@@ -3635,9 +3635,9 @@
       {
        "name": "plan",
        "label": "Plan",
-       "accepts": "one of The Refine flags, RietX: McCusker, structural, RietX: McCusker, profile, RietX: lab Bragg-Brentano, RietX: sample on a calibrated instrument",
+       "accepts": "one of The Refine flags, rietx: McCusker, structural, rietx: McCusker, profile, rietx: lab Bragg-Brentano, rietx: sample on a calibrated instrument",
        "default": "",
-       "help": "What is freed, and in what order.  The Refine flags -- the workbench's parameter table, a parameters file, or the boxes -- free in McCusker's order: background and scale, line positions, cell, widths, then the atoms.  RietX's own plans ignore the flags, and start from the values."
+       "help": "What is freed, and in what order.  The Refine flags -- the workbench's parameter table, a parameters file, or the boxes -- free in McCusker's order: background and scale, line positions, cell, widths, then the atoms.  rietx's own plans ignore the flags, and start from the values."
       },
       {
        "name": "start",
@@ -3749,21 +3749,21 @@
        "label": "Max iterations",
        "accepts": "int, 0 to 100000",
        "default": "100",
-       "help": "The most iterations each stage of the fit runs (TOPAS iters), a RietX plan's stages too.  0 fits nothing: the pattern is calculated at the parameters as they stand, and the R values say how well they fit -- nothing moves and nothing is committed."
+       "help": "The most iterations each stage of the fit runs (TOPAS iters), a rietx plan's stages too.  0 fits nothing: the pattern is calculated at the parameters as they stand, and the R values say how well they fit -- nothing moves and nothing is committed."
       },
       {
        "name": "tolerance",
        "label": "Tolerance",
        "accepts": "text",
        "default": "1e-9",
-       "help": "When a fit is done: the relative fall in χ² below which its last stage stops (RietX's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser."
+       "help": "When a fit is done: the relative fall in χ² below which its last stage stops (rietx's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser."
       },
       {
        "name": "parameters",
        "label": "Parameters",
        "accepts": "path",
        "default": "",
-       "help": "A file of parameters to start from, one a line as the workbench's Copy writes them: name value ± esd Refine, or NoRefine.  Its flags say what is refined and the Refine boxes are not read; a row it leaves out starts from RietX's preset.  Empty starts from the preset, freed as the boxes say."
+       "help": "A file of parameters to start from, one a line as the workbench's Copy writes them: name value ± esd Refine, or NoRefine.  Its flags say what is refined and the Refine boxes are not read; a row it leaves out starts from rietx's preset.  Empty starts from the preset, freed as the boxes say."
       }
      ]
     },
@@ -3919,21 +3919,21 @@
        "label": "Max iterations",
        "accepts": "int, 0 to 100000",
        "default": "100",
-       "help": "The most iterations each stage of the fit runs (TOPAS iters), a RietX plan's stages too.  0 fits nothing: the pattern is calculated at the parameters as they stand, and the R values say how well they fit -- nothing moves and nothing is committed."
+       "help": "The most iterations each stage of the fit runs (TOPAS iters), a rietx plan's stages too.  0 fits nothing: the pattern is calculated at the parameters as they stand, and the R values say how well they fit -- nothing moves and nothing is committed."
       },
       {
        "name": "rietveld_tolerance",
        "label": "Tolerance",
        "accepts": "text",
        "default": "1e-9",
-       "help": "When a fit is done: the relative fall in χ² below which its last stage stops (RietX's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser."
+       "help": "When a fit is done: the relative fall in χ² below which its last stage stops (rietx's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser."
       },
       {
        "name": "parameters",
        "label": "Parameters",
        "accepts": "path",
        "default": "",
-       "help": "A file of parameters to start from, one a line as the workbench's Copy writes them: name value ± esd Refine, or NoRefine.  Its flags say what is refined and the Refine boxes are not read; a row it leaves out starts from RietX's preset.  Empty starts from the preset, freed as the boxes say."
+       "help": "A file of parameters to start from, one a line as the workbench's Copy writes them: name value ± esd Refine, or NoRefine.  Its flags say what is refined and the Refine boxes are not read; a row it leaves out starts from rietx's preset.  Empty starts from the preset, freed as the boxes say."
       }
      ]
     },
@@ -4089,21 +4089,21 @@
        "label": "Max iterations",
        "accepts": "int, 0 to 100000",
        "default": "100",
-       "help": "The most iterations each stage of the fit runs (TOPAS iters), a RietX plan's stages too.  0 fits nothing: the pattern is calculated at the parameters as they stand, and the R values say how well they fit -- nothing moves and nothing is committed."
+       "help": "The most iterations each stage of the fit runs (TOPAS iters), a rietx plan's stages too.  0 fits nothing: the pattern is calculated at the parameters as they stand, and the R values say how well they fit -- nothing moves and nothing is committed."
       },
       {
        "name": "rietveld_tolerance",
        "label": "Tolerance",
        "accepts": "text",
        "default": "1e-9",
-       "help": "When a fit is done: the relative fall in χ² below which its last stage stops (RietX's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser."
+       "help": "When a fit is done: the relative fall in χ² below which its last stage stops (rietx's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser."
       },
       {
        "name": "parameters",
        "label": "Parameters",
        "accepts": "path",
        "default": "",
-       "help": "A file of parameters to start from, one a line as the workbench's Copy writes them: name value ± esd Refine, or NoRefine.  Its flags say what is refined and the Refine boxes are not read; a row it leaves out starts from RietX's preset.  Empty starts from the preset, freed as the boxes say."
+       "help": "A file of parameters to start from, one a line as the workbench's Copy writes them: name value ± esd Refine, or NoRefine.  Its flags say what is refined and the Refine boxes are not read; a row it leaves out starts from rietx's preset.  Empty starts from the preset, freed as the boxes say."
       }
      ]
     }

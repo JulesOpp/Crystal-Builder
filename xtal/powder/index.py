@@ -4,13 +4,13 @@ xtal.powder.index
 Indexing: which unit cells explain the fitted lines -- TOPAS's
 ``b_indy`` step, and the table its ``.ndx`` is.
 
-RietX searches (``rietx.index_pattern``: three engines that fail
+rietx searches (``rietx.index_pattern``: three engines that fail
 differently, their agreement the confidence) and ranks each cell's
 extinction classes (``determine_extinction_symbol``).  What is decided
 here is how a person asks -- which of the fourteen Bravais lattices,
 which space groups -- and what the answer looks like as rows.
 
-**There is no winner unless RietX names one.**  ``best_or_none`` is
+**There is no winner unless rietx names one.**  ``best_or_none`` is
 ``None`` whenever the engines disagree, the figures of merit disagree,
 or the pattern could not validate the cell, and it is ``None`` far
 more often than the right cell is missing from the top of the list.
@@ -23,7 +23,7 @@ pattern shows the extinction symbol; groups sharing one differ only
 by elements that produce no absences.  A space-group selection
 therefore *filters classes* -- keeps those holding a chosen group --
 and restricts the search to the lattices those groups are on.  Groups
-are compared by number, so ``C2221`` matches the class RietX lists as
+are compared by number, so ``C2221`` matches the class rietx lists as
 ``A 21 2 2`` in the setting its cell came out in.
 """
 
@@ -40,8 +40,8 @@ __all__ = ["BRAVAIS", "GroupClass", "IndexOptions", "IndexResult",
            "parse_space_groups"]
 
 #: The fourteen Bravais lattices, as TOPAS's ``Bravais_*_sgs`` choose
-#: them and in the order a person reads them: ``(symbol, [(RietX
-#: system, centring), ...])``.  ``hP`` is two of RietX's systems
+#: them and in the order a person reads them: ``(symbol, [(rietx
+#: system, centring), ...])``.  ``hP`` is two of rietx's systems
 #: because the hexagonal and trigonal-P metrics are one lattice --
 #: TOPAS's ``Bravais_Trigonal_Hexagonal_sgs`` is one line too.
 BRAVAIS: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = (
@@ -111,7 +111,7 @@ def parse_space_groups(text) -> tuple:
 def bravais_of_group(group) -> str:
     """The Bravais lattice a gemmi space group is on (``"oC"``).
 
-    An A- or B-centred setting is C-centred on other axes, and RietX
+    An A- or B-centred setting is C-centred on other axes, and rietx
     searches the C setting.
     """
     centring = group.centring_type()
@@ -126,10 +126,10 @@ class IndexOptions:
 
     ``space_groups`` is a comma-separated list or empty.
     ``zero_error`` is the systematic 2θ allowance the matching must
-    span, TOPAS's ``index_zero_error``; 0 lets RietX measure one from
+    span, TOPAS's ``index_zero_error``; 0 lets rietx measure one from
     line pairs or assume its own.  ``max_volume`` 0 takes the envelope
     from the data.  ``longest_axis`` bounds the search's d(100); 50 A
-    holds a framework's cell, where RietX's own 25 A does not, and
+    holds a framework's cell, where rietx's own 25 A does not, and
     lowering it for a small cell saves most of the time.  ``budget``
     is the whole run's ceiling in seconds.
     ``rank_groups`` is how many of the top cells get their extinction
@@ -154,7 +154,7 @@ class GroupClass:
     delta_bic: float
     refuted: bool
     conditions: tuple[str, ...] = ()
-    #: the group RietX fitted the class as, in the cell's setting
+    #: the group rietx fitted the class as, in the cell's setting
     representative: str = ""
 
 
@@ -269,7 +269,7 @@ def index(peak_list, data: PowderData, radiation: Radiation,
           say=None) -> IndexResult:
     """Search for the cells that index ``peak_list``, and rank them.
 
-    ``peak_list`` is RietX's own (``PeakFit.for_indexing()``, the
+    ``peak_list`` is rietx's own (``PeakFit.for_indexing()``, the
     unticked lines already out) and ``data`` the pattern cropped to the
     range the peaks were fitted over, which is what a candidate is
     validated against.  ``cancel`` is a job's
@@ -288,7 +288,7 @@ def index(peak_list, data: PowderData, radiation: Radiation,
         what, _sep, where = label.partition(":")
         if what == "ambiguity":
             say("checking the leading cells for sub- and supercells -- "
-                "RietX's last pass, which Stop can only end between "
+                "rietx's last pass, which Stop can only end between "
                 "cells")
             return
         verb = "validating" if what == "validate" else \
@@ -329,13 +329,13 @@ def index(peak_list, data: PowderData, radiation: Radiation,
         notes=notes)
 
 
-#: RietX's own order, cheapest metric first -- a budget that runs out
-#: then costs the expensive systems, which is RietX's intent.
+#: rietx's own order, cheapest metric first -- a budget that runs out
+#: then costs the expensive systems, which is rietx's intent.
 _SEARCH_ORDER = ("cubic", "hexagonal", "trigonal", "tetragonal",
                  "orthorhombic", "monoclinic", "triclinic")
 
 #: The figures of merit shown, the first defined one: M20 and F_N need
-#: twenty lines, and a short list falls back to RietX's own panel.
+#: twenty lines, and a short list falls back to rietx's own panel.
 _FOM_ORDER = ("m20", "f_n", "m_sym", "m_rev")
 
 

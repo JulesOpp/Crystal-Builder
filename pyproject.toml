@@ -88,7 +88,7 @@ sketch = ["crystal-builder[build]"]
 # only the plot window is greyed out naming this extra.
 pxrd = ["matplotlib>=3.7"]
 # Refinement against a measured pattern: peak fitting, indexing,
-# Pawley and Rietveld are RietX's (MIT; numpy, scipy, numba, gemmi,
+# Pawley and Rietveld are rietx's (MIT; numpy, scipy, numba, gemmi,
 # spglib), and xtal/powder/bridge.py is the only module that imports
 # it.  Pinned below the next minor because its API is young and the
 # bridge reads more of it than the top-level names -- a release that

@@ -17,7 +17,7 @@ occupancy are shown here, but typing one is an edit of the site, one
 undo step on the Document -- :attr:`ParameterTable.siteEdited` is how
 the workbench is asked -- never a second copy here that drifts from
 it.  A held row (tied, or fixed by symmetry) is shown greyed and never
-edited: RietX would refuse it.
+edited: rietx would refuse it.
 """
 
 from __future__ import annotations
@@ -116,7 +116,7 @@ class ParameterTable(QWidget):
         self.tree.setToolTip(
             "Double-click a value to set it.  An atom's Biso and "
             "occupancy are the structure's, and editing one is an undo "
-            "step there.  Grey rows are held by RietX: tied to another, "
+            "step there.  Grey rows are held by rietx: tied to another, "
             "or fixed by symmetry.")
         self.tree.itemChanged.connect(self._on_item_changed)
         self.tree.itemDoubleClicked.connect(self._on_double_clicked)
@@ -170,7 +170,7 @@ class ParameterTable(QWidget):
         self._fill()
 
     def set_flags_enabled(self, on: bool, why: str = "") -> None:
-        """The Refine column live or greyed with ``why``: a RietX plan
+        """The Refine column live or greyed with ``why``: a rietx plan
         decides for itself what is freed, and a live box beside it
         would claim a say it does not have."""
         if (bool(on), why) == (self._flags_enabled, self._flags_why):

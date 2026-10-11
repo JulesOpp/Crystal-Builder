@@ -141,7 +141,7 @@ def refinement_workbench() -> None:
     loaded and its lines found (the refine extra).
 
     No measured pattern ships with the application, so the "measured"
-    one is calculated by RietX from the structure, with Poisson noise
+    one is calculated by rietx from the structure, with Poisson noise
     on a flat background, as the test suite's fixture does.
     """
     import tempfile

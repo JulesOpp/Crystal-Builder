@@ -18,7 +18,7 @@ from xtalapp.mainwindow import MainWindow  # noqa: E402
 from xtalapp.settings import AppSettings  # noqa: E402
 
 #: CI's test job does not install ``refine``: without it the Run
-#: button names the extra and the plan notes, which are RietX's own
+#: button names the extra and the plan notes, which are rietx's own
 #: descriptions of its plans, are empty.
 needs_rietx = pytest.mark.skipif(not powder.available(),
                                  reason="needs the refine extra")
@@ -70,7 +70,7 @@ def test_the_workbench_greys_out_naming_the_refine_extra(
 
 @needs_rietx
 def test_run_waits_for_a_pattern(bench):
-    """Without RietX the tooltip names the extra instead, which is the
+    """Without rietx the tooltip names the extra instead, which is the
     test above."""
     assert not bench.run_button.isEnabled()
     assert "Load a pattern" in bench.run_button.toolTip()
@@ -688,7 +688,7 @@ def test_stopping_a_rietveld_run_puts_the_atoms_back(
 
 def test_a_frame_before_the_scale_is_refined_leaves_the_axis_on_the_data(
         bench, rutile_xy):
-    """RietX's first frame is at scale 1: 2.5 million counts against
+    """rietx's first frame is at scale 1: 2.5 million counts against
     5000 on rutile.  The axis sized to it and kept that size for every
     later frame, which drew the measurement as a flat line."""
     bench.load_pattern(rutile_xy)
@@ -902,7 +902,7 @@ def test_loading_another_pattern_starts_a_new_history(bench, rutile_xy):
 @needs_rietx
 def test_the_plan_note_says_what_the_chosen_plan_frees(
         window, rutile_cif):
-    """Two of RietX's four plans move no atom, which a name like
+    """Two of rietx's four plans move no atom, which a name like
     "lab Bragg-Brentano" does not say."""
     window.open_path(rutile_cif)
     bench = window.open_refine_workbench()
@@ -943,7 +943,7 @@ def test_run_and_stop_stay_in_sight_on_every_step(bench):
 
 @needs_rietx
 def test_a_rietx_plan_greys_out_the_boxes_it_decides_for_itself(bench):
-    """RietX's plans never read the flags, so a box left live beside
+    """rietx's plans never read the flags, so a box left live beside
     one looked like a say over the fit that it did not have.  The
     range, the background's order and the values still count, and
     stay live -- a plan starts from the values shown."""

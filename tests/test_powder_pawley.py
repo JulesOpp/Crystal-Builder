@@ -179,7 +179,7 @@ def test_a_pawley_profile_is_rietvelds_start(fit, rutile_xy_shared):
     Rietveld run from them with the profile held keeps it; the scale
     it hands back is the one it was given, never its scaffold's.
     Without it a Pawley fit is only a cell, and Rietveld re-derives
-    the profile from RietX's preset."""
+    the profile from rietx's preset."""
     from xtal.core.lattice import Lattice
     from xtal.core.structure import Structure
     from xtal.powder.rietveld import RietveldOptions, rietveld

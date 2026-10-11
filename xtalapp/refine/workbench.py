@@ -568,7 +568,7 @@ class RefinementWorkbench(QMainWindow):
             "GoF ranks by how well the line positions are explained; "
             "GoF / (unindexed + 1) makes a cell pay for each line it "
             "leaves unexplained, as TOPAS's second ordering does.  "
-            "RietX's rank weighs its whole figure-of-merit panel and "
+            "rietx's rank weighs its whole figure-of-merit panel and "
             "whether its engines agree.")
         self.sort_box.currentIndexChanged.connect(
             lambda _i: self._fill_cells())
@@ -832,14 +832,14 @@ class RefinementWorkbench(QMainWindow):
 
     def _show_plan_note(self) -> None:
         """What the chosen plan does, and the boxes it overrides greyed:
-        RietX's plans never read them, and a live box beside one
+        rietx's plans never read them, and a live box beside one
         claimed a say it did not have."""
         values = self.values("rietveld")
         self.plan_note.setText(steps.rietveld_plan_note(values))
         planned = bool(values.get("plan"))
         self.parameter_table.set_flags_enabled(
             not (planned and self.current_step == "rietveld"),
-            "RietX's plan decides what is freed; it starts from the "
+            "rietx's plan decides what is freed; it starts from the "
             "values shown")
         form = self.step_forms["rietveld"]
         for name in steps.PLAN_DECIDES:
@@ -870,7 +870,7 @@ class RefinementWorkbench(QMainWindow):
         return self.document.structure
 
     def _default_parameters(self) -> ps.ParameterSet:
-        """Where a first run starts: RietX's preset for the radiation
+        """Where a first run starts: rietx's preset for the radiation
         shown, the background under the pattern loaded, and the
         structure's atoms.  What Reset goes back to, too."""
         from xtal.powder import bridge
@@ -1743,7 +1743,7 @@ class RefinementWorkbench(QMainWindow):
         gof.setToolTip(
             f"{name}: how well the cell explains the line positions, "
             f"higher better -- the figure TOPAS calls GOF.  M20 when "
-            f"20 or more lines are in use, RietX's M_sym below that.")
+            f"20 or more lines are in use, rietx's M_sym below that.")
         self.cell_table.blockSignals(True)
         self.cell_table.clearSelection()
         self.cell_table.setRowCount(len(rows))

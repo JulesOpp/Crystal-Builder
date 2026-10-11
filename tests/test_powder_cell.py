@@ -22,7 +22,7 @@ def test_a_cubic_cell_is_one_length_and_a_monoclinic_one_four_numbers():
 
 def test_the_unique_angle_follows_the_monoclinic_setting():
     """P 1 1 21 has its two-fold along c, so gamma is the free angle;
-    offering beta would let a person type a cell RietX then ties."""
+    offering beta would let a person type a cell rietx then ties."""
     assert free_names("P 1 1 21") == ("a", "b", "c", "gamma")
     assert free_names("A 1 2/m 1") == ("a", "b", "c", "beta")
 

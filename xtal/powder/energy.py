@@ -16,10 +16,10 @@ weight means the same thing on rutile and on a framework of a
 thousand atoms, and ``w = 0.5`` is an even split rather than whichever
 term has the larger units.
 
-**RietX has no cost term of anyone else's**, so the minimiser is ours:
-scipy's L-BFGS over RietX's own variables -- each atom a step along
+**rietx has no cost term of anyone else's**, so the minimiser is ours:
+scipy's L-BFGS over rietx's own variables -- each atom a step along
 the directions its site allows, and the cell's free numbers when the
-cell is let move.  The pattern's gradient is RietX's analytic Jacobian
+cell is let move.  The pattern's gradient is rietx's analytic Jacobian
 (:class:`~xtal.powder.bridge.PatternTerm`), the energy's the engine's
 forces carried back over each orbit.  **A site on a special position
 stays on it** because there is no variable that would take it off:
@@ -31,7 +31,7 @@ held**: the scale, background, zero and peak shape are the pattern's,
 fitted with the atoms and the cell where they are, before the atoms
 are asked to answer to anything.  With none of them flagged there is
 no first fit, and the atoms start against the numbers the parameter
-table shows -- a first stage of its own, from RietX's preset, was
+table shows -- a first stage of its own, from rietx's preset, was
 where the start used to be hidden.  The cell is held by default -- Julius's
 choice; a cell that moves under an energy is a different experiment
 -- and, let move, its energy gradient is the engine's stress.
@@ -189,7 +189,7 @@ def _check_weight(weight: float) -> None:
 class EnergyProblem:
     """One pattern, one engine, one start: the objective at any weight.
 
-    Built once -- the scale, background and peak shape fitted, RietX's
+    Built once -- the scale, background and peak shape fitted, rietx's
     model compiled, the engine made -- and then minimised at as many
     weights as are asked, each from wherever the caller says.  That is
     what a sweep of weights needs (:mod:`xtal.powder.pareto`): every
@@ -234,7 +234,7 @@ class EnergyProblem:
         self.parameters = after
         if result is None:
             self.background = bridge.background(refinement, window)
-            # no fit, so no reflection list of RietX's: the group's
+            # no fit, so no reflection list of rietx's: the group's
             # own lines, with no multiplicity or intensity to give
             self.reflections = [
                 Reflection(hkl, d, two_theta, 0, math.nan)
@@ -468,7 +468,7 @@ class _Variables:
     """The pattern term's variables as scipy minimises them.
 
     Scaled so that a unit step moves the furthest atom it moves by one
-    Å, and a cell number by one Å or one degree: RietX's steps are in
+    Å, and a cell number by one Å or one degree: rietx's steps are in
     fractions, and a fraction of a 30 Å axis is thirty times a
     fraction of a 1 Å one, which L-BFGS would otherwise have to learn.
     """

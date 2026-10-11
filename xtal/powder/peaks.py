@@ -5,15 +5,15 @@ Peak fitting: every resolvable line in a pattern, with a fitted
 position, an area and an esd -- TOPAS's ``xo_Is`` step, and what
 indexing reads.
 
-Two stages, as TOPAS's ``a_peak`` is used.  **Finding** is RietX's
+Two stages, as TOPAS's ``a_peak`` is used.  **Finding** is rietx's
 (``rietx.indexing.pick_peaks_with_state``, or ``fit_peaks`` at named
 positions): each line fitted in its own window over the background
-envelope RietX's detector draws.  **Refining** (:func:`refine_peaks`)
+envelope rietx's detector draws.  **Refining** (:func:`refine_peaks`)
 is one least-squares fit of the whole range -- a Chebyshev background
 of the order asked for under every line kept, each line's position,
 area, width and Lorentzian fraction free, its Kα2 placed by Bragg's
-law at RietX's weight -- which is what TOPAS's ``xo_Is`` with a
-``bkg`` line is.  RietX has no whole-pattern peak fit (its
+law at rietx's weight -- which is what TOPAS's ``xo_Is`` with a
+``bkg`` line is.  rietx has no whole-pattern peak fit (its
 ``compile_model`` needs a cell, and a cell is what this step is
 for), so the refinement is written here, on ``scipy``'s
 ``least_squares``; the peak shape is
@@ -60,7 +60,7 @@ class PeakOptions:
 class Peak:
     """One fitted line, as the table shows it.
 
-    ``use`` is whether indexing reads it.  It starts as RietX's own
+    ``use`` is whether indexing reads it.  It starts as rietx's own
     verdict (a Kβ ghost, a failed fit or a line it could not separate
     is out) and is the user's to change after that, which is TOPAS's
     "comment out a peak".
@@ -78,7 +78,7 @@ class Peak:
     eta: float = 0.5
     #: ``"fitted"``, or ``"manual"`` for a line a person placed
     origin: str = "fitted"
-    #: RietX's own record of a line it found, kept so indexing reads
+    #: rietx's own record of a line it found, kept so indexing reads
     #: exactly what was fitted; ``None`` for one refined or placed here
     line: Any = None
 
@@ -89,7 +89,7 @@ class PeakFit:
 
     ``two_theta`` / ``y_obs`` / ``y_calc`` / ``y_background`` are on
     the grid the fit ran on, which is the pattern cropped to the range
-    asked for.  ``native`` is RietX's own peak list, kept so indexing
+    asked for.  ``native`` is rietx's own peak list, kept so indexing
     reads exactly what was fitted rather than a copy of it rebuilt
     from the table.
     """
@@ -119,12 +119,12 @@ class PeakFit:
         return sum(1 for peak in self.peaks if peak.use)
 
     def for_indexing(self):
-        """RietX's list with the unticked lines flagged ``excluded``.
+        """rietx's list with the unticked lines flagged ``excluded``.
 
-        ``excluded`` is RietX's own word for a line its caller took
+        ``excluded`` is rietx's own word for a line its caller took
         out, so ``PeakList.usable()`` -- which every indexing engine
         reads -- leaves it out without anything here re-implementing
-        what "usable" means.  A line RietX found goes as RietX
+        what "usable" means.  A line rietx found goes as rietx
         recorded it; one refined or placed here is recorded afresh.
         """
         from xtal.powder import bridge
@@ -196,7 +196,7 @@ class PeakFit:
         """Line ``index`` moved, resized or re-weighted by hand: a
         better start for :func:`refine_peaks` than the one found.
 
-        A line a person has set is no longer RietX's record of what it
+        A line a person has set is no longer rietx's record of what it
         found, so indexing reads it afresh, and its esds -- which were
         the fit's -- are gone until it is refined again.
         """
@@ -294,12 +294,12 @@ def empty_fit(data: PowderData, radiation: Radiation, start: float,
 def _drop_twins(native):
     """``(peak_list, twins)``: a line fitted twice taken out once.
 
-    RietX's fitting windows can overlap, and each fits the line they
+    rietx's fitting windows can overlap, and each fits the line they
     share -- rutile's 101 arrives as two lines from two groups at one
     position.  Indexing would read that as two observations of one
     d-spacing and weight it double, and a curve summed from both draws
     the line twice as tall as it is.  The copy with the larger esd is
-    flagged ``excluded`` (RietX's word for a line its caller took out)
+    flagged ``excluded`` (rietx's word for a line its caller took out)
     and its index returned, so the table can say ``duplicate``.
     """
     lines = list(native.peaks)
@@ -327,9 +327,9 @@ def _drop_twins(native):
 def _lines_profile(grid: np.ndarray, lines, emission) -> np.ndarray:
     """Every line (a :class:`Peak`) drawn on the grid, its Kα2 included.
 
-    For drawing only.  Each line's area, width and mixing are RietX's,
+    For drawing only.  Each line's area, width and mixing are rietx's,
     placed at its Kα1 position and again at every further emission
-    line's Bragg angle with that line's weight -- RietX fits the
+    line's Bragg angle with that line's weight -- rietx fits the
     doublet as a constrained pair, but only inside a window that can
     stop short of the Kα2 (54.44° against rutile's 54.48°), so its own
     per-window curves leave the Kα2 undrawn.  Asymmetry is not drawn.

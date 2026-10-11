@@ -7,7 +7,7 @@ pytest.importorskip("PySide6")
 
 
 def test_the_selftest_refines_rutile_or_says_why_it_cannot(monkeypatch):
-    """A bundle that promised the workbench and lost RietX fails; a
+    """A bundle that promised the workbench and lost rietx fails; a
     checkout without the extra only says it skipped."""
     from xtal import powder
     from xtalapp import extras, selftest

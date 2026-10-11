@@ -17,7 +17,7 @@ fitted and unticked -- and a generic form in a menu cannot hand it
 that.  The workbench, *Refine against a measured pattern...*, is the
 way in, and is the one entry listed.
 
-**Every step greys out naming the extra** when RietX is missing, by
+**Every step greys out naming the extra** when rietx is missing, by
 ``find_spec`` and never an import.
 """
 
@@ -123,7 +123,7 @@ _TOLERANCE_HELP = {
             "below which it stops (scipy's ftol).  Tighter spends "
             "steps on parts per million the lines do not show.",
     "1e-9": "When a fit is done: the relative fall in χ² below which "
-            "its last stage stops (RietX's ftol).  The stages before "
+            "its last stage stops (rietx's ftol).  The stages before "
             "it only seed the next one, and stop at 1e-6, or at this "
             "if it is looser.",
     "1e-6": "When the joint fit is done: the largest gradient of the "
@@ -142,7 +142,7 @@ REFINE_PEAK_PARAMS = (
                "curved or humped background; too many start fitting "
                "the tails of broad peaks.  Find peaks draws its own "
                "background and does not read this."),
-    # scipy's solver, not RietX's: it stops in tens of steps
+    # scipy's solver, not rietx's: it stops in tens of steps
     *_iteration_params("1e-5", "the peak refinement takes", minimum=1,
                        default=400),
 )
@@ -189,7 +189,7 @@ PARAMETERS_PARAM = Param(
     help="A file of parameters to start from, one a line as the "
          "workbench's Copy writes them: name value ± esd Refine, or "
          "NoRefine.  Its flags say what is refined and the Refine "
-         "boxes are not read; a row it leaves out starts from RietX's "
+         "boxes are not read; a row it leaves out starts from rietx's "
          "preset.  Empty starts from the preset, freed as the boxes "
          "say.")
 
@@ -260,7 +260,7 @@ def _is_set(value) -> bool:
 
 def flagged_boxes(parameters, radiation: Radiation,
                   preferred_axis=None) -> set[str]:
-    """The bridge's words for what ``parameters`` flags and RietX will
+    """The bridge's words for what ``parameters`` flags and rietx will
     move: never a capillary's specimen displacement, and texture only
     along an axis.  What a note says is refined, from the one place a
     run reads it."""
@@ -443,7 +443,7 @@ INDEX_PARAMS = (
           default=0.3, minimum=0.0, maximum=1.0, step=0.1, decimals=3,
           suffix=" °",
           help="How far a systematic 2θ shift may move the lines, "
-               "TOPAS's index_zero_error, from 0 to 1°.  0 lets RietX "
+               "TOPAS's index_zero_error, from 0 to 1°.  0 lets rietx "
                "measure it from line pairs, or assume 0.05°.  A wide "
                "allowance finds a cell through a badly aligned "
                "sample and lets wrong cells match too: on a clean "
@@ -478,14 +478,14 @@ INDEX_COLUMNS = ("Rank", "System", "Lattice", "a", "b", "c", "α", "β",
                  "Confidence", "Le Bail Rwp", "Space groups")
 
 #: How the cell table can be ordered: ``(key, label)``.  TOPAS sorts
-#: its .ndx by GOF or by GOF over the unindexed lines; RietX's own
+#: its .ndx by GOF or by GOF over the unindexed lines; rietx's own
 #: rank weighs its whole figure-of-merit panel and the engines'
 #: agreement.
-INDEX_SORTS = (("rank", "RietX's rank"), ("gof", "GoF"),
+INDEX_SORTS = (("rank", "rietx's rank"), ("gof", "GoF"),
                ("gof_unindexed", "GoF / (unindexed + 1)"))
 
 
-#: RietX's figure-of-merit keys as the literature writes them.
+#: rietx's figure-of-merit keys as the literature writes them.
 FOM_NAMES = {"m20": "M20", "f_n": "F_N", "m_sym": "M_sym",
              "m_rev": "M_rev"}
 
@@ -593,10 +593,10 @@ def index_cells(row) -> tuple[str, ...]:
 def index_report(result, name: str = "") -> Report:
     rows = tuple(Row.of(*index_cells(row)) for row in result.rows)
     if result.best is not None:
-        verdict = (f"RietX names cell {result.best + 1}: every engine "
+        verdict = (f"rietx names cell {result.best + 1}: every engine "
                    f"found it and nothing refuted it.")
     else:
-        verdict = ("RietX names no cell -- the engines, the figures of "
+        verdict = ("rietx names no cell -- the engines, the figures of "
                    "merit or the whole-pattern fit did not agree well "
                    "enough.  The ranking is still the ranking; the "
                    "confidence column says why each is not higher.")
@@ -846,7 +846,7 @@ def _write_reflections(path, fit):
 #  WHAT A FIT REFINED
 # ======================================================================
 
-#: What each box of a form refined, as ``(RietX path, label, unit)``:
+#: What each box of a form refined, as ``(rietx path, label, unit)``:
 #: the numbers written beside the box once a fit has run.
 _SHOWN = {
     "zero": (("instrument.zero_shift", "", "°"),),
@@ -915,16 +915,16 @@ def refined_notes(fit) -> dict[str, str]:
 RIETVELD_PARAMS = (
     Param("plan", "Plan", kind="choice", default="",
           choices=(("", "The Refine flags"),
-                   ("mccusker_structural", "RietX: McCusker, structural"),
-                   ("mccusker_default", "RietX: McCusker, profile"),
-                   ("lab_bragg_brentano", "RietX: lab Bragg-Brentano"),
-                   ("lab_sample_refine", "RietX: sample on a calibrated "
+                   ("mccusker_structural", "rietx: McCusker, structural"),
+                   ("mccusker_default", "rietx: McCusker, profile"),
+                   ("lab_bragg_brentano", "rietx: lab Bragg-Brentano"),
+                   ("lab_sample_refine", "rietx: sample on a calibrated "
                                          "instrument")),
           help="What is freed, and in what order.  The Refine flags "
                "-- the workbench's parameter table, a parameters file, "
                "or the boxes -- free in McCusker's order: background "
                "and scale, line positions, cell, widths, then the "
-               "atoms.  RietX's own plans ignore the flags, and start "
+               "atoms.  rietx's own plans ignore the flags, and start "
                "from the values."),
     Param("start", "2θ from", kind="float", default=0.0, minimum=0.0,
           maximum=180.0, decimals=2, suffix=" °",
@@ -983,11 +983,11 @@ RIETVELD_PARAMS = (
           help="The March-Dollase axis as h k l -- 0 0 1 for plates "
                "lying on their c face.  Empty is no texture."),
     *_iteration_params("1e-9", "each stage of the fit runs (TOPAS "
-                               "iters), a RietX plan's stages too"),
+                               "iters), a rietx plan's stages too"),
 )
 
 
-#: The boxes a RietX plan decides for itself: with one chosen they are
+#: The boxes a rietx plan decides for itself: with one chosen they are
 #: never read, and a box left live beside it says it is.  The range
 #: and the background's order still count, since the plan refines
 #: over whatever pattern and background it is handed.

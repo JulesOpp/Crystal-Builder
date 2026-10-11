@@ -1,6 +1,6 @@
 """The numbers a refinement starts from, and which of them it moves.
 
-Every run in the workbench used to start from RietX's preset: a
+Every run in the workbench used to start from rietx's preset: a
 Pawley fit's peak shape was thrown away before the Rietveld step
 began, and With energy fitted the scale, background and profile again
 from nothing, where nobody could see it.  A :class:`ParameterSet` is
@@ -8,8 +8,8 @@ what is kept between runs instead -- every number with its value,
 whether it is refined, and the esd the last fit gave it -- and it is
 one set for every step, so switching step keeps it.
 
-Named for a person, mapped to RietX's paths in one place.  **This
-module never imports RietX**: ``bridge`` hands a set's values to a
+Named for a person, mapped to rietx's paths in one place.  **This
+module never imports rietx**: ``bridge`` hands a set's values to a
 refinement and takes them back.  The cell is not here -- each step
 keeps its own (Pawley a trial cell, Rietveld the structure's) -- and
 an atom's Biso and occupancy are the structure's, carried here as
@@ -104,7 +104,7 @@ class Parameter:
 
     ``value`` is ``None`` for a row that is only a flag -- an atom's
     position, which is three numbers the structure holds and the
-    symmetry decides how many of are free.  ``held`` is why RietX will
+    symmetry decides how many of are free.  ``held`` is why rietx will
     not move it (a locked angle, a tied coordinate), ``""`` when it
     will; a held row is shown and never set.
     """
@@ -214,13 +214,13 @@ class ParameterSet:
 
     def values_by_path(self) -> dict[str, float]:
         """``{path: value}`` of every number a refinement is handed:
-        not the held rows, which RietX would refuse, and not the flags,
+        not the held rows, which rietx would refuse, and not the flags,
         which have no number."""
         return {row.path: row.value for row in self
                 if row.value is not None and not row.held}
 
     def freed_paths(self) -> list[str]:
-        """RietX's paths, or globs, of every row to refine."""
+        """rietx's paths, or globs, of every row to refine."""
         return [row.path for row in self if row.refine and not row.held]
 
     def flag_boxes(self, free) -> None:
@@ -250,7 +250,7 @@ class ParameterSet:
             row.esd = float(esd) if esd else None
 
     def hold(self, reasons: dict[str, str]) -> None:
-        """Mark what RietX will not move, ``{path: why}``; a row not
+        """Mark what rietx will not move, ``{path: why}``; a row not
         named is free again."""
         for row in self:
             row.held = reasons.get(row.path, "")
@@ -357,10 +357,10 @@ def box_of(path: str) -> str:
 
 def site_labels(structure) -> list[tuple[int, str]]:
     """``[(site_index, label), ...]`` of the atoms that scatter, in the
-    order RietX is handed them.
+    order rietx is handed them.
 
     Dummy atoms are markers and are left out.  Two sites called O1
-    would be one parameter in RietX's paths, so the second is made
+    would be one parameter in rietx's paths, so the second is made
     unique -- here, once, for the bridge and the table alike.
     """
     out = []
@@ -408,7 +408,7 @@ def defaults(preset: dict[str, float], *, structure=None, data=None,
              synchrotron: bool = False) -> ParameterSet:
     """The set a first run starts from, and what Reset goes back to.
 
-    ``preset`` is RietX's instrument for this radiation as
+    ``preset`` is rietx's instrument for this radiation as
     ``{path: value}`` (``bridge.preset_parameters``); its background
     coefficients say how many terms there are.  With ``data``, the
     background starts under the counts rather than at zero.  A

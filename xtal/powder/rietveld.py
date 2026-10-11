@@ -4,12 +4,12 @@ xtal.powder.rietveld
 Rietveld: a structure's own atoms fitted to the whole pattern --
 TOPAS's ``d_riet`` step, and the one a person watches.
 
-RietX fits (``mode="rietveld"``); what is decided here is what a
+rietx fits (``mode="rietveld"``); what is decided here is what a
 person sets and what comes back.  The boxes free, in McCusker's
 order, the background, the line positions, the cell number by number,
 the widths, and then the structure -- coordinates along each site's
 allowed directions, displacements, occupancies, and March-Dollase
-texture about an axis.  Or one of RietX's own plans instead of the
+texture about an axis.  Or one of rietx's own plans instead of the
 boxes.
 
 **A refinement moves atoms; it never adds, removes or bonds them.**
@@ -17,7 +17,7 @@ The refined structure is the one given with new numbers on the same
 sites -- :func:`~xtal.powder.bridge.apply_phase` writes back by index
 and refuses a phase of another length -- and :func:`rietveld` checks
 the count and the bonds before it hands anything back.  Dummy atoms
-are markers, never scatterers: they do not go to RietX and come back
+are markers, never scatterers: they do not go to rietx and come back
 where they were, at the same fractional coordinates.
 
 **Nothing here touches a document.**  Frames go out through
@@ -48,7 +48,7 @@ class RietveldOptions:
     """What the Rietveld step asks (TOPAS ``d_riet.inp``).
 
     The booleans are the free boxes; ``hold_cell`` names cell numbers
-    held while the others refine.  ``plan`` is one of RietX's presets
+    held while the others refine.  ``plan`` is one of rietx's presets
     (:data:`~xtal.powder.bridge.RIETVELD_PRESETS`), or empty for the
     plan the boxes make.  ``preferred_axis`` is the March-Dollase
     direction as three integers, ``None`` for no texture.
@@ -123,11 +123,11 @@ class RietveldFit:
     y_background: np.ndarray
     ticks: np.ndarray
     radiation: Radiation
-    #: ``{path: (value, esd)}`` of every number refined, RietX's paths
+    #: ``{path: (value, esd)}`` of every number refined, rietx's paths
     refined: dict = field(default_factory=dict)
     #: the furthest any atom moved within the cell, in Å
     moved: float = 0.0
-    #: RietX's label of each atom of the phase, in its order
+    #: rietx's label of each atom of the phase, in its order
     atom_labels: tuple[str, ...] = ()
     notes: list[str] = field(default_factory=list)
     #: the set after the fit, for the next run to start from
@@ -172,7 +172,7 @@ def rietveld(structure, data: PowderData, radiation: Radiation,
     """Refine ``structure`` against ``data``.
 
     ``parameters`` is the set to start from, whose flags say what is
-    refined; ``None`` starts from RietX's preset with the boxes of
+    refined; ``None`` starts from rietx's preset with the boxes of
     ``options`` as the flags.  The cell, its held numbers, the range,
     the background's order, the texture axis and the plan are
     ``options``' either way: the cell is each step's own.

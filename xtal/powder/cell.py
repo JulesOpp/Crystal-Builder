@@ -6,12 +6,12 @@ Which of a cell's six numbers a space group leaves free.
 A cubic cell is one length; a monoclinic one is three lengths and the
 angle about its unique axis.  A refinement form that offered six boxes
 for every group would take ``a = 4.59, b = 4.60`` for a tetragonal
-cell and hand RietX a lattice its own ties then overwrite -- the fit
+cell and hand rietx a lattice its own ties then overwrite -- the fit
 would run on a cell the person never typed.  So the form offers the
 free numbers and derives the rest, and a refinement frees or holds the
 free ones one by one, as TOPAS's ``a @ 4.59`` against ``a 4.59`` does.
 
-RietX ties the same numbers itself (``b`` follows ``a`` on a cubic
+rietx ties the same numbers itself (``b`` follows ``a`` on a cubic
 cell); this module says so without importing it, because the form has
 to know before any fit has been asked for.
 """

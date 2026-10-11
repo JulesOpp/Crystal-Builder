@@ -355,7 +355,7 @@ def test_an_ml_engine_row_cites_what_the_force_field_panel_does():
 def test_a_bundle_keeps_numbas_kernel_cache_in_its_own_folder(
         monkeypatch, tmp_path):
     """numba caches beside the source by default -- inside a signed
-    bundle -- and RietX would move it to ~/.rietx; a packaged build
+    bundle -- and rietx would move it to ~/.rietx; a packaged build
     keeps it beside its own log instead.  A checkout, and a variable
     somebody set, are left alone."""
     from xtalapp import applog

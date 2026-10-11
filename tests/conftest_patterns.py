@@ -1,7 +1,7 @@
 """Diffractometer files written byte for byte, for the vendor readers.
 
 No real ``.rasx`` or ``.raw`` can be vendored -- they are other
-people's measurements -- and RietX ships none, so these are made to
+people's measurements -- and rietx ships none, so these are made to
 the layouts its readers document: a Rigaku zip with its manifest, a
 DIFFRAC-AT ``.uxd``, and a Bruker RAW v3, whose header is fixed
 offsets.  One peak on a flat background, integral counts, so every

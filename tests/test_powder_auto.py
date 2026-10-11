@@ -125,7 +125,7 @@ def test_fits_within_a_percent_of_each_other_keep_indexings_order():
     rows = ranked([_row(2, 1, 0.09490), _row(1, 2, 0.09495),
                    _row(1, 1, 0.09499), _row(3, 1, 0.11780),
                    dataclasses.replace(_row(4, 1, 0.0), fit=None,
-                                       error="RietX refused")])
+                                       error="rietx refused")])
     assert [(r.cell_rank, r.class_rank) for r in rows] == \
         [(1, 1), (1, 2), (2, 1), (3, 1), (4, 1)]
     assert [r.rank for r in rows] == [1, 2, 3, 4, 5]

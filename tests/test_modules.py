@@ -476,7 +476,7 @@ def _command(extra):
      "RDKit is not installed, so there is nothing to build a molecule "
      "from -- {}", lambda: _command("build")),
     (_refine_without_rietx,
-     "Refinement needs RietX -- {}", lambda: _command("refine")),
+     "Refinement needs rietx -- {}", lambda: _command("refine")),
     (_bands_without_ase,
      "the band path needs ASE, which works out the special points of "
      "this cell -- {}", lambda: _command("ase")),

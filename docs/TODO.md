@@ -809,11 +809,11 @@ and extend with the cell held.
 
 ### Rietveld with energy: the pattern's gradient could be one reverse pass
 
-`bridge.PatternTerm` builds the whole Jacobian with RietX's numpy code
+`bridge.PatternTerm` builds the whole Jacobian with rietx's numpy code
 to take one gradient, `2 J^T r`.  On ZIF-8 in P1 (306 free
 coordinates) that is 2.75 s an evaluation, against 8 ms for UFF's
 energy and 5 ms for the residual alone.  Torch's reverse mode over
-RietX's own traced residual (`backend.torch_backend`,
+rietx's own traced residual (`backend.torch_backend`,
 `make_traced_residual`) gives the same gradient to 1e-12 in 0.48 s.
 Torch is not in the `refine` extra, and loading it into a process is
 what CLAUDE.md's "Aborted runs" warns about, so it would be an option
