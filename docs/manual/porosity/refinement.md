@@ -21,7 +21,7 @@ changes in your document and what it never does.
 ```
 ```{index} single: indexing
 ```
-```{index} single: RietX
+```{index} single: rietx
 ```
 
 The {doc}`PXRD page <pxrd>` *calculates* a pattern from a structure and
@@ -30,7 +30,7 @@ fit or refine; this page is where that starts.
 
 ## What does the physics
 
-**The fitting is RietX's.**  RietX {cite}`wu2026rietx`, an open-source
+**The fitting is rietx's.**  rietx {cite}`wu2026rietx`, an open-source
 Python package, fits the peak profiles, searches for the cell,
 refines, and reads the diffractometers' file formats; Crystal Builder
 is what a structure of this application, a pattern and a radiation look
@@ -63,7 +63,7 @@ measured pattern… <cmd-refine_workbench>`, over the tab in front, and
   taken as each point's error when every row has one.
 - **A diffractometer's own file**: Rigaku `.rasx` and `.ras`, Bruker
   `.raw`, `.brml` and `.uxd`, PANalytical `.xrdml` and `.udf`, Philips
-  `.rd` and `.sd`.  RietX reads these, so they open only with the
+  `.rd` and `.sd`.  rietx reads these, so they open only with the
   `refine` extra.  Where a file holds several scans the first is taken
   and the notes say so (*scan 0 of 3*).
 - **Radiation**, from a list: Cu, Mo or Co with Kα1 and Kα2 (a
@@ -115,12 +115,12 @@ Peaks
   only at* list.
 
 Index
-: Which unit cells explain the lines.  RietX runs three search engines
+: Which unit cells explain the lines.  rietx runs three search engines
   that fail differently, and their agreement is the confidence.  You
   choose which of the fourteen Bravais lattices to search, optionally
   which space groups, a zero-error allowance, the largest volume and
   the longest axis, and a **time budget** (off to start with).  **There
-  is no winner unless RietX names one**: the best cell is shown only
+  is no winner unless rietx names one**: the best cell is shown only
   when the engines and the figures of merit agree and the pattern could
   validate it, and every row carries its confidence and the reasons it
   is not higher.  A **space group is a list of classes, never one
@@ -153,7 +153,7 @@ Rietveld
   position stays on it -- with displacement parameters, optionally
   occupancies, and March--Dollase texture about an axis.  A **Plan**
   chooses what is freed and in what order: the Refine flags of the
-  parameter table (below), or one of RietX's own plans, which ignore
+  parameter table (below), or one of rietx's own plans, which ignore
   the flags.  The run is watched: its frames move the atoms and redraw
   the calculated curve as it goes.
 
@@ -167,7 +167,7 @@ Automatic
 : Peaks, indexing and a Pawley fit of every leading cell in every
   leading space-group class, ranked in a table, one fit per (cell,
   class), each in a run folder of its own so that a row opens the fit
-  it was ranked by.  **A fit RietX refuses is a row with its reason**,
+  it was ranked by.  **A fit rietx refuses is a row with its reason**,
   never a missing row.  It stops at the table unless *Continue to
   Rietveld* is ticked, and then goes on only when the open structure
   is the crystal the table found -- its cell within 1 % and 1° of a
@@ -200,21 +200,21 @@ sample broadening, preferred orientation, atoms -- and **that is the
 order they are freed in**.  The Refine column replaced the old "Refine
 …" boxes, so there is one answer to what is refined, not two.
 
-- **Reset Parameters** puts every number back to RietX's preset for
+- **Reset Parameters** puts every number back to rietx's preset for
   the radiation and pattern shown.
 - A finished fit hands its set back, with its esds, and the rows it
   moved are marked for a moment.  The set is kept between runs: a
   Pawley fit's peak shape is no longer thrown away before the Rietveld
   step, and With energy no longer refits the scale, background and
   profile from nothing where nobody could see it.  Until a run or you
-  have changed it, a new pattern or radiation rebuilds it from RietX's
+  have changed it, a new pattern or radiation rebuilds it from rietx's
   preset.
 - **An atom's Biso and occupancy are the structure's**, shown here and
   editable, but typing one is an edit of the site: one undo step on the
   Document, never a second copy that could drift from it.
 - **A held row is shown greyed and never edited**: a tie (a cubic *b*
   follows *a*), a number the plan locks, an atom with no free
-  direction.  What RietX holds is read off its own table.
+  direction.  What rietx holds is read off its own table.
 - **Copy** writes the set as text, one row a line, and **Paste** reads it
   back; the format is the same as a parameters file:
 
@@ -231,9 +231,9 @@ Rietveld.
 
 ## Zero cycles is an evaluation
 
-**Max iterations 0 fits nothing.**  RietX refuses `max_iter=0`, so a
+**Max iterations 0 fits nothing.**  rietx refuses `max_iter=0`, so a
 zero is read as an *evaluation*: the pattern is calculated at the
-parameters as they stand, the R values and RietX's own statistics are
+parameters as they stand, the R values and rietx's own statistics are
 reported, nothing moves, no esds are produced, and **no undo step** is
 pushed.  A Pawley evaluation still finds its intensities.  It is the
 way to ask how well a model that you set up by hand, or a parameters
@@ -281,7 +281,7 @@ run folder: ws/TiO2/pxrd-rietveld-002
 
 This is a demonstration of the machinery on a pattern with five
 reflections, not of what a refinement of a real material looks like.
-The notes at the end are RietX's and are the part to read: a parameter
+The notes at the end are rietx's and are the part to read: a parameter
 refined to its bound, pairs of correlated parameters (U, V and W of the
 peak shape here, at ρ = −0.999), and the number of effective
 observations against the free structural parameters, whose guideline
@@ -303,8 +303,8 @@ done:
   `positions`, `biso`, ...) into flags, as the window's table does.
 
 `rietx/`
-: RietX's own record of the run.  **Every fit is told its run folder,
-  never the working directory**: RietX otherwise writes `./.rietx/runs`
+: rietx's own record of the run.  **Every fit is told its run folder,
+  never the working directory**: rietx otherwise writes `./.rietx/runs`
   wherever the process was started from, which might be your home
   folder or inside the application bundle.
 
@@ -329,9 +329,9 @@ atoms, and 0.5 is an even split rather than whichever term has the
 larger units.  Weight 0 is the pattern alone and 1 the force field
 alone.
 
-- **The minimiser is ours**: L-BFGS over RietX's own variables -- each
+- **The minimiser is ours**: L-BFGS over rietx's own variables -- each
   atom a step along the directions its site allows, and the cell's free
-  numbers when the cell is let move.  RietX has no cost term of anyone
+  numbers when the cell is let move.  rietx has no cost term of anyone
   else's, so the pattern's gradient is its analytic Jacobian and the
   energy's is the engine's forces carried back over each orbit; a test
   holds the pattern's gradient against finite differences.
@@ -354,7 +354,7 @@ alone.
   them is the engine's stress.
 - A refinement moves atoms and **never adds, removes or bonds them**:
   the refined structure has the same sites and the same bonds, and
-  dummy atoms are markers that never go to RietX and come back where
+  dummy atoms are markers that never go to rietx and come back where
   they were.
 
 ### Pareto sweeps
@@ -438,11 +438,11 @@ peaks <mod-pxrd-refine_peaks>`, {ref}`Index <mod-pxrd-index>`,
 
 ## Limitations
 
-- Needs the `refine` extra (RietX, below 1.6).  The powder tests run
+- Needs the `refine` extra (rietx, below 1.6).  The powder tests run
   locally rather than in CI, because they take minutes.
 - A structure is not solved from a pattern: the workbench finds the
   cell, and refines a model you provide.
-- The cell's esds are RietX's and nothing wider.  A Bragg--Brentano
+- The cell's esds are rietx's and nothing wider.  A Bragg--Brentano
   cell also carries a systematic error of order 10⁻⁴ that no esd
-  reports, and the fit's notes say so when RietX does.
+  reports, and the fit's notes say so when rietx does.
 - Preferred orientation is a single March--Dollase axis.

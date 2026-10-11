@@ -91,10 +91,10 @@ def writable_numba_cache(is_frozen: bool | None = None,
     """Point numba's kernel cache into this application's own folder in
     a packaged build, and say where; ``None`` when nothing was changed.
 
-    RietX compiles its kernels with ``cache=True``.  numba's own
+    rietx compiles its kernels with ``cache=True``.  numba's own
     default is beside the module's source -- inside a signed bundle,
     which cannot be written, so every launch would compile again --
-    and RietX redirects it to ``~/.rietx`` unless the variable is
+    and rietx redirects it to ``~/.rietx`` unless the variable is
     already set.  An application a person installed from a disk image
     keeps what it writes in its own folder, beside its log, where
     deleting the application's data deletes this too.  A checkout, and
@@ -214,7 +214,7 @@ EXTRAS = (
     Extra("Powder refinement", "rietx", "refine",
           "The refinement workbench: fit peaks, index, and Pawley, Le "
           "Bail and Rietveld fits against a measured .xy pattern, with "
-          "an energy beside the pattern if asked.  RietX does the "
+          "an energy beside the pattern if asked.  rietx does the "
           "physics; it brings numba, whose first refinement compiles "
           "for a few seconds.", True,
           module="rietx", timeout=30.0,

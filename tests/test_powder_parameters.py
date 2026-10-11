@@ -11,8 +11,8 @@ from xtal.core.structure import Site, Structure
 from xtal.powder import parameters as p
 from xtal.powder.data import PowderData, PowderError, Radiation
 
-#: RietX's Cu preset, as ``bridge.preset_parameters`` reads it -- the
-#: rows the set names, so these tests need no RietX.
+#: rietx's Cu preset, as ``bridge.preset_parameters`` reads it -- the
+#: rows the set names, so these tests need no rietx.
 PRESET = {
     "phases.0.scale": 1.0,
     "phases.0.lor_size": 0.0, "phases.0.gauss_size": 0.0,
@@ -173,7 +173,7 @@ def test_reset_keeps_what_is_refined(start):
 
 
 def test_a_held_row_is_shown_but_never_set(start):
-    """RietX refuses a value for a locked or tied path; it has to be
+    """rietx refuses a value for a locked or tied path; it has to be
     left out rather than sent."""
     path = start["sample_displacement"].path
     start.set_refine("sample_displacement", True)
@@ -250,7 +250,7 @@ def test_atom_rows_are_the_structures_values(rutile):
 
 
 def test_a_dummy_atom_has_no_rows(rutile):
-    """A marker is not a scatterer: RietX is never handed one, so there
+    """A marker is not a scatterer: rietx is never handed one, so there
     is nothing of it to refine."""
     rutile.add_site(Site("X", [0.5, 0.5, 0.5]))
     labels = [label for _index, label in p.site_labels(rutile)]
@@ -260,7 +260,7 @@ def test_a_dummy_atom_has_no_rows(rutile):
 
 
 def test_two_sites_with_one_label_are_two_rows():
-    """RietX addresses atoms by index here, but the text form addresses
+    """rietx addresses atoms by index here, but the text form addresses
     them by name, and two O1 rows would be one."""
     structure = Structure.from_arrays(
         Lattice.from_parameters(5, 5, 5, 90, 90, 90), ["O", "O"],
@@ -281,7 +281,7 @@ def test_an_edited_structure_keeps_the_atoms_flags(start, rutile):
 
 
 def test_an_edited_structure_keeps_what_the_last_fit_found(start, rutile):
-    """The esd of a Biso the structure still has, and what RietX
+    """The esd of a Biso the structure still has, and what rietx
     holds: a Rietveld run commits its structure, and the table rebuilt
     from it lost every atom's esd and showed a fixed Ti as free."""
     start["Ti1_xyz"].held = "fixed by symmetry"
@@ -313,10 +313,10 @@ def test_a_run_log_names_the_set_in_one_line(start):
                            f"{len(start.freed_paths())} refined")
 
 
-# --------------------------------------------------- against RietX
+# --------------------------------------------------- against rietx
 
 def test_the_labels_are_the_ones_rietx_is_given(rutile):
-    """The table's Ti1 has to be RietX's atom 0, or a flag frees the
+    """The table's Ti1 has to be rietx's atom 0, or a flag frees the
     wrong atom."""
     pytest.importorskip("rietx")
     from xtal.powder import bridge
@@ -341,7 +341,7 @@ def test_the_preset_is_read_from_rietx():
 
 
 def test_every_path_is_one_rietx_knows(rutile):
-    """A path RietX does not have is a parameter the table shows and
+    """A path rietx does not have is a parameter the table shows and
     no fit ever moves."""
     pytest.importorskip("rietx")
     import rietx as rx

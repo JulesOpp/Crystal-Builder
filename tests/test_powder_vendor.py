@@ -1,6 +1,6 @@
 """A diffractometer's own file, read without exporting it first.
 
-RietX reads them; these hold the seam -- :meth:`PowderData.from_file`
+rietx reads them; these hold the seam -- :meth:`PowderData.from_file`
 to :func:`xtal.powder.bridge.read_measurement` -- to the same numbers
 the instrument wrote, and to saying what it chose for the person.
 """
@@ -63,7 +63,7 @@ def test_a_multi_scan_file_reads_its_first_scan_and_says_so(tmp_path):
 
 @needs_rietx
 def test_a_raw_file_nobody_can_read_is_a_powder_error(tmp_path):
-    """Six vendors write ``.raw``; one RietX does not read has to come
+    """Six vendors write ``.raw``; one rietx does not read has to come
     back as a refusal the workbench shows, not a traceback."""
     path = tmp_path / "other.raw"
     path.write_bytes(b"\x00\x01SOMETHING ELSE" + bytes(200))

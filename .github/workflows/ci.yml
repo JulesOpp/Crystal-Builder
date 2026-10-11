@@ -74,7 +74,7 @@ jobs:
       # `sketch` and `pxrd` too: without them about sixty tests skip
       # themselves on every run, and the selftest below refuses to
       # pass without rdeditor, because the extras page promises it.
-      # `refine` (RietX) is NOT here, as the ML engines are not: the
+      # `refine` (rietx) is NOT here, as the ML engines are not: the
       # powder tests are 150 tests and about thirteen CPU-minutes
       # (2026-09-26, 2.5 min on three workers under swap), and the
       # rule ROADMAP 11 set was "under ~30 s or run locally".  Without

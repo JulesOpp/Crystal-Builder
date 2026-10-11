@@ -145,7 +145,7 @@ made from, and a goodness of fit of 1.0 -- as it must be, since
 the pattern *is* the model's plus noise.  On a real pattern those
 numbers are where you start asking questions.  The Pawley and
 indexing runs each took a few seconds here.  Both need the `refine`
-extra (RietX).
+extra (rietx).
 
 From a Pawley fit the path is Rietveld: the atoms move, and the
 refinement is one undo step on the document.  That, the parameter

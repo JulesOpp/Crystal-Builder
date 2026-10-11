@@ -141,7 +141,7 @@ Bundled and working, with nothing to install:
   sketcher…* and every window that draws a molecule work.
 - **matplotlib**, for the PXRD pattern window: zooming, overlaying a
   measured `.xy` file, and exporting the figure as a vector.
-- **The refinement workbench.** RietX is bundled, so Pawley and
+- **The refinement workbench.** rietx is bundled, so Pawley and
   Rietveld fits need nothing else.
 - **The carbon and polymer builders**, with the monomer library.
 - **The `xtal` program** beside the application, which an AI

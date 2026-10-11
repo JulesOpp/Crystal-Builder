@@ -1,12 +1,12 @@
 """
 xtal.powder.bridge
 ==================
-The one module that imports RietX.
+The one module that imports rietx.
 
-Everything that crosses between this application and RietX crosses
-here: a :class:`~xtal.core.structure.Structure` becomes a RietX phase
+Everything that crosses between this application and rietx crosses
+here: a :class:`~xtal.core.structure.Structure` becomes a rietx phase
 and a refined phase comes back onto the same sites, a
-:class:`~xtal.powder.data.Radiation` becomes one of RietX's instrument
+:class:`~xtal.powder.data.Radiation` becomes one of rietx's instrument
 presets, and a :class:`~xtal.powder.data.PowderData` becomes its
 pattern.  The rest of :mod:`xtal.powder` imports this lazily, inside
 the functions that need it, so that importing the package costs
@@ -22,7 +22,7 @@ structure would look refined.  So the atoms go across in the order of
 ``structure.sites``, dummies left out and remembered, and
 :func:`apply_phase` puts them back by the same list.
 
-**Nothing RietX writes lands in the working directory.**  A fit
+**Nothing rietx writes lands in the working directory.**  A fit
 records itself into ``./.rietx/runs`` unless it is told otherwise,
 which in this application would be wherever the process was started
 from -- the user's home, or inside the app bundle.  :func:`fit` is
@@ -65,13 +65,13 @@ __all__ = ["RIETVELD_PRESETS", "PatternTerm", "apply_phase",
 # ======================================================================
 
 def space_group_symbol(structure) -> str:
-    """The extended Hermann-Mauguin symbol RietX resolves the group by.
+    """The extended Hermann-Mauguin symbol rietx resolves the group by.
 
     From the operations rather than from ``hm``, because the short
     symbol does not say which origin or which axes: ``P 4/n m m`` is
-    two different sets of positions, and RietX reads the bare symbol
+    two different sets of positions, and rietx reads the bare symbol
     as the first.  gemmi names the setting the operations actually are
-    (``P 4/n m m:2``), which is what RietX's own ``get_spacegroup``
+    (``P 4/n m m:2``), which is what rietx's own ``get_spacegroup``
     looks up.
     """
     group = structure.space_group
@@ -79,13 +79,13 @@ def space_group_symbol(structure) -> str:
         gemmi.symops_from_hall(group.hall))
     if found is None:
         raise PowderError(
-            f"{group.hm} in this setting is not one RietX can name -- "
+            f"{group.hm} in this setting is not one rietx can name -- "
             f"Symmetry > Standardize first")
     return found.xhm()
 
 
 def phase_of(structure, name: str = "") -> tuple[rx.Phase, list[int]]:
-    """``(phase, site_indices)``: the structure as one RietX phase.
+    """``(phase, site_indices)``: the structure as one rietx phase.
 
     ``site_indices[k]`` is the site the phase's ``k``-th atom came
     from.  Dummy atoms are markers, not scatterers, and are left out
@@ -127,7 +127,7 @@ def phase_of(structure, name: str = "") -> tuple[rx.Phase, list[int]]:
 
 
 def to_rietx(structure, name: str = "") -> tuple[rx.Structure, list[int]]:
-    """The structure as a one-phase RietX structure, and its index map."""
+    """The structure as a one-phase rietx structure, and its index map."""
     phase, indices = phase_of(structure, name)
     return rx.Structure(phases=[phase]), indices
 
@@ -168,7 +168,7 @@ def apply_phase(structure, phase: rx.Phase, indices: list[int]):
 # ======================================================================
 
 def instrument(radiation: Radiation) -> rx.Instrument:
-    """RietX's preset for this radiation.
+    """rietx's preset for this radiation.
 
     A laboratory tube is flat-plate Bragg-Brentano with its Kα doublet
     (or Kα1 alone); a synchrotron is a capillary at the one
@@ -191,9 +191,9 @@ def pattern(data: PowderData) -> rx.PatternData:
 
 def read_measurement(path, *, scan: int | None = None) -> PowderData:
     """A diffractometer's own file -- ``.rasx``, Bruker ``.raw``,
-    ``.uxd``, ``.xrdml`` and the rest RietX reads -- as a pattern.
+    ``.uxd``, ``.xrdml`` and the rest rietx reads -- as a pattern.
 
-    RietX's readers decide σ from what the file declares and say what
+    rietx's readers decide σ from what the file declares and say what
     they assumed; its warnings become :attr:`PowderData.notes`, because
     "scan 0 of 3 was read" is a choice the person has to be told was
     made for them.  Its info lines (a scan reversed into ascending
@@ -224,10 +224,10 @@ def fit(refinement: rx.Refinement, data: PowderData, *,
         folder: Path | None = None, **kwargs):
     """``refinement.fit``, with its recording sent to ``folder``.
 
-    ``folder`` is a run folder, and RietX's run record goes into a
+    ``folder`` is a run folder, and rietx's run record goes into a
     ``rietx`` directory inside it; ``None`` records nothing.  Either
     way nothing is written under the working directory, which is where
-    RietX writes when it is not told.
+    rietx writes when it is not told.
     """
     kwargs.pop("telemetry", None)
     telemetry = False if folder is None else str(Path(folder) / "rietx")
@@ -239,7 +239,7 @@ def fit(refinement: rx.Refinement, data: PowderData, *,
 
 
 def predict(structure, radiation: Radiation, two_theta) -> np.ndarray:
-    """The pattern RietX calculates for a structure, unrefined.
+    """The pattern rietx calculates for a structure, unrefined.
 
     Scale, background and profile are the preset's defaults, so the
     numbers are a shape and not counts; it is what the tests simulate
@@ -268,7 +268,7 @@ def emission_lines(radiation: Radiation) -> list[tuple[float, float]]:
 
 def pick_peaks(data: PowderData, radiation: Radiation, *,
                shoulders: bool = True, flag_ghosts: bool = False):
-    """``(peak_list, grid, envelope)``: RietX's peak search.
+    """``(peak_list, grid, envelope)``: rietx's peak search.
 
     ``grid`` and ``envelope`` are the 2θ points detection kept and the
     background it drew under them, which is what a fitted line is
@@ -286,12 +286,12 @@ def observed_peak(two_theta: float, two_theta_esd: float, area: float,
                   area_esd: float, fwhm: float, eta: float,
                   wavelength: float, *, group: int = 0, flags=(),
                   origin: str = "fitted", chi2_red: float = 1.0):
-    """One line as RietX's indexing engines read it.
+    """One line as rietx's indexing engines read it.
 
     For a line this application fitted or a person placed, rather than
-    one RietX's detector found.  ``q`` is 1/d^2 and its esd follows
+    one rietx's detector found.  ``q`` is 1/d^2 and its esd follows
     from the position's; a line with no esd yet (placed, not fitted)
-    is given 0.01 deg and flagged ``sigma_assumed``, RietX's own word
+    is given 0.01 deg and flagged ``sigma_assumed``, rietx's own word
     for that.
     """
     from rietx.schemas.indexing import ObservedPeak
@@ -315,7 +315,7 @@ def observed_peak(two_theta: float, two_theta_esd: float, area: float,
 
 def peak_list(lines, wavelength: float, two_theta_min: float,
               two_theta_max: float):
-    """RietX's peak list from lines made by :func:`observed_peak`."""
+    """rietx's peak list from lines made by :func:`observed_peak`."""
     from rietx.schemas.indexing import PeakList
 
     return PeakList(peaks=list(lines), wavelength=float(wavelength),
@@ -343,11 +343,11 @@ def fit_peaks_at(data: PowderData, radiation: Radiation, positions):
 # ======================================================================
 
 def cancel_token(cancellation=None) -> rx.CancelToken:
-    """RietX's token, set when ``cancellation`` is.
+    """rietx's token, set when ``cancellation`` is.
 
-    RietX reads its own token between units of work; the job's
+    rietx reads its own token between units of work; the job's
     :class:`~xtal.modules.job.Cancellation` is what Stop sets.  Linking
-    the two rather than handing RietX ours keeps the question of what
+    the two rather than handing rietx ours keeps the question of what
     a token must answer (``bool``, ``is_set``) upstream's.
     """
     token = rx.CancelToken()
@@ -361,11 +361,11 @@ def index_pattern(peak_list, data: PowderData, radiation: Radiation, *,
                   max_volume: float | None = None,
                   max_axis: float = 25.0, budget: float = 60.0,
                   prior_space_groups=(), cancel=None, on_stage=None):
-    """RietX's cell search over the lattices named.
+    """rietx's cell search over the lattices named.
 
-    ``systems`` and ``centrings`` are RietX's own words (``"tetragonal"``,
+    ``systems`` and ``centrings`` are rietx's own words (``"tetragonal"``,
     ``{"tetragonal": ("P",)}``).  ``budget`` is the whole run's ceiling,
-    search and validation together; 0 is none at all -- RietX's
+    search and validation together; 0 is none at all -- rietx's
     ``full`` preset, since leaving its ceiling unset hands the run to
     its ``quick`` preset's two minutes instead.
     ``on_stage(label, index, total)`` is called as each unit of search
@@ -390,7 +390,7 @@ def index_pattern(peak_list, data: PowderData, radiation: Radiation, *,
                      int(body.get("index", 0)),
                      int(body.get("n_stages", 0)))
         elif kind == "stage_end" and body.get("validation"):
-            # After the last validation RietX sweeps the leading cells
+            # After the last validation rietx sweeps the leading cells
             # for sub- and supercells, announcing nothing and reading
             # the clock only between cells: 9 s past a 60 s budget on
             # a MOF pattern, with the last validation still on screen.
@@ -412,7 +412,7 @@ def index_pattern(peak_list, data: PowderData, radiation: Radiation, *,
 
 def extinction_classes(peak_list, data: PowderData, radiation: Radiation,
                        candidate, cancel=None):
-    """RietX's ranking of the extinction classes a cell admits."""
+    """rietx's ranking of the extinction classes a cell admits."""
     lo, hi = data.range
     return rx.determine_extinction_symbol(
         pattern(data), candidate, instrument(radiation),
@@ -442,11 +442,11 @@ def lattice_lines(cell, system: str, centring: str, wavelength: float,
 
 def preset_parameters(radiation: Radiation,
                       background_terms: int = 8) -> dict[str, float]:
-    """``{path: value}`` of RietX's preset for this radiation: the
+    """``{path: value}`` of rietx's preset for this radiation: the
     instrument, and a phase's scale and broadening -- what
     :func:`xtal.powder.parameters.defaults` starts a set from.
 
-    Read off a refinement over RietX's own empty scaffold, so the
+    Read off a refinement over rietx's own empty scaffold, so the
     numbers are exactly the ones a fit would have started from; about
     a millisecond.
     """
@@ -472,7 +472,7 @@ def _with_background(radiation: Radiation, terms: int) -> rx.Instrument:
 def starting_parameters(radiation: Radiation, *, data=None,
                         structure=None,
                         background_terms: int = 8) -> ps.ParameterSet:
-    """The set a first run starts from: RietX's preset for this
+    """The set a first run starts from: rietx's preset for this
     radiation, the background under ``data``, and ``structure``'s
     atoms."""
     return ps.defaults(preset_parameters(radiation, background_terms),
@@ -483,7 +483,7 @@ def starting_parameters(radiation: Radiation, *, data=None,
 def start_from(parameters, options, radiation: Radiation, data,
                structure=None, also=()) -> ps.ParameterSet:
     """The set a step starts from: a copy of ``parameters`` with the
-    background ``options`` asks for, or -- with none -- RietX's preset
+    background ``options`` asks for, or -- with none -- rietx's preset
     flagged as ``options``' boxes say, and the boxes in ``also``:
     what ``xtal run`` without a parameter file still means."""
     if parameters is None:
@@ -499,7 +499,7 @@ def start_from(parameters, options, radiation: Radiation, data,
 
 def held_paths(refinement, parameters: ps.ParameterSet,
                radiation: Radiation | None = None) -> dict[str, str]:
-    """``{path: why}`` of every row RietX will not move, from its own
+    """``{path: why}`` of every row rietx will not move, from its own
     table: a locked or tied number, and an atom's position with no
     direction its site allows -- rutile's Ti at 0,0,0 has none, and
     its glob matches nothing rather than being refused, so nothing
@@ -540,7 +540,7 @@ def _row_name(parameters, path: str) -> str:
 
 def _started(refinement, parameters: ps.ParameterSet,
              radiation: Radiation, groups=None) -> ps.ParameterSet:
-    """A copy of ``parameters`` with what RietX holds marked, and its
+    """A copy of ``parameters`` with what rietx holds marked, and its
     numbers handed to ``refinement``.
 
     Only the refinement's own numbers go across: an atom's Biso and
@@ -566,7 +566,7 @@ def _started(refinement, parameters: ps.ParameterSet,
     try:
         refinement.set_values(values)
     except (ValueError, KeyError) as exc:
-        raise PowderError(f"RietX refused a starting value: {exc}") \
+        raise PowderError(f"rietx refused a starting value: {exc}") \
             from None
     return out
 
@@ -614,11 +614,11 @@ def background(refinement, data: PowderData) -> np.ndarray:
 
 
 def free_cell_paths(refinement, hold=()) -> list[str]:
-    """The cell numbers RietX lets move, less the ones held.
+    """The cell numbers rietx lets move, less the ones held.
 
-    Asked of RietX's own table rather than of the group, so that what
+    Asked of rietx's own table rather than of the group, so that what
     is freed is exactly what it ties: ``b`` on a tetragonal cell is
-    RietX's to follow ``a``, and naming it here would be refused.
+    rietx's to follow ``a``, and naming it here would be refused.
     """
     hold = set(hold)
     return [row.path for row in refinement.parameters()
@@ -654,10 +654,10 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
     ``data``, or with ``mode="lebail"`` a Le Bail fit over the same
     plan.
 
-    The phase is RietX's own Le Bail scaffold -- a cell, a group and a
+    The phase is rietx's own Le Bail scaffold -- a cell, a group and a
     dummy atom it never refines.  It starts from ``start``'s
     background, line positions and peak shape, frees what is flagged
-    there in RietX's ``pawley_default`` order (background, positions,
+    there in rietx's ``pawley_default`` order (background, positions,
     cell, widths), and hands the set back with the fit's numbers in
     it.  ``hold_cell`` names cell numbers (``"a"``, ``"beta"``) held
     at the value given while the rest of the cell refines.
@@ -686,7 +686,7 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
         result = fit(refinement, data, folder=folder, mode=mode,
                      plan=chosen, cancel=cancel)
     except (ValueError, KeyError) as exc:
-        raise PowderError(f"RietX refused the fit: {exc}") from None
+        raise PowderError(f"rietx refused the fit: {exc}") from None
     return refinement, result, _finished(
         started, refinement, None if iterations == 0 else result,
         _PAWLEY_GROUPS)
@@ -704,7 +704,7 @@ def lines_of(structure, radiation: Radiation, two_theta_min: float,
              two_theta_max: float) -> np.ndarray:
     """2θ of every reflection ``structure``'s group allows in a range,
     at the primary line: the ticks under a pattern no fit has drawn --
-    RietX keeps a reflection list only once a fit has run."""
+    rietx keeps a reflection list only once a fit has run."""
     return np.array([row[2] for row in allowed_reflections(
         structure, radiation, two_theta_min, two_theta_max)])
 
@@ -734,9 +734,9 @@ def allowed_reflections(structure, radiation: Radiation,
 
 
 def space_group_named(name: str) -> str:
-    """A typed space group as the extended symbol RietX resolves.
+    """A typed space group as the extended symbol rietx resolves.
 
-    ``C2221``, ``C 2 2 21`` and ``20`` all name one group; RietX looks
+    ``C2221``, ``C 2 2 21`` and ``20`` all name one group; rietx looks
     groups up by gemmi's extended symbol, which also says the setting.
     """
     found = gemmi.find_spacegroup_by_name(str(name).strip())
@@ -749,7 +749,7 @@ def space_group_named(name: str) -> str:
 #  RIETVELD
 # ======================================================================
 
-#: What each of the boxes ``xtal run`` still takes frees, as RietX's
+#: What each of the boxes ``xtal run`` still takes frees, as rietx's
 #: globs -- for the plan's note; a run frees the rows its set flags.
 #: The cell is freed number by number (:func:`free_cell_paths`).
 _RIETVELD_FREES = {
@@ -768,7 +768,7 @@ _RIETVELD_FREES = {
     "preferred_orientation": ["phases.*.preferred_orientation.r"],
 }
 
-#: RietX's own plans a person may pick instead of the boxes.  The
+#: rietx's own plans a person may pick instead of the boxes.  The
 #: Pawley and Le Bail ones are left out: they free nothing a structure
 #: has.
 RIETVELD_PRESETS = ("mccusker_structural", "mccusker_default",
@@ -818,10 +818,10 @@ def _plan(stages, iterations: int | None = None,
 def limited(plan, iterations: int | None = None,
             tolerance: float | None = None):
     """``plan`` with every stage stopping at ``iterations`` and the
-    last at a relative fall in χ² of ``tolerance`` (RietX's
-    ``max_iter`` and ``ftol``); ``None`` leaves RietX's own.
+    last at a relative fall in χ² of ``tolerance`` (rietx's
+    ``max_iter`` and ``ftol``); ``None`` leaves rietx's own.
 
-    Only the last stage takes the tolerance as given: RietX runs the
+    Only the last stage takes the tolerance as given: rietx runs the
     ones before it looser (``intermediate_ftol``), since each only
     seeds the next, and a tolerance looser than that loosens them too
     rather than leaving an early stage stricter than the answer.
@@ -840,10 +840,10 @@ def limited(plan, iterations: int | None = None,
 def evaluation() -> rx.RefinementPlan:
     """The plan of zero cycles: one stage that frees nothing.
 
-    RietX refuses ``max_iter=0`` (scipy's ``max_nfev`` must be
+    rietx refuses ``max_iter=0`` (scipy's ``max_nfev`` must be
     positive), but runs a stage with nothing in it: the pattern is
     calculated at the values it was handed and its statistics are
-    RietX's own, with nothing moved.  A Pawley or Le Bail evaluation
+    rietx's own, with nothing moved.  A Pawley or Le Bail evaluation
     still finds its intensities, which are not parameters -- measured
     on rutile, Rwp 11.9 % evaluated at the preset's profile against
     9.5 % fitted.
@@ -887,10 +887,10 @@ _DECLARED_ONLY = {"extra_components", "extinction", "roughness"}
 def plan_notes(plan: str, free=()) -> str:
     """What a Rietveld plan does, in the order it does it.
 
-    ``plan`` is one of :data:`RIETVELD_PRESETS`, described from RietX's
+    ``plan`` is one of :data:`RIETVELD_PRESETS`, described from rietx's
     own ``PLAN_INFO`` and its stages; empty is the plan the ``free``
     boxes make.  Whether the atoms move is said outright: two of
-    RietX's four plans free none, which is easy to miss from a name.
+    rietx's four plans free none, which is easy to miss from a name.
     """
     if plan:
         preset = getattr(rx.RefinementPlan, plan)()
@@ -912,7 +912,7 @@ def plan_notes(plan: str, free=()) -> str:
              "The atoms stay where they are."]
     if plan == "lab_sample_refine":
         lines.append("No calibrated instrument is loaded here, so the "
-                     "instrument's widths stay at RietX's defaults and "
+                     "instrument's widths stay at rietx's defaults and "
                      "the size and strain absorb them.")
     if tail:
         lines.append(tail)
@@ -920,7 +920,7 @@ def plan_notes(plan: str, free=()) -> str:
 
 
 class _Frames:
-    """RietX's ``eval`` events, turned into frames a person can watch.
+    """rietx's ``eval`` events, turned into frames a person can watch.
 
     An event carries the free values and nothing drawn from them, so a
     second model of the same phase -- the shadow -- is set to those
@@ -1020,7 +1020,7 @@ def rietveld(structure, data: PowderData, radiation: Radiation, *,
     cell)`` is called from the fitting thread as it goes;
     ``fractions`` is one row per atom of the phase, in the order of
     ``indices``.  ``iterations`` and ``tolerance`` are every stage's,
-    a RietX plan's too; ``iterations=0`` is an evaluation, which moves
+    a rietx plan's too; ``iterations=0`` is an evaluation, which moves
     nothing and hands the set back with no esds.
     """
     start = ps.with_structure(start, structure)
@@ -1029,7 +1029,7 @@ def rietveld(structure, data: PowderData, radiation: Radiation, *,
                                          preferred_axis)
     started = _started(refinement, start, radiation)
     if plan and plan not in RIETVELD_PRESETS:
-        raise PowderError(f"{plan!r} is not one of RietX's Rietveld "
+        raise PowderError(f"{plan!r} is not one of rietx's Rietveld "
                           f"plans")
     if iterations == 0:
         chosen = evaluation()
@@ -1053,7 +1053,7 @@ def rietveld(structure, data: PowderData, radiation: Radiation, *,
         result = fit(refinement, data, folder=folder, mode="rietveld",
                      plan=chosen, events=events, cancel=cancel)
     except (ValueError, KeyError) as exc:
-        raise PowderError(f"RietX refused the fit: {exc}") from None
+        raise PowderError(f"rietx refused the fit: {exc}") from None
     return refinement, result, indices, _finished(
         started, refinement, None if iterations == 0 else result)
 
@@ -1063,7 +1063,7 @@ def rietveld(structure, data: PowderData, radiation: Radiation, *,
 # ======================================================================
 
 #: The paths a pattern term frees: every atom along the directions its
-#: site allows.  A site's ``x``, ``y``, ``z`` are locked in RietX and
+#: site allows.  A site's ``x``, ``y``, ``z`` are locked in rietx and
 #: follow from these.
 _TERM_ATOMS = "phases.*.atoms.*.dof.*"
 
@@ -1072,8 +1072,8 @@ class PatternTerm:
     """χ² of a fitted refinement as a function of its atoms, and of its
     cell when asked -- the pattern half of Rietveld with energies.
 
-    RietX's solver takes no cost of anyone else's, so the minimiser
-    here is ours and RietX is asked only for what it computes best:
+    rietx's solver takes no cost of anyone else's, so the minimiser
+    here is ours and rietx is asked only for what it computes best:
     the weighted residual and its analytic Jacobian, from the model it
     compiles for a fit (``least_squares._make_residual`` and
     ``_jacobian_for``, which are private -- a test holds the gradient
@@ -1081,13 +1081,13 @@ class PatternTerm:
     Everything else the refinement fitted -- scale, background, zero,
     the peak shape -- is held where it is.
 
-    The variables are RietX's own vector ``theta`` over the free
+    The variables are rietx's own vector ``theta`` over the free
     paths: a step along each allowed direction, in fractions, and the
     free cell numbers, in Å and degrees.  Both are identity transforms
     and every tie is linear, so the atoms' fractions and the cell are
     affine in ``theta`` and :attr:`frac_basis` and :attr:`cell_basis`
     are constant.  **The model is compiled once**, with its hkl list
-    and peak windows frozen at the start, as RietX freezes them within
+    and peak windows frozen at the start, as rietx freezes them within
     a stage: good for the atoms, which move no line, and for a cell
     that moves a few hundredths of an Å.
     """
@@ -1223,7 +1223,7 @@ def pattern_term(structure, data: PowderData, radiation: Radiation, *,
                          plan=_plan(stages, iterations, tolerance),
                          cancel=cancel)
         except (ValueError, KeyError) as exc:
-            raise PowderError(f"RietX refused the fit: {exc}") from None
+            raise PowderError(f"rietx refused the fit: {exc}") from None
     atoms = [row.path for row in started if row.refine and not row.held
              and ps.box_of(row.path) == "positions"]
     term = PatternTerm(refinement, data, cell=cell, atoms=atoms,

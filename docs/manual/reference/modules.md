@@ -372,7 +372,7 @@ Find the unit cells that explain the fitted lines
 | **Fit only at** | text |  | 2θ positions, separated by commas, to fit exactly -- TOPAS's hand-written xo_Is list.  Empty finds the peaks.  A position with nothing at it comes back flagged, not dropped. |
 | **Bravais lattices** | text | `all` | Which lattices to search, TOPAS's Bravais_*_sgs: aP mP mC oP oC oI oF tP tI hP hR cP cI cF, separated by commas, or all.  hP is hexagonal and trigonal P together.  Leaving out the low symmetries saves most of the time. |
 | **Space groups** | text |  | Only these groups, by symbol or number, separated by commas (C2221, Ccc2).  The search is kept to their lattices and only the extinction classes holding one are listed.  Empty is every group. |
-| **Zero error allowance** | float, 0 to 1 ° | `0.3` | How far a systematic 2θ shift may move the lines, TOPAS's index_zero_error, from 0 to 1°.  0 lets RietX measure it from line pairs, or assume 0.05°.  A wide allowance finds a cell through a badly aligned sample and lets wrong cells match too: on a clean rutile pattern the right cell ranks first up to 0.3° and a wrong one does from 0.5°. |
+| **Zero error allowance** | float, 0 to 1 ° | `0.3` | How far a systematic 2θ shift may move the lines, TOPAS's index_zero_error, from 0 to 1°.  0 lets rietx measure it from line pairs, or assume 0.05°.  A wide allowance finds a cell through a badly aligned sample and lets wrong cells match too: on a clean rutile pattern the right cell ranks first up to 0.3° and a wrong one does from 0.5°. |
 | **Largest volume** | float, 0 to 1000000 Å³ | `0.0` | The largest cell to report.  0 takes the bound from the number of lines and their positions. |
 | **Longest axis** | float, 5 to 100 Å | `50.0` | The longest cell axis searched (strictly, d(100)).  50 Å holds most frameworks' cells.  The search grows fast with it: a cell known to be small is found in seconds with this lowered, and 50 Å over the low symmetries can use the whole time budget. |
 | **Time budget** | float, 0 to 3600 s | `0.0` | The most the search and its validation may take.  What was reached when it runs out is reported, with the systems it did not finish named.  0 is no limit: the search runs until it is done or stopped. |
@@ -404,8 +404,8 @@ Fit a cell and space group to the whole pattern
 | **Crystallite size broadening** | bool | `True` | Lorentzian and Gaussian size terms (TOPAS CS_L, CS_G): widths that grow as 1/cos θ. |
 | **Strain broadening** | bool | `True` | Lorentzian and Gaussian strain terms (TOPAS Strain_L, Strain_G): widths that grow as tan θ. |
 | **Max iterations** | int, 0 to 100000 | `100` | The most iterations each stage of the fit runs (TOPAS iters).  0 fits nothing: the pattern is calculated at the parameters as they stand, and the R values say how well they fit -- nothing moves and nothing is committed. |
-| **Tolerance** | text | `1e-9` | When a fit is done: the relative fall in χ² below which its last stage stops (RietX's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser. |
-| **Parameters** | path |  | A file of parameters to start from, one a line as the workbench's Copy writes them: name value ± esd Refine, or NoRefine.  Its flags say what is refined and the Refine boxes are not read; a row it leaves out starts from RietX's preset.  Empty starts from the preset, freed as the boxes say. |
+| **Tolerance** | text | `1e-9` | When a fit is done: the relative fall in χ² below which its last stage stops (rietx's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser. |
+| **Parameters** | path |  | A file of parameters to start from, one a line as the workbench's Copy writes them: name value ± esd Refine, or NoRefine.  Its flags say what is refined and the Refine boxes are not read; a row it leaves out starts from rietx's preset.  Empty starts from the preset, freed as the boxes say. |
 
 (mod-pxrd-auto)=
 ### Automatic
@@ -427,7 +427,7 @@ Peaks, indexing and a Pawley fit of every leading cell and space group, ranked -
 | **Flag Kβ and tungsten lines** | bool | `False` | Mark lines that sit where a strong line's Kβ or a tungsten-contaminated tube would put one, and keep them out of indexing.  Off by default: a filtered or monochromated tube has no such lines, and the flag then takes real ones out. |
 | **Bravais lattices** | text | `all` | Which lattices to search, TOPAS's Bravais_*_sgs: aP mP mC oP oC oI oF tP tI hP hR cP cI cF, separated by commas, or all.  hP is hexagonal and trigonal P together.  Leaving out the low symmetries saves most of the time. |
 | **Space groups** | text |  | Only these groups, by symbol or number, separated by commas (C2221, Ccc2).  The search is kept to their lattices and only the extinction classes holding one are listed.  Empty is every group. |
-| **Zero error allowance** | float, 0 to 1 ° | `0.3` | How far a systematic 2θ shift may move the lines, TOPAS's index_zero_error, from 0 to 1°.  0 lets RietX measure it from line pairs, or assume 0.05°.  A wide allowance finds a cell through a badly aligned sample and lets wrong cells match too: on a clean rutile pattern the right cell ranks first up to 0.3° and a wrong one does from 0.5°. |
+| **Zero error allowance** | float, 0 to 1 ° | `0.3` | How far a systematic 2θ shift may move the lines, TOPAS's index_zero_error, from 0 to 1°.  0 lets rietx measure it from line pairs, or assume 0.05°.  A wide allowance finds a cell through a badly aligned sample and lets wrong cells match too: on a clean rutile pattern the right cell ranks first up to 0.3° and a wrong one does from 0.5°. |
 | **Largest volume** | float, 0 to 1000000 Å³ | `0.0` | The largest cell to report.  0 takes the bound from the number of lines and their positions. |
 | **Longest axis** | float, 5 to 100 Å | `50.0` | The longest cell axis searched (strictly, d(100)).  50 Å holds most frameworks' cells.  The search grows fast with it: a cell known to be small is found in seconds with this lowered, and 50 Å over the low symmetries can use the whole time budget. |
 | **Time budget** | float, 0 to 3600 s | `0.0` | The most the search and its validation may take.  What was reached when it runs out is reported, with the systems it did not finish named.  0 is no limit: the search runs until it is done or stopped. |
@@ -444,8 +444,8 @@ Peaks, indexing and a Pawley fit of every leading cell and space group, ranked -
 | **Crystallite size broadening** | bool | `True` | Lorentzian and Gaussian size terms (TOPAS CS_L, CS_G): widths that grow as 1/cos θ. |
 | **Strain broadening** | bool | `True` | Lorentzian and Gaussian strain terms (TOPAS Strain_L, Strain_G): widths that grow as tan θ. |
 | **Max iterations** | int, 0 to 100000 | `100` | The most iterations each stage of the fit runs (TOPAS iters).  0 fits nothing: the pattern is calculated at the parameters as they stand, and the R values say how well they fit -- nothing moves and nothing is committed. |
-| **Tolerance** | text | `1e-9` | When a fit is done: the relative fall in χ² below which its last stage stops (RietX's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser. |
-| **Plan** | one of The Refine flags, RietX: McCusker, structural, RietX: McCusker, profile, RietX: lab Bragg-Brentano, RietX: sample on a calibrated instrument |  | What is freed, and in what order.  The Refine flags -- the workbench's parameter table, a parameters file, or the boxes -- free in McCusker's order: background and scale, line positions, cell, widths, then the atoms.  RietX's own plans ignore the flags, and start from the values. |
+| **Tolerance** | text | `1e-9` | When a fit is done: the relative fall in χ² below which its last stage stops (rietx's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser. |
+| **Plan** | one of The Refine flags, rietx: McCusker, structural, rietx: McCusker, profile, rietx: lab Bragg-Brentano, rietx: sample on a calibrated instrument |  | What is freed, and in what order.  The Refine flags -- the workbench's parameter table, a parameters file, or the boxes -- free in McCusker's order: background and scale, line positions, cell, widths, then the atoms.  rietx's own plans ignore the flags, and start from the values. |
 | **2θ from** | float, 0 to 180 ° | `0.0` | Where the fit starts (TOPAS start_X).  0 is the start of the file. |
 | **2θ to** | float, 0 to 180 ° | `0.0` | Where it stops (TOPAS finish_X).  0 is the end of the file. |
 | **Background terms** | int, 1 to 30 | `8` | Coefficients of the Chebyshev background, TOPAS's bkg line. |
@@ -461,9 +461,9 @@ Peaks, indexing and a Pawley fit of every leading cell and space group, ranked -
 | **Refine displacement parameters** | bool | `True` | Biso of each atom (8π²U), or its anisotropic U where the structure has one. |
 | **Refine occupancies** | bool | `False` | Off unless the model says a site is partly filled: an occupancy trades against the displacement parameter and the scale. |
 | **Preferred orientation** | text |  | The March-Dollase axis as h k l -- 0 0 1 for plates lying on their c face.  Empty is no texture. |
-| **Max iterations** | int, 0 to 100000 | `100` | The most iterations each stage of the fit runs (TOPAS iters), a RietX plan's stages too.  0 fits nothing: the pattern is calculated at the parameters as they stand, and the R values say how well they fit -- nothing moves and nothing is committed. |
-| **Tolerance** | text | `1e-9` | When a fit is done: the relative fall in χ² below which its last stage stops (RietX's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser. |
-| **Parameters** | path |  | A file of parameters to start from, one a line as the workbench's Copy writes them: name value ± esd Refine, or NoRefine.  Its flags say what is refined and the Refine boxes are not read; a row it leaves out starts from RietX's preset.  Empty starts from the preset, freed as the boxes say. |
+| **Max iterations** | int, 0 to 100000 | `100` | The most iterations each stage of the fit runs (TOPAS iters), a rietx plan's stages too.  0 fits nothing: the pattern is calculated at the parameters as they stand, and the R values say how well they fit -- nothing moves and nothing is committed. |
+| **Tolerance** | text | `1e-9` | When a fit is done: the relative fall in χ² below which its last stage stops (rietx's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser. |
+| **Parameters** | path |  | A file of parameters to start from, one a line as the workbench's Copy writes them: name value ± esd Refine, or NoRefine.  Its flags say what is refined and the Refine boxes are not read; a row it leaves out starts from rietx's preset.  Empty starts from the preset, freed as the boxes say. |
 
 (mod-pxrd-rietveld)=
 ### Rietveld
@@ -479,7 +479,7 @@ Refine a structure's atoms against the whole pattern
 | **Radiation** | one of Cu Kα1 + Kα2 (laboratory), Cu Kα1 only (monochromated), Mo Kα1 + Kα2 (laboratory), Mo Kα1 only (monochromated), Co Kα1 + Kα2 (laboratory), Co Kα1 only (monochromated), Synchrotron (the wavelength below) | `cu` | What the pattern was measured with.  A laboratory tube is a Kα1/Kα2 doublet unless a monochromator removed Kα2; the wavelengths are the standard ones. |
 | **Wavelength** | float, 0 to 5 Å | `0.0` | A synchrotron's wavelength, from the beamline's calibration.  Read only for Synchrotron: the cell is only as right as this number. |
 | **Monochromator 2θ** | float, 0 to 90 ° | `0.0` | A diffracted-beam monochromator's angle, which changes the polarisation correction (TOPAS LP_Factor).  0 is none; 26.6 is graphite (002) with Cu. |
-| **Plan** | one of The Refine flags, RietX: McCusker, structural, RietX: McCusker, profile, RietX: lab Bragg-Brentano, RietX: sample on a calibrated instrument |  | What is freed, and in what order.  The Refine flags -- the workbench's parameter table, a parameters file, or the boxes -- free in McCusker's order: background and scale, line positions, cell, widths, then the atoms.  RietX's own plans ignore the flags, and start from the values. |
+| **Plan** | one of The Refine flags, rietx: McCusker, structural, rietx: McCusker, profile, rietx: lab Bragg-Brentano, rietx: sample on a calibrated instrument |  | What is freed, and in what order.  The Refine flags -- the workbench's parameter table, a parameters file, or the boxes -- free in McCusker's order: background and scale, line positions, cell, widths, then the atoms.  rietx's own plans ignore the flags, and start from the values. |
 | **2θ from** | float, 0 to 180 ° | `0.0` | Where the fit starts (TOPAS start_X).  0 is the start of the file. |
 | **2θ to** | float, 0 to 180 ° | `0.0` | Where it stops (TOPAS finish_X).  0 is the end of the file. |
 | **Background terms** | int, 1 to 30 | `8` | Coefficients of the Chebyshev background, TOPAS's bkg line. |
@@ -495,9 +495,9 @@ Refine a structure's atoms against the whole pattern
 | **Refine displacement parameters** | bool | `True` | Biso of each atom (8π²U), or its anisotropic U where the structure has one. |
 | **Refine occupancies** | bool | `False` | Off unless the model says a site is partly filled: an occupancy trades against the displacement parameter and the scale. |
 | **Preferred orientation** | text |  | The March-Dollase axis as h k l -- 0 0 1 for plates lying on their c face.  Empty is no texture. |
-| **Max iterations** | int, 0 to 100000 | `100` | The most iterations each stage of the fit runs (TOPAS iters), a RietX plan's stages too.  0 fits nothing: the pattern is calculated at the parameters as they stand, and the R values say how well they fit -- nothing moves and nothing is committed. |
-| **Tolerance** | text | `1e-9` | When a fit is done: the relative fall in χ² below which its last stage stops (RietX's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser. |
-| **Parameters** | path |  | A file of parameters to start from, one a line as the workbench's Copy writes them: name value ± esd Refine, or NoRefine.  Its flags say what is refined and the Refine boxes are not read; a row it leaves out starts from RietX's preset.  Empty starts from the preset, freed as the boxes say. |
+| **Max iterations** | int, 0 to 100000 | `100` | The most iterations each stage of the fit runs (TOPAS iters), a rietx plan's stages too.  0 fits nothing: the pattern is calculated at the parameters as they stand, and the R values say how well they fit -- nothing moves and nothing is committed. |
+| **Tolerance** | text | `1e-9` | When a fit is done: the relative fall in χ² below which its last stage stops (rietx's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser. |
+| **Parameters** | path |  | A file of parameters to start from, one a line as the workbench's Copy writes them: name value ± esd Refine, or NoRefine.  Its flags say what is refined and the Refine boxes are not read; a row it leaves out starts from rietx's preset.  Empty starts from the preset, freed as the boxes say. |
 
 (mod-pxrd-energy)=
 ### Rietveld with energy
@@ -529,9 +529,9 @@ Refine a structure's atoms against the pattern and a force field at once, the we
 | **Strain broadening** | bool | `False` | Lorentzian and Gaussian strain terms (TOPAS Strain_L, Strain_G). |
 | **Refine displacement parameters** | bool | `True` | Biso of each atom (8π²U), or its anisotropic U where the structure has one. |
 | **Preferred orientation** | text |  | The March-Dollase axis as h k l -- 0 0 1 for plates lying on their c face.  Empty is no texture. |
-| **Max iterations** | int, 0 to 100000 | `100` | The most iterations each stage of the fit runs (TOPAS iters), a RietX plan's stages too.  0 fits nothing: the pattern is calculated at the parameters as they stand, and the R values say how well they fit -- nothing moves and nothing is committed. |
-| **Tolerance** | text | `1e-9` | When a fit is done: the relative fall in χ² below which its last stage stops (RietX's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser. |
-| **Parameters** | path |  | A file of parameters to start from, one a line as the workbench's Copy writes them: name value ± esd Refine, or NoRefine.  Its flags say what is refined and the Refine boxes are not read; a row it leaves out starts from RietX's preset.  Empty starts from the preset, freed as the boxes say. |
+| **Max iterations** | int, 0 to 100000 | `100` | The most iterations each stage of the fit runs (TOPAS iters), a rietx plan's stages too.  0 fits nothing: the pattern is calculated at the parameters as they stand, and the R values say how well they fit -- nothing moves and nothing is committed. |
+| **Tolerance** | text | `1e-9` | When a fit is done: the relative fall in χ² below which its last stage stops (rietx's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser. |
+| **Parameters** | path |  | A file of parameters to start from, one a line as the workbench's Copy writes them: name value ± esd Refine, or NoRefine.  Its flags say what is refined and the Refine boxes are not read; a row it leaves out starts from rietx's preset.  Empty starts from the preset, freed as the boxes say. |
 
 (mod-pxrd-pareto)=
 ### Pareto
@@ -563,9 +563,9 @@ Refine with energy at a list of weights, and suggest the one where the fit and t
 | **Strain broadening** | bool | `False` | Lorentzian and Gaussian strain terms (TOPAS Strain_L, Strain_G). |
 | **Refine displacement parameters** | bool | `True` | Biso of each atom (8π²U), or its anisotropic U where the structure has one. |
 | **Preferred orientation** | text |  | The March-Dollase axis as h k l -- 0 0 1 for plates lying on their c face.  Empty is no texture. |
-| **Max iterations** | int, 0 to 100000 | `100` | The most iterations each stage of the fit runs (TOPAS iters), a RietX plan's stages too.  0 fits nothing: the pattern is calculated at the parameters as they stand, and the R values say how well they fit -- nothing moves and nothing is committed. |
-| **Tolerance** | text | `1e-9` | When a fit is done: the relative fall in χ² below which its last stage stops (RietX's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser. |
-| **Parameters** | path |  | A file of parameters to start from, one a line as the workbench's Copy writes them: name value ± esd Refine, or NoRefine.  Its flags say what is refined and the Refine boxes are not read; a row it leaves out starts from RietX's preset.  Empty starts from the preset, freed as the boxes say. |
+| **Max iterations** | int, 0 to 100000 | `100` | The most iterations each stage of the fit runs (TOPAS iters), a rietx plan's stages too.  0 fits nothing: the pattern is calculated at the parameters as they stand, and the R values say how well they fit -- nothing moves and nothing is committed. |
+| **Tolerance** | text | `1e-9` | When a fit is done: the relative fall in χ² below which its last stage stops (rietx's ftol).  The stages before it only seed the next one, and stop at 1e-6, or at this if it is looser. |
+| **Parameters** | path |  | A file of parameters to start from, one a line as the workbench's Copy writes them: name value ± esd Refine, or NoRefine.  Its flags say what is refined and the Refine boxes are not read; a row it leaves out starts from rietx's preset.  Empty starts from the preset, freed as the boxes say. |
 
 (mod-forcefield)=
 ## Force Field

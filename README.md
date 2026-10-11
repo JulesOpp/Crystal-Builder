@@ -26,7 +26,7 @@ Studio**.  Python throughout, shipped to macOS and Windows.
       modules/   the module registry: jobs, cancellation, external
                  processes, reports, and each calculation's entry
       powder/    refinement against a measured pattern: peaks,
-                 indexing, Pawley and Rietveld, through RietX
+                 indexing, Pawley and Rietveld, through rietx
       mof/       the MOF builder over vendored PORMAKE
       build/     SMILES to a molecule, substituents, clearance
       carbon/    the disordered-carbon (ZTC, schwarzite) builder

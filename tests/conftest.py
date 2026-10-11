@@ -76,7 +76,7 @@ os.environ.setdefault("XTAL_WORKSPACE_ROOT", _WORKSPACE)
 # when numpy loads; ``setdefault``, so a run can still ask for more.
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
-# RietX splits its compiled kernels over min(8, cores) threads unless
+# rietx splits its compiled kernels over min(8, cores) threads unless
 # told otherwise, and under xdist that is eight threads in each of
 # three workers on an eight-core machine.  The parallelism is already
 # one rank up, which is the case its own setting exists for.
@@ -572,7 +572,7 @@ def dry_ice() -> Structure:
 @pytest.fixture
 def rutile_xy(tmp_path, rutile):
     """A "measured" rutile pattern: Cu Kα doublet, 20-80°, Poisson
-    noise on a flat background, calculated by RietX from the fixture.
+    noise on a flat background, calculated by rietx from the fixture.
 
     Synthetic so that the answer is known exactly -- the cell and the
     positions the pattern was made from -- and small, so a refinement

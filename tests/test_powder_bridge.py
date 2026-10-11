@@ -1,7 +1,7 @@
-"""What a structure looks like to RietX, and what comes back.
+"""What a structure looks like to rietx, and what comes back.
 
-The bridge is the one module that imports RietX, so these are the
-tests that fail when RietX moves something -- which is why its
+The bridge is the one module that imports rietx, so these are the
+tests that fail when rietx moves something -- which is why its
 version is pinned in ``pyproject.toml`` and not left open.
 """
 
@@ -90,7 +90,7 @@ def _rutile_pattern(rutile):
 
 def test_no_run_writes_a_rietx_folder_in_the_working_directory(
         rutile, tmp_path, monkeypatch):
-    """RietX records a fit into ./.rietx/runs unless told otherwise --
+    """rietx records a fit into ./.rietx/runs unless told otherwise --
     for this application, the user's home or the inside of the app
     bundle.  Told a run folder, it records there and nowhere else."""
     import rietx as rx

@@ -43,7 +43,7 @@ EXTENSIONS = (".xy", ".xye", ".dat")
 #: What a diffractometer writes when nobody exported it: Rigaku
 #: ``.rasx``/``.ras``, Bruker ``.raw``/``.brml``/``.uxd``, PANalytical
 #: ``.xrdml``/``.udf``, Philips ``.rd``/``.sd``.  Nothing here reads
-#: them -- RietX does, through :func:`xtal.powder.bridge.read_measurement`,
+#: them -- rietx does, through :func:`xtal.powder.bridge.read_measurement`,
 #: so they open only with the ``refine`` extra.  Listed here because the
 #: workspace and the file dialogs have to know them without importing it.
 VENDOR_EXTENSIONS = (".rasx", ".ras", ".raw", ".brml", ".uxd", ".xrdml",

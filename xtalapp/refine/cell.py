@@ -5,7 +5,7 @@ A cell as the space group allows it: the free numbers to type, the
 rest derived, and a switch beside each free one to refine or hold it.
 
 A text box of six numbers took ``a = 4.59, b = 4.60`` for a tetragonal
-cell, and RietX's ties then quietly made b equal a -- the fit ran on a
+cell, and rietx's ties then quietly made b equal a -- the fit ran on a
 cell nobody typed.  Here a cubic group offers one length, a monoclinic
 one three lengths and its unique angle, and the rest follow; what the
 step is handed is the six numbers and the list held, which is what

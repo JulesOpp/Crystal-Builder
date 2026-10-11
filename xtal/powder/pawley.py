@@ -6,16 +6,16 @@ reflection's intensity a free number -- TOPAS's ``c_paw`` step, and
 the test a cell from indexing has to pass before a structure is put
 in it.
 
-RietX fits (``mode="pawley"`` over its Le Bail scaffold); what is
+rietx fits (``mode="pawley"`` over its Le Bail scaffold); what is
 decided here is what a person sets -- the range, the background's
 order, which of zero, displacement, cell and the sample's size and
 strain broadening are free -- and what the answer is: the R-factors,
 the refined cell with its esds, and the reflection list.
 
-**The cell's esds are RietX's and nothing wider.**  A Bragg-Brentano
+**The cell's esds are rietx's and nothing wider.**  A Bragg-Brentano
 cell also carries a systematic error of order 1e-4 that no esd
-reports (RietX's own ``INDEX_CELL_SYSTEMATIC_UNQUANTIFIED``); the
-fit's notes say so when RietX does.
+reports (rietx's own ``INDEX_CELL_SYSTEMATIC_UNQUANTIFIED``); the
+fit's notes say so when rietx does.
 
 **Nothing here touches a structure.**  Putting the refined cell onto
 an open structure, or starting a structure from it, is the window's
@@ -35,7 +35,7 @@ __all__ = ["DEFAULT_ITERATIONS", "DEFAULT_TOLERANCE", "EVALUATED",
            "METHODS", "PawleyFit", "PawleyOptions", "Reflection",
            "cell_fits_structure", "parse_cell", "parse_hold", "pawley"]
 
-#: RietX's own: a stage's most iterations, and the relative fall in χ²
+#: rietx's own: a stage's most iterations, and the relative fall in χ²
 #: its last stage stops at -- so the boxes at their defaults change
 #: nothing a fit did before they were there.
 DEFAULT_ITERATIONS = 100
@@ -46,7 +46,7 @@ DEFAULT_TOLERANCE = 1e-9
 EVALUATED = "evaluated"
 
 #: How a whole-pattern fit without atoms finds its intensities, by
-#: RietX's mode name.
+#: rietx's mode name.
 METHODS = {"pawley": "Pawley", "lebail": "Le Bail"}
 
 
@@ -85,7 +85,7 @@ class PawleyOptions:
     tolerance: float = DEFAULT_TOLERANCE
 
     def free(self, radiation: Radiation) -> tuple[str, ...]:
-        """The RietX groups freed, in the bridge's words.
+        """The rietx groups freed, in the bridge's words.
 
         The background and the widths are always free: a Pawley fit
         that could not fit them would put every misfit into the
@@ -141,7 +141,7 @@ class PawleyFit:
     radiation: Radiation
     zero: float = 0.0
     displacement: float = 0.0
-    #: ``{path: (value, esd)}`` of every number refined, RietX's paths
+    #: ``{path: (value, esd)}`` of every number refined, rietx's paths
     refined: dict = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
     #: ``"pawley"`` or ``"lebail"``: how the intensities were found
@@ -221,7 +221,7 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
 
     ``parameters`` is the :class:`~xtal.powder.parameters.ParameterSet`
     to start from, whose flags say what is refined; ``None`` starts
-    from RietX's preset with the boxes of ``options`` as the flags.
+    from rietx's preset with the boxes of ``options`` as the flags.
     The background has as many terms as ``options`` asks either way.
 
     ``cancel`` is a job's :class:`~xtal.modules.job.Cancellation`;

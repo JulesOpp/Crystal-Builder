@@ -573,7 +573,7 @@ def test_pyside6_stays_below_6_10():
 
 
 def test_rietx_is_collected_with_its_sources_on_disk():
-    """RietX's scattering tables are data found by path, and numba keys
+    """rietx's scattering tables are data found by path, and numba keys
     its kernel cache on the source file -- which a module living only
     inside the PYZ archive does not have.  Both specs must say so."""
     assert "rietx" in bundle.COLLECT

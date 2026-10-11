@@ -44,7 +44,7 @@ def test_a_compact_reason_carries_no_command_and_verbose_does(
     reasons = {
         "mace": Availability(False, "MACE is not installed",
                              pip.format("mace")),
-        "xtb": Availability(False, "Refinement needs RietX",
+        "xtb": Availability(False, "Refinement needs rietx",
                             pip.format("refine")),
     }
     engine_type = type(ENGINES.get("mace"))

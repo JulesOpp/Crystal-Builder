@@ -80,7 +80,7 @@ def test_a_rietveld_run_never_adds_removes_or_rebonds_atoms(fitted):
 
 
 def test_dummy_atoms_are_held_back_and_returned_unmoved(fitted):
-    """A marker is not a scatterer: it never reaches RietX, and it
+    """A marker is not a scatterer: it never reaches rietx, and it
     comes back at the fractional coordinates it was left at."""
     structure, fit, _frames = fitted
     assert fit.structure.sites[2].element == "X"
@@ -167,7 +167,7 @@ def test_a_rietveld_step_writes_what_each_box_refined(rutile_xy_shared):
 
 
 def test_every_plan_says_what_it_frees_and_whether_the_atoms_move():
-    """Two of RietX's four plans move no atom, which "lab
+    """Two of rietx's four plans move no atom, which "lab
     Bragg-Brentano" does not say by itself."""
     from xtal.powder.bridge import RIETVELD_PRESETS, plan_notes
 
@@ -189,7 +189,7 @@ def test_every_plan_says_what_it_frees_and_whether_the_atoms_move():
 def test_a_second_rietveld_run_starts_where_the_first_ended(fitted, data):
     """Run again from the first run's parameters with only the scale
     flagged: the Rwp and every other number stay where they were.
-    Without it every run starts from RietX's preset again, and a
+    Without it every run starts from rietx's preset again, and a
     profile fitted on one tab is thrown away on the next."""
     _structure, first, _frames = fitted
     again = first.parameters.copy()
@@ -225,7 +225,7 @@ def test_a_row_not_flagged_does_not_move(data):
 
 def test_a_position_its_site_fixes_is_held_and_says_why(fitted):
     """Rutile's Ti at 0,0,0 has no direction to move in; its glob
-    matches nothing in RietX, which does not refuse it, so only the
+    matches nothing in rietx, which does not refuse it, so only the
     set says so.  Without it the table offers a Refine flag that does
     nothing."""
     _structure, fit, _frames = fitted
@@ -323,7 +323,7 @@ def test_zero_cycles_reports_r_values_and_moves_nothing(data):
 
 @pytest.mark.parametrize("plan", ["", "mccusker_default"])
 def test_max_iterations_is_handed_to_every_stage(data, monkeypatch, plan):
-    """The flags' plan and a RietX plan alike: every stage stops at the
+    """The flags' plan and a rietx plan alike: every stage stops at the
     iterations asked, the last at the tolerance asked, and none before
     it stricter than that."""
     from xtal.powder import bridge

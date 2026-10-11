@@ -36,7 +36,7 @@ calculation should cite the work behind it.  Cite what you used:
 | Porosity with Zeo++ | {cite}`willems2012zeopp` |
 | Porosity from the grid entries | SciPy's KD-tree {cite}`virtanen2020scipy` |
 | A powder pattern | the pseudo-Voigt profile {cite}`wertheim1974pseudovoigt` and the Caglioti width relation {cite}`caglioti1958width`; structure factors through gemmi {cite}`wojdyr2022gemmi` |
-| Powder refinement: peak fitting, indexing, Pawley and Rietveld, Rietveld with energies | RietX {cite}`wu2026rietx`; the methods: Rietveld {cite}`rietveld1969`, Pawley {cite}`pawley1981`, the Le Bail extraction a Pawley fit starts from {cite}`lebail1988`, the refinement order of McCusker et al. {cite}`mccusker1999`, and March--Dollase preferred orientation {cite}`dollase1986` |
+| Powder refinement: peak fitting, indexing, Pawley and Rietveld, Rietveld with energies | rietx {cite}`wu2026rietx`; the methods: Rietveld {cite}`rietveld1969`, Pawley {cite}`pawley1981`, the Le Bail extraction a Pawley fit starts from {cite}`lebail1988`, the refinement order of McCusker et al. {cite}`mccusker1999`, and March--Dollase preferred orientation {cite}`dollase1986` |
 | The MOF builder (PORMAKE) | {cite}`lee2021pormake`; the block fit is Kabsch's {cite}`kabsch1976` |
 | The molecule builder | SMILES {cite}`weininger1988smiles`, the ETKDG embedding {cite}`riniker2015etkdg` and MMFF {cite}`halgren1996mmff`, through RDKit {cite}`landrum_rdkit` |
 | Net names, transitivity and layer nets from the RCSR | {cite}`okeeffe2008rcsr`; coordination sequences and point symbols as defined in {cite}`blatov2010symbols` |

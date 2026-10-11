@@ -18,7 +18,7 @@ thermal expansion, and refining atoms against the wrong pattern
 converges to a plausible wrong answer.
 
 **One Pawley per (cell, class), each a folder of its own**, so a row
-of the table opens the fit it was ranked by.  A fit RietX refuses is a
+of the table opens the fit it was ranked by.  A fit rietx refuses is a
 row with its reason, never a missing row: "tried and failed" and "not
 tried" read differently in a table meant to be trusted.
 
