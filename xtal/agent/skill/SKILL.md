@@ -317,6 +317,7 @@ Everything above is also a command, and every inspection command takes
 ```bash
 xtal inspect file.cif --json        # the same Inspection
 xtal render file.cif out.png --view c
+xtal render file.cif out.png --view "(1,1,0)"   # onto the plane
 xtal prepare in.cif out.cif         # prepare, file to file
 xtal optimize file.cif --json -o relaxed.cif
 xtal run zeopp.volume-grid file.cif --json

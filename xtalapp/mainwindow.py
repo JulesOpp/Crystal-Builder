@@ -47,6 +47,7 @@ from xtalapp.actions import ActionRegistry
 from xtalapp.autosave import Autosaver
 from xtalapp.dialogs.display_range import DisplayRangeDialog
 from xtalapp.dialogs.help import HelpWindow
+from xtalapp.dialogs.plane_view import PlaneViewDialog
 from xtalapp.docks.workspace import ask_new_name
 from xtalapp.document import Document
 from xtalapp.documents import (
@@ -143,6 +144,8 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         # Built by Help > Help on demand and kept, so the pages are
         # generated once and the window comes back where it was left.
         self._help_window = None
+        # View > Along (hkl)..., likewise built once and kept.
+        self.plane_view_dialog = None
 
         # Whether the unsaved-work question has been asked and
         # answered yes.  One quit is several events and they all read
@@ -677,6 +680,18 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         viewport = self.current_viewport()
         if viewport is not None and hasattr(viewport, "look_along_axis"):
             viewport.look_along_axis(axis)
+
+    def look_along_plane(self, hkl) -> None:
+        viewport = self.current_viewport()
+        if viewport is not None and hasattr(viewport, "look_along_plane"):
+            viewport.look_along_plane(hkl)
+
+    def show_plane_view(self) -> None:
+        """View ▸ Along (hkl)...: one dialog per window, kept rather
+        than rebuilt so it still holds the last plane looked along."""
+        if self.plane_view_dialog is None:
+            self.plane_view_dialog = PlaneViewDialog(self)
+        windows.present(self.plane_view_dialog)
 
     # ==================================================================
     #  SELECTION AND EDITING

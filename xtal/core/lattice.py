@@ -137,13 +137,29 @@ class Lattice:
         rec = self.inverse.T
         return Lattice(rec * (2.0 * math.pi) if two_pi else rec)
 
+    def _plane_vector(self, hkl) -> np.ndarray:
+        """``h a* + k b* + l c*``, the one vector both the spacing and
+        the normal are read off, so the two cannot disagree."""
+        g = np.asarray(hkl, dtype=float) @ self.reciprocal().matrix
+        if not np.any(g):
+            raise ValueError("(0 0 0) is not a plane")
+        return g
+
     def d_spacing(self, hkl) -> float:
         """Interplanar spacing for a Miller index, in Angstrom."""
-        g = np.asarray(hkl, dtype=float) @ self.reciprocal().matrix
-        n = float(np.linalg.norm(g))
-        if n == 0.0:
-            raise ValueError("d-spacing undefined for hkl = (0,0,0)")
-        return 1.0 / n
+        return 1.0 / float(np.linalg.norm(self._plane_vector(hkl)))
+
+    def plane_normal(self, hkl) -> np.ndarray:
+        """The unit cartesian normal to the planes (hkl).
+
+        Not the direction [hkl]: outside an orthogonal cell the two
+        part company -- (100) in a hexagonal cell is 30 degrees off a
+        -- and a view "onto the planes" is the normal.  A common
+        factor changes nothing, and the sign is kept: (-1 0 0) faces
+        the other way.
+        """
+        g = self._plane_vector(hkl)
+        return g / np.linalg.norm(g)
 
     # -- coordinate conversion ----------------------------------------
 

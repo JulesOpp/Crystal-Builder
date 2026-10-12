@@ -659,3 +659,36 @@ def test_every_window_answer_names_its_document(
     assert "document" not in plain.add_atom(
         "O", frac=[0.5, 0.5, 0.5]).data
     assert "document" not in plain.inspect().to_dict()
+
+
+def test_a_plane_render_in_the_window_looks_onto_it_and_back(
+        monkeypatch, window, tmp_path, tab):
+    """The window's picture along (hkl) is the viewport's own Along
+    (hkl), and the person's camera is where it was afterwards."""
+    renderer_module = pytest.importorskip("vtkmodules.vtkRenderingCore")
+    from types import SimpleNamespace
+
+    document, session = tab
+    viewport = window.tabs.widget(window.documents.index(document))
+    renderer = renderer_module.vtkRenderer()
+    camera = renderer.GetActiveCamera()
+    camera.SetPosition(1.0, 2.0, 3.0)
+    planes = []
+
+    def look_along_plane(hkl):
+        planes.append(list(hkl))
+        camera.SetPosition(9.0, 9.0, 9.0)
+
+    def save_image(path, magnification=2, transparent=False):
+        Path(path).write_bytes(b"\x89PNG\r\n\x1a\n")
+
+    for name, value in (("scene", SimpleNamespace(renderer=renderer)),
+                        ("look_along_plane", look_along_plane),
+                        ("save_image", save_image),
+                        ("_safe_render", lambda: None)):
+        monkeypatch.setattr(viewport, name, value, raising=False)
+    answer = session.render(tmp_path / "p.png", view={"hkl": [1, 1, 0]})
+    assert answer.ok, answer
+    assert planes == [[1, 1, 0]]
+    assert answer.data["view"] == {"hkl": [1, 1, 0]}
+    assert camera.GetPosition() == pytest.approx((1.0, 2.0, 3.0))

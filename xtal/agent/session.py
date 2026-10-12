@@ -248,9 +248,11 @@ class Session:
                style: str = "ball_stick", highlight=(),
                show_cell: bool = True) -> VerbResult:
         """A PNG of the current structure -- see
-        :func:`xtal.agent.render.render`.  ``highlight`` names P1 atoms
-        to draw selected, which is how to find the atoms a diagnostic
-        names."""
+        :func:`xtal.agent.render.render`.  ``view`` is ``"diagonal"``,
+        ``"a"``, ``"b"``, ``"c"``, a lattice direction ``[u, v, w]``,
+        or a plane ``{"hkl": [h, k, l]}`` seen face on, along its
+        normal.  ``highlight`` names P1 atoms to draw selected, which
+        is how to find the atoms a diagnostic names."""
         from xtal.agent.render import render
         answer = render(self.structure, path, view=view, size=size,
                         style=style, highlight=highlight,

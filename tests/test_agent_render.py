@@ -10,6 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from tests.conftest import needs_offscreen_gl
@@ -96,3 +97,50 @@ def test_a_frozen_launcher_says_to_connect_the_window_rather_than_render(
     assert answer.diagnostics[0].code == "RENDER_UNAVAILABLE"
     assert answer.message == ("connect the window to render "
                               "(Help ▸ Connect an AI assistant)")
+
+
+def test_a_render_takes_a_plane_as_its_view(tmp_path, rutile,
+                                            monkeypatch):
+    """``{"hkl": [h, k, l]}`` reaches the subprocess as a plane, with
+    its indices as integers -- a float there would be a direction."""
+    seen = []
+
+    def runs(command, **kwargs):
+        seen.append(command[-1])
+        return subprocess.CompletedProcess(command, -11, "", "")
+
+    monkeypatch.setattr(render_module.subprocess, "run", runs)
+    answer = render(rutile, tmp_path / "x.png", view={"hkl": [1, 1.0, 0]})
+    assert answer.data["view"] == {"hkl": [1, 1, 0]}
+    assert "{'hkl': [1, 1, 0]}" in seen[0]
+
+
+def test_a_plane_that_is_not_one_is_refused_before_anything_runs(
+        tmp_path, rutile, monkeypatch):
+    """(0 0 0) has no normal, a fractional index is no plane, and a
+    misspelt key is not quietly a diagonal view."""
+    def never(*args, **kwargs):
+        raise AssertionError("a renderer was started")
+
+    monkeypatch.setattr(render_module.subprocess, "run", never)
+    for view in ({"hkl": [0, 0, 0]}, {"hkl": [1, 0.5, 0]},
+                 {"hkl": [1, 0]}, {"uvw": [1, 0, 0]}):
+        with pytest.raises(ValueError):
+            render(rutile, tmp_path / "x.png", view=view)
+
+
+def test_the_snapshot_looks_onto_a_plane_as_it_looks_down_an_axis(
+        halite, quartz):
+    """Same end of the line as its own view "a": (100) of a cubic cell
+    is that view, and in quartz it is a*, not a."""
+    snapshot = pytest.importorskip("xtalapp.viewport.snapshot")
+
+    def unit(v):
+        return v / np.linalg.norm(v)
+
+    plane = snapshot._direction(halite.lattice, {"hkl": [1, 0, 0]})
+    axis = snapshot._direction(halite.lattice, "a")
+    assert unit(plane) == pytest.approx(unit(axis))
+    a_star = quartz.lattice.reciprocal().matrix[0]
+    assert unit(snapshot._direction(quartz.lattice, {"hkl": [1, 0, 0]})) \
+        == pytest.approx(-unit(a_star))

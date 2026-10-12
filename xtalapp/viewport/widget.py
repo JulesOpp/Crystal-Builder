@@ -805,13 +805,15 @@ class ViewportWidget(QWidget):
         self.scene.reset_camera()
         self._safe_render()
 
-    def look_along_reciprocal(self, axis: int) -> None:
-        """Look down a reciprocal axis -- for a monoclinic cell this is
-        not the same view as looking down the direct axis."""
+    def look_along_plane(self, hkl) -> None:
+        """Look straight onto the planes (hkl), along their normal --
+        which outside an orthogonal cell is not the direction [hkl].
+        Same sense and same up as :meth:`look_along_axis`, so (100) in
+        a cubic cell is Along a exactly."""
         if self.document is None:
             return
-        rec = self.document.structure.lattice.reciprocal().matrix
-        self.scene.look_along(rec[axis])
+        lattice = self.document.structure.lattice
+        self.scene.look_along(lattice.plane_normal(hkl))
         self.scene.reset_camera()
         self._safe_render()
 

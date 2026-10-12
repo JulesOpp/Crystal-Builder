@@ -1545,6 +1545,14 @@
    "checkable": false
   },
   {
+   "key": "view_hkl",
+   "section": "View",
+   "path": "Along (hkl)...",
+   "shortcut": "",
+   "tip": "Look straight onto a lattice plane (hkl), along its normal -- which outside an orthogonal cell is not the direction [hkl]: (100) of a hexagonal cell is 30 degrees off a",
+   "checkable": false
+  },
+  {
    "key": "reset_view",
    "section": "View",
    "path": "Reset view",

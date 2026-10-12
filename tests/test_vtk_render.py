@@ -265,6 +265,42 @@ def test_look_along_points_the_camera(rutile):
     assert np.allclose(direction, [0, 0, 1], atol=1e-6)
 
 
+def _camera_after(structure, method, argument):
+    """Run a ViewportWidget camera method unbound, over a real scene,
+    and return the camera's direction of projection and view-up."""
+    from types import SimpleNamespace
+
+    from xtalapp.viewport.widget import ViewportWidget
+    scene = vtk_scene.VtkScene()
+    scene.set_model(build_scene(structure, ViewSettings()))
+    scene.reset_camera()
+    view = SimpleNamespace(document=SimpleNamespace(structure=structure),
+                           scene=scene, _safe_render=lambda: None)
+    getattr(ViewportWidget, method)(view, argument)
+    camera = scene.renderer.GetActiveCamera()
+    return (np.array(camera.GetDirectionOfProjection()),
+            np.array(camera.GetViewUp()))
+
+
+def test_looking_along_100_in_a_cubic_cell_is_looking_along_a(halite):
+    """The same view as Along a, up included: in an orthogonal cell the
+    plane normal and the axis agree, and a picture turned about the
+    line of sight would make the two commands look unrelated."""
+    plane = _camera_after(halite, "look_along_plane", (1, 0, 0))
+    axis = _camera_after(halite, "look_along_axis", 0)
+    assert np.allclose(plane[0], axis[0], atol=1e-6)
+    assert np.allclose(plane[1], axis[1], atol=1e-6)
+
+
+def test_looking_along_100_in_quartz_is_its_reciprocal_axis(quartz):
+    """In a hexagonal cell (100) is a*, 30 degrees off a -- looking
+    along a here would be the [100] direction, not the plane."""
+    direction, _up = _camera_after(quartz, "look_along_plane", (1, 0, 0))
+    a_star = quartz.lattice.reciprocal().matrix[0]
+    assert np.allclose(direction, a_star / np.linalg.norm(a_star),
+                       atol=1e-6)
+
+
 # ============================================================ depth cue
 
 def _receding_atoms(n=10, box=60.0):

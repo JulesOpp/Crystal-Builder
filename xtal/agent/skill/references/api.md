@@ -68,7 +68,9 @@ default: the sites a diagnostic names), `"all"` or `"none"`, as does
 ### `render(path, view, size, style, highlight, show_cell)`
 
 A PNG, drawn as the viewport draws it, in a subprocess. `view` is
-`"diagonal"`, `"a"`, `"b"`, `"c"` or a lattice direction `[u, v, w]`;
+`"diagonal"`, `"a"`, `"b"`, `"c"`, a lattice direction `[u, v, w]`,
+or a plane `{"hkl": [h, k, l]}` -- seen face on, along its normal,
+which outside an orthogonal cell is not the direction `[h, k, l]`;
 `style` is a viewport style (`ball_stick`, `stick`, `spacefill`,
 `wireframe`, `polyhedra`, `net` …); `highlight` is a list of P1 atoms to
 draw selected. Orthographic, so a straight channel looks straight. Comes

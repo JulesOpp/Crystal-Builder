@@ -622,6 +622,11 @@ def build_actions(window):
         tip="Look down the b axis")
     add("view_c", "Along &c", lambda: window.look_along(2), "3",
         tip="Look down the c axis")
+    add("view_hkl", "Along (h&kl)...", window.show_plane_view,
+        tip="Look straight onto a lattice plane (hkl), along its "
+            "normal -- which outside an orthogonal cell is not the "
+            "direction [hkl]: (100) of a hexagonal cell is 30 degrees "
+            "off a")
     add("about", f"About {APP_NAME}", window.show_about,
         role=QAction.MenuRole.AboutRole)
     add("workspace_open", "&Open", window.open_selected_artifact,
@@ -807,7 +812,8 @@ def build_menus(window):
     add_boundary_menu(window, view_menu)
     window.actions_.fill_menu(view_menu, [
         None, "orthographic", "depth_cue",
-        None, "view_a", "view_b", "view_c", "reset_view"])
+        None, "view_a", "view_b", "view_c", "view_hkl",
+        "reset_view"])
 
     window.modules_menu = submenu(bar, "&Modules")
     build_modules_menu(window)

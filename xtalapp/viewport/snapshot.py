@@ -27,6 +27,8 @@ def _direction(lattice, view) -> np.ndarray:
             return np.array([1.0, 1.0, 0.6])
         # Looking *down* an axis means standing on its far end.
         return -matrix["abc".index(view)]
+    if isinstance(view, dict):
+        return -lattice.plane_normal(view["hkl"])
     return -np.asarray(lattice.to_cart(np.asarray(view, float)))
 
 

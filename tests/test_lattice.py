@@ -61,6 +61,58 @@ def test_d_spacing_of_a_cubic_cell():
         lat.d_spacing((0, 0, 0))
 
 
+#: alpha-quartz's cell: hexagonal, where a plane's normal and the
+#: direction with the same indices part company.
+HEXAGONAL = (4.9134, 4.9134, 5.4052, 90.0, 90.0, 120.0)
+
+
+def test_the_normal_to_a_plane_is_its_reciprocal_vector():
+    """Built from a* + b* by hand: indexing the direct axes instead
+    (the [110] direction) is the mistake this guards against."""
+    lat = Lattice.from_parameters(*TRICLINIC)
+    rec = lat.reciprocal().matrix
+    expected = rec[0] + rec[1]
+    expected /= np.linalg.norm(expected)
+    assert lat.plane_normal((1, 1, 0)) == pytest.approx(expected)
+    assert np.linalg.norm(lat.plane_normal((2, -1, 3))) == pytest.approx(
+        1.0)
+
+
+def test_100_in_a_hexagonal_cell_is_not_along_a():
+    """The reason View ▸ Along (hkl) exists: looking onto (100) in a
+    hexagonal cell is 30 degrees off looking along a."""
+    lat = Lattice.from_parameters(*HEXAGONAL)
+    a = lat.matrix[0] / np.linalg.norm(lat.matrix[0])
+    angle = math.degrees(math.acos(lat.plane_normal((1, 0, 0)) @ a))
+    assert angle == pytest.approx(30.0)
+    # ... and the normal is at right angles to every vector in the
+    # plane, which for (100) holds b and c.
+    for axis in (1, 2):
+        assert lat.plane_normal((1, 0, 0)) @ lat.matrix[axis] == (
+            pytest.approx(0.0, abs=1e-12))
+
+
+def test_a_plane_and_its_multiple_have_one_normal():
+    lat = Lattice.from_parameters(*TRICLINIC)
+    assert lat.plane_normal((2, 2, 0)) == pytest.approx(
+        lat.plane_normal((1, 1, 0)))
+
+
+def test_the_opposite_plane_has_the_opposite_normal():
+    """Which side is looked from is the sign of the index, so (-1 0 0)
+    must not be folded onto (1 0 0)."""
+    lat = Lattice.from_parameters(*HEXAGONAL)
+    assert lat.plane_normal((-1, 0, 0)) == pytest.approx(
+        -lat.plane_normal((1, 0, 0)))
+
+
+def test_000_has_no_normal():
+    """Refused rather than a NaN direction handed to the camera."""
+    lat = Lattice.cubic(4.0)
+    with pytest.raises(ValueError, match="0 0 0"):
+        lat.plane_normal((0, 0, 0))
+
+
 def test_metric_tensor_gives_lengths():
     lat = Lattice.from_parameters(*TRICLINIC)
     g = lat.metric_tensor
