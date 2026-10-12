@@ -40,6 +40,8 @@ hides.
 from __future__ import annotations
 
 from xtal.modules.registry import MODULES, Action, Availability, Module
+from xtal.modules.thermo import PARAMS as THERMO_PARAMS
+from xtal.modules.thermo import run_thermo
 
 
 def _available() -> Availability:
@@ -73,6 +75,11 @@ FORCEFIELD = Module(
         Action(name="optimise", label="Optimise geometry",
                tip="Relax the structure within its space group",
                shell="optimize", kind="optimise"),
+        Action(name="thermo",
+               label="Frequencies and thermochemistry...",
+               tip="Vibrational modes, and H, S and G from them, under "
+                   "the Force Field panel's engine",
+               kind="thermo", params=THERMO_PARAMS, run=run_thermo),
     ),
 )
 

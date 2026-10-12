@@ -149,12 +149,17 @@ def _submenu(menu, title):
 
 
 def test_the_three_forcefield_entries_moved_unchanged(window):
+    """The panel's three, as they were, and then the thermochemistry
+    run, which is a registry action like any module's."""
     forcefield = _submenu(window.modules_menu, "Force Field")
     entries = [a.text() for a in forcefield.actions()]
-    assert entries == ["&Setup and atom types...", "&Single point energy",
-                       "&Optimise geometry"]
+    assert entries[:3] == ["&Setup and atom types...",
+                           "&Single point energy", "&Optimise geometry"]
+    assert entries[3:] == ["Frequencies and thermochemistry..."]
     # And they are the very same actions, not copies of them.
     assert forcefield.actions()[1] is window.actions_["single_point"]
+    assert forcefield.actions()[3] is \
+        window.actions_["module.forcefield.thermo"]
 
 
 def test_the_shortcuts_followed_the_entries_into_the_menu(window):

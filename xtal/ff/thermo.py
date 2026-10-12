@@ -273,6 +273,9 @@ class Thermochemistry:
     gas: GasTerms | None = None
     quasi_rrho: bool = False
     pressure: float = 1.0
+    #: The soft-mode cutoff, cm^-1: quasi-RRHO's, and where soft
+    #: modes are counted from either way.
+    cutoff: float = QRRHO_CUTOFF
 
     @property
     def ts(self) -> float:
@@ -329,7 +332,8 @@ def thermochemistry(frequencies, weights=None, *, temperature: float,
         kind="crystal" if gas is None else "molecule",
         e_elec=e_elec, zpe=vib.zpe, h=h, s=s, g=g, cv=cv, z=max(int(z), 1),
         vibrations=vib, gas=rigid, quasi_rrho=bool(quasi_rrho),
-        pressure=gas.pressure if gas is not None else 1.0)
+        pressure=gas.pressure if gas is not None else 1.0,
+        cutoff=float(cutoff))
 
 
 def as_dat(results) -> str:
