@@ -49,6 +49,37 @@ def test_a_third_column_with_a_zero_is_not_taken_as_weights(tmp_path):
     assert sigma is None
 
 
+def test_a_decimal_comma_is_refused_by_name(tmp_path):
+    """Read as a separator, ``10,00<TAB>100,5`` was every 2-theta 10
+    and the intensities the angles' fractions, with nothing said."""
+    rows = "\n".join(f"10,{i:02d}\t{100 + i},5" for i in range(0, 40, 2))
+    with pytest.raises(PowderError, match="decimal comma"):
+        PowderData.from_xy(_write(tmp_path, "# 2theta;I\n" + rows))
+
+
+@pytest.mark.parametrize("rows", [
+    "10.00,100.5\n10.02,101.0\n10.04,150.2\n",
+    "10.00, 100.5\n10.02, 101.0\n10.04, 150.2\n",
+    "10,100\n11,101\n12,150\n",
+])
+def test_a_comma_between_the_columns_still_reads(tmp_path, rows):
+    """The decimal-comma refusal is not a refusal of comma-separated
+    files, integers with no space between them included."""
+    x, y, _sigma = read_columns(_write(tmp_path, rows))
+    assert len(x) == 3 and x[0] < x[1] < x[2]
+    assert y[0] in (pytest.approx(100.5), pytest.approx(100.0))
+
+
+def test_a_comment_after_the_numbers_keeps_its_row(tmp_path):
+    """rietx 1.5 drops such a row without a word (rietx#897); a cosmic
+    ray noted beside its point is still a point."""
+    rows = "\n".join(f"{10 + 0.02 * i:.2f} {100 + i}"
+                     + ("  # spike, kept" if i == 3 else "")
+                     for i in range(10))
+    x, _y, _sigma = read_columns(_write(tmp_path, rows))
+    assert len(x) == 10
+
+
 def test_a_pattern_with_a_repeated_angle_is_refused(tmp_path):
     """Two scans pasted into one file refine as neither of them."""
     rows = "\n".join(f"{10 + i % 12} {100 + i}" for i in range(24))

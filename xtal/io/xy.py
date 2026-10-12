@@ -29,6 +29,7 @@ that a pattern exported from here and read back is the same numbers.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import numpy as np
@@ -52,6 +53,13 @@ VENDOR_EXTENSIONS = (".rasx", ".ras", ".raw", ".brml", ".uxd", ".xrdml",
 #: What a line has to have before it is data.  Anything else is a
 #: header, a comment or a blank -- not an error.
 _COMMENT = "#!;/*"
+
+#: A number written with a decimal comma, ``100,5``: digits either side
+#: and no point.  Read as a separator, ``10,00<TAB>100,5`` is four
+#: numbers, and the pattern was every 2-theta 10 and the intensities
+#: the fractions of the angles -- loaded, plotted and refined against,
+#: with nothing said.
+_DECIMAL_COMMA = re.compile(r"[-+]?\d+,\d+")
 
 
 def read_xy(path) -> tuple[np.ndarray, np.ndarray]:
@@ -86,6 +94,18 @@ def read_columns(path) -> tuple[np.ndarray, np.ndarray,
             row = line.strip()
             if not row or row[0] in _COMMENT:
                 continue
+            fields = row.split()
+            # ``10,100`` alone is a comma between two integers, and
+            # stays one; only with whitespace between the columns is a
+            # comma inside a column a decimal one
+            if "." not in row and len(fields) >= 2 and any(
+                    _DECIMAL_COMMA.fullmatch(field)
+                    for field in fields[:2]):
+                raise ValueError(
+                    f"{path.name} writes its numbers with a decimal "
+                    f"comma ({fields[0]}) -- export it with a "
+                    f"decimal point, or replace the commas, and open "
+                    f"it again")
             parts = row.replace(",", " ").split()
             if len(parts) < 2:
                 continue
