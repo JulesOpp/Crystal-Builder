@@ -414,7 +414,7 @@ class ShellRefresh:
             ["save", "save_as", "export", "export_image",
              "clear_overlays", "show_all",
              "close_tab", "close_all_tabs", "reset_view", "view_a",
-             "view_b", "view_c"],
+             "view_b", "view_c", "view_hkl"],
             has_document)
         self._update_history_actions()
         self.actions_.set_enabled(

@@ -1948,6 +1948,16 @@ Look down the c axis
 ```{index} Along c
 ```
 
+(cmd-view_hkl)=
+### Along (hkl)...
+
+`view_hkl`
+
+Look straight onto a lattice plane (hkl), along its normal -- which outside an orthogonal cell is not the direction [hkl]: (100) of a hexagonal cell is 30 degrees off a
+
+```{index} Along (hkl)...
+```
+
 (cmd-reset_view)=
 ### Reset view
 

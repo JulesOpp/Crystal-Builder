@@ -159,6 +159,11 @@ site like any other copy.
    ({kbd}`Ctrl+0`) frames the whole of what is drawn again.  All four
    are on the right of the toolbar, the axis views labelled by their
    letter after the word *along*.
+4. {ref}`Along (hkl)… <cmd-view_hkl>` looks straight onto a lattice
+   plane, along its normal.  Outside an orthogonal cell that is not
+   the direction [hkl]: (100) of quartz is 30° off *a*.  The dialog
+   stays open, so (100), (110) and (111) can be stepped through, and
+   Look turns whichever tab is in front.
 
 In every mouse mode the left button on the background turns the
 crystal, the wheel zooms and the middle button pans; *Box select* is
