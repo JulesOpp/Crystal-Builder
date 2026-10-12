@@ -821,6 +821,33 @@ used when installed and tested in a subprocess.  A framework in its
 own space group has tens of variables, not hundreds, and does not
 need it.
 
+### Past rietx 1.5: the public objective, and what the upgrade owes
+
+`refine` is pinned below 1.6 because `PatternTerm` reaches rietx's
+internals (`compile_model`, `ParameterTable`, `_make_residual`,
+`_jacobian_for`).  rietx's author has scheduled the public objective
+we asked for (rietx#899, their WP-1948), after WP-1938 makes every
+solver column the physical value -- which changes the θ `PatternTerm`
+decodes, so 1.6 breaks us before 1948 lands.  Move to the objective
+in one step when it ships; `ParameterTable.local_jacobian(θ)` gives
+`frac_basis` / `cell_basis` without differencing.  WP-1938's declared
+bounds become L-BFGS-B's.  The same upgrade, from their answers on
+2026-10-11:
+- numba is gone (WP-1940), so `MODULE_COLLECTION_MODE`'s `"pyz+py"`
+  for rietx in `packaging/bundle.py` can go; the `rietx-kernels`
+  wheel is a hidden import (it is imported inside a function, and
+  missed, a fit runs at half speed), and its metadata is collected.
+  rietx is to ship a PyInstaller hook (WP-1950).
+- `evaluate` (WP-1947, rietx#890) replaces `bridge.evaluation()`'s
+  empty stage, and a reflection table before any fit (#891) replaces
+  `allowed_reflections`' gemmi lines.
+- `held_because` on each parameter row (#896) could give `held_paths`
+  rietx's wording; a glob naming one site that frees nothing will
+  warn (WP-1951).
+- rietx's two-column reader already takes headers, comments and
+  commas (#897); they asked for a file ours reads and theirs does
+  not, as a test case, before ours is dropped.
+
 ### Structure solution from the pattern alone (Superflip)
 
 Charge flipping would take a Pawley cell and intensities to a density

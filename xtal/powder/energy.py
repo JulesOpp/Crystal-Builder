@@ -350,6 +350,8 @@ class EnergyProblem:
             notes.append(f"The force field moves these atoms by almost "
                          f"nothing on its own, so the energy is weighed "
                          f"against a drop of {MIN_ENERGY_DROP} kcal/mol.")
+        if cell and why != EVALUATED:
+            notes.extend(_stale_notes(term, answer))
         return EnergyFit(
             structure=refined,
             cell=tuple(float(v) for v in term.cell(answer)),
@@ -547,3 +549,24 @@ def _placed(structure, indices, fractions, cell):
     for row, index in zip(fractions, indices, strict=True):
         out.set_frac(int(index), np.asarray(row, dtype=float))
     return out
+
+
+def _stale_notes(term, answer) -> list[str]:
+    """A note when the cell has moved so far that the χ² minimised --
+    over the hkl list and peak windows compiled at the start -- is no
+    longer the pattern's.  The lines leave their frozen windows and
+    χ² *falls*, so an L-BFGS with the cell free can walk towards the
+    error; a recompile cannot happen inside the run, since it would
+    change the function under the minimiser."""
+    from xtal.powder import bridge
+
+    frozen = float(term(answer)[0])
+    fresh = term.fresh_chi2(answer)
+    if fresh <= 0.0 or abs(frozen - fresh) <= bridge.STALE_CHI2 * fresh:
+        return []
+    return [f"The cell moved far enough that the pattern's lines left "
+            f"the windows compiled for them at the start: χ² compiled "
+            f"afresh is {fresh:.4g}, against {frozen:.4g} minimised "
+            f"({abs(frozen - fresh) / fresh:.0%} apart).  The figures "
+            f"here are the frozen ones; hold the cell, or refine again "
+            f"from this result."]
