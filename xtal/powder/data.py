@@ -162,8 +162,10 @@ class PowderData:
         """Read a pattern, two columns or a diffractometer's own file.
 
         Two-column text stays on :func:`~xtal.io.xy.read_columns`,
-        which needs no rietx and reads the headers and commas that
-        rietx's stricter reader would refuse.  Anything else goes to
+        which needs no rietx, keeps a row with a comment after its
+        numbers that rietx 1.5 drops, and refuses an esd column with a
+        zero in it that rietx would weight infinitely (rietx#897).
+        Anything else goes to
         rietx, which recognises a format by its bytes rather than its
         suffix -- six vendors write ``.raw``.
         """
