@@ -135,6 +135,42 @@ def test_the_pattern_gradient_matches_central_differences(rutile_data):
     assert gradient == pytest.approx(numeric, rel=1e-5)
 
 
+def test_a_frozen_compile_is_checked_against_a_fresh_one(rutile_data):
+    """Breaks if a cell moved past its frozen peak windows reports the
+    frozen chi2 unremarked: the lines leave their windows and chi2
+    falls, which is what an L-BFGS with the cell free walks towards
+    (rietx#899)."""
+    from xtal.powder.energy import _stale_notes
+
+    term, *_rest = bridge.pattern_term(
+        _rutile(), rutile_data, CU,
+        start=_flagged(_rutile(), rutile_data, "background", "profile"),
+        cell=True)
+    assert term.fresh_chi2(term.theta0) == pytest.approx(
+        term(term.theta0)[0], rel=1e-9)
+    assert _stale_notes(term, term.theta0) == []
+    far = term.theta0.copy()
+    far[term.paths.index("phases.0.cell.a")] += 0.1
+    assert term(far)[0] < 0.5 * term.fresh_chi2(far)
+    notes = _stale_notes(term, far)
+    assert len(notes) == 1 and "compiled afresh" in notes[0]
+
+
+def test_the_background_is_read_without_touching_the_refinement(
+        rutile_data):
+    """The curve is the scale-at-zero pattern it replaced, and reading
+    it leaves the refinement's values as they were (rietx#894)."""
+    refinement, _indices = bridge._refinement_of(_rutile(), CU, 8)
+    before = {row.path: row.value for row in refinement.parameters()}
+    curve = bridge.background(refinement, rutile_data)
+    assert {row.path: row.value
+            for row in refinement.parameters()} == before
+    refinement.set_values({"phases.0.scale": 0.0})
+    expected = refinement.predict(bridge.pattern(rutile_data))
+    assert curve == pytest.approx(np.asarray(expected), rel=1e-9,
+                                  abs=1e-9)
+
+
 def test_the_energy_gradient_matches_central_differences(quartz_data):
     """The engine's forces, carried over each orbit onto the site's
     allowed directions -- and its stress onto the cell's numbers."""

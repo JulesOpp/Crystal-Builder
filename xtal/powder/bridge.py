@@ -601,16 +601,17 @@ def _finished(parameters: ps.ParameterSet, refinement, result,
 
 
 def background(refinement, data: PowderData) -> np.ndarray:
-    """The refinement's background over ``data``, as it stands: its
-    pattern with the scale at nothing.  For a run that fits nothing
-    before its atoms move, where there is no fit to have drawn one."""
-    scale = {row.path: float(row.value) for row in refinement.parameters()
-             if row.path == "phases.0.scale"}
-    refinement.set_values({path: 0.0 for path in scale})
-    try:
-        return np.asarray(refinement.predict(pattern(data)), dtype=float)
-    finally:
-        refinement.set_values(scale)
+    """The refinement's background over ``data``, as it stands.  For a
+    run that fits nothing before its atoms move, where there is no fit
+    to have drawn one.
+
+    Predicted by a refinement of no phases over the same instrument,
+    as rietx's author advises (rietx#894).  Setting the scale to 0 and
+    back was the same curve, but wrote two ``set_value`` nodes into
+    the refinement's history and cleared any result it held.
+    """
+    alone = rx.Refinement(rx.Structure(phases=[]), refinement.instrument)
+    return np.asarray(alone.predict(pattern(data)), dtype=float)
 
 
 def free_cell_paths(refinement, hold=()) -> list[str]:
@@ -1067,6 +1068,13 @@ def rietveld(structure, data: PowderData, radiation: Radiation, *,
 #: follow from these.
 _TERM_ATOMS = "phases.*.atoms.*.dof.*"
 
+#: How far a frozen compile's χ² may stray from a fresh one before a
+#: fit says so: rietx's own ``FROZEN_COMPILE_STALE`` threshold.  It is
+#: not a drift that averages out: lines leave the windows frozen for
+#: them, and χ² *falls* -- rutile's 197 000 against 968 000 fresh at
+#: +0.1 A on a.
+STALE_CHI2 = 0.01
+
 
 class PatternTerm:
     """χ² of a fitted refinement as a function of its atoms, and of its
@@ -1111,6 +1119,7 @@ class PatternTerm:
                               "or every one flagged is on a position its "
                               "symmetry fixes")
         self._table = table
+        self._refinement, self._data = refinement, data
         self._model = compile_model(
             refinement.structure, refinement.instrument, pattern(data),
             mode="rietveld", moving_paths=set(table.moving_paths))
@@ -1166,6 +1175,32 @@ class PatternTerm:
                            2.0 * (jacobian.T @ residual))
             self._at = theta.copy()
         return self._value
+
+    def fresh_chi2(self, theta) -> float:
+        """χ² at ``theta`` from a model compiled there, hkl list and
+        peak windows found afresh: what the frozen one is checked
+        against once the cell has moved (:data:`STALE_CHI2`)."""
+        import copy
+
+        from rietx.model.forward import compile_model
+
+        theta = np.asarray(theta, dtype=float)
+        structure = copy.deepcopy(self._refinement.structure)
+        phase = structure.phases[0]
+        for atom, (x, y, z) in zip(phase.atoms, self.fractions(theta),
+                                   strict=True):
+            atom.x.value, atom.y.value, atom.z.value = x, y, z
+        for name, value in zip(("a", "b", "c", "alpha", "beta", "gamma"),
+                               self.cell(theta), strict=True):
+            getattr(phase.cell, name).value = float(value)
+        model = compile_model(structure, self._refinement.instrument,
+                              pattern(self._data), mode="rietveld")
+        y_calc = np.asarray(model.evaluate(self._table.decode(theta)),
+                            dtype=float)
+        weight = 1.0 / np.asarray(model.sigma, dtype=float)
+        return float(np.sum((weight * (np.asarray(model.y_obs,
+                                                  dtype=float)
+                                       - y_calc)) ** 2))
 
     def y_calc(self, theta) -> np.ndarray:
         return np.asarray(self._model.evaluate(
