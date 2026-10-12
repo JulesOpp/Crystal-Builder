@@ -449,3 +449,28 @@ def test_a_terminated_run_stops_its_program_and_says_so(tmp_path):
     assert not any(subprocess.run(["ps", "-p", pid],
                                   capture_output=True).returncode == 0
                    for pid in children)
+
+
+def test_render_reads_a_parenthesised_view_as_a_plane(
+        rutile_cif, tmp_path, monkeypatch):
+    """``--view "(1,1,0)"`` is the plane, as the notation says; bare
+    ``1,1,0`` stays the direction it always was."""
+    import importlib
+
+    from xtal.agent.answers import VerbResult
+
+    # The module, not the function the package exports under its name.
+    render_module = importlib.import_module("xtal.agent.render")
+
+    views = []
+
+    def drawn(structure, path, view, **kwargs):
+        views.append(view)
+        return VerbResult("render", True, "drawn")
+
+    monkeypatch.setattr(render_module, "render", drawn)
+    for view in ("(1,1,0)", "(1 -1 2)", "1,1,0", "c"):
+        assert main(["render", rutile_cif, str(tmp_path / "x.png"),
+                     "--view", view]) == 0
+    assert views == [{"hkl": [1, 1, 0]}, {"hkl": [1, -1, 2]},
+                     [1.0, 1.0, 0.0], "c"]

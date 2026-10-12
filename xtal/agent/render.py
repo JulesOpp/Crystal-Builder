@@ -33,8 +33,36 @@ from pathlib import Path
 from xtal.agent.answers import VerbResult
 from xtal.agent.diagnostics import Diagnostic
 
-#: Directions a picture can be taken along, besides a ``[u, v, w]``.
+#: Directions a picture can be taken along, besides a ``[u, v, w]``
+#: and a plane ``{"hkl": [h, k, l]}``.
 VIEWS = ("diagonal", "a", "b", "c")
+
+
+def as_view(view):
+    """``view`` checked and in the one spelling both renderers read.
+
+    A name from :data:`VIEWS`, a plane ``{"hkl": [h, k, l]}`` -- its
+    normal, which outside an orthogonal cell is not the direction
+    [hkl] -- with integer indices, or a lattice direction ``[u, v,
+    w]`` as floats.  Refused here, before a subprocess or the window's
+    camera is touched: a misspelt key must not come out as some other
+    picture.
+    """
+    if isinstance(view, str):
+        if view in VIEWS:
+            return view
+    elif isinstance(view, dict):
+        hkl = view.get("hkl") if set(view) == {"hkl"} else None
+        if (isinstance(hkl, (list, tuple)) and len(hkl) == 3
+                and all(float(h).is_integer() for h in hkl)):
+            if not any(hkl):
+                raise ValueError("(0 0 0) is not a plane")
+            return {"hkl": [int(h) for h in hkl]}
+    else:
+        return [float(x) for x in view]
+    raise ValueError(f"view is one of {', '.join(VIEWS)}, a lattice "
+                     f"direction [u, v, w] or a plane "
+                     f"{{'hkl': [h, k, l]}} of integers, not {view!r}")
 
 #: Longest a render may take before it is abandoned.  Software GL
 #: draws MFU-4l's 648 atoms in about five seconds.
@@ -50,20 +78,18 @@ def render(structure, path, view="diagonal", size=(800, 600),
     """Draw ``structure`` to a PNG at ``path``.
 
     ``view`` is ``"diagonal"`` (the viewport's opening view), ``"a"``,
-    ``"b"`` or ``"c"`` (looking down that axis), or a lattice direction
-    ``[u, v, w]``.  ``highlight`` names P1 atoms to draw selected, which
-    is how to see where the atoms a diagnostic names actually are.
+    ``"b"`` or ``"c"`` (looking down that axis), a lattice direction
+    ``[u, v, w]``, or ``{"hkl": [h, k, l]}`` (looking straight onto
+    that plane, along its normal).  ``highlight`` names P1 atoms to
+    draw selected, which is how to see where the atoms a diagnostic
+    names actually are.
     """
     from xtal.io.project import write_project
 
     path = Path(path)
     if path.suffix.lower() != ".png":
         raise ValueError(f"render writes a .png, not {path.name}")
-    if isinstance(view, str) and view not in VIEWS:
-        raise ValueError(f"view is one of {', '.join(VIEWS)} or a "
-                         f"lattice direction [u, v, w], not {view!r}")
-    args = {"view": view if isinstance(view, str)
-            else [float(x) for x in view],
+    args = {"view": as_view(view),
             "size": [int(size[0]), int(size[1])], "style": style,
             "highlight": [int(a) for a in highlight],
             "show_cell": bool(show_cell)}

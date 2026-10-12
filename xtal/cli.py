@@ -109,8 +109,13 @@ def cmd_render(args) -> int:
     """A PNG of the structure, drawn as the viewport draws it."""
     from xtal.agent.render import render
 
-    view = args.view
-    if "," in view:
+    view = args.view.strip()
+    if view.startswith("(") and view.endswith(")"):
+        # Parentheses are a plane, as they are on paper: (1,1,0) or
+        # (1 1 0).
+        view = {"hkl": [int(x) for x in
+                        view[1:-1].replace(",", " ").split()]}
+    elif "," in view:
         view = [float(x) for x in view.split(",")]
     width, _, height = args.size.partition("x")
     answer = render(_load(args.file), args.output, view=view,
@@ -768,8 +773,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("file")
     p.add_argument("output", help="the .png to write")
     p.add_argument("--view", default="diagonal",
-                   help="diagonal, a, b, c, or a lattice direction "
-                        "u,v,w (default: %(default)s)")
+                   help="diagonal, a, b, c, a lattice direction "
+                        "u,v,w, or a plane \"(h,k,l)\" seen along "
+                        "its normal (default: %(default)s)")
     p.add_argument("--style", default="ball_stick",
                    help="a viewport style: ball_stick, stick, "
                         "spacefill, wireframe, polyhedra ... "

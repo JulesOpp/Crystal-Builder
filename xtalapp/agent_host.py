@@ -411,18 +411,15 @@ class WindowSession(Session):
                show_cell: bool = True) -> VerbResult:
         """The tab's viewport, drawn to a PNG: the person's view, in
         the tab's style and size.  ``view`` other than ``"diagonal"``
-        turns the camera for the picture and back after it."""
-        from xtal.agent.render import VIEWS
+        -- an axis, ``[u, v, w]`` or ``{"hkl": [h, k, l]}`` -- turns
+        the camera for the picture and back after it."""
+        from xtal.agent.render import as_view
 
         path = Path(path)
         if path.suffix.lower() != ".png":
             raise ValueError(f"render writes a .png, not {path.name}")
-        if isinstance(view, str) and view not in VIEWS:
-            raise ValueError(f"view is one of {', '.join(VIEWS)} or a "
-                             f"lattice direction [u, v, w], not {view!r}")
-        args = {"path": str(path),
-                "view": view if isinstance(view, str)
-                else [float(x) for x in view]}
+        view = as_view(view)
+        args = {"path": str(path), "view": view}
         viewport = self.window.tabs.widget(
             self.window.documents.index(self.document))
         if not hasattr(viewport, "save_image"):
@@ -654,6 +651,8 @@ class _turned:
                       camera.GetParallelScale(), camera.GetViewAngle())
         if isinstance(self.view, str):
             self.viewport.look_along_axis("abc".index(self.view))
+        elif isinstance(self.view, dict):
+            self.viewport.look_along_plane(self.view["hkl"])
         else:
             scene.look_along(self.lattice.to_cart(
                 [float(x) for x in self.view]))
