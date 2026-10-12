@@ -38,7 +38,10 @@ from xtal.ff import infrared as ir
 from xtal.ff import optimize, thermo, vibrations
 from xtal.ff import scan as driver
 from xtal.ff.api import CalculatorStopped
-from xtal.ff.registry import ENGINES
+from xtal.ff.registry import (
+    ENGINES,
+    engine_choices,
+)
 from xtal.io import atomic
 from xtal.modules.job import JobResult
 from xtal.modules.report import (
@@ -79,7 +82,7 @@ IR_PARAMS = (
 
 PARAMS = (
     Param("engine", "Engine", "choice", default="uff",
-          choices=tuple((e.name, e.label) for e in ENGINES),
+          choices=engine_choices,
           help="Which energy engine the Hessian is taken under.  The "
                "Force Field panel's engine and its options are what "
                "the window hands in."),
@@ -92,13 +95,18 @@ PARAMS = (
                "projected out of the Hessian; a crystal gets the "
                "harmonic solid, and G is its Helmholtz energy."),
     Param("temperature", "Temperature", "float", default=298.15,
-          minimum=1.0, maximum=5000.0, decimals=2, suffix=" K"),
+          minimum=1.0, maximum=5000.0, decimals=2, suffix=" K",
+          help="The temperature the summary table is at."),
     Param("t_min", "Curves from", "float", default=10.0, minimum=1.0,
-          maximum=5000.0, decimals=1, suffix=" K"),
+          maximum=5000.0, decimals=1, suffix=" K",
+          help="Where the H, TS, G and Cv curves and thermo.dat "
+               "start."),
     Param("t_max", "Curves to", "float", default=800.0, minimum=1.0,
-          maximum=5000.0, decimals=1, suffix=" K"),
+          maximum=5000.0, decimals=1, suffix=" K",
+          help="Where the curves and thermo.dat end."),
     Param("t_step", "Curve step", "float", default=10.0, minimum=0.1,
-          maximum=1000.0, decimals=1, suffix=" K"),
+          maximum=1000.0, decimals=1, suffix=" K",
+          help="The spacing of the curves' temperatures."),
     Param("pressure", "Pressure", "float", default=1.0, minimum=1e-9,
           maximum=1e6, decimals=4, suffix=" bar",
           help="A gas's translational entropy depends on it; a "
@@ -109,21 +117,28 @@ PARAMS = (
           help="Rotations that map the molecule onto itself: water "
                "2, methane 12.  0 counts them from the geometry."),
     Param("multiplicity", "Spin multiplicity", "int", default=1,
-          minimum=1, maximum=11),
+          minimum=1, maximum=11,
+          help="2S + 1 of a molecule's ground state: R ln of it is "
+               "added to S.  The engine is not told."),
     Param("quasi_rrho", "Quasi-RRHO entropy", "bool", default=False,
           help="Grimme's correction: below the cutoff a mode's "
                "entropy goes over to a free rotor's, where the "
                "harmonic one runs away.  Soft modes are counted "
                "either way."),
     Param("qrrho_cutoff", "Soft-mode cutoff", "float", default=100.0,
-          minimum=1.0, maximum=1000.0, decimals=1, suffix=" cm-1"),
+          minimum=1.0, maximum=1000.0, decimals=1, suffix=" cm-1",
+          help="Below this a mode is counted as soft, and with "
+               "quasi-RRHO its entropy goes over to a rotor's."),
     Param("method", "Hessian", "choice", default="auto",
           choices=(("auto", "Automatic"),
                    ("gamma", "Gamma only, every atom displaced")),
           help="Finite differences of the engine's forces at Gamma: "
                "6 evaluations per free atom and one more."),
     Param("delta", "Displacement", "float", default=vibrations.DELTA,
-          minimum=1e-4, maximum=0.1, decimals=4, suffix=" A"),
+          minimum=1e-4, maximum=0.1, decimals=4, suffix=" A",
+          help="How far each atom is moved either way.  Small enough "
+               "that the force is linear in it, large enough that an "
+               "ML engine's noise stays below the difference."),
     Param("relax_first", "Relax first", "bool", default=True,
           help="Relax a copy before the Hessian, the cell too for a "
                "crystal.  Away from a minimum the modes are the "
@@ -136,7 +151,10 @@ PARAMS = (
                "force is a curvature the Hessian cannot tell from a "
                "soft mode."),
     Param("max_steps", "Relaxation steps", "int", default=2000,
-          minimum=1, maximum=100000),
+          minimum=1, maximum=100000,
+          help="A ceiling on Relax first.  A relaxation that stops "
+               "here says so, and the modes then carry what was "
+               "left."),
     Param("ir", "Also compute the IR spectrum", "bool", default=False,
           help="Intensities from a charge model over the same "
                "Hessian: no extra evaluations with fixed charges."),
@@ -489,16 +507,15 @@ def _curves(results) -> list[Curve]:
         return np.array([getattr(r, attr) for r in results])
 
     return [
-        Curve(title="Free energy", x=x, y=series("h") - base,
-              x_label="T (K)",
-              y_label="kcal/mol, from E + ZPE (per cell)",
+        Curve(title="H, TS and G (kcal/mol per cell, from E + ZPE)",
+              x=x, y=series("h") - base, x_label="T (K)", y_label="H",
               series=(("T S", series("ts")),
                       ("G", series("g") - base)),
               normalised=False,
               note="H and G are drawn from the electronic energy "
                    "plus the zero-point energy."),
-        Curve(title="Heat capacity", x=x, y=series("cv"),
-              x_label="T (K)", y_label="Cv (cal/(mol K), per cell)",
+        Curve(title="Cv and S (cal/(mol K) per cell)", x=x,
+              y=series("cv"), x_label="T (K)", y_label="Cv",
               series=(("S", series("s")),), normalised=False),
     ]
 

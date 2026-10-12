@@ -39,7 +39,11 @@ from xtal.ff import coordinates as co
 from xtal.ff import eos, optimize
 from xtal.ff import scan as driver
 from xtal.ff.optimize import METHODS
-from xtal.ff.registry import ENGINES
+from xtal.ff.registry import (
+    ENGINES,
+    engine_choices,
+    engine_choices_or_none,
+)
 from xtal.modules.job import JobResult
 from xtal.modules.registry import MODULES, Action, Module
 from xtal.modules.report import (
@@ -157,7 +161,7 @@ def axes_from(job, structure):
 
 PARAMS = (
     Param("engine", "Engine", "choice", default="uff",
-          choices=tuple((e.name, e.label) for e in ENGINES),
+          choices=engine_choices,
           help="Which energy engine relaxes each point.  For a "
                "flexible framework a machine-learned potential is "
                "the better choice: UFF4MOF was never fitted to "
@@ -202,8 +206,7 @@ PARAMS = (
     Param("tolerance", "Force tolerance", "float", default=0.05,
           minimum=1e-6, decimals=4, suffix=" kcal/mol/A"),
     Param("pre_engine", "Pre-relax with", "choice", default="",
-          choices=(("", "Nothing"),
-                   *((e.name, e.label) for e in ENGINES)),
+          choices=engine_choices_or_none,
           help="A cheaper engine run at every point before the one "
                "the landscape is of -- UFF4MOF ahead of MACE, say.  "
                "A volume step moves every atom with the cell, and "

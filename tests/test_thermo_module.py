@@ -108,8 +108,8 @@ def test_a_molecule_gets_the_ideal_gas_and_its_entropy():
 def test_the_report_has_curves_and_the_modes(rutile):
     result = _run(rutile)
     curves = [b for b in result.report.blocks if isinstance(b, Curve)]
-    assert {c.title for c in curves} >= {"Free energy", "Heat capacity"}
-    energy = next(c for c in curves if c.title == "Free energy")
+    assert len(curves) == 2
+    energy = next(c for c in curves if c.title.startswith("H, TS and G"))
     assert list(energy.x) == [100.0, 200.0, 300.0, 400.0]
     modes = [b for b in result.report.blocks if isinstance(b, Modes)]
     assert len(modes) == 1 and modes[0].n_modes == 18
@@ -203,6 +203,32 @@ def test_the_ir_action_skips_the_thermochemistry():
     result = action.run(job)
     assert result.ok, result.message
     titles = [getattr(b, "title", "") for b in result.report.blocks]
-    assert "Free energy" not in titles
+    assert not any(t.startswith("H, TS and G") for t in titles)
     assert "IR spectrum" in titles
     assert "IR bands" in result.message
+
+
+@pytest.mark.parametrize("action, extra", [
+    ("forcefield.thermo", ["-p", "relax_first=false"]),
+    ("scan.bulk_modulus", ["-p", "axis1_steps=5", "-p",
+                           "relax_first=false"])])
+def test_a_fresh_xtal_run_knows_the_engines(tmp_path, rutile, action,
+                                            extra):
+    """In a fresh interpreter the modules register while xtal.ff is
+    still importing -- a DFTB+ calculator reaches xtal.modules.process
+    -- so a choice list read off ENGINES then was empty, and every
+    ``-p engine=uff`` was refused.  In this test process the engines
+    are long registered, which is why it has to be a subprocess."""
+    import subprocess
+    import sys
+
+    path = tmp_path / "rutile.cif"
+    write_cif(rutile, path)
+    ran = subprocess.run(
+        [sys.executable, "-c",
+         "import sys; from xtal.cli import main; "
+         "sys.exit(main(sys.argv[1:]))",
+         "run", action, str(path), "--workspace", str(tmp_path / "ws"),
+         "-p", "engine=uff", "-p", "max_steps=5", *extra, "-q"],
+        capture_output=True, text=True, timeout=300)
+    assert ran.returncode == 0, ran.stderr + ran.stdout

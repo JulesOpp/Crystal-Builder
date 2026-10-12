@@ -388,6 +388,15 @@ class ForceFieldDock(QDockWidget):
         self.pause_button = QPushButton("Pause")
         self.pause_button.clicked.connect(self.toggle_pause)
         self.pause_button.setEnabled(False)
+        # A run of the module, not of this panel: it has a run folder,
+        # a worker and Stop of its own, and returns no structure.  Only
+        # on the Force Field dock, whose engine its dialog opens on.
+        self.thermo_button = QPushButton("Thermochemistry...")
+        self.thermo_button.setToolTip(
+            "Vibrational modes, and H, S and G from them, under this "
+            "engine")
+        self.thermo_button.clicked.connect(self._run_thermo)
+        self.thermo_button.setVisible(object_name == "ForceFieldDock")
 
         self.plot = TracePlot()
         self.report = QPlainTextEdit()
@@ -465,7 +474,10 @@ class ForceFieldDock(QDockWidget):
         buttons.addWidget(self.run_button)
         buttons.addWidget(self.pause_button)
         buttons_widget = QWidget()
-        buttons_widget.setLayout(buttons)
+        stacked = QVBoxLayout(buttons_widget)
+        stacked.setContentsMargins(0, 0, 0, 0)
+        stacked.addLayout(buttons)
+        stacked.addWidget(self.thermo_button)
 
         # The buttons straight under the model, and the type table
         # folded at the bottom: with the table second and the buttons
@@ -703,7 +715,8 @@ class ForceFieldDock(QDockWidget):
             # the rest.  Re-enabling either from here would offer a
             # second single point on top of the optimisation.
             return
-        for button in (self.energy_button, self.run_button):
+        for button in (self.energy_button, self.run_button,
+                       self.thermo_button):
             button.setEnabled(bool(available))
 
     def _show_sources(self) -> None:
@@ -975,7 +988,8 @@ class ForceFieldDock(QDockWidget):
         self.run_button.setText("Stop" if running else "Optimise")
         self.pause_button.setEnabled(running)
         self.pause_button.setText("Pause")
-        for widget in (self.energy_button, self.engine,
+        for widget in (self.energy_button, self.thermo_button,
+                       self.engine,
                        self.parameter_set, self.coulomb,
                        self.charges, self.vdw_cutoff, self.skin,
                        self.method, self.max_steps,
@@ -995,6 +1009,17 @@ class ForceFieldDock(QDockWidget):
             # And an engine that cannot run stays unable to, which
             # _set_running would otherwise have just undone.
             self._show_engine()
+
+    def _run_thermo(self) -> None:
+        window = self.parent()
+        if window is not None and hasattr(window, "run_module_action"):
+            window.run_module_action("forcefield", "thermo")
+
+    def thermo_landed(self, result) -> None:
+        """The run's one line, under whatever the panel last said; the
+        tables, curves and modes are in the Results panel."""
+        if result.message:
+            self.report.appendPlainText(result.message)
 
     # -- signals from the worker ---------------------------------------
 

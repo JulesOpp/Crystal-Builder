@@ -2130,6 +2130,26 @@ Relax the structure within its space group
 ```{index} Optimise geometry
 ```
 
+(cmd-module.forcefield.thermo)=
+### Force Field ▸ Frequencies and thermochemistry...
+
+`module.forcefield.thermo`
+
+Vibrational modes, and H, S and G from them, under the Force Field panel's engine
+
+```{index} Frequencies and thermochemistry...
+```
+
+(cmd-module.forcefield.infrared)=
+### Force Field ▸ IR spectrum...
+
+`module.forcefield.infrared`
+
+Vibrational modes and their IR intensities from a charge model, under the Force Field panel's engine
+
+```{index} IR spectrum...
+```
+
 (cmd-show_dftb)=
 ### DFTB+ ▸ DFTB+ panel
 

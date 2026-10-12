@@ -1689,6 +1689,22 @@
    "checkable": false
   },
   {
+   "key": "module.forcefield.thermo",
+   "section": "Modules",
+   "path": "Force Field ▸ Frequencies and thermochemistry...",
+   "shortcut": "",
+   "tip": "Vibrational modes, and H, S and G from them, under the Force Field panel's engine",
+   "checkable": false
+  },
+  {
+   "key": "module.forcefield.infrared",
+   "section": "Modules",
+   "path": "Force Field ▸ IR spectrum...",
+   "shortcut": "",
+   "tip": "Vibrational modes and their IR intensities from a charge model, under the Force Field panel's engine",
+   "checkable": false
+  },
+  {
    "key": "show_dftb",
    "section": "Modules",
    "path": "DFTB+ ▸ DFTB+ panel",
@@ -3841,7 +3857,7 @@
       {
        "name": "engine",
        "label": "Engine",
-       "accepts": "one of ",
+       "accepts": "one of UFF, xTB (GFN), MACE (machine-learned), ORB-v3 (machine-learned), MatterSim (machine-learned), DFTB+",
        "default": "uff",
        "help": "The energy engine.  In the workbench, choosing one chooses it in the Force Field panel, where its options are set."
       },
@@ -4011,7 +4027,7 @@
       {
        "name": "engine",
        "label": "Engine",
-       "accepts": "one of ",
+       "accepts": "one of UFF, xTB (GFN), MACE (machine-learned), ORB-v3 (machine-learned), MatterSim (machine-learned), DFTB+",
        "default": "uff",
        "help": "The energy engine.  In the workbench, choosing one chooses it in the Force Field panel, where its options are set."
       },
@@ -4145,6 +4161,234 @@
      "dialog": "",
      "shell": "optimize",
      "params": []
+    },
+    {
+     "name": "thermo",
+     "label": "Frequencies and thermochemistry...",
+     "tip": "Vibrational modes, and H, S and G from them, under the Force Field panel's engine",
+     "dialog": "thermo",
+     "shell": "",
+     "params": [
+      {
+       "name": "engine",
+       "label": "Engine",
+       "accepts": "one of UFF, xTB (GFN), MACE (machine-learned), ORB-v3 (machine-learned), MatterSim (machine-learned), DFTB+",
+       "default": "uff",
+       "help": "Which energy engine the Hessian is taken under.  The Force Field panel's engine and its options are what the window hands in."
+      },
+      {
+       "name": "system",
+       "label": "System",
+       "accepts": "one of Decide from the structure, Crystal (harmonic solid), Molecule (ideal gas)",
+       "default": "auto",
+       "help": "A molecule alone in a box gets translation, rotation and spin as an ideal gas, and its rotations are projected out of the Hessian; a crystal gets the harmonic solid, and G is its Helmholtz energy."
+      },
+      {
+       "name": "temperature",
+       "label": "Temperature",
+       "accepts": "float, 1 to 5000 K",
+       "default": "298.15",
+       "help": "The temperature the summary table is at."
+      },
+      {
+       "name": "t_min",
+       "label": "Curves from",
+       "accepts": "float, 1 to 5000 K",
+       "default": "10.0",
+       "help": "Where the H, TS, G and Cv curves and thermo.dat start."
+      },
+      {
+       "name": "t_max",
+       "label": "Curves to",
+       "accepts": "float, 1 to 5000 K",
+       "default": "800.0",
+       "help": "Where the curves and thermo.dat end."
+      },
+      {
+       "name": "t_step",
+       "label": "Curve step",
+       "accepts": "float, 0.1 to 1000 K",
+       "default": "10.0",
+       "help": "The spacing of the curves' temperatures."
+      },
+      {
+       "name": "pressure",
+       "label": "Pressure",
+       "accepts": "float, 1e-09 to 1000000 bar",
+       "default": "1.0",
+       "help": "A gas's translational entropy depends on it; a solid's G does not, to the precision anything here is computed."
+      },
+      {
+       "name": "sigma",
+       "label": "Symmetry number",
+       "accepts": "int, 0 to 120",
+       "default": "0",
+       "help": "Rotations that map the molecule onto itself: water 2, methane 12.  0 counts them from the geometry."
+      },
+      {
+       "name": "multiplicity",
+       "label": "Spin multiplicity",
+       "accepts": "int, 1 to 11",
+       "default": "1",
+       "help": "2S + 1 of a molecule's ground state: R ln of it is added to S.  The engine is not told."
+      },
+      {
+       "name": "quasi_rrho",
+       "label": "Quasi-RRHO entropy",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Grimme's correction: below the cutoff a mode's entropy goes over to a free rotor's, where the harmonic one runs away.  Soft modes are counted either way."
+      },
+      {
+       "name": "qrrho_cutoff",
+       "label": "Soft-mode cutoff",
+       "accepts": "float, 1 to 1000 cm-1",
+       "default": "100.0",
+       "help": "Below this a mode is counted as soft, and with quasi-RRHO its entropy goes over to a rotor's."
+      },
+      {
+       "name": "method",
+       "label": "Hessian",
+       "accepts": "one of Automatic, Gamma only, every atom displaced",
+       "default": "auto",
+       "help": "Finite differences of the engine's forces at Gamma: 6 evaluations per free atom and one more."
+      },
+      {
+       "name": "delta",
+       "label": "Displacement",
+       "accepts": "float, 0.0001 to 0.1 A",
+       "default": "0.01",
+       "help": "How far each atom is moved either way.  Small enough that the force is linear in it, large enough that an ML engine's noise stays below the difference."
+      },
+      {
+       "name": "relax_first",
+       "label": "Relax first",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Relax a copy before the Hessian, the cell too for a crystal.  Away from a minimum the modes are the gradient's and some come out imaginary.  The relaxed copy is written as relaxed.cif; the tab is left alone."
+      },
+      {
+       "name": "tolerance",
+       "label": "Force tolerance",
+       "accepts": "float, at least 1e-06 kcal/mol/A",
+       "default": "0.01",
+       "help": "Tighter than an ordinary optimisation: a residual force is a curvature the Hessian cannot tell from a soft mode."
+      },
+      {
+       "name": "max_steps",
+       "label": "Relaxation steps",
+       "accepts": "int, 1 to 100000",
+       "default": "2000",
+       "help": "A ceiling on Relax first.  A relaxation that stops here says so, and the modes then carry what was left."
+      },
+      {
+       "name": "ir",
+       "label": "Also compute the IR spectrum",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Intensities from a charge model over the same Hessian: no extra evaluations with fixed charges."
+      },
+      {
+       "name": "ir_charges",
+       "label": "IR charges",
+       "accepts": "one of Fixed (EQeq, or UFF's own), Re-solved at each displacement",
+       "default": "fixed",
+       "help": "No engine here gives a charge or a dipole, so the intensities come from a charge model and the report names it.  Re-solving EQeq at each displaced geometry follows the charge a polar bond moves as it stretches."
+      },
+      {
+       "name": "ir_fwhm",
+       "label": "Band width",
+       "accepts": "float, 0.5 to 200 cm-1",
+       "default": "10.0",
+       "help": "Full width at half height of each Lorentzian; the Results panel can redraw it."
+      },
+      {
+       "name": "freeze",
+       "label": "Frozen sites",
+       "accepts": "text",
+       "default": "",
+       "help": "Site indices, comma-separated, held still in the relaxation and left out of the Hessian."
+      }
+     ]
+    },
+    {
+     "name": "infrared",
+     "label": "IR spectrum...",
+     "tip": "Vibrational modes and their IR intensities from a charge model, under the Force Field panel's engine",
+     "dialog": "thermo",
+     "shell": "",
+     "params": [
+      {
+       "name": "engine",
+       "label": "Engine",
+       "accepts": "one of UFF, xTB (GFN), MACE (machine-learned), ORB-v3 (machine-learned), MatterSim (machine-learned), DFTB+",
+       "default": "uff",
+       "help": "Which energy engine the Hessian is taken under.  The Force Field panel's engine and its options are what the window hands in."
+      },
+      {
+       "name": "system",
+       "label": "System",
+       "accepts": "one of Decide from the structure, Crystal (harmonic solid), Molecule (ideal gas)",
+       "default": "auto",
+       "help": "A molecule alone in a box gets translation, rotation and spin as an ideal gas, and its rotations are projected out of the Hessian; a crystal gets the harmonic solid, and G is its Helmholtz energy."
+      },
+      {
+       "name": "method",
+       "label": "Hessian",
+       "accepts": "one of Automatic, Gamma only, every atom displaced",
+       "default": "auto",
+       "help": "Finite differences of the engine's forces at Gamma: 6 evaluations per free atom and one more."
+      },
+      {
+       "name": "delta",
+       "label": "Displacement",
+       "accepts": "float, 0.0001 to 0.1 A",
+       "default": "0.01",
+       "help": "How far each atom is moved either way.  Small enough that the force is linear in it, large enough that an ML engine's noise stays below the difference."
+      },
+      {
+       "name": "relax_first",
+       "label": "Relax first",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Relax a copy before the Hessian, the cell too for a crystal.  Away from a minimum the modes are the gradient's and some come out imaginary.  The relaxed copy is written as relaxed.cif; the tab is left alone."
+      },
+      {
+       "name": "tolerance",
+       "label": "Force tolerance",
+       "accepts": "float, at least 1e-06 kcal/mol/A",
+       "default": "0.01",
+       "help": "Tighter than an ordinary optimisation: a residual force is a curvature the Hessian cannot tell from a soft mode."
+      },
+      {
+       "name": "max_steps",
+       "label": "Relaxation steps",
+       "accepts": "int, 1 to 100000",
+       "default": "2000",
+       "help": "A ceiling on Relax first.  A relaxation that stops here says so, and the modes then carry what was left."
+      },
+      {
+       "name": "ir_charges",
+       "label": "IR charges",
+       "accepts": "one of Fixed (EQeq, or UFF's own), Re-solved at each displacement",
+       "default": "fixed",
+       "help": "No engine here gives a charge or a dipole, so the intensities come from a charge model and the report names it.  Re-solving EQeq at each displaced geometry follows the charge a polar bond moves as it stretches."
+      },
+      {
+       "name": "ir_fwhm",
+       "label": "Band width",
+       "accepts": "float, 0.5 to 200 cm-1",
+       "default": "10.0",
+       "help": "Full width at half height of each Lorentzian; the Results panel can redraw it."
+      },
+      {
+       "name": "freeze",
+       "label": "Frozen sites",
+       "accepts": "text",
+       "default": "",
+       "help": "Site indices, comma-separated, held still in the relaxation and left out of the Hessian."
+      }
+     ]
     }
    ]
   },
@@ -4459,7 +4703,7 @@
       {
        "name": "engine",
        "label": "Engine",
-       "accepts": "one of ",
+       "accepts": "one of UFF, xTB (GFN), MACE (machine-learned), ORB-v3 (machine-learned), MatterSim (machine-learned), DFTB+",
        "default": "uff",
        "help": "Which energy engine relaxes each point.  For a flexible framework a machine-learned potential is the better choice: UFF4MOF was never fitted to reproduce a breathing double well."
       },
@@ -4557,7 +4801,7 @@
       {
        "name": "pre_engine",
        "label": "Pre-relax with",
-       "accepts": "one of Nothing",
+       "accepts": "one of Nothing, UFF, xTB (GFN), MACE (machine-learned), ORB-v3 (machine-learned), MatterSim (machine-learned), DFTB+",
        "default": "",
        "help": "A cheaper engine run at every point before the one the landscape is of -- UFF4MOF ahead of MACE, say.  A volume step moves every atom with the cell, and this spends the long walk back at the cheap price.  Only the main engine's energy is reported."
       },
@@ -4587,7 +4831,7 @@
       {
        "name": "engine",
        "label": "Engine",
-       "accepts": "one of ",
+       "accepts": "one of UFF, xTB (GFN), MACE (machine-learned), ORB-v3 (machine-learned), MatterSim (machine-learned), DFTB+",
        "default": "uff",
        "help": "Which energy engine relaxes each point.  For a flexible framework a machine-learned potential is the better choice: UFF4MOF was never fitted to reproduce a breathing double well."
       },
@@ -4657,7 +4901,7 @@
       {
        "name": "pre_engine",
        "label": "Pre-relax with",
-       "accepts": "one of Nothing",
+       "accepts": "one of Nothing, UFF, xTB (GFN), MACE (machine-learned), ORB-v3 (machine-learned), MatterSim (machine-learned), DFTB+",
        "default": "",
        "help": "A cheaper engine run at every point before the one the landscape is of -- UFF4MOF ahead of MACE, say.  A volume step moves every atom with the cell, and this spends the long walk back at the cheap price.  Only the main engine's energy is reported."
       },

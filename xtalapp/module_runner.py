@@ -41,6 +41,8 @@ from xtalapp.document import Document
 from xtalapp.histogram import save_histogram
 from xtalapp.workers import ModuleWorker, start_in_thread
 
+#: Runs the Force Field panel starts and sums up in its own report.
+THERMO_RUNS = ("forcefield.thermo", "forcefield.infrared")
 
 class ModuleRunner(QObject):
     """The one module run that may be going, and what each action was
@@ -261,6 +263,10 @@ class ModuleRunner(QObject):
         self._save_report_images(job, result)
         module_record.close_run(job.folder if job else None, result)
         self._show_report(worker, result)
+        if job is not None and job.label in THERMO_RUNS:
+            dock = getattr(self.window, "ff_dock", None)
+            if dock is not None:
+                dock.thermo_landed(result)
         if result.overlay is not None:
             self._draw_module_overlay(result)
         if getattr(result, "trajectory", None) is not None:
