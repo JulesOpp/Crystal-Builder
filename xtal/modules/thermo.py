@@ -34,6 +34,7 @@ import numpy as np
 
 from xtal.core import molecule, p1, properties
 from xtal.core.lattice import Lattice
+from xtal.ff import infrared as ir
 from xtal.ff import optimize, thermo, vibrations
 from xtal.ff import scan as driver
 from xtal.ff.api import CalculatorStopped
@@ -60,6 +61,21 @@ NARROW = 10.0
 SAVE_EVERY = 5.0
 
 SUMMARY_COLUMNS = ("Quantity", "Per cell", "Per formula unit", "Unit")
+
+IR_PARAMS = (
+    Param("ir_charges", "IR charges", "choice", default="fixed",
+          choices=(("fixed", "Fixed (EQeq, or UFF's own)"),
+                   ("flux", "Re-solved at each displacement")),
+          help="No engine here gives a charge or a dipole, so the "
+               "intensities come from a charge model and the report "
+               "names it.  Re-solving EQeq at each displaced geometry "
+               "follows the charge a polar bond moves as it "
+               "stretches."),
+    Param("ir_fwhm", "Band width", "float", default=10.0, minimum=0.5,
+          maximum=200.0, decimals=1, suffix=" cm-1",
+          help="Full width at half height of each Lorentzian; the "
+               "Results panel can redraw it."),
+)
 
 PARAMS = (
     Param("engine", "Engine", "choice", default="uff",
@@ -121,10 +137,22 @@ PARAMS = (
                "soft mode."),
     Param("max_steps", "Relaxation steps", "int", default=2000,
           minimum=1, maximum=100000),
+    Param("ir", "Also compute the IR spectrum", "bool", default=False,
+          help="Intensities from a charge model over the same "
+               "Hessian: no extra evaluations with fixed charges."),
+    *IR_PARAMS,
     Param("freeze", "Frozen sites", "text", default="",
           help="Site indices, comma-separated, held still in the "
                "relaxation and left out of the Hessian."),
 )
+
+
+#: What only the thermochemistry reads, left out of the IR action's form.
+_THERMO_ONLY = {"temperature", "t_min", "t_max", "t_step", "pressure",
+                "sigma", "multiplicity", "quasi_rrho", "qrrho_cutoff",
+                "ir"}
+
+INFRARED_PARAMS = tuple(p for p in PARAMS if p.name not in _THERMO_ONLY)
 
 
 def frozen_sites(text: str, n_sites: int) -> list[int]:
@@ -154,8 +182,9 @@ def temperatures(job) -> np.ndarray:
     return low + step * np.arange(count)
 
 
-def run_thermo(job) -> JobResult:
-    """Relax a copy, take its Hessian, and report H, S and G."""
+def run_thermo(job, thermochemistry: bool = True) -> JobResult:
+    """Relax a copy, take its Hessian, and report H, S and G -- and
+    the IR spectrum when asked, or only that."""
     from xtal.modules.scan import _engine_said, engine_settings
 
     structure = job.structure.copy()
@@ -172,6 +201,7 @@ def run_thermo(job) -> JobResult:
         kind = "molecule" if molecule.is_isolated(structure) \
             else "crystal"
     said = _engine_said(engine, settings)
+    infrared_too = not thermochemistry or bool(job.param("ir", False))
 
     if bool(job.param("relax_first", True)):
         relax_cell = kind == "crystal"
@@ -218,10 +248,11 @@ def run_thermo(job) -> JobResult:
                     f"missing the branches across the zone")
 
     forces = _Forces(job)
+    calculator = ENGINES.build(engine, structure, **settings)
     try:
         found = vibrations.hessian(
-            ENGINES.build(engine, structure, **settings), structure,
-            kind=kind, delta=float(job.param("delta", vibrations.DELTA)),
+            calculator, structure, kind=kind,
+            delta=float(job.param("delta", vibrations.DELTA)),
             frozen=frozen_atoms, cancel=job.cancel,
             progress=_progress(job, total), record=forces.record)
     except CalculatorStopped:
@@ -229,10 +260,65 @@ def run_thermo(job) -> JobResult:
         return JobResult.stopped(
             f"Stopped after {forces.pairs} of {total // 6} atoms' "
             f"displacements; they are in forces.npz.  No "
-            f"thermochemistry: a Hessian with some of its columns is "
-            f"not one.")
+            f"{'thermochemistry' if thermochemistry else 'spectrum'}: "
+            f"a Hessian with some of its columns is not one.")
     forces.flush()
 
+    block = found.to_modes_block(
+        note="Choose a mode and press Animate to watch it in the "
+             "transport bar.  Negative frequencies are imaginary.")
+    files = {"modes.dat": block.as_dat()}
+    blocks: list = []
+    message = ""
+    if thermochemistry:
+        chosen, curve, sigma = _thermochemistry(job, structure, found,
+                                                kind)
+        blocks += [_summary(chosen, found, kind, sigma, frozen_atoms),
+                   *_curves(curve)]
+        files["thermo.dat"] = thermo.as_dat(curve)
+        message = _message(chosen)
+        job.note(_log_lines(chosen, found, kind, chosen.quasi_rrho,
+                            chosen.cutoff))
+    blocks.append(block)
+    if infrared_too:
+        model = str(job.param("ir_charges", "fixed"))
+        job.say(f"IR intensities from {model} charges")
+        born, source = ir.born_charges(structure, found, model=model,
+                                       calculator=calculator)
+        spectrum = ir.spectrum_block(
+            found, ir.intensities(found, born), source,
+            fwhm=float(job.param("ir_fwhm", ir.FWHM)))
+        blocks.append(spectrum)
+        files["ir.dat"] = spectrum.as_dat()
+        files["ir_broadened.xy"] = spectrum.as_xy()
+        job.note(f"IR: {source}")
+        if not thermochemistry:
+            blocks.insert(0, _modes_summary(found, kind, frozen_atoms,
+                                            source))
+            message = _spectrum_message(found, spectrum, model)
+
+    title = ("Thermochemistry" if thermochemistry else "IR spectrum")
+    report = Report(title=f"{title} ({said})", blocks=tuple(blocks))
+    artifacts = []
+    if job.folder is not None:
+        for name, text in files.items():
+            atomic.write_text(job.file(name), text, encoding="utf-8")
+        save_report(Report(title=report.title, blocks=tuple(
+            b for b in report.blocks if not isinstance(b, Modes))),
+            job.file(REPORT_NAME))
+        artifacts = [job.file(n) for n in (*files, REPORT_NAME)]
+
+    return JobResult(message=message, report=report,
+                     artifacts=tuple(artifacts))
+
+
+def run_infrared(job) -> JobResult:
+    """The modes and their IR spectrum, without the thermochemistry."""
+    return run_thermo(job, thermochemistry=False)
+
+
+def _thermochemistry(job, structure, found, kind):
+    """``(at the chosen temperature, along the curve, sigma)``."""
     z = properties.formula(structure)[1]
     gas = None
     sigma = int(job.param("sigma", 0))
@@ -254,31 +340,38 @@ def run_thermo(job) -> JobResult:
             e_elec=found.energy, gas=gas, quasi_rrho=quasi,
             cutoff=cutoff, z=z)
 
-    chosen = at(float(job.param("temperature", 298.15)))
-    curve = [at(t) for t in temperatures(job)]
-    block = found.to_modes_block(
-        note="Choose a mode and press Animate to watch it in the "
-             "transport bar.  Negative frequencies are imaginary.")
+    return (at(float(job.param("temperature", 298.15))),
+            [at(t) for t in temperatures(job)], sigma)
 
-    report = Report(
-        title=f"Thermochemistry ({said})",
-        blocks=(_summary(chosen, found, kind, sigma, frozen_atoms),
-                *_curves(curve), block))
-    artifacts = []
-    if job.folder is not None:
-        atomic.write_text(job.file("thermo.dat"), thermo.as_dat(curve),
-                          encoding="utf-8")
-        atomic.write_text(job.file("modes.dat"), block.as_dat(),
-                          encoding="utf-8")
-        save_report(Report(title=report.title, blocks=tuple(
-            b for b in report.blocks if not isinstance(b, Modes))),
-            job.file(REPORT_NAME))
-        artifacts = [job.file(n) for n in
-                     ("thermo.dat", "modes.dat", REPORT_NAME)]
-        job.note(_log_lines(chosen, found, kind, quasi, cutoff))
 
-    return JobResult(message=_message(chosen), report=report,
-                     artifacts=tuple(artifacts))
+def _modes_summary(found, kind, frozen_atoms, source) -> Table:
+    imaginary = int(np.count_nonzero(
+        found.frequencies < thermo.IMAGINARY_BELOW))
+    return Table("Summary", (
+        Row("System", "molecule" if kind == "molecule" else "crystal"),
+        Row("Modes", str(len(found.frequencies))),
+        Row("Imaginary modes", str(imaginary),
+            note="" if not imaginary else
+            "An imaginary mode is a direction the energy falls along: "
+            "the structure was not at a minimum.  Relax it first."),
+        Row("Displaced atoms", str(len(found.free)),
+            note="" if not frozen_atoms else
+            f"{len(frozen_atoms)} frozen atoms were not displaced."),
+        Row("Hessian", "Gamma only, finite differences",
+            f"{found.evaluations} evaluations"),
+        Row("Intensities", "charge model", note=source),
+    ))
+
+
+def _spectrum_message(found, spectrum, model) -> str:
+    imaginary = int(np.count_nonzero(
+        found.frequencies < thermo.IMAGINARY_BELOW))
+    strongest = (float(spectrum.frequencies[np.argmax(
+        spectrum.intensities)]) if len(spectrum.frequencies) else 0.0)
+    return (f"{len(spectrum.frequencies)} IR bands, the strongest at "
+            f"{strongest:.0f} cm-1 ({model} charges)"
+            + (f", {imaginary} imaginary -- relax first"
+               if imaginary else ""))
 
 
 def _progress(job, total):

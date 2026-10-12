@@ -155,7 +155,8 @@ def test_the_three_forcefield_entries_moved_unchanged(window):
     entries = [a.text() for a in forcefield.actions()]
     assert entries[:3] == ["&Setup and atom types...",
                            "&Single point energy", "&Optimise geometry"]
-    assert entries[3:] == ["Frequencies and thermochemistry..."]
+    assert entries[3:] == ["Frequencies and thermochemistry...",
+                           "IR spectrum..."]
     # And they are the very same actions, not copies of them.
     assert forcefield.actions()[1] is window.actions_["single_point"]
     assert forcefield.actions()[3] is \

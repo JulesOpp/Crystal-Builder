@@ -78,6 +78,10 @@ class Vibrations:
     energy: float                   # kcal/mol at the reference
     hessian: np.ndarray             # kcal/mol/A^2 over free coords
     evaluations: int
+    #: The mass-weighted eigenvectors, ``(3 x free, mode)``, unit
+    #: length -- what an IR intensity contracts with.  The
+    #: displacements above are scaled for drawing and have lost it.
+    vectors: np.ndarray | None = None
     method: str = "gamma"
     supercell: tuple | None = None
     q_mesh: tuple | None = None
@@ -184,7 +188,7 @@ def hessian(calculator, structure, *, kind: str = "crystal",
         displacements=displacements, masses=masses,
         elements=tuple(cell.elements), cart=cart, lattice=matrix,
         kind=kind, free=free, energy=float(reference.energy),
-        hessian=block, evaluations=done)
+        hessian=block, evaluations=done, vectors=vectors)
 
 
 def _n_markers(cell) -> int:

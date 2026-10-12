@@ -171,3 +171,38 @@ def test_xtal_run_forcefield_thermo_writes_thermo_dat(
     written = list(root.rglob("thermo.dat"))
     assert len(written) == 1
     assert "G(300 K)" in capsys.readouterr().out
+
+
+def test_the_ir_tick_adds_a_spectrum_from_the_same_hessian(
+        tmp_path, rutile):
+    """No second Hessian: the spectrum is the same modes contracted
+    with a charge model, and the files are beside the others."""
+    from xtal.modules.report import Spectrum
+
+    folder = _folder(tmp_path, rutile)
+    result = _run(rutile, folder, ir=True)
+    spectra = [b for b in result.report.blocks
+               if isinstance(b, Spectrum)]
+    assert len(spectra) == 1
+    assert "EQeq" in spectra[0].note or "UFF" in spectra[0].note
+    for name in ("ir.dat", "ir_broadened.xy"):
+        assert (folder.path / name).exists(), name
+    assert any(isinstance(b, Spectrum)
+               for b in load(folder.path / REPORT_NAME).blocks)
+
+
+def test_the_ir_action_skips_the_thermochemistry():
+    from xtal.params import coerce
+
+    _module, action = MODULES.find("forcefield.infrared")
+    names = {p.name for p in action.params}
+    assert "temperature" not in names and "ir_charges" in names
+    job = Job(structure=water(), params=coerce(
+        action.params, {"engine": "uff"}), cancel=Cancellation())
+    job.on_progress = lambda _text: None
+    result = action.run(job)
+    assert result.ok, result.message
+    titles = [getattr(b, "title", "") for b in result.report.blocks]
+    assert "Free energy" not in titles
+    assert "IR spectrum" in titles
+    assert "IR bands" in result.message

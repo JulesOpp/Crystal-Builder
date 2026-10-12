@@ -40,8 +40,8 @@ hides.
 from __future__ import annotations
 
 from xtal.modules.registry import MODULES, Action, Availability, Module
+from xtal.modules.thermo import INFRARED_PARAMS, run_infrared, run_thermo
 from xtal.modules.thermo import PARAMS as THERMO_PARAMS
-from xtal.modules.thermo import run_thermo
 
 
 def _available() -> Availability:
@@ -80,6 +80,11 @@ FORCEFIELD = Module(
                tip="Vibrational modes, and H, S and G from them, under "
                    "the Force Field panel's engine",
                kind="thermo", params=THERMO_PARAMS, run=run_thermo),
+        Action(name="infrared", label="IR spectrum...",
+               tip="Vibrational modes and their IR intensities from a "
+                   "charge model, under the Force Field panel's engine",
+               kind="infrared", params=INFRARED_PARAMS,
+               run=run_infrared),
     ),
 )
 

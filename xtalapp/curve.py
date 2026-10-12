@@ -242,7 +242,7 @@ class CurvePlot(QWidget):
         curve = self.curve
         x = np.asarray(curve.x, dtype=float)
         first = float(x[0])
-        span = max(float(x[-1]) - first, 1e-9)
+        span = _signed_span(first, float(x[-1]))
         across = box.left() + box.width() * (x - first) / span
 
         polylines, pixels = [], []
@@ -274,8 +274,8 @@ class CurvePlot(QWidget):
         combs = []
         for index, (label, positions) in enumerate(curve.tick_sets):
             positions = np.asarray(positions, dtype=float)
-            inside = positions[(positions >= first)
-                               & (positions <= first + span)]
+            low, high = sorted((first, first + span))
+            inside = positions[(positions >= low) & (positions <= high)]
             at = box.left() + box.width() * (inside - first) / span
             high = box.bottom() + 3 + index * COMB_ROW
             combs.append((label, [
@@ -399,11 +399,11 @@ class CurvePlot(QWidget):
                 painter.drawText(QRectF(0, at - 7, LEFT - 6, 14),
                                  Qt.AlignVCenter | Qt.AlignRight,
                                  _tick(value))
-        span = max(last - first, 1e-9)
+        span = _signed_span(first, last)
         grid = QPen(palette.color(palette.ColorRole.Mid))
         grid.setWidth(1)
         grid.setStyle(Qt.DotLine)
-        for value in _ticks(first, last):
+        for value in _ticks(min(first, last), max(first, last)):
             at = box.left() + box.width() * (value - first) / span
             painter.setPen(grid)
             painter.drawLine(QPointF(at, box.top()),
@@ -439,6 +439,19 @@ class CurvePlot(QWidget):
             painter.setPen(color)
             painter.drawText(patch, Qt.AlignCenter, text)
             y += metrics.height()
+
+
+def _signed_span(first: float, last: float) -> float:
+    """``last - first``, kept off zero, with its sign.
+
+    A curve whose x falls is drawn falling from left to right -- an IR
+    spectrum's wavenumbers, which are plotted that way round -- so the
+    span keeps its sign rather than being clamped positive.
+    """
+    span = last - first
+    if abs(span) < 1e-9:
+        return 1e-9
+    return span
 
 
 def save_curve(curve, path, size=SAVE_SIZE, scale: int = 2):
