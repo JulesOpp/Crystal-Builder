@@ -160,6 +160,10 @@ curves in the Results panel.  The Results panel's mode table plays a
 mode with **Animate mode**; a click on the IR band chooses the mode
 under it, and the width box redraws the band without a second run.
 
+An AI assistant runs the same thing as its `thermochemistry` verb,
+which hands back G, H, S and the rest as numbers and says
+`IMAGINARY_MODES` when the structure was not at a minimum.
+
 ## Settings
 
 Every setting, its range and its default are in the generated

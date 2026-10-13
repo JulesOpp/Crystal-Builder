@@ -28,7 +28,7 @@ VERBS = (
     "recalculate_bonds", "add_bond", "remove_bond", "set_bond_type",
     "add_hydrogens", "substitute", "fill_pores", "place_molecule",
     "prepare", "interpenetrate",
-    "energy", "optimize", "run",
+    "energy", "optimize", "thermochemistry", "run",
     "undo", "redo", "save", "export",
 )
 

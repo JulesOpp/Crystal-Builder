@@ -150,6 +150,11 @@ CODES: dict[str, Code] = {
         WARNING, "The geometry is where the optimiser stopped, not a "
                  "minimum. Do not report its energy as one. More "
                  "steps, or check the structure first."),
+    "IMAGINARY_MODES": Code(
+        WARNING, "The structure was not at a minimum where the Hessian "
+                 "was taken, so G is not a minimum's G. Relax first "
+                 "with a tighter tolerance (tolerance=0.001) and run "
+                 "again; do not report the free energy as converged."),
     "SCAN_SIZE": Code(
         INFO, "Each point is a relaxation, so the count is the "
               "cost: a 12x12 grid is hours. Say the size to the "

@@ -301,6 +301,23 @@ workspace. An unconverged run is applied and says `NOT_CONVERGED`.
 The bonds are left as drawn; `BONDING_WOULD_CHANGE` says when the
 relaxation moved atoms into or out of bonding distance.
 
+### `thermochemistry(engine, temperature, system, quasi_rrho, method, relax_first, ir, **options)`
+
+H, S and G from the vibrations: the `forcefield.thermo` run. A copy is
+relaxed (`relax_first=True`; the cell too for a crystal) and its
+Hessian taken; the session is not changed and nothing is on the stack.
+`system` is `auto`, `crystal` (harmonic solid) or `molecule` (ideal
+gas); `method` is `auto`, `gamma`, `phonopy` or `analytic`. `data` has,
+at `temperature`, `g`, `h`, `ts`, `zpe` and `e_elec` in kcal/mol and
+`s`, `cv` in cal/(mol K), per cell (`z` formula units) or per molecule;
+`imaginary_modes`; the report's `tables`; and `run`, whose folder holds
+`thermo.dat` and `modes.dat`. `**options` are the run's own
+(`tolerance`, `supercell`, `freeze`, `pressure` ...;
+`help_for("forcefield.thermo")`) and the engine's (`help_for("mace")`).
+`IMAGINARY_MODES` says the structure was not at a minimum;
+`SIZE_LIMIT` refuses a phonopy supercell or analytic Hessian over the
+limit before anything runs. `ir=True` adds the IR spectrum.
+
 ### `run(action, **params)`
 
 Runs a module action against the structure (`zeopp.volume-grid`,

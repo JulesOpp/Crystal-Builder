@@ -53,6 +53,33 @@ after = s.inspect()
 Markers (`X`) are held back from the engine and stay where they are;
 nothing needs deleting first.
 
+## Free energies
+
+```python
+answer = s.thermochemistry(engine="uff", temperature=298.15)
+print(answer.data["g"], answer.data["s"])   # kcal/mol, cal/(mol K)
+```
+
+A relaxed copy's vibrations summed into H, S and G; the session's
+structure is not changed. A crystal is a harmonic solid (its G is the
+Helmholtz energy, per cell, `z` formula units); an isolated molecule in
+a box is an ideal gas, with its rotations and translation.
+
+1. **`IMAGINARY_MODES`**: the Hessian was taken off a minimum. Those
+   modes are left out of every sum, so G is not a minimum's G. Run
+   again with a tighter `tolerance` (0.001) before reporting it.
+2. **The cost is the Hessian**: six evaluations per free atom by finite
+   differences at Gamma, fewer with `method="phonopy"` where symmetry
+   helps. Under an ML potential that is minutes on a hundred atoms;
+   say so before starting one on a large framework. `SIZE_LIMIT`
+   refuses what would not fit, naming the largest that does.
+3. **A small cell is a Gamma-only estimate.** `method="auto"` takes
+   phonopy's supercell and q-mesh for a crystal when the `phonons`
+   extra is installed; the run's log says which it used.
+4. **Soft modes** carry most of the entropy's uncertainty.
+   `quasi_rrho=True` is Grimme's interpolation for a molecule's
+   low-frequency modes; say which was used when reporting S.
+
 ## Scans
 
 `s.run("scan.run", axis1=..., axis1_start=..., axis1_stop=...,

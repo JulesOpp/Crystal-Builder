@@ -194,6 +194,13 @@ _THERMO_ONLY = {"temperature", "t_min", "t_max", "t_step", "pressure",
 INFRARED_PARAMS = tuple(p for p in PARAMS if p.name not in _THERMO_ONLY)
 
 
+class SizeRefused(ParamError):
+    """Over the hard size limit, before anything ran: the agent's
+    ``SIZE_LIMIT`` rather than a failed run, because the sentence
+    names the largest size that fits and the remedy is a person's
+    decision, not a retry."""
+
+
 def frozen_sites(text: str, n_sites: int) -> list[int]:
     """The site indices ``freeze`` names."""
     out = []
@@ -250,11 +257,15 @@ def run_thermo(job, thermochemistry: bool = True) -> JobResult:
             verdict = check_analytic(structure, frozen)
             if verdict.warned:
                 job.say(verdict.sentence)
+    except SizeRefused as error:
+        return JobResult(message=str(error), ok=False,
+                         warnings=(("SIZE_LIMIT", str(error)),))
     except ParamError as error:
         return JobResult.failure(str(error))
     if why:
         job.say(why)
 
+    warnings = []
     if bool(job.param("relax_first", True)):
         relax_cell = kind == "crystal"
         job.say(f"relaxing a copy on {said}"
@@ -280,6 +291,11 @@ def run_thermo(job, thermochemistry: bool = True) -> JobResult:
         if not result.converged:
             job.say("the relaxation did not reach the force tolerance; "
                     "expect soft or imaginary modes from what is left")
+            warnings.append((
+                "NOT_CONVERGED",
+                f"the relaxation stopped after {result.steps} steps "
+                f"with |F|max {result.max_force:.4f} kcal/mol/A, and "
+                f"the Hessian was taken there"))
         if job.folder is not None:
             from xtal.io import FORMATS
             FORMATS.write(structure, job.file("relaxed.cif"),
@@ -311,9 +327,13 @@ def run_thermo(job, thermochemistry: bool = True) -> JobResult:
     files = {"modes.dat": block.as_dat()}
     blocks: list = []
     message = ""
+    chosen = None
+    imaginary = int(np.count_nonzero(
+        found.frequencies < thermo.IMAGINARY_BELOW))
     if thermochemistry:
         chosen, curve, sigma = _thermochemistry(job, structure, found,
                                                 kind)
+        imaginary = chosen.vibrations.n_imaginary
         blocks += [_summary(chosen, found, kind, sigma, frozen_atoms),
                    *_curves(curve)]
         files["thermo.dat"] = thermo.as_dat(curve)
@@ -349,8 +369,14 @@ def run_thermo(job, thermochemistry: bool = True) -> JobResult:
             job.file(REPORT_NAME))
         artifacts = [job.file(n) for n in (*files, REPORT_NAME)]
 
+    if imaginary:
+        warnings.append((
+            "IMAGINARY_MODES",
+            f"{imaginary} imaginary modes: the structure is not at a "
+            f"minimum, and they are left out of every sum"))
     return JobResult(message=message, report=report,
-                     artifacts=tuple(artifacts))
+                     artifacts=tuple(artifacts), answer=chosen,
+                     warnings=tuple(warnings))
 
 
 def run_infrared(job) -> JobResult:
@@ -415,7 +441,7 @@ def check_analytic(structure, frozen_sites_=()):
     verdict = limits.check_hessian(
         vibrations.free_atoms(structure, atoms))
     if verdict.refused:
-        raise ParamError(verdict.sentence)
+        raise SizeRefused(verdict.sentence)
     return verdict
 
 
@@ -430,7 +456,7 @@ def _check_supercell(structure, asked):
                if not elements.is_dummy(e))
     verdict = limits.check_phonons(real, repeats)
     if verdict.refused:
-        raise ParamError(phonons.said(verdict))
+        raise SizeRefused(phonons.said(verdict))
     return repeats
 
 

@@ -441,6 +441,21 @@ def test_a_relaxation_computes_off_the_gui_thread(qtbot, monkeypatch,
     assert len(document.stack._done) == 1
 
 
+def test_a_thermochemistry_in_the_window_pushes_nothing_to_the_tab(
+        qtbot, tab):
+    """A calculation like any other: computed over a copy on the
+    calling thread, its run filed, and the tab's undo stack untouched
+    -- the relaxation it starts with is of a copy."""
+    document, session = tab
+    answer = _in_a_thread(qtbot, lambda: session.thermochemistry(
+        method="gamma", tolerance=0.05))
+    assert answer.ok, answer
+    assert answer.data["g"] == pytest.approx(
+        answer.data["h"] - answer.data["ts"])
+    assert answer.data["document"]
+    assert not document.stack._done
+
+
 def test_an_agent_calculation_is_counted_so_quitting_asks_first(
         window, tab):
     """has_running_calculation is what quitting asks and what the
