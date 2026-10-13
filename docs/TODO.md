@@ -60,8 +60,9 @@ porous-materials user:
   writer is the pattern.
 - **Open metal sites** (S-M): a Colour by entry and a selection from
   the coordination the graph already gives.
-- **MD and phonons on the ASE engines** (L): NVT/NPT with MACE, ORB
-  and MatterSim; finite-difference modes as DFTB+ has.
+- **MD on the ASE engines** (L): NVT/NPT with MACE, ORB and
+  MatterSim.  (Their modes and phonons are Force Field ▸ Frequencies
+  and thermochemistry, through phonopy.)
 - **A movie of a trajectory** (S-M): the player exists; frames to
   MP4/GIF.
 - **Batch mode for the CLI** (S-M): `convert`, `inspect` and `run`

@@ -94,6 +94,14 @@ pxrd = ["matplotlib>=3.7"]
 # bridge reads more of it than the top-level names -- a release that
 # moves one should fail the bridge's tests, not a user's refinement.
 refine = ["rietx>=1.5,<1.6"]
+# Phonons for Force Field > Frequencies and thermochemistry: phonopy
+# (BSD-3) displaces only the atoms the space group does not already
+# relate and samples a small cell's branches on a q-mesh -- MOF-5
+# needs 19 displacements where the Gamma path makes 637, which is
+# what makes the ML engines usable for it.  Without it every atom is
+# displaced at Gamma and the dialog says what installing this buys.
+# From 2.20 for the `mesh` result object and `save(settings=...)`.
+phonons = ["phonopy>=2.20"]
 # The MACE engine, and the heaviest thing this project can be asked to
 # install: mace-torch brings torch, which is gigabytes of wheel and
 # platform-specific about how it wants to arrive (CPU, CUDA, mps).
@@ -137,7 +145,7 @@ docs = ["sphinx>=7", "myst-parser>=3", "sphinxcontrib-bibtex>=2.6",
 # layer is written against FastMCP.  From 1.30, the release the suite
 # was run against: nothing older has been tried.
 mcp = ["mcp>=1.30,<2"]
-dev = ["crystal-builder[gui,ase,build,pxrd,refine,mcp,test]",
+dev = ["crystal-builder[gui,ase,build,pxrd,refine,phonons,mcp,test]",
        "ruff==0.16.9", "pyinstaller>=6"]
 
 [project.scripts]

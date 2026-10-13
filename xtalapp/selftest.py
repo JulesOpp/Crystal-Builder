@@ -471,6 +471,53 @@ def check_powder(report) -> None:
                f"{100 * fit.rwp:.2f} %")
 
 
+def check_phonons(report) -> None:
+    """phonopy finds rutile's symmetry and its modes, in this build.
+
+    Rutile under UFF, unrelaxed, a 3x3x4 supercell and four
+    displacements, about half a second: its count is what symmetry
+    buys, and its Gamma frequencies must be the ones every atom
+    displaced gives -- the C or Rust kernels and spglib all have to
+    be there for both.  Skipped in a checkout without the ``phonons``
+    extra; a bundle without it fails.
+    """
+    from xtal.ff import phonons
+    from xtalapp import extras
+
+    if not phonons.installed():
+        if extras.frozen():
+            raise AssertionError(
+                "phonopy is missing, but the extras page says phonons "
+                "are bundled")
+        report("phonopy: not installed in this checkout, skipped")
+        return
+
+    import numpy as np
+
+    from xtal.core.lattice import Lattice
+    from xtal.core.structure import Structure
+    from xtal.ff import vibrations
+    from xtal.ff.registry import ENGINES
+
+    rutile = Structure.from_arrays(
+        Lattice.from_parameters(4.594, 4.594, 2.959, 90, 90, 90),
+        ["Ti", "O"], [[0, 0, 0], [0.3053, 0.3053, 0]],
+        space_group="P4_2/mnm")
+    found = phonons.phonopy_vibrations(
+        lambda cell: ENGINES.build("uff", cell), rutile,
+        supercell="1 1 1")
+    every = vibrations.hessian(ENGINES.build("uff", rutile), rutile)
+    worst = float(np.abs(found.frequencies - every.frequencies).max())
+    report(f"phonopy: {found.evaluations} evaluations for rutile "
+           f"against {every.evaluations}, Gamma within {worst:.3f} "
+           f"cm-1")
+    if found.evaluations >= every.evaluations or worst > 1.0:
+        raise AssertionError(
+            f"phonopy took {found.evaluations} evaluations and its "
+            f"Gamma frequencies are {worst:.2f} cm-1 from every atom "
+            f"displaced's")
+
+
 def check_carbon_builder(report) -> None:
     """The disordered-carbon builder builds, in this build.
 
@@ -710,6 +757,7 @@ def run(shot: Path | None = None, out=None) -> int:
         ("xtal launcher",
          lambda r: r(check_launcher(Path(sys.executable)))),
         ("powder refinement", check_powder),
+        ("phonons", check_phonons),
         ("window and 3D view", lambda r: check_window(r, shot)),
     ]
 

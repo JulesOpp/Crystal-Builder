@@ -11,17 +11,23 @@ action's own generated form, with the rows that only a molecule reads
 the structure as one.
 
 **One line says the cost before Run.**  A Hessian is 6 evaluations a
-free atom and one more, and one evaluation of MOF-5 under MACE is
-nearly a second, so the line times one single point of the structure
-in front and multiplies -- once the dialog is on screen, so a slow
-engine's first call does not hold the dialog closed.
+free atom and one more -- or, with phonopy, one per displacement the
+symmetry leaves -- and one evaluation of MOF-5 under MACE is nearly a
+second, so the line times one single point of the structure in front
+and multiplies -- once the dialog is on screen, so a slow engine's
+first call does not hold the dialog closed.  A phonopy supercell's
+point is the cell's times its repeats, which is close enough to say.
+
+**Without phonopy its rows are greyed**, the choice in *Hessian* too,
+and a line says what installing the ``phonons`` extra buys, with
+Preferences > Engines one click away; Automatic is then Gamma only.
 """
 
 from __future__ import annotations
 
 import time
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -32,9 +38,10 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.core import molecule
-from xtal.ff import vibrations
+from xtal.ff import phonons, vibrations
 from xtal.ff.registry import ENGINES
-from xtal.modules.thermo import frozen_sites
+from xtal.modules.thermo import choose_method, frozen_sites
+from xtal.params import ParamError
 from xtalapp import manual
 from xtalapp.dialogs.answered import answered
 from xtalapp.dialogs.module_form import ParamForm
@@ -53,6 +60,9 @@ from xtalapp.widgets.tone import HINT, set_tone
 #: The rows a crystal never reads.
 MOLECULE_ONLY = ("sigma", "multiplicity", "pressure")
 
+#: The rows only a phonopy run reads.
+PHONOPY_ONLY = ("supercell", "mesh")
+
 
 class ThermoDialog(QDialog):
     """Ask for a thermochemistry (or IR) run on the panel's engine."""
@@ -70,6 +80,7 @@ class ThermoDialog(QDialog):
         self.isolated = (self.structure is not None
                          and molecule.is_isolated(self.structure))
         self._seconds: dict = {}
+        self._plans: dict = {}
 
         self.engine = QComboBox()
         for engine in ENGINES:
@@ -88,6 +99,19 @@ class ThermoDialog(QDialog):
             # Proposed, not imposed: the box can always be changed.
             self._select(system, "molecule")
 
+        self.phonopy_note = QLabel(
+            "phonopy is not installed, so every atom is displaced at "
+            "Gamma.  The phonons extra adds symmetry-reduced "
+            "displacements and a q-mesh -- the command to install it "
+            'is on <a href="engines">Preferences &gt; Engines</a>')
+        self.phonopy_note.setWordWrap(True)
+        self.phonopy_note.setTextFormat(Qt.TextFormat.RichText)
+        self.phonopy_note.linkActivated.connect(self._show_engines)
+        set_tone(self.phonopy_note, HINT)
+        self.phonopy_note.setVisible(not phonons.installed())
+        if not phonons.installed():
+            self._grey_phonopy()
+
         self.estimate = QLabel("")
         self.estimate.setWordWrap(True)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok |
@@ -105,6 +129,7 @@ class ThermoDialog(QDialog):
         inner.addWidget(self.engine_stack)
         inner.addWidget(self.availability)
         inner.addWidget(self.form)
+        inner.addWidget(self.phonopy_note)
         inner.addStretch(1)
         layout = QVBoxLayout(self)
         layout.addWidget(scrolling(_wrapped(inner)))
@@ -128,6 +153,32 @@ class ThermoDialog(QDialog):
         if chosen == "auto":
             return "molecule" if self.isolated else "crystal"
         return chosen
+
+    def _grey_phonopy(self) -> None:
+        """The phonopy choice and its rows, disabled where it is not
+        installed."""
+        method = self.form.widgets.get("method")
+        if method is not None:
+            index = method.findData("phonopy")
+            item = method.model().item(index) if index >= 0 else None
+            if item is not None:
+                item.setEnabled(False)
+            if method.currentData() == "phonopy":
+                self._select(method, "auto")
+        for name in PHONOPY_ONLY:
+            widget = self.form.widgets.get(name)
+            if widget is not None:
+                widget.setEnabled(False)
+
+    def _show_engines(self, _link="") -> None:
+        show = getattr(self.window, "show_preferences", None)
+        if show is not None:
+            show("engines")
+
+    def method(self, frozen=()) -> str:
+        """``phonopy`` or ``gamma``, as the run will decide it."""
+        asked = str(self.form.values().get("method", "auto"))
+        return choose_method(asked, self.system(), frozen)[0]
 
     def _engine_changed(self) -> None:
         name = str(self.engine.currentData())
@@ -162,28 +213,71 @@ class ThermoDialog(QDialog):
             set_tone(self.estimate, HINT)
             ok.setEnabled(False)
             return
+        try:
+            method = self.method(frozen)
+        except ParamError as error:
+            self.estimate.setText(str(error))
+            set_tone(self.estimate, HINT)
+            ok.setEnabled(False)
+            return
+        for name in PHONOPY_ONLY:
+            widget = self.form.widgets.get(name)
+            if widget is not None:
+                layout.setRowVisible(widget, method == "phonopy"
+                                     or not phonons.installed())
         ok.setEnabled(True)
         self.estimate.setStyleSheet("")
-        self.estimate.setText(self.cost(frozen))
+        try:
+            self.estimate.setText(self.cost(frozen, method))
+        except (ValueError, ParamError) as error:
+            self.estimate.setText(str(error))
+            set_tone(self.estimate, HINT)
+            ok.setEnabled(False)
 
-    def cost(self, frozen=()) -> str:
-        """``N evaluations x t s ≈ total (Gamma only, every atom)``."""
+    def cost(self, frozen=(), method="gamma") -> str:
+        """``N evaluations x t s ≈ total (how)``: Gamma only with
+        every atom displaced, or phonopy's displacements in its
+        supercell.  Raises ``ValueError`` for a supercell refused."""
         from xtal.core import p1
 
-        cell = p1.expand(self.structure)
-        atoms = [i for i in range(cell.n_atoms)
-                 if int(cell.site_idx[i]) in set(frozen)]
-        count = vibrations.evaluations(self.structure, atoms)
-        what = "Gamma only, every free atom displaced"
+        scale = 1
+        if method == "phonopy":
+            ahead = self.phonopy_plan()
+            if ahead.verdict.refused:
+                raise ValueError(phonons.said(ahead.verdict))
+            count = ahead.evaluations
+            scale = int(ahead.supercell[0] * ahead.supercell[1]
+                        * ahead.supercell[2])
+            n = "x".join(str(v) for v in ahead.supercell)
+            what = f"phonopy, supercell {n}"
+        else:
+            cell = p1.expand(self.structure)
+            atoms = [i for i in range(cell.n_atoms)
+                     if int(cell.site_idx[i]) in set(frozen)]
+            count = vibrations.evaluations(self.structure, atoms)
+            what = "Gamma only, every free atom displaced"
         seconds = self._seconds.get(self._engine_key())
         if seconds is None:
             return f"{count} evaluations ({what}); timing one..."
+        seconds *= scale
         relax = (" plus the relaxation"
                  if self.form.values().get("relax_first") else "")
         total = count * seconds
         spelled = "under a second" if total < 1.0 else _spell(total)
         return (f"{count} evaluations x {seconds:.2g} s ≈ "
                 f"{spelled}{relax} ({what})")
+
+    def phonopy_plan(self) -> phonons.Plan:
+        """phonopy's plan for the supercell and step asked, kept: it
+        finds the symmetry, which on MFU-4l is most of a second, and
+        the form refreshes on every keystroke."""
+        values = self.form.values()
+        key = (str(values.get("supercell", "auto")),
+               float(values.get("delta", vibrations.DELTA)))
+        if key not in self._plans:
+            self._plans[key] = phonons.plan(self.structure, key[0],
+                                            delta=key[1])
+        return self._plans[key]
 
     def _engine_key(self):
         return (str(self.engine.currentData()),

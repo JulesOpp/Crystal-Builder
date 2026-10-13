@@ -32,10 +32,10 @@ import time
 
 import numpy as np
 
-from xtal.core import molecule, p1, properties
+from xtal.core import elements, limits, molecule, p1, properties
 from xtal.core.lattice import Lattice
 from xtal.ff import infrared as ir
-from xtal.ff import optimize, thermo, vibrations
+from xtal.ff import optimize, phonons, thermo, vibrations
 from xtal.ff import scan as driver
 from xtal.ff.api import CalculatorStopped
 from xtal.ff.registry import (
@@ -131,9 +131,26 @@ PARAMS = (
                "quasi-RRHO its entropy goes over to a rotor's."),
     Param("method", "Hessian", "choice", default="auto",
           choices=(("auto", "Automatic"),
-                   ("gamma", "Gamma only, every atom displaced")),
-          help="Finite differences of the engine's forces at Gamma: "
-               "6 evaluations per free atom and one more."),
+                   ("phonopy", "phonopy, by symmetry"),
+                   ("gamma", "Gamma only, every atom")),
+          help="Finite differences of the engine's forces either way.  "
+               "phonopy displaces only the atoms and directions the "
+               "space group does not already relate, and samples a "
+               "small cell's branches across the zone; Gamma only "
+               "displaces every free atom, 6 evaluations each, and is "
+               "what a molecule or frozen atoms take.  Automatic is "
+               "phonopy where it is installed and can be used."),
+    Param("supercell", "Supercell", "text", default="auto",
+          help="For phonopy: auto repeats the cell until it is "
+               f"{phonons.MIN_WIDTH:g} A across in every direction; "
+               "three counts (2 2 1) choose; gamma uses the cell "
+               "alone."),
+    Param("mesh", "q-mesh density", "float", default=phonons.MESH,
+          minimum=1.0, maximum=1000.0, decimals=0, suffix=" A",
+          help="For phonopy with a supercell: the points along each "
+               "reciprocal axis are about this over the cell length.  "
+               "The mode table and the IR spectrum are Gamma's either "
+               "way."),
     Param("delta", "Displacement", "float", default=vibrations.DELTA,
           minimum=1e-4, maximum=0.1, decimals=4, suffix=" A",
           help="How far each atom is moved either way.  Small enough "
@@ -168,7 +185,7 @@ PARAMS = (
 #: What only the thermochemistry reads, left out of the IR action's form.
 _THERMO_ONLY = {"temperature", "t_min", "t_max", "t_step", "pressure",
                 "sigma", "multiplicity", "quasi_rrho", "qrrho_cutoff",
-                "ir"}
+                "ir", "supercell", "mesh"}
 
 INFRARED_PARAMS = tuple(p for p in PARAMS if p.name not in _THERMO_ONLY)
 
@@ -220,6 +237,15 @@ def run_thermo(job, thermochemistry: bool = True) -> JobResult:
             else "crystal"
     said = _engine_said(engine, settings)
     infrared_too = not thermochemistry or bool(job.param("ir", False))
+    try:
+        method, why = choose_method(str(job.param("method", "auto")),
+                                    kind, frozen)
+        if method == "phonopy" and thermochemistry:
+            _check_supercell(structure, job.param("supercell", "auto"))
+    except ParamError as error:
+        return JobResult.failure(str(error))
+    if why:
+        job.say(why)
 
     if bool(job.param("relax_first", True)):
         relax_cell = kind == "crystal"
@@ -254,33 +280,19 @@ def run_thermo(job, thermochemistry: bool = True) -> JobResult:
     cell = p1.expand(structure)
     frozen_atoms = [i for i in range(cell.n_atoms)
                     if int(cell.site_idx[i]) in frozen]
-    total = vibrations.evaluations(structure, frozen_atoms)
-    job.say(f"{kind}: {total} evaluations on {said} (Gamma only, "
-            f"every free atom displaced by "
-            f"{float(job.param('delta', vibrations.DELTA))} A)")
-    if kind == "crystal":
-        widths = molecule._perpendicular_widths(structure.lattice.matrix)
-        if widths.min() < NARROW:
-            job.say(f"the cell is {widths.min():.1f} A across at its "
-                    f"narrowest: S and G are a Gamma-only estimate, "
-                    f"missing the branches across the zone")
-
-    forces = _Forces(job)
-    calculator = ENGINES.build(engine, structure, **settings)
-    try:
-        found = vibrations.hessian(
-            calculator, structure, kind=kind,
-            delta=float(job.param("delta", vibrations.DELTA)),
-            frozen=frozen_atoms, cancel=job.cancel,
-            progress=_progress(job, total), record=forces.record)
-    except CalculatorStopped:
-        forces.flush()
-        return JobResult.stopped(
-            f"Stopped after {forces.pairs} of {total // 6} atoms' "
-            f"displacements; they are in forces.npz.  No "
-            f"{'thermochemistry' if thermochemistry else 'spectrum'}: "
-            f"a Hessian with some of its columns is not one.")
-    forces.flush()
+    delta = float(job.param("delta", vibrations.DELTA))
+    what = "thermochemistry" if thermochemistry else "spectrum"
+    if method == "phonopy":
+        found = _by_phonopy(job, structure, engine, settings, said,
+                            delta, what, thermochemistry)
+    else:
+        found = _at_gamma(job, structure, engine, settings, said, kind,
+                          delta, frozen_atoms, what)
+    if isinstance(found, JobResult):
+        return found
+    calculator = None
+    if infrared_too:
+        calculator = ENGINES.build(engine, structure, **settings)
 
     block = found.to_modes_block(
         note="Choose a mode and press Animate to watch it in the "
@@ -294,7 +306,7 @@ def run_thermo(job, thermochemistry: bool = True) -> JobResult:
         blocks += [_summary(chosen, found, kind, sigma, frozen_atoms),
                    *_curves(curve)]
         files["thermo.dat"] = thermo.as_dat(curve)
-        message = _message(chosen)
+        message = _message(chosen, found)
         job.note(_log_lines(chosen, found, kind, chosen.quasi_rrho,
                             chosen.cutoff))
     blocks.append(block)
@@ -335,6 +347,136 @@ def run_infrared(job) -> JobResult:
     return run_thermo(job, thermochemistry=False)
 
 
+def choose_method(asked: str, kind: str, frozen=()) -> tuple[str, str]:
+    """``(method, what to say about it)``: phonopy or gamma, from what
+    was asked, what is installed and what the structure is.  Raises
+    :class:`ParamError` when phonopy was asked for by name and cannot
+    be had."""
+    if asked == "gamma":
+        return "gamma", ""
+    if asked not in ("auto", "phonopy"):
+        raise ParamError(f"method is auto, phonopy or gamma, not "
+                         f"{asked!r}")
+    named = asked == "phonopy"
+    if kind == "molecule":
+        return "gamma", ("a molecule takes the Gamma-only Hessian: "
+                         "crystal symmetry has nothing to save there"
+                         if named else "")
+    if frozen:
+        if named:
+            raise ParamError(
+                "phonopy cannot hold atoms still -- its symmetry moves "
+                "every one; choose Gamma only to freeze sites")
+        return "gamma", ""
+    if not phonons.installed():
+        if named:
+            raise ParamError("phonopy is not installed; "
+                             + phonons.install_hint())
+        return "gamma", ("phonopy is not installed, so every atom is "
+                         "displaced at Gamma; "
+                         + phonons.install_hint())
+    return "phonopy", ""
+
+
+def _check_supercell(structure, asked):
+    """The repeats, refused here (before any relaxation) when they
+    are over the size limit."""
+    try:
+        repeats = phonons.supercell_of(structure, asked)
+    except ValueError as error:
+        raise ParamError(f"supercell: {error}") from None
+    real = sum(1 for e in p1.expand(structure).elements
+               if not elements.is_dummy(e))
+    verdict = limits.check_phonons(real, repeats)
+    if verdict.refused:
+        raise ParamError(phonons.said(verdict))
+    return repeats
+
+
+def _at_gamma(job, structure, engine, settings, said, kind, delta,
+              frozen_atoms, what):
+    """Every free atom displaced at Gamma; a :class:`JobResult` if
+    stopped."""
+    total = vibrations.evaluations(structure, frozen_atoms)
+    job.say(f"{kind}: {total} evaluations on {said} (Gamma only, "
+            f"every free atom displaced by {delta} A)")
+    if kind == "crystal":
+        widths = molecule._perpendicular_widths(structure.lattice.matrix)
+        if widths.min() < NARROW:
+            job.say(f"the cell is {widths.min():.1f} A across at its "
+                    f"narrowest: S and G are a Gamma-only estimate, "
+                    f"missing the branches across the zone")
+
+    forces = _Forces(job)
+    calculator = ENGINES.build(engine, structure, **settings)
+    try:
+        found = vibrations.hessian(
+            calculator, structure, kind=kind, delta=delta,
+            frozen=frozen_atoms, cancel=job.cancel,
+            progress=_progress(job, total), record=forces.record)
+    except CalculatorStopped:
+        forces.flush()
+        return JobResult.stopped(
+            f"Stopped after {forces.pairs} of {total // 6} atoms' "
+            f"displacements; they are in forces.npz.  No {what}: a "
+            f"Hessian with some of its columns is not one.")
+    forces.flush()
+    return found
+
+
+def _by_phonopy(job, structure, engine, settings, said, delta, what,
+                thermochemistry=True):
+    """phonopy's displacements, its force constants and, with a
+    supercell, its q-mesh; a :class:`JobResult` if stopped or
+    refused.  A spectrum alone is Gamma's, which the cell's own force
+    constants already sum exactly: a supercell would only cost."""
+    asked = (job.param("supercell", "auto") if thermochemistry
+             else "gamma")
+    try:
+        ahead = phonons.plan(structure, asked, delta=delta)
+    except ValueError as error:
+        return JobResult.failure(str(error))
+    if ahead.verdict.refused:
+        return JobResult.failure(phonons.said(ahead.verdict))
+    n = "x".join(str(v) for v in ahead.supercell)
+    job.say(f"crystal: phonopy, supercell {n} ({ahead.atoms} atoms), "
+            f"{ahead.displacements} displacements by {delta} A on "
+            f"{said}")
+    if ahead.verdict.warned:
+        job.say(phonons.said(ahead.verdict))
+    if ahead.supercell == (1, 1, 1):
+        widths = molecule._perpendicular_widths(structure.lattice.matrix)
+        if widths.min() < NARROW:
+            job.say(f"the cell is {widths.min():.1f} A across at its "
+                    f"narrowest and no supercell was asked for: S and "
+                    f"G are a Gamma-only estimate")
+
+    forces = _Displaced(job)
+    try:
+        found = phonons.phonopy_vibrations(
+            lambda big: ENGINES.build(engine, big, **settings),
+            structure, supercell=asked,
+            mesh=float(job.param("mesh", phonons.MESH)), delta=delta,
+            cancel=job.cancel,
+            progress=_progress(job, ahead.evaluations),
+            record=forces.record,
+            save=(job.file("phonopy_params.yaml")
+                  if job.folder is not None else None))
+    except CalculatorStopped:
+        forces.flush()
+        return JobResult.stopped(
+            f"Stopped after {len(forces.forces)} of "
+            f"{ahead.displacements} displacements; they are in "
+            f"forces.npz.  No {what}: force constants from some of "
+            f"the displacements are not force constants.")
+    except ValueError as error:
+        return JobResult.failure(str(error))
+    forces.flush()
+    if found.q_mesh is not None:
+        job.say("q-mesh " + "x".join(str(v) for v in found.q_mesh))
+    return found
+
+
 def _thermochemistry(job, structure, found, kind):
     """``(at the chosen temperature, along the curve, sigma)``."""
     z = properties.formula(structure)[1]
@@ -352,14 +494,27 @@ def _thermochemistry(job, structure, found, kind):
     quasi = bool(job.param("quasi_rrho", False))
     cutoff = float(job.param("qrrho_cutoff", thermo.QRRHO_CUTOFF))
 
+    frequencies, weights = found.sampled()
+
     def at(t):
         return thermo.thermochemistry(
-            found.frequencies, found.weights, temperature=float(t),
+            frequencies, weights, temperature=float(t),
             e_elec=found.energy, gas=gas, quasi_rrho=quasi,
             cutoff=cutoff, z=z)
 
     return (at(float(job.param("temperature", 298.15))),
             [at(t) for t in temperatures(job)], sigma)
+
+
+def hessian_said(found) -> str:
+    """How the Hessian was taken, as the summary and the log say it."""
+    if found.method != "phonopy":
+        return "Gamma only, finite differences"
+    n = "x".join(str(v) for v in found.supercell or (1, 1, 1))
+    if found.q_mesh is None:
+        return f"phonopy, Gamma only (supercell {n})"
+    mesh = "x".join(str(v) for v in found.q_mesh)
+    return f"phonopy, supercell {n}, q-mesh {mesh}"
 
 
 def _modes_summary(found, kind, frozen_atoms, source) -> Table:
@@ -375,7 +530,7 @@ def _modes_summary(found, kind, frozen_atoms, source) -> Table:
         Row("Displaced atoms", str(len(found.free)),
             note="" if not frozen_atoms else
             f"{len(frozen_atoms)} frozen atoms were not displaced."),
-        Row("Hessian", "Gamma only, finite differences",
+        Row("Hessian", hessian_said(found),
             f"{found.evaluations} evaluations"),
         Row("Intensities", "charge model", note=source),
     ))
@@ -442,6 +597,32 @@ class _Forces:
                          minus=np.array(self.minus))
 
 
+class _Displaced(_Forces):
+    """phonopy's displaced supercells' forces, in its own atom order
+    (eV/A, as phonopy reads them), kept the same way."""
+
+    def __init__(self, job):
+        super().__init__(job)
+        self.steps: list[np.ndarray] = []
+        self.forces: list[np.ndarray] = []
+
+    def record(self, index, step, forces) -> None:
+        self.steps.append(step)
+        self.forces.append(forces)
+        if time.monotonic() - self._last > SAVE_EVERY:
+            self.flush()
+
+    def flush(self) -> None:
+        self._last = time.monotonic()
+        if self.job.folder is None:
+            return
+        path = self.job.file("forces.npz")
+        with atomic.replacing(path) as partial:
+            with open(partial, "wb") as handle:
+                np.savez(handle, displacement=np.array(self.steps),
+                         forces=np.array(self.forces))
+
+
 def _summary(result, found, kind, sigma, frozen_atoms) -> Table:
     t = result.temperature
     vib = result.vibrations
@@ -471,7 +652,8 @@ def _summary(result, found, kind, sigma, frozen_atoms) -> Table:
         quantity(f"G({t:g} K)", result.g, "kcal/mol", g_note),
         quantity("S", result.s, "cal/(mol K)"),
         quantity("Cv", result.cv, "cal/(mol K)"),
-        Row.of("Modes summed", str(vib.n_used), "", ""),
+        Row.of("Modes summed", str(vib.n_used), "", "",
+               note=_mesh_note(found)),
         Row.of("Imaginary modes", str(vib.n_imaginary), "", "",
                note=imaginary_note),
         Row.of("Zero modes", str(vib.n_zero), "", "",
@@ -487,7 +669,7 @@ def _summary(result, found, kind, sigma, frozen_atoms) -> Table:
         Row.of("Displaced atoms", str(len(found.free)), "", "",
                note="" if not frozen_atoms else
                f"{len(frozen_atoms)} frozen atoms were not displaced."),
-        Row.of("Hessian", "Gamma only, finite differences", "",
+        Row.of("Hessian", hessian_said(found), "",
                f"{found.evaluations} evaluations"),
     ]
     if kind == "molecule":
@@ -495,6 +677,18 @@ def _summary(result, found, kind, sigma, frozen_atoms) -> Table:
     return Table("Summary", tuple(rows), columns=SUMMARY_COLUMNS,
                  note=f"Per cell, Z = {result.z}." if kind == "crystal"
                  else "Per molecule.")
+
+
+def _mesh_note(found) -> str:
+    """Counts over a q-mesh are its entries, a cell's worth of modes
+    at each of its irreducible points; say so where they are."""
+    if found.mesh_frequencies is None:
+        return ""
+    branches = max(len(found.frequencies), 1)
+    points = len(found.mesh_frequencies) // branches
+    return (f"Counted over the q-mesh: {branches} branches at each of "
+            f"{points} irreducible points, each weighed by its share "
+            f"of the zone.  The mode table is Gamma's.")
 
 
 def _curves(results) -> list[Curve]:
@@ -520,18 +714,31 @@ def _curves(results) -> list[Curve]:
     ]
 
 
-def _message(result) -> str:
+def _message(result, found=None) -> str:
     t = result.temperature
     g = result.per_unit(result.g)
     unit = "per formula unit" if result.kind == "crystal" \
         else "per molecule"
     vib = result.vibrations
     tail = []
+    meshed = found is not None and found.mesh_frequencies is not None
     if vib.n_soft:
-        tail.append(f"{vib.n_soft} modes below "
-                    f"{result.cutoff:g} cm-1")
+        if meshed:
+            # Entries of a mesh are not modes of the cell: its share
+            # of the zone is what reads.
+            frequencies, weights = found.sampled()
+            soft = (frequencies > thermo.ZERO_BELOW) \
+                & (frequencies < result.cutoff)
+            share = weights[soft].sum() / weights.sum()
+            tail.append(f"{share:.0%} of the modes below "
+                        f"{result.cutoff:g} cm-1")
+        else:
+            tail.append(f"{vib.n_soft} modes below "
+                        f"{result.cutoff:g} cm-1")
     if vib.n_imaginary:
-        tail.append(f"{vib.n_imaginary} imaginary -- relax first")
+        tail.append(("imaginary modes on the q-mesh" if meshed else
+                     f"{vib.n_imaginary} imaginary")
+                    + " -- relax first")
     return (f"G({t:g} K) = {g:.3f} kcal/mol {unit}"
             + (", " + ", ".join(tail) if tail else ""))
 
@@ -539,7 +746,7 @@ def _message(result) -> str:
 def _log_lines(result, found, kind, quasi, cutoff) -> str:
     vib = result.vibrations
     return "\n".join([
-        f"system: {kind}; method: Gamma only, finite differences, "
+        f"system: {kind}; method: {hessian_said(found)}, "
         f"{found.evaluations} evaluations",
         f"modes: {vib.n_used} summed, {vib.n_imaginary} imaginary "
         f"(below {thermo.IMAGINARY_BELOW:g} cm-1), {vib.n_zero} zero "

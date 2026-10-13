@@ -28,7 +28,23 @@ atom is moved 0.01 Å either way along each axis, which is six
 evaluations per atom and one more at the start.  The matrix is
 symmetrised, divided by the masses, and diagonalised; its eigenvalues
 are the squared frequencies, and a negative one is an *imaginary*
-mode.  Only the Γ point is taken, every atom of the cell displaced.
+mode.
+
+```{index} single: phonopy
+```
+
+*Hessian* says how many displacements that takes.  With the `phonons`
+extra installed, **phonopy** {cite}`togo2023phonopy` displaces only
+the atoms and directions the space group does not already relate and
+fills in every other column by symmetry: MOF-5 needs 19 displacements
+where displacing every atom takes 637.  A cell narrower than 10 Å is
+repeated into a supercell at least that wide, and the thermochemistry
+is summed over a Γ-centred q-mesh of the whole zone; the mode table
+and the IR spectrum are Γ's either way.  **Gamma only** displaces
+every free atom, needs nothing installed, and is what a molecule in a
+box and a run with frozen sites always take.  *Automatic* is phonopy
+where it is installed and can be used.  Whichever it was, the
+summary's **Hessian** row names it.
 
 The rigid motions are projected out rather than left to the
 differences: a crystal's three translations, and a molecule's three
@@ -78,12 +94,19 @@ model's; the spectrum's note says which.
 - Read the **Imaginary modes** row first.  Imaginary modes are left
   out of $G$ and counted, and a non-zero count means $G$ is not a
   minimum's $G$.
-- A small cell is a Γ-only estimate: the run log says so when the
-  cell is narrower than 10 Å.  The acoustic and low optic branches
-  across the zone are what a solid's entropy is made of, and Γ alone
-  misses them.
+- Without phonopy a small cell is a Γ-only estimate, and the run log
+  says so when the cell is narrower than 10 Å.  The acoustic and low
+  optic branches across the zone are what a solid's entropy is made
+  of, and Γ alone misses them.  With phonopy the supercell is chosen
+  for you; *Supercell* takes three counts (`2 2 1`) or `gamma` to
+  choose otherwise, and one too large for **Large structures** in
+  Preferences is refused with the largest that fits.
+- With a q-mesh, the **Modes summed**, **Soft modes** and
+  **Imaginary modes** rows count entries over the mesh's points, not
+  modes of the cell; the row's note says how many points.
 - The cost is said before **Run**: the dialog times one evaluation of
-  the structure in front and multiplies by the count.
+  the structure in front and multiplies by the count, and by the
+  supercell's size for phonopy.
 
 ## Worked example
 
@@ -93,30 +116,35 @@ Quartz from the simple samples, under UFF, with the IR spectrum:
 $ xtal run forcefield.thermo resources/samples/simple/quartz.cif -p engine=uff -p ir=true
 relaxing a copy on UFF (uff4mof), cell included
 relaxed: converged after 16 steps: -2.8185 kcal/mol to -26.1465, |F|max 0.0003 kcal/mol/A, cell -2.05% by volume
-crystal: 55 evaluations on UFF (uff4mof) (Gamma only, every free atom displaced by 0.01 A)
-the cell is 4.2 A across at its narrowest: S and G are a Gamma-only estimate, missing the branches across the zone
+crystal: phonopy, supercell 3x3x2 (162 atoms), 18 displacements by 0.01 A on UFF (uff4mof)
+q-mesh 24x24x19
 IR intensities from fixed charges
-G(298.15 K) = 0.031 kcal/mol per formula unit
+G(298.15 K) = -0.171 kcal/mol per formula unit, 1% of the modes below 100 cm-1
 
 Summary
-Quantity           Per cell                        Per formula unit  Unit
-E (electronic)                           -26.1465           -8.7155  kcal/mol
-Zero-point energy                         27.3505            9.1168  kcal/mol
-H(298.15 K)                                3.4205            1.1402  kcal/mol
-T S(298.15 K)                              3.3275            1.1092  kcal/mol
-G(298.15 K)                                0.0930            0.0310  kcal/mol
-S                                         11.1604            3.7201  cal/(mol K)
-Imaginary modes                                 0
-Zero modes                                      3
+Quantity           Per cell                                   Per formula unit  Unit
+E (electronic)                                      -26.1465           -8.7155  kcal/mol
+Zero-point energy                                    27.9428            9.3143  kcal/mol
+H(298.15 K)                                           5.2127            1.7376  kcal/mol
+T S(298.15 K)                                         5.7255            1.9085  kcal/mol
+G(298.15 K)                                          -0.5127           -0.1709  kcal/mol
+S                                                    19.2034            6.4011  cal/(mol K)
+Imaginary modes                                            0
+Hessian            phonopy, supercell 3x3x2, q-mesh 24x24x19                    19 evaluations
 ```
 
-The entropy per SiO₂ is well below what a calorimeter measures for
-quartz, which is the Γ-only warning two lines above it made concrete:
-a three-formula-unit cell 4.2 Å across has nine atoms' worth of
-branches and samples them at one point.
+Nineteen evaluations of a 162-atom supercell, under two seconds.  The
+same run with *Hessian* set to **Gamma only** takes 55 evaluations of
+the cell and gives 3.72 cal/(mol K) per SiO₂: a three-formula-unit
+cell 4.2 Å across samples its branches at one point, and the q-mesh
+is what brings the entropy towards the 9.9 cal/(mol K) a calorimeter
+measures for quartz.  What is left of the gap is UFF's.
 
 The run folder holds `relaxed.cif`, `forces.npz` (each displacement's
-forces, written as they finish), `modes.dat`, `thermo.dat` (every
+forces, written as they finish), `phonopy_params.yaml` when phonopy
+was used -- phonopy's own record of the cell, the displacements and
+the force constants, for its band structure or DOS --
+`modes.dat`, `thermo.dat` (every
 temperature of the curves, in kcal and kJ), `ir.dat`,
 `ir_broadened.xy` and `report.json`, which reopens the tables and
 curves in the Results panel.  The Results panel's mode table plays a
@@ -131,11 +159,15 @@ reference: {ref}`mod-forcefield-thermo` and
 
 ## Limitations
 
-- Γ only, by finite differences.  Symmetry-reduced displacements and a
-  q-mesh for small cells are planned.
+- By finite differences either way: no engine's analytic Hessian is
+  used.
+- Frozen sites need **Gamma only**: phonopy's symmetry moves every
+  atom.
 - Harmonic about one minimum: no anharmonicity, and no thermal
   expansion -- the cell is the relaxed 0 K one.
 - Stop keeps the forces reached and gives no thermochemistry: a
   Hessian with some of its columns is not one.
+- The IR spectrum is Γ's, with no LO-TO splitting: the long-range
+  field of a polar crystal is not included.
 - No Raman: it needs derivatives of the polarisability, which no
   engine provides.

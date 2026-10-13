@@ -268,6 +268,7 @@ because the reversal is only legible against it:
 | **rdkit** (~107 MB) | **yes** | Buys two whole features — build from SMILES, and the sketcher.  Greying out *Draw* in a GUI-only distribution hides Phase U from exactly the people it was for. |
 | **rdeditor** | ~~yes~~ **gone** | The sketcher is our own widget over RDKit now (`xtalapp/widgets/sketcher/`). |
 | **ase** (20 MB installed, **1.4 MB in the bundle**) | ~~no~~ **yes** | Was "nothing in this tree imports it".  The vendored PORMAKE does, throughout.  It is traced and not collected whole, so what it costs is the 200 modules of its 1218 the builder reaches — measured, see `COLLECT` in `bundle.py`. |
+| **phonopy** (~8 MB with `phonors`; h5py ~7 MB more where tracing reaches it) | **yes** | The `phonons` extra: symmetry-reduced displacements and a q-mesh for Force Field ▸ Frequencies and thermochemistry.  Collected whole with its Rust kernels, because phonopy falls back from a missing kernel without a word; `--selftest` runs rutile through it. |
 | **pormake** | ~~no~~ **vendored** | Was 44 packages, ~889 MB, `jax` and `pymatgen`, and a ten-second import, for one dialog.  All three are gone. |
 
 "Repeat `pip install 'crystal-builder[mof]'` in a nicer dialog" is not

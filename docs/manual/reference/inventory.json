@@ -4249,9 +4249,23 @@
       {
        "name": "method",
        "label": "Hessian",
-       "accepts": "one of Automatic, Gamma only, every atom displaced",
+       "accepts": "one of Automatic, phonopy, by symmetry, Gamma only, every atom",
        "default": "auto",
-       "help": "Finite differences of the engine's forces at Gamma: 6 evaluations per free atom and one more."
+       "help": "Finite differences of the engine's forces either way.  phonopy displaces only the atoms and directions the space group does not already relate, and samples a small cell's branches across the zone; Gamma only displaces every free atom, 6 evaluations each, and is what a molecule or frozen atoms take.  Automatic is phonopy where it is installed and can be used."
+      },
+      {
+       "name": "supercell",
+       "label": "Supercell",
+       "accepts": "text",
+       "default": "auto",
+       "help": "For phonopy: auto repeats the cell until it is 10 A across in every direction; three counts (2 2 1) choose; gamma uses the cell alone."
+      },
+      {
+       "name": "mesh",
+       "label": "q-mesh density",
+       "accepts": "float, 1 to 1000 A",
+       "default": "100.0",
+       "help": "For phonopy with a supercell: the points along each reciprocal axis are about this over the cell length.  The mode table and the IR spectrum are Gamma's either way."
       },
       {
        "name": "delta",
@@ -4335,9 +4349,9 @@
       {
        "name": "method",
        "label": "Hessian",
-       "accepts": "one of Automatic, Gamma only, every atom displaced",
+       "accepts": "one of Automatic, phonopy, by symmetry, Gamma only, every atom",
        "default": "auto",
-       "help": "Finite differences of the engine's forces at Gamma: 6 evaluations per free atom and one more."
+       "help": "Finite differences of the engine's forces either way.  phonopy displaces only the atoms and directions the space group does not already relate, and samples a small cell's branches across the zone; Gamma only displaces every free atom, 6 evaluations each, and is what a molecule or frozen atoms take.  Automatic is phonopy where it is installed and can be used."
       },
       {
        "name": "delta",

@@ -134,10 +134,60 @@ def test_the_estimate_counts_the_evaluations_and_times_one(
         qtbot, window, tmp_path, rutile):
     _open(window, tmp_path, rutile)
     dialog = _dialog(qtbot, window)
+    dialog.form.set_values({"method": "gamma"})
     dialog.time_one_evaluation()
     text = dialog.estimate.text()
     assert "37 evaluations x" in text
     assert "Gamma only" in text
+
+
+def test_with_phonopy_the_estimate_counts_its_displacements(
+        qtbot, window, tmp_path, rutile):
+    """Rutile's four evaluations (three displacements and the
+    reference) in a 3x3x4 supercell; the estimate saying 37 would
+    put somebody off the route that is ten times cheaper."""
+    pytest.importorskip("phonopy")
+    _open(window, tmp_path, rutile)
+    dialog = _dialog(qtbot, window)
+    dialog.form.set_values({"method": "phonopy"})
+    dialog.time_one_evaluation()
+    text = dialog.estimate.text()
+    assert "4 evaluations x" in text
+    assert "phonopy, supercell 3x3x4" in text
+    assert dialog.form.widgets["supercell"].isVisibleTo(dialog)
+    dialog.form.set_values({"method": "gamma"})
+    assert not dialog.form.widgets["supercell"].isVisibleTo(dialog)
+
+
+def test_a_supercell_over_the_limit_is_said_and_run_is_disabled(
+        qtbot, window, tmp_path, rutile):
+    pytest.importorskip("phonopy")
+    from PySide6.QtWidgets import QDialogButtonBox
+
+    _open(window, tmp_path, rutile)
+    dialog = _dialog(qtbot, window)
+    dialog.form.set_values({"method": "phonopy",
+                            "supercell": "30 30 30"})
+    assert "phonon supercell would have" in dialog.estimate.text()
+    assert not dialog.buttons.button(
+        QDialogButtonBox.Ok).isEnabled()
+
+
+def test_without_phonopy_the_phonopy_rows_are_greyed_and_name_the_extra(
+        qtbot, window, tmp_path, rutile, monkeypatch):
+    from xtal.ff import phonons
+
+    monkeypatch.setattr(phonons, "installed", lambda: False)
+    _open(window, tmp_path, rutile)
+    dialog = _dialog(qtbot, window)
+    method = dialog.form.widgets["method"]
+    item = method.model().item(method.findData("phonopy"))
+    assert not item.isEnabled()
+    assert not dialog.form.widgets["supercell"].isEnabled()
+    assert dialog.phonopy_note.isVisibleTo(dialog)
+    assert "phonons extra" in dialog.phonopy_note.text()
+    assert "Preferences &gt; Engines" in dialog.phonopy_note.text()
+    assert dialog.method() == "gamma"
 
 
 def test_the_panel_button_is_disabled_during_an_optimisation(window):

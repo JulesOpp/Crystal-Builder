@@ -51,6 +51,10 @@ BUDGETS = {
     "supercell": (50_000, 200_000),
     "grid": (1_500_000, 4_000_000),
     "carbon": (10_000, 30_000),
+    # A phonopy supercell is evaluated once per displacement, so its
+    # size is an engine's single point many times over: 2,000 atoms
+    # is a few seconds a point under an ML engine on a laptop.
+    "phonons": (2_000, 8_000),
 }
 
 OK, WARN, REFUSE = "ok", "warn", "refuse"
@@ -221,3 +225,10 @@ def check_carbon(recipe, profile=None) -> Verdict:
     return _judge("carbon", estimate, profile,
                   "the build would have {} atoms",
                   lambda limit: _cube_that_fits(per_cell, limit))
+
+
+def check_phonons(n_atoms: int, p, profile=None) -> Verdict:
+    return _judge("phonons", supercell_atoms(n_atoms, p), profile,
+                  "the phonon supercell would have {} atoms",
+                  lambda limit: _cube_that_fits(n_atoms, limit)
+                  + ", or Gamma only needs none")

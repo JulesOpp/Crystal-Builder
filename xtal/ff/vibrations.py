@@ -85,6 +85,20 @@ class Vibrations:
     method: str = "gamma"
     supercell: tuple | None = None
     q_mesh: tuple | None = None
+    #: A q-mesh's frequencies and their weights (each point's share of
+    #: one cell, so they sum to one per branch), where the
+    #: thermochemistry is to be summed over more than Gamma; the
+    #: fields above are Gamma's, which the mode table and the IR
+    #: spectrum read whatever was sampled.
+    mesh_frequencies: np.ndarray | None = None
+    mesh_weights: np.ndarray | None = None
+
+    def sampled(self) -> tuple[np.ndarray, np.ndarray]:
+        """``(frequencies, weights)`` the thermochemistry sums: the
+        q-mesh where there is one, Gamma otherwise."""
+        if self.mesh_frequencies is not None:
+            return self.mesh_frequencies, self.mesh_weights
+        return self.frequencies, self.weights
 
     def to_modes_block(self, title: str = "Vibrational modes",
                        note: str = ""):
@@ -134,7 +148,6 @@ def hessian(calculator, structure, *, kind: str = "crystal",
     cell = p1.expand(structure)
     matrix = np.asarray(structure.lattice.matrix, float)
     cart = np.asarray(cell.cart, float)
-    masses = masses_of(cell.elements)
     free = _free_atoms(cell, frozen)
     total = 6 * len(free) + 1
     done = 0
@@ -163,6 +176,31 @@ def hessian(calculator, structure, *, kind: str = "crystal",
                 record(int(atom), axis, plus, minus)
             block[:, 3 * column + axis] = -(
                 plus[free] - minus[free]).ravel() / (2.0 * delta)
+    return from_hessian(structure, block, kind=kind, free=free,
+                        energy=float(reference.energy),
+                        evaluations=done)
+
+
+def from_hessian(structure, block, *, kind: str = "crystal", free=None,
+                 energy: float = 0.0, evaluations: int = 0,
+                 **extra) -> Vibrations:
+    """The Gamma-point modes of a Hessian ``block`` (kcal/mol/A^2)
+    over the ``free`` P1 atoms (all the real ones by default),
+    whichever way it was taken: symmetrised, mass-weighted with each
+    site's own isotope, the rigid motions projected out when nothing
+    is held, and diagonalised.  ``extra`` fills the remaining fields
+    of :class:`Vibrations`."""
+    cell = p1.expand(structure)
+    matrix = np.asarray(structure.lattice.matrix, float)
+    cart = np.asarray(cell.cart, float)
+    masses = masses_of(cell.elements)
+    free = _free_atoms(cell, ()) if free is None \
+        else np.asarray(free, int)
+    n = len(free)
+    block = np.asarray(block, float)
+    if block.shape != (3 * n, 3 * n):
+        raise ValueError(f"a Hessian over {n} atoms is {3 * n} square, "
+                         f"not {block.shape}")
     block = 0.5 * (block + block.T)
 
     m = np.repeat(masses[free], 3)
@@ -187,8 +225,9 @@ def hessian(calculator, structure, *, kind: str = "crystal",
         frequencies=frequencies, weights=np.ones(len(frequencies)),
         displacements=displacements, masses=masses,
         elements=tuple(cell.elements), cart=cart, lattice=matrix,
-        kind=kind, free=free, energy=float(reference.energy),
-        hessian=block, evaluations=done, vectors=vectors)
+        kind=kind, free=free, energy=float(energy),
+        hessian=block, evaluations=int(evaluations), vectors=vectors,
+        **extra)
 
 
 def _n_markers(cell) -> int:
